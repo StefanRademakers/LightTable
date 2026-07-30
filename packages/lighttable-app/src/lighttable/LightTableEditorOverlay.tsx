@@ -64,6 +64,7 @@ import {
   type ReferenceDifferenceMetrics
 } from './application/rendering/rendererTypes';
 import { createDocumentRendererLifecycleBridge } from './editor/documents/createDocumentRendererLifecycleBridge';
+import { createEditorDocumentOpenRequest } from './editor/documents/createEditorDocumentOpenRequest';
 import {
   createWebGpuDocumentRenderer,
   type DocumentRendererPort
@@ -840,12 +841,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       logTimings: (timings) => console.info('[LightTable startup]', timings)
     });
 
-    return {
+    return createEditorDocumentOpenRequest({
       createRenderer: () => createWebGpuDocumentRenderer(
         canvas,
         rendererBridge.callbacks
       ),
-      loadSource: (signal) => resolveDocumentSource({
+      resolveSource: (signal) => resolveDocumentSource({
         inlineSource: initialSourceBlob,
         projectId,
         sourceFileKey: editorSourceFileKey,
@@ -862,20 +863,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           task.signal
         );
       },
-      onRendererReady: (createdEngine, elapsedMs) => {
-        engineRef.current = createdEngine;
-        rendererBridge.onRendererReady(createdEngine, elapsedMs);
+      rendererSlot: {
+        get: () => engineRef.current,
+        set: (renderer) => {
+          engineRef.current = renderer;
+        }
       },
-      onRendererDiscarded: (discardedEngine) => {
-        if (engineRef.current === discardedEngine) engineRef.current = null;
-        rendererBridge.onRendererDiscarded(discardedEngine);
-      },
-      onSourceReady: (_source, elapsedMs) => {
-        rendererBridge.onSourceReady(elapsedMs);
-      },
-      onFailed: rendererBridge.onFailed,
-      onSettled: rendererBridge.onSettled
-    };
+      lifecycleBridge: rendererBridge
+    });
   }, [
     appendDebugMessage,
     editorSourceFileKey,

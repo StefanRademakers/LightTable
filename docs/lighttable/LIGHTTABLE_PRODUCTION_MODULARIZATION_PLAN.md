@@ -1331,3 +1331,6 @@ The refactor is successful when:
 - [x] Give every document-open generation fresh adjustment, editor, scope and
       group-visibility baselines; replacement opens and inactive documents
       cannot share mutable defaults through the composition root.
+- [x] Centralize renderer publication, source resolution, hydration and
+      retirement wiring in one editor document-open request factory; stale
+      renderer disposal cannot clear a replacement generation's renderer slot.
