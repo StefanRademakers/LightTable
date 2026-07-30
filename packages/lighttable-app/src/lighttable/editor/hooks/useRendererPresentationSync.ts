@@ -1,6 +1,7 @@
 import { useEffect, type MutableRefObject } from 'react';
 import type { WebGpuScopeOptions } from '../../gpu/WebGpuScopeEngine';
 import type { ScopeSettings, ScopeVisibility } from '../../scopes';
+import type { LensBlurViewportMode } from '../config/adjustmentControls';
 
 export interface RendererPresentationPort {
   setBefore(enabled: boolean): void;
@@ -9,6 +10,7 @@ export interface RendererPresentationPort {
     histogramVisible: boolean,
     options: WebGpuScopeOptions
   ): void;
+  setLensBlurDepthVisualization(enabled: boolean): void;
 }
 
 export const createScopeRendererOptions = (
@@ -32,6 +34,7 @@ interface RendererPresentationSyncOptions<
   readonly rendererRef: MutableRefObject<Renderer | null>;
   readonly showOriginal: boolean;
   readonly showDifference: boolean;
+  readonly lensBlurViewportMode: LensBlurViewportMode;
   readonly scopeVisibility: ScopeVisibility;
   readonly scopeSettings: ScopeSettings;
   readonly scopeVisibilityRef: MutableRefObject<ScopeVisibility>;
@@ -48,6 +51,7 @@ export const useRendererPresentationSync = <
   rendererRef,
   showOriginal,
   showDifference,
+  lensBlurViewportMode,
   scopeVisibility,
   scopeSettings,
   scopeVisibilityRef,
@@ -57,6 +61,12 @@ export const useRendererPresentationSync = <
     rendererRef.current?.setBefore(showOriginal);
     rendererRef.current?.setDifference(showDifference);
   }, [rendererRef, showDifference, showOriginal]);
+
+  useEffect(() => {
+    rendererRef.current?.setLensBlurDepthVisualization(
+      lensBlurViewportMode === 'depth'
+    );
+  }, [lensBlurViewportMode, rendererRef]);
 
   useEffect(() => {
     scopeVisibilityRef.current = scopeVisibility;

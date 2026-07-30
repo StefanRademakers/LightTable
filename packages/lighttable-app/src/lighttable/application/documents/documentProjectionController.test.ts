@@ -11,6 +11,7 @@ const createFixture = () => {
   let document = createImageDocument('Fixture', 16, 9, 'fixture');
   let documentAdjustments = createDefaultAdjustments();
   let editorAdjustments = documentAdjustments;
+  let groupVisibility = createDefaultGroupVisibility();
   const publishRendererDocument = vi.fn();
   const publishRendererAdjustments = vi.fn();
   const port: DocumentProjectionPort = {
@@ -25,7 +26,10 @@ const createFixture = () => {
     publishEditorAdjustments: (next) => {
       editorAdjustments = next;
     },
-    getGroupVisibility: createDefaultGroupVisibility,
+    getGroupVisibility: () => groupVisibility,
+    publishGroupVisibility: (next) => {
+      groupVisibility = next;
+    },
     publishRendererDocument,
     publishRendererAdjustments
   };
@@ -34,6 +38,7 @@ const createFixture = () => {
     getDocument: () => document,
     getDocumentAdjustments: () => documentAdjustments,
     getEditorAdjustments: () => editorAdjustments,
+    getGroupVisibility: () => groupVisibility,
     publishRendererDocument,
     publishRendererAdjustments
   };
@@ -69,5 +74,25 @@ describe('createDocumentProjectionController', () => {
     expect(fixture.getEditorAdjustments()).toEqual(nextAdjustments);
     expect(fixture.publishRendererDocument).not.toHaveBeenCalled();
     expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
+  });
+
+  it('reprojects renderer adjustments when a presentation group is bypassed', () => {
+    const fixture = createFixture();
+    const visibility = {
+      ...fixture.getGroupVisibility(),
+      color: false
+    };
+
+    fixture.controller.applyGroupVisibilitySnapshot(visibility);
+
+    expect(fixture.getGroupVisibility()).toEqual(visibility);
+    expect(fixture.publishRendererDocument).not.toHaveBeenCalled();
+    expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
+    expect(fixture.publishRendererAdjustments.mock.calls[0]?.[0]).toMatchObject({
+      temperature: 0,
+      tint: 0,
+      vibrance: 0,
+      saturation: 0
+    });
   });
 });

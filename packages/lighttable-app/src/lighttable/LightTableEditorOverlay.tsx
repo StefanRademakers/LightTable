@@ -102,7 +102,6 @@ import {
   useDocumentViewportState
 } from './editor/hooks/useDocumentEditorState';
 import {
-  applyGroupVisibility,
   createDefaultGroupVisibility,
   type GroupVisibility
 } from './application/adjustments/groupVisibility';
@@ -463,6 +462,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setAdjustments(nextAdjustments);
       },
       getGroupVisibility: () => groupVisibilityRef.current,
+      publishGroupVisibility: (visibility) => {
+        groupVisibilityRef.current = visibility;
+        setGroupVisibility(visibility);
+      },
       publishRendererDocument: (document) => {
         engineRef.current?.setDocument(document);
       },
@@ -572,16 +575,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getAdjustments: () => adjustmentsRef.current,
     getGroupVisibility: () => groupVisibilityRef.current,
     publishGroupVisibility: (visibility) => {
-      groupVisibilityRef.current = visibility;
-      setGroupVisibility(visibility);
-      engineRef.current?.setAdjustments(
-        applyGroupVisibility(adjustmentsRef.current, visibility)
-      );
+      documentProjectionController.applyGroupVisibilitySnapshot(visibility);
     },
     setFocusPickerActive,
     publishLensBlurViewportMode: (mode) => {
       setLensBlurViewportModeState(mode);
-      engineRef.current?.setLensBlurDepthVisualization(mode === 'depth');
     },
     getSourceName: () => sourceName,
     publishGradeStatus: setGradeStatus
@@ -682,7 +680,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setSelectionClipboardAvailable(false);
           setFeatherDialogOpen(false);
           setLensBlurViewportModeState('result');
-          engineRef.current?.setLensBlurDepthVisualization(false);
           clearEditorHistory();
           setHistogram(null);
           setZoomMode('fit');
@@ -904,6 +901,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererRef: engineRef,
     showOriginal,
     showDifference,
+    lensBlurViewportMode,
     scopeVisibility,
     scopeSettings,
     scopeVisibilityRef,

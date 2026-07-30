@@ -1367,3 +1367,6 @@ The refactor is successful when:
 - [x] Give source import one document-bound application controller; renderer
       availability, decode/hydration ordering, cancellation and atomic
       publication can no longer be reassembled by UI or host code.
+- [x] Route grade-group bypass and Lens Blur result/depth presentation through
+      dedicated projection/synchronization boundaries; UI commands no longer
+      compose renderer adjustments or toggle renderer presentation directly.

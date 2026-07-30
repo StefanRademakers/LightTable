@@ -16,6 +16,7 @@ export interface DocumentProjectionPort {
   publishDocumentAdjustments(adjustments: BasicAdjustments): void;
   publishEditorAdjustments(adjustments: BasicAdjustments): void;
   getGroupVisibility(): GroupVisibility;
+  publishGroupVisibility(visibility: GroupVisibility): void;
   publishRendererDocument(document: ImageDocument): void;
   publishRendererAdjustments(adjustments: BasicAdjustments): void;
 }
@@ -26,6 +27,7 @@ export interface DocumentProjectionController {
     targetLayerId?: LayerId | null
   ): void;
   applyDocumentSnapshot(document: ImageDocument): void;
+  applyGroupVisibilitySnapshot(visibility: GroupVisibility): void;
 }
 
 /**
@@ -71,6 +73,10 @@ export const createDocumentProjectionController = (
     applyDocumentSnapshot: (document) => {
       port.publishDocument(document);
       port.publishRendererDocument(document);
+      publishRendererAdjustments();
+    },
+    applyGroupVisibilitySnapshot: (visibility) => {
+      port.publishGroupVisibility(visibility);
       publishRendererAdjustments();
     }
   };
