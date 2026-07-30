@@ -39,9 +39,9 @@ import { calculateOutputTransformSettings } from '../outputTransform';
 import {
   cloneAdjustmentStack,
   createAdjustmentStackFromBasicAdjustments,
-  materializeBasicAdjustments,
   type AdjustmentStack
 } from '../processing/adjustmentStack';
+import { evaluateAdjustmentStack } from '../processing/adjustmentEvaluator';
 import { WebGpuScopeEngine, type WebGpuScopeOptions } from './WebGpuScopeEngine';
 import {
   requestSharedWebGpuDevice,
@@ -1011,12 +1011,16 @@ export class WebGpuEngine {
       adjustments,
       this.adjustmentStack
     );
-    this.applyMaterializedAdjustments(materializeBasicAdjustments(this.adjustmentStack));
+    this.applyMaterializedAdjustments(
+      evaluateAdjustmentStack(this.adjustmentStack, { scope: 'document-creative' }).adjustments
+    );
   }
 
   setAdjustmentStack(stack: AdjustmentStack) {
     this.adjustmentStack = cloneAdjustmentStack(stack);
-    this.applyMaterializedAdjustments(materializeBasicAdjustments(this.adjustmentStack));
+    this.applyMaterializedAdjustments(
+      evaluateAdjustmentStack(this.adjustmentStack, { scope: 'document-creative' }).adjustments
+    );
   }
 
   getAdjustmentStack() {
@@ -1377,7 +1381,10 @@ export class WebGpuEngine {
         encoder,
         this.imageDocument,
         (layerEncoder, source, layer) => {
-          const layerAdjustments = materializeBasicAdjustments(layer.adjustmentStack);
+          const layerAdjustments = evaluateAdjustmentStack(
+            layer.adjustmentStack,
+            { scope: 'adjustment-layer' }
+          ).adjustments;
           // Queue writes are not encoded into command-buffer order. Give every
           // Adjustment Layer its own uniforms/LUT so multiple layers cannot
           // observe the final layer's settings. The large image work textures

@@ -1,10 +1,12 @@
 import { cloneAdjustments, createDefaultAdjustments, type BasicAdjustments } from '../types';
 import {
-  CURRENT_PROCESSING_MODULES,
   type CurrentAdjustmentSettingsPath,
-  type CurrentProcessingModuleType,
   type ProcessingScope
 } from './moduleDefinitions';
+import {
+  currentProcessingModuleRegistry,
+  type ProcessingModuleRegistry
+} from './processingModuleRegistry';
 
 export interface AdjustmentModuleInstance {
   /** Stable identity for selection, history and future node references. */
@@ -34,9 +36,6 @@ const cloneValue = <T>(value: T): T => {
 
 const valuesEqual = (left: unknown, right: unknown) =>
   JSON.stringify(left) === JSON.stringify(right);
-
-const isCurrentModuleType = (type: string): type is CurrentProcessingModuleType =>
-  CURRENT_PROCESSING_MODULES.some((definition) => definition.type === type);
 
 const readSetting = (
   adjustments: BasicAdjustments,
@@ -81,16 +80,13 @@ export const cloneAdjustmentStack = (stack: AdjustmentStack): AdjustmentStack =>
 
 export const adjustmentStackForScope = (
   stack: AdjustmentStack,
-  scope: 'layer' | 'adjustment-layer' | 'group' | 'document-creative' | 'document-output'
+  scope: 'layer' | 'adjustment-layer' | 'group' | 'document-creative' | 'document-output',
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
 ): AdjustmentStack => ({
   ...cloneAdjustmentStack(stack),
   modules: stack.modules
     .filter((module) => {
-      const definition = CURRENT_PROCESSING_MODULES.find(({ type }) => type === module.type);
-      return Boolean(
-        definition
-        && (definition.allowedScopes as readonly ProcessingScope[]).includes(scope)
-      );
+      return registry.allows(module.type, scope);
     })
     .map((module) => ({
       ...module,
@@ -109,7 +105,7 @@ export const createAdjustmentStackFromBasicAdjustments = (
   createId: AdjustmentIdFactory = defaultIdFactory
 ): AdjustmentStack => {
   let changed = !previous;
-  const currentModules = CURRENT_PROCESSING_MODULES.map((definition) => {
+  const currentModules = currentProcessingModuleRegistry.definitions().map((definition) => {
     const settings = settingsForModule(adjustments, definition.settingsPaths);
     const existing = previous?.modules.find((module) => module.type === definition.type);
     if (existing && existing.enabled && valuesEqual(existing.settings, settings)) {
@@ -138,12 +134,16 @@ export const createAdjustmentStackFromBasicAdjustments = (
  * Current evaluator bridge. A later graph evaluator will execute these
  * modules directly instead of materializing the legacy aggregate object.
  */
-export const materializeBasicAdjustments = (stack: AdjustmentStack): BasicAdjustments => {
+export const materializeBasicAdjustments = (
+  stack: AdjustmentStack,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry,
+  scope?: ProcessingScope
+): BasicAdjustments => {
   const result = createDefaultAdjustments();
-  for (const module of stack.modules) {
-    if (!module.enabled || !isCurrentModuleType(module.type)) continue;
-    const definition = CURRENT_PROCESSING_MODULES.find(({ type }) => type === module.type);
-    if (!definition) continue;
+  const modulesByType = new Map(stack.modules.map((module) => [module.type, module]));
+  for (const definition of registry.definitions()) {
+    const module = modulesByType.get(definition.type);
+    if (!module?.enabled || (scope && !definition.allowedScopes.includes(scope))) continue;
     for (const path of definition.settingsPaths) {
       if (Object.prototype.hasOwnProperty.call(module.settings, path)) {
         writeSetting(result, path, module.settings[path]);

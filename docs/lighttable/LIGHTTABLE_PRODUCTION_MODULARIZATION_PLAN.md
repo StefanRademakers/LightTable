@@ -982,6 +982,10 @@ Progress:
       module instead of being declared inside the overlay.
 - [x] Centralize document effect ownership, lifecycle and authoritative stage
       order outside the concrete engine.
+- [x] Validate processing-module registration, settings ownership, scope
+      support and deterministic evaluator ordering.
+- [x] Route document and adjustment-layer grade evaluation through the shared
+      processing evaluator while retaining the current combined shader.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator.
 
