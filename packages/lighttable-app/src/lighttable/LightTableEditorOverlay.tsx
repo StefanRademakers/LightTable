@@ -22,7 +22,8 @@ import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
 import { prepareDocumentSource } from './application/documents/prepareDocumentSource';
-import { DocumentOpenController } from './application/documents/documentOpenController';
+import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpenLifecycle';
+import type { DocumentOpenRequest } from './application/documents/documentOpenController';
 import { exportLightTableDocument } from './application/documents/exportLightTableDocument';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
@@ -781,16 +782,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   }, [clearEditorHistory, resetLensBlurDepth]);
 
-  useEffect(() => {
-    if (!open || !canvasRef.current || !hueDistributionCanvasRef.current ||
-      !colorMixerHueCanvasRef.current ||
-      !paradeCanvasRef.current || !vectorscopeCanvasRef.current) return;
-    let canceled = false;
-    let engine: DocumentRendererPort | null = null;
-    const hueDistributionCanvas = hueDistributionCanvasRef.current;
-    const colorMixerHueDistributionCanvas = colorMixerHueCanvasRef.current;
-    const paradeCanvas = paradeCanvasRef.current;
-    const vectorscopeCanvas = vectorscopeCanvasRef.current;
+  const beforeDocumentOpen = useCallback(() => {
     startupStartedAtRef.current = performance.now();
     startupAwaitingFirstFrameRef.current = true;
     startupTimingsRef.current = {};
@@ -840,23 +832,41 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const startingVisibility = createDefaultGroupVisibility();
     groupVisibilityRef.current = startingVisibility;
     setGroupVisibility(startingVisibility);
-    const openController = new DocumentOpenController<DocumentRendererPort>(
-      taskRegistry,
-      rendererLifecycle
-    );
-    const isCanceled = () => canceled;
+  }, [
+    clearEditorHistory,
+    fileNameBase,
+    initialRecipe,
+    resetLensBlurDepth,
+    setEditorSession,
+    setImageDocument,
+    setView
+  ]);
 
-    void openController.open({
-      createRenderer: () => createWebGpuDocumentRenderer(canvasRef.current!, {
-          onHistogram: (next) => { if (!isCanceled()) setHistogram(next); },
+  const createDocumentOpenRequest = useCallback(({
+    isCurrent
+  }: {
+    isCurrent: () => boolean;
+  }): DocumentOpenRequest<DocumentRendererPort> | null => {
+    const canvas = canvasRef.current;
+    const hueDistributionCanvas = hueDistributionCanvasRef.current;
+    const colorMixerHueDistributionCanvas = colorMixerHueCanvasRef.current;
+    const paradeCanvas = paradeCanvasRef.current;
+    const vectorscopeCanvas = vectorscopeCanvasRef.current;
+    if (!canvas || !hueDistributionCanvas || !colorMixerHueDistributionCanvas ||
+      !paradeCanvas || !vectorscopeCanvas) return null;
+    let engine: DocumentRendererPort | null = null;
+
+    return {
+      createRenderer: () => createWebGpuDocumentRenderer(canvas, {
+          onHistogram: (next) => { if (isCurrent()) setHistogram(next); },
           onGpuMemoryEstimate: (bytes) => {
-            if (!isCanceled()) {
+            if (isCurrent()) {
               setGpuMemoryBytes(bytes);
               rendererLifecycle.setMemoryEstimate(bytes);
             }
           },
           onDeviceLost: (message) => {
-            if (!isCanceled()) {
+            if (isCurrent()) {
               setError(message);
               rendererLifecycle.markFailed(
                 rendererLifecycle.getSnapshot().generation,
@@ -864,14 +874,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               );
             }
           },
-          onScopeError: (message) => { if (!isCanceled()) setScopeError(message); },
+          onScopeError: (message) => { if (isCurrent()) setScopeError(message); },
           onFeatureError: (featureId, message) => {
-            if (isCanceled()) return;
+            if (!isCurrent()) return;
             appendDebugMessage('error', `GPU feature: ${featureId}`, message);
             setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
           },
           onFirstFrame: () => {
-            if (isCanceled() || !startupAwaitingFirstFrameRef.current) return;
+            if (!isCurrent() || !startupAwaitingFirstFrameRef.current) return;
             startupAwaitingFirstFrameRef.current = false;
             startupTimingsRef.current.firstFrameMs = performance.now() - startupStartedAtRef.current;
             const completed = { ...startupTimingsRef.current };
@@ -888,7 +898,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               parade: paradeCanvas,
               vectorscope: vectorscopeCanvas
             }).then(() => {
-              if (isCanceled()) return;
+              if (!isCurrent()) return;
               startupTimingsRef.current.scopesMs = performance.now() - scopeStartedAt;
               setStartupTimings({ ...startupTimingsRef.current });
             });
@@ -916,7 +926,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           initialSourceName,
           initialRecipe?.settings ?? createDefaultAdjustments(),
           `${editorSourceFileKey ?? initialSourceName}:${source.size}`,
-          () => canceled || !task.isCurrent(),
+          () => !isCurrent() || !task.isCurrent(),
           sourceDecodeMode,
           task.signal
         );
@@ -939,23 +949,53 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         startupTimingsRef.current.downloadMs = elapsedMs;
       },
       onFailed: (failure) => {
-        if (!canceled) {
+        if (isCurrent()) {
           setError(failure.message || 'LightTable could not be initialized.');
         }
       },
       onSettled: () => {
-        if (!canceled) setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
-    });
-
-    return () => {
-      canceled = true;
-      cancelAutoAlignRef.current();
-      clearEditorHistory();
-      engineRef.current = null;
-      openController.close();
     };
-  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, rendererLifecycle, resetLensBlurDepth, sourceDecodeMode, taskRegistry]);
+  }, [
+    appendDebugMessage,
+    editorSourceFileKey,
+    initialRecipe,
+    initialSourceBlob,
+    initialSourceName,
+    loadBlobIntoEngine,
+    loadSource,
+    projectId,
+    rendererLifecycle,
+    sourceDecodeMode
+  ]);
+
+  const documentOpenGeneration = useMemo(() => ({}), [
+    documentSurfaceRevision,
+    editorSourceFileKey,
+    initialRecipe,
+    initialSourceBlob,
+    initialSourceName,
+    loadSource,
+    projectId,
+    sourceDecodeMode
+  ]);
+
+  const afterDocumentClose = useCallback(() => {
+    cancelAutoAlignRef.current();
+    clearEditorHistory();
+    engineRef.current = null;
+  }, [clearEditorHistory]);
+
+  useDocumentOpenLifecycle<DocumentRendererPort>({
+    enabled: open,
+    generation: documentOpenGeneration,
+    tasks: taskRegistry,
+    rendererLifecycle,
+    createRequest: createDocumentOpenRequest,
+    beforeOpen: beforeDocumentOpen,
+    afterClose: afterDocumentClose
+  });
 
 
   useEffect(() => {

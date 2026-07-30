@@ -1296,3 +1296,6 @@ The refactor is successful when:
 - [x] Combine external source import, canonical layer upload, grade-stack
       hydration and optional PSD comparison into one cancellable application
       transaction; presentation receives only fully prepared documents.
+- [x] Bind renderer startup, async callback validity and teardown to one
+      explicit document-open generation; ordinary React callback churn cannot
+      restart or cross-wire a document renderer.
