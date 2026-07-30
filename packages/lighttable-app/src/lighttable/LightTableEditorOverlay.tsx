@@ -16,10 +16,8 @@ import {
 import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
-import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpenLifecycle';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
-import { createDocumentSourceLoadController } from './application/documents/documentSourceLoadController';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
   isTemporaryPanRelease,
@@ -59,7 +57,9 @@ import {
 import type {
   DocumentOpenMode
 } from './application/documents/documentSourceProbe';
-import { useEditorDocumentOpenRequestFactory } from './composition/documents/useEditorDocumentOpenRequestFactory';
+import {
+  useEditorDocumentLifecycleController
+} from './composition/documents/useEditorDocumentLifecycleController';
 import {
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
@@ -600,92 +600,64 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     void documentHistoryController.redo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
-  const documentSourceLoadController = useMemo(
-    () => createDocumentSourceLoadController({
-      getRenderer: () => engineRef.current,
-      getGroupVisibility: () => groupVisibilityRef.current,
-      getPublicationPorts: () => ({
-        mergeStartupTimings: (timings) => {
-          startupTelemetryRef.current.merge(timings);
-        },
-        publishDocument: (nextDocument) => {
-          imageDocumentRef.current = nextDocument;
-          // PSD sources are converted into native LightTable assets. The source
-          // file itself is not duplicated in the native document.
-          preservedSourceAssetsRef.current = [];
-          setImageDocument(nextDocument);
-          setThumbnailDocumentReadyId(nextDocument.id);
-        },
-        publishMetadata: setMetadata,
-        publishPsdImport: setPsdImportInfo,
-        publishPsdCompatibility: (entries) =>
-          setPsdCompatibility([...entries]),
-        publishPsdDifference: setPsdDifferenceMetrics,
-        publishSource: (nextName, nextBlob, identity) => {
-          setSourceName(nextName);
-          setSourceBlob(nextBlob);
-          setSourceIdentity(identity);
-        },
-        resetDocumentInteraction: () => {
-          resetLensBlurDepth();
-          setFocusPickerActive(false);
-          selectionGestureRef.current.reset();
-          paintGestureRef.current.reset();
-          setSelectionDraft(null);
-          resetTransformRef.current();
-          setEditorSession((current) => ({ ...current, selection: [] }));
-          setSelectionClipboardAvailable(false);
-          editorDialogs.closeFeather();
-          setLensBlurViewportModeState('result');
-          clearEditorHistory();
-          setHistogram(null);
-          setZoomMode('fit');
-          setView({ scale: 1, panX: 0, panY: 0 });
-        },
-        publishAdjustments: (nextAdjustments) => {
-          documentAdjustmentsRef.current = nextAdjustments;
-          adjustmentsRef.current = nextAdjustments;
-          setAdjustments(nextAdjustments);
-        },
-        publishStatus: setGradeStatus,
-        reportDifferenceFailure: (failure) => {
-          console.warn('LightTable PSD difference measurement failed', failure);
-        },
-        reportPsdWarnings: (warnings) => {
-          console.warn('LightTable PSD semantic import warnings', warnings);
-        }
-      })
-    }),
-    [
-      clearEditorHistory,
-      resetLensBlurDepth,
-      setEditorSession,
-      setImageDocument,
-      setView,
-      setZoomMode
-    ]
-  );
-
-  const loadBlobIntoEngine = useCallback(async (
-    blob: Blob,
-    name: string,
-    initialAdjustments: BasicAdjustments = createDefaultAdjustments(),
-    cacheKey = `${name}:${blob.size}:${blob.type}:${blob instanceof File ? blob.lastModified : 0}`,
-    isCanceled: () => boolean = () => false,
-    decodeMode: DocumentOpenMode = 'automatic',
-    signal?: AbortSignal
-  ) => {
-    await documentSourceLoadController.load({
-      blob,
-      name,
-      cacheKey,
-      sourceIdentity: cacheKey,
-      decodeMode,
-      initialAdjustments,
-      signal,
-      isCanceled
-    });
-  }, [documentSourceLoadController]);
+  const getDocumentPublicationPorts = useCallback(() => ({
+    mergeStartupTimings: (timings: LightTableStartupTimings) => {
+      startupTelemetryRef.current.merge(timings);
+    },
+    publishDocument: (nextDocument: ImageDocument) => {
+      imageDocumentRef.current = nextDocument;
+      // PSD sources are converted into native LightTable assets. The source
+      // file itself is not duplicated in the native document.
+      preservedSourceAssetsRef.current = [];
+      setImageDocument(nextDocument);
+      setThumbnailDocumentReadyId(nextDocument.id);
+    },
+    publishMetadata: setMetadata,
+    publishPsdImport: setPsdImportInfo,
+    publishPsdCompatibility: (entries: readonly PsdImportCompatibilityEntry[]) =>
+      setPsdCompatibility([...entries]),
+    publishPsdDifference: setPsdDifferenceMetrics,
+    publishSource: (nextName: string, nextBlob: Blob, identity: string) => {
+      setSourceName(nextName);
+      setSourceBlob(nextBlob);
+      setSourceIdentity(identity);
+    },
+    resetDocumentInteraction: () => {
+      resetLensBlurDepth();
+      setFocusPickerActive(false);
+      selectionGestureRef.current.reset();
+      paintGestureRef.current.reset();
+      setSelectionDraft(null);
+      resetTransformRef.current();
+      setEditorSession((current) => ({ ...current, selection: [] }));
+      setSelectionClipboardAvailable(false);
+      editorDialogs.closeFeather();
+      setLensBlurViewportModeState('result');
+      clearEditorHistory();
+      setHistogram(null);
+      setZoomMode('fit');
+      setView({ scale: 1, panX: 0, panY: 0 });
+    },
+    publishAdjustments: (nextAdjustments: BasicAdjustments) => {
+      documentAdjustmentsRef.current = nextAdjustments;
+      adjustmentsRef.current = nextAdjustments;
+      setAdjustments(nextAdjustments);
+    },
+    publishStatus: setGradeStatus,
+    reportDifferenceFailure: (failure: unknown) => {
+      console.warn('LightTable PSD difference measurement failed', failure);
+    },
+    reportPsdWarnings: (warnings: readonly string[]) => {
+      console.warn('LightTable PSD semantic import warnings', warnings);
+    }
+  }), [
+    clearEditorHistory,
+    resetLensBlurDepth,
+    setEditorSession,
+    setImageDocument,
+    setView,
+    setZoomMode
+  ]);
 
   const beforeDocumentOpen = useCallback(() => {
     resetDocumentOpenPresentation({
@@ -772,59 +744,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       scopeSettingsRef.current
     )
   }), []);
-  const hydrateOpenedDocument = useCallback(async (
-    _createdEngine: DocumentRendererPort,
-    source: Blob,
-    task: { isCurrent(): boolean; signal: AbortSignal },
-    isCurrent: () => boolean
-  ) => {
-    await loadBlobIntoEngine(
-      source,
-      initialSourceName,
-      initialRecipe?.settings ?? createDefaultAdjustments(),
-      `${editorSourceFileKey ?? initialSourceName}:${source.size}`,
-      () => !isCurrent() || !task.isCurrent(),
-      sourceDecodeMode,
-      task.signal
-    );
-  }, [
-    editorSourceFileKey,
-    initialRecipe,
-    initialSourceName,
-    loadBlobIntoEngine,
-    sourceDecodeMode
-  ]);
-  const createDocumentOpenRequest = useEditorDocumentOpenRequestFactory({
-    canvases: {
-      viewport: canvasRef,
-      hueDistribution: hueDistributionCanvasRef,
-      colorMixerHueDistribution: colorMixerHueCanvasRef,
-      parade: paradeCanvasRef,
-      vectorscope: vectorscopeCanvasRef
-    },
-    rendererRef: engineRef,
-    rendererLifecycle,
-    telemetryRef: startupTelemetryRef,
-    source: {
-      inlineSource: initialSourceBlob,
-      projectId,
-      sourceFileKey: editorSourceFileKey,
-      loadSource
-    },
-    getScopeOptions: getDocumentOpenScopeOptions,
-    hydrate: hydrateOpenedDocument,
-    publishHistogram: setHistogram,
-    publishGpuMemory: setGpuMemoryBytes,
-    publishError: setError,
-    publishScopeError: setScopeError,
-    publishFeatureError: (featureId, message) => {
-      appendDebugMessage('error', `GPU feature: ${featureId}`, message);
-      setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
-    },
-    publishTimings: setStartupTimings,
-    publishLoading: setLoading,
-    logTimings: (timings) => console.info('[LightTable startup]', timings)
-  });
 
   const documentOpenGeneration = useMemo(() => ({}), [
     documentSurfaceRevision,
@@ -843,12 +762,44 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     engineRef.current = null;
   }, [clearEditorHistory]);
 
-  useDocumentOpenLifecycle<DocumentRendererPort>({
+  const documentLifecycleController = useEditorDocumentLifecycleController({
     enabled: open,
     generation: documentOpenGeneration,
     tasks: taskRegistry,
     rendererLifecycle,
-    createRequest: createDocumentOpenRequest,
+    canvases: {
+      viewport: canvasRef,
+      hueDistribution: hueDistributionCanvasRef,
+      colorMixerHueDistribution: colorMixerHueCanvasRef,
+      parade: paradeCanvasRef,
+      vectorscope: vectorscopeCanvasRef
+    },
+    rendererRef: engineRef,
+    telemetryRef: startupTelemetryRef,
+    source: {
+      inlineSource: initialSourceBlob,
+      projectId,
+      sourceFileKey: editorSourceFileKey,
+      loadSource,
+      name: initialSourceName,
+      identity: editorSourceFileKey ?? initialSourceName,
+      decodeMode: sourceDecodeMode,
+      initialAdjustments: initialRecipe?.settings ?? createDefaultAdjustments()
+    },
+    getGroupVisibility: () => groupVisibilityRef.current,
+    getPublicationPorts: getDocumentPublicationPorts,
+    getScopeOptions: getDocumentOpenScopeOptions,
+    publishHistogram: setHistogram,
+    publishGpuMemory: setGpuMemoryBytes,
+    publishError: setError,
+    publishScopeError: setScopeError,
+    publishFeatureError: (featureId, message) => {
+      appendDebugMessage('error', `GPU feature: ${featureId}`, message);
+      setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
+    },
+    publishTimings: setStartupTimings,
+    publishLoading: setLoading,
+    logTimings: (timings) => console.info('[LightTable startup]', timings),
     beforeOpen: beforeDocumentOpen,
     afterClose: afterDocumentClose
   });
@@ -1222,15 +1173,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
     getPreservedSourceAssets: () => preservedSourceAssetsRef.current,
     hydrateLocalFile: async (file, decodeMode, signal, isCurrent) => {
-      await loadBlobIntoEngine(
-        file,
-        file.name,
-        createDefaultAdjustments(),
-        `${file.name}:${file.size}:${file.type}:${file.lastModified}${decodeMode === 'preserve-precision' ? ':preserve-precision' : ''}`,
-        () => !isCurrent(),
+      await documentLifecycleController.loadSource({
+        blob: file,
+        name: file.name,
+        initialAdjustments: createDefaultAdjustments(),
+        identity: `${file.name}:${file.type}:${file.lastModified}${decodeMode === 'preserve-precision' ? ':preserve-precision' : ''}`,
+        isCanceled: () => !isCurrent(),
         decodeMode,
         signal
-      );
+      });
     },
     cancelAutoAlign: cancelAutoAlignPreview,
     onSave,

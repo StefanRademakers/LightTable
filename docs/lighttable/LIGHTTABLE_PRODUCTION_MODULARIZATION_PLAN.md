@@ -846,7 +846,9 @@ Work:
 - [x] cancel document tasks on close while preserving them across tab switches;
 - [x] make source prepare/hydrate/publication one application-owned atomic
       transaction with a final stale-generation guard;
-- [ ] move open/decode/import/save/export orchestration fully out of the
+- [x] move source preparation, renderer hydration, generation cancellation and
+      document-open lifecycle composition out of the overlay;
+- [ ] move the remaining save/export command projection fully out of the
       overlay;
 - separate canonical document persistence from host storage;
 - move PSD import behind the codec/import ports.
@@ -1464,3 +1466,7 @@ The refactor is successful when:
       registry. Stable IDs preserve saved layouts, optional panels are restored
       generically, and future feature/host panels can supply content and default
       placement without changing Dockview's document-host policy.
+- [x] Compose renderer creation, source hydration, atomic publication,
+      generation cancellation and teardown through one document-lifecycle hook.
+      Startup open and local File-open now use the same source-load controller;
+      the editor root only supplies presentation publication ports.
