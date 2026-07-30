@@ -1280,3 +1280,7 @@ The refactor is successful when:
 - [x] Give foreground/background fill one document-scoped command controller
       that owns renderer mutation, snapshot publication, status/error handling
       and exactly one disposable GPU history entry.
+- [x] Centralize viewport/scope ResizeObservers and dock-resize arbitration in
+      one document-instance resize controller; observers pause during sash
+      gestures and publish one post-layout measurement instead of competing
+      with Dockview's proportional layout.

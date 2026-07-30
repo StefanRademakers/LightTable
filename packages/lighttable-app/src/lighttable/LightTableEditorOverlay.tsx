@@ -40,6 +40,7 @@ import {
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
+import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
@@ -197,8 +198,6 @@ import './lighttable.css';
 
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 16;
-const VIEWPORT_RESIZE_INTERVAL_MS = 50;
-const SCOPES_RESIZE_SETTLE_MS = 120;
 const IS_MAC_PLATFORM = typeof navigator !== 'undefined' &&
   /Mac|iPhone|iPad|iPod/i.test(`${navigator.platform} ${navigator.userAgent}`);
 const primaryShortcutLabel = (key: string, shift = false) => (
@@ -436,13 +435,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
-  /*
-   * This deliberately is not React state. A synchronous state update from a
-   * Dockview sash pointer event rerenders the workspace in the middle of
-   * Dockview's own drag lifecycle and can cancel or roll back that resize.
-   */
-  const dockResizeActiveRef = useRef(false);
-  const dockResizeFinishFrameRef = useRef<number | null>(null);
   const debugMessageIdRef = useRef(1);
   const [debugMessages, setDebugMessages] = useState<LightTableDebugMessage[]>([]);
   const copiedGrade = useLightTableGradeClipboard();
@@ -480,6 +472,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     width: (metadata?.width ?? 1) * activeScale,
     height: (metadata?.height ?? 1) * activeScale
   }), [activeScale, metadata, view.panX, view.panY, viewportSize.height, viewportSize.width]);
+  const {
+    dockResizeActiveRef,
+    handleDockResizeInteractionChange
+  } = useEditorResizeController({
+    open,
+    active,
+    documentSurfaceRevision,
+    observersEnabled: editorResizeObserversEnabled,
+    hasMetadata: Boolean(metadata),
+    viewportRef,
+    scopesColumnRef,
+    colorMixerScopeRef: colorMixerScopeContainerRef,
+    getRenderer: () => engineRef.current,
+    viewportSize,
+    setViewportSize,
+    imageRect
+  });
   const psdCompatibilitySummary = useMemo(() => {
     const counts = new Map<PsdImportCompatibilityEntry['support'], number>();
     psdCompatibility.forEach(({ support }) => {
@@ -1134,137 +1143,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       openController.close();
     };
   }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, rendererLifecycle, sourceDecodeMode, taskRegistry]);
-
-  useEffect(() => {
-    if (!open || !viewportRef.current) return;
-    const element = viewportRef.current;
-    let pendingSize: { width: number; height: number } | null = null;
-    let updateTimer: number | null = null;
-    let updateFrame: number | null = null;
-    let lastUpdateAt = 0;
-
-    const readSize = () => {
-      const rect = element.getBoundingClientRect();
-      return {
-        // Sub-pixel sash values do not produce a different canvas allocation,
-        // but did previously cause another full editor render.
-        width: Math.max(1, Math.round(rect.width)),
-        height: Math.max(1, Math.round(rect.height))
-      };
-    };
-
-    const commitPendingSize = () => {
-      updateFrame = null;
-      if (dockResizeActiveRef.current) {
-        pendingSize = null;
-        return;
-      }
-      const next = pendingSize;
-      pendingSize = null;
-      if (!next) return;
-      lastUpdateAt = performance.now();
-      setViewportSize((current) => (
-        current.width === next.width && current.height === next.height ? current : next
-      ));
-    };
-
-    const scheduleSizeUpdate = () => {
-      if (dockResizeActiveRef.current) return;
-      pendingSize = readSize();
-      if (updateTimer !== null || updateFrame !== null) return;
-      const delay = Math.max(0, VIEWPORT_RESIZE_INTERVAL_MS - (performance.now() - lastUpdateAt));
-      updateTimer = window.setTimeout(() => {
-        updateTimer = null;
-        updateFrame = window.requestAnimationFrame(commitPendingSize);
-      }, delay);
-    };
-
-    pendingSize = readSize();
-    commitPendingSize();
-    if (!editorResizeObserversEnabled) {
-      return;
-    }
-    const observer = new ResizeObserver(scheduleSizeUpdate);
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      if (updateTimer !== null) window.clearTimeout(updateTimer);
-      if (updateFrame !== null) window.cancelAnimationFrame(updateFrame);
-    };
-  }, [active, documentSurfaceRevision, editorResizeObserversEnabled, open]);
-
-  useEffect(() => {
-    if (!open || !active) return;
-    const elements = [scopesColumnRef.current, colorMixerScopeContainerRef.current]
-      .filter((element): element is HTMLElement => Boolean(element));
-    if (elements.length === 0) return;
-    engineRef.current?.resizeScopes();
-    if (!editorResizeObserversEnabled) return;
-    let resizeTimer: number | null = null;
-    let resizeFrame: number | null = null;
-    const resizeAfterLayoutSettles = () => {
-      if (dockResizeActiveRef.current) return;
-      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(() => {
-        resizeTimer = null;
-        resizeFrame = window.requestAnimationFrame(() => {
-          resizeFrame = null;
-          if (dockResizeActiveRef.current) return;
-          engineRef.current?.resizeScopes();
-        });
-      }, SCOPES_RESIZE_SETTLE_MS);
-    };
-    const observer = new ResizeObserver(resizeAfterLayoutSettles);
-    elements.forEach((element) => observer.observe(element));
-    return () => {
-      observer.disconnect();
-      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
-      if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
-    };
-  }, [active, documentSurfaceRevision, editorResizeObserversEnabled, open]);
-
-  const handleDockResizeInteractionChange = useCallback((active: boolean) => {
-    dockResizeActiveRef.current = active;
-    if (dockResizeFinishFrameRef.current !== null) {
-      window.cancelAnimationFrame(dockResizeFinishFrameRef.current);
-      dockResizeFinishFrameRef.current = null;
-    }
-    if (active) return;
-
-    // Dockview has now committed its layout. Measure exactly once on the next
-    // frame instead of reconnecting observers through a workspace rerender.
-    dockResizeFinishFrameRef.current = window.requestAnimationFrame(() => {
-      dockResizeFinishFrameRef.current = null;
-      const viewport = viewportRef.current;
-      if (viewport) {
-        const rect = viewport.getBoundingClientRect();
-        const width = Math.max(1, Math.round(rect.width));
-        const height = Math.max(1, Math.round(rect.height));
-        setViewportSize((current) => (
-          current.width === width && current.height === height
-            ? current
-            : { width, height }
-        ));
-      }
-      engineRef.current?.resizeScopes();
-    });
-  }, []);
-
-  useEffect(() => () => {
-    if (dockResizeFinishFrameRef.current !== null) {
-      window.cancelAnimationFrame(dockResizeFinishFrameRef.current);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!metadata) return;
-    engineRef.current?.resizeViewport(
-      viewportSize.width,
-      viewportSize.height,
-      Math.max(1, window.devicePixelRatio || 1),
-      imageRect
-    );
-  }, [imageRect, metadata, viewportSize.height, viewportSize.width]);
 
   useEffect(() => {
     if (!open || !sourceBlob || !sourceIdentity || !adjustments.effects.lensBlur.enabled) return;
