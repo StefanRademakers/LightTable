@@ -57,6 +57,7 @@ import {
   createWebGpuDocumentRenderer,
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
+import { startDocumentRenderer } from './application/rendering/startDocumentRenderer';
 import { CurvesEditor } from './CurvesEditor';
 import { cloneCurves, createDefaultCurves, createIdentityCurve, type CurveChannel, type ToneCurve } from './curves';
 import { copyLightTableGrade, useLightTableGradeClipboard } from './lightTableGradeClipboard';
@@ -1201,86 +1202,85 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     void taskRegistry.run('open', 'Open image', async (task) => {
       if (!editorSourceFileKey && !initialSourceBlob) throw new Error('No source image was supplied to LightTable.');
       const isCanceled = () => canceled || !task.isCurrent();
-      const webGpuStartedAt = performance.now();
-      const enginePromise = createWebGpuDocumentRenderer(canvasRef.current!, {
-        onHistogram: (next) => { if (!isCanceled()) setHistogram(next); },
-        onGpuMemoryEstimate: (bytes) => {
-          if (!isCanceled()) {
-            setGpuMemoryBytes(bytes);
-            rendererLifecycle.setMemoryEstimate(bytes, rendererGeneration);
+      engine = await startDocumentRenderer({
+        createRenderer: () => createWebGpuDocumentRenderer(canvasRef.current!, {
+          onHistogram: (next) => { if (!isCanceled()) setHistogram(next); },
+          onGpuMemoryEstimate: (bytes) => {
+            if (!isCanceled()) {
+              setGpuMemoryBytes(bytes);
+              rendererLifecycle.setMemoryEstimate(bytes, rendererGeneration);
+            }
+          },
+          onDeviceLost: (message) => {
+            if (!isCanceled()) {
+              setError(message);
+              rendererLifecycle.markFailed(rendererGeneration, message);
+            }
+          },
+          onScopeError: (message) => { if (!isCanceled()) setScopeError(message); },
+          onFirstFrame: () => {
+            if (isCanceled() || !startupAwaitingFirstFrameRef.current) return;
+            startupAwaitingFirstFrameRef.current = false;
+            startupTimingsRef.current.firstFrameMs = performance.now() - startupStartedAtRef.current;
+            const completed = { ...startupTimingsRef.current };
+            setStartupTimings(completed);
+            console.info('[LightTable startup]', completed);
+            const scopeStartedAt = performance.now();
+            engine?.setScopeOptions(
+              scopeVisibilityRef.current.histogram,
+              scopeEngineOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
+            );
+            void engine?.initializeScopes({
+              hueDistribution: hueDistributionCanvas,
+              colorMixerHueDistribution: colorMixerHueDistributionCanvas,
+              parade: paradeCanvas,
+              vectorscope: vectorscopeCanvas
+            }).then(() => {
+              if (isCanceled()) return;
+              startupTimingsRef.current.scopesMs = performance.now() - scopeStartedAt;
+              setStartupTimings({ ...startupTimingsRef.current });
+            });
           }
+        }),
+        loadSource: () => initialSourceBlob
+          ? Promise.resolve(initialSourceBlob)
+          : loadSource?.({
+              projectId,
+              sourceFileKey: editorSourceFileKey!,
+              signal: task.signal
+            }) ?? Promise.reject(new Error('The LightTable host cannot read this source image.')),
+        hydrate: async (createdEngine, source, startupCanceled) => {
+          await loadBlobIntoEngine(
+            source,
+            initialSourceName,
+            initialRecipe?.settings ?? createDefaultAdjustments(),
+            `${editorSourceFileKey ?? initialSourceName}:${source.size}`,
+            startupCanceled,
+            sourceDecodeMode,
+            task.signal
+          );
         },
-        onDeviceLost: (message) => {
-          if (!isCanceled()) {
-            setError(message);
-            rendererLifecycle.markFailed(rendererGeneration, message);
-          }
-        },
-        onScopeError: (message) => { if (!isCanceled()) setScopeError(message); },
-        onFirstFrame: () => {
-          if (isCanceled() || !startupAwaitingFirstFrameRef.current) return;
-          startupAwaitingFirstFrameRef.current = false;
-          startupTimingsRef.current.firstFrameMs = performance.now() - startupStartedAtRef.current;
-          const completed = { ...startupTimingsRef.current };
-          setStartupTimings(completed);
-          console.info('[LightTable startup]', completed);
-          const scopeStartedAt = performance.now();
-          engine?.setScopeOptions(
-            scopeVisibilityRef.current.histogram,
+        isCanceled,
+        onRendererReady: (createdEngine, elapsedMs) => {
+          engine = createdEngine;
+          engineRef.current = createdEngine;
+          startupTimingsRef.current.webGpuMs = elapsedMs;
+          createdEngine.setLensBlurDepthVisualization(false);
+          createdEngine.setScopeOptions(
+            false,
             scopeEngineOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
           );
-          void engine?.initializeScopes({
-            hueDistribution: hueDistributionCanvas,
-            colorMixerHueDistribution: colorMixerHueDistributionCanvas,
-            parade: paradeCanvas,
-            vectorscope: vectorscopeCanvas
-          }).then(() => {
-            if (isCanceled()) return;
-            startupTimingsRef.current.scopesMs = performance.now() - scopeStartedAt;
-            setStartupTimings({ ...startupTimingsRef.current });
-          });
+        },
+        onRendererDiscarded: (discardedEngine) => {
+          if (engineRef.current === discardedEngine) engineRef.current = null;
+          if (engine === discardedEngine) engine = null;
+        },
+        onSourceReady: (_source, elapsedMs) => {
+          startupTimingsRef.current.downloadMs = elapsedMs;
         }
-      }).then((createdEngine) => {
-        startupTimingsRef.current.webGpuMs = performance.now() - webGpuStartedAt;
-        return createdEngine;
       });
-      // The authenticated media request is independent of WebGPU setup. Start
-      // it immediately so network latency overlaps adapter/pipeline creation.
-      const downloadStartedAt = performance.now();
-      const blobPromise = initialSourceBlob
-        ? Promise.resolve(initialSourceBlob)
-        : loadSource?.({
-            projectId,
-            sourceFileKey: editorSourceFileKey!,
-            signal: task.signal
-          }) ?? Promise.reject(new Error('The LightTable host cannot read this source image.'));
-      const responsePromise = blobPromise.then((data) => {
-        startupTimingsRef.current.downloadMs = performance.now() - downloadStartedAt;
-        return { data };
-      });
-      const initialized = await Promise.all([enginePromise, responsePromise]);
-      engine = initialized[0];
-      const response = initialized[1];
-      if (isCanceled()) {
-        engine.destroy();
-        task.throwIfCanceled();
-      }
-      engineRef.current = engine;
-      engine.setLensBlurDepthVisualization(false);
-      engine.setScopeOptions(
-        false,
-        scopeEngineOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
-      );
-      if (!isCanceled()) await loadBlobIntoEngine(
-        response.data,
-        initialSourceName,
-        initialRecipe?.settings ?? createDefaultAdjustments(),
-        `${editorSourceFileKey ?? initialSourceName}:${response.data.size}`,
-        isCanceled,
-        sourceDecodeMode,
-        task.signal
-      );
       task.throwIfCanceled();
+      engineRef.current = engine;
       rendererLifecycle.markReady(rendererGeneration);
     }).then((result) => {
       if (!canceled && result.status === 'failed') {

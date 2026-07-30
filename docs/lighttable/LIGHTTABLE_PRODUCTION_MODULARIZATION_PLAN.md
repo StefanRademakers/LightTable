@@ -840,6 +840,8 @@ Work:
 - [x] move startup timing and GPU-memory presentation out of the editor root
       into a tested telemetry formatter;
 - [x] move concrete `WebGpuEngine` ownership behind the renderer adapter;
+- [x] move parallel renderer/source startup, stale-start rejection and failure
+      cleanup into a tested application service;
 - move render scheduling/invalidation out of React effects;
 - split device, resources, scopes and readback;
 - isolate optional pipeline compilation;
@@ -861,7 +863,9 @@ application code depend on renderer-neutral types; concrete engine construction
 is owned by the infrastructure adapter. Its public method surface is still
 deliberately broad and will narrow as tool operations become application
 commands. A suspended renderer currently retains resources; deterministic
-eviction is the next lifecycle policy to introduce.
+eviction is the next lifecycle policy to introduce. Renderer construction and
+source download still overlap for startup performance, while the application
+startup service now guarantees cleanup when either side fails or becomes stale.
 
 ### Phase 6 — Layer compositor and processing modules
 
