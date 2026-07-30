@@ -28,6 +28,7 @@ import {
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
+import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import {
   formatStartupTimings,
   type LightTableStartupTimings
@@ -221,10 +222,8 @@ import { BLEND_MODES } from './editor/document/blendModes';
 import {
   clearLayerStyles,
   setLayerStyleEnabled,
-  setLayerStyleStack,
   setLayerStyleStackEnabled
 } from './editor/styles/layerStyleCommands';
-import type { LayerStyleId, LayerStyleStack } from './editor/styles/layerStyleTypes';
 import {
   buildLayeredDocumentFile,
   type PreservedSourceAssetBlob
@@ -552,11 +551,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [flattenRequest, setFlattenRequest] = useState<
     { kind: 'group'; groupId: LayerId } | { kind: 'image' } | null
   >(null);
-  const [styleEditorRequest, setStyleEditorRequest] = useState<{
-    layerId: LayerId;
-    effectId?: LayerStyleId;
-    before: ImageDocument;
-  } | null>(null);
   const [selectionClipboardAvailable, setSelectionClipboardAvailable] = useState(false);
   const [temporaryPanActive, setTemporaryPanActive] = useState(false);
   const [startupTimings, setStartupTimings] = useState<LightTableStartupTimings | null>(null);
@@ -3290,49 +3284,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   };
 
-  const openLayerStyleEditor = (layerId: LayerId, effectId?: LayerStyleId) => {
-    const current = imageDocumentRef.current;
-    const layer = current ? findDocumentLayer(current, layerId) : null;
-    if (!current || layer?.type !== 'raster') return;
-    engineRef.current?.setLayerStyleInteractionActive(true);
-    setStyleEditorRequest({ layerId, effectId, before: current });
-  };
-
-  const previewLayerStyleStack = (stack: LayerStyleStack) => {
-    const current = imageDocumentRef.current;
-    if (!current || !styleEditorRequest) return;
-    const next = setLayerStyleStack(current, styleEditorRequest.layerId, stack);
-    if (next !== current) applyDocumentSnapshot(next);
-  };
-
-  const cancelLayerStyleEditor = () => {
-    if (!styleEditorRequest) return;
-    applyDocumentSnapshot(styleEditorRequest.before);
-    engineRef.current?.setLayerStyleInteractionActive(false);
-    setStyleEditorRequest(null);
-  };
-
-  const commitLayerStyleEditor = () => {
-    if (!styleEditorRequest) return;
-    const after = imageDocumentRef.current;
-    if (after && after !== styleEditorRequest.before) {
-      pushDocumentHistory(styleEditorRequest.before, after);
-    }
-    engineRef.current?.setLayerStyleInteractionActive(false);
-    setStyleEditorRequest(null);
-  };
-
-  useEffect(() => {
-    if (!styleEditorRequest) return;
-    const layer = imageDocument
-      ? findDocumentLayer(imageDocument, styleEditorRequest.layerId)
-      : null;
-    if (layer?.type === 'raster') return;
-    // Undo/document replacement can remove the edited layer while the modal
-    // editor is open. Do not leave the renderer stuck in preview quality.
-    engineRef.current?.setLayerStyleInteractionActive(false);
-    setStyleEditorRequest(null);
-  }, [imageDocument, styleEditorRequest]);
+  const layerStyleEditor = useLayerStyleEditorController({
+    activeDocument: imageDocument,
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    applyDocumentSnapshot,
+    pushDocumentHistory
+  });
+  const styleEditorRequest = layerStyleEditor.request;
+  const openLayerStyleEditor = layerStyleEditor.open;
+  const previewLayerStyleStack = layerStyleEditor.preview;
+  const cancelLayerStyleEditor = layerStyleEditor.cancel;
+  const commitLayerStyleEditor = layerStyleEditor.commit;
 
   const beginTransform = async () => {
     const document = imageDocumentRef.current;

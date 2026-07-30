@@ -1223,3 +1223,6 @@ The refactor is successful when:
       telemetry model shared by any future web or desktop shell.
 - [x] Give Auto Align one document-aware controller for analysis cancellation,
       compositor preview, atomic commit/cancel and a single history command.
+- [x] Give Layer Style preview/editing one document-safe transaction controller
+      that restores on cancel, commits one history step and always releases
+      renderer interaction.
