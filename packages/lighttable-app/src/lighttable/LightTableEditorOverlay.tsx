@@ -114,6 +114,7 @@ import {
   type LightTableDockWorkspaceHandle
 } from './editor/workspace/LightTableDockWorkspace';
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
+import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import {
   useDocumentEditorSession,
   useDocumentViewportState
@@ -486,7 +487,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);
   const fillActiveTargetRef = useRef<(color: string) => void>(() => undefined);
-  const temporaryPanRef = useRef(false);
+  const temporaryToolRef = useRef(new TemporaryToolController());
   const groupVisibilityRef = useRef<GroupVisibility>(createDefaultGroupVisibility());
   const scopeSettingsRef = useRef<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
   const scopeVisibilityRef = useRef<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
@@ -574,6 +575,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const debugMessageIdRef = useRef(1);
   const [debugMessages, setDebugMessages] = useState<LightTableDebugMessage[]>([]);
   const copiedGrade = useLightTableGradeClipboard();
+
+  useEffect(() => {
+    temporaryToolRef.current.end();
+    setTemporaryPanActive(false);
+  }, [workspaceDocumentId]);
+
   // StoryBuilder supplies an object-storage key. Standalone web/Electron files
   // do not have one, but still need a stable provenance identifier so recipes
   // and layered saves are valid. This key is metadata only; it does not embed
@@ -2030,8 +2037,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           void redoEditor();
           return;
         case 'temporary-pan-start':
-          if (!temporaryPanRef.current) {
-            temporaryPanRef.current = true;
+          if (temporaryToolRef.current.begin('view')) {
             setTemporaryPanActive(true);
           }
           return;
@@ -2126,17 +2132,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
     };
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (!isTemporaryPanRelease(event) || !temporaryPanRef.current) return;
+      if (!isTemporaryPanRelease(event) || !temporaryToolRef.current.active) return;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      temporaryPanRef.current = false;
-      setTemporaryPanActive(false);
+      if (temporaryToolRef.current.end('view')) setTemporaryPanActive(false);
     };
     const releaseTemporaryPan = () => {
-      if (!temporaryPanRef.current) return;
-      temporaryPanRef.current = false;
-      setTemporaryPanActive(false);
+      if (temporaryToolRef.current.end()) setTemporaryPanActive(false);
     };
     // Capture keeps LightTable's local history from also triggering a page-level undo.
     window.addEventListener('keydown', handleKeyDown, true);
@@ -2948,7 +2951,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const updateBrushCursor = (event: React.PointerEvent<HTMLDivElement>) => {
     const cursor = brushCursorRef.current;
     if (!cursor) return;
-    if (!isPaintTool(editorSession.activeTool) || temporaryPanRef.current || focusPickerActive || !metadata) {
+    if (!isPaintTool(editorSession.activeTool) || temporaryToolRef.current.active || focusPickerActive || !metadata) {
       brushCursorCenterRef.current = null;
       cursor.style.opacity = '0';
       return;
@@ -3067,7 +3070,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       : null;
     const intent = resolveViewportPointerDownIntent({
       activeTool,
-      temporaryPan: temporaryPanRef.current,
+      temporaryPan: temporaryToolRef.current.active,
       focusPickerActive,
       primaryButton: event.button === 0,
       hasMetadata: Boolean(metadata),
@@ -3131,7 +3134,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const point = documentPoint(event);
     const intent = resolveViewportPointerMoveIntent({
       activeTool: editorSession.activeTool,
-      temporaryPan: temporaryPanRef.current,
+      temporaryPan: temporaryToolRef.current.active,
       panGestureMatches: dragRef.current?.pointerId === event.pointerId,
       selectionGestureMatches: selectionGestureRef.current.owns(event.pointerId),
       paintGestureMatches: paintGestureRef.current.owns(event.pointerId),

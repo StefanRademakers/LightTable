@@ -818,7 +818,9 @@ Work:
       application math;
 - [x] create one typed tool registry shared by presentation, capabilities and
       shortcut routing;
-- migrate temporary pan and remaining tool activation lifecycle;
+- [x] isolate temporary tool overrides from persistent document tool state and
+      reset them on blur or active-document changes;
+- migrate remaining persistent tool activation lifecycle;
 - [x] migrate brush sizing and tool shortcuts;
 - [x] migrate pointer-driven selection draft/commit/cancel lifecycle into an
       isolated controller;
@@ -850,6 +852,10 @@ mid-stroke can no longer redirect paint to another layer or coordinate space.
 Tool identity, role, icon and shortcut metadata now have one registry. The
 toolbar, keyboard router and capability predicates consume that contract, so a
 new tool can no longer silently exist in one input path but not another.
+
+Space-to-pan now uses a small idempotent transient-tool controller. It never
+mutates the document's selected tool, repeated key events cannot unbalance it,
+and switching documents or losing window focus clears the override.
 
 Exit criteria:
 
