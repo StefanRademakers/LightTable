@@ -1385,3 +1385,6 @@ The refactor is successful when:
 - [x] Centralize structural Layer-command capabilities in one pure document
       query; docked/floating panels and the top menu no longer independently
       decide group, clipping, merge and flatten validity.
+- [x] Project the complete editor-menu read model through one pure query;
+      document traversal, auto-align eligibility and blend/flatten presentation
+      no longer live in the React composition root.

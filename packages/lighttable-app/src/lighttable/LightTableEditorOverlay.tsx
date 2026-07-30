@@ -38,6 +38,7 @@ import {
   createEditorMenuOptions,
   type EditorMenuId
 } from './editor/menus/createEditorMenuOptions';
+import { projectEditorMenuState } from './editor/menus/projectEditorMenuState';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
@@ -54,7 +55,6 @@ import { useAutoAlignController } from './application/tools/autoAlign/useAutoAli
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
-import { queryLayerCommandCapabilities } from './application/layers/layerCommandCapabilities';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
@@ -111,17 +111,14 @@ import {
   type LensBlurViewportMode
 } from './editor/config/adjustmentControls';
 import {
-  layerIsLocked,
   type ImageDocument,
   type LayerId,
   type Rect
 } from './editor/document/documentTypes';
 import {
   findDocumentLayer,
-  findRasterLayer,
-  walkRasterLayers
+  findRasterLayer
 } from './editor/document/layerTree';
-import { BLEND_MODES } from './editor/document/blendModes';
 import {
   type PreservedSourceAssetBlob
 } from './editor/persistence/layeredDocumentFormat';
@@ -1271,61 +1268,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
 
   const menuDocument = imageDocumentRef.current;
-  const menuLayerCapabilities = menuDocument
-    ? queryLayerCommandCapabilities(menuDocument)
+  const menuActiveLayer = menuDocument
+    ? findDocumentLayer(menuDocument, menuDocument.activeLayerId)
     : null;
-  const menuActiveLayer = menuLayerCapabilities?.activeLayer ?? null;
-  const menuActiveSiblings = menuLayerCapabilities?.activeSiblings ?? [];
-  const menuActiveIndex = menuLayerCapabilities?.activeIndex ?? -1;
-  const menuAutoAlignTargets = menuActiveLayer && menuDocument
-    ? walkRasterLayers(menuDocument.layers)
-      .map(({ layer }) => layer)
-      .filter((layer) => layer.id !== menuActiveLayer.id && layer.visible && layer.locks.all)
-    : [];
+  const menuState = projectEditorMenuState({
+    document: menuDocument,
+    saving,
+    hasMetadata: Boolean(metadata),
+    hasSourceKey: Boolean(effectiveSourceFileKey),
+    copiedGradeName: copiedGrade?.name ?? null,
+    hasSelection: editorSession.selection.length > 0,
+    selectionClipboardAvailable,
+    activeChannel: editorSession.activeChannel,
+    autoAlignPreview: Boolean(autoAlignPreview),
+    zoomMode,
+    showOriginal,
+    showDifference
+  });
 
   const appMenuOptions = appMenu ? createEditorMenuOptions(
     appMenu.id,
-    {
-      saving,
-      hasDocument: Boolean(menuDocument),
-      hasMetadata: Boolean(metadata),
-      hasSourceKey: Boolean(effectiveSourceFileKey),
-      layered: (menuLayerCapabilities?.layerCount ?? 0) > 1,
-      copiedGradeName: copiedGrade?.name ?? null,
-      hasSelection: editorSession.selection.length > 0,
-      selectionClipboardAvailable,
-      activeChannel: editorSession.activeChannel,
-      layer: menuActiveLayer ? {
-        type: menuActiveLayer.type,
-        hasMask: Boolean(menuActiveLayer.mask),
-        maskEnabled: Boolean(menuActiveLayer.mask?.enabled),
-        visible: menuActiveLayer.visible,
-        locked: layerIsLocked(menuActiveLayer, 'pixels'),
-        clipping: menuActiveLayer.clipping,
-        activeIndex: menuActiveIndex,
-        siblingCount: menuActiveSiblings.length,
-        belowIsRaster: menuActiveSiblings[menuActiveIndex - 1]?.type === 'raster',
-        canFlattenGroup: menuLayerCapabilities?.canFlattenActiveGroup ?? false
-      } : null,
-      rasterLayerCount: menuLayerCapabilities?.rasterLayerCount ?? 0,
-      canFlattenImage: menuLayerCapabilities?.canFlattenImage ?? false,
-      autoAlignPreview: Boolean(autoAlignPreview),
-      autoAlignAvailable: Boolean(
-        menuActiveLayer
-        && menuActiveLayer.type === 'raster'
-        && !layerIsLocked(menuActiveLayer, 'position')
-        && menuActiveLayer.visible
-        && menuAutoAlignTargets.length === 1
-      ),
-      zoomMode,
-      showOriginal,
-      showDifference,
-      blendModes: BLEND_MODES.map((mode) => ({
-        ...mode,
-        selected: menuActiveLayer?.blendMode === mode.id,
-        separatorBefore: ['darken', 'lighten', 'overlay', 'difference', 'hue'].includes(mode.id)
-      }))
-    },
+    menuState,
     {
       fastOpenFormats: imagePickerFormatNames('fast'),
       precisionOpenFormats: imagePickerFormatNames('preserve-precision'),
