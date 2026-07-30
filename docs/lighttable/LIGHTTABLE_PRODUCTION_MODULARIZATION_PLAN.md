@@ -818,7 +818,9 @@ Work:
       application math;
 - create tool registry and lifecycle;
 - migrate temporary pan, brush sizing and tool shortcuts;
-- migrate selection, paint/erase/fill and transform controllers;
+- [x] migrate pointer-driven selection draft/commit/cancel lifecycle into an
+      isolated controller;
+- migrate paint/erase/fill and transform controllers;
 - remove feature-specific global listeners from the overlay.
 
 Milestone note:
@@ -829,6 +831,11 @@ gestures have one tested precedence contract. Gesture execution still lives in
 the overlay until the individual tool controllers are extracted; the router
 keeps that migration behavior-preserving and prevents future tools from adding
 another precedence chain to the application root.
+
+The selection controller now owns its pointer lock, document-space draft
+sampling, modifier-derived operation and invalid-gesture clear behavior.
+React only mirrors the draft for visualization and forwards the controller's
+typed apply/clear result to history and the renderer.
 
 Exit criteria:
 

@@ -235,7 +235,6 @@ import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinat
 import {
   isPaintTool,
   isSelectionTool,
-  selectionKindForTool,
   steppedBrushSize
 } from './editor/tools/toolCapabilities';
 import {
@@ -262,12 +261,11 @@ import {
   transformSelectionOperations
 } from './editor/tools/transform/selectionTransform';
 import type { AffineMatrix, TransformSessionState } from './editor/tools/transform/transformTypes';
+import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
 import {
   createFullCanvasSelection,
   createFeatherSelectionOperation,
   createInvertSelectionOperation,
-  selectionModeFromModifiers,
-  selectionShapeIsValid,
   type SelectionOperation,
   type SelectionShape
 } from './editor/selection/selectionTypes';
@@ -479,8 +477,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const brushStrokeTransformRef = useRef<AffineMatrix>(identityMatrix());
   const brushCursorRef = useRef<HTMLDivElement | null>(null);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
-  const selectionPointerIdRef = useRef<number | null>(null);
-  const selectionDraftRef = useRef<SelectionShape | null>(null);
+  const selectionGestureRef = useRef(new SelectionGestureController());
   const transformStateRef = useRef<TransformSessionState | null>(null);
   const transformLaunchRef = useRef(0);
   const commitTransformRef = useRef<() => void>(() => undefined);
@@ -1088,8 +1085,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setDepthIdentity('');
     setDepthProgress({ status: 'idle' });
     setFocusPickerActive(false);
-    selectionDraftRef.current = null;
-    selectionPointerIdRef.current = null;
+    selectionGestureRef.current.reset();
     setSelectionDraft(null);
     transformStateRef.current = null;
     setTransformState(null);
@@ -1163,8 +1159,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setImageDocument(null);
     setThumbnailDocumentReadyId(null);
     setEditorSession(createEditorSession());
-    selectionDraftRef.current = null;
-    selectionPointerIdRef.current = null;
+    selectionGestureRef.current.reset();
     setSelectionDraft(null);
     setSelectionClipboardAvailable(false);
     setFeatherDialogOpen(false);
@@ -1942,8 +1937,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     failureMessage: string
   ) => {
     const before = cloneSelection(editorSession.selection);
-    selectionDraftRef.current = null;
-    selectionPointerIdRef.current = null;
+    selectionGestureRef.current.reset();
     setSelectionDraft(null);
     void applySelectionSnapshot(after)
       .then(() => pushSelectionHistory(before, after))
@@ -1962,7 +1956,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [commitSelectionChange]);
 
   const clearCurrentSelection = useCallback(() => {
-    if (!editorSession.selection.length && !selectionDraftRef.current) return;
+    if (!editorSession.selection.length && !selectionGestureRef.current.draft) return;
     commitSelectionChange([], 'The selection could not be cleared.');
   }, [commitSelectionChange, editorSession.selection.length]);
 
@@ -2119,10 +2113,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             cancelAutoAlignRef.current();
             return;
           }
-          if (selectionDraftRef.current || editorSession.selection.length) {
+          if (selectionGestureRef.current.draft || editorSession.selection.length) {
             const before = cloneSelection(editorSession.selection);
-            selectionDraftRef.current = null;
-            selectionPointerIdRef.current = null;
+            selectionGestureRef.current.reset();
             setSelectionDraft(null);
             engineRef.current?.clearSelection();
             setEditorSession((current) => ({ ...current, pointerId: null, selection: [] }));
@@ -3090,13 +3083,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     if (intent === 'selection' && point && isSelectionTool(activeTool)) {
-      const start = { x: point.x, y: point.y };
-      const shape: SelectionShape = {
-        kind: selectionKindForTool(activeTool),
-        points: activeTool === 'select-free' ? [start] : [start, start]
-      };
-      selectionDraftRef.current = shape;
-      selectionPointerIdRef.current = event.pointerId;
+      const shape = selectionGestureRef.current.begin(event.pointerId, activeTool, point);
       setSelectionDraft(shape);
       setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -3143,8 +3130,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       activeTool: editorSession.activeTool,
       temporaryPan: temporaryPanRef.current,
       panGestureMatches: dragRef.current?.pointerId === event.pointerId,
-      selectionGestureMatches: selectionPointerIdRef.current === event.pointerId
-        && Boolean(selectionDraftRef.current),
+      selectionGestureMatches: selectionGestureRef.current.owns(event.pointerId),
       paintGestureMatches: brushPointerIdRef.current === event.pointerId,
       hasDocumentPoint: Boolean(point),
       hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
@@ -3154,19 +3140,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       movePan(event);
       return;
     }
-    if (intent === 'selection' && point && selectionDraftRef.current) {
-      const current = selectionDraftRef.current;
-      let next: SelectionShape;
-      if (current.kind === 'free') {
-        const last = current.points[current.points.length - 1];
-        const dx = point.x - last.x;
-        const dy = point.y - last.y;
-        if (dx * dx + dy * dy < 4) return;
-        next = { ...current, points: [...current.points, { x: point.x, y: point.y }] };
-      } else {
-        next = { ...current, points: [current.points[0], { x: point.x, y: point.y }] };
-      }
-      selectionDraftRef.current = next;
+    if (intent === 'selection' && point) {
+      const next = selectionGestureRef.current.move(event.pointerId, point);
+      if (!next) return;
       setSelectionDraft(next);
       event.preventDefault();
       return;
@@ -3180,27 +3156,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const endViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
     const intent = resolveViewportPointerEndIntent({
-      selectionGestureMatches: selectionPointerIdRef.current === event.pointerId,
+      selectionGestureMatches: selectionGestureRef.current.owns(event.pointerId),
       paintGestureMatches: brushPointerIdRef.current === event.pointerId
     });
     if (intent === 'selection') {
-      const shape = selectionDraftRef.current;
-      selectionDraftRef.current = null;
-      selectionPointerIdRef.current = null;
+      const finish = selectionGestureRef.current.finish(event.pointerId, {
+        shiftKey: event.shiftKey,
+        altKey: event.altKey
+      });
       setSelectionDraft(null);
       setEditorSession((current) => ({ ...current, pointerId: null }));
-      if (shape && selectionShapeIsValid(shape)) {
-        const mode = selectionModeFromModifiers(event.shiftKey, event.altKey);
+      if (finish?.kind === 'apply') {
         const before = cloneSelection(editorSession.selection);
         const engine = engineRef.current;
-        void engine?.setSelection(shape, mode).then((applied) => {
+        void engine?.setSelection(finish.shape, finish.mode).then((applied) => {
           if (!applied || engineRef.current !== engine) return;
-          const operation: SelectionOperation = { mode, shape };
-          const after = mode === 'replace' ? [operation] : [...before, operation];
+          const operation: SelectionOperation = {
+            mode: finish.mode,
+            shape: finish.shape
+          };
+          const after = finish.mode === 'replace' ? [operation] : [...before, operation];
           setEditorSession((current) => ({ ...current, selection: after }));
           pushSelectionHistory(before, after);
         });
-      } else if (!event.shiftKey && !event.altKey) {
+      } else if (finish?.kind === 'clear') {
         const before = cloneSelection(editorSession.selection);
         engineRef.current?.clearSelection();
         setEditorSession((current) => ({ ...current, selection: [] }));
@@ -3252,9 +3231,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
 
   const cancelViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (selectionPointerIdRef.current === event.pointerId) {
-      selectionDraftRef.current = null;
-      selectionPointerIdRef.current = null;
+    if (selectionGestureRef.current.cancel(event.pointerId)) {
       setSelectionDraft(null);
     }
     if (brushPointerIdRef.current === event.pointerId) {
