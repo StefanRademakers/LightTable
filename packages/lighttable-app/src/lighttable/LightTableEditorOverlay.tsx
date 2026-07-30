@@ -26,8 +26,6 @@ import {
 } from './application/documents/prepareAndPublishDocumentSource';
 import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpenLifecycle';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
-import type { DocumentOpenRequest } from './application/documents/documentOpenController';
-import { resolveDocumentSource } from './application/documents/resolveDocumentSource';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
@@ -64,10 +62,8 @@ import {
   type LightTableImageDecodeMode,
   type ReferenceDifferenceMetrics
 } from './application/rendering/rendererTypes';
-import { createDocumentRendererLifecycleBridge } from './editor/documents/createDocumentRendererLifecycleBridge';
-import { createEditorDocumentOpenRequest } from './editor/documents/createEditorDocumentOpenRequest';
+import { useEditorDocumentOpenRequestFactory } from './composition/documents/useEditorDocumentOpenRequestFactory';
 import {
-  createWebGpuDocumentRenderer,
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
 import { useLightTableGradeClipboard } from './lightTableGradeClipboard';
@@ -818,90 +814,66 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setView
   ]);
 
-  const createDocumentOpenRequest = useCallback(({
-    isCurrent
-  }: {
-    isCurrent: () => boolean;
-  }): DocumentOpenRequest<DocumentRendererPort> | null => {
-    const canvas = canvasRef.current;
-    const hueDistributionCanvas = hueDistributionCanvasRef.current;
-    const colorMixerHueDistributionCanvas = colorMixerHueCanvasRef.current;
-    const paradeCanvas = paradeCanvasRef.current;
-    const vectorscopeCanvas = vectorscopeCanvasRef.current;
-    if (!canvas || !hueDistributionCanvas || !colorMixerHueDistributionCanvas ||
-      !paradeCanvas || !vectorscopeCanvas) return null;
-    const rendererBridge = createDocumentRendererLifecycleBridge<DocumentRendererPort>({
-      isCurrent,
-      telemetry: startupTelemetryRef.current,
-      lifecycle: rendererLifecycle,
-      scopeCanvases: {
-        hueDistribution: hueDistributionCanvas,
-        colorMixerHueDistribution: colorMixerHueDistributionCanvas,
-        parade: paradeCanvas,
-        vectorscope: vectorscopeCanvas
-      },
-      getScopeOptions: () => ({
-        histogramVisible: scopeVisibilityRef.current.histogram,
-        options: createScopeRendererOptions(
-          scopeVisibilityRef.current,
-          scopeSettingsRef.current
-        )
-      }),
-      publishHistogram: setHistogram,
-      publishGpuMemory: setGpuMemoryBytes,
-      publishError: setError,
-      publishScopeError: setScopeError,
-      publishFeatureError: (featureId, message) => {
-        appendDebugMessage('error', `GPU feature: ${featureId}`, message);
-        setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
-      },
-      publishTimings: setStartupTimings,
-      publishLoading: setLoading,
-      logTimings: (timings) => console.info('[LightTable startup]', timings)
-    });
-
-    return createEditorDocumentOpenRequest({
-      createRenderer: () => createWebGpuDocumentRenderer(
-        canvas,
-        rendererBridge.callbacks
-      ),
-      resolveSource: (signal) => resolveDocumentSource({
-        inlineSource: initialSourceBlob,
-        projectId,
-        sourceFileKey: editorSourceFileKey,
-        loadSource
-      }, signal),
-      hydrate: async (createdEngine, source, task) => {
-        await loadBlobIntoEngine(
-          source,
-          initialSourceName,
-          initialRecipe?.settings ?? createDefaultAdjustments(),
-          `${editorSourceFileKey ?? initialSourceName}:${source.size}`,
-          () => !isCurrent() || !task.isCurrent(),
-          sourceDecodeMode,
-          task.signal
-        );
-      },
-      rendererSlot: {
-        get: () => engineRef.current,
-        set: (renderer) => {
-          engineRef.current = renderer;
-        }
-      },
-      lifecycleBridge: rendererBridge
-    });
+  const getDocumentOpenScopeOptions = useCallback(() => ({
+    histogramVisible: scopeVisibilityRef.current.histogram,
+    options: createScopeRendererOptions(
+      scopeVisibilityRef.current,
+      scopeSettingsRef.current
+    )
+  }), []);
+  const hydrateOpenedDocument = useCallback(async (
+    _createdEngine: DocumentRendererPort,
+    source: Blob,
+    task: { isCurrent(): boolean; signal: AbortSignal },
+    isCurrent: () => boolean
+  ) => {
+    await loadBlobIntoEngine(
+      source,
+      initialSourceName,
+      initialRecipe?.settings ?? createDefaultAdjustments(),
+      `${editorSourceFileKey ?? initialSourceName}:${source.size}`,
+      () => !isCurrent() || !task.isCurrent(),
+      sourceDecodeMode,
+      task.signal
+    );
   }, [
-    appendDebugMessage,
     editorSourceFileKey,
     initialRecipe,
-    initialSourceBlob,
     initialSourceName,
     loadBlobIntoEngine,
-    loadSource,
-    projectId,
-    rendererLifecycle,
     sourceDecodeMode
   ]);
+  const createDocumentOpenRequest = useEditorDocumentOpenRequestFactory({
+    canvases: {
+      viewport: canvasRef,
+      hueDistribution: hueDistributionCanvasRef,
+      colorMixerHueDistribution: colorMixerHueCanvasRef,
+      parade: paradeCanvasRef,
+      vectorscope: vectorscopeCanvasRef
+    },
+    rendererRef: engineRef,
+    rendererLifecycle,
+    telemetryRef: startupTelemetryRef,
+    source: {
+      inlineSource: initialSourceBlob,
+      projectId,
+      sourceFileKey: editorSourceFileKey,
+      loadSource
+    },
+    getScopeOptions: getDocumentOpenScopeOptions,
+    hydrate: hydrateOpenedDocument,
+    publishHistogram: setHistogram,
+    publishGpuMemory: setGpuMemoryBytes,
+    publishError: setError,
+    publishScopeError: setScopeError,
+    publishFeatureError: (featureId, message) => {
+      appendDebugMessage('error', `GPU feature: ${featureId}`, message);
+      setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
+    },
+    publishTimings: setStartupTimings,
+    publishLoading: setLoading,
+    logTimings: (timings) => console.info('[LightTable startup]', timings)
+  });
 
   const documentOpenGeneration = useMemo(() => ({}), [
     documentSurfaceRevision,

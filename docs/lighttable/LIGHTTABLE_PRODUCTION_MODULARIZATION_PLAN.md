@@ -1358,3 +1358,6 @@ The refactor is successful when:
 - [x] Make the complete document-open presentation reset one ordered
       application transaction across source, canonical document, selection,
       lens state, grade, history, viewport, scopes and diagnostics.
+- [x] Move concrete WebGPU construction, guarded lifecycle callbacks, source
+      resolution and symmetric renderer-slot publication out of the editor root
+      into one document-open runtime factory shared by web and Electron.
