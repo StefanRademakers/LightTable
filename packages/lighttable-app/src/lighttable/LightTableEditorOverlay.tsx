@@ -125,9 +125,9 @@ import {
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import {
-  executeFillOperation,
-  srgbHexToLinearRgb
+  executeFillOperation
 } from './application/tools/fill/fillOperation';
+import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import {
   useDocumentImageState,
@@ -194,8 +194,6 @@ import {
   getFlattenGroupPlan,
   getFlattenImagePlan,
   groupLayers,
-  markLayerPixelsChanged,
-  markLayerMaskPixelsChanged,
   moveLayerSelection,
   moveLayer,
   renameLayer,
@@ -236,10 +234,7 @@ import type { PsdDecodeSuccess } from './image-io/psdProtocol';
 import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
 import { PsdImportReportDialog } from './editor/psd/PsdImportReportDialog';
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
-import {
-  PaintGestureController,
-  type PaintGestureUpdate
-} from './editor/tools/paint/paintGestureController';
+import { PaintGestureController } from './editor/tools/paint/paintGestureController';
 import {
   isPaintTool,
   isSelectionTool,
@@ -2942,21 +2937,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   fillActiveTargetRef.current = fillActiveTarget;
 
-  const paintDabs = (update: PaintGestureUpdate) => {
-    if (!update.dabs.length) return;
-    const brush = editorSession.brush;
-    engineRef.current?.paintBrushDabs(
-      update.target.layerId,
-      update.target.channel,
-      update.dabs,
-      srgbHexToLinearRgb(brush.color) ?? [0, 0, 0],
-      brush.hardness,
-      brush.opacity,
-      brush.flow,
-      update.target.erase,
-      update.target.sourceToDocument
-    );
-  };
+  const paintSessionController = usePaintSessionController({
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    applyDocumentSnapshot,
+    pushHistoryEntry,
+    setError
+  }, paintGestureRef.current);
 
   const beginViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
     updateBrushCursor(event);
@@ -3001,30 +2988,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     if (intent !== 'paint' || !point || !paintTarget) return;
-    try {
-      // Keep the mask's local-to-document matrix stable for the complete
-      // pointer gesture. Dabs must never switch coordinate spaces mid-stroke.
-      engineRef.current?.beginBrushStroke(paintTarget, editorSession.activeChannel);
-      paintDabs(paintGestureRef.current.begin(
-        event.pointerId,
-        {
-          layerId: paintTarget.id,
-          channel: editorSession.activeChannel,
-          erase: activeTool === 'erase',
-          sourceToDocument: paintTargetSourceToDocument(
-            paintTarget,
-            editorSession.activeChannel
-          )
-        },
-        editorSession.brush,
-        point
-      ));
+    const started = paintSessionController.begin({
+      pointerId: event.pointerId,
+      layer: paintTarget,
+      target: {
+        layerId: paintTarget.id,
+        channel: editorSession.activeChannel,
+        erase: activeTool === 'erase',
+        sourceToDocument: paintTargetSourceToDocument(
+          paintTarget,
+          editorSession.activeChannel
+        )
+      },
+      brush: editorSession.brush,
+      point
+    });
+    if (started) {
       setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
       event.currentTarget.setPointerCapture(event.pointerId);
       event.preventDefault();
-    } catch (reason) {
-      paintGestureRef.current.reset();
-      setError(reason instanceof Error ? reason.message : 'The brush stroke could not be started.');
     }
   };
 
@@ -3036,10 +3018,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       temporaryPan: temporaryToolRef.current.active,
       panGestureMatches: dragRef.current?.pointerId === event.pointerId,
       selectionGestureMatches: selectionGestureRef.current.owns(event.pointerId),
-      paintGestureMatches: paintGestureRef.current.owns(event.pointerId),
+      paintGestureMatches: paintSessionController.owns(event.pointerId),
       hasDocumentPoint: Boolean(point),
-      hasPaintTarget: paintGestureRef.current.active,
-      hasStrokeBuilder: paintGestureRef.current.active
+      hasPaintTarget: paintSessionController.active,
+      hasStrokeBuilder: paintSessionController.active
     });
     if (intent === 'pan') {
       movePan(event);
@@ -3053,16 +3035,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     if (intent !== 'paint' || !point) return;
-    const update = paintGestureRef.current.move(event.pointerId, point);
-    if (!update) return;
-    paintDabs(update);
+    if (!paintSessionController.move(event.pointerId, point)) return;
     event.preventDefault();
   };
 
   const endViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
     const intent = resolveViewportPointerEndIntent({
       selectionGestureMatches: selectionGestureRef.current.owns(event.pointerId),
-      paintGestureMatches: paintGestureRef.current.owns(event.pointerId)
+      paintGestureMatches: paintSessionController.owns(event.pointerId)
     });
     if (intent === 'selection') {
       const finish = selectionGestureRef.current.finish(event.pointerId, {
@@ -3094,38 +3074,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     if (intent === 'paint') {
-      const gesture = paintGestureRef.current.finish(event.pointerId);
-      const document = imageDocumentRef.current;
-      if (gesture && document && gesture.dirtyBounds) {
-        const next = gesture.target.channel === 'mask'
-          ? markLayerMaskPixelsChanged(document, gesture.target.layerId, gesture.dirtyBounds)
-          : markLayerPixelsChanged(document, gesture.target.layerId, gesture.dirtyBounds);
-        imageDocumentRef.current = next;
-        setImageDocument(next);
-        engineRef.current?.setDocument(next);
-        const pixelEdit = engineRef.current?.finishPixelEdit();
-        if (pixelEdit) {
-          pushHistoryEntry({
-            byteSize: pixelEdit.byteSize,
-            layerIds: [gesture.target.layerId],
-            undo: () => {
-              if (!engineRef.current?.applyPixelHistory(pixelEdit, 'undo')) throw new Error('Brush undo is no longer available.');
-              imageDocumentRef.current = document;
-              setImageDocument(document);
-              engineRef.current?.setDocument(document);
-            },
-            redo: () => {
-              if (!engineRef.current?.applyPixelHistory(pixelEdit, 'redo')) throw new Error('Brush redo is no longer available.');
-              imageDocumentRef.current = next;
-              setImageDocument(next);
-              engineRef.current?.setDocument(next);
-            },
-            dispose: pixelEdit.destroy
-          });
-        }
-      } else {
-        engineRef.current?.cancelPixelEdit();
-      }
+      paintSessionController.finish(event.pointerId);
       setEditorSession((current) => ({ ...current, pointerId: null }));
     }
     endPan(event);
@@ -3135,15 +3084,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (selectionGestureRef.current.cancel(event.pointerId)) {
       setSelectionDraft(null);
     }
-    if (paintGestureRef.current.cancel(event.pointerId)) {
-      const pixelEdit = engineRef.current?.finishPixelEdit();
-      if (pixelEdit) {
-        engineRef.current?.applyPixelHistory(pixelEdit, 'undo');
-        pixelEdit.destroy();
-      } else {
-        engineRef.current?.cancelPixelEdit();
-      }
-    }
+    paintSessionController.cancel(event.pointerId);
     setEditorSession((current) => ({ ...current, pointerId: null }));
     endPan(event);
   };
@@ -4046,7 +3987,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     onPointerUp={endViewportPointer}
                     onPointerCancel={cancelViewportPointer}
                     onPointerLeave={() => {
-                      if (!paintGestureRef.current.active && brushCursorRef.current) {
+                      if (!paintSessionController.active && brushCursorRef.current) {
                         brushCursorCenterRef.current = null;
                         brushCursorRef.current.style.opacity = '0';
                       }

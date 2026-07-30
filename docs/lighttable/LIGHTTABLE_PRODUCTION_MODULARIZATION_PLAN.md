@@ -1239,3 +1239,6 @@ The refactor is successful when:
 - [x] Move duplicate, selection clipboard/paste, Layer via Copy, merge, flatten
       and channel-invert operations behind one document-safe layer command
       controller with atomic GPU undo ownership.
+- [x] Move paint/erase gesture execution behind one document-safe session
+      controller that snapshots brush and coordinate state, owns GPU rollback
+      and publishes exactly one document revision and undo entry per stroke.
