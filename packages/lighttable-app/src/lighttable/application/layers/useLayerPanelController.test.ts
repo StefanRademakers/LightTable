@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  addLayerMask,
   createAdjustmentLayer,
-  createRasterLayer
+  createRasterLayer,
+  setRasterLayerAdjustmentStack
 } from '../../editor/document/documentCommands';
 import {
   createImageDocument,
@@ -93,6 +95,27 @@ describe('createLayerPanelController', () => {
     );
   });
 
+  it('selects a raster layer and projects its attached local grade', () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const local = createDefaultAdjustments();
+    local.contrast = 42;
+    local.effects.halation.enabled = true;
+    const document = setRasterLayerAdjustmentStack(
+      base,
+      base.activeLayerId!,
+      createAdjustmentStackFromBasicAdjustments(local)
+    );
+    const harness = setup(document);
+    harness.dependencies.getDocumentAdjustments().effects.grain.enabled = true;
+
+    harness.controller.select(document.activeLayerId!);
+
+    expect(harness.panelAdjustments().contrast).toBe(42);
+    // Lens/output effects are never smuggled into a local grade stack.
+    expect(harness.panelAdjustments().effects.grain.enabled).toBe(true);
+    expect(harness.panelAdjustments().effects.halation.enabled).toBe(false);
+  });
+
   it('removes the active mask and returns painting to pixels', () => {
     const harness = setup(createImageDocument('test', 100, 100, 'asset'));
     const activeLayerId = harness.document().activeLayerId!;
@@ -101,6 +124,18 @@ describe('createLayerPanelController', () => {
     harness.controller.removeMask();
 
     expect(findDocumentLayer(harness.document(), activeLayerId)?.mask).toBeNull();
+    expect(harness.dependencies.setPaintTarget).toHaveBeenLastCalledWith('pixels');
+  });
+
+  it('removes the explicitly dragged mask without depending on the active layer', () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const backgroundId = base.activeLayerId!;
+    const maskedBackground = addLayerMask(base, backgroundId);
+    const harness = setup(createRasterLayer(maskedBackground, 'Top'));
+
+    harness.controller.removeMask(backgroundId);
+
+    expect(findDocumentLayer(harness.document(), backgroundId)?.mask).toBeNull();
     expect(harness.dependencies.setPaintTarget).toHaveBeenLastCalledWith('pixels');
   });
 

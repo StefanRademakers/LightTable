@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LightTableImageMetadata } from '../../types';
+import {
+  createDefaultAdjustments,
+  type LightTableImageMetadata
+} from '../../types';
 import {
   loadDocumentSource,
   type DocumentSourceRenderer
@@ -18,7 +21,49 @@ const createRenderer = () => ({
   loadLayerAssets: vi.fn(async () => undefined)
 }) satisfies DocumentSourceRenderer;
 
+const createRequest = () => ({
+  renderer: createRenderer(),
+  blob: new Blob(['pixels'], { type: 'image/png' }),
+  name: 'source.png',
+  cacheKey: 'source:recipe',
+  decodeMode: 'fast' as const,
+  initialAdjustments: createDefaultAdjustments(),
+  dependencies: {
+    probe: async () => ({
+      format: 'png' as const,
+      codec: 'browser-native' as const,
+      decodeMode: 'fast' as const,
+      bitDepth: 8
+    }),
+    now: () => 0
+  }
+});
+
 describe('loadDocumentSource', () => {
+  it('owns a flat recipe grade on the imported raster layer', async () => {
+    const adjustments = createDefaultAdjustments();
+    adjustments.exposureEV = 1.25;
+    const result = await loadDocumentSource({
+      ...createRequest(),
+      initialAdjustments: adjustments
+    });
+
+    const background = result?.document.layers[0];
+    expect(background?.type).toBe('raster');
+    expect(background?.type === 'raster' && background.adjustmentStack).not.toBeNull();
+  });
+
+  it('does not create a local grade badge for a neutral flat import', async () => {
+    const result = await loadDocumentSource({
+      ...createRequest(),
+      initialAdjustments: createDefaultAdjustments()
+    });
+
+    const background = result?.document.layers[0];
+    expect(background?.type).toBe('raster');
+    expect(background?.type === 'raster' && background.adjustmentStack).toBeNull();
+  });
+
   it('creates and hydrates a native document for a regular raster source', async () => {
     const renderer = createRenderer();
     const blob = new Blob(['pixels'], { type: 'image/png' });
@@ -30,6 +75,7 @@ describe('loadDocumentSource', () => {
       name: 'source.png',
       cacheKey: 'source:1',
       decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
       dependencies: {
         probe: async () => ({
           format: 'png',
@@ -68,6 +114,7 @@ describe('loadDocumentSource', () => {
       name: 'source.png',
       cacheKey: 'source:2',
       decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
       isCanceled: () => isCanceled,
       dependencies: {
         probe: async () => {
@@ -96,6 +143,7 @@ describe('loadDocumentSource', () => {
       name: 'source.unknown',
       cacheKey: 'source:3',
       decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
       dependencies: {
         probe: async () => ({
           format: 'unknown',
@@ -117,6 +165,7 @@ describe('loadDocumentSource', () => {
       name: 'renamed.data',
       cacheKey: 'source:4',
       decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
       dependencies: {
         probe: async () => ({
           format: 'tiff',
@@ -153,6 +202,7 @@ describe('loadDocumentSource', () => {
       name: 'ordinary-image.png',
       cacheKey: 'source:5',
       decodeMode: 'automatic',
+      initialAdjustments: createDefaultAdjustments(),
       dependencies: {
         parseLayered,
         decodePhotoshop,
@@ -166,6 +216,7 @@ describe('loadDocumentSource', () => {
       name: 'ordinary-image.jpeg',
       cacheKey: 'source:6',
       decodeMode: 'automatic',
+      initialAdjustments: createDefaultAdjustments(),
       dependencies: {
         parseLayered,
         decodePhotoshop,

@@ -16,21 +16,50 @@ import {
 import { projectAdjustmentSnapshot } from './projectAdjustmentSnapshot';
 
 describe('adjustment snapshot projection', () => {
-  it('replaces the document output grade when no layer target is selected', () => {
+  it('rejects an adjustment when no explicit layer target is selected', () => {
     const document = createImageDocument('Image', 64, 48, 'image');
     const snapshot = {
       ...createDefaultAdjustments(),
       exposureEV: 1.5
     };
-    const result = projectAdjustmentSnapshot({
+    expect(() => projectAdjustmentSnapshot({
       snapshot,
       targetLayerId: null,
       document,
       documentAdjustments: createDefaultAdjustments()
+    })).toThrow('Select a raster layer or Grade Layer');
+  });
+
+  it('stores a local creative grade on a raster layer and retains document Lens Fx', () => {
+    const document = createImageDocument('Image', 64, 48, 'image');
+    const rasterId = document.activeLayerId;
+    if (!rasterId) throw new Error('Expected an active raster layer.');
+    const documentAdjustments = createDefaultAdjustments();
+    documentAdjustments.effects.grain.enabled = true;
+    const snapshot = {
+      ...structuredClone(documentAdjustments),
+      exposureEV: 1.5
+    };
+    const result = projectAdjustmentSnapshot({
+      snapshot,
+      targetLayerId: rasterId,
+      document,
+      documentAdjustments
     });
-    expect(result.scope).toBe('document');
-    expect(result.document).toBe(document);
-    expect(result.documentAdjustments.exposureEV).toBe(1.5);
+    expect(result.scope).toBe('layer');
+    expect(result.documentAdjustments.exposureEV).toBe(0);
+    expect(result.documentAdjustments.effects.grain.enabled).toBe(true);
+    const projected = result.document
+      ? findDocumentLayer(result.document, rasterId)
+      : null;
+    expect(projected?.type).toBe('raster');
+    if (projected?.type !== 'raster') return;
+    expect(projected.adjustmentStack?.modules.some((module) => (
+      module.type === 'lt.light' && module.settings.exposureEV === 1.5
+    ))).toBe(true);
+    expect(projected.adjustmentStack?.modules.some((module) => (
+      module.type === 'lt.grain'
+    ))).toBe(false);
   });
 
   it('updates one Adjustment Layer while retaining document Lens Fx', () => {
@@ -68,13 +97,13 @@ describe('adjustment snapshot projection', () => {
     ))).toBe(true);
   });
 
-  it('rejects a stale Adjustment Layer identity', () => {
+  it('rejects a stale grade owner identity', () => {
     const document = createImageDocument('Image', 64, 48, 'image');
     expect(() => projectAdjustmentSnapshot({
       snapshot: createDefaultAdjustments(),
       targetLayerId: createLayerId(),
       document,
       documentAdjustments: createDefaultAdjustments()
-    })).toThrow('target no longer exists');
+    })).toThrow('cannot own a grade');
   });
 });

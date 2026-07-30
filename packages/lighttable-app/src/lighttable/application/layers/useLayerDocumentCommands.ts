@@ -20,8 +20,7 @@ import {
 import {
   findDocumentLayer,
   findRasterLayer,
-  siblingLayers,
-  walkLayerTree
+  siblingLayers
 } from '../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../editor/rendering/LayerDocumentRenderer';
 import type { PaintChannel } from '../../editor/session/editorSession';
@@ -32,7 +31,6 @@ import {
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
 import {
-  cloneAdjustments,
   createDefaultAdjustments,
   type BasicAdjustments
 } from '../../types';
@@ -152,24 +150,20 @@ export const createLayerDocumentCommands = (
       || !dependencies.publishPanelAdjustments
     ) return false;
 
-    const alreadyHasAdjustment = walkLayerTree(current.layers)
-      .some(({ node }) => node.type === 'adjustment');
-    const source = alreadyHasAdjustment
-      ? {
-        ...createDefaultAdjustments(),
-        effects: structuredClone(previousDocumentGrade.effects)
-      }
-      : cloneAdjustments(currentPanelGrade);
+    // A new Grade Layer is always an explicit, neutral owner. It must never
+    // steal or duplicate the active raster layer's local grade.
+    const source = {
+      ...createDefaultAdjustments(),
+      effects: structuredClone(previousDocumentGrade.effects)
+    };
     const stack = adjustmentStackForScope(
       createAdjustmentStackFromBasicAdjustments(source),
       'adjustment-layer'
     );
-    const clearedDocumentGrade = alreadyHasAdjustment
-      ? cloneAdjustments(previousDocumentGrade)
-      : {
-        ...createDefaultAdjustments(),
-        effects: structuredClone(source.effects)
-      };
+    const clearedDocumentGrade = {
+      ...createDefaultAdjustments(),
+      effects: structuredClone(source.effects)
+    };
     const next = createAdjustmentLayer(
       current,
       stack,
@@ -185,9 +179,7 @@ export const createLayerDocumentCommands = (
         const latest = dependenciesRef.current;
         latest.publishDocumentAdjustments?.(previousDocumentGrade);
         latest.applyDocumentSnapshot(current);
-        latest.publishPanelAdjustments?.(
-          alreadyHasAdjustment ? previousDocumentGrade : source
-        );
+        latest.publishPanelAdjustments?.(currentPanelGrade);
       },
       redo: () => {
         const latest = dependenciesRef.current;

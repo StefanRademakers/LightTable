@@ -33,6 +33,12 @@ describe('resolveEditorKeyboardCommand', () => {
     [{ metaKey: true, shiftKey: true, key: 'z' }, 'redo'],
     [{ ctrlKey: true, key: 'd' }, 'select-none'],
     [{ metaKey: true, shiftKey: true, key: 'i' }, 'select-invert'],
+    [{ ctrlKey: true, key: 'e' }, 'merge-down'],
+    [{ metaKey: true, key: 'Tab' }, 'activate-next-document'],
+    [{ ctrlKey: true, shiftKey: true, key: 'Tab' }, 'activate-previous-document'],
+    [{ ctrlKey: true, key: 'w' }, 'close-active-document'],
+    [{ metaKey: true, key: 'F4' }, 'close-active-document'],
+    [{ key: 'Tab' }, 'suppress-tab-navigation'],
     [{ altKey: true, key: 'Backspace' }, 'fill-foreground'],
     [{ metaKey: true, key: 'Delete' }, 'fill-background']
   ] as const)('normalizes %o to %s', (keys, expected) => {

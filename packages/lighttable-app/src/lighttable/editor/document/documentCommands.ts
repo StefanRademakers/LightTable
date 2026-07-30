@@ -90,6 +90,7 @@ export const createRasterLayer = (
     offsetY: 0,
     transform: identityAffineMatrix(),
     pixelSource: { kind: 'runtime-raster', runtimeId: id },
+    adjustmentStack: null,
     dirtyBounds: null,
     mask: null
   };
@@ -219,6 +220,20 @@ export const setAdjustmentLayerStack = (
   return {
     ...layer,
     adjustmentStack: structuredClone(adjustmentStack),
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const setRasterLayerAdjustmentStack = (
+  document: ImageDocument,
+  layerId: LayerId,
+  adjustmentStack: AdjustmentStack | null
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster') return layer;
+  return {
+    ...layer,
+    adjustmentStack: adjustmentStack ? structuredClone(adjustmentStack) : null,
     revision: layer.revision + 1,
     modifiedAt: Date.now()
   };
@@ -568,6 +583,7 @@ const flattenedRaster = (
   blendMode: 'normal',
   clipping: false,
   styleStack: createDefaultLayerStyleStack(),
+  adjustmentStack: null,
   transform: identityAffineMatrix(),
   mask: null,
   width: document.width,
@@ -666,6 +682,7 @@ export const mergeRasterLayers = (
     blendMode: 'normal',
     clipping: false,
     styleStack: createDefaultLayerStyleStack(),
+    adjustmentStack: null,
     pixelSource: { kind: 'runtime-raster', runtimeId: destination.id },
     mask: null,
     transform: identityAffineMatrix(),

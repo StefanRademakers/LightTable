@@ -46,6 +46,7 @@ export const prepareDocumentSource = async (
     name: request.name,
     cacheKey: request.cacheKey,
     decodeMode: request.decodeMode,
+    initialAdjustments: request.initialAdjustments,
     signal: request.signal,
     isCanceled
   });

@@ -51,6 +51,7 @@ interface CommonLayerManifestEntry {
 
 interface RasterLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'raster';
+  adjustmentStack: AdjustmentStack | null;
   pixel: BinaryAssetReference;
   mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
 }
@@ -247,7 +248,15 @@ export const buildLayeredDocumentFile = (
       binaryParts.push(asset.mask);
       offset += asset.mask.size;
     }
-    return { ...common, type: 'raster', pixel, mask };
+    return {
+      ...common,
+      type: 'raster',
+      adjustmentStack: layer.adjustmentStack
+        ? cloneAdjustmentStack(layer.adjustmentStack)
+        : null,
+      pixel,
+      mask
+    };
   };
   const layers = document.layers.map(serializeLayer);
   const patterns = document.assets.patterns.map((pattern) => {
@@ -605,6 +614,9 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       offsetX: 0,
       offsetY: 0,
       pixelSource: { kind: 'runtime-raster', runtimeId: id },
+      adjustmentStack: entry.adjustmentStack === null
+        ? null
+        : parseAdjustmentStack(entry.adjustmentStack),
       dirtyBounds: null,
       mask: parsedMask.mask
     };

@@ -99,7 +99,9 @@ describe('useLayerDocumentCommands', () => {
     expect(state.commands.createAdjustmentLayer()).toBe(true);
 
     expect(state.document().layers.at(-1)?.type).toBe('adjustment');
-    expect(state.panelAdjustments().exposureEV).toBe(1.25);
+    // A new Grade Layer is an explicit, neutral owner. It must not silently
+    // steal an unrelated panel value from the previously selected raster layer.
+    expect(state.panelAdjustments().exposureEV).toBe(0);
     expect(state.documentAdjustments().exposureEV).toBe(0);
     expect(state.historyEntries).toHaveLength(1);
 
@@ -109,6 +111,7 @@ describe('useLayerDocumentCommands', () => {
 
     state.historyEntries[0].redo();
     expect(state.document().layers.at(-1)?.type).toBe('adjustment');
+    expect(state.panelAdjustments().exposureEV).toBe(0);
   });
 
   it('merges contiguous raster layers with recoverable pixel history', () => {

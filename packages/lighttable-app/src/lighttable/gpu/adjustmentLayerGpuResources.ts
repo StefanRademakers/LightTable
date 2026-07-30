@@ -3,7 +3,8 @@ import type {
   AdjustmentLayer,
   ImageDocument,
   LayerId,
-  LayerNode
+  LayerNode,
+  RasterLayer
 } from '../editor/document/documentTypes';
 import { ADJUSTMENT_UNIFORM_FLOATS } from './adjustmentUniform';
 
@@ -24,7 +25,10 @@ export function collectAdjustmentLayerIds(nodes: readonly LayerNode[]): Set<Laye
   const ids = new Set<LayerId>();
   const visit = (entries: readonly LayerNode[]) => {
     for (const node of entries) {
-      if (node.type === 'adjustment') ids.add(node.id);
+      if (
+        node.type === 'adjustment'
+        || (node.type === 'raster' && node.adjustmentStack)
+      ) ids.add(node.id);
       else if (node.type === 'group') visit(node.children);
     }
   };
@@ -51,7 +55,7 @@ export class AdjustmentLayerGpuResources {
     this.dependencies = dependencies;
   }
 
-  getOrCreate(layer: AdjustmentLayer): AdjustmentLayerGpuRuntime {
+  getOrCreate(layer: AdjustmentLayer | RasterLayer): AdjustmentLayerGpuRuntime {
     const current = this.runtimes.get(layer.id);
     if (current) return current;
     const dependencies = this.dependencies;

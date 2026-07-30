@@ -59,20 +59,25 @@ describe('createDocumentProjectionController', () => {
     expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
   });
 
-  it('keeps document grade out of the canonical layer tree', () => {
+  it('stores a contextual grade on the active raster owner', () => {
     const fixture = createFixture();
     const nextAdjustments = {
       ...createDefaultAdjustments(),
-      exposure: 1.25
+      exposureEV: 1.25
     };
     const originalDocument = fixture.getDocument();
+    const targetLayerId = originalDocument.activeLayerId!;
 
-    fixture.controller.applyAdjustmentSnapshot(nextAdjustments);
+    fixture.controller.applyAdjustmentSnapshot(nextAdjustments, targetLayerId);
 
-    expect(fixture.getDocument()).toBe(originalDocument);
-    expect(fixture.getDocumentAdjustments()).toEqual(nextAdjustments);
+    expect(fixture.getDocument()).not.toBe(originalDocument);
+    expect(fixture.getDocument().layers[0]).toMatchObject({
+      type: 'raster',
+      adjustmentStack: expect.objectContaining({ modules: expect.any(Array) })
+    });
+    expect(fixture.getDocumentAdjustments().exposureEV).toBe(0);
     expect(fixture.getEditorAdjustments()).toEqual(nextAdjustments);
-    expect(fixture.publishRendererDocument).not.toHaveBeenCalled();
+    expect(fixture.publishRendererDocument).toHaveBeenCalledOnce();
     expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
   });
 

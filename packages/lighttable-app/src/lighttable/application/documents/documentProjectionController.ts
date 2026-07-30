@@ -34,9 +34,10 @@ export interface DocumentProjectionController {
  * Atomically projects canonical document and grade state into editor and
  * renderer ports.
  *
- * This is the only place where document/output grade is combined with group
- * visibility. Adjustment Layers remain embedded in their stack positions and
- * are never duplicated into the document-level renderer settings.
+ * This is the only place where contextual Grade state and document-output
+ * effects are projected together. Raster-local Grade and Grade Layers remain
+ * embedded in their owners and are never duplicated into renderer-global
+ * creative settings.
  */
 export const createDocumentProjectionController = (
   port: DocumentProjectionPort

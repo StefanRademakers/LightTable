@@ -33,6 +33,16 @@
   -webkit-user-drag: none;
 }
 
+/*
+ * LightTable owns keyboard navigation and active/selected presentation.
+ * Suppress Chromium's document-style focus rings; plain Tab is consumed by
+ * the editor keymap instead of scrolling through controls.
+ */
+.lighttable :focus,
+.lighttable :focus-visible {
+  outline: none !important;
+}
+
 .lighttable__header {
   flex: 0 0 36px;
   width: 100%;
@@ -188,12 +198,56 @@
 }
 
 /*
+ * A centre drop on the document surface detaches a panel. Keep Dockview's
+ * hit-testing untouched, but present that action as a compact floating-panel
+ * destination instead of making the complete canvas look replaceable.
+ */
+.lighttable-dock-workspace
+  .dv-groupview:has(.lighttable-document-host)
+  :is(
+    .dv-drop-target-selection.dv-drop-target-center,
+    .dv-drop-target-anchor.dv-drop-target-center
+  ) {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: min(34%, 320px) !important;
+  height: min(28%, 220px) !important;
+  min-width: 150px;
+  min-height: 110px;
+  border: 1px solid var(--dv-drag-over-border-color);
+  border-radius: 4px;
+  transform: translate(-50%, -50%) !important;
+  background: rgba(66, 116, 196, 0.22);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.3);
+}
+
+/*
  * Dockview's desktop floating resize targets are only 4px wide. That is too
  * precise for an image editor, especially over a detailed canvas. Keep the
  * gutters transparent, but provide a 10px edge and an 18px corner hit-area.
  * These selectors only affect detached/floating panels; docked sashes retain
  * their normal dimensions.
  */
+.lighttable-dock-workspace .dv-resize-container {
+  /*
+   * Match the accessory-panel constraint at the actual floating-window
+   * boundary. Dockview must not shrink the outer frame below the inner grid,
+   * otherwise the panel content appears to escape its window.
+   */
+  min-width: 250px;
+  box-sizing: border-box;
+}
+
+.lighttable-dock-workspace .dv-resize-container > .dv-grid-view,
+.lighttable-dock-workspace .dv-resize-container .dv-groupview,
+.lighttable-dock-workspace .dv-resize-container .dv-content-container {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .lighttable-dock-workspace .dv-resize-container .dv-resize-handle-top,
 .lighttable-dock-workspace .dv-resize-container .dv-resize-handle-bottom {
   width: calc(100% - 36px);
@@ -1198,6 +1252,12 @@
   background: #242930;
 }
 
+.lighttable-layers__footer .lighttable-layers__trash--drop-active {
+  border-color: #d85b62;
+  background: rgba(216, 91, 98, 0.22);
+  box-shadow: 0 0 0 2px rgba(216, 91, 98, 0.14);
+}
+
 .lighttable-layers__footer button:disabled {
   opacity: 0.35;
   cursor: default;
@@ -1429,12 +1489,28 @@
 }
 
 .lighttable-layer__status {
-  width: 30px;
-  min-width: 30px;
+  width: 46px;
+  min-width: 46px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 3px;
+}
+
+.lighttable-layer__local-grade {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.lighttable-layer__local-grade img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .lighttable-layer-effects {

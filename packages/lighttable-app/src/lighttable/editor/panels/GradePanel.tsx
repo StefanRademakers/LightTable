@@ -525,9 +525,9 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
               aria-label={model.showOriginal
                 ? 'Show image with all settings'
                 : 'Show original image'}
-              title={`${model.showOriginal
+              title={model.showOriginal
                 ? 'Show image with all settings'
-                : 'Show original image'} (P)`}
+                : 'Show original image'}
             >
               <img
                 src={lightTableIcon(model.showOriginal ? 'visible_off.png' : 'visible.png')}

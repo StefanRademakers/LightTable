@@ -9,6 +9,7 @@ import type {
 } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { setAdjustmentLayerStack } from '../../editor/document/documentCommands';
+import { setRasterLayerAdjustmentStack } from '../../editor/document/documentCommands';
 
 export interface AdjustmentProjectionInput {
   readonly snapshot: BasicAdjustments;
@@ -21,12 +22,12 @@ export interface AdjustmentProjection {
   readonly editorAdjustments: BasicAdjustments;
   readonly documentAdjustments: BasicAdjustments;
   readonly document: ImageDocument | null;
-  readonly scope: 'document' | 'adjustment-layer';
+  readonly scope: 'layer' | 'adjustment-layer';
 }
 
 /**
- * Projects editor controls onto either the document output grade or one
- * Adjustment Layer without mixing those two scopes.
+ * Projects editor controls onto an explicit local raster grade or one
+ * Adjustment Layer without hidden document-wide creative state.
  *
  * Lens Fx remain document-output settings while editing an Adjustment Layer;
  * the layer receives only its typed adjustment stack. A stale/missing target
@@ -41,38 +42,36 @@ export const projectAdjustmentSnapshot = ({
 }: AdjustmentProjectionInput): AdjustmentProjection => {
   const editorAdjustments = structuredClone(snapshot);
   if (!targetLayerId) {
-    return {
-      editorAdjustments,
-      documentAdjustments: editorAdjustments,
-      document,
-      scope: 'document'
-    };
+    throw new Error('Select a raster layer or Grade Layer before grading.');
   }
   if (!document) {
     throw new Error('An Adjustment Layer grade requires an active document.');
   }
   const target = findDocumentLayer(document, targetLayerId);
-  if (target?.type !== 'adjustment') {
-    throw new Error('The Adjustment Layer target no longer exists.');
+  if (target?.type !== 'adjustment' && target?.type !== 'raster') {
+    throw new Error('The selected layer cannot own a grade.');
   }
   const nextDocumentAdjustments: BasicAdjustments = {
     ...documentAdjustments,
     effects: structuredClone(editorAdjustments.effects)
   };
+  const nextStack = adjustmentStackForScope(
+    createAdjustmentStackFromBasicAdjustments(
+      editorAdjustments,
+      target.adjustmentStack ?? undefined
+    ),
+    // The current panel is a grade editor. Lens Fx keep their document-output
+    // owner until their own explicit layer/local-stack renderer is introduced.
+    // Filtering through adjustment-layer stores creative modules only, even
+    // when the owner itself is a raster layer.
+    'adjustment-layer'
+  );
   return {
     editorAdjustments,
     documentAdjustments: nextDocumentAdjustments,
-    document: setAdjustmentLayerStack(
-      document,
-      targetLayerId,
-      adjustmentStackForScope(
-        createAdjustmentStackFromBasicAdjustments(
-          editorAdjustments,
-          target.adjustmentStack
-        ),
-        'adjustment-layer'
-      )
-    ),
-    scope: 'adjustment-layer'
+    document: target.type === 'adjustment'
+      ? setAdjustmentLayerStack(document, targetLayerId, nextStack)
+      : setRasterLayerAdjustmentStack(document, targetLayerId, nextStack),
+    scope: target.type === 'adjustment' ? 'adjustment-layer' : 'layer'
   };
 };

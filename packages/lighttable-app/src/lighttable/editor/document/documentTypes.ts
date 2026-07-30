@@ -107,6 +107,14 @@ export interface CommonLayer {
 
 export interface RasterLayer extends CommonLayer {
   type: 'raster';
+  /**
+   * Non-destructive corrections owned by this raster layer.
+   *
+   * `null` is an exact bypass: the layer has no local grade and allocates no
+   * grade-specific GPU resources. Whole-document corrections are represented
+   * by an explicit AdjustmentLayer instead of hidden document state.
+   */
+  adjustmentStack: AdjustmentStack | null;
   pixelRevision: number;
   width: number;
   height: number;
@@ -280,6 +288,7 @@ export const createImageDocument = (
       offsetY: 0,
       transform: identityAffineMatrix(),
       pixelSource: { kind: 'imported-image', assetId },
+      adjustmentStack: null,
       dirtyBounds: null,
       mask: null
     }],

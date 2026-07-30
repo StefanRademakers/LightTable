@@ -310,7 +310,7 @@ export const createEditorMenuOptions = (
       },
       {
         value: 'merge-down',
-        label: 'Merge Down',
+        label: `Merge Down (${labels.primaryShortcut('E')})`,
         onClick: commands.mergeDown,
         disabled: !layer || layer.type !== 'raster' || layer.activeIndex <= 0 || !layer.belowIsRaster
       },
@@ -364,7 +364,7 @@ export const createEditorMenuOptions = (
     },
     {
       value: 'show-original',
-      label: state.showOriginal ? 'Show corrected (P)' : 'Show original (P)',
+      label: state.showOriginal ? 'Show corrected' : 'Show original',
       separatorBefore: true,
       onClick: commands.toggleOriginal,
       disabled: !state.hasMetadata

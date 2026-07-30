@@ -21,7 +21,6 @@ import type { SelectionMode, SelectionOperation, SelectionShape } from '../edito
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
 import type { DocumentAssetBlob } from '../editor/persistence/layeredDocumentFormat';
 import { LayerDocumentRenderer, type ReversiblePixelEdit } from '../editor/rendering/LayerDocumentRenderer';
-import { containsVisibleAdjustmentLayer } from '../editor/rendering/compositorGraph';
 import { FeatureAlignmentService } from '../editor/autoAlign/FeatureAlignmentService';
 import type {
   TranslationAlignmentOptions,
@@ -822,25 +821,48 @@ export class WebGpuEngine {
   }
 
   mergeLayerDown(document: ImageDocument, topId: LayerId, bottomId: LayerId) {
-    const changed = this.documentRenderer?.mergeLayerDown(document, topId, bottomId) ?? false;
+    const changed = this.documentRenderer?.mergeLayerDown(
+      document,
+      topId,
+      bottomId,
+      (encoder, source, layer) =>
+        this.adjustmentLayerRenderer.encode(encoder, source, layer)
+    ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
   }
 
   mergeLayers(document: ImageDocument, layerIds: readonly LayerId[], destinationId: LayerId) {
-    const changed = this.documentRenderer?.mergeLayers(document, layerIds, destinationId) ?? false;
+    const changed = this.documentRenderer?.mergeLayers(
+      document,
+      layerIds,
+      destinationId,
+      (encoder, source, layer) =>
+        this.adjustmentLayerRenderer.encode(encoder, source, layer)
+    ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
   }
 
   flattenGroup(document: ImageDocument, groupId: LayerId, destinationId: LayerId) {
-    const changed = this.documentRenderer?.flattenGroup(document, groupId, destinationId) ?? false;
+    const changed = this.documentRenderer?.flattenGroup(
+      document,
+      groupId,
+      destinationId,
+      (encoder, source, layer) =>
+        this.adjustmentLayerRenderer.encode(encoder, source, layer)
+    ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
   }
 
   flattenImage(document: ImageDocument, destinationId: LayerId) {
-    const changed = this.documentRenderer?.flattenImage(document, destinationId) ?? false;
+    const changed = this.documentRenderer?.flattenImage(
+      document,
+      destinationId,
+      (encoder, source, layer) =>
+        this.adjustmentLayerRenderer.encode(encoder, source, layer)
+    ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
   }
@@ -1316,7 +1338,6 @@ export class WebGpuEngine {
     const encoder = this.device.createCommandEncoder({ label: 'LightTable render' });
     let renderedCorrection = false;
     if (this.renderDirty.correctionRequired) {
-      const documentHasAdjustment = containsVisibleAdjustmentLayer(this.imageDocument.layers);
       const documentTexture = this.documentRenderer.encodeComposite(
         encoder,
         this.imageDocument,
@@ -1324,27 +1345,6 @@ export class WebGpuEngine {
           this.adjustmentLayerRenderer.encode(layerEncoder, source, layer)
       );
       const sourceGeometryTexture = this.effectRuntime.encodeSourceGeometry(encoder, documentTexture);
-      let gradeTexture = sourceGeometryTexture;
-      if (!documentHasAdjustment) {
-        const basicBindGroup = this.device.createBindGroup({
-          layout: this.basicPipeline.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: sourceGeometryTexture.createView() },
-            { binding: 1, resource: this.sampler },
-            { binding: 2, resource: { buffer: this.adjustmentBuffer } }
-          ]
-        });
-        this.drawFullscreenPass(encoder, this.basicPipeline, basicBindGroup, this.correctedTexture.createView());
-        if ((Math.abs(this.adjustments.clarity) > 0.00001 || Math.abs(this.adjustments.dehaze) > 0.00001) &&
-          this.renderDirty.blurInputRequired) {
-          this.drawFullscreenPass(encoder, this.downsamplePipeline, this.downsampleBindGroup, this.downsampleTexture.createView());
-          this.drawFullscreenPass(encoder, this.blurPipeline, this.blurHorizontalBindGroup, this.blurTexture.createView());
-          this.drawFullscreenPass(encoder, this.blurPipeline, this.blurVerticalBindGroup, this.downsampleTexture.createView());
-          this.renderDirty.markBlurInputRendered();
-        }
-        this.drawFullscreenPass(encoder, this.creativePipeline, this.creativeBindGroup, this.creativeTexture.createView());
-        gradeTexture = this.creativeTexture;
-      }
       const visualizingDepth = Boolean(
         this.adjustments.effects.lensBlur.enabled &&
         this.lensBlurDepthVisualization &&
@@ -1352,7 +1352,7 @@ export class WebGpuEngine {
       );
       const linearEffectTexture = this.effectRuntime.encodeLinearSpatial(
         encoder,
-        gradeTexture,
+        sourceGeometryTexture,
         { visualizeDepth: visualizingDepth }
       );
       const outputBindGroup = this.device.createBindGroup({

@@ -16,11 +16,14 @@ export interface EditorKeyboardCommandPorts {
   copySelection(): void;
   pasteSelection(): void;
   layerViaCopy(): void;
+  mergeDown(): void;
   invertActiveTarget(): void;
   openSelectionFeather(): void;
   swapColors(): void;
   toggleOriginal(): void;
   changeBrushSize(direction: -1 | 1): void;
+  activateAdjacentDocument(direction: -1 | 1): void;
+  closeActiveDocument(): void;
   cancelOrClose(): void;
 }
 
@@ -77,6 +80,9 @@ export const executeEditorKeyboardCommand = (
     case 'layer-via-copy':
       ports.layerViaCopy();
       return;
+    case 'merge-down':
+      ports.mergeDown();
+      return;
     case 'free-transform':
       ports.activateTool('transform');
       return;
@@ -100,6 +106,17 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'commit-transform':
       ports.commitTransform();
+      return;
+    case 'activate-next-document':
+      ports.activateAdjacentDocument(1);
+      return;
+    case 'activate-previous-document':
+      ports.activateAdjacentDocument(-1);
+      return;
+    case 'close-active-document':
+      ports.closeActiveDocument();
+      return;
+    case 'suppress-tab-navigation':
       return;
     case 'cancel-or-close':
       ports.cancelOrClose();

@@ -3,9 +3,10 @@ import type { LayerNode } from '../editor/document/documentTypes';
 import { collectAdjustmentLayerIds } from './adjustmentLayerGpuResources';
 
 describe('collectAdjustmentLayerIds', () => {
-  it('finds adjustment layers at every group depth without including raster nodes', () => {
+  it('finds explicit Grade Layers and raster layers with a local grade', () => {
     const nodes = [
-      { id: 'background', type: 'raster' },
+      { id: 'background', type: 'raster', adjustmentStack: null },
+      { id: 'local-grade', type: 'raster', adjustmentStack: { modules: [] } },
       {
         id: 'group',
         type: 'group',
@@ -20,6 +21,10 @@ describe('collectAdjustmentLayerIds', () => {
       }
     ] as unknown as LayerNode[];
 
-    expect([...collectAdjustmentLayerIds(nodes)]).toEqual(['grade-a', 'grade-b']);
+    expect([...collectAdjustmentLayerIds(nodes)]).toEqual([
+      'local-grade',
+      'grade-a',
+      'grade-b'
+    ]);
   });
 });

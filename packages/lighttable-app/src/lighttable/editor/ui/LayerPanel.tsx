@@ -39,6 +39,7 @@ interface LayerPanelProps {
   ) => void;
   onAddMask: () => void;
   onToggleMask: () => void;
+  onRemoveMask: (layerId: LayerId) => void;
   onLockChange: (layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean) => void;
   onCreate: () => void;
   onCreateAdjustment: () => void;
@@ -113,6 +114,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onReorder,
   onAddMask,
   onToggleMask,
+  onRemoveMask,
   onLockChange,
   onCreate,
   onCreateAdjustment,
@@ -132,6 +134,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
   const [draggedLayerId, setDraggedLayerId] = React.useState<LayerId | null>(null);
+  const [trashDropActive, setTrashDropActive] = React.useState(false);
   const [dropTarget, setDropTarget] = React.useState<{
     layerId: LayerId;
     placement: 'above' | 'below' | 'inside';
@@ -260,7 +263,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     },
     {
       value: 'merge-down',
-      label: 'Merge Down',
+      label: 'Merge Down (Ctrl/Cmd+E)',
       separatorBefore: true,
       disabled: !canMergeDown,
       onClick: onMergeDown
@@ -586,10 +589,21 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               <span className="lighttable-layer__thumbnail-slot">
                 <button
                   type="button"
+                  draggable
                   className={`lighttable-layer__thumbnail lighttable-layer__mask${document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
                   style={previews?.mask ? maskThumbnailSize : undefined}
                   onClick={(event) => { event.stopPropagation(); selectLayer(event, layer.id, 'mask'); }}
                   onDoubleClick={(event) => { event.stopPropagation(); onToggleMask(); }}
+                  onDragStart={(event) => {
+                    event.stopPropagation();
+                    window.getSelection()?.removeAllRanges();
+                    onSelect(layer.id);
+                    onChannelChange('mask');
+                    setTrashDropActive(false);
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('application/x-lighttable-layer-mask-id', layer.id);
+                  }}
+                  onDragEnd={() => setTrashDropActive(false)}
                   title={layer.mask.enabled ? 'Edit mask; double-click to disable' : 'Edit mask; double-click to enable'}
                 >
                   {previews?.mask ? (
@@ -641,6 +655,20 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               aria-label="Layer name"
             />
             <span className="lighttable-layer__status">
+              {layer.type === 'raster' && layer.adjustmentStack ? (
+                <button
+                  type="button"
+                  className="lighttable-layer__local-grade"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSelect(layer.id);
+                  }}
+                  title="Local non-destructive grade"
+                  aria-label="Select local grade"
+                >
+                  <img src={lightTableIcon('layer_adjustment.png')} alt="" />
+                </button>
+              ) : null}
               {hasStyles ? <span className="lighttable-layer__fx-mark" aria-label="Layer effects">fx</span> : null}
               {layer.locks.all ? <img className="lighttable-layer__lock" src={lightTableIcon('lock_closed.png')} alt="Locked" /> : null}
             </span>
@@ -724,10 +752,56 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         ><img src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" /></button>
         <button
           type="button"
+          className={trashDropActive ? 'lighttable-layers__trash--drop-active' : undefined}
           onClick={() => onDelete(selectedIds)}
           disabled={!activeLayer}
-          title="Delete layer"
-          aria-label="Delete layer"
+          onDragEnter={(event) => {
+            const types = Array.from(event.dataTransfer.types);
+            if (
+              !types.includes('application/x-lighttable-layer-id')
+              && !types.includes('application/x-lighttable-layer-mask-id')
+            ) return;
+            event.preventDefault();
+            setTrashDropActive(true);
+          }}
+          onDragOver={(event) => {
+            const types = Array.from(event.dataTransfer.types);
+            if (
+              !types.includes('application/x-lighttable-layer-id')
+              && !types.includes('application/x-lighttable-layer-mask-id')
+            ) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            setTrashDropActive(true);
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+            setTrashDropActive(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const maskLayerId = event.dataTransfer.getData(
+              'application/x-lighttable-layer-mask-id'
+            ) as LayerId;
+            if (maskLayerId) {
+              onRemoveMask(maskLayerId);
+            } else {
+              const sourceLayerId = (
+                draggedLayerIdRef.current
+                ?? event.dataTransfer.getData('application/x-lighttable-layer-id')
+              ) as LayerId;
+              if (sourceLayerId) {
+                onDelete(selectedLayerIds.has(sourceLayerId) ? selectedIds : [sourceLayerId]);
+              }
+            }
+            draggedLayerIdRef.current = null;
+            setDraggedLayerId(null);
+            setDropTarget(null);
+            setTrashDropActive(false);
+          }}
+          title="Delete layer or mask"
+          aria-label="Delete layer or mask"
         ><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></button>
         <button
           type="button"

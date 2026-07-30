@@ -12,7 +12,8 @@ import {
   setLayerFillOpacity,
   setLayerLock,
   setLayerMaskProperties,
-  setLayerTransform
+  setLayerTransform,
+  setRasterLayerAdjustmentStack
 } from '../document/documentCommands';
 import { translationMatrix } from '../tools/transform/affine';
 import { findDocumentLayer, findRasterLayer, walkRasterLayers } from '../document/layerTree';
@@ -134,7 +135,14 @@ describe('LightTable layered PNG format', () => {
   });
 
   it('keeps distinct real PNG preview and layer payloads byte-exact', async () => {
-    const document = createRasterLayer(createImageDocument('Pixel roundtrip', 2, 2, 'source'));
+    let document = createRasterLayer(createImageDocument('Pixel roundtrip', 2, 2, 'source'));
+    const localStack = defaultStack();
+    const localLight = localStack.modules.find((module) => module.type === 'lt.light');
+    if (!localLight) throw new Error('Light module missing');
+    localLight.settings.exposureEV = 0.75;
+    localLight.revision += 1;
+    localStack.revision += 1;
+    document = setRasterLayerAdjustmentStack(document, document.activeLayerId!, localStack);
     const assets = [
       { layerId: document.layers[0].id, pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }), mask: null },
       { layerId: document.layers[1].id, pixels: new Blob([OVERLAY_PNG], { type: 'image/png' }), mask: null }
@@ -156,6 +164,8 @@ describe('LightTable layered PNG format', () => {
     expect(new Uint8Array(await parsed!.assets[1].pixels.arrayBuffer())).toEqual(OVERLAY_PNG);
     expect(parsed!.assets[0].pixels.size).toBe(BACKGROUND_PNG.byteLength);
     expect(parsed!.assets[1].pixels.size).toBe(OVERLAY_PNG.byteLength);
+    expect(findRasterLayer(parsed!.document, document.activeLayerId!)?.adjustmentStack)
+      .toEqual(localStack);
   });
 
   it('round-trips nested groups and their raster assets', async () => {

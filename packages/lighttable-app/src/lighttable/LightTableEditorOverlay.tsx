@@ -161,6 +161,12 @@ const primaryShortcutLabel = (key: string, shift = false) => (
     ? `${shift ? '⇧' : ''}⌘${key}`
     : `Ctrl+${shift ? 'Shift+' : ''}${key}`
 );
+const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
+  if (!document?.activeLayerId) return false;
+  const active = findDocumentLayer(document, document.activeLayerId);
+  return active?.type === 'raster' || active?.type === 'adjustment';
+};
+
 export interface LightTableEditorOverlayProps {
   open: boolean;
   active?: boolean;
@@ -263,6 +269,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const copySelectedContentRef = useRef<() => void>(() => undefined);
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
+  const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);
   const fillActiveTargetRef = useRef<(color: string) => void>(() => undefined);
   const temporaryToolRef = useRef(new TemporaryToolController());
@@ -469,7 +476,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const document = imageDocumentRef.current;
       if (!document) return null;
       const active = findDocumentLayer(document, document.activeLayerId);
-      return active?.type === 'adjustment' ? active.id : null;
+      return active?.type === 'adjustment' || active?.type === 'raster'
+        ? active.id
+        : null;
     },
     getRenderer: () => engineRef.current,
     applySnapshot: applyAdjustmentSnapshot,
@@ -844,6 +853,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       copySelection: () => copySelectedContentRef.current(),
       pasteSelection: () => pasteSelectedContentRef.current(),
       layerViaCopy: () => layerViaCopyRef.current(),
+      mergeDown: () => mergeActiveLayerDownRef.current(),
       invertActiveTarget: () => invertActiveLayerColorsRef.current(),
       openSelectionFeather: editorDialogs.openFeather,
       swapColors: () => setEditorSession((current) => ({
@@ -865,6 +875,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           size: steppedBrushSize(current.brush.size, direction)
         }
       })),
+      activateAdjacentDocument: (direction) => {
+        if (!onActivateWorkspaceDocument || !workspaceDocuments?.length) return;
+        const currentIndex = workspaceDocuments.findIndex(
+          (document) => document.id === workspaceDocumentId
+        );
+        const origin = currentIndex >= 0 ? currentIndex : 0;
+        const nextIndex = (
+          origin + direction + workspaceDocuments.length
+        ) % workspaceDocuments.length;
+        const nextDocument = workspaceDocuments[nextIndex];
+        if (nextDocument && nextDocument.id !== workspaceDocumentId) {
+          onActivateWorkspaceDocument(nextDocument.id);
+        }
+      },
+      closeActiveDocument: onClose,
       cancelOrClose: () => {
         if (transformActiveRef.current()) {
           cancelTransformRef.current();
@@ -1001,6 +1026,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layerDocumentCommands.layerViaCopy(editorSession.selection);
   };
   layerViaCopyRef.current = layerViaCopy;
+  mergeActiveLayerDownRef.current = mergeActiveLayerDown;
 
   const autoAlignController = useAutoAlignController({
     getDocument: () => imageDocumentRef.current,
@@ -1244,6 +1270,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onReorder={layerPanelController.reorder}
         onAddMask={layerPanelController.addMask}
         onToggleMask={layerPanelController.toggleMask}
+        onRemoveMask={layerPanelController.removeMask}
         onLockChange={layerPanelController.setLock}
         onCreate={layerPanelController.createRasterLayer}
         onCreateAdjustment={layerPanelController.createAdjustmentLayer}
@@ -1453,7 +1480,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 key={sourceIdentity || sourceName}
                 model={{
                   adjustments,
-                  metadata,
+                  // Grade controls are contextual. A group or missing
+                  // selection must never fall back to an invisible global
+                  // creative grade.
+                  metadata: activeLayerCanOwnGrade(imageDocument) ? metadata : null,
                   resetModifierActive: shiftPressed,
                   depthProgress,
                   depthResult,

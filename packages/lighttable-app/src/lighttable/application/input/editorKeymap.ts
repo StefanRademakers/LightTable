@@ -33,6 +33,7 @@ export type EditorKeyboardCommand =
   | 'selection-copy'
   | 'selection-paste'
   | 'layer-via-copy'
+  | 'merge-down'
   | 'free-transform'
   | 'invert-active-target'
   | 'selection-feather'
@@ -41,6 +42,10 @@ export type EditorKeyboardCommand =
   | 'brush-size-decrease'
   | 'brush-size-increase'
   | 'commit-transform'
+  | 'activate-next-document'
+  | 'activate-previous-document'
+  | 'close-active-document'
+  | 'suppress-tab-navigation'
   | 'cancel-or-close'
   | { readonly type: 'activate-tool'; readonly tool: ToolId };
 
@@ -125,6 +130,9 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('layer.via-copy', { key: 'j', primary: true, alt: false, shift: false }, 'layer-via-copy', {
       when: (context) => !context.saving
     }),
+    command('layer.merge-down', { key: 'e', primary: true, alt: false, shift: false }, 'merge-down', {
+      when: (context) => !context.saving && context.hasActiveLayer
+    }),
     command('transform.free', { key: 't', primary: true, alt: true, shift: false }, 'free-transform', {
       when: (context) => !context.saving && context.hasActiveLayer
     }),
@@ -133,13 +141,40 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       when: (context) => context.hasSelection
     }),
     command('colors.swap', { key: 'x', primary: false, alt: false }, 'swap-colors'),
-    command('view.toggle-original', { key: 'p', primary: false, alt: false }, 'toggle-original'),
     command('brush.size-decrease', { key: '[', primary: false, alt: false }, 'brush-size-decrease', {
       when: (context) => isPaintTool(context.activeTool)
     }),
     command('brush.size-increase', { key: ']', primary: false, alt: false }, 'brush-size-increase', {
       when: (context) => isPaintTool(context.activeTool)
     }),
+    command(
+      'workspace.previous-document',
+      { key: 'tab', primary: true, alt: false, shift: true },
+      'activate-previous-document'
+    ),
+    command(
+      'workspace.next-document',
+      { key: 'tab', primary: true, alt: false, shift: false },
+      'activate-next-document'
+    ),
+    command(
+      'workspace.close-document-w',
+      { key: 'w', primary: true, alt: false, shift: false },
+      'close-active-document',
+      { when: (context) => !context.saving }
+    ),
+    command(
+      'workspace.close-document-f4',
+      { key: 'f4', primary: true, alt: false, shift: false },
+      'close-active-document',
+      { when: (context) => !context.saving }
+    ),
+    command(
+      'browser.suppress-tab-navigation',
+      { key: 'tab', primary: false, alt: false },
+      'suppress-tab-navigation',
+      { allowWhileEditing: true }
+    ),
     ...toolBindings,
     command('transform.commit', { key: 'enter' }, 'commit-transform', {
       when: (context) => context.transforming

@@ -448,7 +448,7 @@ export class LayerDocumentRenderer {
     encodeAdjustment?: (
       encoder: GPUCommandEncoder,
       source: GPUTexture,
-      layer: AdjustmentLayer
+      layer: AdjustmentLayer | RasterLayer
     ) => GPUTexture
   ): GPUTexture {
     this.syncDocument(document);
@@ -466,7 +466,7 @@ export class LayerDocumentRenderer {
       const geometryPreview = this.geometryPreviews.get(layer.id);
       if (runtime && layer.opacity >= 0.99999 && layer.fillOpacity >= 0.99999 && layer.blendMode === 'normal' &&
         !layer.mask?.enabled && !this.transformSession && !geometryPreview &&
-        !layerStyleStackIsActive(layer.styleStack) &&
+        !layerStyleStackIsActive(layer.styleStack) && !layer.adjustmentStack &&
         isIdentityAffineMatrix(layer.transform) && layer.width === this.width && layer.height === this.height) {
         return runtime.texture;
       }
@@ -572,9 +572,12 @@ export class LayerDocumentRenderer {
       const activeTransform = this.transformSession?.layerId === layer.id
         ? this.transformSession
         : null;
-      const foregroundTexture = activeTransform?.usesSelection
+      const ungradedForegroundTexture = activeTransform?.usesSelection
         ? activeTransform.previewTexture
         : runtime.texture;
+      const foregroundTexture = layer.adjustmentStack && encodeAdjustment
+        ? encodeAdjustment(encoder, ungradedForegroundTexture, layer)
+        : ungradedForegroundTexture;
       const renderContract = rasterRenderContract(layer, foregroundTexture);
       const geometryPreview = this.geometryPreviews.get(layer.id);
       const validGeometryPreview = geometryPreview?.sourceGeometryRevision === layer.geometryRevision
@@ -1152,11 +1155,29 @@ export class LayerDocumentRenderer {
     }
   }
 
-  mergeLayerDown(document: ImageDocument, topId: LayerId, bottomId: LayerId) {
-    return this.mergeLayers(document, [bottomId, topId], bottomId);
+  mergeLayerDown(
+    document: ImageDocument,
+    topId: LayerId,
+    bottomId: LayerId,
+    encodeAdjustment?: (
+      encoder: GPUCommandEncoder,
+      source: GPUTexture,
+      layer: AdjustmentLayer | RasterLayer
+    ) => GPUTexture
+  ) {
+    return this.mergeLayers(document, [bottomId, topId], bottomId, encodeAdjustment);
   }
 
-  mergeLayers(document: ImageDocument, layerIds: readonly LayerId[], destinationId: LayerId) {
+  mergeLayers(
+    document: ImageDocument,
+    layerIds: readonly LayerId[],
+    destinationId: LayerId,
+    encodeAdjustment?: (
+      encoder: GPUCommandEncoder,
+      source: GPUTexture,
+      layer: AdjustmentLayer | RasterLayer
+    ) => GPUTexture
+  ) {
     const destination = this.runtimes.get(destinationId);
     const layers = layerIds.map((layerId) => findRasterLayer(document, layerId));
     if (
@@ -1169,14 +1190,23 @@ export class LayerDocumentRenderer {
     const mergedTexture = this.encodeComposite(encoder, {
       ...document,
       layers: layers as RasterLayer[]
-    });
+    }, encodeAdjustment);
     encoder.copyTextureToTexture({ texture: mergedTexture }, { texture: destination.texture }, [this.width, this.height]);
     this.device.queue.submit([encoder.finish()]);
     this.releaseSubmittedResources();
     return true;
   }
 
-  flattenGroup(document: ImageDocument, groupId: LayerId, destinationId: LayerId) {
+  flattenGroup(
+    document: ImageDocument,
+    groupId: LayerId,
+    destinationId: LayerId,
+    encodeAdjustment?: (
+      encoder: GPUCommandEncoder,
+      source: GPUTexture,
+      layer: AdjustmentLayer | RasterLayer
+    ) => GPUTexture
+  ) {
     const group = findLayerNode(document.layers, groupId)?.node;
     const destination = this.runtimes.get(destinationId);
     if (!group || group.type !== 'group' || !destination) return false;
@@ -1184,7 +1214,7 @@ export class LayerDocumentRenderer {
     const flattenedTexture = this.encodeComposite(encoder, {
       ...document,
       layers: [{ ...group, visible: true }]
-    });
+    }, encodeAdjustment);
     encoder.copyTextureToTexture(
       { texture: flattenedTexture },
       { texture: destination.texture },
@@ -1195,11 +1225,19 @@ export class LayerDocumentRenderer {
     return true;
   }
 
-  flattenImage(document: ImageDocument, destinationId: LayerId) {
+  flattenImage(
+    document: ImageDocument,
+    destinationId: LayerId,
+    encodeAdjustment?: (
+      encoder: GPUCommandEncoder,
+      source: GPUTexture,
+      layer: AdjustmentLayer | RasterLayer
+    ) => GPUTexture
+  ) {
     const destination = this.runtimes.get(destinationId);
     if (!destination) return false;
     const encoder = this.device.createCommandEncoder({ label: 'LightTable flatten image' });
-    const flattenedTexture = this.encodeComposite(encoder, document);
+    const flattenedTexture = this.encodeComposite(encoder, document, encodeAdjustment);
     encoder.copyTextureToTexture(
       { texture: flattenedTexture },
       { texture: destination.texture },

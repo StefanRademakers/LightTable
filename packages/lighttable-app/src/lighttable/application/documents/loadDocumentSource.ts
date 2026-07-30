@@ -1,8 +1,15 @@
-import type { AdjustmentStack } from '../../processing/adjustmentStack';
+import {
+  adjustmentStackForScope,
+  createAdjustmentStackFromBasicAdjustments,
+  materializeBasicAdjustments,
+  type AdjustmentStack
+} from '../../processing/adjustmentStack';
 import {
   createImageDocument,
   type ImageDocument
 } from '../../editor/document/documentTypes';
+import { setRasterLayerAdjustmentStack } from '../../editor/document/documentCommands';
+import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   parseLayeredDocumentFile,
   type DocumentAssetBlob,
@@ -14,7 +21,11 @@ import {
   type PsdImportCompatibilityEntry
 } from '../../editor/psd/psdDocumentAdapter';
 import type { PsdDecodeSuccess } from '../../image-io/psdProtocol';
-import type { LightTableImageMetadata } from '../../types';
+import {
+  createDefaultAdjustments,
+  type BasicAdjustments,
+  type LightTableImageMetadata
+} from '../../types';
 import type {
   LightTableImageDecodeMode,
   LightTableLoadImageOptions
@@ -82,6 +93,11 @@ export interface LoadDocumentSourceRequest {
   readonly name: string;
   readonly cacheKey: string;
   readonly decodeMode: DocumentOpenMode;
+  /**
+   * A flat LightTable recipe belongs to the imported raster, never to an
+   * implicit document-wide creative grade.
+   */
+  readonly initialAdjustments: BasicAdjustments;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
   /** Test seam; production callers use the default import adapters. */
@@ -90,6 +106,25 @@ export interface LoadDocumentSourceRequest {
 
 const canceled = (request: LoadDocumentSourceRequest) =>
   request.signal?.aborted || request.isCanceled?.() === true;
+
+const createInitialRasterGrade = (
+  adjustments: BasicAdjustments
+): AdjustmentStack | null => {
+  const stack = adjustmentStackForScope(
+    createAdjustmentStackFromBasicAdjustments(adjustments),
+    'layer'
+  );
+  const defaults = materializeBasicAdjustments(
+    adjustmentStackForScope(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'layer'
+    ),
+    undefined,
+    'layer'
+  );
+  const current = materializeBasicAdjustments(stack, undefined, 'layer');
+  return JSON.stringify(current) === JSON.stringify(defaults) ? null : stack;
+};
 
 /**
  * Imports one external source into the native LightTable document model and
@@ -155,7 +190,7 @@ export const loadDocumentSource = async (
   if (canceled(request)) return null;
 
   const documentStartedAt = dependencies.now();
-  const document = layered?.document ?? semanticPsd?.document ?? createImageDocument(
+  let document = layered?.document ?? semanticPsd?.document ?? createImageDocument(
     request.name,
     metadata.width,
     metadata.height,
@@ -169,6 +204,17 @@ export const loadDocumentSource = async (
       normalizedColorSpace: 'linear-srgb'
     }
   );
+  if (!layered && !semanticPsd) {
+    const initialRasterGrade = createInitialRasterGrade(request.initialAdjustments);
+    const background = findDocumentLayer(document, document.activeLayerId);
+    if (initialRasterGrade && background?.type === 'raster') {
+      document = setRasterLayerAdjustmentStack(
+        document,
+        background.id,
+        initialRasterGrade
+      );
+    }
+  }
   if (document.width !== metadata.width || document.height !== metadata.height) {
     throw new Error('The layered LightTable preview does not match its document dimensions.');
   }

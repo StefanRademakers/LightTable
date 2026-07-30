@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import type { BasicAdjustments } from '../../types';
-import { cloneAdjustments } from '../../types';
+import { cloneAdjustments, createDefaultAdjustments } from '../../types';
 import type { BlendMode } from '../../editor/document/blendModes';
 import type {
   ImageDocument,
@@ -77,7 +77,7 @@ export interface LayerPanelController {
   ): void;
   addMask(): void;
   toggleMask(): void;
-  removeMask(): void;
+  removeMask(layerId?: LayerId): void;
   moveActive(direction: 'up' | 'down'): void;
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
   createRasterLayer(): void;
@@ -123,12 +123,18 @@ export const createLayerPanelController = (
       false
     );
     const documentAdjustments = dependencies.getDocumentAdjustments();
-    const panelAdjustments = layer.type === 'adjustment'
+    const panelAdjustments = (
+      layer.type === 'adjustment'
+      || (layer.type === 'raster' && layer.adjustmentStack)
+    )
       ? {
-        ...materializeBasicAdjustments(layer.adjustmentStack),
+        ...materializeBasicAdjustments(layer.adjustmentStack!),
         effects: structuredClone(documentAdjustments.effects)
       }
-      : documentAdjustments;
+      : {
+        ...createDefaultAdjustments(),
+        effects: structuredClone(documentAdjustments.effects)
+      };
     dependencies.publishPanelAdjustments(cloneAdjustments(panelAdjustments));
   };
 
@@ -176,9 +182,9 @@ export const createLayerPanelController = (
       dependencies.mutateDocument((current) =>
         setLayerMaskEnabled(current, layer.id, !layer.mask!.enabled));
     },
-    removeMask: () => {
+    removeMask: (requestedLayerId) => {
       const dependencies = resolveDependencies();
-      const layerId = dependencies.getDocument()?.activeLayerId;
+      const layerId = requestedLayerId ?? dependencies.getDocument()?.activeLayerId;
       if (!layerId) return;
       dependencies.mutateDocument((current) =>
         removeLayerMask(current, layerId));

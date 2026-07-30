@@ -20,11 +20,14 @@ const ports = (): EditorKeyboardCommandPorts => ({
   copySelection: vi.fn(),
   pasteSelection: vi.fn(),
   layerViaCopy: vi.fn(),
+  mergeDown: vi.fn(),
   invertActiveTarget: vi.fn(),
   openSelectionFeather: vi.fn(),
   swapColors: vi.fn(),
   toggleOriginal: vi.fn(),
   changeBrushSize: vi.fn(),
+  activateAdjacentDocument: vi.fn(),
+  closeActiveDocument: vi.fn(),
   cancelOrClose: vi.fn()
 });
 
@@ -63,5 +66,17 @@ describe('executeEditorKeyboardCommand', () => {
 
     expect(target.changeBrushSize).toHaveBeenCalledWith(-1);
     expect(target.fillBackground).toHaveBeenCalledOnce();
+  });
+
+  it('routes workspace and layer commands through explicit ports', () => {
+    const target = ports();
+
+    executeEditorKeyboardCommand('merge-down', target);
+    executeEditorKeyboardCommand('activate-previous-document', target);
+    executeEditorKeyboardCommand('close-active-document', target);
+
+    expect(target.mergeDown).toHaveBeenCalledOnce();
+    expect(target.activateAdjacentDocument).toHaveBeenCalledWith(-1);
+    expect(target.closeActiveDocument).toHaveBeenCalledOnce();
   });
 });

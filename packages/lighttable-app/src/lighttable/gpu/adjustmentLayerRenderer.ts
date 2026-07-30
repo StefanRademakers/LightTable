@@ -1,5 +1,8 @@
 import { buildCurveLut, CURVE_LUT_SIZE } from '../curves';
-import type { AdjustmentLayer } from '../editor/document/documentTypes';
+import type {
+  AdjustmentLayer,
+  RasterLayer
+} from '../editor/document/documentTypes';
 import { evaluateAdjustmentStack, type AdjustmentEvaluation } from '../processing/adjustmentEvaluator';
 import type { BasicAdjustments } from '../types';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
@@ -14,11 +17,14 @@ export interface AdjustmentLayerRenderPlan {
 }
 
 export const createAdjustmentLayerRenderPlan = (
-  layer: AdjustmentLayer
+  layer: AdjustmentLayer | RasterLayer
 ): AdjustmentLayerRenderPlan => {
+  if (!layer.adjustmentStack) {
+    throw new Error(`Layer "${layer.name}" has no local grade.`);
+  }
   const evaluation = evaluateAdjustmentStack(
     layer.adjustmentStack,
-    { scope: 'adjustment-layer' }
+    { scope: layer.type === 'adjustment' ? 'adjustment-layer' : 'layer' }
   );
   return {
     evaluation,
@@ -75,7 +81,7 @@ export class AdjustmentLayerRenderer {
   encode(
     encoder: GPUCommandEncoder,
     source: GPUTexture,
-    layer: AdjustmentLayer
+    layer: AdjustmentLayer | RasterLayer
   ): GPUTexture {
     const dependencies = this.dependencies;
     if (!dependencies) {

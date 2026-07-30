@@ -485,6 +485,7 @@ export const importPsdDocument = (
       offsetX: 0,
       offsetY: 0,
       pixelSource: { kind: 'runtime-raster', runtimeId: node.id },
+      adjustmentStack: null,
       dirtyBounds: null,
       mask: node.mask ? {
         id: node.mask.id,
