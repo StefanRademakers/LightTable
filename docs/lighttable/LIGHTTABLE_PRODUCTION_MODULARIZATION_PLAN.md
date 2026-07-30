@@ -901,7 +901,7 @@ Work:
 - [x] move concrete `WebGpuEngine` ownership behind the renderer adapter;
 - [x] move parallel renderer/source startup, stale-start rejection and failure
       cleanup into a tested application service;
-- move render scheduling/invalidation out of React effects;
+- [x] move render scheduling/invalidation out of React effects;
 - split device, resources, scopes and readback;
 - isolate optional pipeline compilation;
 - add resource lifecycle and device-loss tests.
@@ -925,6 +925,12 @@ commands. A suspended renderer currently retains resources; deterministic
 eviction is the next lifecycle policy to introduce. Renderer construction and
 source download still overlap for startup performance, while the application
 startup service now guarantees cleanup when either side fails or becomes stale.
+
+Frame scheduling now has one renderer-owned invalidation coordinator with
+coalesced animation-frame work, synchronous export/readback flushing and
+terminal cancellation. Dirty-stage decisions remain in the renderer, while
+browser callback ownership no longer leaks through React or ad-hoc frame
+handles.
 
 ### Phase 6 — Layer compositor and processing modules
 

@@ -37,6 +37,7 @@ import type {
   LightTableLoadImageOptions,
   ReferenceDifferenceMetrics
 } from '../application/rendering/rendererTypes';
+import { RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
 import {
@@ -211,6 +212,7 @@ export class WebGpuEngine {
   private translationAlignmentService: FeatureAlignmentService | null = null;
   private imageDocument: ImageDocument | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
+  private readonly renderScheduler: RenderInvalidationScheduler;
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -224,6 +226,7 @@ export class WebGpuEngine {
     this.context = context;
     this.canvasFormat = canvasFormat;
     this.callbacks = callbacks;
+    this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
     this.deviceErrorListener = ((event: GPUUncapturedErrorEvent) => {
       if (!this.destroyed) {
         this.callbacks.onDeviceLost?.(`LightTable WebGPU runtime error: ${event.error.message}`);
@@ -291,7 +294,6 @@ export class WebGpuEngine {
   private histogramDirty = true;
   private histogramPending = false;
   private histogramVisible = true;
-  private frameHandle: number | null = null;
   private firstFramePending = false;
   private layerStyleInitialization: Promise<void> | null = null;
   private layerStyleInitializationFailed = false;
@@ -1203,12 +1205,8 @@ export class WebGpuEngine {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
     }
     await this.layerStyleInitialization;
-    if (this.frameHandle !== null) {
-      cancelAnimationFrame(this.frameHandle);
-      this.frameHandle = null;
-    }
     this.correctionDirty = true;
-    this.renderNow();
+    this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
 
     const maximumSamples = 4_000_000;
@@ -1405,11 +1403,7 @@ export class WebGpuEngine {
   }
 
   private requestRender() {
-    if (this.destroyed || this.frameHandle !== null) return;
-    this.frameHandle = requestAnimationFrame(() => {
-      this.frameHandle = null;
-      this.renderNow();
-    });
+    if (!this.destroyed) this.renderScheduler.invalidate();
   }
 
   private createAdjustmentLayerRuntime(layer: AdjustmentLayer): AdjustmentLayerRuntime {
@@ -1756,13 +1750,9 @@ export class WebGpuEngine {
 
   async exportPng() {
     if (!this.metadata || !this.finalTexture) throw new Error('No processed image is available for export.');
-    if (this.frameHandle !== null) {
-      cancelAnimationFrame(this.frameHandle);
-      this.frameHandle = null;
-    }
     this.lensBlurEffect?.setInteractionActive(false);
     this.correctionDirty = true;
-    this.renderNow();
+    this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
 
     const bytesPerPixel = 4;
@@ -1810,8 +1800,7 @@ export class WebGpuEngine {
     this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
     sharedDeviceLostListeners.delete(this.deviceLostListener);
     this.imageLoadRevision += 1;
-    if (this.frameHandle !== null) cancelAnimationFrame(this.frameHandle);
-    this.frameHandle = null;
+    this.renderScheduler.dispose();
     this.destroyImageResources();
     this.scopeEngine?.destroy();
     this.scopeEngine = null;
