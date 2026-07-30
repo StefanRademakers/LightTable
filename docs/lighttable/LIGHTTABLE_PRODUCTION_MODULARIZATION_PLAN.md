@@ -820,7 +820,9 @@ Work:
 - migrate temporary pan, brush sizing and tool shortcuts;
 - [x] migrate pointer-driven selection draft/commit/cancel lifecycle into an
       isolated controller;
-- migrate paint/erase/fill and transform controllers;
+- [x] migrate paint/erase gesture ownership, dab sampling, dirty bounds and
+      fixed target transforms into an isolated controller;
+- migrate fill and transform controllers;
 - remove feature-specific global listeners from the overlay.
 
 Milestone note:
@@ -836,6 +838,12 @@ The selection controller now owns its pointer lock, document-space draft
 sampling, modifier-derived operation and invalid-gesture clear behavior.
 React only mirrors the draft for visualization and forwards the controller's
 typed apply/clear result to history and the renderer.
+
+The paint controller now locks layer, pixel/mask channel, erase mode and the
+source-to-document matrix for the complete stroke. It also owns dab spacing and
+dirty-bound accumulation. Renderer pixel edits and history snapshots remain
+outside until their application port is extracted, but switching React state
+mid-stroke can no longer redirect paint to another layer or coordinate space.
 
 Exit criteria:
 

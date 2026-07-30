@@ -31,7 +31,7 @@ const move = (
   selectionGestureMatches: false,
   paintGestureMatches: false,
   hasDocumentPoint: true,
-  hasActiveLayer: true,
+  hasPaintTarget: true,
   hasStrokeBuilder: true,
   ...patch
 });

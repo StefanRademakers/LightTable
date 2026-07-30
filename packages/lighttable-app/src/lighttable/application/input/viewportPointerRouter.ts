@@ -35,7 +35,7 @@ export interface ViewportPointerMoveContext {
   selectionGestureMatches: boolean;
   paintGestureMatches: boolean;
   hasDocumentPoint: boolean;
-  hasActiveLayer: boolean;
+  hasPaintTarget: boolean;
   hasStrokeBuilder: boolean;
 }
 
@@ -83,7 +83,7 @@ export const resolveViewportPointerMoveIntent = (
   if (context.temporaryPan || context.panGestureMatches) return 'pan';
   if (context.selectionGestureMatches) return 'selection';
   if (!isPaintTool(context.activeTool) || !context.paintGestureMatches) return 'pan';
-  return context.hasDocumentPoint && context.hasActiveLayer && context.hasStrokeBuilder
+  return context.hasDocumentPoint && context.hasPaintTarget && context.hasStrokeBuilder
     ? 'paint'
     : 'ignore';
 };
