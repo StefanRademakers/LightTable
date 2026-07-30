@@ -1242,3 +1242,6 @@ The refactor is successful when:
 - [x] Move paint/erase gesture execution behind one document-safe session
       controller that snapshots brush and coordinate state, owns GPU rollback
       and publishes exactly one document revision and undo entry per stroke.
+- [x] Move pointer- and command-driven selection publication behind one
+      document-scoped controller with stale async rejection and selection-only
+      undo/redo transactions.
