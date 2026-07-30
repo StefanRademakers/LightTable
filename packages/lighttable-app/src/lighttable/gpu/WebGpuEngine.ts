@@ -8,7 +8,6 @@ import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
 import type { DepthAnalysisResult } from '../analysis/depth/types';
 import {
   layerIsLocked,
-  type AdjustmentLayer,
   type ImageDocument,
   type LayerId,
   type LayerNode,
@@ -53,6 +52,7 @@ import { ADJUSTMENT_UNIFORM_FLOATS, buildAdjustmentUniform } from './adjustmentU
 import { getCorePipelineBundle } from './corePipelineLibrary';
 import { encodeRgba8Png, mapGpuBufferCopy, readRgba8Texture } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
+import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 const DIFFERENCE_METRICS_BYTE_SIZE = 8 * Uint32Array.BYTES_PER_ELEMENT;
@@ -61,12 +61,6 @@ interface ViewportRect {
   y: number;
   width: number;
   height: number;
-}
-
-interface AdjustmentLayerRuntime {
-  uniformBuffer: GPUBuffer;
-  curveTexture: GPUTexture;
-  creativeBindGroup: GPUBindGroup;
 }
 
 export class WebGpuEngine {
@@ -82,7 +76,7 @@ export class WebGpuEngine {
   private advancedImageDecoder: WasmVipsDecoder | null = null;
   private imageLoadRevision = 0;
   private documentRenderer: LayerDocumentRenderer | null = null;
-  private adjustmentLayerRuntimes = new Map<LayerId, AdjustmentLayerRuntime>();
+  private readonly adjustmentLayerResources: AdjustmentLayerGpuResources;
   private translationAlignmentService: FeatureAlignmentService | null = null;
   private imageDocument: ImageDocument | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
@@ -140,6 +134,7 @@ export class WebGpuEngine {
     this.context = context;
     this.canvasFormat = canvasFormat;
     this.callbacks = callbacks;
+    this.adjustmentLayerResources = new AdjustmentLayerGpuResources(device);
     this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
     this.deviceErrorListener = ((event: GPUUncapturedErrorEvent) => {
       if (!this.destroyed) {
@@ -544,19 +539,7 @@ export class WebGpuEngine {
     if (firstDocument) this.documentRenderer.initialize(document, this.sourceTexture);
     else this.documentRenderer.syncDocument(document);
     this.initializeLayerStylesIfNeeded(document);
-    const adjustmentIds = new Set<LayerId>();
-    const collectAdjustmentIds = (nodes: readonly LayerNode[]) => {
-      nodes.forEach((node) => {
-        if (node.type === 'adjustment') adjustmentIds.add(node.id);
-        else if (node.type === 'group') collectAdjustmentIds(node.children);
-      });
-    };
-    collectAdjustmentIds(document.layers);
-    this.adjustmentLayerRuntimes.forEach((runtime, layerId) => {
-      if (adjustmentIds.has(layerId)) return;
-      this.destroyAdjustmentLayerRuntime(runtime);
-      this.adjustmentLayerRuntimes.delete(layerId);
-    });
+    this.adjustmentLayerResources.syncDocument(document);
     this.writeAdjustments();
     this.markDocumentDirty();
   }
@@ -918,6 +901,12 @@ export class WebGpuEngine {
       size: HISTOGRAM_BYTE_SIZE,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
     });
+    this.adjustmentLayerResources.configure({
+      sampler: this.sampler,
+      creativePipeline: this.creativePipeline,
+      correctedTexture: this.correctedTexture,
+      downsampleTexture: this.downsampleTexture
+    });
 
     this.downsampleBindGroup = this.device.createBindGroup({
       layout: this.downsamplePipeline.getBindGroupLayout(0),
@@ -1259,46 +1248,6 @@ export class WebGpuEngine {
     if (!this.destroyed) this.renderScheduler.invalidate();
   }
 
-  private createAdjustmentLayerRuntime(layer: AdjustmentLayer): AdjustmentLayerRuntime {
-    if (!this.sampler || !this.creativePipeline || !this.correctedTexture ||
-      !this.downsampleTexture) {
-      throw new Error('LightTable adjustment-layer resources are not initialized.');
-    }
-    const uniformBuffer = this.device.createBuffer({
-      label: `LightTable adjustment layer uniforms: ${layer.name}`,
-      size: ADJUSTMENT_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    const curveTexture = this.device.createTexture({
-      label: `LightTable adjustment layer curve LUT: ${layer.name}`,
-      size: [CURVE_LUT_SIZE, 1],
-      format: 'rgba32float',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-    });
-    return {
-      uniformBuffer,
-      curveTexture,
-      creativeBindGroup: this.device.createBindGroup({
-        layout: this.creativePipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: this.correctedTexture.createView() },
-          { binding: 1, resource: this.downsampleTexture.createView() },
-          { binding: 2, resource: this.sampler },
-          { binding: 3, resource: { buffer: uniformBuffer } },
-          { binding: 4, resource: curveTexture.createView() }
-        ]
-      })
-    };
-  }
-
-  private adjustmentLayerRuntime(layer: AdjustmentLayer) {
-    const current = this.adjustmentLayerRuntimes.get(layer.id);
-    if (current) return current;
-    const runtime = this.createAdjustmentLayerRuntime(layer);
-    this.adjustmentLayerRuntimes.set(layer.id, runtime);
-    return runtime;
-  }
-
   private estimatedGpuTextureBytes() {
     if (!this.metadata) return 0;
     const pixels = this.metadata.width * this.metadata.height;
@@ -1312,9 +1261,7 @@ export class WebGpuEngine {
     if (this.displayTexture) bytes += pixels * 8;
     if (this.finalTexture) bytes += pixels * 4;
     if (this.curveTexture) bytes += CURVE_LUT_SIZE * 16;
-    bytes += this.adjustmentLayerRuntimes.size * (
-      ADJUSTMENT_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMENT + CURVE_LUT_SIZE * 16
-    );
+    bytes += this.adjustmentLayerResources.estimatedBytes();
     bytes += this.documentRenderer?.estimatedTextureBytes() ?? 0;
     bytes += this.effectRuntime?.estimatedTextureBytes() ?? 0;
     return bytes;
@@ -1325,16 +1272,6 @@ export class WebGpuEngine {
     if (bytes === this.lastReportedGpuBytes) return;
     this.lastReportedGpuBytes = bytes;
     this.callbacks.onGpuMemoryEstimate?.(bytes);
-  }
-
-  private destroyAdjustmentLayerRuntime(runtime: AdjustmentLayerRuntime) {
-    runtime.uniformBuffer.destroy();
-    runtime.curveTexture.destroy();
-  }
-
-  private destroyAdjustmentLayerRuntimes() {
-    this.adjustmentLayerRuntimes.forEach((runtime) => this.destroyAdjustmentLayerRuntime(runtime));
-    this.adjustmentLayerRuntimes.clear();
   }
 
   private renderNow() {
@@ -1375,7 +1312,7 @@ export class WebGpuEngine {
           // observe the final layer's settings. The large image work textures
           // remain shared: their render passes execute sequentially inside the
           // command buffer, before each corresponding mix pass.
-          const runtime = this.adjustmentLayerRuntime(layer);
+          const runtime = this.adjustmentLayerResources.getOrCreate(layer);
           this.device.queue.writeBuffer(
             runtime.uniformBuffer,
             0,
@@ -1642,7 +1579,7 @@ export class WebGpuEngine {
 
   private destroyImageResources() {
     this.documentRenderer?.destroyImageResources();
-    this.destroyAdjustmentLayerRuntimes();
+    this.adjustmentLayerResources.reset();
     this.imageDocument = null;
     this.scopeEngine?.clearTextures();
     this.effectRuntime?.destroyImageResources();

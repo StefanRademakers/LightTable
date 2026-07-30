@@ -990,6 +990,8 @@ Progress:
       nested style detection and pass-through group envelopes.
 - [x] Centralize render-stage invalidation fan-out so viewport, view-mode,
       effect, adjustment, document and source changes have tested boundaries.
+- [x] Give per-Adjustment-Layer uniforms, curve LUTs and bind groups one
+      document-generation resource owner with deterministic pruning/reset.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator.
 
