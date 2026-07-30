@@ -7,6 +7,21 @@ export {
 export { LightTableStandaloneApp } from './standalone/LightTableStandaloneApp';
 export { createBrowserHost } from './platform/LightTableHost';
 export {
+  WorkspaceSession,
+  type CloseDocumentOptions,
+  type OpenDocumentOptions,
+  type WorkspaceError,
+  type WorkspaceSnapshot
+} from './lighttable/application/workspace/workspaceSession';
+export {
+  DocumentSession,
+  type DocumentLifecycle,
+  type DocumentSessionId,
+  type DocumentSessionSnapshot,
+  type DocumentSourceDescriptor,
+  type DocumentViewport
+} from './lighttable/application/documents/documentSession';
+export {
   copyLightTableGrade,
   readLightTableGrade,
   useLightTableGradeClipboard,
