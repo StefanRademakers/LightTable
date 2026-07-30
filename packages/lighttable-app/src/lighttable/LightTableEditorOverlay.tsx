@@ -53,6 +53,7 @@ import { planPersistentToolActivation } from './application/tools/persistentTool
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
+import { useLayerPanelController } from './application/layers/useLayerPanelController';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
@@ -127,38 +128,21 @@ import {
   createGroupLayer,
   createRasterLayer,
   deleteLayer,
-  deleteLayers,
   getFlattenGroupPlan,
   getFlattenImagePlan,
-  groupLayers,
-  moveLayerSelection,
   moveLayer,
   renameLayer,
   removeLayerMask,
-  setActiveLayer,
   setLayerBlendMode,
   setLayerClipping,
-  setLayerFillOpacity,
   setLayerLocked,
   setLayerMaskEnabled,
-  setLayerOpacity,
   setLayerVisibility,
-  setLayersLock,
-  setLayersVisibility,
-  ungroupLayers
 } from './editor/document/documentCommands';
 import { BLEND_MODES } from './editor/document/blendModes';
 import {
-  clearLayerStyles,
-  setLayerStyleEnabled,
-  setLayerStyleStackEnabled
-} from './editor/styles/layerStyleCommands';
-import {
   type PreservedSourceAssetBlob
 } from './editor/persistence/layeredDocumentFormat';
-import {
-  materializeBasicAdjustments
-} from './processing/adjustmentStack';
 import {
   imagePickerAccept,
   imagePickerFormatNames
@@ -1161,6 +1145,33 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const previewLayerStyleStack = layerStyleEditor.preview;
   const cancelLayerStyleEditor = layerStyleEditor.cancel;
   const commitLayerStyleEditor = layerStyleEditor.commit;
+  const layerPanelController = useLayerPanelController({
+    getDocument: () => imageDocumentRef.current,
+    getDocumentAdjustments: () => documentAdjustmentsRef.current,
+    mutateDocument: applyDocumentChange,
+    publishPanelAdjustments: (next) => {
+      adjustmentsRef.current = cloneAdjustments(next);
+      setAdjustments(cloneAdjustments(next));
+    },
+    setPaintTarget: (activeChannel, brushColor) => {
+      setEditorSession((current) => ({
+        ...current,
+        activeChannel,
+        brush: brushColor
+          ? { ...current.brush, color: brushColor }
+          : current.brush
+      }));
+    },
+    beginDocumentTransaction,
+    endDocumentTransaction,
+    createAdjustmentLayer: layerDocumentCommands.createAdjustmentLayer,
+    mergeActiveLayerDown,
+    mergeSelectedRasterLayers,
+    requestFlattenGroup: (groupId) =>
+      setFlattenRequest({ kind: 'group', groupId }),
+    requestFlattenImage: () => setFlattenRequest({ kind: 'image' }),
+    editStyles: openLayerStyleEditor
+  });
 
   const transformSession = useTransformSessionController({
     activeTool: editorSession.activeTool,
@@ -1444,81 +1455,34 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         document={imageDocument}
         thumbnails={layerThumbnails}
         activeChannel={editorSession.activeChannel}
-        onSelect={(layerId) => {
-          const current = imageDocumentRef.current;
-          const layer = current ? findDocumentLayer(current, layerId) : null;
-          applyDocumentChange((document) => setActiveLayer(document, layerId), false);
-          const panelAdjustments = layer?.type === 'adjustment'
-            ? {
-              ...materializeBasicAdjustments(layer.adjustmentStack),
-              effects: structuredClone(documentAdjustmentsRef.current.effects)
-            }
-            : documentAdjustmentsRef.current;
-          adjustmentsRef.current = cloneAdjustments(panelAdjustments);
-          setAdjustments(cloneAdjustments(panelAdjustments));
-        }}
-        onChannelChange={(activeChannel) => setEditorSession((current) => ({ ...current, activeChannel }))}
-        onVisibility={(layerIds, visible) =>
-          applyDocumentChange((current) => setLayersVisibility(current, layerIds, visible))}
-        onRename={(layerId, name) => applyDocumentChange((current) => renameLayer(current, layerId, name))}
-        onOpacity={(layerId, opacity) => applyDocumentChange((current) => setLayerOpacity(current, layerId, opacity))}
-        onFillOpacity={(layerId, opacity) => applyDocumentChange((current) => setLayerFillOpacity(current, layerId, opacity))}
-        onOpacityInteractionStart={beginDocumentTransaction}
-        onOpacityInteractionEnd={endDocumentTransaction}
-        onBlendMode={(layerId, blendMode) => applyDocumentChange((current) => setLayerBlendMode(current, layerId, blendMode))}
-        onClipping={(layerId, clipping) =>
-          applyDocumentChange((current) => setLayerClipping(current, layerId, clipping))}
-        onReorder={(layerIds, targetLayerId, placement) =>
-          applyDocumentChange((current) =>
-            moveLayerSelection(current, layerIds, targetLayerId, placement))}
-        onAddMask={() => {
-          const layerId = imageDocumentRef.current?.activeLayerId;
-          if (!layerId) return;
-          applyDocumentChange((current) => addLayerMask(current, layerId));
-          setEditorSession((current) => ({ ...current, activeChannel: 'mask', brush: { ...current.brush, color: '#000000' } }));
-        }}
-        onToggleMask={() => {
-          const document = imageDocumentRef.current;
-          const layer = document ? findDocumentLayer(document, document.activeLayerId) : null;
-          if (!layer?.mask) return;
-          applyDocumentChange((current) => setLayerMaskEnabled(current, layer.id, !layer.mask!.enabled));
-        }}
-        onLockChange={(layerIds, lock, locked) =>
-          applyDocumentChange((current) => setLayersLock(current, layerIds, lock, locked))}
-        onCreate={() => {
-          applyDocumentChange((current) => createRasterLayer(current));
-          setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-        }}
-        onCreateAdjustment={() => {
-          layerDocumentCommands.createAdjustmentLayer();
-        }}
-        onCreateGroup={() => {
-          applyDocumentChange((current) => createGroupLayer(current));
-          setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-        }}
-        onGroupSelection={(layerIds) => {
-          applyDocumentChange((current) => groupLayers(current, layerIds));
-          setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-        }}
-        onUngroupSelection={(layerIds) => {
-          applyDocumentChange((current) => ungroupLayers(current, layerIds));
-          setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-        }}
-        onDelete={(layerIds) => {
-          applyDocumentChange((current) => deleteLayers(current, layerIds));
-          setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-        }}
-        onMergeDown={mergeActiveLayerDown}
-        onMergeSelected={mergeSelectedRasterLayers}
-        onFlattenGroup={(groupId) => setFlattenRequest({ kind: 'group', groupId })}
-        onFlattenImage={() => setFlattenRequest({ kind: 'image' })}
-        onEditStyles={openLayerStyleEditor}
-        onStyleStackEnabled={(layerId, enabled) =>
-          applyDocumentChange((current) => setLayerStyleStackEnabled(current, layerId, enabled))}
-        onStyleEnabled={(layerId, effectId, enabled) =>
-          applyDocumentChange((current) => setLayerStyleEnabled(current, layerId, effectId, enabled))}
-        onClearStyles={(layerId) =>
-          applyDocumentChange((current) => clearLayerStyles(current, layerId))}
+        onSelect={layerPanelController.select}
+        onChannelChange={layerPanelController.changeChannel}
+        onVisibility={layerPanelController.setVisibility}
+        onRename={layerPanelController.rename}
+        onOpacity={layerPanelController.setOpacity}
+        onFillOpacity={layerPanelController.setFillOpacity}
+        onOpacityInteractionStart={layerPanelController.beginOpacityInteraction}
+        onOpacityInteractionEnd={layerPanelController.endOpacityInteraction}
+        onBlendMode={layerPanelController.setBlendMode}
+        onClipping={layerPanelController.setClipping}
+        onReorder={layerPanelController.reorder}
+        onAddMask={layerPanelController.addMask}
+        onToggleMask={layerPanelController.toggleMask}
+        onLockChange={layerPanelController.setLock}
+        onCreate={layerPanelController.createRasterLayer}
+        onCreateAdjustment={layerPanelController.createAdjustmentLayer}
+        onCreateGroup={layerPanelController.createGroup}
+        onGroupSelection={layerPanelController.groupSelection}
+        onUngroupSelection={layerPanelController.ungroupSelection}
+        onDelete={layerPanelController.deleteSelection}
+        onMergeDown={layerPanelController.mergeDown}
+        onMergeSelected={layerPanelController.mergeSelected}
+        onFlattenGroup={layerPanelController.flattenGroup}
+        onFlattenImage={layerPanelController.flattenImage}
+        onEditStyles={layerPanelController.editStyles}
+        onStyleStackEnabled={layerPanelController.setStyleStackEnabled}
+        onStyleEnabled={layerPanelController.setStyleEnabled}
+        onClearStyles={layerPanelController.clearStyles}
       />
     </div>
   ) : (

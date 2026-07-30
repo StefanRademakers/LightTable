@@ -1370,3 +1370,8 @@ The refactor is successful when:
 - [x] Route grade-group bypass and Lens Blur result/depth presentation through
       dedicated projection/synchronization boundaries; UI commands no longer
       compose renderer adjustments or toggle renderer presentation directly.
+- [x] Move Layers-panel command policy into one application controller;
+      adjustment-layer selection projection, mask/channel activation, structural
+      mutations, opacity transactions and destructive-command delegation are
+      now shared by docked and floating panel presentations instead of being
+      reconstructed in the editor root.
