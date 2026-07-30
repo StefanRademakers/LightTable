@@ -1,9 +1,9 @@
-import type { ReferenceDifferenceMetrics } from '../../application/rendering/rendererTypes';
-import type { PreparedDocumentSource } from '../../application/documents/prepareDocumentSource';
+import type { ReferenceDifferenceMetrics } from '../rendering/rendererTypes';
 import type { PsdDecodeSuccess } from '../../image-io/psdProtocol';
-import type { PsdImportCompatibilityEntry } from '../psd/psdDocumentAdapter';
-import type { ImageDocument } from '../document/documentTypes';
+import type { PsdImportCompatibilityEntry } from '../../editor/psd/psdDocumentAdapter';
+import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { BasicAdjustments, LightTableImageMetadata } from '../../types';
+import type { PreparedDocumentSource } from './prepareDocumentSource';
 
 export interface PreparedDocumentPublicationPorts {
   mergeStartupTimings(

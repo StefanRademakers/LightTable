@@ -791,6 +791,8 @@ Work:
       stale-result protection;
 - [x] route startup open, File-open, save and export through that registry;
 - [x] cancel document tasks on close while preserving them across tab switches;
+- [x] make source prepare/hydrate/publication one application-owned atomic
+      transaction with a final stale-generation guard;
 - [ ] move open/decode/import/save/export orchestration fully out of the
       overlay;
 - separate canonical document persistence from host storage;

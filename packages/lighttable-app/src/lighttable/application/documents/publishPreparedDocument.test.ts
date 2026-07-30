@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PreparedDocumentSource } from '../../application/documents/prepareDocumentSource';
-import { createImageDocument } from '../document/documentTypes';
+import type { PreparedDocumentSource } from './prepareDocumentSource';
+import { createImageDocument } from '../../editor/document/documentTypes';
 import { createDefaultAdjustments } from '../../types';
 import {
   publishPreparedDocument,

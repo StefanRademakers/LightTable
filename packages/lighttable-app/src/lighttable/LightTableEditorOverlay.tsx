@@ -21,7 +21,9 @@ import {
 import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
-import { prepareDocumentSource } from './application/documents/prepareDocumentSource';
+import {
+  prepareAndPublishDocumentSource
+} from './application/documents/prepareAndPublishDocumentSource';
 import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpenLifecycle';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import type { DocumentOpenRequest } from './application/documents/documentOpenController';
@@ -51,7 +53,6 @@ import {
   createScopeRendererOptions,
   useRendererPresentationSync
 } from './editor/hooks/useRendererPresentationSync';
-import { publishPreparedDocument } from './editor/documents/publishPreparedDocument';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
@@ -673,71 +674,68 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => {
     const engine = engineRef.current;
     if (!engine) return;
-    const prepared = await prepareDocumentSource({
+    await prepareAndPublishDocumentSource({
       renderer: engine,
       blob,
       name,
       cacheKey,
+      sourceIdentity: cacheKey,
       decodeMode,
       signal,
       isCanceled,
       initialAdjustments,
-      groupVisibility: groupVisibilityRef.current
-    });
-    if (!prepared || isCanceled() || signal?.aborted) return;
-    publishPreparedDocument(prepared, {
-      name,
-      identity: cacheKey
-    }, {
-      mergeStartupTimings: (timings) => {
-        startupTelemetryRef.current.merge(timings);
-      },
-      publishDocument: (nextDocument) => {
-        imageDocumentRef.current = nextDocument;
-        // PSD sources are converted into native LightTable assets. The source
-        // file itself is not duplicated in the native document.
-        preservedSourceAssetsRef.current = [];
-        setImageDocument(nextDocument);
-        setThumbnailDocumentReadyId(nextDocument.id);
-      },
-      publishMetadata: setMetadata,
-      publishPsdImport: setPsdImportInfo,
-      publishPsdCompatibility: (entries) =>
-        setPsdCompatibility([...entries]),
-      publishPsdDifference: setPsdDifferenceMetrics,
-      publishSource: (nextName, nextBlob, identity) => {
-        setSourceName(nextName);
-        setSourceBlob(nextBlob);
-        setSourceIdentity(identity);
-      },
-      resetDocumentInteraction: () => {
-        resetLensBlurDepth();
-        setFocusPickerActive(false);
-        selectionGestureRef.current.reset();
-        paintGestureRef.current.reset();
-        setSelectionDraft(null);
-        resetTransformRef.current();
-        setEditorSession((current) => ({ ...current, selection: [] }));
-        setSelectionClipboardAvailable(false);
-        setFeatherDialogOpen(false);
-        setLensBlurViewportModeState('result');
-        engineRef.current?.setLensBlurDepthVisualization(false);
-        clearEditorHistory();
-        setHistogram(null);
-        setZoomMode('fit');
-        setView({ scale: 1, panX: 0, panY: 0 });
-      },
-      publishAdjustments: (nextAdjustments) => {
-        documentAdjustmentsRef.current = nextAdjustments;
-        adjustmentsRef.current = nextAdjustments;
-        setAdjustments(nextAdjustments);
-      },
-      publishStatus: setGradeStatus,
-      reportDifferenceFailure: (failure) => {
-        console.warn('LightTable PSD difference measurement failed', failure);
-      },
-      reportPsdWarnings: (warnings) => {
-        console.warn('LightTable PSD semantic import warnings', warnings);
+      groupVisibility: groupVisibilityRef.current,
+      publication: {
+        mergeStartupTimings: (timings) => {
+          startupTelemetryRef.current.merge(timings);
+        },
+        publishDocument: (nextDocument) => {
+          imageDocumentRef.current = nextDocument;
+          // PSD sources are converted into native LightTable assets. The source
+          // file itself is not duplicated in the native document.
+          preservedSourceAssetsRef.current = [];
+          setImageDocument(nextDocument);
+          setThumbnailDocumentReadyId(nextDocument.id);
+        },
+        publishMetadata: setMetadata,
+        publishPsdImport: setPsdImportInfo,
+        publishPsdCompatibility: (entries) =>
+          setPsdCompatibility([...entries]),
+        publishPsdDifference: setPsdDifferenceMetrics,
+        publishSource: (nextName, nextBlob, identity) => {
+          setSourceName(nextName);
+          setSourceBlob(nextBlob);
+          setSourceIdentity(identity);
+        },
+        resetDocumentInteraction: () => {
+          resetLensBlurDepth();
+          setFocusPickerActive(false);
+          selectionGestureRef.current.reset();
+          paintGestureRef.current.reset();
+          setSelectionDraft(null);
+          resetTransformRef.current();
+          setEditorSession((current) => ({ ...current, selection: [] }));
+          setSelectionClipboardAvailable(false);
+          setFeatherDialogOpen(false);
+          setLensBlurViewportModeState('result');
+          engineRef.current?.setLensBlurDepthVisualization(false);
+          clearEditorHistory();
+          setHistogram(null);
+          setZoomMode('fit');
+          setView({ scale: 1, panX: 0, panY: 0 });
+        },
+        publishAdjustments: (nextAdjustments) => {
+          documentAdjustmentsRef.current = nextAdjustments;
+          adjustmentsRef.current = nextAdjustments;
+          setAdjustments(nextAdjustments);
+        },
+        publishStatus: setGradeStatus,
+        reportDifferenceFailure: (failure) => {
+          console.warn('LightTable PSD difference measurement failed', failure);
+        },
+        reportPsdWarnings: (warnings) => {
+          console.warn('LightTable PSD semantic import warnings', warnings);
+        }
       }
     });
   }, [clearEditorHistory, resetLensBlurDepth]);
