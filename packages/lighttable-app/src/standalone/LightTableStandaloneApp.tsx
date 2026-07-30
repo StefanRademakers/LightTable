@@ -1,32 +1,22 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
-  useState,
-  useSyncExternalStore
+  useState
 } from 'react';
 import { LightTableEditorOverlay } from '../lighttable/LightTableEditorOverlay';
 import {
   type DocumentSessionId
 } from '../lighttable/application/documents/documentSession';
-import { DocumentWorkspaceController } from '../lighttable/application/workspace/documentWorkspaceController';
 import { createBrowserHost, type LightTableHost } from '../platform/LightTableHost';
 import { DocumentRuntimeErrorBoundary } from './DocumentRuntimeErrorBoundary';
-import { StrictModeSafeDisposal } from './strictModeSafeDisposal';
-
-type DecodeMode = 'fast' | 'preserve-precision';
+import {
+  type StandaloneDecodeMode,
+  useStandaloneDocumentWorkspace
+} from './useStandaloneDocumentWorkspace';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
 }
-
-interface StandaloneDocumentRuntime {
-  readonly file: File;
-  readonly decodeMode: DecodeMode;
-}
-
-const sourceIdentity = (file: File, decodeMode: DecodeMode) =>
-  `file:${file.name}:${file.size}:${file.lastModified}:${decodeMode}`;
 
 const titleWithoutExtension = (name: string) =>
   name.replace(/\.[^.]+$/, '') || 'Untitled';
@@ -41,41 +31,18 @@ const titleWithoutExtension = (name: string) =>
 export function LightTableStandaloneApp({
   host = createBrowserHost()
 }: LightTableStandaloneAppProps) {
-  const controller = useMemo(
-    () => new DocumentWorkspaceController<StandaloneDocumentRuntime>(),
-    []
-  );
-  const controllerDisposal = useMemo(
-    () => new StrictModeSafeDisposal(() => controller.dispose()),
-    [controller]
-  );
-  const workspace = controller.workspace;
-  const snapshot = useSyncExternalStore(
-    controller.subscribe,
-    controller.getSnapshot,
-    controller.getSnapshot
-  );
+  const {
+    controller,
+    workspace,
+    snapshot,
+    openDocument,
+    closeDocument: closeWorkspaceDocument
+  } = useStandaloneDocumentWorkspace();
   const [opening, setOpening] = useState(false);
 
-  useEffect(
-    () => controllerDisposal.connect(),
-    [controllerDisposal]
-  );
-
-  const openDocument = useCallback((file: File, decodeMode: DecodeMode = 'fast') => {
-    controller.open({
-      source: {
-        id: sourceIdentity(file, decodeMode),
-        name: file.name,
-        mediaType: file.type || 'application/octet-stream',
-        byteLength: file.size
-      },
-      title: file.name,
-      payload: { file, decodeMode }
-    });
-  }, [controller]);
-
-  const requestHostDocument = useCallback(async (decodeMode: DecodeMode = 'fast') => {
+  const requestHostDocument = useCallback(async (
+    decodeMode: StandaloneDecodeMode = 'fast'
+  ) => {
     if (!host.openFile) return;
     setOpening(true);
     try {
@@ -96,8 +63,8 @@ export function LightTableStandaloneApp({
     ) {
       return;
     }
-    controller.close(id, { discardChanges: true });
-  }, [controller, workspace]);
+    closeWorkspaceDocument(id, true);
+  }, [closeWorkspaceDocument, workspace]);
 
   const workspaceDocuments = useMemo(
     () => snapshot.documentOrder.flatMap((id) => {

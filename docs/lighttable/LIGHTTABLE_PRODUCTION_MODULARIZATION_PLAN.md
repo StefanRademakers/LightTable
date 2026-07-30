@@ -1337,3 +1337,6 @@ The refactor is successful when:
 - [x] Contain unexpected React runtime failures to the owning document tab
       with retry and close recovery; one failed document can no longer brick
       sibling documents or the host-neutral workspace shell.
+- [x] Move standalone web/Electron workspace ownership, immutable subscription,
+      source-handle lifetime and Strict Mode disposal into one host-shell hook;
+      the app root now composes documents instead of owning session mechanics.
