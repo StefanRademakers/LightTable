@@ -1,5 +1,6 @@
 import type { ToolId } from '../../editor/session/editorSession';
 import { isPaintTool } from '../../editor/tools/toolCapabilities';
+import { toolForShortcut } from '../../editor/tools/toolRegistry';
 
 export interface EditorKeyboardInput {
   readonly key: string;
@@ -113,16 +114,7 @@ export const resolveEditorKeyboardCommand = (
     if (input.code === 'BracketRight' || key === ']') return 'brush-size-increase';
   }
 
-  const toolShortcuts: Partial<Record<string, ToolId>> = {
-    h: 'view',
-    t: 'transform',
-    g: 'fill',
-    b: 'brush',
-    e: 'erase',
-    m: input.shiftKey ? 'select-ellipse' : 'select-rectangle',
-    l: 'select-free'
-  };
-  const tool = !primary && !input.altKey ? toolShortcuts[key] : undefined;
+  const tool = !primary && !input.altKey ? toolForShortcut(key, input.shiftKey) : null;
   if (tool) {
     return tool === 'transform' && context.activeTool === 'transform'
       ? 'commit-transform'

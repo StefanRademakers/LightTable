@@ -1,5 +1,6 @@
 import type { SelectionToolId } from '../selection/selectionTypes';
 import type { ToolId } from '../session/editorSession';
+import { toolDefinition } from './toolRegistry';
 
 export const BRUSH_SIZE_STEPS = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -22,10 +23,10 @@ export const steppedBrushSize = (current: number, direction: -1 | 1): number => 
 };
 
 export const isSelectionTool = (tool: ToolId): tool is SelectionToolId =>
-  tool === 'select-rectangle' || tool === 'select-ellipse' || tool === 'select-free';
+  toolDefinition(tool).role === 'selection';
 
 export const isPaintTool = (tool: ToolId): tool is 'brush' | 'erase' =>
-  tool === 'brush' || tool === 'erase';
+  toolDefinition(tool).role === 'paint';
 
 export const selectionKindForTool = (tool: SelectionToolId): SelectionShapeKind => {
   switch (tool) {

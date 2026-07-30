@@ -1,6 +1,7 @@
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import type { ToolId } from '../session/editorSession';
+import { TOOL_DEFINITIONS } from '../tools/toolRegistry';
 
 interface EditorToolbarProps {
   activeTool: ToolId;
@@ -12,17 +13,6 @@ interface EditorToolbarProps {
   onSwapColors: () => void;
   onResetColors: () => void;
 }
-
-const TOOLS: Array<{ id: ToolId; label: string; shortcut: string; icon: string }> = [
-  { id: 'transform', label: 'Transform', shortcut: 'T', icon: lightTableIcon('transform_tool.png') },
-  { id: 'select-rectangle', label: 'Rectangular selection', shortcut: 'M', icon: lightTableIcon('select_rectangle.png') },
-  { id: 'select-ellipse', label: 'Elliptical selection', shortcut: 'Shift+M', icon: lightTableIcon('select_elipse.png') },
-  { id: 'select-free', label: 'Free selection', shortcut: 'L', icon: lightTableIcon('select_free_shape.png') },
-  { id: 'fill', label: 'Fill', shortcut: 'G', icon: lightTableIcon('tool_fill_color.png') },
-  { id: 'brush', label: 'Brush', shortcut: 'B', icon: lightTableIcon('paint_brush.png') },
-  { id: 'erase', label: 'Erase', shortcut: 'E', icon: lightTableIcon('erase.png') },
-  { id: 'view', label: 'Move canvas', shortcut: 'H', icon: lightTableIcon('move_canvas.png') }
-];
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   activeTool,
@@ -36,17 +26,17 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 }) => (
   <nav className="lighttable-toolbox" aria-label="Image tools">
     <div className="lighttable-toolbox__content">
-      {TOOLS.map((tool) => (
+      {TOOL_DEFINITIONS.map((tool) => (
         <button
           key={tool.id}
           type="button"
           className={`lighttable-toolbox__button${activeTool === tool.id ? ' lighttable-toolbox__button--active' : ''}`}
           onClick={() => onToolChange(tool.id)}
           aria-pressed={activeTool === tool.id}
-          aria-label={`${tool.label} (${tool.shortcut})`}
-          title={`${tool.label} (${tool.shortcut})`}
+          aria-label={`${tool.label} (${tool.shortcutLabel})`}
+          title={`${tool.label} (${tool.shortcutLabel})`}
         >
-          <img src={tool.icon} alt="" aria-hidden="true" />
+          <img src={lightTableIcon(tool.iconName)} alt="" aria-hidden="true" />
         </button>
       ))}
       <div className="lighttable-toolbox__colors" aria-label="Foreground and background colors">

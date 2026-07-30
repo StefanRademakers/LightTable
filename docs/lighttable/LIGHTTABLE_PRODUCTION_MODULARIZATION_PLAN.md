@@ -816,8 +816,10 @@ Work:
 - [x] route viewport pointer ownership through a host-neutral, tested intent
       router while retaining document projection and wheel zoom as pure
       application math;
-- create tool registry and lifecycle;
-- migrate temporary pan, brush sizing and tool shortcuts;
+- [x] create one typed tool registry shared by presentation, capabilities and
+      shortcut routing;
+- migrate temporary pan and remaining tool activation lifecycle;
+- [x] migrate brush sizing and tool shortcuts;
 - [x] migrate pointer-driven selection draft/commit/cancel lifecycle into an
       isolated controller;
 - [x] migrate paint/erase gesture ownership, dab sampling, dirty bounds and
@@ -844,6 +846,10 @@ source-to-document matrix for the complete stroke. It also owns dab spacing and
 dirty-bound accumulation. Renderer pixel edits and history snapshots remain
 outside until their application port is extracted, but switching React state
 mid-stroke can no longer redirect paint to another layer or coordinate space.
+
+Tool identity, role, icon and shortcut metadata now have one registry. The
+toolbar, keyboard router and capability predicates consume that contract, so a
+new tool can no longer silently exist in one input path but not another.
 
 Exit criteria:
 
