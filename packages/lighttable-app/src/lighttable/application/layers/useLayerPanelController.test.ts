@@ -93,6 +93,49 @@ describe('createLayerPanelController', () => {
     );
   });
 
+  it('removes the active mask and returns painting to pixels', () => {
+    const harness = setup(createImageDocument('test', 100, 100, 'asset'));
+    const activeLayerId = harness.document().activeLayerId!;
+    harness.controller.addMask();
+
+    harness.controller.removeMask();
+
+    expect(findDocumentLayer(harness.document(), activeLayerId)?.mask).toBeNull();
+    expect(harness.dependencies.setPaintTarget).toHaveBeenLastCalledWith('pixels');
+  });
+
+  it('moves the active layer in document compositing order', () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const withMiddle = createRasterLayer(base, 'Middle');
+    const harness = setup(createRasterLayer(withMiddle, 'Top'));
+
+    harness.controller.moveActive('down');
+    expect(harness.document().layers.map((layer) => layer.name))
+      .toEqual(['Background', 'Top', 'Middle']);
+
+    harness.controller.moveActive('up');
+    expect(harness.document().layers.map((layer) => layer.name))
+      .toEqual(['Background', 'Middle', 'Top']);
+  });
+
+  it('owns menu-equivalent visibility, clipping and lock mutations', () => {
+    const harness = setup(createRasterLayer(
+      createImageDocument('test', 100, 100, 'asset'),
+      'Paint'
+    ));
+    const activeLayerId = harness.document().activeLayerId!;
+
+    harness.controller.setVisibility([activeLayerId], false);
+    harness.controller.setClipping(activeLayerId, true);
+    harness.controller.setLock([activeLayerId], 'all', true);
+
+    expect(findDocumentLayer(harness.document(), activeLayerId)).toMatchObject({
+      visible: false,
+      clipping: true,
+      locks: { all: true }
+    });
+  });
+
   it('returns structural layer operations to the pixel channel', () => {
     const harness = setup(createImageDocument('test', 100, 100, 'asset'));
 

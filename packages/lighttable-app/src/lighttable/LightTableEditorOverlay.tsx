@@ -124,20 +124,8 @@ import {
   walkRasterLayers
 } from './editor/document/layerTree';
 import {
-  addLayerMask,
-  createGroupLayer,
-  createRasterLayer,
-  deleteLayer,
   getFlattenGroupPlan,
-  getFlattenImagePlan,
-  moveLayer,
-  renameLayer,
-  removeLayerMask,
-  setLayerBlendMode,
-  setLayerClipping,
-  setLayerLocked,
-  setLayerMaskEnabled,
-  setLayerVisibility,
+  getFlattenImagePlan
 } from './editor/document/documentCommands';
 import { BLEND_MODES } from './editor/document/blendModes';
 import {
@@ -1376,10 +1364,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       clearSelection: clearCurrentSelection,
       invertSelection: invertCurrentSelection,
       featherSelection: () => setFeatherDialogOpen(true),
-      createRasterLayer: () => {
-        applyDocumentChange((current) => createRasterLayer(current));
-        setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-      },
+      createRasterLayer: layerPanelController.createRasterLayer,
       duplicateLayer: duplicateActiveLayer,
       layerViaCopy,
       renameLayer: focusActiveLayerName,
@@ -1387,32 +1372,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       beginAutoAlign: () => void beginAutoAlign(),
       applyAutoAlign: applyAutoAlignPreview,
       cancelAutoAlign: cancelAutoAlignPreview,
-      toggleClipping: () => menuActiveLayer && applyDocumentChange((current) =>
-        setLayerClipping(current, menuActiveLayer.id, !menuActiveLayer.clipping)),
-      setBlendMode: (mode) => menuActiveLayer && applyDocumentChange((current) =>
-        setLayerBlendMode(current, menuActiveLayer.id, mode)),
-      editPixels: () => setEditorSession((current) => ({ ...current, activeChannel: 'pixels' })),
-      editMask: () => setEditorSession((current) => ({ ...current, activeChannel: 'mask' })),
-      addMask: () => {
-        if (!menuActiveLayer) return;
-        applyDocumentChange((current) => addLayerMask(current, menuActiveLayer.id));
-        setEditorSession((current) => ({
-          ...current,
-          activeChannel: 'mask',
-          brush: { ...current.brush, color: '#000000' }
-        }));
-      },
-      toggleMask: () => menuActiveLayer?.mask && applyDocumentChange((current) =>
-        setLayerMaskEnabled(current, menuActiveLayer.id, !menuActiveLayer.mask!.enabled)),
-      removeMask: () => {
-        if (!menuActiveLayer) return;
-        applyDocumentChange((current) => removeLayerMask(current, menuActiveLayer.id));
-        setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-      },
-      moveLayerUp: () => menuActiveLayer && applyDocumentChange((current) =>
-        moveLayer(current, menuActiveLayer.id, menuActiveIndex + 1)),
-      moveLayerDown: () => menuActiveLayer && applyDocumentChange((current) =>
-        moveLayer(current, menuActiveLayer.id, menuActiveIndex - 1)),
+      toggleClipping: () => menuActiveLayer
+        && layerPanelController.setClipping(
+          menuActiveLayer.id,
+          !menuActiveLayer.clipping
+        ),
+      setBlendMode: (mode) => menuActiveLayer
+        && layerPanelController.setBlendMode(menuActiveLayer.id, mode),
+      editPixels: () => layerPanelController.changeChannel('pixels'),
+      editMask: () => layerPanelController.changeChannel('mask'),
+      addMask: layerPanelController.addMask,
+      toggleMask: layerPanelController.toggleMask,
+      removeMask: layerPanelController.removeMask,
+      moveLayerUp: () => layerPanelController.moveActive('up'),
+      moveLayerDown: () => layerPanelController.moveActive('down'),
       mergeDown: mergeActiveLayerDown,
       flattenGroup: () => {
         if (menuActiveLayer?.type === 'group') {
@@ -1420,15 +1393,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
       },
       flattenImage: () => setFlattenRequest({ kind: 'image' }),
-      toggleLayerVisibility: () => menuActiveLayer && applyDocumentChange((current) =>
-        setLayerVisibility(current, menuActiveLayer.id, !menuActiveLayer.visible)),
-      toggleLayerLock: () => menuActiveLayer && applyDocumentChange((current) =>
-        setLayerLocked(current, menuActiveLayer.id, !menuActiveLayer.locks.all)),
-      deleteLayer: () => {
-        if (!menuActiveLayer) return;
-        applyDocumentChange((current) => deleteLayer(current, menuActiveLayer.id));
-        setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-      },
+      toggleLayerVisibility: () => menuActiveLayer
+        && layerPanelController.setVisibility(
+          [menuActiveLayer.id],
+          !menuActiveLayer.visible
+        ),
+      toggleLayerLock: () => menuActiveLayer
+        && layerPanelController.setLock(
+          [menuActiveLayer.id],
+          'all',
+          !menuActiveLayer.locks.all
+        ),
+      deleteLayer: () => menuActiveLayer
+        && layerPanelController.deleteSelection([menuActiveLayer.id]),
       fit: () => {
         setZoomMode('fit');
         setView({ scale: 1, panX: 0, panY: 0 });

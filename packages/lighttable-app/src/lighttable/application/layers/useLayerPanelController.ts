@@ -13,8 +13,10 @@ import {
   createRasterLayer,
   deleteLayers,
   groupLayers,
+  moveLayer,
   moveLayerSelection,
   renameLayer,
+  removeLayerMask,
   setActiveLayer,
   setLayerBlendMode,
   setLayerClipping,
@@ -25,7 +27,10 @@ import {
   setLayersVisibility,
   ungroupLayers
 } from '../../editor/document/documentCommands';
-import { findDocumentLayer } from '../../editor/document/layerTree';
+import {
+  findDocumentLayer,
+  siblingLayers
+} from '../../editor/document/layerTree';
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import {
@@ -72,6 +77,8 @@ export interface LayerPanelController {
   ): void;
   addMask(): void;
   toggleMask(): void;
+  removeMask(): void;
+  moveActive(direction: 'up' | 'down'): void;
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
   createRasterLayer(): void;
   createAdjustmentLayer(): void;
@@ -168,6 +175,28 @@ export const createLayerPanelController = (
       if (!layer?.mask) return;
       dependencies.mutateDocument((current) =>
         setLayerMaskEnabled(current, layer.id, !layer.mask!.enabled));
+    },
+    removeMask: () => {
+      const dependencies = resolveDependencies();
+      const layerId = dependencies.getDocument()?.activeLayerId;
+      if (!layerId) return;
+      dependencies.mutateDocument((current) =>
+        removeLayerMask(current, layerId));
+      dependencies.setPaintTarget('pixels');
+    },
+    moveActive: (direction) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      const layerId = document?.activeLayerId;
+      if (!document || !layerId) return;
+      const siblings = siblingLayers(document, layerId);
+      const activeIndex = siblings.findIndex((layer) => layer.id === layerId);
+      const targetIndex = activeIndex + (direction === 'up' ? 1 : -1);
+      if (activeIndex < 0 || targetIndex < 0 || targetIndex >= siblings.length) {
+        return;
+      }
+      dependencies.mutateDocument((current) =>
+        moveLayer(current, layerId, targetIndex));
     },
     setLock: (layerIds, lock, locked) =>
       mutate((current) => setLayersLock(current, layerIds, lock, locked)),
