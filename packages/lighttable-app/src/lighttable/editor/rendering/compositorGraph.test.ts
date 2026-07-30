@@ -9,8 +9,12 @@ import {
   buildCompositorSequence,
   collectVisibleLeafNodes,
   containsActiveLayerStyles,
+  containsVisibleAdjustmentLayer,
   groupNeedsCompositingEnvelope
 } from './compositorGraph';
+import { createAdjustmentLayer } from '../document/documentTypes';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import { createDefaultAdjustments } from '../../types';
 
 const raster = (name: string): RasterLayer => {
   const document = createImageDocument(name, 64, 64, name);
@@ -79,5 +83,21 @@ describe('compositorGraph', () => {
     };
     expect(groupNeedsCompositingEnvelope(group, false)).toBe(false);
     expect(groupNeedsCompositingEnvelope(group, true)).toBe(true);
+  });
+
+  it('detects only effective visible Adjustment Layers', () => {
+    const adjustment = createAdjustmentLayer(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'Grade'
+    );
+    const group = createGroupLayer('group');
+    group.children = [adjustment];
+    expect(containsVisibleAdjustmentLayer([group])).toBe(true);
+
+    adjustment.opacity = 0;
+    expect(containsVisibleAdjustmentLayer([group])).toBe(false);
+    adjustment.opacity = 1;
+    group.visible = false;
+    expect(containsVisibleAdjustmentLayer([group])).toBe(false);
   });
 });

@@ -57,6 +57,18 @@ export const containsActiveLayerStyles = (nodes: readonly LayerNode[]): boolean 
     )
   ));
 
+export const containsVisibleAdjustmentLayer = (
+  nodes: readonly LayerNode[]
+): boolean =>
+  nodes.some((node) => (
+    node.visible
+    && node.opacity > 0
+    && (
+      node.type === 'adjustment'
+      || (node.type === 'group' && containsVisibleAdjustmentLayer(node.children))
+    )
+  ));
+
 /**
  * Pass-through groups only need an offscreen envelope when group-level
  * semantics can no longer participate directly in the parent stack.

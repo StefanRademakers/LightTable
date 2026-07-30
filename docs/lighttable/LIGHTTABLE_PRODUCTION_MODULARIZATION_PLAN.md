@@ -1206,3 +1206,12 @@ The refactor is successful when:
   multi-thousand-line root;
 - architecture boundaries fail in CI when violated;
 - existing output and workflow quality remain intact throughout migration.
+
+## 21. Completed migration slices
+
+- [x] Give Adjustment Layer uniforms, curve LUTs and bind groups one
+      document-generation owner with deterministic pruning and teardown.
+- [x] Move Adjustment Layer evaluation and GPU pass encoding behind a focused
+      renderer while preserving compositor order and exact neutral bypass.
+- [x] Make visible Adjustment Layer detection part of the tested compositor
+      graph instead of an engine-local recursive predicate.

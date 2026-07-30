@@ -21,6 +21,7 @@ import type { SelectionMode, SelectionOperation, SelectionShape } from '../edito
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
 import type { DocumentAssetBlob } from '../editor/persistence/layeredDocumentFormat';
 import { LayerDocumentRenderer, type ReversiblePixelEdit } from '../editor/rendering/LayerDocumentRenderer';
+import { containsVisibleAdjustmentLayer } from '../editor/rendering/compositorGraph';
 import { FeatureAlignmentService } from '../editor/autoAlign/FeatureAlignmentService';
 import type {
   TranslationAlignmentOptions,
@@ -53,6 +54,7 @@ import { getCorePipelineBundle } from './corePipelineLibrary';
 import { encodeRgba8Png, mapGpuBufferCopy, readRgba8Texture } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
+import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 const DIFFERENCE_METRICS_BYTE_SIZE = 8 * Uint32Array.BYTES_PER_ELEMENT;
@@ -77,6 +79,7 @@ export class WebGpuEngine {
   private imageLoadRevision = 0;
   private documentRenderer: LayerDocumentRenderer | null = null;
   private readonly adjustmentLayerResources: AdjustmentLayerGpuResources;
+  private readonly adjustmentLayerRenderer: AdjustmentLayerRenderer;
   private translationAlignmentService: FeatureAlignmentService | null = null;
   private imageDocument: ImageDocument | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
@@ -135,6 +138,10 @@ export class WebGpuEngine {
     this.canvasFormat = canvasFormat;
     this.callbacks = callbacks;
     this.adjustmentLayerResources = new AdjustmentLayerGpuResources(device);
+    this.adjustmentLayerRenderer = new AdjustmentLayerRenderer(
+      device,
+      this.adjustmentLayerResources
+    );
     this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
     this.deviceErrorListener = ((event: GPUUncapturedErrorEvent) => {
       if (!this.destroyed) {
@@ -941,6 +948,22 @@ export class WebGpuEngine {
         { binding: 4, resource: this.curveTexture.createView() }
       ]
     });
+    this.adjustmentLayerRenderer.configure({
+      sampler: this.sampler,
+      basicPipeline: this.basicPipeline,
+      downsamplePipeline: this.downsamplePipeline,
+      blurPipeline: this.blurPipeline,
+      creativePipeline: this.creativePipeline,
+      correctedTexture: this.correctedTexture,
+      downsampleTexture: this.downsampleTexture,
+      blurTexture: this.blurTexture,
+      creativeTexture: this.creativeTexture,
+      downsampleBindGroup: this.downsampleBindGroup,
+      blurHorizontalBindGroup: this.blurHorizontalBindGroup,
+      blurVerticalBindGroup: this.blurVerticalBindGroup,
+      width,
+      height
+    });
     this.blitOriginalBindGroup = this.device.createBindGroup({
       layout: this.blitPipeline.getBindGroupLayout(0),
       entries: [
@@ -1293,84 +1316,12 @@ export class WebGpuEngine {
     const encoder = this.device.createCommandEncoder({ label: 'LightTable render' });
     let renderedCorrection = false;
     if (this.renderDirty.correctionRequired) {
-      const hasVisibleAdjustment = (nodes: readonly LayerNode[]): boolean =>
-        nodes.some((node) => node.visible && (
-          node.type === 'adjustment'
-          || (node.type === 'group' && hasVisibleAdjustment(node.children))
-        ));
-      const documentHasAdjustment = hasVisibleAdjustment(this.imageDocument.layers);
+      const documentHasAdjustment = containsVisibleAdjustmentLayer(this.imageDocument.layers);
       const documentTexture = this.documentRenderer.encodeComposite(
         encoder,
         this.imageDocument,
-        (layerEncoder, source, layer) => {
-          const layerAdjustments = evaluateAdjustmentStack(
-            layer.adjustmentStack,
-            { scope: 'adjustment-layer' }
-          ).adjustments;
-          // Queue writes are not encoded into command-buffer order. Give every
-          // Adjustment Layer its own uniforms/LUT so multiple layers cannot
-          // observe the final layer's settings. The large image work textures
-          // remain shared: their render passes execute sequentially inside the
-          // command buffer, before each corresponding mix pass.
-          const runtime = this.adjustmentLayerResources.getOrCreate(layer);
-          this.device.queue.writeBuffer(
-            runtime.uniformBuffer,
-            0,
-            buildAdjustmentUniform(
-              layerAdjustments,
-              this.metadata?.width ?? 1,
-              this.metadata?.height ?? 1,
-              true
-            )
-          );
-          this.device.queue.writeTexture(
-            { texture: runtime.curveTexture },
-            buildCurveLut(layerAdjustments.curves),
-            { bytesPerRow: CURVE_LUT_SIZE * 4 * Float32Array.BYTES_PER_ELEMENT },
-            { width: CURVE_LUT_SIZE, height: 1 }
-          );
-          const basicBindGroup = this.device.createBindGroup({
-            layout: this.basicPipeline!.getBindGroupLayout(0),
-            entries: [
-              { binding: 0, resource: source.createView() },
-              { binding: 1, resource: this.sampler! },
-              { binding: 2, resource: { buffer: runtime.uniformBuffer } }
-            ]
-          });
-          this.drawFullscreenPass(
-            layerEncoder,
-            this.basicPipeline!,
-            basicBindGroup,
-            this.correctedTexture!.createView()
-          );
-          if (Math.abs(layerAdjustments.clarity) > 0.00001 || Math.abs(layerAdjustments.dehaze) > 0.00001) {
-            this.drawFullscreenPass(
-              layerEncoder,
-              this.downsamplePipeline!,
-              this.downsampleBindGroup!,
-              this.downsampleTexture!.createView()
-            );
-            this.drawFullscreenPass(
-              layerEncoder,
-              this.blurPipeline!,
-              this.blurHorizontalBindGroup!,
-              this.blurTexture!.createView()
-            );
-            this.drawFullscreenPass(
-              layerEncoder,
-              this.blurPipeline!,
-              this.blurVerticalBindGroup!,
-              this.downsampleTexture!.createView()
-            );
-          }
-          this.drawFullscreenPass(
-            layerEncoder,
-            this.creativePipeline!,
-            runtime.creativeBindGroup,
-            this.creativeTexture!.createView()
-          );
-          return this.creativeTexture!;
-        }
+        (layerEncoder, source, layer) =>
+          this.adjustmentLayerRenderer.encode(layerEncoder, source, layer)
       );
       const sourceGeometryTexture = this.effectRuntime.encodeSourceGeometry(encoder, documentTexture);
       let gradeTexture = sourceGeometryTexture;
@@ -1579,6 +1530,7 @@ export class WebGpuEngine {
 
   private destroyImageResources() {
     this.documentRenderer?.destroyImageResources();
+    this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();
     this.imageDocument = null;
     this.scopeEngine?.clearTextures();
