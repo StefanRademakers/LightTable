@@ -830,6 +830,8 @@ Exit criteria:
 
 Work:
 
+- [x] isolate raster, layered-document and PSD import/hydration behind a
+      host-neutral document-source service with a narrow renderer contract;
 - [ ] introduce renderer port and current-engine adapter;
 - [x] create a renderer lifecycle and memory snapshot per `DocumentSession`;
 - [x] guard asynchronous renderer startup with document-local generations;

@@ -19,6 +19,7 @@ import {
 import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
+import { loadDocumentSource } from './application/documents/loadDocumentSource';
 import {
   isTemporaryPanRelease,
   resolveEditorKeyboardCommand
@@ -150,7 +151,6 @@ import {
   type LensBlurViewportMode
 } from './editor/config/adjustmentControls';
 import {
-  createImageDocument,
   layerIsLocked,
   type ImageDocument,
   type LayerId,
@@ -211,7 +211,6 @@ import {
 import type { LayerStyleId, LayerStyleStack } from './editor/styles/layerStyleTypes';
 import {
   buildLayeredDocumentFile,
-  parseLayeredDocumentFile,
   type PreservedSourceAssetBlob
 } from './editor/persistence/layeredDocumentFormat';
 import {
@@ -222,15 +221,10 @@ import {
 import {
   imagePickerAccept,
   imagePickerFormatNames,
-  isPhotoshopDocument,
-  isSupportedImageFile,
   pickSupportedImageFile
 } from './image-io/supportedImageFormats';
 import type { PsdDecodeSuccess } from './image-io/psdProtocol';
-import {
-  importPsdDocument,
-  type PsdImportCompatibilityEntry
-} from './editor/psd/psdDocumentAdapter';
+import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
 import { PsdImportReportDialog } from './editor/psd/PsdImportReportDialog';
 import { boundsForDabs, StrokeBuilder } from './editor/tools/brush/strokeBuilder';
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
@@ -1036,88 +1030,47 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => {
     const engine = engineRef.current;
     if (!engine) return;
-    const layeredProbeStartedAt = performance.now();
-    const layered = await parseLayeredDocumentFile(blob);
-    startupTimingsRef.current.layeredProbeMs = performance.now() - layeredProbeStartedAt;
-    if (isCanceled()) return;
-    let psdImport: PsdDecodeSuccess | null = null;
-    const photoshopBlob = !layered && isPhotoshopDocument(blob, name) ? blob : null;
-    if (photoshopBlob) {
-      const { PsdDecoder } = await import('./image-io/PsdDecoder');
-      const decoder = new PsdDecoder();
-      try {
-        psdImport = await decoder.decode(photoshopBlob, signal);
-      } finally {
-        decoder.destroy();
-      }
-    }
-    if (isCanceled()) return;
-    const imageBlob = psdImport?.preview ?? layered?.preview ?? blob;
-    const semanticPsd = psdImport && !layered
-      ? importPsdDocument(psdImport, name)
-      : null;
-    if (!isSupportedImageFile(imageBlob, name, decodeMode)) {
-      throw new Error(decodeMode === 'preserve-precision'
-        ? 'Precision-preserving import currently supports PNG, TIFF, JPEG, and WebP.'
-        : 'LightTable supports JPEG, PNG, WebP, PSD, and layered LightTable images.');
-    }
-    const decodeStartedAt = performance.now();
-    const loadedMetadata = await engine.loadImage(imageBlob, name, {
-      decodeMode: psdImport ? 'fast' : decodeMode,
-      signal
-    });
-    const nextMetadata: LightTableImageMetadata = psdImport
-      ? {
-          ...loadedMetadata,
-          decoder: 'ag-psd',
-          sourceBitDepth: psdImport.bitsPerChannel,
-          sourceFormat: 'PSD',
-          sourceInterpretation: psdImport.colorMode
-        }
-      : loadedMetadata;
-    startupTimingsRef.current.decodeAndUploadMs = performance.now() - decodeStartedAt;
-    if (isCanceled()) return;
-    const documentStartedAt = performance.now();
-    const nextDocument = layered?.document ?? semanticPsd?.document ?? createImageDocument(
+    const loaded = await loadDocumentSource({
+      renderer: engine,
+      blob,
       name,
-      nextMetadata.width,
-      nextMetadata.height,
       cacheKey,
-      {
-        decoder: nextMetadata.decoder ?? 'browser',
-        sourceBitDepth: nextMetadata.sourceBitDepth ?? null,
-        sourceFormat: nextMetadata.sourceFormat ?? null,
-        sourceInterpretation: nextMetadata.sourceInterpretation ?? null,
-        sourceProfile: nextMetadata.sourceProfile ?? null,
-        normalizedColorSpace: 'linear-srgb'
-      }
-    );
-    if (nextDocument.width !== nextMetadata.width || nextDocument.height !== nextMetadata.height) {
-      throw new Error('The layered LightTable preview does not match its document dimensions.');
-    }
+      decodeMode,
+      signal,
+      isCanceled
+    });
+    if (!loaded) return;
+    const {
+      document: nextDocument,
+      metadata: nextMetadata,
+      imageBlob,
+      layeredAdjustmentStack,
+      psdImport,
+      psdWarnings,
+      psdCompatibility,
+      timings
+    } = loaded;
+    startupTimingsRef.current = {
+      ...startupTimingsRef.current,
+      ...timings
+    };
     imageDocumentRef.current = nextDocument;
     // A PSD is converted into native LightTable layers/assets. Do not embed
     // the complete source document again in the native file.
     preservedSourceAssetsRef.current = [];
     setImageDocument(nextDocument);
-    engine.setDocument(nextDocument);
-    if (layered) await engine.loadLayerAssets([...layered.assets, ...layered.patternAssets]);
-    if (semanticPsd) await engine.loadLayerAssets(semanticPsd.assets);
     setThumbnailDocumentReadyId(nextDocument.id);
-    startupTimingsRef.current.documentInitMs = performance.now() - documentStartedAt;
     if (isCanceled()) return;
     const nextAdjustments = cloneAdjustments(
-      layered ? materializeBasicAdjustments(layered.adjustmentStack) : initialAdjustments
+      layeredAdjustmentStack
+        ? materializeBasicAdjustments(layeredAdjustmentStack)
+        : initialAdjustments
     );
     setMetadata(nextMetadata);
-    setPsdImportInfo(psdImport && semanticPsd
-      ? { ...psdImport, warnings: semanticPsd.warnings }
+    setPsdImportInfo(psdImport
+      ? { ...psdImport, warnings: [...psdWarnings] }
       : psdImport);
-    setPsdCompatibility(
-      semanticPsd?.compatibility
-      ?? nextDocument.photoshopImportReport?.compatibility
-      ?? []
-    );
+    setPsdCompatibility([...psdCompatibility]);
     setPsdDifferenceMetrics(null);
     setSourceName(name);
     setSourceBlob(imageBlob);
@@ -1140,7 +1093,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentAdjustmentsRef.current = nextAdjustments;
     adjustmentsRef.current = nextAdjustments;
     setAdjustments(nextAdjustments);
-    if (layered) engine.setAdjustmentStack(layered.adjustmentStack);
+    if (layeredAdjustmentStack) engine.setAdjustmentStack(layeredAdjustmentStack);
     engine.setAdjustments(applyGroupVisibility(
       effectiveDocumentAdjustments(nextDocument),
       groupVisibilityRef.current
@@ -1168,8 +1121,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           console.warn('LightTable PSD difference measurement failed', reason);
         }
       }
-      if (semanticPsd?.warnings.length) {
-        console.warn('LightTable PSD semantic import warnings', semanticPsd.warnings);
+      if (psdWarnings.length) {
+        console.warn('LightTable PSD semantic import warnings', psdWarnings);
       }
     }
   }, [clearEditorHistory, effectiveDocumentAdjustments]);
