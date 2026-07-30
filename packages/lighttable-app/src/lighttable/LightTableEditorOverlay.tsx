@@ -21,11 +21,6 @@ import { resetDocumentOpenPresentation } from './application/documents/resetDocu
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
-import {
-  createEditorMenuOptions,
-  type EditorMenuId
-} from './editor/menus/createEditorMenuOptions';
-import { projectEditorMenuState } from './editor/menus/projectEditorMenuState';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
@@ -58,6 +53,9 @@ import {
 import {
   useEditorKeyboardController
 } from './composition/input/useEditorKeyboardController';
+import {
+  createEditorMenuController
+} from './composition/menus/createEditorMenuController';
 import {
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
@@ -1163,112 +1161,70 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setError
   });
 
-  const menuDocument = imageDocumentRef.current;
-  const menuActiveLayer = menuDocument
-    ? findDocumentLayer(menuDocument, menuDocument.activeLayerId)
-    : null;
-  const menuState = projectEditorMenuState({
-    document: menuDocument,
-    saving,
-    hasMetadata: Boolean(metadata),
-    hasSourceKey: Boolean(effectiveSourceFileKey),
-    copiedGradeName: copiedGrade?.name ?? null,
-    hasSelection: editorSession.selection.length > 0,
-    selectionClipboardAvailable,
-    activeChannel: editorSession.activeChannel,
-    autoAlignPreview: Boolean(autoAlignPreview),
-    zoomMode,
-    showOriginal,
-    showDifference
-  });
-
-  const createAppMenuOptions = (menuId: EditorMenuId) => createEditorMenuOptions(
-    menuId,
-    menuState,
-    {
+  const editorMenuController = createEditorMenuController({
+    projection: {
+      document: imageDocumentRef.current,
+      saving,
+      hasMetadata: Boolean(metadata),
+      hasSourceKey: Boolean(effectiveSourceFileKey),
+      copiedGradeName: copiedGrade?.name ?? null,
+      hasSelection: editorSession.selection.length > 0,
+      selectionClipboardAvailable,
+      activeChannel: editorSession.activeChannel,
+      autoAlignPreview: Boolean(autoAlignPreview),
+      zoomMode,
+      showOriginal,
+      showDifference
+    },
+    labels: {
       openFormats: imagePickerFormatNames('fast'),
       primaryShortcut: primaryShortcutLabel
     },
-    {
+    file: {
       // The application probe selects browser-native, wasm-vips, Photoshop or
       // layered-document import after reading the source signature.
       open: () => void chooseLocalFile('automatic'),
       save: () => void handleSave(),
       download: () => void handleDownload(),
-      reset: resetAll,
+      reset: resetAll
+    },
+    edit: {
       copySelectedContent,
       pasteSelectedContent,
       pasteGrade: pasteCurrentGrade,
-      copyGrade: copyCurrentGrade,
+      copyGrade: copyCurrentGrade
+    },
+    selection: {
       selectAll: selectAllContent,
-      clearSelection: clearCurrentSelection,
-      invertSelection: invertCurrentSelection,
-      featherSelection: editorDialogs.openFeather,
-      createRasterLayer: layerPanelController.createRasterLayer,
-      duplicateLayer: duplicateActiveLayer,
+      clear: clearCurrentSelection,
+      invert: invertCurrentSelection
+    },
+    layers: {
+      panel: layerPanelController,
+      duplicate: duplicateActiveLayer,
       layerViaCopy,
-      renameLayer: focusActiveLayerName,
-      invertLayerColors: invertActiveLayerColors,
-      beginAutoAlign: () => void beginAutoAlign(),
-      applyAutoAlign: applyAutoAlignPreview,
-      cancelAutoAlign: cancelAutoAlignPreview,
-      toggleClipping: () => menuActiveLayer
-        && layerPanelController.setClipping(
-          menuActiveLayer.id,
-          !menuActiveLayer.clipping
-        ),
-      setBlendMode: (mode) => menuActiveLayer
-        && layerPanelController.setBlendMode(menuActiveLayer.id, mode),
-      editPixels: () => layerPanelController.changeChannel('pixels'),
-      editMask: () => layerPanelController.changeChannel('mask'),
-      addMask: layerPanelController.addMask,
-      toggleMask: layerPanelController.toggleMask,
-      removeMask: layerPanelController.removeMask,
-      moveLayerUp: () => layerPanelController.moveActive('up'),
-      moveLayerDown: () => layerPanelController.moveActive('down'),
-      mergeDown: mergeActiveLayerDown,
-      flattenGroup: () => {
-        if (menuActiveLayer?.type === 'group') {
-          editorDialogs.requestFlatten({
-            kind: 'group',
-            groupId: menuActiveLayer.id
-          });
-        }
-      },
-      flattenImage: () => editorDialogs.requestFlatten({ kind: 'image' }),
-      toggleLayerVisibility: () => menuActiveLayer
-        && layerPanelController.setVisibility(
-          [menuActiveLayer.id],
-          !menuActiveLayer.visible
-        ),
-      toggleLayerLock: () => menuActiveLayer
-        && layerPanelController.setLock(
-          [menuActiveLayer.id],
-          'all',
-          !menuActiveLayer.locks.all
-        ),
-      deleteLayer: () => menuActiveLayer
-        && layerPanelController.deleteSelection([menuActiveLayer.id]),
-      fit: () => {
-        setZoomMode('fit');
-        setView({ scale: 1, panX: 0, panY: 0 });
-      },
-      actualSize: () => {
-        setZoomMode('100');
-        setView({ scale: 1, panX: 0, panY: 0 });
-      },
-      toggleOriginal: () => {
-        setShowDifference(false);
-        setShowOriginal((current) => !current);
-      },
-      toggleDifference: () => {
-        setShowOriginal(false);
-        setShowDifference((current) => !current);
-      },
+      rename: focusActiveLayerName,
+      invertColors: invertActiveLayerColors,
+      mergeDown: mergeActiveLayerDown
+    },
+    autoAlign: {
+      begin: () => void beginAutoAlign(),
+      apply: applyAutoAlignPreview,
+      cancel: cancelAutoAlignPreview
+    },
+    dialogs: editorDialogs,
+    viewport: {
+      setZoomMode,
+      setView,
+      setShowOriginal,
+      setShowDifference
+    },
+    workspace: {
       showDebugPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.debug),
-      resetWorkspaceLayout: () => workspaceRef.current?.resetLayout()
+      resetLayout: () => workspaceRef.current?.resetLayout()
     }
-  );
+  });
+  const createAppMenuOptions = editorMenuController.optionsFor;
   const layersPanel = imageDocument ? (
     <div className="lighttable-layers-panel">
       <LayerPanel

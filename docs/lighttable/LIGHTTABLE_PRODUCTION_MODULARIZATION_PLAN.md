@@ -1391,6 +1391,10 @@ The refactor is successful when:
       projection and temporary-tool release into one keyboard composition
       controller. It accepts an injectable keymap while command execution stays
       explicitly scoped to the mounted document.
+- [x] Move menu capability projection, active-layer resolution and command
+      binding into one host-neutral menu controller. Web menus, Electron menus
+      and a future command palette can now share the same document-scoped
+      availability rules instead of reimplementing layer behavior.
 - [x] Move application-menu presentation state, anchoring and portal ownership
       into a host-neutral editor-shell component. The active document
       composition now supplies only current capabilities and command options.
