@@ -14,6 +14,10 @@ export {
   type WorkspaceSnapshot
 } from './lighttable/application/workspace/workspaceSession';
 export {
+  DocumentWorkspaceController,
+  type OpenWorkspaceDocument
+} from './lighttable/application/workspace/documentWorkspaceController';
+export {
   DocumentSession,
   type DocumentLifecycle,
   type DocumentSessionId,

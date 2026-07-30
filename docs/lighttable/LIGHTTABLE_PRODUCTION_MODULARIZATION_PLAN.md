@@ -708,6 +708,8 @@ Work:
 - [x] move active-document identity out of hard-coded workspace props;
 - [x] wrap current editor state behind a temporary session facade;
 - [x] expose state through selectors/subscriptions;
+- [x] bind opaque host source handles to document lifetime through
+      `DocumentWorkspaceController`, instead of parallel React state;
 - [x] retain current UI and renderer behavior;
 - [x] keep inactive document runtimes mounted so viewport, selection, tool,
       history, layers and GPU state survive tab switches;
@@ -730,6 +732,11 @@ renderer has been extracted, without serializing GPU-owned state back through
 React. It is not the final memory policy. Phase 6 replaces this temporary
 retention mechanism with per-document renderer runtimes that can be suspended,
 evicted and reconstructed under a workspace-level GPU budget.
+
+The workspace controller owns the association between an application document
+and its opaque host source payload. Application sessions remain independent of
+`File`, URLs and Electron paths, while opening, closing and disposal can no
+longer leave a source handle orphaned from its document tab.
 
 ### Phase 2 — Command bus, transactions and history
 
