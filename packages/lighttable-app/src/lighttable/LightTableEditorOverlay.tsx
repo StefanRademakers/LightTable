@@ -40,7 +40,7 @@ import {
   createEditorMenuOptions,
   type EditorMenuId
 } from './editor/menus/createEditorMenuOptions';
-import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
+import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
@@ -449,36 +449,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onDocumentReady,
     onDocumentError
   });
-  const effectiveDocumentAdjustments = useCallback((document: ImageDocument | null) => {
-    void document;
-    // Adjustment nodes are evaluated at their own stack positions by the
-    // document compositor. The engine-level settings now contain only the
-    // document/output grade and Lens Fx; resolving one visible layer here
-    // would silently duplicate that layer and ignore the other Grade nodes.
-    return documentAdjustmentsRef.current;
-  }, []);
-
-  const applyAdjustmentSnapshot = useCallback((
-    snapshot: BasicAdjustments,
-    targetLayerId: LayerId | null = null
-  ) => {
-    const projection = projectAdjustmentSnapshot({
-      snapshot,
-      targetLayerId,
-      document: imageDocumentRef.current,
-      documentAdjustments: documentAdjustmentsRef.current
-    });
-    adjustmentsRef.current = projection.editorAdjustments;
-    setAdjustments(projection.editorAdjustments);
-    documentAdjustmentsRef.current = projection.documentAdjustments;
-    if (projection.document !== imageDocumentRef.current) {
-      imageDocumentRef.current = projection.document;
-      setImageDocument(projection.document);
-      if (projection.document) engineRef.current?.setDocument(projection.document);
-    }
-    const effective = effectiveDocumentAdjustments(projection.document);
-    engineRef.current?.setAdjustments(applyGroupVisibility(effective, groupVisibilityRef.current));
-  }, [effectiveDocumentAdjustments]);
+  const documentProjectionController = useMemo(
+    () => createDocumentProjectionController({
+      getDocument: () => imageDocumentRef.current,
+      publishDocument: (document) => {
+        imageDocumentRef.current = document;
+        setImageDocument(document);
+      },
+      getDocumentAdjustments: () => documentAdjustmentsRef.current,
+      publishDocumentAdjustments: (nextAdjustments) => {
+        documentAdjustmentsRef.current = nextAdjustments;
+      },
+      publishEditorAdjustments: (nextAdjustments) => {
+        adjustmentsRef.current = nextAdjustments;
+        setAdjustments(nextAdjustments);
+      },
+      getGroupVisibility: () => groupVisibilityRef.current,
+      publishRendererDocument: (document) => {
+        engineRef.current?.setDocument(document);
+      },
+      publishRendererAdjustments: (nextAdjustments) => {
+        engineRef.current?.setAdjustments(nextAdjustments);
+      }
+    }),
+    [setImageDocument]
+  );
+  const applyAdjustmentSnapshot = documentProjectionController.applyAdjustmentSnapshot;
 
   const finishOpenHistoryTransactions = useCallback(() => {
     resetAdjustmentTransactionRef.current();
@@ -496,15 +492,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const clearEditorHistory = documentHistoryController.clear;
   const pushHistoryEntry = documentHistoryController.record;
 
-  const applyDocumentSnapshot = useCallback((snapshot: ImageDocument) => {
-    imageDocumentRef.current = snapshot;
-    setImageDocument(snapshot);
-    engineRef.current?.setDocument(snapshot);
-    engineRef.current?.setAdjustments(applyGroupVisibility(
-      effectiveDocumentAdjustments(snapshot),
-      groupVisibilityRef.current
-    ));
-  }, [effectiveDocumentAdjustments]);
+  const applyDocumentSnapshot = documentProjectionController.applyDocumentSnapshot;
 
   const documentMutationController = useDocumentMutationController({
     getDocument: () => imageDocumentRef.current,
@@ -1261,7 +1249,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     getFlatAdjustments: () => adjustmentsRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
-    getEffectiveLayeredAdjustments: effectiveDocumentAdjustments,
+    getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
     getPreservedSourceAssets: () => preservedSourceAssetsRef.current,
     hydrateLocalFile: async (file, decodeMode, signal, isCurrent) => {
       await loadBlobIntoEngine(

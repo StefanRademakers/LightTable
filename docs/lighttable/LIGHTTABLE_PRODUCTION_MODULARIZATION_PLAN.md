@@ -1361,3 +1361,6 @@ The refactor is successful when:
 - [x] Move concrete WebGPU construction, guarded lifecycle callbacks, source
       resolution and symmetric renderer-slot publication out of the editor root
       into one document-open runtime factory shared by web and Electron.
+- [x] Give canonical document, document-grade and renderer projection one
+      application-owned controller; undo, transform and adjustment publication
+      can no longer update React state and GPU state through divergent paths.
