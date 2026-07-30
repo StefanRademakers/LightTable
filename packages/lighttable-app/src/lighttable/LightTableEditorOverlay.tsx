@@ -23,6 +23,7 @@ import { loadDocumentSource } from './application/documents/loadDocumentSource';
 import { hydrateDocumentSource } from './application/documents/hydrateDocumentSource';
 import { DocumentOpenController } from './application/documents/documentOpenController';
 import { exportLightTableDocument } from './application/documents/exportLightTableDocument';
+import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
   isTemporaryPanRelease,
   resolveEditorKeyboardCommand,
@@ -447,7 +448,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const historyCommandSequenceRef = useRef(0);
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
-  const documentTransactionRef = useRef<ImageDocument | null>(null);
+  const resetDocumentTransactionRef = useRef<() => void>(() => undefined);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>([]);
   const paintGestureRef = useRef(new PaintGestureController());
   const brushCursorRef = useRef<HTMLDivElement | null>(null);
@@ -843,7 +844,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const clearEditorHistory = useCallback(() => {
     commandHistory.clear();
     resetAdjustmentTransactionRef.current();
-    documentTransactionRef.current = null;
+    resetDocumentTransactionRef.current();
     pruneHistoryRuntimes();
   }, [commandHistory, pruneHistoryRuntimes]);
 
@@ -874,23 +875,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     ));
   }, [effectiveDocumentAdjustments]);
 
-  const pushDocumentHistory = useCallback((before: ImageDocument, after: ImageDocument) => {
-    pushHistoryEntry({
-      layerIds: [...new Set([
-        ...walkRasterLayers(before.layers),
-        ...walkRasterLayers(after.layers)
-      ].map(({ layer }) => layer.id))],
-      undo: () => applyDocumentSnapshot(before),
-      redo: () => applyDocumentSnapshot(after)
-    });
-  }, [applyDocumentSnapshot, pushHistoryEntry]);
-
-  const endDocumentTransaction = useCallback(() => {
-    const before = documentTransactionRef.current;
-    documentTransactionRef.current = null;
-    const after = imageDocumentRef.current;
-    if (before && after && before !== after) pushDocumentHistory(before, after);
-  }, [pushDocumentHistory]);
+  const documentMutationController = useDocumentMutationController({
+    getDocument: () => imageDocumentRef.current,
+    applySnapshot: applyDocumentSnapshot,
+    pushHistoryEntry
+  });
+  resetDocumentTransactionRef.current = documentMutationController.reset;
+  const pushDocumentHistory = documentMutationController.record;
+  const beginDocumentTransaction = documentMutationController.begin;
+  const endDocumentTransaction = documentMutationController.end;
 
   const selectionSessionController = useSelectionSessionController({
     getDocument: () => imageDocumentRef.current,
@@ -2967,12 +2960,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     change: (current: ImageDocument) => ImageDocument,
     recordHistory = true
   ) => {
-    const current = imageDocumentRef.current;
-    if (!current) return;
-    const next = change(current);
-    if (next === current) return;
-    applyDocumentSnapshot(next);
-    if (recordHistory && !documentTransactionRef.current) pushDocumentHistory(current, next);
+    documentMutationController.change(change, recordHistory);
   };
 
   const layerDocumentCommands = useLayerDocumentCommands({
@@ -3020,12 +3008,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const applyAutoAlignPreview = autoAlignController.apply;
   const beginAutoAlign = autoAlignController.begin;
   cancelAutoAlignRef.current = cancelAutoAlignPreview;
-
-  const beginDocumentTransaction = () => {
-    if (!documentTransactionRef.current && imageDocumentRef.current) {
-      documentTransactionRef.current = imageDocumentRef.current;
-    }
-  };
 
   const layerStyleEditor = useLayerStyleEditorController({
     activeDocument: imageDocument,

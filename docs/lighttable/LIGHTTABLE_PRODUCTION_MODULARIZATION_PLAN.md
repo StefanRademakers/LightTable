@@ -1248,3 +1248,5 @@ The refactor is successful when:
 - [x] Move Grade and Lens Fx preview quality, target locking, mutation and
       coalesced undo behind one document-scoped adjustment transaction
       controller.
+- [x] Move immutable document mutation, resource retention and coalesced
+      document undo behind one identity-guarded transaction controller.
