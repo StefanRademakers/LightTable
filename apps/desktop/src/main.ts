@@ -207,6 +207,27 @@ app.whenReady().then(async () => {
     return true;
   });
 
+  ipcMain.handle('lighttable:confirm-discard-changes', async (event, documentTitle: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof documentTitle !== 'string' || documentTitle.length > 1024) {
+      throw new Error('Invalid LightTable discard confirmation request.');
+    }
+    const options: Electron.MessageBoxOptions = {
+      type: 'warning',
+      title: 'Unsaved changes',
+      message: `Discard unsaved changes to “${documentTitle}”?`,
+      detail: 'This action cannot be undone.',
+      buttons: ['Cancel', 'Discard'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    };
+    const result = mainWindow
+      ? await dialog.showMessageBox(mainWindow, options)
+      : await dialog.showMessageBox(options);
+    return result.response === 1;
+  });
+
   await createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();

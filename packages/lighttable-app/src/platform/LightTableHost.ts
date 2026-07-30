@@ -23,6 +23,10 @@ export interface LightTableHost {
   readonly media?: LightTableMediaBrowser;
   openFile?(): Promise<File | null>;
   /**
+   * Ask the host whether unsaved changes may be discarded.
+   */
+  confirmDiscardChanges(documentTitle: string): Promise<boolean>;
+  /**
    * Return false when the host showed a save dialog and the user cancelled it.
    * Undefined/void means the save completed.
    */
@@ -31,6 +35,9 @@ export interface LightTableHost {
 
 export const createBrowserHost = (): LightTableHost => ({
   kind: 'web',
+  async confirmDiscardChanges(documentTitle) {
+    return window.confirm(`Discard unsaved changes to “${documentTitle}”?`);
+  },
   async save({ file }) {
     const url = URL.createObjectURL(file);
     try {

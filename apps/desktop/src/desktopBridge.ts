@@ -11,5 +11,6 @@ export interface DesktopSavePayload {
 
 export interface LightTableDesktopBridge {
   openFile(): Promise<DesktopFilePayload | null>;
+  confirmDiscardChanges(documentTitle: string): Promise<boolean>;
   saveFile(payload: DesktopSavePayload): Promise<boolean>;
 }

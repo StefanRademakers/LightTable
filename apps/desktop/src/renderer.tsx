@@ -17,6 +17,9 @@ const desktopHost: LightTableHost = {
       type: payload.type
     });
   },
+  confirmDiscardChanges(documentTitle) {
+    return window.lightTableDesktop.confirmDiscardChanges(documentTitle);
+  },
   async save({ file }) {
     return window.lightTableDesktop.saveFile({
       suggestedName: file.name,

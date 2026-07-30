@@ -12,6 +12,7 @@ import {
   type StandaloneDecodeMode,
   useStandaloneDocumentWorkspace
 } from './useStandaloneDocumentWorkspace';
+import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -51,16 +52,13 @@ export function LightTableStandaloneApp({
 
   const closeDocument = useCallback((documentId: string) => {
     const id = documentId as DocumentSessionId;
-    const document = documents.find((candidate) => candidate.id === id);
-    if (!document) return;
-    if (
-      document.dirty
-      && !window.confirm(`Discard unsaved changes to “${document.title}”?`)
-    ) {
-      return;
-    }
-    closeWorkspaceDocument(id, true);
-  }, [closeWorkspaceDocument, documents]);
+    void requestWorkspaceDocumentClose({
+      documentId: id,
+      documents,
+      host,
+      close: closeWorkspaceDocument
+    });
+  }, [closeWorkspaceDocument, documents, host]);
 
   const workspaceDocuments = useMemo(
     () => documents.map(({ id, title, dirty }) => ({ id, title, dirty })),

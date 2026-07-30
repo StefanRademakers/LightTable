@@ -725,6 +725,8 @@ Work:
       while rejecting mutations after terminal workspace disposal;
 - [x] isolate each standalone document's renderer, services, failure boundary
       and host-save bridge behind a dedicated runtime composition component;
+- [x] move dirty-close confirmation behind the host port so browser, Electron
+      and future embedded shells share one tested workspace-close policy;
 - [ ] replace the temporary mounted-overlay retention strategy with an explicit
       renderer suspend/resume lifecycle and a configurable GPU-memory budget.
 
