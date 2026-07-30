@@ -1028,7 +1028,7 @@ Work:
 
 - [x] move selection mask/draft visualization into its owning selection
       feature with an explicit display-space contract;
-- move Layers, Grade, Lens Fx, Scopes and Debug into registered panels;
+- [x] move Layers, Grade, Lens Fx, Scopes and Debug into registered panels;
 - replace direct root callbacks with commands/selectors;
 - move dialogs to owning feature modules;
 - keep dock layout workspace-owned;
@@ -1402,3 +1402,7 @@ The refactor is successful when:
       toolbar and host-neutral file-input surfaces into one editor shell. The
       document composition root now supplies projected state and commands only,
       with no document, renderer or host service access in the shell.
+- [x] Replace Dockview's hard-coded accessory-panel branches with a typed panel
+      registry. Stable IDs preserve saved layouts, optional panels are restored
+      generically, and future feature/host panels can supply content and default
+      placement without changing Dockview's document-host policy.

@@ -19,20 +19,19 @@ import {
   type IDockviewPanelProps,
   type SerializedDockview
 } from 'dockview-react';
+import {
+  LIGHTTABLE_WORKSPACE_PANEL_IDS,
+  type LightTableWorkspacePanelRegistration
+} from './workspacePanelRegistry';
 
-const DOCUMENT_HOST_PANEL_ID = 'lighttable.document-host';
-const SCOPES_PANEL_ID = 'lighttable.scopes';
-const GRADE_PANEL_ID = 'lighttable.inspector';
-const LENS_FX_PANEL_ID = 'lighttable.lens-fx';
-const LAYERS_PANEL_ID = 'lighttable.layers';
-const DEBUG_PANEL_ID = 'lighttable.debug';
+const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v1';
 const ACCESSORY_PANEL_MINIMUM_WIDTH = 250;
 const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
 const PANEL_TAB_BAR_HEIGHT = 34;
 const TAB_MERGE_PRIORITY_EXTENSION = 18;
 
-type WorkspaceContentKey = 'documentHost' | 'scopes' | 'grade' | 'lensFx' | 'layers' | 'debug';
+type WorkspaceContentKey = 'documentHost' | string;
 
 export interface LightTableWorkspaceDocument {
   id: string;
@@ -45,11 +44,7 @@ export interface LightTableWorkspaceDocument {
 interface LightTableDockWorkspaceProps {
   documents: LightTableWorkspaceDocument[];
   activeDocumentId: string;
-  scopes: React.ReactNode;
-  grade: React.ReactNode;
-  lensFx: React.ReactNode;
-  layers: React.ReactNode;
-  debug: React.ReactNode;
+  panels: LightTableWorkspacePanelRegistration[];
   accessoryWidthConstraintsEnabled: boolean;
   onResizeInteractionChange?: (active: boolean) => void;
   onActiveDocumentChange?: (documentId: string) => void;
@@ -58,17 +53,10 @@ interface LightTableDockWorkspaceProps {
 
 export interface LightTableDockWorkspaceHandle {
   resetLayout: () => void;
-  showDebugPanel: () => void;
+  showPanel: (panelId: string) => void;
 }
 
-interface WorkspaceContent {
-  documentHost: React.ReactNode;
-  scopes: React.ReactNode;
-  grade: React.ReactNode;
-  lensFx: React.ReactNode;
-  layers: React.ReactNode;
-  debug: React.ReactNode;
-}
+type WorkspaceContent = Record<WorkspaceContentKey, React.ReactNode>;
 
 const WorkspaceContentContext = createContext<WorkspaceContent | null>(null);
 
@@ -82,26 +70,56 @@ const PersistentPanelTab: React.FC<IDockviewPanelHeaderProps> = (props) => (
   <DockviewDefaultTab {...props} hideClose />
 );
 
-const applyWorkspacePanelConstraints = (api: DockviewApi, widthConstraintsEnabled: boolean) => {
+const applyWorkspacePanelConstraints = (
+  api: DockviewApi,
+  panels: LightTableWorkspacePanelRegistration[],
+  widthConstraintsEnabled: boolean
+) => {
   const minimumWidth = widthConstraintsEnabled ? ACCESSORY_PANEL_MINIMUM_WIDTH : 0;
   const maximumWidth = widthConstraintsEnabled ? ACCESSORY_PANEL_MAXIMUM_WIDTH : 1_000_000;
   api.getPanel(DOCUMENT_HOST_PANEL_ID)?.api.setConstraints({
     minimumWidth
   });
-  [SCOPES_PANEL_ID, GRADE_PANEL_ID, LENS_FX_PANEL_ID, LAYERS_PANEL_ID, DEBUG_PANEL_ID].forEach((panelId) => {
-    api.getPanel(panelId)?.api.setConstraints({
+  panels.forEach((panel) => {
+    api.getPanel(panel.id)?.api.setConstraints({
       minimumWidth,
-      maximumWidth
+      maximumWidth,
+      ...(panel.minimumHeight === undefined ? {} : { minimumHeight: panel.minimumHeight })
     });
-  });
-  api.getPanel(LAYERS_PANEL_ID)?.api.setConstraints({
-    minimumWidth,
-    maximumWidth,
-    minimumHeight: 140
   });
 };
 
-const createDefaultLayout = (api: DockviewApi, widthConstraintsEnabled: boolean) => {
+const addRegisteredPanel = (
+  api: DockviewApi,
+  panel: LightTableWorkspacePanelRegistration
+) => {
+  const referencePanel = api.getPanel(panel.defaultPosition.referencePanelId);
+  if (!referencePanel) return null;
+  return api.addPanel<{ contentKey: WorkspaceContentKey }>({
+    id: panel.id,
+    component: 'workspacePanel',
+    tabComponent: 'persistentPanelTab',
+    title: panel.title,
+    params: { contentKey: panel.contentKey },
+    renderer: 'always',
+    position: {
+      referencePanel,
+      direction: panel.defaultPosition.direction
+    },
+    inactive: panel.initiallyInactive,
+    initialWidth: panel.initialWidth,
+    initialHeight: panel.initialHeight,
+    minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
+    maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH,
+    minimumHeight: panel.minimumHeight
+  });
+};
+
+const createDefaultLayout = (
+  api: DockviewApi,
+  panels: LightTableWorkspacePanelRegistration[],
+  widthConstraintsEnabled: boolean
+) => {
   const documentHost = api.addPanel<{ contentKey: WorkspaceContentKey }>({
     id: DOCUMENT_HOST_PANEL_ID,
     component: 'workspacePanel',
@@ -116,90 +134,31 @@ const createDefaultLayout = (api: DockviewApi, widthConstraintsEnabled: boolean)
   // receive panel drops. LightTable converts a centre drop there into a
   // floating panel; edge drops remain regular Dockview splits.
   documentHost.group.locked = false;
-
-  const scopes = api.addPanel<{ contentKey: WorkspaceContentKey }>({
-    id: SCOPES_PANEL_ID,
-    component: 'workspacePanel',
-    tabComponent: 'persistentPanelTab',
-    title: 'Scopes',
-    params: { contentKey: 'scopes' },
-    renderer: 'always',
-    position: { referencePanel: documentHost, direction: 'right' },
-    initialWidth: 290,
-    minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
-    maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH
-  });
-
-  const grade = api.addPanel<{ contentKey: WorkspaceContentKey }>({
-    id: GRADE_PANEL_ID,
-    component: 'workspacePanel',
-    tabComponent: 'persistentPanelTab',
-    title: 'Grade',
-    params: { contentKey: 'grade' },
-    renderer: 'always',
-    position: { referencePanel: scopes, direction: 'right' },
-    initialWidth: 310,
-    minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
-    maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH
-  });
-
-  api.addPanel<{ contentKey: WorkspaceContentKey }>({
-    id: DEBUG_PANEL_ID,
-    component: 'workspacePanel',
-    tabComponent: 'persistentPanelTab',
-    title: 'Debug',
-    params: { contentKey: 'debug' },
-    renderer: 'always',
-    position: { referencePanel: scopes, direction: 'within' },
-    inactive: true,
-    minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
-    maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH
-  });
-
-  api.addPanel<{ contentKey: WorkspaceContentKey }>({
-    id: LENS_FX_PANEL_ID,
-    component: 'workspacePanel',
-    tabComponent: 'persistentPanelTab',
-    title: 'Lens Fx',
-    params: { contentKey: 'lensFx' },
-    renderer: 'always',
-    position: { referencePanel: grade, direction: 'within' },
-    inactive: true,
-    minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
-    maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH
-  });
-
-  api.addPanel<{ contentKey: WorkspaceContentKey }>({
-    id: LAYERS_PANEL_ID,
-    component: 'workspacePanel',
-    tabComponent: 'persistentPanelTab',
-    title: 'Layers',
-    params: { contentKey: 'layers' },
-    renderer: 'always',
-    position: { referencePanel: grade, direction: 'below' },
-    minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
-    maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH,
-    initialHeight: 220,
-    minimumHeight: 140
-  });
-  applyWorkspacePanelConstraints(api, widthConstraintsEnabled);
+  panels.forEach((panel) => addRegisteredPanel(api, panel));
+  applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
 };
 
-const isUsableSavedLayout = (layout: SerializedDockview) =>
+const isUsableSavedLayout = (
+  layout: SerializedDockview,
+  panels: LightTableWorkspacePanelRegistration[]
+) =>
   Boolean(
     layout.panels[DOCUMENT_HOST_PANEL_ID] &&
-    layout.panels[SCOPES_PANEL_ID] &&
-    layout.panels[GRADE_PANEL_ID] &&
-    layout.panels[LENS_FX_PANEL_ID] &&
-    layout.panels[LAYERS_PANEL_ID]
+    panels
+      .filter((panel) => panel.requiredForSavedLayout)
+      .every((panel) => layout.panels[panel.id])
   );
 
-const restoreLayout = (api: DockviewApi, widthConstraintsEnabled: boolean) => {
+const restoreLayout = (
+  api: DockviewApi,
+  panels: LightTableWorkspacePanelRegistration[],
+  widthConstraintsEnabled: boolean
+) => {
   try {
     const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY);
     if (!raw) return false;
     const layout = JSON.parse(raw) as SerializedDockview;
-    if (!isUsableSavedLayout(layout)) return false;
+    if (!isUsableSavedLayout(layout, panels)) return false;
     api.fromJSON(layout);
     const documentHost = api.getPanel(DOCUMENT_HOST_PANEL_ID);
     if (!documentHost) return false;
@@ -216,24 +175,10 @@ const restoreLayout = (api: DockviewApi, widthConstraintsEnabled: boolean) => {
     }
     documentHost.group.header.hidden = true;
     documentHost.group.locked = false;
-    if (!api.getPanel(DEBUG_PANEL_ID)) {
-      const scopes = api.getPanel(SCOPES_PANEL_ID);
-      if (scopes) {
-        api.addPanel<{ contentKey: WorkspaceContentKey }>({
-          id: DEBUG_PANEL_ID,
-          component: 'workspacePanel',
-          tabComponent: 'persistentPanelTab',
-          title: 'Debug',
-          params: { contentKey: 'debug' },
-          renderer: 'always',
-          position: { referencePanel: scopes, direction: 'within' },
-          inactive: true,
-          minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
-          maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH
-        });
-      }
-    }
-    applyWorkspacePanelConstraints(api, widthConstraintsEnabled);
+    panels.forEach((panel) => {
+      if (!api.getPanel(panel.id)) addRegisteredPanel(api, panel);
+    });
+    applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
     return true;
   } catch {
     localStorage.removeItem(WORKSPACE_STORAGE_KEY);
@@ -308,11 +253,7 @@ export const LightTableDockWorkspace = forwardRef<
 >(({
   documents,
   activeDocumentId,
-  scopes,
-  grade,
-  lensFx,
-  layers,
-  debug,
+  panels,
   accessoryWidthConstraintsEnabled,
   onResizeInteractionChange,
   onActiveDocumentChange,
@@ -324,6 +265,22 @@ export const LightTableDockWorkspace = forwardRef<
   const dropListenerRef = useRef<{ dispose: () => void } | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const lastLayoutChangeAtRef = useRef(0);
+  const panelsRef = useRef(panels);
+  panelsRef.current = panels;
+  const panelLayoutSignature = panels
+    .map((panel) => [
+      panel.id,
+      panel.contentKey,
+      panel.title,
+      panel.defaultPosition.referencePanelId,
+      panel.defaultPosition.direction,
+      panel.initialWidth,
+      panel.initialHeight,
+      panel.minimumHeight,
+      panel.initiallyInactive,
+      panel.requiredForSavedLayout
+    ].join(':'))
+    .join('|');
   const [ready, setReady] = useState(false);
 
   const saveLayout = useCallback(() => {
@@ -351,8 +308,8 @@ export const LightTableDockWorkspace = forwardRef<
 
   const onReady = useCallback((event: DockviewReadyEvent) => {
     apiRef.current = event.api;
-    if (!restoreLayout(event.api, accessoryWidthConstraintsEnabled)) {
-      createDefaultLayout(event.api, accessoryWidthConstraintsEnabled);
+    if (!restoreLayout(event.api, panelsRef.current, accessoryWidthConstraintsEnabled)) {
+      createDefaultLayout(event.api, panelsRef.current, accessoryWidthConstraintsEnabled);
     }
     layoutListenerRef.current?.dispose();
     layoutListenerRef.current = event.api.onDidLayoutChange(saveLayout);
@@ -470,15 +427,15 @@ export const LightTableDockWorkspace = forwardRef<
     }
     localStorage.removeItem(WORKSPACE_STORAGE_KEY);
     api.clear();
-    createDefaultLayout(api, accessoryWidthConstraintsEnabled);
+    createDefaultLayout(api, panelsRef.current, accessoryWidthConstraintsEnabled);
     saveLayout();
   }, [accessoryWidthConstraintsEnabled, saveLayout]);
 
-  const showDebugPanel = useCallback(() => {
-    apiRef.current?.getPanel(DEBUG_PANEL_ID)?.api.setActive();
+  const showPanel = useCallback((panelId: string) => {
+    apiRef.current?.getPanel(panelId)?.api.setActive();
   }, []);
 
-  useImperativeHandle(ref, () => ({ resetLayout, showDebugPanel }), [resetLayout, showDebugPanel]);
+  useImperativeHandle(ref, () => ({ resetLayout, showPanel }), [resetLayout, showPanel]);
 
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
@@ -493,13 +450,13 @@ export const LightTableDockWorkspace = forwardRef<
     if (!ready) return;
     const api = apiRef.current;
     if (!api) return;
-    applyWorkspacePanelConstraints(api, accessoryWidthConstraintsEnabled);
+    applyWorkspacePanelConstraints(api, panelsRef.current, accessoryWidthConstraintsEnabled);
     const documentHost = api.getPanel(DOCUMENT_HOST_PANEL_ID);
     if (documentHost) {
       documentHost.group.header.hidden = true;
       documentHost.group.locked = false;
     }
-  }, [accessoryWidthConstraintsEnabled, ready]);
+  }, [accessoryWidthConstraintsEnabled, panelLayoutSignature, ready]);
 
   useEffect(() => {
     const workspaceElement = workspaceElementRef.current;
@@ -544,21 +501,20 @@ export const LightTableDockWorkspace = forwardRef<
     };
   }, [onResizeInteractionChange]);
 
-  const content = useMemo<WorkspaceContent>(() => ({
-    documentHost: (
+  const content = useMemo<WorkspaceContent>(() => {
+    const registeredContent = Object.fromEntries(
+      panels.map((panel) => [panel.contentKey, panel.content])
+    ) as WorkspaceContent;
+    registeredContent.documentHost = (
       <DocumentHost
         documents={documents}
         activeDocumentId={activeDocumentId}
         onActiveDocumentChange={onActiveDocumentChange}
         onSurfaceReady={onDocumentSurfaceReady}
       />
-    ),
-    scopes,
-    grade,
-    lensFx,
-    layers,
-    debug
-  }), [activeDocumentId, debug, documents, grade, layers, lensFx, onActiveDocumentChange, onDocumentSurfaceReady, scopes]);
+    );
+    return registeredContent;
+  }, [activeDocumentId, documents, onActiveDocumentChange, onDocumentSurfaceReady, panels]);
 
   const components = useMemo(() => ({ workspacePanel: WorkspacePanel }), []);
   const tabComponents = useMemo(() => ({ persistentPanelTab: PersistentPanelTab }), []);

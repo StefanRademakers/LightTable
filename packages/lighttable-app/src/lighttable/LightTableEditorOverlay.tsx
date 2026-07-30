@@ -87,6 +87,10 @@ import {
   LightTableDockWorkspace,
   type LightTableDockWorkspaceHandle
 } from './editor/workspace/LightTableDockWorkspace';
+import {
+  createDefaultLightTableWorkspacePanels,
+  LIGHTTABLE_WORKSPACE_PANEL_IDS
+} from './editor/workspace/workspacePanelRegistry';
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import { useFillCommandController } from './application/tools/fill/useFillCommandController';
@@ -1346,7 +1350,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setShowOriginal(false);
         setShowDifference((current) => !current);
       },
-      showDebugPanel: () => workspaceRef.current?.showDebugPanel(),
+      showDebugPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.debug),
       resetWorkspaceLayout: () => workspaceRef.current?.resetLayout()
     }
   );
@@ -1529,7 +1533,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             accessoryWidthConstraintsEnabled={accessoryWidthConstraintsEnabled}
             onResizeInteractionChange={handleDockResizeInteractionChange}
             onDocumentSurfaceReady={handleDocumentSurfaceReady}
-            scopes={(
+            panels={createDefaultLightTableWorkspacePanels({
+              scopes: (
 
               <ScopesPanel
                 containerRef={scopesColumnRef}
@@ -1545,9 +1550,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 }}
                 onSettingsChange={setScopeSettings}
               />
-            )}
-            layers={layersPanel}
-            debug={(
+              ),
+              layers: layersPanel,
+              debug: (
               <DebugPanel
                 messages={debugMessages}
                 onClear={clearDebugMessages}
@@ -1571,8 +1576,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   );
                 }}
               />
-            )}
-            lensFx={(
+              ),
+              lensFx: (
               <LensFxPanel
                 key={sourceIdentity || sourceName}
                 model={{
@@ -1623,8 +1628,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   }
                 }}
               />
-            )}
-            grade={(
+              ),
+              grade: (
               <GradePanel
                 key={sourceIdentity || sourceName}
                 model={{
@@ -1661,7 +1666,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetCurve
                 }}
               />
-            )}
+              )
+            })}
           />
     </LightTableEditorShell>
   );
