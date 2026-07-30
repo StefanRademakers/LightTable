@@ -902,7 +902,8 @@ Work:
 - [x] move parallel renderer/source startup, stale-start rejection and failure
       cleanup into a tested application service;
 - [x] move render scheduling/invalidation out of React effects;
-- split device, resources, scopes and readback;
+- [x] split shared device acquisition and loss fan-out from document rendering;
+- split image resources, scopes and readback;
 - isolate optional pipeline compilation;
 - add resource lifecycle and device-loss tests.
 
@@ -931,6 +932,12 @@ coalesced animation-frame work, synchronous export/readback flushing and
 terminal cancellation. Dirty-stage decisions remain in the renderer, while
 browser callback ownership no longer leaks through React or ad-hoc frame
 handles.
+
+Shared WebGPU device ownership is now isolated from the concrete document
+engine. Concurrent document startups reuse one acquisition, optional texture
+format support is negotiated once, every live renderer receives device-loss
+notification through a disposable subscription, and the next startup can
+recover with a fresh device.
 
 ### Phase 6 — Layer compositor and processing modules
 

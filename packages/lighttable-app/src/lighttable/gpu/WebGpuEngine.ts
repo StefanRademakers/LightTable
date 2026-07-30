@@ -47,6 +47,11 @@ import {
   type AdjustmentStack
 } from '../processing/adjustmentStack';
 import { WebGpuScopeEngine, type WebGpuScopeOptions } from './WebGpuScopeEngine';
+import {
+  requestSharedWebGpuDevice,
+  subscribeSharedWebGpuDeviceLost,
+  TEXTURE_FORMATS_TIER1
+} from './sharedWebGpuDevice';
 import { ADJUSTMENT_UNIFORM_FLOATS, buildAdjustmentUniform } from './adjustmentUniform';
 import {
   BASIC_CORRECTION_WGSL,
@@ -66,38 +71,6 @@ import {
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 const DIFFERENCE_METRICS_BYTE_SIZE = 8 * Uint32Array.BYTES_PER_ELEMENT;
 const alignTo = (value: number, alignment: number) => Math.ceil(value / alignment) * alignment;
-const TEXTURE_FORMATS_TIER1: GPUFeatureName = 'texture-formats-tier1';
-let sharedDevice: GPUDevice | null = null;
-let sharedDevicePromise: Promise<GPUDevice> | null = null;
-const sharedDeviceLostListeners = new Set<(info: GPUDeviceLostInfo) => void>();
-
-const requestSharedDevice = () => {
-  if (sharedDevice) return Promise.resolve(sharedDevice);
-  if (sharedDevicePromise) return sharedDevicePromise;
-  sharedDevicePromise = (async () => {
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-    if (!adapter) throw new Error('No compatible WebGPU adapter was found.');
-    const requiredFeatures = adapter.features.has(TEXTURE_FORMATS_TIER1)
-      ? [TEXTURE_FORMATS_TIER1]
-      : [];
-    const device = await adapter.requestDevice({ requiredFeatures });
-    sharedDevice = device;
-    void device.lost.then((info) => {
-      if (sharedDevice === device) {
-        sharedDevice = null;
-        sharedDevicePromise = null;
-      }
-      sharedDeviceLostListeners.forEach((listener) => listener(info));
-    });
-    return device;
-  })().catch((reason) => {
-    sharedDevice = null;
-    sharedDevicePromise = null;
-    throw reason;
-  });
-  return sharedDevicePromise;
-};
-
 interface CorePipelineBundle {
   vertexModule: GPUShaderModule;
   basic: GPURenderPipeline;
@@ -238,7 +211,7 @@ export class WebGpuEngine {
       }
     };
     this.device.addEventListener('uncapturederror', this.deviceErrorListener);
-    sharedDeviceLostListeners.add(this.deviceLostListener);
+    this.unsubscribeDeviceLost = subscribeSharedWebGpuDeviceLost(this.deviceLostListener);
   }
 
   private sourceTexture: GPUTexture | null = null;
@@ -299,6 +272,7 @@ export class WebGpuEngine {
   private layerStyleInitializationFailed = false;
   private readonly deviceErrorListener: EventListener;
   private readonly deviceLostListener: (info: GPUDeviceLostInfo) => void;
+  private readonly unsubscribeDeviceLost: () => void;
   private destroyed = false;
   private lastReportedGpuBytes = -1;
 
@@ -307,10 +281,9 @@ export class WebGpuEngine {
     callbacks: DocumentRendererCallbacks = {},
     scopeCanvases?: DocumentRendererScopeCanvases
   ) {
-    if (!navigator.gpu) throw new Error('WebGPU is not available in this browser. Use a current Chromium-based desktop browser.');
     // The adapter/device is independent from a particular editor canvas.
     // Reusing it removes a sizeable repeated startup cost when reopening the tool.
-    const device = await requestSharedDevice();
+    const device = await requestSharedWebGpuDevice();
     const context = canvas.getContext('webgpu');
     if (!context) throw new Error('The browser could not create a WebGPU canvas context.');
     const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -1798,7 +1771,7 @@ export class WebGpuEngine {
   destroy() {
     this.destroyed = true;
     this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
-    sharedDeviceLostListeners.delete(this.deviceLostListener);
+    this.unsubscribeDeviceLost();
     this.imageLoadRevision += 1;
     this.renderScheduler.dispose();
     this.destroyImageResources();

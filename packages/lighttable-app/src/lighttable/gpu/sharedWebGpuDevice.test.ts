@@ -1,0 +1,114 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  SharedWebGpuDeviceManager,
+  TEXTURE_FORMATS_TIER1,
+  type WebGpuAdapterProvider
+} from './sharedWebGpuDevice';
+
+const deferred = <Value>() => {
+  let resolve!: (value: Value) => void;
+  const promise = new Promise<Value>((accept) => {
+    resolve = accept;
+  });
+  return { promise, resolve };
+};
+
+const createDevice = () => {
+  const lost = deferred<GPUDeviceLostInfo>();
+  return {
+    device: { lost: lost.promise } as GPUDevice,
+    lost
+  };
+};
+
+const createProvider = (devices: GPUDevice[], supportsTier1 = true) => {
+  const requestDevice = vi.fn(async () => {
+    const device = devices.shift();
+    if (!device) throw new Error('No test device remains.');
+    return device;
+  });
+  const adapter = {
+    features: new Set<GPUFeatureName>(
+      supportsTier1 ? [TEXTURE_FORMATS_TIER1] : []
+    ),
+    requestDevice
+  } as unknown as GPUAdapter;
+  const provider: WebGpuAdapterProvider = {
+    requestAdapter: vi.fn(async () => adapter)
+  };
+  return { provider, requestDevice };
+};
+
+describe('SharedWebGpuDeviceManager', () => {
+  it('coalesces concurrent requests and reuses the acquired device', async () => {
+    const first = createDevice();
+    const { provider, requestDevice } = createProvider([first.device]);
+    const manager = new SharedWebGpuDeviceManager(provider);
+
+    const [left, right] = await Promise.all([manager.request(), manager.request()]);
+    const reused = await manager.request();
+
+    expect(left).toBe(first.device);
+    expect(right).toBe(first.device);
+    expect(reused).toBe(first.device);
+    expect(provider.requestAdapter).toHaveBeenCalledTimes(1);
+    expect(requestDevice).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests tier-one texture formats only when supported', async () => {
+    const supported = createDevice();
+    const supportedProvider = createProvider([supported.device], true);
+    await new SharedWebGpuDeviceManager(supportedProvider.provider).request();
+    expect(supportedProvider.requestDevice).toHaveBeenCalledWith({
+      requiredFeatures: [TEXTURE_FORMATS_TIER1]
+    });
+
+    const unsupported = createDevice();
+    const unsupportedProvider = createProvider([unsupported.device], false);
+    await new SharedWebGpuDeviceManager(unsupportedProvider.provider).request();
+    expect(unsupportedProvider.requestDevice).toHaveBeenCalledWith({
+      requiredFeatures: []
+    });
+  });
+
+  it('notifies subscribers and reacquires after device loss', async () => {
+    const first = createDevice();
+    const second = createDevice();
+    const { provider } = createProvider([first.device, second.device]);
+    const manager = new SharedWebGpuDeviceManager(provider);
+    const listener = vi.fn();
+    const unsubscribe = manager.subscribeLost(listener);
+
+    expect(await manager.request()).toBe(first.device);
+    const info = { message: 'reset', reason: 'unknown' } as GPUDeviceLostInfo;
+    first.lost.resolve(info);
+    await first.device.lost;
+    await Promise.resolve();
+
+    expect(listener).toHaveBeenCalledWith(info);
+    expect(await manager.request()).toBe(second.device);
+    expect(provider.requestAdapter).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+    second.lost.resolve(info);
+    await second.device.lost;
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a clean retry after adapter acquisition fails', async () => {
+    const device = createDevice();
+    const provider: WebGpuAdapterProvider = {
+      requestAdapter: vi.fn()
+        .mockRejectedValueOnce(new Error('adapter failed'))
+        .mockResolvedValueOnce({
+          features: new Set(),
+          requestDevice: vi.fn(async () => device.device)
+        } as unknown as GPUAdapter)
+    };
+    const manager = new SharedWebGpuDeviceManager(provider);
+
+    await expect(manager.request()).rejects.toThrow('adapter failed');
+    await expect(manager.request()).resolves.toBe(device.device);
+    expect(provider.requestAdapter).toHaveBeenCalledTimes(2);
+  });
+});
