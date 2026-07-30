@@ -235,6 +235,12 @@ import { PsdImportReportDialog } from './editor/psd/PsdImportReportDialog';
 import { boundsForDabs, StrokeBuilder } from './editor/tools/brush/strokeBuilder';
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
 import {
+  isPaintTool,
+  isSelectionTool,
+  selectionKindForTool,
+  steppedBrushSize
+} from './editor/tools/toolCapabilities';
+import {
   clientToLocalPoint,
   localToDocumentPointer,
   panViewFromGesture,
@@ -260,8 +266,7 @@ import {
   selectionModeFromModifiers,
   selectionShapeIsValid,
   type SelectionOperation,
-  type SelectionShape,
-  type SelectionToolId
+  type SelectionShape
 } from './editor/selection/selectionTypes';
 import { SelectionOverlay } from './editor/selection/SelectionOverlay';
 import {
@@ -292,18 +297,6 @@ const primaryShortcutLabel = (key: string, shift = false) => (
     ? `${shift ? '⇧' : ''}⌘${key}`
     : `Ctrl+${shift ? 'Shift+' : ''}${key}`
 );
-const BRUSH_SIZE_STEPS = [
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-  15, 20, 25, 30, 35, 40, 45, 50, 60, 70,
-  80, 90, 100, 125, 150, 175, 200, 250, 300, 400,
-  500, 600, 700, 800, 900, 1000
-] as const;
-const steppedBrushSize = (current: number, direction: -1 | 1) => {
-  if (direction > 0) {
-    return BRUSH_SIZE_STEPS.find((size) => size > current) ?? BRUSH_SIZE_STEPS[BRUSH_SIZE_STEPS.length - 1];
-  }
-  return [...BRUSH_SIZE_STEPS].reverse().find((size) => size < current) ?? BRUSH_SIZE_STEPS[0];
-};
 const isTextEditingTarget = (target: EventTarget | null) => (
   target instanceof HTMLTextAreaElement
   || target instanceof HTMLSelectElement
@@ -384,12 +377,6 @@ const scopeEngineOptions = (visibility: ScopeVisibility, settings: ScopeSettings
 
 const HISTORY_LIMIT = 100;
 const GPU_HISTORY_BYTE_LIMIT = 512 * 1024 * 1024;
-const isSelectionTool = (tool: ToolId): tool is SelectionToolId => tool.startsWith('select-');
-const isPaintTool = (tool: ToolId) => tool === 'brush' || tool === 'erase';
-const selectionKindForTool = (tool: SelectionToolId): SelectionShape['kind'] => (
-  tool === 'select-rectangle' ? 'rectangle' : tool === 'select-ellipse' ? 'ellipse' : 'free'
-);
-
 const buildOutputName = (base: string) => `${base.replace(/\.[^.]+$/, '') || 'image'}-lighttable.png`;
 
 export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = ({

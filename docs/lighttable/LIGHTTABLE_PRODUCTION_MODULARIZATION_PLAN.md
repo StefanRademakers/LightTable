@@ -811,6 +811,8 @@ Work:
       application code;
 - [x] centralize tested pointer/document projection, pan and cursor-anchored
       wheel zoom math;
+- [x] centralize brush stepping and paint/selection tool capabilities so the
+      overlay and keyboard router share one explicit tool contract;
 - [ ] route normalized pointer and wheel intents through the tool runtime;
 - create tool registry and lifecycle;
 - migrate temporary pan, brush sizing and tool shortcuts;

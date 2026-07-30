@@ -1,4 +1,5 @@
 import type { ToolId } from '../../editor/session/editorSession';
+import { isPaintTool } from '../../editor/tools/toolCapabilities';
 
 export interface EditorKeyboardInput {
   readonly key: string;
@@ -41,8 +42,6 @@ export type EditorKeyboardCommand =
   | 'commit-transform'
   | 'cancel-or-close'
   | { readonly type: 'activate-tool'; readonly tool: ToolId };
-
-const isPaintTool = (tool: ToolId) => tool === 'brush' || tool === 'erase';
 
 /**
  * Converts platform keyboard input into editor intent without touching React,
