@@ -7,7 +7,7 @@ import type {
   PhotoshopImportReport,
   PhotoshopImportSupport
 } from '../document/documentTypes';
-import type { ReferenceDifferenceMetrics } from '../../gpu/WebGpuEngine';
+import type { ReferenceDifferenceMetrics } from '../../application/rendering/rendererTypes';
 
 type ReportFilter = 'all' | PhotoshopImportSupport;
 

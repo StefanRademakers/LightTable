@@ -1,4 +1,4 @@
-import type { BasicAdjustments, LightTableImageMetadata, RgbHistogram } from '../types';
+import type { BasicAdjustments, LightTableImageMetadata } from '../types';
 import { decodeNativeImage } from '../image-io/NativeImageDecoder';
 import type { WasmVipsDecoder } from '../image-io/WasmVipsDecoder';
 import type { AdvancedDecodedImage } from '../image-io/types';
@@ -31,6 +31,12 @@ import type {
   TranslationAlignmentOptions,
   TranslationAlignmentResult
 } from '../editor/autoAlign/alignmentTypes';
+import type {
+  DocumentRendererCallbacks,
+  DocumentRendererScopeCanvases,
+  LightTableLoadImageOptions,
+  ReferenceDifferenceMetrics
+} from '../application/rendering/rendererTypes';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
 import {
@@ -182,44 +188,10 @@ interface ViewportRect {
   height: number;
 }
 
-interface EngineCallbacks {
-  onHistogram?: (histogram: RgbHistogram) => void;
-  onDeviceLost?: (message: string) => void;
-  onScopeError?: (message: string) => void;
-  onFirstFrame?: () => void;
-  onGpuMemoryEstimate?: (bytes: number) => void;
-}
-
-interface EngineScopeCanvases {
-  hueDistribution: HTMLCanvasElement;
-  colorMixerHueDistribution?: HTMLCanvasElement;
-  parade: HTMLCanvasElement;
-  vectorscope: HTMLCanvasElement;
-}
-
 interface AdjustmentLayerRuntime {
   uniformBuffer: GPUBuffer;
   curveTexture: GPUTexture;
   creativeBindGroup: GPUBindGroup;
-}
-
-export type LightTableImageDecodeMode = 'fast' | 'preserve-precision';
-
-export interface LightTableLoadImageOptions {
-  decodeMode?: LightTableImageDecodeMode;
-  signal?: AbortSignal;
-}
-
-export interface ReferenceDifferenceMetrics {
-  sampledPixels: number;
-  differingPixels: number;
-  differingPixelPercentage: number;
-  meanAbsoluteRgbError: number;
-  maximumChannelError: number;
-  meanAbsoluteAlphaError: number;
-  maximumAlphaError: number;
-  threshold: number;
-  stride: number;
 }
 
 export class WebGpuEngine {
@@ -227,7 +199,7 @@ export class WebGpuEngine {
   private readonly device: GPUDevice;
   private readonly context: GPUCanvasContext;
   private readonly canvasFormat: GPUTextureFormat;
-  private readonly callbacks: EngineCallbacks;
+  private readonly callbacks: DocumentRendererCallbacks;
   private scopeEngine: WebGpuScopeEngine | null = null;
   private scopeInitialization: Promise<void> | null = null;
   private pendingScopeOptions: WebGpuScopeOptions | null = null;
@@ -245,7 +217,7 @@ export class WebGpuEngine {
     device: GPUDevice,
     context: GPUCanvasContext,
     canvasFormat: GPUTextureFormat,
-    callbacks: EngineCallbacks
+    callbacks: DocumentRendererCallbacks
   ) {
     this.canvas = canvas;
     this.device = device;
@@ -330,8 +302,8 @@ export class WebGpuEngine {
 
   static async create(
     canvas: HTMLCanvasElement,
-    callbacks: EngineCallbacks = {},
-    scopeCanvases?: EngineScopeCanvases
+    callbacks: DocumentRendererCallbacks = {},
+    scopeCanvases?: DocumentRendererScopeCanvases
   ) {
     if (!navigator.gpu) throw new Error('WebGPU is not available in this browser. Use a current Chromium-based desktop browser.');
     // The adapter/device is independent from a particular editor canvas.
@@ -369,7 +341,7 @@ export class WebGpuEngine {
    * Their shader compilation and storage buffers are useful, but not required
    * to put the image on screen.
    */
-  async initializeScopes(scopeCanvases: EngineScopeCanvases) {
+  async initializeScopes(scopeCanvases: DocumentRendererScopeCanvases) {
     if (this.destroyed || this.scopeEngine) return;
     if (this.scopeInitialization) return this.scopeInitialization;
     this.scopeInitialization = (async () => {

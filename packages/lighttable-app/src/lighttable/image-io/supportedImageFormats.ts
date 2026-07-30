@@ -1,4 +1,4 @@
-import type { LightTableImageDecodeMode } from '../gpu/WebGpuEngine';
+import type { LightTableImageDecodeMode } from '../application/rendering/rendererTypes';
 
 interface FilePickerAcceptType {
   description: string;

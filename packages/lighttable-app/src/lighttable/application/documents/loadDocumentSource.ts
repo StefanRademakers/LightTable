@@ -22,7 +22,7 @@ import type { LightTableImageMetadata } from '../../types';
 import type {
   LightTableImageDecodeMode,
   LightTableLoadImageOptions
-} from '../../gpu/WebGpuEngine';
+} from '../rendering/rendererTypes';
 
 export interface DocumentSourceRenderer {
   loadImage(

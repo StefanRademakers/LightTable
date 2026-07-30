@@ -50,10 +50,13 @@ import {
   type ColorMixerValues
 } from './colorMixer';
 import {
-  WebGpuEngine,
   type LightTableImageDecodeMode,
   type ReferenceDifferenceMetrics
-} from './gpu/WebGpuEngine';
+} from './application/rendering/rendererTypes';
+import {
+  createWebGpuDocumentRenderer,
+  type DocumentRendererPort
+} from './infrastructure/rendering/webGpuDocumentRenderer';
 import { CurvesEditor } from './CurvesEditor';
 import { cloneCurves, createDefaultCurves, createIdentityCurve, type CurveChannel, type ToneCurve } from './curves';
 import { copyLightTableGrade, useLightTableGradeClipboard } from './lightTableGradeClipboard';
@@ -452,7 +455,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const advancedFileInputRef = useRef<HTMLInputElement | null>(null);
   const autoAlignAbortRef = useRef<AbortController | null>(null);
-  const engineRef = useRef<WebGpuEngine | null>(null);
+  const engineRef = useRef<DocumentRendererPort | null>(null);
   const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
@@ -1132,7 +1135,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       !colorMixerHueCanvasRef.current ||
       !paradeCanvasRef.current || !vectorscopeCanvasRef.current) return;
     let canceled = false;
-    let engine: WebGpuEngine | null = null;
+    let engine: DocumentRendererPort | null = null;
     const hueDistributionCanvas = hueDistributionCanvasRef.current;
     const colorMixerHueDistributionCanvas = colorMixerHueCanvasRef.current;
     const paradeCanvas = paradeCanvasRef.current;
@@ -1199,7 +1202,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (!editorSourceFileKey && !initialSourceBlob) throw new Error('No source image was supplied to LightTable.');
       const isCanceled = () => canceled || !task.isCurrent();
       const webGpuStartedAt = performance.now();
-      const enginePromise = WebGpuEngine.create(canvasRef.current!, {
+      const enginePromise = createWebGpuDocumentRenderer(canvasRef.current!, {
         onHistogram: (next) => { if (!isCanceled()) setHistogram(next); },
         onGpuMemoryEstimate: (bytes) => {
           if (!isCanceled()) {

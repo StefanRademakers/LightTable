@@ -31,6 +31,13 @@ async function scan(relativeDirectory) {
     for (const token of forbidden) {
       if (source.includes(token)) failures.push(`${relativePath}: ${token}`);
     }
+    const normalizedPath = relativePath.replaceAll('\\', '/');
+    if (
+      source.includes('gpu/WebGpuEngine') &&
+      !normalizedPath.includes('/infrastructure/rendering/')
+    ) {
+      failures.push(`${relativePath}: concrete WebGpuEngine dependency outside rendering infrastructure`);
+    }
   }
 }
 

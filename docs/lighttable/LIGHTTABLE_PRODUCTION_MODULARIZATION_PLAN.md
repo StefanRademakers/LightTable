@@ -832,14 +832,14 @@ Work:
 
 - [x] isolate raster, layered-document and PSD import/hydration behind a
       host-neutral document-source service with a narrow renderer contract;
-- [ ] introduce renderer port and current-engine adapter;
+- [x] introduce renderer port and current-engine adapter;
 - [x] create a renderer lifecycle and memory snapshot per `DocumentSession`;
 - [x] guard asynchronous renderer startup with document-local generations;
 - [x] represent inactive ready renderers as suspended without losing their
       resources;
 - [x] move startup timing and GPU-memory presentation out of the editor root
       into a tested telemetry formatter;
-- [ ] move concrete `WebGpuEngine` ownership behind the renderer adapter;
+- [x] move concrete `WebGpuEngine` ownership behind the renderer adapter;
 - move render scheduling/invalidation out of React effects;
 - split device, resources, scopes and readback;
 - isolate optional pipeline compilation;
@@ -854,12 +854,14 @@ Exit criteria:
 
 Implementation note:
 
-The first renderer slice separates application lifecycle from the concrete
-WebGPU engine. Each document now reports `idle`, `starting`, `ready`,
-`suspended`, `failed` or `disposed`, including its estimated GPU bytes.
-Concrete engine construction is still in the overlay and is the next boundary
-to move. A suspended renderer currently retains resources; deterministic
-eviction starts only after the adapter owns those resources.
+The renderer slices now separate application lifecycle and source loading from
+the concrete WebGPU engine. Each document reports `idle`, `starting`, `ready`,
+`suspended`, `failed` or `disposed`, including its estimated GPU bytes. UI and
+application code depend on renderer-neutral types; concrete engine construction
+is owned by the infrastructure adapter. Its public method surface is still
+deliberately broad and will narrow as tool operations become application
+commands. A suspended renderer currently retains resources; deterministic
+eviction is the next lifecycle policy to introduce.
 
 ### Phase 6 — Layer compositor and processing modules
 
