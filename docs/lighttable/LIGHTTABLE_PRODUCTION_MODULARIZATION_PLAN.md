@@ -1254,3 +1254,6 @@ The refactor is successful when:
       tested application service that rejects stale layer targets explicitly.
 - [x] Move command adaptation, resource retention, transaction finalization and
       undo/redo error handling into one document-scoped history controller.
+- [x] Move the complete Lens Fx presentation into a feature-owned panel with an
+      explicit model/command boundary; local disclosure state no longer leaks
+      into the editor root and document/GPU mutation remains application-owned.

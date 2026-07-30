@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActionButton } from '../ui/ActionButton';
 import { ContextMenu, type ContextMenuOption } from '../ui/ContextMenu';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { SquareIconButton } from '../ui/SquareIconButton';
@@ -97,11 +96,9 @@ import {
   createDefaultLensDistortionSettings,
   DEFAULT_LENS_DISTORTION_SETTINGS
 } from './effects/lensDistortion/settings';
-import { EffectPanel } from './effects/EffectPanel';
 import {
   createDefaultLensBlurSettings,
   DEFAULT_LENS_BLUR_SETTINGS,
-  focusInterval,
   type BokehShape,
   type LensBlurQuality
 } from './effects/lensBlur/settings';
@@ -121,6 +118,7 @@ import { ToolOptionsBar } from './editor/ui/ToolOptionsBar';
 import { DebugPanel } from './editor/ui/DebugPanel';
 import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
 import { EditorStatusBar } from './editor/ui/EditorStatusBar';
+import { LensFxPanel } from './editor/panels/LensFxPanel';
 import {
   type LightTableDebugMessage,
   type LightTableDebugSeverity
@@ -152,28 +150,17 @@ import {
   type NumericAdjustmentKey
 } from './application/adjustments/groupVisibility';
 import {
-  BOKEH_SHAPE_OPTIONS,
-  CHROMATIC_ABERRATION_SLIDERS,
   COLOR_SLIDERS,
   colorMixerRangeBounds,
   EFFECTS_SLIDERS,
-  GRAIN_ADVANCED_SLIDERS,
-  GRAIN_SLIDERS,
   GRADING_MODE_OPTIONS,
-  HALATION_SLIDERS,
-  LENS_BLUR_QUALITY_OPTIONS,
-  LENS_BLUR_SLIDERS,
-  LENS_BLUR_VIEWPORT_MODE_OPTIONS,
-  LENS_DISTORTION_SLIDERS,
   LIGHT_SLIDERS,
   MIXER_CHANNEL_LABELS,
   nearestColorMixerRange,
   type ChromaticAberrationNumericKey,
   type GrainNumericKey,
-  type GrainSliderDefinition,
   type HalationNumericKey,
   type LensBlurNumericKey,
-  type LensBlurSliderDefinition,
   type LensDistortionNumericKey,
   type SliderDefinition,
   type LensBlurViewportMode
@@ -487,7 +474,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [showDifference, setShowDifference] = useState(false);
   const [sourceName, setSourceName] = useState(fileNameBase);
   const [expandedGroups, setExpandedGroups] = useState({ light: true, color: true, colorMixer: true, colorGrading: true, curves: true, effects: true, grain: true, halation: true, chromaticAberration: true, lensDistortion: true, lensBlur: true });
-  const [grainAdvancedExpanded, setGrainAdvancedExpanded] = useState(false);
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
@@ -1038,7 +1024,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setAdjustments(startingAdjustments);
     clearEditorHistory();
     setExpandedGroups({ light: true, color: true, colorMixer: true, colorGrading: true, curves: true, effects: true, grain: true, halation: true, chromaticAberration: true, lensDistortion: true, lensBlur: true });
-    setGrainAdvancedExpanded(false);
     setSelectedColorMixerRange(0);
     setColorGradingMode('all');
     setShowOriginal(false);
@@ -2013,264 +1998,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           </div>
         ) : null}
       </section>
-    );
-  };
-
-  const renderGrainGroup = () => {
-    const expanded = expandedGroups.grain;
-    const enabled = adjustments.effects.grain.enabled;
-    const renderSlider = (slider: GrainSliderDefinition) => (
-      <AdjustmentSlider
-        key={slider.key}
-        label={slider.label}
-        value={adjustments.effects.grain[slider.key]}
-        min={slider.min}
-        max={slider.max}
-        step={slider.step}
-        format={slider.format}
-        track={slider.track}
-        resetValue={DEFAULT_GRAIN_SETTINGS[slider.key]}
-        disabled={!metadata || !enabled}
-        resetModifierActive={shiftPressed}
-        onChange={(value) => updateGrainAdjustment(slider.key, value)}
-        onReset={() => resetGrainAdjustment(slider.key)}
-        onInteractionStart={beginLensBlurInteraction}
-        onInteractionEnd={endLensBlurInteraction}
-      />
-    );
-
-    return (
-      <EffectPanel
-        label="Grain"
-        expanded={expanded}
-        enabled={enabled}
-        resetModifierActive={shiftPressed}
-        onExpandedChange={(next) => setExpandedGroups((current) => ({ ...current, grain: next }))}
-        onEnabledChange={toggleGrain}
-        onReset={resetGrain}
-      >
-        {GRAIN_SLIDERS.map(renderSlider)}
-        <div className="lighttable-subgroup">
-          <button
-            type="button"
-            className="lighttable-subgroup__toggle"
-            onClick={() => setGrainAdvancedExpanded((current) => !current)}
-            aria-expanded={grainAdvancedExpanded}
-          >
-            <img src={lightTableIcon(grainAdvancedExpanded ? 'area_open.png' : 'area_closed.png')} alt="" aria-hidden="true" />
-            <strong>Advanced</strong>
-          </button>
-          {grainAdvancedExpanded ? (
-            <div className="lighttable-subgroup__controls">
-              {GRAIN_ADVANCED_SLIDERS.map(renderSlider)}
-            </div>
-          ) : null}
-        </div>
-      </EffectPanel>
-    );
-  };
-
-  const renderHalationGroup = () => {
-    const enabled = adjustments.effects.halation.enabled;
-    return (
-      <EffectPanel
-        label="Halation"
-        expanded={expandedGroups.halation}
-        enabled={enabled}
-        resetModifierActive={shiftPressed}
-        onExpandedChange={(next) => setExpandedGroups((current) => ({ ...current, halation: next }))}
-        onEnabledChange={setHalationEnabled}
-        onReset={resetHalation}
-      >
-        {HALATION_SLIDERS.map((slider) => (
-          <AdjustmentSlider
-            key={slider.key}
-            label={slider.label}
-            value={adjustments.effects.halation[slider.key]}
-            min={slider.min}
-            max={slider.max}
-            step={slider.step}
-            format={slider.format}
-            track={slider.track}
-            resetValue={DEFAULT_HALATION_SETTINGS[slider.key]}
-            disabled={!metadata || !enabled}
-            resetModifierActive={shiftPressed}
-            onChange={(value) => updateHalationAdjustment(slider.key, value)}
-            onReset={() => resetHalationAdjustment(slider.key)}
-            onInteractionStart={beginAdjustmentTransaction}
-            onInteractionEnd={endAdjustmentTransaction}
-          />
-        ))}
-      </EffectPanel>
-    );
-  };
-
-  const renderChromaticAberrationGroup = () => {
-    const enabled = adjustments.effects.chromaticAberration.enabled;
-    return (
-      <EffectPanel
-        label="Chromatic Aberration"
-        expanded={expandedGroups.chromaticAberration}
-        enabled={enabled}
-        resetModifierActive={shiftPressed}
-        onExpandedChange={(next) => setExpandedGroups((current) => ({ ...current, chromaticAberration: next }))}
-        onEnabledChange={setChromaticAberrationEnabled}
-        onReset={resetChromaticAberration}
-      >
-        {CHROMATIC_ABERRATION_SLIDERS.map((slider) => (
-          <AdjustmentSlider
-            key={slider.key}
-            label={slider.label}
-            value={adjustments.effects.chromaticAberration[slider.key]}
-            min={slider.min}
-            max={slider.max}
-            step={slider.step}
-            format={slider.format}
-            track={slider.track}
-            resetValue={DEFAULT_CHROMATIC_ABERRATION_SETTINGS[slider.key]}
-            disabled={!metadata || !enabled}
-            resetModifierActive={shiftPressed}
-            onChange={(value) => updateChromaticAberrationAdjustment(slider.key, value)}
-            onReset={() => resetChromaticAberrationAdjustment(slider.key)}
-            onInteractionStart={beginAdjustmentTransaction}
-            onInteractionEnd={endAdjustmentTransaction}
-          />
-        ))}
-      </EffectPanel>
-    );
-  };
-
-  const renderLensDistortionGroup = () => {
-    const enabled = adjustments.effects.lensDistortion.enabled;
-    return (
-      <EffectPanel
-        label="Lens Distortion"
-        expanded={expandedGroups.lensDistortion}
-        enabled={enabled}
-        resetModifierActive={shiftPressed}
-        onExpandedChange={(next) => setExpandedGroups((current) => ({ ...current, lensDistortion: next }))}
-        onEnabledChange={setLensDistortionEnabled}
-        onReset={resetLensDistortion}
-      >
-        {LENS_DISTORTION_SLIDERS.map((slider) => (
-          <AdjustmentSlider
-            key={slider.key}
-            label={slider.label}
-            value={adjustments.effects.lensDistortion[slider.key]}
-            min={slider.min}
-            max={slider.max}
-            step={slider.step}
-            format={slider.format}
-            track={slider.track}
-            resetValue={DEFAULT_LENS_DISTORTION_SETTINGS[slider.key]}
-            disabled={!metadata || !enabled}
-            resetModifierActive={shiftPressed}
-            onChange={(value) => updateLensDistortionAdjustment(slider.key, value)}
-            onReset={() => resetLensDistortionAdjustment(slider.key)}
-            onInteractionStart={beginAdjustmentTransaction}
-            onInteractionEnd={endAdjustmentTransaction}
-          />
-        ))}
-      </EffectPanel>
-    );
-  };
-
-  const renderLensBlurGroup = () => {
-    const settings = adjustments.effects.lensBlur;
-    const enabled = settings.enabled;
-    const analyzing = depthProgress.status === 'loading-model' || depthProgress.status === 'estimating';
-    const focus = focusInterval(settings);
-    const focusVisualizationStyle = {
-      '--focus-start': `${focus.start * 100}%`,
-      '--focus-end': `${focus.end * 100}%`,
-      '--focus-distance': `${settings.focusDistance * 100}%`,
-      '--transition-feather': `${Math.min(40, settings.transitionFeather * 100)}%`,
-      '--aperture-size': `${Math.max(14, settings.apertureSize)}%`
-    } as React.CSSProperties;
-    const renderSlider = (slider: LensBlurSliderDefinition) => (
-      <AdjustmentSlider
-        key={slider.key}
-        label={slider.label}
-        value={settings[slider.key]}
-        min={slider.min}
-        max={slider.max}
-        step={slider.step}
-        format={slider.format}
-        track={slider.track}
-        resetValue={DEFAULT_LENS_BLUR_SETTINGS[slider.key]}
-        disabled={!metadata || !enabled || analyzing}
-        resetModifierActive={shiftPressed}
-        onChange={(value) => updateLensBlurAdjustment(slider.key, value)}
-        onReset={() => resetLensBlurAdjustment(slider.key)}
-        onInteractionStart={beginLensBlurInteraction}
-        onInteractionEnd={endLensBlurInteraction}
-      />
-    );
-    return (
-      <EffectPanel
-        label="Lens Blur"
-        expanded={expandedGroups.lensBlur}
-        enabled={enabled}
-        resetModifierActive={shiftPressed}
-        onExpandedChange={(next) => setExpandedGroups((current) => ({ ...current, lensBlur: next }))}
-        onEnabledChange={setLensBlurEnabled}
-        onReset={resetLensBlur}
-      >
-        {depthProgress.status !== 'idle' ? (
-          <div className={`lighttable-lens-blur__status lighttable-lens-blur__status--${depthProgress.status}`}>
-            <span>{depthProgress.message ?? (analyzing ? 'Analyzing depth…' : 'Depth ready')}</span>
-            {typeof depthProgress.progress === 'number' ? <span>{Math.round(depthProgress.progress)}%</span> : null}
-          </div>
-        ) : null}
-        <span className="lighttable-control-label">Render quality</span>
-        <SegmentedControl
-          options={LENS_BLUR_QUALITY_OPTIONS.map((option) => ({ ...option, disabled: !enabled || analyzing }))}
-          value={settings.quality}
-          onChange={setLensBlurQuality}
-          ariaLabel="Lens Blur render quality"
-          className="lighttable-lens-blur__shapes"
-        />
-        <span className="lighttable-control-label">Bokeh shape</span>
-        <SegmentedControl
-          options={BOKEH_SHAPE_OPTIONS.map((option) => ({ ...option, disabled: !enabled || analyzing }))}
-          value={settings.bokehShape}
-          onChange={setLensBlurShape}
-          ariaLabel="Lens Blur bokeh shape"
-          className="lighttable-lens-blur__shapes"
-        />
-        <div className="lighttable-lens-blur__visualization" style={focusVisualizationStyle} aria-hidden="true">
-          <span className="lighttable-lens-blur__visualization-taper lighttable-lens-blur__visualization-taper--low" />
-          <span className="lighttable-lens-blur__visualization-taper lighttable-lens-blur__visualization-taper--high" />
-          <span className="lighttable-lens-blur__visualization-focus-zone" />
-          <span className="lighttable-lens-blur__visualization-focus-marker" />
-          <span className="lighttable-lens-blur__visualization-point lighttable-lens-blur__visualization-point--low" />
-          <span className="lighttable-lens-blur__visualization-point lighttable-lens-blur__visualization-point--focus" />
-          <span className="lighttable-lens-blur__visualization-point lighttable-lens-blur__visualization-point--high" />
-        </div>
-        <SegmentedControl
-          options={LENS_BLUR_VIEWPORT_MODE_OPTIONS.map((option) => ({
-            ...option,
-            disabled: !enabled || (option.value === 'depth' && (!depthResult || analyzing))
-          }))}
-          value={lensBlurViewportMode}
-          onChange={setLensBlurViewportMode}
-          ariaLabel="Lens Blur viewport mode"
-          className="lighttable-lens-blur__viewport-modes"
-        />
-        <div className="lighttable-lens-blur__actions">
-          <ActionButton
-            className={focusPickerActive ? 'action-button--active' : ''}
-            onClick={() => setFocusPickerActive((current) => !current)}
-            disabled={!enabled || !depthResult || analyzing}
-          >Pick focus</ActionButton>
-        </div>
-        {renderSlider(LENS_BLUR_SLIDERS[0])}
-        {renderSlider(LENS_BLUR_SLIDERS[1])}
-        {renderSlider(LENS_BLUR_SLIDERS[2])}
-        {renderSlider(LENS_BLUR_SLIDERS[3])}
-        {renderSlider(LENS_BLUR_SLIDERS[4])}
-        {renderSlider(LENS_BLUR_SLIDERS[5])}
-      </EffectPanel>
     );
   };
 
@@ -3861,15 +3588,59 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               />
             )}
             lensFx={(
-              <aside className="lighttable-panel">
-                <div className="lighttable-panel__controls">
-                  {renderLensDistortionGroup()}
-                  {renderChromaticAberrationGroup()}
-                  {renderLensBlurGroup()}
-                  {renderHalationGroup()}
-                  {renderGrainGroup()}
-                </div>
-              </aside>
+              <LensFxPanel
+                model={{
+                  adjustments,
+                  metadata,
+                  expanded: expandedGroups,
+                  resetModifierActive: shiftPressed,
+                  depthProgress,
+                  depthResult,
+                  viewportMode: lensBlurViewportMode,
+                  focusPickerActive
+                }}
+                commands={{
+                  setExpanded: (group, next) => {
+                    setExpandedGroups((current) => ({ ...current, [group]: next }));
+                  },
+                  beginAdjustment: beginAdjustmentTransaction,
+                  endAdjustment: endAdjustmentTransaction,
+                  grain: {
+                    setEnabled: toggleGrain,
+                    update: updateGrainAdjustment,
+                    resetControl: resetGrainAdjustment,
+                    reset: resetGrain
+                  },
+                  halation: {
+                    setEnabled: setHalationEnabled,
+                    update: updateHalationAdjustment,
+                    resetControl: resetHalationAdjustment,
+                    reset: resetHalation
+                  },
+                  chromaticAberration: {
+                    setEnabled: setChromaticAberrationEnabled,
+                    update: updateChromaticAberrationAdjustment,
+                    resetControl: resetChromaticAberrationAdjustment,
+                    reset: resetChromaticAberration
+                  },
+                  lensDistortion: {
+                    setEnabled: setLensDistortionEnabled,
+                    update: updateLensDistortionAdjustment,
+                    resetControl: resetLensDistortionAdjustment,
+                    reset: resetLensDistortion
+                  },
+                  lensBlur: {
+                    setEnabled: setLensBlurEnabled,
+                    update: updateLensBlurAdjustment,
+                    resetControl: resetLensBlurAdjustment,
+                    reset: resetLensBlur,
+                    setShape: setLensBlurShape,
+                    setQuality: setLensBlurQuality,
+                    setViewportMode: setLensBlurViewportMode,
+                    toggleFocusPicker: () => setFocusPickerActive((current) => !current)
+                  }
+                }}
+              />
             )}
             grade={(
 
