@@ -830,7 +830,8 @@ Work:
       and document revision into one typed application operation;
 - [x] migrate transform measurement, preview, update and commit/cancel lifecycle
       into a renderer-backed application controller;
-- remove feature-specific global listeners from the overlay.
+- [x] remove feature-specific global listeners from the overlay and bind one
+      stable, disposable window-input resource to the active document.
 
 Milestone note:
 
@@ -843,6 +844,11 @@ another precedence chain to the application root.
 
 The selection controller now owns its pointer lock, document-space draft
 sampling, modifier-derived operation and invalid-gesture clear behavior.
+
+Global keyboard and modifier input now uses one host-neutral binding. React
+state changes update handler refs without repeatedly removing and adding
+window listeners, while blur teardown releases temporary tools and modifier
+state for both web and Electron hosts.
 React only mirrors the draft for visualization and forwards the controller's
 typed apply/clear result to history and the renderer.
 

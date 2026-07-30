@@ -22,8 +22,10 @@ import {
 import { loadDocumentSource } from './application/documents/loadDocumentSource';
 import {
   isTemporaryPanRelease,
-  resolveEditorKeyboardCommand
+  resolveEditorKeyboardCommand,
+  type EditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
+import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import {
   formatGpuMemory,
   formatStartupTimings,
@@ -1984,28 +1986,119 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   }, [cloneSelection, commitSelectionChange, editorSession.selection]);
 
-  useEffect(() => {
-    if (!open || !active) return;
-    const handleModifierDown = (event: KeyboardEvent) => {
-      if (event.key === 'Shift') setShiftPressed(true);
-    };
-    const handleModifierUp = (event: KeyboardEvent) => {
-      if (event.key === 'Shift') setShiftPressed(false);
-    };
-    const clearModifier = () => setShiftPressed(false);
-    window.addEventListener('keydown', handleModifierDown);
-    window.addEventListener('keyup', handleModifierUp);
-    window.addEventListener('blur', clearModifier);
-    return () => {
-      window.removeEventListener('keydown', handleModifierDown);
-      window.removeEventListener('keyup', handleModifierUp);
-      window.removeEventListener('blur', clearModifier);
-    };
-  }, [active, open]);
+  const executeKeyboardCommand = (command: EditorKeyboardCommand): void => {
+    if (typeof command === 'object') {
+      if (transformControllerRef.current?.state && command.tool !== 'transform') {
+        commitTransformRef.current();
+      }
+      setEditorSession((current) => ({ ...current, activeTool: command.tool }));
+      return;
+    }
+    switch (command) {
+      case 'undo':
+        void undoEditor();
+        return;
+      case 'redo':
+        void redoEditor();
+        return;
+      case 'temporary-pan-start':
+        if (temporaryToolRef.current.begin('view')) {
+          setTemporaryPanActive(true);
+        }
+        return;
+      case 'fill-foreground':
+      case 'fill-background':
+        fillActiveTargetRef.current(command === 'fill-foreground'
+          ? editorSession.brush.color
+          : editorSession.brush.backgroundColor);
+        return;
+      case 'select-all':
+        selectAllContent();
+        return;
+      case 'select-none':
+        clearCurrentSelection();
+        return;
+      case 'select-invert':
+        invertCurrentSelection();
+        return;
+      case 'selection-copy':
+        copySelectedContentRef.current();
+        return;
+      case 'selection-paste':
+        pasteSelectedContentRef.current();
+        return;
+      case 'layer-via-copy':
+        layerViaCopyRef.current();
+        return;
+      case 'free-transform':
+        setEditorSession((current) => (
+          current.activeTool === 'transform' ? current : { ...current, activeTool: 'transform' }
+        ));
+        return;
+      case 'invert-active-target':
+        invertActiveLayerColorsRef.current();
+        return;
+      case 'selection-feather':
+        setFeatherDialogOpen(true);
+        return;
+      case 'swap-colors':
+        setEditorSession((current) => ({
+          ...current,
+          brush: {
+            ...current.brush,
+            color: current.brush.backgroundColor,
+            backgroundColor: current.brush.color
+          }
+        }));
+        return;
+      case 'toggle-original':
+        setShowDifference(false);
+        setShowOriginal((current) => !current);
+        return;
+      case 'brush-size-decrease':
+      case 'brush-size-increase':
+        setEditorSession((current) => ({
+          ...current,
+          brush: {
+            ...current.brush,
+            size: steppedBrushSize(
+              current.brush.size,
+              command === 'brush-size-decrease' ? -1 : 1
+            )
+          }
+        }));
+        return;
+      case 'commit-transform':
+        commitTransformRef.current();
+        return;
+      case 'cancel-or-close':
+        if (appMenu) {
+          setAppMenu(null);
+          return;
+        }
+        if (transformControllerRef.current?.state) {
+          cancelTransformRef.current();
+          return;
+        }
+        if (autoAlignPreview) {
+          cancelAutoAlignRef.current();
+          return;
+        }
+        if (selectionGestureRef.current.draft || editorSession.selection.length) {
+          const before = cloneSelection(editorSession.selection);
+          selectionGestureRef.current.reset();
+          setSelectionDraft(null);
+          engineRef.current?.clearSelection();
+          setEditorSession((current) => ({ ...current, pointerId: null, selection: [] }));
+          if (before.length) pushSelectionHistory(before, []);
+          return;
+        }
+        onClose();
+    }
+  };
 
-  useEffect(() => {
-    if (!open || !active) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
+  useEditorWindowInput(open && active, {
+    onKeyDown: (event) => {
       const editable = isTextEditingTarget(event.target);
       const command = resolveEditorKeyboardCommand(event, {
         editable,
@@ -2016,140 +2109,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         hasSelectionClipboard: selectionClipboardAvailable,
         transforming: Boolean(transformControllerRef.current?.state)
       });
-      if (!command) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-
-      if (typeof command === 'object') {
-        if (transformControllerRef.current?.state && command.tool !== 'transform') {
-          commitTransformRef.current();
-        }
-        setEditorSession((current) => ({ ...current, activeTool: command.tool }));
-        return;
-      }
-      switch (command) {
-        case 'undo':
-          void undoEditor();
-          return;
-        case 'redo':
-          void redoEditor();
-          return;
-        case 'temporary-pan-start':
-          if (temporaryToolRef.current.begin('view')) {
-            setTemporaryPanActive(true);
-          }
-          return;
-        case 'fill-foreground':
-        case 'fill-background':
-          fillActiveTargetRef.current(command === 'fill-foreground'
-            ? editorSession.brush.color
-            : editorSession.brush.backgroundColor);
-          return;
-        case 'select-all':
-          selectAllContent();
-          return;
-        case 'select-none':
-          clearCurrentSelection();
-          return;
-        case 'select-invert':
-          invertCurrentSelection();
-          return;
-        case 'selection-copy':
-          copySelectedContentRef.current();
-          return;
-        case 'selection-paste':
-          pasteSelectedContentRef.current();
-          return;
-        case 'layer-via-copy':
-          layerViaCopyRef.current();
-          return;
-        case 'free-transform':
-          setEditorSession((current) => (
-            current.activeTool === 'transform' ? current : { ...current, activeTool: 'transform' }
-          ));
-          return;
-        case 'invert-active-target':
-          invertActiveLayerColorsRef.current();
-          return;
-        case 'selection-feather':
-          setFeatherDialogOpen(true);
-          return;
-        case 'swap-colors':
-          setEditorSession((current) => ({
-            ...current,
-            brush: {
-              ...current.brush,
-              color: current.brush.backgroundColor,
-              backgroundColor: current.brush.color
-            }
-          }));
-          return;
-        case 'toggle-original':
-          setShowDifference(false);
-          setShowOriginal((current) => !current);
-          return;
-        case 'brush-size-decrease':
-        case 'brush-size-increase':
-          setEditorSession((current) => ({
-            ...current,
-            brush: {
-              ...current.brush,
-              size: steppedBrushSize(
-                current.brush.size,
-                command === 'brush-size-decrease' ? -1 : 1
-              )
-            }
-          }));
-          return;
-        case 'commit-transform':
-          commitTransformRef.current();
-          return;
-        case 'cancel-or-close':
-          if (appMenu) {
-            setAppMenu(null);
-            return;
-          }
-          if (transformControllerRef.current?.state) {
-            cancelTransformRef.current();
-            return;
-          }
-          if (autoAlignPreview) {
-            cancelAutoAlignRef.current();
-            return;
-          }
-          if (selectionGestureRef.current.draft || editorSession.selection.length) {
-            const before = cloneSelection(editorSession.selection);
-            selectionGestureRef.current.reset();
-            setSelectionDraft(null);
-            engineRef.current?.clearSelection();
-            setEditorSession((current) => ({ ...current, pointerId: null, selection: [] }));
-            if (before.length) pushSelectionHistory(before, []);
-            return;
-          }
-          onClose();
-      }
-    };
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (!isTemporaryPanRelease(event) || !temporaryToolRef.current.active) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
+      if (!command) return false;
+      executeKeyboardCommand(command);
+      return true;
+    },
+    onKeyUp: (event) => {
+      if (!isTemporaryPanRelease(event) || !temporaryToolRef.current.active) return false;
       if (temporaryToolRef.current.end('view')) setTemporaryPanActive(false);
-    };
-    const releaseTemporaryPan = () => {
+      return true;
+    },
+    onShiftChange: setShiftPressed,
+    onBlur: () => {
       if (temporaryToolRef.current.end()) setTemporaryPanActive(false);
-    };
-    // Capture keeps LightTable's local history from also triggering a page-level undo.
-    window.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('keyup', handleKeyUp, true);
-    window.addEventListener('blur', releaseTemporaryPan);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('keyup', handleKeyUp, true);
-      window.removeEventListener('blur', releaseTemporaryPan);
-    };
-  }, [active, appMenu, autoAlignPreview, clearCurrentSelection, cloneSelection, editorSession.activeTool, editorSession.brush.backgroundColor, editorSession.brush.color, editorSession.selection, invertCurrentSelection, onClose, open, pushSelectionHistory, redoEditor, saving, selectAllContent, selectionClipboardAvailable, undoEditor]);
+    }
+  });
 
   const renderAdjustmentGroup = (
     group: keyof GroupVisibility,
