@@ -715,6 +715,8 @@ Work:
       history, layers and GPU state survive tab switches;
 - [x] remove active-tab identity from renderer startup dependencies so a tab
       switch no longer destroys and recreates the document engine;
+- [x] route tool, selection, brush and viewport updates through the owning
+      `DocumentSession`, with a local fallback for embedded hosts;
 - [ ] replace the temporary mounted-overlay retention strategy with an explicit
       renderer suspend/resume lifecycle and a configurable GPU-memory budget.
 

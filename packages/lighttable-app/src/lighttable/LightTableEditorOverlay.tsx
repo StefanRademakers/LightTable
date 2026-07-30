@@ -10,6 +10,7 @@ import {
   DocumentCommandHistory
 } from './application/commands/documentCommandHistory';
 import type {
+  DocumentSession,
   DocumentSessionId
 } from './application/documents/documentSession';
 import {
@@ -103,6 +104,10 @@ import {
   type LightTableDockWorkspaceHandle
 } from './editor/workspace/LightTableDockWorkspace';
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
+import {
+  useDocumentEditorSession,
+  useDocumentViewportState
+} from './editor/hooks/useDocumentEditorState';
 import {
   applyGroupVisibility,
   COLOR_SLIDER_KEYS,
@@ -336,6 +341,7 @@ export interface LightTableEditorOverlayProps {
   history?: DocumentCommandHistory;
   tasks?: DocumentTaskRegistry;
   rendererLifecycle?: DocumentRendererLifecycle;
+  documentSession?: DocumentSession;
 }
 
 interface LightTableStartupTimings {
@@ -591,7 +597,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onDirtyChange,
   history,
   tasks,
-  rendererLifecycle: providedRendererLifecycle
+  rendererLifecycle: providedRendererLifecycle,
+  documentSession
 }) => {
   const localHistory = useMemo(
     () => new DocumentCommandHistory(workspaceDocumentId as DocumentSessionId, {
@@ -688,8 +695,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [metadata, setMetadata] = useState<LightTableImageMetadata | null>(null);
   const [adjustments, setAdjustments] = useState<BasicAdjustments>(createDefaultAdjustments);
   const [histogram, setHistogram] = useState<RgbHistogram | null>(null);
-  const [zoomMode, setZoomMode] = useState<ZoomMode>('fit');
-  const [view, setView] = useState<LightTableViewState>({ scale: 1, panX: 0, panY: 0 });
+  const {
+    zoomMode,
+    setZoomMode,
+    view,
+    setView
+  } = useDocumentViewportState(documentSession);
   const [viewportSize, setViewportSize] = useState({ width: 1, height: 1 });
   const [documentSurfaceRevision, setDocumentSurfaceRevision] = useState(0);
   const handleDocumentSurfaceReady = useCallback(() => {
@@ -731,7 +742,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [layerThumbnails, setLayerThumbnails] = useState<ReadonlyMap<LayerId, LayerThumbnailSet>>(
     () => new Map()
   );
-  const [editorSession, setEditorSession] = useState<EditorSession>(createEditorSession);
+  const [editorSession, setEditorSession] = useDocumentEditorSession(documentSession);
   const [selectionDraft, setSelectionDraft] = useState<SelectionShape | null>(null);
   const [transformState, setTransformState] = useState<TransformSessionState | null>(null);
   const [autoAlignPreview, setAutoAlignPreview] = useState<TranslationAlignmentResult | null>(null);
