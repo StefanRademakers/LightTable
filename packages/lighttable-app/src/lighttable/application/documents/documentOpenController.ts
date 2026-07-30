@@ -1,0 +1,111 @@
+import {
+  DocumentRendererLifecycle
+} from '../rendering/documentRendererLifecycle';
+import {
+  startDocumentRenderer,
+  type DisposableDocumentRenderer
+} from '../rendering/startDocumentRenderer';
+import {
+  DocumentTaskRegistry,
+  type DocumentTaskContext
+} from '../tasks/documentTaskRegistry';
+
+export interface DocumentOpenRequest<
+  Renderer extends DisposableDocumentRenderer
+> {
+  readonly createRenderer: () => Promise<Renderer>;
+  readonly loadSource: (signal: AbortSignal) => Promise<Blob>;
+  readonly hydrate: (
+    renderer: Renderer,
+    source: Blob,
+    context: DocumentTaskContext
+  ) => Promise<void>;
+  readonly onRendererReady?: (
+    renderer: Renderer,
+    elapsedMs: number,
+    generation: number
+  ) => void;
+  readonly onRendererDiscarded?: (renderer: Renderer) => void;
+  readonly onSourceReady?: (source: Blob, elapsedMs: number) => void;
+  readonly onFailed?: (error: Error) => void;
+  readonly onSettled?: () => void;
+}
+
+/**
+ * Owns renderer startup and teardown for one document session.
+ *
+ * The controller keeps late async results from crossing document generations.
+ * It deliberately knows nothing about React, WebGPU or either host shell.
+ */
+export class DocumentOpenController<
+  Renderer extends DisposableDocumentRenderer
+> {
+  private readonly tasks: DocumentTaskRegistry;
+  private readonly lifecycle: DocumentRendererLifecycle;
+  private renderer: Renderer | null = null;
+  private generation = 0;
+  private token = 0;
+
+  constructor(
+    tasks: DocumentTaskRegistry,
+    lifecycle: DocumentRendererLifecycle
+  ) {
+    this.tasks = tasks;
+    this.lifecycle = lifecycle;
+  }
+
+  getRenderer(): Renderer | null {
+    return this.renderer;
+  }
+
+  async open(request: DocumentOpenRequest<Renderer>): Promise<void> {
+    this.close();
+    const token = ++this.token;
+    const generation = this.lifecycle.beginStart();
+    this.generation = generation;
+
+    const result = await this.tasks.run(
+      'open',
+      'Open image',
+      async (task) => {
+        const isCanceled = () => token !== this.token || !task.isCurrent();
+        const renderer = await startDocumentRenderer({
+          createRenderer: request.createRenderer,
+          loadSource: () => request.loadSource(task.signal),
+          hydrate: (created, source) =>
+            request.hydrate(created, source, task),
+          isCanceled,
+          onRendererReady: (created, elapsedMs) => {
+            request.onRendererReady?.(created, elapsedMs, generation);
+          },
+          onRendererDiscarded: request.onRendererDiscarded,
+          onSourceReady: request.onSourceReady
+        });
+        task.throwIfCanceled();
+        return renderer;
+      }
+    );
+
+    if (token !== this.token) return;
+    if (result.status === 'completed') {
+      this.renderer = result.value;
+      this.lifecycle.markReady(generation);
+    } else if (result.status === 'failed') {
+      this.lifecycle.markFailed(generation, result.error.message);
+      request.onFailed?.(result.error);
+    }
+    request.onSettled?.();
+  }
+
+  close(): void {
+    this.token += 1;
+    this.tasks.cancelKind('open');
+    const renderer = this.renderer;
+    this.renderer = null;
+    renderer?.destroy();
+    if (this.generation) {
+      this.lifecycle.reset(this.generation);
+      this.generation = 0;
+    }
+  }
+}

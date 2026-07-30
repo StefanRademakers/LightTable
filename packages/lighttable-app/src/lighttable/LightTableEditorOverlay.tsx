@@ -21,6 +21,7 @@ import {
 } from './application/rendering/documentRendererLifecycle';
 import { loadDocumentSource } from './application/documents/loadDocumentSource';
 import { hydrateDocumentSource } from './application/documents/hydrateDocumentSource';
+import { DocumentOpenController } from './application/documents/documentOpenController';
 import { exportLightTableDocument } from './application/documents/exportLightTableDocument';
 import {
   isTemporaryPanRelease,
@@ -64,7 +65,6 @@ import {
   createWebGpuDocumentRenderer,
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
-import { startDocumentRenderer } from './application/rendering/startDocumentRenderer';
 import { CurvesEditor } from './CurvesEditor';
 import { cloneCurves, createDefaultCurves, createIdentityCurve, type CurveChannel, type ToneCurve } from './curves';
 import { copyLightTableGrade, useLightTableGradeClipboard } from './lightTableGradeClipboard';
@@ -1176,24 +1176,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const startingVisibility = createDefaultGroupVisibility();
     groupVisibilityRef.current = startingVisibility;
     setGroupVisibility(startingVisibility);
-    const rendererGeneration = rendererLifecycle.beginStart();
+    const openController = new DocumentOpenController<DocumentRendererPort>(
+      taskRegistry,
+      rendererLifecycle
+    );
+    const isCanceled = () => canceled;
 
-    void taskRegistry.run('open', 'Open image', async (task) => {
-      if (!editorSourceFileKey && !initialSourceBlob) throw new Error('No source image was supplied to LightTable.');
-      const isCanceled = () => canceled || !task.isCurrent();
-      engine = await startDocumentRenderer({
-        createRenderer: () => createWebGpuDocumentRenderer(canvasRef.current!, {
+    void openController.open({
+      createRenderer: () => createWebGpuDocumentRenderer(canvasRef.current!, {
           onHistogram: (next) => { if (!isCanceled()) setHistogram(next); },
           onGpuMemoryEstimate: (bytes) => {
             if (!isCanceled()) {
               setGpuMemoryBytes(bytes);
-              rendererLifecycle.setMemoryEstimate(bytes, rendererGeneration);
+              rendererLifecycle.setMemoryEstimate(bytes);
             }
           },
           onDeviceLost: (message) => {
             if (!isCanceled()) {
               setError(message);
-              rendererLifecycle.markFailed(rendererGeneration, message);
+              rendererLifecycle.markFailed(
+                rendererLifecycle.getSnapshot().generation,
+                message
+              );
             }
           },
           onScopeError: (message) => { if (!isCanceled()) setScopeError(message); },
@@ -1225,66 +1229,67 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               setStartupTimings({ ...startupTimingsRef.current });
             });
           }
-        }),
-        loadSource: () => initialSourceBlob
+      }),
+      loadSource: (signal) => {
+        if (!editorSourceFileKey && !initialSourceBlob) {
+          return Promise.reject(
+            new Error('No source image was supplied to LightTable.')
+          );
+        }
+        return initialSourceBlob
           ? Promise.resolve(initialSourceBlob)
           : loadSource?.({
               projectId,
               sourceFileKey: editorSourceFileKey!,
-              signal: task.signal
-            }) ?? Promise.reject(new Error('The LightTable host cannot read this source image.')),
-        hydrate: async (createdEngine, source, startupCanceled) => {
-          await loadBlobIntoEngine(
-            source,
-            initialSourceName,
-            initialRecipe?.settings ?? createDefaultAdjustments(),
-            `${editorSourceFileKey ?? initialSourceName}:${source.size}`,
-            startupCanceled,
-            sourceDecodeMode,
-            task.signal
-          );
-        },
-        isCanceled,
-        onRendererReady: (createdEngine, elapsedMs) => {
-          engine = createdEngine;
-          engineRef.current = createdEngine;
-          startupTimingsRef.current.webGpuMs = elapsedMs;
-          createdEngine.setLensBlurDepthVisualization(false);
-          createdEngine.setScopeOptions(
-            false,
-            scopeEngineOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
-          );
-        },
-        onRendererDiscarded: (discardedEngine) => {
-          if (engineRef.current === discardedEngine) engineRef.current = null;
-          if (engine === discardedEngine) engine = null;
-        },
-        onSourceReady: (_source, elapsedMs) => {
-          startupTimingsRef.current.downloadMs = elapsedMs;
-        }
-      });
-      task.throwIfCanceled();
-      engineRef.current = engine;
-      rendererLifecycle.markReady(rendererGeneration);
-    }).then((result) => {
-      if (!canceled && result.status === 'failed') {
-        setError(result.error.message || 'LightTable could not be initialized.');
-        rendererLifecycle.markFailed(
-          rendererGeneration,
-          result.error.message || 'LightTable could not be initialized.'
+              signal
+            }) ?? Promise.reject(
+              new Error('The LightTable host cannot read this source image.')
+            );
+      },
+      hydrate: async (createdEngine, source, task) => {
+        await loadBlobIntoEngine(
+          source,
+          initialSourceName,
+          initialRecipe?.settings ?? createDefaultAdjustments(),
+          `${editorSourceFileKey ?? initialSourceName}:${source.size}`,
+          () => canceled || !task.isCurrent(),
+          sourceDecodeMode,
+          task.signal
         );
+      },
+      onRendererReady: (createdEngine, elapsedMs) => {
+        engine = createdEngine;
+        engineRef.current = createdEngine;
+        startupTimingsRef.current.webGpuMs = elapsedMs;
+        createdEngine.setLensBlurDepthVisualization(false);
+        createdEngine.setScopeOptions(
+          false,
+          scopeEngineOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
+        );
+      },
+      onRendererDiscarded: (discardedEngine) => {
+        if (engineRef.current === discardedEngine) engineRef.current = null;
+        if (engine === discardedEngine) engine = null;
+      },
+      onSourceReady: (_source, elapsedMs) => {
+        startupTimingsRef.current.downloadMs = elapsedMs;
+      },
+      onFailed: (failure) => {
+        if (!canceled) {
+          setError(failure.message || 'LightTable could not be initialized.');
+        }
+      },
+      onSettled: () => {
+        if (!canceled) setLoading(false);
       }
-      if (!canceled) setLoading(false);
     });
 
     return () => {
       canceled = true;
-      taskRegistry.cancelKind('open');
       cancelAutoAlignRef.current();
       clearEditorHistory();
       engineRef.current = null;
-      engine?.destroy();
-      rendererLifecycle.reset(rendererGeneration);
+      openController.close();
     };
   }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, rendererLifecycle, sourceDecodeMode, taskRegistry]);
 
