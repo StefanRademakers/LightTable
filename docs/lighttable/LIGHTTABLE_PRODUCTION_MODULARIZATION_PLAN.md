@@ -1299,3 +1299,6 @@ The refactor is successful when:
 - [x] Bind renderer startup, async callback validity and teardown to one
       explicit document-open generation; ordinary React callback churn cannot
       restart or cross-wire a document renderer.
+- [x] Move save, download and local-file command orchestration behind one
+      document-instance controller; task cancellation, save de-duplication,
+      host picking and export policy no longer live in the editor root.

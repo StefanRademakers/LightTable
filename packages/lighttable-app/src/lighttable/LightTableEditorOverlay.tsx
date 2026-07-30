@@ -24,7 +24,6 @@ import {
 import { prepareDocumentSource } from './application/documents/prepareDocumentSource';
 import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpenLifecycle';
 import type { DocumentOpenRequest } from './application/documents/documentOpenController';
-import { exportLightTableDocument } from './application/documents/exportLightTableDocument';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
   isTemporaryPanRelease,
@@ -43,6 +42,7 @@ import { useViewportInteractionController } from './editor/hooks/useViewportInte
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
+import { useDocumentFileCommands } from './editor/hooks/useDocumentFileCommands';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
@@ -155,8 +155,7 @@ import {
 } from './processing/adjustmentStack';
 import {
   imagePickerAccept,
-  imagePickerFormatNames,
-  pickSupportedImageFile
+  imagePickerFormatNames
 } from './image-io/supportedImageFormats';
 import type { PsdDecodeSuccess } from './image-io/psdProtocol';
 import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
@@ -374,7 +373,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setDocumentSurfaceRevision((current) => current + 1);
   }, []);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
   const [showDifference, setShowDifference] = useState(false);
@@ -1382,124 +1380,47 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   };
 
-  const exportOutput = async () => {
-    const engine = engineRef.current;
-    if (!engine) throw new Error('LightTable is not ready yet.');
-    const document = imageDocumentRef.current;
-    const recipeSourceKey = effectiveSourceFileKey;
-    if (!document || !recipeSourceKey) throw new Error('The LightTable document is not ready yet.');
-    return exportLightTableDocument({
-      document,
-      renderer: engine,
-      recipeSourceKey,
-      fileNameBase,
-      flatAdjustments: adjustmentsRef.current,
-      documentAdjustments: documentAdjustmentsRef.current,
-      effectiveLayeredAdjustments: effectiveDocumentAdjustments(document),
-      preservedSourceAssets: preservedSourceAssetsRef.current
-    });
-  };
-
-  const handleSave = async () => {
-    if (!metadata || !effectiveSourceFileKey || saving) return;
-    setSaving(true);
-    setError(null);
-    const result = await taskRegistry.run('save', 'Save document', async (task) => {
-      const output = await exportOutput();
-      task.throwIfCanceled();
-      const saved = await onSave(output.file, output.recipe);
-      task.throwIfCanceled();
-      if (saved !== false) {
-        commandHistory.markSaved();
-        onDirtyChangeRef.current?.(false);
-        onClose();
-      }
-      return saved;
-    });
-    if (result.status === 'failed') {
-      setError(result.error.message || 'LightTable image could not be saved.');
-    }
-    setSaving(false);
-  };
-
-  const handleDownload = async () => {
-    setError(null);
-    const result = await taskRegistry.run('export', 'Export image', async (task) => {
-      const output = await exportOutput();
-      task.throwIfCanceled();
-      const url = URL.createObjectURL(output.file);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = output.file.name;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-    });
-    if (result.status === 'failed') {
-      setError(result.error.message || 'LightTable export failed.');
-    }
-  };
-
-  const openLocalFile = async (file: File | null, decodeMode: LightTableImageDecodeMode) => {
-    if (!file) return;
-    cancelAutoAlignPreview();
-    setLoading(true);
-    setError(null);
-    const result = await taskRegistry.run('open', 'Open image', async (task) => {
+  const {
+    saving,
+    save: handleSave,
+    download: handleDownload,
+    handleFastFileInput: handleLocalFile,
+    handlePrecisionFileInput: handleAdvancedLocalFile,
+    chooseLocalFile
+  } = useDocumentFileCommands({
+    fileInputRef,
+    advancedFileInputRef,
+    taskRegistry,
+    commandHistory,
+    effectiveSourceFileKey,
+    fileNameBase,
+    hasMetadata: Boolean(metadata),
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    getFlatAdjustments: () => adjustmentsRef.current,
+    getDocumentAdjustments: () => documentAdjustmentsRef.current,
+    getEffectiveLayeredAdjustments: effectiveDocumentAdjustments,
+    getPreservedSourceAssets: () => preservedSourceAssetsRef.current,
+    hydrateLocalFile: async (file, decodeMode, signal, isCurrent) => {
       await loadBlobIntoEngine(
         file,
         file.name,
         createDefaultAdjustments(),
         `${file.name}:${file.size}:${file.type}:${file.lastModified}${decodeMode === 'preserve-precision' ? ':preserve-precision' : ''}`,
-        () => !task.isCurrent(),
+        () => !isCurrent(),
         decodeMode,
-        task.signal
+        signal
       );
-      task.throwIfCanceled();
-    });
-    if (result.status === 'failed') {
-      setError(result.error.message
-        || (decodeMode === 'preserve-precision'
-          ? 'The precision-preserving image import failed.'
-          : 'The image could not be opened.'));
-    }
-    if (result.status !== 'canceled' || taskRegistry.getSnapshot().activeTaskIds.length === 0) {
-      setLoading(false);
-    }
-  };
-
-  const handleLocalFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0] ?? null;
-    event.currentTarget.value = '';
-    await openLocalFile(file, 'fast');
-  };
-
-  const handleAdvancedLocalFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0] ?? null;
-    event.currentTarget.value = '';
-    await openLocalFile(file, 'preserve-precision');
-  };
-
-  const chooseLocalFile = async (decodeMode: LightTableImageDecodeMode) => {
-    try {
-      setError(null);
-      if (onRequestOpenWorkspaceDocument) {
-        await onRequestOpenWorkspaceDocument(decodeMode);
-        return;
-      }
-      const fallback = decodeMode === 'preserve-precision'
-        ? advancedFileInputRef.current
-        : fileInputRef.current;
-      const file = await pickSupportedImageFile(decodeMode, fallback);
-      if (!file) return;
-      if (onOpenWorkspaceDocument) {
-        onOpenWorkspaceDocument(file, decodeMode);
-        return;
-      }
-      await openLocalFile(file, decodeMode);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The image file dialog could not be opened.');
-    }
-  };
+    },
+    cancelAutoAlign: cancelAutoAlignPreview,
+    onSave,
+    onClose,
+    onDirtyChange,
+    onRequestOpenWorkspaceDocument,
+    onOpenWorkspaceDocument,
+    setLoading,
+    setError
+  });
 
   const menuDocument = imageDocumentRef.current;
   const menuActiveLayer = menuDocument
