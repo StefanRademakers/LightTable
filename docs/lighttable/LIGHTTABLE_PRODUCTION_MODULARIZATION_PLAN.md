@@ -853,6 +853,15 @@ eviction starts only after the adapter owns those resources.
 
 ### Phase 6 — Layer compositor and processing modules
 
+Progress:
+
+- [x] Group visibility/bypass evaluation is a tested application-domain
+      function and no longer lives in the editor root.
+- [x] Grade and Lens Fx control metadata is centralized in an editor config
+      module instead of being declared inside the overlay.
+- [ ] Replace the remaining concrete grade/effect calls with registered
+      processing modules and one authoritative evaluator.
+
 Work:
 
 - extract graph construction from `LayerDocumentRenderer`;

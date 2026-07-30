@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionButton } from '../ui/ActionButton';
 import { ContextMenu, type ContextMenuOption } from '../ui/ContextMenu';
-import { SegmentedControl, type SegmentedControlOption } from '../ui/SegmentedControl';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { SquareIconButton } from '../ui/SquareIconButton';
 import { TextInputDialog } from '../ui/TextInputDialog';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -22,7 +22,7 @@ import {
   isTemporaryPanRelease,
   resolveEditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
-import { AdjustmentSlider, type AdjustmentSliderTrack } from './AdjustmentSlider';
+import { AdjustmentSlider } from './AdjustmentSlider';
 import { ColorGradingWheel } from './ColorGradingWheel';
 import {
   cloneColorGrading,
@@ -36,7 +36,6 @@ import {
 import {
   cloneColorMixer,
   COLOR_MIXER_CHANNELS,
-  COLOR_MIXER_DISPLAY_CENTERS,
   COLOR_MIXER_RANGES,
   colorMixerTrack,
   createDefaultColorMixer,
@@ -59,23 +58,19 @@ import {
 } from './lightTableRecipe';
 import {
   createDefaultGrainSettings,
-  DEFAULT_GRAIN_SETTINGS,
-  type GrainSettings
+  DEFAULT_GRAIN_SETTINGS
 } from './effects/grain/settings';
 import {
   createDefaultHalationSettings,
-  DEFAULT_HALATION_SETTINGS,
-  type HalationSettings
+  DEFAULT_HALATION_SETTINGS
 } from './effects/halation/settings';
 import {
   createDefaultChromaticAberrationSettings,
-  DEFAULT_CHROMATIC_ABERRATION_SETTINGS,
-  type ChromaticAberrationSettings
+  DEFAULT_CHROMATIC_ABERRATION_SETTINGS
 } from './effects/chromaticAberration/settings';
 import {
   createDefaultLensDistortionSettings,
-  DEFAULT_LENS_DISTORTION_SETTINGS,
-  type LensDistortionSettings
+  DEFAULT_LENS_DISTORTION_SETTINGS
 } from './effects/lensDistortion/settings';
 import { EffectPanel } from './effects/EffectPanel';
 import {
@@ -83,8 +78,7 @@ import {
   DEFAULT_LENS_BLUR_SETTINGS,
   focusInterval,
   type BokehShape,
-  type LensBlurQuality,
-  type LensBlurSettings
+  type LensBlurQuality
 } from './effects/lensBlur/settings';
 import { mapLensDistortionUv } from './effects/lensDistortion/settings';
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
@@ -109,6 +103,42 @@ import {
   type LightTableDockWorkspaceHandle
 } from './editor/workspace/LightTableDockWorkspace';
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
+import {
+  applyGroupVisibility,
+  COLOR_SLIDER_KEYS,
+  createDefaultGroupVisibility,
+  EFFECTS_SLIDER_KEYS,
+  LIGHT_SLIDER_KEYS,
+  type GroupVisibility,
+  type NumericAdjustmentKey
+} from './application/adjustments/groupVisibility';
+import {
+  BOKEH_SHAPE_OPTIONS,
+  CHROMATIC_ABERRATION_SLIDERS,
+  COLOR_SLIDERS,
+  colorMixerRangeBounds,
+  EFFECTS_SLIDERS,
+  GRAIN_ADVANCED_SLIDERS,
+  GRAIN_SLIDERS,
+  GRADING_MODE_OPTIONS,
+  HALATION_SLIDERS,
+  LENS_BLUR_QUALITY_OPTIONS,
+  LENS_BLUR_SLIDERS,
+  LENS_BLUR_VIEWPORT_MODE_OPTIONS,
+  LENS_DISTORTION_SLIDERS,
+  LIGHT_SLIDERS,
+  MIXER_CHANNEL_LABELS,
+  nearestColorMixerRange,
+  type ChromaticAberrationNumericKey,
+  type GrainNumericKey,
+  type GrainSliderDefinition,
+  type HalationNumericKey,
+  type LensBlurNumericKey,
+  type LensBlurSliderDefinition,
+  type LensDistortionNumericKey,
+  type SliderDefinition,
+  type LensBlurViewportMode
+} from './editor/config/adjustmentControls';
 import {
   createImageDocument,
   layerIsLocked,
@@ -346,199 +376,6 @@ const formatGpuMemory = (bytes: number) => (
 
 type ZoomMode = 'fit' | '100' | 'custom';
 type LightTableAppMenuId = 'file' | 'edit' | 'select' | 'view' | 'layer';
-type NumericAdjustmentKey = Exclude<keyof BasicAdjustments, 'colorMixer' | 'colorGrading' | 'curves' | 'effects'>;
-
-interface SliderDefinition {
-  key: NumericAdjustmentKey;
-  label: string;
-  min: number;
-  max: number;
-  step?: number;
-  format?: (value: number) => string;
-  track?: AdjustmentSliderTrack;
-}
-
-const SLIDERS: SliderDefinition[] = [
-  { key: 'temperature', label: 'Temperature', min: -150, max: 100, track: 'temperature' },
-  { key: 'tint', label: 'Tint', min: -100, max: 100, track: 'tint' },
-  { key: 'exposureEV', label: 'Exposure', min: -5, max: 5, step: 0.01, format: (value) => `${value.toFixed(2)} EV`, track: 'luminance' },
-  { key: 'contrast', label: 'Contrast', min: -100, max: 100, track: 'luminance' },
-  { key: 'highlights', label: 'Highlights', min: -100, max: 100, track: 'luminance' },
-  { key: 'shadows', label: 'Shadows', min: -100, max: 100, track: 'luminance' },
-  { key: 'whites', label: 'Whites', min: -100, max: 100, track: 'luminance' },
-  { key: 'blacks', label: 'Blacks', min: -100, max: 100, track: 'luminance' },
-  { key: 'lift', label: 'Lift', min: -100, max: 100, track: 'luminance' },
-  { key: 'texture', label: 'Texture', min: -100, max: 100, track: 'luminance' },
-  { key: 'clarity', label: 'Clarity', min: -100, max: 100, track: 'luminance' },
-  { key: 'dehaze', label: 'Dehaze', min: -100, max: 100, track: 'luminance' },
-  { key: 'vignette', label: 'Vignette', min: -100, max: 100, track: 'luminance' },
-  { key: 'vibrance', label: 'Vibrance', min: -100, max: 100, track: 'vibrance' },
-  { key: 'saturation', label: 'Saturation', min: -100, max: 100, track: 'saturation' }
-];
-
-type GrainNumericKey = Exclude<keyof GrainSettings, 'enabled'>;
-interface GrainSliderDefinition extends Omit<SliderDefinition, 'key'> {
-  key: GrainNumericKey;
-}
-
-const GRAIN_SLIDERS: GrainSliderDefinition[] = [
-  { key: 'amount', label: 'Amount', min: 0, max: 3, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'size', label: 'Size', min: 0.25, max: 2.5, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'softness', label: 'Softness', min: 0, max: 2, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'color', label: 'Color', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'shadowResponse', label: 'Shadow Response', min: 0.25, max: 4, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'blend', label: 'Blend', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'seed', label: 'Seed', min: 1, max: 200 }
-];
-
-const GRAIN_ADVANCED_SLIDERS: GrainSliderDefinition[] = [
-  { key: 'redScale', label: 'Red scale', min: 0.25, max: 3, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'greenScale', label: 'Green scale', min: 0.25, max: 3, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'blueScale', label: 'Blue scale', min: 0.25, max: 3, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'redContrast', label: 'Red noise contrast', min: 0.25, max: 2.5, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'greenContrast', label: 'Green noise contrast', min: 0.25, max: 2.5, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'blueContrast', label: 'Blue noise contrast', min: 0.25, max: 2.5, step: 0.01, format: (value) => value.toFixed(2) }
-];
-
-type HalationNumericKey = Exclude<keyof HalationSettings, 'enabled'>;
-interface HalationSliderDefinition extends Omit<SliderDefinition, 'key'> {
-  key: HalationNumericKey;
-}
-
-const HALATION_SLIDERS: HalationSliderDefinition[] = [
-  { key: 'amount', label: 'Amount', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'radius', label: 'Radius', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'threshold', label: 'Threshold', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'warmth', label: 'Warmth', min: 0, max: 100, format: (value) => `${Math.round(value)}%`, track: 'temperature' }
-];
-
-type ChromaticAberrationNumericKey = Exclude<keyof ChromaticAberrationSettings, 'enabled'>;
-interface ChromaticAberrationSliderDefinition extends Omit<SliderDefinition, 'key'> {
-  key: ChromaticAberrationNumericKey;
-}
-
-const CHROMATIC_ABERRATION_SLIDERS: ChromaticAberrationSliderDefinition[] = [
-  { key: 'amount', label: 'Amount', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'falloff', label: 'Edge falloff', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'balance', label: 'Red / Blue balance', min: -100, max: 100, track: 'tint' }
-];
-
-type LensDistortionNumericKey = Exclude<keyof LensDistortionSettings, 'enabled'>;
-interface LensDistortionSliderDefinition extends Omit<SliderDefinition, 'key'> {
-  key: LensDistortionNumericKey;
-}
-
-const LENS_DISTORTION_SLIDERS: LensDistortionSliderDefinition[] = [
-  { key: 'amount', label: 'Distortion', min: -100, max: 100 },
-  { key: 'midpoint', label: 'Midpoint', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'zoom', label: 'Zoom', min: 0, max: 100, format: (value) => `${Math.round(value)}%` }
-];
-
-type LensBlurNumericKey = Exclude<keyof LensBlurSettings, 'enabled' | 'bokehShape' | 'quality'>;
-type LensBlurViewportMode = 'result' | 'depth';
-interface LensBlurSliderDefinition extends Omit<SliderDefinition, 'key'> {
-  key: LensBlurNumericKey;
-}
-
-const LENS_BLUR_SLIDERS: LensBlurSliderDefinition[] = [
-  { key: 'apertureSize', label: 'Aperture Size', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'focusDistance', label: 'Focus Distance', min: 0, max: 1, step: 0.005, format: (value) => `${Math.round(value * 100)}%` },
-  { key: 'depthOfField', label: 'Depth of Field', min: 0.01, max: 0.8, step: 0.005, format: (value) => `${Math.round(value * 100)}%` },
-  { key: 'catEye', label: 'Cat Eye', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'bokehBoost', label: 'Bokeh Boost', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
-  { key: 'transitionFeather', label: 'Transition Feather', min: 0.01, max: 0.4, step: 0.005, format: (value) => `${Math.round(value * 100)}%` }
-];
-
-const BOKEH_SHAPE_OPTIONS: Array<SegmentedControlOption<BokehShape>> = [
-  { value: 'circle', label: 'Round' },
-  { value: 'hexagon', label: 'Hex' },
-  { value: 'anamorphic', label: 'Oval' },
-  { value: 'donut', label: 'Donut' }
-];
-
-const LENS_BLUR_QUALITY_OPTIONS: Array<SegmentedControlOption<LensBlurQuality>> = [
-  { value: 'balanced', label: '48' },
-  { value: 'high', label: '64' },
-  { value: 'ultra', label: '128' }
-];
-
-const LENS_BLUR_VIEWPORT_MODE_OPTIONS: Array<SegmentedControlOption<LensBlurViewportMode>> = [
-  { value: 'result', label: 'Result' },
-  { value: 'depth', label: 'Depth' }
-];
-
-const LIGHT_SLIDER_KEYS = new Set<NumericAdjustmentKey>([
-  'exposureEV', 'contrast', 'highlights', 'shadows', 'whites', 'blacks', 'lift'
-]);
-const LIGHT_SLIDERS = SLIDERS.filter((slider) => LIGHT_SLIDER_KEYS.has(slider.key));
-const COLOR_SLIDER_KEYS = new Set<NumericAdjustmentKey>(['temperature', 'tint', 'vibrance', 'saturation']);
-const EFFECTS_SLIDER_KEYS = new Set<NumericAdjustmentKey>(['texture', 'clarity', 'dehaze', 'vignette']);
-const COLOR_SLIDERS = SLIDERS.filter((slider) => COLOR_SLIDER_KEYS.has(slider.key));
-const EFFECTS_SLIDERS = SLIDERS.filter((slider) => EFFECTS_SLIDER_KEYS.has(slider.key));
-
-interface GroupVisibility {
-  light: boolean;
-  color: boolean;
-  colorMixer: boolean;
-  colorGrading: boolean;
-  curves: boolean;
-  effects: boolean;
-}
-
-const MIXER_CHANNEL_LABELS: Record<ColorMixerChannel, string> = {
-  hue: 'Hue',
-  saturation: 'Saturation',
-  luminance: 'Luminance'
-};
-
-const wrapUnit = (value: number) => ((value % 1) + 1) % 1;
-
-const colorMixerRangeBounds = (index: number) => {
-  const count = COLOR_MIXER_DISPLAY_CENTERS.length;
-  const center = COLOR_MIXER_DISPLAY_CENTERS[index];
-  const previous = COLOR_MIXER_DISPLAY_CENTERS[(index + count - 1) % count];
-  const next = COLOR_MIXER_DISPLAY_CENTERS[(index + 1) % count];
-  const previousDistance = wrapUnit(center - previous);
-  const nextDistance = wrapUnit(next - center);
-  return {
-    start: wrapUnit(center - previousDistance / 2),
-    end: wrapUnit(center + nextDistance / 2)
-  };
-};
-
-const nearestColorMixerRange = (position: number) => {
-  let selected = 0;
-  let selectedDistance = Number.POSITIVE_INFINITY;
-  COLOR_MIXER_DISPLAY_CENTERS.forEach((center, index) => {
-    const direct = Math.abs(position - center);
-    const distance = Math.min(direct, 1 - direct);
-    if (distance < selectedDistance) {
-      selected = index;
-      selectedDistance = distance;
-    }
-  });
-  return selected;
-};
-
-const GRADING_MODE_OPTIONS: Array<SegmentedControlOption<ColorGradingMode>> = [
-  { value: 'all', label: '3-Way', title: 'Three-way grading' },
-  { value: 'global', label: 'Global' },
-  { value: 'shadows', label: 'Shadows' },
-  { value: 'midtones', label: 'Midtones' },
-  { value: 'highlights', label: 'Highlights' }
-];
-
-const applyGroupVisibility = (adjustments: BasicAdjustments, visibility: GroupVisibility): BasicAdjustments => {
-  const next = cloneAllAdjustments(adjustments);
-  const zero = (keys: Set<NumericAdjustmentKey>) => keys.forEach((key) => { next[key] = 0; });
-  if (!visibility.light) zero(LIGHT_SLIDER_KEYS);
-  if (!visibility.color) zero(COLOR_SLIDER_KEYS);
-  if (!visibility.colorMixer) next.colorMixer = createDefaultColorMixer();
-  if (!visibility.colorGrading) next.colorGrading = createDefaultColorGrading();
-  if (!visibility.curves) next.curves = createDefaultCurves();
-  if (!visibility.effects) zero(EFFECTS_SLIDER_KEYS);
-  return next;
-};
 
 const cloneAdjustments = cloneAllAdjustments;
 
@@ -840,7 +677,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);
   const fillActiveTargetRef = useRef<(color: string) => void>(() => undefined);
   const temporaryPanRef = useRef(false);
-  const groupVisibilityRef = useRef<GroupVisibility>({ light: true, color: true, colorMixer: true, colorGrading: true, curves: true, effects: true });
+  const groupVisibilityRef = useRef<GroupVisibility>(createDefaultGroupVisibility());
   const scopeSettingsRef = useRef<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
   const scopeVisibilityRef = useRef<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
   const startupStartedAtRef = useRef(0);
@@ -869,7 +706,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
-  const [groupVisibility, setGroupVisibility] = useState<GroupVisibility>({ light: true, color: true, colorMixer: true, colorGrading: true, curves: true, effects: true });
+  const [groupVisibility, setGroupVisibility] = useState<GroupVisibility>(
+    createDefaultGroupVisibility
+  );
   const [shiftPressed, setShiftPressed] = useState(false);
   const [scopeSettings, setScopeSettings] = useState<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
   const [scopeVisibility, setScopeVisibility] = useState<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
@@ -1582,7 +1421,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setScopeError(null);
     setGradeStatus(null);
     setGpuMemoryBytes(0);
-    const startingVisibility: GroupVisibility = { light: true, color: true, colorMixer: true, colorGrading: true, curves: true, effects: true };
+    const startingVisibility = createDefaultGroupVisibility();
     groupVisibilityRef.current = startingVisibility;
     setGroupVisibility(startingVisibility);
     const rendererGeneration = rendererLifecycle.beginStart();
