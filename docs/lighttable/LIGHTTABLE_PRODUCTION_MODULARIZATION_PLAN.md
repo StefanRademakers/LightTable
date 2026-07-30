@@ -1384,6 +1384,10 @@ The refactor is successful when:
       inspectable keymap registry. Platform normalization, contextual command
       resolution and document-scoped execution are now separate seams, ready
       for default, Photoshop-compatible and user-defined keymap profiles.
+- [x] Move window binding, editable-target detection, active-document context
+      projection and temporary-tool release into one keyboard composition
+      controller. It accepts an injectable keymap while command execution stays
+      explicitly scoped to the mounted document.
 - [x] Move application-menu presentation state, anchoring and portal ownership
       into a host-neutral editor-shell component. The active document
       composition now supplies only current capabilities and command options.

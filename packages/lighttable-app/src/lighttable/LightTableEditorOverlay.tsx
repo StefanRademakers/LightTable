@@ -19,12 +19,6 @@ import {
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
-import {
-  isTemporaryPanRelease,
-  resolveEditorKeyboardCommand,
-  type EditorKeyboardCommand
-} from './application/input/editorKeyboardRouter';
-import { executeEditorKeyboardCommand } from './application/input/executeEditorKeyboardCommand';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import {
@@ -33,7 +27,6 @@ import {
 } from './editor/menus/createEditorMenuOptions';
 import { projectEditorMenuState } from './editor/menus/projectEditorMenuState';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
-import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
@@ -60,6 +53,9 @@ import type {
 import {
   useEditorDocumentLifecycleController
 } from './composition/documents/useEditorDocumentLifecycleController';
+import {
+  useEditorKeyboardController
+} from './composition/input/useEditorKeyboardController';
 import {
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
@@ -164,12 +160,6 @@ const primaryShortcutLabel = (key: string, shift = false) => (
   IS_MAC_PLATFORM
     ? `${shift ? '⇧' : ''}⌘${key}`
     : `Ctrl+${shift ? 'Shift+' : ''}${key}`
-);
-const isTextEditingTarget = (target: EventTarget | null) => (
-  target instanceof HTMLTextAreaElement
-  || target instanceof HTMLSelectElement
-  || (target instanceof HTMLInputElement && target.type !== 'range')
-  || (target instanceof HTMLElement && target.isContentEditable)
 );
 export interface LightTableEditorOverlayProps {
   open: boolean;
@@ -827,8 +817,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const invertCurrentSelection = selectionSessionController.invert;
   const featherCurrentSelection = selectionSessionController.feather;
 
-  const executeKeyboardCommand = (command: EditorKeyboardCommand): void => {
-    executeEditorKeyboardCommand(command, {
+  useEditorKeyboardController({
+    enabled: open && active,
+    getContext: () => ({
+      saving,
+      activeTool: editorSession.activeTool,
+      hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
+      hasSelection: editorSession.selection.length > 0,
+      hasSelectionClipboard: selectionClipboardAvailable,
+      transforming: transformActiveRef.current()
+    }),
+    commands: {
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       activateTool: (tool) => activateToolRef.current(tool),
@@ -883,34 +882,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
         onClose();
       }
-    });
-  };
-
-  useEditorWindowInput(open && active, {
-    onKeyDown: (event) => {
-      const editable = isTextEditingTarget(event.target);
-      const command = resolveEditorKeyboardCommand(event, {
-        editable,
-        saving,
-        activeTool: editorSession.activeTool,
-        hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
-        hasSelection: editorSession.selection.length > 0,
-        hasSelectionClipboard: selectionClipboardAvailable,
-        transforming: transformActiveRef.current()
-      });
-      if (!command) return false;
-      executeKeyboardCommand(command);
-      return true;
     },
-    onKeyUp: (event) => {
-      if (!isTemporaryPanRelease(event) || !temporaryToolRef.current.active) return false;
+    temporaryPanActive: () => temporaryToolRef.current.active,
+    releaseTemporaryPan: () => {
       if (temporaryToolRef.current.end('view')) setTemporaryPanActive(false);
-      return true;
     },
-    onShiftChange: setShiftPressed,
-    onBlur: () => {
+    clearTemporaryTool: () => {
       if (temporaryToolRef.current.end()) setTemporaryPanActive(false);
-    }
+    },
+    onShiftChange: setShiftPressed
   });
 
   const fillCommandController = useFillCommandController({
