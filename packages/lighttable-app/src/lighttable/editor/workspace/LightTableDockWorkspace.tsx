@@ -27,7 +27,7 @@ import {
 const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v1';
 const ACCESSORY_PANEL_MINIMUM_WIDTH = 250;
-const UNBOUNDED_PANEL_MAXIMUM_WIDTH = 1_000_000;
+const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
 const PANEL_TAB_BAR_HEIGHT = 34;
 const TAB_MERGE_PRIORITY_EXTENSION = 18;
 
@@ -82,11 +82,9 @@ const applyWorkspacePanelConstraints = (
   panels.forEach((panel) => {
     api.getPanel(panel.id)?.api.setConstraints({
       minimumWidth,
-      // A floating group can be resized independently from its internal grid.
-      // Capping the panel at 520px therefore left an expanding empty frame
-      // beside the content. Keep the panel flexible; its useful starting
-      // width is defined separately by the registry.
-      maximumWidth: UNBOUNDED_PANEL_MAXIMUM_WIDTH,
+      maximumWidth: widthConstraintsEnabled
+        ? ACCESSORY_PANEL_MAXIMUM_WIDTH
+        : Number.MAX_SAFE_INTEGER,
       ...(panel.minimumHeight === undefined ? {} : { minimumHeight: panel.minimumHeight })
     });
   });
@@ -113,7 +111,7 @@ const addRegisteredPanel = (
     initialWidth: panel.initialWidth,
     initialHeight: panel.initialHeight,
     minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
-    maximumWidth: UNBOUNDED_PANEL_MAXIMUM_WIDTH,
+    maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH,
     minimumHeight: panel.minimumHeight
   });
 };
@@ -393,6 +391,7 @@ export const LightTableDockWorkspace = forwardRef<
       const rootBounds = workspaceElement.getBoundingClientRect();
       const width = Math.min(
         Math.max(item.group.api.width || 320, 250),
+        ACCESSORY_PANEL_MAXIMUM_WIDTH,
         Math.max(250, rootBounds.width - 24)
       );
       // Docked columns are normally workspace-height. Starting a floating

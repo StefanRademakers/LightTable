@@ -23,6 +23,7 @@ import {
   setLayerFillOpacity,
   setLayerMaskEnabled,
   setLayerOpacity,
+  setRasterLayerAdjustmentStackEnabled,
   setLayersLock,
   setLayersVisibility,
   ungroupLayers
@@ -92,6 +93,7 @@ export interface LayerPanelController {
   flattenImage(): void;
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
   setStyleStackEnabled(layerId: LayerId, enabled: boolean): void;
+  setLocalGradeEnabled(layerId: LayerId, enabled: boolean): void;
   setStyleEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void;
   clearStyles(layerId: LayerId): void;
 }
@@ -128,7 +130,9 @@ export const createLayerPanelController = (
       || (layer.type === 'raster' && layer.adjustmentStack)
     )
       ? {
-        ...materializeBasicAdjustments(layer.adjustmentStack!),
+        // A bypassed local grade still exposes its authored settings in the
+        // controls. Editing one of them deliberately enables a fresh stack.
+        ...materializeBasicAdjustments(layer.adjustmentStack!, undefined, undefined, true),
         effects: structuredClone(documentAdjustments.effects)
       }
       : {
@@ -226,6 +230,9 @@ export const createLayerPanelController = (
       resolveDependencies().editStyles(layerId, effectId),
     setStyleStackEnabled: (layerId, enabled) =>
       mutate((current) => setLayerStyleStackEnabled(current, layerId, enabled)),
+    setLocalGradeEnabled: (layerId, enabled) =>
+      mutate((current) =>
+        setRasterLayerAdjustmentStackEnabled(current, layerId, enabled)),
     setStyleEnabled: (layerId, effectId, enabled) =>
       mutate((current) =>
         setLayerStyleEnabled(current, layerId, effectId, enabled)),

@@ -17,6 +17,7 @@ import type {
   LayerThumbnailPreview,
   LayerThumbnailSet
 } from '../layers/layerThumbnailTypes';
+import { adjustmentStackIsEnabled } from '../../processing/adjustmentStack';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -53,6 +54,7 @@ interface LayerPanelProps {
   onFlattenImage: () => void;
   onEditStyles: (layerId: LayerId, effectId?: LayerStyleId) => void;
   onStyleStackEnabled: (layerId: LayerId, enabled: boolean) => void;
+  onLocalGradeEnabled: (layerId: LayerId, enabled: boolean) => void;
   onStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => void;
   onClearStyles: (layerId: LayerId) => void;
 }
@@ -128,6 +130,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onFlattenImage,
   onEditStyles,
   onStyleStackEnabled,
+  onLocalGradeEnabled,
   onStyleEnabled,
   onClearStyles
 }) => {
@@ -661,12 +664,22 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   className="lighttable-layer__local-grade"
                   onClick={(event) => {
                     event.stopPropagation();
-                    onSelect(layer.id);
+                    onLocalGradeEnabled(
+                      layer.id,
+                      !adjustmentStackIsEnabled(layer.adjustmentStack!)
+                    );
                   }}
-                  title="Local non-destructive grade"
-                  aria-label="Select local grade"
+                  title={`${adjustmentStackIsEnabled(layer.adjustmentStack) ? 'Disable' : 'Enable'} local grade`}
+                  aria-label={`${adjustmentStackIsEnabled(layer.adjustmentStack) ? 'Disable' : 'Enable'} local grade`}
                 >
-                  <img src={lightTableIcon('layer_adjustment.png')} alt="" />
+                  <img
+                    src={lightTableIcon(
+                      adjustmentStackIsEnabled(layer.adjustmentStack)
+                        ? 'layer_adjustment.png'
+                        : 'layer_adjustment_off.png'
+                    )}
+                    alt=""
+                  />
                 </button>
               ) : null}
               {hasStyles ? <span className="lighttable-layer__fx-mark" aria-label="Layer effects">fx</span> : null}
@@ -719,6 +732,16 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         >fx</button>
         <button
           type="button"
+          onClick={() => {
+            if (selectedIds.length) onGroupSelection(selectedIds);
+            else onCreateGroup();
+          }}
+          disabled={selectedIds.length > 0 && !canGroupSelection}
+          title={selectedIds.length ? 'Group selected layers' : 'New group'}
+          aria-label={selectedIds.length ? 'Group selected layers' : 'New group'}
+        ><img src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></button>
+        <button
+          type="button"
           onClick={onAddMask}
           disabled={
             !activeLayer
@@ -728,16 +751,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           title="Add layer mask"
           aria-label="Add layer mask"
         ><img src={lightTableIcon('add_mask.png')} alt="" aria-hidden="true" /></button>
-        <button
-          type="button"
-          onClick={() => {
-            if (selectedIds.length) onGroupSelection(selectedIds);
-            else onCreateGroup();
-          }}
-          disabled={selectedIds.length > 0 && !canGroupSelection}
-          title={selectedIds.length ? 'Group selected layers' : 'New group'}
-          aria-label={selectedIds.length ? 'Group selected layers' : 'New group'}
-        ><img src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></button>
         <button
           type="button"
           onClick={onCreateAdjustment}

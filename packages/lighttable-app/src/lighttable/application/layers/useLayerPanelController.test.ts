@@ -116,6 +116,34 @@ describe('createLayerPanelController', () => {
     expect(harness.panelAdjustments().effects.halation.enabled).toBe(false);
   });
 
+  it('bypasses and restores a raster layer local grade without losing its settings', () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const local = createDefaultAdjustments();
+    local.contrast = 42;
+    const document = setRasterLayerAdjustmentStack(
+      base,
+      base.activeLayerId!,
+      createAdjustmentStackFromBasicAdjustments(local)
+    );
+    const harness = setup(document);
+    const layerId = document.activeLayerId!;
+
+    harness.controller.setLocalGradeEnabled(layerId, false);
+    const bypassed = findDocumentLayer(harness.document(), layerId);
+    expect(bypassed?.type === 'raster' && bypassed.adjustmentStack?.modules.every(
+      (module) => !module.enabled
+    )).toBe(true);
+
+    harness.controller.select(layerId);
+    expect(harness.panelAdjustments().contrast).toBe(42);
+
+    harness.controller.setLocalGradeEnabled(layerId, true);
+    const restored = findDocumentLayer(harness.document(), layerId);
+    expect(restored?.type === 'raster' && restored.adjustmentStack?.modules.every(
+      (module) => module.enabled
+    )).toBe(true);
+  });
+
   it('removes the active mask and returns painting to pixels', () => {
     const harness = setup(createImageDocument('test', 100, 100, 'asset'));
     const activeLayerId = harness.document().activeLayerId!;

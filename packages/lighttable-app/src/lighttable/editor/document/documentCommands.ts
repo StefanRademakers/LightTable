@@ -12,7 +12,10 @@ import {
   type RasterLayer,
   type Rect
 } from './documentTypes';
-import type { AdjustmentStack } from '../../processing/adjustmentStack';
+import {
+  setAdjustmentStackEnabled,
+  type AdjustmentStack
+} from '../../processing/adjustmentStack';
 import {
   findLayerNode,
   findRasterLayer,
@@ -234,6 +237,22 @@ export const setRasterLayerAdjustmentStack = (
   return {
     ...layer,
     adjustmentStack: adjustmentStack ? structuredClone(adjustmentStack) : null,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const setRasterLayerAdjustmentStackEnabled = (
+  document: ImageDocument,
+  layerId: LayerId,
+  enabled: boolean
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster' || !layer.adjustmentStack) return layer;
+  const adjustmentStack = setAdjustmentStackEnabled(layer.adjustmentStack, enabled);
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return {
+    ...layer,
+    adjustmentStack,
     revision: layer.revision + 1,
     modifiedAt: Date.now()
   };

@@ -35,6 +35,7 @@ export interface DocumentViewportSurfaceProps {
   onPointerUp: React.PointerEventHandler<HTMLDivElement>;
   onPointerCancel: React.PointerEventHandler<HTMLDivElement>;
   onPointerLeave: React.PointerEventHandler<HTMLDivElement>;
+  onContextMenu: React.MouseEventHandler<HTMLDivElement>;
   onTransformChange: (matrix: AffineMatrix) => void;
 }
 
@@ -68,6 +69,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onPointerUp,
   onPointerCancel,
   onPointerLeave,
+  onContextMenu,
   onTransformChange
 }) => {
   const effectiveTool = temporaryPanActive ? 'view' : activeTool;
@@ -81,6 +83,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onPointerLeave={onPointerLeave}
+      onContextMenu={onContextMenu}
     >
       <canvas ref={canvasRef} className="lighttable-viewport__canvas" />
       {showBrushCursor && !temporaryPanActive ? (

@@ -78,6 +78,27 @@ export const cloneAdjustmentStack = (stack: AdjustmentStack): AdjustmentStack =>
   }))
 });
 
+export const adjustmentStackIsEnabled = (stack: AdjustmentStack): boolean =>
+  stack.modules.some((module) => module.enabled);
+
+export const setAdjustmentStackEnabled = (
+  stack: AdjustmentStack,
+  enabled: boolean
+): AdjustmentStack => {
+  if (stack.modules.every((module) => module.enabled === enabled)) return stack;
+  return {
+    ...cloneAdjustmentStack(stack),
+    revision: stack.revision + 1,
+    modules: stack.modules.map((module) => module.enabled === enabled
+      ? module
+      : {
+        ...module,
+        enabled,
+        revision: module.revision + 1
+      })
+  };
+};
+
 export const adjustmentStackForScope = (
   stack: AdjustmentStack,
   scope: 'layer' | 'adjustment-layer' | 'group' | 'document-creative' | 'document-output',
@@ -137,13 +158,18 @@ export const createAdjustmentStackFromBasicAdjustments = (
 export const materializeBasicAdjustments = (
   stack: AdjustmentStack,
   registry: ProcessingModuleRegistry = currentProcessingModuleRegistry,
-  scope?: ProcessingScope
+  scope?: ProcessingScope,
+  includeDisabled = false
 ): BasicAdjustments => {
   const result = createDefaultAdjustments();
   const modulesByType = new Map(stack.modules.map((module) => [module.type, module]));
   for (const definition of registry.definitions()) {
     const module = modulesByType.get(definition.type);
-    if (!module?.enabled || (scope && !definition.allowedScopes.includes(scope))) continue;
+    if (
+      !module
+      || (!includeDisabled && !module.enabled)
+      || (scope && !definition.allowedScopes.includes(scope))
+    ) continue;
     for (const path of definition.settingsPaths) {
       if (Object.prototype.hasOwnProperty.call(module.settings, path)) {
         writeSetting(result, path, module.settings[path]);

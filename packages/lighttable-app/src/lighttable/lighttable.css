@@ -76,6 +76,51 @@
   padding: 4px 12px;
 }
 
+.lighttable-tool-options__content--vertical {
+  width: 248px;
+  height: auto;
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px;
+}
+
+.lighttable-tool-options-menu {
+  position: fixed;
+  z-index: 10020;
+  min-width: 248px;
+  overflow: hidden;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: 4px;
+  background: var(--lt-surface-panel);
+  box-shadow: var(--lt-shadow-panel);
+  color: var(--lt-text-primary);
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__zoom-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__preset {
+  min-width: 0;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__preset:last-child {
+  grid-column: 1 / -1;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-adjustment {
+  width: 100%;
+  padding: 0;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-adjustment__header {
+  margin-bottom: 4px;
+}
+
 .lighttable-tool-options__content > strong {
   color: var(--lt-text-secondary);
   font-size: var(--lt-type-label);

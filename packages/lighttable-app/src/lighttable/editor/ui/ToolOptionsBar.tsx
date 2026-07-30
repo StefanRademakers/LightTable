@@ -3,7 +3,7 @@ import { AdjustmentSlider } from '../../AdjustmentSlider';
 import type { BrushSettings, ToolId } from '../session/editorSession';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 
-interface ToolOptionsBarProps {
+export interface ToolOptionsProps {
   activeTool: ToolId;
   brush: BrushSettings;
   selectionPixelSnap: boolean;
@@ -26,7 +26,9 @@ const TOOL_LABELS: Record<ToolId, string> = {
   zoom: 'Zoom'
 };
 
-export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = ({
+export const ToolOptionsContent: React.FC<ToolOptionsProps & {
+  orientation?: 'horizontal' | 'vertical';
+}> = ({
   activeTool,
   brush,
   selectionPixelSnap,
@@ -34,10 +36,10 @@ export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = ({
   onBrushChange,
   onSelectionPixelSnapChange,
   onZoomPreset,
-  onZoomFit
+  onZoomFit,
+  orientation = 'horizontal'
 }) => (
-  <section className="lighttable-tool-options" aria-label="Tool settings">
-    <div className="lighttable-tool-options__content">
+  <div className={`lighttable-tool-options__content lighttable-tool-options__content--${orientation}`}>
       <strong>{TOOL_LABELS[activeTool]}</strong>
       {activeTool === 'select-rectangle' || activeTool === 'select-ellipse' ? (
         <label className="lighttable-tool-options__toggle">
@@ -127,6 +129,11 @@ export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = ({
           />
         </>
       ) : null}
-    </div>
+  </div>
+);
+
+export const ToolOptionsBar: React.FC<ToolOptionsProps> = (props) => (
+  <section className="lighttable-tool-options" aria-label="Tool settings">
+    <ToolOptionsContent {...props} />
   </section>
 );

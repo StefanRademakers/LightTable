@@ -80,6 +80,7 @@ import { useEditorDialogController } from './editor/ui/useEditorDialogController
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import { DebugPanel } from './editor/ui/DebugPanel';
 import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
+import { ToolOptionsContextMenu } from './editor/ui/ToolOptionsContextMenu';
 import { EditorStatusBar } from './editor/ui/EditorStatusBar';
 import { GradePanel } from './editor/panels/GradePanel';
 import { LensFxPanel } from './editor/panels/LensFxPanel';
@@ -334,7 +335,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
+  const [toolOptionsMenu, setToolOptionsMenu] = useState<{ x: number; y: number } | null>(null);
   const copiedGrade = useLightTableGradeClipboard();
+
+  useEffect(() => {
+    setToolOptionsMenu(null);
+  }, [editorSession.activeTool]);
 
   useEffect(() => {
     temporaryToolRef.current.end();
@@ -1303,6 +1309,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onFlattenImage={layerPanelController.flattenImage}
         onEditStyles={layerPanelController.editStyles}
         onStyleStackEnabled={layerPanelController.setStyleStackEnabled}
+        onLocalGradeEnabled={layerPanelController.setLocalGradeEnabled}
         onStyleEnabled={layerPanelController.setStyleEnabled}
         onClearStyles={layerPanelController.clearStyles}
       />
@@ -1331,6 +1338,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       brush: { ...current.brush, ...change }
     }));
   };
+  const setExactZoom = (percent: number) => {
+    setZoomMode('custom');
+    setView(zoomViewToScaleAtPoint({
+      cursor: {
+        x: viewportSize.width / 2,
+        y: viewportSize.height / 2
+      },
+      viewport: viewportSize,
+      view: { scale: activeScale, panX: view.panX, panY: view.panY },
+      scale: zoomPercentToScale(percent)
+    }));
+  };
+  const fitZoom = () => {
+    setZoomMode('fit');
+    setView({ scale: 1, panX: 0, panY: 0 });
+  };
 
   return (
     <LightTableEditorShell
@@ -1346,22 +1369,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onSelectionPixelSnapChange={(selectionPixelSnap) => {
         setEditorSession((current) => ({ ...current, selectionPixelSnap }));
       }}
-      onZoomPreset={(percent) => {
-        setZoomMode('custom');
-        setView(zoomViewToScaleAtPoint({
-          cursor: {
-            x: viewportSize.width / 2,
-            y: viewportSize.height / 2
-          },
-          viewport: viewportSize,
-          view: { scale: activeScale, panX: view.panX, panY: view.panY },
-          scale: zoomPercentToScale(percent)
-        }));
-      }}
-      onZoomFit={() => {
-        setZoomMode('fit');
-        setView({ scale: 1, panX: 0, panY: 0 });
-      }}
+      onZoomPreset={setExactZoom}
+      onZoomFit={fitZoom}
       onToolChange={activatePersistentTool}
       onForegroundColorChange={(color) => updateBrush({ color })}
       onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}
@@ -1406,6 +1415,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onFlatten={commitFlattenRequest}
             onError={setError}
           />
+          {toolOptionsMenu ? (
+            <ToolOptionsContextMenu
+              x={toolOptionsMenu.x}
+              y={toolOptionsMenu.y}
+              activeTool={visibleTool}
+              brush={editorSession.brush}
+              selectionPixelSnap={editorSession.selectionPixelSnap}
+              zoomPercent={activeScale * 100}
+              onBrushChange={updateBrush}
+              onSelectionPixelSnapChange={(selectionPixelSnap) => {
+                setEditorSession((current) => ({ ...current, selectionPixelSnap }));
+              }}
+              onZoomPreset={setExactZoom}
+              onZoomFit={fitZoom}
+              onClose={() => setToolOptionsMenu(null)}
+            />
+          ) : null}
         </>
       )}
     >
@@ -1451,6 +1477,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     onPointerCancel={viewportInteraction.onPointerCancel}
                     onPointerLeave={() => {
                       if (!paintSessionController.active) viewportInteraction.hideBrushCursor();
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setToolOptionsMenu({ x: event.clientX, y: event.clientY });
                     }}
                     onTransformChange={updateTransformMatrix}
                   />
