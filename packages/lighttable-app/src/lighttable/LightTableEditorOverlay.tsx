@@ -42,14 +42,12 @@ import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
+import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
-import {
-  formatStartupTimings,
-  type LightTableStartupTimings
-} from './application/telemetry/editorTelemetry';
+import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
 import {
   type LightTableImageDecodeMode,
@@ -81,10 +79,6 @@ import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
 import { EditorStatusBar } from './editor/ui/EditorStatusBar';
 import { GradePanel } from './editor/panels/GradePanel';
 import { LensFxPanel } from './editor/panels/LensFxPanel';
-import {
-  type LightTableDebugMessage,
-  type LightTableDebugSeverity
-} from './editor/debug/debugLog';
 import {
   LightTableDockWorkspace,
   type LightTableDockWorkspaceHandle
@@ -309,11 +303,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const rendererLifecycle = providedRendererLifecycle ?? localRendererLifecycle;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const onDocumentReadyRef = useRef(onDocumentReady);
-  const onDocumentErrorRef = useRef(onDocumentError);
   const onDirtyChangeRef = useRef(onDirtyChange);
-  onDocumentReadyRef.current = onDocumentReady;
-  onDocumentErrorRef.current = onDocumentError;
   onDirtyChangeRef.current = onDirtyChange;
   useEffect(() => {
     if (history) return;
@@ -424,8 +414,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
-  const debugMessageIdRef = useRef(1);
-  const [debugMessages, setDebugMessages] = useState<LightTableDebugMessage[]>([]);
   const copiedGrade = useLightTableGradeClipboard();
 
   useEffect(() => {
@@ -483,103 +471,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererReadyDocumentId: thumbnailDocumentReadyId,
     getRenderer: () => engineRef.current
   });
-  const psdCompatibilitySummary = useMemo(() => {
-    const counts = new Map<PsdImportCompatibilityEntry['support'], number>();
-    psdCompatibility.forEach(({ support }) => {
-      counts.set(support, (counts.get(support) ?? 0) + 1);
-    });
-    return [
-      ['native', 'native'],
-      ['approximate', 'approximate'],
-      ['raster-preview', 'preview-backed'],
-      ['preserved', 'preserved/no-op'],
-      ['placeholder', 'transparent placeholder']
-    ].map(([support, label]) => {
-      const count = counts.get(support as PsdImportCompatibilityEntry['support']) ?? 0;
-      return count > 0 ? `${count} ${label}` : null;
-    }).filter(Boolean).join('; ');
-  }, [psdCompatibility]);
-
-  const appendDebugMessage = useCallback((
-    severity: LightTableDebugSeverity,
-    source: string,
-    message: string,
-    details?: string
-  ) => {
-    setDebugMessages((current) => {
-      const previous = current.at(-1);
-      if (
-        previous
-        && previous.severity === severity
-        && previous.source === source
-        && previous.message === message
-        && previous.details === details
-        && Date.now() - previous.timestamp < 250
-      ) {
-        return current;
-      }
-      return [...current.slice(-499), {
-        id: debugMessageIdRef.current++,
-        timestamp: Date.now(),
-        severity,
-        source,
-        message,
-        details
-      }];
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!error) return;
-    appendDebugMessage('error', 'LightTable', error);
-    onDocumentErrorRef.current?.(error);
-  }, [appendDebugMessage, error]);
-
-  useEffect(() => {
-    if (scopeError) appendDebugMessage('error', 'Scopes', scopeError);
-  }, [appendDebugMessage, scopeError]);
-
-  useEffect(() => {
-    if (gradeStatus) appendDebugMessage('info', 'Status', gradeStatus);
-  }, [appendDebugMessage, gradeStatus]);
-
-  useEffect(() => {
-    if (!startupTimings) return;
-    const timings = formatStartupTimings(startupTimings);
-    if (timings) appendDebugMessage('info', 'Startup', `Image ready: ${sourceName}`, timings);
-    onDocumentReadyRef.current?.();
-  }, [appendDebugMessage, sourceName, startupTimings]);
-
-  useEffect(() => {
-    if (!psdImportInfo) return;
-    const inventory = psdImportInfo.inventory;
-    appendDebugMessage(
-      'info',
-      'PSD import',
-      `Reconstructed ${inventory.layers} layers, ${inventory.groups} groups, ${inventory.masks} masks, `
-        + `${inventory.layerStyles} styled layers, ${inventory.adjustments} adjustment layers and `
-        + `${inventory.smartObjects} smart objects.`,
-      psdCompatibilitySummary ? `Compatibility: ${psdCompatibilitySummary}.` : undefined
-    );
-    psdImportInfo.warnings.forEach((warning) => {
-      appendDebugMessage('warning', 'PSD import', warning);
-    });
-  }, [appendDebugMessage, psdCompatibilitySummary, psdImportInfo]);
-
-  useEffect(() => {
-    if (!psdDifferenceMetrics) return;
-    appendDebugMessage(
-      'info',
-      'PSD comparison',
-      `${psdDifferenceMetrics.differingPixelPercentage.toFixed(3)}% pixels differ above `
-        + `${Math.round(psdDifferenceMetrics.threshold * 255)}/255.`,
-      `Mean RGB error ${(psdDifferenceMetrics.meanAbsoluteRgbError * 100).toFixed(3)}%; `
-        + `maximum channel error ${(psdDifferenceMetrics.maximumChannelError * 100).toFixed(2)}%; `
-        + `${psdDifferenceMetrics.sampledPixels.toLocaleString()} samples (stride ${psdDifferenceMetrics.stride}).`
-    );
-  }, [appendDebugMessage, psdDifferenceMetrics]);
-
-
+  const {
+    messages: debugMessages,
+    photoshopCompatibilitySummary: psdCompatibilitySummary,
+    append: appendDebugMessage,
+    clear: clearDebugMessages
+  } = useEditorDiagnosticsController({
+    error,
+    scopeError,
+    gradeStatus,
+    startupTimings,
+    sourceName,
+    psdImportInfo,
+    psdCompatibility,
+    psdDifferenceMetrics,
+    onDocumentReady,
+    onDocumentError
+  });
   const effectiveDocumentAdjustments = useCallback((document: ImageDocument | null) => {
     void document;
     // Adjustment nodes are evaluated at their own stack positions by the
@@ -1993,7 +1901,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             debug={(
               <DebugPanel
                 messages={debugMessages}
-                onClear={() => setDebugMessages([])}
+                onClear={clearDebugMessages}
                 accessoryWidthConstraintsEnabled={accessoryWidthConstraintsEnabled}
                 editorResizeObserversEnabled={editorResizeObserversEnabled}
                 dockResizeActive={dockResizeActiveRef.current}

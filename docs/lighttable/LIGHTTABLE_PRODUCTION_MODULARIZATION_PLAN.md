@@ -1287,3 +1287,6 @@ The refactor is successful when:
 - [x] Give layer and mask thumbnails one document-scoped controller with
       revision-keyed GPU readback caching and deterministic object-URL cleanup;
       accessory preview failures cannot fail the editor or renderer lifecycle.
+- [x] Move bounded debug logging, host ready/error notification and PSD
+      compatibility/comparison reporting into one document diagnostics
+      controller shared by web and desktop composition.
