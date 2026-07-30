@@ -1277,3 +1277,6 @@ The refactor is successful when:
       the layer command controller; creation, first-grade migration and
       undo/redo now form one tested document transaction instead of a panel
       callback mutating several root refs.
+- [x] Give foreground/background fill one document-scoped command controller
+      that owns renderer mutation, snapshot publication, status/error handling
+      and exactly one disposable GPU history entry.

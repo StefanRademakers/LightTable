@@ -1,0 +1,81 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createImageDocument, type ImageDocument } from '../../../editor/document/documentTypes';
+import type { ReversiblePixelEdit } from '../../../editor/rendering/LayerDocumentRenderer';
+import type { FillHistoryEntry } from './useFillCommandController';
+import { createFillCommandController } from './useFillCommandController';
+
+const pixelEdit = (): ReversiblePixelEdit => ({
+  byteSize: 48,
+  undo: vi.fn(() => true),
+  redo: vi.fn(() => true),
+  destroy: vi.fn()
+});
+
+describe('createFillCommandController', () => {
+  it('publishes one document snapshot and one reversible history entry', () => {
+    let document: ImageDocument = createImageDocument('Fill', 16, 12, 'asset');
+    const before = document;
+    const edit = pixelEdit();
+    const history: FillHistoryEntry[] = [];
+    const renderer = {
+      beginBrushStroke: vi.fn(),
+      fillLayerColor: vi.fn(() => true),
+      finishPixelEdit: vi.fn(() => edit),
+      cancelPixelEdit: vi.fn(),
+      applyPixelHistory: vi.fn(() => true)
+    };
+    const dependencies = {
+      getDocument: () => document,
+      getRenderer: () => renderer,
+      getChannel: () => 'pixels' as const,
+      applyDocumentSnapshot: vi.fn((next: ImageDocument) => {
+        document = next;
+      }),
+      pushHistoryEntry: vi.fn((entry: FillHistoryEntry) => history.push(entry)),
+      setStatus: vi.fn(),
+      setError: vi.fn()
+    };
+    const controller = createFillCommandController(() => dependencies);
+
+    expect(controller.fill('#ff0000')).toBe(true);
+    expect(document.revision).toBeGreaterThan(before.revision);
+    expect(history).toHaveLength(1);
+    expect(dependencies.setStatus).toHaveBeenCalledWith(
+      expect.stringContaining('#FF0000')
+    );
+
+    history[0].undo();
+    expect(document).toBe(before);
+    expect(renderer.applyPixelHistory).toHaveBeenCalledWith(edit, 'undo');
+
+    history[0].redo();
+    expect(document).not.toBe(before);
+    expect(renderer.applyPixelHistory).toHaveBeenCalledWith(edit, 'redo');
+  });
+
+  it('does not publish history when the renderer rejects the fill', () => {
+    const document = createImageDocument('Fill', 16, 12, 'asset');
+    const dependencies = {
+      getDocument: () => document,
+      getRenderer: () => ({
+        beginBrushStroke: vi.fn(),
+        fillLayerColor: vi.fn(() => false),
+        finishPixelEdit: vi.fn(() => null),
+        cancelPixelEdit: vi.fn(),
+        applyPixelHistory: vi.fn(() => true)
+      }),
+      getChannel: () => 'pixels' as const,
+      applyDocumentSnapshot: vi.fn(),
+      pushHistoryEntry: vi.fn(),
+      setStatus: vi.fn(),
+      setError: vi.fn()
+    };
+
+    expect(createFillCommandController(() => dependencies).fill('#ffffff')).toBe(false);
+    expect(dependencies.applyDocumentSnapshot).not.toHaveBeenCalled();
+    expect(dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+    expect(dependencies.setError).toHaveBeenCalledWith(
+      expect.stringContaining('not available')
+    );
+  });
+});

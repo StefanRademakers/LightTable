@@ -93,9 +93,7 @@ import {
 } from './editor/workspace/LightTableDockWorkspace';
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
-import {
-  executeFillOperation
-} from './application/tools/fill/fillOperation';
+import { useFillCommandController } from './application/tools/fill/useFillCommandController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
@@ -1473,37 +1471,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   });
 
-  const fillActiveTarget = (color: string) => {
-    const current = imageDocumentRef.current;
-    const engine = engineRef.current;
-    if (!current || !engine) return;
-    const channel = editorSession.activeChannel;
-    const result = executeFillOperation(current, engine, channel, color);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    applyDocumentSnapshot(result.document);
-    pushHistoryEntry({
-      byteSize: result.pixelEdit.byteSize,
-      layerIds: [result.layerId],
-      undo: () => {
-        if (!engineRef.current?.applyPixelHistory(result.pixelEdit, 'undo')) {
-          throw new Error('Fill undo is no longer available.');
-        }
-        applyDocumentSnapshot(current);
-      },
-      redo: () => {
-        if (!engineRef.current?.applyPixelHistory(result.pixelEdit, 'redo')) {
-          throw new Error('Fill redo is no longer available.');
-        }
-        applyDocumentSnapshot(result.document);
-      },
-      dispose: result.pixelEdit.destroy
-    });
-    setError(null);
-    setGradeStatus(`${result.targetLabel} filled with ${color.toUpperCase()}`);
-  };
+  const fillCommandController = useFillCommandController({
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    getChannel: () => editorSession.activeChannel,
+    applyDocumentSnapshot,
+    pushHistoryEntry,
+    setStatus: setGradeStatus,
+    setError
+  });
+  const fillActiveTarget = fillCommandController.fill;
   fillActiveTargetRef.current = fillActiveTarget;
 
   const paintSessionController = usePaintSessionController({
