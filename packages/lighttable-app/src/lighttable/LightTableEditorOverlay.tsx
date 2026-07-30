@@ -1502,7 +1502,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               ),
               grade: (
               <GradePanel
-                key={sourceIdentity || sourceName}
                 model={{
                   adjustments,
                   metadata,

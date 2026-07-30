@@ -1,6 +1,12 @@
 /// <reference lib="webworker" />
 
-import type { Layer, PatternInfo, Psd } from 'ag-psd';
+import {
+  initializeCanvas,
+  readPsd,
+  type Layer,
+  type PatternInfo,
+  type Psd
+} from 'ag-psd';
 import { psdCompositeToPreviewPixels } from './psdPixelConversion';
 import type {
   PsdFeatureInventory,
@@ -27,17 +33,18 @@ const COLOR_MODE_NAMES: Record<number, string> = {
 };
 
 let agPsdCanvasInitialized = false;
-let agPsdModulePromise: Promise<typeof import('ag-psd')> | null = null;
 
-const loadAgPsd = () => agPsdModulePromise ??= import('ag-psd');
-
-const initializeAgPsdCanvas = async () => {
+const initializeAgPsdCanvas = () => {
   if (agPsdCanvasInitialized) return;
-  const { initializeCanvas } = await loadAgPsd();
   // ag-psd normally discovers document.createElement('canvas') at module load.
   // A module worker has no document, so Photoshop resources that internally
   // request a canvas (even while image pixels use ImageData) otherwise throw
   // "Canvas not initialized". Keep that dependency on the worker boundary.
+  //
+  // This runtime import deliberately stays static. The PSD worker itself is
+  // created lazily, so ordinary image startup does not download ag-psd. A
+  // nested dynamic import inside a Vite module worker produced an invalid
+  // interop chunk in Electron ("Export is not defined").
   initializeCanvas(
     (width, height) => new OffscreenCanvas(width, height) as unknown as HTMLCanvasElement,
     (width, height) => new ImageData(width, height)
@@ -321,8 +328,7 @@ const serializeLayers = async (
 self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
   let response: PsdWorkerResponse;
   try {
-    await initializeAgPsdCanvas();
-    const { readPsd } = await loadAgPsd();
+    initializeAgPsdCanvas();
     const warnings: string[] = [];
     const psd = readPsd(data.bytes, {
       useImageData: true,
