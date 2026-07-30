@@ -908,7 +908,7 @@ Work:
 - [x] isolate scopes plus buffer/texture readback and browser PNG encoding;
 - [x] split mutable image-resource ownership from the engine;
 - [x] isolate optional pipeline compilation;
-- add resource lifecycle and device-loss tests.
+- [x] add resource lifecycle and device-loss tests.
 
 Exit criteria:
 
@@ -967,6 +967,11 @@ idempotent reset, including alias protection, instead of manually destroying
 and nulling a scattered set of engine fields. Static device resources and
 effect-owned caches retain their separate lifetimes.
 
+Resource lifecycle coverage now spans shared-device loss/reacquisition,
+idempotent document image-resource reset and optional feature compilation.
+Phase 5 is complete; eviction policy for suspended documents remains a
+multi-document memory-policy concern rather than renderer ownership debt.
+
 ### Phase 6 — Layer compositor and processing modules
 
 Progress:
@@ -975,6 +980,8 @@ Progress:
       function and no longer lives in the editor root.
 - [x] Grade and Lens Fx control metadata is centralized in an editor config
       module instead of being declared inside the overlay.
+- [x] Centralize document effect ownership, lifecycle and authoritative stage
+      order outside the concrete engine.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator.
 

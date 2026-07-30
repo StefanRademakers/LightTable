@@ -4,11 +4,7 @@ import type { WasmVipsDecoder } from '../image-io/WasmVipsDecoder';
 import type { AdvancedDecodedImage } from '../image-io/types';
 import { cloneAdjustments, createDefaultAdjustments } from '../types';
 import { buildCurveLut, CURVE_LUT_SIZE } from '../curves';
-import { GrainEffect } from '../effects/grain/GrainEffect';
-import { HalationEffect } from '../effects/halation/HalationEffect';
-import { ChromaticAberrationEffect } from '../effects/chromaticAberration/ChromaticAberrationEffect';
-import { LensDistortionEffect } from '../effects/lensDistortion/LensDistortionEffect';
-import { LensBlurEffect } from '../effects/lensBlur/LensBlurEffect';
+import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
 import type { DepthAnalysisResult } from '../analysis/depth/types';
 import {
   layerIsLocked,
@@ -170,11 +166,7 @@ export class WebGpuEngine {
   private blurPipeline: GPURenderPipeline | null = null;
   private creativePipeline: GPURenderPipeline | null = null;
   private outputPipeline: GPURenderPipeline | null = null;
-  private grainEffect: GrainEffect | null = null;
-  private halationEffect: HalationEffect | null = null;
-  private chromaticAberrationEffect: ChromaticAberrationEffect | null = null;
-  private lensDistortionEffect: LensDistortionEffect | null = null;
-  private lensBlurEffect: LensBlurEffect | null = null;
+  private effectRuntime: DocumentEffectRuntime | null = null;
   private displayResolvePipeline: GPURenderPipeline | null = null;
   private precisionSourceResolvePipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
@@ -328,41 +320,12 @@ export class WebGpuEngine {
       requestRender: () => this.requestRender(),
       reportError: (featureId: string, message: string) => this.callbacks.onFeatureError?.(featureId, message)
     };
-    this.grainEffect = new GrainEffect(
-      this.device,
-      this.sampler,
-      pipelines.vertexModule,
-      this.adjustments.effects.grain,
-      effectCallbacks
-    );
     this.documentRenderer = new LayerDocumentRenderer(this.device, this.sampler);
-    this.halationEffect = new HalationEffect(
+    this.effectRuntime = DocumentEffectRuntime.create(
       this.device,
       this.sampler,
       pipelines.vertexModule,
-      this.adjustments.effects.halation,
-      effectCallbacks
-    );
-    this.chromaticAberrationEffect = new ChromaticAberrationEffect(
-      this.device,
-      this.sampler,
-      pipelines.vertexModule,
-      this.adjustments.effects.chromaticAberration,
-      effectCallbacks
-    );
-    this.lensDistortionEffect = new LensDistortionEffect(
-      this.device,
-      this.sampler,
-      pipelines.vertexModule,
-      this.adjustments.effects.lensDistortion,
-      effectCallbacks
-    );
-    this.lensBlurEffect = new LensBlurEffect(
-      this.device,
-      this.sampler,
-      pipelines.vertexModule,
-      this.adjustments.effects.lensBlur,
-      this.adjustments.effects.lensDistortion,
+      this.adjustments,
       effectCallbacks
     );
     this.displayResolvePipeline = pipelines.displayResolve;
@@ -918,8 +881,7 @@ export class WebGpuEngine {
     if (!this.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.viewBuffer ||
       !this.histogramUniformBuffer || !this.blurHorizontalBuffer || !this.blurVerticalBuffer || !this.curveTexture ||
       !this.basicPipeline || !this.downsamplePipeline || !this.blurPipeline || !this.creativePipeline ||
-      !this.outputPipeline || !this.outputSettingsBuffer || !this.grainEffect || !this.halationEffect ||
-      !this.chromaticAberrationEffect || !this.lensDistortionEffect || !this.lensBlurEffect || !this.displayResolvePipeline ||
+      !this.outputPipeline || !this.outputSettingsBuffer || !this.effectRuntime || !this.displayResolvePipeline ||
       !this.blitPipeline || !this.differencePipeline || !this.histogramPipeline) return;
 
     const downsampleWidth = Math.max(1, Math.ceil(width / 4));
@@ -954,11 +916,7 @@ export class WebGpuEngine {
       format: 'rgba16float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     });
-    this.halationEffect.resize(width, height);
-    this.grainEffect.resize(width, height);
-    this.chromaticAberrationEffect.resize(width, height);
-    this.lensDistortionEffect.resize(width, height);
-    this.lensBlurEffect.resize(width, height);
+    this.effectRuntime.resize(width, height);
     this.finalTexture = this.device.createTexture({
       label: 'LightTable display-encoded result',
       size: [width, height],
@@ -1067,12 +1025,7 @@ export class WebGpuEngine {
 
   private applyMaterializedAdjustments(adjustments: BasicAdjustments) {
     this.adjustments = cloneAdjustments(adjustments);
-    this.grainEffect?.setSettings(this.adjustments.effects.grain);
-    this.halationEffect?.setSettings(this.adjustments.effects.halation);
-    this.chromaticAberrationEffect?.setSettings(this.adjustments.effects.chromaticAberration);
-    this.lensDistortionEffect?.setSettings(this.adjustments.effects.lensDistortion);
-    this.lensBlurEffect?.setSettings(this.adjustments.effects.lensBlur);
-    this.lensBlurEffect?.setDistortionSettings(this.adjustments.effects.lensDistortion);
+    this.effectRuntime?.setSettings(this.adjustments);
     this.writeCurveLut();
     this.writeAdjustments();
     this.writeOutputSettings();
@@ -1084,7 +1037,7 @@ export class WebGpuEngine {
   }
 
   setDepthMap(depth: DepthAnalysisResult) {
-    this.lensBlurEffect?.setDepthMap(depth);
+    this.effectRuntime?.setDepthMap(depth);
     this.writeOutputSettings();
     this.correctionDirty = true;
     this.histogramDirty = true;
@@ -1224,7 +1177,7 @@ export class WebGpuEngine {
   }
 
   setLensBlurInteractionActive(active: boolean) {
-    this.lensBlurEffect?.setInteractionActive(active);
+    this.effectRuntime?.setInteractionActive(active);
     this.correctionDirty = true;
     this.histogramDirty = true;
     this.scopeEngine?.markImageDirty();
@@ -1239,7 +1192,7 @@ export class WebGpuEngine {
 
   setLensBlurDepthVisualization(visualize: boolean) {
     this.lensBlurDepthVisualization = visualize;
-    this.lensBlurEffect?.setDepthVisualization(visualize);
+    this.effectRuntime?.setDepthVisualization(visualize);
     this.writeOutputSettings();
     this.correctionDirty = true;
     this.requestRender();
@@ -1299,7 +1252,7 @@ export class WebGpuEngine {
     const visualizingDepth = Boolean(
       this.adjustments.effects.lensBlur.enabled &&
       this.lensBlurDepthVisualization &&
-      this.lensBlurEffect?.hasDepth
+      this.effectRuntime?.hasDepth
     );
     this.device.queue.writeBuffer(this.outputSettingsBuffer, 0, new Float32Array([
       visualizingDepth ? 0 : settings.whites,
@@ -1374,11 +1327,7 @@ export class WebGpuEngine {
       ADJUSTMENT_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMENT + CURVE_LUT_SIZE * 16
     );
     bytes += this.documentRenderer?.estimatedTextureBytes() ?? 0;
-    bytes += this.grainEffect?.estimatedTextureBytes() ?? 0;
-    bytes += this.halationEffect?.estimatedTextureBytes() ?? 0;
-    bytes += this.chromaticAberrationEffect?.estimatedTextureBytes() ?? 0;
-    bytes += this.lensDistortionEffect?.estimatedTextureBytes() ?? 0;
-    bytes += this.lensBlurEffect?.estimatedTextureBytes() ?? 0;
+    bytes += this.effectRuntime?.estimatedTextureBytes() ?? 0;
     return bytes;
   }
 
@@ -1405,8 +1354,7 @@ export class WebGpuEngine {
       !this.finalTexture || !this.basicPipeline || !this.downsamplePipeline ||
       !this.blurPipeline || !this.creativePipeline || !this.outputPipeline || !this.outputSettingsBuffer ||
       !this.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.curveTexture ||
-      !this.halationEffect || !this.grainEffect || !this.chromaticAberrationEffect || !this.lensDistortionEffect ||
-      !this.lensBlurEffect || !this.documentRenderer || !this.imageDocument ||
+      !this.effectRuntime || !this.documentRenderer || !this.imageDocument ||
       !this.displayResolvePipeline || !this.blitPipeline || !this.differencePipeline ||
       !this.downsampleBindGroup || !this.blurHorizontalBindGroup || !this.blurVerticalBindGroup ||
       !this.creativeBindGroup ||
@@ -1495,8 +1443,7 @@ export class WebGpuEngine {
           return this.creativeTexture!;
         }
       );
-      const distortedTexture = this.lensDistortionEffect.encode(encoder, documentTexture);
-      const sourceGeometryTexture = this.chromaticAberrationEffect.encode(encoder, distortedTexture);
+      const sourceGeometryTexture = this.effectRuntime.encodeSourceGeometry(encoder, documentTexture);
       let gradeTexture = sourceGeometryTexture;
       if (!documentHasAdjustment) {
         const basicBindGroup = this.device.createBindGroup({
@@ -1517,15 +1464,16 @@ export class WebGpuEngine {
         this.drawFullscreenPass(encoder, this.creativePipeline, this.creativeBindGroup, this.creativeTexture.createView());
         gradeTexture = this.creativeTexture;
       }
-      const lensBlurTexture = this.lensBlurEffect.encode(encoder, gradeTexture);
       const visualizingDepth = Boolean(
         this.adjustments.effects.lensBlur.enabled &&
         this.lensBlurDepthVisualization &&
-        this.lensBlurEffect.hasDepth
+        this.effectRuntime.hasDepth
       );
-      const linearEffectTexture = visualizingDepth
-        ? lensBlurTexture
-        : this.halationEffect.encode(encoder, lensBlurTexture);
+      const linearEffectTexture = this.effectRuntime.encodeLinearSpatial(
+        encoder,
+        gradeTexture,
+        { visualizeDepth: visualizingDepth }
+      );
       const outputBindGroup = this.device.createBindGroup({
         layout: this.outputPipeline.getBindGroupLayout(0),
         entries: [
@@ -1534,9 +1482,11 @@ export class WebGpuEngine {
         ]
       });
       this.drawFullscreenPass(encoder, this.outputPipeline, outputBindGroup, this.displayTexture.createView());
-      const displayEffectTexture = visualizingDepth
-        ? this.displayTexture
-        : this.grainEffect.encode(encoder, this.displayTexture);
+      const displayEffectTexture = this.effectRuntime.encodeDisplayPost(
+        encoder,
+        this.displayTexture,
+        visualizingDepth
+      );
       const displayResolveBindGroup = this.device.createBindGroup({
         layout: this.displayResolvePipeline.getBindGroupLayout(0),
         entries: [{ binding: 0, resource: displayEffectTexture.createView() }]
@@ -1659,7 +1609,7 @@ export class WebGpuEngine {
 
   async exportPng() {
     if (!this.metadata || !this.finalTexture) throw new Error('No processed image is available for export.');
-    this.lensBlurEffect?.setInteractionActive(false);
+    this.effectRuntime?.setInteractionActive(false);
     this.correctionDirty = true;
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
@@ -1692,16 +1642,8 @@ export class WebGpuEngine {
     this.blurHorizontalBuffer?.destroy();
     this.blurVerticalBuffer?.destroy();
     this.curveTexture?.destroy();
-    this.grainEffect?.destroy();
-    this.grainEffect = null;
-    this.halationEffect?.destroy();
-    this.halationEffect = null;
-    this.chromaticAberrationEffect?.destroy();
-    this.chromaticAberrationEffect = null;
-    this.lensDistortionEffect?.destroy();
-    this.lensDistortionEffect = null;
-    this.lensBlurEffect?.destroy();
-    this.lensBlurEffect = null;
+    this.effectRuntime?.destroy();
+    this.effectRuntime = null;
     this.documentRenderer?.destroy();
     this.documentRenderer = null;
   }
@@ -1711,11 +1653,7 @@ export class WebGpuEngine {
     this.destroyAdjustmentLayerRuntimes();
     this.imageDocument = null;
     this.scopeEngine?.clearTextures();
-    this.halationEffect?.destroyImageResources();
-    this.grainEffect?.destroyImageResources();
-    this.chromaticAberrationEffect?.destroyImageResources();
-    this.lensDistortionEffect?.destroyImageResources();
-    this.lensBlurEffect?.destroyImageResources();
+    this.effectRuntime?.destroyImageResources();
     this.imageResources.reset();
   }
 }
