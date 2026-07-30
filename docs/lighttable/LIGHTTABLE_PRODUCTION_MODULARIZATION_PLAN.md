@@ -828,7 +828,8 @@ Work:
       fixed target transforms into an isolated controller;
 - [x] migrate fill target validation, color conversion, renderer transaction
       and document revision into one typed application operation;
-- migrate transform controller;
+- [x] migrate transform measurement, preview, update and commit/cancel lifecycle
+      into a renderer-backed application controller;
 - remove feature-specific global listeners from the overlay.
 
 Milestone note:
@@ -863,6 +864,12 @@ Fill now resolves pixels versus masks, validates color and target, executes one
 cancel-safe renderer transaction, and returns a typed document revision plus
 undo snapshot. The composition layer only publishes that result and registers
 document-local history.
+
+Transform now owns its async launch revision, layer-versus-selection target,
+measured core/support bounds, renderer preview and typed finish result outside
+React. Complete layers remain non-destructive affine geometry; selected pixels
+return one reversible pixel edit with the matching transformed selection.
+Stale measurements and unavailable previews cannot publish half-open sessions.
 
 Exit criteria:
 

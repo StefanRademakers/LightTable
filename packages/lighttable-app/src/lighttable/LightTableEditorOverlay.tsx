@@ -120,6 +120,10 @@ import {
   srgbHexToLinearRgb
 } from './application/tools/fill/fillOperation';
 import {
+  TransformController,
+  type FinishTransformResult
+} from './application/tools/transform/transformController';
+import {
   useDocumentEditorSession,
   useDocumentViewportState
 } from './editor/hooks/useDocumentEditorState';
@@ -203,7 +207,6 @@ import {
   setLayerLocked,
   setLayerMaskEnabled,
   setLayerOpacity,
-  setLayerTransform,
   setLayerVisibility,
   setLayersLock,
   setLayersVisibility,
@@ -258,16 +261,7 @@ import {
   zoomViewAtPoint
 } from './editor/tools/pointer/viewportCoordinates';
 import { TransformOverlay } from './editor/tools/transform/TransformOverlay';
-import {
-  identityMatrix,
-  matrixApproximatelyEqual,
-  multiplyMatrices,
-  transformedBounds
-} from './editor/tools/transform/affine';
-import {
-  selectionOperationsBounds,
-  transformSelectionOperations
-} from './editor/tools/transform/selectionTransform';
+import { selectionOperationsBounds } from './editor/tools/transform/selectionTransform';
 import type { AffineMatrix, TransformSessionState } from './editor/tools/transform/transformTypes';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
 import {
@@ -481,8 +475,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const brushCursorRef = useRef<HTMLDivElement | null>(null);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
   const selectionGestureRef = useRef(new SelectionGestureController());
-  const transformStateRef = useRef<TransformSessionState | null>(null);
-  const transformLaunchRef = useRef(0);
+  const transformControllerRef = useRef<TransformController | null>(null);
   const commitTransformRef = useRef<() => void>(() => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
   const cancelAutoAlignRef = useRef<() => void>(() => undefined);
@@ -1097,7 +1090,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selectionGestureRef.current.reset();
     paintGestureRef.current.reset();
     setSelectionDraft(null);
-    transformStateRef.current = null;
+    transformControllerRef.current?.finish(imageDocumentRef.current, [], false);
+    transformControllerRef.current = null;
     setTransformState(null);
     setEditorSession((current) => ({ ...current, selection: [] }));
     setSelectionClipboardAvailable(false);
@@ -1174,7 +1168,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setSelectionDraft(null);
     setSelectionClipboardAvailable(false);
     setFeatherDialogOpen(false);
-    transformStateRef.current = null;
+    transformControllerRef.current?.finish(imageDocumentRef.current, [], false);
+    transformControllerRef.current = null;
     setTransformState(null);
     setHistogram(null);
     setSourceBlob(null);
@@ -2019,7 +2014,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
         hasSelection: editorSession.selection.length > 0,
         hasSelectionClipboard: selectionClipboardAvailable,
-        transforming: Boolean(transformStateRef.current)
+        transforming: Boolean(transformControllerRef.current?.state)
       });
       if (!command) return;
       event.preventDefault();
@@ -2027,7 +2022,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       event.stopImmediatePropagation();
 
       if (typeof command === 'object') {
-        if (transformStateRef.current && command.tool !== 'transform') {
+        if (transformControllerRef.current?.state && command.tool !== 'transform') {
           commitTransformRef.current();
         }
         setEditorSession((current) => ({ ...current, activeTool: command.tool }));
@@ -2115,7 +2110,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             setAppMenu(null);
             return;
           }
-          if (transformStateRef.current) {
+          if (transformControllerRef.current?.state) {
             cancelTransformRef.current();
             return;
           }
@@ -2927,16 +2922,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
   };
 
-  const mergeBounds = (first: Rect | null, second: Rect | null): Rect | null => {
-    if (!first) return second;
-    if (!second) return first;
-    const left = Math.min(first.x, second.x);
-    const top = Math.min(first.y, second.y);
-    const right = Math.max(first.x + first.width, second.x + second.width);
-    const bottom = Math.max(first.y + first.height, second.y + second.height);
-    return { x: left, y: top, width: right - left, height: bottom - top };
-  };
-
   const documentPoint = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!metadata) return null;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -3465,135 +3450,64 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [imageDocument, styleEditorRequest]);
 
   const beginTransform = async () => {
-    if (transformStateRef.current) return;
-    const launchId = ++transformLaunchRef.current;
     const document = imageDocumentRef.current;
-    const layer = document ? findRasterLayer(document, document.activeLayerId) : null;
-    if (!document || !layer) {
+    const renderer = engineRef.current;
+    if (!document || !renderer) {
       setError('Select a raster layer before transforming.');
       setEditorSession((current) => ({ ...current, activeTool: 'view' }));
       return;
     }
-    const selectionRequested = editorSession.selection.length > 0;
-    // Pixel-selection transforms are currently baked in document space. A
-    // raster layer with a non-identity transform still owns layer-local pixels,
-    // so applying that path would mix coordinate spaces. Repeatedly
-    // transforming the layer itself is exact, however, and must not make the
-    // Transform tool appear to bounce back to Pan because of a stale selection.
-    let usesSelection = selectionRequested
-      && matrixApproximatelyEqual(layer.transform, identityMatrix());
-    let sourceMatrix = usesSelection ? identityMatrix() : layer.transform;
-    try {
-      let measuredContent = usesSelection
-        ? await engineRef.current?.measureSelectedLayerContent(layer)
-        : await engineRef.current?.measureLayerContent(layer);
-      if (launchId !== transformLaunchRef.current || transformStateRef.current) return;
-      // A selection can legitimately miss every visible pixel on the active
-      // layer. Keep the user's selection intact, but allow Free Transform to
-      // operate on the visible layer rather than silently returning to Pan.
-      if (!measuredContent && usesSelection) {
-        usesSelection = false;
-        sourceMatrix = layer.transform;
-        measuredContent = await engineRef.current?.measureLayerContent(layer);
-        if (launchId !== transformLaunchRef.current || transformStateRef.current) return;
-      }
-      if (!measuredContent) {
-        setError('The active layer does not contain visible pixels.');
-        setEditorSession((current) => ({ ...current, activeTool: 'view' }));
-        return;
-      }
-      const sourceBounds = usesSelection
-        ? measuredContent.coreBounds
-        : transformedBounds(sourceMatrix, measuredContent.coreBounds);
-      const supportBounds = usesSelection
-        ? measuredContent.supportBounds
-        : transformedBounds(sourceMatrix, measuredContent.supportBounds);
-      const state: TransformSessionState = {
-        layerId: layer.id,
-        sourceBounds,
-        supportBounds,
-        sourceMatrix,
-        matrix: identityMatrix(),
-        sourceKind: usesSelection ? 'selection' : 'layer'
-      };
-      engineRef.current?.beginLayerTransform(layer, usesSelection);
-      engineRef.current?.updateLayerTransform(multiplyMatrices(state.matrix, state.sourceMatrix));
-      transformStateRef.current = state;
-      setTransformState(state);
+    const controller = transformControllerRef.current
+      ?? new TransformController(renderer);
+    transformControllerRef.current = controller;
+    const result = await controller.begin(document, editorSession.selection);
+    if (result.ok) {
+      setTransformState(result.state);
       setError(null);
-      if (selectionRequested && !usesSelection) {
-        setGradeStatus(
-          matrixApproximatelyEqual(layer.transform, identityMatrix())
-            ? 'The selection contains no visible pixels; transforming the active layer'
-            : 'Transforming the active layer; rasterize it first to transform selected pixels'
-        );
-      }
-    } catch (reason) {
-      engineRef.current?.cancelLayerTransform();
-      setError(reason instanceof Error ? reason.message : 'The transform could not be started.');
-      setEditorSession((current) => ({ ...current, activeTool: 'view' }));
+      if (result.notice) setGradeStatus(result.notice);
+      return;
     }
+    if (result.code === 'stale' || result.code === 'already-active') return;
+    if (result.message) setError(result.message);
+    setEditorSession((current) => ({ ...current, activeTool: 'view' }));
   };
 
   const updateTransformMatrix = (matrix: AffineMatrix) => {
-    const current = transformStateRef.current;
-    if (
-      !current
-      || !engineRef.current?.updateLayerTransform(multiplyMatrices(matrix, current.sourceMatrix))
-    ) return;
-    const next = { ...current, matrix };
-    transformStateRef.current = next;
-    setTransformState(next);
+    const next = transformControllerRef.current?.update(matrix);
+    if (next) setTransformState(next);
   };
 
-  const finishTransform = (commit: boolean) => {
-    const state = transformStateRef.current;
-    if (!state) return;
-    transformLaunchRef.current += 1;
-    const beforeDocument = imageDocumentRef.current;
-    const beforeSelection = cloneSelection(editorSession.selection);
-    transformStateRef.current = null;
-    setTransformState(null);
-    setEditorSession((current) => ({ ...current, pointerId: null, activeTool: 'view' }));
-
-    if (!commit || matrixApproximatelyEqual(state.matrix, identityMatrix()) || !beforeDocument) {
-      engineRef.current?.cancelLayerTransform();
+  const applyFinishedTransform = (result: FinishTransformResult) => {
+    if (result.kind === 'cancelled' || result.kind === 'unchanged') return;
+    if (result.kind === 'error') {
+      setError(result.message);
       return;
     }
-    if (state.sourceKind === 'layer') {
-      engineRef.current?.cancelLayerTransform();
-      const afterDocument = setLayerTransform(
-        beforeDocument,
-        state.layerId,
-        multiplyMatrices(state.matrix, state.sourceMatrix)
-      );
-      if (afterDocument !== beforeDocument) {
-        applyDocumentSnapshot(afterDocument);
-        pushDocumentHistory(beforeDocument, afterDocument);
+    if (result.kind === 'layer') {
+      if (result.afterDocument !== result.beforeDocument) {
+        applyDocumentSnapshot(result.afterDocument);
+        pushDocumentHistory(result.beforeDocument, result.afterDocument);
       }
       return;
     }
-    const edit = engineRef.current?.commitLayerTransform();
-    if (!edit) {
-      setError('The transform could not be committed.');
-      engineRef.current?.cancelLayerTransform();
-      return;
-    }
-    const dirtyBounds = mergeBounds(state.supportBounds, transformedBounds(state.matrix, state.supportBounds))
-      ?? { x: 0, y: 0, width: beforeDocument.width, height: beforeDocument.height };
-    const afterDocument = markLayerPixelsChanged(beforeDocument, state.layerId, dirtyBounds);
-    const afterSelection = state.sourceKind === 'selection'
-      ? transformSelectionOperations(beforeSelection, state.matrix)
-      : beforeSelection;
+
+    const {
+      beforeDocument,
+      afterDocument,
+      beforeSelection,
+      afterSelection,
+      layerId,
+      pixelEdit
+    } = result;
     imageDocumentRef.current = afterDocument;
     setImageDocument(afterDocument);
     engineRef.current?.setDocument(afterDocument);
     setEditorSession((current) => ({ ...current, selection: afterSelection }));
     pushHistoryEntry({
-      byteSize: edit.byteSize,
-      layerIds: [state.layerId],
+      byteSize: pixelEdit.byteSize,
+      layerIds: [layerId],
       undo: () => {
-        if (!engineRef.current?.applyPixelHistory(edit, 'undo')) {
+        if (!engineRef.current?.applyPixelHistory(pixelEdit, 'undo')) {
           throw new Error('Transform undo is no longer available.');
         }
         imageDocumentRef.current = beforeDocument;
@@ -3602,7 +3516,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setEditorSession((current) => ({ ...current, selection: beforeSelection }));
       },
       redo: () => {
-        if (!engineRef.current?.applyPixelHistory(edit, 'redo')) {
+        if (!engineRef.current?.applyPixelHistory(pixelEdit, 'redo')) {
           throw new Error('Transform redo is no longer available.');
         }
         imageDocumentRef.current = afterDocument;
@@ -3610,22 +3524,36 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         engineRef.current?.setDocument(afterDocument);
         setEditorSession((current) => ({ ...current, selection: afterSelection }));
       },
-      dispose: edit.destroy
+      dispose: pixelEdit.destroy
     });
+  };
+
+  const finishTransform = (commit: boolean) => {
+    const controller = transformControllerRef.current;
+    if (!controller?.state) return;
+    const result = controller.finish(
+      imageDocumentRef.current,
+      editorSession.selection,
+      commit
+    );
+    setTransformState(null);
+    setEditorSession((current) => ({ ...current, pointerId: null, activeTool: 'view' }));
+    applyFinishedTransform(result);
   };
 
   commitTransformRef.current = () => finishTransform(true);
   cancelTransformRef.current = () => finishTransform(false);
 
   useEffect(() => {
+    const controller = transformControllerRef.current;
     if (editorSession.activeTool !== 'transform') {
-      transformLaunchRef.current += 1;
-      if (transformStateRef.current) finishTransform(true);
+      controller?.invalidatePendingLaunch();
+      if (controller?.state) finishTransform(true);
       return;
     }
     if (
-      transformStateRef.current
-      && transformStateRef.current.layerId !== imageDocument?.activeLayerId
+      controller?.state
+      && controller.state.layerId !== imageDocument?.activeLayerId
     ) {
       finishTransform(true);
       return;
@@ -3641,7 +3569,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       finishTransform(true);
       return;
     }
-    if (transformStateRef.current && activeTool !== 'transform') finishTransform(true);
+    if (transformControllerRef.current?.state && activeTool !== 'transform') {
+      finishTransform(true);
+    }
     setEditorSession((current) => ({ ...current, activeTool }));
   };
 
