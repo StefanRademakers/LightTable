@@ -702,13 +702,17 @@ Exit criteria:
 
 Work:
 
-- create `LightTableApplication`;
-- create `WorkspaceSession`;
-- create one `DocumentSession` per open document;
-- move active-document identity out of hard-coded workspace props;
-- wrap current editor state behind a temporary session facade;
-- expose state through selectors/subscriptions;
-- retain current UI and renderer behavior.
+- [x] create the first application-core boundary;
+- [x] create `WorkspaceSession`;
+- [x] create one `DocumentSession` per open document;
+- [x] move active-document identity out of hard-coded workspace props;
+- [x] wrap current editor state behind a temporary session facade;
+- [x] expose state through selectors/subscriptions;
+- [x] retain current UI and renderer behavior;
+- [x] keep inactive document runtimes mounted so viewport, selection, tool,
+      history, layers and GPU state survive tab switches;
+- [ ] replace the temporary mounted-overlay retention strategy with an explicit
+      renderer suspend/resume lifecycle and a configurable GPU-memory budget.
 
 Exit criteria:
 
@@ -717,6 +721,15 @@ Exit criteria:
   state;
 - closing one document does not dispose or mutate the other;
 - web and Electron both pass the same multi-document test.
+
+Implementation note:
+
+The first vertical slice intentionally keeps one existing editor overlay
+mounted per open document. This gives correct state isolation before the
+renderer has been extracted, without serializing GPU-owned state back through
+React. It is not the final memory policy. Phase 6 replaces this temporary
+retention mechanism with per-document renderer runtimes that can be suspended,
+evicted and reconstructed under a workspace-level GPU budget.
 
 ### Phase 2 — Command bus, transactions and history
 

@@ -249,6 +249,7 @@ const isTextEditingTarget = (target: EventTarget | null) => (
 interface EditorHistoryEntry {
   byteSize?: number;
   layerIds?: readonly LayerId[];
+  documentMutation?: boolean;
   undo: () => void | Promise<void>;
   redo: () => void | Promise<void>;
   dispose?: () => void;
@@ -256,9 +257,11 @@ interface EditorHistoryEntry {
 
 export interface LightTableEditorOverlayProps {
   open: boolean;
+  active?: boolean;
   projectId: string;
   sourceFileKey?: string | null;
   sourceBlob?: Blob | null;
+  sourceDecodeMode?: LightTableImageDecodeMode;
   loadSource?: (request: {
     projectId: string;
     sourceFileKey: string;
@@ -269,6 +272,19 @@ export interface LightTableEditorOverlayProps {
   subjectLabel: string;
   onClose: () => void;
   onSave: (file: File, recipe: LightTableRecipe) => Promise<boolean | void> | boolean | void;
+  workspaceDocumentId?: string;
+  workspaceDocuments?: ReadonlyArray<{
+    id: string;
+    title: string;
+    dirty?: boolean;
+  }>;
+  onActivateWorkspaceDocument?: (documentId: string) => void;
+  onCloseWorkspaceDocument?: (documentId: string) => void;
+  onRequestOpenWorkspaceDocument?: (decodeMode: LightTableImageDecodeMode) => Promise<void> | void;
+  onOpenWorkspaceDocument?: (file: File, decodeMode: LightTableImageDecodeMode) => void;
+  onDocumentReady?: () => void;
+  onDocumentError?: (message: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface LightTableStartupTimings {
@@ -696,16 +712,33 @@ const SelectionOverlay: React.FC<SelectionOverlayProps> = ({ operations, draft, 
 
 export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = ({
   open,
+  active = true,
   projectId,
   sourceFileKey = null,
   sourceBlob: initialSourceBlob = null,
+  sourceDecodeMode = 'fast',
   loadSource,
   initialRecipe = null,
   fileNameBase,
   onClose,
-  onSave
+  onSave,
+  workspaceDocumentId = 'active-document',
+  workspaceDocuments,
+  onActivateWorkspaceDocument,
+  onCloseWorkspaceDocument,
+  onRequestOpenWorkspaceDocument,
+  onOpenWorkspaceDocument,
+  onDocumentReady,
+  onDocumentError,
+  onDirtyChange
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const onDocumentReadyRef = useRef(onDocumentReady);
+  const onDocumentErrorRef = useRef(onDocumentError);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDocumentReadyRef.current = onDocumentReady;
+  onDocumentErrorRef.current = onDocumentError;
+  onDirtyChangeRef.current = onDirtyChange;
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerHueCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerScopeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -907,7 +940,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
 
   useEffect(() => {
-    if (error) appendDebugMessage('error', 'LightTable', error);
+    if (!error) return;
+    appendDebugMessage('error', 'LightTable', error);
+    onDocumentErrorRef.current?.(error);
   }, [appendDebugMessage, error]);
 
   useEffect(() => {
@@ -922,6 +957,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!startupTimings) return;
     const timings = formatStartupTimings(startupTimings);
     if (timings) appendDebugMessage('info', 'Startup', `Image ready: ${sourceName}`, timings);
+    onDocumentReadyRef.current?.();
   }, [appendDebugMessage, sourceName, startupTimings]);
 
   useEffect(() => {
@@ -1140,6 +1176,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       evicted?.dispose?.();
     }
     pruneHistoryRuntimes();
+    if (entry.documentMutation !== false) onDirtyChangeRef.current?.(true);
   }, [pruneHistoryRuntimes]);
 
   const applyDocumentSnapshot = useCallback((snapshot: ImageDocument) => {
@@ -1201,6 +1238,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const previous = cloneSelection(before);
     const next = cloneSelection(after);
     pushHistoryEntry({
+      documentMutation: false,
       undo: () => applySelectionSnapshot(previous),
       redo: () => applySelectionSnapshot(next)
     });
@@ -1584,7 +1622,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         initialRecipe?.settings ?? createDefaultAdjustments(),
         `${editorSourceFileKey ?? initialSourceName}:${response.data.size}`,
         () => canceled,
-        'fast',
+        sourceDecodeMode,
         abortController.signal
       );
     })().catch((reason: unknown) => {
@@ -1607,7 +1645,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       engineRef.current = null;
       engine?.destroy();
     };
-  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId]);
+  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, sourceDecodeMode]);
 
   useEffect(() => {
     if (!open || !viewportRef.current) return;
@@ -1665,10 +1703,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (updateTimer !== null) window.clearTimeout(updateTimer);
       if (updateFrame !== null) window.cancelAnimationFrame(updateFrame);
     };
-  }, [documentSurfaceRevision, editorResizeObserversEnabled, open]);
+  }, [active, documentSurfaceRevision, editorResizeObserversEnabled, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !active) return;
     const elements = [scopesColumnRef.current, colorMixerScopeContainerRef.current]
       .filter((element): element is HTMLElement => Boolean(element));
     if (elements.length === 0) return;
@@ -1695,7 +1733,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (resizeTimer !== null) window.clearTimeout(resizeTimer);
       if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
     };
-  }, [documentSurfaceRevision, editorResizeObserversEnabled, open]);
+  }, [active, documentSurfaceRevision, editorResizeObserversEnabled, open]);
 
   const handleDockResizeInteractionChange = useCallback((active: boolean) => {
     dockResizeActiveRef.current = active;
@@ -2284,7 +2322,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [cloneSelection, commitSelectionChange, editorSession.selection]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !active) return;
     const handleModifierDown = (event: KeyboardEvent) => {
       if (event.key === 'Shift') setShiftPressed(true);
     };
@@ -2300,10 +2338,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       window.removeEventListener('keyup', handleModifierUp);
       window.removeEventListener('blur', clearModifier);
     };
-  }, [open]);
+  }, [active, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !active) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const primaryModifier = event.ctrlKey || event.metaKey;
@@ -2554,7 +2592,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       window.removeEventListener('keyup', handleKeyUp, true);
       window.removeEventListener('blur', releaseTemporaryPan);
     };
-  }, [appMenu, autoAlignPreview, clearCurrentSelection, cloneSelection, editorSession.activeTool, editorSession.brush.backgroundColor, editorSession.brush.color, editorSession.selection, invertCurrentSelection, onClose, open, pushSelectionHistory, redoEditor, saving, selectAllContent, selectionClipboardAvailable, undoEditor]);
+  }, [active, appMenu, autoAlignPreview, clearCurrentSelection, cloneSelection, editorSession.activeTool, editorSession.brush.backgroundColor, editorSession.brush.color, editorSession.selection, invertCurrentSelection, onClose, open, pushSelectionHistory, redoEditor, saving, selectAllContent, selectionClipboardAvailable, undoEditor]);
 
   const renderAdjustmentGroup = (
     group: keyof GroupVisibility,
@@ -4300,7 +4338,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     try {
       const output = await exportOutput();
       const saved = await onSave(output.file, output.recipe);
-      if (saved !== false) onClose();
+      if (saved !== false) {
+        onDirtyChangeRef.current?.(false);
+        onClose();
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'LightTable image could not be saved.');
     } finally {
@@ -4372,11 +4413,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const chooseLocalFile = async (decodeMode: LightTableImageDecodeMode) => {
     try {
       setError(null);
+      if (onRequestOpenWorkspaceDocument) {
+        await onRequestOpenWorkspaceDocument(decodeMode);
+        return;
+      }
       const fallback = decodeMode === 'preserve-precision'
         ? advancedFileInputRef.current
         : fileInputRef.current;
       const file = await pickSupportedImageFile(decodeMode, fallback);
-      if (file) await openLocalFile(file, decodeMode);
+      if (!file) return;
+      if (onOpenWorkspaceDocument) {
+        onOpenWorkspaceDocument(file, decodeMode);
+        return;
+      }
+      await openLocalFile(file, decodeMode);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'The image file dialog could not be opened.');
     }
@@ -4887,7 +4937,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   return (
     <div
-      className="modal-backdrop lighttable-backdrop"
+      className={`modal-backdrop lighttable-backdrop${active ? '' : ' lighttable-backdrop--inactive'}`}
+      aria-hidden={!active}
       onClick={(event) => {
         // Context menus render through a portal. Their React events can still
         // bubble through this component tree, so only a direct backdrop click
@@ -4958,11 +5009,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           />
           <LightTableDockWorkspace
             ref={workspaceRef}
-            documents={[{
-              id: 'active-document',
-              title: sourceName,
-              onClose: saving ? undefined : onClose,
-              content: (
+            documents={(workspaceDocuments ?? [{
+              id: workspaceDocumentId,
+              title: sourceName
+            }]).map((workspaceDocument) => ({
+              ...workspaceDocument,
+              onClose: saving
+                ? undefined
+                : () => {
+                    if (onCloseWorkspaceDocument) {
+                      onCloseWorkspaceDocument(workspaceDocument.id);
+                    } else if (workspaceDocument.id === workspaceDocumentId) {
+                      onClose();
+                    }
+                  },
+              content: workspaceDocument.id === workspaceDocumentId ? (
                 <section className="lighttable__main">
             <div
               ref={viewportRef}
@@ -5087,9 +5148,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               <div aria-hidden="true" />
             </footer>
                 </section>
-              )
-            }]}
-            activeDocumentId="active-document"
+              ) : null
+            }))}
+            activeDocumentId={workspaceDocumentId}
+            onActiveDocumentChange={onActivateWorkspaceDocument}
             accessoryWidthConstraintsEnabled={accessoryWidthConstraintsEnabled}
             onResizeInteractionChange={handleDockResizeInteractionChange}
             onDocumentSurfaceReady={handleDocumentSurfaceReady}

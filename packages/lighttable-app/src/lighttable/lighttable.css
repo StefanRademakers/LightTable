@@ -6,6 +6,12 @@
   background: #101215;
 }
 
+.lighttable-backdrop--inactive {
+  z-index: 1399;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .lighttable {
   width: 100vw;
   max-width: 100vw;
