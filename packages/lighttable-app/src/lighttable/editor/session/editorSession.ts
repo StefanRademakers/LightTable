@@ -1,6 +1,13 @@
 import type { SelectionOperation, SelectionToolId } from '../selection/selectionTypes';
 
-export type ToolId = 'view' | 'transform' | 'fill' | 'brush' | 'erase' | SelectionToolId;
+export type ToolId =
+  | 'view'
+  | 'zoom'
+  | 'transform'
+  | 'fill'
+  | 'brush'
+  | 'erase'
+  | SelectionToolId;
 export type PaintChannel = 'pixels' | 'mask';
 
 export interface BrushSettings {
@@ -18,6 +25,7 @@ export interface EditorSession {
   pointerId: number | null;
   activeChannel: PaintChannel;
   selection: SelectionOperation[];
+  selectionPixelSnap: boolean;
   brush: BrushSettings;
 }
 
@@ -26,6 +34,7 @@ export const createEditorSession = (): EditorSession => ({
   pointerId: null,
   activeChannel: 'pixels',
   selection: [],
+  selectionPixelSnap: true,
   brush: {
     size: 48,
     hardness: 0.75,

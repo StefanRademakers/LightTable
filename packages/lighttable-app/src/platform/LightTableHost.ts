@@ -1,3 +1,6 @@
+import type { LightTableImageClipboard } from './LightTableImageClipboard';
+import { browserImageClipboard } from './LightTableImageClipboard';
+
 export interface LightTableMediaItem {
   id: string;
   name: string;
@@ -52,5 +55,3 @@ export const createBrowserHost = (): LightTableHost => ({
     }
   }
 });
-import type { LightTableImageClipboard } from './LightTableImageClipboard';
-import { browserImageClipboard } from './LightTableImageClipboard';

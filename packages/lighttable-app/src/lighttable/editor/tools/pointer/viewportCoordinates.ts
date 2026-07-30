@@ -75,19 +75,34 @@ export const zoomViewAtPoint = ({
   maxScale: number;
   sensitivity?: number;
 }): ViewTransform => {
-  const currentScale = Math.max(view.scale, 0.0001);
   const scale = Math.min(
     maxScale,
-    Math.max(minScale, currentScale * Math.exp(-wheelDelta * sensitivity))
+    Math.max(minScale, Math.max(view.scale, 0.0001) * Math.exp(-wheelDelta * sensitivity))
   );
+  return zoomViewToScaleAtPoint({ cursor, viewport, view, scale });
+};
+
+export const zoomViewToScaleAtPoint = ({
+  cursor,
+  viewport,
+  view,
+  scale
+}: {
+  cursor: Point;
+  viewport: Pick<RectLike, 'width' | 'height'>;
+  view: ViewTransform;
+  scale: number;
+}): ViewTransform => {
+  const currentScale = Math.max(view.scale, 0.0001);
+  const safeScale = Math.max(scale, 0.0001);
   const centerX = viewport.width / 2;
   const centerY = viewport.height / 2;
   const imageX = (cursor.x - centerX - view.panX) / currentScale;
   const imageY = (cursor.y - centerY - view.panY) / currentScale;
   return {
-    scale,
-    panX: cursor.x - centerX - imageX * scale,
-    panY: cursor.y - centerY - imageY * scale
+    scale: safeScale,
+    panX: cursor.x - centerX - imageX * safeScale,
+    panY: cursor.y - centerY - imageY * safeScale
   };
 };
 

@@ -188,6 +188,30 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     );
   };
 
+  const renderDraftDimensions = (shape: SelectionShape) => {
+    if (shape.kind !== 'rectangle' || shape.points.length < 2) return null;
+    const first = shape.points[0];
+    const second = shape.points[1];
+    const selectionWidth = Math.abs(second.x - first.x);
+    const selectionHeight = Math.abs(second.y - first.y);
+    const right = imageRect.x + Math.max(first.x, second.x) * scale;
+    const bottom = imageRect.y + Math.max(first.y, second.y) * scale;
+    const labelWidth = 76;
+    const labelHeight = 34;
+    const x = Math.max(4, Math.min(right + 8, width - labelWidth - 4));
+    const y = Math.max(4, Math.min(bottom - labelHeight, height - labelHeight - 4));
+    return (
+      <g
+        className="lighttable-selection__dimensions"
+        transform={`translate(${x} ${y})`}
+      >
+        <rect width={labelWidth} height={labelHeight} rx="3" />
+        <text x="7" y="14">W: {Math.round(selectionWidth)} px</text>
+        <text x="7" y="27">H: {Math.round(selectionHeight)} px</text>
+      </g>
+    );
+  };
+
   return (
     <>
       <canvas
@@ -203,6 +227,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
           aria-hidden="true"
         >
           {renderDraft(draft)}
+          {renderDraftDimensions(draft)}
         </svg>
       ) : null}
     </>

@@ -4,7 +4,8 @@ import {
   localToDocumentPointer,
   panViewFromGesture,
   pointInsideRect,
-  zoomViewAtPoint
+  zoomViewAtPoint,
+  zoomViewToScaleAtPoint
 } from './viewportCoordinates';
 
 describe('viewportCoordinates', () => {
@@ -81,6 +82,27 @@ describe('viewportCoordinates', () => {
       current: { x: 30, y: 15 },
       initialView: { panX: 4, panY: 8 }
     })).toEqual({ panX: 24, panY: 3 });
+  });
+
+  it('targets an exact zoom while preserving the point under the cursor', () => {
+    const before = { scale: 1.5, panX: 12, panY: -8 };
+    const cursor = { x: 220, y: 140 };
+    const viewport = { width: 640, height: 480 };
+    const imagePoint = {
+      x: (cursor.x - viewport.width / 2 - before.panX) / before.scale,
+      y: (cursor.y - viewport.height / 2 - before.panY) / before.scale
+    };
+    const after = zoomViewToScaleAtPoint({
+      cursor,
+      viewport,
+      view: before,
+      scale: 4
+    });
+    expect(after.scale).toBe(4);
+    expect(viewport.width / 2 + after.panX + imagePoint.x * after.scale)
+      .toBeCloseTo(cursor.x);
+    expect(viewport.height / 2 + after.panY + imagePoint.y * after.scale)
+      .toBeCloseTo(cursor.y);
   });
 
   it('uses inclusive document bounds for hit testing', () => {

@@ -6,6 +6,7 @@ describe('toolRegistry', () => {
   it('defines every editor tool exactly once', () => {
     const expected: ToolId[] = [
       'view',
+      'zoom',
       'transform',
       'fill',
       'brush',
@@ -23,6 +24,8 @@ describe('toolRegistry', () => {
     expect(toolForShortcut('M', true)).toBe('select-ellipse');
     expect(toolForShortcut('b', false)).toBe('brush');
     expect(toolForShortcut('b', true)).toBe('brush');
+    expect(toolForShortcut('v', false)).toBe('transform');
+    expect(toolForShortcut('z', false)).toBe('zoom');
   });
 
   it('exposes stable capabilities and presentation metadata', () => {

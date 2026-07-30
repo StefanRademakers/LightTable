@@ -25,8 +25,13 @@ import {
   localToDocumentPointer,
   panViewFromGesture,
   pointInsideRect,
-  zoomViewAtPoint
+  zoomViewAtPoint,
+  zoomViewToScaleAtPoint
 } from '../tools/pointer/viewportCoordinates';
+import {
+  steppedZoomPercent,
+  zoomPercentToScale
+} from '../tools/zoom/zoomLevels';
 import type { LightTableImageMetadata, LightTableViewState } from '../../types';
 
 interface ViewportSize {
@@ -120,7 +125,7 @@ export const useViewportInteractionController = ({
   const documentPoint = (event: PointerEvent<HTMLDivElement>) => {
     if (!metadata) return null;
     const bounds = event.currentTarget.getBoundingClientRect();
-    return localToDocumentPointer(
+    const point = localToDocumentPointer(
       clientToLocalPoint(
         { x: event.clientX, y: event.clientY },
         { x: bounds.left, y: bounds.top }
@@ -130,6 +135,17 @@ export const useViewportInteractionController = ({
       metadata,
       event.pressure
     );
+    if (
+      !point
+      || !editorSession.selectionPixelSnap
+      || !isSelectionTool(editorSession.activeTool)
+      || editorSession.activeTool === 'select-free'
+    ) return point;
+    return {
+      ...point,
+      x: Math.round(point.x),
+      y: Math.round(point.y)
+    };
   };
 
   const hideBrushCursor = () => {
@@ -226,6 +242,31 @@ export const useViewportInteractionController = ({
     },
     onPointerDown: (event) => {
       updateBrushCursor(event);
+      if (
+        editorSession.activeTool === 'zoom'
+        && !temporaryTools.active
+        && event.button === 0
+        && metadata
+      ) {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const cursor = clientToLocalPoint(
+          { x: event.clientX, y: event.clientY },
+          { x: bounds.left, y: bounds.top }
+        );
+        const nextPercent = steppedZoomPercent(
+          activeScale * 100,
+          event.altKey ? -1 : 1
+        );
+        setZoomMode('custom');
+        setView(zoomViewToScaleAtPoint({
+          cursor,
+          viewport: viewportSize,
+          view: { scale: activeScale, panX: view.panX, panY: view.panY },
+          scale: zoomPercentToScale(nextPercent)
+        }));
+        event.preventDefault();
+        return;
+      }
       const point = documentPoint(event);
       const activeTool = editorSession.activeTool;
       const paintTarget = document

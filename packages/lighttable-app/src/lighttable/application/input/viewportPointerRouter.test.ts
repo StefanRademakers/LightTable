@@ -39,6 +39,7 @@ const move = (
 describe('resolveViewportPointerDownIntent', () => {
   it.each<ToolId>([
     'view',
+    'zoom',
     'transform',
     'fill',
     'brush',

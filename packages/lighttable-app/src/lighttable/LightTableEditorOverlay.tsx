@@ -23,6 +23,8 @@ import { useAdjustmentTransactionController } from './application/adjustments/us
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
+import { zoomViewToScaleAtPoint } from './editor/tools/pointer/viewportCoordinates';
+import { zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
@@ -157,7 +159,7 @@ import {
 import './lighttable.css';
 
 const MIN_SCALE = 0.02;
-const MAX_SCALE = 16;
+const MAX_SCALE = 100;
 const IS_MAC_PLATFORM = typeof navigator !== 'undefined' &&
   /Mac|iPhone|iPad|iPod/i.test(`${navigator.platform} ${navigator.userAgent}`);
 const primaryShortcutLabel = (key: string, shift = false) => (
@@ -1338,7 +1340,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       menuOptionsFor={createAppMenuOptions}
       activeTool={visibleTool}
       brush={editorSession.brush}
+      selectionPixelSnap={editorSession.selectionPixelSnap}
+      zoomPercent={activeScale * 100}
       onBrushChange={updateBrush}
+      onSelectionPixelSnapChange={(selectionPixelSnap) => {
+        setEditorSession((current) => ({ ...current, selectionPixelSnap }));
+      }}
+      onZoomPreset={(percent) => {
+        setZoomMode('custom');
+        setView(zoomViewToScaleAtPoint({
+          cursor: {
+            x: viewportSize.width / 2,
+            y: viewportSize.height / 2
+          },
+          viewport: viewportSize,
+          view: { scale: activeScale, panX: view.panX, panY: view.panY },
+          scale: zoomPercentToScale(percent)
+        }));
+      }}
+      onZoomFit={() => {
+        setZoomMode('fit');
+        setView({ scale: 1, panX: 0, panY: 0 });
+      }}
       onToolChange={activatePersistentTool}
       onForegroundColorChange={(color) => updateBrush({ color })}
       onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}

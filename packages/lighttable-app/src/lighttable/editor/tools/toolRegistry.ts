@@ -1,6 +1,6 @@
 import type { ToolId } from '../session/editorSession';
 
-export type ToolRole = 'view' | 'transform' | 'selection' | 'fill' | 'paint';
+export type ToolRole = 'view' | 'zoom' | 'transform' | 'selection' | 'fill' | 'paint';
 
 export interface ToolDefinition {
   readonly id: ToolId;
@@ -16,8 +16,8 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     id: 'transform',
     label: 'Transform',
-    shortcutLabel: 'T',
-    shortcutKey: 't',
+    shortcutLabel: 'V',
+    shortcutKey: 'v',
     iconName: 'transform_tool.png',
     role: 'transform'
   },
@@ -78,6 +78,14 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     shortcutKey: 'h',
     iconName: 'move_canvas.png',
     role: 'view'
+  },
+  {
+    id: 'zoom',
+    label: 'Zoom',
+    shortcutLabel: 'Z',
+    shortcutKey: 'z',
+    iconName: 'tool_zoom.png',
+    role: 'zoom'
   }
 ];
 
