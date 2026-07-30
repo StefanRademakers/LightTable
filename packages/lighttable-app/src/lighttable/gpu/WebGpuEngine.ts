@@ -53,108 +53,11 @@ import {
   TEXTURE_FORMATS_TIER1
 } from './sharedWebGpuDevice';
 import { ADJUSTMENT_UNIFORM_FLOATS, buildAdjustmentUniform } from './adjustmentUniform';
-import {
-  BASIC_CORRECTION_WGSL,
-  DISPLAY_RESOLVE_WGSL,
-  DOWNSAMPLE_WGSL,
-  CREATIVE_GRADE_WGSL,
-  FULLSCREEN_VERTEX_WGSL,
-  GAUSSIAN_BLUR_WGSL,
-  HISTOGRAM_WGSL,
-  OUTPUT_TRANSFORM_WGSL,
-  PRECISION_SOURCE_RESOLVE_WGSL,
-  REFERENCE_DIFFERENCE_METRICS_WGSL,
-  VIEWPORT_DIFFERENCE_WGSL,
-  VIEWPORT_BLIT_WGSL
-} from './shaders';
+import { getCorePipelineBundle } from './corePipelineLibrary';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 const DIFFERENCE_METRICS_BYTE_SIZE = 8 * Uint32Array.BYTES_PER_ELEMENT;
 const alignTo = (value: number, alignment: number) => Math.ceil(value / alignment) * alignment;
-interface CorePipelineBundle {
-  vertexModule: GPUShaderModule;
-  basic: GPURenderPipeline;
-  downsample: GPURenderPipeline;
-  blur: GPURenderPipeline;
-  creative: GPURenderPipeline;
-  output: GPURenderPipeline;
-  precisionSourceResolve: GPURenderPipeline;
-  displayResolve: GPURenderPipeline;
-  blit: GPURenderPipeline;
-  difference: GPURenderPipeline;
-  differenceMetrics: GPUComputePipeline;
-  histogram: GPUComputePipeline;
-}
-
-const corePipelineCache = new WeakMap<GPUDevice, Map<GPUTextureFormat, CorePipelineBundle>>();
-const corePipelines = (device: GPUDevice, canvasFormat: GPUTextureFormat) => {
-  let byFormat = corePipelineCache.get(device);
-  if (!byFormat) {
-    byFormat = new Map();
-    corePipelineCache.set(device, byFormat);
-  }
-  const cached = byFormat.get(canvasFormat);
-  if (cached) return cached;
-  const vertexModule = device.createShaderModule({ code: FULLSCREEN_VERTEX_WGSL });
-  const createRenderPipeline = (fragmentCode: string, format: GPUTextureFormat) => device.createRenderPipeline({
-    layout: 'auto',
-    vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
-    fragment: {
-      module: device.createShaderModule({ code: `${FULLSCREEN_VERTEX_WGSL}\n${fragmentCode}` }),
-      entryPoint: 'main',
-      targets: [{ format }]
-    },
-    primitive: { topology: 'triangle-list' }
-  });
-  const precisionSourceLayout = device.createBindGroupLayout({
-    label: 'LightTable precision source resolve layout',
-    entries: [{
-      binding: 0,
-      visibility: GPUShaderStage.FRAGMENT,
-      texture: { sampleType: 'unfilterable-float', viewDimension: '2d' }
-    }]
-  });
-  const bundle: CorePipelineBundle = {
-    vertexModule,
-    basic: createRenderPipeline(BASIC_CORRECTION_WGSL, 'rgba16float'),
-    downsample: createRenderPipeline(DOWNSAMPLE_WGSL, 'rgba16float'),
-    blur: createRenderPipeline(GAUSSIAN_BLUR_WGSL, 'rgba16float'),
-    creative: createRenderPipeline(CREATIVE_GRADE_WGSL, 'rgba16float'),
-    output: createRenderPipeline(OUTPUT_TRANSFORM_WGSL, 'rgba16float'),
-    precisionSourceResolve: device.createRenderPipeline({
-      label: 'LightTable precision source resolve',
-      layout: device.createPipelineLayout({ bindGroupLayouts: [precisionSourceLayout] }),
-      vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
-      fragment: {
-        module: device.createShaderModule({ code: `${FULLSCREEN_VERTEX_WGSL}\n${PRECISION_SOURCE_RESOLVE_WGSL}` }),
-        entryPoint: 'main',
-        targets: [{ format: 'rgba16float' }]
-      },
-      primitive: { topology: 'triangle-list' }
-    }),
-    displayResolve: createRenderPipeline(DISPLAY_RESOLVE_WGSL, 'rgba8unorm'),
-    blit: createRenderPipeline(VIEWPORT_BLIT_WGSL, canvasFormat),
-    difference: createRenderPipeline(VIEWPORT_DIFFERENCE_WGSL, canvasFormat),
-    differenceMetrics: device.createComputePipeline({
-      label: 'LightTable reference difference metrics',
-      layout: 'auto',
-      compute: {
-        module: device.createShaderModule({ code: REFERENCE_DIFFERENCE_METRICS_WGSL }),
-        entryPoint: 'main'
-      }
-    }),
-    histogram: device.createComputePipeline({
-      layout: 'auto',
-      compute: {
-        module: device.createShaderModule({ code: HISTOGRAM_WGSL }),
-        entryPoint: 'main'
-      }
-    })
-  };
-  byFormat.set(canvasFormat, bundle);
-  return bundle;
-};
-
 interface ViewportRect {
   x: number;
   y: number;
@@ -391,7 +294,7 @@ export class WebGpuEngine {
     this.blurHorizontalBuffer = this.createBlurUniformBuffer(1, 0);
     this.blurVerticalBuffer = this.createBlurUniformBuffer(0, 1);
 
-    const pipelines = corePipelines(this.device, this.canvasFormat);
+    const pipelines = getCorePipelineBundle(this.device, this.canvasFormat);
     this.basicPipeline = pipelines.basic;
     this.downsamplePipeline = pipelines.downsample;
     this.blurPipeline = pipelines.blur;

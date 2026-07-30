@@ -903,6 +903,8 @@ Work:
       cleanup into a tested application service;
 - [x] move render scheduling/invalidation out of React effects;
 - [x] split shared device acquisition and loss fan-out from document rendering;
+- [x] move immutable core shader/pipeline construction into a device-scoped
+      pipeline library;
 - split image resources, scopes and readback;
 - isolate optional pipeline compilation;
 - add resource lifecycle and device-loss tests.
@@ -938,6 +940,12 @@ engine. Concurrent document startups reuse one acquisition, optional texture
 format support is negotiated once, every live renderer receives device-loss
 notification through a disposable subscription, and the next startup can
 recover with a fresh device.
+
+Immutable core pipelines now live in a dedicated device- and presentation-
+format-scoped library. Documents reuse compiled pipelines without sharing
+mutable image resources, and the cache boundary is covered by tests. Optional
+feature compilation remains a separate follow-up so a broken effect can be
+contained without weakening validation of the required image path.
 
 ### Phase 6 — Layer compositor and processing modules
 
