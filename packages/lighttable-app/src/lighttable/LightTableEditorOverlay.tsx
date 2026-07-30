@@ -56,6 +56,7 @@ import { useAutoAlignController } from './application/tools/autoAlign/useAutoAli
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
+import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
 import {
   type LightTableImageDecodeMode,
@@ -322,9 +323,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const groupVisibilityRef = useRef<GroupVisibility>(createDefaultGroupVisibility());
   const scopeSettingsRef = useRef<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
   const scopeVisibilityRef = useRef<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
-  const startupStartedAtRef = useRef(0);
-  const startupAwaitingFirstFrameRef = useRef(false);
-  const startupTimingsRef = useRef<LightTableStartupTimings>({});
+  const startupTelemetryRef = useRef(new DocumentStartupTelemetry());
   const workspaceRef = useRef<LightTableDockWorkspaceHandle | null>(null);
   const [metadata, setMetadata] = useState<LightTableImageMetadata | null>(null);
   const [adjustments, setAdjustments] = useState<BasicAdjustments>(createDefaultAdjustments);
@@ -689,10 +688,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       identity: cacheKey
     }, {
       mergeStartupTimings: (timings) => {
-        startupTimingsRef.current = {
-          ...startupTimingsRef.current,
-          ...timings
-        };
+        startupTelemetryRef.current.merge(timings);
       },
       publishDocument: (nextDocument) => {
         imageDocumentRef.current = nextDocument;
@@ -745,9 +741,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [clearEditorHistory, resetLensBlurDepth]);
 
   const beforeDocumentOpen = useCallback(() => {
-    startupStartedAtRef.current = performance.now();
-    startupAwaitingFirstFrameRef.current = true;
-    startupTimingsRef.current = {};
+    startupTelemetryRef.current.begin();
     setStartupTimings(null);
     setLoading(true);
     setError(null);
@@ -840,13 +834,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
           },
           onFirstFrame: () => {
-            if (!startupAwaitingFirstFrameRef.current) return;
-            startupAwaitingFirstFrameRef.current = false;
-            startupTimingsRef.current.firstFrameMs = performance.now() - startupStartedAtRef.current;
-            const completed = { ...startupTimingsRef.current };
+            const completed = startupTelemetryRef.current.completeFirstFrame();
+            if (!completed) return;
             setStartupTimings(completed);
             console.info('[LightTable startup]', completed);
-            const scopeStartedAt = performance.now();
+            const scopeStartedAt = startupTelemetryRef.current.beginDeferredScopes();
             engine?.setScopeOptions(
               scopeVisibilityRef.current.histogram,
               createScopeRendererOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
@@ -858,8 +850,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               vectorscope: vectorscopeCanvas
             }).then(() => {
               if (!isCurrent()) return;
-              startupTimingsRef.current.scopesMs = performance.now() - scopeStartedAt;
-              setStartupTimings({ ...startupTimingsRef.current });
+              setStartupTimings(
+                startupTelemetryRef.current.completeDeferredScopes(scopeStartedAt)
+              );
             });
           }
         })
@@ -884,7 +877,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onRendererReady: (createdEngine, elapsedMs) => {
         engine = createdEngine;
         engineRef.current = createdEngine;
-        startupTimingsRef.current.webGpuMs = elapsedMs;
+        startupTelemetryRef.current.rendererReady(elapsedMs);
         createdEngine.setLensBlurDepthVisualization(false);
         createdEngine.setScopeOptions(
           false,
@@ -896,7 +889,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (engine === discardedEngine) engine = null;
       },
       onSourceReady: (_source, elapsedMs) => {
-        startupTimingsRef.current.downloadMs = elapsedMs;
+        startupTelemetryRef.current.sourceReady(elapsedMs);
       },
       onFailed: (failure) => {
         if (isCurrent()) {

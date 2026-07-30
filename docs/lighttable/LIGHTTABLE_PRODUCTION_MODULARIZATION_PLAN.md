@@ -1320,3 +1320,6 @@ The refactor is successful when:
 - [x] Move inline-versus-host source resolution behind a host-neutral,
       cancellation-aware application service with explicit missing-source and
       missing-capability failures.
+- [x] Give each document-open generation one isolated startup telemetry
+      accumulator; React renders and inactive document projection cannot reset
+      or double-complete first-frame and deferred-scope measurements.
