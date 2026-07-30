@@ -1221,3 +1221,5 @@ The refactor is successful when:
       preserving PSD report access and startup/GPU diagnostics.
 - [x] Move status metadata and PSD parity diagnostics into a pure, tested
       telemetry model shared by any future web or desktop shell.
+- [x] Give Auto Align one document-aware controller for analysis cancellation,
+      compositor preview, atomic commit/cancel and a single history command.

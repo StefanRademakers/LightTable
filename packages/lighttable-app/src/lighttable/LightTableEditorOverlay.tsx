@@ -27,6 +27,7 @@ import {
 } from './application/input/editorKeyboardRouter';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
+import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import {
   formatStartupTimings,
   type LightTableStartupTimings
@@ -184,7 +185,6 @@ import {
 } from './editor/document/layerTree';
 import {
   addLayerMask,
-  applyTranslationAlignment,
   createGroupLayer,
   createAdjustmentLayer,
   createRasterLayer,
@@ -217,7 +217,6 @@ import {
   setLayersVisibility,
   ungroupLayers
 } from './editor/document/documentCommands';
-import type { TranslationAlignmentResult } from './editor/autoAlign/alignmentTypes';
 import { BLEND_MODES } from './editor/document/blendModes';
 import {
   clearLayerStyles,
@@ -463,7 +462,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const scopesColumnRef = useRef<HTMLElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const advancedFileInputRef = useRef<HTMLInputElement | null>(null);
-  const autoAlignAbortRef = useRef<AbortController | null>(null);
   const engineRef = useRef<DocumentRendererPort | null>(null);
   const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
@@ -550,7 +548,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [editorSession, setEditorSession] = useDocumentEditorSession(documentSession);
   const [selectionDraft, setSelectionDraft] = useState<SelectionShape | null>(null);
   const [transformState, setTransformState] = useState<TransformSessionState | null>(null);
-  const [autoAlignPreview, setAutoAlignPreview] = useState<TranslationAlignmentResult | null>(null);
   const [featherDialogOpen, setFeatherDialogOpen] = useState(false);
   const [flattenRequest, setFlattenRequest] = useState<
     { kind: 'group'; groupId: LayerId } | { kind: 'image' } | null
@@ -1311,8 +1308,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return () => {
       canceled = true;
       taskRegistry.cancelKind('open');
-      autoAlignAbortRef.current?.abort();
-      autoAlignAbortRef.current = null;
+      cancelAutoAlignRef.current();
       clearEditorHistory();
       engineRef.current = null;
       engine?.destroy();
@@ -3274,108 +3270,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   layerViaCopyRef.current = layerViaCopy;
 
-  const cancelAutoAlignPreview = () => {
-    autoAlignAbortRef.current?.abort();
-    autoAlignAbortRef.current = null;
-    if (autoAlignPreview) {
-      engineRef.current?.clearTranslationAlignmentPreview(autoAlignPreview.targetLayerId);
-    }
-    setAutoAlignPreview(null);
-    setGradeStatus(null);
-  };
+  const autoAlignController = useAutoAlignController({
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    applyDocumentSnapshot,
+    pushDocumentHistory,
+    setStatus: setGradeStatus,
+    setError
+  });
+  const autoAlignPreview = autoAlignController.preview;
+  const cancelAutoAlignPreview = autoAlignController.cancel;
+  const applyAutoAlignPreview = autoAlignController.apply;
+  const beginAutoAlign = autoAlignController.begin;
   cancelAutoAlignRef.current = cancelAutoAlignPreview;
-
-  const applyAutoAlignPreview = () => {
-    const before = imageDocumentRef.current;
-    if (!before || !autoAlignPreview) return;
-    const result = autoAlignPreview;
-    const after = applyTranslationAlignment(before, autoAlignPreview);
-    setAutoAlignPreview(null);
-    if (after === before) {
-      engineRef.current?.clearTranslationAlignmentPreview(result.targetLayerId);
-      setGradeStatus('Auto Align found no geometry change to apply.');
-      return;
-    }
-
-    // Commit the document transform before removing the compositor-only
-    // preview. This keeps preview -> committed rendering atomic: there is no
-    // frame in which the layer briefly falls back to its old geometry.
-    applyDocumentSnapshot(after);
-    engineRef.current?.clearTranslationAlignmentPreview(result.targetLayerId);
-    // A completed alignment is one non-destructive geometry undo step.
-    pushDocumentHistory(before, after);
-    const inliers = result.diagnostics.inlierCount;
-    const matches = result.diagnostics.mutualMatches;
-    setGradeStatus(
-      inliers != null && matches != null
-        ? `Auto Align applied to layer · ${inliers}/${matches} geometric inliers`
-        : `Auto Align applied to layer · ${Math.round(result.confidence * 100)}% confidence`
-    );
-  };
-
-  const beginAutoAlign = async () => {
-    const document = imageDocumentRef.current;
-    const engine = engineRef.current;
-    const target = document ? findRasterLayer(document, document.activeLayerId) : null;
-    const references = document
-      ? walkRasterLayers(document.layers)
-        .map(({ layer }) => layer)
-        .filter((layer) => layer.id !== target?.id && layer.visible && layer.locks.all)
-      : [];
-    if (!document || !engine || !target || references.length !== 1) {
-      setError('Auto Align needs one active target layer and exactly one other visible locked reference layer.');
-      return;
-    }
-
-    autoAlignAbortRef.current?.abort();
-    if (autoAlignPreview) engine.clearTranslationAlignmentPreview(autoAlignPreview.targetLayerId);
-    setAutoAlignPreview(null);
-    const controller = new AbortController();
-    autoAlignAbortRef.current = controller;
-    setGradeStatus('Analyzing layer alignment...');
-    setError(null);
-    try {
-      const result = await engine.alignLayersTranslation(
-        references[0].id,
-        target.id,
-        {},
-        controller.signal
-      );
-      if (controller.signal.aborted || autoAlignAbortRef.current !== controller) return;
-      if (!engine.previewTranslationAlignment(result)) {
-        throw new Error('The Auto Align preview could not be displayed.');
-      }
-      setAutoAlignPreview(result);
-      const model = result.model === 'similarity' ? 'scale / rotate / move' : 'move';
-      const estimate = result.diagnostics;
-      const scale = estimate.estimatedScale != null
-        ? ` · ${(100 / estimate.estimatedScale).toFixed(1)}% correction`
-        : '';
-      const rotation = estimate.estimatedRotationDegrees != null
-        && Math.abs(estimate.estimatedRotationDegrees) >= 0.05
-        ? ` · ${(-estimate.estimatedRotationDegrees).toFixed(2)}° correction`
-        : '';
-      const evidence = estimate.inlierCount != null && estimate.mutualMatches != null
-        ? ` · ${estimate.inlierCount}/${estimate.mutualMatches} inliers`
-        : ` · ${Math.round(result.confidence * 100)}% confidence`;
-      const coverage = estimate.coverageCells != null
-        ? ` · ${estimate.coverageCells}/16 regions`
-        : '';
-      const residual = estimate.medianResidual != null
-        ? ` · ${estimate.medianResidual.toFixed(2)} px residual`
-        : '';
-      setGradeStatus(
-        `Auto Align ${model} preview${evidence}${coverage}${residual}${scale}${rotation}`
-      );
-    } catch (reason) {
-      if (!controller.signal.aborted) {
-        setGradeStatus(null);
-        setError(reason instanceof Error ? reason.message : 'Auto Align failed.');
-      }
-    } finally {
-      if (autoAlignAbortRef.current === controller) autoAlignAbortRef.current = null;
-    }
-  };
 
   const beginDocumentTransaction = () => {
     if (!documentTransactionRef.current && imageDocumentRef.current) {
