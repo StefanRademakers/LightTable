@@ -26,6 +26,7 @@ import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpe
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import type { DocumentOpenRequest } from './application/documents/documentOpenController';
 import { resolveDocumentSource } from './application/documents/resolveDocumentSource';
+import { createDocumentOpenResetState } from './application/documents/createDocumentOpenResetState';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
   isTemporaryPanRelease,
@@ -755,7 +756,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     preservedSourceAssetsRef.current = [];
     setImageDocument(null);
     setThumbnailDocumentReadyId(null);
-    setEditorSession(createEditorSession());
+    const resetState = createDocumentOpenResetState(initialRecipe?.settings);
+    setEditorSession(resetState.editorSession);
     selectionGestureRef.current.reset();
     paintGestureRef.current.reset();
     setSelectionDraft(null);
@@ -768,16 +770,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetLensBlurDepth();
     setFocusPickerActive(false);
     setLensBlurViewportModeState('result');
-    const startingAdjustments = initialRecipe
-      ? cloneAdjustments(initialRecipe.settings)
-      : createDefaultAdjustments();
+    const startingAdjustments = resetState.adjustments;
     adjustmentsRef.current = startingAdjustments;
     setAdjustments(startingAdjustments);
     clearEditorHistory();
     setShowOriginal(false);
     setShowDifference(false);
-    const startingScopeSettings = { ...DEFAULT_SCOPE_SETTINGS };
-    const startingScopeVisibility = { ...DEFAULT_SCOPE_VISIBILITY };
+    const startingScopeSettings = resetState.scopeSettings;
+    const startingScopeVisibility = resetState.scopeVisibility;
     scopeSettingsRef.current = startingScopeSettings;
     scopeVisibilityRef.current = startingScopeVisibility;
     setScopeSettings(startingScopeSettings);
@@ -785,7 +785,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setScopeError(null);
     setGradeStatus(null);
     setGpuMemoryBytes(0);
-    const startingVisibility = createDefaultGroupVisibility();
+    const startingVisibility = resetState.groupVisibility;
     groupVisibilityRef.current = startingVisibility;
     setGroupVisibility(startingVisibility);
   }, [

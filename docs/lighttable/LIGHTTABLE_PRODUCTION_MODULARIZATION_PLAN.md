@@ -1328,3 +1328,6 @@ The refactor is successful when:
       bridge shared by web and desktop hosts.
 - [x] Make standalone workspace disposal safe under React development Strict
       Mode reconnects while preserving deterministic terminal unmount cleanup.
+- [x] Give every document-open generation fresh adjustment, editor, scope and
+      group-visibility baselines; replacement opens and inactive documents
+      cannot share mutable defaults through the composition root.
