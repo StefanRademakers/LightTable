@@ -309,3 +309,32 @@
   color: var(--color-text-muted);
 }
 
+.lighttable-document-failure {
+  position: fixed;
+  inset: 0;
+  z-index: 1401;
+  display: grid;
+  place-items: center;
+  background: #101215;
+}
+
+.lighttable-document-failure[hidden] {
+  display: none;
+}
+
+.lighttable-document-failure pre {
+  width: 100%;
+  max-height: 180px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #ff8d8d;
+  border: 1px solid #4e2e32;
+  background: #181214;
+}
+
+.lighttable-document-failure__actions {
+  display: flex;
+  gap: 8px;
+}

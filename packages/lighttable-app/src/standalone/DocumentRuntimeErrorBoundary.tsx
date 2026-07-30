@@ -1,0 +1,89 @@
+import {
+  Component,
+  Fragment,
+  type ErrorInfo,
+  type ReactNode
+} from 'react';
+
+interface DocumentRuntimeErrorBoundaryProps {
+  readonly active: boolean;
+  readonly title: string;
+  readonly children: ReactNode;
+  readonly onClose: () => void;
+  readonly onError?: (message: string) => void;
+}
+
+interface DocumentRuntimeErrorBoundaryState {
+  readonly error: Error | null;
+  readonly retryVersion: number;
+}
+
+export const normalizeDocumentRuntimeError = (failure: unknown): Error =>
+  failure instanceof Error
+    ? failure
+    : new Error(String(failure));
+
+/**
+ * Contains render/effect failures to one document tab.
+ *
+ * GPU and async operation failures remain owned by the document controllers;
+ * this boundary is the final React safety net that keeps sibling documents and
+ * the workspace shell usable.
+ */
+export class DocumentRuntimeErrorBoundary extends Component<
+  DocumentRuntimeErrorBoundaryProps,
+  DocumentRuntimeErrorBoundaryState
+> {
+  state: DocumentRuntimeErrorBoundaryState = {
+    error: null,
+    retryVersion: 0
+  };
+
+  static getDerivedStateFromError(failure: unknown): Partial<DocumentRuntimeErrorBoundaryState> {
+    return { error: normalizeDocumentRuntimeError(failure) };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('LightTable document runtime failed', error, info);
+    this.props.onError?.(error.message);
+  }
+
+  private retry = (): void => {
+    this.setState((current) => ({
+      error: null,
+      retryVersion: current.retryVersion + 1
+    }));
+  };
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <main
+          className="lighttable-document-failure"
+          hidden={!this.props.active}
+          aria-hidden={!this.props.active}
+        >
+          <section className="lighttable-launcher__card" role="alert">
+            <h1>{this.props.title}</h1>
+            <p>This document runtime stopped unexpectedly. Other open documents remain available.</p>
+            <pre>{this.state.error.message}</pre>
+            <div className="lighttable-document-failure__actions">
+              <button className="action-button" type="button" onClick={this.retry}>
+                Retry document
+              </button>
+              <button className="action-button" type="button" onClick={this.props.onClose}>
+                Close document
+              </button>
+            </div>
+          </section>
+        </main>
+      );
+    }
+
+    return (
+      <Fragment key={this.state.retryVersion}>
+        {this.props.children}
+      </Fragment>
+    );
+  }
+}

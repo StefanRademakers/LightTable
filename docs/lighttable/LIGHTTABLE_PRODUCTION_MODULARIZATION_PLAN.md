@@ -1334,3 +1334,6 @@ The refactor is successful when:
 - [x] Centralize renderer publication, source resolution, hydration and
       retirement wiring in one editor document-open request factory; stale
       renderer disposal cannot clear a replacement generation's renderer slot.
+- [x] Contain unexpected React runtime failures to the owning document tab
+      with retry and close recovery; one failed document can no longer brick
+      sibling documents or the host-neutral workspace shell.

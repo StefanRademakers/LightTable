@@ -11,6 +11,7 @@ import {
 } from '../lighttable/application/documents/documentSession';
 import { DocumentWorkspaceController } from '../lighttable/application/workspace/documentWorkspaceController';
 import { createBrowserHost, type LightTableHost } from '../platform/LightTableHost';
+import { DocumentRuntimeErrorBoundary } from './DocumentRuntimeErrorBoundary';
 import { StrictModeSafeDisposal } from './strictModeSafeDisposal';
 
 type DecodeMode = 'fast' | 'preserve-precision';
@@ -157,50 +158,57 @@ export function LightTableStandaloneApp({
         const { file, decodeMode } = runtime;
 
         return (
-          <LightTableEditorOverlay
+          <DocumentRuntimeErrorBoundary
             key={documentId}
-            open
             active={active}
-            projectId=""
-            sourceBlob={file}
-            sourceDecodeMode={decodeMode}
-            fileNameBase={titleWithoutExtension(file.name)}
-            subjectLabel={file.name}
-            workspaceDocumentId={documentId}
-            workspaceDocuments={workspaceDocuments}
-            history={documentSession.history}
-            tasks={documentSession.tasks}
-            rendererLifecycle={documentSession.renderer}
-            documentSession={documentSession}
-            onActivateWorkspaceDocument={(id) => {
-              workspace.activate(id as DocumentSessionId);
-            }}
-            onCloseWorkspaceDocument={closeDocument}
-            onRequestOpenWorkspaceDocument={host.openFile
-              ? requestHostDocument
-              : undefined}
-            onOpenWorkspaceDocument={openDocument}
-            onDocumentReady={() => {
-              const lifecycle = documentSession.getSnapshot().lifecycle;
-              if (lifecycle !== 'ready') documentSession.setReady();
-            }}
-            onDocumentError={(message) => {
-              documentSession.setFailed(message);
-            }}
-            onDirtyChange={(dirty) => {
-              if (dirty) {
-                documentSession.markChanged();
-              } else {
-                documentSession.markSaved();
-              }
-            }}
+            title={file.name}
             onClose={() => closeDocument(documentId)}
-            onSave={async (output, recipe) => {
-              const saved = await host.save({ file: output, recipe });
-              if (saved !== false) documentSession.markSaved();
-              return saved;
-            }}
-          />
+            onError={(message) => documentSession.setFailed(message)}
+          >
+            <LightTableEditorOverlay
+              open
+              active={active}
+              projectId=""
+              sourceBlob={file}
+              sourceDecodeMode={decodeMode}
+              fileNameBase={titleWithoutExtension(file.name)}
+              subjectLabel={file.name}
+              workspaceDocumentId={documentId}
+              workspaceDocuments={workspaceDocuments}
+              history={documentSession.history}
+              tasks={documentSession.tasks}
+              rendererLifecycle={documentSession.renderer}
+              documentSession={documentSession}
+              onActivateWorkspaceDocument={(id) => {
+                workspace.activate(id as DocumentSessionId);
+              }}
+              onCloseWorkspaceDocument={closeDocument}
+              onRequestOpenWorkspaceDocument={host.openFile
+                ? requestHostDocument
+                : undefined}
+              onOpenWorkspaceDocument={openDocument}
+              onDocumentReady={() => {
+                const lifecycle = documentSession.getSnapshot().lifecycle;
+                if (lifecycle !== 'ready') documentSession.setReady();
+              }}
+              onDocumentError={(message) => {
+                documentSession.setFailed(message);
+              }}
+              onDirtyChange={(dirty) => {
+                if (dirty) {
+                  documentSession.markChanged();
+                } else {
+                  documentSession.markSaved();
+                }
+              }}
+              onClose={() => closeDocument(documentId)}
+              onSave={async (output, recipe) => {
+                const saved = await host.save({ file: output, recipe });
+                if (saved !== false) documentSession.markSaved();
+                return saved;
+              }}
+            />
+          </DocumentRuntimeErrorBoundary>
         );
       })}
     </>
