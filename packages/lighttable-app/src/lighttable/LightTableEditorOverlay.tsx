@@ -25,6 +25,7 @@ import { prepareDocumentSource } from './application/documents/prepareDocumentSo
 import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpenLifecycle';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import type { DocumentOpenRequest } from './application/documents/documentOpenController';
+import { resolveDocumentSource } from './application/documents/resolveDocumentSource';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
   isTemporaryPanRelease,
@@ -863,22 +864,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           }
         })
       ),
-      loadSource: (signal) => {
-        if (!editorSourceFileKey && !initialSourceBlob) {
-          return Promise.reject(
-            new Error('No source image was supplied to LightTable.')
-          );
-        }
-        return initialSourceBlob
-          ? Promise.resolve(initialSourceBlob)
-          : loadSource?.({
-              projectId,
-              sourceFileKey: editorSourceFileKey!,
-              signal
-            }) ?? Promise.reject(
-              new Error('The LightTable host cannot read this source image.')
-            );
-      },
+      loadSource: (signal) => resolveDocumentSource({
+        inlineSource: initialSourceBlob,
+        projectId,
+        sourceFileKey: editorSourceFileKey,
+        loadSource
+      }, signal),
       hydrate: async (createdEngine, source, task) => {
         await loadBlobIntoEngine(
           source,

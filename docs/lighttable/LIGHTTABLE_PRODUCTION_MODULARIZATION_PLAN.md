@@ -1317,3 +1317,6 @@ The refactor is successful when:
 - [x] Guard every renderer callback at the document-generation boundary;
       stale histogram, scope, feature, device-loss, frame and memory events can
       no longer publish into another active document.
+- [x] Move inline-versus-host source resolution behind a host-neutral,
+      cancellation-aware application service with explicit missing-source and
+      missing-capability failures.
