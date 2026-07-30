@@ -2,6 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { StrictModeSafeDisposal } from './strictModeSafeDisposal';
 
 describe('StrictModeSafeDisposal', () => {
+  it('uses its production microtask scheduler without a browser host receiver', async () => {
+    const dispose = vi.fn();
+    const lifecycle = new StrictModeSafeDisposal(dispose);
+
+    lifecycle.connect()();
+    await Promise.resolve();
+
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
   it('keeps a resource alive across a Strict Mode reconnect', () => {
     const queued: Array<() => void> = [];
     const dispose = vi.fn();

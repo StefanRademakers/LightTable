@@ -1,5 +1,9 @@
 export type DeferredWorkScheduler = (work: () => void) => void;
 
+const schedulePromiseMicrotask: DeferredWorkScheduler = (work) => {
+  void Promise.resolve().then(work);
+};
+
 /**
  * Defers terminal resource disposal by one microtask.
  *
@@ -15,7 +19,7 @@ export class StrictModeSafeDisposal {
 
   constructor(
     disposeResource: () => void,
-    schedule: DeferredWorkScheduler = (work) => queueMicrotask(work)
+    schedule: DeferredWorkScheduler = schedulePromiseMicrotask
   ) {
     this.disposeResource = disposeResource;
     this.schedule = schedule;
@@ -37,7 +41,8 @@ export class StrictModeSafeDisposal {
           && cleanupGeneration === this.generation
         ) {
           this.disposed = true;
-          this.disposeResource();
+          const disposeResource = this.disposeResource;
+          disposeResource();
         }
       });
     };
