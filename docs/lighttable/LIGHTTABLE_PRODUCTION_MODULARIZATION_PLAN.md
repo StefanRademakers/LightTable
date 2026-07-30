@@ -1321,6 +1321,9 @@ The refactor is successful when:
       inspectable keymap registry. Platform normalization, contextual command
       resolution and document-scoped execution are now separate seams, ready
       for default, Photoshop-compatible and user-defined keymap profiles.
+- [x] Move application-menu presentation state, anchoring and portal ownership
+      into a host-neutral editor-shell component. The active document
+      composition now supplies only current capabilities and command options.
 - [x] Publish a prepared source through one synchronous editor transaction
       after the final cancellation check; document, assets, source identity,
       grade and metadata can no longer become partially visible.

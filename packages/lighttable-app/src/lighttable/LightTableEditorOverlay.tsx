@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ContextMenu } from '../ui/ContextMenu';
 import { SquareIconButton } from '../ui/SquareIconButton';
 import { TextInputDialog } from '../ui/TextInputDialog';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -82,6 +81,7 @@ import { EditorToolbar } from './editor/ui/EditorToolbar';
 import { LayerPanel } from './editor/ui/LayerPanel';
 import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
 import { ToolOptionsBar } from './editor/ui/ToolOptionsBar';
+import { EditorMenuBar } from './editor/ui/EditorMenuBar';
 import { DebugPanel } from './editor/ui/DebugPanel';
 import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
 import { EditorStatusBar } from './editor/ui/EditorStatusBar';
@@ -207,8 +207,6 @@ export interface LightTableEditorOverlayProps {
 }
 
 type ZoomMode = 'fit' | '100' | 'custom';
-type LightTableAppMenuId = EditorMenuId;
-
 const cloneAdjustments = cloneAllAdjustments;
 
 export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = ({
@@ -319,7 +317,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [sourceIdentity, setSourceIdentity] = useState('');
   const [focusPickerActive, setFocusPickerActive] = useState(false);
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
-  const [appMenu, setAppMenu] = useState<{ id: LightTableAppMenuId; x: number; y: number } | null>(null);
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
@@ -877,21 +874,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return () => window.clearTimeout(timeout);
   }, [gradeStatus]);
 
-  const openAppMenu = useCallback((id: LightTableAppMenuId, target: EventTarget & HTMLElement) => {
-    const rect = target.getBoundingClientRect();
-    setAppMenu({ id, x: rect.left, y: rect.bottom + 6 });
-  }, []);
-
-  const renderAppMenuButton = useCallback((id: LightTableAppMenuId, label: string) => (
-    <button
-      type="button"
-      className={`shots-app-menu__button${appMenu?.id === id ? ' shots-app-menu__button--active' : ''}`}
-      onClick={(event) => openAppMenu(id, event.currentTarget)}
-    >
-      {label}
-    </button>
-  ), [appMenu?.id, openAppMenu]);
-
   const selectAllContent = selectionSessionController.selectAll;
   const clearCurrentSelection = selectionSessionController.clear;
   const invertCurrentSelection = selectionSessionController.invert;
@@ -939,10 +921,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
       })),
       cancelOrClose: () => {
-        if (appMenu) {
-          setAppMenu(null);
-          return;
-        }
         if (transformActiveRef.current()) {
           cancelTransformRef.current();
           return;
@@ -1286,8 +1264,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     showDifference
   });
 
-  const appMenuOptions = appMenu ? createEditorMenuOptions(
-    appMenu.id,
+  const createAppMenuOptions = (menuId: EditorMenuId) => createEditorMenuOptions(
+    menuId,
     menuState,
     {
       fastOpenFormats: imagePickerFormatNames('fast'),
@@ -1377,7 +1355,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       showDebugPanel: () => workspaceRef.current?.showDebugPanel(),
       resetWorkspaceLayout: () => workspaceRef.current?.resetLayout()
     }
-  ) : [];
+  );
   const layersPanel = imageDocument ? (
     <div className="lighttable-layers-panel">
       <LayerPanel
@@ -1448,13 +1426,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       >
         <div className="modal__header concept-art-editor__header lighttable__header">
           <div className="lighttable__header-left">
-            <div className="shots-app-menu lighttable__app-menu" role="menubar" aria-label="LightTable menu">
-              {renderAppMenuButton('file', 'File')}
-              {renderAppMenuButton('edit', 'Edit')}
-              {renderAppMenuButton('select', 'Select')}
-              {renderAppMenuButton('layer', 'Layer')}
-              {renderAppMenuButton('view', 'View')}
-            </div>
+            <EditorMenuBar optionsFor={createAppMenuOptions} />
           </div>
           <SquareIconButton
             className="lighttable__close-button"
@@ -1718,13 +1690,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           </div>
         ) : null;
       })() : null}
-      <ContextMenu
-        open={Boolean(appMenu)}
-        x={appMenu?.x ?? 0}
-        y={appMenu?.y ?? 0}
-        onClose={() => setAppMenu(null)}
-        options={appMenuOptions}
-      />
       <TextInputDialog
         open={featherDialogOpen}
         title="Select feather"
