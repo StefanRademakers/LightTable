@@ -1228,3 +1228,5 @@ The refactor is successful when:
       renderer interaction.
 - [x] Move transform launch, preview, commit/cancel, selection publication and
       pixel-history ownership into a document-scoped session controller.
+- [x] Move flat-versus-layered save policy, native asset collection and recipe
+      construction into a host-neutral document export service.

@@ -20,6 +20,7 @@ import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
 import { loadDocumentSource } from './application/documents/loadDocumentSource';
+import { exportLightTableDocument } from './application/documents/exportLightTableDocument';
 import {
   isTemporaryPanRelease,
   resolveEditorKeyboardCommand,
@@ -67,7 +68,6 @@ import { CurvesEditor } from './CurvesEditor';
 import { cloneCurves, createDefaultCurves, createIdentityCurve, type CurveChannel, type ToneCurve } from './curves';
 import { copyLightTableGrade, useLightTableGradeClipboard } from './lightTableGradeClipboard';
 import {
-  createLightTableRecipe,
   resolveLightTableEditorSourceKey,
   resolveLightTableSaveSourceKey,
   type LightTableRecipe
@@ -222,7 +222,6 @@ import {
   setLayerStyleStackEnabled
 } from './editor/styles/layerStyleCommands';
 import {
-  buildLayeredDocumentFile,
   type PreservedSourceAssetBlob
 } from './editor/persistence/layeredDocumentFormat';
 import {
@@ -377,8 +376,6 @@ const scopeEngineOptions = (visibility: ScopeVisibility, settings: ScopeSettings
 
 const HISTORY_LIMIT = 100;
 const GPU_HISTORY_BYTE_LIMIT = 512 * 1024 * 1024;
-const buildOutputName = (base: string) => `${base.replace(/\.[^.]+$/, '') || 'image'}-lighttable.png`;
-
 export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = ({
   open,
   active = true,
@@ -3532,36 +3529,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const exportOutput = async () => {
     const engine = engineRef.current;
     if (!engine) throw new Error('LightTable is not ready yet.');
-    const preview = await engine.exportPng();
     const document = imageDocumentRef.current;
     const recipeSourceKey = effectiveSourceFileKey;
     if (!document || !recipeSourceKey) throw new Error('The LightTable document is not ready yet.');
-    if (
-      rasterLayerCount(document) === 1
-      && walkLayerTree(document.layers).length === 1
-      && document.assets.preservedSources.length === 0
-    ) {
-      return {
-        file: new File([preview], buildOutputName(fileNameBase), { type: 'image/png' }),
-        recipe: createLightTableRecipe(recipeSourceKey, adjustmentsRef.current)
-      };
-    }
-    const assets = [
-      ...await engine.exportLayerAssets(document),
-      ...preservedSourceAssetsRef.current
-    ];
-    const adjustmentStack = createAdjustmentStackFromBasicAdjustments(
-      documentAdjustmentsRef.current,
-      engine.getAdjustmentStack()
-    );
-    return {
-      file: buildLayeredDocumentFile(preview, document, adjustmentStack, assets, buildOutputName(fileNameBase)),
-      recipe: createLightTableRecipe(
-        recipeSourceKey,
-        effectiveDocumentAdjustments(document),
-        'embedded-layered-png'
-      )
-    };
+    return exportLightTableDocument({
+      document,
+      renderer: engine,
+      recipeSourceKey,
+      fileNameBase,
+      flatAdjustments: adjustmentsRef.current,
+      documentAdjustments: documentAdjustmentsRef.current,
+      effectiveLayeredAdjustments: effectiveDocumentAdjustments(document),
+      preservedSourceAssets: preservedSourceAssetsRef.current
+    });
   };
 
   const handleSave = async () => {
