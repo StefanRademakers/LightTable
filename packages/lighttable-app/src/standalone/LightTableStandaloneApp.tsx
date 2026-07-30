@@ -3,12 +3,11 @@ import {
   useMemo,
   useState
 } from 'react';
-import { LightTableEditorOverlay } from '../lighttable/LightTableEditorOverlay';
 import {
   type DocumentSessionId
 } from '../lighttable/application/documents/documentSession';
 import { createBrowserHost, type LightTableHost } from '../platform/LightTableHost';
-import { DocumentRuntimeErrorBoundary } from './DocumentRuntimeErrorBoundary';
+import { StandaloneDocumentRuntimeView } from './StandaloneDocumentRuntimeView';
 import {
   type StandaloneDecodeMode,
   useStandaloneDocumentWorkspace
@@ -17,9 +16,6 @@ import {
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
 }
-
-const titleWithoutExtension = (name: string) =>
-  name.replace(/\.[^.]+$/, '') || 'Untitled';
 
 /**
  * Host-neutral workspace shell.
@@ -109,65 +105,17 @@ export function LightTableStandaloneApp({
   return (
     <>
       {documents.map((document) => {
-        const {
-          id: documentId,
-          active,
-          runtime: { file, decodeMode },
-          session: documentSession
-        } = document;
-
         return (
-          <DocumentRuntimeErrorBoundary
-            key={documentId}
-            active={active}
-            title={file.name}
-            onClose={() => closeDocument(documentId)}
-            onError={(message) => documentSession.setFailed(message)}
-          >
-            <LightTableEditorOverlay
-              open
-              active={active}
-              projectId=""
-              sourceBlob={file}
-              sourceDecodeMode={decodeMode}
-              fileNameBase={titleWithoutExtension(file.name)}
-              subjectLabel={file.name}
-              workspaceDocumentId={documentId}
-              workspaceDocuments={workspaceDocuments}
-              history={documentSession.history}
-              tasks={documentSession.tasks}
-              rendererLifecycle={documentSession.renderer}
-              documentSession={documentSession}
-              onActivateWorkspaceDocument={(id) => {
-                activateDocument(id as DocumentSessionId);
-              }}
-              onCloseWorkspaceDocument={closeDocument}
-              onRequestOpenWorkspaceDocument={host.openFile
-                ? requestHostDocument
-                : undefined}
-              onOpenWorkspaceDocument={openDocument}
-              onDocumentReady={() => {
-                const lifecycle = documentSession.getSnapshot().lifecycle;
-                if (lifecycle !== 'ready') documentSession.setReady();
-              }}
-              onDocumentError={(message) => {
-                documentSession.setFailed(message);
-              }}
-              onDirtyChange={(dirty) => {
-                if (dirty) {
-                  documentSession.markChanged();
-                } else {
-                  documentSession.markSaved();
-                }
-              }}
-              onClose={() => closeDocument(documentId)}
-              onSave={async (output, recipe) => {
-                const saved = await host.save({ file: output, recipe });
-                if (saved !== false) documentSession.markSaved();
-                return saved;
-              }}
-            />
-          </DocumentRuntimeErrorBoundary>
+          <StandaloneDocumentRuntimeView
+            key={document.id}
+            document={document}
+            workspaceDocuments={workspaceDocuments}
+            host={host}
+            onActivate={activateDocument}
+            onClose={closeDocument}
+            onRequestOpen={host.openFile ? requestHostDocument : undefined}
+            onOpen={openDocument}
+          />
         );
       })}
     </>

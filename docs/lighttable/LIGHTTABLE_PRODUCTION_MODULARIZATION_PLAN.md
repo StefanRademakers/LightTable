@@ -723,6 +723,8 @@ Work:
       Mode cleanup/reconnect cycles;
 - [x] keep the external-store snapshot/subscription contract teardown-safe
       while rejecting mutations after terminal workspace disposal;
+- [x] isolate each standalone document's renderer, services, failure boundary
+      and host-save bridge behind a dedicated runtime composition component;
 - [ ] replace the temporary mounted-overlay retention strategy with an explicit
       renderer suspend/resume lifecycle and a configurable GPU-memory budget.
 
