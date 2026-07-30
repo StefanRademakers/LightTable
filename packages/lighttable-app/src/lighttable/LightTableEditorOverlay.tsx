@@ -234,6 +234,13 @@ import {
 import { PsdImportReportDialog } from './editor/psd/PsdImportReportDialog';
 import { boundsForDabs, StrokeBuilder } from './editor/tools/brush/strokeBuilder';
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
+import {
+  clientToLocalPoint,
+  localToDocumentPointer,
+  panViewFromGesture,
+  pointInsideRect,
+  zoomViewAtPoint
+} from './editor/tools/pointer/viewportCoordinates';
 import { TransformOverlay } from './editor/tools/transform/TransformOverlay';
 import {
   identityMatrix,
@@ -2899,20 +2906,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!metadata) return;
     event.preventDefault();
     const bounds = event.currentTarget.getBoundingClientRect();
-    const cursorX = event.clientX - bounds.left;
-    const cursorY = event.clientY - bounds.top;
-    const currentScale = activeScale;
-    const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, currentScale * Math.exp(-event.deltaY * 0.0015)));
-    const centerX = viewportSize.width / 2;
-    const centerY = viewportSize.height / 2;
-    const imageX = (cursorX - centerX - view.panX) / currentScale;
-    const imageY = (cursorY - centerY - view.panY) / currentScale;
+    const cursor = clientToLocalPoint(
+      { x: event.clientX, y: event.clientY },
+      { x: bounds.left, y: bounds.top }
+    );
     setZoomMode('custom');
-    setView({
-      scale: nextScale,
-      panX: cursorX - centerX - imageX * nextScale,
-      panY: cursorY - centerY - imageY * nextScale
-    });
+    setView(zoomViewAtPoint({
+      cursor,
+      viewport: viewportSize,
+      view: {
+        scale: activeScale,
+        panX: view.panX,
+        panY: view.panY
+      },
+      wheelDelta: event.deltaY,
+      minScale: MIN_SCALE,
+      maxScale: MAX_SCALE
+    }));
   };
 
   const beginPan = (event: React.PointerEvent<HTMLDivElement>, forcePan = false) => {
@@ -2954,10 +2964,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const movePan = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    const pan = panViewFromGesture({
+      origin: { x: drag.x, y: drag.y },
+      current: { x: event.clientX, y: event.clientY },
+      initialView: { panX: drag.panX, panY: drag.panY }
+    });
     setView((current) => ({
       ...current,
-      panX: drag.panX + event.clientX - drag.x,
-      panY: drag.panY + event.clientY - drag.y
+      ...pan
     }));
   };
 
@@ -2978,10 +2992,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const documentPoint = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!metadata) return null;
     const bounds = event.currentTarget.getBoundingClientRect();
-    const x = (event.clientX - bounds.left - imageRect.x) / Math.max(activeScale, 0.0001);
-    const y = (event.clientY - bounds.top - imageRect.y) / Math.max(activeScale, 0.0001);
-    if (x < 0 || y < 0 || x > metadata.width || y > metadata.height) return null;
-    return { x, y, pressure: event.pressure > 0 ? event.pressure : 1 };
+    return localToDocumentPointer(
+      clientToLocalPoint(
+        { x: event.clientX, y: event.clientY },
+        { x: bounds.left, y: bounds.top }
+      ),
+      imageRect,
+      activeScale,
+      metadata,
+      event.pressure
+    );
   };
 
   const updateBrushCursor = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -2993,23 +3013,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     const bounds = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - bounds.left;
-    const y = event.clientY - bounds.top;
-    const insideDocument = x >= imageRect.x
-      && y >= imageRect.y
-      && x <= imageRect.x + imageRect.width
-      && y <= imageRect.y + imageRect.height;
-    if (!insideDocument) {
+    const point = clientToLocalPoint(
+      { x: event.clientX, y: event.clientY },
+      { x: bounds.left, y: bounds.top }
+    );
+    if (!pointInsideRect(point, imageRect)) {
       brushCursorCenterRef.current = null;
       cursor.style.opacity = '0';
       return;
     }
     const diameter = Math.max(2, editorSession.brush.size * activeScale);
-    brushCursorCenterRef.current = { x, y };
+    brushCursorCenterRef.current = point;
     cursor.style.opacity = '1';
     cursor.style.width = `${diameter}px`;
     cursor.style.height = `${diameter}px`;
-    cursor.style.transform = `translate3d(${x - diameter / 2}px, ${y - diameter / 2}px, 0)`;
+    cursor.style.transform = `translate3d(${point.x - diameter / 2}px, ${point.y - diameter / 2}px, 0)`;
   };
 
   const linearBrushColor = (hex: string): [number, number, number] => {
