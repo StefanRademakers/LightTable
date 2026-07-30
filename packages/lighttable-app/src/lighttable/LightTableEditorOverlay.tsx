@@ -26,6 +26,7 @@ import {
   type EditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
+import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import {
   formatGpuMemory,
   formatStartupTimings,
@@ -480,6 +481,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const transformControllerRef = useRef<TransformController | null>(null);
   const commitTransformRef = useRef<() => void>(() => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
+  const activateToolRef = useRef<(tool: ToolId) => void>(() => undefined);
   const cancelAutoAlignRef = useRef<() => void>(() => undefined);
   const copySelectedContentRef = useRef<() => void>(() => undefined);
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
@@ -1991,7 +1993,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (transformControllerRef.current?.state && command.tool !== 'transform') {
         commitTransformRef.current();
       }
-      setEditorSession((current) => ({ ...current, activeTool: command.tool }));
+      activateToolRef.current(command.tool);
       return;
     }
     switch (command) {
@@ -2031,9 +2033,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         layerViaCopyRef.current();
         return;
       case 'free-transform':
-        setEditorSession((current) => (
-          current.activeTool === 'transform' ? current : { ...current, activeTool: 'transform' }
-        ));
+        activateToolRef.current('transform');
         return;
       case 'invert-active-target':
         invertActiveLayerColorsRef.current();
@@ -3427,7 +3427,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const renderer = engineRef.current;
     if (!document || !renderer) {
       setError('Select a raster layer before transforming.');
-      setEditorSession((current) => ({ ...current, activeTool: 'view' }));
+      activateToolRef.current('view');
       return;
     }
     const controller = transformControllerRef.current
@@ -3442,7 +3442,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     if (result.code === 'stale' || result.code === 'already-active') return;
     if (result.message) setError(result.message);
-    setEditorSession((current) => ({ ...current, activeTool: 'view' }));
+    activateToolRef.current('view');
   };
 
   const updateTransformMatrix = (matrix: AffineMatrix) => {
@@ -3537,16 +3537,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorSession.activeTool, imageDocument?.activeLayerId]);
 
-  const selectTool = (activeTool: ToolId) => {
-    if (activeTool === 'transform' && editorSession.activeTool === 'transform') {
-      finishTransform(true);
-      return;
+  const activatePersistentTool = (requestedTool: ToolId) => {
+    const plan = planPersistentToolActivation(
+      editorSession.activeTool,
+      requestedTool,
+      Boolean(transformControllerRef.current?.state)
+    );
+    if (plan.finishTransform) finishTransform(true);
+    if (plan.nextTool) {
+      setEditorSession((current) => (
+        current.activeTool === plan.nextTool
+          ? current
+          : { ...current, activeTool: plan.nextTool as ToolId }
+      ));
     }
-    if (transformControllerRef.current?.state && activeTool !== 'transform') {
-      finishTransform(true);
-    }
-    setEditorSession((current) => ({ ...current, activeTool }));
   };
+  activateToolRef.current = activatePersistentTool;
 
   const duplicateActiveLayer = () => {
     const current = imageDocumentRef.current;
@@ -4423,7 +4429,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             activeTool={temporaryPanActive ? 'view' : editorSession.activeTool}
             foregroundColor={editorSession.brush.color}
             backgroundColor={editorSession.brush.backgroundColor}
-            onToolChange={selectTool}
+            onToolChange={activatePersistentTool}
             onForegroundColorChange={(color) => setEditorSession((current) => ({
               ...current,
               brush: { ...current.brush, color }

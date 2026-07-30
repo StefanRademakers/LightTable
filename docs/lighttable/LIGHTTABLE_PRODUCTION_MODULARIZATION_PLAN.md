@@ -820,7 +820,8 @@ Work:
       shortcut routing;
 - [x] isolate temporary tool overrides from persistent document tool state and
       reset them on blur or active-document changes;
-- migrate remaining persistent tool activation lifecycle;
+- [x] migrate persistent tool activation and transform-exit precedence through
+      one tested application policy;
 - [x] migrate brush sizing and tool shortcuts;
 - [x] migrate pointer-driven selection draft/commit/cancel lifecycle into an
       isolated controller;
