@@ -1,7 +1,8 @@
 import type { DepthAnalysisResult } from '../../analysis/depth/types';
 import { normalizedDepthToHalf } from '../../analysis/depth/float16';
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
-import type { LightTableGpuEffect } from '../types';
+import { OptionalGpuFeature } from '../../gpu/optionalGpuFeature';
+import type { LightTableEffectRuntimeCallbacks, LightTableGpuEffect } from '../types';
 import type { LensDistortionSettings } from '../lensDistortion/settings';
 import {
   cloneLensBlurSettings,
@@ -27,11 +28,12 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
   readonly stage = 'linear-spatial' as const;
   private readonly device: GPUDevice;
   private readonly sampler: GPUSampler;
-  private readonly vertexModule: GPUShaderModule;
-  private depthRefinePipeline: GPURenderPipeline | null = null;
-  private downsamplePipeline: GPURenderPipeline | null = null;
-  private gatherPipeline: GPURenderPipeline | null = null;
-  private compositePipeline: GPURenderPipeline | null = null;
+  private readonly pipelines: OptionalGpuFeature<{
+    depthRefine: GPURenderPipeline;
+    downsample: GPURenderPipeline;
+    gather: GPURenderPipeline;
+    composite: GPURenderPipeline;
+  }>;
   private readonly settingsBuffer: GPUBuffer;
   private settings: LensBlurSettings;
   private distortionSettings: LensDistortionSettings;
@@ -54,13 +56,48 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     sampler: GPUSampler,
     vertexModule: GPUShaderModule,
     settings: LensBlurSettings,
-    distortionSettings: LensDistortionSettings
+    distortionSettings: LensDistortionSettings,
+    callbacks: LightTableEffectRuntimeCallbacks = {}
   ) {
     this.device = device;
     this.sampler = sampler;
-    this.vertexModule = vertexModule;
     this.settings = cloneLensBlurSettings(settings);
     this.distortionSettings = { ...distortionSettings };
+    const createPipeline = (label: string, shader: string, targets: GPUColorTargetState[]) =>
+      this.device.createRenderPipelineAsync({
+        label,
+        layout: 'auto',
+        vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
+        fragment: {
+          module: this.device.createShaderModule({
+            label: `${label} shader`,
+            code: `${FULLSCREEN_VERTEX_WGSL}\n${shader}`
+          }),
+          entryPoint: 'main',
+          targets
+        },
+        primitive: { topology: 'triangle-list' }
+      });
+    this.pipelines = new OptionalGpuFeature({
+      id: this.id,
+      compile: async () => {
+        const [depthRefine, downsample, gather, composite] = await Promise.all([
+          createPipeline('LightTable Lens Blur depth refinement', LENS_BLUR_DEPTH_REFINE_WGSL, [{ format: 'r16float' }]),
+          createPipeline('LightTable Lens Blur downsample', LENS_BLUR_DOWNSAMPLE_WGSL, [
+            { format: 'rgba16float' },
+            { format: 'rgba16float' }
+          ]),
+          createPipeline('LightTable Lens Blur aperture gather', LENS_BLUR_GATHER_WGSL, [
+            { format: 'rgba16float' },
+            { format: 'rgba16float' }
+          ]),
+          createPipeline('LightTable Lens Blur composite', LENS_BLUR_COMPOSITE_WGSL, [{ format: 'rgba16float' }])
+        ]);
+        return { depthRefine, downsample, gather, composite };
+      },
+      onReady: callbacks.requestRender,
+      onError: (message) => callbacks.reportError?.(this.id, message)
+    });
     this.settingsBuffer = device.createBuffer({
       label: 'LightTable Lens Blur settings',
       size: 16 * Float32Array.BYTES_PER_ELEMENT,
@@ -72,6 +109,7 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
   setSettings(settings: LensBlurSettings) {
     this.settings = cloneLensBlurSettings(settings);
     if (this.rawDepthTexture && (lensBlurIsActive(this.settings) || this.visualizeDepth)) {
+      void this.pipelines.ensure();
       this.ensureRenderTargets();
     }
     else this.destroyRenderTargets();
@@ -90,6 +128,7 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
   setDepthVisualization(visualize: boolean) {
     this.visualizeDepth = visualize;
     if (this.rawDepthTexture && (lensBlurIsActive(this.settings) || visualize)) {
+      void this.pipelines.ensure();
       this.ensureRenderTargets();
     }
     else this.destroyRenderTargets();
@@ -123,7 +162,10 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
       { bytesPerRow, rowsPerImage: depth.height },
       { width: depth.width, height: depth.height }
     );
-    if (lensBlurIsActive(this.settings) || this.visualizeDepth) this.ensureRenderTargets();
+    if (lensBlurIsActive(this.settings) || this.visualizeDepth) {
+      void this.pipelines.ensure();
+      this.ensureRenderTargets();
+    }
   }
 
   get hasDepth() {
@@ -170,35 +212,38 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     if ((!lensBlurIsActive(this.settings) && !this.visualizeDepth) || !this.rawDepthTexture || !this.refinedDepthTexture ||
       !this.halfColorTexture || !this.halfDepthTexture || !this.foregroundTexture ||
       !this.backgroundTexture || !this.outputTexture) return input;
-    this.ensurePipelines();
-    if (!this.depthRefinePipeline || !this.downsamplePipeline || !this.gatherPipeline || !this.compositePipeline) return input;
+    const pipelines = this.pipelines.resource;
+    if (!pipelines) {
+      void this.pipelines.ensure();
+      return input;
+    }
     this.writeSettings();
 
     const depthBindGroup = this.device.createBindGroup({
-      layout: this.depthRefinePipeline.getBindGroupLayout(0),
+      layout: pipelines.depthRefine.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: input.createView() },
         { binding: 1, resource: this.rawDepthTexture.createView() },
         { binding: 2, resource: { buffer: this.settingsBuffer } }
       ]
     });
-    this.draw(encoder, this.depthRefinePipeline, depthBindGroup, [this.refinedDepthTexture.createView()]);
+    this.draw(encoder, pipelines.depthRefine, depthBindGroup, [this.refinedDepthTexture.createView()]);
 
     const downsampleBindGroup = this.device.createBindGroup({
-      layout: this.downsamplePipeline.getBindGroupLayout(0),
+      layout: pipelines.downsample.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: input.createView() },
         { binding: 1, resource: this.refinedDepthTexture.createView() },
         { binding: 2, resource: { buffer: this.settingsBuffer } }
       ]
     });
-    this.draw(encoder, this.downsamplePipeline, downsampleBindGroup, [
+    this.draw(encoder, pipelines.downsample, downsampleBindGroup, [
       this.halfColorTexture.createView(),
       this.halfDepthTexture.createView()
     ]);
 
     const gatherBindGroup = this.device.createBindGroup({
-      layout: this.gatherPipeline.getBindGroupLayout(0),
+      layout: pipelines.gather.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.halfColorTexture.createView() },
         { binding: 1, resource: this.halfDepthTexture.createView() },
@@ -206,13 +251,13 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
         { binding: 3, resource: { buffer: this.settingsBuffer } }
       ]
     });
-    this.draw(encoder, this.gatherPipeline, gatherBindGroup, [
+    this.draw(encoder, pipelines.gather, gatherBindGroup, [
       this.foregroundTexture.createView(),
       this.backgroundTexture.createView()
     ]);
 
     const compositeBindGroup = this.device.createBindGroup({
-      layout: this.compositePipeline.getBindGroupLayout(0),
+      layout: pipelines.composite.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: input.createView() },
         { binding: 1, resource: this.refinedDepthTexture.createView() },
@@ -222,7 +267,7 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
         { binding: 5, resource: { buffer: this.settingsBuffer } }
       ]
     });
-    this.draw(encoder, this.compositePipeline, compositeBindGroup, [this.outputTexture.createView()]);
+    this.draw(encoder, pipelines.composite, compositeBindGroup, [this.outputTexture.createView()]);
     return this.outputTexture;
   }
 
@@ -236,6 +281,7 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
 
   destroy() {
     this.destroyImageResources();
+    this.pipelines.dispose();
     this.settingsBuffer.destroy();
   }
 
@@ -252,31 +298,6 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     this.foregroundTexture = null;
     this.backgroundTexture = null;
     this.outputTexture = null;
-  }
-
-  private ensurePipelines() {
-    if (this.depthRefinePipeline) return;
-    const createPipeline = (label: string, shader: string, targets: GPUColorTargetState[]) => this.device.createRenderPipeline({
-      label,
-      layout: 'auto',
-      vertex: { module: this.vertexModule, entryPoint: 'fullscreenVertex' },
-      fragment: {
-        module: this.device.createShaderModule({ label: `${label} shader`, code: `${FULLSCREEN_VERTEX_WGSL}\n${shader}` }),
-        entryPoint: 'main',
-        targets
-      },
-      primitive: { topology: 'triangle-list' }
-    });
-    this.depthRefinePipeline = createPipeline('LightTable Lens Blur depth refinement', LENS_BLUR_DEPTH_REFINE_WGSL, [{ format: 'r16float' }]);
-    this.downsamplePipeline = createPipeline('LightTable Lens Blur downsample', LENS_BLUR_DOWNSAMPLE_WGSL, [
-      { format: 'rgba16float' },
-      { format: 'rgba16float' }
-    ]);
-    this.gatherPipeline = createPipeline('LightTable Lens Blur aperture gather', LENS_BLUR_GATHER_WGSL, [
-      { format: 'rgba16float' },
-      { format: 'rgba16float' }
-    ]);
-    this.compositePipeline = createPipeline('LightTable Lens Blur composite', LENS_BLUR_COMPOSITE_WGSL, [{ format: 'rgba16float' }]);
   }
 
   private draw(

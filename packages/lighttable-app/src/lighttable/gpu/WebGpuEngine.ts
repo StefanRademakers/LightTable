@@ -301,32 +301,46 @@ export class WebGpuEngine {
     this.creativePipeline = pipelines.creative;
     this.outputPipeline = pipelines.output;
     this.precisionSourceResolvePipeline = pipelines.precisionSourceResolve;
-    this.grainEffect = new GrainEffect(this.device, this.sampler, pipelines.vertexModule, this.adjustments.effects.grain);
+    const effectCallbacks = {
+      requestRender: () => this.requestRender(),
+      reportError: (featureId: string, message: string) => this.callbacks.onFeatureError?.(featureId, message)
+    };
+    this.grainEffect = new GrainEffect(
+      this.device,
+      this.sampler,
+      pipelines.vertexModule,
+      this.adjustments.effects.grain,
+      effectCallbacks
+    );
     this.documentRenderer = new LayerDocumentRenderer(this.device, this.sampler);
     this.halationEffect = new HalationEffect(
       this.device,
       this.sampler,
       pipelines.vertexModule,
-      this.adjustments.effects.halation
+      this.adjustments.effects.halation,
+      effectCallbacks
     );
     this.chromaticAberrationEffect = new ChromaticAberrationEffect(
       this.device,
       this.sampler,
       pipelines.vertexModule,
-      this.adjustments.effects.chromaticAberration
+      this.adjustments.effects.chromaticAberration,
+      effectCallbacks
     );
     this.lensDistortionEffect = new LensDistortionEffect(
       this.device,
       this.sampler,
       pipelines.vertexModule,
-      this.adjustments.effects.lensDistortion
+      this.adjustments.effects.lensDistortion,
+      effectCallbacks
     );
     this.lensBlurEffect = new LensBlurEffect(
       this.device,
       this.sampler,
       pipelines.vertexModule,
       this.adjustments.effects.lensBlur,
-      this.adjustments.effects.lensDistortion
+      this.adjustments.effects.lensDistortion,
+      effectCallbacks
     );
     this.displayResolvePipeline = pipelines.displayResolve;
     this.blitPipeline = pipelines.blit;

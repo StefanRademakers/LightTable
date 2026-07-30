@@ -907,7 +907,7 @@ Work:
       pipeline library;
 - [x] isolate scopes plus buffer/texture readback and browser PNG encoding;
 - split mutable image-resource ownership from the engine;
-- isolate optional pipeline compilation;
+- [x] isolate optional pipeline compilation;
 - add resource lifecycle and device-loss tests.
 
 Exit criteria:
@@ -952,6 +952,14 @@ GPU readback now owns row alignment, mapped-buffer copying and padding removal
 outside the document engine. Browser PNG encoding is behind a replaceable
 function, leaving a clean seam for a desktop-native or 16-bit encoder without
 changing renderer orchestration.
+
+Lens effects now compile their complete pipeline bundles asynchronously behind
+an atomic optional-feature boundary. Until every pipeline in a feature is
+valid, rendering uses the exact input texture; compilation failure is reported
+at feature level and never publishes an invalid pipeline into a command buffer.
+Disabled effects compile nothing, successful compilation schedules one new
+frame, and failed features require an explicit retry rather than repeatedly
+poisoning frames.
 
 ### Phase 6 — Layer compositor and processing modules
 

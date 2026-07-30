@@ -1228,6 +1228,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             }
           },
           onScopeError: (message) => { if (!isCanceled()) setScopeError(message); },
+          onFeatureError: (featureId, message) => {
+            if (isCanceled()) return;
+            appendDebugMessage('error', `GPU feature: ${featureId}`, message);
+            setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
+          },
           onFirstFrame: () => {
             if (isCanceled() || !startupAwaitingFirstFrameRef.current) return;
             startupAwaitingFirstFrameRef.current = false;

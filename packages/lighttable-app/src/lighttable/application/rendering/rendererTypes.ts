@@ -23,6 +23,7 @@ export interface DocumentRendererCallbacks {
   onHistogram?: (histogram: RgbHistogram) => void;
   onDeviceLost?: (message: string) => void;
   onScopeError?: (message: string) => void;
+  onFeatureError?: (featureId: string, message: string) => void;
   onFirstFrame?: () => void;
   onGpuMemoryEstimate?: (bytes: number) => void;
 }

@@ -1,24 +1,16 @@
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
-import type { LightTableGpuEffect } from '../types';
+import { OptionalGpuFeature } from '../../gpu/optionalGpuFeature';
+import type { LightTableEffectRuntimeCallbacks, LightTableGpuEffect } from '../types';
 import { cloneGrainSettings, grainIsActive, type GrainSettings } from './settings';
 import { GRAIN_BLUR_WGSL, GRAIN_COMPOSITE_WGSL, GRAIN_GENERATE_WGSL } from './shaders';
 
 const UNIFORM_FLOATS = 16;
 
-const createPipeline = (
-  device: GPUDevice,
-  vertexModule: GPUShaderModule,
-  fragmentCode: string
-) => device.createRenderPipeline({
-  layout: 'auto',
-  vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
-  fragment: {
-    module: device.createShaderModule({ code: `${FULLSCREEN_VERTEX_WGSL}\n${fragmentCode}` }),
-    entryPoint: 'main',
-    targets: [{ format: 'rgba16float' }]
-  },
-  primitive: { topology: 'triangle-list' }
-});
+interface GrainPipelines {
+  generate: GPURenderPipeline;
+  blur: GPURenderPipeline;
+  composite: GPURenderPipeline;
+}
 
 export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
   readonly id = 'grain';
@@ -28,10 +20,7 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
   private readonly uniformBuffer: GPUBuffer;
   private readonly horizontalBuffer: GPUBuffer;
   private readonly verticalBuffer: GPUBuffer;
-  private readonly vertexModule: GPUShaderModule;
-  private generatePipeline: GPURenderPipeline | null = null;
-  private blurPipeline: GPURenderPipeline | null = null;
-  private compositePipeline: GPURenderPipeline | null = null;
+  private readonly pipelines: OptionalGpuFeature<GrainPipelines>;
   private generateBindGroup: GPUBindGroup | null = null;
   private horizontalBindGroup: GPUBindGroup | null = null;
   private verticalBindGroup: GPUBindGroup | null = null;
@@ -47,12 +36,39 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
     device: GPUDevice,
     sampler: GPUSampler,
     vertexModule: GPUShaderModule,
-    settings: GrainSettings
+    settings: GrainSettings,
+    callbacks: LightTableEffectRuntimeCallbacks = {}
   ) {
     this.device = device;
     this.sampler = sampler;
-    this.vertexModule = vertexModule;
     this.settings = cloneGrainSettings(settings);
+    const createPipeline = (label: string, fragmentCode: string) => this.device.createRenderPipelineAsync({
+      label,
+      layout: 'auto',
+      vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
+      fragment: {
+        module: this.device.createShaderModule({
+          label: `${label} shader`,
+          code: `${FULLSCREEN_VERTEX_WGSL}\n${fragmentCode}`
+        }),
+        entryPoint: 'main',
+        targets: [{ format: 'rgba16float' }]
+      },
+      primitive: { topology: 'triangle-list' }
+    });
+    this.pipelines = new OptionalGpuFeature({
+      id: this.id,
+      compile: async () => {
+        const [generate, blur, composite] = await Promise.all([
+          createPipeline('LightTable Grain generation', GRAIN_GENERATE_WGSL),
+          createPipeline('LightTable Grain blur', GRAIN_BLUR_WGSL),
+          createPipeline('LightTable Grain composite', GRAIN_COMPOSITE_WGSL)
+        ]);
+        return { generate, blur, composite };
+      },
+      onReady: callbacks.requestRender,
+      onError: (message) => callbacks.reportError?.(this.id, message)
+    });
     this.uniformBuffer = device.createBuffer({
       label: 'LightTable Grain settings',
       size: UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMENT,
@@ -65,7 +81,10 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
 
   setSettings(settings: GrainSettings) {
     this.settings = cloneGrainSettings(settings);
-    if (grainIsActive(this.settings)) this.ensureImageResources();
+    if (grainIsActive(this.settings)) {
+      void this.pipelines.ensure();
+      this.ensureImageResources();
+    }
     else this.destroyImageResources();
     this.writeSettings();
   }
@@ -80,8 +99,11 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
 
   private ensureImageResources() {
     if (this.grainTexture && this.blurTexture && this.outputTexture) return;
-    this.ensurePipelines();
-    if (!this.blurPipeline) return;
+    const pipelines = this.pipelines.resource;
+    if (!pipelines) {
+      void this.pipelines.ensure();
+      return;
+    }
     const createTexture = (label: string) => this.device.createTexture({
       label,
       size: [this.width, this.height],
@@ -91,29 +113,37 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
     this.grainTexture = createTexture('LightTable Grain noise');
     this.blurTexture = createTexture('LightTable Grain blur intermediate');
     this.outputTexture = createTexture('LightTable Grain output');
-    this.horizontalBindGroup = this.createBlurBindGroup(this.grainTexture, this.horizontalBuffer);
-    this.verticalBindGroup = this.createBlurBindGroup(this.blurTexture, this.verticalBuffer);
+    this.generateBindGroup = this.device.createBindGroup({
+      layout: pipelines.generate.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: this.uniformBuffer } }]
+    });
+    this.horizontalBindGroup = this.createBlurBindGroup(pipelines.blur, this.grainTexture, this.horizontalBuffer);
+    this.verticalBindGroup = this.createBlurBindGroup(pipelines.blur, this.blurTexture, this.verticalBuffer);
   }
 
   encode(encoder: GPUCommandEncoder, input: GPUTexture) {
     if (!grainIsActive(this.settings)) return input;
+    const pipelines = this.pipelines.resource;
+    if (!pipelines) {
+      void this.pipelines.ensure();
+      return input;
+    }
     this.ensureImageResources();
-    if (!this.generatePipeline || !this.blurPipeline || !this.compositePipeline || !this.generateBindGroup ||
-      !this.grainTexture || !this.blurTexture || !this.outputTexture ||
+    if (!this.generateBindGroup || !this.grainTexture || !this.blurTexture || !this.outputTexture ||
       !this.horizontalBindGroup || !this.verticalBindGroup) return input;
 
-    this.draw(encoder, this.generatePipeline, this.generateBindGroup, this.grainTexture);
-    this.draw(encoder, this.blurPipeline, this.horizontalBindGroup, this.blurTexture);
-    this.draw(encoder, this.blurPipeline, this.verticalBindGroup, this.grainTexture);
+    this.draw(encoder, pipelines.generate, this.generateBindGroup, this.grainTexture);
+    this.draw(encoder, pipelines.blur, this.horizontalBindGroup, this.blurTexture);
+    this.draw(encoder, pipelines.blur, this.verticalBindGroup, this.grainTexture);
     const compositeBindGroup = this.device.createBindGroup({
-      layout: this.compositePipeline.getBindGroupLayout(0),
+      layout: pipelines.composite.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: input.createView() },
         { binding: 1, resource: this.grainTexture.createView() },
         { binding: 2, resource: { buffer: this.uniformBuffer } }
       ]
     });
-    this.draw(encoder, this.compositePipeline, compositeBindGroup, this.outputTexture);
+    this.draw(encoder, pipelines.composite, compositeBindGroup, this.outputTexture);
     return this.outputTexture;
   }
 
@@ -128,12 +158,14 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
     this.grainTexture = null;
     this.blurTexture = null;
     this.outputTexture = null;
+    this.generateBindGroup = null;
     this.horizontalBindGroup = null;
     this.verticalBindGroup = null;
   }
 
   destroy() {
     this.destroyImageResources();
+    this.pipelines.dispose();
     this.uniformBuffer.destroy();
     this.horizontalBuffer.destroy();
     this.verticalBuffer.destroy();
@@ -158,27 +190,15 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
     return buffer;
   }
 
-  private createBlurBindGroup(texture: GPUTexture, direction: GPUBuffer) {
-    if (!this.blurPipeline) throw new Error('LightTable Grain blur pipeline is unavailable.');
+  private createBlurBindGroup(pipeline: GPURenderPipeline, texture: GPUTexture, direction: GPUBuffer) {
     return this.device.createBindGroup({
-      layout: this.blurPipeline.getBindGroupLayout(0),
+      layout: pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: texture.createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: this.uniformBuffer } },
         { binding: 3, resource: { buffer: direction } }
       ]
-    });
-  }
-
-  private ensurePipelines() {
-    if (this.generatePipeline && this.blurPipeline && this.compositePipeline && this.generateBindGroup) return;
-    this.generatePipeline = createPipeline(this.device, this.vertexModule, GRAIN_GENERATE_WGSL);
-    this.blurPipeline = createPipeline(this.device, this.vertexModule, GRAIN_BLUR_WGSL);
-    this.compositePipeline = createPipeline(this.device, this.vertexModule, GRAIN_COMPOSITE_WGSL);
-    this.generateBindGroup = this.device.createBindGroup({
-      layout: this.generatePipeline.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: { buffer: this.uniformBuffer } }]
     });
   }
 

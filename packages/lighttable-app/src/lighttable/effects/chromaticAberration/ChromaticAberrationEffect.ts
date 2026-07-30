@@ -1,5 +1,6 @@
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
-import type { LightTableGpuEffect } from '../types';
+import { OptionalGpuFeature } from '../../gpu/optionalGpuFeature';
+import type { LightTableEffectRuntimeCallbacks, LightTableGpuEffect } from '../types';
 import {
   chromaticAberrationIsActive,
   cloneChromaticAberrationSettings,
@@ -12,19 +13,42 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
   readonly stage = 'source-geometry' as const;
   private readonly device: GPUDevice;
   private readonly sampler: GPUSampler;
-  private readonly vertexModule: GPUShaderModule;
-  private pipeline: GPURenderPipeline | null = null;
+  private readonly pipeline: OptionalGpuFeature<GPURenderPipeline>;
   private readonly settingsBuffer: GPUBuffer;
   private settings: ChromaticAberrationSettings;
   private outputTexture: GPUTexture | null = null;
   private width = 1;
   private height = 1;
 
-  constructor(device: GPUDevice, sampler: GPUSampler, vertexModule: GPUShaderModule, settings: ChromaticAberrationSettings) {
+  constructor(
+    device: GPUDevice,
+    sampler: GPUSampler,
+    vertexModule: GPUShaderModule,
+    settings: ChromaticAberrationSettings,
+    callbacks: LightTableEffectRuntimeCallbacks = {}
+  ) {
     this.device = device;
     this.sampler = sampler;
-    this.vertexModule = vertexModule;
     this.settings = cloneChromaticAberrationSettings(settings);
+    this.pipeline = new OptionalGpuFeature({
+      id: this.id,
+      compile: () => this.device.createRenderPipelineAsync({
+        label: 'LightTable Chromatic Aberration',
+        layout: 'auto',
+        vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
+        fragment: {
+          module: this.device.createShaderModule({
+            label: 'LightTable Chromatic Aberration shader',
+            code: `${FULLSCREEN_VERTEX_WGSL}\n${CHROMATIC_ABERRATION_WGSL}`
+          }),
+          entryPoint: 'main',
+          targets: [{ format: 'rgba16float' }]
+        },
+        primitive: { topology: 'triangle-list' }
+      }),
+      onReady: callbacks.requestRender,
+      onError: (message) => callbacks.reportError?.(this.id, message)
+    });
     this.settingsBuffer = device.createBuffer({
       label: 'LightTable Chromatic Aberration settings',
       size: 8 * Float32Array.BYTES_PER_ELEMENT,
@@ -35,7 +59,10 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
 
   setSettings(settings: ChromaticAberrationSettings) {
     this.settings = cloneChromaticAberrationSettings(settings);
-    if (chromaticAberrationIsActive(this.settings)) this.ensureImageResources();
+    if (chromaticAberrationIsActive(this.settings)) {
+      void this.pipeline.ensure();
+      this.ensureImageResources();
+    }
     else this.destroyImageResources();
     this.writeSettings();
   }
@@ -60,11 +87,15 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
 
   encode(encoder: GPUCommandEncoder, input: GPUTexture) {
     if (!chromaticAberrationIsActive(this.settings)) return input;
+    const pipeline = this.pipeline.resource;
+    if (!pipeline) {
+      void this.pipeline.ensure();
+      return input;
+    }
     this.ensureImageResources();
-    this.ensurePipeline();
-    if (!this.pipeline || !this.outputTexture) return input;
+    if (!this.outputTexture) return input;
     const bindGroup = this.device.createBindGroup({
-      layout: this.pipeline.getBindGroupLayout(0),
+      layout: pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: input.createView() },
         { binding: 1, resource: this.sampler },
@@ -76,7 +107,7 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
         view: this.outputTexture.createView(), clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store'
       }]
     });
-    pass.setPipeline(this.pipeline);
+    pass.setPipeline(pipeline);
     pass.setBindGroup(0, bindGroup);
     pass.draw(3);
     pass.end();
@@ -94,6 +125,7 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
 
   destroy() {
     this.destroyImageResources();
+    this.pipeline.dispose();
     this.settingsBuffer.destroy();
   }
 
@@ -102,19 +134,5 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
       this.settings.amount, this.settings.falloff, this.settings.balance, 0,
       this.width, this.height, 0, 0
     ]));
-  }
-
-  private ensurePipeline() {
-    if (this.pipeline) return;
-    this.pipeline = this.device.createRenderPipeline({
-      layout: 'auto',
-      vertex: { module: this.vertexModule, entryPoint: 'fullscreenVertex' },
-      fragment: {
-        module: this.device.createShaderModule({ code: `${FULLSCREEN_VERTEX_WGSL}\n${CHROMATIC_ABERRATION_WGSL}` }),
-        entryPoint: 'main',
-        targets: [{ format: 'rgba16float' }]
-      },
-      primitive: { topology: 'triangle-list' }
-    });
   }
 }

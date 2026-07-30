@@ -50,6 +50,11 @@ export const cloneEffects = (effects: LightTableEffects): LightTableEffects => (
 
 export type LightTableEffectStage = 'source-geometry' | 'linear-spatial' | 'display-post';
 
+export interface LightTableEffectRuntimeCallbacks {
+  requestRender?: () => void;
+  reportError?: (featureId: string, message: string) => void;
+}
+
 export interface LightTableGpuEffect<Settings> {
   readonly id: string;
   readonly stage: LightTableEffectStage;
