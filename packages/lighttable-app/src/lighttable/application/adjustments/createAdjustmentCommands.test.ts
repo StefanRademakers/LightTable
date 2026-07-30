@@ -1,0 +1,140 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  createDefaultGroupVisibility,
+  type GroupVisibility
+} from './groupVisibility';
+import {
+  createAdjustmentCommands,
+  type AdjustmentCommandPorts
+} from './createAdjustmentCommands';
+import {
+  createDefaultAdjustments,
+  type BasicAdjustments
+} from '../../types';
+
+const createHarness = () => {
+  let adjustments = createDefaultAdjustments();
+  let visibility = createDefaultGroupVisibility();
+  let viewportMode: 'result' | 'depth' = 'result';
+  let focusPickerActive = true;
+  const beginAdjustment = vi.fn();
+  const endAdjustment = vi.fn();
+  const beginLensBlurInteraction = vi.fn();
+  const endLensBlurInteraction = vi.fn();
+  const publishGroupVisibility = vi.fn((next: GroupVisibility) => {
+    visibility = next;
+  });
+  const publishLensBlurViewportMode = vi.fn((next: 'result' | 'depth') => {
+    viewportMode = next;
+  });
+  const ports: AdjustmentCommandPorts = {
+    beginAdjustment,
+    endAdjustment,
+    beginLensBlurInteraction,
+    endLensBlurInteraction,
+    changeAdjustments: (recipe) => {
+      adjustments = recipe(adjustments);
+    },
+    getAdjustments: () => adjustments,
+    getGroupVisibility: () => visibility,
+    publishGroupVisibility,
+    setFocusPickerActive: (active) => {
+      focusPickerActive = active;
+    },
+    publishLensBlurViewportMode,
+    getSourceName: () => 'Test image',
+    publishGradeStatus: vi.fn()
+  };
+  return {
+    commands: createAdjustmentCommands(ports),
+    beginAdjustment,
+    endAdjustment,
+    beginLensBlurInteraction,
+    endLensBlurInteraction,
+    publishGroupVisibility,
+    publishLensBlurViewportMode,
+    adjustments: () => adjustments,
+    visibility: () => visibility,
+    viewportMode: () => viewportMode,
+    focusPickerActive: () => focusPickerActive
+  };
+};
+
+describe('createAdjustmentCommands', () => {
+  it('coalesces scalar and effect changes through their correct transaction', () => {
+    const harness = createHarness();
+
+    harness.commands.updateAdjustment('exposureEV', 1.25);
+    harness.commands.updateGrain('amount', 2.5);
+    harness.commands.updateLensBlur('apertureSize', 75);
+
+    expect(harness.adjustments().exposureEV).toBe(1.25);
+    expect(harness.adjustments().effects.grain.amount).toBe(2.5);
+    expect(harness.adjustments().effects.lensBlur.apertureSize).toBe(75);
+    expect(harness.beginAdjustment).toHaveBeenCalledTimes(2);
+    expect(harness.beginLensBlurInteraction).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets a group without mutating the previous adjustment snapshot', () => {
+    const harness = createHarness();
+    harness.commands.updateAdjustment('exposureEV', 2);
+    harness.commands.updateAdjustment('contrast', 40);
+    const previous = harness.adjustments();
+
+    harness.commands.resetGroup('light');
+
+    expect(harness.adjustments()).not.toBe(previous);
+    expect(previous.exposureEV).toBe(2);
+    expect(previous.contrast).toBe(40);
+    expect(harness.adjustments().exposureEV).toBe(0);
+    expect(harness.adjustments().contrast).toBe(0);
+    expect(harness.endAdjustment).toHaveBeenCalled();
+  });
+
+  it('publishes visibility and lens viewport changes through host-neutral ports', () => {
+    const harness = createHarness();
+
+    harness.commands.toggleGroupVisibility('colorMixer');
+    harness.commands.setLensBlurViewportMode('depth');
+
+    expect(harness.visibility().colorMixer).toBe(false);
+    expect(harness.publishGroupVisibility).toHaveBeenCalledWith(
+      expect.objectContaining({ colorMixer: false })
+    );
+    expect(harness.viewportMode()).toBe('depth');
+    expect(harness.publishLensBlurViewportMode).toHaveBeenCalledWith('depth');
+    expect(harness.endLensBlurInteraction).toHaveBeenCalled();
+  });
+
+  it('preserves effect enablement on reset and exits focus picking when blur is disabled', () => {
+    const harness = createHarness();
+    harness.commands.setLensBlurEnabled(true);
+    harness.commands.updateLensBlur('apertureSize', 90);
+
+    harness.commands.resetLensBlur();
+
+    expect(harness.adjustments().effects.lensBlur.enabled).toBe(true);
+    expect(harness.adjustments().effects.lensBlur.apertureSize).toBe(
+      createDefaultAdjustments().effects.lensBlur.apertureSize
+    );
+    expect(harness.focusPickerActive()).toBe(false);
+
+    harness.commands.setLensBlurEnabled(false);
+    expect(harness.adjustments().effects.lensBlur.enabled).toBe(false);
+    expect(harness.focusPickerActive()).toBe(false);
+  });
+
+  it('copies curve input values instead of retaining mutable point objects', () => {
+    const harness = createHarness();
+    const points: BasicAdjustments['curves']['master'] = [
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0.75 },
+      { x: 1, y: 1 }
+    ];
+
+    harness.commands.updateCurve('master', points);
+    points[1].y = 0.1;
+
+    expect(harness.adjustments().curves.master[1].y).toBe(0.75);
+  });
+});

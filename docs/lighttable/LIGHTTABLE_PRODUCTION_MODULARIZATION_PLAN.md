@@ -1261,3 +1261,7 @@ The refactor is successful when:
       explicit model/command boundary; disclosure, mixer range, grading mode and
       curve-channel UI state are document-instance local while mutations remain
       application-owned.
+- [x] Move Grade and Lens Fx command construction out of the editor root into a
+      host-neutral adjustment command service; scalar, mixer, grading, curve and
+      effect edits now share explicit transaction and publication ports with
+      focused mutation-contract tests.

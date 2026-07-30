@@ -32,6 +32,7 @@ import {
   type EditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
+import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
@@ -44,19 +45,6 @@ import {
 } from './application/telemetry/editorTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
 import {
-  cloneColorGrading,
-  colorGradingZoneIndex,
-  createDefaultColorGrading,
-  type ColorGradingValues,
-  type ColorGradingZone
-} from './colorGrading';
-import {
-  cloneColorMixer,
-  createDefaultColorMixer,
-  type ColorMixerChannel,
-  type ColorMixerValues
-} from './colorMixer';
-import {
   type LightTableImageDecodeMode,
   type ReferenceDifferenceMetrics
 } from './application/rendering/rendererTypes';
@@ -64,36 +52,15 @@ import {
   createWebGpuDocumentRenderer,
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
-import { cloneCurves, createDefaultCurves, createIdentityCurve, type CurveChannel, type ToneCurve } from './curves';
-import { copyLightTableGrade, useLightTableGradeClipboard } from './lightTableGradeClipboard';
+import { useLightTableGradeClipboard } from './lightTableGradeClipboard';
 import {
   resolveLightTableEditorSourceKey,
   resolveLightTableSaveSourceKey,
   type LightTableRecipe
 } from './lightTableRecipe';
 import {
-  createDefaultGrainSettings,
-  DEFAULT_GRAIN_SETTINGS
-} from './effects/grain/settings';
-import {
-  createDefaultHalationSettings,
-  DEFAULT_HALATION_SETTINGS
-} from './effects/halation/settings';
-import {
-  createDefaultChromaticAberrationSettings,
-  DEFAULT_CHROMATIC_ABERRATION_SETTINGS
-} from './effects/chromaticAberration/settings';
-import {
-  createDefaultLensDistortionSettings,
-  DEFAULT_LENS_DISTORTION_SETTINGS
+  mapLensDistortionUv
 } from './effects/lensDistortion/settings';
-import {
-  createDefaultLensBlurSettings,
-  DEFAULT_LENS_BLUR_SETTINGS,
-  type BokehShape,
-  type LensBlurQuality
-} from './effects/lensBlur/settings';
-import { mapLensDistortionUv } from './effects/lensDistortion/settings';
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
 import type { DepthAnalysisProgress, DepthAnalysisResult } from './analysis/depth/types';
@@ -134,19 +101,10 @@ import {
 } from './editor/hooks/useDocumentEditorState';
 import {
   applyGroupVisibility,
-  COLOR_SLIDER_KEYS,
   createDefaultGroupVisibility,
-  EFFECTS_SLIDER_KEYS,
-  LIGHT_SLIDER_KEYS,
-  type GroupVisibility,
-  type NumericAdjustmentKey
+  type GroupVisibility
 } from './application/adjustments/groupVisibility';
 import {
-  type ChromaticAberrationNumericKey,
-  type GrainNumericKey,
-  type HalationNumericKey,
-  type LensBlurNumericKey,
-  type LensDistortionNumericKey,
   type LensBlurViewportMode
 } from './editor/config/adjustmentControls';
 import {
@@ -850,6 +808,76 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     endAdjustmentTransaction();
   }, [endAdjustmentTransaction]);
 
+  const adjustmentCommands = createAdjustmentCommands({
+    beginAdjustment: beginAdjustmentTransaction,
+    endAdjustment: endAdjustmentTransaction,
+    beginLensBlurInteraction,
+    endLensBlurInteraction,
+    changeAdjustments,
+    getAdjustments: () => adjustmentsRef.current,
+    getGroupVisibility: () => groupVisibilityRef.current,
+    publishGroupVisibility: (visibility) => {
+      groupVisibilityRef.current = visibility;
+      setGroupVisibility(visibility);
+      engineRef.current?.setAdjustments(
+        applyGroupVisibility(adjustmentsRef.current, visibility)
+      );
+    },
+    setFocusPickerActive,
+    publishLensBlurViewportMode: (mode) => {
+      setLensBlurViewportModeState(mode);
+      engineRef.current?.setLensBlurDepthVisualization(mode === 'depth');
+    },
+    getSourceName: () => sourceName,
+    publishGradeStatus: setGradeStatus
+  });
+  const {
+    updateAdjustment,
+    resetAdjustment,
+    updateGrain: updateGrainAdjustment,
+    resetGrainControl: resetGrainAdjustment,
+    resetGrain,
+    toggleGrain,
+    updateHalation: updateHalationAdjustment,
+    resetHalationControl: resetHalationAdjustment,
+    resetHalation,
+    setHalationEnabled,
+    updateChromaticAberration: updateChromaticAberrationAdjustment,
+    resetChromaticAberrationControl: resetChromaticAberrationAdjustment,
+    resetChromaticAberration,
+    setChromaticAberrationEnabled,
+    updateLensDistortion: updateLensDistortionAdjustment,
+    resetLensDistortionControl: resetLensDistortionAdjustment,
+    resetLensDistortion,
+    setLensDistortionEnabled,
+    updateLensBlur: updateLensBlurAdjustment,
+    resetLensBlurControl: resetLensBlurAdjustment,
+    resetLensBlur,
+    setLensBlurEnabled,
+    setLensBlurShape,
+    setLensBlurQuality,
+    setLensBlurViewportMode,
+    updateColorMixer: updateColorMixerAdjustment,
+    resetColorMixer: resetColorMixerAdjustment,
+    updateColorGradingWheel,
+    updateColorGradingLuminance,
+    updateColorGradingControl,
+    resetColorGradingControl,
+    resetColorGradingZone,
+    resetColorGradingLuminance,
+    updateCurve,
+    resetCurve,
+    resetAll,
+    toggleGroupVisibility,
+    resetGroup
+  } = adjustmentCommands;
+  const copyCurrentGrade = adjustmentCommands.copyGrade;
+  const pasteCurrentGrade = () => {
+    if (copiedGrade) {
+      adjustmentCommands.pasteGrade(copiedGrade.name, copiedGrade.settings);
+    }
+  };
+
   const undoEditor = useCallback(() => {
     endAdjustmentTransaction();
     endDocumentTransaction();
@@ -1318,433 +1346,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const timeout = window.setTimeout(() => setGradeStatus(null), 2400);
     return () => window.clearTimeout(timeout);
   }, [gradeStatus]);
-
-  const updateAdjustment = (key: NumericAdjustmentKey, value: number) => {
-    // Native range controls can emit their first input before/without a useful
-    // pointer event on some browser/OS combinations. Opening the transaction
-    // here as well guarantees that an entire drag remains one undo command.
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => ({ ...current, [key]: value }));
-  };
-
-  const resetAdjustment = (key: NumericAdjustmentKey) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({ ...current, [key]: DEFAULT_BASIC_ADJUSTMENTS[key] }));
-  };
-
-  const updateGrainAdjustment = (key: GrainNumericKey, value: number) => {
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        grain: { ...current.effects.grain, [key]: value }
-      }
-    }));
-  };
-
-  const resetGrainAdjustment = (key: GrainNumericKey) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        grain: { ...current.effects.grain, [key]: DEFAULT_GRAIN_SETTINGS[key] }
-      }
-    }));
-  };
-
-  const resetGrain = () => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        grain: { ...createDefaultGrainSettings(), enabled: current.effects.grain.enabled }
-      }
-    }));
-  };
-
-  const toggleGrain = () => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        grain: { ...current.effects.grain, enabled: !current.effects.grain.enabled }
-      }
-    }));
-  };
-
-  const updateHalationAdjustment = (key: HalationNumericKey, value: number) => {
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        halation: { ...current.effects.halation, [key]: value }
-      }
-    }));
-  };
-
-  const resetHalationAdjustment = (key: HalationNumericKey) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        halation: { ...current.effects.halation, [key]: DEFAULT_HALATION_SETTINGS[key] }
-      }
-    }));
-  };
-
-  const resetHalation = () => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        halation: { ...createDefaultHalationSettings(), enabled: current.effects.halation.enabled }
-      }
-    }));
-  };
-
-  const setHalationEnabled = (enabled: boolean) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        halation: { ...current.effects.halation, enabled }
-      }
-    }));
-  };
-
-  const updateChromaticAberrationAdjustment = (key: ChromaticAberrationNumericKey, value: number) => {
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        chromaticAberration: { ...current.effects.chromaticAberration, [key]: value }
-      }
-    }));
-  };
-
-  const resetChromaticAberrationAdjustment = (key: ChromaticAberrationNumericKey) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        chromaticAberration: {
-          ...current.effects.chromaticAberration,
-          [key]: DEFAULT_CHROMATIC_ABERRATION_SETTINGS[key]
-        }
-      }
-    }));
-  };
-
-  const resetChromaticAberration = () => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        chromaticAberration: {
-          ...createDefaultChromaticAberrationSettings(),
-          enabled: current.effects.chromaticAberration.enabled
-        }
-      }
-    }));
-  };
-
-  const setChromaticAberrationEnabled = (enabled: boolean) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        chromaticAberration: { ...current.effects.chromaticAberration, enabled }
-      }
-    }));
-  };
-
-  const updateLensDistortionAdjustment = (key: LensDistortionNumericKey, value: number) => {
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensDistortion: { ...current.effects.lensDistortion, [key]: value }
-      }
-    }));
-  };
-
-  const resetLensDistortionAdjustment = (key: LensDistortionNumericKey) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensDistortion: { ...current.effects.lensDistortion, [key]: DEFAULT_LENS_DISTORTION_SETTINGS[key] }
-      }
-    }));
-  };
-
-  const resetLensDistortion = () => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensDistortion: {
-          ...createDefaultLensDistortionSettings(),
-          enabled: current.effects.lensDistortion.enabled
-        }
-      }
-    }));
-  };
-
-  const setLensDistortionEnabled = (enabled: boolean) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensDistortion: { ...current.effects.lensDistortion, enabled }
-      }
-    }));
-  };
-
-  const updateLensBlurAdjustment = (key: LensBlurNumericKey, value: number) => {
-    beginLensBlurInteraction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensBlur: { ...current.effects.lensBlur, [key]: value }
-      }
-    }));
-  };
-
-  const resetLensBlurAdjustment = (key: LensBlurNumericKey) => {
-    endLensBlurInteraction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensBlur: { ...current.effects.lensBlur, [key]: DEFAULT_LENS_BLUR_SETTINGS[key] }
-      }
-    }));
-  };
-
-  const resetLensBlur = () => {
-    endLensBlurInteraction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensBlur: { ...createDefaultLensBlurSettings(), enabled: current.effects.lensBlur.enabled }
-      }
-    }));
-    setFocusPickerActive(false);
-  };
-
-  const setLensBlurEnabled = (enabled: boolean) => {
-    endLensBlurInteraction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensBlur: { ...current.effects.lensBlur, enabled }
-      }
-    }));
-    if (!enabled) setFocusPickerActive(false);
-  };
-
-  const setLensBlurShape = (bokehShape: BokehShape) => {
-    endLensBlurInteraction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensBlur: { ...current.effects.lensBlur, bokehShape }
-      }
-    }));
-  };
-
-  const setLensBlurQuality = (quality: LensBlurQuality) => {
-    endLensBlurInteraction();
-    changeAdjustments((current) => ({
-      ...current,
-      effects: {
-        ...current.effects,
-        lensBlur: { ...current.effects.lensBlur, quality }
-      }
-    }));
-  };
-
-  const setLensBlurViewportMode = (mode: LensBlurViewportMode) => {
-    endLensBlurInteraction();
-    setLensBlurViewportModeState(mode);
-    engineRef.current?.setLensBlurDepthVisualization(mode === 'depth');
-  };
-
-  const updateColorMixerAdjustment = (channel: ColorMixerChannel, index: number, value: number) => {
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => {
-      const values = [...current.colorMixer[channel]] as ColorMixerValues;
-      values[index] = value;
-      return {
-        ...current,
-        colorMixer: { ...cloneColorMixer(current.colorMixer), [channel]: values }
-      };
-    });
-  };
-
-  const resetColorMixerAdjustment = (channel: ColorMixerChannel, index: number) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => {
-      const values = [...current.colorMixer[channel]] as ColorMixerValues;
-      values[index] = 0;
-      return {
-        ...current,
-        colorMixer: { ...cloneColorMixer(current.colorMixer), [channel]: values }
-      };
-    });
-  };
-
-  const updateColorGradingWheel = (zone: ColorGradingZone, hue: number, saturation: number) => {
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => {
-      const index = colorGradingZoneIndex(zone);
-      const next = cloneColorGrading(current.colorGrading);
-      next.hue[index] = hue;
-      next.saturation[index] = saturation;
-      return { ...current, colorGrading: next };
-    });
-  };
-
-  const updateColorGradingLuminance = (zone: ColorGradingZone, value: number) => {
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => {
-      const index = colorGradingZoneIndex(zone);
-      const luminance = [...current.colorGrading.luminance] as ColorGradingValues;
-      luminance[index] = value;
-      return {
-        ...current,
-        colorGrading: { ...cloneColorGrading(current.colorGrading), luminance }
-      };
-    });
-  };
-
-  const updateColorGradingControl = (control: 'blending' | 'balance', value: number) => {
-    beginAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      colorGrading: { ...cloneColorGrading(current.colorGrading), [control]: value }
-    }));
-  };
-
-  const resetColorGradingControl = (control: 'blending' | 'balance') => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      colorGrading: {
-        ...cloneColorGrading(current.colorGrading),
-        [control]: DEFAULT_BASIC_ADJUSTMENTS.colorGrading[control]
-      }
-    }));
-  };
-
-  const resetColorGradingZone = (zone: ColorGradingZone) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => {
-      const index = colorGradingZoneIndex(zone);
-      const next = cloneColorGrading(current.colorGrading);
-      next.hue[index] = 0;
-      next.saturation[index] = 0;
-      next.luminance[index] = 0;
-      return { ...current, colorGrading: next };
-    });
-  };
-
-  const resetColorGradingLuminance = (zone: ColorGradingZone) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => {
-      const index = colorGradingZoneIndex(zone);
-      const luminance = [...current.colorGrading.luminance] as ColorGradingValues;
-      luminance[index] = 0;
-      return {
-        ...current,
-        colorGrading: { ...cloneColorGrading(current.colorGrading), luminance }
-      };
-    });
-  };
-
-  const updateCurve = (channel: CurveChannel, points: ToneCurve) => {
-    changeAdjustments((current) => ({
-      ...current,
-      curves: { ...cloneCurves(current.curves), [channel]: points.map((point) => ({ ...point })) }
-    }));
-  };
-
-  const resetCurve = (channel: CurveChannel) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => ({
-      ...current,
-      curves: { ...cloneCurves(current.curves), [channel]: createIdentityCurve() }
-    }));
-  };
-
-  const resetAll = () => {
-    endAdjustmentTransaction();
-    changeAdjustments(() => createDefaultAdjustments());
-  };
-
-  const toggleGroupVisibility = (group: keyof GroupVisibility) => {
-    const nextVisibility = { ...groupVisibility, [group]: !groupVisibility[group] };
-    groupVisibilityRef.current = nextVisibility;
-    setGroupVisibility(nextVisibility);
-    engineRef.current?.setAdjustments(applyGroupVisibility(adjustmentsRef.current, nextVisibility));
-  };
-
-  const resetGroup = (group: keyof GroupVisibility) => {
-    endAdjustmentTransaction();
-    changeAdjustments((current) => {
-      if (group === 'colorMixer') {
-        return { ...current, colorMixer: createDefaultColorMixer() };
-      }
-      if (group === 'colorGrading') {
-        return { ...current, colorGrading: createDefaultColorGrading() };
-      }
-      if (group === 'curves') {
-        return { ...current, curves: createDefaultCurves() };
-      }
-      const keys = group === 'light'
-        ? LIGHT_SLIDER_KEYS
-        : group === 'color'
-          ? COLOR_SLIDER_KEYS
-          : EFFECTS_SLIDER_KEYS;
-      keys.forEach((key) => {
-        current[key] = DEFAULT_BASIC_ADJUSTMENTS[key];
-      });
-      return current;
-    });
-  };
-
-  const copyCurrentGrade = () => {
-    copyLightTableGrade(adjustmentsRef.current, sourceName);
-    setGradeStatus('Grade copied');
-  };
-
-  const pasteCurrentGrade = () => {
-    if (!copiedGrade) return;
-    endAdjustmentTransaction();
-    changeAdjustments(() => copiedGrade.settings);
-    setGradeStatus(`Loaded ${copiedGrade.name}`);
-  };
 
   const openAppMenu = useCallback((id: LightTableAppMenuId, target: EventTarget & HTMLElement) => {
     const rect = target.getBoundingClientRect();
