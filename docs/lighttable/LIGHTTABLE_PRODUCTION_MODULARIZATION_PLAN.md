@@ -885,6 +885,8 @@ Exit criteria:
 
 Work:
 
+- [x] move selection mask/draft visualization into its owning selection
+      feature with an explicit display-space contract;
 - move Layers, Grade, Lens Fx, Scopes and Debug into registered panels;
 - replace direct root callbacks with commands/selectors;
 - move dialogs to owning feature modules;
