@@ -52,7 +52,6 @@ export interface LensFxExpandedState {
 export interface LensFxPanelModel {
   readonly adjustments: BasicAdjustments;
   readonly metadata: LightTableImageMetadata | null;
-  readonly expanded: LensFxExpandedState;
   readonly resetModifierActive: boolean;
   readonly depthProgress: DepthAnalysisProgress;
   readonly depthResult: DepthAnalysisResult | null;
@@ -61,10 +60,6 @@ export interface LensFxPanelModel {
 }
 
 export interface LensFxPanelCommands {
-  readonly setExpanded: (
-    group: keyof LensFxExpandedState,
-    expanded: boolean
-  ) => void;
   readonly beginAdjustment: () => void;
   readonly endAdjustment: () => void;
   readonly grain: {
@@ -110,7 +105,20 @@ export interface LensFxPanelProps {
 
 export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
   const [grainAdvancedExpanded, setGrainAdvancedExpanded] = useState(false);
-  const { adjustments, metadata, expanded, resetModifierActive } = model;
+  const [expanded, setExpanded] = useState<LensFxExpandedState>({
+    grain: true,
+    halation: true,
+    chromaticAberration: true,
+    lensDistortion: true,
+    lensBlur: true
+  });
+  const { adjustments, metadata, resetModifierActive } = model;
+  const setGroupExpanded = (
+    group: keyof LensFxExpandedState,
+    next: boolean
+  ) => {
+    setExpanded((current) => ({ ...current, [group]: next }));
+  };
 
   const grain = adjustments.effects.grain;
   const halation = adjustments.effects.halation;
@@ -136,7 +144,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
           expanded={expanded.lensDistortion}
           enabled={lensDistortion.enabled}
           resetModifierActive={resetModifierActive}
-          onExpandedChange={(next) => commands.setExpanded('lensDistortion', next)}
+          onExpandedChange={(next) => setGroupExpanded('lensDistortion', next)}
           onEnabledChange={commands.lensDistortion.setEnabled}
           onReset={commands.lensDistortion.reset}
         >
@@ -166,7 +174,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
           expanded={expanded.chromaticAberration}
           enabled={chromaticAberration.enabled}
           resetModifierActive={resetModifierActive}
-          onExpandedChange={(next) => commands.setExpanded('chromaticAberration', next)}
+          onExpandedChange={(next) => setGroupExpanded('chromaticAberration', next)}
           onEnabledChange={commands.chromaticAberration.setEnabled}
           onReset={commands.chromaticAberration.reset}
         >
@@ -196,7 +204,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
           expanded={expanded.lensBlur}
           enabled={lensBlur.enabled}
           resetModifierActive={resetModifierActive}
-          onExpandedChange={(next) => commands.setExpanded('lensBlur', next)}
+          onExpandedChange={(next) => setGroupExpanded('lensBlur', next)}
           onEnabledChange={commands.lensBlur.setEnabled}
           onReset={commands.lensBlur.reset}
         >
@@ -289,7 +297,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
           expanded={expanded.halation}
           enabled={halation.enabled}
           resetModifierActive={resetModifierActive}
-          onExpandedChange={(next) => commands.setExpanded('halation', next)}
+          onExpandedChange={(next) => setGroupExpanded('halation', next)}
           onEnabledChange={commands.halation.setEnabled}
           onReset={commands.halation.reset}
         >
@@ -319,7 +327,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
           expanded={expanded.grain}
           enabled={grain.enabled}
           resetModifierActive={resetModifierActive}
-          onExpandedChange={(next) => commands.setExpanded('grain', next)}
+          onExpandedChange={(next) => setGroupExpanded('grain', next)}
           onEnabledChange={commands.grain.setEnabled}
           onReset={commands.grain.reset}
         >

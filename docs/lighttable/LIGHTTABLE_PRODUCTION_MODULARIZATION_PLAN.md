@@ -1257,3 +1257,7 @@ The refactor is successful when:
 - [x] Move the complete Lens Fx presentation into a feature-owned panel with an
       explicit model/command boundary; local disclosure state no longer leaks
       into the editor root and document/GPU mutation remains application-owned.
+- [x] Move the complete Grade presentation into a feature-owned panel with an
+      explicit model/command boundary; disclosure, mixer range, grading mode and
+      curve-channel UI state are document-instance local while mutations remain
+      application-owned.

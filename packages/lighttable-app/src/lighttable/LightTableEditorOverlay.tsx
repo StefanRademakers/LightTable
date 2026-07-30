@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContextMenu, type ContextMenuOption } from '../ui/ContextMenu';
-import { SegmentedControl } from '../ui/SegmentedControl';
 import { SquareIconButton } from '../ui/SquareIconButton';
 import { TextInputDialog } from '../ui/TextInputDialog';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -44,22 +43,15 @@ import {
   type LightTableStartupTimings
 } from './application/telemetry/editorTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
-import { AdjustmentSlider } from './AdjustmentSlider';
-import { ColorGradingWheel } from './ColorGradingWheel';
 import {
   cloneColorGrading,
-  COLOR_GRADING_ZONE_LABELS,
   colorGradingZoneIndex,
   createDefaultColorGrading,
-  type ColorGradingMode,
   type ColorGradingValues,
   type ColorGradingZone
 } from './colorGrading';
 import {
   cloneColorMixer,
-  COLOR_MIXER_CHANNELS,
-  COLOR_MIXER_RANGES,
-  colorMixerTrack,
   createDefaultColorMixer,
   type ColorMixerChannel,
   type ColorMixerValues
@@ -72,7 +64,6 @@ import {
   createWebGpuDocumentRenderer,
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
-import { CurvesEditor } from './CurvesEditor';
 import { cloneCurves, createDefaultCurves, createIdentityCurve, type CurveChannel, type ToneCurve } from './curves';
 import { copyLightTableGrade, useLightTableGradeClipboard } from './lightTableGradeClipboard';
 import {
@@ -118,6 +109,7 @@ import { ToolOptionsBar } from './editor/ui/ToolOptionsBar';
 import { DebugPanel } from './editor/ui/DebugPanel';
 import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
 import { EditorStatusBar } from './editor/ui/EditorStatusBar';
+import { GradePanel } from './editor/panels/GradePanel';
 import { LensFxPanel } from './editor/panels/LensFxPanel';
 import {
   type LightTableDebugMessage,
@@ -150,19 +142,11 @@ import {
   type NumericAdjustmentKey
 } from './application/adjustments/groupVisibility';
 import {
-  COLOR_SLIDERS,
-  colorMixerRangeBounds,
-  EFFECTS_SLIDERS,
-  GRADING_MODE_OPTIONS,
-  LIGHT_SLIDERS,
-  MIXER_CHANNEL_LABELS,
-  nearestColorMixerRange,
   type ChromaticAberrationNumericKey,
   type GrainNumericKey,
   type HalationNumericKey,
   type LensBlurNumericKey,
   type LensDistortionNumericKey,
-  type SliderDefinition,
   type LensBlurViewportMode
 } from './editor/config/adjustmentControls';
 import {
@@ -473,10 +457,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [showOriginal, setShowOriginal] = useState(false);
   const [showDifference, setShowDifference] = useState(false);
   const [sourceName, setSourceName] = useState(fileNameBase);
-  const [expandedGroups, setExpandedGroups] = useState({ light: true, color: true, colorMixer: true, colorGrading: true, curves: true, effects: true, grain: true, halation: true, chromaticAberration: true, lensDistortion: true, lensBlur: true });
-  const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
-  const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
-  const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
   const [groupVisibility, setGroupVisibility] = useState<GroupVisibility>(
     createDefaultGroupVisibility
   );
@@ -1023,9 +1003,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     adjustmentsRef.current = startingAdjustments;
     setAdjustments(startingAdjustments);
     clearEditorHistory();
-    setExpandedGroups({ light: true, color: true, colorMixer: true, colorGrading: true, curves: true, effects: true, grain: true, halation: true, chromaticAberration: true, lensDistortion: true, lensBlur: true });
-    setSelectedColorMixerRange(0);
-    setColorGradingMode('all');
     setShowOriginal(false);
     setShowDifference(false);
     const startingScopeSettings = { ...DEFAULT_SCOPE_SETTINGS };
@@ -1919,442 +1896,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (temporaryToolRef.current.end()) setTemporaryPanActive(false);
     }
   });
-
-  const renderAdjustmentGroup = (
-    group: keyof GroupVisibility,
-    label: string,
-    sliders: SliderDefinition[]
-  ) => {
-    const expanded = expandedGroups[group];
-    const visible = groupVisibility[group];
-    return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <div className="lighttable-group__header">
-          <button
-            type="button"
-            className="lighttable-group__toggle"
-            onPointerDown={(event) => {
-              if (event.button === 0 && (event.shiftKey || shiftPressed)) {
-                event.preventDefault();
-                resetGroup(group);
-              }
-            }}
-            onClick={(event) => {
-              if (event.button === 0 && (event.shiftKey || shiftPressed)) {
-                event.preventDefault();
-                resetGroup(group);
-                return;
-              }
-              setExpandedGroups((current) => ({ ...current, [group]: !current[group] }));
-            }}
-            aria-expanded={expanded}
-            title={shiftPressed ? `Reset ${label}` : label}
-          >
-            <img src={lightTableIcon(expanded ? 'area_open.png' : 'area_closed.png')} alt="" aria-hidden="true" />
-            <strong>{label}</strong>
-          </button>
-          <div className="lighttable-group__actions">
-            <button
-              type="button"
-              className="lighttable-group__reset"
-              onClick={() => resetGroup(group)}
-              aria-label={`Reset ${label} adjustments`}
-              title={`Reset ${label} adjustments`}
-            >
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="lighttable-group__visibility"
-              onClick={() => toggleGroupVisibility(group)}
-              aria-label={`${visible ? 'Disable' : 'Enable'} ${label} adjustments`}
-              title={`${visible ? 'Disable' : 'Enable'} ${label} adjustments`}
-            >
-              <img src={lightTableIcon(visible ? 'visible.png' : 'visible_off.png')} alt="" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-        {expanded ? (
-          <div className="lighttable-group__controls">
-            {sliders.map((slider) => (
-              <AdjustmentSlider
-                key={slider.key}
-                label={slider.label}
-                value={adjustments[slider.key]}
-                min={slider.min}
-                max={slider.max}
-                step={slider.step}
-                format={slider.format}
-                track={slider.track}
-                resetValue={DEFAULT_BASIC_ADJUSTMENTS[slider.key]}
-                disabled={!metadata || !visible}
-                resetModifierActive={shiftPressed}
-                onChange={(value) => updateAdjustment(slider.key, value)}
-                onReset={() => resetAdjustment(slider.key)}
-                onInteractionStart={beginAdjustmentTransaction}
-                onInteractionEnd={endAdjustmentTransaction}
-              />
-            ))}
-          </div>
-        ) : null}
-      </section>
-    );
-  };
-
-  const renderColorMixerGroup = () => {
-    const expanded = expandedGroups.colorMixer;
-    const visible = groupVisibility.colorMixer;
-    const selectedRange = COLOR_MIXER_RANGES[selectedColorMixerRange];
-    const rangeBounds = colorMixerRangeBounds(selectedColorMixerRange);
-    const rangeSpans = rangeBounds.start <= rangeBounds.end
-      ? [{ left: rangeBounds.start, width: rangeBounds.end - rangeBounds.start }]
-      : [
-          { left: rangeBounds.start, width: 1 - rangeBounds.start },
-          { left: 0, width: rangeBounds.end }
-        ];
-    const selectRangeAtPointer = (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!metadata || !visible) return;
-      const bounds = event.currentTarget.getBoundingClientRect();
-      if (bounds.width < 1) return;
-      const position = Math.max(0, Math.min(0.999999, (event.clientX - bounds.left) / bounds.width));
-      setSelectedColorMixerRange(nearestColorMixerRange(position));
-    };
-    return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <div className="lighttable-group__header">
-          <button
-            type="button"
-            className="lighttable-group__toggle"
-            onPointerDown={(event) => {
-              if (event.button === 0 && (event.shiftKey || shiftPressed)) {
-                event.preventDefault();
-                resetGroup('colorMixer');
-              }
-            }}
-            onClick={(event) => {
-              if (event.shiftKey || shiftPressed) {
-                event.preventDefault();
-                resetGroup('colorMixer');
-                return;
-              }
-              setExpandedGroups((current) => ({ ...current, colorMixer: !current.colorMixer }));
-            }}
-            aria-expanded={expanded}
-            title={shiftPressed ? 'Reset Color Mixer' : 'Color Mixer'}
-          >
-            <img src={lightTableIcon(expanded ? 'area_open.png' : 'area_closed.png')} alt="" aria-hidden="true" />
-            <strong>Color Mixer</strong>
-          </button>
-          <div className="lighttable-group__actions">
-            <button
-              type="button"
-              className="lighttable-group__reset"
-              onClick={() => resetGroup('colorMixer')}
-              aria-label="Reset Color Mixer adjustments"
-              title="Reset Color Mixer adjustments"
-            >
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="lighttable-group__visibility"
-              onClick={() => toggleGroupVisibility('colorMixer')}
-              aria-label={`${visible ? 'Disable' : 'Enable'} Color Mixer adjustments`}
-              title={`${visible ? 'Disable' : 'Enable'} Color Mixer adjustments`}
-            >
-              <img src={lightTableIcon(visible ? 'visible.png' : 'visible_off.png')} alt="" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-        <div
-          className="lighttable-group__controls lighttable-color-mixer"
-          hidden={!expanded}
-        >
-          <div
-            ref={colorMixerScopeContainerRef}
-            className="lighttable-color-mixer__picker"
-          role="slider"
-          aria-label="Color Mixer hue range"
-          aria-valuemin={0}
-          aria-valuemax={COLOR_MIXER_RANGES.length - 1}
-          aria-valuenow={selectedColorMixerRange}
-          aria-valuetext={selectedRange.label}
-            aria-disabled={!metadata || !visible}
-            tabIndex={metadata && visible ? 0 : -1}
-            onPointerDown={(event) => {
-              if (event.button !== 0) return;
-              event.currentTarget.setPointerCapture(event.pointerId);
-              selectRangeAtPointer(event);
-            }}
-            onPointerMove={(event) => {
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) selectRangeAtPointer(event);
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' &&
-                event.key !== 'Home' && event.key !== 'End') return;
-              event.preventDefault();
-              if (event.key === 'Home') setSelectedColorMixerRange(0);
-              else if (event.key === 'End') setSelectedColorMixerRange(COLOR_MIXER_RANGES.length - 1);
-              else {
-                const direction = event.key === 'ArrowLeft' ? -1 : 1;
-                setSelectedColorMixerRange((current) => (
-                  current + direction + COLOR_MIXER_RANGES.length
-                ) % COLOR_MIXER_RANGES.length);
-              }
-            }}
-          >
-            <canvas
-              ref={colorMixerHueCanvasRef}
-              className="lighttable-color-mixer__scope"
-              aria-hidden="true"
-            />
-            <div className="lighttable-color-mixer__hue-strip" aria-hidden="true" />
-            <div className="lighttable-color-mixer__range-overlay" aria-hidden="true">
-              {rangeSpans.map((span, index) => (
-                <span
-                  className="lighttable-color-mixer__range-fill"
-                  key={`${span.left}-${index}`}
-                  style={{
-                    left: `${span.left * 100}%`,
-                    width: `${span.width * 100}%`
-                  }}
-                />
-              ))}
-              <span
-                className="lighttable-color-mixer__range-marker"
-                style={{ left: `${rangeBounds.start * 100}%` }}
-              />
-              <span
-                className="lighttable-color-mixer__range-marker"
-                style={{ left: `${rangeBounds.end * 100}%` }}
-              />
-            </div>
-          </div>
-          <div className="lighttable-color-mixer__selection">
-            <span
-              className="lighttable-color-mixer__selection-swatch"
-              style={{ background: selectedRange.color }}
-            />
-            <strong>{selectedRange.label}</strong>
-          </div>
-          {COLOR_MIXER_CHANNELS.map((channel) => (
-            <AdjustmentSlider
-              key={`${channel}-${selectedRange.label}`}
-              label={MIXER_CHANNEL_LABELS[channel]}
-              value={adjustments.colorMixer[channel][selectedColorMixerRange]}
-              min={-100}
-              max={100}
-              resetValue={0}
-              trackBackground={colorMixerTrack(channel, selectedColorMixerRange)}
-              disabled={!metadata || !visible}
-              resetModifierActive={shiftPressed}
-              onChange={(value) => updateColorMixerAdjustment(channel, selectedColorMixerRange, value)}
-              onReset={() => resetColorMixerAdjustment(channel, selectedColorMixerRange)}
-              onInteractionStart={beginAdjustmentTransaction}
-              onInteractionEnd={endAdjustmentTransaction}
-            />
-          ))}
-        </div>
-      </section>
-    );
-  };
-
-  const renderColorGradingWheel = (zone: ColorGradingZone, compact = false) => {
-    const index = colorGradingZoneIndex(zone);
-    const label = COLOR_GRADING_ZONE_LABELS[zone];
-    const visible = groupVisibility.colorGrading;
-    return (
-      <div className="lighttable-color-grading__wheel-block" key={zone}>
-        <ColorGradingWheel
-          label={label}
-          hue={adjustments.colorGrading.hue[index]}
-          saturation={adjustments.colorGrading.saturation[index]}
-          luminance={adjustments.colorGrading.luminance[index]}
-          compact={compact}
-          disabled={!metadata || !visible}
-          resetModifierActive={shiftPressed}
-          onChange={(hue, saturation) => updateColorGradingWheel(zone, hue, saturation)}
-          onReset={() => resetColorGradingZone(zone)}
-          onInteractionStart={beginAdjustmentTransaction}
-          onInteractionEnd={endAdjustmentTransaction}
-        />
-        <AdjustmentSlider
-          label="Luminance"
-          value={adjustments.colorGrading.luminance[index]}
-          min={-100}
-          max={100}
-          track="luminance"
-          resetValue={0}
-          disabled={!metadata || !visible}
-          resetModifierActive={shiftPressed}
-          onChange={(value) => updateColorGradingLuminance(zone, value)}
-          onReset={() => resetColorGradingLuminance(zone)}
-          onInteractionStart={beginAdjustmentTransaction}
-          onInteractionEnd={endAdjustmentTransaction}
-        />
-      </div>
-    );
-  };
-
-  const renderColorGradingGroup = () => {
-    const expanded = expandedGroups.colorGrading;
-    const visible = groupVisibility.colorGrading;
-    return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <div className="lighttable-group__header">
-          <button
-            type="button"
-            className="lighttable-group__toggle"
-            onPointerDown={(event) => {
-              if (event.button === 0 && (event.shiftKey || shiftPressed)) {
-                event.preventDefault();
-                resetGroup('colorGrading');
-              }
-            }}
-            onClick={(event) => {
-              if (event.shiftKey || shiftPressed) {
-                event.preventDefault();
-                resetGroup('colorGrading');
-                return;
-              }
-              setExpandedGroups((current) => ({ ...current, colorGrading: !current.colorGrading }));
-            }}
-            aria-expanded={expanded}
-            title={shiftPressed ? 'Reset Color Grading' : 'Color Grading'}
-          >
-            <img src={lightTableIcon(expanded ? 'area_open.png' : 'area_closed.png')} alt="" aria-hidden="true" />
-            <strong>Color Grading</strong>
-          </button>
-          <div className="lighttable-group__actions">
-            <button
-              type="button"
-              className="lighttable-group__reset"
-              onClick={() => resetGroup('colorGrading')}
-              aria-label="Reset Color Grading adjustments"
-              title="Reset Color Grading adjustments"
-            >
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="lighttable-group__visibility"
-              onClick={() => toggleGroupVisibility('colorGrading')}
-              aria-label={`${visible ? 'Disable' : 'Enable'} Color Grading adjustments`}
-              title={`${visible ? 'Disable' : 'Enable'} Color Grading adjustments`}
-            >
-              <img src={lightTableIcon(visible ? 'visible.png' : 'visible_off.png')} alt="" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-        {expanded ? (
-          <div className="lighttable-group__controls lighttable-color-grading">
-            <SegmentedControl
-              options={GRADING_MODE_OPTIONS}
-              value={colorGradingMode}
-              onChange={setColorGradingMode}
-              ariaLabel="Color Grading tonal range"
-              className="lighttable-color-grading__modes"
-            />
-            {colorGradingMode === 'all' ? (
-              <div className="lighttable-color-grading__three-way">
-                {renderColorGradingWheel('midtones')}
-                <div className="lighttable-color-grading__split">
-                  {renderColorGradingWheel('shadows', true)}
-                  {renderColorGradingWheel('highlights', true)}
-                </div>
-              </div>
-            ) : renderColorGradingWheel(colorGradingMode)}
-            <div className="lighttable-color-grading__range-controls">
-              <AdjustmentSlider
-                label="Blending"
-                value={adjustments.colorGrading.blending}
-                min={0}
-                max={100}
-                format={(value) => `${Math.round(value)}%`}
-                resetValue={50}
-                disabled={!metadata || !visible}
-                resetModifierActive={shiftPressed}
-                onChange={(value) => updateColorGradingControl('blending', value)}
-                onReset={() => resetColorGradingControl('blending')}
-                onInteractionStart={beginAdjustmentTransaction}
-                onInteractionEnd={endAdjustmentTransaction}
-              />
-              <AdjustmentSlider
-                label="Balance"
-                value={adjustments.colorGrading.balance}
-                min={-100}
-                max={100}
-                resetValue={0}
-                disabled={!metadata || !visible}
-                resetModifierActive={shiftPressed}
-                onChange={(value) => updateColorGradingControl('balance', value)}
-                onReset={() => resetColorGradingControl('balance')}
-                onInteractionStart={beginAdjustmentTransaction}
-                onInteractionEnd={endAdjustmentTransaction}
-              />
-            </div>
-          </div>
-        ) : null}
-      </section>
-    );
-  };
-
-  const renderCurvesGroup = () => {
-    const expanded = expandedGroups.curves;
-    const visible = groupVisibility.curves;
-    return (
-      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
-        <div className="lighttable-group__header">
-          <button
-            type="button"
-            className="lighttable-group__toggle"
-            onClick={(event) => {
-              if (event.shiftKey || shiftPressed) {
-                event.preventDefault();
-                resetGroup('curves');
-                return;
-              }
-              setExpandedGroups((current) => ({ ...current, curves: !current.curves }));
-            }}
-            aria-expanded={expanded}
-            title={shiftPressed ? 'Reset Custom Curves' : 'Custom Curves'}
-          >
-            <img src={lightTableIcon(expanded ? 'area_open.png' : 'area_closed.png')} alt="" aria-hidden="true" />
-            <strong>Custom Curves</strong>
-          </button>
-          <div className="lighttable-group__actions">
-            <button type="button" className="lighttable-group__reset" onClick={() => resetGroup('curves')} title="Reset Custom Curves" aria-label="Reset Custom Curves">
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="lighttable-group__visibility"
-              onClick={() => toggleGroupVisibility('curves')}
-              title={`${visible ? 'Disable' : 'Enable'} Custom Curves`}
-              aria-label={`${visible ? 'Disable' : 'Enable'} Custom Curves`}
-            >
-              <img src={lightTableIcon(visible ? 'visible.png' : 'visible_off.png')} alt="" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-        {expanded ? (
-          <div className="lighttable-group__controls">
-            <CurvesEditor
-              curves={adjustments.curves}
-              channel={curveChannel}
-              histogram={histogram}
-              disabled={!metadata || !visible}
-              onChannelChange={setCurveChannel}
-              onChange={updateCurve}
-              onReset={resetCurve}
-              onInteractionStart={beginAdjustmentTransaction}
-              onInteractionEnd={endAdjustmentTransaction}
-            />
-          </div>
-        ) : null}
-      </section>
-    );
-  };
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     if (!metadata) return;
@@ -3589,10 +3130,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             )}
             lensFx={(
               <LensFxPanel
+                key={sourceIdentity || sourceName}
                 model={{
                   adjustments,
                   metadata,
-                  expanded: expandedGroups,
                   resetModifierActive: shiftPressed,
                   depthProgress,
                   depthResult,
@@ -3600,9 +3141,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   focusPickerActive
                 }}
                 commands={{
-                  setExpanded: (group, next) => {
-                    setExpandedGroups((current) => ({ ...current, [group]: next }));
-                  },
                   beginAdjustment: beginAdjustmentTransaction,
                   endAdjustment: endAdjustmentTransaction,
                   grain: {
@@ -3643,47 +3181,42 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               />
             )}
             grade={(
-
-              <aside className="lighttable-panel">
-            <section className="lighttable-group lighttable-master-group">
-              <div className="lighttable-group__header">
-                <div className="lighttable-master-group__label">
-                  <strong>All</strong>
-                </div>
-                <div className="lighttable-group__actions">
-                  <button
-                    type="button"
-                    className="lighttable-group__reset"
-                    onClick={resetAll}
-                    aria-label="Reset all corrections"
-                    title="Reset all corrections"
-                  >
-                    <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="lighttable-group__visibility"
-                    onClick={() => {
-                      setShowDifference(false);
-                      setShowOriginal((current) => !current);
-                    }}
-                    aria-label={showOriginal ? 'Show image with all settings' : 'Show original image'}
-                    title={`${showOriginal ? 'Show image with all settings' : 'Show original image'} (P)`}
-                  >
-                    <img src={lightTableIcon(showOriginal ? 'visible_off.png' : 'visible.png')} alt="" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-            </section>
-            <div className="lighttable-panel__controls">
-              {renderAdjustmentGroup('light', 'Light', LIGHT_SLIDERS)}
-              {renderAdjustmentGroup('color', 'Color', COLOR_SLIDERS)}
-              {renderAdjustmentGroup('effects', 'Effects', EFFECTS_SLIDERS)}
-              {renderColorMixerGroup()}
-              {renderColorGradingGroup()}
-              {renderCurvesGroup()}
-            </div>
-              </aside>
+              <GradePanel
+                key={sourceIdentity || sourceName}
+                model={{
+                  adjustments,
+                  metadata,
+                  visibility: groupVisibility,
+                  histogram,
+                  resetModifierActive: shiftPressed,
+                  showOriginal,
+                  colorMixerScopeContainerRef,
+                  colorMixerHueCanvasRef
+                }}
+                commands={{
+                  resetAll,
+                  toggleOriginal: () => {
+                    setShowDifference(false);
+                    setShowOriginal((current) => !current);
+                  },
+                  toggleVisibility: toggleGroupVisibility,
+                  resetGroup,
+                  beginAdjustment: beginAdjustmentTransaction,
+                  endAdjustment: endAdjustmentTransaction,
+                  updateAdjustment,
+                  resetAdjustment,
+                  updateColorMixer: updateColorMixerAdjustment,
+                  resetColorMixer: resetColorMixerAdjustment,
+                  updateColorGradingWheel,
+                  updateColorGradingLuminance,
+                  updateColorGradingControl,
+                  resetColorGradingControl,
+                  resetColorGradingZone,
+                  resetColorGradingLuminance,
+                  updateCurve,
+                  resetCurve
+                }}
+              />
             )}
           />
         </div>
