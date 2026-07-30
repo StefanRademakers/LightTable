@@ -21,12 +21,10 @@ import {
 import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
-import {
-  prepareAndPublishDocumentSource
-} from './application/documents/prepareAndPublishDocumentSource';
 import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpenLifecycle';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
+import { createDocumentSourceLoadController } from './application/documents/documentSourceLoadController';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
   isTemporaryPanRelease,
@@ -647,29 +645,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     void documentHistoryController.redo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
-  const loadBlobIntoEngine = useCallback(async (
-    blob: Blob,
-    name: string,
-    initialAdjustments: BasicAdjustments = createDefaultAdjustments(),
-    cacheKey = `${name}:${blob.size}:${blob.type}:${blob instanceof File ? blob.lastModified : 0}`,
-    isCanceled: () => boolean = () => false,
-    decodeMode: LightTableImageDecodeMode = 'fast',
-    signal?: AbortSignal
-  ) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    await prepareAndPublishDocumentSource({
-      renderer: engine,
-      blob,
-      name,
-      cacheKey,
-      sourceIdentity: cacheKey,
-      decodeMode,
-      signal,
-      isCanceled,
-      initialAdjustments,
-      groupVisibility: groupVisibilityRef.current,
-      publication: {
+  const documentSourceLoadController = useMemo(
+    () => createDocumentSourceLoadController({
+      getRenderer: () => engineRef.current,
+      getGroupVisibility: () => groupVisibilityRef.current,
+      getPublicationPorts: () => ({
         mergeStartupTimings: (timings) => {
           startupTelemetryRef.current.merge(timings);
         },
@@ -720,9 +700,38 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         reportPsdWarnings: (warnings) => {
           console.warn('LightTable PSD semantic import warnings', warnings);
         }
-      }
+      })
+    }),
+    [
+      clearEditorHistory,
+      resetLensBlurDepth,
+      setEditorSession,
+      setImageDocument,
+      setView,
+      setZoomMode
+    ]
+  );
+
+  const loadBlobIntoEngine = useCallback(async (
+    blob: Blob,
+    name: string,
+    initialAdjustments: BasicAdjustments = createDefaultAdjustments(),
+    cacheKey = `${name}:${blob.size}:${blob.type}:${blob instanceof File ? blob.lastModified : 0}`,
+    isCanceled: () => boolean = () => false,
+    decodeMode: LightTableImageDecodeMode = 'fast',
+    signal?: AbortSignal
+  ) => {
+    await documentSourceLoadController.load({
+      blob,
+      name,
+      cacheKey,
+      sourceIdentity: cacheKey,
+      decodeMode,
+      initialAdjustments,
+      signal,
+      isCanceled
     });
-  }, [clearEditorHistory, resetLensBlurDepth]);
+  }, [documentSourceLoadController]);
 
   const beforeDocumentOpen = useCallback(() => {
     resetDocumentOpenPresentation({
@@ -1164,9 +1173,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     applyDocumentSnapshot,
     applyDocumentAndSelection: (document, selection) => {
-      imageDocumentRef.current = document;
-      setImageDocument(document);
-      engineRef.current?.setDocument(document);
+      applyDocumentSnapshot(document);
       setEditorSession((current) => ({
         ...current,
         pointerId: null,

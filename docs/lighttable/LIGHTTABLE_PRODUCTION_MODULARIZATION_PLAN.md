@@ -1364,3 +1364,6 @@ The refactor is successful when:
 - [x] Give canonical document, document-grade and renderer projection one
       application-owned controller; undo, transform and adjustment publication
       can no longer update React state and GPU state through divergent paths.
+- [x] Give source import one document-bound application controller; renderer
+      availability, decode/hydration ordering, cancellation and atomic
+      publication can no longer be reassembled by UI or host code.
