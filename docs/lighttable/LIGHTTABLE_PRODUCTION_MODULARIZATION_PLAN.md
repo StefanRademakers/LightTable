@@ -1317,6 +1317,10 @@ The refactor is successful when:
 - [x] Split keyboard handling into a pure platform-event resolver and a tested
       command-port executor; every shortcut now targets only the active
       document composition instead of embedding mutations in the editor root.
+- [x] Replace hard-coded keyboard branching with a declarative, conflict-
+      inspectable keymap registry. Platform normalization, contextual command
+      resolution and document-scoped execution are now separate seams, ready
+      for default, Photoshop-compatible and user-defined keymap profiles.
 - [x] Publish a prepared source through one synchronous editor transaction
       after the final cancellation check; document, assets, source identity,
       grade and metadata can no longer become partially visible.

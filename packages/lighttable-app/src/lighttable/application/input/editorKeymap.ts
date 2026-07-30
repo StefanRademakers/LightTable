@@ -1,0 +1,211 @@
+import type { ToolId } from '../../editor/session/editorSession';
+import { isPaintTool } from '../../editor/tools/toolCapabilities';
+import { TOOL_DEFINITIONS } from '../../editor/tools/toolRegistry';
+
+export interface EditorKeyboardInput {
+  readonly key: string;
+  readonly code: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly altKey: boolean;
+  readonly shiftKey: boolean;
+}
+
+export interface EditorKeyboardContext {
+  readonly editable: boolean;
+  readonly saving: boolean;
+  readonly activeTool: ToolId;
+  readonly hasActiveLayer: boolean;
+  readonly hasSelection: boolean;
+  readonly hasSelectionClipboard: boolean;
+  readonly transforming: boolean;
+}
+
+export type EditorKeyboardCommand =
+  | 'undo'
+  | 'redo'
+  | 'temporary-pan-start'
+  | 'fill-foreground'
+  | 'fill-background'
+  | 'select-all'
+  | 'select-none'
+  | 'select-invert'
+  | 'selection-copy'
+  | 'selection-paste'
+  | 'layer-via-copy'
+  | 'free-transform'
+  | 'invert-active-target'
+  | 'selection-feather'
+  | 'swap-colors'
+  | 'toggle-original'
+  | 'brush-size-decrease'
+  | 'brush-size-increase'
+  | 'commit-transform'
+  | 'cancel-or-close'
+  | { readonly type: 'activate-tool'; readonly tool: ToolId };
+
+export interface EditorKeyChord {
+  readonly key: string;
+  readonly primary?: boolean;
+  readonly alt?: boolean;
+  readonly shift?: boolean;
+}
+
+export interface EditorKeyBinding {
+  readonly id: string;
+  readonly chord: EditorKeyChord;
+  readonly allowWhileEditing?: boolean;
+  readonly when?: (context: EditorKeyboardContext) => boolean;
+  readonly resolve: (
+    context: EditorKeyboardContext
+  ) => EditorKeyboardCommand;
+}
+
+export interface EditorKeymap {
+  readonly id: string;
+  readonly name: string;
+  readonly bindings: readonly EditorKeyBinding[];
+}
+
+const command = (
+  id: string,
+  chord: EditorKeyChord,
+  result: EditorKeyboardCommand,
+  options: Pick<EditorKeyBinding, 'allowWhileEditing' | 'when'> = {}
+): EditorKeyBinding => ({
+  id,
+  chord,
+  ...options,
+  resolve: () => result
+});
+
+const toolBindings: readonly EditorKeyBinding[] = TOOL_DEFINITIONS.map((tool) => ({
+  id: `tool.${tool.id}`,
+  chord: {
+    key: tool.shortcutKey,
+    primary: false,
+    alt: false,
+    shift: tool.shortcutShift
+  },
+  resolve: (context) =>
+    tool.id === 'transform' && context.activeTool === 'transform'
+      ? 'commit-transform'
+      : { type: 'activate-tool', tool: tool.id }
+}));
+
+export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
+  id: 'lighttable-default',
+  name: 'LightTable Default',
+  bindings: [
+    command('history.undo', { key: 'z', primary: true, alt: false, shift: false }, 'undo', {
+      allowWhileEditing: true
+    }),
+    command('history.redo-shift', { key: 'z', primary: true, alt: false, shift: true }, 'redo', {
+      allowWhileEditing: true
+    }),
+    command('history.redo-y', { key: 'y', primary: true, alt: false, shift: false }, 'redo', {
+      allowWhileEditing: true
+    }),
+    command(
+      'tool.temporary-pan',
+      { key: 'space', primary: false, alt: false },
+      'temporary-pan-start'
+    ),
+    command('fill.foreground', { key: 'delete', primary: false, alt: true, shift: false }, 'fill-foreground'),
+    command('fill.background', { key: 'delete', primary: true, alt: false, shift: false }, 'fill-background'),
+    command('selection.all', { key: 'a', primary: true, alt: false, shift: false }, 'select-all'),
+    command('selection.none', { key: 'd', primary: true, alt: false, shift: false }, 'select-none'),
+    command('selection.invert', { key: 'i', primary: true, alt: false, shift: true }, 'select-invert'),
+    command('selection.copy', { key: 'c', primary: true, alt: false, shift: false }, 'selection-copy', {
+      when: (context) => context.hasSelection
+    }),
+    command('selection.paste', { key: 'v', primary: true, alt: false, shift: false }, 'selection-paste', {
+      when: (context) => context.hasSelectionClipboard
+    }),
+    command('layer.via-copy', { key: 'j', primary: true, alt: false, shift: false }, 'layer-via-copy', {
+      when: (context) => !context.saving
+    }),
+    command('transform.free', { key: 't', primary: true, alt: true, shift: false }, 'free-transform', {
+      when: (context) => !context.saving && context.hasActiveLayer
+    }),
+    command('layer.invert-target', { key: 'i', primary: true, alt: false, shift: false }, 'invert-active-target'),
+    command('selection.feather', { key: 'f6', primary: false, alt: false, shift: true }, 'selection-feather', {
+      when: (context) => context.hasSelection
+    }),
+    command('colors.swap', { key: 'x', primary: false, alt: false }, 'swap-colors'),
+    command('view.toggle-original', { key: 'p', primary: false, alt: false }, 'toggle-original'),
+    command('brush.size-decrease', { key: '[', primary: false, alt: false }, 'brush-size-decrease', {
+      when: (context) => isPaintTool(context.activeTool)
+    }),
+    command('brush.size-increase', { key: ']', primary: false, alt: false }, 'brush-size-increase', {
+      when: (context) => isPaintTool(context.activeTool)
+    }),
+    ...toolBindings,
+    command('transform.commit', { key: 'enter' }, 'commit-transform', {
+      when: (context) => context.transforming
+    }),
+    command('editor.cancel-or-close', { key: 'escape' }, 'cancel-or-close', {
+      when: (context) => !context.saving
+    })
+  ]
+};
+
+export const normalizedEditorKey = (
+  input: Pick<EditorKeyboardInput, 'key' | 'code'>
+): string => {
+  if (input.code === 'Space') return 'space';
+  if (input.code === 'BracketLeft') return '[';
+  if (input.code === 'BracketRight') return ']';
+  if (input.key === 'Backspace' || input.key === 'Delete') return 'delete';
+  return input.key.toLowerCase();
+};
+
+const modifierMatches = (
+  expected: boolean | undefined,
+  actual: boolean
+) => expected === undefined || expected === actual;
+
+export const editorKeyChordMatches = (
+  chord: EditorKeyChord,
+  input: EditorKeyboardInput
+): boolean => (
+  chord.key === normalizedEditorKey(input)
+  && modifierMatches(chord.primary, input.ctrlKey || input.metaKey)
+  && modifierMatches(chord.alt, input.altKey)
+  && modifierMatches(chord.shift, input.shiftKey)
+);
+
+export const resolveEditorKeymapCommand = (
+  keymap: EditorKeymap,
+  input: EditorKeyboardInput,
+  context: EditorKeyboardContext
+): EditorKeyboardCommand | null => {
+  const binding = keymap.bindings.find((candidate) =>
+    editorKeyChordMatches(candidate.chord, input)
+    && (!context.editable || candidate.allowWhileEditing)
+    && (!candidate.when || candidate.when(context))
+  );
+  return binding?.resolve(context) ?? null;
+};
+
+const chordIdentity = (chord: EditorKeyChord): string => [
+  chord.primary === undefined ? '*' : chord.primary ? 'primary' : 'no-primary',
+  chord.alt === undefined ? '*' : chord.alt ? 'alt' : 'no-alt',
+  chord.shift === undefined ? '*' : chord.shift ? 'shift' : 'no-shift',
+  chord.key
+].join('+');
+
+export const findEditorKeymapConflicts = (
+  keymap: EditorKeymap
+): ReadonlyMap<string, readonly string[]> => {
+  const bindingsByChord = new Map<string, string[]>();
+  keymap.bindings.forEach((binding) => {
+    const identity = chordIdentity(binding.chord);
+    const ids = bindingsByChord.get(identity) ?? [];
+    ids.push(binding.id);
+    bindingsByChord.set(identity, ids);
+  });
+  return new Map(
+    [...bindingsByChord].filter(([, ids]) => ids.length > 1)
+  );
+};
