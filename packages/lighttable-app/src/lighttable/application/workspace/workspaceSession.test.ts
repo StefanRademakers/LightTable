@@ -252,18 +252,30 @@ describe('WorkspaceSession', () => {
     second.value.renderer.setMemoryEstimate(96_000, secondGeneration);
     second.value.renderer.markReady(secondGeneration);
 
-    first.value.renderer.setActive(false);
     expect(workspace.getSnapshot().documents.one.renderer).toMatchObject({
       status: 'suspended',
+      active: false,
       estimatedGpuBytes: 48_000
     });
     expect(workspace.getSnapshot().documents.two.renderer).toMatchObject({
       status: 'ready',
+      active: true,
       estimatedGpuBytes: 96_000
+    });
+
+    workspace.activate(first.value.id);
+    expect(workspace.getSnapshot().documents.one.renderer).toMatchObject({
+      status: 'ready',
+      active: true
+    });
+    expect(workspace.getSnapshot().documents.two.renderer).toMatchObject({
+      status: 'suspended',
+      active: false
     });
 
     workspace.close(first.value.id);
     expect(first.value.renderer.getSnapshot().status).toBe('disposed');
     expect(second.value.renderer.getSnapshot().status).toBe('ready');
+    expect(second.value.renderer.getSnapshot().active).toBe(true);
   });
 });

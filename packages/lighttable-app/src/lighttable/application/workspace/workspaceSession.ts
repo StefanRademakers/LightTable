@@ -116,6 +116,7 @@ export class WorkspaceSession {
     if (options.activate !== false || !this.activeDocumentId) {
       this.activeDocumentId = session.id;
     }
+    this.synchronizeRendererActivity();
     this.rebuildSnapshot();
     return success(session);
   }
@@ -128,6 +129,7 @@ export class WorkspaceSession {
     }
     if (this.activeDocumentId !== id) {
       this.activeDocumentId = id;
+      this.synchronizeRendererActivity();
       this.rebuildSnapshot();
     }
     return success(undefined);
@@ -157,6 +159,7 @@ export class WorkspaceSession {
     if (wasActive) {
       this.activeDocumentId = this.pickNextActiveId(closedIndex);
     }
+    this.synchronizeRendererActivity();
     this.rebuildSnapshot();
     return success(undefined);
   }
@@ -177,6 +180,17 @@ export class WorkspaceSession {
     return this.documentOrder[
       Math.min(Math.max(closedIndex, 0), this.documentOrder.length - 1)
     ] ?? null;
+  }
+
+  /**
+   * Workspace activation is the source of truth for renderer presentation.
+   * React views may mirror this state, but a background renderer must already
+   * be suspended before any host chooses how (or whether) to mount that view.
+   */
+  private synchronizeRendererActivity(): void {
+    for (const [id, session] of this.sessions) {
+      session.renderer.setActive(id === this.activeDocumentId);
+    }
   }
 
   private rebuildSnapshot(): void {

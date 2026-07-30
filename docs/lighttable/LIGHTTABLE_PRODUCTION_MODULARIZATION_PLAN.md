@@ -1375,3 +1375,7 @@ The refactor is successful when:
       mutations, opacity transactions and destructive-command delegation are
       now shared by docked and floating panel presentations instead of being
       reconstructed in the editor root.
+- [x] Make workspace activation authoritative for renderer active/suspended
+      state; inactive documents no longer depend on a mounted React effect to
+      enter suspension and the nearest surviving tab resumes before host
+      presentation is rebuilt.
