@@ -1,12 +1,7 @@
 /// <reference lib="webworker" />
 
-import {
-  initializeCanvas,
-  readPsd,
-  type Layer,
-  type PatternInfo,
-  type Psd
-} from 'ag-psd';
+import agPsd from 'ag-psd';
+import type { Layer, PatternInfo, Psd } from 'ag-psd';
 import { psdCompositeToPreviewPixels } from './psdPixelConversion';
 import type {
   PsdFeatureInventory,
@@ -33,6 +28,7 @@ const COLOR_MODE_NAMES: Record<number, string> = {
 };
 
 let agPsdCanvasInitialized = false;
+const { initializeCanvas, readPsd } = agPsd;
 
 const initializeAgPsdCanvas = () => {
   if (agPsdCanvasInitialized) return;

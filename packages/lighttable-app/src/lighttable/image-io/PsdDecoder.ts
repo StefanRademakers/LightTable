@@ -15,7 +15,8 @@ const describeWorkerError = (event: ErrorEvent) => {
   const location = event.filename
     ? ` (${event.filename}${event.lineno ? `:${event.lineno}${event.colno ? `:${event.colno}` : ''}` : ''})`
     : '';
-  return event.message?.trim() || nestedMessage || `unknown worker error${location}`;
+  const message = event.message?.trim() || nestedMessage || 'unknown worker error';
+  return `${message}${location}`;
 };
 
 export class PsdDecoder {
