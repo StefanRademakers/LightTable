@@ -3901,22 +3901,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setEditorSession((current) => ({ ...current, activeTool: 'view' }));
       return;
     }
-    const usesSelection = editorSession.selection.length > 0;
-    if (usesSelection && !matrixApproximatelyEqual(layer.transform, identityMatrix())) {
-      setError('Rasterize the transformed layer before transforming a pixel selection.');
-      setEditorSession((current) => ({ ...current, activeTool: 'view' }));
-      return;
-    }
-    const sourceMatrix = usesSelection ? identityMatrix() : layer.transform;
+    const selectionRequested = editorSession.selection.length > 0;
+    // Pixel-selection transforms are currently baked in document space. A
+    // raster layer with a non-identity transform still owns layer-local pixels,
+    // so applying that path would mix coordinate spaces. Repeatedly
+    // transforming the layer itself is exact, however, and must not make the
+    // Transform tool appear to bounce back to Pan because of a stale selection.
+    let usesSelection = selectionRequested
+      && matrixApproximatelyEqual(layer.transform, identityMatrix());
+    let sourceMatrix = usesSelection ? identityMatrix() : layer.transform;
     try {
-      const measuredContent = usesSelection
+      let measuredContent = usesSelection
         ? await engineRef.current?.measureSelectedLayerContent(layer)
         : await engineRef.current?.measureLayerContent(layer);
       if (launchId !== transformLaunchRef.current || transformStateRef.current) return;
+      // A selection can legitimately miss every visible pixel on the active
+      // layer. Keep the user's selection intact, but allow Free Transform to
+      // operate on the visible layer rather than silently returning to Pan.
+      if (!measuredContent && usesSelection) {
+        usesSelection = false;
+        sourceMatrix = layer.transform;
+        measuredContent = await engineRef.current?.measureLayerContent(layer);
+        if (launchId !== transformLaunchRef.current || transformStateRef.current) return;
+      }
       if (!measuredContent) {
-        setError(usesSelection
-          ? 'The selection does not contain visible pixels on the active layer.'
-          : 'The active layer does not contain visible pixels.');
+        setError('The active layer does not contain visible pixels.');
         setEditorSession((current) => ({ ...current, activeTool: 'view' }));
         return;
       }
@@ -3939,6 +3948,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       transformStateRef.current = state;
       setTransformState(state);
       setError(null);
+      if (selectionRequested && !usesSelection) {
+        setGradeStatus(
+          matrixApproximatelyEqual(layer.transform, identityMatrix())
+            ? 'The selection contains no visible pixels; transforming the active layer'
+            : 'Transforming the active layer; rasterize it first to transform selected pixels'
+        );
+      }
     } catch (reason) {
       engineRef.current?.cancelLayerTransform();
       setError(reason instanceof Error ? reason.message : 'The transform could not be started.');
