@@ -269,6 +269,47 @@ Responsibilities:
 PSD is an adapter into the same document model. It is not a second editor
 architecture.
 
+#### One Open command, capability-selected codecs
+
+Web and desktop expose one user-facing **Open** command and one application
+use-case. Hosts differ only in how they acquire bytes and which optional
+capabilities they provide:
+
+- web: browser picker/file handles and browser-supported byte access;
+- desktop: native dialog, filesystem-backed random access and optional native
+  codec bridges;
+- embedded hosts: a host-provided source handle without leaking host storage
+  details into the document loader.
+
+The application receives a typed source handle (`name`, size/type hints,
+slice/read/stream capability and cancellation), probes a small header, then
+dispatches to a lazily loaded codec. File extensions and MIME types are hints;
+magic/signature detection is authoritative.
+
+Dispatch order and performance contract:
+
+1. LightTable's own document signature and ordinary PNG/JPEG/WebP use the
+   cheapest available path.
+2. Browser-native 8-bit images never initialize wasm-vips, PSD or future RAW
+   decoders.
+3. Precision PNG/TIFF and embedded ICC workflows opt into wasm-vips only after
+   the probe says it is needed.
+4. PSD/PSB dynamically loads the Photoshop importer only for matching files.
+5. Future NEF/RAW formats use a registered RAW codec capability. Desktop may
+   provide a native implementation first; web may provide a worker/WASM
+   implementation later without changing the Open use-case.
+6. Unsupported or unavailable capabilities fail with a precise
+   format/capability error, never by silently falling back to a lossy decode.
+
+Opening does not require the user to choose “fast” versus “precision”. Decode
+policy is derived from the source and can still accept an explicit diagnostic
+override. Probe, codec-load, decode, color conversion, GPU upload and first
+frame remain separate telemetry spans so startup regressions are visible.
+
+The fast lane is a production requirement: no full-file copy, optional worker
+startup, heavyweight dynamic import or eager GPU feature allocation may occur
+before the source probe proves it necessary.
+
 ### 3.6 UI shell
 
 Suggested location:
@@ -787,6 +828,16 @@ Exit criteria:
 Work:
 
 - move open/decode/import/save/export orchestration out of the overlay;
+- [ ] replace separate fast/precision open UI paths with one host-neutral
+      `OpenDocument` use-case and automatic signature/capability dispatch;
+- [ ] define a source-handle port shared by browser files, desktop filesystem
+      sources and embedded-host assets;
+- [ ] register lazy codecs for LightTable, native 8-bit images, precision
+      wasm-vips images and PSD/PSB, with a future RAW capability slot;
+- [ ] add fast-lane regression tests proving ordinary PNG/JPEG opens do not
+      import or initialize optional precision/PSD/RAW codecs;
+- [ ] add probe/decode/color-conversion/upload/first-frame performance budgets
+      and telemetry assertions;
 - [x] introduce a document-owned task registry with cancellation and
       stale-result protection;
 - [x] route startup open, File-open, save and export through that registry;
