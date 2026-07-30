@@ -1293,3 +1293,6 @@ The refactor is successful when:
 - [x] Give optional Lens Blur depth analysis one source-identity-scoped
       controller with stale-result cancellation, reusable per-document results
       and a failure path that bypasses only Lens Blur instead of the base image.
+- [x] Combine external source import, canonical layer upload, grade-stack
+      hydration and optional PSD comparison into one cancellable application
+      transaction; presentation receives only fully prepared documents.

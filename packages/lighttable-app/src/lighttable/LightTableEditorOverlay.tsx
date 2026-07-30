@@ -21,8 +21,7 @@ import {
 import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
-import { loadDocumentSource } from './application/documents/loadDocumentSource';
-import { hydrateDocumentSource } from './application/documents/hydrateDocumentSource';
+import { prepareDocumentSource } from './application/documents/prepareDocumentSource';
 import { DocumentOpenController } from './application/documents/documentOpenController';
 import { exportLightTableDocument } from './application/documents/exportLightTableDocument';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
@@ -706,16 +705,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => {
     const engine = engineRef.current;
     if (!engine) return;
-    const loaded = await loadDocumentSource({
+    const prepared = await prepareDocumentSource({
       renderer: engine,
       blob,
       name,
       cacheKey,
       decodeMode,
       signal,
-      isCanceled
+      isCanceled,
+      initialAdjustments,
+      groupVisibility: groupVisibilityRef.current
     });
-    if (!loaded) return;
+    if (!prepared) return;
+    const { loaded, hydration } = prepared;
     const {
       document: nextDocument,
       metadata: nextMetadata,
@@ -758,14 +760,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setLensBlurViewportModeState('result');
     engineRef.current?.setLensBlurDepthVisualization(false);
     clearEditorHistory();
-    const hydration = await hydrateDocumentSource({
-      renderer: engine,
-      loaded,
-      initialAdjustments,
-      groupVisibility: groupVisibilityRef.current,
-      isCanceled
-    });
-    if (!hydration) return;
     documentAdjustmentsRef.current = hydration.adjustments;
     adjustmentsRef.current = hydration.adjustments;
     setAdjustments(hydration.adjustments);
