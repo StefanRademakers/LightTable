@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
   useSyncExternalStore
 } from 'react';
@@ -18,7 +17,6 @@ import {
   type StandaloneDecodeMode,
   type StandaloneDocumentRuntime
 } from './standaloneDocumentRuntime';
-import { StrictModeSafeDisposal } from './strictModeSafeDisposal';
 
 export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
 
@@ -32,10 +30,6 @@ export const useStandaloneDocumentWorkspace = () => {
     () => new DocumentWorkspaceController<StandaloneDocumentRuntime>(),
     []
   );
-  const controllerDisposal = useMemo(
-    () => new StrictModeSafeDisposal(() => controller.dispose()),
-    [controller]
-  );
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
@@ -44,11 +38,6 @@ export const useStandaloneDocumentWorkspace = () => {
   const documents = useMemo(
     () => projectStandaloneDocumentWorkspace(controller, snapshot),
     [controller, snapshot]
-  );
-
-  useEffect(
-    () => controllerDisposal.connect(),
-    [controllerDisposal]
   );
 
   const openDocument = useCallback((
