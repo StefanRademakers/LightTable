@@ -831,6 +831,8 @@ Work:
 - [x] guard asynchronous renderer startup with document-local generations;
 - [x] represent inactive ready renderers as suspended without losing their
       resources;
+- [x] move startup timing and GPU-memory presentation out of the editor root
+      into a tested telemetry formatter;
 - [ ] move concrete `WebGpuEngine` ownership behind the renderer adapter;
 - move render scheduling/invalidation out of React effects;
 - split device, resources, scopes and readback;

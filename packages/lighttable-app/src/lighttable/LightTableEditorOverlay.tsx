@@ -23,6 +23,11 @@ import {
   isTemporaryPanRelease,
   resolveEditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
+import {
+  formatGpuMemory,
+  formatStartupTimings,
+  type LightTableStartupTimings
+} from './application/telemetry/editorTelemetry';
 import { AdjustmentSlider } from './AdjustmentSlider';
 import { ColorGradingWheel } from './ColorGradingWheel';
 import {
@@ -344,41 +349,9 @@ export interface LightTableEditorOverlayProps {
   documentSession?: DocumentSession;
 }
 
-interface LightTableStartupTimings {
-  webGpuMs?: number;
-  downloadMs?: number;
-  layeredProbeMs?: number;
-  decodeAndUploadMs?: number;
-  documentInitMs?: number;
-  firstFrameMs?: number;
-  scopesMs?: number;
-}
-
 interface LayerThumbnailCacheEntry extends LayerThumbnailPreview {
   revisionKey: string;
 }
-
-const formatStartupTimings = (timings: LightTableStartupTimings | null) => {
-  if (!timings) return '';
-  const labels: Array<[keyof LightTableStartupTimings, string]> = [
-    ['webGpuMs', 'WebGPU'],
-    ['downloadMs', 'download'],
-    ['layeredProbeMs', 'document probe'],
-    ['decodeAndUploadMs', 'decode/upload'],
-    ['documentInitMs', 'layers'],
-    ['firstFrameMs', 'first frame'],
-    ['scopesMs', 'deferred scopes']
-  ];
-  return labels
-    .filter(([key]) => timings[key] !== undefined)
-    .map(([key, label]) => `${label}: ${Math.round(timings[key] ?? 0)} ms`)
-    .join(' · ');
-};
-const formatGpuMemory = (bytes: number) => (
-  bytes >= 1024 * 1024 * 1024
-    ? `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-    : `${Math.round(bytes / (1024 * 1024))} MB`
-);
 
 type ZoomMode = 'fit' | '100' | 'custom';
 type LightTableAppMenuId = 'file' | 'edit' | 'select' | 'view' | 'layer';
