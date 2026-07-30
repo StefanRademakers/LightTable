@@ -5,11 +5,16 @@ import type { Layer, PatternInfo, Psd } from 'ag-psd';
 import { psdCompositeToPreviewPixels } from './psdPixelConversion';
 import type {
   PsdFeatureInventory,
+  PsdDecodeStage,
   PsdLayerNodeDto,
   PsdPatternDto,
   PsdWorkerRequest,
   PsdWorkerResponse
 } from './psdProtocol';
+
+const publishProgress = (requestId: number, stage: PsdDecodeStage) => {
+  self.postMessage({ kind: 'progress', requestId, stage } satisfies PsdWorkerResponse);
+};
 
 const MAX_DIMENSION = 30_000;
 const MAX_PIXELS = 400_000_000;
@@ -324,8 +329,11 @@ const serializeLayers = async (
 self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
   let response: PsdWorkerResponse;
   try {
+    publishProgress(data.requestId, 'worker-received');
     initializeAgPsdCanvas();
+    publishProgress(data.requestId, 'canvas-ready');
     const warnings: string[] = [];
+    publishProgress(data.requestId, 'parsing');
     const psd = readPsd(data.bytes, {
       useImageData: true,
       skipLayerImageData: false,
@@ -336,26 +344,36 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
       logMissingFeatures: true,
       log: (message) => warnings.push(String(message))
     });
+    publishProgress(data.requestId, 'parsed');
     validateDocument(psd);
     const inventory = emptyInventory();
     inspectLayers(psd.children, inventory);
+    publishProgress(data.requestId, 'validated');
     let transparentFallback: Promise<Blob> | null = null;
+    publishProgress(data.requestId, 'serializing-layers');
     const layers = await serializeLayers(
       psd.children,
       psd,
       () => transparentFallback ??= transparentDocumentBlob(psd.width, psd.height)
     );
+    publishProgress(data.requestId, 'layers-ready');
+    publishProgress(data.requestId, 'creating-preview');
+    const preview = await createPreview(psd);
+    publishProgress(data.requestId, 'preview-ready');
+    publishProgress(data.requestId, 'serializing-patterns');
+    const patterns = await serializePatterns(psd.children);
+    publishProgress(data.requestId, 'complete');
     response = {
       kind: 'decoded-psd',
       requestId: data.requestId,
-      preview: await createPreview(psd),
+      preview,
       width: psd.width,
       height: psd.height,
       bitsPerChannel: psd.bitsPerChannel ?? 8,
       colorMode: COLOR_MODE_NAMES[psd.colorMode ?? 3] ?? `mode ${psd.colorMode}`,
       inventory,
       layers,
-      patterns: await serializePatterns(psd.children),
+      patterns,
       warnings
     };
   } catch (reason) {

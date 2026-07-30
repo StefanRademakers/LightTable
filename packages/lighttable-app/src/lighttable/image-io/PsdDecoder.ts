@@ -1,8 +1,13 @@
-import type { PsdDecodeSuccess, PsdWorkerResponse } from './psdProtocol';
+import type {
+  PsdDecodeStage,
+  PsdDecodeSuccess,
+  PsdWorkerResponse
+} from './psdProtocol';
 
 interface PendingDecode {
   resolve(value: PsdDecodeSuccess): void;
   reject(reason: Error): void;
+  stage: PsdDecodeStage | 'worker-created';
 }
 
 const describeWorkerError = (event: ErrorEvent) => {
@@ -41,6 +46,7 @@ export class PsdDecoder {
       };
       signal?.addEventListener('abort', abort, { once: true });
       this.pending.set(requestId, {
+        stage: 'worker-created',
         resolve: (value) => {
           signal?.removeEventListener('abort', abort);
           resolve(value);
@@ -67,14 +73,23 @@ export class PsdDecoder {
     worker.onmessage = ({ data }: MessageEvent<PsdWorkerResponse>) => {
       const pending = this.pending.get(data.requestId);
       if (!pending) return;
+      if (data.kind === 'progress') {
+        pending.stage = data.stage;
+        return;
+      }
       this.pending.delete(data.requestId);
       if (data.kind === 'error') pending.reject(new Error(data.message));
       else pending.resolve(data);
     };
     worker.onerror = (event) => {
       event.preventDefault();
+      const stages = [...this.pending.values()]
+        .map(({ stage }) => stage)
+        .filter((stage, index, values) => values.indexOf(stage) === index)
+        .join(', ');
       this.resetWorker(new Error(
-        `The PSD decoder worker failed: ${describeWorkerError(event)}.`
+        `The PSD decoder worker failed after ${stages || 'worker creation'}: `
+        + `${describeWorkerError(event)}.`
       ));
     };
     worker.onmessageerror = () => {

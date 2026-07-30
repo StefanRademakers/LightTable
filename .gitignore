@@ -6,6 +6,7 @@ out-*/
 artifacts/
 .vite/
 coverage/
+.test-data/
 *.log
 .env
 .env.*

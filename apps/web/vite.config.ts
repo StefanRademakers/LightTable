@@ -10,6 +10,12 @@ const isolationHeaders = {
 
 export default defineConfig({
   plugins: [react()],
+  // @lighttable/app contains Vite-owned assets and module workers. Treat the
+  // workspace package as application source so worker URLs stay valid in dev,
+  // just as they do in the production bundle and the Electron renderer.
+  optimizeDeps: {
+    exclude: ['@lighttable/app']
+  },
   server: {
     headers: isolationHeaders
   },

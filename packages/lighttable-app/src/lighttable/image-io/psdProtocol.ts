@@ -89,5 +89,27 @@ export interface PsdDecodeFailure {
   message: string;
 }
 
+export type PsdDecodeStage =
+  | 'worker-received'
+  | 'canvas-ready'
+  | 'parsing'
+  | 'parsed'
+  | 'validated'
+  | 'serializing-layers'
+  | 'layers-ready'
+  | 'creating-preview'
+  | 'preview-ready'
+  | 'serializing-patterns'
+  | 'complete';
+
+export interface PsdDecodeProgress {
+  kind: 'progress';
+  requestId: number;
+  stage: PsdDecodeStage;
+}
+
 export type PsdWorkerRequest = PsdDecodeRequest;
-export type PsdWorkerResponse = PsdDecodeSuccess | PsdDecodeFailure;
+export type PsdWorkerResponse =
+  | PsdDecodeSuccess
+  | PsdDecodeFailure
+  | PsdDecodeProgress;
