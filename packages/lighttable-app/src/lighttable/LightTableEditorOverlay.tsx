@@ -60,6 +60,7 @@ import {
   type LightTableImageDecodeMode,
   type ReferenceDifferenceMetrics
 } from './application/rendering/rendererTypes';
+import { guardDocumentRendererCallbacks } from './application/rendering/guardDocumentRendererCallbacks';
 import {
   createWebGpuDocumentRenderer,
   type DocumentRendererPort
@@ -817,31 +818,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     let engine: DocumentRendererPort | null = null;
 
     return {
-      createRenderer: () => createWebGpuDocumentRenderer(canvas, {
-          onHistogram: (next) => { if (isCurrent()) setHistogram(next); },
+      createRenderer: () => createWebGpuDocumentRenderer(
+        canvas,
+        guardDocumentRendererCallbacks(isCurrent, {
+          onHistogram: setHistogram,
           onGpuMemoryEstimate: (bytes) => {
-            if (isCurrent()) {
-              setGpuMemoryBytes(bytes);
-              rendererLifecycle.setMemoryEstimate(bytes);
-            }
+            setGpuMemoryBytes(bytes);
+            rendererLifecycle.setMemoryEstimate(bytes);
           },
           onDeviceLost: (message) => {
-            if (isCurrent()) {
-              setError(message);
-              rendererLifecycle.markFailed(
-                rendererLifecycle.getSnapshot().generation,
-                message
-              );
-            }
+            setError(message);
+            rendererLifecycle.markFailed(
+              rendererLifecycle.getSnapshot().generation,
+              message
+            );
           },
-          onScopeError: (message) => { if (isCurrent()) setScopeError(message); },
+          onScopeError: setScopeError,
           onFeatureError: (featureId, message) => {
-            if (!isCurrent()) return;
             appendDebugMessage('error', `GPU feature: ${featureId}`, message);
             setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
           },
           onFirstFrame: () => {
-            if (!isCurrent() || !startupAwaitingFirstFrameRef.current) return;
+            if (!startupAwaitingFirstFrameRef.current) return;
             startupAwaitingFirstFrameRef.current = false;
             startupTimingsRef.current.firstFrameMs = performance.now() - startupStartedAtRef.current;
             const completed = { ...startupTimingsRef.current };
@@ -863,7 +861,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               setStartupTimings({ ...startupTimingsRef.current });
             });
           }
-      }),
+        })
+      ),
       loadSource: (signal) => {
         if (!editorSourceFileKey && !initialSourceBlob) {
           return Promise.reject(

@@ -1314,3 +1314,6 @@ The refactor is successful when:
 - [x] Isolate original/difference view state and scope-option synchronization
       behind one presentation-only renderer adapter; UI state no longer
       performs document mutations while keeping active renderer views current.
+- [x] Guard every renderer callback at the document-generation boundary;
+      stale histogram, scope, feature, device-loss, frame and memory events can
+      no longer publish into another active document.
