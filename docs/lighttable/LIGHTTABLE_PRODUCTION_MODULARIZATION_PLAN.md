@@ -1269,3 +1269,7 @@ The refactor is successful when:
       menu model; capability/disabled-state decisions are tested independently
       while document mutations remain explicit commands supplied by the active
       document composition root.
+- [x] Move wheel zoom, pan capture, brush-cursor projection and viewport pointer
+      routing into one document-instance interaction controller; selection,
+      paint, fill and lens-focus remain explicit feature ports and retain their
+      own transaction/undo ownership.

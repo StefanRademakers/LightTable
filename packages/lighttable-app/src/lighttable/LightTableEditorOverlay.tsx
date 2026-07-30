@@ -39,6 +39,7 @@ import {
 } from './editor/menus/createEditorMenuOptions';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
+import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
@@ -173,25 +174,11 @@ import {
 import type { PsdDecodeSuccess } from './image-io/psdProtocol';
 import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
 import { PsdImportReportDialog } from './editor/psd/PsdImportReportDialog';
-import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
 import {
   isPaintTool,
-  isSelectionTool,
   steppedBrushSize
 } from './editor/tools/toolCapabilities';
-import {
-  resolveViewportPointerDownIntent,
-  resolveViewportPointerEndIntent,
-  resolveViewportPointerMoveIntent
-} from './application/input/viewportPointerRouter';
-import {
-  clientToLocalPoint,
-  localToDocumentPointer,
-  panViewFromGesture,
-  pointInsideRect,
-  zoomViewAtPoint
-} from './editor/tools/pointer/viewportCoordinates';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
 import {
   type SelectionShape
@@ -369,15 +356,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const advancedFileInputRef = useRef<HTMLInputElement | null>(null);
   const engineRef = useRef<DocumentRendererPort | null>(null);
-  const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => void>(() => undefined);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>([]);
   const paintGestureRef = useRef(new PaintGestureController());
-  const brushCursorRef = useRef<HTMLDivElement | null>(null);
-  const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
   const selectionGestureRef = useRef(new SelectionGestureController());
   const commitTransformRef = useRef<() => void>(() => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
@@ -695,16 +679,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layerThumbnailCacheRef.current.forEach(({ url }) => URL.revokeObjectURL(url));
     layerThumbnailCacheRef.current.clear();
   }, []);
-
-  useEffect(() => {
-    const cursor = brushCursorRef.current;
-    const center = brushCursorCenterRef.current;
-    if (!cursor || !center) return;
-    const diameter = Math.max(2, editorSession.brush.size * activeScale);
-    cursor.style.width = `${diameter}px`;
-    cursor.style.height = `${diameter}px`;
-    cursor.style.transform = `translate3d(${center.x - diameter / 2}px, ${center.y - diameter / 2}px, 0)`;
-  }, [activeScale, editorSession.brush.size]);
 
   const effectiveDocumentAdjustments = useCallback((document: ImageDocument | null) => {
     void document;
@@ -1502,124 +1476,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   });
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (!metadata) return;
-    event.preventDefault();
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const cursor = clientToLocalPoint(
-      { x: event.clientX, y: event.clientY },
-      { x: bounds.left, y: bounds.top }
-    );
-    setZoomMode('custom');
-    setView(zoomViewAtPoint({
-      cursor,
-      viewport: viewportSize,
-      view: {
-        scale: activeScale,
-        panX: view.panX,
-        panY: view.panY
-      },
-      wheelDelta: event.deltaY,
-      minScale: MIN_SCALE,
-      maxScale: MAX_SCALE
-    }));
-  };
-
-  const beginPan = (event: React.PointerEvent<HTMLDivElement>, forcePan = false) => {
-    if (event.button !== 0 || !metadata) return;
-    if (!forcePan && focusPickerActive && depthResult) {
-      const bounds = event.currentTarget.getBoundingClientRect();
-      const x = (event.clientX - bounds.left - imageRect.x) / Math.max(imageRect.width, 1);
-      const y = (event.clientY - bounds.top - imageRect.y) / Math.max(imageRect.height, 1);
-      if (x >= 0 && x <= 1 && y >= 0 && y <= 1) {
-        const sourceUv = mapLensDistortionUv(
-          x,
-          y,
-          metadata.width,
-          metadata.height,
-          adjustments.effects.lensDistortion
-        );
-        const selectedDepth = sampleMedianDepth(depthResult, sourceUv.x, sourceUv.y);
-        if (selectedDepth !== null) {
-          changeAdjustments((current) => ({
-            ...current,
-            effects: {
-              ...current.effects,
-              lensBlur: {
-                ...current.effects.lensBlur,
-                focusDistance: selectedDepth
-              }
-            }
-          }));
-        }
-      }
-      setFocusPickerActive(false);
-      event.preventDefault();
-      return;
-    }
-    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX: view.panX, panY: view.panY };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const movePan = (event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const pan = panViewFromGesture({
-      origin: { x: drag.x, y: drag.y },
-      current: { x: event.clientX, y: event.clientY },
-      initialView: { panX: drag.panX, panY: drag.panY }
-    });
-    setView((current) => ({
-      ...current,
-      ...pan
-    }));
-  };
-
-  const endPan = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
-  };
-
-  const documentPoint = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!metadata) return null;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    return localToDocumentPointer(
-      clientToLocalPoint(
-        { x: event.clientX, y: event.clientY },
-        { x: bounds.left, y: bounds.top }
-      ),
-      imageRect,
-      activeScale,
-      metadata,
-      event.pressure
-    );
-  };
-
-  const updateBrushCursor = (event: React.PointerEvent<HTMLDivElement>) => {
-    const cursor = brushCursorRef.current;
-    if (!cursor) return;
-    if (!isPaintTool(editorSession.activeTool) || temporaryToolRef.current.active || focusPickerActive || !metadata) {
-      brushCursorCenterRef.current = null;
-      cursor.style.opacity = '0';
-      return;
-    }
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const point = clientToLocalPoint(
-      { x: event.clientX, y: event.clientY },
-      { x: bounds.left, y: bounds.top }
-    );
-    if (!pointInsideRect(point, imageRect)) {
-      brushCursorCenterRef.current = null;
-      cursor.style.opacity = '0';
-      return;
-    }
-    const diameter = Math.max(2, editorSession.brush.size * activeScale);
-    brushCursorCenterRef.current = point;
-    cursor.style.opacity = '1';
-    cursor.style.width = `${diameter}px`;
-    cursor.style.height = `${diameter}px`;
-    cursor.style.transform = `translate3d(${point.x - diameter / 2}px, ${point.y - diameter / 2}px, 0)`;
-  };
-
   const fillActiveTarget = (color: string) => {
     const current = imageDocumentRef.current;
     const engine = engineRef.current;
@@ -1661,123 +1517,48 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setError
   }, paintGestureRef.current);
 
-  const beginViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
-    updateBrushCursor(event);
-    const point = documentPoint(event);
-    const activeTool = editorSession.activeTool;
-    const paintTarget = imageDocument
-      ? editorSession.activeChannel === 'mask'
-        ? findDocumentLayer(imageDocument, imageDocument.activeLayerId)
-        : findRasterLayer(imageDocument, imageDocument.activeLayerId)
-      : null;
-    const intent = resolveViewportPointerDownIntent({
-      activeTool,
-      temporaryPan: temporaryToolRef.current.active,
-      focusPickerActive,
-      primaryButton: event.button === 0,
-      hasMetadata: Boolean(metadata),
-      hasDocument: Boolean(imageDocument),
-      hasDocumentPoint: Boolean(point),
-      hasPaintTarget: Boolean(paintTarget)
-    });
-
-    if (intent === 'temporary-pan') {
-      beginPan(event, true);
-      event.preventDefault();
-      return;
-    }
-    if (intent === 'selection' && point && isSelectionTool(activeTool)) {
-      if (selectionSessionController.begin(event.pointerId, activeTool, point)) {
-        event.currentTarget.setPointerCapture(event.pointerId);
-        event.preventDefault();
-      }
-      return;
-    }
-    if (intent === 'fill') {
-      fillActiveTarget(editorSession.brush.color);
-      event.preventDefault();
-      return;
-    }
-    if (intent === 'view') {
-      beginPan(event);
-      return;
-    }
-    if (intent !== 'paint' || !point || !paintTarget) return;
-    const started = paintSessionController.begin({
-      pointerId: event.pointerId,
-      layer: paintTarget,
-      target: {
-        layerId: paintTarget.id,
-        channel: editorSession.activeChannel,
-        erase: activeTool === 'erase',
-        sourceToDocument: paintTargetSourceToDocument(
-          paintTarget,
-          editorSession.activeChannel
-        )
-      },
-      brush: editorSession.brush,
-      point
-    });
-    if (started) {
-      setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
-      event.currentTarget.setPointerCapture(event.pointerId);
-      event.preventDefault();
-    }
-  };
-
-  const moveViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
-    updateBrushCursor(event);
-    const point = documentPoint(event);
-    const intent = resolveViewportPointerMoveIntent({
-      activeTool: editorSession.activeTool,
-      temporaryPan: temporaryToolRef.current.active,
-      panGestureMatches: dragRef.current?.pointerId === event.pointerId,
-      selectionGestureMatches: selectionSessionController.owns(event.pointerId),
-      paintGestureMatches: paintSessionController.owns(event.pointerId),
-      hasDocumentPoint: Boolean(point),
-      hasPaintTarget: paintSessionController.active,
-      hasStrokeBuilder: paintSessionController.active
-    });
-    if (intent === 'pan') {
-      movePan(event);
-      return;
-    }
-    if (intent === 'selection' && point) {
-      if (!selectionSessionController.move(event.pointerId, point)) return;
-      event.preventDefault();
-      return;
-    }
-    if (intent !== 'paint' || !point) return;
-    if (!paintSessionController.move(event.pointerId, point)) return;
-    event.preventDefault();
-  };
-
-  const endViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
-    const intent = resolveViewportPointerEndIntent({
-      selectionGestureMatches: selectionSessionController.owns(event.pointerId),
-      paintGestureMatches: paintSessionController.owns(event.pointerId)
-    });
-    if (intent === 'selection') {
-      selectionSessionController.finish(event.pointerId, {
-        shiftKey: event.shiftKey,
-        altKey: event.altKey
-      });
-      event.preventDefault();
-      return;
-    }
-    if (intent === 'paint') {
-      paintSessionController.finish(event.pointerId);
-      setEditorSession((current) => ({ ...current, pointerId: null }));
-    }
-    endPan(event);
-  };
-
-  const cancelViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
-    selectionSessionController.cancel(event.pointerId);
-    paintSessionController.cancel(event.pointerId);
-    setEditorSession((current) => ({ ...current, pointerId: null }));
-    endPan(event);
-  };
+  const viewportInteraction = useViewportInteractionController({
+    metadata,
+    document: imageDocument,
+    imageRect,
+    activeScale,
+    viewportSize,
+    view,
+    setView,
+    setZoomMode,
+    editorSession,
+    setEditorSession,
+    temporaryTools: temporaryToolRef.current,
+    focusPickerActive: focusPickerActive && Boolean(depthResult),
+    onFocusPick: ({ x, y }) => {
+      if (!metadata || !depthResult) return;
+      const sourceUv = mapLensDistortionUv(
+        x,
+        y,
+        metadata.width,
+        metadata.height,
+        adjustments.effects.lensDistortion
+      );
+      const selectedDepth = sampleMedianDepth(depthResult, sourceUv.x, sourceUv.y);
+      if (selectedDepth === null) return;
+      changeAdjustments((current) => ({
+        ...current,
+        effects: {
+          ...current.effects,
+          lensBlur: {
+            ...current.effects.lensBlur,
+            focusDistance: selectedDepth
+          }
+        }
+      }));
+    },
+    onFocusPickerEnd: () => setFocusPickerActive(false),
+    onFill: fillActiveTarget,
+    selection: selectionSessionController,
+    paint: paintSessionController,
+    minScale: MIN_SCALE,
+    maxScale: MAX_SCALE
+  });
 
   const applyDocumentChange = (
     change: (current: ImageDocument) => ImageDocument,
@@ -2440,10 +2221,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   <DocumentViewportSurface
                     viewportRef={viewportRef}
                     canvasRef={canvasRef}
-                    brushCursorRef={brushCursorRef}
+                    brushCursorRef={viewportInteraction.brushCursorRef}
                     activeTool={editorSession.activeTool}
                     temporaryPanActive={temporaryPanActive}
-                    dragging={Boolean(dragRef.current)}
+                    dragging={viewportInteraction.dragging}
                     focusPickerActive={focusPickerActive}
                     showBrushCursor={isPaintTool(editorSession.activeTool)}
                     selection={editorSession.selection}
@@ -2454,16 +2235,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     transformState={transformState}
                     loading={loading}
                     unavailable={Boolean(error && !metadata)}
-                    onWheel={handleWheel}
-                    onPointerDown={beginViewportPointer}
-                    onPointerMove={moveViewportPointer}
-                    onPointerUp={endViewportPointer}
-                    onPointerCancel={cancelViewportPointer}
+                    onWheel={viewportInteraction.onWheel}
+                    onPointerDown={viewportInteraction.onPointerDown}
+                    onPointerMove={viewportInteraction.onPointerMove}
+                    onPointerUp={viewportInteraction.onPointerUp}
+                    onPointerCancel={viewportInteraction.onPointerCancel}
                     onPointerLeave={() => {
-                      if (!paintSessionController.active && brushCursorRef.current) {
-                        brushCursorCenterRef.current = null;
-                        brushCursorRef.current.style.opacity = '0';
-                      }
+                      if (!paintSessionController.active) viewportInteraction.hideBrushCursor();
                     }}
                     onTransformChange={updateTransformMatrix}
                   />
