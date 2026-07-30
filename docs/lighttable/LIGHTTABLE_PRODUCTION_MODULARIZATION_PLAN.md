@@ -1311,3 +1311,6 @@ The refactor is successful when:
 - [x] Unify document history, task registry and renderer lifecycle ownership
       behind one runtime-services hook; embedded and workspace hosts now use
       the same document identity, activation and deterministic disposal rules.
+- [x] Isolate original/difference view state and scope-option synchronization
+      behind one presentation-only renderer adapter; UI state no longer
+      performs document mutations while keeping active renderer views current.

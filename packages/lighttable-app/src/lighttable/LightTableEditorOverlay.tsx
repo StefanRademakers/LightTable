@@ -45,6 +45,10 @@ import { useEditorResizeController } from './editor/hooks/useEditorResizeControl
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
 import { useDocumentFileCommands } from './editor/hooks/useDocumentFileCommands';
+import {
+  createScopeRendererOptions,
+  useRendererPresentationSync
+} from './editor/hooks/useRendererPresentationSync';
 import { publishPreparedDocument } from './editor/documents/publishPreparedDocument';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
@@ -244,19 +248,6 @@ type ZoomMode = 'fit' | '100' | 'custom';
 type LightTableAppMenuId = EditorMenuId;
 
 const cloneAdjustments = cloneAllAdjustments;
-
-const scopeEngineOptions = (visibility: ScopeVisibility, settings: ScopeSettings) => ({
-  // The Hue Distribution also drives the compact Color Mixer picker. Keep
-  // its inexpensive 256-bin analysis alive when the standalone scope is
-  // collapsed so the editing control remains useful.
-  hueDistributionVisible: true,
-  paradeVisible: visibility.parade,
-  vectorscopeVisible: visibility.vectorscope,
-  quality: settings.quality,
-  traceBrightness: settings.traceBrightness,
-  vectorscopeRange: settings.vectorscopeRange,
-  vectorscopeZoom2x: settings.vectorscopeZoom2x
-});
 
 export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = ({
   open,
@@ -859,7 +850,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             const scopeStartedAt = performance.now();
             engine?.setScopeOptions(
               scopeVisibilityRef.current.histogram,
-              scopeEngineOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
+              createScopeRendererOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
             );
             void engine?.initializeScopes({
               hueDistribution: hueDistributionCanvas,
@@ -907,7 +898,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         createdEngine.setLensBlurDepthVisualization(false);
         createdEngine.setScopeOptions(
           false,
-          scopeEngineOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
+          createScopeRendererOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
         );
       },
       onRendererDiscarded: (discardedEngine) => {
@@ -967,19 +958,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
 
 
-  useEffect(() => {
-    engineRef.current?.setBefore(showOriginal);
-    engineRef.current?.setDifference(showDifference);
-  }, [showDifference, showOriginal]);
-
-  useEffect(() => {
-    scopeVisibilityRef.current = scopeVisibility;
-    scopeSettingsRef.current = scopeSettings;
-    engineRef.current?.setScopeOptions(
-      scopeVisibility.histogram,
-      scopeEngineOptions(scopeVisibility, scopeSettings)
-    );
-  }, [scopeSettings, scopeVisibility]);
+  useRendererPresentationSync({
+    rendererRef: engineRef,
+    showOriginal,
+    showDifference,
+    scopeVisibility,
+    scopeSettings,
+    scopeVisibilityRef,
+    scopeSettingsRef
+  });
 
   useEffect(() => {
     if (!gradeStatus) return;
