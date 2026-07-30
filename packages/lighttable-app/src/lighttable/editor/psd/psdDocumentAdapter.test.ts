@@ -1,0 +1,284 @@
+import { describe, expect, it } from 'vitest';
+import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
+import type { PsdDecodeSuccess, PsdLayerNodeDto } from '../../image-io/psdProtocol';
+import { importPsdDocument } from './psdDocumentAdapter';
+import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
+
+const pixels = () => new Blob(['pixels'], { type: 'image/png' });
+
+const raster = (
+  id: string,
+  overrides: Partial<PsdLayerNodeDto> = {}
+): PsdLayerNodeDto => ({
+  id,
+  name: id,
+  kind: 'raster',
+  visible: true,
+  opacity: 1,
+  fillOpacity: 1,
+  blendMode: 'normal',
+  clipping: false,
+  transparencyProtected: false,
+  bounds: { left: 0, top: 0, right: 32, bottom: 24 },
+  pixelSummary: {
+    width: 32,
+    height: 24,
+    nonTransparentPixels: 768,
+    maximumAlpha: 1
+  },
+  pixels: pixels(),
+  rasterFallback: 'layer-preview',
+  mask: null,
+  effects: null,
+  adjustment: null,
+  preserved: {
+    text: null,
+    placedLayer: null,
+    vectorFill: null,
+    vectorMask: null,
+    vectorStroke: null,
+    realMask: null
+  },
+  children: [],
+  ...overrides
+});
+
+const decoded = (layers: PsdLayerNodeDto[]): PsdDecodeSuccess => ({
+  kind: 'decoded-psd',
+  requestId: 1,
+  preview: pixels(),
+  width: 32,
+  height: 24,
+  bitsPerChannel: 8,
+  colorMode: 'RGB',
+  inventory: {
+    layers: 0,
+    groups: 0,
+    rasterPreviews: 0,
+    masks: 0,
+    layerStyles: 0,
+    adjustments: 0,
+    textLayers: 0,
+    smartObjects: 0,
+    vectorLayers: 0,
+    maximumDepth: 0
+  },
+  layers,
+  patterns: [],
+  warnings: []
+});
+
+describe('importPsdDocument', () => {
+  it('converts PSD content without embedding the complete source document', () => {
+    const result = importPsdDocument(decoded([raster('background')]), 'fixture.psd');
+
+    expect(result.document.assets.preservedSources).toEqual([]);
+    expect(result.assets.some((asset) => 'sourceId' in asset)).toBe(false);
+  });
+
+  it('registers embedded Photoshop patterns and resolves Layer Style references', () => {
+    const source = decoded([raster('patterned', {
+      effects: {
+        patternOverlay: {
+          enabled: true,
+          pattern: { id: 'woven', name: 'Woven' },
+          opacity: 100,
+          scale: 100
+        }
+      }
+    })]);
+    source.patterns = [{
+      id: 'woven',
+      name: 'Woven',
+      width: 2,
+      height: 2,
+      pixels: pixels()
+    }];
+
+    const result = importPsdDocument(source, 'pattern.psd');
+
+    expect(result.document.assets.patterns).toEqual([expect.objectContaining({
+      id: 'psd-pattern-woven',
+      name: 'Woven',
+      width: 2,
+      height: 2
+    })]);
+    expect(result.assets.some((asset) =>
+      'patternId' in asset && asset.patternId === 'psd-pattern-woven'
+    )).toBe(true);
+    expect(result.document.layers[0].styleStack.effects[0]).toMatchObject({
+      kind: 'pattern-overlay',
+      pattern: { assetId: 'psd-pattern-woven' }
+    });
+  });
+
+  it('preserves bottom-to-top order and nested group structure', () => {
+    const child = raster('child');
+    const group = raster('group', {
+      kind: 'group',
+      pixels: null,
+      blendMode: 'pass through',
+      children: [child]
+    });
+    const result = importPsdDocument(decoded([raster('bottom'), group, raster('top')]), 'test.psd');
+
+    expect(result.document.layers.map(({ id }) => id)).toEqual(['bottom', 'group', 'top']);
+    const importedGroup = result.document.layers[1];
+    expect(importedGroup.type).toBe('group');
+    if (importedGroup.type !== 'group') throw new Error('Expected a group');
+    expect(importedGroup.compositing).toBe('pass-through');
+    expect(importedGroup.children.map(({ id }) => id)).toEqual(['child']);
+    expect(result.assets.map((asset) => 'layerId' in asset ? asset.layerId : null))
+      .toEqual(['bottom', 'child', 'top']);
+  });
+
+  it('maps layer rendering state and mask assets', () => {
+    const result = importPsdDocument(decoded([raster('masked', {
+      opacity: 0.4,
+      fillOpacity: 0.6,
+      blendMode: 'multiply',
+      clipping: true,
+      transparencyProtected: true,
+      mask: {
+        id: 'masked-mask',
+        pixels: pixels(),
+        source: 'user-mask',
+        enabled: true,
+        defaultColor: 255,
+        density: 0.75,
+        feather: 3
+      }
+    })]), 'test.psd');
+    const layer = result.document.layers[0];
+    expect(layer).toMatchObject({
+      opacity: 0.4,
+      fillOpacity: 0.6,
+      blendMode: 'multiply',
+      clipping: true,
+      locks: { transparency: true }
+    });
+    expect(layer.styleStack).toEqual(createDefaultLayerStyleStack());
+    expect(layer.mask).toMatchObject({ density: 0.75, feather: 3 });
+    expect(layer.photoshop).toMatchObject({
+      sourceKind: 'raster',
+      sourceBlendMode: 'multiply',
+      bounds: { x: 0, y: 0, width: 32, height: 24 },
+      mask: { defaultColor: 255, density: 0.75, feather: 3 }
+    });
+    expect(result.assets[0]).toMatchObject({ layerId: 'masked' });
+    expect('mask' in result.assets[0] && result.assets[0].mask).toBeInstanceOf(Blob);
+  });
+
+  it('maps extended Photoshop blend modes without silently falling back to Normal', () => {
+    const modes = [
+      ['linear-burn', 'linear burn'],
+      ['darker-color', 'darker color'],
+      ['lighter-color', 'lighter color'],
+      ['vivid-light', 'vivid light'],
+      ['linear-light', 'linear light'],
+      ['pin-light', 'pin light'],
+      ['hard-mix', 'hard mix'],
+      ['exclusion', 'exclusion'],
+      ['subtract', 'subtract'],
+      ['divide', 'divide']
+    ] as const;
+    const result = importPsdDocument(decoded(
+      modes.map(([_, source], index) => raster(`blend-${index}`, { blendMode: source }))
+    ), 'blends.psd');
+    expect(result.document.layers.map(({ blendMode }) => blendMode))
+      .toEqual(modes.map(([mapped]) => mapped));
+    expect(result.compatibility.filter(({ feature }) => feature === 'blend-mode'))
+      .toHaveLength(modes.length);
+    expect(result.warnings.join('\n')).not.toContain('renders as Normal');
+  });
+
+  it('keeps an unsupported semantic layer testable through its local raster preview', () => {
+    const result = importPsdDocument(decoded([raster('smart', {
+      kind: 'smart-object',
+      preserved: {
+        text: null,
+        placedLayer: { id: 'placed' },
+        vectorFill: null,
+        vectorMask: null,
+        vectorStroke: null,
+        realMask: null
+      }
+    })]), 'test.psd');
+    expect(result.document.layers[0]?.type).toBe('raster');
+    expect(result.warnings.join('\n')).toContain('currently imports as its layer-local raster preview');
+  });
+
+  it('keeps semantic nodes in the tree when Photoshop has no local raster preview', () => {
+    const result = importPsdDocument(decoded([raster('text', {
+      kind: 'text',
+      rasterFallback: 'transparent-placeholder',
+      preserved: {
+        text: { text: 'Editable later' },
+        placedLayer: null,
+        vectorFill: null,
+        vectorMask: null,
+        vectorStroke: null,
+        realMask: null
+      }
+    })]), 'text.psd');
+    expect(result.document.layers).toHaveLength(1);
+    expect(result.document.layers[0]).toMatchObject({
+      type: 'raster',
+      photoshop: { sourceKind: 'text' }
+    });
+    expect(result.warnings.join('\n')).toContain('structurally preserved');
+    expect(result.warnings.join('\n')).toContain('currently transparent');
+  });
+
+  it('creates ordered native adjustment nodes for Photoshop settings already expressible by LightTable', () => {
+    const result = importPsdDocument(decoded([raster('exposure', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: { type: 'exposure', exposure: 1.25, offset: 0, gamma: 1 }
+    })]), 'test.psd');
+    const layer = result.document.layers[0];
+    expect(layer.type).toBe('adjustment');
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
+    expect(materializeBasicAdjustments(layer.adjustmentStack).exposureEV).toBe(1.25);
+    expect(result.assets).toHaveLength(0);
+  });
+
+  it('maps Photoshop Levels to editable LightTable curve channels', () => {
+    const result = importPsdDocument(decoded([raster('levels', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: {
+        type: 'levels',
+        rgb: {
+          shadowInput: 16,
+          highlightInput: 235,
+          shadowOutput: 8,
+          highlightOutput: 246,
+          midtoneInput: 1.3
+        }
+      }
+    })]), 'levels.psd');
+    const layer = result.document.layers[0];
+    expect(layer.type).toBe('adjustment');
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
+    const settings = materializeBasicAdjustments(layer.adjustmentStack);
+    expect(settings.curves.master).toHaveLength(33);
+    expect(settings.curves.master[0]?.y).toBeCloseTo(8 / 255);
+    expect(settings.curves.master.at(-1)?.y).toBeCloseTo(246 / 255);
+  });
+
+  it('maps Photoshop Invert to an exact editable master curve', () => {
+    const result = importPsdDocument(decoded([raster('invert', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: { type: 'invert' }
+    })]), 'invert.psd');
+    const layer = result.document.layers[0];
+    expect(layer.type).toBe('adjustment');
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
+    expect(materializeBasicAdjustments(layer.adjustmentStack).curves.master).toEqual([
+      { x: 0, y: 1 },
+      { x: 1, y: 0 }
+    ]);
+  });
+});

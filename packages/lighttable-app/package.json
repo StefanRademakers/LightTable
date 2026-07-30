@@ -1,0 +1,37 @@
+{
+  "name": "@lighttable/app",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "ag-psd": "^31.0.2",
+    "dockview-react": "^7.0.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "wasm-vips": "0.0.18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@webgpu/types": "^0.1.71",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1",
+    "vitest": "^4.1.10",
+    "wgsl_reflect": "^1.5.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  }
+}

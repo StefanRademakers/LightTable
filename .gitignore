@@ -1,0 +1,12 @@
+node_modules/
+dist/
+out/
+out-verify/
+out-*/
+artifacts/
+.vite/
+coverage/
+*.log
+.env
+.env.*
+!.env.example

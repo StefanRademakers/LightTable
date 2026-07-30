@@ -1,0 +1,850 @@
+import {
+  createDefaultLayerLocks,
+  createAdjustmentLayer as createAdjustmentLayerNode,
+  createGroupLayer as createGroupLayerNode,
+  createLayerId,
+  layerIsLocked,
+  type ImageDocument,
+  type LayerId,
+  type LayerLocks,
+  type LayerNode,
+  type RasterMask,
+  type RasterLayer,
+  type Rect
+} from './documentTypes';
+import type { AdjustmentStack } from '../../processing/adjustmentStack';
+import {
+  findLayerNode,
+  findRasterLayer,
+  insertLayerNode,
+  moveLayerNode,
+  rasterLayerCount,
+  removeLayerNode,
+  siblingLayers,
+  updateLayerNode,
+  walkLayerTree
+} from './layerTree';
+import type { BlendMode } from './blendModes';
+import type { AffineMatrix } from '../rendering/renderContract';
+import { identityAffineMatrix, isFiniteAffineMatrix } from '../rendering/renderContract';
+import type { TranslationAlignmentResult } from '../autoAlign/alignmentTypes';
+import { alignedTargetTransform } from '../autoAlign/alignmentMath';
+import {
+  createDefaultLayerStyleStack,
+  duplicateLayerStyleStack
+} from '../styles/layerStyleDefaults';
+
+const updateDocument = (document: ImageDocument, layers: LayerNode[], activeLayerId = document.activeLayerId): ImageDocument => ({
+  ...document,
+  layers,
+  activeLayerId,
+  revision: document.revision + 1,
+  modifiedAt: Date.now()
+});
+
+const normalizedSelectionEntries = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[]
+) => {
+  const selected = new Set(layerIds);
+  const entries = walkLayerTree(document.layers);
+  const entryByPath = new Map(entries.map((entry) => [entry.path.join('/'), entry]));
+  return entries.filter((entry) => {
+    if (!selected.has(entry.node.id)) return false;
+    // Selecting a group already selects its complete subtree for structural
+    // commands. Ignore explicitly selected descendants to avoid double moves.
+    return !entry.path.slice(0, -1).some((_, depth) => {
+      const ancestorPath = entry.path.slice(0, depth + 1);
+      const ancestor = entryByPath.get(ancestorPath.join('/'));
+      return Boolean(ancestor && selected.has(ancestor.node.id));
+    });
+  });
+};
+
+export const createRasterLayer = (
+  document: ImageDocument,
+  name = 'Paint Layer',
+  aboveLayerId = document.activeLayerId ?? undefined
+): ImageDocument => {
+  const now = Date.now();
+  const id = createLayerId();
+  const layer: RasterLayer = {
+    id,
+    type: 'raster',
+    name,
+    visible: true,
+    locks: createDefaultLayerLocks(),
+    opacity: 1,
+    fillOpacity: 1,
+    blendMode: 'normal',
+    clipping: false,
+    styleStack: createDefaultLayerStyleStack(),
+    revision: 0,
+    pixelRevision: 0,
+    geometryRevision: 0,
+    createdAt: now,
+    modifiedAt: now,
+    width: document.width,
+    height: document.height,
+    offsetX: 0,
+    offsetY: 0,
+    transform: identityAffineMatrix(),
+    pixelSource: { kind: 'runtime-raster', runtimeId: id },
+    dirtyBounds: null,
+    mask: null
+  };
+  const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
+  const parentId = anchor?.parentId ?? null;
+  const insertionIndex = anchor
+    ? anchor.path[anchor.path.length - 1] + 1
+    : document.layers.length;
+  const layers = insertLayerNode(document.layers, layer, parentId, insertionIndex);
+  return updateDocument(document, layers, id);
+};
+
+export const deleteLayer = (document: ImageDocument, layerId: LayerId): ImageDocument => {
+  const entry = findLayerNode(document.layers, layerId);
+  if (!entry) return document;
+  const removedRasterCount = entry.node.type === 'raster'
+    ? 1
+    : entry.node.type === 'group'
+      ? walkLayerTree(entry.node.children).filter(({ node }) => node.type === 'raster').length
+      : 0;
+  if (rasterLayerCount(document) - removedRasterCount < 1) return document;
+
+  const visualOrder = walkLayerTree(document.layers);
+  const visualIndex = visualOrder.findIndex(({ node }) => node.id === layerId);
+  const removed = removeLayerNode(document.layers, layerId);
+  if (!removed.removed) return document;
+  const remaining = walkLayerTree(removed.nodes);
+  const activeLayerId = document.activeLayerId === layerId
+    || (entry.node.type === 'group' && Boolean(findLayerNode(entry.node.children, document.activeLayerId!)))
+    ? remaining[Math.min(visualIndex, remaining.length - 1)]?.node.id ?? null
+    : document.activeLayerId;
+  return updateDocument(document, removed.nodes, activeLayerId);
+};
+
+export const deleteLayers = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[]
+): ImageDocument => {
+  const entries = normalizedSelectionEntries(document, layerIds);
+  if (!entries.length) return document;
+  const removedRasterCount = entries.reduce((count, entry) => count + (
+    entry.node.type === 'raster'
+      ? 1
+      : entry.node.type === 'group'
+        ? walkLayerTree(entry.node.children).filter(({ node }) => node.type === 'raster').length
+        : 0
+  ), 0);
+  if (rasterLayerCount(document) - removedRasterCount < 1) return document;
+
+  const selected = new Set(entries.map(({ node }) => node.id));
+  let layers = document.layers;
+  entries
+    .slice()
+    .sort((left, right) => right.path.length - left.path.length)
+    .forEach(({ node }) => {
+      layers = removeLayerNode(layers, node.id).nodes;
+    });
+  const remaining = walkLayerTree(layers);
+  const activeRemoved = document.activeLayerId
+    ? entries.some(({ node }) =>
+      node.id === document.activeLayerId
+      || (node.type === 'group' && Boolean(findLayerNode(node.children, document.activeLayerId!)))
+    )
+    : false;
+  const firstSelectedVisualIndex = walkLayerTree(document.layers)
+    .findIndex(({ node }) => selected.has(node.id));
+  const activeLayerId = activeRemoved
+    ? remaining[Math.min(Math.max(0, firstSelectedVisualIndex), remaining.length - 1)]?.node.id ?? null
+    : document.activeLayerId;
+  return updateDocument(document, layers, activeLayerId);
+};
+
+const updateLayer = (
+  document: ImageDocument,
+  layerId: LayerId,
+  change: (layer: LayerNode) => LayerNode
+): ImageDocument => {
+  const layers = updateLayerNode(document.layers, layerId, change);
+  return layers.some((layer, index) => layer !== document.layers[index])
+    ? updateDocument(document, layers)
+    : document;
+};
+
+export const createGroupLayer = (
+  document: ImageDocument,
+  name = 'Group',
+  aboveLayerId = document.activeLayerId ?? undefined
+): ImageDocument => {
+  const group = createGroupLayerNode(name);
+  const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
+  const parentId = anchor?.parentId ?? null;
+  const insertionIndex = anchor
+    ? anchor.path[anchor.path.length - 1] + 1
+    : document.layers.length;
+  return updateDocument(
+    document,
+    insertLayerNode(document.layers, group, parentId, insertionIndex),
+    group.id
+  );
+};
+
+export const createAdjustmentLayer = (
+  document: ImageDocument,
+  adjustmentStack: AdjustmentStack,
+  name = 'Grade',
+  aboveLayerId = document.activeLayerId ?? undefined
+): ImageDocument => {
+  const layer = createAdjustmentLayerNode(adjustmentStack, name);
+  const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
+  const parentId = anchor?.parentId ?? null;
+  const insertionIndex = anchor
+    ? anchor.path[anchor.path.length - 1] + 1
+    : document.layers.length;
+  return updateDocument(
+    document,
+    insertLayerNode(document.layers, layer, parentId, insertionIndex),
+    layer.id
+  );
+};
+
+export const setAdjustmentLayerStack = (
+  document: ImageDocument,
+  layerId: LayerId,
+  adjustmentStack: AdjustmentStack
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'adjustment') return layer;
+  return {
+    ...layer,
+    adjustmentStack: structuredClone(adjustmentStack),
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const renameLayer = (document: ImageDocument, layerId: LayerId, name: string) =>
+  updateLayer(document, layerId, (layer) => {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === layer.name) return layer;
+    return { ...layer, name: trimmed, revision: layer.revision + 1, modifiedAt: Date.now() };
+  });
+
+export const setLayerVisibility = (document: ImageDocument, layerId: LayerId, visible: boolean) =>
+  updateLayer(document, layerId, (layer) => layer.visible === visible ? layer : ({
+    ...layer, visible, revision: layer.revision + 1, modifiedAt: Date.now()
+  }));
+
+export const setLayersVisibility = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[],
+  visible: boolean
+) => {
+  // Visibility and lock changes are property edits, not structural edits.
+  // Keep explicitly selected descendants so selecting a group plus one of its
+  // children updates both rows instead of silently discarding the child.
+  const selected = new Set(layerIds.filter((layerId) => findLayerNode(document.layers, layerId)));
+  if (!selected.size) return document;
+  const now = Date.now();
+  const update = (nodes: readonly LayerNode[]): LayerNode[] => nodes.map((node) => {
+    if (selected.has(node.id)) {
+      return node.visible === visible ? node : {
+        ...node, visible, revision: node.revision + 1, modifiedAt: now
+      };
+    }
+    if (node.type !== 'group') return node;
+    const children = update(node.children);
+    return children.some((child, index) => child !== node.children[index])
+      ? { ...node, children, revision: node.revision + 1, modifiedAt: now }
+      : node;
+  });
+  const layers = update(document.layers);
+  return layers.some((node, index) => node !== document.layers[index])
+    ? updateDocument(document, layers)
+    : document;
+};
+
+export const setLayerOpacity = (document: ImageDocument, layerId: LayerId, opacity: number) =>
+  updateLayer(document, layerId, (layer) => {
+    const next = Math.min(1, Math.max(0, opacity));
+    return layer.opacity === next ? layer : { ...layer, opacity: next, revision: layer.revision + 1, modifiedAt: Date.now() };
+  });
+
+export const setLayerFillOpacity = (document: ImageDocument, layerId: LayerId, fillOpacity: number) =>
+  updateLayer(document, layerId, (layer) => {
+    const next = Math.min(1, Math.max(0, fillOpacity));
+    return layer.fillOpacity === next ? layer : {
+      ...layer,
+      fillOpacity: next,
+      revision: layer.revision + 1,
+      modifiedAt: Date.now()
+    };
+  });
+
+export const setLayerClipping = (document: ImageDocument, layerId: LayerId, clipping: boolean) =>
+  updateLayer(document, layerId, (layer) => layer.clipping === clipping ? layer : ({
+    ...layer,
+    clipping,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  }));
+
+export const setLayerBlendMode = (document: ImageDocument, layerId: LayerId, blendMode: BlendMode) =>
+  updateLayer(document, layerId, (layer) => layer.blendMode === blendMode ? layer : ({
+    ...layer, blendMode, revision: layer.revision + 1, modifiedAt: Date.now()
+  }));
+
+export const setLayerLocked = (document: ImageDocument, layerId: LayerId, locked: boolean) =>
+  updateLayer(document, layerId, (layer) => layer.locks.all === locked ? layer : ({
+    ...layer,
+    locks: { ...layer.locks, all: locked },
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  }));
+
+export const setLayerLock = (
+  document: ImageDocument,
+  layerId: LayerId,
+  lock: keyof LayerLocks,
+  locked: boolean
+) => updateLayer(document, layerId, (layer) => layer.locks[lock] === locked ? layer : ({
+  ...layer,
+  locks: { ...layer.locks, [lock]: locked },
+  revision: layer.revision + 1,
+  modifiedAt: Date.now()
+}));
+
+export const setLayersLock = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[],
+  lock: keyof LayerLocks,
+  locked: boolean
+) => {
+  const selected = new Set(layerIds.filter((layerId) => findLayerNode(document.layers, layerId)));
+  if (!selected.size) return document;
+  const now = Date.now();
+  const update = (nodes: readonly LayerNode[]): LayerNode[] => nodes.map((node) => {
+    if (selected.has(node.id)) {
+      return node.locks[lock] === locked ? node : {
+        ...node,
+        locks: { ...node.locks, [lock]: locked },
+        revision: node.revision + 1,
+        modifiedAt: now
+      };
+    }
+    if (node.type !== 'group') return node;
+    const children = update(node.children);
+    return children.some((child, index) => child !== node.children[index])
+      ? { ...node, children, revision: node.revision + 1, modifiedAt: now }
+      : node;
+  });
+  const layers = update(document.layers);
+  return layers.some((node, index) => node !== document.layers[index])
+    ? updateDocument(document, layers)
+    : document;
+};
+
+export const setLayerTransform = (document: ImageDocument, layerId: LayerId, transform: AffineMatrix) =>
+  updateLayer(document, layerId, (layer) => {
+    if (!isFiniteAffineMatrix(transform)) return layer;
+    if (
+      layer.transform.a === transform.a
+      && layer.transform.b === transform.b
+      && layer.transform.c === transform.c
+      && layer.transform.d === transform.d
+      && layer.transform.tx === transform.tx
+      && layer.transform.ty === transform.ty
+    ) return layer;
+    return {
+      ...layer,
+      transform: { ...transform },
+      geometryRevision: layer.geometryRevision + 1,
+      revision: layer.revision + 1,
+      modifiedAt: Date.now()
+    };
+  });
+
+export const applyTranslationAlignment = (
+  document: ImageDocument,
+  result: TranslationAlignmentResult
+) => {
+  if (result.referenceLayerId === result.targetLayerId) return document;
+  if (!findRasterLayer(document, result.referenceLayerId)) return document;
+  const target = findRasterLayer(document, result.targetLayerId);
+  if (!target || layerIsLocked(target, 'position')) return document;
+  return setLayerTransform(
+    document,
+    target.id,
+    alignedTargetTransform(target.transform, result)
+  );
+};
+
+export const addLayerMask = (document: ImageDocument, layerId: LayerId) =>
+  updateLayer(document, layerId, (layer) => layer.mask ? layer : ({
+    ...layer,
+    mask: {
+      id: `mask-${crypto.randomUUID()}`,
+      enabled: true,
+      density: 1,
+      feather: 0,
+      revision: 0,
+      pixelRevision: 0,
+      dirtyBounds: null
+    },
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  }));
+
+export const removeLayerMask = (document: ImageDocument, layerId: LayerId) =>
+  updateLayer(document, layerId, (layer) => !layer.mask ? layer : ({
+    ...layer, mask: null, revision: layer.revision + 1, modifiedAt: Date.now()
+  }));
+
+export const setLayerMaskEnabled = (document: ImageDocument, layerId: LayerId, enabled: boolean) =>
+  updateLayer(document, layerId, (layer) => !layer.mask || layer.mask.enabled === enabled ? layer : ({
+    ...layer,
+    mask: { ...layer.mask, enabled, revision: layer.mask.revision + 1 },
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  }));
+
+export const setLayerMaskProperties = (
+  document: ImageDocument,
+  layerId: LayerId,
+  properties: Partial<Pick<RasterMask, 'density' | 'feather'>>
+) => updateLayer(document, layerId, (layer) => {
+  if (!layer.mask) return layer;
+  const density = Math.max(0, Math.min(1, properties.density ?? layer.mask.density));
+  const feather = Math.max(0, properties.feather ?? layer.mask.feather);
+  if (density === layer.mask.density && feather === layer.mask.feather) return layer;
+  return {
+    ...layer,
+    mask: {
+      ...layer.mask,
+      density,
+      feather,
+      revision: layer.mask.revision + 1
+    },
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const markLayerMaskPixelsChanged = (document: ImageDocument, layerId: LayerId, dirtyBounds: Rect) =>
+  updateLayer(document, layerId, (layer) => !layer.mask ? layer : ({
+    ...layer,
+    mask: {
+      ...layer.mask,
+      revision: layer.mask.revision + 1,
+      pixelRevision: layer.mask.pixelRevision + 1,
+      dirtyBounds
+    },
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  }));
+
+export const duplicateLayer = (document: ImageDocument, layerId: LayerId): ImageDocument => {
+  const entry = findLayerNode(document.layers, layerId);
+  if (!entry || entry.node.type !== 'raster') return document;
+  const now = Date.now();
+  const source = entry.node;
+  const id = createLayerId();
+  const duplicate: RasterLayer = {
+    ...source,
+    id,
+    name: `${source.name} copy`,
+    createdAt: now,
+    modifiedAt: now,
+    revision: 0,
+    pixelRevision: 0,
+    geometryRevision: 0,
+    pixelSource: { kind: 'runtime-raster', runtimeId: id },
+    styleStack: duplicateLayerStyleStack(source.styleStack),
+    mask: source.mask ? { ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0 } : null
+  };
+  const layers = insertLayerNode(
+    document.layers,
+    duplicate,
+    entry.parentId,
+    entry.path[entry.path.length - 1] + 1
+  );
+  return updateDocument(document, layers, id);
+};
+
+export const mergeLayerDown = (document: ImageDocument, layerId: LayerId): ImageDocument => {
+  const entry = findLayerNode(document.layers, layerId);
+  if (!entry || entry.node.type !== 'raster') return document;
+  const siblings = siblingLayers(document, layerId);
+  const index = siblings.findIndex((layer) => layer.id === layerId);
+  const top = siblings[index];
+  const bottom = siblings[index - 1];
+  if (index <= 0 || top?.type !== 'raster' || bottom?.type !== 'raster') return document;
+  const now = Date.now();
+  const merged: RasterLayer = {
+    ...bottom,
+    name: top.name,
+    opacity: 1,
+    fillOpacity: 1,
+    blendMode: 'normal',
+    clipping: false,
+    styleStack: createDefaultLayerStyleStack(),
+    pixelSource: { kind: 'runtime-raster', runtimeId: bottom.id },
+    mask: null,
+    transform: identityAffineMatrix(),
+    geometryRevision: bottom.geometryRevision + 1,
+    revision: bottom.revision + 1,
+    pixelRevision: bottom.pixelRevision + 1,
+    modifiedAt: now,
+    dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
+  };
+  const withoutTop = removeLayerNode(document.layers, top.id);
+  if (!withoutTop.removed) return document;
+  const layers = updateLayerNode(withoutTop.nodes, bottom.id, () => merged);
+  return updateDocument(document, layers, merged.id);
+};
+
+export interface MergeRasterLayersPlan {
+  /** Bottom-to-top compositing order. */
+  layerIds: LayerId[];
+  destinationId: LayerId;
+  name: string;
+}
+
+export interface FlattenLayersPlan {
+  /** Complete subtree rendered into destinationId. */
+  layerIds: LayerId[];
+  destinationId: LayerId;
+  name: string;
+  targetGroupId: LayerId | null;
+}
+
+const rasterIdsIn = (nodes: readonly LayerNode[]) =>
+  walkLayerTree(nodes)
+    .filter((entry) => entry.node.type === 'raster')
+    .map((entry) => entry.node.id);
+
+export const getFlattenGroupPlan = (
+  document: ImageDocument,
+  groupId: LayerId
+): FlattenLayersPlan | null => {
+  const entry = findLayerNode(document.layers, groupId);
+  if (!entry || entry.node.type !== 'group') return null;
+  // Until adjustment layers participate in the recursive compositor, flatten
+  // must not silently discard them.
+  if (walkLayerTree(entry.node.children).some(({ node }) => node.type === 'adjustment')) return null;
+  const layerIds = rasterIdsIn(entry.node.children);
+  if (!layerIds.length) return null;
+  return {
+    layerIds,
+    destinationId: layerIds[0],
+    name: entry.node.name,
+    targetGroupId: groupId
+  };
+};
+
+export const getFlattenImagePlan = (document: ImageDocument): FlattenLayersPlan | null => {
+  if (walkLayerTree(document.layers).some(({ node }) => node.type === 'adjustment')) return null;
+  const layerIds = rasterIdsIn(document.layers);
+  if (!layerIds.length) return null;
+  return {
+    layerIds,
+    destinationId: layerIds[0],
+    name: document.name,
+    targetGroupId: null
+  };
+};
+
+const flattenedRaster = (
+  document: ImageDocument,
+  source: RasterLayer,
+  name: string
+): RasterLayer => ({
+  ...source,
+  name,
+  visible: true,
+  opacity: 1,
+  fillOpacity: 1,
+  blendMode: 'normal',
+  clipping: false,
+  styleStack: createDefaultLayerStyleStack(),
+  transform: identityAffineMatrix(),
+  mask: null,
+  width: document.width,
+  height: document.height,
+  offsetX: 0,
+  offsetY: 0,
+  pixelSource: { kind: 'runtime-raster', runtimeId: source.id },
+  geometryRevision: source.geometryRevision + 1,
+  pixelRevision: source.pixelRevision + 1,
+  revision: source.revision + 1,
+  modifiedAt: Date.now(),
+  dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
+});
+
+export const flattenGroup = (
+  document: ImageDocument,
+  groupId: LayerId
+): ImageDocument => {
+  const plan = getFlattenGroupPlan(document, groupId);
+  const destination = plan ? findRasterLayer(document, plan.destinationId) : null;
+  const group = findLayerNode(document.layers, groupId)?.node;
+  if (!plan || !destination || group?.type !== 'group') return document;
+  const replacement = {
+    ...flattenedRaster(document, destination, plan.name),
+    // Flattening bakes the group's children, but the replacement still
+    // occupies the group's place and must retain its outer visibility/locks.
+    visible: group.visible,
+    locks: { ...group.locks }
+  };
+  return updateDocument(
+    document,
+    updateLayerNode(document.layers, groupId, () => replacement),
+    replacement.id
+  );
+};
+
+export const flattenImage = (document: ImageDocument): ImageDocument => {
+  const plan = getFlattenImagePlan(document);
+  const destination = plan ? findRasterLayer(document, plan.destinationId) : null;
+  if (!plan || !destination) return document;
+  const replacement = flattenedRaster(document, destination, plan.name);
+  return updateDocument(document, [replacement], replacement.id);
+};
+
+/**
+ * Returns a lossless merge plan for a Layers-panel selection.
+ *
+ * Selected layers must be contiguous raster siblings. Allowing gaps would
+ * silently move unselected layers above or below the flattened result and
+ * therefore change the document's appearance.
+ */
+export const getMergeRasterLayersPlan = (
+  document: ImageDocument,
+  selectedLayerIds: readonly LayerId[]
+): MergeRasterLayersPlan | null => {
+  const selected = new Set(selectedLayerIds);
+  if (selected.size < 2) return null;
+  const entries = [...selected].map((id) => findLayerNode(document.layers, id));
+  if (
+    entries.some((entry) => !entry || entry.node.type !== 'raster')
+    || entries.some((entry) => entry!.parentId !== entries[0]!.parentId)
+  ) return null;
+
+  const siblings = siblingLayers(document, entries[0]!.node.id);
+  const indexes = siblings
+    .map((layer, index) => selected.has(layer.id) ? index : -1)
+    .filter((index) => index >= 0);
+  if (
+    indexes.length !== selected.size
+    || indexes[indexes.length - 1] - indexes[0] + 1 !== indexes.length
+  ) return null;
+
+  const layers = siblings.slice(indexes[0], indexes[indexes.length - 1] + 1);
+  if (layers.some((layer) => layer.type !== 'raster')) return null;
+  return {
+    layerIds: layers.map((layer) => layer.id),
+    destinationId: layers[0].id,
+    name: layers[layers.length - 1].name
+  };
+};
+
+export const mergeRasterLayers = (
+  document: ImageDocument,
+  selectedLayerIds: readonly LayerId[]
+): ImageDocument => {
+  const plan = getMergeRasterLayersPlan(document, selectedLayerIds);
+  if (!plan) return document;
+  const destination = findRasterLayer(document, plan.destinationId);
+  if (!destination) return document;
+  const now = Date.now();
+  const merged: RasterLayer = {
+    ...destination,
+    name: plan.name,
+    opacity: 1,
+    fillOpacity: 1,
+    blendMode: 'normal',
+    clipping: false,
+    styleStack: createDefaultLayerStyleStack(),
+    pixelSource: { kind: 'runtime-raster', runtimeId: destination.id },
+    mask: null,
+    transform: identityAffineMatrix(),
+    geometryRevision: destination.geometryRevision + 1,
+    revision: destination.revision + 1,
+    pixelRevision: destination.pixelRevision + 1,
+    modifiedAt: now,
+    dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
+  };
+  let layers = document.layers;
+  for (const layerId of plan.layerIds) {
+    if (layerId === plan.destinationId) continue;
+    layers = removeLayerNode(layers, layerId).nodes;
+  }
+  layers = updateLayerNode(layers, plan.destinationId, () => merged);
+  return updateDocument(document, layers, merged.id);
+};
+
+export const moveLayer = (document: ImageDocument, layerId: LayerId, targetIndex: number): ImageDocument => {
+  const entry = findLayerNode(document.layers, layerId);
+  if (!entry) return document;
+  const siblings = siblingLayers(document, layerId);
+  const index = siblings.findIndex((layer) => layer.id === layerId);
+  const clamped = Math.min(siblings.length - 1, Math.max(0, targetIndex));
+  if (index < 0 || index === clamped) return document;
+  // targetIndex is the final sibling index, so it can be used directly after
+  // removal. Subtracting one here made upward moves stop one slot too early.
+  const layers = moveLayerNode(document.layers, layerId, entry.parentId, clamped);
+  return updateDocument(document, layers);
+};
+
+/**
+ * Reorders a layer relative to another layer in compositing order.
+ *
+ * The document stores the bottom-most layer first, while the Layers panel
+ * displays the reverse order. Keeping that conversion in the document command
+ * prevents drag UI code from depending on the storage direction.
+ */
+export const moveLayerRelative = (
+  document: ImageDocument,
+  layerId: LayerId,
+  targetLayerId: LayerId,
+  placement: 'above' | 'below'
+): ImageDocument => {
+  if (layerId === targetLayerId) return document;
+  const source = findLayerNode(document.layers, layerId);
+  const target = findLayerNode(document.layers, targetLayerId);
+  if (!source || !target) return document;
+  const targetSiblings = siblingLayers(document, targetLayerId);
+  const targetIndex = targetSiblings.findIndex((layer) => layer.id === targetLayerId);
+  let insertionIndex = targetIndex + (placement === 'above' ? 1 : 0);
+  if (source.parentId === target.parentId) {
+    const sourceIndex = source.path[source.path.length - 1];
+    if (sourceIndex < insertionIndex) insertionIndex -= 1;
+  }
+  const layers = moveLayerNode(document.layers, layerId, target.parentId, insertionIndex);
+  if (layers === document.layers) return document;
+  return updateDocument(document, layers);
+};
+
+export const moveLayerIntoGroup = (
+  document: ImageDocument,
+  layerId: LayerId,
+  groupId: LayerId
+): ImageDocument => {
+  const group = findLayerNode(document.layers, groupId)?.node;
+  if (!group || group.type !== 'group' || layerId === groupId) return document;
+  const layers = moveLayerNode(document.layers, layerId, groupId, group.children.length);
+  return layers === document.layers ? document : updateDocument(document, layers);
+};
+
+export const moveLayerSelection = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[],
+  targetLayerId: LayerId,
+  placement: 'above' | 'below' | 'inside'
+): ImageDocument => {
+  const entries = normalizedSelectionEntries(document, layerIds);
+  if (!entries.length || entries.some(({ node }) => node.id === targetLayerId)) return document;
+  const parentId = entries[0].parentId;
+  if (entries.some((entry) => entry.parentId !== parentId)) return document;
+  const selectedNodes = new Set(entries.map(({ node }) => node.id));
+  const targetBefore = findLayerNode(document.layers, targetLayerId);
+  if (!targetBefore) return document;
+  if (entries.some(({ node }) =>
+    node.type === 'group' && Boolean(findLayerNode(node.children, targetLayerId))
+  )) return document;
+
+  const sourceSiblings = siblingLayers(document, entries[0].node.id);
+  const ordered = sourceSiblings.filter((node) => selectedNodes.has(node.id));
+  let layers = document.layers;
+  for (const node of ordered) layers = removeLayerNode(layers, node.id).nodes;
+
+  const target = findLayerNode(layers, targetLayerId);
+  if (!target) return document;
+  let destinationParentId: LayerId | null;
+  let insertionIndex: number;
+  if (placement === 'inside') {
+    if (target.node.type !== 'group') return document;
+    destinationParentId = target.node.id;
+    insertionIndex = target.node.children.length;
+  } else {
+    destinationParentId = target.parentId;
+    const targetSiblings = destinationParentId === null
+      ? layers
+      : findLayerNode(layers, destinationParentId)?.node;
+    const siblings = Array.isArray(targetSiblings)
+      ? targetSiblings
+      : targetSiblings?.type === 'group' ? targetSiblings.children : [];
+    const targetIndex = siblings.findIndex((node) => node.id === targetLayerId);
+    if (targetIndex < 0) return document;
+    insertionIndex = targetIndex + (placement === 'above' ? 1 : 0);
+  }
+  for (const node of ordered) {
+    layers = insertLayerNode(layers, node, destinationParentId, insertionIndex);
+    insertionIndex += 1;
+  }
+  return updateDocument(document, layers, document.activeLayerId);
+};
+
+export const groupLayers = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[],
+  name = 'Group'
+): ImageDocument => {
+  const entries = normalizedSelectionEntries(document, layerIds);
+  if (!entries.length) return document;
+  const parentId = entries[0].parentId;
+  if (entries.some((entry) => entry.parentId !== parentId)) return document;
+  const selected = new Set(entries.map(({ node }) => node.id));
+  const siblings = siblingLayers(document, entries[0].node.id);
+  const children = siblings.filter((node) => selected.has(node.id));
+  if (!children.length) return document;
+  const insertionIndex = Math.min(...entries.map((entry) => entry.path[entry.path.length - 1]));
+  let layers = document.layers;
+  for (const child of children) layers = removeLayerNode(layers, child.id).nodes;
+  const group = createGroupLayerNode(name);
+  group.children = children;
+  layers = insertLayerNode(layers, group, parentId, insertionIndex);
+  return updateDocument(document, layers, group.id);
+};
+
+export const ungroupLayers = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[]
+): ImageDocument => {
+  const groups = normalizedSelectionEntries(document, layerIds)
+    .filter((entry) => entry.node.type === 'group')
+    .sort((left, right) => right.path.length - left.path.length);
+  if (!groups.length) return document;
+  let layers = document.layers;
+  let activeLayerId = document.activeLayerId;
+  for (const groupEntry of groups) {
+    const current = findLayerNode(layers, groupEntry.node.id);
+    if (!current || current.node.type !== 'group') continue;
+    const index = current.path[current.path.length - 1];
+    const removed = removeLayerNode(layers, current.node.id);
+    layers = removed.nodes;
+    current.node.children.forEach((child, childIndex) => {
+      layers = insertLayerNode(layers, child, current.parentId, index + childIndex);
+    });
+    if (activeLayerId === current.node.id) {
+      activeLayerId = current.node.children[current.node.children.length - 1]?.id ?? null;
+    }
+  }
+  return updateDocument(document, layers, activeLayerId);
+};
+
+export const setActiveLayer = (document: ImageDocument, layerId: LayerId | null): ImageDocument => {
+  if (document.activeLayerId === layerId) return document;
+  if (layerId && !findLayerNode(document.layers, layerId)) return document;
+  return { ...document, activeLayerId: layerId };
+};
+
+export const markLayerPixelsChanged = (document: ImageDocument, layerId: LayerId, dirtyBounds: Rect) =>
+  updateLayer(document, layerId, (layer) => layer.type !== 'raster' ? layer : ({
+    ...layer,
+    pixelRevision: layer.pixelRevision + 1,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now(),
+    dirtyBounds
+  }));

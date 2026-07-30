@@ -1,0 +1,24 @@
+{
+  "name": "lighttable-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm run dev -w @lighttable/web",
+    "dev:desktop": "npm run start -w @lighttable/desktop",
+    "build": "npm run build:web && npm run package:desktop",
+    "build:web": "npm run build -w @lighttable/web",
+    "package:desktop": "npm run package -w @lighttable/desktop",
+    "package:desktop:verify": "npm run package -w @lighttable/desktop",
+    "make:desktop": "npm run make -w @lighttable/desktop",
+    "test": "npm run test -w @lighttable/app",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "verify:boundary": "node scripts/verify-boundary.mjs",
+    "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
+  }
+}

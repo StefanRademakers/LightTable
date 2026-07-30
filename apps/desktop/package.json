@@ -1,0 +1,35 @@
+{
+  "name": "@lighttable/desktop",
+  "productName": "LightTable",
+  "private": true,
+  "version": "0.0.0",
+  "main": ".vite/build/main.js",
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@fontsource/inter": "5.3.0",
+    "@lighttable/app": "0.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.10.2",
+    "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-rpm": "^7.10.2",
+    "@electron-forge/maker-squirrel": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
+    "@electron-forge/plugin-vite": "^7.10.2",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@webgpu/types": "^0.1.71",
+    "electron": "^39.2.7",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  }
+}

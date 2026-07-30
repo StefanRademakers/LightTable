@@ -1,0 +1,2846 @@
+@import 'dockview-react/dist/styles/dockview.css';
+
+.lighttable-backdrop {
+  z-index: 1400;
+  display: block;
+  background: #101215;
+}
+
+.lighttable {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #101215;
+  border: 0;
+  border-radius: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lighttable img {
+  -webkit-user-drag: none;
+}
+
+.lighttable__header {
+  flex: 0 0 36px;
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-bottom: 1px solid #252a30;
+  background: #101216;
+}
+
+.lighttable-tool-options {
+  min-width: 0;
+  min-height: 48px;
+  flex: 0 0 48px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid #30343a;
+  background: #171a1f;
+}
+
+.lighttable-tool-options__content {
+  width: max-content;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 12px;
+}
+
+.lighttable-tool-options__content > strong {
+  color: #dce1e7;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.lighttable-tool-options__content .lighttable-adjustment {
+  width: 148px;
+  padding: 0;
+}
+
+.lighttable-tool-options__content .lighttable-adjustment__header {
+  margin-bottom: 0;
+  font-size: 10px;
+}
+
+.lighttable-tool-options__content .lighttable-adjustment__header output {
+  min-width: 42px;
+}
+
+.lighttable__header-left {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.lighttable__app-menu {
+  flex: 0 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.lighttable__app-menu .shots-app-menu__button {
+  height: 36px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 8px;
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #d8dde4;
+  font: inherit;
+  font-size: 12px;
+  line-height: 36px;
+  cursor: default;
+}
+
+.lighttable__app-menu .shots-app-menu__button:hover,
+.lighttable__app-menu .shots-app-menu__button--active {
+  background: transparent;
+  color: #fff;
+}
+
+.lighttable__header .lighttable__close-button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lighttable__header .lighttable__close-button:hover:not(:disabled) {
+  background: transparent;
+  color: #fff;
+}
+
+.lighttable__header .lighttable__close-button img {
+  width: 14px;
+  height: 14px;
+}
+
+.lighttable__error {
+  flex: 0 0 auto;
+  margin: 8px 10px 0;
+}
+
+.lighttable__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.lighttable-dock-workspace {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  --dv-background-color: #111419;
+  --dv-paneview-header-border-color: #30343a;
+  --dv-tabs-and-actions-container-background-color: #171a1f;
+  --dv-tabs-and-actions-container-height: 34px;
+  --dv-activegroup-visiblepanel-tab-background-color: #252a31;
+  --dv-activegroup-hiddenpanel-tab-background-color: #1a1e23;
+  --dv-inactivegroup-visiblepanel-tab-background-color: #20242a;
+  --dv-inactivegroup-hiddenpanel-tab-background-color: #171a1f;
+  --dv-tab-divider-color: #30343a;
+  --dv-separator-border: #30343a;
+  --dv-active-sash-color: #568be0;
+  --dv-drag-over-background-color: rgba(66, 116, 196, 0.28);
+  --dv-drag-over-border-color: #568be0;
+  --dv-tabs-and-actions-container-font-size: 11px;
+}
+
+.lighttable img {
+  -webkit-user-drag: none;
+}
+
+.lighttable-dock-workspace,
+.lighttable-dock-workspace > .dv-dockview {
+  width: 100%;
+  height: 100%;
+}
+
+.lighttable-dock-workspace .dv-content-container {
+  min-width: 0;
+  min-height: 0;
+}
+
+/*
+ * Dockview's desktop floating resize targets are only 4px wide. That is too
+ * precise for an image editor, especially over a detailed canvas. Keep the
+ * gutters transparent, but provide a 10px edge and an 18px corner hit-area.
+ * These selectors only affect detached/floating panels; docked sashes retain
+ * their normal dimensions.
+ */
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-top,
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-bottom {
+  width: calc(100% - 36px);
+  height: 10px;
+  left: 18px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-top {
+  top: -5px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-bottom {
+  bottom: -5px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-left,
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-right {
+  width: 10px;
+  height: calc(100% - 36px);
+  top: 18px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-left {
+  left: -5px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-right {
+  right: -5px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-topleft,
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-topright,
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-bottomleft,
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-bottomright {
+  width: 18px;
+  height: 18px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-topleft {
+  top: -9px;
+  left: -9px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-topright {
+  top: -9px;
+  right: -9px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-bottomleft {
+  bottom: -9px;
+  left: -9px;
+}
+
+.lighttable-dock-workspace .dv-resize-container .dv-resize-handle-bottomright {
+  right: -9px;
+  bottom: -9px;
+}
+
+.lighttable-document-host {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #101317;
+}
+
+.lighttable-document-tabs {
+  min-height: 30px;
+  flex: 0 0 30px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #30343a;
+  background: #171a1f;
+  scrollbar-width: thin;
+}
+
+.lighttable-document-tab {
+  min-width: 120px;
+  max-width: 280px;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid #30343a;
+  color: #9ca4ae;
+  background: #191d22;
+}
+
+.lighttable-document-tab--active {
+  color: #f0f2f5;
+  background: #252a31;
+  box-shadow: inset 0 1px 0 #568be0;
+}
+
+.lighttable-document-tab__title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 0 4px 0 10px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighttable-document-tab__close {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  margin-right: 2px;
+  border: 0;
+  border-radius: 3px;
+  color: #aab1ba;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.lighttable-document-tab__close:hover {
+  color: #fff;
+  background: #363c45;
+}
+
+.lighttable-document-host__content {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.lighttable-document-host__content > .lighttable__main {
+  width: 100%;
+  height: 100%;
+}
+
+.lighttable-document-host__empty {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #818a95;
+}
+
+.lighttable-toolbox {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 5px;
+  border-right: 1px solid #30343a;
+  background: #171a1f;
+}
+
+.lighttable-toolbox__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.lighttable-toolbox__button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-toolbox__button:hover { background: #252a31; }
+.lighttable-toolbox__button--active { border-color: #588bdc; background: #234f91; }
+.lighttable-toolbox__button img { width: 18px; height: 18px; object-fit: contain; }
+
+.lighttable-toolbox__colors {
+  position: relative;
+  width: 34px;
+  height: 53px;
+  margin-top: 7px;
+  border-top: 1px solid #30343a;
+}
+
+.lighttable-toolbox__color {
+  position: absolute;
+  display: block;
+  width: 19px;
+  height: 19px;
+  border: 1px solid #eef1f5;
+  box-shadow: 0 0 0 1px #060708;
+  cursor: pointer;
+}
+
+.lighttable-toolbox__color--background {
+  right: 2px;
+  bottom: 1px;
+}
+
+.lighttable-toolbox__color--foreground {
+  left: 2px;
+  bottom: 10px;
+}
+
+.lighttable-toolbox__color input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.lighttable-toolbox__reset-colors,
+.lighttable-toolbox__swap-colors {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #d9dde3;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.lighttable-toolbox__reset-colors {
+  top: 4px;
+  left: 0;
+  width: 12px;
+  height: 11px;
+}
+
+.lighttable-toolbox__reset-colors span {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border: 1px solid #e8ebef;
+}
+
+.lighttable-toolbox__reset-colors span:first-child {
+  top: 0;
+  left: 0;
+  background: #000;
+}
+
+.lighttable-toolbox__reset-colors span:last-child {
+  right: 0;
+  bottom: 0;
+  background: #fff;
+}
+
+.lighttable-toolbox__swap-colors {
+  top: 1px;
+  right: -1px;
+  width: 15px;
+  height: 15px;
+  font-size: 13px;
+  line-height: 15px;
+}
+
+.lighttable-toolbox__reset-colors:hover,
+.lighttable-toolbox__swap-colors:hover {
+  color: #fff;
+  filter: brightness(1.2);
+}
+
+.lighttable-toolbox__reset-colors:hover,
+.lighttable-toolbox__reset-colors:active,
+.lighttable-toolbox__reset-colors:focus {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.lighttable__main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #080a0c;
+}
+
+.lighttable-viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.lighttable-viewport:active,
+.lighttable-viewport--dragging {
+  cursor: grabbing;
+}
+
+.lighttable-viewport--brush,
+.lighttable-viewport--erase { cursor: crosshair; }
+
+.lighttable-brush-cursor {
+  position: absolute;
+  z-index: 8;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  opacity: 0;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.78);
+  will-change: width, height, transform;
+}
+.lighttable-viewport--select-rectangle,
+.lighttable-viewport--select-ellipse,
+.lighttable-viewport--select-free { cursor: crosshair; }
+.lighttable-viewport--transform { cursor: default; }
+
+.lighttable-viewport__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lighttable-selection {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.lighttable-selection__shape {
+  fill: rgba(92, 145, 225, 0.08);
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1px #000);
+}
+
+.lighttable-selection__shape--subtract { fill: rgba(225, 92, 92, 0.08); }
+.lighttable-selection__shape--intersect { fill: rgba(206, 157, 70, 0.08); }
+.lighttable-selection__shape--draft { fill: rgba(92, 145, 225, 0.12); }
+
+.lighttable-transform {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.lighttable-transform__body {
+  fill: rgba(92, 145, 225, 0.04);
+  stroke: #f1f4f8;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1px #000);
+  cursor: move;
+}
+
+.lighttable-transform__rotation-line {
+  stroke: #f1f4f8;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.lighttable-transform__rotation,
+.lighttable-transform__handle {
+  fill: #101215;
+  stroke: #f1f4f8;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.lighttable-transform__rotation { cursor: grab; }
+.lighttable-transform__handle--north,
+.lighttable-transform__handle--south { cursor: ns-resize; }
+.lighttable-transform__handle--east,
+.lighttable-transform__handle--west { cursor: ew-resize; }
+.lighttable-transform__handle--north-west,
+.lighttable-transform__handle--south-east { cursor: nwse-resize; }
+.lighttable-transform__handle--north-east,
+.lighttable-transform__handle--south-west { cursor: nesw-resize; }
+
+.lighttable-viewport__message {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #c9ced6;
+  background: rgba(8, 10, 12, 0.76);
+  pointer-events: none;
+}
+
+.lighttable-toolbar {
+  flex: 0 0 auto;
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px;
+  border-top: 1px solid #30343a;
+  background: #14171b;
+}
+
+.lighttable-toolbar__status {
+  min-width: 0;
+  overflow: hidden;
+  color: #aeb6c1;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighttable-toolbar__status--error {
+  color: #ff9b9b;
+}
+
+.lighttable-toolbar__meta {
+  color: #929aa5;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.lighttable-toolbar__meta--report {
+  cursor: pointer;
+}
+
+.lighttable-toolbar__meta--report:hover {
+  color: var(--text-primary);
+}
+
+.lighttable-psd-report__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 62%);
+}
+
+.lighttable-psd-report {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(180px, 1fr) auto;
+  width: min(920px, calc(100vw - 48px));
+  max-height: min(780px, calc(100vh - 48px));
+  overflow: hidden;
+  color: var(--text-primary);
+  background: #15191f;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 48%);
+}
+
+.lighttable-psd-report__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.lighttable-psd-report__header h2,
+.lighttable-psd-report__header p,
+.lighttable-psd-report__entry p {
+  margin: 0;
+}
+
+.lighttable-psd-report__header h2 {
+  font-size: 16px;
+}
+
+.lighttable-psd-report__header p {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.lighttable-psd-report__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 10px 18px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 11px;
+}
+
+.lighttable-psd-report__filters {
+  margin: 12px 18px;
+}
+
+.lighttable-psd-report__entries {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 18px 16px;
+}
+
+.lighttable-psd-report__entry {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.lighttable-psd-report__entry strong,
+.lighttable-psd-report__entry small {
+  display: block;
+}
+
+.lighttable-psd-report__entry strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.lighttable-psd-report__entry small,
+.lighttable-psd-report__entry p,
+.lighttable-psd-report__empty,
+.lighttable-psd-report__warnings {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.lighttable-psd-report__entry p {
+  margin-top: 3px;
+}
+
+.lighttable-psd-report__support {
+  align-self: start;
+  padding: 3px 6px;
+  text-align: center;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.lighttable-psd-report__support--native { color: #6fd49a; }
+.lighttable-psd-report__support--approximate { color: #e6c36a; }
+.lighttable-psd-report__support--preserved { color: #91a8d5; }
+.lighttable-psd-report__support--raster-preview { color: #c398e7; }
+.lighttable-psd-report__support--placeholder { color: #ef8585; }
+
+.lighttable-psd-report__warnings {
+  max-height: 150px;
+  overflow: auto;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.lighttable-psd-report__warnings ul {
+  margin-bottom: 0;
+  padding-left: 18px;
+}
+
+.lighttable-panel {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #30343a;
+  background: #171a1f;
+}
+
+.lighttable-scopes {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #30343a;
+  background: #111419;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lighttable-scopes__content {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.lighttable-scopes__shared-controls {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid #30343a;
+}
+
+.lighttable-scopes__shared-controls label,
+.lighttable-scope__select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #cbd1d9;
+  font-size: 11px;
+  user-select: none;
+}
+
+.lighttable-scopes select,
+.lighttable-scope__select-row select {
+  min-height: 26px;
+  padding: 3px 25px 3px 7px;
+  border: 1px solid #3c424b;
+  border-radius: 3px;
+  color: #dce1e8;
+  background: #171b20;
+  font: inherit;
+}
+
+.lighttable-scopes__brightness {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.lighttable-scopes__brightness output {
+  color: #9eb7dd;
+  font-variant-numeric: tabular-nums;
+}
+
+.lighttable-scopes__brightness input[type='range'] {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 14px;
+  margin: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  accent-color: #5b91ed;
+}
+
+.lighttable-scopes__error {
+  margin: 8px;
+  padding: 8px;
+  border: 1px solid rgba(210, 75, 75, 0.48);
+  border-radius: 4px;
+  color: #efaaaa;
+  background: rgba(91, 23, 23, 0.24);
+  font-size: 11px;
+}
+
+.lighttable-scope {
+  border-bottom: 1px solid #30343a;
+}
+
+.lighttable-scope__header {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  border: 0;
+  color: #dfe3e9;
+  background: #1c2026;
+  cursor: pointer;
+}
+
+.lighttable-scope__header > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.lighttable-scope__header img {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  opacity: 0.8;
+}
+
+.lighttable-scope__header strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.lighttable-scope__status {
+  color: #77818e;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.lighttable-scope__body {
+  padding: 8px;
+  background: #0c0f13;
+}
+
+.lighttable-scope__body .lighttable-histogram {
+  width: 100%;
+  height: 128px;
+  margin: 0;
+}
+
+.lighttable-scope__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lighttable-hue-distribution {
+  width: 100%;
+  height: 128px;
+  overflow: hidden;
+  border: 1px solid #313842;
+  border-radius: 3px;
+  background: #05070a;
+}
+
+.lighttable-parade__channels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 4px 3px 35px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.lighttable-parade__channels span:nth-child(1) { color: #ff424c; }
+.lighttable-parade__channels span:nth-child(2) { color: #34e070; }
+.lighttable-parade__channels span:nth-child(3) { color: #488bff; }
+
+.lighttable-parade__plot {
+  height: 210px;
+  display: grid;
+  grid-template-columns: 31px minmax(0, 1fr);
+}
+
+.lighttable-parade__scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1px 5px 1px 0;
+  color: #717b87;
+  font-size: 8px;
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.lighttable-parade__canvas-wrap,
+.lighttable-vectorscope {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #313842;
+  border-radius: 3px;
+  background: #05070a;
+}
+
+.lighttable-parade__grid {
+  position: absolute;
+  inset: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(to right,
+      transparent calc(33.333% - 0.5px), rgba(255, 255, 255, 0.14) 33.333%, transparent calc(33.333% + 0.5px),
+      transparent calc(66.666% - 0.5px), rgba(255, 255, 255, 0.14) 66.666%, transparent calc(66.666% + 0.5px)),
+    repeating-linear-gradient(to bottom,
+      rgba(255, 255, 255, 0.1) 0, rgba(255, 255, 255, 0.1) 1px,
+      transparent 1px, transparent 12.5%);
+  pointer-events: none;
+}
+
+.lighttable-scope__select-row {
+  margin-top: 7px;
+}
+
+.lighttable-scope__range {
+  width: 100%;
+  min-height: 27px;
+  margin-bottom: 7px;
+}
+
+.lighttable-scope__range .segmented-control__button {
+  flex: 1 1 25%;
+  min-width: 0;
+  min-height: 26px;
+  padding: 4px;
+  font-size: 10px;
+}
+
+.lighttable-vectorscope {
+  width: min(100%, 270px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.lighttable-vectorscope__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.lighttable-vectorscope__graticule circle,
+.lighttable-vectorscope__graticule line {
+  fill: none;
+  stroke: rgba(190, 202, 211, 0.34);
+  stroke-width: 0.45;
+  vector-effect: non-scaling-stroke;
+}
+
+.lighttable-vectorscope__graticule text {
+  fill: rgba(208, 216, 223, 0.7);
+  font-size: 3.6px;
+  font-weight: 650;
+}
+
+.lighttable-vectorscope__skin-line {
+  stroke: rgba(255, 173, 116, 0.74);
+  stroke-width: 0.65;
+  stroke-dasharray: 2 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.lighttable-histogram {
+  width: calc(100% - 24px);
+  height: 132px;
+  flex: 0 0 132px;
+  margin: 12px;
+  border: 1px solid #343a43;
+  border-radius: 5px;
+}
+
+.lighttable-panel__controls {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0 18px;
+}
+
+.lighttable-layers-panel {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #15181d;
+}
+
+.lighttable-layers-panel--empty {
+  display: grid;
+  place-items: center;
+  color: #747e8a;
+  font-size: 11px;
+}
+
+.lighttable-layers-panel .lighttable-layers {
+  height: 100%;
+  max-height: none;
+  border-top: 0;
+  border-bottom: 0;
+}
+
+.lighttable-layers-panel .lighttable-layers__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.lighttable-layers {
+  flex: 0 0 auto;
+  max-height: min(42vh, 430px);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  border-top: 1px solid #30343a;
+  border-bottom: 1px solid #30343a;
+  background: #15181d;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lighttable-layers__locks {
+  min-height: 24px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  align-self: flex-start;
+  color: #aeb6c0;
+  font-size: 10px;
+}
+
+.lighttable-layers__locks > span {
+  margin-right: 3px;
+}
+
+.lighttable-layers__locks button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-layers__locks button:hover,
+.lighttable-layers__lock-toggle--active {
+  border-color: #393f48;
+  background: #1b1f25;
+}
+
+.lighttable-layers__locks img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+
+.lighttable-layers__opacity-controls {
+  display: grid;
+  gap: 2px;
+}
+
+.lighttable-layers__opacity-controls .lighttable-adjustment {
+  display: grid;
+  grid-template-columns: 45px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 1px 0;
+}
+
+.lighttable-layers__opacity-controls .lighttable-adjustment__header {
+  display: contents;
+}
+
+.lighttable-layers__opacity-controls .lighttable-adjustment__header > span {
+  grid-column: 1;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.lighttable-layers__opacity-controls .lighttable-adjustment__header output {
+  grid-column: 3;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.lighttable-layers__opacity-controls .lighttable-adjustment__track-wrap {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.lighttable-layers__footer {
+  min-height: 33px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin: 0 -8px -8px;
+  padding: 4px 8px;
+  border-top: 1px solid #30343a;
+  background: #171a1f;
+}
+
+.lighttable-layers__footer button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #dce1e8;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-layers__footer button:hover:not(:disabled) {
+  border-color: #3a414a;
+  background: #242930;
+}
+
+.lighttable-layers__footer button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lighttable-layers__footer img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+}
+
+.lighttable-layers__footer .lighttable-layers__fx-button {
+  margin-right: auto;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 700;
+}
+
+.lighttable-layers__actions button,
+.lighttable-layer__visibility {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #363c45;
+  border-radius: 3px;
+  color: #dce1e8;
+  background: #1b1f25;
+  cursor: pointer;
+}
+
+.lighttable-layers__actions button:disabled { opacity: 0.35; cursor: default; }
+.lighttable-layers__actions img,
+.lighttable-layer__visibility img { width: 13px; height: 13px; object-fit: contain; }
+
+.lighttable-layers__list {
+  min-height: 42px;
+  max-height: 170px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lighttable-layer {
+  position: relative;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: #1b1f24;
+  cursor: pointer;
+}
+
+.lighttable-layer--selected { background: #202a39; }
+.lighttable-layer--active { border-color: #568be0; background: #26344a; }
+.lighttable-layer--dragging { opacity: 0.45; }
+
+.lighttable-layer__clipping-mark {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.lighttable-layer__clipping-mark img {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  opacity: 0.82;
+}
+
+.lighttable-layer__clipping-boundary {
+  position: absolute;
+  z-index: 4;
+  right: 0;
+  bottom: -5px;
+  left: 0;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: inherit;
+}
+
+.lighttable-layer--drop-above::before,
+.lighttable-layer--drop-below::after {
+  position: absolute;
+  z-index: 2;
+  left: 2px;
+  right: 2px;
+  height: 2px;
+  border-radius: 2px;
+  background: #72a2ef;
+  content: '';
+  pointer-events: none;
+}
+
+.lighttable-layer--drop-above::before { top: -2px; }
+.lighttable-layer--drop-below::after { bottom: -2px; }
+.lighttable-layer--drop-inside {
+  border-color: #72a2ef;
+  box-shadow: inset 0 0 0 1px rgba(114, 162, 239, 0.45);
+}
+
+.lighttable-layer__visibility { border: 0; background: transparent; }
+
+.lighttable-layer__disclosure,
+.lighttable-layer__disclosure-spacer {
+  width: 14px;
+  height: 24px;
+  flex: 0 0 14px;
+}
+
+.lighttable-layer__disclosure {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-layer__disclosure img {
+  width: 10px;
+  height: 10px;
+  object-fit: contain;
+}
+
+.lighttable-layer__thumbnail-slot {
+  width: 42px;
+  min-width: 42px;
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+}
+
+.lighttable-layer__thumbnail {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #343a42;
+  border-radius: 2px;
+  background: #0b0d10;
+  color: #d9dee5;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lighttable-layer__thumbnail--active { outline: 2px solid #72a2ef; outline-offset: -2px; }
+.lighttable-layer__mask { background: #f3f3f3; color: #111; }
+.lighttable-layer__mask--disabled { opacity: 0.4; }
+
+.lighttable-layer__thumbnail--transparent {
+  background-color: #272a2f;
+  background-image: linear-gradient(45deg, #181b1f 25%, transparent 25%), linear-gradient(-45deg, #181b1f 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #181b1f 75%), linear-gradient(-45deg, transparent 75%, #181b1f 75%);
+  background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+  background-size: 10px 10px;
+}
+
+.lighttable-layer__thumbnail-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  opacity: 1;
+}
+
+.lighttable-layer__type-icon {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  opacity: 0.75;
+}
+.lighttable-layer__name {
+  min-width: 0;
+  width: auto;
+  flex: 1 1 auto;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #dce1e7;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  cursor: default;
+  caret-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.lighttable-layer__name:not([readonly]) {
+  cursor: text;
+  caret-color: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lighttable-layer__name:focus { outline: 0; background: transparent; }
+.lighttable-layer__lock {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  opacity: 0.7;
+}
+
+.lighttable-layer__fx-mark {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  color: #a9c9ff;
+  font-family: Georgia, serif;
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 700;
+}
+
+.lighttable-layer__status {
+  width: 30px;
+  min-width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.lighttable-layer-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: -2px;
+}
+
+.lighttable-layer-effect {
+  min-height: 24px;
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  align-items: center;
+  color: #b9c1cb;
+  font-size: 10px;
+}
+
+.lighttable-layer-effect--summary {
+  color: #d8dee7;
+  font-weight: 600;
+}
+
+.lighttable-layer-effect > button {
+  min-width: 0;
+  height: 24px;
+  overflow: hidden;
+  padding: 0 4px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lighttable-layer-effect > button:hover {
+  color: #fff;
+  background: #20252c;
+}
+
+.lighttable-layer-effect .lighttable-layer-effect__visibility {
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.lighttable-layer-effect__visibility img {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+}
+
+.lighttable-layers__blend-mode {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  color: #cfd5dc;
+  font-size: 11px;
+}
+
+.lighttable-layers__blend-mode select {
+  min-width: 0;
+  height: 25px;
+  border: 1px solid #3a414a;
+  border-radius: 3px;
+  color: #dce1e8;
+  background: #1b1f25;
+  font: inherit;
+}
+
+.lighttable-layers__channel-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.lighttable-layers__channel-actions button {
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid #393f48;
+  border-radius: 3px;
+  color: #cfd5dc;
+  background: #1b1f25;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.lighttable-style-editor-shield {
+  position: absolute;
+  z-index: 89;
+  inset: 42px 0 0;
+  background: transparent;
+}
+
+.lighttable-style-editor {
+  position: absolute;
+  z-index: 1;
+  top: 16px;
+  right: 18px;
+  bottom: 28px;
+  width: min(620px, calc(100vw - 72px));
+  min-width: 430px;
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr) 52px;
+  overflow: hidden;
+  border: 1px solid #3a414a;
+  border-radius: 6px;
+  color: #dce1e8;
+  background: #12151a;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.62);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lighttable-style-editor > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid #303640;
+  background: #171b21;
+}
+
+.lighttable-style-editor > header > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.lighttable-style-editor > header strong { font-size: 13px; }
+.lighttable-style-editor > header span {
+  overflow: hidden;
+  color: #87919e;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighttable-style-editor > header button,
+.lighttable-style-editor > footer > button,
+.lighttable-style-editor__effect-heading button,
+.lighttable-style-editor__add button {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid #3a414a;
+  border-radius: 3px;
+  color: #dce1e8;
+  background: #1b2027;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.lighttable-style-editor > header button {
+  width: 28px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  font-size: 20px;
+}
+
+.lighttable-style-editor__body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+}
+
+.lighttable-style-editor__body > aside {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #303640;
+  background: #15191f;
+}
+
+.lighttable-style-stack-toggle,
+.lighttable-style-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #cfd5dd;
+  font-size: 11px;
+}
+
+.lighttable-style-stack-toggle {
+  min-height: 34px;
+  padding: 0 10px;
+  border-bottom: 1px solid #2d333c;
+  font-weight: 700;
+}
+
+.lighttable-style-editor__effect-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 5px;
+}
+
+.lighttable-style-editor__effect-list > button {
+  width: 100%;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #b8c0cb;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lighttable-style-editor__effect-list > button:hover { background: #20252c; }
+.lighttable-style-editor__effect-list > .lighttable-style-editor__effect--active {
+  border-color: #4f7fc8;
+  color: #fff;
+  background: #24334a;
+}
+
+.lighttable-style-editor__effect-list > button > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighttable-style-editor__effect-list > button > span:first-child {
+  width: 7px;
+  height: 7px;
+  border: 1px solid #5f6874;
+  border-radius: 50%;
+}
+
+.lighttable-style-editor__effect-list .lighttable-style-editor__effect-dot--on {
+  border-color: #73a5f4;
+  background: #73a5f4;
+}
+
+.lighttable-style-editor__add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  padding: 8px;
+  border-top: 1px solid #303640;
+}
+
+.lighttable-style-editor select,
+.lighttable-style-field select {
+  min-width: 0;
+  height: 28px;
+  border: 1px solid #3a414a;
+  border-radius: 3px;
+  color: #dce1e8;
+  background: #1a1f25;
+  font: inherit;
+  font-size: 11px;
+}
+
+.lighttable-style-editor__body > main {
+  min-width: 0;
+  overflow-y: auto;
+  padding-bottom: 18px;
+}
+
+.lighttable-style-editor__effect-heading {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid #303640;
+  background: #171b21;
+}
+
+.lighttable-style-editor__effect-heading h3 { margin: 0; font-size: 13px; }
+.lighttable-style-editor__effect-heading button { color: #e6a6a6; }
+.lighttable-style-editor__effect-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lighttable-style-editor__effect-heading > div > button:first-child,
+.lighttable-style-editor__effect-heading > div > button:nth-child(2) {
+  width: 28px;
+  padding: 0;
+  color: #cbd3dd;
+}
+.lighttable-style-editor__effect-heading button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lighttable-style-section {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+  border-bottom: 1px solid #2d333c;
+}
+
+.lighttable-style-section h4 {
+  margin: 0;
+  color: #f1f3f6;
+  font-size: 11px;
+}
+
+.lighttable-style-field {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: #b8c0ca;
+  font-size: 11px;
+}
+
+.lighttable-style-color {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lighttable-style-color input {
+  width: 42px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid #3a414a;
+  border-radius: 3px;
+  background: #15191e;
+  cursor: pointer;
+}
+
+.lighttable-style-color output {
+  color: #8d97a3;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+}
+
+.lighttable-style-notice {
+  padding: 8px 9px;
+  border-left: 2px solid #59779f;
+  color: #98a4b2;
+  background: #18202a;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.lighttable-style-contour {
+  display: grid;
+  gap: 4px;
+}
+
+.lighttable-style-contour svg {
+  width: 100%;
+  min-height: 124px;
+  border: 1px solid #303640;
+  border-radius: 3px;
+  background: #0d1014;
+  touch-action: none;
+}
+
+.lighttable-style-contour__hit { fill: transparent; cursor: crosshair; }
+.lighttable-style-contour__grid { stroke: #242b34; stroke-width: 1; }
+.lighttable-style-contour__line-shadow {
+  fill: none;
+  stroke: #000;
+  stroke-width: 3.5;
+}
+.lighttable-style-contour__line {
+  fill: none;
+  stroke: #d9e0e9;
+  stroke-width: 1.5;
+}
+.lighttable-style-contour__point {
+  fill: #70a7ff;
+  stroke: #eff5ff;
+  stroke-width: 1;
+  cursor: grab;
+}
+.lighttable-style-contour__point:active { cursor: grabbing; }
+.lighttable-style-contour small {
+  color: #747f8c;
+  font-size: 9px;
+}
+
+.lighttable-style-gradient {
+  display: grid;
+  gap: 8px;
+}
+
+.lighttable-style-gradient__preview {
+  position: relative;
+  height: 34px;
+  margin: 14px 8px;
+  border: 1px solid #4a515b;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.lighttable-style-gradient__stop {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 2px solid #d6dbe2;
+  border-radius: 2px;
+  transform: translateX(-50%) rotate(45deg);
+  background: #fff;
+  cursor: pointer;
+}
+
+.lighttable-style-gradient__stop--opacity { top: -17px; }
+.lighttable-style-gradient__stop--color { bottom: -17px; }
+.lighttable-style-gradient__stop--active {
+  outline: 2px solid #4f8df2;
+  outline-offset: 2px;
+}
+
+.lighttable-style-gradient__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lighttable-style-gradient__toolbar strong {
+  margin-right: auto;
+  color: #bfc7d1;
+  font-size: 10px;
+}
+
+.lighttable-style-gradient__toolbar button {
+  min-height: 23px;
+  padding: 2px 7px;
+  border: 1px solid #3a414a;
+  border-radius: 3px;
+  color: #cfd5dd;
+  background: #1b2027;
+  font: inherit;
+  font-size: 9px;
+}
+
+.lighttable-style-gradient__toolbar button:disabled { opacity: 0.35; }
+
+.lighttable-style-gradient__controls {
+  display: grid;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid #2c323a;
+  border-radius: 3px;
+  background: #101419;
+}
+
+.lighttable-style-gradient__controls label {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 6px;
+  color: #9fa9b5;
+  font-size: 9px;
+}
+
+.lighttable-style-gradient__controls input[type="color"] {
+  width: 40px;
+  height: 22px;
+  padding: 1px;
+  border: 1px solid #3a414a;
+  background: #15191e;
+}
+
+.lighttable-style-gradient__controls input[type="range"] { min-width: 0; }
+.lighttable-style-gradient__controls output {
+  color: #aab5c2;
+  text-align: right;
+}
+
+.lighttable-style-editor__empty {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  color: #7f8996;
+  font-size: 11px;
+}
+
+.lighttable-style-editor > footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 6px 10px;
+  border-top: 1px solid #303640;
+  background: #171b21;
+}
+
+.lighttable-style-editor__scale {
+  min-width: 220px;
+  margin-right: auto;
+}
+
+.lighttable-style-editor > footer > .lighttable-style-editor__primary {
+  border-color: #4f83d8;
+  background: #2456a3;
+}
+
+@media (max-width: 820px) {
+  .lighttable-style-editor {
+    left: 44px;
+    right: 8px;
+    min-width: 0;
+  }
+
+  .lighttable-style-editor__body { grid-template-columns: 142px minmax(0, 1fr); }
+}
+
+.lighttable-group {
+  border-top: 1px solid #30343a;
+  border-bottom: 1px solid #0d0f12;
+}
+
+.lighttable-master-group {
+  flex: 0 0 auto;
+  border-top: 0;
+}
+
+.lighttable-master-group .lighttable-histogram {
+  display: block;
+}
+
+.lighttable-master-group__label {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: #e3e6eb;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.lighttable-group__header {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px;
+  background: #202329;
+  user-select: none;
+}
+
+.lighttable-group__toggle,
+.lighttable-group__reset,
+.lighttable-group__visibility {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.lighttable-group__toggle {
+  min-width: 0;
+  flex: 1 1 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+}
+
+.lighttable-group__toggle img {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  opacity: 0.86;
+}
+
+.lighttable-group__toggle strong {
+  color: #e3e6eb;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.lighttable-group__actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.lighttable-group__reset,
+.lighttable-group__visibility {
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+}
+
+.lighttable-group__reset:hover,
+.lighttable-group__visibility:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.lighttable-group__reset img,
+.lighttable-group__visibility img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  opacity: 0.72;
+}
+
+.lighttable-group--disabled .lighttable-group__visibility img {
+  opacity: 0.48;
+}
+
+.lighttable-group__controls {
+  padding: 7px 14px 12px;
+}
+
+.lighttable-color-mixer__picker {
+  position: relative;
+  width: 100%;
+  height: 126px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 20px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  border: 1px solid #343b45;
+  border-radius: 4px;
+  background: #05070a;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.lighttable-color-mixer__picker:focus-visible {
+  border-color: #72a2ef;
+  outline: 1px solid rgba(114, 162, 239, 0.5);
+  outline-offset: 1px;
+}
+
+.lighttable-color-mixer__scope {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.lighttable-color-mixer__hue-strip {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    linear-gradient(90deg,
+      #df5b62 0%,
+      #da8242 8.333%,
+      #d2c94b 16.667%,
+      #4db66c 33.333%,
+      #4bc2c3 50%,
+      #5575dc 66.667%,
+      #9358c8 76.389%,
+      #cf4eaa 87.5%,
+      #df5b62 100%);
+  pointer-events: none;
+}
+
+.lighttable-color-mixer__range-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lighttable-color-mixer__range-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -1px rgba(255, 255, 255, 0.12);
+}
+
+.lighttable-color-mixer__range-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.65);
+  transform: translateX(-0.5px);
+}
+
+.lighttable-color-mixer__selection {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 2px;
+  color: #e0e4ea;
+  font-size: 11px;
+  user-select: none;
+}
+
+.lighttable-color-mixer__selection-swatch {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  border-radius: 50%;
+  box-shadow: 0 0 5px color-mix(in srgb, currentColor 42%, transparent);
+}
+
+.lighttable-color-mixer .lighttable-adjustment {
+  padding: 5px 0;
+}
+
+.lighttable-color-grading__modes {
+  width: 100%;
+  min-height: 30px;
+  margin-bottom: 10px;
+}
+
+.lighttable-color-grading__modes .segmented-control__button {
+  flex: 1 1 20%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 6px 3px;
+  font-size: 10px;
+}
+
+.lighttable-color-grading__three-way > .lighttable-color-grading__wheel-block {
+  max-width: 178px;
+  margin: 0 auto;
+}
+
+.lighttable-color-grading__split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.lighttable-color-grading__wheel-block {
+  min-width: 0;
+}
+
+.lighttable-grading-wheel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.lighttable-grading-wheel--disabled {
+  opacity: 0.48;
+}
+
+.lighttable-grading-wheel__label {
+  width: 100%;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: #d9dde3;
+  font-size: 11px;
+  cursor: default;
+  user-select: none;
+}
+
+.lighttable-grading-wheel__label strong {
+  font-weight: 650;
+}
+
+.lighttable-grading-wheel__label span {
+  color: #8f99a6;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lighttable-grading-wheel__disc {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(249, 249, 249, 0.98) 0%,
+      rgba(249, 249, 249, 0.78) 18%,
+      rgba(249, 249, 249, 0.34) 43%,
+      rgba(249, 249, 249, 0) 72%
+    ),
+    conic-gradient(
+      from 0deg,
+      #d8ff22 0deg,
+      #ffb21c 45deg,
+      #ff4538 90deg,
+      #ff2c91 135deg,
+      #ca2cff 180deg,
+      #4148ff 225deg,
+      #14d5e6 270deg,
+      #23e66e 315deg,
+      #d8ff22 360deg
+    );
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 1px 4px rgba(0, 0, 0, 0.38);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.lighttable-grading-wheel__guide {
+  position: absolute;
+  inset: 27.5%;
+  border: 2px solid rgba(22, 25, 30, 0.74);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+
+.lighttable-grading-wheel__hue-marker {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.32);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.lighttable-grading-wheel__disc:focus-visible {
+  outline: 2px solid var(--color-tab-active);
+  outline-offset: 3px;
+}
+
+.lighttable-grading-wheel--disabled .lighttable-grading-wheel__disc {
+  cursor: default;
+}
+
+.lighttable-grading-wheel--compact .lighttable-grading-wheel__disc {
+  width: 94px;
+  height: 94px;
+}
+
+.lighttable-grading-wheel--compact .lighttable-grading-wheel__label {
+  display: block;
+  min-height: 31px;
+  text-align: center;
+}
+
+.lighttable-grading-wheel--compact .lighttable-grading-wheel__label span {
+  display: block;
+  margin-top: 2px;
+}
+
+.lighttable-grading-wheel__handle {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: rgba(244, 245, 247, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.lighttable-color-grading__split .lighttable-adjustment {
+  padding-top: 5px;
+}
+
+.lighttable-color-grading__split .lighttable-adjustment__header {
+  gap: 4px;
+  font-size: 10px;
+}
+
+.lighttable-color-grading__split .lighttable-adjustment__header output {
+  min-width: 30px;
+}
+
+.lighttable-color-grading__range-controls {
+  margin-top: 11px;
+  padding-top: 7px;
+  border-top: 1px solid #30343a;
+}
+
+.lighttable-curves-editor {
+  user-select: none;
+}
+
+.lighttable-curves-editor--disabled {
+  opacity: 0.48;
+}
+
+.lighttable-curves-editor__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.lighttable-curves-editor__channels {
+  flex: 1 1 auto;
+  min-height: 29px;
+}
+
+.lighttable-curves-editor__channels .segmented-control__button {
+  flex: 1 1 25%;
+  min-width: 0;
+  min-height: 27px;
+  padding: 5px 4px;
+  font-size: 11px;
+}
+
+.lighttable-curves-editor__toolbar > button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-curves-editor__toolbar > button:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.lighttable-curves-editor__toolbar img {
+  width: 15px;
+  height: 15px;
+  opacity: 0.76;
+}
+
+.lighttable-curves-editor__graph {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid #353b43;
+  border-radius: 3px;
+  background: #0c0f13;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.lighttable-curves-editor__hit {
+  fill: transparent;
+}
+
+.lighttable-curves-editor__grid {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.lighttable-curves-editor__histogram {
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.lighttable-curves-editor__histogram--red { fill: #f05a62; }
+.lighttable-curves-editor__histogram--green { fill: #55cf78; }
+.lighttable-curves-editor__histogram--blue { fill: #5595ff; }
+
+.lighttable-curves-editor__line-shadow,
+.lighttable-curves-editor__line {
+  fill: none;
+  pointer-events: none;
+}
+
+.lighttable-curves-editor__line-shadow {
+  stroke: rgba(0, 0, 0, 0.9);
+  stroke-width: 4;
+}
+
+.lighttable-curves-editor__line {
+  stroke-width: 2;
+}
+
+.lighttable-curves-editor__point {
+  stroke: #0b0d10;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.lighttable-curves-editor__point:active {
+  cursor: grabbing;
+}
+
+
+.lighttable-subgroup {
+  margin-top: 10px;
+  padding-top: 7px;
+  border-top: 1px solid #30343a;
+}
+
+.lighttable-subgroup__toggle {
+  width: 100%;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #c9ced6;
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+}
+
+.lighttable-subgroup__toggle img {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  opacity: 0.78;
+}
+
+.lighttable-subgroup__toggle strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.lighttable-subgroup__controls {
+  padding: 3px 0 2px 12px;
+}
+
+.lighttable-adjustment {
+  display: block;
+  padding: 6px 0;
+  cursor: default;
+}
+
+.lighttable-adjustment--disabled {
+  opacity: 0.48;
+}
+
+.lighttable-adjustment__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+  color: #d9dde3;
+  font-size: 12px;
+  cursor: default;
+  user-select: none;
+}
+
+.lighttable-adjustment__header output {
+  min-width: 58px;
+  color: #9ea7b3;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.lighttable-adjustment__track-wrap {
+  position: relative;
+  display: block;
+  height: 18px;
+}
+
+.lighttable-adjustment__neutral {
+  position: absolute;
+  z-index: 1;
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+.lighttable-adjustment input[type='range'] {
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0;
+  outline: 0;
+  box-shadow: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.lighttable-adjustment input[type='range']:focus,
+.lighttable-adjustment input[type='range']:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.lighttable-adjustment input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--lighttable-slider-track);
+}
+
+.lighttable-adjustment input[type='range']::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-tab-active);
+  box-shadow: none;
+}
+
+.lighttable-adjustment input[type='range']::-moz-range-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--lighttable-slider-track);
+}
+
+.lighttable-adjustment input[type='range']::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.lighttable-adjustment input[type='range']::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-tab-active);
+  box-shadow: none;
+}
+
+.lighttable-viewport--focus-picker,
+.lighttable-viewport--focus-picker canvas {
+  cursor: crosshair;
+}
+
+.lighttable-control-label,
+.lighttable-lens-blur__focus-header,
+.lighttable-lens-blur__status {
+  font-size: 12px;
+  color: var(--text-secondary, #b9c0ca);
+  user-select: none;
+}
+
+.lighttable-lens-blur__status,
+.lighttable-lens-blur__focus-header,
+.lighttable-lens-blur__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lighttable-lens-blur__status {
+  min-height: 28px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(83, 145, 255, 0.1);
+}
+
+.lighttable-lens-blur__status--error {
+  color: var(--danger-color, #ff9a9a);
+  background: rgba(255, 82, 82, 0.1);
+}
+
+.lighttable-lens-blur__shapes {
+  width: 100%;
+}
+
+.lighttable-lens-blur__viewport-modes {
+  width: 100%;
+  margin: 0 0 8px;
+}
+
+.lighttable-lens-blur__viewport-modes .segmented-control__button {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.lighttable-lens-blur__visualization {
+  position: relative;
+  height: 98px;
+  margin: 8px 0 12px;
+  overflow: hidden;
+  border: 1px solid #353b43;
+  border-radius: 4px;
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px) 0 50% / 100% 1px no-repeat,
+    #0c0f13;
+}
+
+.lighttable-lens-blur__visualization-focus-zone {
+  position: absolute;
+  left: var(--focus-start);
+  right: calc(100% - var(--focus-end));
+  bottom: 18px;
+  height: 4px;
+  background: #dce6f0;
+}
+
+.lighttable-lens-blur__visualization-focus-marker {
+  position: absolute;
+  left: var(--focus-distance);
+  bottom: 14px;
+  width: 2px;
+  height: 18px;
+  background: var(--color-tab-active);
+  transform: translateX(-1px);
+}
+
+.lighttable-lens-blur__visualization-taper {
+  position: absolute;
+  bottom: 22px;
+  height: var(--aperture-size);
+  max-height: 66px;
+  min-width: var(--transition-feather);
+  opacity: 0.76;
+  background: linear-gradient(to top, rgba(110, 146, 193, 0.64), rgba(222, 234, 247, 0.1));
+}
+
+.lighttable-lens-blur__visualization-taper--low {
+  left: 0;
+  width: var(--focus-start);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+.lighttable-lens-blur__visualization-taper--high {
+  left: var(--focus-end);
+  right: 0;
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
+}
+
+.lighttable-lens-blur__visualization-point {
+  position: absolute;
+  bottom: 12px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #dce6f0;
+  transform: translateX(-50%);
+}
+
+.lighttable-lens-blur__visualization-point--low { left: 16%; }
+.lighttable-lens-blur__visualization-point--focus { left: var(--focus-distance); width: 5px; height: 5px; background: var(--color-tab-active); }
+.lighttable-lens-blur__visualization-point--high { left: 84%; }
+
+
+.lighttable-lens-blur__actions .action-button {
+  flex: 1;
+}
+
+@media (max-width: 900px) {
+  .lighttable__body {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .lighttable-toolbar__meta {
+    display: none;
+  }
+}
+
+.lighttable-debug-panel {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  background: var(--surface-primary, #14181d);
+  color: var(--text-primary, #eef2f7);
+}
+
+.lighttable-debug-panel__diagnostics {
+  display: grid;
+  gap: 8px;
+  margin: 10px;
+  padding: 10px;
+  border: 1px solid var(--lighttable-border);
+  color: var(--lighttable-text);
+}
+
+.lighttable-debug-panel__diagnostics legend {
+  padding: 0 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lighttable-debug-panel__diagnostics label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  user-select: none;
+}
+
+.lighttable-debug-panel__diagnostics small {
+  color: var(--lighttable-muted);
+  font-size: 11px;
+}
+
+.lighttable-debug-panel__toolbar {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #303741;
+}
+
+.lighttable-debug-panel__summary {
+  overflow: hidden;
+  color: var(--text-secondary, #aab2bd);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighttable-debug-panel__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.lighttable-debug-panel__actions button {
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid #39424d;
+  border-radius: 3px;
+  background: #191e24;
+  color: inherit;
+  cursor: pointer;
+}
+
+.lighttable-debug-panel__actions button:hover:not(:disabled) {
+  border-color: var(--color-tab-active, #5590ff);
+}
+
+.lighttable-debug-panel__actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.lighttable-debug-panel__messages {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 6px;
+}
+
+.lighttable-debug-message {
+  margin-bottom: 6px;
+  padding: 7px 8px;
+  border-left: 3px solid #647184;
+  background: #101419;
+  overflow-wrap: anywhere;
+}
+
+.lighttable-debug-message--warning {
+  border-left-color: #d8a83e;
+}
+
+.lighttable-debug-message--error {
+  border-left-color: #e15b64;
+}
+
+.lighttable-debug-message__header {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 4px;
+  color: #8994a3;
+  font-size: 10px;
+  text-transform: uppercase;
+  user-select: text;
+}
+
+.lighttable-debug-message__header strong {
+  color: #c9d2dd;
+  font-weight: 600;
+}
+
+.lighttable-debug-message__body,
+.lighttable-debug-message pre {
+  color: #dce3eb;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  user-select: text;
+}
+
+.lighttable-debug-message pre {
+  margin: 5px 0 0;
+  color: #9facbb;
+  white-space: pre-wrap;
+}
+
+.lighttable-debug-panel__empty {
+  padding: 18px 10px;
+  color: #7d8794;
+  font-size: 12px;
+  text-align: center;
+}
