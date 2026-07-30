@@ -905,7 +905,8 @@ Work:
 - [x] split shared device acquisition and loss fan-out from document rendering;
 - [x] move immutable core shader/pipeline construction into a device-scoped
       pipeline library;
-- split image resources, scopes and readback;
+- [x] isolate scopes plus buffer/texture readback and browser PNG encoding;
+- split mutable image-resource ownership from the engine;
 - isolate optional pipeline compilation;
 - add resource lifecycle and device-loss tests.
 
@@ -946,6 +947,11 @@ format-scoped library. Documents reuse compiled pipelines without sharing
 mutable image resources, and the cache boundary is covered by tests. Optional
 feature compilation remains a separate follow-up so a broken effect can be
 contained without weakening validation of the required image path.
+
+GPU readback now owns row alignment, mapped-buffer copying and padding removal
+outside the document engine. Browser PNG encoding is behind a replaceable
+function, leaving a clean seam for a desktop-native or 16-bit encoder without
+changing renderer orchestration.
 
 ### Phase 6 — Layer compositor and processing modules
 

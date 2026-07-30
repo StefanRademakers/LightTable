@@ -54,10 +54,10 @@ import {
 } from './sharedWebGpuDevice';
 import { ADJUSTMENT_UNIFORM_FLOATS, buildAdjustmentUniform } from './adjustmentUniform';
 import { getCorePipelineBundle } from './corePipelineLibrary';
+import { encodeRgba8Png, mapGpuBufferCopy, readRgba8Texture } from './gpuReadback';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 const DIFFERENCE_METRICS_BYTE_SIZE = 8 * Uint32Array.BYTES_PER_ELEMENT;
-const alignTo = (value: number, alignment: number) => Math.ceil(value / alignment) * alignment;
 interface ViewportRect {
   x: number;
   y: number;
@@ -1146,9 +1146,7 @@ export class WebGpuEngine {
         DIFFERENCE_METRICS_BYTE_SIZE
       );
       this.device.queue.submit([encoder.finish()]);
-      await readBuffer.mapAsync(GPUMapMode.READ);
-      const values = new Uint32Array(readBuffer.getMappedRange().slice(0));
-      readBuffer.unmap();
+      const values = new Uint32Array(await mapGpuBufferCopy(readBuffer));
       const sampledPixels = values[0] ?? 0;
       const differingPixels = values[1] ?? 0;
       if (sampledPixels === 0) {
@@ -1609,9 +1607,7 @@ export class WebGpuEngine {
 
   private async readHistogram(buffer: GPUBuffer) {
     try {
-      await buffer.mapAsync(GPUMapMode.READ);
-      const values = new Uint32Array(buffer.getMappedRange().slice(0));
-      buffer.unmap();
+      const values = new Uint32Array(await mapGpuBufferCopy(buffer));
       this.callbacks.onHistogram?.({
         red: values.slice(0, 256),
         green: values.slice(256, 512),
@@ -1631,44 +1627,14 @@ export class WebGpuEngine {
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
 
-    const bytesPerPixel = 4;
-    const unpaddedBytesPerRow = this.metadata.width * bytesPerPixel;
-    const bytesPerRow = alignTo(unpaddedBytesPerRow, 256);
-    const readBuffer = this.device.createBuffer({
-      size: bytesPerRow * this.metadata.height,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-    });
-    const pixels = new Uint8ClampedArray(unpaddedBytesPerRow * this.metadata.height);
-    try {
-      const encoder = this.device.createCommandEncoder({ label: 'LightTable PNG export readback' });
-      encoder.copyTextureToBuffer(
-        { texture: this.finalTexture },
-        { buffer: readBuffer, bytesPerRow, rowsPerImage: this.metadata.height },
-        [this.metadata.width, this.metadata.height]
-      );
-      this.device.queue.submit([encoder.finish()]);
-      await readBuffer.mapAsync(GPUMapMode.READ);
-      const mapped = new Uint8Array(readBuffer.getMappedRange());
-      for (let row = 0; row < this.metadata.height; row += 1) {
-        const sourceStart = row * bytesPerRow;
-        pixels.set(mapped.subarray(sourceStart, sourceStart + unpaddedBytesPerRow), row * unpaddedBytesPerRow);
-      }
-      readBuffer.unmap();
-    } finally {
-      if (readBuffer.mapState === 'mapped') readBuffer.unmap();
-      readBuffer.destroy();
-    }
-
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = this.metadata.width;
-    exportCanvas.height = this.metadata.height;
-    const context = exportCanvas.getContext('2d');
-    if (!context) throw new Error('PNG encoder canvas could not be created.');
-    context.putImageData(new ImageData(pixels, this.metadata.width, this.metadata.height), 0, 0);
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      exportCanvas.toBlob((result) => result ? resolve(result) : reject(new Error('PNG encoding failed.')), 'image/png');
-    });
-    return blob;
+    const pixels = await readRgba8Texture(
+      this.device,
+      this.finalTexture,
+      this.metadata.width,
+      this.metadata.height,
+      'LightTable PNG export readback'
+    );
+    return encodeRgba8Png(pixels, this.metadata.width, this.metadata.height);
   }
 
   destroy() {
