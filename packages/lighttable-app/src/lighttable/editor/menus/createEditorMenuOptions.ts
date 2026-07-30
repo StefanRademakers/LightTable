@@ -48,6 +48,7 @@ export interface EditorMenuCommands {
   download: () => void;
   reset: () => void;
   copySelectedContent: () => void;
+  copyMergedContent: () => void;
   pasteSelectedContent: () => void;
   pasteGrade: () => void;
   copyGrade: () => void;
@@ -132,15 +133,21 @@ export const createEditorMenuOptions = (
     return [
       {
         value: 'copy-selected-content',
-        label: `Copy selected content (${labels.primaryShortcut('C')})`,
+        label: `Copy (${labels.primaryShortcut('C')})`,
         onClick: commands.copySelectedContent,
+        disabled: !state.hasMetadata || !state.hasSelection || state.saving
+      },
+      {
+        value: 'copy-merged-content',
+        label: `Copy Merged (${labels.primaryShortcut('C', true)})`,
+        onClick: commands.copyMergedContent,
         disabled: !state.hasMetadata || !state.hasSelection || state.saving
       },
       {
         value: 'paste-selected-content',
         label: `Paste as new layer (${labels.primaryShortcut('V')})`,
         onClick: commands.pasteSelectedContent,
-        disabled: !state.hasMetadata || !state.selectionClipboardAvailable || state.saving
+        disabled: !state.hasMetadata || state.saving
       },
       {
         value: 'paste-grade',

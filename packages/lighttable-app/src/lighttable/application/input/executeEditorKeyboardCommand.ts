@@ -14,6 +14,7 @@ export interface EditorKeyboardCommandPorts {
   selectNone(): void;
   invertSelection(): void;
   copySelection(): void;
+  copyMergedSelection(): void;
   pasteSelection(): void;
   layerViaCopy(): void;
   mergeDown(): void;
@@ -73,6 +74,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'selection-copy':
       ports.copySelection();
+      return;
+    case 'selection-copy-merged':
+      ports.copyMergedSelection();
       return;
     case 'selection-paste':
       ports.pasteSelection();

@@ -1,4 +1,12 @@
-import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeImage,
+  session
+} from 'electron';
 import { createServer, type Server } from 'node:http';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -221,6 +229,23 @@ void app.whenReady().then(async () => {
     if (result.canceled || !result.filePath) return false;
     await writeFile(result.filePath, payload.bytes);
     return true;
+  });
+
+  ipcMain.handle('lighttable:clipboard-write-png', async (event, bytes: Uint8Array) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength > 512 * 1024 * 1024) {
+      throw new Error('Invalid LightTable clipboard image.');
+    }
+    const image = nativeImage.createFromBuffer(Buffer.from(bytes));
+    if (image.isEmpty()) throw new Error('The clipboard PNG could not be decoded.');
+    clipboard.writeImage(image);
+  });
+
+  ipcMain.handle('lighttable:clipboard-read-png', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const image = clipboard.readImage();
+    if (image.isEmpty()) return null;
+    return new Uint8Array(image.toPNG());
   });
 
   ipcMain.handle('lighttable:confirm-discard-changes', async (event, documentTitle: string) => {

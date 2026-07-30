@@ -28,6 +28,9 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   flattenImage: vi.fn(() => true),
   invertLayerColors: vi.fn(() => true),
   copySelectedLayerContent: vi.fn(() => true),
+  exportSelectionClipboard: vi.fn(async () => new Blob(['selection'], { type: 'image/png' })),
+  exportMergedSelection: vi.fn(async () => new Blob(['merged'], { type: 'image/png' })),
+  pasteClipboardImage: vi.fn(async () => true),
   pasteSelectionClipboard: vi.fn(() => true),
   hasSelectionClipboard: vi.fn(() => true),
   finishPixelEdit: vi.fn(() => edit),
@@ -41,11 +44,26 @@ const setup = (initialDocument: ImageDocument) => {
   let document = initialDocument;
   const activeRenderer = renderer();
   const historyEntries: LayerCommandHistoryEntry[] = [];
+  const imageClipboard = {
+    writeImage: vi.fn(async () => undefined),
+    readImage: vi.fn(async () => ({
+      blob: new Blob(['clipboard'], { type: 'image/png' }),
+      placement: null as {
+        sourceDocumentId: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      } | null
+    }))
+  };
   let documentAdjustments = createDefaultAdjustments();
   let panelAdjustments = createDefaultAdjustments();
   const dependencies = {
     getDocument: () => document,
     getRenderer: () => activeRenderer,
+    getImageClipboard: () => imageClipboard,
+    getDocumentId: () => 'test-document',
     applyDocumentSnapshot: vi.fn((next: ImageDocument) => {
       document = next;
     }),
@@ -69,6 +87,7 @@ const setup = (initialDocument: ImageDocument) => {
     commands,
     dependencies,
     renderer: activeRenderer,
+    imageClipboard,
     historyEntries,
     document: () => document,
     documentAdjustments: () => documentAdjustments,
@@ -77,6 +96,44 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('useLayerDocumentCommands', () => {
+  it('copies selected layer pixels to the system image clipboard', async () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const selection = createFullCanvasSelection(32, 24);
+
+    await expect(state.commands.copySelectedContent(selection)).resolves.toBe(true);
+
+    expect(state.renderer.copySelectedLayerContent).toHaveBeenCalledOnce();
+    expect(state.renderer.exportSelectionClipboard).toHaveBeenCalledWith({
+      x: 0,
+      y: 0,
+      width: 32,
+      height: 24
+    });
+    expect(state.imageClipboard.writeImage).toHaveBeenCalledOnce();
+  });
+
+  it('copies the visible composited result for Copy Merged', async () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+
+    await expect(
+      state.commands.copyMergedContent(createFullCanvasSelection(32, 24))
+    ).resolves.toBe(true);
+
+    expect(state.renderer.exportMergedSelection).toHaveBeenCalledOnce();
+    expect(state.renderer.copySelectedLayerContent).not.toHaveBeenCalled();
+    expect(state.imageClipboard.writeImage).toHaveBeenCalledOnce();
+  });
+
+  it('pastes an external clipboard image into a new layer', async () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+
+    await expect(state.commands.pasteSelectedContent([])).resolves.toBe(true);
+
+    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledOnce();
+    expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
+    expect(state.document().layers).toHaveLength(2);
+  });
+
   it('duplicates the active layer pixels and records one document command', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const sourceId = state.document().activeLayerId;

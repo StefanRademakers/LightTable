@@ -18,6 +18,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   selectNone: vi.fn(),
   invertSelection: vi.fn(),
   copySelection: vi.fn(),
+  copyMergedSelection: vi.fn(),
   pasteSelection: vi.fn(),
   layerViaCopy: vi.fn(),
   mergeDown: vi.fn(),

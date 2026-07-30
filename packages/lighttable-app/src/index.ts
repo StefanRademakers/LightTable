@@ -8,6 +8,10 @@ export {
 export { LightTableStandaloneApp } from './standalone/LightTableStandaloneApp';
 export { createBrowserHost } from './platform/LightTableHost';
 export {
+  browserImageClipboard,
+  createLightTableImageClipboard
+} from './platform/LightTableImageClipboard';
+export {
   WorkspaceSession,
   type CloseDocumentOptions,
   type OpenDocumentOptions,
@@ -68,3 +72,9 @@ export type {
   LightTableMediaItem,
   LightTableSaveRequest
 } from './platform/LightTableHost';
+export type {
+  LightTableClipboardImage,
+  LightTableClipboardImagePlacement,
+  LightTableImageClipboard,
+  LightTableImageClipboardTransport
+} from './platform/LightTableImageClipboard';

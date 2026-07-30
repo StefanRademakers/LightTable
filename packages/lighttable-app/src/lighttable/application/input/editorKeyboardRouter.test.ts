@@ -68,6 +68,14 @@ describe('resolveEditorKeyboardCommand', () => {
       input({ ctrlKey: true, key: 'c' }),
       context({ hasSelection: true })
     )).toBe('selection-copy');
+    expect(resolveEditorKeyboardCommand(
+      input({ metaKey: true, shiftKey: true, key: 'c' }),
+      context({ hasSelection: true })
+    )).toBe('selection-copy-merged');
+    expect(resolveEditorKeyboardCommand(
+      input({ ctrlKey: true, key: 'v' }),
+      context({ hasSelectionClipboard: false })
+    )).toBe('selection-paste');
   });
 
   it.each([

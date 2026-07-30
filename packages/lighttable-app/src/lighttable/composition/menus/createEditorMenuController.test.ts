@@ -44,6 +44,7 @@ describe('createEditorMenuController', () => {
       },
       edit: {
         copySelectedContent: vi.fn(),
+        copyMergedContent: vi.fn(),
         pasteSelectedContent: vi.fn(),
         pasteGrade: vi.fn(),
         copyGrade: vi.fn()

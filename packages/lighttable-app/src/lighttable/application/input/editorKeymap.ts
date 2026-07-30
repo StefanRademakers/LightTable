@@ -31,6 +31,7 @@ export type EditorKeyboardCommand =
   | 'select-none'
   | 'select-invert'
   | 'selection-copy'
+  | 'selection-copy-merged'
   | 'selection-paste'
   | 'layer-via-copy'
   | 'merge-down'
@@ -124,8 +125,14 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('selection.copy', { key: 'c', primary: true, alt: false, shift: false }, 'selection-copy', {
       when: (context) => context.hasSelection
     }),
+    command(
+      'selection.copy-merged',
+      { key: 'c', primary: true, alt: false, shift: true },
+      'selection-copy-merged',
+      { when: (context) => context.hasSelection }
+    ),
     command('selection.paste', { key: 'v', primary: true, alt: false, shift: false }, 'selection-paste', {
-      when: (context) => context.hasSelectionClipboard
+      when: (context) => !context.saving
     }),
     command('layer.via-copy', { key: 'j', primary: true, alt: false, shift: false }, 'layer-via-copy', {
       when: (context) => !context.saving

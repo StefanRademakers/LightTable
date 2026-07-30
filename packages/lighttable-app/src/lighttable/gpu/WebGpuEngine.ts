@@ -11,6 +11,7 @@ import {
   type ImageDocument,
   type LayerId,
   type LayerNode,
+  type Rect,
   type RasterLayer
 } from '../editor/document/documentTypes';
 import { findDocumentLayer, findRasterLayer } from '../editor/document/layerTree';
@@ -776,6 +777,39 @@ export class WebGpuEngine {
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
     return this.documentRenderer?.copySelectedLayerContent(document, layerId) ?? false;
+  }
+
+  async exportSelectionClipboard(bounds: Rect) {
+    if (!this.documentRenderer) {
+      throw new Error('The LightTable layer renderer is unavailable.');
+    }
+    await this.device.queue.onSubmittedWorkDone();
+    return this.documentRenderer.exportSelectionClipboard(bounds);
+  }
+
+  async exportMergedSelection(bounds: Rect) {
+    if (!this.metadata || !this.finalTexture || !this.documentRenderer) {
+      throw new Error('No processed image is available for Copy Merged.');
+    }
+    this.effectRuntime?.setInteractionActive(false);
+    this.renderDirty.invalidate('effects');
+    this.renderScheduler.flush();
+    await this.device.queue.onSubmittedWorkDone();
+    return this.documentRenderer.exportDisplaySelection(this.finalTexture, bounds);
+  }
+
+  async pasteClipboardImage(
+    layerId: LayerId,
+    blob: Blob,
+    position: { x: number; y: number } | null
+  ) {
+    const changed = await this.documentRenderer?.pasteClipboardImage(
+      layerId,
+      blob,
+      position
+    ) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
   }
 
   pasteSelectionClipboard(layerId: LayerId) {

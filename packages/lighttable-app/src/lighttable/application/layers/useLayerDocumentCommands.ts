@@ -1,7 +1,8 @@
 import { useMemo, useRef } from 'react';
 import type {
   ImageDocument,
-  LayerId
+  LayerId,
+  Rect
 } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import {
@@ -34,6 +35,7 @@ import {
   createDefaultAdjustments,
   type BasicAdjustments
 } from '../../types';
+import type { LightTableImageClipboard } from '../../../platform/LightTableImageClipboard';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -59,6 +61,13 @@ export interface LayerCommandRendererPort {
   flattenImage(document: ImageDocument, destinationId: LayerId): boolean;
   invertLayerColors(layerId: LayerId, channel?: PaintChannel): boolean;
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId): boolean;
+  exportSelectionClipboard(bounds: Rect): Promise<Blob>;
+  exportMergedSelection(bounds: Rect): Promise<Blob>;
+  pasteClipboardImage(
+    layerId: LayerId,
+    blob: Blob,
+    position: { x: number; y: number } | null
+  ): Promise<boolean>;
   pasteSelectionClipboard(layerId: LayerId): boolean;
   hasSelectionClipboard(): boolean;
   finishPixelEdit(): ReversiblePixelEdit | null;
@@ -72,6 +81,8 @@ export interface LayerCommandRendererPort {
 export interface LayerDocumentCommandDependencies {
   getDocument(): ImageDocument | null;
   getRenderer(): LayerCommandRendererPort | null;
+  getImageClipboard(): LightTableImageClipboard;
+  getDocumentId(): string;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
   pushHistoryEntry(entry: LayerCommandHistoryEntry): void;
@@ -92,8 +103,9 @@ export interface LayerDocumentCommands {
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
   invertActiveLayerColors(channel: PaintChannel): boolean;
-  copySelectedContent(selection: readonly SelectionOperation[]): boolean;
-  pasteSelectedContent(selection: readonly SelectionOperation[]): boolean;
+  copySelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
+  copyMergedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
+  pasteSelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
   layerViaCopy(selection: readonly SelectionOperation[]): boolean;
 }
 
@@ -115,6 +127,7 @@ const fullDocumentBounds = (document: ImageDocument) => ({
 export const createLayerDocumentCommands = (
   resolveDependencies: () => LayerDocumentCommandDependencies
 ): LayerDocumentCommands => {
+  let fastClipboardDocumentId: string | null = null;
   const dependenciesRef = {
     get current() {
       return resolveDependencies();
@@ -389,52 +402,150 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const copySelectedContent = (selection: readonly SelectionOperation[]) => {
-    const document = dependenciesRef.current.getDocument();
-    const renderer = dependenciesRef.current.getRenderer();
+  const clipboardBounds = (
+    document: ImageDocument,
+    selection: readonly SelectionOperation[]
+  ) => selectionOperationsBounds([...selection], fullDocumentBounds(document));
+
+  const writeClipboard = async (
+    blob: Blob,
+    document: ImageDocument,
+    bounds: Rect
+  ) => dependenciesRef.current.getImageClipboard().writeImage(blob, {
+    sourceDocumentId: dependenciesRef.current.getDocumentId(),
+    ...bounds
+  });
+
+  const copySelectedContent = async (selection: readonly SelectionOperation[]) => {
+    const dependencies = dependenciesRef.current;
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
     const activeLayer = document
       ? findRasterLayer(document, document.activeLayerId)
       : null;
     if (!document || !renderer || !activeLayer || !selection.length) return false;
+    const bounds = clipboardBounds(document, selection);
     if (!renderer.copySelectedLayerContent(document, activeLayer.id)) {
-      dependenciesRef.current.setError(
+      dependencies.setError(
         'The selected pixels could not be copied from the active layer.'
       );
       return false;
     }
-    dependenciesRef.current.setSelectionClipboardAvailable(true);
-    dependenciesRef.current.setStatus('Selected pixels copied');
-    dependenciesRef.current.setError(null);
-    return true;
+    dependencies.setSelectionClipboardAvailable(true);
+    try {
+      await writeClipboard(
+        await renderer.exportSelectionClipboard(bounds),
+        document,
+        bounds
+      );
+      fastClipboardDocumentId = dependencies.getDocumentId();
+      dependencies.setStatus('Selected pixels copied to the system clipboard');
+      dependencies.setError(null);
+      return true;
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error
+          ? reason.message
+          : 'The selected pixels could not be written to the system clipboard.'
+      );
+      return false;
+    }
   };
 
-  const pasteSelectedContent = (selection: readonly SelectionOperation[]) => {
-    const before = dependenciesRef.current.getDocument();
-    const renderer = dependenciesRef.current.getRenderer();
-    if (!before || !renderer || !renderer.hasSelectionClipboard()) return false;
+  const copyMergedContent = async (selection: readonly SelectionOperation[]) => {
+    const dependencies = dependenciesRef.current;
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    if (!document || !renderer || !selection.length) return false;
+    const bounds = clipboardBounds(document, selection);
+    fastClipboardDocumentId = null;
+    try {
+      await writeClipboard(
+        await renderer.exportMergedSelection(bounds),
+        document,
+        bounds
+      );
+      dependencies.setSelectionClipboardAvailable(true);
+      dependencies.setStatus('Merged selection copied to the system clipboard');
+      dependencies.setError(null);
+      return true;
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error
+          ? reason.message
+          : 'The merged selection could not be copied.'
+      );
+      return false;
+    }
+  };
+
+  const pasteSelectedContent = async (_selection: readonly SelectionOperation[]) => {
+    const dependencies = dependenciesRef.current;
+    const before = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    if (!before || !renderer) return false;
+    let clipboardImage;
+    try {
+      clipboardImage = await dependencies.getImageClipboard().readImage();
+    } catch (reason) {
+      dependencies.setError(
+        reason instanceof Error
+          ? reason.message
+          : 'The system clipboard could not be read.'
+      );
+      return false;
+    }
+    if (!clipboardImage) {
+      dependencies.setError('The system clipboard does not contain an image.');
+      return false;
+    }
     const insertionTarget = before.activeLayerId ?? undefined;
     let after = createRasterLayer(before, 'Pasted Selection', insertionTarget);
     const pastedLayerId = after.activeLayerId;
     if (!pastedLayerId) return false;
-    const dirtyBounds = selection.length
-      ? selectionOperationsBounds(
-          [...selection],
-          fullDocumentBounds(before)
-        )
+    const sameDocumentCopy = (
+      clipboardImage.placement?.sourceDocumentId === dependencies.getDocumentId()
+      && fastClipboardDocumentId === dependencies.getDocumentId()
+      && renderer.hasSelectionClipboard()
+    );
+    const dirtyBounds = sameDocumentCopy && clipboardImage.placement
+      ? {
+          x: clipboardImage.placement.x,
+          y: clipboardImage.placement.y,
+          width: clipboardImage.placement.width,
+          height: clipboardImage.placement.height
+        }
       : fullDocumentBounds(before);
     after = markLayerPixelsChanged(after, pastedLayerId, dirtyBounds);
-    dependenciesRef.current.applyDocumentSnapshot(after);
-    if (!renderer.pasteSelectionClipboard(pastedLayerId)) {
-      dependenciesRef.current.applyDocumentSnapshot(before);
-      dependenciesRef.current.setError(
+    dependencies.applyDocumentSnapshot(after);
+    const pasted = sameDocumentCopy
+      ? renderer.pasteSelectionClipboard(pastedLayerId)
+      : await renderer.pasteClipboardImage(
+          pastedLayerId,
+          clipboardImage.blob,
+          clipboardImage.placement
+            ? {
+                x: clipboardImage.placement.x,
+                y: clipboardImage.placement.y
+              }
+            : null
+        );
+    if (!pasted) {
+      dependencies.applyDocumentSnapshot(before);
+      dependencies.setError(
         'The copied pixels could not be pasted into a new layer.'
       );
       return false;
     }
-    dependenciesRef.current.pushDocumentHistory(before, after);
-    dependenciesRef.current.setActiveChannel('pixels');
-    dependenciesRef.current.setStatus('Pasted selection into a new layer');
-    dependenciesRef.current.setError(null);
+    dependencies.pushDocumentHistory(before, after);
+    dependencies.setActiveChannel('pixels');
+    dependencies.setSelectionClipboardAvailable(true);
+    dependencies.setStatus(
+      sameDocumentCopy
+        ? 'Pasted selection into a new layer'
+        : 'Pasted system clipboard image into a new layer'
+    );
+    dependencies.setError(null);
     return true;
   };
 
@@ -489,6 +600,7 @@ export const createLayerDocumentCommands = (
     flatten,
     invertActiveLayerColors,
     copySelectedContent,
+    copyMergedContent,
     pasteSelectedContent,
     layerViaCopy
   };

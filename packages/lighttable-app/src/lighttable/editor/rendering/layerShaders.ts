@@ -1033,6 +1033,22 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+export const SELECTION_DISPLAY_COPY_WGSL = /* wgsl */ `
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var selectionTexture: texture_2d<f32>;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let dimensions = vec2i(textureDimensions(sourceTexture));
+  let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
+  let source = textureLoad(sourceTexture, pixel, 0);
+  let coverage = textureLoad(selectionTexture, pixel, 0).r;
+  // The display texture is already straight-alpha, output-encoded RGBA8.
+  // Preserve its RGB values and use the selection solely as alpha coverage.
+  return vec4f(source.rgb, source.a * coverage);
+}
+`;
+
 export const SELECTION_CONTENT_COVERAGE_WGSL = /* wgsl */ `
 struct SelectionContentSettings {
   layerOpacity: f32,

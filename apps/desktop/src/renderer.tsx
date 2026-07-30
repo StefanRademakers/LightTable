@@ -3,6 +3,7 @@ import '@fontsource/inter/600.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
+  createLightTableImageClipboard,
   LightTableStandaloneApp,
   type LightTableHost
 } from '@lighttable/app';
@@ -10,6 +11,19 @@ import './renderer.css';
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  clipboard: createLightTableImageClipboard({
+    async writePng(blob) {
+      await window.lightTableDesktop.writeClipboardPng(
+        new Uint8Array(await blob.arrayBuffer())
+      );
+    },
+    async readImage() {
+      const bytes = await window.lightTableDesktop.readClipboardPng();
+      return bytes
+        ? new Blob([Uint8Array.from(bytes).buffer], { type: 'image/png' })
+        : null;
+    }
+  }),
   async openFile() {
     const payload = await window.lightTableDesktop.openFile();
     if (!payload) return null;

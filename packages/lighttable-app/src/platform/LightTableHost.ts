@@ -21,6 +21,7 @@ export interface LightTableSaveRequest {
 export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
   readonly media?: LightTableMediaBrowser;
+  readonly clipboard?: LightTableImageClipboard;
   openFile?(): Promise<File | null>;
   /**
    * Ask the host whether unsaved changes may be discarded.
@@ -35,6 +36,7 @@ export interface LightTableHost {
 
 export const createBrowserHost = (): LightTableHost => ({
   kind: 'web',
+  clipboard: browserImageClipboard(),
   async confirmDiscardChanges(documentTitle) {
     return window.confirm(`Discard unsaved changes to “${documentTitle}”?`);
   },
@@ -50,3 +52,5 @@ export const createBrowserHost = (): LightTableHost => ({
     }
   }
 });
+import type { LightTableImageClipboard } from './LightTableImageClipboard';
+import { browserImageClipboard } from './LightTableImageClipboard';

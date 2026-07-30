@@ -92,6 +92,10 @@ import {
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import { useFillCommandController } from './application/tools/fill/useFillCommandController';
+import {
+  browserImageClipboard,
+  type LightTableImageClipboard
+} from '../platform/LightTableImageClipboard';
 import { useLensBlurDepthController } from './application/effects/lensBlur/useLensBlurDepthController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
@@ -201,6 +205,7 @@ export interface LightTableEditorOverlayProps {
   tasks?: DocumentTaskRegistry;
   rendererLifecycle?: DocumentRendererLifecycle;
   documentSession?: DocumentSession;
+  imageClipboard?: LightTableImageClipboard;
 }
 
 type ZoomMode = 'fit' | '100' | 'custom';
@@ -230,8 +235,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   history,
   tasks,
   rendererLifecycle: providedRendererLifecycle,
-  documentSession
+  documentSession,
+  imageClipboard: providedImageClipboard
 }) => {
+  const imageClipboard = providedImageClipboard ?? browserImageClipboard();
   const {
     history: commandHistory,
     tasks: taskRegistry,
@@ -267,6 +274,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const activateToolRef = useRef<(tool: ToolId) => void>(() => undefined);
   const cancelAutoAlignRef = useRef<() => void>(() => undefined);
   const copySelectedContentRef = useRef<() => void>(() => undefined);
+  const copyMergedContentRef = useRef<() => void>(() => undefined);
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
@@ -851,6 +859,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectNone: clearCurrentSelection,
       invertSelection: invertCurrentSelection,
       copySelection: () => copySelectedContentRef.current(),
+      copyMergedSelection: () => copyMergedContentRef.current(),
       pasteSelection: () => pasteSelectedContentRef.current(),
       layerViaCopy: () => layerViaCopyRef.current(),
       mergeDown: () => mergeActiveLayerDownRef.current(),
@@ -989,6 +998,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const layerDocumentCommands = useLayerDocumentCommands({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    getImageClipboard: () => imageClipboard,
+    getDocumentId: () => workspaceDocumentId,
     applyDocumentSnapshot,
     pushDocumentHistory,
     pushHistoryEntry,
@@ -1013,12 +1024,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const mergeActiveLayerDown = layerDocumentCommands.mergeActiveLayerDown;
 
   const copySelectedContent = () => {
-    layerDocumentCommands.copySelectedContent(editorSession.selection);
+    void layerDocumentCommands.copySelectedContent(editorSession.selection);
   };
   copySelectedContentRef.current = copySelectedContent;
 
+  const copyMergedContent = () => {
+    void layerDocumentCommands.copyMergedContent(editorSession.selection);
+  };
+  copyMergedContentRef.current = copyMergedContent;
+
   const pasteSelectedContent = () => {
-    layerDocumentCommands.pasteSelectedContent(editorSession.selection);
+    void layerDocumentCommands.pasteSelectedContent(editorSession.selection);
   };
   pasteSelectedContentRef.current = pasteSelectedContent;
 
@@ -1216,6 +1232,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     edit: {
       copySelectedContent,
+      copyMergedContent,
       pasteSelectedContent,
       pasteGrade: pasteCurrentGrade,
       copyGrade: copyCurrentGrade

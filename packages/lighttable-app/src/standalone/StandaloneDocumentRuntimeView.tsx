@@ -78,6 +78,7 @@ export function StandaloneDocumentRuntimeView({
         tasks={session.tasks}
         rendererLifecycle={session.renderer}
         documentSession={session}
+        imageClipboard={host.clipboard}
         onActivateWorkspaceDocument={(documentId) => {
           onActivate(documentId as DocumentSessionId);
         }}
@@ -107,4 +108,3 @@ export function StandaloneDocumentRuntimeView({
     </DocumentRuntimeErrorBoundary>
   );
 }
-

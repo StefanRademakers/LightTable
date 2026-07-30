@@ -24,6 +24,7 @@ export interface EditorMenuControllerOptions {
   };
   readonly edit: {
     copySelectedContent(): void;
+    copyMergedContent(): void;
     pasteSelectedContent(): void;
     pasteGrade(): void;
     copyGrade(): void;
@@ -100,6 +101,7 @@ export const createEditorMenuController = ({
       download: file.download,
       reset: file.reset,
       copySelectedContent: edit.copySelectedContent,
+      copyMergedContent: edit.copyMergedContent,
       pasteSelectedContent: edit.pasteSelectedContent,
       pasteGrade: edit.pasteGrade,
       copyGrade: edit.copyGrade,

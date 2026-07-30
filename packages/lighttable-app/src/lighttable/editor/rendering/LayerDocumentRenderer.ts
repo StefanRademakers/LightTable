@@ -5,6 +5,7 @@ import {
   type ImageDocument,
   type LayerId,
   type LayerNode,
+  type Rect,
   type RasterLayer,
   type RasterMask
 } from '../document/documentTypes';
@@ -29,6 +30,7 @@ import {
   SELECTION_COMBINE_WGSL,
   SELECTION_CONTENT_COVERAGE_WGSL,
   SELECTION_COPY_WGSL,
+  SELECTION_DISPLAY_COPY_WGSL,
   SELECTION_FEATHER_WGSL,
   SELECTION_SHAPE_WGSL
 } from './layerShaders';
@@ -68,6 +70,10 @@ import {
   containsActiveLayerStyles,
   groupNeedsCompositingEnvelope
 } from './compositorGraph';
+import {
+  encodeRgba8Png,
+  readRgba8Texture
+} from '../../gpu/gpuReadback';
 
 interface LayerRuntime {
   texture: GPUTexture;
@@ -198,6 +204,7 @@ export class LayerDocumentRenderer {
   private selectionContentCoveragePipeline!: GPURenderPipeline;
   private selectionFeatherPipeline!: GPURenderPipeline;
   private selectionCopyPipeline!: GPURenderPipeline;
+  private selectionDisplayCopyPipeline!: GPURenderPipeline;
   private transformPipeline!: GPURenderPipeline;
   private selectionTransformPipeline!: GPURenderPipeline;
   private toolPipelinesReady = false;
@@ -1830,6 +1837,154 @@ export class LayerDocumentRenderer {
     return true;
   }
 
+  async exportSelectionClipboard(bounds: Rect) {
+    if (!this.selectionClipboard) {
+      throw new Error('No copied LightTable pixels are available.');
+    }
+    const crop = this.clipboardCrop(bounds);
+    const croppedTexture = this.device.createTexture({
+      label: 'LightTable cropped selection clipboard',
+      size: [crop.width, crop.height],
+      format: 'rgba16float',
+      usage: textureUsage
+    });
+    try {
+      const encoder = this.device.createCommandEncoder({
+        label: 'LightTable crop selected layer clipboard'
+      });
+      encoder.copyTextureToTexture(
+        {
+          texture: this.selectionClipboard,
+          origin: { x: crop.x, y: crop.y }
+        },
+        { texture: croppedTexture },
+        [crop.width, crop.height]
+      );
+      this.device.queue.submit([encoder.finish()]);
+      return await this.encodeTextureAsPngUnchecked(
+        croppedTexture,
+        false,
+        crop.width,
+        crop.height
+      );
+    } finally {
+      croppedTexture.destroy();
+    }
+  }
+
+  async exportDisplaySelection(
+    displayTexture: GPUTexture,
+    bounds: Rect
+  ) {
+    this.ensureToolPipelines();
+    if (!this.selectionActive || !this.selectionMask) {
+      throw new Error('A selection is required for Copy Merged.');
+    }
+    const crop = this.clipboardCrop(bounds);
+    const selectedDisplay = this.device.createTexture({
+      label: 'LightTable selected display clipboard',
+      size: [this.width, this.height],
+      format: 'rgba8unorm',
+      usage: textureUsage
+    });
+    const croppedTexture = this.device.createTexture({
+      label: 'LightTable cropped selected display clipboard',
+      size: [crop.width, crop.height],
+      format: 'rgba8unorm',
+      usage: textureUsage
+    });
+    try {
+      const bindGroup = this.device.createBindGroup({
+        layout: this.selectionDisplayCopyPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: displayTexture.createView() },
+          { binding: 1, resource: this.selectionMask.createView() }
+        ]
+      });
+      const encoder = this.device.createCommandEncoder({
+        label: 'LightTable Copy Merged selection'
+      });
+      this.drawFullscreen(
+        encoder,
+        this.selectionDisplayCopyPipeline,
+        bindGroup,
+        selectedDisplay.createView(),
+        { r: 0, g: 0, b: 0, a: 0 }
+      );
+      encoder.copyTextureToTexture(
+        {
+          texture: selectedDisplay,
+          origin: { x: crop.x, y: crop.y }
+        },
+        { texture: croppedTexture },
+        [crop.width, crop.height]
+      );
+      this.device.queue.submit([encoder.finish()]);
+      const pixels = await readRgba8Texture(
+        this.device,
+        croppedTexture,
+        crop.width,
+        crop.height,
+        'LightTable Copy Merged readback'
+      );
+      return await encodeRgba8Png(pixels, crop.width, crop.height);
+    } finally {
+      selectedDisplay.destroy();
+      croppedTexture.destroy();
+    }
+  }
+
+  async pasteClipboardImage(
+    layerId: LayerId,
+    blob: Blob,
+    requestedPosition: { x: number; y: number } | null
+  ) {
+    const destination = this.runtimes.get(layerId);
+    if (!destination) return false;
+    const decoded = await decodeNativeImage(blob);
+    try {
+      const x = requestedPosition
+        ? Math.round(requestedPosition.x)
+        : Math.round((this.width - decoded.descriptor.width) / 2);
+      const y = requestedPosition
+        ? Math.round(requestedPosition.y)
+        : Math.round((this.height - decoded.descriptor.height) / 2);
+      const canvas = document.createElement('canvas');
+      canvas.width = this.width;
+      canvas.height = this.height;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Clipboard image placement could not be created.');
+      context.clearRect(0, 0, this.width, this.height);
+      context.drawImage(decoded.bitmap, x, y);
+      const normalized = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (result) => result
+            ? resolve(result)
+            : reject(new Error('Clipboard image placement could not be encoded.')),
+          'image/png'
+        );
+      });
+      await this.decodeBlobIntoTexture(normalized, destination.texture, false);
+      this.invalidateStyledLayerCache(layerId);
+      return true;
+    } finally {
+      decoded.close();
+    }
+  }
+
+  private clipboardCrop(bounds: Rect) {
+    const x = Math.max(0, Math.floor(bounds.x));
+    const y = Math.max(0, Math.floor(bounds.y));
+    const right = Math.min(this.width, Math.ceil(bounds.x + bounds.width));
+    const bottom = Math.min(this.height, Math.ceil(bounds.y + bounds.height));
+    return {
+      x,
+      y,
+      width: Math.max(1, right - x),
+      height: Math.max(1, bottom - y)
+    };
+  }
+
   private async measureLayerCoverage(
     layer: RasterLayer,
     selectionEnabled: boolean
@@ -2021,6 +2176,11 @@ export class LayerDocumentRenderer {
     this.selectionCopyPipeline = fullscreenPipeline(
       'LightTable selected pixel copy',
       SELECTION_COPY_WGSL
+    );
+    this.selectionDisplayCopyPipeline = fullscreenPipeline(
+      'LightTable selected display copy',
+      SELECTION_DISPLAY_COPY_WGSL,
+      'rgba8unorm'
     );
     this.transformPipeline = fullscreenPipeline(
       'LightTable layer transform preview',
