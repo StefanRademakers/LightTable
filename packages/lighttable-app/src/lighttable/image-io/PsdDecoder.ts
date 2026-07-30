@@ -5,6 +5,19 @@ interface PendingDecode {
   reject(reason: Error): void;
 }
 
+const describeWorkerError = (event: ErrorEvent) => {
+  const nested = event.error;
+  const nestedMessage = nested instanceof Error
+    ? `${nested.name}: ${nested.message}`
+    : typeof nested === 'string'
+      ? nested
+      : '';
+  const location = event.filename
+    ? ` (${event.filename}${event.lineno ? `:${event.lineno}${event.colno ? `:${event.colno}` : ''}` : ''})`
+    : '';
+  return event.message?.trim() || nestedMessage || `unknown worker error${location}`;
+};
+
 export class PsdDecoder {
   private worker: Worker | null = null;
   private requestId = 0;
@@ -58,8 +71,9 @@ export class PsdDecoder {
       else pending.resolve(data);
     };
     worker.onerror = (event) => {
+      event.preventDefault();
       this.resetWorker(new Error(
-        `The PSD decoder worker failed: ${event.message?.trim() || 'unknown worker error'}.`
+        `The PSD decoder worker failed: ${describeWorkerError(event)}.`
       ));
     };
     worker.onmessageerror = () => {

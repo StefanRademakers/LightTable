@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { initializeCanvas, readPsd, type Layer, type PatternInfo, type Psd } from 'ag-psd';
+import type { Layer, PatternInfo, Psd } from 'ag-psd';
 import { psdCompositeToPreviewPixels } from './psdPixelConversion';
 import type {
   PsdFeatureInventory,
@@ -27,9 +27,13 @@ const COLOR_MODE_NAMES: Record<number, string> = {
 };
 
 let agPsdCanvasInitialized = false;
+let agPsdModulePromise: Promise<typeof import('ag-psd')> | null = null;
 
-const initializeAgPsdCanvas = () => {
+const loadAgPsd = () => agPsdModulePromise ??= import('ag-psd');
+
+const initializeAgPsdCanvas = async () => {
   if (agPsdCanvasInitialized) return;
+  const { initializeCanvas } = await loadAgPsd();
   // ag-psd normally discovers document.createElement('canvas') at module load.
   // A module worker has no document, so Photoshop resources that internally
   // request a canvas (even while image pixels use ImageData) otherwise throw
@@ -317,7 +321,8 @@ const serializeLayers = async (
 self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
   let response: PsdWorkerResponse;
   try {
-    initializeAgPsdCanvas();
+    await initializeAgPsdCanvas();
+    const { readPsd } = await loadAgPsd();
     const warnings: string[] = [];
     const psd = readPsd(data.bytes, {
       useImageData: true,
