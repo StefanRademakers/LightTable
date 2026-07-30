@@ -28,7 +28,7 @@ import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpe
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import type { DocumentOpenRequest } from './application/documents/documentOpenController';
 import { resolveDocumentSource } from './application/documents/resolveDocumentSource';
-import { createDocumentOpenResetState } from './application/documents/createDocumentOpenResetState';
+import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
   isTemporaryPanRelease,
@@ -741,52 +741,73 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [clearEditorHistory, resetLensBlurDepth]);
 
   const beforeDocumentOpen = useCallback(() => {
-    startupTelemetryRef.current.begin();
-    setStartupTimings(null);
-    setLoading(true);
-    setError(null);
-    setMetadata(null);
-    setPsdImportInfo(null);
-    setPsdDifferenceMetrics(null);
-    setPsdCompatibility([]);
-    setPsdReportOpen(false);
-    setSourceName(fileNameBase);
-    imageDocumentRef.current = null;
-    preservedSourceAssetsRef.current = [];
-    setImageDocument(null);
-    setThumbnailDocumentReadyId(null);
-    const resetState = createDocumentOpenResetState(initialRecipe?.settings);
-    setEditorSession(resetState.editorSession);
-    selectionGestureRef.current.reset();
-    paintGestureRef.current.reset();
-    setSelectionDraft(null);
-    setSelectionClipboardAvailable(false);
-    setFeatherDialogOpen(false);
-    resetTransformRef.current();
-    setHistogram(null);
-    setSourceBlob(null);
-    setSourceIdentity('');
-    resetLensBlurDepth();
-    setFocusPickerActive(false);
-    setLensBlurViewportModeState('result');
-    const startingAdjustments = resetState.adjustments;
-    adjustmentsRef.current = startingAdjustments;
-    setAdjustments(startingAdjustments);
-    clearEditorHistory();
-    setShowOriginal(false);
-    setShowDifference(false);
-    const startingScopeSettings = resetState.scopeSettings;
-    const startingScopeVisibility = resetState.scopeVisibility;
-    scopeSettingsRef.current = startingScopeSettings;
-    scopeVisibilityRef.current = startingScopeVisibility;
-    setScopeSettings(startingScopeSettings);
-    setScopeVisibility(startingScopeVisibility);
-    setScopeError(null);
-    setGradeStatus(null);
-    setGpuMemoryBytes(0);
-    const startingVisibility = resetState.groupVisibility;
-    groupVisibilityRef.current = startingVisibility;
-    setGroupVisibility(startingVisibility);
+    resetDocumentOpenPresentation({
+      initialAdjustments: initialRecipe?.settings,
+      port: {
+        resetTelemetry: () => {
+          startupTelemetryRef.current.begin();
+          setStartupTimings(null);
+          setLoading(true);
+        },
+        resetSource: () => {
+          setSourceName(fileNameBase);
+          setSourceBlob(null);
+          setSourceIdentity('');
+        },
+        resetDocument: () => {
+          setMetadata(null);
+          imageDocumentRef.current = null;
+          preservedSourceAssetsRef.current = [];
+          setImageDocument(null);
+          setThumbnailDocumentReadyId(null);
+        },
+        resetSelection: (editorSession) => {
+          setEditorSession(editorSession);
+          selectionGestureRef.current.reset();
+          paintGestureRef.current.reset();
+          setSelectionDraft(null);
+          setSelectionClipboardAvailable(false);
+          setFeatherDialogOpen(false);
+          resetTransformRef.current();
+        },
+        resetLensBlur: () => {
+          resetLensBlurDepth();
+          setFocusPickerActive(false);
+          setLensBlurViewportModeState('result');
+        },
+        publishAdjustments: (startingAdjustments) => {
+          adjustmentsRef.current = startingAdjustments;
+          setAdjustments(startingAdjustments);
+        },
+        resetHistory: clearEditorHistory,
+        resetViewport: () => {
+          setShowOriginal(false);
+          setShowDifference(false);
+          setView({ scale: 1, panX: 0, panY: 0 });
+        },
+        resetScopes: (settings, visibility) => {
+          scopeSettingsRef.current = settings;
+          scopeVisibilityRef.current = visibility;
+          setScopeSettings(settings);
+          setScopeVisibility(visibility);
+          setHistogram(null);
+        },
+        resetDiagnostics: () => {
+          setError(null);
+          setScopeError(null);
+          setGradeStatus(null);
+          setGpuMemoryBytes(0);
+          setPsdImportInfo(null);
+          setPsdDifferenceMetrics(null);
+          setPsdCompatibility([]);
+          setPsdReportOpen(false);
+        },
+        publishGroupVisibility: (visibility) => {
+          groupVisibilityRef.current = visibility;
+          setGroupVisibility(visibility);
+        }
+      }
+    });
   }, [
     clearEditorHistory,
     fileNameBase,

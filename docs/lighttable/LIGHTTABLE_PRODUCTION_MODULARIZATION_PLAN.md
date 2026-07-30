@@ -1352,3 +1352,9 @@ The refactor is successful when:
 - [x] Move standalone web/Electron workspace ownership, immutable subscription,
       source-handle lifetime and Strict Mode disposal into one host-shell hook;
       the app root now composes documents instead of owning session mechanics.
+- [x] Make source preparation, renderer hydration and final publication one
+      application-owned transaction with a last-moment generation guard; a
+      superseded open cannot publish partially prepared source state.
+- [x] Make the complete document-open presentation reset one ordered
+      application transaction across source, canonical document, selection,
+      lens state, grade, history, viewport, scopes and diagnostics.
