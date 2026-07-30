@@ -28,10 +28,10 @@ import {
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import {
-  formatGpuMemory,
   formatStartupTimings,
   type LightTableStartupTimings
 } from './application/telemetry/editorTelemetry';
+import { buildEditorStatus } from './application/telemetry/editorStatus';
 import { AdjustmentSlider } from './AdjustmentSlider';
 import { ColorGradingWheel } from './ColorGradingWheel';
 import {
@@ -4382,55 +4382,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     <div className="lighttable-layers-panel lighttable-layers-panel--empty">No document layers</div>
   );
 
-  const statusBarReportAvailable = Boolean(imageDocument?.photoshopImportReport);
-  const statusBarMetaTitle = [
-    formatStartupTimings(startupTimings),
-    psdImportInfo
-      ? [
-          'PSD layers are reconstructed by LightTable; the embedded Photoshop composite is retained only as the in-session Original/reference view and is not duplicated in native saves.',
-          `${psdImportInfo.inventory.layers} layers; ${psdImportInfo.inventory.groups} groups; `
-            + `${psdImportInfo.inventory.masks} masks; ${psdImportInfo.inventory.layerStyles} styled layers; `
-            + `${psdImportInfo.inventory.adjustments} adjustment layers; ${psdImportInfo.inventory.smartObjects} smart objects.`,
-          psdCompatibilitySummary ? `Semantic import support: ${psdCompatibilitySummary}.` : '',
-          psdDifferenceMetrics
-            ? `Reference difference: ${psdDifferenceMetrics.differingPixelPercentage.toFixed(3)}% above `
-              + `${Math.round(psdDifferenceMetrics.threshold * 255)}/255; mean RGB error `
-              + `${(psdDifferenceMetrics.meanAbsoluteRgbError * 100).toFixed(3)}%; maximum channel error `
-              + `${(psdDifferenceMetrics.maximumChannelError * 100).toFixed(2)}%; `
-              + `${psdDifferenceMetrics.sampledPixels.toLocaleString()} sampled pixels `
-              + `(stride ${psdDifferenceMetrics.stride}).`
-            : '',
-          ...psdImportInfo.warnings
-        ].join('\n')
-      : '',
-    gpuMemoryBytes > 0
-      ? 'GPU memory is an estimate of LightTable-owned textures; browsers do not expose driver VRAM usage.'
-      : ''
-  ].filter(Boolean).join('\n') || undefined;
-  const statusBarMeta = metadata
-    ? [
-        `${metadata.width} × ${metadata.height}`,
-        `${Math.round(activeScale * 100)}%`,
-        metadata.decoder === 'wasm-vips'
-          ? [
-              `${metadata.sourceBitDepth}-bit ${metadata.sourceFormat}`,
-              metadata.sourceProfile,
-              'wasm-vips',
-              `${Math.round(metadata.decodeDurationMs ?? 0)} ms`
-            ].filter(Boolean).join(' · ')
-          : metadata.decoder === 'ag-psd'
-            ? [
-                `${metadata.sourceBitDepth}-bit ${metadata.sourceFormat}`,
-                metadata.sourceInterpretation,
-                'Photoshop composite'
-              ].filter(Boolean).join(' · ')
-            : null,
-        startupTimings?.firstFrameMs !== undefined
-          ? `ready ${Math.round(startupTimings.firstFrameMs)} ms`
-          : null,
-        gpuMemoryBytes > 0 ? `GPU ~${formatGpuMemory(gpuMemoryBytes)}` : null
-      ].filter(Boolean).join(' · ')
-    : 'No image';
+  const statusBar = buildEditorStatus({
+    metadata,
+    scale: activeScale,
+    startupTimings,
+    gpuMemoryBytes,
+    photoshopImport: psdImportInfo,
+    photoshopCompatibilitySummary: psdCompatibilitySummary,
+    referenceDifference: psdDifferenceMetrics,
+    reportAvailable: Boolean(imageDocument?.photoshopImportReport)
+  });
 
   if (!open) return null;
 
@@ -4558,9 +4519,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   <EditorStatusBar
                     status={error ?? gradeStatus ?? ''}
                     error={Boolean(error)}
-                    meta={statusBarMeta}
-                    metaTitle={statusBarMetaTitle}
-                    reportAvailable={statusBarReportAvailable}
+                    meta={statusBar.meta}
+                    metaTitle={statusBar.title}
+                    reportAvailable={statusBar.reportAvailable}
                     onOpenReport={() => setPsdReportOpen(true)}
                   />
                 </section>

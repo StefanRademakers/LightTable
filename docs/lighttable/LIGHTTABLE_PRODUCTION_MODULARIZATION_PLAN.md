@@ -1219,3 +1219,5 @@ The refactor is successful when:
       viewport surface; pointer interpretation remains in tool controllers.
 - [x] Extract the status/footer presentation from the editor root while
       preserving PSD report access and startup/GPU diagnostics.
+- [x] Move status metadata and PSD parity diagnostics into a pure, tested
+      telemetry model shared by any future web or desktop shell.
