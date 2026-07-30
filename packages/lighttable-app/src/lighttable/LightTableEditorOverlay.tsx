@@ -6,6 +6,12 @@ import { SquareIconButton } from '../ui/SquareIconButton';
 import { TextInputDialog } from '../ui/TextInputDialog';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { lightTableIcon } from '../assets/icons';
+import {
+  DocumentCommandHistory
+} from './application/commands/documentCommandHistory';
+import type {
+  DocumentSessionId
+} from './application/documents/documentSession';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from './AdjustmentSlider';
 import { ColorGradingWheel } from './ColorGradingWheel';
 import {
@@ -247,6 +253,8 @@ const isTextEditingTarget = (target: EventTarget | null) => (
   || (target instanceof HTMLElement && target.isContentEditable)
 );
 interface EditorHistoryEntry {
+  label?: string;
+  type?: string;
   byteSize?: number;
   layerIds?: readonly LayerId[];
   documentMutation?: boolean;
@@ -285,6 +293,7 @@ export interface LightTableEditorOverlayProps {
   onDocumentReady?: () => void;
   onDocumentError?: (message: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  history?: DocumentCommandHistory;
 }
 
 interface LightTableStartupTimings {
@@ -730,8 +739,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onOpenWorkspaceDocument,
   onDocumentReady,
   onDocumentError,
-  onDirtyChange
+  onDirtyChange,
+  history
 }) => {
+  const localHistory = useMemo(
+    () => new DocumentCommandHistory(workspaceDocumentId as DocumentSessionId, {
+      maxEntries: HISTORY_LIMIT,
+      maxBytes: GPU_HISTORY_BYTE_LIMIT
+    }),
+    [workspaceDocumentId]
+  );
+  const commandHistory = history ?? localHistory;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onDocumentReadyRef = useRef(onDocumentReady);
   const onDocumentErrorRef = useRef(onDocumentError);
@@ -739,6 +757,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onDocumentReadyRef.current = onDocumentReady;
   onDocumentErrorRef.current = onDocumentError;
   onDirtyChangeRef.current = onDirtyChange;
+  useEffect(() => {
+    if (history) return;
+    return commandHistory.subscribe((snapshot) => {
+      onDirtyChangeRef.current?.(snapshot.dirty);
+    });
+  }, [commandHistory, history]);
+  useEffect(() => () => {
+    if (!history) localHistory.dispose();
+  }, [history, localHistory]);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerHueCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerScopeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -754,10 +781,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
-  const undoStackRef = useRef<EditorHistoryEntry[]>([]);
-  const redoStackRef = useRef<EditorHistoryEntry[]>([]);
-  const historyBusyRef = useRef(false);
-  const historyEpochRef = useRef(0);
+  const historyCommandSequenceRef = useRef(0);
   const adjustmentTransactionRef = useRef<BasicAdjustments | null>(null);
   const adjustmentTransactionTargetRef = useRef<LayerId | null>(null);
   const documentTransactionRef = useRef<ImageDocument | null>(null);
@@ -1147,37 +1171,36 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ? walkLayerTree(imageDocumentRef.current.layers).map(({ node }) => node.id)
         : []
     );
-    [...undoStackRef.current, ...redoStackRef.current].forEach((entry) => {
-      entry.layerIds?.forEach((layerId) => keep.add(layerId));
+    commandHistory.getRetainedResourceIds().forEach((id) => {
+      keep.add(id as LayerId);
     });
     engineRef.current?.pruneLayerRuntimes(keep);
-  }, []);
+  }, [commandHistory]);
 
   const clearEditorHistory = useCallback(() => {
-    historyEpochRef.current += 1;
-    [...undoStackRef.current, ...redoStackRef.current].forEach((entry) => entry.dispose?.());
-    undoStackRef.current = [];
-    redoStackRef.current = [];
+    commandHistory.clear();
     adjustmentTransactionRef.current = null;
     adjustmentTransactionTargetRef.current = null;
     documentTransactionRef.current = null;
-    historyBusyRef.current = false;
     pruneHistoryRuntimes();
-  }, [pruneHistoryRuntimes]);
+  }, [commandHistory, pruneHistoryRuntimes]);
 
   const pushHistoryEntry = useCallback((entry: EditorHistoryEntry) => {
-    redoStackRef.current.forEach((redoEntry) => redoEntry.dispose?.());
-    redoStackRef.current = [];
-    undoStackRef.current.push(entry);
-    let byteSize = undoStackRef.current.reduce((total, candidate) => total + (candidate.byteSize ?? 0), 0);
-    while (undoStackRef.current.length > HISTORY_LIMIT || (byteSize > GPU_HISTORY_BYTE_LIMIT && undoStackRef.current.length > 1)) {
-      const evicted = undoStackRef.current.shift();
-      byteSize -= evicted?.byteSize ?? 0;
-      evicted?.dispose?.();
-    }
+    historyCommandSequenceRef.current += 1;
+    commandHistory.record({
+      id: `${workspaceDocumentId}:editor:${historyCommandSequenceRef.current}`,
+      type: entry.type ?? 'editor.mutation',
+      label: entry.label ?? 'Edit document',
+      documentId: workspaceDocumentId as DocumentSessionId,
+      affectsDocument: entry.documentMutation !== false,
+      byteSize: entry.byteSize,
+      resourceIds: entry.layerIds,
+      undo: entry.undo,
+      redo: entry.redo,
+      dispose: entry.dispose
+    });
     pruneHistoryRuntimes();
-    if (entry.documentMutation !== false) onDirtyChangeRef.current?.(true);
-  }, [pruneHistoryRuntimes]);
+  }, [commandHistory, pruneHistoryRuntimes, workspaceDocumentId]);
 
   const applyDocumentSnapshot = useCallback((snapshot: ImageDocument) => {
     imageDocumentRef.current = snapshot;
@@ -1296,46 +1319,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const undoEditor = useCallback(async () => {
     endAdjustmentTransaction();
     endDocumentTransaction();
-    if (historyBusyRef.current) return;
-    const entry = undoStackRef.current.pop();
-    if (!entry) return;
-    const epoch = historyEpochRef.current;
-    historyBusyRef.current = true;
     try {
-      await entry.undo();
-      if (epoch === historyEpochRef.current) redoStackRef.current.push(entry);
-      else entry.dispose?.();
+      await commandHistory.undo();
+      pruneHistoryRuntimes();
     } catch (reason) {
-      if (epoch === historyEpochRef.current) {
-        undoStackRef.current.push(entry);
-        setError(reason instanceof Error ? reason.message : 'LightTable undo failed.');
-      } else entry.dispose?.();
-    } finally {
-      historyBusyRef.current = false;
+      setError(reason instanceof Error ? reason.message : 'LightTable undo failed.');
     }
-  }, [endAdjustmentTransaction, endDocumentTransaction]);
+  }, [commandHistory, endAdjustmentTransaction, endDocumentTransaction, pruneHistoryRuntimes]);
 
   const redoEditor = useCallback(async () => {
     endAdjustmentTransaction();
     endDocumentTransaction();
-    if (historyBusyRef.current) return;
-    const entry = redoStackRef.current.pop();
-    if (!entry) return;
-    const epoch = historyEpochRef.current;
-    historyBusyRef.current = true;
     try {
-      await entry.redo();
-      if (epoch === historyEpochRef.current) undoStackRef.current.push(entry);
-      else entry.dispose?.();
+      await commandHistory.redo();
+      pruneHistoryRuntimes();
     } catch (reason) {
-      if (epoch === historyEpochRef.current) {
-        redoStackRef.current.push(entry);
-        setError(reason instanceof Error ? reason.message : 'LightTable redo failed.');
-      } else entry.dispose?.();
-    } finally {
-      historyBusyRef.current = false;
+      setError(reason instanceof Error ? reason.message : 'LightTable redo failed.');
     }
-  }, [endAdjustmentTransaction, endDocumentTransaction]);
+  }, [commandHistory, endAdjustmentTransaction, endDocumentTransaction, pruneHistoryRuntimes]);
 
   const loadBlobIntoEngine = useCallback(async (
     blob: Blob,
@@ -4339,6 +4340,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const output = await exportOutput();
       const saved = await onSave(output.file, output.recipe);
       if (saved !== false) {
+        commandHistory.markSaved();
         onDirtyChangeRef.current?.(false);
         onClose();
       }

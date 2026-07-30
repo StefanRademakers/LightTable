@@ -735,12 +735,18 @@ evicted and reconstructed under a workspace-level GPU budget.
 
 Work:
 
-- define command result and error contracts;
-- move document mutation into command handlers;
-- centralize gesture transactions;
-- migrate undo/redo from callback closures toward typed reversible commands or
-  bounded snapshots;
-- add command capability selectors.
+- [x] define a document-targeted reversible command contract;
+- [x] introduce serial async undo/redo with bounded resource ownership;
+- [x] model a saved-state checkpoint independently from stack depth;
+- [x] keep non-document interactions such as selections undoable without
+      marking document pixels dirty;
+- [x] replace overlay-owned undo/redo stacks with the application service;
+- [x] expose command-history state through document snapshots;
+- [ ] move document mutation into typed command handlers;
+- [ ] centralize all gesture transactions;
+- [ ] migrate remaining generic callback receipts toward typed commands or
+      bounded snapshots;
+- [ ] add command capability selectors.
 
 First migrated vertical slice:
 

@@ -22,6 +22,12 @@ export {
   type DocumentViewport
 } from './lighttable/application/documents/documentSession';
 export {
+  DocumentCommandHistory,
+  type DocumentCommandHistoryOptions,
+  type DocumentCommandHistorySnapshot,
+  type ReversibleDocumentCommand
+} from './lighttable/application/commands/documentCommandHistory';
+export {
   copyLightTableGrade,
   readLightTableGrade,
   useLightTableGradeClipboard,

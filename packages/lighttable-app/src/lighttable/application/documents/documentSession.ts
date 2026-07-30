@@ -2,6 +2,10 @@ import {
   createEditorSession,
   type EditorSession
 } from '../../editor/session/editorSession';
+import {
+  DocumentCommandHistory,
+  type DocumentCommandHistorySnapshot
+} from '../commands/documentCommandHistory';
 
 export type DocumentSessionId = string & {
   readonly __brand: 'DocumentSessionId';
@@ -37,6 +41,7 @@ export interface DocumentSessionSnapshot {
   readonly dirty: boolean;
   readonly documentRevision: number;
   readonly savedRevision: number;
+  readonly history: DocumentCommandHistorySnapshot;
   readonly editor: EditorSession;
   readonly viewport: DocumentViewport;
 }
@@ -73,13 +78,16 @@ const cloneEditorSession = (session: EditorSession): EditorSession => ({
  */
 export class DocumentSession {
   readonly id: DocumentSessionId;
+  readonly history: DocumentCommandHistory;
 
   private snapshot: DocumentSessionSnapshot;
   private readonly listeners = new Set<DocumentSessionListener>();
   private readonly disposers = new Set<() => void>();
+  private readonly unsubscribeHistory: () => void;
 
   constructor(options: CreateDocumentSessionOptions) {
     this.id = options.id;
+    this.history = new DocumentCommandHistory(options.id);
     this.snapshot = {
       id: options.id,
       source: { ...options.source },
@@ -89,9 +97,17 @@ export class DocumentSession {
       dirty: false,
       documentRevision: 0,
       savedRevision: 0,
+      history: this.history.getSnapshot(),
       editor: cloneEditorSession(options.editor ?? createEditorSession()),
       viewport: { ...(options.viewport ?? DEFAULT_VIEWPORT) }
     };
+    this.unsubscribeHistory = this.history.subscribe((history) => {
+      if (this.snapshot.lifecycle === 'disposed') return;
+      this.update({
+        history,
+        dirty: history.dirty || this.snapshot.documentRevision !== this.snapshot.savedRevision
+      });
+    });
   }
 
   getSnapshot = (): DocumentSessionSnapshot => this.snapshot;
@@ -161,9 +177,11 @@ export class DocumentSession {
     if (revision > this.snapshot.documentRevision) {
       throw new Error('A saved revision cannot be newer than the document.');
     }
+    this.history.markSaved();
     this.update({
       savedRevision: revision,
-      dirty: revision !== this.snapshot.documentRevision
+      history: this.history.getSnapshot(),
+      dirty: revision !== this.snapshot.documentRevision || this.history.getSnapshot().dirty
     });
   }
 
@@ -178,6 +196,8 @@ export class DocumentSession {
       ...this.snapshot,
       lifecycle: 'disposed'
     };
+    this.unsubscribeHistory();
+    this.history.dispose();
     for (const disposer of this.disposers) disposer();
     this.disposers.clear();
     this.emit();

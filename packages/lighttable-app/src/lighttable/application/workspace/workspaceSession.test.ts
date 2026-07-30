@@ -139,4 +139,37 @@ describe('WorkspaceSession', () => {
     expect(disposeRuntime).toHaveBeenCalledOnce();
     expect(workspaceListener).toHaveBeenCalled();
   });
+
+  it('keeps command history and dirty checkpoints isolated per document', async () => {
+    const workspace = new WorkspaceSession({
+      createId: ids('one', 'two')
+    });
+    const first = workspace.open({ source: source('first') });
+    const second = workspace.open({ source: source('second') });
+    if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
+    const values = { first: 1, second: 2 };
+
+    first.value.history.record({
+      id: 'first-change',
+      type: 'test.value',
+      label: 'Change first',
+      documentId: first.value.id,
+      undo: () => {
+        values.first = 1;
+      },
+      redo: () => {
+        values.first = 10;
+      }
+    });
+    values.first = 10;
+
+    expect(workspace.getSnapshot().documents.one.dirty).toBe(true);
+    expect(workspace.getSnapshot().documents.two.dirty).toBe(false);
+    await first.value.history.undo();
+    expect(values).toEqual({ first: 1, second: 2 });
+    expect(second.value.history.getSnapshot().canUndo).toBe(false);
+
+    first.value.markSaved();
+    expect(workspace.getSnapshot().documents.one.dirty).toBe(false);
+  });
 });
