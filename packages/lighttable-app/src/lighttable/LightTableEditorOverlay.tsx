@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SquareIconButton } from '../ui/SquareIconButton';
-import { TextInputDialog } from '../ui/TextInputDialog';
-import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { lightTableIcon } from '../assets/icons';
 import {
   DocumentCommandHistory
@@ -82,6 +80,8 @@ import { LayerPanel } from './editor/ui/LayerPanel';
 import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
 import { ToolOptionsBar } from './editor/ui/ToolOptionsBar';
 import { EditorMenuBar } from './editor/ui/EditorMenuBar';
+import { EditorDialogs } from './editor/ui/EditorDialogs';
+import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { DebugPanel } from './editor/ui/DebugPanel';
 import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
 import { EditorStatusBar } from './editor/ui/EditorStatusBar';
@@ -128,7 +128,6 @@ import {
 } from './image-io/supportedImageFormats';
 import type { PsdDecodeSuccess } from './image-io/psdProtocol';
 import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
-import { PsdImportReportDialog } from './editor/psd/PsdImportReportDialog';
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
 import {
   isPaintTool,
@@ -312,7 +311,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [psdImportInfo, setPsdImportInfo] = useState<PsdDecodeSuccess | null>(null);
   const [psdDifferenceMetrics, setPsdDifferenceMetrics] = useState<ReferenceDifferenceMetrics | null>(null);
   const [psdCompatibility, setPsdCompatibility] = useState<PsdImportCompatibilityEntry[]>([]);
-  const [psdReportOpen, setPsdReportOpen] = useState(false);
   const [sourceBlob, setSourceBlob] = useState<Blob | null>(null);
   const [sourceIdentity, setSourceIdentity] = useState('');
   const [focusPickerActive, setFocusPickerActive] = useState(false);
@@ -322,10 +320,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
   const [editorSession, setEditorSession] = useDocumentEditorSession(documentSession);
   const [selectionDraft, setSelectionDraft] = useState<SelectionShape | null>(null);
-  const [featherDialogOpen, setFeatherDialogOpen] = useState(false);
-  const [flattenRequest, setFlattenRequest] = useState<
-    { kind: 'group'; groupId: LayerId } | { kind: 'image' } | null
-  >(null);
+  const editorDialogs = useEditorDialogController();
   const [selectionClipboardAvailable, setSelectionClipboardAvailable] = useState(false);
   const [temporaryPanActive, setTemporaryPanActive] = useState(false);
   const [startupTimings, setStartupTimings] = useState<LightTableStartupTimings | null>(null);
@@ -638,7 +633,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           resetTransformRef.current();
           setEditorSession((current) => ({ ...current, selection: [] }));
           setSelectionClipboardAvailable(false);
-          setFeatherDialogOpen(false);
+          editorDialogs.closeFeather();
           setLensBlurViewportModeState('result');
           clearEditorHistory();
           setHistogram(null);
@@ -717,7 +712,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           paintGestureRef.current.reset();
           setSelectionDraft(null);
           setSelectionClipboardAvailable(false);
-          setFeatherDialogOpen(false);
+          editorDialogs.closeFeather();
           resetTransformRef.current();
         },
         resetLensBlur: () => {
@@ -750,7 +745,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setPsdImportInfo(null);
           setPsdDifferenceMetrics(null);
           setPsdCompatibility([]);
-          setPsdReportOpen(false);
+          editorDialogs.reset();
         },
         publishGroupVisibility: (visibility) => {
           groupVisibilityRef.current = visibility;
@@ -900,7 +895,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       pasteSelection: () => pasteSelectedContentRef.current(),
       layerViaCopy: () => layerViaCopyRef.current(),
       invertActiveTarget: () => invertActiveLayerColorsRef.current(),
-      openSelectionFeather: () => setFeatherDialogOpen(true),
+      openSelectionFeather: editorDialogs.openFeather,
       swapColors: () => setEditorSession((current) => ({
         ...current,
         brush: {
@@ -1125,8 +1120,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     mergeActiveLayerDown,
     mergeSelectedRasterLayers,
     requestFlattenGroup: (groupId) =>
-      setFlattenRequest({ kind: 'group', groupId }),
-    requestFlattenImage: () => setFlattenRequest({ kind: 'image' }),
+      editorDialogs.requestFlatten({ kind: 'group', groupId }),
+    requestFlattenImage: () => editorDialogs.requestFlatten({ kind: 'image' }),
     editStyles: openLayerStyleEditor
   });
 
@@ -1183,8 +1178,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   activateToolRef.current = activatePersistentTool;
 
   const commitFlattenRequest = () => {
-    const request = flattenRequest;
-    setFlattenRequest(null);
+    const request = editorDialogs.flattenRequest;
+    editorDialogs.closeFlatten();
     if (request) layerDocumentCommands.flatten(request);
   };
 
@@ -1293,7 +1288,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectAll: selectAllContent,
       clearSelection: clearCurrentSelection,
       invertSelection: invertCurrentSelection,
-      featherSelection: () => setFeatherDialogOpen(true),
+      featherSelection: editorDialogs.openFeather,
       createRasterLayer: layerPanelController.createRasterLayer,
       duplicateLayer: duplicateActiveLayer,
       layerViaCopy,
@@ -1319,10 +1314,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       mergeDown: mergeActiveLayerDown,
       flattenGroup: () => {
         if (menuActiveLayer?.type === 'group') {
-          setFlattenRequest({ kind: 'group', groupId: menuActiveLayer.id });
+          editorDialogs.requestFlatten({
+            kind: 'group',
+            groupId: menuActiveLayer.id
+          });
         }
       },
-      flattenImage: () => setFlattenRequest({ kind: 'image' }),
+      flattenImage: () => editorDialogs.requestFlatten({ kind: 'image' }),
       toggleLayerVisibility: () => menuActiveLayer
         && layerPanelController.setVisibility(
           [menuActiveLayer.id],
@@ -1527,7 +1525,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     meta={statusBar.meta}
                     metaTitle={statusBar.title}
                     reportAvailable={statusBar.reportAvailable}
-                    onOpenReport={() => setPsdReportOpen(true)}
+                    onOpenReport={editorDialogs.openPsdReport}
                   />
                 </section>
               ) : null
@@ -1690,42 +1688,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           </div>
         ) : null;
       })() : null}
-      <TextInputDialog
-        open={featherDialogOpen}
-        title="Select feather"
-        initialValue="8.0"
-        selectAllOnOpen
-        compact
-        backdropClassName="lighttable-dialog-backdrop"
-        onCancel={() => setFeatherDialogOpen(false)}
-        onConfirm={(value) => {
-          const radius = Number(value);
-          if (!Number.isFinite(radius) || radius < 0 || radius > 250) {
-            setError('Feather radius must be a number between 0 and 250 pixels.');
-            return;
-          }
-          setFeatherDialogOpen(false);
-          featherCurrentSelection(radius);
-        }}
-      />
-      <ConfirmDialog
-        open={Boolean(flattenRequest)}
-        title={flattenRequest?.kind === 'group' ? 'Flatten group?' : 'Flatten image?'}
-        description={
-          flattenRequest?.kind === 'group'
-            ? 'The visible raster contents of this group will become one raster layer. This can be undone while the document remains open.'
-            : 'The visible layer stack will become one raster layer. This can be undone while the document remains open.'
-        }
-        confirmLabel="Flatten"
-        danger
-        onCancel={() => setFlattenRequest(null)}
-        onConfirm={commitFlattenRequest}
-      />
-      <PsdImportReportDialog
-        open={psdReportOpen}
-        report={imageDocument?.photoshopImportReport ?? null}
-        metrics={psdDifferenceMetrics}
-        onClose={() => setPsdReportOpen(false)}
+      <EditorDialogs
+        controller={editorDialogs}
+        photoshopReport={imageDocument?.photoshopImportReport ?? null}
+        differenceMetrics={psdDifferenceMetrics}
+        onFeather={featherCurrentSelection}
+        onFlatten={commitFlattenRequest}
+        onError={setError}
       />
     </div>
   );

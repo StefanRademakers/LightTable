@@ -1324,6 +1324,9 @@ The refactor is successful when:
 - [x] Move application-menu presentation state, anchoring and portal ownership
       into a host-neutral editor-shell component. The active document
       composition now supplies only current capabilities and command options.
+- [x] Consolidate feather, flatten-confirmation and Photoshop-report dialog
+      state behind one editor-shell controller. Dialog validation and
+      presentation no longer expand the document composition root.
 - [x] Publish a prepared source through one synchronous editor transaction
       after the final cancellation check; document, assets, source identity,
       grade and metadata can no longer become partially visible.
