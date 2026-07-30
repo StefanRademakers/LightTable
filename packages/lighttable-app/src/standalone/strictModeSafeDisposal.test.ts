@@ -30,4 +30,24 @@ describe('StrictModeSafeDisposal', () => {
 
     expect(dispose).toHaveBeenCalledOnce();
   });
+
+  it('invokes a host scheduler without binding the lifecycle as `this`', () => {
+    const dispose = vi.fn();
+    const scheduled: Array<() => void> = [];
+    const schedule = function (
+      this: StrictModeSafeDisposal | undefined,
+      work: () => void
+    ) {
+      if (this instanceof StrictModeSafeDisposal) {
+        throw new TypeError('Illegal invocation');
+      }
+      scheduled.push(work);
+    };
+    const lifecycle = new StrictModeSafeDisposal(dispose, schedule);
+
+    lifecycle.connect()();
+    scheduled.splice(0).forEach((work) => work());
+
+    expect(dispose).toHaveBeenCalledOnce();
+  });
 });

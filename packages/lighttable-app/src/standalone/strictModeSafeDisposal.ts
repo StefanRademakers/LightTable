@@ -15,7 +15,7 @@ export class StrictModeSafeDisposal {
 
   constructor(
     disposeResource: () => void,
-    schedule: DeferredWorkScheduler = queueMicrotask
+    schedule: DeferredWorkScheduler = (work) => queueMicrotask(work)
   ) {
     this.disposeResource = disposeResource;
     this.schedule = schedule;
@@ -28,7 +28,10 @@ export class StrictModeSafeDisposal {
     this.generation += 1;
     return () => {
       const cleanupGeneration = ++this.generation;
-      this.schedule(() => {
+      // Invoke the scheduler as a plain function. Browser host functions such
+      // as `queueMicrotask` may reject an accidental class-instance `this`.
+      const schedule = this.schedule;
+      schedule(() => {
         if (
           !this.disposed
           && cleanupGeneration === this.generation
