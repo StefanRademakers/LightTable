@@ -1236,5 +1236,6 @@ The refactor is successful when:
       reconstruction comparison behind one host-neutral application transaction.
 - [x] Give each document a host-neutral open controller that owns renderer
       startup, stale-result rejection, cancellation, lifecycle and teardown.
-- [x] Move duplicate, merge, flatten and channel-invert operations behind one
-      document-safe layer command controller with atomic GPU undo ownership.
+- [x] Move duplicate, selection clipboard/paste, Layer via Copy, merge, flatten
+      and channel-invert operations behind one document-safe layer command
+      controller with atomic GPU undo ownership.

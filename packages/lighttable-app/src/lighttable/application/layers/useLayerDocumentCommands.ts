@@ -6,6 +6,7 @@ import type {
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import {
   duplicateLayer,
+  createRasterLayer,
   flattenGroup,
   flattenImage,
   getFlattenGroupPlan,
@@ -22,6 +23,8 @@ import {
 } from '../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../editor/rendering/LayerDocumentRenderer';
 import type { PaintChannel } from '../../editor/session/editorSession';
+import type { SelectionOperation } from '../../editor/selection/selectionTypes';
+import { selectionOperationsBounds } from '../../editor/tools/transform/selectionTransform';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -46,6 +49,9 @@ export interface LayerCommandRendererPort {
   flattenGroup(document: ImageDocument, groupId: LayerId, destinationId: LayerId): boolean;
   flattenImage(document: ImageDocument, destinationId: LayerId): boolean;
   invertLayerColors(layerId: LayerId, channel?: PaintChannel): boolean;
+  copySelectedLayerContent(document: ImageDocument, layerId: LayerId): boolean;
+  pasteSelectionClipboard(layerId: LayerId): boolean;
+  hasSelectionClipboard(): boolean;
   finishPixelEdit(): ReversiblePixelEdit | null;
   cancelPixelEdit(): void;
   applyPixelHistory(
@@ -61,6 +67,7 @@ export interface LayerDocumentCommandDependencies {
   pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
   pushHistoryEntry(entry: LayerCommandHistoryEntry): void;
   setActiveChannel(channel: PaintChannel): void;
+  setSelectionClipboardAvailable(available: boolean): void;
   setStatus(message: string | null): void;
   setError(message: string | null): void;
 }
@@ -71,6 +78,9 @@ export interface LayerDocumentCommands {
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
   invertActiveLayerColors(channel: PaintChannel): boolean;
+  copySelectedContent(selection: readonly SelectionOperation[]): boolean;
+  pasteSelectedContent(selection: readonly SelectionOperation[]): boolean;
+  layerViaCopy(selection: readonly SelectionOperation[]): boolean;
 }
 
 const fullDocumentBounds = (document: ImageDocument) => ({
@@ -310,12 +320,107 @@ export const createLayerDocumentCommands = (
     }
   };
 
+  const copySelectedContent = (selection: readonly SelectionOperation[]) => {
+    const document = dependenciesRef.current.getDocument();
+    const renderer = dependenciesRef.current.getRenderer();
+    const activeLayer = document
+      ? findRasterLayer(document, document.activeLayerId)
+      : null;
+    if (!document || !renderer || !activeLayer || !selection.length) return false;
+    if (!renderer.copySelectedLayerContent(document, activeLayer.id)) {
+      dependenciesRef.current.setError(
+        'The selected pixels could not be copied from the active layer.'
+      );
+      return false;
+    }
+    dependenciesRef.current.setSelectionClipboardAvailable(true);
+    dependenciesRef.current.setStatus('Selected pixels copied');
+    dependenciesRef.current.setError(null);
+    return true;
+  };
+
+  const pasteSelectedContent = (selection: readonly SelectionOperation[]) => {
+    const before = dependenciesRef.current.getDocument();
+    const renderer = dependenciesRef.current.getRenderer();
+    if (!before || !renderer || !renderer.hasSelectionClipboard()) return false;
+    const insertionTarget = before.activeLayerId ?? undefined;
+    let after = createRasterLayer(before, 'Pasted Selection', insertionTarget);
+    const pastedLayerId = after.activeLayerId;
+    if (!pastedLayerId) return false;
+    const dirtyBounds = selection.length
+      ? selectionOperationsBounds(
+          [...selection],
+          fullDocumentBounds(before)
+        )
+      : fullDocumentBounds(before);
+    after = markLayerPixelsChanged(after, pastedLayerId, dirtyBounds);
+    dependenciesRef.current.applyDocumentSnapshot(after);
+    if (!renderer.pasteSelectionClipboard(pastedLayerId)) {
+      dependenciesRef.current.applyDocumentSnapshot(before);
+      dependenciesRef.current.setError(
+        'The copied pixels could not be pasted into a new layer.'
+      );
+      return false;
+    }
+    dependenciesRef.current.pushDocumentHistory(before, after);
+    dependenciesRef.current.setActiveChannel('pixels');
+    dependenciesRef.current.setStatus('Pasted selection into a new layer');
+    dependenciesRef.current.setError(null);
+    return true;
+  };
+
+  const layerViaCopy = (selection: readonly SelectionOperation[]) => {
+    const before = dependenciesRef.current.getDocument();
+    const renderer = dependenciesRef.current.getRenderer();
+    const sourceId = before?.activeLayerId;
+    if (!before || !renderer || !sourceId) return false;
+    if (!selection.length) {
+      const duplicated = duplicateActiveLayer();
+      if (duplicated) dependenciesRef.current.setStatus('Layer copied');
+      return duplicated;
+    }
+
+    const sourceLayer = findRasterLayer(before, sourceId);
+    if (!sourceLayer || !renderer.copySelectedLayerContent(before, sourceId)) {
+      dependenciesRef.current.setError(
+        'The selected pixels could not be copied from the active layer.'
+      );
+      return false;
+    }
+
+    let after = createRasterLayer(before, `${sourceLayer.name} copy`, sourceId);
+    const copiedLayerId = after.activeLayerId;
+    if (!copiedLayerId) return false;
+    after = markLayerPixelsChanged(
+      after,
+      copiedLayerId,
+      selectionOperationsBounds([...selection], fullDocumentBounds(before))
+    );
+    dependenciesRef.current.applyDocumentSnapshot(after);
+    if (!renderer.pasteSelectionClipboard(copiedLayerId)) {
+      dependenciesRef.current.applyDocumentSnapshot(before);
+      dependenciesRef.current.setError(
+        'The selected pixels could not be placed on a new layer.'
+      );
+      return false;
+    }
+    dependenciesRef.current.pushDocumentHistory(before, after);
+    dependenciesRef.current.setSelectionClipboardAvailable(true);
+    dependenciesRef.current.setActiveChannel('pixels');
+    dependenciesRef.current.setStatus('Selection copied to a new layer');
+    dependenciesRef.current.setError(null);
+    return true;
+  };
+
   return {
     duplicateActiveLayer,
     mergeSelectedRasterLayers,
     mergeActiveLayerDown,
     flatten,
-    invertActiveLayerColors
+    invertActiveLayerColors,
+    copySelectedContent,
+    pasteSelectedContent,
+    layerViaCopy
   };
 };
 

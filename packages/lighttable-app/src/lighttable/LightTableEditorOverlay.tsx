@@ -257,7 +257,6 @@ import {
   pointInsideRect,
   zoomViewAtPoint
 } from './editor/tools/pointer/viewportCoordinates';
-import { selectionOperationsBounds } from './editor/tools/transform/selectionTransform';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
 import {
   createFullCanvasSelection,
@@ -3170,6 +3169,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setActiveChannel: (activeChannel) => {
       setEditorSession((session) => ({ ...session, activeChannel }));
     },
+    setSelectionClipboardAvailable,
     setStatus: setGradeStatus,
     setError
   });
@@ -3178,84 +3178,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const mergeActiveLayerDown = layerDocumentCommands.mergeActiveLayerDown;
 
   const copySelectedContent = () => {
-    const document = imageDocumentRef.current;
-    const engine = engineRef.current;
-    const activeLayer = document ? findRasterLayer(document, document.activeLayerId) : null;
-    if (!document || !engine || !activeLayer || !editorSession.selection.length) return;
-    if (!engine.copySelectedLayerContent(document, activeLayer.id)) {
-      setError('The selected pixels could not be copied from the active layer.');
-      return;
-    }
-    setSelectionClipboardAvailable(true);
-    setGradeStatus('Selected pixels copied');
+    layerDocumentCommands.copySelectedContent(editorSession.selection);
   };
   copySelectedContentRef.current = copySelectedContent;
 
   const pasteSelectedContent = () => {
-    const before = imageDocumentRef.current;
-    const engine = engineRef.current;
-    if (!before || !engine || !engine.hasSelectionClipboard()) return;
-    const insertionTarget = before.activeLayerId ?? undefined;
-    let after = createRasterLayer(before, 'Pasted Selection', insertionTarget);
-    const pastedLayerId = after.activeLayerId;
-    if (!pastedLayerId) return;
-    const dirtyBounds = editorSession.selection.length
-      ? selectionOperationsBounds(
-          editorSession.selection,
-          { x: 0, y: 0, width: before.width, height: before.height }
-        )
-      : { x: 0, y: 0, width: before.width, height: before.height };
-    after = markLayerPixelsChanged(after, pastedLayerId, dirtyBounds);
-    applyDocumentSnapshot(after);
-    if (!engine.pasteSelectionClipboard(pastedLayerId)) {
-      applyDocumentSnapshot(before);
-      setError('The copied pixels could not be pasted into a new layer.');
-      return;
-    }
-    pushDocumentHistory(before, after);
-    setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-    setGradeStatus('Pasted selection into a new layer');
+    layerDocumentCommands.pasteSelectedContent(editorSession.selection);
   };
   pasteSelectedContentRef.current = pasteSelectedContent;
 
   const layerViaCopy = () => {
-    const before = imageDocumentRef.current;
-    const engine = engineRef.current;
-    const sourceId = before?.activeLayerId;
-    if (!before || !engine || !sourceId) return;
-
-    // With no active selection this is a normal lossless layer duplicate,
-    // including its mask, transform and layer properties.
-    if (!editorSession.selection.length) {
-      duplicateActiveLayer();
-      setGradeStatus('Layer copied');
-      return;
-    }
-
-    const sourceLayer = findRasterLayer(before, sourceId);
-    if (!sourceLayer || !engine.copySelectedLayerContent(before, sourceId)) {
-      setError('The selected pixels could not be copied from the active layer.');
-      return;
-    }
-
-    let after = createRasterLayer(before, `${sourceLayer.name} copy`, sourceId);
-    const copiedLayerId = after.activeLayerId;
-    if (!copiedLayerId) return;
-    const dirtyBounds = selectionOperationsBounds(
-      editorSession.selection,
-      { x: 0, y: 0, width: before.width, height: before.height }
-    );
-    after = markLayerPixelsChanged(after, copiedLayerId, dirtyBounds);
-    applyDocumentSnapshot(after);
-    if (!engine.pasteSelectionClipboard(copiedLayerId)) {
-      applyDocumentSnapshot(before);
-      setError('The selected pixels could not be placed on a new layer.');
-      return;
-    }
-    pushDocumentHistory(before, after);
-    setSelectionClipboardAvailable(true);
-    setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-    setGradeStatus('Selection copied to a new layer');
+    layerDocumentCommands.layerViaCopy(editorSession.selection);
   };
   layerViaCopyRef.current = layerViaCopy;
 

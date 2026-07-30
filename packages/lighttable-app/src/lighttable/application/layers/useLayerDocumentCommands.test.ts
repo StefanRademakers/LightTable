@@ -5,6 +5,7 @@ import {
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../editor/rendering/LayerDocumentRenderer';
+import { createFullCanvasSelection } from '../../editor/selection/selectionTypes';
 import {
   createLayerDocumentCommands,
   type LayerCommandHistoryEntry,
@@ -25,6 +26,9 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   flattenGroup: vi.fn(() => true),
   flattenImage: vi.fn(() => true),
   invertLayerColors: vi.fn(() => true),
+  copySelectedLayerContent: vi.fn(() => true),
+  pasteSelectionClipboard: vi.fn(() => true),
+  hasSelectionClipboard: vi.fn(() => true),
   finishPixelEdit: vi.fn(() => edit),
   cancelPixelEdit: vi.fn(),
   applyPixelHistory: vi.fn((entry, direction) => (
@@ -45,6 +49,7 @@ const setup = (initialDocument: ImageDocument) => {
     pushDocumentHistory: vi.fn(),
     pushHistoryEntry: vi.fn((entry: LayerCommandHistoryEntry) => historyEntries.push(entry)),
     setActiveChannel: vi.fn(),
+    setSelectionClipboardAvailable: vi.fn(),
     setStatus: vi.fn(),
     setError: vi.fn()
   };
@@ -102,5 +107,23 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.setError).toHaveBeenCalledWith(
       expect.stringContaining('Unlock the active layer')
     );
+  });
+
+  it('copies selected pixels into one new raster layer and one history entry', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const sourceId = state.document().activeLayerId;
+
+    expect(state.commands.layerViaCopy(createFullCanvasSelection(16, 12))).toBe(true);
+
+    expect(state.renderer.copySelectedLayerContent).toHaveBeenCalledWith(
+      expect.anything(),
+      sourceId
+    );
+    expect(state.renderer.pasteSelectionClipboard).toHaveBeenCalledWith(
+      state.document().activeLayerId
+    );
+    expect(state.document().layers).toHaveLength(2);
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.dependencies.setSelectionClipboardAvailable).toHaveBeenCalledWith(true);
   });
 });
