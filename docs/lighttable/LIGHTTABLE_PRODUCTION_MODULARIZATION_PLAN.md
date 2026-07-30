@@ -1308,3 +1308,6 @@ The refactor is successful when:
 - [x] Publish a prepared source through one synchronous editor transaction
       after the final cancellation check; document, assets, source identity,
       grade and metadata can no longer become partially visible.
+- [x] Unify document history, task registry and renderer lifecycle ownership
+      behind one runtime-services hook; embedded and workspace hosts now use
+      the same document identity, activation and deterministic disposal rules.

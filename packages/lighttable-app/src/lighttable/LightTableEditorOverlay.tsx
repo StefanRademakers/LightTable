@@ -23,6 +23,7 @@ import {
 } from './application/rendering/documentRendererLifecycle';
 import { prepareDocumentSource } from './application/documents/prepareDocumentSource';
 import { useDocumentOpenLifecycle } from './application/documents/useDocumentOpenLifecycle';
+import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import type { DocumentOpenRequest } from './application/documents/documentOpenController';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import {
@@ -257,8 +258,6 @@ const scopeEngineOptions = (visibility: ScopeVisibility, settings: ScopeSettings
   vectorscopeZoom2x: settings.vectorscopeZoom2x
 });
 
-const HISTORY_LIMIT = 100;
-const GPU_HISTORY_BYTE_LIMIT = 512 * 1024 * 1024;
 export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = ({
   open,
   active = true,
@@ -285,45 +284,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   rendererLifecycle: providedRendererLifecycle,
   documentSession
 }) => {
-  const localHistory = useMemo(
-    () => new DocumentCommandHistory(workspaceDocumentId as DocumentSessionId, {
-      maxEntries: HISTORY_LIMIT,
-      maxBytes: GPU_HISTORY_BYTE_LIMIT
-    }),
-    [workspaceDocumentId]
-  );
-  const commandHistory = history ?? localHistory;
-  const localTasks = useMemo(
-    () => new DocumentTaskRegistry(workspaceDocumentId as DocumentSessionId),
-    [workspaceDocumentId]
-  );
-  const taskRegistry = tasks ?? localTasks;
-  const localRendererLifecycle = useMemo(
-    () => new DocumentRendererLifecycle(),
-    [workspaceDocumentId]
-  );
-  const rendererLifecycle = providedRendererLifecycle ?? localRendererLifecycle;
+  const {
+    history: commandHistory,
+    tasks: taskRegistry,
+    rendererLifecycle
+  } = useDocumentRuntimeServices({
+    documentId: workspaceDocumentId as DocumentSessionId,
+    active,
+    history,
+    tasks,
+    rendererLifecycle: providedRendererLifecycle,
+    onLocalDirtyChange: onDirtyChange
+  });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const onDirtyChangeRef = useRef(onDirtyChange);
-  onDirtyChangeRef.current = onDirtyChange;
-  useEffect(() => {
-    if (history) return;
-    return commandHistory.subscribe((snapshot) => {
-      onDirtyChangeRef.current?.(snapshot.dirty);
-    });
-  }, [commandHistory, history]);
-  useEffect(() => () => {
-    if (!history) localHistory.dispose();
-  }, [history, localHistory]);
-  useEffect(() => () => {
-    if (!tasks) localTasks.dispose();
-  }, [localTasks, tasks]);
-  useEffect(() => () => {
-    if (!providedRendererLifecycle) localRendererLifecycle.dispose();
-  }, [localRendererLifecycle, providedRendererLifecycle]);
-  useEffect(() => {
-    rendererLifecycle.setActive(active);
-  }, [active, rendererLifecycle]);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerHueCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerScopeContainerRef = useRef<HTMLDivElement | null>(null);
