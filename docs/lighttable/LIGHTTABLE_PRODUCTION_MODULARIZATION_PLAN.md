@@ -1252,3 +1252,5 @@ The refactor is successful when:
       document undo behind one identity-guarded transaction controller.
 - [x] Move document-grade versus Adjustment Layer projection into a pure,
       tested application service that rejects stale layer targets explicitly.
+- [x] Move command adaptation, resource retention, transaction finalization and
+      undo/redo error handling into one document-scoped history controller.

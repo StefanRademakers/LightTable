@@ -9,6 +9,10 @@ import { lightTableIcon } from '../assets/icons';
 import {
   DocumentCommandHistory
 } from './application/commands/documentCommandHistory';
+import {
+  useDocumentHistoryController,
+  type EditorHistoryEntry
+} from './application/commands/useDocumentHistoryController';
 import type {
   DocumentSession,
   DocumentSessionId
@@ -293,17 +297,6 @@ const isTextEditingTarget = (target: EventTarget | null) => (
   || (target instanceof HTMLInputElement && target.type !== 'range')
   || (target instanceof HTMLElement && target.isContentEditable)
 );
-interface EditorHistoryEntry {
-  label?: string;
-  type?: string;
-  byteSize?: number;
-  layerIds?: readonly LayerId[];
-  documentMutation?: boolean;
-  undo: () => void | Promise<void>;
-  redo: () => void | Promise<void>;
-  dispose?: () => void;
-}
-
 export interface LightTableEditorOverlayProps {
   open: boolean;
   active?: boolean;
@@ -446,7 +439,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
-  const historyCommandSequenceRef = useRef(0);
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => void>(() => undefined);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>([]);
@@ -817,41 +809,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     engineRef.current?.setAdjustments(applyGroupVisibility(effective, groupVisibilityRef.current));
   }, [effectiveDocumentAdjustments]);
 
-  const pruneHistoryRuntimes = useCallback(() => {
-    const keep = new Set<LayerId>(
-      imageDocumentRef.current
-        ? walkLayerTree(imageDocumentRef.current.layers).map(({ node }) => node.id)
-        : []
-    );
-    commandHistory.getRetainedResourceIds().forEach((id) => {
-      keep.add(id as LayerId);
-    });
-    engineRef.current?.pruneLayerRuntimes(keep);
-  }, [commandHistory]);
-
-  const clearEditorHistory = useCallback(() => {
-    commandHistory.clear();
+  const finishOpenHistoryTransactions = useCallback(() => {
     resetAdjustmentTransactionRef.current();
     resetDocumentTransactionRef.current();
-    pruneHistoryRuntimes();
-  }, [commandHistory, pruneHistoryRuntimes]);
+  }, []);
 
-  const pushHistoryEntry = useCallback((entry: EditorHistoryEntry) => {
-    historyCommandSequenceRef.current += 1;
-    commandHistory.record({
-      id: `${workspaceDocumentId}:editor:${historyCommandSequenceRef.current}`,
-      type: entry.type ?? 'editor.mutation',
-      label: entry.label ?? 'Edit document',
-      documentId: workspaceDocumentId as DocumentSessionId,
-      affectsDocument: entry.documentMutation !== false,
-      byteSize: entry.byteSize,
-      resourceIds: entry.layerIds,
-      undo: entry.undo,
-      redo: entry.redo,
-      dispose: entry.dispose
-    });
-    pruneHistoryRuntimes();
-  }, [commandHistory, pruneHistoryRuntimes, workspaceDocumentId]);
+  const documentHistoryController = useDocumentHistoryController({
+    documentId: workspaceDocumentId as DocumentSessionId,
+    history: commandHistory,
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    finishOpenTransactions: finishOpenHistoryTransactions,
+    setError
+  });
+  const clearEditorHistory = documentHistoryController.clear;
+  const pushHistoryEntry = documentHistoryController.record;
 
   const applyDocumentSnapshot = useCallback((snapshot: ImageDocument) => {
     imageDocumentRef.current = snapshot;
@@ -912,27 +884,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     endAdjustmentTransaction();
   }, [endAdjustmentTransaction]);
 
-  const undoEditor = useCallback(async () => {
+  const undoEditor = useCallback(() => {
     endAdjustmentTransaction();
     endDocumentTransaction();
-    try {
-      await commandHistory.undo();
-      pruneHistoryRuntimes();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'LightTable undo failed.');
-    }
-  }, [commandHistory, endAdjustmentTransaction, endDocumentTransaction, pruneHistoryRuntimes]);
+    void documentHistoryController.undo();
+  }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
-  const redoEditor = useCallback(async () => {
+  const redoEditor = useCallback(() => {
     endAdjustmentTransaction();
     endDocumentTransaction();
-    try {
-      await commandHistory.redo();
-      pruneHistoryRuntimes();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'LightTable redo failed.');
-    }
-  }, [commandHistory, endAdjustmentTransaction, endDocumentTransaction, pruneHistoryRuntimes]);
+    void documentHistoryController.redo();
+  }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
   const loadBlobIntoEngine = useCallback(async (
     blob: Blob,
