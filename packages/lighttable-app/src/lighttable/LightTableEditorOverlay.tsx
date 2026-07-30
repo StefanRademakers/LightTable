@@ -30,6 +30,7 @@ import {
   type EditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
+import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
@@ -202,7 +203,6 @@ import {
   renameLayer,
   removeLayerMask,
   setActiveLayer,
-  setAdjustmentLayerStack,
   setLayerBlendMode,
   setLayerClipping,
   setLayerFillOpacity,
@@ -799,33 +799,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     snapshot: BasicAdjustments,
     targetLayerId: LayerId | null = null
   ) => {
-    const next = cloneAdjustments(snapshot);
-    adjustmentsRef.current = next;
-    setAdjustments(next);
-    let document = imageDocumentRef.current;
-    if (targetLayerId && document) {
-      const target = findDocumentLayer(document, targetLayerId);
-      if (target?.type === 'adjustment') {
-        documentAdjustmentsRef.current = {
-          ...documentAdjustmentsRef.current,
-          effects: structuredClone(next.effects)
-        };
-        document = setAdjustmentLayerStack(
-          document,
-          targetLayerId,
-          adjustmentStackForScope(
-            createAdjustmentStackFromBasicAdjustments(next, target.adjustmentStack),
-            'adjustment-layer'
-          )
-        );
-        imageDocumentRef.current = document;
-        setImageDocument(document);
-        engineRef.current?.setDocument(document);
-      }
-    } else {
-      documentAdjustmentsRef.current = next;
+    const projection = projectAdjustmentSnapshot({
+      snapshot,
+      targetLayerId,
+      document: imageDocumentRef.current,
+      documentAdjustments: documentAdjustmentsRef.current
+    });
+    adjustmentsRef.current = projection.editorAdjustments;
+    setAdjustments(projection.editorAdjustments);
+    documentAdjustmentsRef.current = projection.documentAdjustments;
+    if (projection.document !== imageDocumentRef.current) {
+      imageDocumentRef.current = projection.document;
+      setImageDocument(projection.document);
+      if (projection.document) engineRef.current?.setDocument(projection.document);
     }
-    const effective = effectiveDocumentAdjustments(document);
+    const effective = effectiveDocumentAdjustments(projection.document);
     engineRef.current?.setAdjustments(applyGroupVisibility(effective, groupVisibilityRef.current));
   }, [effectiveDocumentAdjustments]);
 

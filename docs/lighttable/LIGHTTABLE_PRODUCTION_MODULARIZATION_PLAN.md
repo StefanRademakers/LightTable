@@ -1250,3 +1250,5 @@ The refactor is successful when:
       controller.
 - [x] Move immutable document mutation, resource retention and coalesced
       document undo behind one identity-guarded transaction controller.
+- [x] Move document-grade versus Adjustment Layer projection into a pure,
+      tested application service that rejects stale layer targets explicitly.
