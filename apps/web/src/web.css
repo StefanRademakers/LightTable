@@ -8,9 +8,9 @@ body,
 }
 
 body {
-  background: #101215;
-  color: #eef2f7;
-  font-family: Inter, system-ui, sans-serif;
+  background: var(--lt-surface-app);
+  color: var(--lt-text-primary);
+  font-family: var(--lt-font-ui);
 }
 
 button,

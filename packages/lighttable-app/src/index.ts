@@ -1,3 +1,4 @@
+import './ui/theme.css';
 import './ui/primitives.css';
 
 export {

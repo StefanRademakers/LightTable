@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
-  font-family: Inter, system-ui, sans-serif;
-  background: #101216;
+  font-family: var(--lt-font-ui);
+  background: var(--lt-surface-menubar);
 }
 
 html,

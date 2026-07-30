@@ -1,0 +1,129 @@
+:root {
+  color-scheme: dark;
+
+  /*
+   * LightTable semantic theme
+   *
+   * Hosts may override these tokens, but LightTable owns their meaning.
+   * Component CSS must consume these roles instead of inventing nearby
+   * greys so the web and desktop builds remain visually identical.
+   */
+
+  /* Application and workspace surfaces */
+  --lt-surface-app: #101215;
+  --lt-surface-menubar: #101216;
+  --lt-surface-workspace: #080a0c;
+  --lt-surface-statusbar: #14171b;
+  --lt-surface-panel: #171a1f;
+  --lt-surface-panel-subtle: #111419;
+  --lt-surface-panel-raised: #1b1f25;
+  --lt-surface-section: #1c2026;
+  --lt-surface-tab: #1a1e23;
+  --lt-surface-tab-visible: #20242a;
+  --lt-surface-tab-active: #252a31;
+  --lt-surface-control: #1b1f25;
+  --lt-surface-control-hover: #252a31;
+  --lt-surface-inset: #0c0f13;
+  --lt-surface-plot: #05070a;
+  --lt-surface-overlay: rgb(0 0 0 / 62%);
+  --lt-surface-info: #18202a;
+
+  /* Borders and separators */
+  --lt-border-subtle: #252a30;
+  --lt-border: #30343a;
+  --lt-border-strong: #3a414a;
+  --lt-border-overlay: rgb(255 255 255 / 14%);
+  --lt-grid-line: rgb(255 255 255 / 10%);
+
+  /* Typography */
+  --lt-text-primary: #eef2f7;
+  --lt-text-secondary: #dce1e8;
+  --lt-text-muted: #aab2bd;
+  --lt-text-subtle: #77818e;
+  --lt-text-disabled: #747e8a;
+  --lt-text-on-accent: #fff;
+
+  /* Typography roles */
+  --lt-font-ui: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --lt-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --lt-type-micro: 9px;
+  --lt-type-caption: 10px;
+  --lt-type-label: 11px;
+  --lt-type-body: 12px;
+  --lt-type-heading: 13px;
+  --lt-type-body-large: 14px;
+  --lt-type-title-small: 16px;
+  --lt-type-title: 18px;
+  --lt-weight-medium: 600;
+  --lt-weight-semibold: 650;
+  --lt-weight-bold: 700;
+  --lt-leading-compact: 1;
+  --lt-leading-ui: 1.35;
+
+  /* Interaction */
+  --lt-accent: #568be0;
+  --lt-accent-hover: #72a2ef;
+  --lt-accent-strong: #2456a3;
+  --lt-accent-selected: #26344a;
+  --lt-accent-selected-subtle: #202a39;
+  --lt-accent-drop: rgb(66 116 196 / 28%);
+  --lt-focus-ring: #73a5f4;
+
+  /* Feedback */
+  --lt-danger: #ff9a9a;
+  --lt-danger-strong: #d85b62;
+  --lt-danger-surface: rgb(216 91 98 / 22%);
+  --lt-warning: #e6c36a;
+  --lt-success: #6fd49a;
+  --lt-info: #91a8d5;
+  --lt-preview: #c398e7;
+  --lt-gizmo: #f1f4f8;
+
+  /* Controls */
+  --lt-control-radius: 6px;
+  --lt-radius-xs: 2px;
+  --lt-radius-sm: 3px;
+  --lt-radius-md: 4px;
+  --lt-radius-lg: 8px;
+  --lt-radius-dialog: 12px;
+  --lt-radius-pill: 999px;
+  --lt-control-text-size: 12px;
+  --lt-control-border: rgb(226 231 232 / 24%);
+  --lt-control-text: rgb(226 231 232 / 86%);
+  --lt-slider-track: #4a515b;
+
+  /* Overlays and elevation */
+  --lt-backdrop: rgb(0 0 0 / 50%);
+  --lt-hover-overlay: rgb(255 255 255 / 8%);
+  --lt-divider-overlay: rgb(255 255 255 / 10%);
+  --lt-shadow-panel: 0 8px 24px rgb(0 0 0 / 40%);
+  --lt-shadow-dialog: 0 12px 40px rgb(0 0 0 / 40%);
+  --lt-shadow-editor: 0 18px 54px rgb(0 0 0 / 62%);
+
+  /* Data colours: semantic, not chrome */
+  --lt-channel-red: #ff424c;
+  --lt-channel-green: #34e070;
+  --lt-channel-blue: #488bff;
+
+  /*
+   * Transitional aliases for shared primitives and third-party integration.
+   * New LightTable CSS should use the --lt-* names above.
+   */
+  --color-text: var(--lt-text-primary);
+  --color-text-muted: var(--lt-text-muted);
+  --color-card: var(--lt-surface-panel);
+  --color-danger: var(--lt-danger);
+  --text-primary: var(--lt-text-primary);
+  --text-secondary: var(--lt-text-muted);
+  --panel-border: var(--lt-border);
+  --color-tab-active: var(--lt-accent);
+  --danger-color: var(--lt-danger);
+  --ui-control-radius: var(--lt-control-radius);
+  --ui-control-text-size: var(--lt-control-text-size);
+
+  /* Older debug-panel names now resolve deterministically in every host. */
+  --surface-primary: var(--lt-surface-panel);
+  --lighttable-border: var(--lt-border);
+  --lighttable-text: var(--lt-text-primary);
+  --lighttable-muted: var(--lt-text-muted);
+}
