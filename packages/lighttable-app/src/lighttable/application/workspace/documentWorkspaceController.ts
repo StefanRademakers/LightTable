@@ -39,7 +39,10 @@ export class DocumentWorkspaceController<TSource> {
   getSnapshot = (): WorkspaceSnapshot => this.workspace.getSnapshot();
 
   subscribe = (listener: () => void): (() => void) => {
-    this.assertUsable();
+    // External-store consumers may perform one final subscribe during a host
+    // teardown or React Strict Mode reconnect. The disposed snapshot is stable,
+    // so a no-op subscription is safer than crashing the complete UI tree.
+    if (this.disposed) return () => {};
     return this.workspace.subscribe(listener);
   };
 

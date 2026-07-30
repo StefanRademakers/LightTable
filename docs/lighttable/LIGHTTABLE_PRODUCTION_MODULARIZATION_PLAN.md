@@ -721,6 +721,8 @@ Work:
       selector instead of joining controller state throughout the React root;
 - [x] make standalone workspace ownership safe across React development Strict
       Mode cleanup/reconnect cycles;
+- [x] keep the external-store snapshot/subscription contract teardown-safe
+      while rejecting mutations after terminal workspace disposal;
 - [ ] replace the temporary mounted-overlay retention strategy with an explicit
       renderer suspend/resume lifecycle and a configurable GPU-memory budget.
 

@@ -58,4 +58,27 @@ describe('DocumentWorkspaceController', () => {
     expect(opened.value.getSnapshot().lifecycle).toBe('disposed');
     expect(() => controller.getSource(opened.value.id)).toThrow(/disposed/);
   });
+
+  it('keeps the external-store read contract safe after terminal disposal', () => {
+    const controller = new DocumentWorkspaceController<string>({
+      createId: ids('one')
+    });
+    const opened = controller.open({ source: source('first'), payload: 'source' });
+    if (!opened.ok) throw new Error('Fixture failed to open.');
+
+    controller.dispose();
+
+    expect(controller.getSnapshot()).toMatchObject({
+      activeDocumentId: null,
+      documentOrder: []
+    });
+    const unsubscribe = controller.subscribe(() => {
+      throw new Error('A disposed controller must never publish again.');
+    });
+    expect(unsubscribe()).toBeUndefined();
+    expect(() => controller.open({
+      source: source('second'),
+      payload: 'source'
+    })).toThrow(/disposed/);
+  });
 });
