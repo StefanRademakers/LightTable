@@ -1226,3 +1226,5 @@ The refactor is successful when:
 - [x] Give Layer Style preview/editing one document-safe transaction controller
       that restores on cancel, commits one history step and always releases
       renderer interaction.
+- [x] Move transform launch, preview, commit/cancel, selection publication and
+      pixel-history ownership into a document-scoped session controller.
