@@ -162,6 +162,24 @@ describe('WorkspaceSession', () => {
     expect(workspaceListener).toHaveBeenCalled();
   });
 
+  it('keeps a disposed document external-store subscription safe', () => {
+    const workspace = new WorkspaceSession({
+      createId: ids('one')
+    });
+    const opened = workspace.open({ source: source('first') });
+    if (!opened.ok) throw new Error('Fixture failed to open.');
+
+    workspace.close(opened.value.id, { discardChanges: true });
+
+    expect(opened.value.getSnapshot().lifecycle).toBe('disposed');
+    const unsubscribe = opened.value.subscribe(() => {
+      throw new Error('A disposed document must never publish again.');
+    });
+    expect(unsubscribe()).toBeUndefined();
+    expect(() => opened.value.setDocument(null)).toThrow(/disposed/);
+    expect(() => opened.value.updateEditor((current) => current)).toThrow(/disposed/);
+  });
+
   it('keeps command history and dirty checkpoints isolated per document', async () => {
     const workspace = new WorkspaceSession({
       createId: ids('one', 'two')

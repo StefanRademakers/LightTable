@@ -143,7 +143,11 @@ export class DocumentSession {
   getSnapshot = (): DocumentSessionSnapshot => this.snapshot;
 
   subscribe = (listener: DocumentSessionListener): (() => void) => {
-    this.assertUsable();
+    // React external-store consumers may reconnect a passive subscription
+    // after the owning tab has entered terminal teardown. A disposed session
+    // has a stable final snapshot and can never publish again, so subscribing
+    // to it is a harmless no-op. Mutations and resource access remain guarded.
+    if (this.snapshot.lifecycle === 'disposed') return () => {};
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
