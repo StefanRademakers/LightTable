@@ -116,6 +116,10 @@ import {
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import {
+  executeFillOperation,
+  srgbHexToLinearRgb
+} from './application/tools/fill/fillOperation';
+import {
   useDocumentEditorSession,
   useDocumentViewportState
 } from './editor/hooks/useDocumentEditorState';
@@ -2974,72 +2978,36 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     cursor.style.transform = `translate3d(${point.x - diameter / 2}px, ${point.y - diameter / 2}px, 0)`;
   };
 
-  const linearBrushColor = (hex: string): [number, number, number] => {
-    const channel = (offset: number) => {
-      const encoded = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
-      return encoded <= 0.04045 ? encoded / 12.92 : ((encoded + 0.055) / 1.055) ** 2.4;
-    };
-    return [channel(1), channel(3), channel(5)];
-  };
-
   const fillActiveTarget = (color: string) => {
     const current = imageDocumentRef.current;
     const engine = engineRef.current;
-    if (!current || !engine || !current.activeLayerId) return;
+    if (!current || !engine) return;
     const channel = editorSession.activeChannel;
-    const layer = channel === 'mask'
-      ? findDocumentLayer(current, current.activeLayerId)
-      : findRasterLayer(current, current.activeLayerId);
-    if (!layer) {
-      setError(channel === 'mask'
-        ? 'Select a layer with an editable mask before filling.'
-        : 'Select a raster layer before filling.');
+    const result = executeFillOperation(current, engine, channel, color);
+    if (!result.ok) {
+      setError(result.message);
       return;
     }
-    try {
-      engine.beginBrushStroke(layer, channel);
-      const preserveTransparency = channel === 'pixels'
-        && layer.type === 'raster'
-        && layer.locks.transparency;
-      if (!engine.fillLayerColor(
-        layer.id,
-        channel,
-        linearBrushColor(color),
-        preserveTransparency
-      )) {
-        engine.cancelPixelEdit();
-        throw new Error('The active fill target is not available on the GPU.');
-      }
-      const pixelEdit = engine.finishPixelEdit();
-      if (!pixelEdit) throw new Error('The fill operation could not create an undo snapshot.');
-      const dirtyBounds = { x: 0, y: 0, width: current.width, height: current.height };
-      const next = channel === 'mask'
-        ? markLayerMaskPixelsChanged(current, layer.id, dirtyBounds)
-        : markLayerPixelsChanged(current, layer.id, dirtyBounds);
-      applyDocumentSnapshot(next);
-      pushHistoryEntry({
-        byteSize: pixelEdit.byteSize,
-        layerIds: [layer.id],
-        undo: () => {
-          if (!engineRef.current?.applyPixelHistory(pixelEdit, 'undo')) {
-            throw new Error('Fill undo is no longer available.');
-          }
-          applyDocumentSnapshot(current);
-        },
-        redo: () => {
-          if (!engineRef.current?.applyPixelHistory(pixelEdit, 'redo')) {
-            throw new Error('Fill redo is no longer available.');
-          }
-          applyDocumentSnapshot(next);
-        },
-        dispose: pixelEdit.destroy
-      });
-      setError(null);
-      setGradeStatus(`${channel === 'mask' ? 'Mask' : layer.name} filled with ${color.toUpperCase()}`);
-    } catch (reason) {
-      engine.cancelPixelEdit();
-      setError(reason instanceof Error ? reason.message : 'The active target could not be filled.');
-    }
+    applyDocumentSnapshot(result.document);
+    pushHistoryEntry({
+      byteSize: result.pixelEdit.byteSize,
+      layerIds: [result.layerId],
+      undo: () => {
+        if (!engineRef.current?.applyPixelHistory(result.pixelEdit, 'undo')) {
+          throw new Error('Fill undo is no longer available.');
+        }
+        applyDocumentSnapshot(current);
+      },
+      redo: () => {
+        if (!engineRef.current?.applyPixelHistory(result.pixelEdit, 'redo')) {
+          throw new Error('Fill redo is no longer available.');
+        }
+        applyDocumentSnapshot(result.document);
+      },
+      dispose: result.pixelEdit.destroy
+    });
+    setError(null);
+    setGradeStatus(`${result.targetLabel} filled with ${color.toUpperCase()}`);
   };
   fillActiveTargetRef.current = fillActiveTarget;
 
@@ -3050,7 +3018,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       update.target.layerId,
       update.target.channel,
       update.dabs,
-      linearBrushColor(brush.color),
+      srgbHexToLinearRgb(brush.color) ?? [0, 0, 0],
       brush.hardness,
       brush.opacity,
       brush.flow,

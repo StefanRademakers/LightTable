@@ -826,7 +826,9 @@ Work:
       isolated controller;
 - [x] migrate paint/erase gesture ownership, dab sampling, dirty bounds and
       fixed target transforms into an isolated controller;
-- migrate fill and transform controllers;
+- [x] migrate fill target validation, color conversion, renderer transaction
+      and document revision into one typed application operation;
+- migrate transform controller;
 - remove feature-specific global listeners from the overlay.
 
 Milestone note:
@@ -856,6 +858,11 @@ new tool can no longer silently exist in one input path but not another.
 Space-to-pan now uses a small idempotent transient-tool controller. It never
 mutates the document's selected tool, repeated key events cannot unbalance it,
 and switching documents or losing window focus clears the override.
+
+Fill now resolves pixels versus masks, validates color and target, executes one
+cancel-safe renderer transaction, and returns a typed document revision plus
+undo snapshot. The composition layer only publishes that result and registers
+document-local history.
 
 Exit criteria:
 
