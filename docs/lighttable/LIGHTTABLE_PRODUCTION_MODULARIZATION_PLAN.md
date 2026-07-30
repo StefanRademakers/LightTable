@@ -1398,3 +1398,7 @@ The refactor is successful when:
 - [x] Project the complete editor-menu read model through one pure query;
       document traversal, auto-align eligibility and blend/flatten presentation
       no longer live in the React composition root.
+- [x] Move backdrop containment, application header, menu mounting, tool options,
+      toolbar and host-neutral file-input surfaces into one editor shell. The
+      document composition root now supplies projected state and commands only,
+      with no document, renderer or host service access in the shell.

@@ -1,6 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SquareIconButton } from '../ui/SquareIconButton';
-import { lightTableIcon } from '../assets/icons';
 import {
   DocumentCommandHistory
 } from './application/commands/documentCommandHistory';
@@ -75,13 +73,11 @@ import {
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
 import { ScopesPanel } from './ScopesPanel';
-import { EditorToolbar } from './editor/ui/EditorToolbar';
 import { LayerPanel } from './editor/ui/LayerPanel';
 import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
-import { ToolOptionsBar } from './editor/ui/ToolOptionsBar';
-import { EditorMenuBar } from './editor/ui/EditorMenuBar';
 import { EditorDialogs } from './editor/ui/EditorDialogs';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
+import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import { DebugPanel } from './editor/ui/DebugPanel';
 import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
 import { EditorStatusBar } from './editor/ui/EditorStatusBar';
@@ -1407,72 +1403,70 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   if (!open) return null;
 
-  return (
-    <div
-      className={`modal-backdrop lighttable-backdrop${active ? '' : ' lighttable-backdrop--inactive'}`}
-      aria-hidden={!active}
-      onClick={(event) => {
-        // Context menus render through a portal. Their React events can still
-        // bubble through this component tree, so only a direct backdrop click
-        // is allowed to close the editor.
-        if (event.target === event.currentTarget && !saving) onClose();
-      }}
-    >
-      <div
-        className="modal lighttable"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="modal__header concept-art-editor__header lighttable__header">
-          <div className="lighttable__header-left">
-            <EditorMenuBar optionsFor={createAppMenuOptions} />
-          </div>
-          <SquareIconButton
-            className="lighttable__close-button"
-            onClick={onClose}
-            disabled={saving}
-            title="Close editor"
-            aria-label="Close editor"
-            icon={<img src={lightTableIcon('close.png')} alt="" aria-hidden />}
-          />
-        </div>
-        <ToolOptionsBar
-          activeTool={temporaryPanActive ? 'view' : editorSession.activeTool}
-          brush={editorSession.brush}
-          onBrushChange={(change) => setEditorSession((current) => ({
-            ...current,
-            brush: { ...current.brush, ...change }
-          }))}
-        />
-        <input ref={fileInputRef} type="file" accept={imagePickerAccept('fast')} hidden onChange={handleLocalFile} />
-        <input ref={advancedFileInputRef} type="file" accept={imagePickerAccept('preserve-precision')} hidden onChange={handleAdvancedLocalFile} />
+  const visibleTool = temporaryPanActive ? 'view' : editorSession.activeTool;
+  const updateBrush = (change: Partial<EditorSession['brush']>) => {
+    setEditorSession((current) => ({
+      ...current,
+      brush: { ...current.brush, ...change }
+    }));
+  };
 
-        <div className="lighttable__body">
-          <EditorToolbar
-            activeTool={temporaryPanActive ? 'view' : editorSession.activeTool}
-            foregroundColor={editorSession.brush.color}
-            backgroundColor={editorSession.brush.backgroundColor}
-            onToolChange={activatePersistentTool}
-            onForegroundColorChange={(color) => setEditorSession((current) => ({
-              ...current,
-              brush: { ...current.brush, color }
-            }))}
-            onBackgroundColorChange={(backgroundColor) => setEditorSession((current) => ({
-              ...current,
-              brush: { ...current.brush, backgroundColor }
-            }))}
-            onSwapColors={() => setEditorSession((current) => ({
-              ...current,
-              brush: {
-                ...current.brush,
-                color: current.brush.backgroundColor,
-                backgroundColor: current.brush.color
-              }
-            }))}
-            onResetColors={() => setEditorSession((current) => ({
-              ...current,
-              brush: { ...current.brush, color: '#000000', backgroundColor: '#ffffff' }
-            }))}
+  return (
+    <LightTableEditorShell
+      active={active}
+      saving={saving}
+      onClose={onClose}
+      menuOptionsFor={createAppMenuOptions}
+      activeTool={visibleTool}
+      brush={editorSession.brush}
+      onBrushChange={updateBrush}
+      onToolChange={activatePersistentTool}
+      onForegroundColorChange={(color) => updateBrush({ color })}
+      onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}
+      onSwapColors={() => updateBrush({
+        color: editorSession.brush.backgroundColor,
+        backgroundColor: editorSession.brush.color
+      })}
+      onResetColors={() => updateBrush({
+        color: '#000000',
+        backgroundColor: '#ffffff'
+      })}
+      fileInputRef={fileInputRef}
+      advancedFileInputRef={advancedFileInputRef}
+      fastFileAccept={imagePickerAccept('fast')}
+      precisionFileAccept={imagePickerAccept('preserve-precision')}
+      onFastFileChange={handleLocalFile}
+      onPrecisionFileChange={handleAdvancedLocalFile}
+      overlays={(
+        <>
+          {styleEditorRequest ? (() => {
+            const current = imageDocumentRef.current;
+            const layer = current ? findDocumentLayer(current, styleEditorRequest.layerId) : null;
+            return layer?.type === 'raster' ? (
+              <div className="lighttable-style-editor-shield">
+                <LayerStyleEditor
+                  key={`${styleEditorRequest.layerId}:${styleEditorRequest.before.revision}`}
+                  layerName={layer.name}
+                  initialStack={layer.styleStack}
+                  initialEffectId={styleEditorRequest.effectId}
+                  onPreview={previewLayerStyleStack}
+                  onCancel={cancelLayerStyleEditor}
+                  onCommit={commitLayerStyleEditor}
+                />
+              </div>
+            ) : null;
+          })() : null}
+          <EditorDialogs
+            controller={editorDialogs}
+            photoshopReport={imageDocument?.photoshopImportReport ?? null}
+            differenceMetrics={psdDifferenceMetrics}
+            onFeather={featherCurrentSelection}
+            onFlatten={commitFlattenRequest}
+            onError={setError}
           />
+        </>
+      )}
+    >
           <LightTableDockWorkspace
             ref={workspaceRef}
             documents={(workspaceDocuments ?? [{
@@ -1669,33 +1663,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               />
             )}
           />
-        </div>
-      </div>
-      {styleEditorRequest ? (() => {
-        const current = imageDocumentRef.current;
-        const layer = current ? findDocumentLayer(current, styleEditorRequest.layerId) : null;
-        return layer?.type === 'raster' ? (
-          <div className="lighttable-style-editor-shield">
-            <LayerStyleEditor
-              key={`${styleEditorRequest.layerId}:${styleEditorRequest.before.revision}`}
-              layerName={layer.name}
-              initialStack={layer.styleStack}
-              initialEffectId={styleEditorRequest.effectId}
-              onPreview={previewLayerStyleStack}
-              onCancel={cancelLayerStyleEditor}
-              onCommit={commitLayerStyleEditor}
-            />
-          </div>
-        ) : null;
-      })() : null}
-      <EditorDialogs
-        controller={editorDialogs}
-        photoshopReport={imageDocument?.photoshopImportReport ?? null}
-        differenceMetrics={psdDifferenceMetrics}
-        onFeather={featherCurrentSelection}
-        onFlatten={commitFlattenRequest}
-        onError={setError}
-      />
-    </div>
+    </LightTableEditorShell>
   );
 };
