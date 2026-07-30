@@ -1245,3 +1245,6 @@ The refactor is successful when:
 - [x] Move pointer- and command-driven selection publication behind one
       document-scoped controller with stale async rejection and selection-only
       undo/redo transactions.
+- [x] Move Grade and Lens Fx preview quality, target locking, mutation and
+      coalesced undo behind one document-scoped adjustment transaction
+      controller.

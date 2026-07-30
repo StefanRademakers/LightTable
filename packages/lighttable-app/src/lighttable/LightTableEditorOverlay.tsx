@@ -28,6 +28,7 @@ import {
   resolveEditorKeyboardCommand,
   type EditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
+import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
@@ -347,9 +348,6 @@ type LightTableAppMenuId = 'file' | 'edit' | 'select' | 'view' | 'layer';
 
 const cloneAdjustments = cloneAllAdjustments;
 
-const adjustmentsEqual = (left: BasicAdjustments, right: BasicAdjustments) =>
-  JSON.stringify(left) === JSON.stringify(right);
-
 const scopeEngineOptions = (visibility: ScopeVisibility, settings: ScopeSettings) => ({
   // The Hue Distribution also drives the compact Color Mixer picker. Keep
   // its inexpensive 256-bin analysis alive when the standalone scope is
@@ -448,8 +446,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const historyCommandSequenceRef = useRef(0);
-  const adjustmentTransactionRef = useRef<BasicAdjustments | null>(null);
-  const adjustmentTransactionTargetRef = useRef<LayerId | null>(null);
+  const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const documentTransactionRef = useRef<ImageDocument | null>(null);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>([]);
   const paintGestureRef = useRef(new PaintGestureController());
@@ -845,8 +842,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const clearEditorHistory = useCallback(() => {
     commandHistory.clear();
-    adjustmentTransactionRef.current = null;
-    adjustmentTransactionTargetRef.current = null;
+    resetAdjustmentTransactionRef.current();
     documentTransactionRef.current = null;
     pruneHistoryRuntimes();
   }, [commandHistory, pruneHistoryRuntimes]);
@@ -896,19 +892,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (before && after && before !== after) pushDocumentHistory(before, after);
   }, [pushDocumentHistory]);
 
-  const pushAdjustmentHistory = useCallback((
-    before: BasicAdjustments,
-    after: BasicAdjustments,
-    targetLayerId: LayerId | null
-  ) => {
-    const previous = cloneAdjustments(before);
-    const next = cloneAdjustments(after);
-    pushHistoryEntry({
-      undo: () => applyAdjustmentSnapshot(previous, targetLayerId),
-      redo: () => applyAdjustmentSnapshot(next, targetLayerId)
-    });
-  }, [applyAdjustmentSnapshot, pushHistoryEntry]);
-
   const selectionSessionController = useSelectionSessionController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
@@ -921,34 +904,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setError
   }, selectionGestureRef.current);
 
-  const beginAdjustmentTransaction = useCallback(() => {
-    if (adjustmentTransactionRef.current) return;
-    engineRef.current?.setScopeInteractionActive(true);
-    // Any upstream adjustment invalidates enabled downstream effects. Keep
-    // expensive lens blur at interactive quality for the complete drag, not
-    // only while one of its own controls is moving.
-    engineRef.current?.setLensBlurInteractionActive(true);
-    adjustmentTransactionRef.current = cloneAdjustments(adjustmentsRef.current);
-    const active = imageDocumentRef.current
-      ? findDocumentLayer(imageDocumentRef.current, imageDocumentRef.current.activeLayerId)
-      : null;
-    adjustmentTransactionTargetRef.current = active?.type === 'adjustment' ? active.id : null;
-  }, []);
+  const adjustmentTransactionController = useAdjustmentTransactionController({
+    getDocumentId: () => imageDocumentRef.current?.id ?? null,
+    getAdjustments: () => adjustmentsRef.current,
+    getActiveTargetLayerId: () => {
+      const document = imageDocumentRef.current;
+      if (!document) return null;
+      const active = findDocumentLayer(document, document.activeLayerId);
+      return active?.type === 'adjustment' ? active.id : null;
+    },
+    getRenderer: () => engineRef.current,
+    applySnapshot: applyAdjustmentSnapshot,
+    pushHistoryEntry
+  });
+  resetAdjustmentTransactionRef.current = adjustmentTransactionController.reset;
 
-  const endAdjustmentTransaction = useCallback(() => {
-    if (!adjustmentTransactionRef.current) return;
-    engineRef.current?.setScopeInteractionActive(false);
-    const before = adjustmentTransactionRef.current;
-    const targetLayerId = adjustmentTransactionTargetRef.current;
-    adjustmentTransactionRef.current = null;
-    adjustmentTransactionTargetRef.current = null;
-    if (before && !adjustmentsEqual(before, adjustmentsRef.current)) {
-      pushAdjustmentHistory(before, adjustmentsRef.current, targetLayerId);
-    }
-    // Re-render once at final quality after the exact last slider value has
-    // been flushed by AdjustmentSlider.
-    engineRef.current?.setLensBlurInteractionActive(false);
-  }, [pushAdjustmentHistory]);
+  const beginAdjustmentTransaction = adjustmentTransactionController.begin;
+  const endAdjustmentTransaction = adjustmentTransactionController.end;
+  const changeAdjustments = adjustmentTransactionController.change;
 
   const beginLensBlurInteraction = useCallback(() => {
     beginAdjustmentTransaction();
@@ -957,18 +930,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const endLensBlurInteraction = useCallback(() => {
     endAdjustmentTransaction();
   }, [endAdjustmentTransaction]);
-
-  const changeAdjustments = useCallback((change: (current: BasicAdjustments) => BasicAdjustments) => {
-    const before = cloneAdjustments(adjustmentsRef.current);
-    const next = change(cloneAdjustments(before));
-    if (adjustmentsEqual(before, next)) return;
-    const active = imageDocumentRef.current
-      ? findDocumentLayer(imageDocumentRef.current, imageDocumentRef.current.activeLayerId)
-      : null;
-    const targetLayerId = active?.type === 'adjustment' ? active.id : null;
-    applyAdjustmentSnapshot(next, targetLayerId);
-    if (!adjustmentTransactionRef.current) pushAdjustmentHistory(before, next, targetLayerId);
-  }, [applyAdjustmentSnapshot, pushAdjustmentHistory]);
 
   const undoEditor = useCallback(async () => {
     endAdjustmentTransaction();
