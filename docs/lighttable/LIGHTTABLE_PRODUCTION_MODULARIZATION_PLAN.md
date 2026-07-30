@@ -1215,3 +1215,7 @@ The refactor is successful when:
       renderer while preserving compositor order and exact neutral bypass.
 - [x] Make visible Adjustment Layer detection part of the tested compositor
       graph instead of an engine-local recursive predicate.
+- [x] Extract the document canvas and its visual overlays into a host-agnostic
+      viewport surface; pointer interpretation remains in tool controllers.
+- [x] Extract the status/footer presentation from the editor root while
+      preserving PSD report access and startup/GPU diagnostics.

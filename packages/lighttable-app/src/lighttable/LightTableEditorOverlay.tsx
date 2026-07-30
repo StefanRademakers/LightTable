@@ -108,6 +108,8 @@ import {
 import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
 import { ToolOptionsBar } from './editor/ui/ToolOptionsBar';
 import { DebugPanel } from './editor/ui/DebugPanel';
+import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
+import { EditorStatusBar } from './editor/ui/EditorStatusBar';
 import {
   type LightTableDebugMessage,
   type LightTableDebugSeverity
@@ -263,7 +265,6 @@ import {
   pointInsideRect,
   zoomViewAtPoint
 } from './editor/tools/pointer/viewportCoordinates';
-import { TransformOverlay } from './editor/tools/transform/TransformOverlay';
 import { selectionOperationsBounds } from './editor/tools/transform/selectionTransform';
 import type { AffineMatrix, TransformSessionState } from './editor/tools/transform/transformTypes';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
@@ -274,7 +275,6 @@ import {
   type SelectionOperation,
   type SelectionShape
 } from './editor/selection/selectionTypes';
-import { SelectionOverlay } from './editor/selection/SelectionOverlay';
 import {
   DEFAULT_SCOPE_SETTINGS,
   DEFAULT_SCOPE_VISIBILITY,
@@ -4382,6 +4382,56 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     <div className="lighttable-layers-panel lighttable-layers-panel--empty">No document layers</div>
   );
 
+  const statusBarReportAvailable = Boolean(imageDocument?.photoshopImportReport);
+  const statusBarMetaTitle = [
+    formatStartupTimings(startupTimings),
+    psdImportInfo
+      ? [
+          'PSD layers are reconstructed by LightTable; the embedded Photoshop composite is retained only as the in-session Original/reference view and is not duplicated in native saves.',
+          `${psdImportInfo.inventory.layers} layers; ${psdImportInfo.inventory.groups} groups; `
+            + `${psdImportInfo.inventory.masks} masks; ${psdImportInfo.inventory.layerStyles} styled layers; `
+            + `${psdImportInfo.inventory.adjustments} adjustment layers; ${psdImportInfo.inventory.smartObjects} smart objects.`,
+          psdCompatibilitySummary ? `Semantic import support: ${psdCompatibilitySummary}.` : '',
+          psdDifferenceMetrics
+            ? `Reference difference: ${psdDifferenceMetrics.differingPixelPercentage.toFixed(3)}% above `
+              + `${Math.round(psdDifferenceMetrics.threshold * 255)}/255; mean RGB error `
+              + `${(psdDifferenceMetrics.meanAbsoluteRgbError * 100).toFixed(3)}%; maximum channel error `
+              + `${(psdDifferenceMetrics.maximumChannelError * 100).toFixed(2)}%; `
+              + `${psdDifferenceMetrics.sampledPixels.toLocaleString()} sampled pixels `
+              + `(stride ${psdDifferenceMetrics.stride}).`
+            : '',
+          ...psdImportInfo.warnings
+        ].join('\n')
+      : '',
+    gpuMemoryBytes > 0
+      ? 'GPU memory is an estimate of LightTable-owned textures; browsers do not expose driver VRAM usage.'
+      : ''
+  ].filter(Boolean).join('\n') || undefined;
+  const statusBarMeta = metadata
+    ? [
+        `${metadata.width} × ${metadata.height}`,
+        `${Math.round(activeScale * 100)}%`,
+        metadata.decoder === 'wasm-vips'
+          ? [
+              `${metadata.sourceBitDepth}-bit ${metadata.sourceFormat}`,
+              metadata.sourceProfile,
+              'wasm-vips',
+              `${Math.round(metadata.decodeDurationMs ?? 0)} ms`
+            ].filter(Boolean).join(' · ')
+          : metadata.decoder === 'ag-psd'
+            ? [
+                `${metadata.sourceBitDepth}-bit ${metadata.sourceFormat}`,
+                metadata.sourceInterpretation,
+                'Photoshop composite'
+              ].filter(Boolean).join(' · ')
+            : null,
+        startupTimings?.firstFrameMs !== undefined
+          ? `ready ${Math.round(startupTimings.firstFrameMs)} ms`
+          : null,
+        gpuMemoryBytes > 0 ? `GPU ~${formatGpuMemory(gpuMemoryBytes)}` : null
+      ].filter(Boolean).join(' · ')
+    : 'No image';
+
   if (!open) return null;
 
   return (
@@ -4474,128 +4524,45 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   },
               content: workspaceDocument.id === workspaceDocumentId ? (
                 <section className="lighttable__main">
-            <div
-              ref={viewportRef}
-              className={`lighttable-viewport lighttable-viewport--${temporaryPanActive ? 'view' : editorSession.activeTool}${dragRef.current ? ' lighttable-viewport--dragging' : ''}${focusPickerActive ? ' lighttable-viewport--focus-picker' : ''}`}
-              onWheel={handleWheel}
-              onPointerDown={beginViewportPointer}
-              onPointerMove={moveViewportPointer}
-              onPointerUp={endViewportPointer}
-              onPointerCancel={cancelViewportPointer}
-              onPointerLeave={() => {
-                if (!paintGestureRef.current.active && brushCursorRef.current) {
-                  brushCursorCenterRef.current = null;
-                  brushCursorRef.current.style.opacity = '0';
-                }
-              }}
-            >
-              <canvas ref={canvasRef} className="lighttable-viewport__canvas" />
-              {isPaintTool(editorSession.activeTool) && !temporaryPanActive ? (
-                <div ref={brushCursorRef} className="lighttable-brush-cursor" aria-hidden="true" />
-              ) : null}
-              {editorSession.activeTool !== 'view' && (editorSession.selection.length || selectionDraft) ? (
-                <SelectionOverlay
-                  operations={editorSession.selection}
-                  draft={selectionDraft}
-                  imageRect={imageRect}
-                  scale={activeScale}
-                  width={viewportSize.width}
-                  height={viewportSize.height}
-                />
-              ) : null}
-              {transformState ? (
-                <TransformOverlay
-                  state={transformState}
-                  imageRect={imageRect}
-                  scale={activeScale}
-                  width={viewportSize.width}
-                  height={viewportSize.height}
-                  onChange={updateTransformMatrix}
-                />
-              ) : null}
-              {loading ? <div className="lighttable-viewport__message">Loading image and WebGPU pipeline...</div> : null}
-              {!loading && error && !metadata ? <div className="lighttable-viewport__message">LightTable is unavailable for this image.</div> : null}
-            </div>
+                  <DocumentViewportSurface
+                    viewportRef={viewportRef}
+                    canvasRef={canvasRef}
+                    brushCursorRef={brushCursorRef}
+                    activeTool={editorSession.activeTool}
+                    temporaryPanActive={temporaryPanActive}
+                    dragging={Boolean(dragRef.current)}
+                    focusPickerActive={focusPickerActive}
+                    showBrushCursor={isPaintTool(editorSession.activeTool)}
+                    selection={editorSession.selection}
+                    selectionDraft={selectionDraft}
+                    imageRect={imageRect}
+                    scale={activeScale}
+                    viewportSize={viewportSize}
+                    transformState={transformState}
+                    loading={loading}
+                    unavailable={Boolean(error && !metadata)}
+                    onWheel={handleWheel}
+                    onPointerDown={beginViewportPointer}
+                    onPointerMove={moveViewportPointer}
+                    onPointerUp={endViewportPointer}
+                    onPointerCancel={cancelViewportPointer}
+                    onPointerLeave={() => {
+                      if (!paintGestureRef.current.active && brushCursorRef.current) {
+                        brushCursorCenterRef.current = null;
+                        brushCursorRef.current.style.opacity = '0';
+                      }
+                    }}
+                    onTransformChange={updateTransformMatrix}
+                  />
 
-            <footer className="lighttable-toolbar">
-              <div
-                className={`lighttable-toolbar__status${error ? ' lighttable-toolbar__status--error' : ''}`}
-                title={error ?? gradeStatus ?? undefined}
-              >
-                {error ?? gradeStatus ?? ''}
-              </div>
-              <div
-                className={`lighttable-toolbar__meta${
-                  imageDocument?.photoshopImportReport ? ' lighttable-toolbar__meta--report' : ''
-                }`}
-                role={imageDocument?.photoshopImportReport ? 'button' : undefined}
-                tabIndex={imageDocument?.photoshopImportReport ? 0 : undefined}
-                onClick={() => {
-                  if (imageDocument?.photoshopImportReport) setPsdReportOpen(true);
-                }}
-                onKeyDown={(event) => {
-                  if (
-                    imageDocument?.photoshopImportReport
-                    && (event.key === 'Enter' || event.key === ' ')
-                  ) {
-                    event.preventDefault();
-                    setPsdReportOpen(true);
-                  }
-                }}
-                title={[
-                  formatStartupTimings(startupTimings),
-                  psdImportInfo
-                    ? [
-                        'PSD layers are reconstructed by LightTable; the embedded Photoshop composite is retained only as the in-session Original/reference view and is not duplicated in native saves.',
-                        `${psdImportInfo.inventory.layers} layers; ${psdImportInfo.inventory.groups} groups; `
-                          + `${psdImportInfo.inventory.masks} masks; ${psdImportInfo.inventory.layerStyles} styled layers; `
-                          + `${psdImportInfo.inventory.adjustments} adjustment layers; ${psdImportInfo.inventory.smartObjects} smart objects.`,
-                        psdCompatibilitySummary
-                          ? `Semantic import support: ${psdCompatibilitySummary}.`
-                          : '',
-                        psdDifferenceMetrics
-                          ? `Reference difference: ${psdDifferenceMetrics.differingPixelPercentage.toFixed(3)}% above `
-                            + `${Math.round(psdDifferenceMetrics.threshold * 255)}/255; mean RGB error `
-                            + `${(psdDifferenceMetrics.meanAbsoluteRgbError * 100).toFixed(3)}%; maximum channel error `
-                            + `${(psdDifferenceMetrics.maximumChannelError * 100).toFixed(2)}%; `
-                            + `${psdDifferenceMetrics.sampledPixels.toLocaleString()} sampled pixels `
-                            + `(stride ${psdDifferenceMetrics.stride}).`
-                          : '',
-                        ...psdImportInfo.warnings
-                      ].join('\n')
-                    : '',
-                  gpuMemoryBytes > 0
-                    ? 'GPU memory is an estimate of LightTable-owned textures; browsers do not expose driver VRAM usage.'
-                    : ''
-                ].filter(Boolean).join('\n') || undefined}
-              >
-                {metadata
-                  ? [
-                      `${metadata.width} × ${metadata.height}`,
-                      `${Math.round(activeScale * 100)}%`,
-                      metadata.decoder === 'wasm-vips'
-                        ? [
-                            `${metadata.sourceBitDepth}-bit ${metadata.sourceFormat}`,
-                            metadata.sourceProfile,
-                            'wasm-vips',
-                            `${Math.round(metadata.decodeDurationMs ?? 0)} ms`
-                          ].filter(Boolean).join(' · ')
-                        : metadata.decoder === 'ag-psd'
-                          ? [
-                              `${metadata.sourceBitDepth}-bit ${metadata.sourceFormat}`,
-                              metadata.sourceInterpretation,
-                              'Photoshop composite'
-                            ].filter(Boolean).join(' · ')
-                          : null,
-                      startupTimings?.firstFrameMs !== undefined
-                        ? `ready ${Math.round(startupTimings.firstFrameMs)} ms`
-                        : null,
-                      gpuMemoryBytes > 0 ? `GPU ~${formatGpuMemory(gpuMemoryBytes)}` : null
-                    ].filter(Boolean).join(' · ')
-                  : 'No image'}
-              </div>
-              <div aria-hidden="true" />
-            </footer>
+                  <EditorStatusBar
+                    status={error ?? gradeStatus ?? ''}
+                    error={Boolean(error)}
+                    meta={statusBarMeta}
+                    metaTitle={statusBarMetaTitle}
+                    reportAvailable={statusBarReportAvailable}
+                    onOpenReport={() => setPsdReportOpen(true)}
+                  />
                 </section>
               ) : null
             }))}
