@@ -1232,3 +1232,5 @@ The refactor is successful when:
       construction into a host-neutral document export service.
 - [x] Make the canonical immutable `ImageDocument` tree owned by its
       `DocumentSession`, with a synchronous React adapter for GPU/tool callbacks.
+- [x] Move loaded-document grade materialization, renderer hydration and PSD
+      reconstruction comparison behind one host-neutral application transaction.

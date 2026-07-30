@@ -20,6 +20,7 @@ import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
 import { loadDocumentSource } from './application/documents/loadDocumentSource';
+import { hydrateDocumentSource } from './application/documents/hydrateDocumentSource';
 import { exportLightTableDocument } from './application/documents/exportLightTableDocument';
 import {
   isTemporaryPanRelease,
@@ -1058,11 +1059,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setImageDocument(nextDocument);
     setThumbnailDocumentReadyId(nextDocument.id);
     if (isCanceled()) return;
-    const nextAdjustments = cloneAdjustments(
-      layeredAdjustmentStack
-        ? materializeBasicAdjustments(layeredAdjustmentStack)
-        : initialAdjustments
-    );
     setMetadata(nextMetadata);
     setPsdImportInfo(psdImport
       ? { ...psdImport, warnings: [...psdWarnings] }
@@ -1086,42 +1082,34 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setLensBlurViewportModeState('result');
     engineRef.current?.setLensBlurDepthVisualization(false);
     clearEditorHistory();
-    documentAdjustmentsRef.current = nextAdjustments;
-    adjustmentsRef.current = nextAdjustments;
-    setAdjustments(nextAdjustments);
-    if (layeredAdjustmentStack) engine.setAdjustmentStack(layeredAdjustmentStack);
-    engine.setAdjustments(applyGroupVisibility(
-      effectiveDocumentAdjustments(nextDocument),
-      groupVisibilityRef.current
-    ));
+    const hydration = await hydrateDocumentSource({
+      renderer: engine,
+      loaded,
+      initialAdjustments,
+      groupVisibility: groupVisibilityRef.current,
+      isCanceled
+    });
+    if (!hydration) return;
+    documentAdjustmentsRef.current = hydration.adjustments;
+    adjustmentsRef.current = hydration.adjustments;
+    setAdjustments(hydration.adjustments);
     setHistogram(null);
     setZoomMode('fit');
     setView({ scale: 1, panX: 0, panY: 0 });
     if (psdImport) {
-      const { inventory } = psdImport;
-      try {
-        const metrics = await engine.measureReferenceDifference();
-        if (!isCanceled()) {
-          setPsdDifferenceMetrics(metrics);
-          setGradeStatus(
-            `PSD reconstruction loaded · ${inventory.layers} layers · `
-            + `${metrics.differingPixelPercentage.toFixed(2)}% differs`
-          );
-        }
-      } catch (reason) {
-        if (!isCanceled()) {
-          setGradeStatus(
-            `PSD reconstruction loaded · ${inventory.layers} layers · `
-            + `${inventory.layerStyles} styled · ${inventory.adjustments} adjustments`
-          );
-          console.warn('LightTable PSD difference measurement failed', reason);
-        }
+      setPsdDifferenceMetrics(hydration.psdDifferenceMetrics);
+      setGradeStatus(hydration.status);
+      if (hydration.differenceError) {
+        console.warn(
+          'LightTable PSD difference measurement failed',
+          hydration.differenceError
+        );
       }
       if (psdWarnings.length) {
         console.warn('LightTable PSD semantic import warnings', psdWarnings);
       }
     }
-  }, [clearEditorHistory, effectiveDocumentAdjustments]);
+  }, [clearEditorHistory]);
 
   useEffect(() => {
     if (!open || !canvasRef.current || !hueDistributionCanvasRef.current ||
