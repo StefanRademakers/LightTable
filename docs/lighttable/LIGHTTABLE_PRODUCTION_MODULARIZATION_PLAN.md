@@ -986,6 +986,8 @@ Progress:
       support and deterministic evaluator ordering.
 - [x] Route document and adjustment-layer grade evaluation through the shared
       processing evaluator while retaining the current combined shader.
+- [x] Extract pure compositor sequencing for visible leaves, clipping chains,
+      nested style detection and pass-through group envelopes.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator.
 

@@ -62,6 +62,12 @@ import {
   layerStyleCacheKey,
   layerStyleDocumentBounds
 } from '../styles/layerStyleRenderPlan';
+import {
+  buildCompositorSequence,
+  collectVisibleLeafNodes,
+  containsActiveLayerStyles,
+  groupNeedsCompositingEnvelope
+} from './compositorGraph';
 
 interface LayerRuntime {
   texture: GPUTexture;
@@ -446,27 +452,10 @@ export class LayerDocumentRenderer {
     ) => GPUTexture
   ): GPUTexture {
     this.syncDocument(document);
-    const visibleLeafNodes: LayerNode[] = [];
-    const collectVisibleLeaves = (nodes: readonly LayerNode[]) => {
-      nodes.forEach((node) => {
-        if (!node.visible) return;
-        if (node.type === 'group') collectVisibleLeaves(node.children);
-        else visibleLeafNodes.push(node);
-      });
-    };
-    collectVisibleLeaves(document.layers);
+    const visibleLeafNodes = collectVisibleLeafNodes(document.layers);
     const rasterLayers = visibleLeafNodes.filter((node): node is RasterLayer => node.type === 'raster');
     const visibleLayers = rasterLayers.filter((layer) => layer.visible && layer.opacity > 0);
-    const containsActiveStyles = (nodes: readonly LayerNode[]): boolean =>
-      nodes.some((node) => (
-        node.visible
-        && node.opacity > 0
-        && (
-          layerStyleStackIsActive(node.styleStack)
-          || (node.type === 'group' && containsActiveStyles(node.children))
-        )
-      ));
-    const stylesActive = containsActiveStyles(document.layers);
+    const stylesActive = containsActiveLayerStyles(document.layers);
     if (!stylesActive) {
       this.releaseStyleTargets();
       this.releaseStyledLayerCache();
@@ -692,20 +681,21 @@ export class LayerDocumentRenderer {
       let background = initialBackground;
       let target = initialTarget;
       let clippingBase: GPUTexture | null = null;
-      nodes.forEach((node, index) => {
+      buildCompositorSequence(nodes).forEach((entry) => {
+        const { node } = entry;
         // A clipped layer without a preceding, visible base has no shape to
         // inherit. Treat malformed/imported chains as transparent instead of
         // leaking the complete layer into the document.
-        if (node.clipping && !clippingBase) return;
+        if (entry.skipBecauseClippingBaseMissing) return;
         [background, target] = renderNode(
           node,
           background,
           target,
-          node.clipping ? clippingBase : null
+          entry.usesClippingBase ? clippingBase : null
         );
-        if (!node.clipping) {
+        if (!entry.usesClippingBase) {
           clippingBase = null;
-          if (nodes[index + 1]?.clipping) {
+          if (entry.captureClippingBase) {
             const baseA = this.createTexture(`LightTable clipping base A: ${node.name}`);
             const baseB = this.createTexture(`LightTable clipping base B: ${node.name}`);
             this.pendingTextures.push(baseA, baseB);
@@ -722,12 +712,10 @@ export class LayerDocumentRenderer {
       parentTarget: GPUTexture,
       clippingTexture: GPUTexture | null = null
     ): [GPUTexture, GPUTexture] => {
-      const hasEnvelope = group.compositing === 'isolated'
-        || group.clipping
-        || group.opacity < 0.99999
-        || group.blendMode !== 'normal'
-        || layerStyleStackIsActive(group.styleStack)
-        || Boolean(group.mask?.enabled && this.maskTextureFor(group.id));
+      const hasEnvelope = groupNeedsCompositingEnvelope(
+        group,
+        Boolean(this.maskTextureFor(group.id))
+      );
       // Photoshop pass-through groups without an envelope participate in the
       // parent's stack directly. This preserves adjustment-layer interaction
       // with content below the group.
