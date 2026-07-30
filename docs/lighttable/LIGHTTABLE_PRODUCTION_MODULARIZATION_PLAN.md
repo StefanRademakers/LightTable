@@ -1284,3 +1284,6 @@ The refactor is successful when:
       one document-instance resize controller; observers pause during sash
       gestures and publish one post-layout measurement instead of competing
       with Dockview's proportional layout.
+- [x] Give layer and mask thumbnails one document-scoped controller with
+      revision-keyed GPU readback caching and deterministic object-URL cleanup;
+      accessory preview failures cannot fail the editor or renderer lifecycle.

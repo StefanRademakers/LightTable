@@ -17,17 +17,10 @@ import {
 import type { PaintChannel } from '../session/editorSession';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import type { LayerStyleId } from '../styles/layerStyleTypes';
-
-export interface LayerThumbnailPreview {
-  url: string;
-  width: number;
-  height: number;
-}
-
-export interface LayerThumbnailSet {
-  pixels?: LayerThumbnailPreview;
-  mask?: LayerThumbnailPreview;
-}
+import type {
+  LayerThumbnailPreview,
+  LayerThumbnailSet
+} from '../layers/layerThumbnailTypes';
 
 interface LayerPanelProps {
   document: ImageDocument;

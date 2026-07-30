@@ -41,6 +41,7 @@ import { projectAdjustmentSnapshot } from './application/adjustments/projectAdju
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
+import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
@@ -72,11 +73,7 @@ import { sampleMedianDepth } from './analysis/depth/normalization';
 import type { DepthAnalysisProgress, DepthAnalysisResult } from './analysis/depth/types';
 import { ScopesPanel } from './ScopesPanel';
 import { EditorToolbar } from './editor/ui/EditorToolbar';
-import {
-  LayerPanel,
-  type LayerThumbnailPreview,
-  type LayerThumbnailSet
-} from './editor/ui/LayerPanel';
+import { LayerPanel } from './editor/ui/LayerPanel';
 import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
 import { ToolOptionsBar } from './editor/ui/ToolOptionsBar';
 import { DebugPanel } from './editor/ui/DebugPanel';
@@ -247,10 +244,6 @@ export interface LightTableEditorOverlayProps {
   documentSession?: DocumentSession;
 }
 
-interface LayerThumbnailCacheEntry extends LayerThumbnailPreview {
-  revisionKey: string;
-}
-
 type ZoomMode = 'fit' | '100' | 'custom';
 type LightTableAppMenuId = EditorMenuId;
 
@@ -376,7 +369,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const startupAwaitingFirstFrameRef = useRef(false);
   const startupTimingsRef = useRef<LightTableStartupTimings>({});
   const workspaceRef = useRef<LightTableDockWorkspaceHandle | null>(null);
-  const layerThumbnailCacheRef = useRef<Map<string, LayerThumbnailCacheEntry>>(new Map());
   const [metadata, setMetadata] = useState<LightTableImageMetadata | null>(null);
   const [adjustments, setAdjustments] = useState<BasicAdjustments>(createDefaultAdjustments);
   const [histogram, setHistogram] = useState<RgbHistogram | null>(null);
@@ -420,9 +412,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
-  const [layerThumbnails, setLayerThumbnails] = useState<ReadonlyMap<LayerId, LayerThumbnailSet>>(
-    () => new Map()
-  );
   const [editorSession, setEditorSession] = useDocumentEditorSession(documentSession);
   const [selectionDraft, setSelectionDraft] = useState<SelectionShape | null>(null);
   const [featherDialogOpen, setFeatherDialogOpen] = useState(false);
@@ -488,6 +477,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     viewportSize,
     setViewportSize,
     imageRect
+  });
+  const layerThumbnails = useLayerThumbnailController({
+    document: imageDocument,
+    rendererReadyDocumentId: thumbnailDocumentReadyId,
+    getRenderer: () => engineRef.current
   });
   const psdCompatibilitySummary = useMemo(() => {
     const counts = new Map<PsdImportCompatibilityEntry['support'], number>();
@@ -585,104 +579,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   }, [appendDebugMessage, psdDifferenceMetrics]);
 
-  useEffect(() => {
-    if (!imageDocument || thumbnailDocumentReadyId !== imageDocument.id || !engineRef.current) {
-      const cached = layerThumbnailCacheRef.current;
-      cached.forEach(({ url }) => URL.revokeObjectURL(url));
-      cached.clear();
-      setLayerThumbnails(new Map());
-      return;
-    }
-
-    let canceled = false;
-    const engine = engineRef.current;
-    const desired = walkLayerTree(imageDocument.layers).flatMap(({ node }) => {
-      const channels: Array<{
-        identity: string;
-        layerId: LayerId;
-        mask: boolean;
-        revisionKey: string;
-      }> = [];
-      if (node.type === 'raster') {
-        channels.push({
-          identity: `${node.id}:pixels`,
-          layerId: node.id,
-          mask: false,
-          revisionKey: `pixels:${node.pixelRevision}`
-        });
-      }
-      if (node.mask) {
-        channels.push({
-          identity: `${node.id}:mask`,
-          layerId: node.id,
-          mask: true,
-          revisionKey: `mask:${node.mask.pixelRevision}`
-        });
-      }
-      return channels;
-    });
-
-    void (async () => {
-      const committedCache = layerThumbnailCacheRef.current;
-      const nextCache = new Map<string, LayerThumbnailCacheEntry>();
-      const createdUrls: string[] = [];
-
-      for (const channel of desired) {
-        const existing = committedCache.get(channel.identity);
-        if (existing?.revisionKey === channel.revisionKey) {
-          nextCache.set(channel.identity, existing);
-          continue;
-        }
-        try {
-          const result = await engine.exportLayerThumbnail(channel.layerId, channel.mask);
-          if (!result) continue;
-          const entry: LayerThumbnailCacheEntry = {
-            revisionKey: channel.revisionKey,
-            url: URL.createObjectURL(result.blob),
-            width: result.width,
-            height: result.height
-          };
-          createdUrls.push(entry.url);
-          nextCache.set(channel.identity, entry);
-        } catch (reason) {
-          // A thumbnail is accessory UI. A layer being deleted during an
-          // asynchronous readback must not make the editor or document fail.
-          console.warn('LightTable layer thumbnail generation failed', reason);
-        }
-        if (canceled) break;
-      }
-
-      if (canceled) {
-        createdUrls.forEach((url) => URL.revokeObjectURL(url));
-        return;
-      }
-
-      committedCache.forEach((entry, identity) => {
-        if (nextCache.get(identity)?.url !== entry.url) URL.revokeObjectURL(entry.url);
-      });
-      layerThumbnailCacheRef.current = nextCache;
-
-      const nextThumbnails = new Map<LayerId, LayerThumbnailSet>();
-      desired.forEach(({ identity, layerId, mask }) => {
-        const entry = nextCache.get(identity);
-        if (!entry) return;
-        const current = nextThumbnails.get(layerId) ?? {};
-        nextThumbnails.set(layerId, mask
-          ? { ...current, mask: entry }
-          : { ...current, pixels: entry });
-      });
-      setLayerThumbnails(nextThumbnails);
-    })();
-
-    return () => {
-      canceled = true;
-    };
-  }, [imageDocument, thumbnailDocumentReadyId]);
-
-  useEffect(() => () => {
-    layerThumbnailCacheRef.current.forEach(({ url }) => URL.revokeObjectURL(url));
-    layerThumbnailCacheRef.current.clear();
-  }, []);
 
   const effectiveDocumentAdjustments = useCallback((document: ImageDocument | null) => {
     void document;
