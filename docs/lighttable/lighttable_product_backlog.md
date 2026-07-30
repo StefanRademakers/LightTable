@@ -67,7 +67,10 @@ handled before a broad production rollout.
   chunks.
 - [ ] Gradually split `LightTableEditorOverlay.tsx` into document/save,
   GPU/image-load lifecycle, history/transactions, tools and
-  adjustment/sidebar controllers.
+  adjustment/sidebar controllers. Follow
+  `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`: move ownership into the
+  application, document-session, command, tool and renderer systems instead of
+  only splitting the React file.
 
 ## Image I/O and persistence
 
@@ -91,7 +94,9 @@ handled before a broad production rollout.
 - [ ] Mount reusable Media Browser and GenAI panels beside the editor.
 - [x] Persist workspace layout separately from image documents.
 - [ ] Add a document-session controller for multiple simultaneously open
-  documents without sharing GPU, undo or dirty state.
+  documents without sharing GPU, undo or dirty state. The workspace has exactly
+  one active document, while every open document retains its own viewport,
+  selection, active tool, history, task scope and renderer context.
 - [ ] Make GPU scope surfaces rebindable, then enable same-origin browser
   popouts and multi-monitor scope workflows.
 
