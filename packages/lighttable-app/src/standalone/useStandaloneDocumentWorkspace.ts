@@ -42,7 +42,7 @@ export const useStandaloneDocumentWorkspace = () => {
 
   const openDocument = useCallback((
     file: File,
-    decodeMode: StandaloneDecodeMode = 'fast'
+    decodeMode: StandaloneDecodeMode = 'automatic'
   ) => controller.open({
     source: {
       id: standaloneSourceIdentity(file, decodeMode),

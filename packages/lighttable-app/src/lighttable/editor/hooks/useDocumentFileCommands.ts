@@ -12,7 +12,9 @@ import {
   type ExportedLightTableDocument
 } from '../../application/documents/exportLightTableDocument';
 import type { DocumentTaskRegistry } from '../../application/tasks/documentTaskRegistry';
-import type { LightTableImageDecodeMode } from '../../application/rendering/rendererTypes';
+import type {
+  DocumentOpenMode
+} from '../../application/documents/documentSourceProbe';
 import type { ImageDocument } from '../document/documentTypes';
 import type { PreservedSourceAssetBlob } from '../persistence/layeredDocumentFormat';
 import {
@@ -39,7 +41,7 @@ interface DocumentFileCommandsOptions {
   readonly getPreservedSourceAssets: () => readonly PreservedSourceAssetBlob[];
   readonly hydrateLocalFile: (
     file: File,
-    decodeMode: LightTableImageDecodeMode,
+    decodeMode: DocumentOpenMode,
     signal: AbortSignal,
     isCurrent: () => boolean
   ) => Promise<void>;
@@ -51,11 +53,11 @@ interface DocumentFileCommandsOptions {
   readonly onClose: () => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly onRequestOpenWorkspaceDocument?: (
-    decodeMode: LightTableImageDecodeMode
+    decodeMode: DocumentOpenMode
   ) => Promise<void> | void;
   readonly onOpenWorkspaceDocument?: (
     file: File,
-    decodeMode: LightTableImageDecodeMode
+    decodeMode: DocumentOpenMode
   ) => void;
   readonly setLoading: (loading: boolean) => void;
   readonly setError: (error: string | null) => void;
@@ -68,11 +70,11 @@ export interface DocumentFileCommands {
   download(): Promise<void>;
   openLocalFile(
     file: File | null,
-    decodeMode: LightTableImageDecodeMode
+    decodeMode: DocumentOpenMode
   ): Promise<void>;
   handleFastFileInput(event: ChangeEvent<HTMLInputElement>): Promise<void>;
   handlePrecisionFileInput(event: ChangeEvent<HTMLInputElement>): Promise<void>;
-  chooseLocalFile(decodeMode: LightTableImageDecodeMode): Promise<void>;
+  chooseLocalFile(decodeMode: DocumentOpenMode): Promise<void>;
 }
 
 const downloadOutput = (file: File): void => {
@@ -170,7 +172,7 @@ export const useDocumentFileCommands = (
 
   const openLocalFile = useCallback(async (
     file: File | null,
-    decodeMode: LightTableImageDecodeMode
+    decodeMode: DocumentOpenMode
   ) => {
     if (!file) return;
     const current = optionsRef.current;
@@ -206,7 +208,7 @@ export const useDocumentFileCommands = (
 
   const handleFileInput = useCallback(async (
     event: ChangeEvent<HTMLInputElement>,
-    decodeMode: LightTableImageDecodeMode
+    decodeMode: DocumentOpenMode
   ) => {
     const file = event.currentTarget.files?.[0] ?? null;
     event.currentTarget.value = '';
@@ -214,7 +216,7 @@ export const useDocumentFileCommands = (
   }, [openLocalFile]);
 
   const chooseLocalFile = useCallback(async (
-    decodeMode: LightTableImageDecodeMode
+    decodeMode: DocumentOpenMode
   ) => {
     const current = optionsRef.current;
     try {
@@ -226,7 +228,10 @@ export const useDocumentFileCommands = (
       const fallback = decodeMode === 'preserve-precision'
         ? current.advancedFileInputRef.current
         : current.fileInputRef.current;
-      const file = await pickSupportedImageFile(decodeMode, fallback);
+      const file = await pickSupportedImageFile(
+        decodeMode === 'preserve-precision' ? decodeMode : 'fast',
+        fallback
+      );
       if (!file) return;
       if (current.onOpenWorkspaceDocument) {
         current.onOpenWorkspaceDocument(file, decodeMode);

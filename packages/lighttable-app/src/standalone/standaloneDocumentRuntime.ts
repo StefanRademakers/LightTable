@@ -1,4 +1,8 @@
-export type StandaloneDecodeMode = 'fast' | 'preserve-precision';
+import type {
+  DocumentOpenMode
+} from '../lighttable/application/documents/documentSourceProbe';
+
+export type StandaloneDecodeMode = DocumentOpenMode;
 
 export interface StandaloneDocumentRuntime {
   readonly file: File;
@@ -9,4 +13,3 @@ export const standaloneSourceIdentity = (
   file: File,
   decodeMode: StandaloneDecodeMode
 ) => `file:${file.name}:${file.size}:${file.lastModified}:${decodeMode}`;
-

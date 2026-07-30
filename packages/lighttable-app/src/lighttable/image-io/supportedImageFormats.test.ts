@@ -8,9 +8,9 @@ import {
 } from './supportedImageFormats';
 
 describe('LightTable supported image formats', () => {
-  it('keeps TIFF out of the native fast path', () => {
-    expect(isSupportedImageFile(new Blob([], { type: 'image/tiff' }), 'source.tif', 'fast')).toBe(false);
-    expect(imagePickerAccept('fast')).not.toContain('.tif');
+  it('offers TIFF through the automatic picker while the probe selects its codec', () => {
+    expect(isSupportedImageFile(new Blob([], { type: 'image/tiff' }), 'source.tif', 'fast')).toBe(true);
+    expect(imagePickerAccept('fast')).toContain('.tif');
   });
 
   it('advertises PSD on the lazy comparison-import path', () => {
@@ -19,6 +19,7 @@ describe('LightTable supported image formats', () => {
     expect(isPhotoshopDocument(psd, 'comparison.psd')).toBe(true);
     expect(isPhotoshopDocument(new Blob(), 'comparison.PSD')).toBe(true);
     expect(imagePickerAccept('fast')).toContain('.psd');
+    expect(imagePickerAccept('fast')).toContain('.psb');
     expect(imagePickerFormatNames('fast')).toContain('PSD');
   });
 

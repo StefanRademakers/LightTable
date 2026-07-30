@@ -8,7 +8,7 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 const IMAGE_EXTENSIONS = [
-  'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'avif', 'psd'
+  'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'psd', 'psb'
 ];
 
 let mainWindow: BrowserWindow | null = null;

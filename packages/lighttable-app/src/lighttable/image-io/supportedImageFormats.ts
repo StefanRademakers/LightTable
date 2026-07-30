@@ -17,14 +17,15 @@ type FilePickerWindow = Window & {
   }) => Promise<FileSystemFileHandle[]>;
 };
 
-const FAST_FORMATS: FilePickerAcceptType[] = [
+const AUTOMATIC_FORMATS: FilePickerAcceptType[] = [
   {
-    description: 'LightTable images (JPEG, PNG, WebP, PSD)',
+    description: 'LightTable documents and images (PNG, JPEG, WebP, TIFF, PSD/PSB)',
     accept: {
       'image/jpeg': ['.jpg', '.jpeg', '.jpe', '.jfif'],
       'image/png': ['.png'],
       'image/webp': ['.webp'],
-      'image/vnd.adobe.photoshop': ['.psd']
+      'image/tiff': ['.tif', '.tiff'],
+      'image/vnd.adobe.photoshop': ['.psd', '.psb']
     }
   }
 ];
@@ -42,7 +43,7 @@ const PRECISION_FORMATS: FilePickerAcceptType[] = [
 ];
 
 const formatsForMode = (mode: LightTableImageDecodeMode) =>
-  mode === 'preserve-precision' ? PRECISION_FORMATS : FAST_FORMATS;
+  mode === 'preserve-precision' ? PRECISION_FORMATS : AUTOMATIC_FORMATS;
 
 export const imagePickerAccept = (mode: LightTableImageDecodeMode) =>
   formatsForMode(mode)
@@ -54,7 +55,9 @@ export const imagePickerDescription = (mode: LightTableImageDecodeMode) =>
   formatsForMode(mode)[0].description;
 
 export const imagePickerFormatNames = (mode: LightTableImageDecodeMode) =>
-  mode === 'preserve-precision' ? 'PNG, TIFF, JPEG, WebP' : 'JPEG, PNG, WebP, PSD';
+  mode === 'preserve-precision'
+    ? 'PNG, TIFF, JPEG, WebP'
+    : 'PNG, JPEG, WebP, TIFF, PSD/PSB';
 
 export const isPhotoshopDocument = (blob: Blob, name: string) =>
   blob.type.toLowerCase() === 'image/vnd.adobe.photoshop'

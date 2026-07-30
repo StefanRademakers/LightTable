@@ -49,8 +49,7 @@ const commands = (): EditorMenuCommands => new Proxy({} as EditorMenuCommands, {
 });
 
 const labels = {
-  fastOpenFormats: 'PNG, JPEG',
-  precisionOpenFormats: 'TIFF',
+  openFormats: 'PNG, JPEG, TIFF',
   primaryShortcut: (key: string, shift = false) => `Ctrl+${shift ? 'Shift+' : ''}${key}`
 };
 
@@ -64,8 +63,7 @@ describe('createEditorMenuOptions', () => {
     );
 
     expect(options.map((option) => option.label)).toEqual([
-      'Open image (PNG, JPEG)...',
-      'Open image - preserve precision (TIFF)...',
+      'Open (PNG, JPEG, TIFF)...',
       'Saving...',
       'Download layered document',
       'Reset'

@@ -828,13 +828,15 @@ Exit criteria:
 Work:
 
 - move open/decode/import/save/export orchestration out of the overlay;
-- [ ] replace separate fast/precision open UI paths with one host-neutral
+- [x] replace separate fast/precision open UI paths with one host-neutral
       `OpenDocument` use-case and automatic signature/capability dispatch;
 - [ ] define a source-handle port shared by browser files, desktop filesystem
       sources and embedded-host assets;
-- [ ] register lazy codecs for LightTable, native 8-bit images, precision
-      wasm-vips images and PSD/PSB, with a future RAW capability slot;
-- [ ] add fast-lane regression tests proving ordinary PNG/JPEG opens do not
+- [x] route LightTable, native 8-bit images, precision wasm-vips images and
+      PSD/PSB from an application-owned signature probe without eagerly
+      initializing optional codecs;
+- [ ] add the future RAW codec capability slot and desktop/web implementations;
+- [x] add fast-lane regression tests proving ordinary PNG/JPEG opens do not
       import or initialize optional precision/PSD/RAW codecs;
 - [ ] add probe/decode/color-conversion/upload/first-frame performance budgets
       and telemetry assertions;
@@ -851,11 +853,16 @@ Work:
 
 Implementation note:
 
-The first Phase 3 slice establishes ownership and terminal task state without
-changing codecs or renderer behavior. The overlay still supplies the current
-operation bodies, but it no longer owns their cancellation identity. This is
-the safe seam for the next extraction: document controllers can move those
-bodies behind ports without changing stale-result or close semantics.
+The first Phase 3 slice established task ownership and terminal task state.
+The second slice added `documentSourceProbe.ts`: it reads only the source
+prefix and LightTable footer, treats signatures as authoritative and selects
+the effective renderer mode. Ordinary 8-bit PNG/JPEG/WebP stays browser-native;
+16-bit PNG and TIFF select the lazily imported wasm-vips path; PSD/PSB selects
+the lazily imported Photoshop adapter; layered LightTable files select their
+footer/manifest importer. Web and Electron now expose the same single Open
+command. The remaining extraction is a source-handle port (to avoid full-file
+copies on desktop/remote sources), codec registration including RAW, and moving
+the last open/save command bindings out of the overlay.
 
 Exit criteria:
 

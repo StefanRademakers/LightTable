@@ -1,5 +1,5 @@
 import type { GroupVisibility } from '../adjustments/groupVisibility';
-import type { LightTableImageDecodeMode } from '../rendering/rendererTypes';
+import type { DocumentOpenMode } from './documentSourceProbe';
 import type { BasicAdjustments } from '../../types';
 import {
   hydrateDocumentSource,
@@ -22,7 +22,7 @@ export interface PrepareDocumentSourceRequest {
   readonly blob: Blob;
   readonly name: string;
   readonly cacheKey: string;
-  readonly decodeMode: LightTableImageDecodeMode;
+  readonly decodeMode: DocumentOpenMode;
   readonly initialAdjustments: BasicAdjustments;
   readonly groupVisibility: GroupVisibility;
   readonly signal?: AbortSignal;
@@ -62,4 +62,3 @@ export const prepareDocumentSource = async (
 
   return { loaded, hydration };
 };
-

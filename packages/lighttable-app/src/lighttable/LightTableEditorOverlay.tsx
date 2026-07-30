@@ -54,9 +54,11 @@ import type { LightTableStartupTimings } from './application/telemetry/editorTel
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
 import {
-  type LightTableImageDecodeMode,
   type ReferenceDifferenceMetrics
 } from './application/rendering/rendererTypes';
+import type {
+  DocumentOpenMode
+} from './application/documents/documentSourceProbe';
 import { useEditorDocumentOpenRequestFactory } from './composition/documents/useEditorDocumentOpenRequestFactory';
 import {
   type DocumentRendererPort
@@ -175,7 +177,7 @@ export interface LightTableEditorOverlayProps {
   projectId: string;
   sourceFileKey?: string | null;
   sourceBlob?: Blob | null;
-  sourceDecodeMode?: LightTableImageDecodeMode;
+  sourceDecodeMode?: DocumentOpenMode;
   loadSource?: (request: {
     projectId: string;
     sourceFileKey: string;
@@ -194,8 +196,8 @@ export interface LightTableEditorOverlayProps {
   }>;
   onActivateWorkspaceDocument?: (documentId: string) => void;
   onCloseWorkspaceDocument?: (documentId: string) => void;
-  onRequestOpenWorkspaceDocument?: (decodeMode: LightTableImageDecodeMode) => Promise<void> | void;
-  onOpenWorkspaceDocument?: (file: File, decodeMode: LightTableImageDecodeMode) => void;
+  onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void;
+  onOpenWorkspaceDocument?: (file: File, decodeMode: DocumentOpenMode) => void;
   onDocumentReady?: () => void;
   onDocumentError?: (message: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -214,7 +216,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   projectId,
   sourceFileKey = null,
   sourceBlob: initialSourceBlob = null,
-  sourceDecodeMode = 'fast',
+  sourceDecodeMode = 'automatic',
   loadSource,
   initialRecipe = null,
   fileNameBase,
@@ -670,7 +672,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     initialAdjustments: BasicAdjustments = createDefaultAdjustments(),
     cacheKey = `${name}:${blob.size}:${blob.type}:${blob instanceof File ? blob.lastModified : 0}`,
     isCanceled: () => boolean = () => false,
-    decodeMode: LightTableImageDecodeMode = 'fast',
+    decodeMode: DocumentOpenMode = 'automatic',
     signal?: AbortSignal
   ) => {
     await documentSourceLoadController.load({
@@ -1263,21 +1265,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     menuId,
     menuState,
     {
-      fastOpenFormats: imagePickerFormatNames('fast'),
-      precisionOpenFormats: imagePickerFormatNames('preserve-precision'),
+      openFormats: imagePickerFormatNames('fast'),
       primaryShortcut: primaryShortcutLabel
     },
     {
-      openFast: () => void chooseLocalFile('fast'),
-      openPrecision: () => void (async () => {
-        const { getAdvancedImageIoCapabilities } = await import('./image-io/advancedImageIoCapabilities');
-        const capabilities = getAdvancedImageIoCapabilities();
-        if (!capabilities.available) {
-          setError(`Precision-preserving import is unavailable: ${capabilities.reasons.join(' ')}`);
-          return;
-        }
-        await chooseLocalFile('preserve-precision');
-      })(),
+      // The application probe selects browser-native, wasm-vips, Photoshop or
+      // layered-document import after reading the source signature.
+      open: () => void chooseLocalFile('automatic'),
       save: () => void handleSave(),
       download: () => void handleDownload(),
       reset: resetAll,

@@ -38,7 +38,7 @@ export function LightTableStandaloneApp({
   const [opening, setOpening] = useState(false);
 
   const requestHostDocument = useCallback(async (
-    decodeMode: StandaloneDecodeMode = 'fast'
+    decodeMode: StandaloneDecodeMode = 'automatic'
   ) => {
     if (!host.openFile) return;
     setOpening(true);
@@ -85,7 +85,7 @@ export function LightTableStandaloneApp({
               Open file
               <input
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/tiff,image/avif,image/vnd.adobe.photoshop,.psd,.lighttable.png"
+                accept="image/png,image/jpeg,image/webp,image/tiff,image/vnd.adobe.photoshop,.psd,.psb,.lighttable.png"
                 hidden
                 onChange={(event) => {
                   const file = event.currentTarget.files?.[0] ?? null;

@@ -38,14 +38,12 @@ export interface EditorMenuState {
 }
 
 export interface EditorMenuLabels {
-  fastOpenFormats: string;
-  precisionOpenFormats: string;
+  openFormats: string;
   primaryShortcut: (key: string, shift?: boolean) => string;
 }
 
 export interface EditorMenuCommands {
-  openFast: () => void;
-  openPrecision: () => void;
+  open: () => void;
   save: () => void;
   download: () => void;
   reset: () => void;
@@ -102,14 +100,8 @@ export const createEditorMenuOptions = (
     return [
       {
         value: 'open-image',
-        label: `Open image (${labels.fastOpenFormats})...`,
-        onClick: commands.openFast,
-        disabled: state.saving
-      },
-      {
-        value: 'open-image-preserve-precision',
-        label: `Open image - preserve precision (${labels.precisionOpenFormats})...`,
-        onClick: commands.openPrecision,
+        label: `Open (${labels.openFormats})...`,
+        onClick: commands.open,
         disabled: state.saving
       },
       {

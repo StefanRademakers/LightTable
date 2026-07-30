@@ -3,6 +3,13 @@ import { createDefaultGroupVisibility } from '../adjustments/groupVisibility';
 import { createDefaultAdjustments } from '../../types';
 import { prepareDocumentSource } from './prepareDocumentSource';
 
+const pngSource = () => {
+  const header = new Uint8Array(32);
+  header.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  header[24] = 8;
+  return new Blob([header], { type: 'image/png' });
+};
+
 const renderer = () => ({
   loadImage: vi.fn(async () => ({
     name: 'image.png',
@@ -32,7 +39,7 @@ describe('prepareDocumentSource', () => {
     const target = renderer();
     const result = await prepareDocumentSource({
       renderer: target,
-      blob: new Blob(['pixels'], { type: 'image/png' }),
+      blob: pngSource(),
       name: 'image.png',
       cacheKey: 'image',
       decodeMode: 'fast',
@@ -60,7 +67,7 @@ describe('prepareDocumentSource', () => {
 
     await expect(prepareDocumentSource({
       renderer: target,
-      blob: new Blob(['pixels'], { type: 'image/png' }),
+      blob: pngSource(),
       name: 'image.png',
       cacheKey: 'image',
       decodeMode: 'fast',

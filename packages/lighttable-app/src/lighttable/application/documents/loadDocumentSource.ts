@@ -13,16 +13,17 @@ import {
   type PsdDocumentImport,
   type PsdImportCompatibilityEntry
 } from '../../editor/psd/psdDocumentAdapter';
-import {
-  isPhotoshopDocument,
-  isSupportedImageFile
-} from '../../image-io/supportedImageFormats';
 import type { PsdDecodeSuccess } from '../../image-io/psdProtocol';
 import type { LightTableImageMetadata } from '../../types';
 import type {
   LightTableImageDecodeMode,
   LightTableLoadImageOptions
 } from '../rendering/rendererTypes';
+import {
+  probeDocumentSource,
+  type DocumentOpenMode,
+  type DocumentSourceProbe
+} from './documentSourceProbe';
 
 export interface DocumentSourceRenderer {
   loadImage(
@@ -53,16 +54,15 @@ export interface LoadedDocumentSource {
 
 interface DocumentSourceLoaderDependencies {
   parseLayered(blob: Blob): Promise<ParsedLayeredDocument | null>;
-  isPhotoshop(blob: Blob, name: string): boolean;
+  probe(blob: Blob, requestedMode: DocumentOpenMode): Promise<DocumentSourceProbe>;
   decodePhotoshop(blob: Blob, signal?: AbortSignal): Promise<PsdDecodeSuccess>;
   importPhotoshop(decoded: PsdDecodeSuccess, name: string): PsdDocumentImport;
-  supportsImage(blob: Blob, name: string, mode: LightTableImageDecodeMode): boolean;
   now(): number;
 }
 
 const defaultDependencies: DocumentSourceLoaderDependencies = {
   parseLayered: parseLayeredDocumentFile,
-  isPhotoshop: isPhotoshopDocument,
+  probe: probeDocumentSource,
   decodePhotoshop: async (blob, signal) => {
     const { PsdDecoder } = await import('../../image-io/PsdDecoder');
     const decoder = new PsdDecoder();
@@ -73,7 +73,6 @@ const defaultDependencies: DocumentSourceLoaderDependencies = {
     }
   },
   importPhotoshop: importPsdDocument,
-  supportsImage: isSupportedImageFile,
   now: () => performance.now()
 };
 
@@ -82,7 +81,7 @@ export interface LoadDocumentSourceRequest {
   readonly blob: Blob;
   readonly name: string;
   readonly cacheKey: string;
-  readonly decodeMode: LightTableImageDecodeMode;
+  readonly decodeMode: DocumentOpenMode;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
   /** Test seam; production callers use the default import adapters. */
@@ -105,12 +104,27 @@ export const loadDocumentSource = async (
   const dependencies = { ...defaultDependencies, ...request.dependencies };
 
   const probeStartedAt = dependencies.now();
-  const layered = await dependencies.parseLayered(request.blob);
+  const sourceProbe = await dependencies.probe(
+    request.blob,
+    request.decodeMode
+  );
+  if (sourceProbe.codec === 'unsupported') {
+    throw new Error(
+      'This file signature is not supported. LightTable currently opens '
+      + 'layered LightTable documents, PSD/PSB, PNG, JPEG, WebP, and TIFF.'
+    );
+  }
+  const layered = sourceProbe.codec === 'lighttable'
+    ? await dependencies.parseLayered(request.blob)
+    : null;
+  if (sourceProbe.codec === 'lighttable' && !layered) {
+    throw new Error('The LightTable document footer or manifest is invalid.');
+  }
   const layeredProbeMs = dependencies.now() - probeStartedAt;
   if (canceled(request)) return null;
 
   let psdImport: PsdDecodeSuccess | null = null;
-  if (!layered && dependencies.isPhotoshop(request.blob, request.name)) {
+  if (sourceProbe.codec === 'photoshop') {
     psdImport = await dependencies.decodePhotoshop(request.blob, request.signal);
   }
   if (canceled(request)) return null;
@@ -119,15 +133,13 @@ export const loadDocumentSource = async (
   const semanticPsd = psdImport
     ? dependencies.importPhotoshop(psdImport, request.name)
     : null;
-  if (!dependencies.supportsImage(imageBlob, request.name, request.decodeMode)) {
-    throw new Error(request.decodeMode === 'preserve-precision'
-      ? 'Precision-preserving import currently supports PNG, TIFF, JPEG, and WebP.'
-      : 'LightTable supports JPEG, PNG, WebP, PSD, and layered LightTable images.');
-  }
 
   const decodeStartedAt = dependencies.now();
   const loadedMetadata = await request.renderer.loadImage(imageBlob, request.name, {
-    decodeMode: psdImport ? 'fast' : request.decodeMode,
+    decodeMode:
+      psdImport || layered
+        ? 'fast'
+        : sourceProbe.decodeMode,
     signal: request.signal
   });
   const metadata: LightTableImageMetadata = psdImport

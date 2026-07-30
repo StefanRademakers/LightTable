@@ -1,5 +1,5 @@
 import type { GroupVisibility } from '../adjustments/groupVisibility';
-import type { LightTableImageDecodeMode } from '../rendering/rendererTypes';
+import type { DocumentOpenMode } from './documentSourceProbe';
 import type { BasicAdjustments } from '../../types';
 import type {
   DocumentHydrationRenderer
@@ -22,7 +22,7 @@ export interface DocumentSourceLoadRequest {
   readonly name: string;
   readonly cacheKey: string;
   readonly sourceIdentity: string;
-  readonly decodeMode: LightTableImageDecodeMode;
+  readonly decodeMode: DocumentOpenMode;
   readonly initialAdjustments: BasicAdjustments;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
