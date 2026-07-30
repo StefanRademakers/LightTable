@@ -196,4 +196,34 @@ describe('WorkspaceSession', () => {
     expect(await secondTask).toEqual({ status: 'completed', value: 'ready' });
     expect(workspace.getDocument(first.value.id)).toBeNull();
   });
+
+  it('keeps renderer lifecycle and GPU estimates isolated per document', () => {
+    const workspace = new WorkspaceSession({
+      createId: ids('one', 'two')
+    });
+    const first = workspace.open({ source: source('first') });
+    const second = workspace.open({ source: source('second') });
+    if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
+
+    const firstGeneration = first.value.renderer.beginStart();
+    first.value.renderer.setMemoryEstimate(48_000, firstGeneration);
+    first.value.renderer.markReady(firstGeneration);
+    const secondGeneration = second.value.renderer.beginStart();
+    second.value.renderer.setMemoryEstimate(96_000, secondGeneration);
+    second.value.renderer.markReady(secondGeneration);
+
+    first.value.renderer.setActive(false);
+    expect(workspace.getSnapshot().documents.one.renderer).toMatchObject({
+      status: 'suspended',
+      estimatedGpuBytes: 48_000
+    });
+    expect(workspace.getSnapshot().documents.two.renderer).toMatchObject({
+      status: 'ready',
+      estimatedGpuBytes: 96_000
+    });
+
+    workspace.close(first.value.id);
+    expect(first.value.renderer.getSnapshot().status).toBe('disposed');
+    expect(second.value.renderer.getSnapshot().status).toBe('ready');
+  });
 });

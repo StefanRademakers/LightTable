@@ -40,6 +40,11 @@ export {
   type DocumentTaskState
 } from './lighttable/application/tasks/documentTaskRegistry';
 export {
+  DocumentRendererLifecycle,
+  type DocumentRendererSnapshot,
+  type DocumentRendererStatus
+} from './lighttable/application/rendering/documentRendererLifecycle';
+export {
   copyLightTableGrade,
   readLightTableGrade,
   useLightTableGradeClipboard,

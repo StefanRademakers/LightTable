@@ -16,6 +16,9 @@ import {
   DocumentTaskRegistry
 } from './application/tasks/documentTaskRegistry';
 import {
+  DocumentRendererLifecycle
+} from './application/rendering/documentRendererLifecycle';
+import {
   isTemporaryPanRelease,
   resolveEditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
@@ -302,6 +305,7 @@ export interface LightTableEditorOverlayProps {
   onDirtyChange?: (dirty: boolean) => void;
   history?: DocumentCommandHistory;
   tasks?: DocumentTaskRegistry;
+  rendererLifecycle?: DocumentRendererLifecycle;
 }
 
 interface LightTableStartupTimings {
@@ -749,7 +753,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onDocumentError,
   onDirtyChange,
   history,
-  tasks
+  tasks,
+  rendererLifecycle: providedRendererLifecycle
 }) => {
   const localHistory = useMemo(
     () => new DocumentCommandHistory(workspaceDocumentId as DocumentSessionId, {
@@ -764,6 +769,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     [workspaceDocumentId]
   );
   const taskRegistry = tasks ?? localTasks;
+  const localRendererLifecycle = useMemo(
+    () => new DocumentRendererLifecycle(),
+    [workspaceDocumentId]
+  );
+  const rendererLifecycle = providedRendererLifecycle ?? localRendererLifecycle;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onDocumentReadyRef = useRef(onDocumentReady);
   const onDocumentErrorRef = useRef(onDocumentError);
@@ -783,6 +793,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => () => {
     if (!tasks) localTasks.dispose();
   }, [localTasks, tasks]);
+  useEffect(() => () => {
+    if (!providedRendererLifecycle) localRendererLifecycle.dispose();
+  }, [localRendererLifecycle, providedRendererLifecycle]);
+  useEffect(() => {
+    rendererLifecycle.setActive(active);
+  }, [active, rendererLifecycle]);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerHueCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerScopeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1569,6 +1585,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const startingVisibility: GroupVisibility = { light: true, color: true, colorMixer: true, colorGrading: true, curves: true, effects: true };
     groupVisibilityRef.current = startingVisibility;
     setGroupVisibility(startingVisibility);
+    const rendererGeneration = rendererLifecycle.beginStart();
 
     void taskRegistry.run('open', 'Open image', async (task) => {
       if (!editorSourceFileKey && !initialSourceBlob) throw new Error('No source image was supplied to LightTable.');
@@ -1576,8 +1593,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const webGpuStartedAt = performance.now();
       const enginePromise = WebGpuEngine.create(canvasRef.current!, {
         onHistogram: (next) => { if (!isCanceled()) setHistogram(next); },
-        onGpuMemoryEstimate: (bytes) => { if (!isCanceled()) setGpuMemoryBytes(bytes); },
-        onDeviceLost: (message) => { if (!isCanceled()) setError(message); },
+        onGpuMemoryEstimate: (bytes) => {
+          if (!isCanceled()) {
+            setGpuMemoryBytes(bytes);
+            rendererLifecycle.setMemoryEstimate(bytes, rendererGeneration);
+          }
+        },
+        onDeviceLost: (message) => {
+          if (!isCanceled()) {
+            setError(message);
+            rendererLifecycle.markFailed(rendererGeneration, message);
+          }
+        },
         onScopeError: (message) => { if (!isCanceled()) setScopeError(message); },
         onFirstFrame: () => {
           if (isCanceled() || !startupAwaitingFirstFrameRef.current) return;
@@ -1643,9 +1670,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         task.signal
       );
       task.throwIfCanceled();
+      rendererLifecycle.markReady(rendererGeneration);
     }).then((result) => {
       if (!canceled && result.status === 'failed') {
         setError(result.error.message || 'LightTable could not be initialized.');
+        rendererLifecycle.markFailed(
+          rendererGeneration,
+          result.error.message || 'LightTable could not be initialized.'
+        );
       }
       if (!canceled) setLoading(false);
     });
@@ -1658,8 +1690,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       clearEditorHistory();
       engineRef.current = null;
       engine?.destroy();
+      rendererLifecycle.reset(rendererGeneration);
     };
-  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, sourceDecodeMode, taskRegistry]);
+  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, rendererLifecycle, sourceDecodeMode, taskRegistry]);
 
   useEffect(() => {
     if (!open || !viewportRef.current) return;

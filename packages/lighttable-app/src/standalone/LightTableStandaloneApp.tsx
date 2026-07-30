@@ -162,6 +162,7 @@ export function LightTableStandaloneApp({
             workspaceDocuments={workspaceDocuments}
             history={documentSession.history}
             tasks={documentSession.tasks}
+            rendererLifecycle={documentSession.renderer}
             onActivateWorkspaceDocument={(id) => {
               workspace.activate(id as DocumentSessionId);
             }}

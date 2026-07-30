@@ -713,6 +713,8 @@ Work:
 - [x] retain current UI and renderer behavior;
 - [x] keep inactive document runtimes mounted so viewport, selection, tool,
       history, layers and GPU state survive tab switches;
+- [x] remove active-tab identity from renderer startup dependencies so a tab
+      switch no longer destroys and recreates the document engine;
 - [ ] replace the temporary mounted-overlay retention strategy with an explicit
       renderer suspend/resume lifecycle and a configurable GPU-memory budget.
 
@@ -822,8 +824,12 @@ Exit criteria:
 
 Work:
 
-- introduce renderer port and current-engine adapter;
-- create one renderer context per `DocumentSession`;
+- [ ] introduce renderer port and current-engine adapter;
+- [x] create a renderer lifecycle and memory snapshot per `DocumentSession`;
+- [x] guard asynchronous renderer startup with document-local generations;
+- [x] represent inactive ready renderers as suspended without losing their
+      resources;
+- [ ] move concrete `WebGpuEngine` ownership behind the renderer adapter;
 - move render scheduling/invalidation out of React effects;
 - split device, resources, scopes and readback;
 - isolate optional pipeline compilation;
@@ -835,6 +841,15 @@ Exit criteria:
 - switching documents switches renderer contexts;
 - an invalid optional effect cannot prevent a plain image from loading;
 - inactive-document resource policy is measurable and deterministic.
+
+Implementation note:
+
+The first renderer slice separates application lifecycle from the concrete
+WebGPU engine. Each document now reports `idle`, `starting`, `ready`,
+`suspended`, `failed` or `disposed`, including its estimated GPU bytes.
+Concrete engine construction is still in the overlay and is the next boundary
+to move. A suspended renderer currently retains resources; deterministic
+eviction starts only after the adapter owns those resources.
 
 ### Phase 6 — Layer compositor and processing modules
 
