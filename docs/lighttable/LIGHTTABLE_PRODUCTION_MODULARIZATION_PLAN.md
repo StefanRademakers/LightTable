@@ -906,7 +906,7 @@ Work:
 - [x] move immutable core shader/pipeline construction into a device-scoped
       pipeline library;
 - [x] isolate scopes plus buffer/texture readback and browser PNG encoding;
-- split mutable image-resource ownership from the engine;
+- [x] split mutable image-resource ownership from the engine;
 - [x] isolate optional pipeline compilation;
 - add resource lifecycle and device-loss tests.
 
@@ -960,6 +960,12 @@ at feature level and never publishes an invalid pipeline into a command buffer.
 Disabled effects compile nothing, successful compilation schedules one new
 frame, and failed features require an explicit retry rather than repeatedly
 poisoning frames.
+
+Loaded-image textures, the histogram buffer and every image-derived bind group
+now have one document-scoped resource owner. Reload and disposal perform one
+idempotent reset, including alias protection, instead of manually destroying
+and nulling a scattered set of engine fields. Static device resources and
+effect-owned caches retain their separate lifetimes.
 
 ### Phase 6 — Layer compositor and processing modules
 

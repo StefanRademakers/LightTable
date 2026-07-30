@@ -55,6 +55,7 @@ import {
 import { ADJUSTMENT_UNIFORM_FLOATS, buildAdjustmentUniform } from './adjustmentUniform';
 import { getCorePipelineBundle } from './corePipelineLibrary';
 import { encodeRgba8Png, mapGpuBufferCopy, readRgba8Texture } from './gpuReadback';
+import { DocumentImageGpuResources } from './documentImageGpuResources';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 const DIFFERENCE_METRICS_BYTE_SIZE = 8 * Uint32Array.BYTES_PER_ELEMENT;
@@ -89,6 +90,45 @@ export class WebGpuEngine {
   private imageDocument: ImageDocument | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
+  private readonly imageResources = new DocumentImageGpuResources();
+
+  // Compatibility accessors keep the facade stable while ownership moves to
+  // the document-scoped resource set. New renderer code should use the set
+  // directly rather than adding another nullable engine field.
+  private get sourceTexture() { return this.imageResources.sourceTexture; }
+  private set sourceTexture(value: GPUTexture | null) { this.imageResources.sourceTexture = value; }
+  private get correctedTexture() { return this.imageResources.correctedTexture; }
+  private set correctedTexture(value: GPUTexture | null) { this.imageResources.correctedTexture = value; }
+  private get downsampleTexture() { return this.imageResources.downsampleTexture; }
+  private set downsampleTexture(value: GPUTexture | null) { this.imageResources.downsampleTexture = value; }
+  private get blurTexture() { return this.imageResources.blurTexture; }
+  private set blurTexture(value: GPUTexture | null) { this.imageResources.blurTexture = value; }
+  private get creativeTexture() { return this.imageResources.creativeTexture; }
+  private set creativeTexture(value: GPUTexture | null) { this.imageResources.creativeTexture = value; }
+  private get displayTexture() { return this.imageResources.displayTexture; }
+  private set displayTexture(value: GPUTexture | null) { this.imageResources.displayTexture = value; }
+  private get finalTexture() { return this.imageResources.finalTexture; }
+  private set finalTexture(value: GPUTexture | null) { this.imageResources.finalTexture = value; }
+  private get histogramBuffer() { return this.imageResources.histogramBuffer; }
+  private set histogramBuffer(value: GPUBuffer | null) { this.imageResources.histogramBuffer = value; }
+  private get downsampleBindGroup() { return this.imageResources.downsampleBindGroup; }
+  private set downsampleBindGroup(value: GPUBindGroup | null) { this.imageResources.downsampleBindGroup = value; }
+  private get blurHorizontalBindGroup() { return this.imageResources.blurHorizontalBindGroup; }
+  private set blurHorizontalBindGroup(value: GPUBindGroup | null) { this.imageResources.blurHorizontalBindGroup = value; }
+  private get blurVerticalBindGroup() { return this.imageResources.blurVerticalBindGroup; }
+  private set blurVerticalBindGroup(value: GPUBindGroup | null) { this.imageResources.blurVerticalBindGroup = value; }
+  private get creativeBindGroup() { return this.imageResources.creativeBindGroup; }
+  private set creativeBindGroup(value: GPUBindGroup | null) { this.imageResources.creativeBindGroup = value; }
+  private get blitOriginalBindGroup() { return this.imageResources.blitOriginalBindGroup; }
+  private set blitOriginalBindGroup(value: GPUBindGroup | null) { this.imageResources.blitOriginalBindGroup = value; }
+  private get blitCorrectedBindGroup() { return this.imageResources.blitCorrectedBindGroup; }
+  private set blitCorrectedBindGroup(value: GPUBindGroup | null) { this.imageResources.blitCorrectedBindGroup = value; }
+  private get differenceBindGroup() { return this.imageResources.differenceBindGroup; }
+  private set differenceBindGroup(value: GPUBindGroup | null) { this.imageResources.differenceBindGroup = value; }
+  private get histogramOriginalBindGroup() { return this.imageResources.histogramOriginalBindGroup; }
+  private set histogramOriginalBindGroup(value: GPUBindGroup | null) { this.imageResources.histogramOriginalBindGroup = value; }
+  private get histogramCorrectedBindGroup() { return this.imageResources.histogramCorrectedBindGroup; }
+  private set histogramCorrectedBindGroup(value: GPUBindGroup | null) { this.imageResources.histogramCorrectedBindGroup = value; }
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -117,15 +157,7 @@ export class WebGpuEngine {
     this.unsubscribeDeviceLost = subscribeSharedWebGpuDeviceLost(this.deviceLostListener);
   }
 
-  private sourceTexture: GPUTexture | null = null;
-  private correctedTexture: GPUTexture | null = null;
-  private downsampleTexture: GPUTexture | null = null;
-  private blurTexture: GPUTexture | null = null;
-  private creativeTexture: GPUTexture | null = null;
-  private displayTexture: GPUTexture | null = null;
-  private finalTexture: GPUTexture | null = null;
   private curveTexture: GPUTexture | null = null;
-  private histogramBuffer: GPUBuffer | null = null;
   private adjustmentBuffer: GPUBuffer | null = null;
   private outputSettingsBuffer: GPUBuffer | null = null;
   private viewBuffer: GPUBuffer | null = null;
@@ -149,15 +181,6 @@ export class WebGpuEngine {
   private differencePipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
   private histogramPipeline: GPUComputePipeline | null = null;
-  private downsampleBindGroup: GPUBindGroup | null = null;
-  private blurHorizontalBindGroup: GPUBindGroup | null = null;
-  private blurVerticalBindGroup: GPUBindGroup | null = null;
-  private creativeBindGroup: GPUBindGroup | null = null;
-  private blitOriginalBindGroup: GPUBindGroup | null = null;
-  private blitCorrectedBindGroup: GPUBindGroup | null = null;
-  private differenceBindGroup: GPUBindGroup | null = null;
-  private histogramOriginalBindGroup: GPUBindGroup | null = null;
-  private histogramCorrectedBindGroup: GPUBindGroup | null = null;
   private metadata: LightTableImageMetadata | null = null;
   private adjustments = createDefaultAdjustments();
   private adjustmentStack = createAdjustmentStackFromBasicAdjustments(this.adjustments);
@@ -1688,27 +1711,11 @@ export class WebGpuEngine {
     this.destroyAdjustmentLayerRuntimes();
     this.imageDocument = null;
     this.scopeEngine?.clearTextures();
-    this.sourceTexture?.destroy();
-    this.correctedTexture?.destroy();
-    this.downsampleTexture?.destroy();
-    this.blurTexture?.destroy();
-    this.creativeTexture?.destroy();
-    this.displayTexture?.destroy();
     this.halationEffect?.destroyImageResources();
     this.grainEffect?.destroyImageResources();
     this.chromaticAberrationEffect?.destroyImageResources();
     this.lensDistortionEffect?.destroyImageResources();
     this.lensBlurEffect?.destroyImageResources();
-    this.finalTexture?.destroy();
-    this.histogramBuffer?.destroy();
-    this.sourceTexture = null;
-    this.correctedTexture = null;
-    this.downsampleTexture = null;
-    this.blurTexture = null;
-    this.creativeTexture = null;
-    this.displayTexture = null;
-    this.finalTexture = null;
-    this.histogramBuffer = null;
-    this.differenceBindGroup = null;
+    this.imageResources.reset();
   }
 }
