@@ -10,6 +10,11 @@ const isolationHeaders = {
 
 export default defineConfig({
   server: {
+    // StoryBuilder commonly owns 5173 during adapter development. A fixed,
+    // strict desktop port prevents Electron from silently navigating to that
+    // unrelated Vite renderer and executing a stale LightTable module graph.
+    port: 5174,
+    strictPort: true,
     headers: isolationHeaders
   },
   preview: {
