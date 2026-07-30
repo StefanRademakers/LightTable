@@ -15,6 +15,10 @@ import type {
 import {
   DocumentTaskRegistry
 } from './application/tasks/documentTaskRegistry';
+import {
+  isTemporaryPanRelease,
+  resolveEditorKeyboardCommand
+} from './application/input/editorKeyboardRouter';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from './AdjustmentSlider';
 import { ColorGradingWheel } from './ColorGradingWheel';
 import {
@@ -2353,235 +2357,134 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => {
     if (!open || !active) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      const primaryModifier = event.ctrlKey || event.metaKey;
-      const undo = primaryModifier && !event.altKey && !event.shiftKey && key === 'z';
-      const redo = primaryModifier && !event.altKey && (
-        (event.shiftKey && key === 'z') || (!event.shiftKey && key === 'y')
-      );
-      if (undo || redo) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        void (redo ? redoEditor() : undoEditor());
-        return;
-      }
-      // A focused range is still an editor control, but it is not text entry:
-      // global tool/view shortcuts must continue working immediately after a
-      // drag while arrow keys remain available to fine-tune the slider.
       const editable = isTextEditingTarget(event.target);
-      if (event.code === 'Space' && !editable && !primaryModifier && !event.altKey) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        if (!temporaryPanRef.current) {
-          temporaryPanRef.current = true;
-          setTemporaryPanActive(true);
-        }
-        return;
-      }
-      const selectAll = primaryModifier && !event.altKey && !event.shiftKey && key === 'a';
-      const deselect = primaryModifier && !event.altKey && !event.shiftKey && key === 'd';
-      const invertSelection = primaryModifier && !event.altKey && event.shiftKey && key === 'i';
-      const copySelection = primaryModifier && !event.altKey && !event.shiftKey && key === 'c';
-      const pasteSelection = primaryModifier && !event.altKey && !event.shiftKey && key === 'v';
-      const layerViaCopy = primaryModifier && !event.altKey && !event.shiftKey && key === 'j';
-      const freeTransform = primaryModifier && event.altKey && !event.shiftKey && key === 't';
-      const invertLayerColors = primaryModifier && !event.altKey && !event.shiftKey && key === 'i';
-      const featherSelection = !primaryModifier && !event.altKey && event.shiftKey && event.key === 'F6';
-      // macOS labels the key Delete but browsers commonly report the
-      // delete-backward key as Backspace. Accept both representations.
-      const fillKey = event.key === 'Backspace' || event.key === 'Delete';
-      const fillForeground = fillKey && event.altKey && !primaryModifier && !event.shiftKey;
-      const fillBackground = fillKey && primaryModifier && !event.altKey && !event.shiftKey;
-      if ((fillForeground || fillBackground) && !editable) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        fillActiveTargetRef.current(
-          fillForeground
-            ? editorSession.brush.color
-            : editorSession.brush.backgroundColor
-        );
-        return;
-      }
-      if (selectAll && !editable) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        selectAllContent();
-        return;
-      }
-      if (deselect && !editable) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        clearCurrentSelection();
-        return;
-      }
-      if (invertSelection && !editable) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        invertCurrentSelection();
-        return;
-      }
-      if (copySelection && !editable && editorSession.selection.length) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        copySelectedContentRef.current();
-        return;
-      }
-      if (pasteSelection && !editable && selectionClipboardAvailable) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        pasteSelectedContentRef.current();
-        return;
-      }
-      if (layerViaCopy && !editable && !saving) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        layerViaCopyRef.current();
-        return;
-      }
-      if (freeTransform && !editable && !saving && imageDocumentRef.current?.activeLayerId) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        // Repeating the shortcut while transforming must not implicitly commit;
-        // Enter/Escape remain the explicit commit/cancel controls.
-        setEditorSession((current) => (
-          current.activeTool === 'transform' ? current : { ...current, activeTool: 'transform' }
-        ));
-        return;
-      }
-      if (invertLayerColors && !editable) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        invertActiveLayerColorsRef.current();
-        return;
-      }
-      if (featherSelection && !editable && editorSession.selection.length) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        setFeatherDialogOpen(true);
-        return;
-      }
-      if (!primaryModifier && !event.altKey && !editable && key === 'x') {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        setEditorSession((current) => ({
-          ...current,
-          brush: {
-            ...current.brush,
-            color: current.brush.backgroundColor,
-            backgroundColor: current.brush.color
-          }
-        }));
-        return;
-      }
-      if (!primaryModifier && !event.altKey && !editable && key === 'p') {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        setShowDifference(false);
-        setShowOriginal((current) => !current);
-        return;
-      }
-      const brushSizeDirection = event.code === 'BracketLeft' || key === '['
-        ? -1
-        : event.code === 'BracketRight' || key === ']'
-          ? 1
-          : 0;
-      if (
-        brushSizeDirection
-        && !primaryModifier
-        && !event.altKey
-        && !editable
-        && isPaintTool(editorSession.activeTool)
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        setEditorSession((current) => ({
-          ...current,
-          brush: {
-            ...current.brush,
-            size: steppedBrushSize(current.brush.size, brushSizeDirection)
-          }
-        }));
-        return;
-      }
-      const toolShortcut: Partial<Record<string, ToolId>> = {
-        h: 'view',
-        t: 'transform',
-        g: 'fill',
-        b: 'brush',
-        e: 'erase',
-        m: 'select-rectangle',
-        l: 'select-free'
-      };
-      const requestedShortcutTool = key === 'm' && event.shiftKey
-        ? 'select-ellipse'
-        : toolShortcut[key];
-      if (!primaryModifier && !event.altKey && !editable && requestedShortcutTool) {
-        event.preventDefault();
-        const requestedTool = requestedShortcutTool;
-        if (requestedTool === 'transform' && editorSession.activeTool === 'transform') {
-          commitTransformRef.current();
-          return;
-        }
-        if (transformStateRef.current && requestedTool !== 'transform') {
-          commitTransformRef.current();
-        }
-        setEditorSession((current) => ({ ...current, activeTool: requestedTool }));
-        return;
-      }
-      if (event.key === 'Enter' && !editable && transformStateRef.current) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        commitTransformRef.current();
-        return;
-      }
-      if (event.key !== 'Escape' || saving) return;
-      // Inputs own Escape themselves (for example layer rename cancellation).
-      if (editable) return;
+      const command = resolveEditorKeyboardCommand(event, {
+        editable,
+        saving,
+        activeTool: editorSession.activeTool,
+        hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
+        hasSelection: editorSession.selection.length > 0,
+        hasSelectionClipboard: selectionClipboardAvailable,
+        transforming: Boolean(transformStateRef.current)
+      });
+      if (!command) return;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      if (appMenu) {
-        setAppMenu(null);
+
+      if (typeof command === 'object') {
+        if (transformStateRef.current && command.tool !== 'transform') {
+          commitTransformRef.current();
+        }
+        setEditorSession((current) => ({ ...current, activeTool: command.tool }));
         return;
       }
-      if (transformStateRef.current) {
-        cancelTransformRef.current();
-        return;
+      switch (command) {
+        case 'undo':
+          void undoEditor();
+          return;
+        case 'redo':
+          void redoEditor();
+          return;
+        case 'temporary-pan-start':
+          if (!temporaryPanRef.current) {
+            temporaryPanRef.current = true;
+            setTemporaryPanActive(true);
+          }
+          return;
+        case 'fill-foreground':
+        case 'fill-background':
+          fillActiveTargetRef.current(command === 'fill-foreground'
+            ? editorSession.brush.color
+            : editorSession.brush.backgroundColor);
+          return;
+        case 'select-all':
+          selectAllContent();
+          return;
+        case 'select-none':
+          clearCurrentSelection();
+          return;
+        case 'select-invert':
+          invertCurrentSelection();
+          return;
+        case 'selection-copy':
+          copySelectedContentRef.current();
+          return;
+        case 'selection-paste':
+          pasteSelectedContentRef.current();
+          return;
+        case 'layer-via-copy':
+          layerViaCopyRef.current();
+          return;
+        case 'free-transform':
+          setEditorSession((current) => (
+            current.activeTool === 'transform' ? current : { ...current, activeTool: 'transform' }
+          ));
+          return;
+        case 'invert-active-target':
+          invertActiveLayerColorsRef.current();
+          return;
+        case 'selection-feather':
+          setFeatherDialogOpen(true);
+          return;
+        case 'swap-colors':
+          setEditorSession((current) => ({
+            ...current,
+            brush: {
+              ...current.brush,
+              color: current.brush.backgroundColor,
+              backgroundColor: current.brush.color
+            }
+          }));
+          return;
+        case 'toggle-original':
+          setShowDifference(false);
+          setShowOriginal((current) => !current);
+          return;
+        case 'brush-size-decrease':
+        case 'brush-size-increase':
+          setEditorSession((current) => ({
+            ...current,
+            brush: {
+              ...current.brush,
+              size: steppedBrushSize(
+                current.brush.size,
+                command === 'brush-size-decrease' ? -1 : 1
+              )
+            }
+          }));
+          return;
+        case 'commit-transform':
+          commitTransformRef.current();
+          return;
+        case 'cancel-or-close':
+          if (appMenu) {
+            setAppMenu(null);
+            return;
+          }
+          if (transformStateRef.current) {
+            cancelTransformRef.current();
+            return;
+          }
+          if (autoAlignPreview) {
+            cancelAutoAlignRef.current();
+            return;
+          }
+          if (selectionDraftRef.current || editorSession.selection.length) {
+            const before = cloneSelection(editorSession.selection);
+            selectionDraftRef.current = null;
+            selectionPointerIdRef.current = null;
+            setSelectionDraft(null);
+            engineRef.current?.clearSelection();
+            setEditorSession((current) => ({ ...current, pointerId: null, selection: [] }));
+            if (before.length) pushSelectionHistory(before, []);
+            return;
+          }
+          onClose();
       }
-      if (autoAlignPreview) {
-        cancelAutoAlignRef.current();
-        return;
-      }
-      if (selectionDraftRef.current || editorSession.selection.length) {
-        const before = cloneSelection(editorSession.selection);
-        selectionDraftRef.current = null;
-        selectionPointerIdRef.current = null;
-        setSelectionDraft(null);
-        engineRef.current?.clearSelection();
-        setEditorSession((current) => ({ ...current, pointerId: null, selection: [] }));
-        if (before.length) pushSelectionHistory(before, []);
-        return;
-      }
-      onClose();
     };
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.code !== 'Space' || !temporaryPanRef.current) return;
+      if (!isTemporaryPanRelease(event) || !temporaryPanRef.current) return;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();

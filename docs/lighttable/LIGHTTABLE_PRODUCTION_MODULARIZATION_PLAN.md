@@ -794,7 +794,11 @@ Exit criteria:
 
 Work:
 
-- create one normalized keyboard/pointer/wheel router;
+- [x] create a host-neutral keyboard intent router shared by macOS and Windows
+      modifier semantics;
+- [x] move shortcut precedence and capability gating into pure tested
+      application code;
+- [ ] route normalized pointer and wheel input through the same boundary;
 - create tool registry and lifecycle;
 - migrate temporary pan, brush sizing and tool shortcuts;
 - migrate selection, paint/erase/fill and transform controllers;
