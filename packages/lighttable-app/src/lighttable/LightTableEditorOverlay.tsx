@@ -32,6 +32,7 @@ import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
+import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import {
   formatStartupTimings,
   type LightTableStartupTimings
@@ -190,16 +191,11 @@ import {
   createRasterLayer,
   deleteLayer,
   deleteLayers,
-  duplicateLayer,
-  flattenGroup,
-  flattenImage,
   getFlattenGroupPlan,
   getFlattenImagePlan,
-  getMergeRasterLayersPlan,
   groupLayers,
   markLayerPixelsChanged,
   markLayerMaskPixelsChanged,
-  mergeRasterLayers,
   moveLayerSelection,
   moveLayer,
   renameLayer,
@@ -3165,6 +3161,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (recordHistory && !documentTransactionRef.current) pushDocumentHistory(current, next);
   };
 
+  const layerDocumentCommands = useLayerDocumentCommands({
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    applyDocumentSnapshot,
+    pushDocumentHistory,
+    pushHistoryEntry,
+    setActiveChannel: (activeChannel) => {
+      setEditorSession((session) => ({ ...session, activeChannel }));
+    },
+    setStatus: setGradeStatus,
+    setError
+  });
+  const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
+  const mergeSelectedRasterLayers = layerDocumentCommands.mergeSelectedRasterLayers;
+  const mergeActiveLayerDown = layerDocumentCommands.mergeActiveLayerDown;
+
   const copySelectedContent = () => {
     const document = imageDocumentRef.current;
     const engine = engineRef.current;
@@ -3334,179 +3346,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   activateToolRef.current = activatePersistentTool;
 
-  const duplicateActiveLayer = () => {
-    const current = imageDocumentRef.current;
-    if (!current?.activeLayerId) return;
-    const sourceId = current.activeLayerId;
-    const next = duplicateLayer(current, sourceId);
-    if (next === current || !next.activeLayerId) return;
-    imageDocumentRef.current = next;
-    setImageDocument(next);
-    engineRef.current?.setDocument(next);
-    engineRef.current?.duplicateLayerPixels(sourceId, next.activeLayerId);
-    pushDocumentHistory(current, next);
-    setEditorSession((session) => ({ ...session, activeChannel: 'pixels' }));
-  };
-
-  const mergeSelectedRasterLayers = (selectedLayerIds: LayerId[]) => {
-    const current = imageDocumentRef.current;
-    if (!current) return;
-    const plan = getMergeRasterLayersPlan(current, selectedLayerIds);
-    if (!plan) {
-      setError('Merge Selected requires two or more contiguous raster layers in the same group.');
-      return;
-    }
-    engineRef.current?.beginLayerPixelEdit(plan.destinationId);
-    if (!engineRef.current?.mergeLayers(current, plan.layerIds, plan.destinationId)) {
-      engineRef.current?.cancelPixelEdit();
-      setError('The selected layers could not be merged on the GPU.');
-      return;
-    }
-    const pixelEdit = engineRef.current.finishPixelEdit();
-    const next = mergeRasterLayers(current, plan.layerIds);
-    applyDocumentSnapshot(next);
-    if (pixelEdit) {
-      pushHistoryEntry({
-        byteSize: pixelEdit.byteSize,
-        layerIds: plan.layerIds,
-        undo: () => {
-          applyDocumentSnapshot(current);
-          if (!engineRef.current?.applyPixelHistory(pixelEdit, 'undo')) throw new Error('Merge undo is no longer available.');
-        },
-        redo: () => {
-          if (!engineRef.current?.applyPixelHistory(pixelEdit, 'redo')) throw new Error('Merge redo is no longer available.');
-          applyDocumentSnapshot(next);
-        },
-        dispose: pixelEdit.destroy
-      });
-    }
-    setEditorSession((session) => ({ ...session, activeChannel: 'pixels' }));
-  };
-
-  const mergeActiveLayerDown = () => {
-    const current = imageDocumentRef.current;
-    if (!current?.activeLayerId) return;
-    const siblings = siblingLayers(current, current.activeLayerId);
-    const index = siblings.findIndex((layer) => layer.id === current.activeLayerId);
-    if (index <= 0) return;
-    const top = siblings[index];
-    const bottom = siblings[index - 1];
-    if (top?.type !== 'raster' || bottom?.type !== 'raster') return;
-    mergeSelectedRasterLayers([bottom.id, top.id]);
-  };
-
   const commitFlattenRequest = () => {
     const request = flattenRequest;
-    const current = imageDocumentRef.current;
-    const engine = engineRef.current;
     setFlattenRequest(null);
-    if (!request || !current || !engine) return;
-    const plan = request.kind === 'group'
-      ? getFlattenGroupPlan(current, request.groupId)
-      : getFlattenImagePlan(current);
-    if (!plan) {
-      setError(
-        request.kind === 'group'
-          ? 'This group cannot be flattened until its adjustment layers are rasterized.'
-          : 'This image cannot be flattened until its adjustment layers are rasterized.'
-      );
-      return;
-    }
-    engine.beginLayerPixelEdit(plan.destinationId);
-    const rendered = request.kind === 'group'
-      ? engine.flattenGroup(current, request.groupId, plan.destinationId)
-      : engine.flattenImage(current, plan.destinationId);
-    if (!rendered) {
-      engine.cancelPixelEdit();
-      setError('The layer stack could not be flattened on the GPU.');
-      return;
-    }
-    const pixelEdit = engine.finishPixelEdit();
-    const next = request.kind === 'group'
-      ? flattenGroup(current, request.groupId)
-      : flattenImage(current);
-    if (!pixelEdit || next === current) {
-      pixelEdit?.destroy();
-      setError('The flattened result could not create a recoverable undo step.');
-      return;
-    }
-    applyDocumentSnapshot(next);
-    pushHistoryEntry({
-      byteSize: pixelEdit.byteSize,
-      layerIds: plan.layerIds,
-      undo: () => {
-        applyDocumentSnapshot(current);
-        if (!engineRef.current?.applyPixelHistory(pixelEdit, 'undo')) {
-          throw new Error('Flatten undo is no longer available.');
-        }
-      },
-      redo: () => {
-        if (!engineRef.current?.applyPixelHistory(pixelEdit, 'redo')) {
-          throw new Error('Flatten redo is no longer available.');
-        }
-        applyDocumentSnapshot(next);
-      },
-      dispose: pixelEdit.destroy
-    });
-    setEditorSession((session) => ({ ...session, activeChannel: 'pixels' }));
-    setGradeStatus(request.kind === 'group' ? 'Group flattened' : 'Image flattened');
+    if (request) layerDocumentCommands.flatten(request);
   };
 
   const invertActiveLayerColors = () => {
-    const current = imageDocumentRef.current;
-    const layerId = current?.activeLayerId;
-    const channel = editorSession.activeChannel;
-    const activeLayer = current
-      ? (channel === 'mask'
-          ? findDocumentLayer(current, layerId ?? null)
-          : findRasterLayer(current, layerId ?? null))
-      : null;
-    const engine = engineRef.current;
-    if (!current || !layerId || !activeLayer || !engine) return;
-    if (layerIsLocked(activeLayer, 'pixels')) {
-      setError(`Unlock the active layer before inverting its ${channel === 'mask' ? 'mask' : 'colors'}.`);
-      return;
-    }
-    if (channel === 'mask' && !activeLayer.mask) {
-      setError('Add or select a layer mask before inverting it.');
-      return;
-    }
-    try {
-      engine.beginLayerPixelEdit(layerId, channel);
-      if (!engine.invertLayerColors(layerId, channel)) {
-        engine.cancelPixelEdit();
-        throw new Error(`The active ${channel === 'mask' ? 'mask' : 'layer pixels'} are not available on the GPU.`);
-      }
-      const pixelEdit = engine.finishPixelEdit();
-      if (!pixelEdit) throw new Error('The invert operation could not create an undo snapshot.');
-      const dirtyBounds = { x: 0, y: 0, width: current.width, height: current.height };
-      const next = channel === 'mask'
-        ? markLayerMaskPixelsChanged(current, layerId, dirtyBounds)
-        : markLayerPixelsChanged(current, layerId, dirtyBounds);
-      applyDocumentSnapshot(next);
-      pushHistoryEntry({
-        byteSize: pixelEdit.byteSize,
-        layerIds: [layerId],
-        undo: () => {
-          if (!engineRef.current?.applyPixelHistory(pixelEdit, 'undo')) {
-            throw new Error('Invert colors undo is no longer available.');
-          }
-          applyDocumentSnapshot(current);
-        },
-        redo: () => {
-          if (!engineRef.current?.applyPixelHistory(pixelEdit, 'redo')) {
-            throw new Error('Invert colors redo is no longer available.');
-          }
-          applyDocumentSnapshot(next);
-        },
-        dispose: pixelEdit.destroy
-      });
-      setError(null);
-      setGradeStatus(`Inverted ${channel === 'mask' ? 'mask' : 'colors'} on ${activeLayer.name}`);
-    } catch (reason) {
-      engine.cancelPixelEdit();
-      setError(reason instanceof Error ? reason.message : `The active ${channel === 'mask' ? 'mask' : 'layer colors'} could not be inverted.`);
-    }
+    layerDocumentCommands.invertActiveLayerColors(editorSession.activeChannel);
   };
   invertActiveLayerColorsRef.current = invertActiveLayerColors;
 
