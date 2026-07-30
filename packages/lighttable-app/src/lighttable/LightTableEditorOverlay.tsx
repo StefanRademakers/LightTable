@@ -44,6 +44,7 @@ import { useEditorResizeController } from './editor/hooks/useEditorResizeControl
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
 import { useDocumentFileCommands } from './editor/hooks/useDocumentFileCommands';
+import { publishPreparedDocument } from './editor/documents/publishPreparedDocument';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
@@ -716,69 +717,65 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       initialAdjustments,
       groupVisibility: groupVisibilityRef.current
     });
-    if (!prepared) return;
-    const { loaded, hydration } = prepared;
-    const {
-      document: nextDocument,
-      metadata: nextMetadata,
-      imageBlob,
-      layeredAdjustmentStack,
-      psdImport,
-      psdWarnings,
-      psdCompatibility,
-      timings
-    } = loaded;
-    startupTimingsRef.current = {
-      ...startupTimingsRef.current,
-      ...timings
-    };
-    imageDocumentRef.current = nextDocument;
-    // A PSD is converted into native LightTable layers/assets. Do not embed
-    // the complete source document again in the native file.
-    preservedSourceAssetsRef.current = [];
-    setImageDocument(nextDocument);
-    setThumbnailDocumentReadyId(nextDocument.id);
-    if (isCanceled()) return;
-    setMetadata(nextMetadata);
-    setPsdImportInfo(psdImport
-      ? { ...psdImport, warnings: [...psdWarnings] }
-      : psdImport);
-    setPsdCompatibility([...psdCompatibility]);
-    setPsdDifferenceMetrics(null);
-    setSourceName(name);
-    setSourceBlob(imageBlob);
-    setSourceIdentity(cacheKey);
-    resetLensBlurDepth();
-    setFocusPickerActive(false);
-    selectionGestureRef.current.reset();
-    paintGestureRef.current.reset();
-    setSelectionDraft(null);
-    resetTransformRef.current();
-    setEditorSession((current) => ({ ...current, selection: [] }));
-    setSelectionClipboardAvailable(false);
-    setFeatherDialogOpen(false);
-    setLensBlurViewportModeState('result');
-    engineRef.current?.setLensBlurDepthVisualization(false);
-    clearEditorHistory();
-    documentAdjustmentsRef.current = hydration.adjustments;
-    adjustmentsRef.current = hydration.adjustments;
-    setAdjustments(hydration.adjustments);
-    setHistogram(null);
-    setZoomMode('fit');
-    setView({ scale: 1, panX: 0, panY: 0 });
-    if (psdImport) {
-      setPsdDifferenceMetrics(hydration.psdDifferenceMetrics);
-      setGradeStatus(hydration.status);
-      if (hydration.differenceError) {
-        console.warn(
-          'LightTable PSD difference measurement failed',
-          hydration.differenceError
-        );
+    if (!prepared || isCanceled() || signal?.aborted) return;
+    publishPreparedDocument(prepared, {
+      name,
+      identity: cacheKey
+    }, {
+      mergeStartupTimings: (timings) => {
+        startupTimingsRef.current = {
+          ...startupTimingsRef.current,
+          ...timings
+        };
+      },
+      publishDocument: (nextDocument) => {
+        imageDocumentRef.current = nextDocument;
+        // PSD sources are converted into native LightTable assets. The source
+        // file itself is not duplicated in the native document.
+        preservedSourceAssetsRef.current = [];
+        setImageDocument(nextDocument);
+        setThumbnailDocumentReadyId(nextDocument.id);
+      },
+      publishMetadata: setMetadata,
+      publishPsdImport: setPsdImportInfo,
+      publishPsdCompatibility: (entries) =>
+        setPsdCompatibility([...entries]),
+      publishPsdDifference: setPsdDifferenceMetrics,
+      publishSource: (nextName, nextBlob, identity) => {
+        setSourceName(nextName);
+        setSourceBlob(nextBlob);
+        setSourceIdentity(identity);
+      },
+      resetDocumentInteraction: () => {
+        resetLensBlurDepth();
+        setFocusPickerActive(false);
+        selectionGestureRef.current.reset();
+        paintGestureRef.current.reset();
+        setSelectionDraft(null);
+        resetTransformRef.current();
+        setEditorSession((current) => ({ ...current, selection: [] }));
+        setSelectionClipboardAvailable(false);
+        setFeatherDialogOpen(false);
+        setLensBlurViewportModeState('result');
+        engineRef.current?.setLensBlurDepthVisualization(false);
+        clearEditorHistory();
+        setHistogram(null);
+        setZoomMode('fit');
+        setView({ scale: 1, panX: 0, panY: 0 });
+      },
+      publishAdjustments: (nextAdjustments) => {
+        documentAdjustmentsRef.current = nextAdjustments;
+        adjustmentsRef.current = nextAdjustments;
+        setAdjustments(nextAdjustments);
+      },
+      publishStatus: setGradeStatus,
+      reportDifferenceFailure: (failure) => {
+        console.warn('LightTable PSD difference measurement failed', failure);
+      },
+      reportPsdWarnings: (warnings) => {
+        console.warn('LightTable PSD semantic import warnings', warnings);
       }
-      if (psdWarnings.length) {
-        console.warn('LightTable PSD semantic import warnings', psdWarnings);
-      }
-    }
+    });
   }, [clearEditorHistory, resetLensBlurDepth]);
 
   const beforeDocumentOpen = useCallback(() => {

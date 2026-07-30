@@ -1305,3 +1305,6 @@ The refactor is successful when:
 - [x] Split keyboard handling into a pure platform-event resolver and a tested
       command-port executor; every shortcut now targets only the active
       document composition instead of embedding mutations in the editor root.
+- [x] Publish a prepared source through one synchronous editor transaction
+      after the final cancellation check; document, assets, source identity,
+      grade and metadata can no longer become partially visible.
