@@ -1302,3 +1302,6 @@ The refactor is successful when:
 - [x] Move save, download and local-file command orchestration behind one
       document-instance controller; task cancellation, save de-duplication,
       host picking and export policy no longer live in the editor root.
+- [x] Split keyboard handling into a pure platform-event resolver and a tested
+      command-port executor; every shortcut now targets only the active
+      document composition instead of embedding mutations in the editor root.

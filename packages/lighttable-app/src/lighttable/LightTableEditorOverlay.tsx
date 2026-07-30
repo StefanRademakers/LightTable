@@ -30,6 +30,7 @@ import {
   resolveEditorKeyboardCommand,
   type EditorKeyboardCommand
 } from './application/input/editorKeyboardRouter';
+import { executeEditorKeyboardCommand } from './application/input/executeEditorKeyboardCommand';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import {
@@ -1037,89 +1038,47 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const featherCurrentSelection = selectionSessionController.feather;
 
   const executeKeyboardCommand = (command: EditorKeyboardCommand): void => {
-    if (typeof command === 'object') {
-      if (transformActiveRef.current() && command.tool !== 'transform') {
-        commitTransformRef.current();
-      }
-      activateToolRef.current(command.tool);
-      return;
-    }
-    switch (command) {
-      case 'undo':
-        void undoEditor();
-        return;
-      case 'redo':
-        void redoEditor();
-        return;
-      case 'temporary-pan-start':
-        if (temporaryToolRef.current.begin('view')) {
-          setTemporaryPanActive(true);
+    executeEditorKeyboardCommand(command, {
+      isTransformActive: () => transformActiveRef.current(),
+      commitTransform: () => commitTransformRef.current(),
+      activateTool: (tool) => activateToolRef.current(tool),
+      undo: () => { void undoEditor(); },
+      redo: () => { void redoEditor(); },
+      beginTemporaryPan: () => {
+        if (temporaryToolRef.current.begin('view')) setTemporaryPanActive(true);
+      },
+      fillForeground: () =>
+        fillActiveTargetRef.current(editorSession.brush.color),
+      fillBackground: () =>
+        fillActiveTargetRef.current(editorSession.brush.backgroundColor),
+      selectAll: selectAllContent,
+      selectNone: clearCurrentSelection,
+      invertSelection: invertCurrentSelection,
+      copySelection: () => copySelectedContentRef.current(),
+      pasteSelection: () => pasteSelectedContentRef.current(),
+      layerViaCopy: () => layerViaCopyRef.current(),
+      invertActiveTarget: () => invertActiveLayerColorsRef.current(),
+      openSelectionFeather: () => setFeatherDialogOpen(true),
+      swapColors: () => setEditorSession((current) => ({
+        ...current,
+        brush: {
+          ...current.brush,
+          color: current.brush.backgroundColor,
+          backgroundColor: current.brush.color
         }
-        return;
-      case 'fill-foreground':
-      case 'fill-background':
-        fillActiveTargetRef.current(command === 'fill-foreground'
-          ? editorSession.brush.color
-          : editorSession.brush.backgroundColor);
-        return;
-      case 'select-all':
-        selectAllContent();
-        return;
-      case 'select-none':
-        clearCurrentSelection();
-        return;
-      case 'select-invert':
-        invertCurrentSelection();
-        return;
-      case 'selection-copy':
-        copySelectedContentRef.current();
-        return;
-      case 'selection-paste':
-        pasteSelectedContentRef.current();
-        return;
-      case 'layer-via-copy':
-        layerViaCopyRef.current();
-        return;
-      case 'free-transform':
-        activateToolRef.current('transform');
-        return;
-      case 'invert-active-target':
-        invertActiveLayerColorsRef.current();
-        return;
-      case 'selection-feather':
-        setFeatherDialogOpen(true);
-        return;
-      case 'swap-colors':
-        setEditorSession((current) => ({
-          ...current,
-          brush: {
-            ...current.brush,
-            color: current.brush.backgroundColor,
-            backgroundColor: current.brush.color
-          }
-        }));
-        return;
-      case 'toggle-original':
+      })),
+      toggleOriginal: () => {
         setShowDifference(false);
         setShowOriginal((current) => !current);
-        return;
-      case 'brush-size-decrease':
-      case 'brush-size-increase':
-        setEditorSession((current) => ({
-          ...current,
-          brush: {
-            ...current.brush,
-            size: steppedBrushSize(
-              current.brush.size,
-              command === 'brush-size-decrease' ? -1 : 1
-            )
-          }
-        }));
-        return;
-      case 'commit-transform':
-        commitTransformRef.current();
-        return;
-      case 'cancel-or-close':
+      },
+      changeBrushSize: (direction) => setEditorSession((current) => ({
+        ...current,
+        brush: {
+          ...current.brush,
+          size: steppedBrushSize(current.brush.size, direction)
+        }
+      })),
+      cancelOrClose: () => {
         if (appMenu) {
           setAppMenu(null);
           return;
@@ -1137,7 +1096,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           return;
         }
         onClose();
-    }
+      }
+    });
   };
 
   useEditorWindowInput(open && active, {
