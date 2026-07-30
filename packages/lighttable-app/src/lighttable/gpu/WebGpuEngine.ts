@@ -34,6 +34,7 @@ import type {
   ReferenceDifferenceMetrics
 } from '../application/rendering/rendererTypes';
 import { RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
+import { RenderDirtyState } from '../application/rendering/renderDirtyState';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
 import {
@@ -86,6 +87,7 @@ export class WebGpuEngine {
   private imageDocument: ImageDocument | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
+  private readonly renderDirty = new RenderDirtyState();
   private readonly imageResources = new DocumentImageGpuResources();
 
   // Compatibility accessors keep the facade stable while ownership moves to
@@ -179,10 +181,6 @@ export class WebGpuEngine {
   private before = false;
   private difference = false;
   private lensBlurDepthVisualization = false;
-  private correctionDirty = true;
-  private blurDirty = true;
-  private viewportDirty = true;
-  private histogramDirty = true;
   private histogramPending = false;
   private histogramVisible = true;
   private firstFramePending = false;
@@ -383,10 +381,7 @@ export class WebGpuEngine {
       this.createImageResources(bitmap.width, bitmap.height);
       this.writeAdjustments();
       this.writeOutputSettings();
-      this.correctionDirty = true;
-      this.blurDirty = true;
-      this.viewportDirty = true;
-      this.histogramDirty = true;
+      this.renderDirty.invalidate('source');
       this.firstFramePending = true;
       this.requestRender();
       return this.metadata;
@@ -537,10 +532,7 @@ export class WebGpuEngine {
     this.createImageResources(descriptor.width, descriptor.height);
     this.writeAdjustments();
     this.writeOutputSettings();
-    this.correctionDirty = true;
-    this.blurDirty = true;
-    this.viewportDirty = true;
-    this.histogramDirty = true;
+    this.renderDirty.invalidate('source');
     this.firstFramePending = true;
     this.requestRender();
   }
@@ -870,9 +862,7 @@ export class WebGpuEngine {
   }
 
   private markDocumentDirty() {
-    this.correctionDirty = true;
-    this.blurDirty = true;
-    this.histogramDirty = true;
+    this.renderDirty.invalidate('document');
     this.scopeEngine?.markImageDirty();
     this.requestRender();
   }
@@ -1033,9 +1023,7 @@ export class WebGpuEngine {
     this.writeCurveLut();
     this.writeAdjustments();
     this.writeOutputSettings();
-    this.correctionDirty = true;
-    this.blurDirty = true;
-    this.histogramDirty = true;
+    this.renderDirty.invalidate('adjustments');
     this.scopeEngine?.markImageDirty();
     this.requestRender();
   }
@@ -1043,8 +1031,7 @@ export class WebGpuEngine {
   setDepthMap(depth: DepthAnalysisResult) {
     this.effectRuntime?.setDepthMap(depth);
     this.writeOutputSettings();
-    this.correctionDirty = true;
-    this.histogramDirty = true;
+    this.renderDirty.invalidate('effects');
     this.scopeEngine?.markImageDirty();
     this.requestRender();
   }
@@ -1053,8 +1040,7 @@ export class WebGpuEngine {
     if (this.before === before) return;
     this.before = before;
     if (before) this.difference = false;
-    this.viewportDirty = true;
-    this.histogramDirty = true;
+    this.renderDirty.invalidate('view-mode');
     this.scopeEngine?.setBefore(before);
     this.requestRender();
   }
@@ -1063,7 +1049,7 @@ export class WebGpuEngine {
     if (this.difference === difference) return;
     this.difference = difference;
     if (difference) this.before = false;
-    this.viewportDirty = true;
+    this.renderDirty.invalidate('viewport');
     // Scopes remain tied to the reconstructed image. A difference image is a
     // diagnostic view, not a grade source and must not silently replace them.
     this.scopeEngine?.setBefore(false);
@@ -1075,7 +1061,7 @@ export class WebGpuEngine {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
     }
     await this.layerStyleInitialization;
-    this.correctionDirty = true;
+    this.renderDirty.invalidate('effects');
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
 
@@ -1169,7 +1155,7 @@ export class WebGpuEngine {
     const histogramBecameVisible = histogramVisible && !this.histogramVisible;
     this.histogramVisible = histogramVisible;
     this.pendingScopeOptions = { ...options };
-    if (histogramBecameVisible) this.histogramDirty = true;
+    if (histogramBecameVisible) this.renderDirty.invalidate('histogram');
     this.scopeEngine?.setOptions(options);
     this.requestRender();
   }
@@ -1182,8 +1168,7 @@ export class WebGpuEngine {
 
   setLensBlurInteractionActive(active: boolean) {
     this.effectRuntime?.setInteractionActive(active);
-    this.correctionDirty = true;
-    this.histogramDirty = true;
+    this.renderDirty.invalidate('effects');
     this.scopeEngine?.markImageDirty();
     this.requestRender();
   }
@@ -1198,7 +1183,7 @@ export class WebGpuEngine {
     this.lensBlurDepthVisualization = visualize;
     this.effectRuntime?.setDepthVisualization(visualize);
     this.writeOutputSettings();
-    this.correctionDirty = true;
+    this.renderDirty.invalidate('effects');
     this.requestRender();
   }
 
@@ -1226,7 +1211,7 @@ export class WebGpuEngine {
         0
       ]));
     }
-    this.viewportDirty = true;
+    this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
@@ -1370,7 +1355,7 @@ export class WebGpuEngine {
     this.device.pushErrorScope('validation');
     const encoder = this.device.createCommandEncoder({ label: 'LightTable render' });
     let renderedCorrection = false;
-    if (this.correctionDirty) {
+    if (this.renderDirty.correctionRequired) {
       const hasVisibleAdjustment = (nodes: readonly LayerNode[]): boolean =>
         nodes.some((node) => node.visible && (
           node.type === 'adjustment'
@@ -1462,11 +1447,12 @@ export class WebGpuEngine {
           ]
         });
         this.drawFullscreenPass(encoder, this.basicPipeline, basicBindGroup, this.correctedTexture.createView());
-        if ((Math.abs(this.adjustments.clarity) > 0.00001 || Math.abs(this.adjustments.dehaze) > 0.00001) && this.blurDirty) {
+        if ((Math.abs(this.adjustments.clarity) > 0.00001 || Math.abs(this.adjustments.dehaze) > 0.00001) &&
+          this.renderDirty.blurInputRequired) {
           this.drawFullscreenPass(encoder, this.downsamplePipeline, this.downsampleBindGroup, this.downsampleTexture.createView());
           this.drawFullscreenPass(encoder, this.blurPipeline, this.blurHorizontalBindGroup, this.blurTexture.createView());
           this.drawFullscreenPass(encoder, this.blurPipeline, this.blurVerticalBindGroup, this.downsampleTexture.createView());
-          this.blurDirty = false;
+          this.renderDirty.markBlurInputRendered();
         }
         this.drawFullscreenPass(encoder, this.creativePipeline, this.creativeBindGroup, this.creativeTexture.createView());
         gradeTexture = this.creativeTexture;
@@ -1504,11 +1490,10 @@ export class WebGpuEngine {
         displayResolveBindGroup,
         this.finalTexture.createView()
       );
-      this.correctionDirty = false;
-      this.viewportDirty = true;
+      this.renderDirty.markCorrectionRendered();
       renderedCorrection = true;
     }
-    if (this.viewportDirty) {
+    if (this.renderDirty.viewportRequired) {
       const canvasView = this.context.getCurrentTexture().createView();
       if (this.difference) {
         this.drawFullscreenPass(
@@ -1525,7 +1510,7 @@ export class WebGpuEngine {
           canvasView
         );
       }
-      this.viewportDirty = false;
+      this.renderDirty.markViewportRendered();
     }
 
     const histogramReadBuffer = this.encodeHistogram(encoder);
@@ -1570,7 +1555,7 @@ export class WebGpuEngine {
   }
 
   private encodeHistogram(encoder: GPUCommandEncoder) {
-    if (!this.histogramVisible || !this.histogramDirty || this.histogramPending || !this.metadata || !this.histogramBuffer ||
+    if (!this.histogramVisible || !this.renderDirty.histogramRequired || this.histogramPending || !this.metadata || !this.histogramBuffer ||
       !this.histogramUniformBuffer || !this.histogramPipeline ||
       !this.histogramOriginalBindGroup || !this.histogramCorrectedBindGroup) return null;
     const stride = Math.max(1, Math.ceil(Math.sqrt((this.metadata.width * this.metadata.height) / 750_000)));
@@ -1594,7 +1579,7 @@ export class WebGpuEngine {
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
     encoder.copyBufferToBuffer(this.histogramBuffer, 0, readBuffer, 0, HISTOGRAM_BYTE_SIZE);
-    this.histogramDirty = false;
+    this.renderDirty.markHistogramScheduled();
     this.histogramPending = true;
     return readBuffer;
   }
@@ -1610,14 +1595,14 @@ export class WebGpuEngine {
     } finally {
       buffer.destroy();
       this.histogramPending = false;
-      if (this.histogramDirty) this.requestRender();
+      if (this.renderDirty.histogramRequired) this.requestRender();
     }
   }
 
   async exportPng() {
     if (!this.metadata || !this.finalTexture) throw new Error('No processed image is available for export.');
     this.effectRuntime?.setInteractionActive(false);
-    this.correctionDirty = true;
+    this.renderDirty.invalidate('effects');
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
 

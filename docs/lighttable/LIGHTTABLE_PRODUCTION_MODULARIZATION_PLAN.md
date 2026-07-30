@@ -988,6 +988,8 @@ Progress:
       processing evaluator while retaining the current combined shader.
 - [x] Extract pure compositor sequencing for visible leaves, clipping chains,
       nested style detection and pass-through group envelopes.
+- [x] Centralize render-stage invalidation fan-out so viewport, view-mode,
+      effect, adjustment, document and source changes have tested boundaries.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator.
 
@@ -995,7 +997,7 @@ Work:
 
 - extract graph construction from `LayerDocumentRenderer`;
 - register grade, lens FX and layer styles through common module contracts;
-- implement narrow dirty-stage invalidation;
+- refine correction invalidation into module-level revision tracking;
 - preserve exact bypass behavior;
 - retain PSD mapping into the same descriptors.
 
