@@ -813,11 +813,22 @@ Work:
       wheel zoom math;
 - [x] centralize brush stepping and paint/selection tool capabilities so the
       overlay and keyboard router share one explicit tool contract;
-- [ ] route normalized pointer and wheel intents through the tool runtime;
+- [x] route viewport pointer ownership through a host-neutral, tested intent
+      router while retaining document projection and wheel zoom as pure
+      application math;
 - create tool registry and lifecycle;
 - migrate temporary pan, brush sizing and tool shortcuts;
 - migrate selection, paint/erase/fill and transform controllers;
 - remove feature-specific global listeners from the overlay.
+
+Milestone note:
+
+Pointer-down, move and pointer-up ownership is now resolved outside React.
+Temporary pan, focus picking, selection, fill, paint/erase and ordinary view
+gestures have one tested precedence contract. Gesture execution still lives in
+the overlay until the individual tool controllers are extracted; the router
+keeps that migration behavior-preserving and prevents future tools from adding
+another precedence chain to the application root.
 
 Exit criteria:
 

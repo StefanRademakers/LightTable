@@ -239,6 +239,11 @@ import {
   steppedBrushSize
 } from './editor/tools/toolCapabilities';
 import {
+  resolveViewportPointerDownIntent,
+  resolveViewportPointerEndIntent,
+  resolveViewportPointerMoveIntent
+} from './application/input/viewportPointerRouter';
+import {
   clientToLocalPoint,
   localToDocumentPointer,
   panViewFromGesture,
@@ -3061,19 +3066,34 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const beginViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
     updateBrushCursor(event);
-    if (temporaryPanRef.current) {
+    const point = documentPoint(event);
+    const activeTool = editorSession.activeTool;
+    const paintTarget = imageDocument
+      ? editorSession.activeChannel === 'mask'
+        ? findDocumentLayer(imageDocument, imageDocument.activeLayerId)
+        : findRasterLayer(imageDocument, imageDocument.activeLayerId)
+      : null;
+    const intent = resolveViewportPointerDownIntent({
+      activeTool,
+      temporaryPan: temporaryPanRef.current,
+      focusPickerActive,
+      primaryButton: event.button === 0,
+      hasMetadata: Boolean(metadata),
+      hasDocument: Boolean(imageDocument),
+      hasDocumentPoint: Boolean(point),
+      hasPaintTarget: Boolean(paintTarget)
+    });
+
+    if (intent === 'temporary-pan') {
       beginPan(event, true);
       event.preventDefault();
       return;
     }
-    if (isSelectionTool(editorSession.activeTool) && !focusPickerActive) {
-      if (event.button !== 0 || !metadata) return;
-      const point = documentPoint(event);
-      if (!point) return;
+    if (intent === 'selection' && point && isSelectionTool(activeTool)) {
       const start = { x: point.x, y: point.y };
       const shape: SelectionShape = {
-        kind: selectionKindForTool(editorSession.activeTool),
-        points: editorSession.activeTool === 'select-free' ? [start] : [start, start]
+        kind: selectionKindForTool(activeTool),
+        points: activeTool === 'select-free' ? [start] : [start, start]
       };
       selectionDraftRef.current = shape;
       selectionPointerIdRef.current = event.pointerId;
@@ -3083,37 +3103,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       event.preventDefault();
       return;
     }
-    if (editorSession.activeTool === 'fill' && !focusPickerActive) {
-      if (event.button !== 0 || !documentPoint(event)) return;
+    if (intent === 'fill') {
       fillActiveTarget(editorSession.brush.color);
       event.preventDefault();
       return;
     }
-    if (!isPaintTool(editorSession.activeTool) || focusPickerActive) {
+    if (intent === 'view') {
       beginPan(event);
       return;
     }
-    if (event.button !== 0 || !imageDocument) return;
-    const point = documentPoint(event);
-    const layer = editorSession.activeChannel === 'mask'
-      ? findDocumentLayer(imageDocument, imageDocument.activeLayerId)
-      : findRasterLayer(imageDocument, imageDocument.activeLayerId);
-    if (!point || !layer) return;
+    if (intent !== 'paint' || !point || !paintTarget) return;
     try {
       brushStrokeChannelRef.current = editorSession.activeChannel;
-      brushStrokeEraseRef.current = editorSession.activeTool === 'erase';
+      brushStrokeEraseRef.current = activeTool === 'erase';
       // Keep the mask's local-to-document matrix stable for the complete
       // pointer gesture. Dabs must never switch coordinate spaces mid-stroke.
       brushStrokeTransformRef.current = paintTargetSourceToDocument(
-        layer,
+        paintTarget,
         brushStrokeChannelRef.current
       );
-      engineRef.current?.beginBrushStroke(layer, brushStrokeChannelRef.current);
+      engineRef.current?.beginBrushStroke(paintTarget, brushStrokeChannelRef.current);
       const builder = new StrokeBuilder(editorSession.brush.size, editorSession.brush.spacing);
       strokeBuilderRef.current = builder;
       strokeDirtyBoundsRef.current = null;
       brushPointerIdRef.current = event.pointerId;
-      paintDabs(layer.id, builder.begin(point));
+      paintDabs(paintTarget.id, builder.begin(point));
       setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
       event.currentTarget.setPointerCapture(event.pointerId);
       event.preventDefault();
@@ -3124,13 +3138,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const moveViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
     updateBrushCursor(event);
-    if (temporaryPanRef.current || dragRef.current?.pointerId === event.pointerId) {
+    const point = documentPoint(event);
+    const intent = resolveViewportPointerMoveIntent({
+      activeTool: editorSession.activeTool,
+      temporaryPan: temporaryPanRef.current,
+      panGestureMatches: dragRef.current?.pointerId === event.pointerId,
+      selectionGestureMatches: selectionPointerIdRef.current === event.pointerId
+        && Boolean(selectionDraftRef.current),
+      paintGestureMatches: brushPointerIdRef.current === event.pointerId,
+      hasDocumentPoint: Boolean(point),
+      hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
+      hasStrokeBuilder: Boolean(strokeBuilderRef.current)
+    });
+    if (intent === 'pan') {
       movePan(event);
       return;
     }
-    if (selectionPointerIdRef.current === event.pointerId && selectionDraftRef.current) {
-      const point = documentPoint(event);
-      if (!point) return;
+    if (intent === 'selection' && point && selectionDraftRef.current) {
       const current = selectionDraftRef.current;
       let next: SelectionShape;
       if (current.kind === 'free') {
@@ -3147,19 +3171,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       event.preventDefault();
       return;
     }
-    if (!isPaintTool(editorSession.activeTool) || brushPointerIdRef.current !== event.pointerId) {
-      movePan(event);
-      return;
-    }
-    const point = documentPoint(event);
+    if (intent !== 'paint' || !point) return;
     const layerId = imageDocumentRef.current?.activeLayerId;
-    if (!point || !layerId || !strokeBuilderRef.current) return;
+    if (!layerId || !strokeBuilderRef.current) return;
     paintDabs(layerId, strokeBuilderRef.current.add(point));
     event.preventDefault();
   };
 
   const endViewportPointer = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (selectionPointerIdRef.current === event.pointerId) {
+    const intent = resolveViewportPointerEndIntent({
+      selectionGestureMatches: selectionPointerIdRef.current === event.pointerId,
+      paintGestureMatches: brushPointerIdRef.current === event.pointerId
+    });
+    if (intent === 'selection') {
       const shape = selectionDraftRef.current;
       selectionDraftRef.current = null;
       selectionPointerIdRef.current = null;
@@ -3185,7 +3209,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       event.preventDefault();
       return;
     }
-    if (brushPointerIdRef.current === event.pointerId) {
+    if (intent === 'paint') {
       const document = imageDocumentRef.current;
       const dirtyBounds = strokeDirtyBoundsRef.current;
       if (document?.activeLayerId && dirtyBounds) {

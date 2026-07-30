@@ -1,0 +1,97 @@
+import type { ToolId } from '../../editor/session/editorSession';
+import { isPaintTool, isSelectionTool } from '../../editor/tools/toolCapabilities';
+
+export type ViewportPointerDownIntent =
+  | 'temporary-pan'
+  | 'selection'
+  | 'fill'
+  | 'view'
+  | 'paint'
+  | 'ignore';
+
+export type ViewportPointerMoveIntent =
+  | 'pan'
+  | 'selection'
+  | 'paint'
+  | 'ignore';
+
+export type ViewportPointerEndIntent = 'selection' | 'paint' | 'pan';
+
+export interface ViewportPointerDownContext {
+  activeTool: ToolId;
+  temporaryPan: boolean;
+  focusPickerActive: boolean;
+  primaryButton: boolean;
+  hasMetadata: boolean;
+  hasDocument: boolean;
+  hasDocumentPoint: boolean;
+  hasPaintTarget: boolean;
+}
+
+export interface ViewportPointerMoveContext {
+  activeTool: ToolId;
+  temporaryPan: boolean;
+  panGestureMatches: boolean;
+  selectionGestureMatches: boolean;
+  paintGestureMatches: boolean;
+  hasDocumentPoint: boolean;
+  hasActiveLayer: boolean;
+  hasStrokeBuilder: boolean;
+}
+
+export interface ViewportPointerEndContext {
+  selectionGestureMatches: boolean;
+  paintGestureMatches: boolean;
+}
+
+/**
+ * Assigns a pointer-down gesture to exactly one editor subsystem.
+ *
+ * This function deliberately contains no React, DOM or renderer work. Once a
+ * gesture has been assigned, the owning controller retains it until pointer-up
+ * or cancellation. That keeps temporary tools, selections and transformed
+ * paint targets from changing coordinate space halfway through a gesture.
+ */
+export const resolveViewportPointerDownIntent = (
+  context: ViewportPointerDownContext
+): ViewportPointerDownIntent => {
+  if (context.temporaryPan) return 'temporary-pan';
+
+  if (isSelectionTool(context.activeTool) && !context.focusPickerActive) {
+    return context.primaryButton && context.hasMetadata && context.hasDocumentPoint
+      ? 'selection'
+      : 'ignore';
+  }
+
+  if (context.activeTool === 'fill' && !context.focusPickerActive) {
+    return context.primaryButton && context.hasDocumentPoint ? 'fill' : 'ignore';
+  }
+
+  if (!isPaintTool(context.activeTool) || context.focusPickerActive) return 'view';
+
+  return context.primaryButton
+    && context.hasDocument
+    && context.hasDocumentPoint
+    && context.hasPaintTarget
+    ? 'paint'
+    : 'ignore';
+};
+
+export const resolveViewportPointerMoveIntent = (
+  context: ViewportPointerMoveContext
+): ViewportPointerMoveIntent => {
+  if (context.temporaryPan || context.panGestureMatches) return 'pan';
+  if (context.selectionGestureMatches) return 'selection';
+  if (!isPaintTool(context.activeTool) || !context.paintGestureMatches) return 'pan';
+  return context.hasDocumentPoint && context.hasActiveLayer && context.hasStrokeBuilder
+    ? 'paint'
+    : 'ignore';
+};
+
+export const resolveViewportPointerEndIntent = (
+  context: ViewportPointerEndContext
+): ViewportPointerEndIntent => {
+  if (context.selectionGestureMatches) return 'selection';
+  if (context.paintGestureMatches) return 'paint';
+  return 'pan';
+};
