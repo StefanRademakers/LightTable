@@ -1265,3 +1265,7 @@ The refactor is successful when:
       host-neutral adjustment command service; scalar, mixer, grading, curve and
       effect edits now share explicit transaction and publication ports with
       focused mutation-contract tests.
+- [x] Move File, Edit, Select, Layer and View menu policy into a pure editor
+      menu model; capability/disabled-state decisions are tested independently
+      while document mutations remain explicit commands supplied by the active
+      document composition root.

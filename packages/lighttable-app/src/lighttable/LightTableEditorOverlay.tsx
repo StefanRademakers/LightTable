@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ContextMenu, type ContextMenuOption } from '../ui/ContextMenu';
+import { ContextMenu } from '../ui/ContextMenu';
 import { SquareIconButton } from '../ui/SquareIconButton';
 import { TextInputDialog } from '../ui/TextInputDialog';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -33,6 +33,10 @@ import {
 } from './application/input/editorKeyboardRouter';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
+import {
+  createEditorMenuOptions,
+  type EditorMenuId
+} from './editor/menus/createEditorMenuOptions';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { useEditorWindowInput } from './editor/hooks/useEditorWindowInput';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
@@ -267,7 +271,7 @@ interface LayerThumbnailCacheEntry extends LayerThumbnailPreview {
 }
 
 type ZoomMode = 'fit' | '100' | 'custom';
-type LightTableAppMenuId = 'file' | 'edit' | 'select' | 'view' | 'layer';
+type LightTableAppMenuId = EditorMenuId;
 
 const cloneAdjustments = cloneAllAdjustments;
 
@@ -2035,373 +2039,167 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   };
 
-  const appMenuOptions: Array<ContextMenuOption<string>> = (() => {
-    if (appMenu?.id === 'file') {
-      return [
-        {
-          value: 'open-image',
-          label: `Open image (${imagePickerFormatNames('fast')})...`,
-          onClick: () => void chooseLocalFile('fast'),
-          disabled: saving
-        },
-        {
-          value: 'open-image-preserve-precision',
-          label: `Open image - preserve precision (${imagePickerFormatNames('preserve-precision')})...`,
-          onClick: async () => {
-            const { getAdvancedImageIoCapabilities } = await import('./image-io/advancedImageIoCapabilities');
-            const capabilities = getAdvancedImageIoCapabilities();
-            if (!capabilities.available) {
-              setError(`Precision-preserving import is unavailable: ${capabilities.reasons.join(' ')}`);
-              return;
-            }
-            await chooseLocalFile('preserve-precision');
-          },
-          disabled: saving
-        },
-        {
-          value: 'save-corrected',
-          label: saving
-            ? 'Saving...'
-            : imageDocument && walkLayerTree(imageDocument.layers).length > 1 ? 'Save layered LightTable document' : 'Save corrected PNG',
-          onClick: () => void handleSave(),
-          disabled: !metadata || !effectiveSourceFileKey || saving
-        },
-        {
-          value: 'download',
-          label: imageDocument && walkLayerTree(imageDocument.layers).length > 1 ? 'Download layered document' : 'Download PNG',
-          onClick: () => void handleDownload(),
-          disabled: !metadata || saving
-        },
-        {
-          value: 'reset',
-          label: 'Reset',
-          separatorBefore: true,
-          onClick: resetAll,
-          disabled: !metadata || saving
-        }
-      ];
-    }
-    if (appMenu?.id === 'edit') {
-      return [
-        {
-          value: 'copy-selected-content',
-          label: `Copy selected content (${primaryShortcutLabel('C')})`,
-          onClick: copySelectedContent,
-          disabled: !metadata || !editorSession.selection.length || saving
-        },
-        {
-          value: 'paste-selected-content',
-          label: `Paste as new layer (${primaryShortcutLabel('V')})`,
-          onClick: pasteSelectedContent,
-          disabled: !metadata || !selectionClipboardAvailable || saving
-        },
-        {
-          value: 'paste-grade',
-          label: copiedGrade ? `Paste grade: ${copiedGrade.name}` : 'Paste grade',
-          separatorBefore: true,
-          onClick: pasteCurrentGrade,
-          disabled: !metadata || !copiedGrade || saving
-        },
-        {
-          value: 'copy-grade',
-          label: 'Copy grade',
-          onClick: copyCurrentGrade,
-          disabled: !metadata || saving
-        }
-      ];
-    }
-    if (appMenu?.id === 'select') {
-      return [
-        {
-          value: 'select-all',
-          label: `Select all (${primaryShortcutLabel('A')})`,
-          onClick: selectAllContent,
-          disabled: !metadata || saving
-        },
-        {
-          value: 'select-none',
-          label: `Select none (${primaryShortcutLabel('D')})`,
-          onClick: clearCurrentSelection,
-          disabled: !editorSession.selection.length || saving
-        },
-        {
-          value: 'invert-selection',
-          label: `Invert selection (${primaryShortcutLabel('I', true)})`,
-          onClick: invertCurrentSelection,
-          disabled: !metadata || saving
-        },
-        {
-          value: 'clear-selection',
-          label: `Clear selection (${primaryShortcutLabel('D')})`,
-          onClick: clearCurrentSelection,
-          disabled: !editorSession.selection.length || saving
-        },
-        {
-          value: 'feather-selection',
-          label: 'Feather... (Shift+F6)',
-          separatorBefore: true,
-          onClick: () => setFeatherDialogOpen(true),
-          disabled: !editorSession.selection.length || saving
-        }
-      ];
-    }
-    if (appMenu?.id === 'layer') {
-      const document = imageDocumentRef.current;
-      const activeLayer = document ? findDocumentLayer(document, document.activeLayerId) : null;
-      const activeSiblings = activeLayer && document ? siblingLayers(document, activeLayer.id) : [];
-      const activeIndex = activeLayer
-        ? activeSiblings.findIndex((layer) => layer.id === activeLayer.id)
-        : -1;
-      return [
-        {
-          value: 'new-layer',
-          label: 'New Raster Layer',
-          onClick: () => {
-            applyDocumentChange((current) => createRasterLayer(current));
-            setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-          },
-          disabled: !document
-        },
-        {
-          value: 'duplicate-layer',
-          label: 'Duplicate Layer',
-          onClick: duplicateActiveLayer,
-          disabled: !activeLayer || activeLayer.type !== 'raster'
-        },
-        {
-          value: 'layer-via-copy',
-          label: `Layer via Copy (${primaryShortcutLabel('J')})`,
-          onClick: layerViaCopy,
-          disabled: !activeLayer || activeLayer.type !== 'raster' || saving
-        },
-        {
-          value: 'rename-layer',
-          label: 'Rename Layer',
-          onClick: focusActiveLayerName,
-          disabled: !activeLayer
-        },
-        {
-          value: 'invert-layer-colors',
-          label: `Invert Colors (${primaryShortcutLabel('I')})`,
-          separatorBefore: true,
-          onClick: invertActiveLayerColors,
-          disabled: !activeLayer
-            || activeLayer.type !== 'raster'
-            || layerIsLocked(activeLayer, 'pixels')
-        },
-        ...(autoAlignPreview ? [
-          {
-            value: 'apply-auto-align',
-            label: 'Apply Auto Align',
-            separatorBefore: true,
-            onClick: applyAutoAlignPreview
-          },
-          {
-            value: 'cancel-auto-align',
-            label: 'Cancel Auto Align',
-            onClick: cancelAutoAlignPreview
-          }
-        ] : [{
-          value: 'auto-align',
-          label: 'Auto Align to Locked Layer',
-          separatorBefore: true,
-          onClick: () => void beginAutoAlign(),
-          disabled: !activeLayer
-            || activeLayer.type !== 'raster'
-            || layerIsLocked(activeLayer, 'position')
-            || !activeLayer.visible
-            || !document
-            || walkRasterLayers(document.layers)
-              .map(({ layer }) => layer)
-              .filter((layer) =>
-                layer.id !== activeLayer.id && layer.visible && layer.locks.all
-              ).length !== 1
-        }]),
-        {
-          value: 'clipping-mask',
-          label: activeLayer?.clipping
-            ? 'Release Clipping Mask'
-            : 'Create Clipping Mask',
-          separatorBefore: true,
-          onClick: () => {
-            if (activeLayer) {
-              applyDocumentChange((current) =>
-                setLayerClipping(current, activeLayer.id, !activeLayer.clipping));
-            }
-          },
-          disabled: !activeLayer || (!activeLayer.clipping && activeIndex <= 0)
-        },
-        {
-          value: 'blend-mode',
-          label: 'Blend Mode',
-          disabled: !activeLayer,
-          children: BLEND_MODES.map((mode) => ({
-            value: `blend-${mode.id}`,
-            label: activeLayer?.blendMode === mode.id ? `${mode.label} ✓` : mode.label,
-            separatorBefore: ['darken', 'lighten', 'overlay', 'difference', 'hue'].includes(mode.id),
-            onClick: () => activeLayer && applyDocumentChange((current) => setLayerBlendMode(current, activeLayer.id, mode.id))
-          }))
-        },
-        {
-          value: 'edit-layer-pixels',
-          label: editorSession.activeChannel === 'pixels' ? 'Edit Layer Pixels ✓' : 'Edit Layer Pixels',
-          onClick: () => setEditorSession((current) => ({ ...current, activeChannel: 'pixels' })),
-          disabled: !activeLayer || activeLayer.type !== 'raster'
-        },
-        {
-          value: 'edit-layer-mask',
-          label: editorSession.activeChannel === 'mask' ? 'Edit Layer Mask ✓' : 'Edit Layer Mask',
-          onClick: () => setEditorSession((current) => ({ ...current, activeChannel: 'mask' })),
-          disabled: !activeLayer?.mask
-        },
-        {
-          value: 'add-mask',
-          label: 'Add Layer Mask',
-          separatorBefore: true,
-          onClick: () => {
-            if (!activeLayer) return;
-            applyDocumentChange((current) => addLayerMask(current, activeLayer.id));
-            setEditorSession((current) => ({ ...current, activeChannel: 'mask', brush: { ...current.brush, color: '#000000' } }));
-          },
-          disabled: !activeLayer || activeLayer.type === 'group' || Boolean(activeLayer.mask)
-        },
-        {
-          value: 'toggle-mask',
-          label: activeLayer?.mask?.enabled ? 'Disable Layer Mask' : 'Enable Layer Mask',
-          onClick: () => activeLayer?.mask && applyDocumentChange((current) => setLayerMaskEnabled(current, activeLayer.id, !activeLayer.mask!.enabled)),
-          disabled: !activeLayer?.mask
-        },
-        {
-          value: 'remove-mask',
-          label: 'Remove Layer Mask',
-          onClick: () => {
-            if (!activeLayer) return;
-            applyDocumentChange((current) => removeLayerMask(current, activeLayer.id));
-            setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-          },
-          disabled: !activeLayer?.mask
-        },
-        {
-          value: 'move-up',
-          label: 'Move Layer Up',
-          separatorBefore: true,
-          onClick: () => activeLayer && document && applyDocumentChange((current) => moveLayer(current, activeLayer.id, activeIndex + 1)),
-          disabled: !activeLayer || activeIndex >= activeSiblings.length - 1
-        },
-        {
-          value: 'move-down',
-          label: 'Move Layer Down',
-          onClick: () => activeLayer && applyDocumentChange((current) => moveLayer(current, activeLayer.id, activeIndex - 1)),
-          disabled: !activeLayer || activeIndex <= 0
-        },
-        {
-          value: 'merge-down',
-          label: 'Merge Down',
-          onClick: mergeActiveLayerDown,
-          disabled: !activeLayer
-            || activeLayer.type !== 'raster'
-            || activeIndex <= 0
-            || activeSiblings[activeIndex - 1]?.type !== 'raster'
-        },
-        {
-          value: 'flatten-group',
-          label: 'Flatten Group...',
-          onClick: () => {
-            if (activeLayer?.type === 'group') {
-              setFlattenRequest({ kind: 'group', groupId: activeLayer.id });
-            }
-          },
-          disabled: activeLayer?.type !== 'group'
-            || !document
-            || !getFlattenGroupPlan(document, activeLayer.id)
-        },
-        {
-          value: 'flatten-image',
-          label: 'Flatten Image...',
-          onClick: () => setFlattenRequest({ kind: 'image' }),
-          disabled: !document || !getFlattenImagePlan(document)
-        },
-        {
-          value: 'toggle-visibility',
-          label: activeLayer?.visible ? 'Hide Layer' : 'Show Layer',
-          separatorBefore: true,
-          onClick: () => activeLayer && applyDocumentChange((current) => setLayerVisibility(current, activeLayer.id, !activeLayer.visible)),
-          disabled: !activeLayer
-        },
-        {
-          value: 'toggle-lock',
-          label: activeLayer?.locks.all ? 'Unlock Layer' : 'Lock Layer',
-          onClick: () => activeLayer && applyDocumentChange((current) => setLayerLocked(current, activeLayer.id, !activeLayer.locks.all)),
-          disabled: !activeLayer
-        },
-        {
-          value: 'delete-layer',
-          label: 'Delete Layer',
-          separatorBefore: true,
-          onClick: () => {
-            if (!activeLayer) return;
-            applyDocumentChange((current) => deleteLayer(current, activeLayer.id));
-            setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
-          },
-          disabled: !activeLayer || !document || (
-            activeLayer.type === 'raster'
-            && rasterLayerCount(document) <= 1
-          )
-        }
-      ];
-    }
-    return [
-      {
-        value: 'fit',
-        label: zoomMode === 'fit' ? 'Fit (current)' : 'Fit',
-        onClick: () => {
-          setZoomMode('fit');
-          setView({ scale: 1, panX: 0, panY: 0 });
-        },
-        disabled: !metadata
-      },
-      {
-        value: 'actual-size',
-        label: zoomMode === '100' ? '100% (current)' : '100%',
-        onClick: () => {
-          setZoomMode('100');
-          setView({ scale: 1, panX: 0, panY: 0 });
-        },
-        disabled: !metadata
-      },
-      {
-        value: 'show-original',
-        label: showOriginal ? 'Show corrected (P)' : 'Show original (P)',
-        separatorBefore: true,
-        onClick: () => {
-          setShowDifference(false);
-          setShowOriginal((current) => !current);
-        },
-        disabled: !metadata
-      },
-      {
-        value: 'show-difference',
-        label: showDifference ? 'Show corrected' : 'Show reference difference',
-        onClick: () => {
-          setShowOriginal(false);
-          setShowDifference((current) => !current);
-        },
-        disabled: !metadata
-      },
-      {
-        value: 'show-debug-panel',
-        label: 'Debug panel',
-        separatorBefore: true,
-        onClick: () => workspaceRef.current?.showDebugPanel()
-      },
-      {
-        value: 'reset-workspace-layout',
-        label: 'Reset workspace layout',
-        onClick: () => workspaceRef.current?.resetLayout()
-      }
-    ];
-  })();
+  const menuDocument = imageDocumentRef.current;
+  const menuActiveLayer = menuDocument
+    ? findDocumentLayer(menuDocument, menuDocument.activeLayerId)
+    : null;
+  const menuActiveSiblings = menuActiveLayer && menuDocument
+    ? siblingLayers(menuDocument, menuActiveLayer.id)
+    : [];
+  const menuActiveIndex = menuActiveLayer
+    ? menuActiveSiblings.findIndex((layer) => layer.id === menuActiveLayer.id)
+    : -1;
+  const menuLayerCount = menuDocument ? walkLayerTree(menuDocument.layers).length : 0;
+  const menuAutoAlignTargets = menuActiveLayer && menuDocument
+    ? walkRasterLayers(menuDocument.layers)
+      .map(({ layer }) => layer)
+      .filter((layer) => layer.id !== menuActiveLayer.id && layer.visible && layer.locks.all)
+    : [];
 
+  const appMenuOptions = appMenu ? createEditorMenuOptions(
+    appMenu.id,
+    {
+      saving,
+      hasDocument: Boolean(menuDocument),
+      hasMetadata: Boolean(metadata),
+      hasSourceKey: Boolean(effectiveSourceFileKey),
+      layered: menuLayerCount > 1,
+      copiedGradeName: copiedGrade?.name ?? null,
+      hasSelection: editorSession.selection.length > 0,
+      selectionClipboardAvailable,
+      activeChannel: editorSession.activeChannel,
+      layer: menuActiveLayer ? {
+        type: menuActiveLayer.type,
+        hasMask: Boolean(menuActiveLayer.mask),
+        maskEnabled: Boolean(menuActiveLayer.mask?.enabled),
+        visible: menuActiveLayer.visible,
+        locked: layerIsLocked(menuActiveLayer, 'pixels'),
+        clipping: menuActiveLayer.clipping,
+        activeIndex: menuActiveIndex,
+        siblingCount: menuActiveSiblings.length,
+        belowIsRaster: menuActiveSiblings[menuActiveIndex - 1]?.type === 'raster',
+        canFlattenGroup: menuActiveLayer.type === 'group'
+          && Boolean(menuDocument && getFlattenGroupPlan(menuDocument, menuActiveLayer.id))
+      } : null,
+      rasterLayerCount: menuDocument ? rasterLayerCount(menuDocument) : 0,
+      canFlattenImage: Boolean(menuDocument && getFlattenImagePlan(menuDocument)),
+      autoAlignPreview: Boolean(autoAlignPreview),
+      autoAlignAvailable: Boolean(
+        menuActiveLayer
+        && menuActiveLayer.type === 'raster'
+        && !layerIsLocked(menuActiveLayer, 'position')
+        && menuActiveLayer.visible
+        && menuAutoAlignTargets.length === 1
+      ),
+      zoomMode,
+      showOriginal,
+      showDifference,
+      blendModes: BLEND_MODES.map((mode) => ({
+        ...mode,
+        selected: menuActiveLayer?.blendMode === mode.id,
+        separatorBefore: ['darken', 'lighten', 'overlay', 'difference', 'hue'].includes(mode.id)
+      }))
+    },
+    {
+      fastOpenFormats: imagePickerFormatNames('fast'),
+      precisionOpenFormats: imagePickerFormatNames('preserve-precision'),
+      primaryShortcut: primaryShortcutLabel
+    },
+    {
+      openFast: () => void chooseLocalFile('fast'),
+      openPrecision: () => void (async () => {
+        const { getAdvancedImageIoCapabilities } = await import('./image-io/advancedImageIoCapabilities');
+        const capabilities = getAdvancedImageIoCapabilities();
+        if (!capabilities.available) {
+          setError(`Precision-preserving import is unavailable: ${capabilities.reasons.join(' ')}`);
+          return;
+        }
+        await chooseLocalFile('preserve-precision');
+      })(),
+      save: () => void handleSave(),
+      download: () => void handleDownload(),
+      reset: resetAll,
+      copySelectedContent,
+      pasteSelectedContent,
+      pasteGrade: pasteCurrentGrade,
+      copyGrade: copyCurrentGrade,
+      selectAll: selectAllContent,
+      clearSelection: clearCurrentSelection,
+      invertSelection: invertCurrentSelection,
+      featherSelection: () => setFeatherDialogOpen(true),
+      createRasterLayer: () => {
+        applyDocumentChange((current) => createRasterLayer(current));
+        setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
+      },
+      duplicateLayer: duplicateActiveLayer,
+      layerViaCopy,
+      renameLayer: focusActiveLayerName,
+      invertLayerColors: invertActiveLayerColors,
+      beginAutoAlign: () => void beginAutoAlign(),
+      applyAutoAlign: applyAutoAlignPreview,
+      cancelAutoAlign: cancelAutoAlignPreview,
+      toggleClipping: () => menuActiveLayer && applyDocumentChange((current) =>
+        setLayerClipping(current, menuActiveLayer.id, !menuActiveLayer.clipping)),
+      setBlendMode: (mode) => menuActiveLayer && applyDocumentChange((current) =>
+        setLayerBlendMode(current, menuActiveLayer.id, mode)),
+      editPixels: () => setEditorSession((current) => ({ ...current, activeChannel: 'pixels' })),
+      editMask: () => setEditorSession((current) => ({ ...current, activeChannel: 'mask' })),
+      addMask: () => {
+        if (!menuActiveLayer) return;
+        applyDocumentChange((current) => addLayerMask(current, menuActiveLayer.id));
+        setEditorSession((current) => ({
+          ...current,
+          activeChannel: 'mask',
+          brush: { ...current.brush, color: '#000000' }
+        }));
+      },
+      toggleMask: () => menuActiveLayer?.mask && applyDocumentChange((current) =>
+        setLayerMaskEnabled(current, menuActiveLayer.id, !menuActiveLayer.mask!.enabled)),
+      removeMask: () => {
+        if (!menuActiveLayer) return;
+        applyDocumentChange((current) => removeLayerMask(current, menuActiveLayer.id));
+        setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
+      },
+      moveLayerUp: () => menuActiveLayer && applyDocumentChange((current) =>
+        moveLayer(current, menuActiveLayer.id, menuActiveIndex + 1)),
+      moveLayerDown: () => menuActiveLayer && applyDocumentChange((current) =>
+        moveLayer(current, menuActiveLayer.id, menuActiveIndex - 1)),
+      mergeDown: mergeActiveLayerDown,
+      flattenGroup: () => {
+        if (menuActiveLayer?.type === 'group') {
+          setFlattenRequest({ kind: 'group', groupId: menuActiveLayer.id });
+        }
+      },
+      flattenImage: () => setFlattenRequest({ kind: 'image' }),
+      toggleLayerVisibility: () => menuActiveLayer && applyDocumentChange((current) =>
+        setLayerVisibility(current, menuActiveLayer.id, !menuActiveLayer.visible)),
+      toggleLayerLock: () => menuActiveLayer && applyDocumentChange((current) =>
+        setLayerLocked(current, menuActiveLayer.id, !menuActiveLayer.locks.all)),
+      deleteLayer: () => {
+        if (!menuActiveLayer) return;
+        applyDocumentChange((current) => deleteLayer(current, menuActiveLayer.id));
+        setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
+      },
+      fit: () => {
+        setZoomMode('fit');
+        setView({ scale: 1, panX: 0, panY: 0 });
+      },
+      actualSize: () => {
+        setZoomMode('100');
+        setView({ scale: 1, panX: 0, panY: 0 });
+      },
+      toggleOriginal: () => {
+        setShowDifference(false);
+        setShowOriginal((current) => !current);
+      },
+      toggleDifference: () => {
+        setShowOriginal(false);
+        setShowDifference((current) => !current);
+      },
+      showDebugPanel: () => workspaceRef.current?.showDebugPanel(),
+      resetWorkspaceLayout: () => workspaceRef.current?.resetLayout()
+    }
+  ) : [];
   const layersPanel = imageDocument ? (
     <div className="lighttable-layers-panel">
       <LayerPanel
