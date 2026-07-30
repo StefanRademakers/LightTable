@@ -31,7 +31,6 @@ import { useViewportInteractionController } from './editor/hooks/useViewportInte
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
-import { useDocumentFileCommands } from './editor/hooks/useDocumentFileCommands';
 import {
   createScopeRendererOptions,
   useRendererPresentationSync
@@ -53,6 +52,9 @@ import type {
 import {
   useEditorDocumentLifecycleController
 } from './composition/documents/useEditorDocumentLifecycleController';
+import {
+  useEditorDocumentFileController
+} from './composition/documents/useEditorDocumentFileController';
 import {
   useEditorKeyboardController
 } from './composition/input/useEditorKeyboardController';
@@ -246,8 +248,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const vectorscopeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scopesColumnRef = useRef<HTMLElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const advancedFileInputRef = useRef<HTMLInputElement | null>(null);
   const engineRef = useRef<DocumentRendererPort | null>(null);
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
@@ -1137,10 +1137,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     download: handleDownload,
     handleFastFileInput: handleLocalFile,
     handlePrecisionFileInput: handleAdvancedLocalFile,
-    chooseLocalFile
-  } = useDocumentFileCommands({
+    chooseLocalFile,
     fileInputRef,
-    advancedFileInputRef,
+    advancedFileInputRef
+  } = useEditorDocumentFileController({
+    lifecycle: documentLifecycleController,
     taskRegistry,
     commandHistory,
     effectiveSourceFileKey,
@@ -1152,17 +1153,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
     getPreservedSourceAssets: () => preservedSourceAssetsRef.current,
-    hydrateLocalFile: async (file, decodeMode, signal, isCurrent) => {
-      await documentLifecycleController.loadSource({
-        blob: file,
-        name: file.name,
-        initialAdjustments: createDefaultAdjustments(),
-        identity: `${file.name}:${file.type}:${file.lastModified}${decodeMode === 'preserve-precision' ? ':preserve-precision' : ''}`,
-        isCanceled: () => !isCurrent(),
-        decodeMode,
-        signal
-      });
-    },
     cancelAutoAlign: cancelAutoAlignPreview,
     onSave,
     onClose,

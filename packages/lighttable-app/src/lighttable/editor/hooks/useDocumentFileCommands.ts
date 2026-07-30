@@ -23,7 +23,7 @@ import {
 import type { LightTableRecipe } from '../../lightTableRecipe';
 import type { BasicAdjustments } from '../../types';
 
-interface DocumentFileCommandsOptions {
+export interface DocumentFileCommandsOptions {
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
   readonly advancedFileInputRef: RefObject<HTMLInputElement | null>;
   readonly taskRegistry: DocumentTaskRegistry;

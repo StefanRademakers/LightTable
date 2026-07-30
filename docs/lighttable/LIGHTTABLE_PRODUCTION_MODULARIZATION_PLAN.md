@@ -851,8 +851,11 @@ Work:
       transaction with a final stale-generation guard;
 - [x] move source preparation, renderer hydration, generation cancellation and
       document-open lifecycle composition out of the overlay;
-- [ ] move the remaining save/export command projection fully out of the
-      overlay;
+- [x] move the remaining save/export command projection fully out of the
+      overlay. A document-file composition controller now owns editor file
+      inputs and maps every selected host file into the same atomic source
+      lifecycle used by startup, while the application command service retains
+      task, save, export and host-dispatch ownership;
 - separate canonical document persistence from host storage;
 - move PSD import behind the codec/import ports.
 
