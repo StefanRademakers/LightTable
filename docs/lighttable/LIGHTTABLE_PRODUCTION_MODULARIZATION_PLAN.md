@@ -1290,3 +1290,6 @@ The refactor is successful when:
 - [x] Move bounded debug logging, host ready/error notification and PSD
       compatibility/comparison reporting into one document diagnostics
       controller shared by web and desktop composition.
+- [x] Give optional Lens Blur depth analysis one source-identity-scoped
+      controller with stale-result cancellation, reusable per-document results
+      and a failure path that bypasses only Lens Blur instead of the base image.

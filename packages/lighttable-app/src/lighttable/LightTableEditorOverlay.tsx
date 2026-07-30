@@ -68,7 +68,6 @@ import {
 } from './effects/lensDistortion/settings';
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
-import type { DepthAnalysisProgress, DepthAnalysisResult } from './analysis/depth/types';
 import { ScopesPanel } from './ScopesPanel';
 import { EditorToolbar } from './editor/ui/EditorToolbar';
 import { LayerPanel } from './editor/ui/LayerPanel';
@@ -86,6 +85,7 @@ import {
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import { useFillCommandController } from './application/tools/fill/useFillCommandController';
+import { useLensBlurDepthController } from './application/effects/lensBlur/useLensBlurDepthController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
@@ -393,9 +393,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [psdReportOpen, setPsdReportOpen] = useState(false);
   const [sourceBlob, setSourceBlob] = useState<Blob | null>(null);
   const [sourceIdentity, setSourceIdentity] = useState('');
-  const [depthResult, setDepthResult] = useState<DepthAnalysisResult | null>(null);
-  const [depthIdentity, setDepthIdentity] = useState('');
-  const [depthProgress, setDepthProgress] = useState<DepthAnalysisProgress>({ status: 'idle' });
   const [focusPickerActive, setFocusPickerActive] = useState(false);
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [appMenu, setAppMenu] = useState<{ id: LightTableAppMenuId; x: number; y: number } | null>(null);
@@ -585,6 +582,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const beginAdjustmentTransaction = adjustmentTransactionController.begin;
   const endAdjustmentTransaction = adjustmentTransactionController.end;
   const changeAdjustments = adjustmentTransactionController.change;
+  const {
+    depthResult,
+    depthProgress,
+    reset: resetLensBlurDepth
+  } = useLensBlurDepthController({
+    open,
+    enabled: adjustments.effects.lensBlur.enabled,
+    sourceBlob,
+    sourceIdentity,
+    getRenderer: () => engineRef.current,
+    estimateDepth: (blob, identity, onProgress) =>
+      lightTableDepthAnalysis.estimate(blob, identity, onProgress),
+    disableLensBlur: () => {
+      changeAdjustments((current) => ({
+        ...current,
+        effects: {
+          ...current.effects,
+          lensBlur: { ...current.effects.lensBlur, enabled: false }
+        }
+      }));
+    }
+  });
 
   const beginLensBlurInteraction = useCallback(() => {
     beginAdjustmentTransaction();
@@ -727,9 +746,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setSourceName(name);
     setSourceBlob(imageBlob);
     setSourceIdentity(cacheKey);
-    setDepthResult(null);
-    setDepthIdentity('');
-    setDepthProgress({ status: 'idle' });
+    resetLensBlurDepth();
     setFocusPickerActive(false);
     selectionGestureRef.current.reset();
     paintGestureRef.current.reset();
@@ -768,7 +785,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         console.warn('LightTable PSD semantic import warnings', psdWarnings);
       }
     }
-  }, [clearEditorHistory]);
+  }, [clearEditorHistory, resetLensBlurDepth]);
 
   useEffect(() => {
     if (!open || !canvasRef.current || !hueDistributionCanvasRef.current ||
@@ -806,9 +823,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setHistogram(null);
     setSourceBlob(null);
     setSourceIdentity('');
-    setDepthResult(null);
-    setDepthIdentity('');
-    setDepthProgress({ status: 'idle' });
+    resetLensBlurDepth();
     setFocusPickerActive(false);
     setLensBlurViewportModeState('result');
     const startingAdjustments = initialRecipe
@@ -946,41 +961,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       engineRef.current = null;
       openController.close();
     };
-  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, rendererLifecycle, sourceDecodeMode, taskRegistry]);
+  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, rendererLifecycle, resetLensBlurDepth, sourceDecodeMode, taskRegistry]);
 
-  useEffect(() => {
-    if (!open || !sourceBlob || !sourceIdentity || !adjustments.effects.lensBlur.enabled) return;
-    if (depthResult && depthIdentity === sourceIdentity) {
-      engineRef.current?.setDepthMap(depthResult);
-      setDepthProgress({ status: 'ready', message: `Depth ready (${depthResult.width} x ${depthResult.height})` });
-      return;
-    }
-    let canceled = false;
-    setDepthProgress({ status: 'loading-model', message: 'Preparing depth analysis…' });
-    void lightTableDepthAnalysis.estimate(sourceBlob, sourceIdentity, (progress) => {
-      if (!canceled) setDepthProgress(progress);
-    }).then((result) => {
-      if (canceled) return;
-      setDepthResult(result);
-      setDepthIdentity(sourceIdentity);
-      engineRef.current?.setDepthMap(result);
-      setDepthProgress({ status: 'ready', message: `Depth ready (${result.width} x ${result.height})` });
-    }).catch((reason: unknown) => {
-      if (canceled) return;
-      setDepthProgress({
-        status: 'error',
-        message: reason instanceof Error ? reason.message : 'Depth analysis failed.'
-      });
-      changeAdjustments((current) => ({
-        ...current,
-        effects: {
-          ...current.effects,
-          lensBlur: { ...current.effects.lensBlur, enabled: false }
-        }
-      }));
-    });
-    return () => { canceled = true; };
-  }, [adjustments.effects.lensBlur.enabled, changeAdjustments, depthIdentity, depthResult, open, sourceBlob, sourceIdentity]);
 
   useEffect(() => {
     engineRef.current?.setBefore(showOriginal);
