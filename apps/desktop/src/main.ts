@@ -15,6 +15,8 @@ let mainWindow: BrowserWindow | null = null;
 let rendererOrigin = '';
 let packagedRendererServer: Server | null = null;
 
+const NAVIGATION_ABORTED = -3;
+
 const ISOLATION_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -93,8 +95,12 @@ function senderUrlOrThrow(senderFrame: Electron.WebFrameMain | null): string {
   return senderFrame.url;
 }
 
+function reportDesktopStartupFailure(error: unknown): void {
+  console.error('[LightTable desktop] Startup failed.', error);
+}
+
 async function createWindow(): Promise<void> {
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1600,
     height: 1000,
     minWidth: 960,
@@ -108,24 +114,34 @@ async function createWindow(): Promise<void> {
       sandbox: true
     }
   });
+  mainWindow = window;
 
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.on('will-navigate', (event, url) => {
     if (!isTrustedSender(url)) event.preventDefault();
   });
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
-    if (isMainFrame) {
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+    // Chromium aborts the in-flight development navigation when Vite/HMR
+    // immediately replaces it. The succeeding navigation owns readiness; this
+    // is not a renderer failure and must not become an unhandled rejection.
+    if (isMainFrame && errorCode !== NAVIGATION_ABORTED) {
       console.error(`[LightTable renderer] Failed to load ${validatedUrl}: ${errorCode} ${errorDescription}`);
     }
   });
-  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+  window.webContents.on('render-process-gone', (_event, details) => {
     console.error(`[LightTable renderer] Process exited: ${details.reason} (${details.exitCode})`);
   });
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  window.once('ready-to-show', () => window.show());
 
-  await mainWindow.loadURL(`${rendererOrigin}/`);
+  try {
+    await window.loadURL(`${rendererOrigin}/`);
+  } catch (error) {
+    const aborted = error instanceof Error && error.message.includes('ERR_ABORTED');
+    if (aborted) return;
+    throw error;
+  }
 
-  const isolation = await mainWindow.webContents.executeJavaScript(`({
+  const isolation = await window.webContents.executeJavaScript(`({
     href: location.href,
     crossOriginIsolated: globalThis.crossOriginIsolated === true,
     sharedArrayBuffer: typeof globalThis.SharedArrayBuffer !== 'undefined'
@@ -133,7 +149,7 @@ async function createWindow(): Promise<void> {
   console.info('[LightTable desktop isolation]', isolation);
 }
 
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
   rendererOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
     ? MAIN_WINDOW_VITE_DEV_SERVER_URL.replace(/\/+$/, '')
     : await startPackagedRendererServer();
@@ -230,9 +246,11 @@ app.whenReady().then(async () => {
 
   await createWindow();
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      void createWindow().catch(reportDesktopStartupFailure);
+    }
   });
-});
+}).catch(reportDesktopStartupFailure);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
