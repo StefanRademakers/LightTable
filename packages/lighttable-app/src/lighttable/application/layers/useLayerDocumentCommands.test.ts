@@ -6,6 +6,7 @@ import {
 } from '../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../editor/rendering/LayerDocumentRenderer';
 import { createFullCanvasSelection } from '../../editor/selection/selectionTypes';
+import { cloneAdjustments, createDefaultAdjustments } from '../../types';
 import {
   createLayerDocumentCommands,
   type LayerCommandHistoryEntry,
@@ -40,6 +41,8 @@ const setup = (initialDocument: ImageDocument) => {
   let document = initialDocument;
   const activeRenderer = renderer();
   const historyEntries: LayerCommandHistoryEntry[] = [];
+  let documentAdjustments = createDefaultAdjustments();
+  let panelAdjustments = createDefaultAdjustments();
   const dependencies = {
     getDocument: () => document,
     getRenderer: () => activeRenderer,
@@ -51,7 +54,15 @@ const setup = (initialDocument: ImageDocument) => {
     setActiveChannel: vi.fn(),
     setSelectionClipboardAvailable: vi.fn(),
     setStatus: vi.fn(),
-    setError: vi.fn()
+    setError: vi.fn(),
+    getDocumentAdjustments: () => documentAdjustments,
+    getPanelAdjustments: () => panelAdjustments,
+    publishDocumentAdjustments: vi.fn((next) => {
+      documentAdjustments = cloneAdjustments(next);
+    }),
+    publishPanelAdjustments: vi.fn((next) => {
+      panelAdjustments = cloneAdjustments(next);
+    })
   };
   const commands = createLayerDocumentCommands(() => dependencies);
   return {
@@ -59,7 +70,9 @@ const setup = (initialDocument: ImageDocument) => {
     dependencies,
     renderer: activeRenderer,
     historyEntries,
-    document: () => document
+    document: () => document,
+    documentAdjustments: () => documentAdjustments,
+    panelAdjustments: () => panelAdjustments
   };
 };
 
@@ -77,6 +90,25 @@ describe('useLayerDocumentCommands', () => {
     );
     expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
     expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('pixels');
+  });
+
+  it('creates a Grade layer as one reversible document transaction', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    state.panelAdjustments().exposureEV = 1.25;
+
+    expect(state.commands.createAdjustmentLayer()).toBe(true);
+
+    expect(state.document().layers.at(-1)?.type).toBe('adjustment');
+    expect(state.panelAdjustments().exposureEV).toBe(1.25);
+    expect(state.documentAdjustments().exposureEV).toBe(0);
+    expect(state.historyEntries).toHaveLength(1);
+
+    state.historyEntries[0].undo();
+    expect(state.document().layers).toHaveLength(1);
+    expect(state.panelAdjustments().exposureEV).toBe(1.25);
+
+    state.historyEntries[0].redo();
+    expect(state.document().layers.at(-1)?.type).toBe('adjustment');
   });
 
   it('merges contiguous raster layers with recoverable pixel history', () => {

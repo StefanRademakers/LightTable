@@ -5,6 +5,7 @@ import type {
 } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import {
+  createAdjustmentLayer,
   duplicateLayer,
   createRasterLayer,
   flattenGroup,
@@ -19,12 +20,22 @@ import {
 import {
   findDocumentLayer,
   findRasterLayer,
-  siblingLayers
+  siblingLayers,
+  walkLayerTree
 } from '../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../editor/rendering/LayerDocumentRenderer';
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import { selectionOperationsBounds } from '../../editor/tools/transform/selectionTransform';
+import {
+  adjustmentStackForScope,
+  createAdjustmentStackFromBasicAdjustments
+} from '../../processing/adjustmentStack';
+import {
+  cloneAdjustments,
+  createDefaultAdjustments,
+  type BasicAdjustments
+} from '../../types';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -70,10 +81,15 @@ export interface LayerDocumentCommandDependencies {
   setSelectionClipboardAvailable(available: boolean): void;
   setStatus(message: string | null): void;
   setError(message: string | null): void;
+  getDocumentAdjustments?(): BasicAdjustments;
+  getPanelAdjustments?(): BasicAdjustments;
+  publishDocumentAdjustments?(adjustments: BasicAdjustments): void;
+  publishPanelAdjustments?(adjustments: BasicAdjustments): void;
 }
 
 export interface LayerDocumentCommands {
   duplicateActiveLayer(): boolean;
+  createAdjustmentLayer(): boolean;
   mergeSelectedRasterLayers(selectedLayerIds: LayerId[]): boolean;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
@@ -120,6 +136,67 @@ export const createLayerDocumentCommands = (
       ?.duplicateLayerPixels(sourceId, next.activeLayerId);
     dependenciesRef.current.pushDocumentHistory(current, next);
     dependenciesRef.current.setActiveChannel('pixels');
+    return true;
+  };
+
+  const createGradeAdjustmentLayer = () => {
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
+    const previousDocumentGrade = dependencies.getDocumentAdjustments?.();
+    const currentPanelGrade = dependencies.getPanelAdjustments?.();
+    if (
+      !current
+      || !previousDocumentGrade
+      || !currentPanelGrade
+      || !dependencies.publishDocumentAdjustments
+      || !dependencies.publishPanelAdjustments
+    ) return false;
+
+    const alreadyHasAdjustment = walkLayerTree(current.layers)
+      .some(({ node }) => node.type === 'adjustment');
+    const source = alreadyHasAdjustment
+      ? {
+        ...createDefaultAdjustments(),
+        effects: structuredClone(previousDocumentGrade.effects)
+      }
+      : cloneAdjustments(currentPanelGrade);
+    const stack = adjustmentStackForScope(
+      createAdjustmentStackFromBasicAdjustments(source),
+      'adjustment-layer'
+    );
+    const clearedDocumentGrade = alreadyHasAdjustment
+      ? cloneAdjustments(previousDocumentGrade)
+      : {
+        ...createDefaultAdjustments(),
+        effects: structuredClone(source.effects)
+      };
+    const next = createAdjustmentLayer(
+      current,
+      stack,
+      'Grade',
+      current.layers.at(-1)?.id
+    );
+
+    dependencies.publishDocumentAdjustments(clearedDocumentGrade);
+    dependencies.applyDocumentSnapshot(next);
+    dependencies.publishPanelAdjustments(source);
+    dependencies.pushHistoryEntry({
+      undo: () => {
+        const latest = dependenciesRef.current;
+        latest.publishDocumentAdjustments?.(previousDocumentGrade);
+        latest.applyDocumentSnapshot(current);
+        latest.publishPanelAdjustments?.(
+          alreadyHasAdjustment ? previousDocumentGrade : source
+        );
+      },
+      redo: () => {
+        const latest = dependenciesRef.current;
+        latest.publishDocumentAdjustments?.(clearedDocumentGrade);
+        latest.applyDocumentSnapshot(next);
+        latest.publishPanelAdjustments?.(source);
+      }
+    });
+    dependencies.setActiveChannel('pixels');
     return true;
   };
 
@@ -414,6 +491,7 @@ export const createLayerDocumentCommands = (
 
   return {
     duplicateActiveLayer,
+    createAdjustmentLayer: createGradeAdjustmentLayer,
     mergeSelectedRasterLayers,
     mergeActiveLayerDown,
     flatten,

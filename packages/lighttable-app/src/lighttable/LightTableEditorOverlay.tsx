@@ -129,7 +129,6 @@ import {
 import {
   addLayerMask,
   createGroupLayer,
-  createAdjustmentLayer,
   createRasterLayer,
   deleteLayer,
   deleteLayers,
@@ -162,8 +161,6 @@ import {
   type PreservedSourceAssetBlob
 } from './editor/persistence/layeredDocumentFormat';
 import {
-  adjustmentStackForScope,
-  createAdjustmentStackFromBasicAdjustments,
   materializeBasicAdjustments
 } from './processing/adjustmentStack';
 import {
@@ -1578,7 +1575,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     setSelectionClipboardAvailable,
     setStatus: setGradeStatus,
-    setError
+    setError,
+    getDocumentAdjustments: () => documentAdjustmentsRef.current,
+    getPanelAdjustments: () => adjustmentsRef.current,
+    publishDocumentAdjustments: (next) => {
+      documentAdjustmentsRef.current = cloneAdjustments(next);
+    },
+    publishPanelAdjustments: (next) => {
+      adjustmentsRef.current = cloneAdjustments(next);
+      setAdjustments(cloneAdjustments(next));
+    }
   });
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
   const mergeSelectedRasterLayers = layerDocumentCommands.mergeSelectedRasterLayers;
@@ -2033,54 +2039,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setEditorSession((current) => ({ ...current, activeChannel: 'pixels' }));
         }}
         onCreateAdjustment={() => {
-          const current = imageDocumentRef.current;
-          if (!current) return;
-          const alreadyHasAdjustment = walkLayerTree(current.layers)
-            .some(({ node }) => node.type === 'adjustment');
-          const previousDocumentGrade = cloneAdjustments(documentAdjustmentsRef.current);
-          // The first Grade layer migrates the current document grade into the
-          // stack without changing the image. Later Grade layers start neutral,
-          // like a newly-created Photoshop Adjustment Layer, so creating one
-          // never doubles the currently selected layer's correction.
-          const source = alreadyHasAdjustment
-            ? {
-              ...createDefaultAdjustments(),
-              effects: structuredClone(previousDocumentGrade.effects)
-            }
-            : cloneAdjustments(adjustmentsRef.current);
-          const stack = adjustmentStackForScope(
-            createAdjustmentStackFromBasicAdjustments(source),
-            'adjustment-layer'
-          );
-          const clearedDocumentGrade = alreadyHasAdjustment
-            ? previousDocumentGrade
-            : {
-              ...createDefaultAdjustments(),
-              effects: structuredClone(source.effects)
-            };
-          documentAdjustmentsRef.current = clearedDocumentGrade;
-          const next = createAdjustmentLayer(current, stack, 'Grade', current.layers.at(-1)?.id);
-          applyDocumentSnapshot(next);
-          adjustmentsRef.current = source;
-          setAdjustments(source);
-          pushHistoryEntry({
-            undo: () => {
-              documentAdjustmentsRef.current = cloneAdjustments(previousDocumentGrade);
-              applyDocumentSnapshot(current);
-              const previousPanelGrade = alreadyHasAdjustment
-                ? previousDocumentGrade
-                : source;
-              adjustmentsRef.current = cloneAdjustments(previousPanelGrade);
-              setAdjustments(cloneAdjustments(previousPanelGrade));
-            },
-            redo: () => {
-              documentAdjustmentsRef.current = cloneAdjustments(clearedDocumentGrade);
-              applyDocumentSnapshot(next);
-              adjustmentsRef.current = cloneAdjustments(source);
-              setAdjustments(cloneAdjustments(source));
-            }
-          });
-          setEditorSession((session) => ({ ...session, activeChannel: 'pixels' }));
+          layerDocumentCommands.createAdjustmentLayer();
         }}
         onCreateGroup={() => {
           applyDocumentChange((current) => createGroupLayer(current));

@@ -1273,3 +1273,7 @@ The refactor is successful when:
       routing into one document-instance interaction controller; selection,
       paint, fill and lens-focus remain explicit feature ports and retain their
       own transaction/undo ownership.
+- [x] Move Grade Adjustment Layer creation and document-grade migration into
+      the layer command controller; creation, first-grade migration and
+      undo/redo now form one tested document transaction instead of a panel
+      callback mutating several root refs.
