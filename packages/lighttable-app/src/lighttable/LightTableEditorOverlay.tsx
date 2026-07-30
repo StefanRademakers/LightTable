@@ -62,7 +62,7 @@ import {
   type LightTableImageDecodeMode,
   type ReferenceDifferenceMetrics
 } from './application/rendering/rendererTypes';
-import { guardDocumentRendererCallbacks } from './application/rendering/guardDocumentRendererCallbacks';
+import { createDocumentRendererLifecycleBridge } from './editor/documents/createDocumentRendererLifecycleBridge';
 import {
   createWebGpuDocumentRenderer,
   type DocumentRendererPort
@@ -810,52 +810,40 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const vectorscopeCanvas = vectorscopeCanvasRef.current;
     if (!canvas || !hueDistributionCanvas || !colorMixerHueDistributionCanvas ||
       !paradeCanvas || !vectorscopeCanvas) return null;
-    let engine: DocumentRendererPort | null = null;
+    const rendererBridge = createDocumentRendererLifecycleBridge<DocumentRendererPort>({
+      isCurrent,
+      telemetry: startupTelemetryRef.current,
+      lifecycle: rendererLifecycle,
+      scopeCanvases: {
+        hueDistribution: hueDistributionCanvas,
+        colorMixerHueDistribution: colorMixerHueDistributionCanvas,
+        parade: paradeCanvas,
+        vectorscope: vectorscopeCanvas
+      },
+      getScopeOptions: () => ({
+        histogramVisible: scopeVisibilityRef.current.histogram,
+        options: createScopeRendererOptions(
+          scopeVisibilityRef.current,
+          scopeSettingsRef.current
+        )
+      }),
+      publishHistogram: setHistogram,
+      publishGpuMemory: setGpuMemoryBytes,
+      publishError: setError,
+      publishScopeError: setScopeError,
+      publishFeatureError: (featureId, message) => {
+        appendDebugMessage('error', `GPU feature: ${featureId}`, message);
+        setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
+      },
+      publishTimings: setStartupTimings,
+      publishLoading: setLoading,
+      logTimings: (timings) => console.info('[LightTable startup]', timings)
+    });
 
     return {
       createRenderer: () => createWebGpuDocumentRenderer(
         canvas,
-        guardDocumentRendererCallbacks(isCurrent, {
-          onHistogram: setHistogram,
-          onGpuMemoryEstimate: (bytes) => {
-            setGpuMemoryBytes(bytes);
-            rendererLifecycle.setMemoryEstimate(bytes);
-          },
-          onDeviceLost: (message) => {
-            setError(message);
-            rendererLifecycle.markFailed(
-              rendererLifecycle.getSnapshot().generation,
-              message
-            );
-          },
-          onScopeError: setScopeError,
-          onFeatureError: (featureId, message) => {
-            appendDebugMessage('error', `GPU feature: ${featureId}`, message);
-            setGradeStatus(`${featureId} is unavailable; the image remains in bypass mode.`);
-          },
-          onFirstFrame: () => {
-            const completed = startupTelemetryRef.current.completeFirstFrame();
-            if (!completed) return;
-            setStartupTimings(completed);
-            console.info('[LightTable startup]', completed);
-            const scopeStartedAt = startupTelemetryRef.current.beginDeferredScopes();
-            engine?.setScopeOptions(
-              scopeVisibilityRef.current.histogram,
-              createScopeRendererOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
-            );
-            void engine?.initializeScopes({
-              hueDistribution: hueDistributionCanvas,
-              colorMixerHueDistribution: colorMixerHueDistributionCanvas,
-              parade: paradeCanvas,
-              vectorscope: vectorscopeCanvas
-            }).then(() => {
-              if (!isCurrent()) return;
-              setStartupTimings(
-                startupTelemetryRef.current.completeDeferredScopes(scopeStartedAt)
-              );
-            });
-          }
-        })
+        rendererBridge.callbacks
       ),
       loadSource: (signal) => resolveDocumentSource({
         inlineSource: initialSourceBlob,
@@ -875,30 +863,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         );
       },
       onRendererReady: (createdEngine, elapsedMs) => {
-        engine = createdEngine;
         engineRef.current = createdEngine;
-        startupTelemetryRef.current.rendererReady(elapsedMs);
-        createdEngine.setLensBlurDepthVisualization(false);
-        createdEngine.setScopeOptions(
-          false,
-          createScopeRendererOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
-        );
+        rendererBridge.onRendererReady(createdEngine, elapsedMs);
       },
       onRendererDiscarded: (discardedEngine) => {
         if (engineRef.current === discardedEngine) engineRef.current = null;
-        if (engine === discardedEngine) engine = null;
+        rendererBridge.onRendererDiscarded(discardedEngine);
       },
       onSourceReady: (_source, elapsedMs) => {
-        startupTelemetryRef.current.sourceReady(elapsedMs);
+        rendererBridge.onSourceReady(elapsedMs);
       },
-      onFailed: (failure) => {
-        if (isCurrent()) {
-          setError(failure.message || 'LightTable could not be initialized.');
-        }
-      },
-      onSettled: () => {
-        if (isCurrent()) setLoading(false);
-      }
+      onFailed: rendererBridge.onFailed,
+      onSettled: rendererBridge.onSettled
     };
   }, [
     appendDebugMessage,

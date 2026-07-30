@@ -1323,3 +1323,8 @@ The refactor is successful when:
 - [x] Give each document-open generation one isolated startup telemetry
       accumulator; React renders and inactive document projection cannot reset
       or double-complete first-frame and deferred-scope measurements.
+- [x] Move renderer callback, device-loss, memory, optional-feature and
+      deferred-scope startup policy into one React-free document-generation
+      bridge shared by web and desktop hosts.
+- [x] Make standalone workspace disposal safe under React development Strict
+      Mode reconnects while preserving deterministic terminal unmount cleanup.

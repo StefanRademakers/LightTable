@@ -11,6 +11,7 @@ import {
 } from '../lighttable/application/documents/documentSession';
 import { DocumentWorkspaceController } from '../lighttable/application/workspace/documentWorkspaceController';
 import { createBrowserHost, type LightTableHost } from '../platform/LightTableHost';
+import { StrictModeSafeDisposal } from './strictModeSafeDisposal';
 
 type DecodeMode = 'fast' | 'preserve-precision';
 
@@ -43,6 +44,10 @@ export function LightTableStandaloneApp({
     () => new DocumentWorkspaceController<StandaloneDocumentRuntime>(),
     []
   );
+  const controllerDisposal = useMemo(
+    () => new StrictModeSafeDisposal(() => controller.dispose()),
+    [controller]
+  );
   const workspace = controller.workspace;
   const snapshot = useSyncExternalStore(
     controller.subscribe,
@@ -51,7 +56,10 @@ export function LightTableStandaloneApp({
   );
   const [opening, setOpening] = useState(false);
 
-  useEffect(() => () => controller.dispose(), [controller]);
+  useEffect(
+    () => controllerDisposal.connect(),
+    [controllerDisposal]
+  );
 
   const openDocument = useCallback((file: File, decodeMode: DecodeMode = 'fast') => {
     controller.open({
