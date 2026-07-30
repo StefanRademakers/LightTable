@@ -172,4 +172,28 @@ describe('WorkspaceSession', () => {
     first.value.markSaved();
     expect(workspace.getSnapshot().documents.one.dirty).toBe(false);
   });
+
+  it('keeps asynchronous tasks isolated and cancels them when a document closes', async () => {
+    const workspace = new WorkspaceSession({
+      createId: ids('one', 'two')
+    });
+    const first = workspace.open({ source: source('first') });
+    const second = workspace.open({ source: source('second') });
+    if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
+
+    const firstTask = first.value.tasks.run('analysis', 'Analyze first', async (task) => {
+      await new Promise((resolve) => task.signal.addEventListener('abort', resolve));
+      task.throwIfCanceled();
+      return 'stale';
+    });
+    const secondTask = second.value.tasks.run('analysis', 'Analyze second', async () => 'ready');
+
+    expect(workspace.getSnapshot().documents.one.tasks.activeTaskIds).toHaveLength(1);
+    expect(workspace.getSnapshot().documents.two.tasks.activeTaskIds).toHaveLength(1);
+    workspace.close(first.value.id);
+
+    expect((await firstTask).status).toBe('canceled');
+    expect(await secondTask).toEqual({ status: 'completed', value: 'ready' });
+    expect(workspace.getDocument(first.value.id)).toBeNull();
+  });
 });

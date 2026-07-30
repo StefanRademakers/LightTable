@@ -766,9 +766,22 @@ Exit criteria:
 Work:
 
 - move open/decode/import/save/export orchestration out of the overlay;
-- introduce task registry, cancellation and stale-result protection;
+- [x] introduce a document-owned task registry with cancellation and
+      stale-result protection;
+- [x] route startup open, File-open, save and export through that registry;
+- [x] cancel document tasks on close while preserving them across tab switches;
+- [ ] move open/decode/import/save/export orchestration fully out of the
+      overlay;
 - separate canonical document persistence from host storage;
 - move PSD import behind the codec/import ports.
+
+Implementation note:
+
+The first Phase 3 slice establishes ownership and terminal task state without
+changing codecs or renderer behavior. The overlay still supplies the current
+operation bodies, but it no longer owns their cancellation identity. This is
+the safe seam for the next extraction: document controllers can move those
+bodies behind ports without changing stale-result or close semantics.
 
 Exit criteria:
 

@@ -12,6 +12,9 @@ import {
 import type {
   DocumentSessionId
 } from './application/documents/documentSession';
+import {
+  DocumentTaskRegistry
+} from './application/tasks/documentTaskRegistry';
 import { AdjustmentSlider, type AdjustmentSliderTrack } from './AdjustmentSlider';
 import { ColorGradingWheel } from './ColorGradingWheel';
 import {
@@ -294,6 +297,7 @@ export interface LightTableEditorOverlayProps {
   onDocumentError?: (message: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
   history?: DocumentCommandHistory;
+  tasks?: DocumentTaskRegistry;
 }
 
 interface LightTableStartupTimings {
@@ -740,7 +744,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onDocumentReady,
   onDocumentError,
   onDirtyChange,
-  history
+  history,
+  tasks
 }) => {
   const localHistory = useMemo(
     () => new DocumentCommandHistory(workspaceDocumentId as DocumentSessionId, {
@@ -750,6 +755,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     [workspaceDocumentId]
   );
   const commandHistory = history ?? localHistory;
+  const localTasks = useMemo(
+    () => new DocumentTaskRegistry(workspaceDocumentId as DocumentSessionId),
+    [workspaceDocumentId]
+  );
+  const taskRegistry = tasks ?? localTasks;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onDocumentReadyRef = useRef(onDocumentReady);
   const onDocumentErrorRef = useRef(onDocumentError);
@@ -766,6 +776,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => () => {
     if (!history) localHistory.dispose();
   }, [history, localHistory]);
+  useEffect(() => () => {
+    if (!tasks) localTasks.dispose();
+  }, [localTasks, tasks]);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerHueCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerScopeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -775,7 +788,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const scopesColumnRef = useRef<HTMLElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const advancedFileInputRef = useRef<HTMLInputElement | null>(null);
-  const localImageLoadAbortRef = useRef<AbortController | null>(null);
   const autoAlignAbortRef = useRef<AbortController | null>(null);
   const engineRef = useRef<WebGpuEngine | null>(null);
   const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
@@ -1497,7 +1509,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const colorMixerHueDistributionCanvas = colorMixerHueCanvasRef.current;
     const paradeCanvas = paradeCanvasRef.current;
     const vectorscopeCanvas = vectorscopeCanvasRef.current;
-    const abortController = new AbortController();
     startupStartedAtRef.current = performance.now();
     startupAwaitingFirstFrameRef.current = true;
     startupTimingsRef.current = {};
@@ -1555,16 +1566,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     groupVisibilityRef.current = startingVisibility;
     setGroupVisibility(startingVisibility);
 
-    void (async () => {
+    void taskRegistry.run('open', 'Open image', async (task) => {
       if (!editorSourceFileKey && !initialSourceBlob) throw new Error('No source image was supplied to LightTable.');
+      const isCanceled = () => canceled || !task.isCurrent();
       const webGpuStartedAt = performance.now();
       const enginePromise = WebGpuEngine.create(canvasRef.current!, {
-        onHistogram: (next) => { if (!canceled) setHistogram(next); },
-        onGpuMemoryEstimate: (bytes) => { if (!canceled) setGpuMemoryBytes(bytes); },
-        onDeviceLost: (message) => { if (!canceled) setError(message); },
-        onScopeError: (message) => { if (!canceled) setScopeError(message); },
+        onHistogram: (next) => { if (!isCanceled()) setHistogram(next); },
+        onGpuMemoryEstimate: (bytes) => { if (!isCanceled()) setGpuMemoryBytes(bytes); },
+        onDeviceLost: (message) => { if (!isCanceled()) setError(message); },
+        onScopeError: (message) => { if (!isCanceled()) setScopeError(message); },
         onFirstFrame: () => {
-          if (canceled || !startupAwaitingFirstFrameRef.current) return;
+          if (isCanceled() || !startupAwaitingFirstFrameRef.current) return;
           startupAwaitingFirstFrameRef.current = false;
           startupTimingsRef.current.firstFrameMs = performance.now() - startupStartedAtRef.current;
           const completed = { ...startupTimingsRef.current };
@@ -1581,7 +1593,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             parade: paradeCanvas,
             vectorscope: vectorscopeCanvas
           }).then(() => {
-            if (canceled) return;
+            if (isCanceled()) return;
             startupTimingsRef.current.scopesMs = performance.now() - scopeStartedAt;
             setStartupTimings({ ...startupTimingsRef.current });
           });
@@ -1598,7 +1610,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         : loadSource?.({
             projectId,
             sourceFileKey: editorSourceFileKey!,
-            signal: abortController.signal
+            signal: task.signal
           }) ?? Promise.reject(new Error('The LightTable host cannot read this source image.'));
       const responsePromise = blobPromise.then((data) => {
         startupTimingsRef.current.downloadMs = performance.now() - downloadStartedAt;
@@ -1607,9 +1619,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const initialized = await Promise.all([enginePromise, responsePromise]);
       engine = initialized[0];
       const response = initialized[1];
-      if (canceled) {
+      if (isCanceled()) {
         engine.destroy();
-        return;
+        task.throwIfCanceled();
       }
       engineRef.current = engine;
       engine.setLensBlurDepthVisualization(false);
@@ -1617,36 +1629,33 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         false,
         scopeEngineOptions(scopeVisibilityRef.current, scopeSettingsRef.current)
       );
-      if (!canceled) await loadBlobIntoEngine(
+      if (!isCanceled()) await loadBlobIntoEngine(
         response.data,
         initialSourceName,
         initialRecipe?.settings ?? createDefaultAdjustments(),
         `${editorSourceFileKey ?? initialSourceName}:${response.data.size}`,
-        () => canceled,
+        isCanceled,
         sourceDecodeMode,
-        abortController.signal
+        task.signal
       );
-    })().catch((reason: unknown) => {
-      if (!canceled) {
-        abortController.abort();
-        setError(reason instanceof Error ? reason.message : 'LightTable could not be initialized.');
+      task.throwIfCanceled();
+    }).then((result) => {
+      if (!canceled && result.status === 'failed') {
+        setError(result.error.message || 'LightTable could not be initialized.');
       }
-    }).finally(() => {
       if (!canceled) setLoading(false);
     });
 
     return () => {
       canceled = true;
-      abortController.abort();
-      localImageLoadAbortRef.current?.abort();
-      localImageLoadAbortRef.current = null;
+      taskRegistry.cancelKind('open');
       autoAlignAbortRef.current?.abort();
       autoAlignAbortRef.current = null;
       clearEditorHistory();
       engineRef.current = null;
       engine?.destroy();
     };
-  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, sourceDecodeMode]);
+  }, [clearEditorHistory, documentSurfaceRevision, editorSourceFileKey, initialRecipe, initialSourceBlob, initialSourceName, loadBlobIntoEngine, loadSource, open, projectId, sourceDecodeMode, taskRegistry]);
 
   useEffect(() => {
     if (!open || !viewportRef.current) return;
@@ -4336,67 +4345,66 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!metadata || !effectiveSourceFileKey || saving) return;
     setSaving(true);
     setError(null);
-    try {
+    const result = await taskRegistry.run('save', 'Save document', async (task) => {
       const output = await exportOutput();
+      task.throwIfCanceled();
       const saved = await onSave(output.file, output.recipe);
+      task.throwIfCanceled();
       if (saved !== false) {
         commandHistory.markSaved();
         onDirtyChangeRef.current?.(false);
         onClose();
       }
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'LightTable image could not be saved.');
-    } finally {
-      setSaving(false);
+      return saved;
+    });
+    if (result.status === 'failed') {
+      setError(result.error.message || 'LightTable image could not be saved.');
     }
+    setSaving(false);
   };
 
   const handleDownload = async () => {
-    try {
-      setError(null);
+    setError(null);
+    const result = await taskRegistry.run('export', 'Export image', async (task) => {
       const output = await exportOutput();
+      task.throwIfCanceled();
       const url = URL.createObjectURL(output.file);
       const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = output.file.name;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'LightTable export failed.');
+    });
+    if (result.status === 'failed') {
+      setError(result.error.message || 'LightTable export failed.');
     }
   };
 
   const openLocalFile = async (file: File | null, decodeMode: LightTableImageDecodeMode) => {
     if (!file) return;
     cancelAutoAlignPreview();
-    localImageLoadAbortRef.current?.abort();
-    const controller = new AbortController();
-    localImageLoadAbortRef.current = controller;
     setLoading(true);
     setError(null);
-    try {
+    const result = await taskRegistry.run('open', 'Open image', async (task) => {
       await loadBlobIntoEngine(
         file,
         file.name,
         createDefaultAdjustments(),
         `${file.name}:${file.size}:${file.type}:${file.lastModified}${decodeMode === 'preserve-precision' ? ':preserve-precision' : ''}`,
-        () => controller.signal.aborted,
+        () => !task.isCurrent(),
         decodeMode,
-        controller.signal
+        task.signal
       );
-    } catch (reason) {
-      if (!controller.signal.aborted) {
-        setError(reason instanceof Error
-          ? reason.message
-          : decodeMode === 'preserve-precision'
-            ? 'The precision-preserving image import failed.'
-            : 'The image could not be opened.');
-      }
-    } finally {
-      if (localImageLoadAbortRef.current === controller) {
-        localImageLoadAbortRef.current = null;
-        setLoading(false);
-      }
+      task.throwIfCanceled();
+    });
+    if (result.status === 'failed') {
+      setError(result.error.message
+        || (decodeMode === 'preserve-precision'
+          ? 'The precision-preserving image import failed.'
+          : 'The image could not be opened.'));
+    }
+    if (result.status !== 'canceled' || taskRegistry.getSnapshot().activeTaskIds.length === 0) {
+      setLoading(false);
     }
   };
 

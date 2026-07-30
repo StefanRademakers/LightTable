@@ -6,6 +6,10 @@ import {
   DocumentCommandHistory,
   type DocumentCommandHistorySnapshot
 } from '../commands/documentCommandHistory';
+import {
+  DocumentTaskRegistry,
+  type DocumentTaskRegistrySnapshot
+} from '../tasks/documentTaskRegistry';
 
 export type DocumentSessionId = string & {
   readonly __brand: 'DocumentSessionId';
@@ -42,6 +46,7 @@ export interface DocumentSessionSnapshot {
   readonly documentRevision: number;
   readonly savedRevision: number;
   readonly history: DocumentCommandHistorySnapshot;
+  readonly tasks: DocumentTaskRegistrySnapshot;
   readonly editor: EditorSession;
   readonly viewport: DocumentViewport;
 }
@@ -79,15 +84,18 @@ const cloneEditorSession = (session: EditorSession): EditorSession => ({
 export class DocumentSession {
   readonly id: DocumentSessionId;
   readonly history: DocumentCommandHistory;
+  readonly tasks: DocumentTaskRegistry;
 
   private snapshot: DocumentSessionSnapshot;
   private readonly listeners = new Set<DocumentSessionListener>();
   private readonly disposers = new Set<() => void>();
   private readonly unsubscribeHistory: () => void;
+  private readonly unsubscribeTasks: () => void;
 
   constructor(options: CreateDocumentSessionOptions) {
     this.id = options.id;
     this.history = new DocumentCommandHistory(options.id);
+    this.tasks = new DocumentTaskRegistry(options.id);
     this.snapshot = {
       id: options.id,
       source: { ...options.source },
@@ -98,6 +106,7 @@ export class DocumentSession {
       documentRevision: 0,
       savedRevision: 0,
       history: this.history.getSnapshot(),
+      tasks: this.tasks.getSnapshot(),
       editor: cloneEditorSession(options.editor ?? createEditorSession()),
       viewport: { ...(options.viewport ?? DEFAULT_VIEWPORT) }
     };
@@ -107,6 +116,10 @@ export class DocumentSession {
         history,
         dirty: history.dirty || this.snapshot.documentRevision !== this.snapshot.savedRevision
       });
+    });
+    this.unsubscribeTasks = this.tasks.subscribe((tasks) => {
+      if (this.snapshot.lifecycle === 'disposed') return;
+      this.update({ tasks });
     });
   }
 
@@ -197,7 +210,9 @@ export class DocumentSession {
       lifecycle: 'disposed'
     };
     this.unsubscribeHistory();
+    this.unsubscribeTasks();
     this.history.dispose();
+    this.tasks.dispose();
     for (const disposer of this.disposers) disposer();
     this.disposers.clear();
     this.emit();

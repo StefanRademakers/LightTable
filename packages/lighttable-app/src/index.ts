@@ -28,6 +28,14 @@ export {
   type ReversibleDocumentCommand
 } from './lighttable/application/commands/documentCommandHistory';
 export {
+  DocumentTaskRegistry,
+  type DocumentTaskContext,
+  type DocumentTaskKind,
+  type DocumentTaskRegistrySnapshot,
+  type DocumentTaskResult,
+  type DocumentTaskState
+} from './lighttable/application/tasks/documentTaskRegistry';
+export {
   copyLightTableGrade,
   readLightTableGrade,
   useLightTableGradeClipboard,
