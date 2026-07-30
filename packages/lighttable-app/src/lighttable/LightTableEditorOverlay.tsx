@@ -54,6 +54,7 @@ import { useAutoAlignController } from './application/tools/autoAlign/useAutoAli
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
+import { queryLayerCommandCapabilities } from './application/layers/layerCommandCapabilities';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
@@ -118,15 +119,8 @@ import {
 import {
   findDocumentLayer,
   findRasterLayer,
-  rasterLayerCount,
-  siblingLayers,
-  walkLayerTree,
   walkRasterLayers
 } from './editor/document/layerTree';
-import {
-  getFlattenGroupPlan,
-  getFlattenImagePlan
-} from './editor/document/documentCommands';
 import { BLEND_MODES } from './editor/document/blendModes';
 import {
   type PreservedSourceAssetBlob
@@ -1277,16 +1271,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
 
   const menuDocument = imageDocumentRef.current;
-  const menuActiveLayer = menuDocument
-    ? findDocumentLayer(menuDocument, menuDocument.activeLayerId)
+  const menuLayerCapabilities = menuDocument
+    ? queryLayerCommandCapabilities(menuDocument)
     : null;
-  const menuActiveSiblings = menuActiveLayer && menuDocument
-    ? siblingLayers(menuDocument, menuActiveLayer.id)
-    : [];
-  const menuActiveIndex = menuActiveLayer
-    ? menuActiveSiblings.findIndex((layer) => layer.id === menuActiveLayer.id)
-    : -1;
-  const menuLayerCount = menuDocument ? walkLayerTree(menuDocument.layers).length : 0;
+  const menuActiveLayer = menuLayerCapabilities?.activeLayer ?? null;
+  const menuActiveSiblings = menuLayerCapabilities?.activeSiblings ?? [];
+  const menuActiveIndex = menuLayerCapabilities?.activeIndex ?? -1;
   const menuAutoAlignTargets = menuActiveLayer && menuDocument
     ? walkRasterLayers(menuDocument.layers)
       .map(({ layer }) => layer)
@@ -1300,7 +1290,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       hasDocument: Boolean(menuDocument),
       hasMetadata: Boolean(metadata),
       hasSourceKey: Boolean(effectiveSourceFileKey),
-      layered: menuLayerCount > 1,
+      layered: (menuLayerCapabilities?.layerCount ?? 0) > 1,
       copiedGradeName: copiedGrade?.name ?? null,
       hasSelection: editorSession.selection.length > 0,
       selectionClipboardAvailable,
@@ -1315,11 +1305,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         activeIndex: menuActiveIndex,
         siblingCount: menuActiveSiblings.length,
         belowIsRaster: menuActiveSiblings[menuActiveIndex - 1]?.type === 'raster',
-        canFlattenGroup: menuActiveLayer.type === 'group'
-          && Boolean(menuDocument && getFlattenGroupPlan(menuDocument, menuActiveLayer.id))
+        canFlattenGroup: menuLayerCapabilities?.canFlattenActiveGroup ?? false
       } : null,
-      rasterLayerCount: menuDocument ? rasterLayerCount(menuDocument) : 0,
-      canFlattenImage: Boolean(menuDocument && getFlattenImagePlan(menuDocument)),
+      rasterLayerCount: menuLayerCapabilities?.rasterLayerCount ?? 0,
+      canFlattenImage: menuLayerCapabilities?.canFlattenImage ?? false,
       autoAlignPreview: Boolean(autoAlignPreview),
       autoAlignAvailable: Boolean(
         menuActiveLayer

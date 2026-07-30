@@ -1382,3 +1382,6 @@ The refactor is successful when:
       state; inactive documents no longer depend on a mounted React effect to
       enter suspension and the nearest surviving tab resumes before host
       presentation is rebuilt.
+- [x] Centralize structural Layer-command capabilities in one pure document
+      query; docked/floating panels and the top menu no longer independently
+      decide group, clipping, merge and flatten validity.

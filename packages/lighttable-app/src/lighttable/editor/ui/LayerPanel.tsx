@@ -8,12 +8,8 @@ import type {
   LayerLocks,
   LayerNode
 } from '../document/documentTypes';
-import { findDocumentLayer, findLayerNode, siblingLayers } from '../document/layerTree';
-import {
-  getFlattenGroupPlan,
-  getFlattenImagePlan,
-  getMergeRasterLayersPlan
-} from '../document/documentCommands';
+import { findLayerNode, siblingLayers } from '../document/layerTree';
+import { queryLayerCommandCapabilities } from '../../application/layers/layerCommandCapabilities';
 import type { PaintChannel } from '../session/editorSession';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import type { LayerStyleId } from '../styles/layerStyleTypes';
@@ -148,26 +144,23 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   );
   const [moreMenu, setMoreMenu] = React.useState({ open: false, x: 0, y: 0 });
   const selectionAnchorRef = React.useRef<LayerId | null>(document.activeLayerId);
-  const activeLayer = findDocumentLayer(document, document.activeLayerId);
   const rows = visualLayerRows(document.layers, collapsedGroups);
   const allRows = visualLayerRows(document.layers, new Set());
   const allLayerIds = new Set(allRows.map(({ layer }) => layer.id));
   const selectedIds = [...selectedLayerIds].filter((layerId) => allLayerIds.has(layerId));
   const selectionFor = (layerId: LayerId) =>
     selectedLayerIds.has(layerId) ? selectedIds : [layerId];
-  const selectedEntries = selectedIds
-    .map((id) => findLayerNode(document.layers, id))
-    .filter((entry) => Boolean(entry));
-  const canGroupSelection = selectedEntries.length > 0
-    && selectedEntries.every((entry) => entry!.parentId === selectedEntries[0]!.parentId);
-  const canUngroupSelection = selectedEntries.some((entry) => entry!.node.type === 'group');
-  const mergePlan = getMergeRasterLayersPlan(document, selectedIds);
-  const activeSiblings = document.activeLayerId ? siblingLayers(document, document.activeLayerId) : [];
-  const activeIndex = activeSiblings.findIndex((layer) => layer.id === document.activeLayerId);
-  const canMergeDown = activeIndex > 0
-    && activeSiblings[activeIndex]?.type === 'raster'
-    && activeSiblings[activeIndex - 1]?.type === 'raster';
-  const canToggleActiveClipping = Boolean(activeLayer?.clipping || activeIndex > 0);
+  const layerCapabilities = queryLayerCommandCapabilities(document, selectedIds);
+  const {
+    activeLayer,
+    canFlattenActiveGroup,
+    canFlattenImage,
+    canGroupSelection,
+    canMergeDown,
+    canMergeSelected,
+    canToggleActiveClipping,
+    canUngroupSelection
+  } = layerCapabilities;
 
   React.useEffect(() => {
     setSelectedLayerIds((current) => {
@@ -275,14 +268,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     {
       value: 'merge-selected',
       label: `Merge Selected${selectedIds.length > 1 ? ` (${selectedIds.length})` : ''}`,
-      disabled: !mergePlan,
+      disabled: !canMergeSelected,
       onClick: () => onMergeSelected(selectedIds)
     },
     {
       value: 'flatten-group',
       label: 'Flatten Group...',
-      disabled: activeLayer?.type !== 'group'
-        || !getFlattenGroupPlan(document, activeLayer.id),
+      disabled: activeLayer?.type !== 'group' || !canFlattenActiveGroup,
       onClick: () => {
         if (activeLayer?.type === 'group') onFlattenGroup(activeLayer.id);
       }
@@ -290,7 +282,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     {
       value: 'flatten-image',
       label: 'Flatten Image...',
-      disabled: !getFlattenImagePlan(document),
+      disabled: !canFlattenImage,
       onClick: onFlattenImage
     },
     {
