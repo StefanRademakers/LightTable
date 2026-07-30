@@ -14,6 +14,7 @@ import {
   DocumentRendererLifecycle,
   type DocumentRendererSnapshot
 } from '../rendering/documentRendererLifecycle';
+import type { ImageDocument } from '../../editor/document/documentTypes';
 
 export type DocumentSessionId = string & {
   readonly __brand: 'DocumentSessionId';
@@ -52,6 +53,8 @@ export interface DocumentSessionSnapshot {
   readonly history: DocumentCommandHistorySnapshot;
   readonly tasks: DocumentTaskRegistrySnapshot;
   readonly renderer: DocumentRendererSnapshot;
+  /** Canonical immutable layer tree for this open document. */
+  readonly document: ImageDocument | null;
   readonly editor: EditorSession;
   readonly viewport: DocumentViewport;
 }
@@ -116,6 +119,7 @@ export class DocumentSession {
       history: this.history.getSnapshot(),
       tasks: this.tasks.getSnapshot(),
       renderer: this.renderer.getSnapshot(),
+      document: null,
       editor: cloneEditorSession(options.editor ?? createEditorSession()),
       viewport: { ...(options.viewport ?? DEFAULT_VIEWPORT) }
     };
@@ -176,6 +180,12 @@ export class DocumentSession {
     this.assertEditable();
     const next = cloneEditorSession(updater(cloneEditorSession(this.snapshot.editor)));
     this.update({ editor: next });
+  }
+
+  setDocument(document: ImageDocument | null): void {
+    this.assertEditable();
+    if (this.snapshot.document === document) return;
+    this.update({ document });
   }
 
   updateViewport(

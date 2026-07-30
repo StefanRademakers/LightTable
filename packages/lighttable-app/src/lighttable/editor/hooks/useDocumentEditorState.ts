@@ -1,7 +1,9 @@
 import {
   useCallback,
+  useRef,
   useState,
   useSyncExternalStore,
+  type MutableRefObject,
   type Dispatch,
   type SetStateAction
 } from 'react';
@@ -13,6 +15,7 @@ import {
   createEditorSession,
   type EditorSession
 } from '../session/editorSession';
+import type { ImageDocument } from '../document/documentTypes';
 
 const subscribeToNothing = () => () => undefined;
 
@@ -122,4 +125,41 @@ export const useDocumentViewportState = (
     setZoomMode,
     setView
   };
+};
+
+/**
+ * React adapter for the canonical immutable document tree.
+ *
+ * The returned ref is updated synchronously with local commands so pointer and
+ * GPU callbacks never observe the previous React render. In a workspace the
+ * same value also lives on DocumentSession, keeping it isolated per tab.
+ */
+export const useDocumentImageState = (
+  documentSession?: DocumentSession
+): [
+  ImageDocument | null,
+  Dispatch<SetStateAction<ImageDocument | null>>,
+  MutableRefObject<ImageDocument | null>
+] => {
+  const [localDocument, setLocalDocument] = useState<ImageDocument | null>(null);
+  const subscribe = documentSession?.subscribe ?? subscribeToNothing;
+  const getSnapshot = documentSession
+    ? () => documentSession.getSnapshot().document
+    : () => localDocument;
+  const document = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const documentRef = useRef<ImageDocument | null>(document);
+  documentRef.current = document;
+
+  const setDocument = useCallback<Dispatch<SetStateAction<ImageDocument | null>>>(
+    (update) => {
+      const current = documentRef.current;
+      const next = resolveUpdate(current, update);
+      documentRef.current = next;
+      if (documentSession) documentSession.setDocument(next);
+      else setLocalDocument(next);
+    },
+    [documentSession]
+  );
+
+  return [document, setDocument, documentRef];
 };

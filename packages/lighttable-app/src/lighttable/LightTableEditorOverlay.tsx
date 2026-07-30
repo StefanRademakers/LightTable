@@ -128,6 +128,7 @@ import {
 } from './application/tools/fill/fillOperation';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import {
+  useDocumentImageState,
   useDocumentEditorSession,
   useDocumentViewportState
 } from './editor/hooks/useDocumentEditorState';
@@ -462,7 +463,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const adjustmentTransactionRef = useRef<BasicAdjustments | null>(null);
   const adjustmentTransactionTargetRef = useRef<LayerId | null>(null);
   const documentTransactionRef = useRef<ImageDocument | null>(null);
-  const imageDocumentRef = useRef<ImageDocument | null>(null);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>([]);
   const paintGestureRef = useRef(new PaintGestureController());
   const brushCursorRef = useRef<HTMLDivElement | null>(null);
@@ -533,7 +533,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [focusPickerActive, setFocusPickerActive] = useState(false);
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [appMenu, setAppMenu] = useState<{ id: LightTableAppMenuId; x: number; y: number } | null>(null);
-  const [imageDocument, setImageDocument] = useState<ImageDocument | null>(null);
+  const [imageDocument, setImageDocument, imageDocumentRef] =
+    useDocumentImageState(documentSession);
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
   const [layerThumbnails, setLayerThumbnails] = useState<ReadonlyMap<LayerId, LayerThumbnailSet>>(
     () => new Map()

@@ -1230,3 +1230,5 @@ The refactor is successful when:
       pixel-history ownership into a document-scoped session controller.
 - [x] Move flat-versus-layered save policy, native asset collection and recipe
       construction into a host-neutral document export service.
+- [x] Make the canonical immutable `ImageDocument` tree owned by its
+      `DocumentSession`, with a synchronous React adapter for GPU/tool callbacks.

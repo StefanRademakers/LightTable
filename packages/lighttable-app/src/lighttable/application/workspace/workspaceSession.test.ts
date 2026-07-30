@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DocumentSessionId } from '../documents/documentSession';
 import { WorkspaceSession } from './workspaceSession';
+import { createImageDocument } from '../../editor/document/documentTypes';
 
 const source = (id: string) => ({
   id,
@@ -65,6 +66,27 @@ describe('WorkspaceSession', () => {
       scale: 2.5,
       panX: 24
     });
+  });
+
+  it('keeps each canonical image document attached to its own session', () => {
+    const workspace = new WorkspaceSession({
+      createId: ids('one', 'two')
+    });
+    const first = workspace.open({ source: source('first') });
+    const second = workspace.open({ source: source('second') });
+    if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
+
+    const firstDocument = createImageDocument('First', 16, 9, 'first');
+    const secondDocument = createImageDocument('Second', 4, 3, 'second');
+    first.value.setDocument(firstDocument);
+    second.value.setDocument(secondDocument);
+
+    workspace.activate(first.value.id);
+    expect(workspace.getActiveDocument()?.getSnapshot().document).toBe(firstDocument);
+    workspace.activate(second.value.id);
+    expect(workspace.getActiveDocument()?.getSnapshot().document).toBe(secondDocument);
+    expect(workspace.getSnapshot().documents.one.document?.name).toBe('First');
+    expect(workspace.getSnapshot().documents.two.document?.name).toBe('Second');
   });
 
   it('prevents dirty documents from closing without an explicit policy', () => {
