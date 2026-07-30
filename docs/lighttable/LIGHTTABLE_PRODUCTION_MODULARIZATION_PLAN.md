@@ -843,6 +843,9 @@ Work:
 - [x] introduce a document-owned task registry with cancellation and
       stale-result protection;
 - [x] route startup open, File-open, save and export through that registry;
+- [x] route supported operating-system file drops through the same standalone
+      workspace open path on web and Electron; each accepted file creates its
+      own document session and unsupported files report a visible error;
 - [x] cancel document tasks on close while preserving them across tab switches;
 - [x] make source prepare/hydrate/publication one application-owned atomic
       transaction with a final stale-generation guard;
@@ -1470,3 +1473,6 @@ The refactor is successful when:
       generation cancellation and teardown through one document-lifecycle hook.
       Startup open and local File-open now use the same source-load controller;
       the editor root only supplies presentation publication ports.
+- [x] Make the standalone application window and empty launcher a file drop
+      target without claiming Dockview panel drags. Dropped files use the same
+      format policy and multi-document workspace command as File > Open.

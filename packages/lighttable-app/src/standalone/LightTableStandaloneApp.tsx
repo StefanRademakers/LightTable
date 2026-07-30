@@ -12,7 +12,12 @@ import {
   type StandaloneDecodeMode,
   useStandaloneDocumentWorkspace
 } from './useStandaloneDocumentWorkspace';
+import { useStandaloneFileDrop } from './useStandaloneFileDrop';
 import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
+import {
+  imagePickerAccept,
+  imagePickerFormatNames
+} from '../lighttable/image-io/supportedImageFormats';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -36,6 +41,7 @@ export function LightTableStandaloneApp({
     activateDocument
   } = useStandaloneDocumentWorkspace();
   const [opening, setOpening] = useState(false);
+  const fileDrop = useStandaloneFileDrop(openDocument);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
@@ -67,10 +73,17 @@ export function LightTableStandaloneApp({
 
   if (snapshot.documentOrder.length === 0) {
     return (
-      <main className="lighttable-launcher">
+      <main
+        className={`lighttable-launcher${fileDrop.active ? ' lighttable-launcher--drop-active' : ''}`}
+      >
         <section className="lighttable-launcher__card">
           <h1>LightTable</h1>
-          <p>Open an image or layered document to start.</p>
+          <p>
+            Drop a supported file here, or open an image or layered document.
+          </p>
+          <span className="lighttable-launcher__formats">
+            {imagePickerFormatNames('automatic')}
+          </span>
           {host.openFile ? (
             <button
               className="action-button lighttable-launcher__open"
@@ -85,7 +98,7 @@ export function LightTableStandaloneApp({
               Open file
               <input
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/tiff,image/vnd.adobe.photoshop,.psd,.psb,.lighttable.png"
+                accept={imagePickerAccept('automatic')}
                 hidden
                 onChange={(event) => {
                   const file = event.currentTarget.files?.[0] ?? null;
@@ -95,6 +108,11 @@ export function LightTableStandaloneApp({
               />
             </label>
           )}
+          {fileDrop.error ? (
+            <p className="lighttable-file-drop__error" role="alert">
+              {fileDrop.error}
+            </p>
+          ) : null}
         </section>
       </main>
     );
@@ -102,6 +120,23 @@ export function LightTableStandaloneApp({
 
   return (
     <>
+      {fileDrop.active ? (
+        <div className="lighttable-file-drop" aria-hidden="true">
+          <div className="lighttable-file-drop__message">
+            Drop to open in a new document
+          </div>
+        </div>
+      ) : null}
+      {fileDrop.error ? (
+        <button
+          className="lighttable-file-drop__notice"
+          type="button"
+          role="alert"
+          onClick={fileDrop.clearError}
+        >
+          {fileDrop.error}
+        </button>
+      ) : null}
       {documents.map((document) => {
         return (
           <StandaloneDocumentRuntimeView

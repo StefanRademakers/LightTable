@@ -1,5 +1,7 @@
 import type { LightTableImageDecodeMode } from '../application/rendering/rendererTypes';
 
+type ImageOpenMode = LightTableImageDecodeMode | 'automatic';
+
 interface FilePickerAcceptType {
   description: string;
   accept: Record<string, string[]>;
@@ -42,19 +44,19 @@ const PRECISION_FORMATS: FilePickerAcceptType[] = [
   }
 ];
 
-const formatsForMode = (mode: LightTableImageDecodeMode) =>
+const formatsForMode = (mode: ImageOpenMode) =>
   mode === 'preserve-precision' ? PRECISION_FORMATS : AUTOMATIC_FORMATS;
 
-export const imagePickerAccept = (mode: LightTableImageDecodeMode) =>
+export const imagePickerAccept = (mode: ImageOpenMode) =>
   formatsForMode(mode)
     .flatMap((type) => Object.entries(type.accept))
     .flatMap(([mime, extensions]) => [mime, ...extensions])
     .join(',');
 
-export const imagePickerDescription = (mode: LightTableImageDecodeMode) =>
+export const imagePickerDescription = (mode: ImageOpenMode) =>
   formatsForMode(mode)[0].description;
 
-export const imagePickerFormatNames = (mode: LightTableImageDecodeMode) =>
+export const imagePickerFormatNames = (mode: ImageOpenMode) =>
   mode === 'preserve-precision'
     ? 'PNG, TIFF, JPEG, WebP'
     : 'PNG, JPEG, WebP, TIFF, PSD/PSB';
@@ -66,7 +68,7 @@ export const isPhotoshopDocument = (blob: Blob, name: string) =>
 export const isSupportedImageFile = (
   blob: Blob,
   name: string,
-  mode: LightTableImageDecodeMode
+  mode: ImageOpenMode
 ) => {
   const normalizedType = blob.type.toLowerCase();
   const acceptedTypes = new Set(formatsForMode(mode).flatMap((type) => Object.keys(type.accept)));
