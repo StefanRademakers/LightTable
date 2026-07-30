@@ -717,6 +717,10 @@ Work:
       switch no longer destroys and recreates the document engine;
 - [x] route tool, selection, brush and viewport updates through the owning
       `DocumentSession`, with a local fallback for embedded hosts;
+- [x] project ordered standalone document runtimes through one tested workspace
+      selector instead of joining controller state throughout the React root;
+- [x] make standalone workspace ownership safe across React development Strict
+      Mode cleanup/reconnect cycles;
 - [ ] replace the temporary mounted-overlay retention strategy with an explicit
       renderer suspend/resume lifecycle and a configurable GPU-memory budget.
 

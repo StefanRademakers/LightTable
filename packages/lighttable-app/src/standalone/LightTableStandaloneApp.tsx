@@ -32,11 +32,11 @@ export function LightTableStandaloneApp({
   host = createBrowserHost()
 }: LightTableStandaloneAppProps) {
   const {
-    controller,
-    workspace,
     snapshot,
+    documents,
     openDocument,
-    closeDocument: closeWorkspaceDocument
+    closeDocument: closeWorkspaceDocument,
+    activateDocument
   } = useStandaloneDocumentWorkspace();
   const [opening, setOpening] = useState(false);
 
@@ -55,29 +55,20 @@ export function LightTableStandaloneApp({
 
   const closeDocument = useCallback((documentId: string) => {
     const id = documentId as DocumentSessionId;
-    const document = workspace.getDocument(id);
+    const document = documents.find((candidate) => candidate.id === id);
     if (!document) return;
     if (
-      document.getSnapshot().dirty
-      && !window.confirm(`Discard unsaved changes to “${document.getSnapshot().title}”?`)
+      document.dirty
+      && !window.confirm(`Discard unsaved changes to “${document.title}”?`)
     ) {
       return;
     }
     closeWorkspaceDocument(id, true);
-  }, [closeWorkspaceDocument, workspace]);
+  }, [closeWorkspaceDocument, documents]);
 
   const workspaceDocuments = useMemo(
-    () => snapshot.documentOrder.flatMap((id) => {
-      const document = snapshot.documents[id];
-      return document
-        ? [{
-            id,
-            title: document.title,
-            dirty: document.dirty
-          }]
-        : [];
-    }),
-    [snapshot.documentOrder, snapshot.documents]
+    () => documents.map(({ id, title, dirty }) => ({ id, title, dirty })),
+    [documents]
   );
 
   if (snapshot.documentOrder.length === 0) {
@@ -117,12 +108,13 @@ export function LightTableStandaloneApp({
 
   return (
     <>
-      {snapshot.documentOrder.map((documentId) => {
-        const runtime = controller.getSource(documentId);
-        const documentSession = controller.getDocument(documentId);
-        if (!runtime || !documentSession) return null;
-        const active = snapshot.activeDocumentId === documentId;
-        const { file, decodeMode } = runtime;
+      {documents.map((document) => {
+        const {
+          id: documentId,
+          active,
+          runtime: { file, decodeMode },
+          session: documentSession
+        } = document;
 
         return (
           <DocumentRuntimeErrorBoundary
@@ -147,7 +139,7 @@ export function LightTableStandaloneApp({
               rendererLifecycle={documentSession.renderer}
               documentSession={documentSession}
               onActivateWorkspaceDocument={(id) => {
-                workspace.activate(id as DocumentSessionId);
+                activateDocument(id as DocumentSessionId);
               }}
               onCloseWorkspaceDocument={closeDocument}
               onRequestOpenWorkspaceDocument={host.openFile

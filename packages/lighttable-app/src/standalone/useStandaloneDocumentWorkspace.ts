@@ -10,19 +10,17 @@ import {
 import {
   DocumentWorkspaceController
 } from '../lighttable/application/workspace/documentWorkspaceController';
+import {
+  projectStandaloneDocumentWorkspace
+} from './projectStandaloneDocumentWorkspace';
+import {
+  standaloneSourceIdentity,
+  type StandaloneDecodeMode,
+  type StandaloneDocumentRuntime
+} from './standaloneDocumentRuntime';
 import { StrictModeSafeDisposal } from './strictModeSafeDisposal';
 
-export type StandaloneDecodeMode = 'fast' | 'preserve-precision';
-
-export interface StandaloneDocumentRuntime {
-  readonly file: File;
-  readonly decodeMode: StandaloneDecodeMode;
-}
-
-export const standaloneSourceIdentity = (
-  file: File,
-  decodeMode: StandaloneDecodeMode
-) => `file:${file.name}:${file.size}:${file.lastModified}:${decodeMode}`;
+export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
 
 /**
  * Owns the host-neutral workspace controller for the standalone web and
@@ -42,6 +40,10 @@ export const useStandaloneDocumentWorkspace = () => {
     controller.subscribe,
     controller.getSnapshot,
     controller.getSnapshot
+  );
+  const documents = useMemo(
+    () => projectStandaloneDocumentWorkspace(controller, snapshot),
+    [controller, snapshot]
   );
 
   useEffect(
@@ -67,12 +69,16 @@ export const useStandaloneDocumentWorkspace = () => {
     id: DocumentSessionId,
     discardChanges = false
   ) => controller.close(id, { discardChanges }), [controller]);
+  const activateDocument = useCallback(
+    (id: DocumentSessionId) => controller.activate(id),
+    [controller]
+  );
 
   return {
-    controller,
-    workspace: controller.workspace,
     snapshot,
+    documents,
     openDocument,
-    closeDocument
+    closeDocument,
+    activateDocument
   };
 };
