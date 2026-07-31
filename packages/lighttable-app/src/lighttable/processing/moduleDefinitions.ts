@@ -28,6 +28,7 @@ export type ProcessingCoordinateSpace =
   | 'document';
 
 export type ProcessingModuleCategory =
+  | 'geometry'
   | 'tone'
   | 'color'
   | 'spatial'
@@ -82,6 +83,18 @@ const CREATIVE_GRADE_SCOPES = [
 ] as const satisfies readonly ProcessingScope[];
 
 export const CURRENT_PROCESSING_MODULES = [
+  {
+    type: 'lt.warp',
+    label: 'Warp',
+    category: 'geometry',
+    settingsPaths: [],
+    allowedScopes: ['layer', 'smart-filter'],
+    inputDomain: 'linear-rgb',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'preserve',
+    coordinateSpace: 'source',
+    notes: 'Persistent inverse source-coordinate deformation in layer-local pixels.'
+  },
   {
     type: 'lt.white-balance',
     label: 'Temperature / Tint',

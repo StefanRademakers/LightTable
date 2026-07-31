@@ -25,14 +25,16 @@ export interface AdjustmentStack {
   modules: AdjustmentModuleInstance[];
 }
 
-export type AdjustmentStackOwner = 'grade' | 'lens-fx';
+export type AdjustmentStackOwner = 'geometry' | 'grade' | 'lens-fx';
 
 const ownerIncludesCategory = (
   owner: AdjustmentStackOwner,
   category: ProcessingModuleCategory
 ) => owner === 'grade'
   ? category === 'tone' || category === 'color' || category === 'spatial'
-  : category === 'lens' || category === 'output';
+  : owner === 'geometry'
+    ? category === 'geometry'
+    : category === 'lens' || category === 'output';
 
 export const adjustmentModuleBelongsToOwner = (
   type: string,
@@ -213,24 +215,26 @@ export const createAdjustmentStackFromBasicAdjustments = (
   createId: AdjustmentIdFactory = defaultIdFactory
 ): AdjustmentStack => {
   let changed = !previous;
-  const currentModules = currentProcessingModuleRegistry.definitions().map((definition) => {
-    const settings = settingsForModule(adjustments, definition.settingsPaths);
-    const existing = previous?.modules.find((module) => module.type === definition.type);
-    if (existing && existing.enabled && valuesEqual(existing.settings, settings)) {
+  const currentModules = currentProcessingModuleRegistry.definitions()
+    .filter((definition) => definition.settingsPaths.length > 0)
+    .map((definition) => {
+      const settings = settingsForModule(adjustments, definition.settingsPaths);
+      const existing = previous?.modules.find((module) => module.type === definition.type);
+      if (existing && existing.enabled && valuesEqual(existing.settings, settings)) {
+        return {
+          ...existing,
+          settings: cloneValue(existing.settings)
+        };
+      }
+      changed = true;
       return {
-        ...existing,
-        settings: cloneValue(existing.settings)
+        id: existing?.id ?? createId('module'),
+        type: definition.type,
+        enabled: true,
+        revision: (existing?.revision ?? -1) + 1,
+        settings
       };
-    }
-    changed = true;
-    return {
-      id: existing?.id ?? createId('module'),
-      type: definition.type,
-      enabled: true,
-      revision: (existing?.revision ?? -1) + 1,
-      settings
-    };
-  });
+    });
   return {
     id: previous?.id ?? createId('stack'),
     revision: changed ? (previous?.revision ?? -1) + 1 : (previous?.revision ?? 0),

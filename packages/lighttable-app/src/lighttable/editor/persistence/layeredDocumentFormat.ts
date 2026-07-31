@@ -444,12 +444,15 @@ const parseAdjustmentStack = (value: unknown): AdjustmentStack => {
       settings: structuredClone(candidate.settings)
     };
   });
-  const expectedTypes = CURRENT_PROCESSING_MODULES.map(({ type }) => type);
+  const knownTypes = new Set<string>(CURRENT_PROCESSING_MODULES.map(({ type }) => type));
+  const requiredBridgeTypes = CURRENT_PROCESSING_MODULES
+    .filter(({ settingsPaths }) => settingsPaths.length > 0)
+    .map(({ type }) => type);
   const actualTypes = modules.map(({ type }) => type);
   if (
-    modules.length !== expectedTypes.length
-    || new Set(actualTypes).size !== actualTypes.length
-    || expectedTypes.some((type) => !actualTypes.includes(type))
+    modules.some(({ type }) => !knownTypes.has(type))
+    || new Set(modules.map(({ id }) => id)).size !== modules.length
+    || requiredBridgeTypes.some((type) => !actualTypes.includes(type))
   ) {
     throw new Error('The LightTable document adjustment module inventory is invalid.');
   }

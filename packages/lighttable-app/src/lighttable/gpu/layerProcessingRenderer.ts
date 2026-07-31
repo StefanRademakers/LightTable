@@ -53,9 +53,10 @@ export class LayerProcessingRenderer {
     const stack = layer.adjustmentStack;
     if (!stack) return source;
 
+    const hasGeometry = adjustmentStackHasOwner(stack, 'geometry');
     const hasGrade = adjustmentStackHasOwner(stack, 'grade');
     const hasEffects = adjustmentStackHasOwner(stack, 'lens-fx');
-    const geometry = hasEffects
+    const geometry = hasGeometry || hasEffects
       ? this.effectEncoder.encodeSourceGeometry(encoder, source, layer)
       : source;
     const graded = hasGrade

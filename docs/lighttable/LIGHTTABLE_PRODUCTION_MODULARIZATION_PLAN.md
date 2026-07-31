@@ -1083,6 +1083,10 @@ Progress:
 - [x] Route interactive compositing and destructive bake commands through one
       per-layer processing boundary with the explicit domain order source
       geometry -> grade -> linear spatial -> display post.
+- [x] Establish Warp as an opt-in, serializable geometry node with strict
+      settings validation and explicit layer/smart-filter scope. The legacy
+      `BasicAdjustments` bridge cannot synthesize it, and layer processing
+      recognizes geometry ownership independently from Lens Fx.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator. Lens Fx is complete;
       the combined grade shader remains the compatibility bridge to replace.
