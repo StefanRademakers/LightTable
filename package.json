@@ -16,7 +16,7 @@
     "package:desktop": "npm run package -w @lighttable/desktop",
     "package:desktop:verify": "npm run package -w @lighttable/desktop",
     "make:desktop": "npm run make -w @lighttable/desktop",
-    "test": "npm run test -w @lighttable/app",
+    "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "verify:boundary": "node scripts/verify-boundary.mjs",
     "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"

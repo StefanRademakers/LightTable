@@ -2,7 +2,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
-const roots = ['packages/lighttable-app/src', 'apps/web/src', 'apps/desktop/src'];
+const roots = [
+  'packages/vector-core/src',
+  'packages/lighttable-app/src',
+  'apps/web/src',
+  'apps/desktop/src'
+];
 const sourceExtensions = new Set(['.ts', '.tsx', '.css']);
 const forbidden = [
   'StoryBuilderOnline',
@@ -48,6 +53,20 @@ function verifyRendererFacadeImports(relativePath, source) {
   }
 }
 
+function verifyVectorCoreBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/vector-core/src/')) return;
+  const forbiddenVectorDependencies = [
+    'react', 'react-dom', 'document.', 'window.', 'navigator.',
+    'GPUDevice', 'GPUTexture', '@lighttable/app'
+  ];
+  for (const token of forbiddenVectorDependencies) {
+    if (source.includes(token)) {
+      failures.push(`${relativePath}: vector-core must not depend on ${token}`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -60,6 +79,7 @@ async function scan(relativeDirectory) {
 
     const source = await readFile(relativePath, 'utf8');
     verifyRendererFacadeImports(relativePath, source);
+    verifyVectorCoreBoundary(relativePath, source);
     for (const token of forbidden) {
       if (source.includes(token)) failures.push(`${relativePath}: ${token}`);
     }
