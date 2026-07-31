@@ -1062,6 +1062,9 @@ Progress:
       order outside the concrete engine.
 - [x] Validate processing-module registration, settings ownership, scope
       support and deterministic evaluator ordering.
+- [x] Make serialized stack order authoritative, preserve repeated node
+      instances and introduce a renderer-neutral executor runtime that reports
+      bypass reasons and fails loudly for installed nodes without executors.
 - [x] Route document and adjustment-layer grade evaluation through the shared
       processing evaluator while retaining the current combined shader.
 - [x] Extract pure compositor sequencing for visible leaves, clipping chains,

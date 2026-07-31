@@ -7,13 +7,13 @@ import {
 import { evaluateAdjustmentStack } from './adjustmentEvaluator';
 
 describe('evaluateAdjustmentStack', () => {
-  it('uses registry order rather than serialized module order', () => {
+  it('preserves serialized module order', () => {
     const stack = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
     stack.modules.reverse();
     const evaluation = evaluateAdjustmentStack(stack);
 
-    expect(evaluation.steps[0]?.definition.type).toBe('lt.white-balance');
-    expect(evaluation.steps.at(-1)?.definition.type).toBe('lt.grain');
+    expect(evaluation.steps[0]?.definition.type).toBe('lt.grain');
+    expect(evaluation.steps.at(-1)?.definition.type).toBe('lt.white-balance');
   });
 
   it('bypasses disabled modules while retaining in-scope layer Lens Fx', () => {

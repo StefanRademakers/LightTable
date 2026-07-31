@@ -9,6 +9,7 @@ import {
   currentProcessingModuleRegistry,
   type ProcessingModuleRegistry
 } from './processingModuleRegistry';
+import { buildProcessingPlan } from './processingNodeRuntime';
 
 export interface ProcessingEvaluationStep {
   instance: AdjustmentModuleInstance;
@@ -16,7 +17,7 @@ export interface ProcessingEvaluationStep {
 }
 
 export interface AdjustmentEvaluation {
-  /** Enabled, known modules in authoritative registry order. */
+  /** Enabled, known modules in authoritative serialized document order. */
   steps: readonly ProcessingEvaluationStep[];
   /** Compatibility aggregate consumed by the current combined grade shader. */
   adjustments: BasicAdjustments;
@@ -39,16 +40,9 @@ export const evaluateAdjustmentStack = (
   options: AdjustmentEvaluationOptions = {}
 ): AdjustmentEvaluation => {
   const registry = options.registry ?? currentProcessingModuleRegistry;
-  const instancesByType = new Map(stack.modules.map((instance) => [instance.type, instance]));
-  const steps = registry.definitions().flatMap((definition) => {
-    const instance = instancesByType.get(definition.type);
-    if (
-      !instance?.enabled
-      || (options.scope && !definition.allowedScopes.includes(options.scope))
-    ) {
-      return [];
-    }
-    return [{ instance, definition }];
+  const { steps } = buildProcessingPlan(stack, {
+    registry,
+    scope: options.scope
   });
 
   return {
