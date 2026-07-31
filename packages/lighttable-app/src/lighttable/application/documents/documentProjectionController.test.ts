@@ -81,6 +81,25 @@ describe('createDocumentProjectionController', () => {
     expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
   });
 
+  it('previews a contextual grade without publishing the canonical document', () => {
+    const fixture = createFixture();
+    const originalDocument = fixture.getDocument();
+    const nextAdjustments = {
+      ...createDefaultAdjustments(),
+      exposureEV: 0.75
+    };
+
+    fixture.controller.previewAdjustmentSnapshot(
+      nextAdjustments,
+      originalDocument.activeLayerId
+    );
+
+    expect(fixture.getDocument()).toBe(originalDocument);
+    expect(fixture.getEditorAdjustments()).toEqual(nextAdjustments);
+    expect(fixture.publishRendererDocument).toHaveBeenCalledOnce();
+    expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
+  });
+
   it('reprojects renderer adjustments when a presentation group is bypassed', () => {
     const fixture = createFixture();
     const visibility = {

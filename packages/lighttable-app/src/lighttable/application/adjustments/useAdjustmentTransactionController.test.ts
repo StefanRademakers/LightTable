@@ -22,7 +22,10 @@ const setup = () => {
     setScopeInteractionActive: vi.fn(),
     setLensBlurInteractionActive: vi.fn()
   };
-  const applySnapshot = vi.fn((next: BasicAdjustments) => {
+  const previewSnapshot = vi.fn((next: BasicAdjustments) => {
+    adjustments = next;
+  });
+  const commitSnapshot = vi.fn((next: BasicAdjustments) => {
     adjustments = next;
   });
   const dependencies: AdjustmentTransactionDependencies = {
@@ -30,14 +33,16 @@ const setup = () => {
     getAdjustments: () => adjustments,
     getActiveTargetLayerId: () => targetLayerId,
     getRenderer: () => renderer,
-    applySnapshot,
+    previewSnapshot,
+    commitSnapshot,
     pushHistoryEntry: (entry) => history.push(entry)
   };
   const controller = createAdjustmentTransactionController(() => dependencies);
   return {
     controller,
     renderer,
-    applySnapshot,
+    previewSnapshot,
+    commitSnapshot,
     history,
     get adjustments() { return adjustments; },
     switchDocument: () => { documentId = secondDocument.id; }
@@ -53,7 +58,8 @@ describe('adjustment transaction controller', () => {
     state.controller.change((current) => ({ ...current, exposureEV: 3 }));
     state.controller.end();
     expect(state.adjustments.exposureEV).toBe(3);
-    expect(state.applySnapshot).toHaveBeenCalledTimes(3);
+    expect(state.previewSnapshot).toHaveBeenCalledTimes(3);
+    expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
     expect(state.history).toHaveLength(1);
     expect(state.renderer.setScopeInteractionActive).toHaveBeenNthCalledWith(1, true);
     expect(state.renderer.setScopeInteractionActive).toHaveBeenLastCalledWith(false);
@@ -62,6 +68,8 @@ describe('adjustment transaction controller', () => {
   it('creates one immediate history command outside an interaction', () => {
     const state = setup();
     state.controller.change((current) => ({ ...current, contrast: 12 }));
+    expect(state.previewSnapshot).not.toHaveBeenCalled();
+    expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
     expect(state.history).toHaveLength(1);
     state.history[0].undo();
     expect(state.adjustments.contrast).toBe(0);
@@ -75,7 +83,8 @@ describe('adjustment transaction controller', () => {
     state.switchDocument();
     expect(state.controller.change((current) => ({ ...current, exposureEV: 2 }))).toBe(false);
     state.controller.end();
-    expect(state.applySnapshot).not.toHaveBeenCalled();
+    expect(state.previewSnapshot).not.toHaveBeenCalled();
+    expect(state.commitSnapshot).not.toHaveBeenCalled();
     expect(state.history).toHaveLength(0);
   });
 });

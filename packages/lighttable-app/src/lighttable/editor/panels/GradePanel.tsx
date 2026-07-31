@@ -23,6 +23,10 @@ import {
   type NumericAdjustmentKey
 } from '../../application/adjustments/groupVisibility';
 import {
+  type AdjustmentPresentationStore,
+  useAdjustmentPresentation
+} from '../../application/adjustments/adjustmentPresentationStore';
+import {
   COLOR_SLIDERS,
   colorMixerRangeBounds,
   EFFECTS_SLIDERS,
@@ -34,7 +38,6 @@ import {
 } from '../config/adjustmentControls';
 import {
   DEFAULT_BASIC_ADJUSTMENTS,
-  type BasicAdjustments,
   type LightTableImageMetadata,
   type RgbHistogram
 } from '../../types';
@@ -42,7 +45,7 @@ import {
 type GradeGroup = keyof GroupVisibility;
 
 export interface GradePanelModel {
-  readonly adjustments: BasicAdjustments;
+  readonly adjustmentStore: AdjustmentPresentationStore;
   readonly metadata: LightTableImageMetadata | null;
   readonly visibility: GroupVisibility;
   readonly histogram: RgbHistogram | null;
@@ -174,7 +177,8 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
-  const { adjustments, metadata, visibility, resetModifierActive } = model;
+  const adjustments = useAdjustmentPresentation(model.adjustmentStore);
+  const { metadata, visibility, resetModifierActive } = model;
 
   const setGroupExpanded = (group: GradeGroup, next: boolean) => {
     setExpanded((current) => ({ ...current, [group]: next }));

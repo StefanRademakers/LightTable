@@ -21,6 +21,10 @@ import { resetDocumentOpenPresentation } from './application/documents/resetDocu
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
+import {
+  AdjustmentPresentationStore,
+  useAdjustmentPresentationSelector
+} from './application/adjustments/adjustmentPresentationStore';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { zoomViewToScaleAtPoint } from './editor/tools/pointer/viewportCoordinates';
@@ -266,6 +270,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const scopesColumnRef = useRef<HTMLElement | null>(null);
   const engineRef = useRef<DocumentRendererPort | null>(null);
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
+  const adjustmentPresentationStoreRef = useRef<AdjustmentPresentationStore | null>(null);
+  if (!adjustmentPresentationStoreRef.current) {
+    adjustmentPresentationStoreRef.current = new AdjustmentPresentationStore(
+      adjustmentsRef.current
+    );
+  }
+  const adjustmentPresentationStore = adjustmentPresentationStoreRef.current;
+  const publishAdjustmentPresentation = useCallback((next: BasicAdjustments) => {
+    adjustmentsRef.current = next;
+    adjustmentPresentationStore.publish(next);
+  }, [adjustmentPresentationStore]);
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => void>(() => undefined);
@@ -292,7 +307,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const startupTelemetryRef = useRef(new DocumentStartupTelemetry());
   const workspaceRef = useRef<LightTableDockWorkspaceHandle | null>(null);
   const [metadata, setMetadata] = useState<LightTableImageMetadata | null>(null);
-  const [adjustments, setAdjustments] = useState<BasicAdjustments>(createDefaultAdjustments);
   const [histogram, setHistogram] = useState<RgbHistogram | null>(null);
   const {
     zoomMode,
@@ -428,8 +442,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         documentAdjustmentsRef.current = nextAdjustments;
       },
       publishEditorAdjustments: (nextAdjustments) => {
-        adjustmentsRef.current = nextAdjustments;
-        setAdjustments(nextAdjustments);
+        publishAdjustmentPresentation(nextAdjustments);
       },
       getGroupVisibility: () => groupVisibilityRef.current,
       publishGroupVisibility: (visibility) => {
@@ -443,9 +456,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         engineRef.current?.setAdjustments(nextAdjustments);
       }
     }),
-    [setImageDocument]
+    [publishAdjustmentPresentation, setImageDocument]
   );
   const applyAdjustmentSnapshot = documentProjectionController.applyAdjustmentSnapshot;
+  const previewAdjustmentSnapshot = documentProjectionController.previewAdjustmentSnapshot;
 
   const finishOpenHistoryTransactions = useCallback(() => {
     resetAdjustmentTransactionRef.current();
@@ -499,7 +513,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         : null;
     },
     getRenderer: () => engineRef.current,
-    applySnapshot: applyAdjustmentSnapshot,
+    previewSnapshot: previewAdjustmentSnapshot,
+    commitSnapshot: applyAdjustmentSnapshot,
     pushHistoryEntry
   });
   resetAdjustmentTransactionRef.current = adjustmentTransactionController.reset;
@@ -507,13 +522,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const beginAdjustmentTransaction = adjustmentTransactionController.begin;
   const endAdjustmentTransaction = adjustmentTransactionController.end;
   const changeAdjustments = adjustmentTransactionController.change;
+  const lensBlurEnabled = useAdjustmentPresentationSelector(
+    adjustmentPresentationStore,
+    (current) => current.effects.lensBlur.enabled
+  );
   const {
     depthResult,
     depthProgress,
     reset: resetLensBlurDepth
   } = useLensBlurDepthController({
     open,
-    enabled: adjustments.effects.lensBlur.enabled,
+    enabled: lensBlurEnabled,
     sourceBlob,
     sourceIdentity,
     getRenderer: () => engineRef.current,
@@ -655,8 +674,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     publishAdjustments: (nextAdjustments: BasicAdjustments) => {
       documentAdjustmentsRef.current = nextAdjustments;
-      adjustmentsRef.current = nextAdjustments;
-      setAdjustments(nextAdjustments);
+      publishAdjustmentPresentation(nextAdjustments);
     },
     publishStatus: setGradeStatus,
     reportDifferenceFailure: (failure: unknown) => {
@@ -667,6 +685,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   }), [
     clearEditorHistory,
+    publishAdjustmentPresentation,
     resetLensBlurDepth,
     setEditorSession,
     setImageDocument,
@@ -710,8 +729,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setLensBlurViewportModeState('result');
         },
         publishAdjustments: (startingAdjustments) => {
-          adjustmentsRef.current = startingAdjustments;
-          setAdjustments(startingAdjustments);
+          publishAdjustmentPresentation(startingAdjustments);
         },
         resetHistory: clearEditorHistory,
         resetViewport: () => {
@@ -991,7 +1009,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         y,
         metadata.width,
         metadata.height,
-        adjustments.effects.lensDistortion
+        adjustmentsRef.current.effects.lensDistortion
       );
       const selectedDepth = sampleMedianDepth(depthResult, sourceUv.x, sourceUv.y);
       if (selectedDepth === null) return;
@@ -1042,8 +1060,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       documentAdjustmentsRef.current = cloneAdjustments(next);
     },
     publishPanelAdjustments: (next) => {
-      adjustmentsRef.current = cloneAdjustments(next);
-      setAdjustments(cloneAdjustments(next));
+      publishAdjustmentPresentation(cloneAdjustments(next));
     }
   });
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
@@ -1098,8 +1115,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
     mutateDocument: applyDocumentChange,
     publishPanelAdjustments: (next) => {
-      adjustmentsRef.current = cloneAdjustments(next);
-      setAdjustments(cloneAdjustments(next));
+      publishAdjustmentPresentation(cloneAdjustments(next));
     },
     setPaintTarget: (activeChannel, brushColor) => {
       setEditorSession((current) => ({
@@ -1574,7 +1590,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               lensFxKey: sourceIdentity || sourceName,
               lensFx: {
                 model: {
-                  adjustments,
+                  adjustmentStore: adjustmentPresentationStore,
                   // Grade controls are contextual. A group or missing
                   // selection must never fall back to an invisible global
                   // creative grade.
@@ -1626,7 +1642,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               },
               grade: {
                 model: {
-                  adjustments,
+                  adjustmentStore: adjustmentPresentationStore,
                   metadata,
                   visibility: groupVisibility,
                   histogram,

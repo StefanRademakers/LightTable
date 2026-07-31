@@ -20,7 +20,8 @@ export interface AdjustmentTransactionDependencies {
   getAdjustments(): BasicAdjustments;
   getActiveTargetLayerId(): LayerId | null;
   getRenderer(): AdjustmentInteractionRendererPort | null;
-  applySnapshot(adjustments: BasicAdjustments, targetLayerId: LayerId | null): void;
+  previewSnapshot(adjustments: BasicAdjustments, targetLayerId: LayerId | null): void;
+  commitSnapshot(adjustments: BasicAdjustments, targetLayerId: LayerId | null): void;
   pushHistoryEntry(entry: AdjustmentHistoryEntry): void;
 }
 
@@ -69,7 +70,7 @@ export const createAdjustmentTransactionController = (
     if (dependencies.getDocumentId() !== documentId) {
       throw new Error('The grade belongs to a different document.');
     }
-    dependencies.applySnapshot(cloneAdjustments(adjustments), targetLayerId);
+    dependencies.commitSnapshot(cloneAdjustments(adjustments), targetLayerId);
   };
 
   const pushHistory = (
@@ -103,6 +104,7 @@ export const createAdjustmentTransactionController = (
     if (dependencies.getDocumentId() !== completed.documentId) return;
     const after = cloneAdjustments(dependencies.getAdjustments());
     if (!adjustmentsEqual(completed.before, after)) {
+      dependencies.commitSnapshot(after, completed.targetLayerId);
       pushHistory(
         completed.documentId,
         completed.before,
@@ -140,7 +142,11 @@ export const createAdjustmentTransactionController = (
       const documentId = dependencies.getDocumentId();
       const targetLayerId = transaction?.targetLayerId
         ?? dependencies.getActiveTargetLayerId();
-      dependencies.applySnapshot(next, targetLayerId);
+      if (transaction) {
+        dependencies.previewSnapshot(next, targetLayerId);
+      } else {
+        dependencies.commitSnapshot(next, targetLayerId);
+      }
       if (!transaction) {
         pushHistory(documentId, before, next, targetLayerId);
       }

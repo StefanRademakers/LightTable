@@ -18,7 +18,11 @@ import {
 import {
   DEFAULT_LENS_DISTORTION_SETTINGS
 } from '../../effects/lensDistortion/settings';
-import type { BasicAdjustments, LightTableImageMetadata } from '../../types';
+import type { LightTableImageMetadata } from '../../types';
+import {
+  type AdjustmentPresentationStore,
+  useAdjustmentPresentation
+} from '../../application/adjustments/adjustmentPresentationStore';
 import type {
   DepthAnalysisProgress,
   DepthAnalysisResult
@@ -50,7 +54,7 @@ export interface LensFxExpandedState {
 }
 
 export interface LensFxPanelModel {
-  readonly adjustments: BasicAdjustments;
+  readonly adjustmentStore: AdjustmentPresentationStore;
   readonly metadata: LightTableImageMetadata | null;
   readonly resetModifierActive: boolean;
   readonly depthProgress: DepthAnalysisProgress;
@@ -112,7 +116,8 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
     lensDistortion: true,
     lensBlur: true
   });
-  const { adjustments, metadata, resetModifierActive } = model;
+  const adjustments = useAdjustmentPresentation(model.adjustmentStore);
+  const { metadata, resetModifierActive } = model;
   const setGroupExpanded = (
     group: keyof LensFxExpandedState,
     next: boolean

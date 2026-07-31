@@ -4,7 +4,7 @@ Updated: 2026-07-31
 Repository: `D:\mediavibe\LightTable`  
 Branch: `main`  
 Architecture checkpoint: `5a9fa02 Centralize document adjustment state`
-Current milestone: correction-stage reuse on top of `fe5a645 Track earliest dirty effect stage`
+Current milestone: interaction-aware adjustment publication and render telemetry
 
 This is the short operational handoff. The architectural source of truth remains
 `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`.
@@ -34,6 +34,18 @@ Latest renderer-performance verification:
 - 176 test files and 775 tests passed;
 - standalone web production build passed;
 - packaged Electron verification passed.
+
+The renderer now exposes on-demand counters and CPU command-encoding timings in
+the Debug panel. Capturing or resetting telemetry is explicit: diagnostics do
+not poll and therefore cannot wake an idle document renderer.
+
+High-frequency Grade and Lens Fx presentation no longer lives in the editor
+root's React state. Each document owns an adjustment presentation store. During
+a slider gesture, immutable snapshots update the relevant panels and WebGPU
+preview directly; the canonical document/session tree is published once at
+gesture completion, together with the single undo entry. Immediate commands,
+undo and redo still commit atomically. This prevents a slider from repeatedly
+re-rendering Dockview, the canvas shell and unrelated panels.
 
 Known non-blocking build warnings:
 

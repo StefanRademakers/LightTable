@@ -22,6 +22,10 @@ export interface DocumentProjectionPort {
 }
 
 export interface DocumentProjectionController {
+  previewAdjustmentSnapshot(
+    snapshot: BasicAdjustments,
+    targetLayerId?: LayerId | null
+  ): void;
   applyAdjustmentSnapshot(
     snapshot: BasicAdjustments,
     targetLayerId?: LayerId | null
@@ -49,27 +53,40 @@ export const createDocumentProjectionController = (
     ));
   };
 
+  const projectAdjustments = (
+    snapshot: BasicAdjustments,
+    targetLayerId: LayerId | null,
+    publishCanonicalDocument: boolean
+  ) => {
+    const currentDocument = port.getDocument();
+    const projection = projectAdjustmentSnapshot({
+      snapshot,
+      targetLayerId,
+      document: currentDocument,
+      documentAdjustments: port.getDocumentAdjustments()
+    });
+    port.publishEditorAdjustments(projection.editorAdjustments);
+    if (publishCanonicalDocument) {
+      port.publishDocumentAdjustments(projection.documentAdjustments);
+      if (projection.document !== currentDocument) {
+        port.publishDocument(projection.document);
+      }
+    }
+    if (projection.document) {
+      port.publishRendererDocument(projection.document);
+    }
+    publishRendererAdjustments();
+  };
+
   return {
+    previewAdjustmentSnapshot: (snapshot, targetLayerId = null) => {
+      projectAdjustments(snapshot, targetLayerId, false);
+    },
     applyAdjustmentSnapshot: (
       snapshot,
       targetLayerId = null
     ) => {
-      const currentDocument = port.getDocument();
-      const projection = projectAdjustmentSnapshot({
-        snapshot,
-        targetLayerId,
-        document: currentDocument,
-        documentAdjustments: port.getDocumentAdjustments()
-      });
-      port.publishEditorAdjustments(projection.editorAdjustments);
-      port.publishDocumentAdjustments(projection.documentAdjustments);
-      if (projection.document !== currentDocument) {
-        port.publishDocument(projection.document);
-        if (projection.document) {
-          port.publishRendererDocument(projection.document);
-        }
-      }
-      publishRendererAdjustments();
+      projectAdjustments(snapshot, targetLayerId, true);
     },
     applyDocumentSnapshot: (document) => {
       port.publishDocument(document);

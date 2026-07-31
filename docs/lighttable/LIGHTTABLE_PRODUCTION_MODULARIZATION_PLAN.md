@@ -1702,3 +1702,9 @@ The refactor is successful when:
 - [x] Enforce the renderer-facade boundary in the repository verifier with an
       explicit import allowlist, so concrete GPU services cannot silently
       migrate back into the facade.
+- [x] Add document-scoped, on-demand correction render telemetry without a
+      polling observer that would wake idle renderers.
+- [x] Remove high-frequency adjustment snapshots from the editor root's React
+      state. Slider gestures now publish panel/WebGPU previews while deferring
+      the canonical document-session update and single undo command until
+      interaction completion.
