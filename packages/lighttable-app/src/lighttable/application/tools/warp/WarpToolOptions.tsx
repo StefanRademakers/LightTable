@@ -48,7 +48,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       label="Strength"
       value={warp.strength * 100}
       min={1}
-      max={100}
+      max={200}
       resetValue={35}
       format={(value) => `${Math.round(value)}%`}
       onReset={() => onChange({ strength: 0.35 })}

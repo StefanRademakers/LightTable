@@ -8,6 +8,7 @@ import {
   session
 } from 'electron';
 import { createServer, type Server } from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
@@ -24,6 +25,52 @@ let rendererOrigin = '';
 let packagedRendererServer: Server | null = null;
 
 const NAVIGATION_ABORTED = -3;
+const RECENT_FILE_LIMIT = 4;
+
+interface PersistedRecentFile {
+  id: string;
+  path: string;
+  openedAt: number;
+}
+
+const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
+
+const recentFileId = (filePath: string): string => createHash('sha256')
+  .update(path.resolve(filePath).toLowerCase())
+  .digest('hex')
+  .slice(0, 24);
+
+const loadRecentFiles = async (): Promise<PersistedRecentFile[]> => {
+  try {
+    const parsed: unknown = JSON.parse(await readFile(recentFilesPath(), 'utf8'));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is PersistedRecentFile => Boolean(
+      entry &&
+      typeof entry === 'object' &&
+      typeof (entry as PersistedRecentFile).id === 'string' &&
+      typeof (entry as PersistedRecentFile).path === 'string' &&
+      typeof (entry as PersistedRecentFile).openedAt === 'number'
+    ));
+  } catch {
+    return [];
+  }
+};
+
+const saveRecentFiles = async (entries: readonly PersistedRecentFile[]): Promise<void> => {
+  await writeFile(recentFilesPath(), JSON.stringify(entries.slice(0, RECENT_FILE_LIMIT), null, 2));
+};
+
+const rememberRecentFile = async (filePath: string): Promise<void> => {
+  const id = recentFileId(filePath);
+  const entries = (await loadRecentFiles()).filter((entry) => entry.id !== id);
+  await saveRecentFiles([{ id, path: filePath, openedAt: Date.now() }, ...entries]);
+};
+
+const readDesktopFilePayload = async (filePath: string) => ({
+  name: path.basename(filePath),
+  type: '',
+  bytes: new Uint8Array(await readFile(filePath))
+});
 
 const ISOLATION_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -200,12 +247,55 @@ void app.whenReady().then(async () => {
     const selectedPath = result.filePaths[0];
     if (result.canceled || !selectedPath) return null;
 
-    const bytes = await readFile(selectedPath);
-    return {
-      name: path.basename(selectedPath),
-      type: '',
-      bytes: new Uint8Array(bytes)
-    };
+    await rememberRecentFile(selectedPath);
+    return readDesktopFilePayload(selectedPath);
+  });
+
+  ipcMain.handle('lighttable:list-recent-files', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const existing: PersistedRecentFile[] = [];
+    for (const entry of await loadRecentFiles()) {
+      try {
+        if ((await stat(entry.path)).isFile()) existing.push(entry);
+      } catch {
+        // Missing files disappear from the launcher instead of breaking it.
+      }
+    }
+    await saveRecentFiles(existing);
+    return Promise.all(existing.map(async (entry) => {
+      let thumbnailDataUrl: string | undefined;
+      try {
+        const thumbnail = await nativeImage.createThumbnailFromPath(entry.path, {
+          width: 320,
+          height: 180
+        });
+        if (!thumbnail.isEmpty()) thumbnailDataUrl = thumbnail.toDataURL();
+      } catch {
+        // Unsupported thumbnail formats still remain valid recent documents.
+      }
+      return {
+        id: entry.id,
+        name: path.basename(entry.path),
+        thumbnailDataUrl
+      };
+    }));
+  });
+
+  ipcMain.handle('lighttable:open-recent-file', async (event, id: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof id !== 'string' || id.length > 128) {
+      throw new Error('Invalid recent-file request.');
+    }
+    const entry = (await loadRecentFiles()).find((candidate) => candidate.id === id);
+    if (!entry) return null;
+    try {
+      const payload = await readDesktopFilePayload(entry.path);
+      await rememberRecentFile(entry.path);
+      return payload;
+    } catch {
+      await saveRecentFiles((await loadRecentFiles()).filter((candidate) => candidate.id !== id));
+      return null;
+    }
   });
 
   ipcMain.handle('lighttable:save-file', async (event, payload: DesktopSavePayload) => {

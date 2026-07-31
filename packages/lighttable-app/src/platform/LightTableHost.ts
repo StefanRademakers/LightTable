@@ -21,11 +21,19 @@ export interface LightTableSaveRequest {
   recipe: unknown;
 }
 
+export interface LightTableRecentFile {
+  id: string;
+  name: string;
+  thumbnailUrl?: string;
+}
+
 export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
   readonly media?: LightTableMediaBrowser;
   readonly clipboard?: LightTableImageClipboard;
   openFile?(): Promise<File | null>;
+  listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
+  openRecentFile?(id: string): Promise<File | null>;
   /**
    * Ask the host whether unsaved changes may be discarded.
    */

@@ -3,6 +3,8 @@ import type { DesktopSavePayload, LightTableDesktopBridge } from './desktopBridg
 
 const bridge: LightTableDesktopBridge = {
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),
+  listRecentFiles: () => ipcRenderer.invoke('lighttable:list-recent-files'),
+  openRecentFile: (id: string) => ipcRenderer.invoke('lighttable:open-recent-file', id),
   confirmDiscardChanges: (documentTitle: string) =>
     ipcRenderer.invoke('lighttable:confirm-discard-changes', documentTitle),
   saveFile: (payload: DesktopSavePayload) =>

@@ -70,6 +70,7 @@ export type {
   LightTableHost,
   LightTableMediaBrowser,
   LightTableMediaItem,
+  LightTableRecentFile,
   LightTableSaveRequest
 } from './platform/LightTableHost';
 export type {

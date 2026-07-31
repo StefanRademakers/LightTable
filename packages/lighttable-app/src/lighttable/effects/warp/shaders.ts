@@ -65,7 +65,9 @@ fn main(@builtin(global_invocation_id) invocation: vec3u) {
       );
     } else if (mode == 3u || mode == 4u) {
       let local = source - stamp.centerDelta.xy;
-      let direction = select(-1.0, 1.0, mode == 4u);
+      // Inverse mapping: Pinch samples farther from the center; Bloat
+      // samples closer to it.
+      let direction = select(1.0, -1.0, mode == 4u);
       let radialScale = exp2(direction * influence * 0.22);
       source = stamp.centerDelta.xy + local * radialScale;
     }

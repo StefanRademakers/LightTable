@@ -31,6 +31,20 @@ const desktopHost: LightTableHost = {
       type: payload.type
     });
   },
+  async listRecentFiles() {
+    return (await window.lightTableDesktop.listRecentFiles()).map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      thumbnailUrl: entry.thumbnailDataUrl
+    }));
+  },
+  async openRecentFile(id) {
+    const payload = await window.lightTableDesktop.openRecentFile(id);
+    if (!payload) return null;
+    return new File([Uint8Array.from(payload.bytes).buffer], payload.name, {
+      type: payload.type
+    });
+  },
   confirmDiscardChanges(documentTitle) {
     return window.lightTableDesktop.confirmDiscardChanges(documentTitle);
   },

@@ -56,8 +56,21 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
 }) => {
   const activeToolDefinition = toolDefinition(activeTool);
 
+  const releaseCompletedSelect = (event: React.ChangeEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof HTMLSelectElement)) return;
+
+    // A tool-mode choice is a completed command, not an ongoing text-editing
+    // session. Returning focus immediately keeps document shortcuts such as
+    // the shared brush-size [ / ] bindings available after the choice.
+    target.blur();
+  };
+
   return (
-    <div className={`lighttable-tool-options__content lighttable-tool-options__content--${orientation}`}>
+    <div
+      className={`lighttable-tool-options__content lighttable-tool-options__content--${orientation}`}
+      onChange={releaseCompletedSelect}
+    >
       <div className="lighttable-tool-options__identity">
         <img src={lightTableIcon(activeToolDefinition.iconName)} alt="" aria-hidden="true" />
         <strong>{activeTool === 'warp'

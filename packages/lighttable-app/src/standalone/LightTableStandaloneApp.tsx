@@ -1,12 +1,15 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState
 } from 'react';
+import { type DocumentSessionId } from '../lighttable/application/documents/documentSession';
 import {
-  type DocumentSessionId
-} from '../lighttable/application/documents/documentSession';
-import { createBrowserHost, type LightTableHost } from '../platform/LightTableHost';
+  createBrowserHost,
+  type LightTableHost,
+  type LightTableRecentFile
+} from '../platform/LightTableHost';
 import { StandaloneDocumentRuntimeView } from './StandaloneDocumentRuntimeView';
 import {
   type StandaloneDecodeMode,
@@ -18,6 +21,7 @@ import {
   imagePickerAccept,
   imagePickerFormatNames
 } from '../lighttable/image-io/supportedImageFormats';
+import { createBlankPngFile } from './createBlankPngFile';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -41,7 +45,28 @@ export function LightTableStandaloneApp({
     activateDocument
   } = useStandaloneDocumentWorkspace();
   const [opening, setOpening] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newWidth, setNewWidth] = useState(1920);
+  const [newHeight, setNewHeight] = useState(1080);
+  const [newResolution, setNewResolution] = useState(72);
+  const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
   const fileDrop = useStandaloneFileDrop(openDocument);
+
+  const refreshRecentFiles = useCallback(async () => {
+    if (!host.listRecentFiles) {
+      setRecentFiles([]);
+      return;
+    }
+    try {
+      setRecentFiles((await host.listRecentFiles()).slice(0, 4));
+    } catch {
+      setRecentFiles([]);
+    }
+  }, [host]);
+
+  useEffect(() => {
+    if (snapshot.documentOrder.length === 0) void refreshRecentFiles();
+  }, [refreshRecentFiles, snapshot.documentOrder.length]);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
@@ -55,6 +80,35 @@ export function LightTableStandaloneApp({
       setOpening(false);
     }
   }, [host, openDocument]);
+
+  const openRecentDocument = useCallback(async (id: string) => {
+    if (!host.openRecentFile) return;
+    setOpening(true);
+    try {
+      const file = await host.openRecentFile(id);
+      if (file) openDocument(file);
+      else await refreshRecentFiles();
+    } finally {
+      setOpening(false);
+    }
+  }, [host, openDocument, refreshRecentFiles]);
+
+  const createDocument = useCallback(async () => {
+    const width = Math.round(newWidth);
+    const height = Math.round(newHeight);
+    const resolutionPpi = Math.round(newResolution);
+    if (
+      !Number.isFinite(width) || !Number.isFinite(height) ||
+      width < 1 || height < 1 || width > 16384 || height > 16384 ||
+      !Number.isFinite(resolutionPpi) || resolutionPpi < 1 || resolutionPpi > 2400
+    ) return;
+    setCreating(true);
+    try {
+      openDocument(await createBlankPngFile({ width, height, resolutionPpi }));
+    } finally {
+      setCreating(false);
+    }
+  }, [newHeight, newResolution, newWidth, openDocument]);
 
   const closeDocument = useCallback((documentId: string) => {
     const id = documentId as DocumentSessionId;
@@ -76,44 +130,77 @@ export function LightTableStandaloneApp({
       <main
         className={`lighttable-launcher${fileDrop.active ? ' lighttable-launcher--drop-active' : ''}`}
       >
-        <section className="lighttable-launcher__card">
-          <h1>LightTable</h1>
-          <p>
-            Drop a supported file here, or open an image or layered document.
-          </p>
-          <span className="lighttable-launcher__formats">
-            {imagePickerFormatNames('automatic')}
-          </span>
-          {host.openFile ? (
-            <button
-              className="action-button lighttable-launcher__open"
-              type="button"
-              disabled={opening}
-              onClick={() => void requestHostDocument()}
-            >
-              {opening ? 'Opening…' : 'Open file'}
-            </button>
-          ) : (
-            <label className="action-button lighttable-launcher__open">
-              Open file
-              <input
-                type="file"
-                accept={imagePickerAccept('automatic')}
-                hidden
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0] ?? null;
-                  event.currentTarget.value = '';
-                  if (file) openDocument(file);
-                }}
-              />
-            </label>
-          )}
-          {fileDrop.error ? (
-            <p className="lighttable-file-drop__error" role="alert">
-              {fileDrop.error}
-            </p>
+        <div className="lighttable-launcher__content">
+          <div className="lighttable-launcher__start">
+            <section className="lighttable-launcher__card lighttable-launcher__open-card">
+              <h1>Open</h1>
+              <p>Drop a supported file here, or choose a file.</p>
+              <span className="lighttable-launcher__formats">
+                {imagePickerFormatNames('automatic')}
+              </span>
+              {host.openFile ? (
+                <button
+                  className="action-button lighttable-launcher__open"
+                  type="button"
+                  disabled={opening}
+                  onClick={() => void requestHostDocument()}
+                >
+                  {opening ? 'Opening…' : 'Open file'}
+                </button>
+              ) : (
+                <label className="action-button lighttable-launcher__open">
+                  Open file
+                  <input
+                    type="file"
+                    accept={imagePickerAccept('automatic')}
+                    hidden
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0] ?? null;
+                      event.currentTarget.value = '';
+                      if (file) openDocument(file);
+                    }}
+                  />
+                </label>
+              )}
+              {fileDrop.error ? (
+                <p className="lighttable-file-drop__error" role="alert">
+                  {fileDrop.error}
+                </p>
+              ) : null}
+            </section>
+
+            <section className="lighttable-launcher__card lighttable-launcher__new-card">
+              <h1>New document</h1>
+              <div className="lighttable-launcher__new-grid">
+                <label><span>Width</span><input className="form-input lighttable-launcher__number-field" type="number" inputMode="numeric" min="1" max="16384" value={newWidth} onChange={(event) => setNewWidth(event.currentTarget.valueAsNumber)} /></label>
+                <label><span>Height</span><input className="form-input lighttable-launcher__number-field" type="number" inputMode="numeric" min="1" max="16384" value={newHeight} onChange={(event) => setNewHeight(event.currentTarget.valueAsNumber)} /></label>
+                <label><span>Resolution</span><input className="form-input lighttable-launcher__number-field" type="number" inputMode="numeric" min="1" max="2400" value={newResolution} onChange={(event) => setNewResolution(event.currentTarget.valueAsNumber)} /></label>
+                <label><span>Units</span><output className="form-input lighttable-launcher__fixed-field">pixels</output></label>
+                <label><span>Resolution units</span><output className="form-input lighttable-launcher__fixed-field">pixels/inch</output></label>
+                <label><span>Color depth</span><output className="form-input lighttable-launcher__fixed-field">8 bits/channel</output></label>
+              </div>
+              <button className="action-button lighttable-launcher__primary-action" type="button" disabled={creating} onClick={() => void createDocument()}>
+                {creating ? 'Creating…' : 'Create'}
+              </button>
+            </section>
+          </div>
+
+          {recentFiles.length > 0 ? (
+            <section className="lighttable-launcher__recent-section">
+              <h2>Recent files</h2>
+              <div className="lighttable-launcher__recents">
+                {recentFiles.map((recent) => (
+                  <button key={recent.id} type="button" disabled={opening} onClick={() => void openRecentDocument(recent.id)}>
+                    <span className="lighttable-launcher__recent-preview">
+                      {recent.thumbnailUrl ? <img src={recent.thumbnailUrl} alt="" /> : <span>No preview</span>}
+                    </span>
+                    <span className="lighttable-launcher__recent-name" title={recent.name}>{recent.name}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
           ) : null}
-        </section>
+        </div>
       </main>
     );
   }
@@ -137,20 +224,18 @@ export function LightTableStandaloneApp({
           {fileDrop.error}
         </button>
       ) : null}
-      {documents.map((document) => {
-        return (
-          <StandaloneDocumentRuntimeView
-            key={document.id}
-            document={document}
-            workspaceDocuments={workspaceDocuments}
-            host={host}
-            onActivate={activateDocument}
-            onClose={closeDocument}
-            onRequestOpen={host.openFile ? requestHostDocument : undefined}
-            onOpen={openDocument}
-          />
-        );
-      })}
+      {documents.map((document) => (
+        <StandaloneDocumentRuntimeView
+          key={document.id}
+          document={document}
+          workspaceDocuments={workspaceDocuments}
+          host={host}
+          onActivate={activateDocument}
+          onClose={closeDocument}
+          onRequestOpen={host.openFile ? requestHostDocument : undefined}
+          onOpen={openDocument}
+        />
+      ))}
     </>
   );
 }
