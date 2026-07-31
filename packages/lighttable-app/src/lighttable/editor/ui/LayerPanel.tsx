@@ -373,7 +373,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 max={100}
                 format={(value) => `${Math.round(value)}%`}
                 resetValue={100}
-                disabled={activeLayer.type !== 'raster'}
                 onReset={() => onOpacity(activeLayer.id, 1)}
                 onChange={(value) => onOpacity(activeLayer.id, value / 100)}
                 onInteractionStart={onOpacityInteractionStart}
