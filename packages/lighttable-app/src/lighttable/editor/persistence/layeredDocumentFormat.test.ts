@@ -19,6 +19,12 @@ import { translationMatrix } from '../tools/transform/affine';
 import { findDocumentLayer, findRasterLayer, walkRasterLayers } from '../document/layerTree';
 import { buildLayeredDocumentFile, parseLayeredDocumentFile } from './layeredDocumentFormat';
 import { addLayerStyle, updateLayerStyle } from '../styles/layerStyleCommands';
+import {
+  addWarpNodeToStack,
+  createWarpModuleInstance,
+  findWarpModuleInstance,
+  readWarpNodeSettings
+} from '../../effects/warp/warpTypes';
 
 const pngBytes = (base64: string) => Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
 const PREVIEW_PNG = pngBytes('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVR4nGMQ0bD5D8IMMAYALyQF3SWgr78AAAAASUVORK5CYII=');
@@ -166,6 +172,73 @@ describe('LightTable layered PNG format', () => {
     expect(parsed!.assets[1].pixels.size).toBe(OVERLAY_PNG.byteLength);
     expect(findRasterLayer(parsed!.document, document.activeLayerId!)?.adjustmentStack)
       .toEqual(localStack);
+  });
+
+  it('round-trips a non-destructive Warp recipe without baking its pixels', async () => {
+    let document = createImageDocument('Warp roundtrip', 2, 2, 'source');
+    const layerId = document.activeLayerId!;
+    const stack = addWarpNodeToStack(
+      defaultStack(),
+      createWarpModuleInstance('warp-module', {
+        version: 1,
+        opacity: 0.8,
+        borderMode: 'mirror',
+        topologyMode: 'protected',
+        edgePinning: 0.25,
+        maskLinkMode: 'linked',
+        strokes: [{
+          id: 'warp-stroke',
+          mode: 'push',
+          settings: {
+            diameterPx: 180,
+            strength: 0.42,
+            hardness: 0.7,
+            flow: 0.55,
+            spacing: 0.08,
+            pressureSize: true,
+            pressureStrength: true
+          },
+          samples: [{
+            positionPx: [0.5, 0.75],
+            deltaPx: [0, 0],
+            pressure: 0.6,
+            tilt: [0.1, -0.2],
+            timeMs: 10
+          }, {
+            positionPx: [1.25, 1.5],
+            deltaPx: [0.75, 0.75],
+            pressure: 0.8,
+            tilt: [0.15, -0.1],
+            timeMs: 24
+          }],
+          startedAtMs: 10,
+          durationMs: 14
+        }]
+      })
+    );
+    document = setRasterLayerAdjustmentStack(document, layerId, stack);
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }],
+      'warp-roundtrip.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const parsedLayer = parsed && findRasterLayer(parsed.document, layerId);
+    const parsedWarp = parsedLayer && findWarpModuleInstance(parsedLayer.adjustmentStack);
+
+    expect(parsedWarp).not.toBeNull();
+    expect(readWarpNodeSettings(parsedWarp!)).toEqual(
+      readWarpNodeSettings(findWarpModuleInstance(stack)!)
+    );
+    expect(new Uint8Array(await parsed!.assets[0].pixels.arrayBuffer()))
+      .toEqual(BACKGROUND_PNG);
   });
 
   it('round-trips nested groups and their raster assets', async () => {
