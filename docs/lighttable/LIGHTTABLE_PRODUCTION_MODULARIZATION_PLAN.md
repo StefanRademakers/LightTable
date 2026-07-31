@@ -1095,6 +1095,18 @@ Progress:
       tab changes cannot leak a gesture into another document.
 - [x] Prove that Warp recipes survive layered save/reopen while the original
       raster payload remains byte-exact and unbaked.
+- [x] Make persistent effect updates dependency-aware at module-instance
+      revision granularity. Unchanged nodes retain their resources while
+      downstream Lens Blur invalidates explicitly when distortion changes.
+- [x] Extract immutable compositor planning from GPU encoding. Visibility,
+      clipping, pass-through groups and style participation are now analyzed
+      by a pure tested graph before the renderer evaluates it.
+- [x] Give persistent layer pixels, raster/non-raster masks and Layer Style
+      work/cache textures explicit lifecycle owners with deterministic
+      replacement, pruning, VRAM accounting and teardown.
+- [x] Retain transient buffers and isolated-group textures by GPU submit
+      boundary, and own compositor ping-pong targets through one lazy reusable
+      render-target abstraction.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator. Lens Fx is complete;
       the combined grade shader remains the compatibility bridge to replace.
