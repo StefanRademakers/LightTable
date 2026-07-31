@@ -10,7 +10,6 @@ import {
   type RasterMask
 } from '../document/documentTypes';
 import {
-  findLayerNode,
   findRasterLayer,
   walkLayerTree,
   walkRasterLayers
@@ -69,6 +68,10 @@ import { LayerTextureCodec } from './LayerTextureCodec';
 import { SelectionRasterizer } from './SelectionRasterizer';
 import { SelectionContentAnalyzer } from './SelectionContentAnalyzer';
 import { SelectionClipboardService } from './SelectionClipboardService';
+import {
+  RasterDocumentOperations,
+  type EncodeAdjustment
+} from './RasterDocumentOperations';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -107,6 +110,7 @@ export class LayerDocumentRenderer {
   private readonly selectionRasterizer: SelectionRasterizer;
   private readonly selectionContentAnalyzer: SelectionContentAnalyzer;
   private readonly selectionClipboard: SelectionClipboardService;
+  private readonly rasterDocumentOperations: RasterDocumentOperations;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -194,6 +198,15 @@ export class LayerDocumentRenderer {
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+    });
+    this.rasterDocumentOperations = new RasterDocumentOperations({
+      device,
+      layerResources: this.layerResources,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      encodeComposite: (encoder, document, encodeAdjustment) =>
+        this.encodeComposite(encoder, document, encodeAdjustment),
+      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
+      releaseSubmittedResources: () => this.releaseSubmittedResources()
     });
     this.documentAssets = new LayerDocumentAssetService({
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
@@ -829,19 +842,7 @@ export class LayerDocumentRenderer {
   }
 
   duplicateLayer(sourceId: LayerId, destinationId: LayerId) {
-    const source = this.layerResources.raster(sourceId);
-    const destination = this.layerResources.raster(destinationId);
-    if (!source || !destination) return;
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable duplicate raster layer' });
-    encoder.copyTextureToTexture({ texture: source.texture }, { texture: destination.texture }, [this.width, this.height]);
-    if (source.maskTexture && destination.maskTexture) {
-      encoder.copyTextureToTexture({ texture: source.maskTexture }, { texture: destination.maskTexture }, [this.width, this.height]);
-    }
-    this.device.queue.submit([encoder.finish()]);
-    // Detached runtimes can survive undo/redo. Never let pixels copied into a
-    // reused destination inherit an older styled result with the same ids and
-    // revisions.
-    this.invalidateStyledLayerCache(destinationId);
+    return this.rasterDocumentOperations.duplicate(sourceId, destinationId);
   }
 
   async exportDocumentAssets(document: ImageDocument): Promise<DocumentAssetBlob[]> {
@@ -960,11 +961,7 @@ export class LayerDocumentRenderer {
     document: ImageDocument,
     topId: LayerId,
     bottomId: LayerId,
-    encodeAdjustment?: (
-      encoder: GPUCommandEncoder,
-      source: GPUTexture,
-      layer: AdjustmentLayer | RasterLayer
-    ) => GPUTexture
+    encodeAdjustment?: EncodeAdjustment
   ) {
     return this.mergeLayers(document, [bottomId, topId], bottomId, encodeAdjustment);
   }
@@ -973,81 +970,40 @@ export class LayerDocumentRenderer {
     document: ImageDocument,
     layerIds: readonly LayerId[],
     destinationId: LayerId,
-    encodeAdjustment?: (
-      encoder: GPUCommandEncoder,
-      source: GPUTexture,
-      layer: AdjustmentLayer | RasterLayer
-    ) => GPUTexture
+    encodeAdjustment?: EncodeAdjustment
   ) {
-    const destination = this.layerResources.raster(destinationId);
-    const layers = layerIds.map((layerId) => findLayerNode(document.layers, layerId)?.node ?? null);
-    if (
-      !destination
-      || layers.length < 2
-      || layers.some((layer) => !layer)
-      || layers.some((layer) => layer?.type === 'group')
-      || layers.some((layer) => layer?.type === 'raster' && !this.layerResources.raster(layer.id))
-    ) return false;
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable merge selected layers' });
-    const mergedTexture = this.encodeComposite(encoder, {
-      ...document,
-      layers: layers as Array<RasterLayer | AdjustmentLayer>
-    }, encodeAdjustment);
-    encoder.copyTextureToTexture({ texture: mergedTexture }, { texture: destination.texture }, [this.width, this.height]);
-    this.device.queue.submit([encoder.finish()]);
-    this.releaseSubmittedResources();
-    return true;
+    return this.rasterDocumentOperations.merge(
+      document,
+      layerIds,
+      destinationId,
+      encodeAdjustment
+    );
   }
 
   flattenGroup(
     document: ImageDocument,
     groupId: LayerId,
     destinationId: LayerId,
-    encodeAdjustment?: (
-      encoder: GPUCommandEncoder,
-      source: GPUTexture,
-      layer: AdjustmentLayer | RasterLayer
-    ) => GPUTexture
+    encodeAdjustment?: EncodeAdjustment
   ) {
-    const group = findLayerNode(document.layers, groupId)?.node;
-    const destination = this.layerResources.raster(destinationId);
-    if (!group || group.type !== 'group' || !destination) return false;
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable flatten group' });
-    const flattenedTexture = this.encodeComposite(encoder, {
-      ...document,
-      layers: [{ ...group, visible: true }]
-    }, encodeAdjustment);
-    encoder.copyTextureToTexture(
-      { texture: flattenedTexture },
-      { texture: destination.texture },
-      [this.width, this.height]
+    return this.rasterDocumentOperations.flattenGroup(
+      document,
+      groupId,
+      destinationId,
+      encodeAdjustment
     );
-    this.device.queue.submit([encoder.finish()]);
-    this.releaseSubmittedResources();
-    return true;
   }
 
   flattenImage(
     document: ImageDocument,
     destinationId: LayerId,
-    encodeAdjustment?: (
-      encoder: GPUCommandEncoder,
-      source: GPUTexture,
-      layer: AdjustmentLayer | RasterLayer
-    ) => GPUTexture
+    encodeAdjustment?: EncodeAdjustment
   ) {
-    const destination = this.layerResources.raster(destinationId);
-    if (!destination) return false;
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable flatten image' });
-    const flattenedTexture = this.encodeComposite(encoder, document, encodeAdjustment);
-    encoder.copyTextureToTexture(
-      { texture: flattenedTexture },
-      { texture: destination.texture },
-      [this.width, this.height]
+    return this.rasterDocumentOperations.flattenImage(
+      document,
+      destinationId,
+      encodeAdjustment
     );
-    this.device.queue.submit([encoder.finish()]);
-    this.releaseSubmittedResources();
-    return true;
   }
 
   beginStroke(layer: LayerNode, channel: PaintChannel) {
