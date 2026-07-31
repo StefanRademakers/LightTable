@@ -75,6 +75,7 @@ import {
 } from '../../gpu/gpuReadback';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
 import { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
+import { LayerStyleTextureStore } from './LayerStyleTextureStore';
 
 interface PixelSnapshot {
   layerId: LayerId;
@@ -96,11 +97,6 @@ interface TransformGpuSession {
 interface GeometryPreview {
   matrix: AffineMatrix;
   sourceGeometryRevision: number;
-}
-
-interface StyledLayerCache {
-  key: string;
-  texture: GPUTexture;
 }
 
 export interface ReversiblePixelEdit {
@@ -199,12 +195,9 @@ export class LayerDocumentRenderer {
   private toolPipelinesReady = false;
   private readonly brushCanvasBuffer: GPUBuffer;
   private readonly submittedResources: SubmittedResourceRetainer;
+  private readonly layerStyleTextures: LayerStyleTextureStore;
   private compositeA: GPUTexture | null = null;
   private compositeB: GPUTexture | null = null;
-  private styleShape: GPUTexture | null = null;
-  private styleA: GPUTexture | null = null;
-  private styleB: GPUTexture | null = null;
-  private readonly styledLayerCache = new Map<LayerId, StyledLayerCache>();
   private selectionMask: GPUTexture | null = null;
   private selectionResult: GPUTexture | null = null;
   private selectionShape: GPUTexture | null = null;
@@ -238,6 +231,9 @@ export class LayerDocumentRenderer {
     });
     this.submittedResources = new SubmittedResourceRetainer({
       onSubmittedWorkDone: () => this.device.queue.onSubmittedWorkDone()
+    });
+    this.layerStyleTextures = new LayerStyleTextureStore({
+      createTexture: (label) => this.createTexture(label)
     });
     // Tool-only pipelines are compiled on first use. The normal image-open
     // path needs decode/composite, but not brush, selection or transform.
@@ -335,8 +331,7 @@ export class LayerDocumentRenderer {
 
   pruneDetachedRuntimes(keepLayerIds: ReadonlySet<LayerId>) {
     this.layerResources.pruneDetached(keepLayerIds).forEach((id) => {
-      this.styledLayerCache.get(id)?.texture.destroy();
-      this.styledLayerCache.delete(id);
+      this.layerStyleTextures.invalidate(id);
     });
   }
 
@@ -363,12 +358,9 @@ export class LayerDocumentRenderer {
     this.patternTextures.forEach((texture) => {
       bytes += Math.max(1, texture.width) * Math.max(1, texture.height) * 8;
     });
-    bytes += this.styledLayerCache.size * rgba16Bytes;
+    bytes += this.layerStyleTextures.estimatedTextureBytes(this.width, this.height);
     if (this.compositeA) bytes += rgba16Bytes;
     if (this.compositeB) bytes += rgba16Bytes;
-    if (this.styleShape) bytes += rgba16Bytes;
-    if (this.styleA) bytes += rgba16Bytes;
-    if (this.styleB) bytes += rgba16Bytes;
     if (this.selectionMask) bytes += r8Bytes;
     if (this.selectionResult) bytes += r8Bytes;
     if (this.selectionShape) bytes += r8Bytes;
@@ -774,10 +766,9 @@ export class LayerDocumentRenderer {
   ) {
     const styleEffectPipeline = this.styleEffectPipeline;
     if (!styleEffectPipeline) return null;
-    const cached = cacheKey ? this.styledLayerCache.get(layer.id) : null;
-    if (cached?.key === cacheKey) return cached.texture;
-    this.ensureStyleTargets();
-    if (!this.styleShape || !this.styleA || !this.styleB) return null;
+    const cached = this.layerStyleTextures.cached(layer.id, cacheKey);
+    if (cached) return cached;
+    const styleTextures = this.layerStyleTextures.ensureWorkTextures();
 
     // Materialize transformed/masked source once. This pass intentionally
     // does not use the regular layer compositor: styles operate on a shape,
@@ -811,7 +802,7 @@ export class LayerDocumentRenderer {
       encoder,
       this.styleShapePipeline,
       shapeBindGroup,
-      this.styleShape.createView(),
+      styleTextures.shape.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
     );
 
@@ -833,10 +824,10 @@ export class LayerDocumentRenderer {
         layout: styleEffectPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: current.createView() },
-          { binding: 1, resource: this.styleShape!.createView() },
+          { binding: 1, resource: styleTextures.shape.createView() },
           { binding: 2, resource: this.sampler },
           { binding: 3, resource: { buffer: settingsBuffer } },
-          { binding: 4, resource: (patternTexture ?? this.styleShape!).createView() }
+          { binding: 4, resource: (patternTexture ?? styleTextures.shape).createView() }
         ]
       });
       this.drawFullscreen(
@@ -849,14 +840,14 @@ export class LayerDocumentRenderer {
     };
 
     encodeStylePass(
-      this.styleShape,
-      this.styleA,
+      styleTextures.shape,
+      styleTextures.first,
       baseLayerStyleUniform(layer.fillOpacity, this.width, this.height),
       `LightTable Layer Style Fill: ${layer.name}`,
       null
     );
-    let current = this.styleA;
-    let target = this.styleB;
+    let current = styleTextures.first;
+    let target = styleTextures.second;
     layer.styleStack.effects.forEach((effect) => {
       const patternTexture = this.patternTextureForEffect(effect);
       const values = layerStyleUniform(
@@ -878,19 +869,12 @@ export class LayerDocumentRenderer {
       [current, target] = [target, current];
     });
     if (!cacheKey) return current;
-    let destination = this.styledLayerCache.get(layer.id);
-    if (!destination) {
-      destination = {
-        key: cacheKey,
-        texture: this.createTexture(`LightTable cached Layer Style: ${layer.name}`)
-      };
-      this.styledLayerCache.set(layer.id, destination);
-    } else {
-      destination.key = cacheKey;
-    }
-    encoder.copyTextureToTexture(
-      { texture: current },
-      { texture: destination.texture },
+    this.layerStyleTextures.writeCache(
+      encoder,
+      layer.id,
+      cacheKey,
+      layer.name,
+      current,
       [this.width, this.height]
     );
     // Finish this frame from the already-rendered work texture. The cache
@@ -905,31 +889,16 @@ export class LayerDocumentRenderer {
     this.compositeB ??= this.createTexture('LightTable layer composite B');
   }
 
-  private ensureStyleTargets() {
-    this.styleShape ??= this.createTexture('LightTable Layer Style shape');
-    this.styleA ??= this.createTexture('LightTable Layer Style work A');
-    this.styleB ??= this.createTexture('LightTable Layer Style work B');
-  }
-
   private releaseStyleTargets() {
-    this.styleShape?.destroy();
-    this.styleA?.destroy();
-    this.styleB?.destroy();
-    this.styleShape = null;
-    this.styleA = null;
-    this.styleB = null;
+    this.layerStyleTextures.releaseWorkTextures();
   }
 
   private releaseStyledLayerCache() {
-    this.styledLayerCache.forEach(({ texture }) => texture.destroy());
-    this.styledLayerCache.clear();
+    this.layerStyleTextures.releaseCache();
   }
 
   private invalidateStyledLayerCache(layerId: LayerId) {
-    const cached = this.styledLayerCache.get(layerId);
-    if (!cached) return;
-    cached.texture.destroy();
-    this.styledLayerCache.delete(layerId);
+    this.layerStyleTextures.invalidate(layerId);
   }
 
   private ensureSelectionTargets() {
@@ -2342,12 +2311,11 @@ export class LayerDocumentRenderer {
     this.patternTextures.forEach((texture) => texture.destroy());
     this.patternTextures.clear();
     this.patternSources.clear();
-    this.releaseStyledLayerCache();
+    this.layerStyleTextures.destroy();
     this.compositeA?.destroy();
     this.compositeB?.destroy();
     this.compositeA = null;
     this.compositeB = null;
-    this.releaseStyleTargets();
     this.selectionMask?.destroy();
     this.selectionResult?.destroy();
     this.selectionShape?.destroy();
