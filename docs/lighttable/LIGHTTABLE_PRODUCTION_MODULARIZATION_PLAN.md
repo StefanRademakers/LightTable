@@ -1734,3 +1734,6 @@ The refactor is successful when:
 - [x] Remove unconditional post-readback histogram frames. Concurrent dirty
       images retain an explicit retry, while completed stable samples leave an
       idle renderer asleep.
+- [x] Key layer-thumbnail publication to raster and mask pixel revisions.
+      Non-pixel document updates no longer restart cached GPU readback work or
+      rerender the Layers panel with an equivalent thumbnail map.

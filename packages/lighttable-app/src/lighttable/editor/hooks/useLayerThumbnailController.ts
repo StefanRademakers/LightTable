@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ImageDocument, LayerId } from '../document/documentTypes';
 import { walkLayerTree } from '../document/layerTree';
 import type {
@@ -54,6 +54,18 @@ export const collectLayerThumbnailChannels = (
 });
 
 /**
+ * Captures only document state that can change a layer thumbnail.
+ *
+ * ImageDocument is immutable, but many editor-only changes publish a new
+ * document object without changing raster or mask pixels. Keeping that state
+ * out of this key prevents those updates from restarting GPU readback work or
+ * publishing an equivalent thumbnail map.
+ */
+export const layerThumbnailChannelsKey = (
+  channels: readonly LayerThumbnailChannel[]
+) => JSON.stringify(channels.map(({ identity, revisionKey }) => [identity, revisionKey]));
+
+/**
  * Owns the disposable object-URL cache for one document's accessory layer UI.
  *
  * Thumbnail failures are deliberately isolated from document/render failure:
@@ -70,10 +82,16 @@ export const useLayerThumbnailController = ({
   const [thumbnails, setThumbnails] = useState<
     ReadonlyMap<LayerId, LayerThumbnailSet>
   >(() => new Map());
+  const desired = useMemo(
+    () => document ? collectLayerThumbnailChannels(document) : [],
+    [document]
+  );
+  const desiredKey = layerThumbnailChannelsKey(desired);
+  const documentId = document?.id ?? null;
 
   useEffect(() => {
     const renderer = rendererRef.current();
-    if (!document || rendererReadyDocumentId !== document.id || !renderer) {
+    if (!documentId || rendererReadyDocumentId !== documentId || !renderer) {
       cacheRef.current.forEach(({ url }) => URL.revokeObjectURL(url));
       cacheRef.current.clear();
       setThumbnails(new Map());
@@ -81,7 +99,6 @@ export const useLayerThumbnailController = ({
     }
 
     let canceled = false;
-    const desired = collectLayerThumbnailChannels(document);
 
     void (async () => {
       const committedCache = cacheRef.current;
@@ -144,7 +161,10 @@ export const useLayerThumbnailController = ({
     return () => {
       canceled = true;
     };
-  }, [document, rendererReadyDocumentId]);
+    // `desiredKey` deliberately represents the pixel-bearing subset of the
+    // immutable document. `desired` is the matching snapshot from this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desiredKey, documentId, rendererReadyDocumentId]);
 
   useEffect(() => () => {
     cacheRef.current.forEach(({ url }) => URL.revokeObjectURL(url));

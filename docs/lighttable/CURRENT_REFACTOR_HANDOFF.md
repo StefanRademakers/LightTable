@@ -322,6 +322,12 @@ the gesture ends, so returning a slider to its starting value creates neither a
 document commit nor an undo entry. Immediate non-gesture commands retain their
 single equality check.
 
+Layer thumbnails now subscribe to a pixel-bearing revision key instead of the
+complete immutable `ImageDocument` object. Active-layer, selection, opacity,
+blend, naming and other non-pixel publications therefore neither restart the
+asynchronous thumbnail controller nor publish an equivalent React map. Raster
+and mask pixel revisions remain independent cache boundaries.
+
 ## Guardrails for resuming
 
 - Keep both web and Electron green.
