@@ -80,6 +80,7 @@ import { RenderTargetPair } from './RenderTargetPair';
 import { SelectionTextureStore } from './SelectionTextureStore';
 import { TransformSessionStore } from './TransformSessionStore';
 import { PixelEditSessionStore } from './PixelEditSessionStore';
+import { PatternAssetStore } from './PatternAssetStore';
 
 interface GeometryPreview {
   matrix: AffineMatrix;
@@ -156,8 +157,7 @@ const documentPipelines = (device: GPUDevice) => {
 
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
-  private readonly patternTextures = new Map<DocumentAssetId, GPUTexture>();
-  private readonly patternSources = new Map<DocumentAssetId, Blob>();
+  private readonly patternAssets = new PatternAssetStore();
   private readonly decodePipeline: GPURenderPipeline;
   private readonly maskDecodePipeline: GPURenderPipeline;
   private readonly exportPipeline: GPURenderPipeline;
@@ -346,9 +346,7 @@ export class LayerDocumentRenderer {
     const r8Bytes = pixels;
     let bytes = 0;
     bytes += this.layerResources.estimatedTextureBytes(this.width, this.height);
-    this.patternTextures.forEach((texture) => {
-      bytes += Math.max(1, texture.width) * Math.max(1, texture.height) * 8;
-    });
+    bytes += this.patternAssets.estimatedTextureBytes();
     bytes += this.layerStyleTextures.estimatedTextureBytes(this.width, this.height);
     bytes += this.compositeTargets.estimatedTextureBytes(this.width, this.height, 8);
     bytes += this.selectionTextures.estimatedTextureBytes(this.width, this.height);
@@ -929,7 +927,7 @@ export class LayerDocumentRenderer {
       });
     }
     document.assets.patterns.forEach((pattern) => {
-      const source = this.patternSources.get(pattern.id);
+      const source = this.patternAssets.getSource(pattern.id);
       if (!source) throw new Error(`Pattern ${pattern.name} is not available for saving.`);
       assets.push({ patternId: pattern.id, source });
     });
@@ -994,7 +992,7 @@ export class LayerDocumentRenderer {
           ? effect.texture.pattern
           : null;
     return reference?.assetId
-      ? this.patternTextures.get(reference.assetId as DocumentAssetId) ?? null
+      ? this.patternAssets.getTexture(reference.assetId as DocumentAssetId)
       : null;
   }
 
@@ -1052,9 +1050,7 @@ export class LayerDocumentRenderer {
       );
       this.device.queue.submit([encoder.finish()]);
       await this.device.queue.onSubmittedWorkDone();
-      this.patternTextures.get(asset.patternId)?.destroy();
-      this.patternTextures.set(asset.patternId, target);
-      this.patternSources.set(asset.patternId, asset.source);
+      this.patternAssets.set(asset.patternId, asset.source, target);
       target = null;
     } finally {
       encodedTexture?.destroy();
@@ -2266,9 +2262,7 @@ export class LayerDocumentRenderer {
   destroyImageResources() {
     this.resourceGeneration += 1;
     this.layerResources.destroy();
-    this.patternTextures.forEach((texture) => texture.destroy());
-    this.patternTextures.clear();
-    this.patternSources.clear();
+    this.patternAssets.clear();
     this.layerStyleTextures.destroy();
     this.compositeTargets.destroy();
     this.selectionTextures.destroy();
