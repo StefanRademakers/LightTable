@@ -273,7 +273,7 @@
   grid-template-columns: var(--lt-toolbox-width) minmax(0, 1fr);
 }
 
-.lighttable-dock-workspace {
+.lighttable-dock-workspace.dockview-theme-dark {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -283,7 +283,10 @@
   --dv-tabs-and-actions-container-height: 34px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--lt-surface-panel-tab-active);
   --dv-activegroup-hiddenpanel-tab-background-color: var(--lt-surface-tab);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--lt-surface-tab-visible);
+  /* A selected tab keeps the same semantic surface when another dock group
+   * owns keyboard focus. Dockview calls that state an "inactive group", but
+   * from the user's perspective this is still the visible/active panel tab. */
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--lt-surface-panel-tab-active);
   --dv-inactivegroup-hiddenpanel-tab-background-color: var(--lt-surface-panel);
   --dv-tab-divider-color: var(--lt-border);
   --dv-separator-border: var(--lt-border);
