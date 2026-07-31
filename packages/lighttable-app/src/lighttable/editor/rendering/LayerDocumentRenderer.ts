@@ -75,11 +75,7 @@ import {
   toolPipelinesFor,
   type ToolPipelineBundle
 } from './ToolPipelineBundle';
-
-interface GeometryPreview {
-  matrix: AffineMatrix;
-  sourceGeometryRevision: number;
-}
+import { GeometryPreviewStore } from './GeometryPreviewStore';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -172,7 +168,7 @@ export class LayerDocumentRenderer {
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
-  private readonly geometryPreviews = new Map<LayerId, GeometryPreview>();
+  private readonly geometryPreviews = new GeometryPreviewStore();
   private styleQuality: 'interactive' | 'final' = 'final';
 
   private readonly device: GPUDevice;
@@ -338,20 +334,11 @@ export class LayerDocumentRenderer {
   }
 
   setGeometryPreview(layer: RasterLayer, matrix: AffineMatrix | null) {
-    if (!matrix) {
-      return this.geometryPreviews.delete(layer.id);
-    }
-    this.geometryPreviews.set(layer.id, {
-      matrix: { ...matrix },
-      sourceGeometryRevision: layer.geometryRevision
-    });
-    return true;
+    return this.geometryPreviews.set(layer.id, layer.geometryRevision, matrix);
   }
 
   clearGeometryPreviews() {
-    const changed = this.geometryPreviews.size > 0;
-    this.geometryPreviews.clear();
-    return changed;
+    return this.geometryPreviews.clear();
   }
 
   setLayerStyleInteractionActive(active: boolean) {
@@ -387,7 +374,7 @@ export class LayerDocumentRenderer {
     if (visibleLayers.length === 1 && analysis.visibleLeafNodes.length === 1 && document.layers.length === 1) {
       const layer = visibleLayers[0];
       const runtime = this.layerResources.raster(layer.id);
-      const geometryPreview = this.geometryPreviews.get(layer.id);
+      const geometryPreview = this.geometryPreviews.resolve(layer.id, layer.geometryRevision);
       if (runtime && layer.opacity >= 0.99999 && layer.fillOpacity >= 0.99999 && layer.blendMode === 'normal' &&
         !layer.mask?.enabled && !this.transformSessions.current && !geometryPreview &&
         !layerStyleStackIsActive(layer.styleStack) && !layer.adjustmentStack &&
@@ -503,11 +490,7 @@ export class LayerDocumentRenderer {
         ? encodeAdjustment(encoder, ungradedForegroundTexture, layer)
         : ungradedForegroundTexture;
       const renderContract = rasterRenderContract(layer, foregroundTexture);
-      const geometryPreview = this.geometryPreviews.get(layer.id);
-      const validGeometryPreview = geometryPreview?.sourceGeometryRevision === layer.geometryRevision
-        ? geometryPreview
-        : null;
-      if (geometryPreview && !validGeometryPreview) this.geometryPreviews.delete(layer.id);
+      const geometryPreview = this.geometryPreviews.resolve(layer.id, layer.geometryRevision);
       // A selection preview is already rasterized in document space. A whole
       // layer preview remains source pixels plus a temporary geometry override,
       // so the layer mask follows the exact same transform.
@@ -515,7 +498,7 @@ export class LayerDocumentRenderer {
         ? activeTransform.usesSelection
           ? identityAffineMatrix()
           : activeTransform.matrix
-        : validGeometryPreview?.matrix ?? renderContract.transform;
+        : geometryPreview ?? renderContract.transform;
       const inverse = invertMatrix(sourceToDocument);
       const styleActive = layerStyleStackIsActive(layer.styleStack);
       if (styleActive && inverse) {
