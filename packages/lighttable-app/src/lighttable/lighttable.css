@@ -123,7 +123,8 @@
 
 .lighttable-tool-options__identity {
   flex: 0 0 auto;
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: calc(var(--lt-toolbox-width) - 16px) auto;
   align-items: center;
   gap: 8px;
   color: var(--lt-text-secondary);
@@ -269,7 +270,7 @@
   min-height: 0;
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: var(--lt-toolbox-width) minmax(0, 1fr);
 }
 
 .lighttable-dock-workspace {

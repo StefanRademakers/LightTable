@@ -95,6 +95,7 @@
   --lt-control-border: rgb(226 231 232 / 24%);
   --lt-control-text: rgb(226 231 232 / 86%);
   --lt-tool-options-separator: var(--lt-border-strong);
+  --lt-toolbox-width: 44px;
   --lt-range-track: #414344;
   --lt-range-track-fill: #606264;
   --lt-range-thumb: #919294;
