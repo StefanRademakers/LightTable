@@ -1,13 +1,10 @@
 import {
   layerIsLocked,
-  type AdjustmentLayer,
-  type GroupLayer,
   type ImageDocument,
   type LayerId,
   type LayerNode,
   type Rect,
-  type RasterLayer,
-  type RasterMask
+  type RasterLayer
 } from '../document/documentTypes';
 import {
   findRasterLayer,
@@ -15,7 +12,6 @@ import {
   walkRasterLayers
 } from '../document/layerTree';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
-import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
 import type { PaintChannel } from '../session/editorSession';
 import type { SelectionMode, SelectionShape } from '../selection/selectionTypes';
 import type { SelectionCoverageBounds } from '../selection/selectionCoverage';
@@ -32,16 +28,6 @@ import {
   rasterRenderContract,
   type RasterRenderContract
 } from './renderContract';
-import { layerStyleStackIsActive } from '../styles/layerStyleDefaults';
-import {
-  layerStyleCacheKey,
-  layerStyleDocumentBounds
-} from '../styles/layerStyleRenderPlan';
-import {
-  analyzeDocumentComposite,
-  type CompositorPlan,
-  type CompositorPlanEntry
-} from './compositorGraph';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
 import { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import { RenderTargetPair } from './RenderTargetPair';
@@ -65,6 +51,7 @@ import {
   type EncodeAdjustment
 } from './RasterDocumentOperations';
 import { LayerStyleRenderer } from './LayerStyleRenderer';
+import { LayerCompositor } from './LayerCompositor';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -92,6 +79,7 @@ export class LayerDocumentRenderer {
   private readonly brushCanvasBuffer: GPUBuffer;
   private readonly submittedResources: SubmittedResourceRetainer;
   private readonly layerStyleRenderer: LayerStyleRenderer;
+  private readonly compositor: LayerCompositor;
   private readonly compositeTargets: RenderTargetPair;
   private readonly selectionTextures: SelectionTextureStore;
   private readonly transformSessions = new TransformSessionStore();
@@ -146,6 +134,26 @@ export class LayerDocumentRenderer {
       createTexture: (label) => this.createTexture(label),
       firstLabel: 'LightTable layer composite A',
       secondLabel: 'LightTable layer composite B'
+    });
+    this.compositor = new LayerCompositor({
+      device,
+      sampler,
+      compositePipeline: this.compositePipeline,
+      adjustmentMixPipeline: this.adjustmentMixPipeline,
+      layerResources: this.layerResources,
+      targets: this.compositeTargets,
+      submittedResources: this.submittedResources,
+      transformSessions: this.transformSessions,
+      pixelEditSessions: this.pixelEditSessions,
+      geometryPreviews: this.geometryPreviews,
+      layerStyles: this.layerStyleRenderer,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      syncDocument: (document) => this.syncDocument(document),
+      maskTextureFor: (layerId) => this.maskTextureFor(layerId),
+      createTexture: (label) => this.createTexture(label),
+      clearTexture: (encoder, texture) => this.clearTexture(encoder, texture),
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.selectionTextures = new SelectionTextureStore({
       createSelectionTexture: (label) => this.createSelectionTexture(label),
@@ -332,356 +340,9 @@ export class LayerDocumentRenderer {
   encodeComposite(
     encoder: GPUCommandEncoder,
     document: ImageDocument,
-    encodeAdjustment?: (
-      encoder: GPUCommandEncoder,
-      source: GPUTexture,
-      layer: AdjustmentLayer | RasterLayer
-    ) => GPUTexture
+    encodeAdjustment?: EncodeAdjustment
   ): GPUTexture {
-    this.syncDocument(document);
-    const analysis = analyzeDocumentComposite(
-      document.layers,
-      (layerId) => Boolean(this.maskTextureFor(layerId))
-    );
-    const visibleLayers = analysis.visibleRasterLayers.filter(
-      (layer) => layer.visible && layer.opacity > 0
-    );
-    const stylesActive = analysis.activeLayerStyles;
-    if (!stylesActive) {
-      this.releaseStyleTargets();
-      this.releaseStyledLayerCache();
-    }
-    if (visibleLayers.length === 1 && analysis.visibleLeafNodes.length === 1 && document.layers.length === 1) {
-      const layer = visibleLayers[0];
-      const runtime = this.layerResources.raster(layer.id);
-      const geometryPreview = this.geometryPreviews.resolve(layer.id, layer.geometryRevision);
-      if (runtime && layer.opacity >= 0.99999 && layer.fillOpacity >= 0.99999 && layer.blendMode === 'normal' &&
-        !layer.mask?.enabled && !this.transformSessions.current && !geometryPreview &&
-        !layerStyleStackIsActive(layer.styleStack) && !layer.adjustmentStack &&
-        isIdentityAffineMatrix(layer.transform) && layer.width === this.width && layer.height === this.height) {
-        return runtime.texture;
-      }
-    }
-    const [compositeA, compositeB] = this.compositeTargets.ensure();
-    this.clearTexture(encoder, compositeA);
-    const compositeTexture = (
-      background: GPUTexture,
-      foreground: GPUTexture,
-      target: GPUTexture,
-      options: {
-        label: string;
-        opacity: number;
-        blendMode: BlendMode;
-        maskTexture?: GPUTexture | null;
-        mask?: RasterMask | null;
-        clippingTexture?: GPUTexture | null;
-      }
-    ) => {
-      const settingsBuffer = this.createLayerCompositeSettingsBuffer(
-        options.label,
-        options.opacity,
-        Boolean(options.mask?.enabled && options.maskTexture),
-        blendModeGpuValue(options.blendMode),
-        Boolean(options.clippingTexture),
-        identityAffineMatrix(),
-        { width: this.width, height: this.height },
-        options.mask ?? null
-      );
-      const bindGroup = this.device.createBindGroup({
-        layout: this.compositePipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: background.createView() },
-          { binding: 1, resource: foreground.createView() },
-          { binding: 2, resource: this.sampler },
-          { binding: 3, resource: { buffer: settingsBuffer } },
-          { binding: 4, resource: (options.maskTexture ?? foreground).createView() },
-          { binding: 5, resource: (options.clippingTexture ?? foreground).createView() }
-        ]
-      });
-      this.drawFullscreen(
-        encoder,
-        this.compositePipeline,
-        bindGroup,
-        target.createView(),
-        { r: 0, g: 0, b: 0, a: 0 }
-      );
-    };
-    const renderNode = (
-      entry: CompositorPlanEntry,
-      background: GPUTexture,
-      target: GPUTexture,
-      clippingTexture: GPUTexture | null = null
-    ): [GPUTexture, GPUTexture] => {
-      const { node } = entry;
-      if (!node.visible || node.opacity <= 0) return [background, target];
-      if (node.type === 'group') {
-        return renderGroup(entry, background, target, clippingTexture);
-      }
-      if (node.type === 'adjustment') {
-        if (!encodeAdjustment) return [background, target];
-        const adjusted = encodeAdjustment(encoder, background, node);
-        const maskTexture = this.maskTextureFor(node.id);
-        const settingsBuffer = this.device.createBuffer({
-          label: `LightTable adjustment mix settings: ${node.name}`,
-          size: 32,
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-        this.device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
-          node.opacity,
-          node.mask?.enabled && maskTexture ? 1 : 0,
-          clippingTexture ? 1 : 0,
-          blendModeGpuValue(node.blendMode),
-          node.mask?.density ?? 1,
-          node.mask?.feather ?? 0,
-          0,
-          0
-        ]));
-        this.submittedResources.retainBuffer(settingsBuffer);
-        const bindGroup = this.device.createBindGroup({
-          layout: this.adjustmentMixPipeline.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: background.createView() },
-            { binding: 1, resource: adjusted.createView() },
-            { binding: 2, resource: this.sampler },
-            { binding: 3, resource: { buffer: settingsBuffer } },
-            { binding: 4, resource: (maskTexture ?? background).createView() },
-            { binding: 5, resource: (clippingTexture ?? background).createView() }
-          ]
-        });
-        this.drawFullscreen(
-          encoder,
-          this.adjustmentMixPipeline,
-          bindGroup,
-          target.createView(),
-          { r: 0, g: 0, b: 0, a: 0 }
-        );
-        return [target, background];
-      }
-      const layer = node;
-      const runtime = this.layerResources.raster(layer.id);
-      if (!runtime) return [background, target];
-      const activeTransform = this.transformSessions.current?.layerId === layer.id
-        ? this.transformSessions.current
-        : null;
-      const ungradedForegroundTexture = activeTransform?.usesSelection
-        ? activeTransform.previewTexture
-        : runtime.texture;
-      const foregroundTexture = layer.adjustmentStack && encodeAdjustment
-        ? encodeAdjustment(encoder, ungradedForegroundTexture, layer)
-        : ungradedForegroundTexture;
-      const renderContract = rasterRenderContract(layer, foregroundTexture);
-      const geometryPreview = this.geometryPreviews.resolve(layer.id, layer.geometryRevision);
-      // A selection preview is already rasterized in document space. A whole
-      // layer preview remains source pixels plus a temporary geometry override,
-      // so the layer mask follows the exact same transform.
-      const sourceToDocument = activeTransform
-        ? activeTransform.usesSelection
-          ? identityAffineMatrix()
-          : activeTransform.matrix
-        : geometryPreview ?? renderContract.transform;
-      const inverse = invertMatrix(sourceToDocument);
-      const styleActive = layerStyleStackIsActive(layer.styleStack);
-      if (styleActive && inverse) {
-        const styleBounds = layerStyleDocumentBounds(
-          layer,
-          { width: this.width, height: this.height },
-          sourceToDocument
-        );
-        if (styleBounds.width <= 0 || styleBounds.height <= 0) return [background, target];
-        // Transform previews and in-progress pixel edits change continuously
-        // and deliberately bypass the persistent cache. Committed pixels,
-        // masks, geometry, styles and quality are represented by
-        // layerStyleCacheKey.
-        const activePixelEdit = this.pixelEditSessions.current?.layerId === layer.id;
-        const styleCacheKey = activeTransform || activePixelEdit
-          ? null
-          : layerStyleCacheKey(
-              layer,
-              sourceToDocument,
-              this.layerStyleRenderer.cacheKeyQuality()
-            );
-        const styled = this.layerStyleRenderer.encode(
-          encoder,
-          layer,
-          foregroundTexture,
-          runtime.maskTexture,
-          inverse,
-          renderContract.dimensions,
-          styleCacheKey
-        );
-        if (styled) {
-          const settingsBuffer = this.createLayerCompositeSettingsBuffer(
-            `LightTable styled layer settings: ${layer.name}`,
-            layer.opacity,
-            false,
-            blendModeGpuValue(layer.blendMode),
-            Boolean(clippingTexture),
-            identityAffineMatrix(),
-            { width: this.width, height: this.height },
-            null
-          );
-          const bindGroup = this.device.createBindGroup({
-            layout: this.compositePipeline.getBindGroupLayout(0),
-            entries: [
-              { binding: 0, resource: background.createView() },
-              { binding: 1, resource: styled.createView() },
-              { binding: 2, resource: this.sampler },
-              { binding: 3, resource: { buffer: settingsBuffer } },
-              { binding: 4, resource: styled.createView() },
-              { binding: 5, resource: (clippingTexture ?? styled).createView() }
-            ]
-          });
-          this.drawFullscreen(
-            encoder,
-            this.compositePipeline,
-            bindGroup,
-            target.createView(),
-            { r: 0, g: 0, b: 0, a: 0 }
-          );
-          return [target, background];
-        }
-      }
-      // Each pass gets its own immutable uniform. Queue writes are not encoder
-      // commands; reusing one buffer would make every pass see the final layer's opacity.
-      const settingsBuffer = this.createLayerCompositeSettingsBuffer(
-        `LightTable layer settings: ${layer.name}`,
-        inverse ? layer.opacity * layer.fillOpacity : 0,
-        Boolean(layer.mask?.enabled && runtime.maskTexture),
-        blendModeGpuValue(layer.blendMode),
-        Boolean(clippingTexture),
-        inverse ?? identityAffineMatrix(),
-        renderContract.dimensions,
-        layer.mask
-      );
-      const bindGroup = this.device.createBindGroup({
-        layout: this.compositePipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: background.createView() },
-          { binding: 1, resource: foregroundTexture.createView() },
-          { binding: 2, resource: this.sampler },
-          { binding: 3, resource: { buffer: settingsBuffer } },
-          { binding: 4, resource: (runtime.maskTexture ?? runtime.texture).createView() },
-          { binding: 5, resource: (clippingTexture ?? foregroundTexture).createView() }
-        ]
-      });
-      this.drawFullscreen(encoder, this.compositePipeline, bindGroup, target.createView(), { r: 0, g: 0, b: 0, a: 0 });
-      return [target, background];
-    };
-    const renderNodes = (
-      plan: CompositorPlan,
-      initialBackground: GPUTexture,
-      initialTarget: GPUTexture
-    ): [GPUTexture, GPUTexture] => {
-      let background = initialBackground;
-      let target = initialTarget;
-      let clippingBase: GPUTexture | null = null;
-      plan.entries.forEach((entry) => {
-        const { node } = entry;
-        // A clipped layer without a preceding, visible base has no shape to
-        // inherit. Treat malformed/imported chains as transparent instead of
-        // leaking the complete layer into the document.
-        if (entry.skipBecauseClippingBaseMissing) return;
-        [background, target] = renderNode(
-          entry,
-          background,
-          target,
-          entry.usesClippingBase ? clippingBase : null
-        );
-        if (!entry.usesClippingBase) {
-          clippingBase = null;
-          if (entry.captureClippingBase) {
-            const baseA = this.createTexture(`LightTable clipping base A: ${node.name}`);
-            const baseB = this.createTexture(`LightTable clipping base B: ${node.name}`);
-            this.submittedResources.retainTexture(baseA);
-            this.submittedResources.retainTexture(baseB);
-            this.clearTexture(encoder, baseA);
-            [clippingBase] = renderNode(entry, baseA, baseB);
-          }
-        }
-      });
-      return [background, target];
-    };
-    const renderGroup = (
-      entry: CompositorPlanEntry,
-      parentBackground: GPUTexture,
-      parentTarget: GPUTexture,
-      clippingTexture: GPUTexture | null = null
-    ): [GPUTexture, GPUTexture] => {
-      const group = entry.node as GroupLayer;
-      const childPlan = entry.children;
-      if (!childPlan) return [parentBackground, parentTarget];
-      // Photoshop pass-through groups without an envelope participate in the
-      // parent's stack directly. This preserves adjustment-layer interaction
-      // with content below the group.
-      if (!entry.groupNeedsEnvelope) {
-        return renderNodes(childPlan, parentBackground, parentTarget);
-      }
-      const groupA = this.createTexture(`LightTable isolated group A: ${group.name}`);
-      const groupB = this.createTexture(`LightTable isolated group B: ${group.name}`);
-      this.submittedResources.retainTexture(groupA);
-      this.submittedResources.retainTexture(groupB);
-      this.clearTexture(encoder, groupA);
-      const [groupResult] = renderNodes(childPlan, groupA, groupB);
-      const maskTexture = this.maskTextureFor(group.id);
-      const styledGroup = layerStyleStackIsActive(group.styleStack)
-        ? this.layerStyleRenderer.encode(
-            encoder,
-            group,
-            groupResult,
-            maskTexture,
-            identityAffineMatrix(),
-            { width: this.width, height: this.height },
-            null
-          )
-        : null;
-      compositeTexture(parentBackground, styledGroup ?? groupResult, parentTarget, {
-        label: `LightTable group settings: ${group.name}`,
-        opacity: group.opacity,
-        blendMode: group.blendMode,
-        maskTexture,
-        // The Layer Style shape pass already applies the group mask so its
-        // effects follow the same silhouette. Do not multiply it a second
-        // time during parent composition.
-        mask: styledGroup ? null : group.mask,
-        clippingTexture
-      });
-      return [parentTarget, parentBackground];
-    };
-    const [background] = renderNodes(analysis.plan, compositeA, compositeB);
-    return background;
-  }
-
-  private createLayerCompositeSettingsBuffer(
-    label: string,
-    opacity: number,
-    maskEnabled: boolean,
-    blendMode: number,
-    clippingEnabled: boolean,
-    inverse: AffineMatrix,
-    sourceSize: { width: number; height: number },
-    mask: RasterMask | null
-  ) {
-    const settingsBuffer = this.device.createBuffer({
-      label,
-      size: 80,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
-      opacity,
-      maskEnabled ? 1 : 0,
-      blendMode,
-      clippingEnabled ? 1 : 0,
-      inverse.a, inverse.c, inverse.tx, 0,
-      inverse.b, inverse.d, inverse.ty, 0,
-      sourceSize.width, sourceSize.height,
-      this.width, this.height,
-      mask?.density ?? 1,
-      mask?.feather ?? 0,
-      0,
-      0
-    ]));
-    this.submittedResources.retainBuffer(settingsBuffer);
-    return settingsBuffer;
+    return this.compositor.encode(encoder, document, encodeAdjustment);
   }
 
   private releaseStyleTargets() {
