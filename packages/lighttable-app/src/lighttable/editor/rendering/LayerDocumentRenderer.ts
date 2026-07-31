@@ -57,6 +57,7 @@ import {
 import { ImportedLayerInitializer } from './ImportedLayerInitializer';
 import { DocumentTextureFactory } from './DocumentTextureFactory';
 import { DocumentResourceState } from './DocumentResourceState';
+import { DocumentImageResourceLifecycle } from './DocumentImageResourceLifecycle';
 
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
@@ -88,6 +89,7 @@ export class LayerDocumentRenderer {
   private readonly textures: DocumentTextureFactory;
   private readonly resources = new DocumentResourceState();
   private readonly geometryPreviews = new GeometryPreviewStore();
+  private readonly imageResources: DocumentImageResourceLifecycle;
 
   private readonly device: GPUDevice;
   private readonly sampler: GPUSampler;
@@ -305,6 +307,19 @@ export class LayerDocumentRenderer {
       patternSource: (patternId) => this.patternAssets.getSource(patternId),
       loadPattern: (asset) => this.patternAssetLoader.load(asset)
     });
+    this.imageResources = new DocumentImageResourceLifecycle({
+      resourceState: this.resources,
+      teardown: [
+        () => this.layerResources.destroy(),
+        () => this.patternAssets.clear(),
+        () => this.layerStyleRenderer.destroy(),
+        () => this.compositeTargets.destroy(),
+        () => this.selectionTextures.destroy(),
+        () => this.geometryPreviews.clear(),
+        () => this.transformRasterizer.cancel(),
+        () => this.pixelEditSessions.destroy()
+      ]
+    });
   }
 
   async initializeLayerStylePipeline() {
@@ -316,9 +331,7 @@ export class LayerDocumentRenderer {
   }
 
   initialize(document: ImageDocument, sourceTexture: GPUTexture) {
-    this.destroyImageResources();
-    this.resources.setDimensions(document.width, document.height);
-    this.selectionTextures.active = false;
+    this.imageResources.begin(document.width, document.height);
     this.syncDocument(document);
     this.importedLayerInitializer.initialize(document, sourceTexture);
   }
@@ -628,15 +641,7 @@ export class LayerDocumentRenderer {
   }
 
   destroyImageResources() {
-    this.resources.invalidate();
-    this.layerResources.destroy();
-    this.patternAssets.clear();
-    this.layerStyleRenderer.destroy();
-    this.compositeTargets.destroy();
-    this.selectionTextures.destroy();
-    this.geometryPreviews.clear();
-    this.cancelTransform();
-    this.pixelEditSessions.destroy();
+    this.imageResources.destroy();
   }
 
   destroy() {

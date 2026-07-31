@@ -1592,3 +1592,5 @@ The refactor is successful when:
       so stale decode/readback work cannot cross document lifecycles.
 - [x] Move selection-target allocation and canonical GPU initialization behind
       the selection store/texture-factory boundary.
+- [x] Centralize active-image resource replacement and ordered teardown behind
+      a generation-safe lifecycle boundary.
