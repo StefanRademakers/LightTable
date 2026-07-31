@@ -11,13 +11,15 @@
 
   /* Application and workspace surfaces */
   --lt-surface-app: #101215;
-  --lt-surface-menubar: #101216;
+  --lt-surface-menubar: #3a3c3e;
   --lt-surface-workspace: #080a0c;
   --lt-surface-statusbar: #14171b;
-  --lt-surface-panel: #171a1f;
-  --lt-surface-panel-subtle: #111419;
+  --lt-surface-panel: #313539;
+  --lt-surface-panel-subtle: #171a1f;
   --lt-surface-panel-raised: #1b1f25;
   --lt-surface-section: #1c2026;
+  --lt-surface-collapsible-content: #313539;
+  --lt-surface-collapsible-header: #252a31;
   --lt-surface-tab: #1a1e23;
   --lt-surface-tab-visible: #20242a;
   --lt-surface-tab-active: #252a31;

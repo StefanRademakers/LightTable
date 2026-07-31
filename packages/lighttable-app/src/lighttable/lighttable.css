@@ -256,7 +256,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  --dv-background-color: var(--lt-surface-panel-subtle);
+  --dv-background-color: var(--lt-surface-collapsible-content);
   --dv-paneview-header-border-color: var(--lt-border);
   --dv-tabs-and-actions-container-background-color: var(--lt-surface-panel);
   --dv-tabs-and-actions-container-height: 34px;
@@ -949,7 +949,7 @@
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--lt-border);
-  background: var(--lt-surface-panel-subtle);
+  background: var(--lt-surface-collapsible-content);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -1033,7 +1033,7 @@
   padding: 0 10px;
   border: 0;
   color: var(--lt-text-secondary);
-  background: var(--lt-surface-section);
+  background: var(--lt-surface-collapsible-header);
   cursor: pointer;
 }
 
@@ -2167,6 +2167,7 @@
 .lighttable-group {
   border-top: 1px solid var(--lt-border);
   border-bottom: 1px solid var(--lt-border-subtle);
+  background: var(--lt-surface-collapsible-content);
 }
 
 .lighttable-master-group {
@@ -2193,7 +2194,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 0 10px;
-  background: var(--lt-surface-control-hover);
+  background: var(--lt-surface-collapsible-header);
   user-select: none;
 }
 
@@ -2266,6 +2267,7 @@
 
 .lighttable-group__controls {
   padding: 7px 14px 12px;
+  background: var(--lt-surface-collapsible-content);
 }
 
 .lighttable-color-mixer__picker {
