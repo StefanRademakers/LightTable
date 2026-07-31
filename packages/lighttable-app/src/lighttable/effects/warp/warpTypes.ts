@@ -103,3 +103,33 @@ export const readWarpNodeSettings = (
   }
   return structuredClone(settings) as WarpNodeSettings;
 };
+
+export const findWarpModuleInstance = (
+  stack: AdjustmentStack | null | undefined
+): AdjustmentModuleInstance | null =>
+  stack?.modules.find((instance) => instance.type === WARP_NODE_TYPE) ?? null;
+
+export const setWarpNodeSettings = (
+  stack: AdjustmentStack,
+  settings: WarpNodeSettings
+): AdjustmentStack => {
+  let found = false;
+  const modules = stack.modules.map((instance) => {
+    if (instance.type !== WARP_NODE_TYPE) return structuredClone(instance);
+    found = true;
+    return {
+      ...structuredClone(instance),
+      enabled: true,
+      revision: instance.revision + 1,
+      settings: structuredClone(settings) as unknown as Record<string, unknown>
+    };
+  });
+  if (!found) {
+    throw new Error(`Stack ${stack.id} has no ${WARP_NODE_TYPE} node.`);
+  }
+  return {
+    ...structuredClone(stack),
+    revision: stack.revision + 1,
+    modules
+  };
+};
