@@ -1,6 +1,7 @@
 import React from 'react';
 import { AdjustmentSlider } from '../../../AdjustmentSlider';
 import type { EditorSession } from '../../../editor/session/editorSession';
+import type { WarpBrushMode } from '../../../effects/warp/warpTypes';
 
 export interface WarpToolOptionsProps {
   readonly warp: EditorSession['warp'];
@@ -20,6 +21,19 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
   onReset
 }) => (
   <>
+    <label className="lighttable-tool-options__field">
+      <span>Mode</span>
+      <select
+        value={warp.mode}
+        onChange={(event) => onChange({ mode: event.currentTarget.value as WarpBrushMode })}
+      >
+        <option value="push">Push</option>
+        <option value="twirl-cw">Twirl clockwise</option>
+        <option value="twirl-ccw">Twirl counter-clockwise</option>
+        <option value="pinch">Pinch</option>
+        <option value="bloat">Bloat</option>
+      </select>
+    </label>
     <AdjustmentSlider
       label="Size"
       value={warp.diameterPx}

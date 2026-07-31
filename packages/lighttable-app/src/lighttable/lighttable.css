@@ -163,6 +163,34 @@
   accent-color: var(--lt-accent);
 }
 
+.lighttable-tool-options__field {
+  min-width: 0;
+  display: inline-grid;
+  grid-template-columns: auto minmax(116px, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-label);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.lighttable-tool-options__field select {
+  min-width: 0;
+  height: 25px;
+  padding: 2px 24px 2px 7px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  background: var(--lt-surface-control);
+  color: var(--lt-text-secondary);
+  font: inherit;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__field {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(116px, 58%);
+}
+
 .lighttable-tool-options__zoom-presets {
   display: inline-flex;
   align-items: center;

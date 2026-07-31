@@ -26,7 +26,7 @@ export interface ToolOptionsProps {
 
 const TOOL_LABELS: Record<ToolId, string> = {
   transform: 'Transform',
-  warp: 'Warp - Push',
+  warp: 'Warp',
   'select-rectangle': 'Rectangular selection',
   'select-ellipse': 'Elliptical selection',
   'select-free': 'Free selection',
@@ -60,7 +60,13 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
     <div className={`lighttable-tool-options__content lighttable-tool-options__content--${orientation}`}>
       <div className="lighttable-tool-options__identity">
         <img src={lightTableIcon(activeToolDefinition.iconName)} alt="" aria-hidden="true" />
-        <strong>{TOOL_LABELS[activeTool]}</strong>
+        <strong>{activeTool === 'warp'
+          ? `Warp - ${warp.mode === 'twirl-cw'
+            ? 'Twirl clockwise'
+            : warp.mode === 'twirl-ccw'
+              ? 'Twirl counter-clockwise'
+              : warp.mode[0]!.toUpperCase() + warp.mode.slice(1)}`
+          : TOOL_LABELS[activeTool]}</strong>
       </div>
       {activeTool === 'select-rectangle' || activeTool === 'select-ellipse' ? (
         <label className="lighttable-tool-options__toggle">

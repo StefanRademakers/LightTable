@@ -42,8 +42,19 @@ describe('Warp stroke sampling', () => {
     expect(packed[7]).toBe(0);
   });
 
-  it('fails loudly for modes without an executor', () => {
-    expect(() => createWarpGpuStamps([{ ...stroke([1, 0]), mode: 'twirl-cw' }]))
+  it.each([
+    ['twirl-cw', 1],
+    ['twirl-ccw', 2],
+    ['pinch', 3],
+    ['bloat', 4]
+  ] as const)('packs executable %s stamps with mode %i', (mode, packedMode) => {
+    const stamps = createWarpGpuStamps([{ ...stroke([1, 0]), mode }]);
+    expect(stamps[0]?.mode).toBe(mode);
+    expect(packWarpGpuStamps(stamps)[7]).toBe(packedMode);
+  });
+
+  it('fails loudly for field operators without an executor', () => {
+    expect(() => createWarpGpuStamps([{ ...stroke([1, 0]), mode: 'smooth' }]))
       .toThrow('no GPU executor');
   });
 });

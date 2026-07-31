@@ -393,8 +393,16 @@ export const useViewportInteractionController = ({
       if (intent === 'warp' && point) {
         const started = warp.begin({
           pointerId: event.pointerId,
-          mode: 'push',
-          settings: editorSession.warp,
+          mode: editorSession.warp.mode,
+          settings: {
+            diameterPx: editorSession.warp.diameterPx,
+            strength: editorSession.warp.strength,
+            hardness: editorSession.warp.hardness,
+            flow: editorSession.warp.flow,
+            spacing: editorSession.warp.spacing,
+            pressureSize: editorSession.warp.pressureSize,
+            pressureStrength: editorSession.warp.pressureStrength
+          },
           point: {
             ...point,
             tiltX: event.tiltX,

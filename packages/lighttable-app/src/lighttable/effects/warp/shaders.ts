@@ -50,7 +50,25 @@ fn main(@builtin(global_invocation_id) invocation: vec3u) {
     let radial = clamp(1.0 - normalizedDistance, 0.0, 1.0);
     let exponent = mix(2.75, 0.65, clamp(stamp.radiusStrengthHardness.z, 0.0, 1.0));
     let influence = pow(radial, exponent) * stamp.radiusStrengthHardness.y;
-    source -= stamp.centerDelta.zw * influence;
+    let mode = u32(round(stamp.radiusStrengthHardness.w));
+    if (mode == 0u) {
+      source -= stamp.centerDelta.zw * influence;
+    } else if (mode == 1u || mode == 2u) {
+      let local = source - stamp.centerDelta.xy;
+      let direction = select(-1.0, 1.0, mode == 2u);
+      let angle = direction * influence * 0.18;
+      let cosine = cos(angle);
+      let sine = sin(angle);
+      source = stamp.centerDelta.xy + vec2f(
+        cosine * local.x - sine * local.y,
+        sine * local.x + cosine * local.y
+      );
+    } else if (mode == 3u || mode == 4u) {
+      let local = source - stamp.centerDelta.xy;
+      let direction = select(-1.0, 1.0, mode == 4u);
+      let radialScale = exp2(direction * influence * 0.22);
+      source = stamp.centerDelta.xy + local * radialScale;
+    }
   }
 
   if (settings.reusePrevious != 0u) {

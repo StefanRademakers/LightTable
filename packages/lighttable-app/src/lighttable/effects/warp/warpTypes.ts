@@ -33,6 +33,11 @@ export interface WarpBrushSettingsSnapshot {
   readonly pressureStrength: boolean;
 }
 
+/** Mutable editor preferences. The authored stroke keeps mode separately. */
+export interface WarpToolSettings extends WarpBrushSettingsSnapshot {
+  readonly mode: WarpBrushMode;
+}
+
 export interface WarpStroke {
   readonly id: string;
   readonly mode: WarpBrushMode;

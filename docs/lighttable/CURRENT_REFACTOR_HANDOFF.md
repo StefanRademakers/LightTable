@@ -150,9 +150,10 @@ Continue reducing `WebGpuEngine` as a facade, one contract-tested seam at a
 time. Do not combine this with new rendering behavior.
 
 After the next coherent decomposition milestone, resume the active Warp track
-from `../LIGHTTABLE_GPU_WARP_TOOL_SPEC.md`. Push is a working architecture
-proof; the remaining Warp modes, masking, quality and resilience work are not
-complete yet.
+from `../LIGHTTABLE_GPU_WARP_TOOL_SPEC.md`. Push, Twirl clockwise/counterclockwise,
+Pinch and Bloat now share the same lazy inverse-displacement executor. The next
+Warp milestone is rate-based stationary-pointer authoring; Smooth, Reconstruct,
+Freeze/Thaw, masking, quality and resilience work remain incomplete.
 
 A macOS test also exposed noticeably slower tool switching and painting. Treat
 this as a cross-platform production gate, not cosmetic polish. Instrument the

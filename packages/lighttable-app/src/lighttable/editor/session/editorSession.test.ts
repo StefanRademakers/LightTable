@@ -8,6 +8,7 @@ describe('LightTable editor session', () => {
 
   it('keeps Warp settings document-scoped and source-pixel based', () => {
     expect(createEditorSession().warp).toMatchObject({
+      mode: 'push',
       diameterPx: 200,
       strength: 0.35,
       spacing: 0.1,

@@ -1135,6 +1135,10 @@ Progress:
       transaction. Input is stored in immutable layer-source pixels, preview
       publication is animation-frame bounded, pointer-up is one undo entry and
       tab changes cannot leak a gesture into another document.
+- [x] Generalize the Warp stamp contract and inverse-field executor for Push,
+      Twirl clockwise/counterclockwise, Pinch and Bloat without introducing a
+      second persistence or preview path. Rate-based stationary-pointer input
+      remains the next interaction milestone.
 - [x] Prove that Warp recipes survive layered save/reopen while the original
       raster payload remains byte-exact and unbaked.
 - [x] Make persistent effect updates dependency-aware at module-instance

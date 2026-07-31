@@ -1,5 +1,5 @@
 import type { SelectionOperation, SelectionToolId } from '../selection/selectionTypes';
-import type { WarpBrushSettingsSnapshot } from '../../effects/warp/warpTypes';
+import type { WarpToolSettings } from '../../effects/warp/warpTypes';
 
 export type ToolId =
   | 'view'
@@ -29,7 +29,7 @@ export interface EditorSession {
   selection: SelectionOperation[];
   selectionPixelSnap: boolean;
   brush: BrushSettings;
-  warp: WarpBrushSettingsSnapshot;
+  warp: WarpToolSettings;
 }
 
 export const createEditorSession = (): EditorSession => ({
@@ -48,6 +48,7 @@ export const createEditorSession = (): EditorSession => ({
     backgroundColor: '#ffffff'
   },
   warp: {
+    mode: 'push',
     diameterPx: 200,
     strength: 0.35,
     hardness: 0.75,

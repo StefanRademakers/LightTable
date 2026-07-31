@@ -1,4 +1,4 @@
-import type { WarpStroke } from './warpTypes';
+import type { WarpBrushMode, WarpStroke } from './warpTypes';
 
 export interface WarpGpuStamp {
   readonly centerPx: readonly [number, number];
@@ -6,7 +6,28 @@ export interface WarpGpuStamp {
   readonly radiusPx: number;
   readonly strength: number;
   readonly hardness: number;
+  readonly mode: WarpBrushMode;
 }
+
+const modeIndex = (mode: WarpBrushMode): number => ({
+  push: 0,
+  'twirl-cw': 1,
+  'twirl-ccw': 2,
+  pinch: 3,
+  bloat: 4,
+  smooth: 5,
+  reconstruct: 6,
+  freeze: 7,
+  thaw: 8
+})[mode];
+
+const executableModes = new Set<WarpBrushMode>([
+  'push',
+  'twirl-cw',
+  'twirl-ccw',
+  'pinch',
+  'bloat'
+]);
 
 const length = (x: number, y: number) => Math.hypot(x, y);
 
@@ -20,7 +41,7 @@ export const createWarpGpuStamps = (
 ): readonly WarpGpuStamp[] => {
   const stamps: WarpGpuStamp[] = [];
   for (const stroke of strokes) {
-    if (stroke.mode !== 'push') {
+    if (!executableModes.has(stroke.mode)) {
       throw new Error(`Warp mode "${stroke.mode}" has no GPU executor yet.`);
     }
     const radiusPx = Math.max(0.5, stroke.settings.diameterPx * 0.5);
@@ -41,7 +62,8 @@ export const createWarpGpuStamps = (
           deltaPx: [dx / steps, dy / steps],
           radiusPx: radiusPx * pressureSize,
           strength: stroke.settings.strength * stroke.settings.flow * pressureStrength,
-          hardness: stroke.settings.hardness
+          hardness: stroke.settings.hardness,
+          mode: stroke.mode
         });
         if (stamps.length > maximumStampCount) {
           throw new Error(`Warp stroke history exceeds ${maximumStampCount} GPU stamps.`);
@@ -64,7 +86,7 @@ export const packWarpGpuStamps = (stamps: readonly WarpGpuStamp[]): Float32Array
       stamp.radiusPx,
       stamp.strength,
       stamp.hardness,
-      0
+      modeIndex(stamp.mode)
     ], offset);
   });
   return packed;
