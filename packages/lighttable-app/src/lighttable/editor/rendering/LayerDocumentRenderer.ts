@@ -74,6 +74,7 @@ import {
   readRgba8Texture
 } from '../../gpu/gpuReadback';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
+import { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 
 interface PixelSnapshot {
   layerId: LayerId;
@@ -197,15 +198,13 @@ export class LayerDocumentRenderer {
   private selectionTransformPipeline!: GPURenderPipeline;
   private toolPipelinesReady = false;
   private readonly brushCanvasBuffer: GPUBuffer;
-  private pendingBuffers: GPUBuffer[] = [];
+  private readonly submittedResources: SubmittedResourceRetainer;
   private compositeA: GPUTexture | null = null;
   private compositeB: GPUTexture | null = null;
   private styleShape: GPUTexture | null = null;
   private styleA: GPUTexture | null = null;
   private styleB: GPUTexture | null = null;
   private readonly styledLayerCache = new Map<LayerId, StyledLayerCache>();
-  /** Full-canvas work textures used by isolated groups for the current submit. */
-  private pendingTextures: GPUTexture[] = [];
   private selectionMask: GPUTexture | null = null;
   private selectionResult: GPUTexture | null = null;
   private selectionShape: GPUTexture | null = null;
@@ -236,6 +235,9 @@ export class LayerDocumentRenderer {
     this.layerResources = new LayerRuntimeStore({
       createRasterTexture: (label) => this.createTexture(label),
       createMaskTexture: (label) => this.createMaskTexture(label)
+    });
+    this.submittedResources = new SubmittedResourceRetainer({
+      onSubmittedWorkDone: () => this.device.queue.onSubmittedWorkDone()
     });
     // Tool-only pipelines are compiled on first use. The normal image-open
     // path needs decode/composite, but not brush, selection or transform.
@@ -513,7 +515,7 @@ export class LayerDocumentRenderer {
           0,
           0
         ]));
-        this.pendingBuffers.push(settingsBuffer);
+        this.submittedResources.retainBuffer(settingsBuffer);
         const bindGroup = this.device.createBindGroup({
           layout: this.adjustmentMixPipeline.getBindGroupLayout(0),
           entries: [
@@ -669,7 +671,8 @@ export class LayerDocumentRenderer {
           if (entry.captureClippingBase) {
             const baseA = this.createTexture(`LightTable clipping base A: ${node.name}`);
             const baseB = this.createTexture(`LightTable clipping base B: ${node.name}`);
-            this.pendingTextures.push(baseA, baseB);
+            this.submittedResources.retainTexture(baseA);
+            this.submittedResources.retainTexture(baseB);
             this.clearTexture(encoder, baseA);
             [clippingBase] = renderNode(entry, baseA, baseB);
           }
@@ -694,7 +697,8 @@ export class LayerDocumentRenderer {
       }
       const groupA = this.createTexture(`LightTable isolated group A: ${group.name}`);
       const groupB = this.createTexture(`LightTable isolated group B: ${group.name}`);
-      this.pendingTextures.push(groupA, groupB);
+      this.submittedResources.retainTexture(groupA);
+      this.submittedResources.retainTexture(groupB);
       this.clearTexture(encoder, groupA);
       const [groupResult] = renderNodes(childPlan, groupA, groupB);
       const maskTexture = this.maskTextureFor(group.id);
@@ -755,7 +759,7 @@ export class LayerDocumentRenderer {
       0,
       0
     ]));
-    this.pendingBuffers.push(settingsBuffer);
+    this.submittedResources.retainBuffer(settingsBuffer);
     return settingsBuffer;
   }
 
@@ -793,7 +797,7 @@ export class LayerDocumentRenderer {
       sourceSize.width, sourceSize.height,
       this.width, this.height
     ]));
-    this.pendingBuffers.push(shapeSettings);
+    this.submittedResources.retainBuffer(shapeSettings);
     const shapeBindGroup = this.device.createBindGroup({
       layout: this.styleShapePipeline.getBindGroupLayout(0),
       entries: [
@@ -824,7 +828,7 @@ export class LayerDocumentRenderer {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
       });
       this.device.queue.writeBuffer(settingsBuffer, 0, new Float32Array(values));
-      this.pendingBuffers.push(settingsBuffer);
+      this.submittedResources.retainBuffer(settingsBuffer);
       const bindGroup = this.device.createBindGroup({
         layout: styleEffectPipeline.getBindGroupLayout(0),
         entries: [
@@ -941,13 +945,7 @@ export class LayerDocumentRenderer {
   }
 
   releaseSubmittedResources() {
-    const buffers = this.pendingBuffers.splice(0);
-    const textures = this.pendingTextures.splice(0);
-    if (!buffers.length && !textures.length) return;
-    void this.device.queue.onSubmittedWorkDone().then(() => {
-      buffers.forEach((buffer) => buffer.destroy());
-      textures.forEach((texture) => texture.destroy());
-    });
+    this.submittedResources.releaseAfterSubmittedWork();
   }
 
   duplicateLayer(sourceId: LayerId, destinationId: LayerId) {
@@ -2368,7 +2366,6 @@ export class LayerDocumentRenderer {
   destroy() {
     this.destroyImageResources();
     this.brushCanvasBuffer.destroy();
-    this.pendingBuffers.splice(0).forEach((buffer) => buffer.destroy());
-    this.pendingTextures.splice(0).forEach((texture) => texture.destroy());
+    this.submittedResources.destroyPending();
   }
 }
