@@ -101,6 +101,18 @@ describe('adjustment transaction controller', () => {
     expect(state.commitSnapshot.mock.calls[0]?.[2]).toBe('lens-fx');
   });
 
+  it('does not commit a gesture that returns to its starting value', () => {
+    const state = setup();
+    state.controller.begin();
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }));
+    state.controller.change((current) => ({ ...current, exposureEV: 0 }));
+    state.controller.end();
+
+    expect(state.previewSnapshot).toHaveBeenCalledTimes(2);
+    expect(state.commitSnapshot).not.toHaveBeenCalled();
+    expect(state.history).toHaveLength(0);
+  });
+
   it('rejects a pending interaction after a document switch', () => {
     const state = setup();
     state.controller.begin();

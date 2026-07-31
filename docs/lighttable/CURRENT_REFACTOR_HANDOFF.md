@@ -275,6 +275,15 @@ For runtime-sensitive changes, additionally test:
 - inactive document renderer suspension and surviving-tab resume;
 - save/reopen of a layered LightTable document.
 
+## Adjustment interaction performance
+
+Adjustment gestures publish immutable preview snapshots to the owning Grade or
+Lens Fx presentation domain. Pointer movement no longer serializes the complete
+adjustment tree for equality on every event. One exact comparison remains when
+the gesture ends, so returning a slider to its starting value creates neither a
+document commit nor an undo entry. Immediate non-gesture commands retain their
+single equality check.
+
 ## Guardrails for resuming
 
 - Keep both web and Electron green.

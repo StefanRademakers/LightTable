@@ -150,9 +150,14 @@ export const createAdjustmentTransactionController = (
         reset();
         return false;
       }
-      const before = cloneAdjustments(dependencies.getAdjustments());
+      // Adjustment snapshots are immutable at this boundary. Keep the current
+      // reference and clone only the value handed to the mutator. During a
+      // pointer gesture the final comparison in end() is sufficient; serializing
+      // the complete adjustment tree for every pointer event made sliders do
+      // avoidable main-thread work, especially on lower-power Macs.
+      const before = dependencies.getAdjustments();
       const next = mutate(cloneAdjustments(before));
-      if (adjustmentsEqual(before, next)) return false;
+      if (!transaction && adjustmentsEqual(before, next)) return false;
       const documentId = dependencies.getDocumentId();
       const targetLayerId = transaction?.targetLayerId
         ?? dependencies.getActiveTargetLayerId();

@@ -549,7 +549,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           ...current.effects,
           lensBlur: { ...current.effects.lensBlur, enabled: false }
         }
-      }));
+      }), 'lens-fx');
     }
   });
 
@@ -1026,7 +1026,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             focusDistance: selectedDepth
           }
         }
-      }));
+      }), 'lens-fx');
     },
     onFocusPickerEnd: () => setFocusPickerActive(false),
     onFill: fillActiveTarget,

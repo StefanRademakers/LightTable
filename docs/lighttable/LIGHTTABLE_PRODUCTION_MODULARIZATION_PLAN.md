@@ -1711,3 +1711,6 @@ The refactor is successful when:
 - [x] Split adjustment presentation subscriptions into Grade and Lens Fx
       domains. High-frequency changes now reconcile only the owning panel;
       reset/paste publications still invalidate both domains explicitly.
+- [x] Remove whole-tree adjustment serialization from the pointer-move path.
+      Gestures preview cloned immutable snapshots and perform one final equality
+      check at pointer release; no-op gestures still produce no history entry.
