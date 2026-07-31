@@ -13,6 +13,13 @@ export interface SelectionOverlayProps {
   height: number;
 }
 
+export const isDirectVectorSelection = (
+  operations: readonly SelectionOperation[]
+): boolean => (
+  operations.length === 1
+  && operations[0].mode === 'replace'
+);
+
 export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   operations,
   draft,
@@ -22,8 +29,15 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   height
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const directVectorSelection = isDirectVectorSelection(operations)
+    ? operations[0].shape
+    : null;
 
   useEffect(() => {
+    // The common single-shape case is rendered as SVG below. In particular,
+    // this keeps pan and zoom from rebuilding and reading back a viewport-sized
+    // CPU mask merely to move an ellipse or rectangle outline.
+    if (directVectorSelection) return;
     const canvas = canvasRef.current;
     if (!canvas || width <= 0 || height <= 0) return;
     canvas.width = Math.max(1, Math.round(width));
@@ -141,15 +155,15 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     }
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.putImageData(output, 0, 0);
-  }, [height, imageRect.x, imageRect.y, operations, scale, width]);
+  }, [directVectorSelection, height, imageRect.x, imageRect.y, operations, scale, width]);
 
-  const renderDraft = (shape: SelectionShape) => {
+  const renderShape = (shape: SelectionShape, draftStyle: boolean) => {
     const points = shape.points.map((point) => ({
       x: imageRect.x + point.x * scale,
       y: imageRect.y + point.y * scale
     }));
     if (!points.length) return null;
-    const className = 'lighttable-selection__shape lighttable-selection__shape--draft';
+    const className = `lighttable-selection__shape${draftStyle ? ' lighttable-selection__shape--draft' : ''}`;
     if (shape.kind === 'free' || shape.kind === 'polygon') {
       const path = points
         .map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`)
@@ -160,7 +174,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
             className={className}
             d={shape.kind === 'free' && points.length > 2 ? `${path} Z` : path}
           />
-          {shape.kind === 'polygon' && points.length ? (
+          {draftStyle && shape.kind === 'polygon' && points.length ? (
             <circle
               className={`${className} lighttable-selection__polygon-origin`}
               cx={points[0].x}
@@ -224,11 +238,22 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
 
   return (
     <>
-      <canvas
-        ref={canvasRef}
-        className="lighttable-selection"
-        aria-hidden="true"
-      />
+      {directVectorSelection ? (
+        <svg
+          className="lighttable-selection"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          {renderShape(directVectorSelection, false)}
+        </svg>
+      ) : (
+        <canvas
+          ref={canvasRef}
+          className="lighttable-selection"
+          aria-hidden="true"
+        />
+      )}
       {draft ? (
         <svg
           className="lighttable-selection"
@@ -236,7 +261,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          {renderDraft(draft)}
+          {renderShape(draft, true)}
           {renderDraftDimensions(draft)}
         </svg>
       ) : null}
