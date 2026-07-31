@@ -1,0 +1,165 @@
+# LightTable refactor handoff
+
+Updated: 2026-07-31  
+Repository: `D:\mediavibe\LightTable`  
+Branch: `main`  
+Resume from: `5a9fa02 Centralize document adjustment state`
+
+This is the short operational handoff. The architectural source of truth remains
+`LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`.
+
+## Stable state
+
+The current milestone is complete and committed. There is no intentionally
+unfinished source edit.
+
+Verification at `5a9fa02`:
+
+- app TypeScript check passed;
+- 171 test files and 749 tests passed;
+- repository boundary verification passed;
+- standalone web production build passed;
+- Electron/desktop TypeScript check passed.
+
+Known non-blocking build warnings:
+
+- `wasm-vips` contains direct `eval`;
+- the main web bundle still exceeds Vite's default chunk-size warning.
+
+These are existing dependency/bundling concerns, not failures introduced by the
+last milestone.
+
+## What has been completed
+
+The production refactor has moved authority out of the original composition
+hotspots without changing the intended image-processing math.
+
+Current approximate hotspot sizes:
+
+- `LightTableStandaloneApp.tsx`: 156 lines;
+- `LightTableEditorOverlay.tsx`: 1,638 lines, down from roughly 4,900;
+- `WebGpuEngine.ts`: 1,253 lines, down from roughly 1,900;
+- `LayerDocumentRenderer.ts`: 332 lines, down from roughly 2,200.
+
+Important completed boundaries include:
+
+- a multi-document workspace with exactly one active document;
+- document-scoped runtime, history, tasks, tools, viewport and diagnostics;
+- deterministic React Strict Mode-safe application/runtime disposal;
+- document-level error containment so one failed tab does not brick siblings;
+- host-neutral web/Electron document opening and file-drop routing;
+- source probing and lazy codec selection for fast ordinary-image startup;
+- application-owned open, hydrate, publish, save and export transactions;
+- declarative, replaceable keymap resolution and document-scoped execution;
+- feature-owned Grade, Lens Fx, Layers, Scopes and Debug panel bindings;
+- typed Dockview panel registration instead of hard-coded panel branches;
+- isolated selection, transform, paint, fill, warp and auto-align transactions;
+- explicit GPU resource owners for image, layer, mask, style, tool, history,
+  scope, histogram and transient submit-lifetime resources;
+- a renderer-facade import boundary enforced by `verify:boundary`;
+- lazy optional pipelines so disabled authoring/effect features do not block a
+  plain image from opening;
+- an ordered processing-node runtime for Lens Fx and persistent Warp nodes;
+- canonical document adjustment state that keeps the editable stack and its
+  materialized shader input atomic and document-local.
+
+Recent GPU/refactor commits, newest first:
+
+- `5a9fa02` canonical document adjustment state;
+- `af39214` Vite-compatible inline icon glob options;
+- `e472d02` document image GPU resource ownership;
+- `35a352d` document histogram runtime;
+- `e469c66` document scope runtime;
+- `1d0bb93` document source GPU loader;
+- `7d7e8e0` document GPU memory policy;
+- `1985510` reference difference measurement;
+- `dc0a5bf` transient editor overlays;
+- `aff15f4` document workspace surface.
+
+## Last fixed issue
+
+Vite requires the second argument of `import.meta.glob` to be an inline object
+literal. Reusing an `iconImportOptions` identifier broke development startup.
+Both PNG and SVG icon globs now use inline options, and the standalone web build
+proves the fix.
+
+## Next architectural milestone
+
+Continue reducing `WebGpuEngine` as a facade, one contract-tested seam at a
+time. Do not combine this with new rendering behavior.
+
+Recommended order:
+
+1. Inventory the remaining mutable GPU/static-resource fields in
+   `WebGpuEngine` and identify the smallest coherent lifecycle owner.
+2. Extract static baseline pipeline/buffer/texture ownership or frame
+   coordination, whichever can be moved without exposing concrete GPU services
+   outside the renderer facade.
+3. Add focused lifecycle tests before changing call sites.
+4. Run the complete verification gate and make one local commit.
+5. Only then continue toward replacing the combined grade shader bridge with
+   registered processing-node executors.
+
+The remaining Phase 6 architectural debt is intentional:
+
+- Lens Fx already executes through registered nodes;
+- Warp proves persistent geometry-node authoring and roundtrip;
+- document and Adjustment Layer grades use the shared evaluator;
+- the combined grade shader is still the compatibility bridge;
+- arbitrary per-module grade GPU executors and fully free processing order are
+  not complete yet.
+
+Do not remove the combined grade path until neutral bypass, operation order,
+curve LUT behavior, color-domain transitions and PSD mapping have equivalent
+tests in the replacement runtime.
+
+## Other open plan items
+
+The main plan still tracks:
+
+- replacing mounted-overlay retention with explicit cross-document resource
+  eviction policy;
+- finishing typed command migration and gesture transaction centralization;
+- defining the final source-handle port and future RAW capability slot;
+- adding explicit startup performance budgets;
+- completing the generic grade/effect processing-node evaluator.
+
+These are not regressions and should not be “fixed” by adding compatibility
+branches. LightTable is still alpha: prefer one clean current model over legacy
+format handling.
+
+## Required verification gate
+
+Run from `D:\mediavibe\LightTable` before every milestone commit:
+
+```powershell
+npm run typecheck -w @lighttable/app
+npm test -w @lighttable/app
+npm run verify:boundary
+npm run build -w @lighttable/web
+npm run typecheck -w @lighttable/desktop
+git diff --check
+```
+
+For runtime-sensitive changes, additionally test:
+
+- `run_dev.bat`: desktop development host and live updates;
+- web development host;
+- ordinary PNG/JPEG fast open;
+- PSD drag/open;
+- two open documents, active-tab switching and close;
+- Grade/Lens Fx edits remain isolated per document;
+- inactive document renderer suspension and surviving-tab resume;
+- save/reopen of a layered LightTable document.
+
+## Guardrails for resuming
+
+- Keep both web and Electron green.
+- Persistent mutations go through document commands and one transaction.
+- React is presentation, never canonical document state.
+- GPU resources belong to one document generation or an explicit shared owner.
+- Async callbacks must be rejected when their document generation is stale.
+- Optional feature failure must not block base image display.
+- Do not introduce StoryBuilder dependencies into LightTable.
+- Do not add legacy LightTable document compatibility during alpha.
+- Make local milestone commits; do not push unless explicitly requested.
