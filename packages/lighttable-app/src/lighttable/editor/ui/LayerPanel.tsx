@@ -17,7 +17,10 @@ import type {
   LayerThumbnailPreview,
   LayerThumbnailSet
 } from '../layers/layerThumbnailTypes';
-import { adjustmentStackIsEnabled } from '../../processing/adjustmentStack';
+import {
+  adjustmentStackHasOwner,
+  adjustmentStackOwnerIsEnabled
+} from '../../processing/adjustmentStack';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -44,6 +47,7 @@ interface LayerPanelProps {
   onLockChange: (layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean) => void;
   onCreate: () => void;
   onCreateAdjustment: () => void;
+  onCreateLensFx: () => void;
   onCreateGroup: () => void;
   onGroupSelection: (layerIds: LayerId[]) => void;
   onUngroupSelection: (layerIds: LayerId[]) => void;
@@ -55,6 +59,7 @@ interface LayerPanelProps {
   onEditStyles: (layerId: LayerId, effectId?: LayerStyleId) => void;
   onStyleStackEnabled: (layerId: LayerId, enabled: boolean) => void;
   onLocalGradeEnabled: (layerId: LayerId, enabled: boolean) => void;
+  onLocalLensFxEnabled: (layerId: LayerId, enabled: boolean) => void;
   onStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => void;
   onClearStyles: (layerId: LayerId) => void;
 }
@@ -79,7 +84,14 @@ const visualLayerRows = (
 
 const layerTypeIcon = (layer: LayerNode) => {
   if (layer.type === 'group') return lightTableIcon('layer_group.png');
-  if (layer.type === 'adjustment') return lightTableIcon('layer_adjustment.png');
+  if (layer.type === 'adjustment') {
+    return lightTableIcon(
+      adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx')
+        && !adjustmentStackHasOwner(layer.adjustmentStack, 'grade')
+        ? 'lens_fx.png'
+        : 'layer_adjustment.png'
+    );
+  }
   return layer.pixelSource.kind === 'imported-image'
     ? lightTableIcon('image.png')
     : null;
@@ -120,6 +132,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onLockChange,
   onCreate,
   onCreateAdjustment,
+  onCreateLensFx,
   onCreateGroup,
   onGroupSelection,
   onUngroupSelection,
@@ -131,6 +144,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onEditStyles,
   onStyleStackEnabled,
   onLocalGradeEnabled,
+  onLocalLensFxEnabled,
   onStyleEnabled,
   onClearStyles
 }) => {
@@ -224,7 +238,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
 
   const moreMenuOptions: Array<ContextMenuOption<string>> = [
     { value: 'new-layer', label: 'New layer', onClick: onCreate },
-    { value: 'new-adjustment', label: 'New adjustment layer', onClick: onCreateAdjustment },
+    { value: 'new-adjustment', label: 'New Grade layer', onClick: onCreateAdjustment },
+    { value: 'new-lens-fx', label: 'New Lens Fx layer', onClick: onCreateLensFx },
     { value: 'new-group', label: 'New group', onClick: onCreateGroup },
     {
       value: 'group-selected',
@@ -304,9 +319,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     <section className="lighttable-layers" aria-label="Layers">
       {activeLayer ? (
         <>
-          <label className="lighttable-layers__blend-mode">
-            <span>Blend</span>
+          <div className="lighttable-layers__blend-lock-row">
             <select
+              className="lighttable-layers__blend-mode"
+              aria-label="Layer blend mode"
               value={activeLayer.type === 'group' ? 'pass-through' : activeLayer.blendMode}
               disabled={activeLayer.type !== 'raster'}
               title={
@@ -322,10 +338,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 ? <option value="pass-through">Pass Through</option>
                 : BLEND_MODES.map((mode) => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
             </select>
-          </label>
-          {activeLayer.type === 'raster' ? (
-          <div className="lighttable-layers__locks" aria-label="Layer locks">
-            <span>Lock:</span>
+            <div className="lighttable-layers__locks" aria-label="Layer locks">
             {([
               ['transparency', 'lock_transparent_pixels.png', 'Lock transparent pixels'],
               ['pixels', 'lock_image_pixels.png', 'Lock image pixels'],
@@ -336,6 +349,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 key={lock}
                 type="button"
                 className={activeLayer.locks[lock] ? 'lighttable-layers__lock-toggle--active' : ''}
+                disabled={activeLayer.type !== 'raster'}
                 onClick={() => onLockChange(selectionFor(activeLayer.id), lock, !activeLayer.locks[lock])}
                 aria-pressed={activeLayer.locks[lock]}
                 title={activeLayer.locks[lock] ? label.replace('Lock', 'Unlock') : label}
@@ -344,10 +358,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <img src={lightTableIcon(icon)} alt="" aria-hidden="true" />
               </button>
             ))}
+            </div>
           </div>
-          ) : null}
-          {activeLayer.type === 'raster' ? (
-            <div className="lighttable-layers__opacity-controls">
+          <div className="lighttable-layers__opacity-controls">
               <AdjustmentSlider
                 label="Opacity"
                 value={activeLayer.opacity * 100}
@@ -355,6 +368,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 max={100}
                 format={(value) => `${Math.round(value)}%`}
                 resetValue={100}
+                disabled={activeLayer.type !== 'raster'}
                 onReset={() => onOpacity(activeLayer.id, 1)}
                 onChange={(value) => onOpacity(activeLayer.id, value / 100)}
                 onInteractionStart={onOpacityInteractionStart}
@@ -367,13 +381,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 max={100}
                 format={(value) => `${Math.round(value)}%`}
                 resetValue={100}
+                disabled={activeLayer.type !== 'raster'}
                 onReset={() => onFillOpacity(activeLayer.id, 1)}
                 onChange={(value) => onFillOpacity(activeLayer.id, value / 100)}
                 onInteractionStart={onOpacityInteractionStart}
                 onInteractionEnd={onOpacityInteractionEnd}
               />
-            </div>
-          ) : null}
+          </div>
         </>
       ) : null}
       <div className="lighttable-layers__list">
@@ -658,7 +672,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               aria-label="Layer name"
             />
             <span className="lighttable-layer__status">
-              {layer.type === 'raster' && layer.adjustmentStack ? (
+              {layer.type === 'raster'
+                && layer.adjustmentStack
+                && adjustmentStackHasOwner(layer.adjustmentStack, 'grade') ? (
                 <button
                   type="button"
                   className="lighttable-layer__local-grade"
@@ -666,17 +682,43 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     event.stopPropagation();
                     onLocalGradeEnabled(
                       layer.id,
-                      !adjustmentStackIsEnabled(layer.adjustmentStack!)
+                      !adjustmentStackOwnerIsEnabled(layer.adjustmentStack!, 'grade')
                     );
                   }}
-                  title={`${adjustmentStackIsEnabled(layer.adjustmentStack) ? 'Disable' : 'Enable'} local grade`}
-                  aria-label={`${adjustmentStackIsEnabled(layer.adjustmentStack) ? 'Disable' : 'Enable'} local grade`}
+                  title={`${adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'grade') ? 'Disable' : 'Enable'} local grade`}
+                  aria-label={`${adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'grade') ? 'Disable' : 'Enable'} local grade`}
                 >
                   <img
                     src={lightTableIcon(
-                      adjustmentStackIsEnabled(layer.adjustmentStack)
+                      adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'grade')
                         ? 'layer_adjustment.png'
                         : 'layer_adjustment_off.png'
+                    )}
+                    alt=""
+                  />
+                </button>
+              ) : null}
+              {layer.type === 'raster'
+                && layer.adjustmentStack
+                && adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx') ? (
+                <button
+                  type="button"
+                  className="lighttable-layer__local-grade"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onLocalLensFxEnabled(
+                      layer.id,
+                      !adjustmentStackOwnerIsEnabled(layer.adjustmentStack!, 'lens-fx')
+                    );
+                  }}
+                  title={`${adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'lens-fx') ? 'Disable' : 'Enable'} local Lens Fx`}
+                  aria-label={`${adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'lens-fx') ? 'Disable' : 'Enable'} local Lens Fx`}
+                >
+                  <img
+                    src={lightTableIcon(
+                      adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'lens-fx')
+                        ? 'lens_fx.png'
+                        : 'lens_fx_off.png'
                     )}
                     alt=""
                   />
@@ -754,9 +796,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         <button
           type="button"
           onClick={onCreateAdjustment}
-          title="New adjustment layer"
-          aria-label="New adjustment layer"
+          title="New Grade layer"
+          aria-label="New Grade layer"
         ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></button>
+        <button
+          type="button"
+          onClick={onCreateLensFx}
+          title="New Lens Fx layer"
+          aria-label="New Lens Fx layer"
+        ><img src={lightTableIcon('lens_fx.png')} alt="" aria-hidden="true" /></button>
         <button
           type="button"
           onClick={onCreate}

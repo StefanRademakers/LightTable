@@ -34,6 +34,7 @@ describe('resolveEditorKeyboardCommand', () => {
     [{ ctrlKey: true, key: 'd' }, 'select-none'],
     [{ metaKey: true, shiftKey: true, key: 'i' }, 'select-invert'],
     [{ ctrlKey: true, key: 'e' }, 'merge-down'],
+    [{ metaKey: true, key: 'e' }, 'merge-down'],
     [{ metaKey: true, key: 'Tab' }, 'activate-next-document'],
     [{ ctrlKey: true, shiftKey: true, key: 'Tab' }, 'activate-previous-document'],
     [{ ctrlKey: true, key: 'w' }, 'close-active-document'],

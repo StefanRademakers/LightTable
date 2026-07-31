@@ -18,7 +18,7 @@ const ellipsePoints = (shape: SelectionShape, segments = 48): TransformPoint[] =
 };
 
 const shapeOutline = (shape: SelectionShape): TransformPoint[] => {
-  if (shape.kind === 'free') return shape.points;
+  if (shape.kind === 'free' || shape.kind === 'polygon') return shape.points;
   if (shape.kind === 'ellipse') return ellipsePoints(shape);
   const first = shape.points[0];
   const last = shape.points[shape.points.length - 1];

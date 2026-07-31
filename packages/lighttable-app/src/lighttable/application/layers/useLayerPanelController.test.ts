@@ -11,6 +11,8 @@ import {
 } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
+  adjustmentStackForOwner,
+  adjustmentStackOwnerIsEnabled,
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
 import {
@@ -40,6 +42,7 @@ const setup = (initialDocument: ImageDocument) => {
     beginDocumentTransaction: vi.fn(),
     endDocumentTransaction: vi.fn(),
     createAdjustmentLayer: vi.fn(),
+    createLensFxLayer: vi.fn(),
     mergeActiveLayerDown: vi.fn(),
     mergeSelectedRasterLayers: vi.fn(),
     requestFlattenGroup: vi.fn(),
@@ -63,7 +66,10 @@ describe('createLayerPanelController', () => {
     grade.effects.grain.enabled = true;
     const document = createAdjustmentLayer(
       base,
-      createAdjustmentStackFromBasicAdjustments(grade)
+      adjustmentStackForOwner(
+        createAdjustmentStackFromBasicAdjustments(grade),
+        'grade'
+      )
     );
     const adjustmentLayerId = document.activeLayerId!;
     const harness = setup(document);
@@ -74,8 +80,8 @@ describe('createLayerPanelController', () => {
 
     expect(harness.document().activeLayerId).toBe(adjustmentLayerId);
     expect(harness.panelAdjustments().exposureEV).toBe(1.5);
-    expect(harness.panelAdjustments().effects).toEqual(documentEffects);
     expect(harness.panelAdjustments().effects.grain.enabled).toBe(false);
+    expect(harness.panelAdjustments().effects.lensDistortion.enabled).toBe(false);
     expect(harness.dependencies.mutateDocument).toHaveBeenCalledWith(
       expect.any(Function),
       false
@@ -111,9 +117,8 @@ describe('createLayerPanelController', () => {
     harness.controller.select(document.activeLayerId!);
 
     expect(harness.panelAdjustments().contrast).toBe(42);
-    // Lens/output effects are never smuggled into a local grade stack.
-    expect(harness.panelAdjustments().effects.grain.enabled).toBe(true);
-    expect(harness.panelAdjustments().effects.halation.enabled).toBe(false);
+    expect(harness.panelAdjustments().effects.grain.enabled).toBe(false);
+    expect(harness.panelAdjustments().effects.halation.enabled).toBe(true);
   });
 
   it('bypasses and restores a raster layer local grade without losing its settings', () => {
@@ -130,18 +135,48 @@ describe('createLayerPanelController', () => {
 
     harness.controller.setLocalGradeEnabled(layerId, false);
     const bypassed = findDocumentLayer(harness.document(), layerId);
-    expect(bypassed?.type === 'raster' && bypassed.adjustmentStack?.modules.every(
-      (module) => !module.enabled
-    )).toBe(true);
+    expect(
+      bypassed?.type === 'raster'
+      && bypassed.adjustmentStack
+      && !adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'grade')
+      && adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'lens-fx')
+    ).toBe(true);
 
     harness.controller.select(layerId);
     expect(harness.panelAdjustments().contrast).toBe(42);
 
     harness.controller.setLocalGradeEnabled(layerId, true);
     const restored = findDocumentLayer(harness.document(), layerId);
-    expect(restored?.type === 'raster' && restored.adjustmentStack?.modules.every(
-      (module) => module.enabled
-    )).toBe(true);
+    expect(
+      restored?.type === 'raster'
+      && restored.adjustmentStack
+      && adjustmentStackOwnerIsEnabled(restored.adjustmentStack, 'grade')
+      && adjustmentStackOwnerIsEnabled(restored.adjustmentStack, 'lens-fx')
+    ).toBe(true);
+  });
+
+  it('bypasses attached Lens Fx without disabling the attached Grade', () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const local = createDefaultAdjustments();
+    local.contrast = 42;
+    local.effects.lensDistortion.enabled = true;
+    const document = setRasterLayerAdjustmentStack(
+      base,
+      base.activeLayerId!,
+      createAdjustmentStackFromBasicAdjustments(local)
+    );
+    const harness = setup(document);
+    const layerId = document.activeLayerId!;
+
+    harness.controller.setLocalLensFxEnabled(layerId, false);
+    const bypassed = findDocumentLayer(harness.document(), layerId);
+
+    expect(
+      bypassed?.type === 'raster'
+      && bypassed.adjustmentStack
+      && adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'grade')
+      && !adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'lens-fx')
+    ).toBe(true);
   });
 
   it('removes the active mask and returns painting to pixels', () => {

@@ -27,6 +27,7 @@ describe('tool capabilities', () => {
     expect(isSelectionTool('select-rectangle')).toBe(true);
     expect(isSelectionTool('select-ellipse')).toBe(true);
     expect(isSelectionTool('select-free')).toBe(true);
+    expect(isSelectionTool('select-polygonal')).toBe(true);
     expect(isSelectionTool('transform')).toBe(false);
   });
 
@@ -34,5 +35,6 @@ describe('tool capabilities', () => {
     expect(selectionKindForTool('select-rectangle')).toBe('rectangle');
     expect(selectionKindForTool('select-ellipse')).toBe('ellipse');
     expect(selectionKindForTool('select-free')).toBe('free');
+    expect(selectionKindForTool('select-polygonal')).toBe('polygon');
   });
 });

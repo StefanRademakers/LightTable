@@ -13,7 +13,8 @@ import {
   type Rect
 } from './documentTypes';
 import {
-  setAdjustmentStackEnabled,
+  setAdjustmentStackOwnerEnabled,
+  type AdjustmentStackOwner,
   type AdjustmentStack
 } from '../../processing/adjustmentStack';
 import {
@@ -245,10 +246,15 @@ export const setRasterLayerAdjustmentStack = (
 export const setRasterLayerAdjustmentStackEnabled = (
   document: ImageDocument,
   layerId: LayerId,
-  enabled: boolean
+  enabled: boolean,
+  owner: AdjustmentStackOwner = 'grade'
 ) => updateLayer(document, layerId, (layer) => {
   if (layer.type !== 'raster' || !layer.adjustmentStack) return layer;
-  const adjustmentStack = setAdjustmentStackEnabled(layer.adjustmentStack, enabled);
+  const adjustmentStack = setAdjustmentStackOwnerEnabled(
+    layer.adjustmentStack,
+    owner,
+    enabled
+  );
   if (adjustmentStack === layer.adjustmentStack) return layer;
   return {
     ...layer,
@@ -538,7 +544,7 @@ export const mergeLayerDown = (document: ImageDocument, layerId: LayerId): Image
   return updateDocument(document, layers, merged.id);
 };
 
-export interface MergeRasterLayersPlan {
+export interface MergeLayersPlan {
   /** Bottom-to-top compositing order. */
   layerIds: LayerId[];
   destinationId: LayerId;
@@ -654,15 +660,15 @@ export const flattenImage = (document: ImageDocument): ImageDocument => {
  * silently move unselected layers above or below the flattened result and
  * therefore change the document's appearance.
  */
-export const getMergeRasterLayersPlan = (
+export const getMergeLayersPlan = (
   document: ImageDocument,
   selectedLayerIds: readonly LayerId[]
-): MergeRasterLayersPlan | null => {
+): MergeLayersPlan | null => {
   const selected = new Set(selectedLayerIds);
   if (selected.size < 2) return null;
   const entries = [...selected].map((id) => findLayerNode(document.layers, id));
   if (
-    entries.some((entry) => !entry || entry.node.type !== 'raster')
+    entries.some((entry) => !entry || entry.node.type === 'group')
     || entries.some((entry) => entry!.parentId !== entries[0]!.parentId)
   ) return null;
 
@@ -676,7 +682,9 @@ export const getMergeRasterLayersPlan = (
   ) return null;
 
   const layers = siblings.slice(indexes[0], indexes[indexes.length - 1] + 1);
-  if (layers.some((layer) => layer.type !== 'raster')) return null;
+  // The bottom layer owns the baked pixels. Layers above it may be raster or
+  // processing layers; the GPU compositor evaluates them in document order.
+  if (layers[0]?.type !== 'raster' || layers.some((layer) => layer.type === 'group')) return null;
   return {
     layerIds: layers.map((layer) => layer.id),
     destinationId: layers[0].id,
@@ -684,11 +692,11 @@ export const getMergeRasterLayersPlan = (
   };
 };
 
-export const mergeRasterLayers = (
+export const mergeLayers = (
   document: ImageDocument,
   selectedLayerIds: readonly LayerId[]
 ): ImageDocument => {
-  const plan = getMergeRasterLayersPlan(document, selectedLayerIds);
+  const plan = getMergeLayersPlan(document, selectedLayerIds);
   if (!plan) return document;
   const destination = findRasterLayer(document, plan.destinationId);
   if (!destination) return document;

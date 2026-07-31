@@ -23,7 +23,8 @@ describe('ProcessingModuleRegistry', () => {
   it('preserves declared order and resolves scope support', () => {
     expect(currentProcessingModuleRegistry.definitions()[0]?.type).toBe('lt.white-balance');
     expect(currentProcessingModuleRegistry.allows('lt.grain', 'document-output')).toBe(true);
-    expect(currentProcessingModuleRegistry.allows('lt.grain', 'layer')).toBe(false);
+    expect(currentProcessingModuleRegistry.allows('lt.grain', 'layer')).toBe(true);
+    expect(currentProcessingModuleRegistry.allows('lt.grain', 'adjustment-layer')).toBe(true);
   });
 
   it('rejects duplicate stable types', () => {

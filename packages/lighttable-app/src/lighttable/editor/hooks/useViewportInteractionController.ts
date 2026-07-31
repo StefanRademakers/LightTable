@@ -140,6 +140,7 @@ export const useViewportInteractionController = ({
       || !editorSession.selectionPixelSnap
       || !isSelectionTool(editorSession.activeTool)
       || editorSession.activeTool === 'select-free'
+      || editorSession.activeTool === 'select-polygonal'
     ) return point;
     return {
       ...point,
@@ -290,6 +291,22 @@ export const useViewportInteractionController = ({
         event.preventDefault();
         return;
       }
+      if (
+        intent === 'selection'
+        && point
+        && activeTool === 'select-polygonal'
+      ) {
+        if (selection.polygonClick(
+          point,
+          8 / Math.max(activeScale, 0.0001),
+          { shiftKey: event.shiftKey, altKey: event.altKey },
+          event.detail >= 2,
+          event.timeStamp
+        )) {
+          event.preventDefault();
+        }
+        return;
+      }
       if (intent === 'selection' && point && isSelectionTool(activeTool)) {
         if (selection.begin(event.pointerId, activeTool, point)) {
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -331,6 +348,14 @@ export const useViewportInteractionController = ({
     onPointerMove: (event) => {
       updateBrushCursor(event);
       const point = documentPoint(event);
+      if (
+        editorSession.activeTool === 'select-polygonal'
+        && selection.polygonActive
+        && point
+      ) {
+        if (selection.polygonMove(point)) event.preventDefault();
+        return;
+      }
       const intent = resolveViewportPointerMoveIntent({
         activeTool: editorSession.activeTool,
         temporaryPan: temporaryTools.active,

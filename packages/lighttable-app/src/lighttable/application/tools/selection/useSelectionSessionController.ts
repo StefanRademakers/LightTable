@@ -13,6 +13,9 @@ import {
 import {
   SelectionGestureController
 } from '../../../editor/tools/selection/selectionGestureController';
+import {
+  PolygonalSelectionGestureController
+} from '../../../editor/tools/selection/polygonalSelectionGestureController';
 
 export interface SelectionHistoryEntry {
   documentMutation: false;
@@ -38,6 +41,7 @@ export interface SelectionSessionDependencies {
 
 export interface SelectionSessionController {
   get active(): boolean;
+  get polygonActive(): boolean;
   get draft(): SelectionShape | null;
   owns(pointerId: number): boolean;
   begin(pointerId: number, tool: SelectionToolId, point: SelectionPoint): boolean;
@@ -47,6 +51,16 @@ export interface SelectionSessionController {
     modifiers: { shiftKey: boolean; altKey: boolean }
   ): boolean;
   cancel(pointerId: number): boolean;
+  polygonClick(
+    point: SelectionPoint,
+    closeDistance: number,
+    modifiers: { shiftKey: boolean; altKey: boolean },
+    forceClose?: boolean,
+    timestamp?: number
+  ): boolean;
+  polygonMove(point: SelectionPoint): boolean;
+  finishPolygon(): boolean;
+  cancelPolygon(): boolean;
   reset(): void;
   selectAll(): void;
   clear(): void;
@@ -74,7 +88,8 @@ export const cloneSelectionOperations = (
  */
 export const createSelectionSessionController = (
   resolveDependencies: () => SelectionSessionDependencies,
-  gesture = new SelectionGestureController()
+  gesture = new SelectionGestureController(),
+  polygonGesture = new PolygonalSelectionGestureController()
 ): SelectionSessionController => {
   const isCurrent = (
     document: ImageDocument,
@@ -144,12 +159,58 @@ export const createSelectionSessionController = (
       });
   };
 
+  const applyGestureResult = (
+    result: ReturnType<SelectionGestureController['finish']>
+  ): boolean => {
+    if (!result) return false;
+    const dependencies = resolveDependencies();
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    dependencies.publishDraft(null);
+    dependencies.publishSelection(dependencies.getSelection(), null);
+    if (!document || !renderer || result.kind === 'none') return true;
+    const before = cloneSelectionOperations(dependencies.getSelection());
+    if (result.kind === 'clear') {
+      renderer.clearSelection();
+      dependencies.publishSelection([], null);
+      if (before.length) pushHistory(document, before, []);
+      return true;
+    }
+    const operation: SelectionOperation = {
+      mode: result.mode,
+      shape: result.shape
+    };
+    const after = result.mode === 'replace'
+      ? [operation]
+      : [...before, operation];
+    void renderer.setSelection(result.shape, result.mode)
+      .then((applied) => {
+        if (!applied || !isCurrent(document, renderer)) return;
+        const latest = resolveDependencies();
+        latest.publishSelection(after, null);
+        pushHistory(document, before, after);
+        latest.setError(null);
+      })
+      .catch((reason) => {
+        if (!isCurrent(document, renderer)) return;
+        resolveDependencies().setError(
+          reason instanceof Error
+            ? reason.message
+            : 'The selection could not be applied.'
+        );
+      });
+    return true;
+  };
+
   return {
     get active() {
-      return gesture.pointerId !== null;
+      return gesture.pointerId !== null || polygonGesture.active;
+    },
+    get polygonActive() {
+      return polygonGesture.active;
     },
     get draft() {
-      return gesture.draft;
+      return polygonGesture.draft ?? gesture.draft;
     },
     owns: (pointerId) => gesture.owns(pointerId),
     begin: (pointerId, tool, point) => {
@@ -167,45 +228,8 @@ export const createSelectionSessionController = (
       return true;
     },
     finish: (pointerId, modifiers) => {
-      const dependencies = resolveDependencies();
-      const document = dependencies.getDocument();
-      const renderer = dependencies.getRenderer();
       const result = gesture.finish(pointerId, modifiers);
-      if (!result) return false;
-      dependencies.publishDraft(null);
-      dependencies.publishSelection(dependencies.getSelection(), null);
-      if (!document || !renderer || result.kind === 'none') return true;
-      const before = cloneSelectionOperations(dependencies.getSelection());
-      if (result.kind === 'clear') {
-        renderer.clearSelection();
-        dependencies.publishSelection([], null);
-        if (before.length) pushHistory(document, before, []);
-        return true;
-      }
-      const operation: SelectionOperation = {
-        mode: result.mode,
-        shape: result.shape
-      };
-      const after = result.mode === 'replace'
-        ? [operation]
-        : [...before, operation];
-      void renderer.setSelection(result.shape, result.mode)
-        .then((applied) => {
-          if (!applied || !isCurrent(document, renderer)) return;
-          const latest = resolveDependencies();
-          latest.publishSelection(after, null);
-          pushHistory(document, before, after);
-          latest.setError(null);
-        })
-        .catch((reason) => {
-          if (!isCurrent(document, renderer)) return;
-          resolveDependencies().setError(
-            reason instanceof Error
-              ? reason.message
-              : 'The selection could not be applied.'
-          );
-        });
-      return true;
+      return applyGestureResult(result);
     },
     cancel: (pointerId) => {
       if (!gesture.cancel(pointerId)) return false;
@@ -214,8 +238,42 @@ export const createSelectionSessionController = (
       dependencies.publishSelection(dependencies.getSelection(), null);
       return true;
     },
+    polygonClick: (point, closeDistance, modifiers, forceClose = false, timestamp = Date.now()) => {
+      const dependencies = resolveDependencies();
+      if (!dependencies.getDocument() || !dependencies.getRenderer()) return false;
+      const result = polygonGesture.click(
+        point,
+        modifiers,
+        closeDistance,
+        forceClose,
+        timestamp
+      );
+      if (result.kind === 'finish') return applyGestureResult(result.result);
+      dependencies.publishDraft(result.shape);
+      dependencies.publishSelection(dependencies.getSelection(), null);
+      return true;
+    },
+    polygonMove: (point) => {
+      const draft = polygonGesture.move(point);
+      if (!draft) return false;
+      resolveDependencies().publishDraft(draft);
+      return true;
+    },
+    finishPolygon: () => (
+      polygonGesture.active
+        ? applyGestureResult(polygonGesture.finish())
+        : false
+    ),
+    cancelPolygon: () => {
+      if (!polygonGesture.cancel()) return false;
+      const dependencies = resolveDependencies();
+      dependencies.publishDraft(null);
+      dependencies.publishSelection(dependencies.getSelection(), null);
+      return true;
+    },
     reset: () => {
       gesture.reset();
+      polygonGesture.reset();
       const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
       dependencies.publishSelection(dependencies.getSelection(), null);

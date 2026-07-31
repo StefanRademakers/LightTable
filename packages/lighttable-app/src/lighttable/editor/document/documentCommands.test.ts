@@ -15,7 +15,7 @@ import {
   flattenImage,
   groupLayers,
   mergeLayerDown,
-  mergeRasterLayers,
+  mergeLayers,
   moveLayer,
   moveLayerIntoGroup,
   moveLayerRelative,
@@ -216,7 +216,7 @@ describe('LightTable document commands', () => {
     const document = createRasterLayer(middle, 'Top');
     const [background, middleLayer, top] = document.layers;
 
-    const merged = mergeRasterLayers(document, [top.id, middleLayer.id]);
+    const merged = mergeLayers(document, [top.id, middleLayer.id]);
     expect(merged.layers.map((layer) => layer.id)).toEqual([background.id, middleLayer.id]);
     expect(merged.layers[1]).toMatchObject({
       id: middleLayer.id,
@@ -228,9 +228,9 @@ describe('LightTable document commands', () => {
     });
     expect(merged.activeLayerId).toBe(middleLayer.id);
 
-    expect(mergeRasterLayers(document, [background.id, top.id])).toBe(document);
+    expect(mergeLayers(document, [background.id, top.id])).toBe(document);
     const grouped = createGroupLayer(document, 'Group');
-    expect(mergeRasterLayers(grouped, [top.id, grouped.activeLayerId!])).toBe(grouped);
+    expect(mergeLayers(grouped, [top.id, grouped.activeLayerId!])).toBe(grouped);
   });
 
   it('moves, hides, locks and deletes a multi-layer selection as one command', () => {

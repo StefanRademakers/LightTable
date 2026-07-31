@@ -95,4 +95,45 @@ describe('selection session controller', () => {
     await state.history[0].redo();
     expect(state.selection).toHaveLength(1);
   });
+
+  it('keeps a polygon draft across clicks and commits it near the origin', async () => {
+    const state = setup();
+    expect(state.controller.polygonClick(
+      { x: 10, y: 10 },
+      5,
+      { shiftKey: false, altKey: false }
+    )).toBe(true);
+    state.controller.polygonMove({ x: 40, y: 10 });
+    state.controller.polygonClick(
+      { x: 40, y: 10 },
+      5,
+      { shiftKey: false, altKey: false }
+    );
+    state.controller.polygonClick(
+      { x: 40, y: 40 },
+      5,
+      { shiftKey: false, altKey: false }
+    );
+    expect(state.controller.polygonActive).toBe(true);
+    state.controller.polygonClick(
+      { x: 12, y: 12 },
+      5,
+      { shiftKey: false, altKey: false }
+    );
+    await Promise.resolve();
+    expect(state.renderer.setSelection).toHaveBeenCalledWith(
+      {
+        kind: 'polygon',
+        points: [
+          { x: 10, y: 10 },
+          { x: 40, y: 10 },
+          { x: 40, y: 40 }
+        ]
+      },
+      'replace'
+    );
+    expect(state.selection).toHaveLength(1);
+    expect(state.history).toHaveLength(1);
+    expect(state.controller.polygonActive).toBe(false);
+  });
 });

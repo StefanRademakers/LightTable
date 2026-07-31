@@ -187,7 +187,7 @@ export const CURRENT_PROCESSING_MODULES = [
     label: 'Lens Distortion',
     category: 'lens',
     settingsPaths: ['effects.lensDistortion'],
-    allowedScopes: ['layer', 'smart-filter', 'document-creative'],
+    allowedScopes: ['layer', 'adjustment-layer', 'smart-filter', 'document-creative'],
     inputDomain: 'linear-rgb',
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
@@ -199,7 +199,7 @@ export const CURRENT_PROCESSING_MODULES = [
     label: 'Chromatic Aberration',
     category: 'lens',
     settingsPaths: ['effects.chromaticAberration'],
-    allowedScopes: ['layer', 'smart-filter', 'document-creative'],
+    allowedScopes: ['layer', 'adjustment-layer', 'smart-filter', 'document-creative'],
     inputDomain: 'linear-rgb',
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
@@ -211,7 +211,7 @@ export const CURRENT_PROCESSING_MODULES = [
     label: 'Lens Blur',
     category: 'lens',
     settingsPaths: ['effects.lensBlur'],
-    allowedScopes: ['layer', 'smart-filter', 'group', 'document-creative'],
+    allowedScopes: ['layer', 'adjustment-layer', 'smart-filter', 'group', 'document-creative'],
     inputDomain: 'linear-rgb',
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
@@ -223,7 +223,7 @@ export const CURRENT_PROCESSING_MODULES = [
     label: 'Halation',
     category: 'lens',
     settingsPaths: ['effects.halation'],
-    allowedScopes: ['layer', 'smart-filter', 'group', 'document-creative'],
+    allowedScopes: ['layer', 'adjustment-layer', 'smart-filter', 'group', 'document-creative'],
     inputDomain: 'linear-rgb',
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
@@ -234,12 +234,12 @@ export const CURRENT_PROCESSING_MODULES = [
     label: 'Grain',
     category: 'output',
     settingsPaths: ['effects.grain'],
-    allowedScopes: ['document-creative', 'document-output'],
+    allowedScopes: ['layer', 'adjustment-layer', 'smart-filter', 'group', 'document-creative', 'document-output'],
     inputDomain: 'display-referred',
     outputDomain: 'display-referred',
     alphaBehavior: 'preserve',
     coordinateSpace: 'document',
-    notes: 'Per-layer use is forbidden until grain has explicit linear compositing semantics.'
+    notes: 'Layer-owned grain is evaluated at the end of its owner stack before compositing.'
   }
 ] as const satisfies readonly ProcessingModuleDefinition[];
 
@@ -247,4 +247,3 @@ export type CurrentProcessingModuleType = typeof CURRENT_PROCESSING_MODULES[numb
 
 export const processingModuleDefinition = (type: CurrentProcessingModuleType) =>
   CURRENT_PROCESSING_MODULES.find((definition) => definition.type === type);
-

@@ -53,6 +53,7 @@ export interface LayerPanelControllerDependencies {
   beginDocumentTransaction(): void;
   endDocumentTransaction(): void;
   createAdjustmentLayer(): void;
+  createLensFxLayer(): void;
   mergeActiveLayerDown(): void;
   mergeSelectedRasterLayers(layerIds: LayerId[]): void;
   requestFlattenGroup(groupId: LayerId): void;
@@ -83,6 +84,7 @@ export interface LayerPanelController {
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
   createRasterLayer(): void;
   createAdjustmentLayer(): void;
+  createLensFxLayer(): void;
   createGroup(): void;
   groupSelection(layerIds: LayerId[]): void;
   ungroupSelection(layerIds: LayerId[]): void;
@@ -94,6 +96,7 @@ export interface LayerPanelController {
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
   setStyleStackEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalGradeEnabled(layerId: LayerId, enabled: boolean): void;
+  setLocalLensFxEnabled(layerId: LayerId, enabled: boolean): void;
   setStyleEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void;
   clearStyles(layerId: LayerId): void;
 }
@@ -124,21 +127,13 @@ export const createLayerPanelController = (
       (document) => setActiveLayer(document, layerId),
       false
     );
-    const documentAdjustments = dependencies.getDocumentAdjustments();
     const panelAdjustments = (
       layer.type === 'adjustment'
       || (layer.type === 'raster' && layer.adjustmentStack)
     )
-      ? {
-        // A bypassed local grade still exposes its authored settings in the
-        // controls. Editing one of them deliberately enables a fresh stack.
-        ...materializeBasicAdjustments(layer.adjustmentStack!, undefined, undefined, true),
-        effects: structuredClone(documentAdjustments.effects)
-      }
-      : {
-        ...createDefaultAdjustments(),
-        effects: structuredClone(documentAdjustments.effects)
-      };
+      // Bypassed Grade and Lens Fx modules still expose their authored values.
+      ? materializeBasicAdjustments(layer.adjustmentStack!, undefined, undefined, true)
+      : createDefaultAdjustments();
     dependencies.publishPanelAdjustments(cloneAdjustments(panelAdjustments));
   };
 
@@ -213,6 +208,7 @@ export const createLayerPanelController = (
     createRasterLayer: () =>
       usePixelChannel((current) => createRasterLayer(current)),
     createAdjustmentLayer: () => resolveDependencies().createAdjustmentLayer(),
+    createLensFxLayer: () => resolveDependencies().createLensFxLayer(),
     createGroup: () =>
       usePixelChannel((current) => createGroupLayer(current)),
     groupSelection: (layerIds) =>
@@ -232,7 +228,10 @@ export const createLayerPanelController = (
       mutate((current) => setLayerStyleStackEnabled(current, layerId, enabled)),
     setLocalGradeEnabled: (layerId, enabled) =>
       mutate((current) =>
-        setRasterLayerAdjustmentStackEnabled(current, layerId, enabled)),
+        setRasterLayerAdjustmentStackEnabled(current, layerId, enabled, 'grade')),
+    setLocalLensFxEnabled: (layerId, enabled) =>
+      mutate((current) =>
+        setRasterLayerAdjustmentStackEnabled(current, layerId, enabled, 'lens-fx')),
     setStyleEnabled: (layerId, effectId, enabled) =>
       mutate((current) =>
         setLayerStyleEnabled(current, layerId, effectId, enabled)),

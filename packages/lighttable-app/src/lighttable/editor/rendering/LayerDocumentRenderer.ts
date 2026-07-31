@@ -1186,17 +1186,18 @@ export class LayerDocumentRenderer {
     ) => GPUTexture
   ) {
     const destination = this.runtimes.get(destinationId);
-    const layers = layerIds.map((layerId) => findRasterLayer(document, layerId));
+    const layers = layerIds.map((layerId) => findLayerNode(document.layers, layerId)?.node ?? null);
     if (
       !destination
       || layers.length < 2
       || layers.some((layer) => !layer)
-      || layerIds.some((layerId) => !this.runtimes.has(layerId))
+      || layers.some((layer) => layer?.type === 'group')
+      || layers.some((layer) => layer?.type === 'raster' && !this.runtimes.has(layer.id))
     ) return false;
     const encoder = this.device.createCommandEncoder({ label: 'LightTable merge selected layers' });
     const mergedTexture = this.encodeComposite(encoder, {
       ...document,
-      layers: layers as RasterLayer[]
+      layers: layers as Array<RasterLayer | AdjustmentLayer>
     }, encodeAdjustment);
     encoder.copyTextureToTexture({ texture: mergedTexture }, { texture: destination.texture }, [this.width, this.height]);
     this.device.queue.submit([encoder.finish()]);
@@ -1669,8 +1670,15 @@ export class LayerDocumentRenderer {
     this.ensureToolPipelines();
     this.ensureSelectionTargets();
     if (!this.selectionMask || !this.selectionResult || !this.selectionShape) return false;
-    if (shape.kind === 'free' && shape.points.length < 3) return false;
-    if (shape.kind !== 'free' && shape.points.length < 2) return false;
+    if (
+      (shape.kind === 'free' || shape.kind === 'polygon')
+      && shape.points.length < 3
+    ) return false;
+    if (
+      shape.kind !== 'free'
+      && shape.kind !== 'polygon'
+      && shape.points.length < 2
+    ) return false;
     if (!this.selectionActive && requestedMode === 'subtract') return false;
     const mode = this.selectionActive ? requestedMode : 'replace';
     const points = shape.points.length ? shape.points : [{ x: 0, y: 0 }];

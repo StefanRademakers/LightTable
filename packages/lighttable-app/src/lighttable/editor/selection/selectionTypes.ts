@@ -1,4 +1,8 @@
-export type SelectionToolId = 'select-rectangle' | 'select-ellipse' | 'select-free';
+export type SelectionToolId =
+  | 'select-rectangle'
+  | 'select-ellipse'
+  | 'select-free'
+  | 'select-polygonal';
 export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect' | 'invert' | 'feather';
 
 export interface SelectionPoint {
@@ -7,7 +11,7 @@ export interface SelectionPoint {
 }
 
 export interface SelectionShape {
-  kind: 'rectangle' | 'ellipse' | 'free';
+  kind: 'rectangle' | 'ellipse' | 'free' | 'polygon';
   points: SelectionPoint[];
 }
 
@@ -58,7 +62,7 @@ export const selectionModeFromModifiers = (shiftKey: boolean, altKey: boolean): 
 };
 
 export const selectionShapeIsValid = (shape: SelectionShape): boolean => {
-  if (shape.kind === 'free') return shape.points.length >= 3;
+  if (shape.kind === 'free' || shape.kind === 'polygon') return shape.points.length >= 3;
   if (shape.points.length < 2) return false;
   const [start, end] = shape.points;
   return Math.abs(end.x - start.x) >= 1 && Math.abs(end.y - start.y) >= 1;

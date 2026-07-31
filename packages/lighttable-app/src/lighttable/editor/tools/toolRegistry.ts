@@ -44,7 +44,17 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     label: 'Free selection',
     shortcutLabel: 'L',
     shortcutKey: 'l',
+    shortcutShift: false,
     iconName: 'select_free_shape.png',
+    role: 'selection'
+  },
+  {
+    id: 'select-polygonal',
+    label: 'Polygonal selection',
+    shortcutLabel: 'Shift+L',
+    shortcutKey: 'l',
+    shortcutShift: true,
+    iconName: 'tool_polygonal_selection.png',
     role: 'selection'
   },
   {

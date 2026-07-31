@@ -19,6 +19,10 @@ describe('LightTable selections', () => {
     expect(selectionShapeIsValid({ kind: 'rectangle', points: [{ x: 1, y: 1 }, { x: 1, y: 8 }] })).toBe(false);
     expect(selectionShapeIsValid({ kind: 'ellipse', points: [{ x: 1, y: 1 }, { x: 5, y: 8 }] })).toBe(true);
     expect(selectionShapeIsValid({ kind: 'free', points: [{ x: 1, y: 1 }, { x: 5, y: 8 }] })).toBe(false);
+    expect(selectionShapeIsValid({
+      kind: 'polygon',
+      points: [{ x: 1, y: 1 }, { x: 5, y: 8 }, { x: 8, y: 1 }]
+    })).toBe(true);
   });
 
   it('creates a replace operation covering the complete document canvas', () => {

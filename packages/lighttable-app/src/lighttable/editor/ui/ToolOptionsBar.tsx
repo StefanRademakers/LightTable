@@ -19,6 +19,7 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'select-rectangle': 'Rectangular selection',
   'select-ellipse': 'Elliptical selection',
   'select-free': 'Free selection',
+  'select-polygonal': 'Polygonal selection',
   fill: 'Fill',
   brush: 'Brush',
   erase: 'Erase',

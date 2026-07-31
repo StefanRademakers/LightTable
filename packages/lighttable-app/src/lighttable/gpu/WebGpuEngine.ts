@@ -5,16 +5,18 @@ import type { AdvancedDecodedImage } from '../image-io/types';
 import { cloneAdjustments, createDefaultAdjustments } from '../types';
 import { buildCurveLut, CURVE_LUT_SIZE } from '../curves';
 import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
+import { LayerEffectRenderer } from '../effects/LayerEffectRenderer';
 import type { DepthAnalysisResult } from '../analysis/depth/types';
 import {
   layerIsLocked,
+  type AdjustmentLayer,
   type ImageDocument,
   type LayerId,
   type LayerNode,
   type Rect,
   type RasterLayer
 } from '../editor/document/documentTypes';
-import { findDocumentLayer, findRasterLayer } from '../editor/document/layerTree';
+import { findDocumentLayer, findRasterLayer, walkLayerTree } from '../editor/document/layerTree';
 import { layerStyleStackIsActive } from '../editor/styles/layerStyleDefaults';
 import type { BrushDab } from '../editor/tools/brush/strokeBuilder';
 import type { PaintChannel } from '../editor/session/editorSession';
@@ -39,6 +41,7 @@ import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
 import {
   cloneAdjustmentStack,
+  adjustmentStackHasOwner,
   createAdjustmentStackFromBasicAdjustments,
   type AdjustmentStack
 } from '../processing/adjustmentStack';
@@ -171,6 +174,7 @@ export class WebGpuEngine {
   private creativePipeline: GPURenderPipeline | null = null;
   private outputPipeline: GPURenderPipeline | null = null;
   private effectRuntime: DocumentEffectRuntime | null = null;
+  private layerEffectRenderer: LayerEffectRenderer | null = null;
   private displayResolvePipeline: GPURenderPipeline | null = null;
   private precisionSourceResolvePipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
@@ -326,6 +330,12 @@ export class WebGpuEngine {
       this.sampler,
       pipelines.vertexModule,
       this.adjustments,
+      effectCallbacks
+    );
+    this.layerEffectRenderer = new LayerEffectRenderer(
+      this.device,
+      this.sampler,
+      pipelines.vertexModule,
       effectCallbacks
     );
     this.displayResolvePipeline = pipelines.displayResolve;
@@ -860,7 +870,7 @@ export class WebGpuEngine {
       topId,
       bottomId,
       (encoder, source, layer) =>
-        this.adjustmentLayerRenderer.encode(encoder, source, layer)
+        this.encodeLayerProcessing(encoder, source, layer)
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
@@ -872,7 +882,7 @@ export class WebGpuEngine {
       layerIds,
       destinationId,
       (encoder, source, layer) =>
-        this.adjustmentLayerRenderer.encode(encoder, source, layer)
+        this.encodeLayerProcessing(encoder, source, layer)
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
@@ -884,7 +894,7 @@ export class WebGpuEngine {
       groupId,
       destinationId,
       (encoder, source, layer) =>
-        this.adjustmentLayerRenderer.encode(encoder, source, layer)
+        this.encodeLayerProcessing(encoder, source, layer)
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
@@ -895,7 +905,7 @@ export class WebGpuEngine {
       document,
       destinationId,
       (encoder, source, layer) =>
-        this.adjustmentLayerRenderer.encode(encoder, source, layer)
+        this.encodeLayerProcessing(encoder, source, layer)
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
@@ -911,6 +921,24 @@ export class WebGpuEngine {
     this.renderDirty.invalidate('document');
     this.scopeEngine?.markImageDirty();
     this.requestRender();
+  }
+
+  /**
+   * Canonical per-layer processing order used by both interactive compositing
+   * and every command that bakes pixels. Keeping this in one place prevents a
+   * merge/flatten operation from silently dropping Lens Fx or changing order.
+   */
+  private encodeLayerProcessing(
+    encoder: GPUCommandEncoder,
+    source: GPUTexture,
+    layer: AdjustmentLayer | RasterLayer
+  ): GPUTexture {
+    const graded = adjustmentStackHasOwner(layer.adjustmentStack, 'grade')
+      ? this.adjustmentLayerRenderer.encode(encoder, source, layer)
+      : source;
+    return adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx')
+      ? this.layerEffectRenderer?.encode(encoder, graded, layer) ?? graded
+      : graded;
   }
 
   private createImageResources(width: number, height: number) {
@@ -953,6 +981,7 @@ export class WebGpuEngine {
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     });
     this.effectRuntime.resize(width, height);
+    this.layerEffectRenderer?.resize(width, height);
     this.finalTexture = this.device.createTexture({
       label: 'LightTable display-encoded result',
       size: [width, height],
@@ -1376,8 +1405,16 @@ export class WebGpuEngine {
         encoder,
         this.imageDocument,
         (layerEncoder, source, layer) =>
-          this.adjustmentLayerRenderer.encode(layerEncoder, source, layer)
+          this.encodeLayerProcessing(layerEncoder, source, layer)
       );
+      this.layerEffectRenderer?.syncOwners(new Set(
+        walkLayerTree(this.imageDocument.layers)
+          .filter(({ node }) =>
+            (node.type === 'raster' || node.type === 'adjustment')
+            && adjustmentStackHasOwner(node.adjustmentStack, 'lens-fx')
+          )
+          .map(({ node }) => node.id)
+      ));
       const sourceGeometryTexture = this.effectRuntime.encodeSourceGeometry(encoder, documentTexture);
       const visualizingDepth = Boolean(
         this.adjustments.effects.lensBlur.enabled &&
@@ -1558,6 +1595,8 @@ export class WebGpuEngine {
     this.curveTexture?.destroy();
     this.effectRuntime?.destroy();
     this.effectRuntime = null;
+    this.layerEffectRenderer?.destroy();
+    this.layerEffectRenderer = null;
     this.documentRenderer?.destroy();
     this.documentRenderer = null;
   }
@@ -1569,6 +1608,7 @@ export class WebGpuEngine {
     this.imageDocument = null;
     this.scopeEngine?.clearTextures();
     this.effectRuntime?.destroyImageResources();
+    this.layerEffectRenderer?.destroyImageResources();
     this.imageResources.reset();
   }
 }

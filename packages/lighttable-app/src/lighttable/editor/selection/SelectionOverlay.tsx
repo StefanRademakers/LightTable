@@ -48,7 +48,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
       }));
       if (!points.length) return false;
       shapeContext.beginPath();
-      if (selectionShape.kind === 'free') {
+      if (selectionShape.kind === 'free' || selectionShape.kind === 'polygon') {
         if (points.length < 3) return false;
         shapeContext.moveTo(points[0].x, points[0].y);
         points.slice(1).forEach((point) => shapeContext.lineTo(point.x, point.y));
@@ -150,15 +150,25 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     }));
     if (!points.length) return null;
     const className = 'lighttable-selection__shape lighttable-selection__shape--draft';
-    if (shape.kind === 'free') {
+    if (shape.kind === 'free' || shape.kind === 'polygon') {
       const path = points
         .map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`)
         .join(' ');
       return (
-        <path
-          className={className}
-          d={`${path}${points.length > 2 ? ' Z' : ''}`}
-        />
+        <>
+          <path
+            className={className}
+            d={shape.kind === 'free' && points.length > 2 ? `${path} Z` : path}
+          />
+          {shape.kind === 'polygon' && points.length ? (
+            <circle
+              className={`${className} lighttable-selection__polygon-origin`}
+              cx={points[0].x}
+              cy={points[0].y}
+              r="4"
+            />
+          ) : null}
+        </>
       );
     }
     if (points.length < 2) return null;

@@ -9,7 +9,7 @@ export const BRUSH_SIZE_STEPS = [
   500, 600, 700, 800, 900, 1000
 ] as const;
 
-export type SelectionShapeKind = 'rectangle' | 'ellipse' | 'free';
+export type SelectionShapeKind = 'rectangle' | 'ellipse' | 'free' | 'polygon';
 
 export const steppedBrushSize = (current: number, direction: -1 | 1): number => {
   if (direction > 0) {
@@ -36,5 +36,7 @@ export const selectionKindForTool = (tool: SelectionToolId): SelectionShapeKind 
       return 'ellipse';
     case 'select-free':
       return 'free';
+    case 'select-polygonal':
+      return 'polygon';
   }
 };

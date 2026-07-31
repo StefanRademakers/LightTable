@@ -171,6 +171,26 @@ describe('useLayerDocumentCommands', () => {
     expect(state.panelAdjustments().exposureEV).toBe(0);
   });
 
+  it('creates a Lens Fx layer with only Lens Fx modules above the active layer', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const backgroundId = state.document().activeLayerId;
+
+    expect(state.commands.createLensFxLayer()).toBe(true);
+
+    const layer = state.document().layers.at(-1);
+    expect(layer?.type).toBe('adjustment');
+    expect(layer?.name).toBe('Lens Fx');
+    if (layer?.type !== 'adjustment') throw new Error('Expected a Lens Fx layer.');
+    expect(layer.adjustmentStack.modules.some((module) =>
+      module.type === 'lt.lens-distortion'
+    )).toBe(true);
+    expect(layer.adjustmentStack.modules.some((module) =>
+      module.type === 'lt.light'
+    )).toBe(false);
+    expect(state.document().layers[0]?.id).toBe(backgroundId);
+    expect(state.historyEntries).toHaveLength(1);
+  });
+
   it('merges contiguous raster layers with recoverable pixel history', () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));
@@ -185,6 +205,46 @@ describe('useLayerDocumentCommands', () => {
     expect(state.renderer.applyPixelHistory).toHaveBeenCalledWith(
       expect.anything(),
       'undo'
+    );
+  });
+
+  it('merges the active raster layer down and reports the completed command', () => {
+    const first = createImageDocument('Test', 32, 24, 'asset');
+    const state = setup(createRasterLayer(first, 'Top'));
+
+    expect(state.commands.mergeActiveLayerDown()).toBe(true);
+
+    expect(state.document().layers).toHaveLength(1);
+    expect(state.dependencies.setStatus).toHaveBeenCalledWith('Layers merged');
+    expect(state.historyEntries).toHaveLength(1);
+  });
+
+  it('bakes an active Grade layer into the raster layer below with Ctrl+E semantics', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    expect(state.commands.createAdjustmentLayer()).toBe(true);
+    expect(state.document().layers.at(-1)?.type).toBe('adjustment');
+    const sourceIds = state.document().layers.map((layer) => layer.id);
+    const destinationId = sourceIds[0];
+
+    expect(state.commands.mergeActiveLayerDown()).toBe(true);
+
+    expect(state.renderer.mergeLayers).toHaveBeenLastCalledWith(
+      expect.anything(),
+      sourceIds,
+      destinationId
+    );
+    expect(state.document().layers).toHaveLength(1);
+    expect(state.document().layers[0]?.type).toBe('raster');
+    expect(state.historyEntries).toHaveLength(2);
+  });
+
+  it('explains why Merge Down cannot run instead of failing silently', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+
+    expect(state.commands.mergeActiveLayerDown()).toBe(false);
+
+    expect(state.dependencies.setError).toHaveBeenCalledWith(
+      'The active layer has no layer below it to merge with.'
     );
   });
 

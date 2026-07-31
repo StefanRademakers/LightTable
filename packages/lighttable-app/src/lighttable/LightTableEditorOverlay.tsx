@@ -916,7 +916,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           cancelAutoAlignRef.current();
           return;
         }
-        if (selectionSessionController.draft || editorSession.selection.length) {
+        if (selectionSessionController.draft) {
+          selectionSessionController.reset();
+          return;
+        }
+        if (editorSession.selection.length) {
           selectionSessionController.clear();
           return;
         }
@@ -1098,6 +1102,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     beginDocumentTransaction,
     endDocumentTransaction,
     createAdjustmentLayer: layerDocumentCommands.createAdjustmentLayer,
+    createLensFxLayer: layerDocumentCommands.createLensFxLayer,
     mergeActiveLayerDown,
     mergeSelectedRasterLayers,
     requestFlattenGroup: (groupId) =>
@@ -1149,6 +1154,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
     if (plan.finishTransform) transformSession.commit();
     if (plan.nextTool) {
+      if (
+        selectionSessionController.draft
+        && editorSession.activeTool !== plan.nextTool
+      ) {
+        selectionSessionController.reset();
+      }
       setEditorSession((current) => (
         current.activeTool === plan.nextTool
           ? current
@@ -1299,6 +1310,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onLockChange={layerPanelController.setLock}
         onCreate={layerPanelController.createRasterLayer}
         onCreateAdjustment={layerPanelController.createAdjustmentLayer}
+        onCreateLensFx={layerPanelController.createLensFxLayer}
         onCreateGroup={layerPanelController.createGroup}
         onGroupSelection={layerPanelController.groupSelection}
         onUngroupSelection={layerPanelController.ungroupSelection}
@@ -1310,6 +1322,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onEditStyles={layerPanelController.editStyles}
         onStyleStackEnabled={layerPanelController.setStyleStackEnabled}
         onLocalGradeEnabled={layerPanelController.setLocalGradeEnabled}
+        onLocalLensFxEnabled={layerPanelController.setLocalLensFxEnabled}
         onStyleEnabled={layerPanelController.setStyleEnabled}
         onClearStyles={layerPanelController.clearStyles}
       />

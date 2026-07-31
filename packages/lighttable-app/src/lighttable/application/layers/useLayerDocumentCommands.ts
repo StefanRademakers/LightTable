@@ -13,10 +13,10 @@ import {
   flattenImage,
   getFlattenGroupPlan,
   getFlattenImagePlan,
-  getMergeRasterLayersPlan,
+  getMergeLayersPlan,
   markLayerMaskPixelsChanged,
   markLayerPixelsChanged,
-  mergeRasterLayers
+  mergeLayers as mergeDocumentLayers
 } from '../../editor/document/documentCommands';
 import {
   findDocumentLayer,
@@ -28,6 +28,7 @@ import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import { selectionOperationsBounds } from '../../editor/tools/transform/selectionTransform';
 import {
+  adjustmentStackForOwner,
   adjustmentStackForScope,
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
@@ -99,6 +100,7 @@ export interface LayerDocumentCommandDependencies {
 export interface LayerDocumentCommands {
   duplicateActiveLayer(): boolean;
   createAdjustmentLayer(): boolean;
+  createLensFxLayer(): boolean;
   mergeSelectedRasterLayers(selectedLayerIds: LayerId[]): boolean;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
@@ -150,7 +152,7 @@ export const createLayerDocumentCommands = (
     return true;
   };
 
-  const createGradeAdjustmentLayer = () => {
+  const createProcessingLayer = (owner: 'grade' | 'lens-fx') => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
     const previousDocumentGrade = dependencies.getDocumentAdjustments?.();
@@ -163,25 +165,21 @@ export const createLayerDocumentCommands = (
       || !dependencies.publishPanelAdjustments
     ) return false;
 
-    // A new Grade Layer is always an explicit, neutral owner. It must never
-    // steal or duplicate the active raster layer's local grade.
-    const source = {
-      ...createDefaultAdjustments(),
-      effects: structuredClone(previousDocumentGrade.effects)
-    };
-    const stack = adjustmentStackForScope(
-      createAdjustmentStackFromBasicAdjustments(source),
-      'adjustment-layer'
+    // A processing layer starts neutral and owns exactly one category.
+    const source = createDefaultAdjustments();
+    const stack = adjustmentStackForOwner(
+      adjustmentStackForScope(
+        createAdjustmentStackFromBasicAdjustments(source),
+        'adjustment-layer'
+      ),
+      owner
     );
-    const clearedDocumentGrade = {
-      ...createDefaultAdjustments(),
-      effects: structuredClone(source.effects)
-    };
+    const clearedDocumentGrade = createDefaultAdjustments();
     const next = createAdjustmentLayer(
       current,
       stack,
-      'Grade',
-      current.layers.at(-1)?.id
+      owner === 'grade' ? 'Grade' : 'Lens Fx',
+      current.activeLayerId ?? undefined
     );
 
     dependencies.publishDocumentAdjustments(clearedDocumentGrade);
@@ -205,14 +203,17 @@ export const createLayerDocumentCommands = (
     return true;
   };
 
+  const createGradeAdjustmentLayer = () => createProcessingLayer('grade');
+  const createLensFxLayer = () => createProcessingLayer('lens-fx');
+
   const mergeSelectedRasterLayers = (selectedLayerIds: LayerId[]) => {
     const current = dependenciesRef.current.getDocument();
     const renderer = dependenciesRef.current.getRenderer();
     if (!current || !renderer) return false;
-    const plan = getMergeRasterLayersPlan(current, selectedLayerIds);
+    const plan = getMergeLayersPlan(current, selectedLayerIds);
     if (!plan) {
       dependenciesRef.current.setError(
-        'Merge Selected requires two or more contiguous raster layers in the same group.'
+        'Merge Selected requires contiguous raster or processing layers with a raster layer at the bottom.'
       );
       return false;
     }
@@ -232,7 +233,7 @@ export const createLayerDocumentCommands = (
       );
       return false;
     }
-    const next = mergeRasterLayers(current, plan.layerIds);
+    const next = mergeDocumentLayers(current, plan.layerIds);
     dependenciesRef.current.applyDocumentSnapshot(next);
     dependenciesRef.current.pushHistoryEntry({
       byteSize: pixelEdit.byteSize,
@@ -258,14 +259,27 @@ export const createLayerDocumentCommands = (
 
   const mergeActiveLayerDown = () => {
     const current = dependenciesRef.current.getDocument();
-    if (!current?.activeLayerId) return false;
+    if (!current?.activeLayerId) {
+      dependenciesRef.current.setError('Select a layer with a raster layer directly below it.');
+      return false;
+    }
     const siblings = siblingLayers(current, current.activeLayerId);
     const index = siblings.findIndex((layer) => layer.id === current.activeLayerId);
-    if (index <= 0) return false;
+    if (index <= 0) {
+      dependenciesRef.current.setError('The active layer has no layer below it to merge with.');
+      return false;
+    }
     const top = siblings[index];
     const bottom = siblings[index - 1];
-    if (top?.type !== 'raster' || bottom?.type !== 'raster') return false;
-    return mergeSelectedRasterLayers([bottom.id, top.id]);
+    if (top?.type === 'group' || bottom?.type !== 'raster') {
+      dependenciesRef.current.setError(
+        'Merge Down requires a raster layer directly below the active raster, Grade, or Lens Fx layer.'
+      );
+      return false;
+    }
+    const merged = mergeSelectedRasterLayers([bottom.id, top.id]);
+    if (merged) dependenciesRef.current.setStatus('Layers merged');
+    return merged;
   };
 
   const flatten = (request: FlattenRequest) => {
@@ -595,6 +609,7 @@ export const createLayerDocumentCommands = (
   return {
     duplicateActiveLayer,
     createAdjustmentLayer: createGradeAdjustmentLayer,
+    createLensFxLayer,
     mergeSelectedRasterLayers,
     mergeActiveLayerDown,
     flatten,

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultAdjustments } from '../types';
 import {
+  adjustmentStackForOwner,
   adjustmentStackForScope,
+  adjustmentStackOwnerIsEnabled,
   cloneAdjustmentStack,
   createAdjustmentStackFromBasicAdjustments,
-  materializeBasicAdjustments
+  materializeBasicAdjustments,
+  setAdjustmentStackOwnerEnabled
 } from './adjustmentStack';
 
 const sequentialIds = () => {
@@ -89,7 +92,7 @@ describe('LightTable adjustment stacks', () => {
     expect(serialized).toEqual(updated);
   });
 
-  it('keeps document-only lens and output effects out of adjustment layers', () => {
+  it('supports Lens Fx as the same ordered stack shape on Adjustment Layers', () => {
     const settings = createDefaultAdjustments();
     settings.exposureEV = 1.5;
     settings.effects.grain.enabled = true;
@@ -100,8 +103,31 @@ describe('LightTable adjustment stacks', () => {
     );
 
     expect(stack.modules.some((module) => module.type === 'lt.light')).toBe(true);
-    expect(stack.modules.some((module) => module.type === 'lt.grain')).toBe(false);
-    expect(stack.modules.some((module) => module.type === 'lt.halation')).toBe(false);
+    expect(stack.modules.some((module) => module.type === 'lt.grain')).toBe(true);
+    expect(stack.modules.some((module) => module.type === 'lt.halation')).toBe(true);
     expect(materializeBasicAdjustments(stack).exposureEV).toBe(1.5);
+  });
+
+  it('keeps Grade and Lens Fx ownership and bypass independent', () => {
+    const settings = createDefaultAdjustments();
+    settings.exposureEV = 1.5;
+    settings.effects.lensDistortion.enabled = true;
+    const full = adjustmentStackForScope(
+      createAdjustmentStackFromBasicAdjustments(settings, undefined, sequentialIds()),
+      'layer'
+    );
+    const grade = adjustmentStackForOwner(full, 'grade');
+    const lens = adjustmentStackForOwner(full, 'lens-fx');
+
+    expect(grade.modules.some((module) => module.type === 'lt.light')).toBe(true);
+    expect(grade.modules.some((module) => module.type === 'lt.lens-distortion')).toBe(false);
+    expect(lens.modules.some((module) => module.type === 'lt.light')).toBe(false);
+    expect(lens.modules.some((module) => module.type === 'lt.lens-distortion')).toBe(true);
+
+    const lensBypassed = setAdjustmentStackOwnerEnabled(full, 'lens-fx', false);
+    expect(adjustmentStackOwnerIsEnabled(lensBypassed, 'grade')).toBe(true);
+    expect(adjustmentStackOwnerIsEnabled(lensBypassed, 'lens-fx')).toBe(false);
+    expect(materializeBasicAdjustments(lensBypassed).exposureEV).toBe(1.5);
+    expect(materializeBasicAdjustments(lensBypassed).effects.lensDistortion.enabled).toBe(false);
   });
 });

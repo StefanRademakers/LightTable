@@ -13,7 +13,7 @@ import {
 import {
   getFlattenGroupPlan,
   getFlattenImagePlan,
-  getMergeRasterLayersPlan
+  getMergeLayersPlan
 } from '../../editor/document/documentCommands';
 
 export interface LayerCommandCapabilities {
@@ -70,9 +70,9 @@ export const queryLayerCommandCapabilities = (
     canUngroupSelection: selectedEntries.some((entry) => entry.node.type === 'group'),
     canToggleActiveClipping: Boolean(activeLayer?.clipping || activeIndex > 0),
     canMergeDown: activeIndex > 0
-      && activeSiblings[activeIndex]?.type === 'raster'
+      && activeSiblings[activeIndex]?.type !== 'group'
       && activeSiblings[activeIndex - 1]?.type === 'raster',
-    canMergeSelected: Boolean(getMergeRasterLayersPlan(document, selectedLayerIds)),
+    canMergeSelected: Boolean(getMergeLayersPlan(document, selectedLayerIds)),
     canFlattenActiveGroup: activeLayer?.type === 'group'
       && Boolean(getFlattenGroupPlan(document, activeLayer.id)),
     canFlattenImage: Boolean(getFlattenImagePlan(document))

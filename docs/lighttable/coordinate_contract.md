@@ -3,6 +3,10 @@
 Status: authoritative contract for raster layers, linked raster masks, painting
 and affine transforms.
 
+Document coordinates are intentionally not bounded by the pixel canvas. See
+`canvas_bounds_and_unbounded_editor_space.md` for the authoring-space and
+canvas-clipping contract.
+
 ## Spaces
 
 - **Screen space**: CSS pixels in the editor window.

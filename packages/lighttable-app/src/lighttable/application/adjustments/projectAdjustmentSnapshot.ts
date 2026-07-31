@@ -1,8 +1,11 @@
 import {
+  adjustmentModuleBelongsToOwner,
   adjustmentStackForScope,
+  adjustmentStackHasOwner,
+  adjustmentStackOwnerHasAuthoredSettings,
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
-import type { BasicAdjustments } from '../../types';
+import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
 import type {
   ImageDocument,
   LayerId
@@ -26,13 +29,11 @@ export interface AdjustmentProjection {
 }
 
 /**
- * Projects editor controls onto an explicit local raster grade or one
- * Adjustment Layer without hidden document-wide creative state.
+ * Projects Grade and Lens Fx onto their explicit layer owner.
  *
- * Lens Fx remain document-output settings while editing an Adjustment Layer;
- * the layer receives only its typed adjustment stack. A stale/missing target
- * is rejected explicitly because silently applying it as a document grade
- * would change both render order and persisted meaning.
+ * Both categories share the typed processing stack and layer ordering, but
+ * presence and bypass remain independent. An untouched category is never
+ * manufactured merely because the other category changed.
  */
 export const projectAdjustmentSnapshot = ({
   snapshot,
@@ -51,21 +52,24 @@ export const projectAdjustmentSnapshot = ({
   if (target?.type !== 'adjustment' && target?.type !== 'raster') {
     throw new Error('The selected layer cannot own a grade.');
   }
-  const nextDocumentAdjustments: BasicAdjustments = {
-    ...documentAdjustments,
-    effects: structuredClone(editorAdjustments.effects)
-  };
-  const nextStack = adjustmentStackForScope(
+  const generatedStack = adjustmentStackForScope(
     createAdjustmentStackFromBasicAdjustments(
       editorAdjustments,
       target.adjustmentStack ?? undefined
     ),
-    // The current panel is a grade editor. Lens Fx keep their document-output
-    // owner until their own explicit layer/local-stack renderer is introduced.
-    // Filtering through adjustment-layer stores creative modules only, even
-    // when the owner itself is a raster layer.
-    'adjustment-layer'
+    target.type === 'adjustment' ? 'adjustment-layer' : 'layer'
   );
+  const owners = (['grade', 'lens-fx'] as const).filter((owner) =>
+    Boolean(target.adjustmentStack && adjustmentStackHasOwner(target.adjustmentStack, owner))
+    || adjustmentStackOwnerHasAuthoredSettings(editorAdjustments, owner)
+  );
+  const nextStack = {
+    ...generatedStack,
+    modules: generatedStack.modules.filter((module) =>
+      owners.some((owner) => adjustmentModuleBelongsToOwner(module.type, owner))
+    )
+  };
+  const nextDocumentAdjustments = createDefaultAdjustments();
   return {
     editorAdjustments,
     documentAdjustments: nextDocumentAdjustments,

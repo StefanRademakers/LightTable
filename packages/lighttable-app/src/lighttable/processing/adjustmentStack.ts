@@ -1,5 +1,6 @@
 import { cloneAdjustments, createDefaultAdjustments, type BasicAdjustments } from '../types';
 import {
+  type ProcessingModuleCategory,
   type CurrentAdjustmentSettingsPath,
   type ProcessingScope
 } from './moduleDefinitions';
@@ -23,6 +24,92 @@ export interface AdjustmentStack {
   revision: number;
   modules: AdjustmentModuleInstance[];
 }
+
+export type AdjustmentStackOwner = 'grade' | 'lens-fx';
+
+const ownerIncludesCategory = (
+  owner: AdjustmentStackOwner,
+  category: ProcessingModuleCategory
+) => owner === 'grade'
+  ? category === 'tone' || category === 'color' || category === 'spatial'
+  : category === 'lens' || category === 'output';
+
+export const adjustmentModuleBelongsToOwner = (
+  type: string,
+  owner: AdjustmentStackOwner,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): boolean => {
+  const definition = registry.definition(type);
+  return Boolean(definition && ownerIncludesCategory(owner, definition.category));
+};
+
+export const adjustmentStackHasOwner = (
+  stack: AdjustmentStack | null | undefined,
+  owner: AdjustmentStackOwner,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): boolean => Boolean(stack?.modules.some((module) =>
+  adjustmentModuleBelongsToOwner(module.type, owner, registry)
+));
+
+export const adjustmentStackOwnerIsEnabled = (
+  stack: AdjustmentStack,
+  owner: AdjustmentStackOwner,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): boolean => stack.modules.some((module) =>
+  module.enabled && adjustmentModuleBelongsToOwner(module.type, owner, registry)
+);
+
+export const setAdjustmentStackOwnerEnabled = (
+  stack: AdjustmentStack,
+  owner: AdjustmentStackOwner,
+  enabled: boolean,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): AdjustmentStack => {
+  let changed = false;
+  const modules = stack.modules.map((module) => {
+    if (
+      !adjustmentModuleBelongsToOwner(module.type, owner, registry)
+      || module.enabled === enabled
+    ) return module;
+    changed = true;
+    return {
+      ...module,
+      enabled,
+      revision: module.revision + 1
+    };
+  });
+  if (!changed) return stack;
+  return {
+    ...cloneAdjustmentStack(stack),
+    revision: stack.revision + 1,
+    modules
+  };
+};
+
+export const adjustmentStackForOwner = (
+  stack: AdjustmentStack,
+  owner: AdjustmentStackOwner,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): AdjustmentStack => ({
+  ...cloneAdjustmentStack(stack),
+  modules: stack.modules.filter((module) =>
+    adjustmentModuleBelongsToOwner(module.type, owner, registry)
+  )
+});
+
+export const adjustmentStackOwnerHasAuthoredSettings = (
+  adjustments: BasicAdjustments,
+  owner: AdjustmentStackOwner,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): boolean => {
+  const defaults = createDefaultAdjustments();
+  return registry.definitions().some((definition) =>
+    ownerIncludesCategory(owner, definition.category)
+    && definition.settingsPaths.some((path) =>
+      !valuesEqual(readSetting(adjustments, path), readSetting(defaults, path))
+    )
+  );
+};
 
 export type AdjustmentIdFactory = (kind: 'stack' | 'module') => string;
 

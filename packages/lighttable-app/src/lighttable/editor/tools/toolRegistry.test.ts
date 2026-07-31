@@ -13,7 +13,8 @@ describe('toolRegistry', () => {
       'erase',
       'select-rectangle',
       'select-ellipse',
-      'select-free'
+      'select-free',
+      'select-polygonal'
     ];
     expect(new Set(TOOL_DEFINITIONS.map(({ id }) => id))).toEqual(new Set(expected));
     expect(TOOL_DEFINITIONS).toHaveLength(expected.length);
@@ -22,6 +23,8 @@ describe('toolRegistry', () => {
   it('resolves modifier-sensitive shortcuts', () => {
     expect(toolForShortcut('m', false)).toBe('select-rectangle');
     expect(toolForShortcut('M', true)).toBe('select-ellipse');
+    expect(toolForShortcut('l', false)).toBe('select-free');
+    expect(toolForShortcut('L', true)).toBe('select-polygonal');
     expect(toolForShortcut('b', false)).toBe('brush');
     expect(toolForShortcut('b', true)).toBe('brush');
     expect(toolForShortcut('v', false)).toBe('transform');

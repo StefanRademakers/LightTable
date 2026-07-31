@@ -16,7 +16,7 @@ describe('evaluateAdjustmentStack', () => {
     expect(evaluation.steps.at(-1)?.definition.type).toBe('lt.grain');
   });
 
-  it('bypasses disabled and out-of-scope modules exactly', () => {
+  it('bypasses disabled modules while retaining in-scope layer Lens Fx', () => {
     const settings = createDefaultAdjustments();
     settings.exposureEV = 2;
     settings.effects.grain.enabled = true;
@@ -27,9 +27,9 @@ describe('evaluateAdjustmentStack', () => {
 
     const evaluation = evaluateAdjustmentStack(stack, { scope: 'layer' });
     expect(evaluation.steps.some(({ definition }) => definition.type === 'lt.light')).toBe(false);
-    expect(evaluation.steps.some(({ definition }) => definition.type === 'lt.grain')).toBe(false);
+    expect(evaluation.steps.some(({ definition }) => definition.type === 'lt.grain')).toBe(true);
     expect(evaluation.adjustments.exposureEV).toBe(0);
-    expect(evaluation.adjustments.effects.grain.enabled).toBe(false);
+    expect(evaluation.adjustments.effects.grain.enabled).toBe(true);
   });
 
   it('ignores unknown serialized modules', () => {

@@ -52,16 +52,16 @@ describe('LightTable processing module inventory', () => {
     });
   });
 
-  it('keeps Lens Fx and display grain out of adjustment layers', () => {
-    const restricted = CURRENT_PROCESSING_MODULES.filter((definition) =>
+  it('allows Lens Fx owners on layers and Adjustment Layers', () => {
+    const lensFx = CURRENT_PROCESSING_MODULES.filter((definition) =>
       ['lens', 'output'].includes(definition.category)
     );
-    restricted.forEach((definition) => {
-      expect(definition.allowedScopes).not.toContain('adjustment-layer');
+    lensFx.forEach((definition) => {
+      expect(definition.allowedScopes).toContain('layer');
+      expect(definition.allowedScopes).toContain('adjustment-layer');
     });
     const grain = CURRENT_PROCESSING_MODULES.find((definition) => definition.type === 'lt.grain');
     expect(grain?.inputDomain).toBe('display-referred');
-    expect(grain?.allowedScopes).toEqual(['document-creative', 'document-output']);
+    expect(grain?.allowedScopes).toContain('document-output');
   });
 });
-
