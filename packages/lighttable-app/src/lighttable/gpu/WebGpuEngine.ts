@@ -983,7 +983,7 @@ export class WebGpuEngine {
   }
 
   resizeScopes() {
-    this.scopeRuntime.resize();
+    if (!this.scopeRuntime.resize()) return;
     this.requestRender();
   }
 

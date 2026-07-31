@@ -16,6 +16,7 @@ import {
   VECTOR_SCOPE_DISPLAY_WGSL
 } from './scopeShaders';
 import { InteractiveRefreshGate } from '../application/rendering/interactiveRefreshGate';
+import { resolveScopeCanvasSize } from '../application/rendering/scopeCanvasSize';
 
 const PARADE_BIN_BYTES = 3 * 256 * 256 * Uint32Array.BYTES_PER_ELEMENT;
 const VECTOR_BIN_BYTES = 256 * 256 * Uint32Array.BYTES_PER_ELEMENT;
@@ -373,8 +374,26 @@ export class WebGpuScopeEngine {
     this.analysisDirty = true;
   }
 
-  resize() {
-    this.displayDirty = true;
+  resize(): boolean {
+    if (this.destroyed || this.failed) return false;
+    let changed = false;
+    const synchronize = (canvas: HTMLCanvasElement | undefined) => {
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const size = resolveScopeCanvasSize(rect.width, rect.height, window.devicePixelRatio);
+      if (!size || (canvas.width === size.width && canvas.height === size.height)) return;
+      canvas.width = size.width;
+      canvas.height = size.height;
+      changed = true;
+    };
+    if (this.options.hueDistributionVisible) {
+      synchronize(this.canvases.hueDistribution);
+      synchronize(this.canvases.colorMixerHueDistribution);
+    }
+    if (this.options.paradeVisible) synchronize(this.canvases.parade);
+    if (this.options.vectorscopeVisible) synchronize(this.canvases.vectorscope);
+    if (changed) this.displayDirty = true;
+    return changed;
   }
 
   hasVisibleScopes() {
@@ -534,15 +553,7 @@ export class WebGpuScopeEngine {
     bindGroup: GPUBindGroup | null
   ) {
     if (!pipeline || !bindGroup) return;
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1) return;
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const width = Math.max(1, Math.round(rect.width * dpr));
-    const height = Math.max(1, Math.round(rect.height * dpr));
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
+    if (canvas.width < 1 || canvas.height < 1) return;
     const pass = encoder.beginRenderPass({
       label: 'LightTable scope display',
       colorAttachments: [{

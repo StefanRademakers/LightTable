@@ -78,8 +78,8 @@ export class DocumentScopeRuntime {
     this.engine?.markImageDirty();
   }
 
-  resize(): void {
-    this.engine?.resize();
+  resize(): boolean {
+    return this.engine?.resize() ?? false;
   }
 
   encode(encoder: GPUCommandEncoder): void {

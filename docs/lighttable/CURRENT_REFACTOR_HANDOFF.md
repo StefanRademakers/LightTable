@@ -134,6 +134,12 @@ before GPU buffer uploads, effect invalidation, scope work or frame scheduling.
 The effect runtime owns transient Lens Blur state and replays it when a node is
 recreated, so this optimization preserves correctness across stack changes.
 
+Scope canvas backing sizes are now synchronized at the resize boundary.
+Repeated ResizeObserver notifications that resolve to identical WebGPU pixel
+dimensions no longer request display frames, and ordinary scope renders no
+longer read DOM layout. Scope analysis is deliberately unaffected by a
+display-only resize.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in
