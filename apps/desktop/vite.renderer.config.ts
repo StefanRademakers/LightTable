@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { fileURLToPath, URL } from 'node:url';
 
 const isolationHeaders = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -9,6 +10,20 @@ const isolationHeaders = {
 };
 
 export default defineConfig({
+  // Keep the Electron renderer on the same first-party source/HMR graph as
+  // the web host. CSS edits in @lighttable/app then update without restarting
+  // Electron or recreating the active document.
+  resolve: {
+    alias: {
+      '@lighttable/app': fileURLToPath(
+        new URL('../../packages/lighttable-app/src/index.ts', import.meta.url)
+      )
+    },
+    dedupe: ['react', 'react-dom']
+  },
+  optimizeDeps: {
+    exclude: ['@lighttable/app']
+  },
   server: {
     // StoryBuilder commonly owns 5173 during adapter development. A fixed,
     // strict desktop port prevents Electron from silently navigating to that
@@ -35,14 +50,6 @@ export default defineConfig({
       }
     }
   ],
-  // @lighttable/app is workspace source, not a precompiled third-party
-  // dependency. Vite's dependency optimizer cannot preserve its
-  // import.meta.glob icon registry, which leaves the dev build with an empty
-  // icon map. Transform it as application source so HMR and asset URLs behave
-  // exactly like the production bundle.
-  optimizeDeps: {
-    exclude: ['@lighttable/app']
-  },
   worker: {
     format: 'es'
   }

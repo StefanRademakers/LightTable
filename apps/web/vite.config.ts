@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath, URL } from 'node:url';
 
 const isolationHeaders = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -10,9 +11,17 @@ const isolationHeaders = {
 
 export default defineConfig({
   plugins: [react()],
-  // @lighttable/app contains Vite-owned assets and module workers. Treat the
-  // workspace package as application source so worker URLs stay valid in dev,
-  // just as they do in the production bundle and the Electron renderer.
+  // Resolve the workspace package as first-party source. Besides preserving
+  // Vite-owned workers and asset globs, this keeps package CSS in the HMR graph
+  // instead of hiding it behind npm's node_modules junction.
+  resolve: {
+    alias: {
+      '@lighttable/app': fileURLToPath(
+        new URL('../../packages/lighttable-app/src/index.ts', import.meta.url)
+      )
+    },
+    dedupe: ['react', 'react-dom']
+  },
   optimizeDeps: {
     exclude: ['@lighttable/app']
   },

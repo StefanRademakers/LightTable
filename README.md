@@ -20,7 +20,10 @@ npm run package:desktop
 
 Vite hot-updates the standalone web editor. Electron Forge hot-updates renderer
 code and CSS; changes to Electron main/preload or packaging require restarting
-the desktop process.
+the desktop process. Both dev hosts resolve `@lighttable/app` directly to the
+workspace source, so edits to `theme.css`, `primitives.css`, `lighttable.css`
+and host CSS are applied without rebuilding or recreating the open document.
+After changing a Vite config itself, restart that dev host once.
 
 During the extraction, run `npm run dev:lighttable` from
 `D:\mediavibe\StoryBuilderOnline\client` to use this checkout directly inside
