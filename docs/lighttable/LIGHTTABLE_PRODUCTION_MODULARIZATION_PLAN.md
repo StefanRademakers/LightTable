@@ -1099,6 +1099,10 @@ Progress:
       bypass reasons and fails loudly for installed nodes without executors.
 - [x] Route document and adjustment-layer grade evaluation through the shared
       processing evaluator while retaining the current combined shader.
+- [x] Give document-level grading one canonical state owner that atomically
+      retains the editable adjustment stack and its materialized shader input.
+      Incoming and outgoing stacks are cloned, so document switches and host
+      projections cannot share mutable grade state across renderer generations.
 - [x] Extract pure compositor sequencing for visible leaves, clipping chains,
       nested style detection and pass-through group envelopes.
 - [x] Centralize render-stage invalidation fan-out so viewport, view-mode,

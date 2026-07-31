@@ -1,5 +1,4 @@
 import type { BasicAdjustments, LightTableImageMetadata } from '../types';
-import { cloneAdjustments, createDefaultAdjustments } from '../types';
 import { buildCurveLut, CURVE_LUT_SIZE } from '../curves';
 import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
 import { LayerEffectRenderer } from '../effects/LayerEffectRenderer';
@@ -38,12 +37,10 @@ import { RenderDirtyState } from '../application/rendering/renderDirtyState';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
 import {
-  cloneAdjustmentStack,
   adjustmentStackHasOwner,
-  createAdjustmentStackFromBasicAdjustments,
   type AdjustmentStack
 } from '../processing/adjustmentStack';
-import { evaluateAdjustmentStack } from '../processing/adjustmentEvaluator';
+import { DocumentAdjustmentState } from '../processing/documentAdjustmentState';
 import type { WebGpuScopeOptions } from './WebGpuScopeEngine';
 import {
   requestSharedWebGpuDevice,
@@ -87,6 +84,7 @@ export class WebGpuEngine {
   private readonly renderScheduler: RenderInvalidationScheduler;
   private readonly renderDirty = new RenderDirtyState();
   private readonly imageResources = new DocumentImageGpuResources();
+  private readonly adjustmentState = new DocumentAdjustmentState();
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -145,8 +143,6 @@ export class WebGpuEngine {
   private differencePipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
   private metadata: LightTableImageMetadata | null = null;
-  private adjustments = createDefaultAdjustments();
-  private adjustmentStack = createAdjustmentStackFromBasicAdjustments(this.adjustments);
   private before = false;
   private difference = false;
   private lensBlurDepthVisualization = false;
@@ -275,7 +271,7 @@ export class WebGpuEngine {
       this.device,
       this.sampler,
       pipelines.vertexModule,
-      this.adjustments,
+      this.adjustmentState.current,
       effectCallbacks
     );
     this.layerEffectRenderer = new LayerEffectRenderer(
@@ -853,29 +849,21 @@ export class WebGpuEngine {
   }
 
   setAdjustments(adjustments: BasicAdjustments) {
-    this.adjustmentStack = createAdjustmentStackFromBasicAdjustments(
-      adjustments,
-      this.adjustmentStack
-    );
-    this.applyMaterializedAdjustments(
-      evaluateAdjustmentStack(this.adjustmentStack, { scope: 'document-creative' }).adjustments
-    );
+    this.adjustmentState.replaceBasic(adjustments);
+    this.applyMaterializedAdjustments();
   }
 
   setAdjustmentStack(stack: AdjustmentStack) {
-    this.adjustmentStack = cloneAdjustmentStack(stack);
-    this.applyMaterializedAdjustments(
-      evaluateAdjustmentStack(this.adjustmentStack, { scope: 'document-creative' }).adjustments
-    );
+    this.adjustmentState.replaceStack(stack);
+    this.applyMaterializedAdjustments();
   }
 
   getAdjustmentStack() {
-    return cloneAdjustmentStack(this.adjustmentStack);
+    return this.adjustmentState.stackSnapshot();
   }
 
-  private applyMaterializedAdjustments(adjustments: BasicAdjustments) {
-    this.adjustments = cloneAdjustments(adjustments);
-    this.effectRuntime?.setAdjustmentStack(this.adjustmentStack);
+  private applyMaterializedAdjustments() {
+    this.effectRuntime?.setAdjustmentStack(this.adjustmentState.stackSnapshot());
     this.writeCurveLut();
     this.writeAdjustments();
     this.writeOutputSettings();
@@ -997,7 +985,7 @@ export class WebGpuEngine {
   private writeAdjustments() {
     if (!this.adjustmentBuffer) return;
     this.device.queue.writeBuffer(this.adjustmentBuffer, 0, buildAdjustmentUniform(
-      this.adjustments,
+      this.adjustmentState.current,
       this.metadata?.width ?? 1,
       this.metadata?.height ?? 1,
       Boolean(this.imageDocument)
@@ -1008,7 +996,7 @@ export class WebGpuEngine {
     if (!this.curveTexture) return;
     this.device.queue.writeTexture(
       { texture: this.curveTexture },
-      buildCurveLut(this.adjustments.curves),
+      buildCurveLut(this.adjustmentState.current.curves),
       { bytesPerRow: CURVE_LUT_SIZE * 4 * Float32Array.BYTES_PER_ELEMENT },
       { width: CURVE_LUT_SIZE, height: 1 }
     );
@@ -1016,9 +1004,9 @@ export class WebGpuEngine {
 
   private writeOutputSettings() {
     if (!this.outputSettingsBuffer) return;
-    const settings = calculateOutputTransformSettings(this.adjustments);
+    const settings = calculateOutputTransformSettings(this.adjustmentState.current);
     const visualizingDepth = Boolean(
-      this.adjustments.effects.lensBlur.enabled &&
+      this.adjustmentState.current.effects.lensBlur.enabled &&
       this.lensBlurDepthVisualization &&
       this.effectRuntime?.hasDepth
     );
@@ -1101,7 +1089,7 @@ export class WebGpuEngine {
       ));
       const sourceGeometryTexture = this.effectRuntime.encodeSourceGeometry(encoder, documentTexture);
       const visualizingDepth = Boolean(
-        this.adjustments.effects.lensBlur.enabled &&
+        this.adjustmentState.current.effects.lensBlur.enabled &&
         this.lensBlurDepthVisualization &&
         this.effectRuntime.hasDepth
       );
