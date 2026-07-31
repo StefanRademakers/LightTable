@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { BasicAdjustments } from '../../types';
 
 type AdjustmentListener = () => void;
+export type AdjustmentPresentationDomain = 'grade' | 'lens-fx' | 'all';
 
 /**
  * Document-scoped presentation store for the editor's current adjustment
@@ -12,6 +13,8 @@ type AdjustmentListener = () => void;
 export class AdjustmentPresentationStore {
   private snapshot: BasicAdjustments;
   private readonly listeners = new Set<AdjustmentListener>();
+  private readonly gradeListeners = new Set<AdjustmentListener>();
+  private readonly lensFxListeners = new Set<AdjustmentListener>();
 
   constructor(initialSnapshot: BasicAdjustments) {
     this.snapshot = initialSnapshot;
@@ -22,12 +25,31 @@ export class AdjustmentPresentationStore {
     return () => this.listeners.delete(listener);
   };
 
+  readonly subscribeGrade = (listener: AdjustmentListener): (() => void) => {
+    this.gradeListeners.add(listener);
+    return () => this.gradeListeners.delete(listener);
+  };
+
+  readonly subscribeLensFx = (listener: AdjustmentListener): (() => void) => {
+    this.lensFxListeners.add(listener);
+    return () => this.lensFxListeners.delete(listener);
+  };
+
   readonly getSnapshot = (): BasicAdjustments => this.snapshot;
 
-  publish(snapshot: BasicAdjustments): boolean {
+  publish(
+    snapshot: BasicAdjustments,
+    domain: AdjustmentPresentationDomain = 'all'
+  ): boolean {
     if (Object.is(snapshot, this.snapshot)) return false;
     this.snapshot = snapshot;
     this.listeners.forEach((listener) => listener());
+    if (domain === 'grade' || domain === 'all') {
+      this.gradeListeners.forEach((listener) => listener());
+    }
+    if (domain === 'lens-fx' || domain === 'all') {
+      this.lensFxListeners.forEach((listener) => listener());
+    }
     return true;
   }
 }
@@ -47,4 +69,20 @@ export const useAdjustmentPresentationSelector = <Value,>(
   store.subscribe,
   () => selector(store.getSnapshot()),
   () => selector(store.getSnapshot())
+);
+
+export const useGradePresentation = (
+  store: AdjustmentPresentationStore
+): BasicAdjustments => useSyncExternalStore(
+  store.subscribeGrade,
+  store.getSnapshot,
+  store.getSnapshot
+);
+
+export const useLensFxPresentation = (
+  store: AdjustmentPresentationStore
+): BasicAdjustments => useSyncExternalStore(
+  store.subscribeLensFx,
+  store.getSnapshot,
+  store.getSnapshot
 );

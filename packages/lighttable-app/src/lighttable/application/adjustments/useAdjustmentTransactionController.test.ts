@@ -22,10 +22,18 @@ const setup = () => {
     setScopeInteractionActive: vi.fn(),
     setLensBlurInteractionActive: vi.fn()
   };
-  const previewSnapshot = vi.fn((next: BasicAdjustments) => {
+  const previewSnapshot = vi.fn((
+    next: BasicAdjustments,
+    _targetLayerId: unknown,
+    _domain: unknown
+  ) => {
     adjustments = next;
   });
-  const commitSnapshot = vi.fn((next: BasicAdjustments) => {
+  const commitSnapshot = vi.fn((
+    next: BasicAdjustments,
+    _targetLayerId: unknown,
+    _domain: unknown
+  ) => {
     adjustments = next;
   });
   const dependencies: AdjustmentTransactionDependencies = {
@@ -75,6 +83,22 @@ describe('adjustment transaction controller', () => {
     expect(state.adjustments.contrast).toBe(0);
     state.history[0].redo();
     expect(state.adjustments.contrast).toBe(12);
+  });
+
+  it('preserves the owning presentation domain through preview and commit', () => {
+    const state = setup();
+    state.controller.begin();
+    state.controller.change((current) => ({
+      ...current,
+      effects: {
+        ...current.effects,
+        grain: { ...current.effects.grain, amount: 1.5 }
+      }
+    }), 'lens-fx');
+    state.controller.end();
+
+    expect(state.previewSnapshot.mock.calls[0]?.[2]).toBe('lens-fx');
+    expect(state.commitSnapshot.mock.calls[0]?.[2]).toBe('lens-fx');
   });
 
   it('rejects a pending interaction after a document switch', () => {

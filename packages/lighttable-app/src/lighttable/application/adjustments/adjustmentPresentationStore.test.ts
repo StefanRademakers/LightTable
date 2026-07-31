@@ -35,4 +35,48 @@ describe('AdjustmentPresentationStore', () => {
     store.publish({ ...initial, contrast: 10 });
     expect(listener).not.toHaveBeenCalled();
   });
+
+  it('notifies only the affected panel domain during an interactive preview', () => {
+    const initial = createDefaultAdjustments();
+    const store = new AdjustmentPresentationStore(initial);
+    const allListener = vi.fn();
+    const gradeListener = vi.fn();
+    const lensFxListener = vi.fn();
+    store.subscribe(allListener);
+    store.subscribeGrade(gradeListener);
+    store.subscribeLensFx(lensFxListener);
+
+    store.publish({ ...initial, exposureEV: 1 }, 'grade');
+
+    expect(allListener).toHaveBeenCalledOnce();
+    expect(gradeListener).toHaveBeenCalledOnce();
+    expect(lensFxListener).not.toHaveBeenCalled();
+
+    const gradeSnapshot = store.getSnapshot();
+    store.publish({
+      ...gradeSnapshot,
+      effects: {
+        ...gradeSnapshot.effects,
+        grain: { ...gradeSnapshot.effects.grain, amount: 1.5 }
+      }
+    }, 'lens-fx');
+
+    expect(allListener).toHaveBeenCalledTimes(2);
+    expect(gradeListener).toHaveBeenCalledOnce();
+    expect(lensFxListener).toHaveBeenCalledOnce();
+  });
+
+  it('notifies both panel domains for whole-grade replacement', () => {
+    const initial = createDefaultAdjustments();
+    const store = new AdjustmentPresentationStore(initial);
+    const gradeListener = vi.fn();
+    const lensFxListener = vi.fn();
+    store.subscribeGrade(gradeListener);
+    store.subscribeLensFx(lensFxListener);
+
+    store.publish(createDefaultAdjustments(), 'all');
+
+    expect(gradeListener).toHaveBeenCalledOnce();
+    expect(lensFxListener).toHaveBeenCalledOnce();
+  });
 });

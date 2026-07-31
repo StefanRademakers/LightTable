@@ -4,6 +4,7 @@ import {
   cloneAdjustments,
   type BasicAdjustments
 } from '../../types';
+import type { AdjustmentPresentationDomain } from './adjustmentPresentationStore';
 
 export interface AdjustmentHistoryEntry {
   undo(): void;
@@ -20,8 +21,16 @@ export interface AdjustmentTransactionDependencies {
   getAdjustments(): BasicAdjustments;
   getActiveTargetLayerId(): LayerId | null;
   getRenderer(): AdjustmentInteractionRendererPort | null;
-  previewSnapshot(adjustments: BasicAdjustments, targetLayerId: LayerId | null): void;
-  commitSnapshot(adjustments: BasicAdjustments, targetLayerId: LayerId | null): void;
+  previewSnapshot(
+    adjustments: BasicAdjustments,
+    targetLayerId: LayerId | null,
+    domain: AdjustmentPresentationDomain
+  ): void;
+  commitSnapshot(
+    adjustments: BasicAdjustments,
+    targetLayerId: LayerId | null,
+    domain: AdjustmentPresentationDomain
+  ): void;
   pushHistoryEntry(entry: AdjustmentHistoryEntry): void;
 }
 
@@ -30,13 +39,17 @@ export interface AdjustmentTransactionController {
   begin(): void;
   end(): void;
   reset(): void;
-  change(mutate: (current: BasicAdjustments) => BasicAdjustments): boolean;
+  change(
+    mutate: (current: BasicAdjustments) => BasicAdjustments,
+    domain?: AdjustmentPresentationDomain
+  ): boolean;
 }
 
 interface ActiveAdjustmentTransaction {
   documentId: DocumentId | null;
   targetLayerId: LayerId | null;
   before: BasicAdjustments;
+  domain: AdjustmentPresentationDomain;
 }
 
 const adjustmentsEqual = (left: BasicAdjustments, right: BasicAdjustments) =>
@@ -70,7 +83,7 @@ export const createAdjustmentTransactionController = (
     if (dependencies.getDocumentId() !== documentId) {
       throw new Error('The grade belongs to a different document.');
     }
-    dependencies.commitSnapshot(cloneAdjustments(adjustments), targetLayerId);
+    dependencies.commitSnapshot(cloneAdjustments(adjustments), targetLayerId, 'all');
   };
 
   const pushHistory = (
@@ -104,7 +117,7 @@ export const createAdjustmentTransactionController = (
     if (dependencies.getDocumentId() !== completed.documentId) return;
     const after = cloneAdjustments(dependencies.getAdjustments());
     if (!adjustmentsEqual(completed.before, after)) {
-      dependencies.commitSnapshot(after, completed.targetLayerId);
+      dependencies.commitSnapshot(after, completed.targetLayerId, completed.domain);
       pushHistory(
         completed.documentId,
         completed.before,
@@ -124,13 +137,14 @@ export const createAdjustmentTransactionController = (
       transaction = {
         documentId: dependencies.getDocumentId(),
         targetLayerId: dependencies.getActiveTargetLayerId(),
-        before: cloneAdjustments(dependencies.getAdjustments())
+        before: cloneAdjustments(dependencies.getAdjustments()),
+        domain: 'grade'
       };
       setInteractiveQuality(true);
     },
     end,
     reset,
-    change: (mutate) => {
+    change: (mutate, domain = 'grade') => {
       const dependencies = resolveDependencies();
       if (transaction && dependencies.getDocumentId() !== transaction.documentId) {
         reset();
@@ -143,9 +157,10 @@ export const createAdjustmentTransactionController = (
       const targetLayerId = transaction?.targetLayerId
         ?? dependencies.getActiveTargetLayerId();
       if (transaction) {
-        dependencies.previewSnapshot(next, targetLayerId);
+        transaction.domain = domain;
+        dependencies.previewSnapshot(next, targetLayerId, domain);
       } else {
-        dependencies.commitSnapshot(next, targetLayerId);
+        dependencies.commitSnapshot(next, targetLayerId, domain);
       }
       if (!transaction) {
         pushHistory(documentId, before, next, targetLayerId);

@@ -203,6 +203,14 @@ preparation; they are not asynchronous GPU execution timings. Use a capture
 before and after one isolated interaction on representative macOS hardware to
 decide the next optimization instead of adding speculative bypasses.
 
+Adjustment presentation is now split into explicit `grade` and `lens-fx`
+domains. The full immutable snapshot remains shared, but an interactive Lens
+Fx publication no longer wakes the large Grade panel tree, and a Grade slider
+no longer wakes Lens Fx. Whole-grade replacement commands such as reset and
+paste deliberately publish to both domains. This is a React/main-thread
+optimization, not a GPU bypass: renderer invalidation continues to follow the
+processing-node dependency graph and the existing dirty-stage caches.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in

@@ -8,13 +8,17 @@ import type {
   LayerId
 } from '../../editor/document/documentTypes';
 import type { BasicAdjustments } from '../../types';
+import type { AdjustmentPresentationDomain } from '../adjustments/adjustmentPresentationStore';
 
 export interface DocumentProjectionPort {
   getDocument(): ImageDocument | null;
   publishDocument(document: ImageDocument | null): void;
   getDocumentAdjustments(): BasicAdjustments;
   publishDocumentAdjustments(adjustments: BasicAdjustments): void;
-  publishEditorAdjustments(adjustments: BasicAdjustments): void;
+  publishEditorAdjustments(
+    adjustments: BasicAdjustments,
+    domain: AdjustmentPresentationDomain
+  ): void;
   getGroupVisibility(): GroupVisibility;
   publishGroupVisibility(visibility: GroupVisibility): void;
   publishRendererDocument(document: ImageDocument): void;
@@ -24,11 +28,13 @@ export interface DocumentProjectionPort {
 export interface DocumentProjectionController {
   previewAdjustmentSnapshot(
     snapshot: BasicAdjustments,
-    targetLayerId?: LayerId | null
+    targetLayerId?: LayerId | null,
+    domain?: AdjustmentPresentationDomain
   ): void;
   applyAdjustmentSnapshot(
     snapshot: BasicAdjustments,
-    targetLayerId?: LayerId | null
+    targetLayerId?: LayerId | null,
+    domain?: AdjustmentPresentationDomain
   ): void;
   applyDocumentSnapshot(document: ImageDocument): void;
   applyGroupVisibilitySnapshot(visibility: GroupVisibility): void;
@@ -56,7 +62,8 @@ export const createDocumentProjectionController = (
   const projectAdjustments = (
     snapshot: BasicAdjustments,
     targetLayerId: LayerId | null,
-    publishCanonicalDocument: boolean
+    publishCanonicalDocument: boolean,
+    domain: AdjustmentPresentationDomain
   ) => {
     const currentDocument = port.getDocument();
     const projection = projectAdjustmentSnapshot({
@@ -65,7 +72,7 @@ export const createDocumentProjectionController = (
       document: currentDocument,
       documentAdjustments: port.getDocumentAdjustments()
     });
-    port.publishEditorAdjustments(projection.editorAdjustments);
+    port.publishEditorAdjustments(projection.editorAdjustments, domain);
     if (publishCanonicalDocument) {
       port.publishDocumentAdjustments(projection.documentAdjustments);
       if (projection.document !== currentDocument) {
@@ -79,14 +86,15 @@ export const createDocumentProjectionController = (
   };
 
   return {
-    previewAdjustmentSnapshot: (snapshot, targetLayerId = null) => {
-      projectAdjustments(snapshot, targetLayerId, false);
+    previewAdjustmentSnapshot: (snapshot, targetLayerId = null, domain = 'all') => {
+      projectAdjustments(snapshot, targetLayerId, false, domain);
     },
     applyAdjustmentSnapshot: (
       snapshot,
-      targetLayerId = null
+      targetLayerId = null,
+      domain = 'all'
     ) => {
-      projectAdjustments(snapshot, targetLayerId, true);
+      projectAdjustments(snapshot, targetLayerId, true, domain);
     },
     applyDocumentSnapshot: (document) => {
       port.publishDocument(document);

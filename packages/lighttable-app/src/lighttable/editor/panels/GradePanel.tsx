@@ -24,7 +24,7 @@ import {
 } from '../../application/adjustments/groupVisibility';
 import {
   type AdjustmentPresentationStore,
-  useAdjustmentPresentation
+  useGradePresentation
 } from '../../application/adjustments/adjustmentPresentationStore';
 import {
   COLOR_SLIDERS,
@@ -177,7 +177,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
-  const adjustments = useAdjustmentPresentation(model.adjustmentStore);
+  const adjustments = useGradePresentation(model.adjustmentStore);
   const { metadata, visibility, resetModifierActive } = model;
 
   const setGroupExpanded = (group: GradeGroup, next: boolean) => {

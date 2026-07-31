@@ -23,7 +23,8 @@ import { useAdjustmentTransactionController } from './application/adjustments/us
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import {
   AdjustmentPresentationStore,
-  useAdjustmentPresentationSelector
+  useAdjustmentPresentationSelector,
+  type AdjustmentPresentationDomain
 } from './application/adjustments/adjustmentPresentationStore';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
@@ -277,9 +278,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   }
   const adjustmentPresentationStore = adjustmentPresentationStoreRef.current;
-  const publishAdjustmentPresentation = useCallback((next: BasicAdjustments) => {
+  const publishAdjustmentPresentation = useCallback((
+    next: BasicAdjustments,
+    domain: AdjustmentPresentationDomain = 'all'
+  ) => {
     adjustmentsRef.current = next;
-    adjustmentPresentationStore.publish(next);
+    adjustmentPresentationStore.publish(next, domain);
   }, [adjustmentPresentationStore]);
   const documentAdjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
@@ -441,8 +445,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       publishDocumentAdjustments: (nextAdjustments) => {
         documentAdjustmentsRef.current = nextAdjustments;
       },
-      publishEditorAdjustments: (nextAdjustments) => {
-        publishAdjustmentPresentation(nextAdjustments);
+      publishEditorAdjustments: (nextAdjustments, domain) => {
+        publishAdjustmentPresentation(nextAdjustments, domain);
       },
       getGroupVisibility: () => groupVisibilityRef.current,
       publishGroupVisibility: (visibility) => {

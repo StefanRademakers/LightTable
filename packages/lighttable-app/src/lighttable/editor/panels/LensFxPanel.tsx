@@ -21,7 +21,7 @@ import {
 import type { LightTableImageMetadata } from '../../types';
 import {
   type AdjustmentPresentationStore,
-  useAdjustmentPresentation
+  useLensFxPresentation
 } from '../../application/adjustments/adjustmentPresentationStore';
 import type {
   DepthAnalysisProgress,
@@ -116,7 +116,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
     lensDistortion: true,
     lensBlur: true
   });
-  const adjustments = useAdjustmentPresentation(model.adjustmentStore);
+  const adjustments = useLensFxPresentation(model.adjustmentStore);
   const { metadata, resetModifierActive } = model;
   const setGroupExpanded = (
     group: keyof LensFxExpandedState,

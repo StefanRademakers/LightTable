@@ -1708,3 +1708,6 @@ The refactor is successful when:
       state. Slider gestures now publish panel/WebGPU previews while deferring
       the canonical document-session update and single undo command until
       interaction completion.
+- [x] Split adjustment presentation subscriptions into Grade and Lens Fx
+      domains. High-frequency changes now reconcile only the owning panel;
+      reset/paste publications still invalidate both domains explicitly.

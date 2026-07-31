@@ -61,6 +61,7 @@ import type {
   LensBlurViewportMode,
   LensDistortionNumericKey
 } from '../../editor/config/adjustmentControls';
+import type { AdjustmentPresentationDomain } from './adjustmentPresentationStore';
 
 export interface AdjustmentCommandPorts {
   readonly beginAdjustment: () => void;
@@ -68,7 +69,8 @@ export interface AdjustmentCommandPorts {
   readonly beginLensBlurInteraction: () => void;
   readonly endLensBlurInteraction: () => void;
   readonly changeAdjustments: (
-    recipe: (current: BasicAdjustments) => BasicAdjustments
+    recipe: (current: BasicAdjustments) => BasicAdjustments,
+    domain?: AdjustmentPresentationDomain
   ) => void;
   readonly getAdjustments: () => BasicAdjustments;
   readonly getGroupVisibility: () => GroupVisibility;
@@ -161,7 +163,7 @@ export const createAdjustmentCommands = (
         ...current.effects,
         [effect]: recipe(current.effects[effect])
       }
-    }));
+    }), 'lens-fx');
   };
 
   const updateAdjustment = (key: NumericAdjustmentKey, value: number) => {
@@ -472,7 +474,7 @@ export const createAdjustmentCommands = (
 
   const resetAll = () => {
     ports.endAdjustment();
-    ports.changeAdjustments(() => createDefaultAdjustments());
+    ports.changeAdjustments(() => createDefaultAdjustments(), 'all');
   };
 
   const toggleGroupVisibility = (group: keyof GroupVisibility) => {
@@ -512,7 +514,7 @@ export const createAdjustmentCommands = (
 
   const pasteGrade = (name: string, settings: BasicAdjustments) => {
     ports.endAdjustment();
-    ports.changeAdjustments(() => settings);
+    ports.changeAdjustments(() => settings, 'all');
     ports.publishGradeStatus(`Loaded ${name}`);
   };
 
