@@ -69,6 +69,7 @@ import { GeometryPreviewStore } from './GeometryPreviewStore';
 import { documentPipelinesFor } from './DocumentPipelineBundle';
 import { LayerStylePipelineProvider } from './LayerStylePipelineProvider';
 import { LayerDocumentAssetService } from './LayerDocumentAssetService';
+import { LayerTextureCodec } from './LayerTextureCodec';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -93,13 +94,10 @@ const selectionModeValue: Record<SelectionMode, number> = {
   invert: 4,
   feather: 5
 };
-const LAYER_EXPORT_SETTINGS_FLOATS = 4;
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
   private readonly patternAssets = new PatternAssetStore();
   private readonly decodePipeline: GPURenderPipeline;
-  private readonly maskDecodePipeline: GPURenderPipeline;
-  private readonly exportPipeline: GPURenderPipeline;
   private readonly compositePipeline: GPURenderPipeline;
   private readonly adjustmentMixPipeline: GPURenderPipeline;
   private readonly layerStylePipeline: LayerStylePipelineProvider;
@@ -114,6 +112,7 @@ export class LayerDocumentRenderer {
   private readonly transformSessions = new TransformSessionStore();
   private readonly pixelEditSessions = new PixelEditSessionStore();
   private readonly documentAssets: LayerDocumentAssetService;
+  private readonly textureCodec: LayerTextureCodec;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -128,12 +127,15 @@ export class LayerDocumentRenderer {
     this.sampler = sampler;
     const pipelines = documentPipelinesFor(device);
     this.decodePipeline = pipelines.decode;
-    this.maskDecodePipeline = pipelines.maskDecode;
-    this.exportPipeline = pipelines.exportLayer;
     this.compositePipeline = pipelines.composite;
     this.adjustmentMixPipeline = pipelines.adjustmentMix;
     this.fullscreenModule = pipelines.fullscreenModule;
     this.styleShapePipeline = pipelines.styleShape;
+    this.textureCodec = new LayerTextureCodec(device, sampler, {
+      decode: pipelines.decode,
+      maskDecode: pipelines.maskDecode,
+      exportLayer: pipelines.exportLayer
+    });
     this.layerStylePipeline = new LayerStylePipelineProvider(device, this.fullscreenModule);
     this.layerResources = new LayerRuntimeStore({
       createRasterTexture: (label) => this.createTexture(label),
@@ -157,9 +159,19 @@ export class LayerDocumentRenderer {
     this.documentAssets = new LayerDocumentAssetService({
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
       maskTexture: (layerId) => this.maskTextureFor(layerId),
-      encodeTexture: (texture, maskChannel) => this.encodeTextureAsPng(texture, maskChannel),
-      decodeTexture: (blob, texture, maskChannel) =>
-        this.decodeBlobIntoTexture(blob, texture, maskChannel),
+      encodeTexture: (texture, maskChannel) =>
+        this.textureCodec.encode(texture, maskChannel, this.width, this.height),
+      decodeTexture: async (blob, texture, maskChannel) => {
+        const generation = this.resourceGeneration;
+        await this.textureCodec.decode(
+          blob,
+          texture,
+          maskChannel,
+          this.width,
+          this.height,
+          () => generation === this.resourceGeneration
+        );
+      },
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       patternSource: (patternId) => this.patternAssets.getSource(patternId),
       loadPattern: (asset) => this.loadPatternAsset(asset)
@@ -816,11 +828,11 @@ export class LayerDocumentRenderer {
     );
     const width = Math.max(1, Math.round(this.width * scale));
     const height = Math.max(1, Math.round(this.height * scale));
-    const blob = await this.withValidationScope(
-      maskChannel
-        ? 'LightTable mask thumbnail validation failed'
-        : 'LightTable layer thumbnail validation failed',
-      () => this.encodeTextureAsPngUnchecked(source, maskChannel, width, height)
+    const blob = await this.textureCodec.encode(
+      source,
+      maskChannel,
+      width,
+      height
     );
     return { blob, width, height };
   }
@@ -1598,7 +1610,7 @@ export class LayerDocumentRenderer {
         [crop.width, crop.height]
       );
       this.device.queue.submit([encoder.finish()]);
-      return await this.encodeTextureAsPngUnchecked(
+      return await this.textureCodec.encodeUnchecked(
         croppedTexture,
         false,
         crop.width,
@@ -1701,7 +1713,15 @@ export class LayerDocumentRenderer {
           'image/png'
         );
       });
-      await this.decodeBlobIntoTexture(normalized, destination.texture, false);
+      const generation = this.resourceGeneration;
+      await this.textureCodec.decode(
+        normalized,
+        destination.texture,
+        false,
+        this.width,
+        this.height,
+        () => generation === this.resourceGeneration
+      );
       this.invalidateStyledLayerCache(layerId);
       return true;
     } finally {
@@ -1862,131 +1882,6 @@ export class LayerDocumentRenderer {
       size: [Math.max(1, this.width), Math.max(1, this.height)],
       format: 'r8unorm',
       usage: textureUsage
-    });
-  }
-
-  private async decodeBlobIntoTexture(blob: Blob, destination: GPUTexture, maskChannel: boolean) {
-    const generation = this.resourceGeneration;
-    const decoded = await decodeNativeImage(blob);
-    const { bitmap } = decoded;
-    let encodedTexture: GPUTexture | null = null;
-    try {
-      if (generation !== this.resourceGeneration) throw new Error('LightTable was closed while restoring its layers.');
-      if (bitmap.width !== this.width || bitmap.height !== this.height) {
-        throw new Error('A saved layer does not match the LightTable document dimensions.');
-      }
-      encodedTexture = this.device.createTexture({
-        label: 'LightTable persisted layer source',
-        size: [this.width, this.height],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
-      });
-      this.device.queue.copyExternalImageToTexture({ source: bitmap }, { texture: encodedTexture }, [this.width, this.height]);
-      const pipeline = maskChannel ? this.maskDecodePipeline : this.decodePipeline;
-      const bindGroup = this.device.createBindGroup({
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: encodedTexture.createView() },
-          { binding: 1, resource: this.sampler }
-        ]
-      });
-      const encoder = this.device.createCommandEncoder({ label: 'Restore LightTable layer pixels' });
-      this.drawFullscreen(encoder, pipeline, bindGroup, destination.createView(), { r: 0, g: 0, b: 0, a: 0 });
-      this.device.queue.submit([encoder.finish()]);
-      await this.device.queue.onSubmittedWorkDone();
-    } finally {
-      encodedTexture?.destroy();
-      decoded.close();
-    }
-  }
-
-  private async withValidationScope<T>(label: string, operation: () => Promise<T>) {
-    this.device.pushErrorScope('validation');
-    let scopeOpen = true;
-    try {
-      const result = await operation();
-      const validationError = await this.device.popErrorScope();
-      scopeOpen = false;
-      if (validationError) throw new Error(`${label}: ${validationError.message}`);
-      return result;
-    } finally {
-      if (scopeOpen) await this.device.popErrorScope();
-    }
-  }
-
-  private encodeTextureAsPng(source: GPUTexture, maskChannel: boolean) {
-    return this.withValidationScope(
-      maskChannel ? 'LightTable mask export validation failed' : 'LightTable layer export validation failed',
-      () => this.encodeTextureAsPngUnchecked(source, maskChannel)
-    );
-  }
-
-  private async encodeTextureAsPngUnchecked(
-    source: GPUTexture,
-    maskChannel: boolean,
-    width = this.width,
-    height = this.height
-  ) {
-    const bytesPerRow = Math.ceil((width * 4) / 256) * 256;
-    const outputTexture = this.device.createTexture({
-      label: 'LightTable persisted layer PNG source',
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
-    });
-    const settingsBuffer = this.device.createBuffer({
-      label: 'LightTable layer export settings',
-      size: LAYER_EXPORT_SETTINGS_FLOATS * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(
-      settingsBuffer,
-      0,
-      new Float32Array([maskChannel ? 1 : 0, 0, 0, 0])
-    );
-    const bindGroup = this.device.createBindGroup({
-      layout: this.exportPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: source.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: settingsBuffer } }
-      ]
-    });
-    const readBuffer = this.device.createBuffer({
-      label: 'LightTable persisted layer readback',
-      size: bytesPerRow * height,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-    });
-    const pixels = new Uint8ClampedArray(width * height * 4);
-    try {
-      const encoder = this.device.createCommandEncoder({ label: 'Encode LightTable layer PNG' });
-      this.drawFullscreen(encoder, this.exportPipeline, bindGroup, outputTexture.createView(), { r: 0, g: 0, b: 0, a: 0 });
-      encoder.copyTextureToBuffer(
-        { texture: outputTexture },
-        { buffer: readBuffer, bytesPerRow, rowsPerImage: height },
-        [width, height]
-      );
-      this.device.queue.submit([encoder.finish()]);
-      await readBuffer.mapAsync(GPUMapMode.READ);
-      const mapped = new Uint8Array(readBuffer.getMappedRange());
-      for (let row = 0; row < height; row += 1) {
-        pixels.set(mapped.subarray(row * bytesPerRow, row * bytesPerRow + width * 4), row * width * 4);
-      }
-      readBuffer.unmap();
-    } finally {
-      if (readBuffer.mapState === 'mapped') readBuffer.unmap();
-      readBuffer.destroy();
-      outputTexture.destroy();
-      settingsBuffer.destroy();
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Layer PNG encoder could not be created.');
-    context.putImageData(new ImageData(pixels, width, height), 0, 0);
-    return new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Layer PNG encoding failed.')), 'image/png');
     });
   }
 
