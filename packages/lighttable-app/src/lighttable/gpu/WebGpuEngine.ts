@@ -34,6 +34,11 @@ import type {
 } from '../application/rendering/rendererTypes';
 import { RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
 import { RenderDirtyState } from '../application/rendering/renderDirtyState';
+import {
+  resolveViewportRenderState,
+  viewportRenderStatesEqual,
+  type ViewportRenderState
+} from '../application/rendering/viewportRenderState';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
 import {
@@ -156,6 +161,7 @@ export class WebGpuEngine {
   private active = true;
   private paintInteractionActive = false;
   private lastReportedGpuBytes = -1;
+  private viewportRenderState: ViewportRenderState | null = null;
 
   static async create(
     canvas: HTMLCanvasElement,
@@ -981,23 +987,16 @@ export class WebGpuEngine {
   }
 
   resizeViewport(cssWidth: number, cssHeight: number, dpr: number, rect: ViewportRect) {
-    const pixelWidth = Math.max(1, Math.round(cssWidth * dpr));
-    const pixelHeight = Math.max(1, Math.round(cssHeight * dpr));
+    const nextState = resolveViewportRenderState(cssWidth, cssHeight, dpr, rect);
+    if (viewportRenderStatesEqual(this.viewportRenderState, nextState)) return;
+    this.viewportRenderState = nextState;
+    const { pixelWidth, pixelHeight } = nextState;
     if (this.canvas.width !== pixelWidth || this.canvas.height !== pixelHeight) {
       this.canvas.width = pixelWidth;
       this.canvas.height = pixelHeight;
     }
     if (this.viewBuffer) {
-      this.device.queue.writeBuffer(this.viewBuffer, 0, new Float32Array([
-        pixelWidth,
-        pixelHeight,
-        rect.x * dpr,
-        rect.y * dpr,
-        Math.max(1, rect.width * dpr),
-        Math.max(1, rect.height * dpr),
-        12 * dpr,
-        0
-      ]));
+      this.device.queue.writeBuffer(this.viewBuffer, 0, nextState.uniforms);
     }
     this.renderDirty.invalidate('viewport');
     this.requestRender();

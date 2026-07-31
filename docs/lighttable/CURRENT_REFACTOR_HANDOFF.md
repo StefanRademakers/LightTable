@@ -120,6 +120,11 @@ requests one final-quality effects/analysis render. This is a safe baseline,
 not a substitute for profiling full-document compositing on representative
 Macs.
 
+Viewport presentation state is also compared at the actual WebGPU boundary:
+canvas pixel dimensions and the eight `f32` view-uniform values. Repeated
+ResizeObserver/layout emissions that resolve to identical GPU state no longer
+upload the view buffer, invalidate the viewport or request another frame.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in
