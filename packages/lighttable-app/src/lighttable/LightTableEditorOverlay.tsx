@@ -1409,6 +1409,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       zoomPercent={activeScale * 100}
       onBrushChange={updateBrush}
       onWarpChange={updateWarp}
+      onWarpReset={() => {
+        warpSessionController.clearActiveLayer();
+      }}
       onSelectionPixelSnapChange={(selectionPixelSnap) => {
         setEditorSession((current) => ({ ...current, selectionPixelSnap }));
       }}
@@ -1469,6 +1472,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               zoomPercent={activeScale * 100}
               onBrushChange={updateBrush}
               onWarpChange={updateWarp}
+              onWarpReset={() => {
+                warpSessionController.clearActiveLayer();
+                setToolOptionsMenu(null);
+              }}
               onSelectionPixelSnapChange={(selectionPixelSnap) => {
                 setEditorSession((current) => ({ ...current, selectionPixelSnap }));
               }}
