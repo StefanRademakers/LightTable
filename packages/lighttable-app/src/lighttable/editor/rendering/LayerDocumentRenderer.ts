@@ -52,12 +52,10 @@ import { TransformRasterizer } from './TransformRasterizer';
 import { PixelEditHistoryService } from './PixelEditHistoryService';
 import { RasterPaintService } from './RasterPaintService';
 import { PatternAssetLoader } from './PatternAssetLoader';
-
-export interface LayerThumbnailBlob {
-  blob: Blob;
-  width: number;
-  height: number;
-}
+import {
+  LayerThumbnailService,
+  type LayerThumbnailBlob
+} from './LayerThumbnailService';
 
 const textureUsage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
   GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST;
@@ -86,6 +84,7 @@ export class LayerDocumentRenderer {
   private readonly pixelEditHistory: PixelEditHistoryService;
   private readonly rasterPaint: RasterPaintService;
   private readonly rasterDocumentOperations: RasterDocumentOperations;
+  private readonly layerThumbnails: LayerThumbnailService;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -110,6 +109,13 @@ export class LayerDocumentRenderer {
     this.layerResources = new LayerRuntimeStore({
       createRasterTexture: (label) => this.createTexture(label),
       createMaskTexture: (label) => this.createMaskTexture(label)
+    });
+    this.layerThumbnails = new LayerThumbnailService({
+      dimensions: () => ({ width: this.width, height: this.height }),
+      rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
+      maskTexture: (layerId) => this.maskTextureFor(layerId),
+      encode: (source, maskChannel, width, height) =>
+        this.textureCodec.encode(source, maskChannel, width, height)
     });
     this.submittedResources = new SubmittedResourceRetainer({
       onSubmittedWorkDone: () => this.device.queue.onSubmittedWorkDone()
@@ -420,26 +426,12 @@ export class LayerDocumentRenderer {
     maximumWidth = 80,
     maximumHeight = 80
   ): Promise<LayerThumbnailBlob | null> {
-    const runtime = this.layerResources.raster(layerId);
-    const source = maskChannel
-      ? this.maskTextureFor(layerId)
-      : runtime?.texture ?? null;
-    if (!source || this.width < 1 || this.height < 1) return null;
-
-    const scale = Math.min(
-      Math.max(1, maximumWidth) / this.width,
-      Math.max(1, maximumHeight) / this.height,
-      1
-    );
-    const width = Math.max(1, Math.round(this.width * scale));
-    const height = Math.max(1, Math.round(this.height * scale));
-    const blob = await this.textureCodec.encode(
-      source,
+    return this.layerThumbnails.export(
+      layerId,
       maskChannel,
-      width,
-      height
+      maximumWidth,
+      maximumHeight
     );
-    return { blob, width, height };
   }
 
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {

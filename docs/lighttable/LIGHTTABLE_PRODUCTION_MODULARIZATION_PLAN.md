@@ -1575,3 +1575,6 @@ The refactor is successful when:
       a generation-guarded asset loader. Async pattern work now has atomic
       ownership transfer and cannot publish into a replacement document before
       or after GPU submission.
+- [x] Extract aspect-preserving layer and mask thumbnail export into a
+      presentation-asset service. Thumbnail sizing, source selection and codec
+      delegation no longer live in the document renderer.
