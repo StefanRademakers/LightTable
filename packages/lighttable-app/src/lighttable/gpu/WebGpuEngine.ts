@@ -55,9 +55,8 @@ import {
   requestSharedWebGpuDevice,
   subscribeSharedWebGpuDeviceLost
 } from './sharedWebGpuDevice';
-import { ADJUSTMENT_UNIFORM_FLOATS } from './adjustmentUniform';
-import { AdjustmentGpuPayloadWriter } from './AdjustmentGpuPayloadWriter';
 import { getCorePipelineBundle } from './corePipelineLibrary';
+import { DocumentCoreGpuResources } from './documentCoreGpuResources';
 import { encodeRgba8Png, readRgba8Texture } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
@@ -100,14 +99,13 @@ export class WebGpuEngine {
   private sourceGeometryTexture: GPUTexture | null = null;
   private linearSpatialTexture: GPUTexture | null = null;
   private displayPostTexture: GPUTexture | null = null;
-  private lastOutputSettings: Float32Array | null = null;
-  private adjustmentPayloadWriter: AdjustmentGpuPayloadWriter | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
   private readonly renderDirty = new RenderDirtyState();
   private readonly renderTelemetry = new RenderTelemetry();
   private readonly imageResources = new DocumentImageGpuResources();
   private readonly adjustmentState = new DocumentAdjustmentState();
+  private coreResources: DocumentCoreGpuResources | null = null;
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -146,13 +144,6 @@ export class WebGpuEngine {
     this.unsubscribeDeviceLost = subscribeSharedWebGpuDeviceLost(this.deviceLostListener);
   }
 
-  private curveTexture: GPUTexture | null = null;
-  private adjustmentBuffer: GPUBuffer | null = null;
-  private outputSettingsBuffer: GPUBuffer | null = null;
-  private viewBuffer: GPUBuffer | null = null;
-  private blurHorizontalBuffer: GPUBuffer | null = null;
-  private blurVerticalBuffer: GPUBuffer | null = null;
-  private sampler: GPUSampler | null = null;
   private basicPipeline: GPURenderPipeline | null = null;
   private downsamplePipeline: GPURenderPipeline | null = null;
   private blurPipeline: GPURenderPipeline | null = null;
@@ -247,39 +238,9 @@ export class WebGpuEngine {
   }
 
   private createStaticResources() {
-    this.sampler = this.device.createSampler({
-      magFilter: 'linear',
-      minFilter: 'linear',
-      mipmapFilter: 'linear',
-      addressModeU: 'clamp-to-edge',
-      addressModeV: 'clamp-to-edge'
-    });
-    this.adjustmentBuffer = this.device.createBuffer({
-      size: ADJUSTMENT_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.outputSettingsBuffer = this.device.createBuffer({
-      label: 'LightTable output transform settings',
-      size: 8 * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.curveTexture = this.device.createTexture({
-      label: 'LightTable custom curve LUT',
-      size: [CURVE_LUT_SIZE, 1],
-      format: 'rgba32float',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-    });
-    this.adjustmentPayloadWriter = new AdjustmentGpuPayloadWriter(this.device, {
-      uniformBuffer: this.adjustmentBuffer,
-      curveTexture: this.curveTexture
-    });
+    const coreResources = new DocumentCoreGpuResources(this.device);
+    this.coreResources = coreResources;
     this.syncAdjustmentPayload();
-    this.viewBuffer = this.device.createBuffer({
-      size: 8 * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.blurHorizontalBuffer = this.createBlurUniformBuffer(1, 0);
-    this.blurVerticalBuffer = this.createBlurUniformBuffer(0, 1);
 
     const pipelines = getCorePipelineBundle(this.device, this.canvasFormat);
     this.basicPipeline = pipelines.basic;
@@ -295,17 +256,17 @@ export class WebGpuEngine {
       requestRender: () => this.requestRender(),
       reportError: (featureId: string, message: string) => this.callbacks.onFeatureError?.(featureId, message)
     };
-    this.documentRenderer = new LayerDocumentRenderer(this.device, this.sampler);
+    this.documentRenderer = new LayerDocumentRenderer(this.device, coreResources.sampler);
     this.effectRuntime = DocumentEffectRuntime.create(
       this.device,
-      this.sampler,
+      coreResources.sampler,
       pipelines.vertexModule,
       this.adjustmentState.current,
       effectCallbacks
     );
     this.layerEffectRenderer = new LayerEffectRenderer(
       this.device,
-      this.sampler,
+      coreResources.sampler,
       pipelines.vertexModule,
       effectCallbacks
     );
@@ -323,15 +284,6 @@ export class WebGpuEngine {
       this.callbacks.onHistogram,
       () => this.requestRender()
     );
-  }
-
-  private createBlurUniformBuffer(x: number, y: number) {
-    const buffer = this.device.createBuffer({
-      size: 4 * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(buffer, 0, new Float32Array([x, y, 0, 0]));
-    return buffer;
   }
 
   async loadImage(blob: Blob, name: string, options: LightTableLoadImageOptions = {}) {
@@ -485,8 +437,11 @@ export class WebGpuEngine {
   ): Promise<TranslationAlignmentResult> {
     const document = this.imageDocument;
     const renderer = this.documentRenderer;
-    if (!document || !renderer || !this.sampler) throw new Error('LightTable Auto Align is not initialized.');
-    const service = this.translationAlignmentService ??= new FeatureAlignmentService(this.device, this.sampler);
+    if (!document || !renderer || !this.coreResources) throw new Error('LightTable Auto Align is not initialized.');
+    const service = this.translationAlignmentService ??= new FeatureAlignmentService(
+      this.device,
+      this.coreResources.sampler
+    );
     if (referenceLayerId === targetLayerId) throw new Error('Choose two different layers for Auto Align.');
     const reference = findRasterLayer(document, referenceLayerId);
     const target = findRasterLayer(document, targetLayerId);
@@ -772,11 +727,11 @@ export class WebGpuEngine {
   }
 
   private createImageResources(width: number, height: number) {
-    if (!this.imageResources.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.viewBuffer ||
-      !this.blurHorizontalBuffer || !this.blurVerticalBuffer || !this.curveTexture ||
+    if (!this.imageResources.sourceTexture || !this.coreResources ||
       !this.basicPipeline || !this.downsamplePipeline || !this.blurPipeline || !this.creativePipeline ||
-      !this.outputPipeline || !this.outputSettingsBuffer || !this.effectRuntime || !this.displayResolvePipeline ||
+      !this.outputPipeline || !this.effectRuntime || !this.displayResolvePipeline ||
       !this.blitPipeline || !this.differencePipeline || !this.histogramRuntime || !this.metadata) return;
+    const coreResources = this.coreResources;
 
     const downsampleWidth = Math.max(1, Math.ceil(width / 4));
     const downsampleHeight = Math.max(1, Math.ceil(height / 4));
@@ -820,7 +775,7 @@ export class WebGpuEngine {
         GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST
     });
     this.adjustmentLayerResources.configure({
-      sampler: this.sampler,
+      sampler: coreResources.sampler,
       creativePipeline: this.creativePipeline,
       correctedTexture: this.imageResources.correctedTexture,
       downsampleTexture: this.imageResources.downsampleTexture
@@ -830,23 +785,23 @@ export class WebGpuEngine {
       layout: this.downsamplePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.imageResources.correctedTexture.createView() },
-        { binding: 1, resource: this.sampler }
+        { binding: 1, resource: coreResources.sampler }
       ]
     });
     this.imageResources.blurHorizontalBindGroup = this.device.createBindGroup({
       layout: this.blurPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.imageResources.downsampleTexture.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: this.blurHorizontalBuffer } }
+        { binding: 1, resource: coreResources.sampler },
+        { binding: 2, resource: { buffer: coreResources.blurHorizontalBuffer } }
       ]
     });
     this.imageResources.blurVerticalBindGroup = this.device.createBindGroup({
       layout: this.blurPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.imageResources.blurTexture.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: this.blurVerticalBuffer } }
+        { binding: 1, resource: coreResources.sampler },
+        { binding: 2, resource: { buffer: coreResources.blurVerticalBuffer } }
       ]
     });
     this.imageResources.creativeBindGroup = this.device.createBindGroup({
@@ -854,13 +809,13 @@ export class WebGpuEngine {
       entries: [
         { binding: 0, resource: this.imageResources.correctedTexture.createView() },
         { binding: 1, resource: this.imageResources.downsampleTexture.createView() },
-        { binding: 2, resource: this.sampler },
-        { binding: 3, resource: { buffer: this.adjustmentBuffer } },
-        { binding: 4, resource: this.curveTexture.createView() }
+        { binding: 2, resource: coreResources.sampler },
+        { binding: 3, resource: { buffer: coreResources.adjustmentBuffer } },
+        { binding: 4, resource: coreResources.curveTexture.createView() }
       ]
     });
     this.adjustmentLayerRenderer.configure({
-      sampler: this.sampler,
+      sampler: coreResources.sampler,
       basicPipeline: this.basicPipeline,
       downsamplePipeline: this.downsamplePipeline,
       blurPipeline: this.blurPipeline,
@@ -879,16 +834,16 @@ export class WebGpuEngine {
       layout: this.blitPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.imageResources.sourceTexture.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: this.viewBuffer } }
+        { binding: 1, resource: coreResources.sampler },
+        { binding: 2, resource: { buffer: coreResources.viewBuffer } }
       ]
     });
     this.imageResources.blitCorrectedBindGroup = this.device.createBindGroup({
       layout: this.blitPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.imageResources.finalTexture.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: this.viewBuffer } }
+        { binding: 1, resource: coreResources.sampler },
+        { binding: 2, resource: { buffer: coreResources.viewBuffer } }
       ]
     });
     this.imageResources.differenceBindGroup = this.device.createBindGroup({
@@ -896,8 +851,8 @@ export class WebGpuEngine {
       entries: [
         { binding: 0, resource: this.imageResources.sourceTexture.createView() },
         { binding: 1, resource: this.imageResources.finalTexture.createView() },
-        { binding: 2, resource: this.sampler },
-        { binding: 3, resource: { buffer: this.viewBuffer } }
+        { binding: 2, resource: coreResources.sampler },
+        { binding: 3, resource: { buffer: coreResources.viewBuffer } }
       ]
     });
     this.histogramRuntime.configure(this.imageResources.sourceTexture, this.imageResources.finalTexture, this.metadata);
@@ -1044,9 +999,7 @@ export class WebGpuEngine {
       this.canvas.width = pixelWidth;
       this.canvas.height = pixelHeight;
     }
-    if (this.viewBuffer) {
-      this.device.queue.writeBuffer(this.viewBuffer, 0, nextState.uniforms);
-    }
+    this.coreResources?.writeViewport(nextState.uniforms);
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -1056,7 +1009,7 @@ export class WebGpuEngine {
   }
 
   private syncAdjustmentPayload() {
-    return this.adjustmentPayloadWriter?.sync(
+    return this.coreResources?.syncAdjustments(
       this.adjustmentState.current,
       this.metadata?.width ?? 1,
       this.metadata?.height ?? 1,
@@ -1065,7 +1018,7 @@ export class WebGpuEngine {
   }
 
   private writeOutputSettings(): boolean {
-    if (!this.outputSettingsBuffer) return false;
+    if (!this.coreResources) return false;
     const settings = calculateOutputTransformSettings(this.adjustmentState.current);
     const visualizingDepth = Boolean(
       this.adjustmentState.current.effects.lensBlur.enabled &&
@@ -1082,14 +1035,7 @@ export class WebGpuEngine {
       0,
       0
     ]);
-    if (
-      this.lastOutputSettings
-      && this.lastOutputSettings.length === next.length
-      && next.every((value, index) => value === this.lastOutputSettings?.[index])
-    ) return false;
-    this.lastOutputSettings = next;
-    this.device.queue.writeBuffer(this.outputSettingsBuffer, 0, next);
-    return true;
+    return this.coreResources.writeOutputSettings(next);
   }
 
   private requestRender() {
@@ -1136,7 +1082,7 @@ export class WebGpuEngine {
       creative: Boolean(this.imageResources.creativeTexture),
       display: Boolean(this.imageResources.displayTexture),
       final: Boolean(this.imageResources.finalTexture),
-      curveLutBytes: this.curveTexture ? CURVE_LUT_SIZE * 16 : 0,
+      curveLutBytes: this.coreResources ? CURVE_LUT_SIZE * 16 : 0,
       adjustmentLayerBytes: this.adjustmentLayerResources.estimatedBytes(),
       layerDocumentBytes: this.documentRenderer?.estimatedTextureBytes() ?? 0,
       effectBytes: this.effectRuntime?.estimatedTextureBytes() ?? 0
@@ -1154,8 +1100,8 @@ export class WebGpuEngine {
     if (this.destroyed || !this.metadata || !this.imageResources.correctedTexture || !this.imageResources.downsampleTexture ||
       !this.imageResources.blurTexture || !this.imageResources.creativeTexture || !this.imageResources.displayTexture ||
       !this.imageResources.finalTexture || !this.basicPipeline || !this.downsamplePipeline ||
-      !this.blurPipeline || !this.creativePipeline || !this.outputPipeline || !this.outputSettingsBuffer ||
-      !this.imageResources.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.curveTexture ||
+      !this.blurPipeline || !this.creativePipeline || !this.outputPipeline || !this.coreResources ||
+      !this.imageResources.sourceTexture ||
       !this.effectRuntime || !this.documentRenderer || !this.imageDocument ||
       !this.displayResolvePipeline || !this.blitPipeline || !this.differencePipeline ||
       !this.imageResources.downsampleBindGroup || !this.imageResources.blurHorizontalBindGroup || !this.imageResources.blurVerticalBindGroup ||
@@ -1249,7 +1195,7 @@ export class WebGpuEngine {
             layout: this.outputPipeline!.getBindGroupLayout(0),
             entries: [
               { binding: 0, resource: linearEffectTexture.createView() },
-              { binding: 1, resource: { buffer: this.outputSettingsBuffer! } }
+              { binding: 1, resource: { buffer: this.coreResources!.outputSettingsBuffer } }
             ]
           });
           this.drawFullscreenPass(
@@ -1395,15 +1341,10 @@ export class WebGpuEngine {
     this.renderScheduler.dispose();
     this.destroyImageResources();
     this.scopeRuntime.destroy();
-    this.adjustmentBuffer?.destroy();
-    this.outputSettingsBuffer?.destroy();
-    this.viewBuffer?.destroy();
     this.histogramRuntime?.destroy();
     this.histogramRuntime = null;
-    this.blurHorizontalBuffer?.destroy();
-    this.blurVerticalBuffer?.destroy();
-    this.curveTexture?.destroy();
-    this.adjustmentPayloadWriter = null;
+    this.coreResources?.destroy();
+    this.coreResources = null;
     this.effectRuntime?.destroy();
     this.effectRuntime = null;
     this.layerEffectRenderer?.destroy();

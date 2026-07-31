@@ -39,6 +39,18 @@ The renderer now exposes on-demand counters and CPU command-encoding timings in
 the Debug panel. Capturing or resetting telemetry is explicit: diagnostics do
 not poll and therefore cannot wake an idle document renderer.
 
+`DocumentCoreGpuResources` now owns the document-level sampler, uniform buffers,
+curve LUT and retained GPU payload writers. `WebGpuEngine` no longer manages
+those resources as unrelated nullable fields, giving the renderer one
+idempotent lifecycle boundary for document-core GPU state.
+
+The next interaction-performance target is the selection overlay. The legacy
+overlay rasterizes a viewport-sized mask, performs a full `getImageData()`
+readback and scans every pixel whenever pan or zoom changes. This is noticeable
+on desktop GPUs and severe on macOS. Simple selections must use a vector overlay;
+composite/feathered rasterization must be cached by selection revision and never
+rebuilt for viewport-only changes.
+
 Canvas panning now follows the same interaction rule as GPU rendering: raw
 pointer events are accepted at device frequency, but only the newest pan value
 is published to document/React state once per display frame. Pointer-up flushes
