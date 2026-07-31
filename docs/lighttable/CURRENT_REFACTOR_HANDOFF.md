@@ -111,6 +111,13 @@ this as a cross-platform production gate, not cosmetic polish. Instrument the
 main thread, React/layout, render scheduler, GPU queue and scope refresh paths
 before optimizing; the measurable budgets live in the modularization plan.
 
+The first interaction pass is now in place: viewport pointer routing performs
+one bounds read per event, paint owns an explicit preview/final-quality
+lifecycle, and visible scope analysis is capped at 10 Hz during a stroke while
+the document preview remains frame-coalesced. Stroke completion or cancellation
+requests one final-quality effects/scope render. This is a safe baseline, not a
+substitute for profiling full-document compositing on representative Macs.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in

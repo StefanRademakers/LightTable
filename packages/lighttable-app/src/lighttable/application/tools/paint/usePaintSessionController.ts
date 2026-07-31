@@ -30,6 +30,7 @@ export interface PaintHistoryEntry {
 }
 
 export interface PaintSessionRendererPort {
+  setPaintInteractionActive(active: boolean): void;
   beginBrushStroke(layer: LayerNode, channel: PaintChannel): void;
   paintBrushDabs(
     layerId: LayerId,
@@ -107,6 +108,9 @@ export const createPaintSessionController = (
   };
 
   const reset = () => {
+    if (gesture.active) {
+      resolveDependencies().getRenderer()?.setPaintInteractionActive(false);
+    }
     gesture.reset();
     activeBrush = null;
   };
@@ -121,6 +125,7 @@ export const createPaintSessionController = (
       const renderer = dependencies.getRenderer();
       if (!renderer) return false;
       try {
+        renderer.setPaintInteractionActive(true);
         renderer.beginBrushStroke(layer, target.channel);
         activeBrush = cloneBrush(brush);
         paint(gesture.begin(pointerId, target, activeBrush, point));
@@ -128,6 +133,7 @@ export const createPaintSessionController = (
         return true;
       } catch (reason) {
         renderer.cancelPixelEdit();
+        renderer.setPaintInteractionActive(false);
         reset();
         dependencies.setError(
           reason instanceof Error
@@ -152,6 +158,7 @@ export const createPaintSessionController = (
       const before = dependencies.getDocument();
       if (!renderer || !before || !finished.dirtyBounds) {
         renderer?.cancelPixelEdit();
+        renderer?.setPaintInteractionActive(false);
         return true;
       }
       const after = finished.target.channel === 'mask'
@@ -168,8 +175,10 @@ export const createPaintSessionController = (
       const pixelEdit = renderer.finishPixelEdit();
       if (!pixelEdit) {
         renderer.cancelPixelEdit();
+        renderer.setPaintInteractionActive(false);
         return true;
       }
+      renderer.setPaintInteractionActive(false);
       dependencies.applyDocumentSnapshot(after);
       dependencies.pushHistoryEntry({
         byteSize: pixelEdit.byteSize,
@@ -203,6 +212,7 @@ export const createPaintSessionController = (
       } else {
         renderer?.cancelPixelEdit();
       }
+      renderer?.setPaintInteractionActive(false);
       return true;
     },
     reset,

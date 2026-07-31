@@ -24,6 +24,7 @@ const createFixture = () => {
   const layer = document.layers[0] as RasterLayer;
   const pixelEdit = createPixelEdit();
   const renderer: PaintSessionRendererPort = {
+    setPaintInteractionActive: vi.fn(),
     beginBrushStroke: vi.fn(),
     paintBrushDabs: vi.fn(),
     finishPixelEdit: vi.fn(() => pixelEdit),
@@ -75,6 +76,8 @@ describe('PaintSessionController', () => {
     expect(vi.mocked(fixture.renderer.paintBrushDabs).mock.calls[1]?.[3]).toEqual([0, 0, 0]);
     expect((fixture.getDocument().layers[0] as RasterLayer).pixelRevision).toBe(1);
     expect(fixture.history).toHaveLength(1);
+    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenNthCalledWith(1, true);
+    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
 
     fixture.history[0]?.undo();
     expect(fixture.renderer.applyPixelHistory).toHaveBeenCalledWith(
@@ -109,5 +112,32 @@ describe('PaintSessionController', () => {
     );
     expect(fixture.pixelEdit.destroy).toHaveBeenCalledOnce();
     expect(fixture.history).toHaveLength(0);
+    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenNthCalledWith(1, true);
+    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
+  });
+
+  it('leaves interactive quality when stroke initialization fails', () => {
+    const fixture = createFixture();
+    vi.mocked(fixture.renderer.beginBrushStroke).mockImplementationOnce(() => {
+      throw new Error('GPU edit unavailable');
+    });
+
+    expect(fixture.controller.begin({
+      pointerId: 12,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: identityMatrix()
+      },
+      brush: createEditorSession().brush,
+      point: { x: 5, y: 5, pressure: 1 }
+    })).toBe(false);
+
+    expect(fixture.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
+    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenNthCalledWith(1, true);
+    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
+    expect(fixture.dependencies.setError).toHaveBeenCalledWith('GPU edit unavailable');
   });
 });

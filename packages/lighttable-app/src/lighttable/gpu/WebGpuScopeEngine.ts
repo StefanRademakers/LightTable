@@ -15,6 +15,7 @@ import {
   VECTOR_SCOPE_ANALYSIS_WGSL,
   VECTOR_SCOPE_DISPLAY_WGSL
 } from './scopeShaders';
+import { InteractiveRefreshGate } from '../application/rendering/interactiveRefreshGate';
 
 const PARADE_BIN_BYTES = 3 * 256 * 256 * Uint32Array.BYTES_PER_ELEMENT;
 const VECTOR_BIN_BYTES = 256 * 256 * Uint32Array.BYTES_PER_ELEMENT;
@@ -101,6 +102,7 @@ export class WebGpuScopeEngine {
   private options = { ...DEFAULT_OPTIONS };
   private before = false;
   private interactionActive = false;
+  private readonly interactiveRefresh = new InteractiveRefreshGate(100);
   private analysisDirty = true;
   private displayDirty = true;
   private failed = false;
@@ -349,6 +351,7 @@ export class WebGpuScopeEngine {
   setInteractionActive(active: boolean) {
     if (this.interactionActive === active) return;
     this.interactionActive = active;
+    this.interactiveRefresh.setActive(active);
     if (this.options.quality === 'auto') this.analysisDirty = true;
   }
 
@@ -380,7 +383,9 @@ export class WebGpuScopeEngine {
 
   private encodeInternal(encoder: GPUCommandEncoder) {
     if (!this.metadata) return;
-    if (this.analysisDirty) this.encodeAnalysis(encoder);
+    if (this.analysisDirty && this.interactiveRefresh.shouldRefresh(performance.now())) {
+      this.encodeAnalysis(encoder);
+    }
     if (this.displayDirty) {
       if (this.options.hueDistributionVisible) this.encodeDisplay(
         encoder,

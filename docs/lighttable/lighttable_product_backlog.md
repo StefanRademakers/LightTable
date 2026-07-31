@@ -63,6 +63,13 @@ handled before a broad production rollout.
 - [ ] Decouple immediate tool/cursor and paint-stroke feedback from expensive
   full-document recomposition; coalesce superseded preview renders and lower
   the update rate of scopes, thumbnails and heavy effects while interacting.
+  - [x] Coalesce interactive invalidations to one outstanding animation frame.
+  - [x] Enter preview quality for scopes, Lens Blur and Layer Styles during a
+    paint transaction and restore final quality once on completion/cancel.
+  - [x] Limit dirty scope analysis to 10 Hz during paint without delaying the
+    direct canvas preview.
+  - [ ] Profile whether full document recomposition needs region/layer-aware
+    invalidation before introducing an incremental compositor.
 - [ ] Lazily allocate full-resolution effect targets on enable/first encode and
   release reusable targets when an effect is disabled.
 - [ ] Store layer masks in a single-channel format (`r8unorm` or `r16float`

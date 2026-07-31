@@ -154,6 +154,7 @@ export class WebGpuEngine {
   private readonly unsubscribeDeviceLost: () => void;
   private destroyed = false;
   private active = true;
+  private paintInteractionActive = false;
   private lastReportedGpuBytes = -1;
 
   static async create(
@@ -375,6 +376,24 @@ export class WebGpuEngine {
 
   beginBrushStroke(layer: LayerNode, channel: PaintChannel) {
     this.documentRenderer?.beginStroke(layer, channel);
+  }
+
+  /**
+   * Keeps direct paint feedback responsive without silently lowering the
+   * committed result. Optional analysis and expensive effects enter preview
+   * quality for the gesture; releasing it schedules one final-quality pass.
+   */
+  setPaintInteractionActive(active: boolean) {
+    if (this.paintInteractionActive === active) return;
+    this.paintInteractionActive = active;
+    this.scopeRuntime.setInteractionActive(active);
+    this.effectRuntime?.setInteractionActive(active);
+    this.documentRenderer?.setLayerStyleInteractionActive(active);
+    if (!active) {
+      this.renderDirty.invalidate('effects');
+      this.scopeRuntime.markImageDirty();
+      this.requestRender();
+    }
   }
 
   beginLayerPixelEdit(layerId: LayerId, channel: PaintChannel = 'pixels') {
@@ -1215,6 +1234,7 @@ export class WebGpuEngine {
 
   destroy() {
     this.destroyed = true;
+    this.paintInteractionActive = false;
     this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
     this.unsubscribeDeviceLost();
     this.sourceLoader?.destroy();
