@@ -1055,6 +1055,11 @@ quality and texture rebinding. The render engine only forwards invalidation and
 command encoding, so floating or remounted scope panels cannot leak lifecycle
 state into the frame coordinator.
 
+The document histogram has an equally explicit runtime boundary. Its uniform
+and storage buffers, source/result bindings, visibility, single-flight readback
+and callback delivery no longer live in the frame coordinator. Histogram
+invalidation remains part of the shared render dependency policy.
+
 Lens effects now compile their complete pipeline bundles asynchronously behind
 an atomic optional-feature boundary. Until every pipeline in a feature is
 valid, rendering uses the exact input texture; compilation failure is reported

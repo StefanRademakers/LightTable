@@ -51,7 +51,7 @@ import {
 } from './sharedWebGpuDevice';
 import { ADJUSTMENT_UNIFORM_FLOATS, buildAdjustmentUniform } from './adjustmentUniform';
 import { getCorePipelineBundle } from './corePipelineLibrary';
-import { encodeRgba8Png, mapGpuBufferCopy, readRgba8Texture } from './gpuReadback';
+import { encodeRgba8Png, readRgba8Texture } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
@@ -60,8 +60,8 @@ import { ReferenceDifferenceMeasurer } from './referenceDifferenceMeasurer';
 import { estimateDocumentGpuBytes } from './documentGpuMemoryEstimate';
 import { DocumentSourceGpuLoader } from './documentSourceGpuLoader';
 import { DocumentScopeRuntime } from './documentScopeRuntime';
+import { DocumentHistogramRuntime } from './documentHistogramRuntime';
 
-const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 interface ViewportRect {
   x: number;
   y: number;
@@ -76,6 +76,7 @@ export class WebGpuEngine {
   private readonly canvasFormat: GPUTextureFormat;
   private readonly callbacks: DocumentRendererCallbacks;
   private readonly scopeRuntime: DocumentScopeRuntime;
+  private histogramRuntime: DocumentHistogramRuntime | null = null;
   private sourceLoader: DocumentSourceGpuLoader | null = null;
   private documentRenderer: LayerDocumentRenderer | null = null;
   private readonly adjustmentLayerResources: AdjustmentLayerGpuResources;
@@ -104,8 +105,6 @@ export class WebGpuEngine {
   private set displayTexture(value: GPUTexture | null) { this.imageResources.displayTexture = value; }
   private get finalTexture() { return this.imageResources.finalTexture; }
   private set finalTexture(value: GPUTexture | null) { this.imageResources.finalTexture = value; }
-  private get histogramBuffer() { return this.imageResources.histogramBuffer; }
-  private set histogramBuffer(value: GPUBuffer | null) { this.imageResources.histogramBuffer = value; }
   private get downsampleBindGroup() { return this.imageResources.downsampleBindGroup; }
   private set downsampleBindGroup(value: GPUBindGroup | null) { this.imageResources.downsampleBindGroup = value; }
   private get blurHorizontalBindGroup() { return this.imageResources.blurHorizontalBindGroup; }
@@ -120,10 +119,6 @@ export class WebGpuEngine {
   private set blitCorrectedBindGroup(value: GPUBindGroup | null) { this.imageResources.blitCorrectedBindGroup = value; }
   private get differenceBindGroup() { return this.imageResources.differenceBindGroup; }
   private set differenceBindGroup(value: GPUBindGroup | null) { this.imageResources.differenceBindGroup = value; }
-  private get histogramOriginalBindGroup() { return this.imageResources.histogramOriginalBindGroup; }
-  private set histogramOriginalBindGroup(value: GPUBindGroup | null) { this.imageResources.histogramOriginalBindGroup = value; }
-  private get histogramCorrectedBindGroup() { return this.imageResources.histogramCorrectedBindGroup; }
-  private set histogramCorrectedBindGroup(value: GPUBindGroup | null) { this.imageResources.histogramCorrectedBindGroup = value; }
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -166,7 +161,6 @@ export class WebGpuEngine {
   private adjustmentBuffer: GPUBuffer | null = null;
   private outputSettingsBuffer: GPUBuffer | null = null;
   private viewBuffer: GPUBuffer | null = null;
-  private histogramUniformBuffer: GPUBuffer | null = null;
   private blurHorizontalBuffer: GPUBuffer | null = null;
   private blurVerticalBuffer: GPUBuffer | null = null;
   private sampler: GPUSampler | null = null;
@@ -182,15 +176,12 @@ export class WebGpuEngine {
   private blitPipeline: GPURenderPipeline | null = null;
   private differencePipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
-  private histogramPipeline: GPUComputePipeline | null = null;
   private metadata: LightTableImageMetadata | null = null;
   private adjustments = createDefaultAdjustments();
   private adjustmentStack = createAdjustmentStackFromBasicAdjustments(this.adjustments);
   private before = false;
   private difference = false;
   private lensBlurDepthVisualization = false;
-  private histogramPending = false;
-  private histogramVisible = true;
   private firstFramePending = false;
   private layerStyleInitialization: Promise<void> | null = null;
   private layerStyleInitializationFailed = false;
@@ -294,10 +285,6 @@ export class WebGpuEngine {
       size: 8 * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
-    this.histogramUniformBuffer = this.device.createBuffer({
-      size: 4 * Uint32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
     this.blurHorizontalBuffer = this.createBlurUniformBuffer(1, 0);
     this.blurVerticalBuffer = this.createBlurUniformBuffer(0, 1);
 
@@ -337,7 +324,12 @@ export class WebGpuEngine {
     this.blitPipeline = pipelines.blit;
     this.differencePipeline = pipelines.difference;
     this.differenceMetricsPipeline = pipelines.differenceMetrics;
-    this.histogramPipeline = pipelines.histogram;
+    this.histogramRuntime = new DocumentHistogramRuntime(
+      this.device,
+      pipelines.histogram,
+      this.callbacks.onHistogram,
+      () => this.requestRender()
+    );
   }
 
   private createBlurUniformBuffer(x: number, y: number) {
@@ -757,10 +749,10 @@ export class WebGpuEngine {
 
   private createImageResources(width: number, height: number) {
     if (!this.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.viewBuffer ||
-      !this.histogramUniformBuffer || !this.blurHorizontalBuffer || !this.blurVerticalBuffer || !this.curveTexture ||
+      !this.blurHorizontalBuffer || !this.blurVerticalBuffer || !this.curveTexture ||
       !this.basicPipeline || !this.downsamplePipeline || !this.blurPipeline || !this.creativePipeline ||
       !this.outputPipeline || !this.outputSettingsBuffer || !this.effectRuntime || !this.displayResolvePipeline ||
-      !this.blitPipeline || !this.differencePipeline || !this.histogramPipeline) return;
+      !this.blitPipeline || !this.differencePipeline || !this.histogramRuntime || !this.metadata) return;
 
     const downsampleWidth = Math.max(1, Math.ceil(width / 4));
     const downsampleHeight = Math.max(1, Math.ceil(height / 4));
@@ -802,10 +794,6 @@ export class WebGpuEngine {
       format: 'rgba8unorm',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING |
         GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST
-    });
-    this.histogramBuffer = this.device.createBuffer({
-      size: HISTOGRAM_BYTE_SIZE,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
     });
     this.adjustmentLayerResources.configure({
       sampler: this.sampler,
@@ -888,22 +876,7 @@ export class WebGpuEngine {
         { binding: 3, resource: { buffer: this.viewBuffer } }
       ]
     });
-    this.histogramOriginalBindGroup = this.device.createBindGroup({
-      layout: this.histogramPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: this.sourceTexture.createView() },
-        { binding: 1, resource: { buffer: this.histogramBuffer } },
-        { binding: 2, resource: { buffer: this.histogramUniformBuffer } }
-      ]
-    });
-    this.histogramCorrectedBindGroup = this.device.createBindGroup({
-      layout: this.histogramPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: this.finalTexture.createView() },
-        { binding: 1, resource: { buffer: this.histogramBuffer } },
-        { binding: 2, resource: { buffer: this.histogramUniformBuffer } }
-      ]
-    });
+    this.histogramRuntime.configure(this.sourceTexture, this.finalTexture, this.metadata);
     if (this.metadata) this.scopeRuntime.setTextures(this.sourceTexture, this.finalTexture, this.metadata);
   }
 
@@ -989,8 +962,7 @@ export class WebGpuEngine {
   }
 
   setScopeOptions(histogramVisible: boolean, options: WebGpuScopeOptions) {
-    const histogramBecameVisible = histogramVisible && !this.histogramVisible;
-    this.histogramVisible = histogramVisible;
+    const histogramBecameVisible = this.histogramRuntime?.setVisible(histogramVisible) ?? false;
     if (histogramBecameVisible) this.renderDirty.invalidate('histogram');
     this.scopeRuntime.setOptions(options);
     this.requestRender();
@@ -1211,7 +1183,11 @@ export class WebGpuEngine {
       this.renderDirty.markViewportRendered();
     }
 
-    const histogramReadBuffer = this.encodeHistogram(encoder);
+    const histogramReadBuffer = this.histogramRuntime?.encode(encoder, {
+      before: this.before,
+      required: this.renderDirty.histogramRequired
+    }) ?? null;
+    if (histogramReadBuffer) this.renderDirty.markHistogramScheduled();
     this.scopeRuntime.encode(encoder);
     this.device.queue.submit([encoder.finish()]);
     void this.device.popErrorScope().then((validationError) => {
@@ -1229,7 +1205,7 @@ export class WebGpuEngine {
       });
     }
     this.documentRenderer?.releaseSubmittedResources();
-    if (histogramReadBuffer) void this.readHistogram(histogramReadBuffer);
+    if (histogramReadBuffer) void this.histogramRuntime?.read(histogramReadBuffer);
   }
 
   private drawFullscreenPass(
@@ -1250,51 +1226,6 @@ export class WebGpuEngine {
     pass.setBindGroup(0, bindGroup);
     pass.draw(3);
     pass.end();
-  }
-
-  private encodeHistogram(encoder: GPUCommandEncoder) {
-    if (!this.histogramVisible || !this.renderDirty.histogramRequired || this.histogramPending || !this.metadata || !this.histogramBuffer ||
-      !this.histogramUniformBuffer || !this.histogramPipeline ||
-      !this.histogramOriginalBindGroup || !this.histogramCorrectedBindGroup) return null;
-    const stride = Math.max(1, Math.ceil(Math.sqrt((this.metadata.width * this.metadata.height) / 750_000)));
-    this.device.queue.writeBuffer(this.histogramUniformBuffer, 0, new Uint32Array([
-      this.metadata.width,
-      this.metadata.height,
-      stride,
-      0
-    ]));
-    encoder.clearBuffer(this.histogramBuffer);
-    const pass = encoder.beginComputePass();
-    pass.setPipeline(this.histogramPipeline);
-    pass.setBindGroup(0, this.before ? this.histogramOriginalBindGroup : this.histogramCorrectedBindGroup);
-    pass.dispatchWorkgroups(
-      Math.ceil(this.metadata.width / stride / 8),
-      Math.ceil(this.metadata.height / stride / 8)
-    );
-    pass.end();
-    const readBuffer = this.device.createBuffer({
-      size: HISTOGRAM_BYTE_SIZE,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-    });
-    encoder.copyBufferToBuffer(this.histogramBuffer, 0, readBuffer, 0, HISTOGRAM_BYTE_SIZE);
-    this.renderDirty.markHistogramScheduled();
-    this.histogramPending = true;
-    return readBuffer;
-  }
-
-  private async readHistogram(buffer: GPUBuffer) {
-    try {
-      const values = new Uint32Array(await mapGpuBufferCopy(buffer));
-      this.callbacks.onHistogram?.({
-        red: values.slice(0, 256),
-        green: values.slice(256, 512),
-        blue: values.slice(512, 768)
-      });
-    } finally {
-      buffer.destroy();
-      this.histogramPending = false;
-      if (this.renderDirty.histogramRequired) this.requestRender();
-    }
   }
 
   async exportPng() {
@@ -1326,7 +1257,8 @@ export class WebGpuEngine {
     this.adjustmentBuffer?.destroy();
     this.outputSettingsBuffer?.destroy();
     this.viewBuffer?.destroy();
-    this.histogramUniformBuffer?.destroy();
+    this.histogramRuntime?.destroy();
+    this.histogramRuntime = null;
     this.blurHorizontalBuffer?.destroy();
     this.blurVerticalBuffer?.destroy();
     this.curveTexture?.destroy();
@@ -1345,6 +1277,7 @@ export class WebGpuEngine {
     this.adjustmentLayerResources.reset();
     this.imageDocument = null;
     this.scopeRuntime.clearTextures();
+    this.histogramRuntime?.clear();
     this.effectRuntime?.destroyImageResources();
     this.layerEffectRenderer?.destroyImageResources();
     this.imageResources.reset();

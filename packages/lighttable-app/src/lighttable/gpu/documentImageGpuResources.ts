@@ -15,7 +15,6 @@ export class DocumentImageGpuResources {
   creativeTexture: GPUTexture | null = null;
   displayTexture: GPUTexture | null = null;
   finalTexture: GPUTexture | null = null;
-  histogramBuffer: GPUBuffer | null = null;
 
   downsampleBindGroup: GPUBindGroup | null = null;
   blurHorizontalBindGroup: GPUBindGroup | null = null;
@@ -24,8 +23,6 @@ export class DocumentImageGpuResources {
   blitOriginalBindGroup: GPUBindGroup | null = null;
   blitCorrectedBindGroup: GPUBindGroup | null = null;
   differenceBindGroup: GPUBindGroup | null = null;
-  histogramOriginalBindGroup: GPUBindGroup | null = null;
-  histogramCorrectedBindGroup: GPUBindGroup | null = null;
 
   reset(): void {
     const resources: Array<DestroyableGpuResource | null> = [
@@ -35,8 +32,7 @@ export class DocumentImageGpuResources {
       this.blurTexture,
       this.creativeTexture,
       this.displayTexture,
-      this.finalTexture,
-      this.histogramBuffer
+      this.finalTexture
     ];
     const destroyed = new Set<DestroyableGpuResource>();
     for (const resource of resources) {
@@ -52,7 +48,6 @@ export class DocumentImageGpuResources {
     this.creativeTexture = null;
     this.displayTexture = null;
     this.finalTexture = null;
-    this.histogramBuffer = null;
     this.clearBindGroups();
   }
 
@@ -64,7 +59,5 @@ export class DocumentImageGpuResources {
     this.blitOriginalBindGroup = null;
     this.blitCorrectedBindGroup = null;
     this.differenceBindGroup = null;
-    this.histogramOriginalBindGroup = null;
-    this.histogramCorrectedBindGroup = null;
   }
 }

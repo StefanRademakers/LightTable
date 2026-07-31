@@ -8,23 +8,17 @@ describe('DocumentImageGpuResources', () => {
     const resources = new DocumentImageGpuResources();
     const source = destroyable();
     const output = destroyable();
-    const histogram = destroyable();
     resources.sourceTexture = source as unknown as GPUTexture;
     resources.finalTexture = output as unknown as GPUTexture;
-    resources.histogramBuffer = histogram as unknown as GPUBuffer;
     resources.blitOriginalBindGroup = {} as GPUBindGroup;
-    resources.histogramCorrectedBindGroup = {} as GPUBindGroup;
 
     resources.reset();
 
     expect(source.destroy).toHaveBeenCalledOnce();
     expect(output.destroy).toHaveBeenCalledOnce();
-    expect(histogram.destroy).toHaveBeenCalledOnce();
     expect(resources.sourceTexture).toBeNull();
     expect(resources.finalTexture).toBeNull();
-    expect(resources.histogramBuffer).toBeNull();
     expect(resources.blitOriginalBindGroup).toBeNull();
-    expect(resources.histogramCorrectedBindGroup).toBeNull();
   });
 
   it('destroys an aliased resource only once', () => {
