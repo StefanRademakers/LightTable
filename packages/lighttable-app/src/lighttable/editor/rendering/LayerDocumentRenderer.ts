@@ -68,6 +68,7 @@ import {
 import { GeometryPreviewStore } from './GeometryPreviewStore';
 import { documentPipelinesFor } from './DocumentPipelineBundle';
 import { LayerStylePipelineProvider } from './LayerStylePipelineProvider';
+import { LayerDocumentAssetService } from './LayerDocumentAssetService';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -112,6 +113,7 @@ export class LayerDocumentRenderer {
   private readonly selectionTextures: SelectionTextureStore;
   private readonly transformSessions = new TransformSessionStore();
   private readonly pixelEditSessions = new PixelEditSessionStore();
+  private readonly documentAssets: LayerDocumentAssetService;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -151,6 +153,16 @@ export class LayerDocumentRenderer {
     this.selectionTextures = new SelectionTextureStore({
       createSelectionTexture: (label) => this.createSelectionTexture(label),
       createClipboardTexture: (label) => this.createTexture(label)
+    });
+    this.documentAssets = new LayerDocumentAssetService({
+      rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
+      maskTexture: (layerId) => this.maskTextureFor(layerId),
+      encodeTexture: (texture, maskChannel) => this.encodeTextureAsPng(texture, maskChannel),
+      decodeTexture: (blob, texture, maskChannel) =>
+        this.decodeBlobIntoTexture(blob, texture, maskChannel),
+      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
+      patternSource: (patternId) => this.patternAssets.getSource(patternId),
+      loadPattern: (asset) => this.loadPatternAsset(asset)
     });
     // Tool-only pipelines are compiled on first use. The normal image-open
     // path needs decode/composite, but not brush, selection or transform.
@@ -782,32 +794,7 @@ export class LayerDocumentRenderer {
   }
 
   async exportDocumentAssets(document: ImageDocument): Promise<DocumentAssetBlob[]> {
-    const assets: DocumentAssetBlob[] = [];
-    for (const { layer } of walkRasterLayers(document.layers)) {
-      const runtime = this.layerResources.raster(layer.id);
-      if (!runtime) throw new Error(`Layer ${layer.name} is not available for saving.`);
-      assets.push({
-        layerId: layer.id,
-        pixels: await this.encodeTextureAsPng(runtime.texture, false),
-        mask: layer.mask && runtime.maskTexture ? await this.encodeTextureAsPng(runtime.maskTexture, true) : null
-      });
-    }
-    for (const { node } of walkLayerTree(document.layers)) {
-      if (node.type === 'raster' || !node.mask) continue;
-      const maskTexture = this.maskTextureFor(node.id);
-      if (!maskTexture) throw new Error(`Mask ${node.name} is not available for saving.`);
-      assets.push({
-        layerId: node.id,
-        pixels: new Blob(),
-        mask: await this.encodeTextureAsPng(maskTexture, true)
-      });
-    }
-    document.assets.patterns.forEach((pattern) => {
-      const source = this.patternAssets.getSource(pattern.id);
-      if (!source) throw new Error(`Pattern ${pattern.name} is not available for saving.`);
-      assets.push({ patternId: pattern.id, source });
-    });
-    return assets;
+    return this.documentAssets.export(document);
   }
 
   async exportLayerThumbnail(
@@ -839,24 +826,7 @@ export class LayerDocumentRenderer {
   }
 
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {
-    for (const asset of assets) {
-      if ('sourceId' in asset) continue;
-      if ('patternId' in asset) {
-        await this.loadPatternAsset(asset);
-        continue;
-      }
-      const runtime = this.layerResources.raster(asset.layerId);
-      this.invalidateStyledLayerCache(asset.layerId);
-      if (asset.pixels.size > 0) {
-        if (!runtime) throw new Error(`Layer ${asset.layerId} is not available while opening the document.`);
-        await this.decodeBlobIntoTexture(asset.pixels, runtime.texture, false);
-      }
-      if (asset.mask) {
-        const maskTexture = this.maskTextureFor(asset.layerId);
-        if (!maskTexture) throw new Error(`Mask ${asset.layerId} is not available while opening the document.`);
-        await this.decodeBlobIntoTexture(asset.mask, maskTexture, true);
-      }
-    }
+    await this.documentAssets.load(assets);
   }
 
   private patternTextureForEffect(effect: RasterLayer['styleStack']['effects'][number]) {
