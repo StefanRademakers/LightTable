@@ -94,4 +94,38 @@ describe('DocumentTextureFactory', () => {
     expect(draw).toHaveBeenCalledWith(3);
     expect(end).toHaveBeenCalledOnce();
   });
+
+  it('publishes selection targets only after their canonical clear state is submitted', () => {
+    const end = vi.fn();
+    const beginRenderPass = vi.fn(() => ({ end }));
+    const finish = vi.fn(() => ({}) as GPUCommandBuffer);
+    const submit = vi.fn();
+    const factory = new DocumentTextureFactory({
+      device: {
+        createCommandEncoder: vi.fn(() => ({ beginRenderPass, finish })),
+        queue: { submit }
+      } as unknown as GPUDevice,
+      dimensions: () => ({ width: 1, height: 1 })
+    });
+    const texture = () => ({
+      createView: vi.fn(() => ({}))
+    }) as unknown as GPUTexture;
+
+    factory.initializeSelectionTargets(texture(), texture(), texture());
+
+    expect(beginRenderPass).toHaveBeenCalledTimes(3);
+    expect(beginRenderPass).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      colorAttachments: [expect.objectContaining({
+        clearValue: { r: 1, g: 0, b: 0, a: 1 }
+      })]
+    }));
+    expect(beginRenderPass).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      colorAttachments: [expect.objectContaining({
+        clearValue: { r: 0, g: 0, b: 0, a: 0 }
+      })]
+    }));
+    expect(end).toHaveBeenCalledTimes(3);
+    expect(finish).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledOnce();
+  });
 });

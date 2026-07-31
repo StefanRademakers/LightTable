@@ -1590,3 +1590,5 @@ The refactor is successful when:
       owner shared by renderer services instead of private renderer helpers.
 - [x] Centralize active-document dimensions and async GPU resource generations
       so stale decode/readback work cannot cross document lifecycles.
+- [x] Move selection-target allocation and canonical GPU initialization behind
+      the selection store/texture-factory boundary.

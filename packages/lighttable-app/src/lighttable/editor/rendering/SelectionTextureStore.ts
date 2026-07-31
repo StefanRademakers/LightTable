@@ -1,6 +1,7 @@
 export interface SelectionTextureStoreOptions {
   createSelectionTexture: (label: string) => GPUTexture;
   createClipboardTexture: (label: string) => GPUTexture;
+  initializeTargets?: (mask: GPUTexture, result: GPUTexture, shape: GPUTexture) => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export class SelectionTextureStore {
     this.mask = this.options.createSelectionTexture('LightTable active selection');
     this.result = this.options.createSelectionTexture('LightTable selection result');
     this.shape = this.options.createSelectionTexture('LightTable selection shape');
+    this.options.initializeTargets?.(this.mask, this.result, this.shape);
     return true;
   }
 

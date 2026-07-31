@@ -33,6 +33,17 @@ export class DocumentTextureFactory {
     return this.create(label, 'r8unorm');
   }
 
+  initializeSelectionTargets(mask: GPUTexture, result: GPUTexture, shape: GPUTexture) {
+    const encoder = this.options.device.createCommandEncoder({
+      label: 'Initialize LightTable selection'
+    });
+    const selected = { r: 1, g: 0, b: 0, a: 1 };
+    this.clear(encoder, mask, selected);
+    this.clear(encoder, result, selected);
+    this.clear(encoder, shape);
+    this.options.device.queue.submit([encoder.finish()]);
+  }
+
   clear(
     encoder: GPUCommandEncoder,
     texture: GPUTexture,

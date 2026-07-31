@@ -180,7 +180,9 @@ export class LayerDocumentRenderer {
     });
     this.selectionTextures = new SelectionTextureStore({
       createSelectionTexture: (label) => this.textures.createSelection(label),
-      createClipboardTexture: (label) => this.textures.createColor(label)
+      createClipboardTexture: (label) => this.textures.createColor(label),
+      initializeTargets: (mask, result, shape) =>
+        this.textures.initializeSelectionTargets(mask, result, shape)
     });
     this.transformRasterizer = new TransformRasterizer({
       device,
@@ -397,12 +399,7 @@ export class LayerDocumentRenderer {
   }
 
   private ensureSelectionTargets() {
-    if (!this.selectionTextures.ensureTargets()) return;
-    const encoder = this.device.createCommandEncoder({ label: 'Initialize LightTable selection' });
-    this.textures.clear(encoder, this.selectionTextures.mask!, { r: 1, g: 0, b: 0, a: 1 });
-    this.textures.clear(encoder, this.selectionTextures.result!, { r: 1, g: 0, b: 0, a: 1 });
-    this.textures.clear(encoder, this.selectionTextures.shape!);
-    this.device.queue.submit([encoder.finish()]);
+    this.selectionTextures.ensureTargets();
   }
 
   releaseSubmittedResources() {

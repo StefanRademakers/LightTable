@@ -6,15 +6,19 @@ const texture = () => ({ destroy: vi.fn() }) as unknown as GPUTexture;
 describe('SelectionTextureStore', () => {
   it('allocates the selection channels once and can swap the working pair', () => {
     const createSelectionTexture = vi.fn(texture);
+    const initializeTargets = vi.fn();
     const store = new SelectionTextureStore({
       createSelectionTexture,
-      createClipboardTexture: texture
+      createClipboardTexture: texture,
+      initializeTargets
     });
     expect(store.ensureTargets()).toBe(true);
     const firstMask = store.mask;
     const firstResult = store.result;
     expect(store.ensureTargets()).toBe(false);
     expect(createSelectionTexture).toHaveBeenCalledTimes(3);
+    expect(initializeTargets).toHaveBeenCalledOnce();
+    expect(initializeTargets).toHaveBeenCalledWith(firstMask, firstResult, store.shape);
 
     store.swapMaskAndResult();
     expect(store.mask).toBe(firstResult);
