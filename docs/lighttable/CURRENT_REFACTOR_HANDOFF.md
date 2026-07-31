@@ -167,13 +167,14 @@ dimensions no longer request display frames, and ordinary scope renders no
 longer read DOM layout. Scope analysis is deliberately unaffected by a
 display-only resize.
 
-Document publication now has the same explicit GPU boundary. `document.id`
-plus the monotonic immutable `document.revision` is the render contract:
-replaying that pair updates the engine's latest editor-only document snapshot
-but skips retained layer synchronization, adjustment-resource reconciliation,
-uniform uploads, scope invalidation and frame scheduling. Active-layer changes
-therefore remain instant UI state, while every structural, pixel, mask and
-style command still crosses the boundary through its revision increment.
+Document publication now has a semantic GPU boundary. The engine retains the
+latest immutable document snapshot for UI/editor queries, then compares only
+render-bearing state before crossing into retained GPU synchronization.
+Names, locks, timestamps, active-layer state and import diagnostics no longer
+rebuild the compositor, Grade/Lens Fx or scopes. Structural order, pixels,
+masks, transforms, styles, local stacks and document assets remain conservative
+render dependencies. This replaces the earlier coarse `document.revision`
+gate, whose revision also changed for nonvisual editor commands.
 
 Frame submission now has an explicit no-work boundary as well. Renderer dirty
 state reports only stages that can emit commands, and visible scopes expose
@@ -327,6 +328,13 @@ complete immutable `ImageDocument` object. Active-layer, selection, opacity,
 blend, naming and other non-pixel publications therefore neither restart the
 asynchronous thumbnail controller nor publish an equivalent React map. Raster
 and mask pixel revisions remain independent cache boundaries.
+
+GPU document synchronization now follows the same principle. A cheap,
+reference-aware recursive comparison runs only when the immutable document
+revision changes. Rename and lock commands still publish canonical state and
+remain undoable, but do not invalidate retained layer resources or downstream
+analysis. Tests protect both no-op cases and visual opacity, visibility and
+pixel-revision changes.
 
 ## Guardrails for resuming
 

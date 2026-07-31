@@ -68,11 +68,7 @@ import { estimateDocumentGpuBytes } from './documentGpuMemoryEstimate';
 import { DocumentSourceGpuLoader } from './documentSourceGpuLoader';
 import { DocumentScopeRuntime } from './documentScopeRuntime';
 import { DocumentHistogramRuntime } from './documentHistogramRuntime';
-import {
-  documentRenderRevisionsEqual,
-  resolveDocumentRenderRevision,
-  type DocumentRenderRevision
-} from '../application/rendering/documentRenderRevision';
+import { documentRenderStatesEqual } from '../application/rendering/documentRenderState';
 
 interface ViewportRect {
   x: number;
@@ -95,7 +91,6 @@ export class WebGpuEngine {
   private readonly adjustmentLayerRenderer: AdjustmentLayerRenderer;
   private translationAlignmentService: FeatureAlignmentService | null = null;
   private imageDocument: ImageDocument | null = null;
-  private documentRenderRevision: DocumentRenderRevision | null = null;
   /**
    * Last document-only composite. Global Grade and Lens Fx consume this
    * texture without rebuilding unchanged layers, masks, transforms or styles.
@@ -360,13 +355,12 @@ export class WebGpuEngine {
 
   setDocument(document: ImageDocument) {
     if (!this.imageResources.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
-    const firstDocument = !this.imageDocument || this.imageDocument.id !== document.id;
-    const nextRenderRevision = resolveDocumentRenderRevision(document);
+    const previousDocument = this.imageDocument;
+    const firstDocument = !previousDocument || previousDocument.id !== document.id;
     this.imageDocument = document;
     // Always retain the latest editor-only state, but only cross the GPU
-    // boundary when immutable document content actually changed.
-    if (documentRenderRevisionsEqual(this.documentRenderRevision, nextRenderRevision)) return;
-    this.documentRenderRevision = nextRenderRevision;
+    // boundary when render-bearing immutable document content changed.
+    if (documentRenderStatesEqual(previousDocument, document)) return;
     if (firstDocument) this.documentRenderer.initialize(document, this.imageResources.sourceTexture);
     else this.documentRenderer.syncDocument(document);
     this.initializeLayerStylesIfNeeded(document);
@@ -1420,7 +1414,6 @@ export class WebGpuEngine {
     this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();
     this.imageDocument = null;
-    this.documentRenderRevision = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;
     this.linearSpatialTexture = null;

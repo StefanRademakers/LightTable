@@ -1019,6 +1019,13 @@ terminal cancellation. Dirty-stage decisions remain in the renderer, while
 browser callback ownership no longer leaks through React or ad-hoc frame
 handles.
 
+Document publication is now filtered by an explicit render-state contract
+rather than the document's coarse persistence revision. Immutable snapshots
+still reach the engine so editor state stays current, while layer names, locks,
+timestamps, active-layer changes and import diagnostics stop before retained
+GPU synchronization. Layer order, compositing, pixels, masks, transforms,
+styles, local processing stacks and assets remain render-bearing dependencies.
+
 Shared WebGPU device ownership is now isolated from the concrete document
 engine. Concurrent document startups reuse one acquisition, optional texture
 format support is negotiated once, every live renderer receives device-loss
