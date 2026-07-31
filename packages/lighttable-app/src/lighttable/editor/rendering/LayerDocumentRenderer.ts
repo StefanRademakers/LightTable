@@ -24,7 +24,6 @@ import type {
   DocumentAssetBlob,
   PatternAssetBlob
 } from '../persistence/layeredDocumentFormat';
-import type { DocumentAssetId } from '../document/documentTypes';
 import { invertMatrix } from '../tools/transform/affine';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import {
@@ -34,11 +33,6 @@ import {
   type RasterRenderContract
 } from './renderContract';
 import { layerStyleStackIsActive } from '../styles/layerStyleDefaults';
-import {
-  baseLayerStyleUniform,
-  LAYER_STYLE_SETTINGS_BYTES,
-  layerStyleUniform
-} from '../styles/layerStyleGpu';
 import {
   layerStyleCacheKey,
   layerStyleDocumentBounds
@@ -50,7 +44,6 @@ import {
 } from './compositorGraph';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
 import { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
-import { LayerStyleTextureStore } from './LayerStyleTextureStore';
 import { RenderTargetPair } from './RenderTargetPair';
 import { SelectionTextureStore } from './SelectionTextureStore';
 import { TransformSessionStore } from './TransformSessionStore';
@@ -62,7 +55,6 @@ import {
 } from './ToolPipelineBundle';
 import { GeometryPreviewStore } from './GeometryPreviewStore';
 import { documentPipelinesFor } from './DocumentPipelineBundle';
-import { LayerStylePipelineProvider } from './LayerStylePipelineProvider';
 import { LayerDocumentAssetService } from './LayerDocumentAssetService';
 import { LayerTextureCodec } from './LayerTextureCodec';
 import { SelectionRasterizer } from './SelectionRasterizer';
@@ -72,6 +64,7 @@ import {
   RasterDocumentOperations,
   type EncodeAdjustment
 } from './RasterDocumentOperations';
+import { LayerStyleRenderer } from './LayerStyleRenderer';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -94,13 +87,11 @@ export class LayerDocumentRenderer {
   private readonly decodePipeline: GPURenderPipeline;
   private readonly compositePipeline: GPURenderPipeline;
   private readonly adjustmentMixPipeline: GPURenderPipeline;
-  private readonly layerStylePipeline: LayerStylePipelineProvider;
   private readonly fullscreenModule: GPUShaderModule;
-  private readonly styleShapePipeline: GPURenderPipeline;
   private toolPipelines: ToolPipelineBundle | null = null;
   private readonly brushCanvasBuffer: GPUBuffer;
   private readonly submittedResources: SubmittedResourceRetainer;
-  private readonly layerStyleTextures: LayerStyleTextureStore;
+  private readonly layerStyleRenderer: LayerStyleRenderer;
   private readonly compositeTargets: RenderTargetPair;
   private readonly selectionTextures: SelectionTextureStore;
   private readonly transformSessions = new TransformSessionStore();
@@ -115,7 +106,6 @@ export class LayerDocumentRenderer {
   private height = 0;
   private resourceGeneration = 0;
   private readonly geometryPreviews = new GeometryPreviewStore();
-  private styleQuality: 'interactive' | 'final' = 'final';
 
   private readonly device: GPUDevice;
   private readonly sampler: GPUSampler;
@@ -128,13 +118,11 @@ export class LayerDocumentRenderer {
     this.compositePipeline = pipelines.composite;
     this.adjustmentMixPipeline = pipelines.adjustmentMix;
     this.fullscreenModule = pipelines.fullscreenModule;
-    this.styleShapePipeline = pipelines.styleShape;
     this.textureCodec = new LayerTextureCodec(device, sampler, {
       decode: pipelines.decode,
       maskDecode: pipelines.maskDecode,
       exportLayer: pipelines.exportLayer
     });
-    this.layerStylePipeline = new LayerStylePipelineProvider(device, this.fullscreenModule);
     this.layerResources = new LayerRuntimeStore({
       createRasterTexture: (label) => this.createTexture(label),
       createMaskTexture: (label) => this.createMaskTexture(label)
@@ -142,8 +130,17 @@ export class LayerDocumentRenderer {
     this.submittedResources = new SubmittedResourceRetainer({
       onSubmittedWorkDone: () => this.device.queue.onSubmittedWorkDone()
     });
-    this.layerStyleTextures = new LayerStyleTextureStore({
-      createTexture: (label) => this.createTexture(label)
+    this.layerStyleRenderer = new LayerStyleRenderer({
+      device,
+      sampler,
+      fullscreenModule: this.fullscreenModule,
+      shapePipeline: pipelines.styleShape,
+      patternAssets: this.patternAssets,
+      submittedResources: this.submittedResources,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      createTexture: (label) => this.createTexture(label),
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.compositeTargets = new RenderTargetPair({
       createTexture: (label) => this.createTexture(label),
@@ -238,11 +235,11 @@ export class LayerDocumentRenderer {
   }
 
   async initializeLayerStylePipeline() {
-    await this.layerStylePipeline.initialize();
+    await this.layerStyleRenderer.initialize();
   }
 
   async layerStyleShaderErrors() {
-    return this.layerStylePipeline.shaderErrors();
+    return this.layerStyleRenderer.shaderErrors();
   }
 
   initialize(document: ImageDocument, sourceTexture: GPUTexture) {
@@ -287,7 +284,7 @@ export class LayerDocumentRenderer {
 
   pruneDetachedRuntimes(keepLayerIds: ReadonlySet<LayerId>) {
     this.layerResources.pruneDetached(keepLayerIds).forEach((id) => {
-      this.layerStyleTextures.invalidate(id);
+      this.layerStyleRenderer.invalidate(id);
     });
   }
 
@@ -312,7 +309,7 @@ export class LayerDocumentRenderer {
     let bytes = 0;
     bytes += this.layerResources.estimatedTextureBytes(this.width, this.height);
     bytes += this.patternAssets.estimatedTextureBytes();
-    bytes += this.layerStyleTextures.estimatedTextureBytes(this.width, this.height);
+    bytes += this.layerStyleRenderer.estimatedTextureBytes(this.width, this.height);
     bytes += this.compositeTargets.estimatedTextureBytes(this.width, this.height, 8);
     bytes += this.selectionTextures.estimatedTextureBytes(this.width, this.height);
     bytes += this.pixelEditSessions.estimatedTextureBytes(rgba16Bytes);
@@ -329,11 +326,7 @@ export class LayerDocumentRenderer {
   }
 
   setLayerStyleInteractionActive(active: boolean) {
-    const quality = active ? 'interactive' : 'final';
-    if (quality === this.styleQuality) return false;
-    this.styleQuality = quality;
-    this.releaseStyledLayerCache();
-    return true;
+    return this.layerStyleRenderer.setInteractionActive(active);
   }
 
   encodeComposite(
@@ -502,8 +495,12 @@ export class LayerDocumentRenderer {
         const activePixelEdit = this.pixelEditSessions.current?.layerId === layer.id;
         const styleCacheKey = activeTransform || activePixelEdit
           ? null
-          : layerStyleCacheKey(layer, sourceToDocument, this.styleQuality);
-        const styled = this.encodeStyledLayer(
+          : layerStyleCacheKey(
+              layer,
+              sourceToDocument,
+              this.layerStyleRenderer.cacheKeyQuality()
+            );
+        const styled = this.layerStyleRenderer.encode(
           encoder,
           layer,
           foregroundTexture,
@@ -627,7 +624,7 @@ export class LayerDocumentRenderer {
       const [groupResult] = renderNodes(childPlan, groupA, groupB);
       const maskTexture = this.maskTextureFor(group.id);
       const styledGroup = layerStyleStackIsActive(group.styleStack)
-        ? this.encodeStyledLayer(
+        ? this.layerStyleRenderer.encode(
             encoder,
             group,
             groupResult,
@@ -687,145 +684,16 @@ export class LayerDocumentRenderer {
     return settingsBuffer;
   }
 
-  private encodeStyledLayer(
-    encoder: GPUCommandEncoder,
-    layer: RasterLayer | GroupLayer,
-    foregroundTexture: GPUTexture,
-    maskTexture: GPUTexture | null,
-    inverse: AffineMatrix,
-    sourceSize: { width: number; height: number },
-    cacheKey: string | null
-  ) {
-    const styleEffectPipeline = this.layerStylePipeline.pipeline;
-    if (!styleEffectPipeline) return null;
-    const cached = this.layerStyleTextures.cached(layer.id, cacheKey);
-    if (cached) return cached;
-    const styleTextures = this.layerStyleTextures.ensureWorkTextures();
-
-    // Materialize transformed/masked source once. This pass intentionally
-    // does not use the regular layer compositor: styles operate on a shape,
-    // never on a blend against a synthetic transparent background.
-    const shapeSettings = this.device.createBuffer({
-      label: `LightTable Layer Style shape: ${layer.name}`,
-      size: 64,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(shapeSettings, 0, new Float32Array([
-      layer.mask?.enabled && maskTexture ? 1 : 0,
-      layer.mask?.density ?? 1,
-      layer.mask?.feather ?? 0,
-      0,
-      inverse.a, inverse.c, inverse.tx, 0,
-      inverse.b, inverse.d, inverse.ty, 0,
-      sourceSize.width, sourceSize.height,
-      this.width, this.height
-    ]));
-    this.submittedResources.retainBuffer(shapeSettings);
-    const shapeBindGroup = this.device.createBindGroup({
-      layout: this.styleShapePipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: foregroundTexture.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: shapeSettings } },
-        { binding: 3, resource: (maskTexture ?? foregroundTexture).createView() }
-      ]
-    });
-    this.drawFullscreen(
-      encoder,
-      this.styleShapePipeline,
-      shapeBindGroup,
-      styleTextures.shape.createView(),
-      { r: 0, g: 0, b: 0, a: 0 }
-    );
-
-    const encodeStylePass = (
-      current: GPUTexture,
-      target: GPUTexture,
-      values: Float32Array,
-      label: string,
-      patternTexture: GPUTexture | null = null
-    ) => {
-      const settingsBuffer = this.device.createBuffer({
-        label,
-        size: LAYER_STYLE_SETTINGS_BYTES,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-      });
-      this.device.queue.writeBuffer(settingsBuffer, 0, new Float32Array(values));
-      this.submittedResources.retainBuffer(settingsBuffer);
-      const bindGroup = this.device.createBindGroup({
-        layout: styleEffectPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: current.createView() },
-          { binding: 1, resource: styleTextures.shape.createView() },
-          { binding: 2, resource: this.sampler },
-          { binding: 3, resource: { buffer: settingsBuffer } },
-          { binding: 4, resource: (patternTexture ?? styleTextures.shape).createView() }
-        ]
-      });
-      this.drawFullscreen(
-        encoder,
-        styleEffectPipeline,
-        bindGroup,
-        target.createView(),
-        { r: 0, g: 0, b: 0, a: 0 }
-      );
-    };
-
-    encodeStylePass(
-      styleTextures.shape,
-      styleTextures.first,
-      baseLayerStyleUniform(layer.fillOpacity, this.width, this.height),
-      `LightTable Layer Style Fill: ${layer.name}`,
-      null
-    );
-    let current = styleTextures.first;
-    let target = styleTextures.second;
-    layer.styleStack.effects.forEach((effect) => {
-      const patternTexture = this.patternTextureForEffect(effect);
-      const values = layerStyleUniform(
-        effect,
-        layer.styleStack,
-        this.width,
-        this.height,
-        !this.effectRequiresPattern(effect) || Boolean(patternTexture),
-        this.styleQuality
-      );
-      if (!values) return;
-      encodeStylePass(
-        current,
-        target,
-        values,
-        `LightTable Layer Style ${effect.name}: ${layer.name}`,
-        patternTexture
-      );
-      [current, target] = [target, current];
-    });
-    if (!cacheKey) return current;
-    this.layerStyleTextures.writeCache(
-      encoder,
-      layer.id,
-      cacheKey,
-      layer.name,
-      current,
-      [this.width, this.height]
-    );
-    // Finish this frame from the already-rendered work texture. The cache
-    // becomes readable on a later render. Besides avoiding an unnecessary
-    // transition back from COPY_DST in the same command buffer, this keeps
-    // first-use style rendering reliable on stricter WebGPU implementations.
-    return current;
-  }
-
   private releaseStyleTargets() {
-    this.layerStyleTextures.releaseWorkTextures();
+    this.layerStyleRenderer.releaseTargets();
   }
 
   private releaseStyledLayerCache() {
-    this.layerStyleTextures.releaseCache();
+    this.layerStyleRenderer.releaseCache();
   }
 
   private invalidateStyledLayerCache(layerId: LayerId) {
-    this.layerStyleTextures.invalidate(layerId);
+    this.layerStyleRenderer.invalidate(layerId);
   }
 
   private ensureSelectionTargets() {
@@ -879,25 +747,6 @@ export class LayerDocumentRenderer {
 
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {
     await this.documentAssets.load(assets);
-  }
-
-  private patternTextureForEffect(effect: RasterLayer['styleStack']['effects'][number]) {
-    const reference = effect.kind === 'pattern-overlay'
-      ? effect.pattern
-      : effect.kind === 'stroke' && effect.fill.type === 'pattern'
-        ? effect.fill.pattern
-        : effect.kind === 'bevel-emboss' && effect.texture.enabled
-          ? effect.texture.pattern
-          : null;
-    return reference?.assetId
-      ? this.patternAssets.getTexture(reference.assetId as DocumentAssetId)
-      : null;
-  }
-
-  private effectRequiresPattern(effect: RasterLayer['styleStack']['effects'][number]) {
-    return effect.kind === 'pattern-overlay'
-      || (effect.kind === 'stroke' && effect.fill.type === 'pattern')
-      || (effect.kind === 'bevel-emboss' && effect.texture.enabled);
   }
 
   private async loadPatternAsset(asset: PatternAssetBlob) {
@@ -1528,7 +1377,7 @@ export class LayerDocumentRenderer {
     this.resourceGeneration += 1;
     this.layerResources.destroy();
     this.patternAssets.clear();
-    this.layerStyleTextures.destroy();
+    this.layerStyleRenderer.destroy();
     this.compositeTargets.destroy();
     this.selectionTextures.destroy();
     this.geometryPreviews.clear();
