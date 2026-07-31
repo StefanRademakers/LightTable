@@ -1543,6 +1543,9 @@ The refactor is successful when:
 - [x] Define one document-tab surface contract for viewport interaction and
       status presentation; multi-document composition no longer duplicates or
       owns the canvas/status React structure.
+- [x] Isolate transient editor overlays behind a document-scoped presentation
+      boundary; Layer Style transactions, dialogs and cursor-local tool options
+      no longer expand the application shell or workspace composition.
 - [x] Compose renderer creation, source hydration, atomic publication,
       generation cancellation and teardown through one document-lifecycle hook.
       Startup open and local File-open now use the same source-load controller;

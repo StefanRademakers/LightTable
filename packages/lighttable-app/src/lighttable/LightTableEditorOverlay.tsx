@@ -68,6 +68,9 @@ import {
   EditorDocumentSurface
 } from './composition/workspace/EditorDocumentSurface';
 import {
+  EditorOverlayLayer
+} from './composition/workspace/EditorOverlayLayer';
+import {
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
 import { useLightTableGradeClipboard } from './lightTableGradeClipboard';
@@ -81,11 +84,8 @@ import {
 } from './effects/lensDistortion/settings';
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
-import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
-import { EditorDialogs } from './editor/ui/EditorDialogs';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
-import { ToolOptionsContextMenu } from './editor/ui/ToolOptionsContextMenu';
 import {
   LightTableDockWorkspace,
   type LightTableDockWorkspaceHandle
@@ -1091,11 +1091,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocumentSnapshot,
     pushDocumentHistory
   });
-  const styleEditorRequest = layerStyleEditor.request;
   const openLayerStyleEditor = layerStyleEditor.open;
-  const previewLayerStyleStack = layerStyleEditor.preview;
-  const cancelLayerStyleEditor = layerStyleEditor.cancel;
-  const commitLayerStyleEditor = layerStyleEditor.commit;
   const layerPanelController = useLayerPanelController({
     getDocument: () => imageDocumentRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
@@ -1399,56 +1395,39 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onFastFileChange={handleLocalFile}
       onPrecisionFileChange={handleAdvancedLocalFile}
       overlays={(
-        <>
-          {styleEditorRequest ? (() => {
-            const current = imageDocumentRef.current;
-            const layer = current ? findDocumentLayer(current, styleEditorRequest.layerId) : null;
-            return layer?.type === 'raster' ? (
-              <div className="lighttable-style-editor-shield">
-                <LayerStyleEditor
-                  key={`${styleEditorRequest.layerId}:${styleEditorRequest.before.revision}`}
-                  layerName={layer.name}
-                  initialStack={layer.styleStack}
-                  initialEffectId={styleEditorRequest.effectId}
-                  onPreview={previewLayerStyleStack}
-                  onCancel={cancelLayerStyleEditor}
-                  onCommit={commitLayerStyleEditor}
-                />
-              </div>
-            ) : null;
-          })() : null}
-          <EditorDialogs
-            controller={editorDialogs}
-            photoshopReport={imageDocument?.photoshopImportReport ?? null}
-            differenceMetrics={psdDifferenceMetrics}
-            onFeather={featherCurrentSelection}
-            onFlatten={commitFlattenRequest}
-            onError={setError}
-          />
-          {toolOptionsMenu ? (
-            <ToolOptionsContextMenu
-              x={toolOptionsMenu.x}
-              y={toolOptionsMenu.y}
-              activeTool={visibleTool}
-              brush={editorSession.brush}
-              warp={editorSession.warp}
-              selectionPixelSnap={editorSession.selectionPixelSnap}
-              zoomPercent={activeScale * 100}
-              onBrushChange={updateBrush}
-              onWarpChange={updateWarp}
-              onWarpReset={() => {
-                warpSessionController.clearActiveLayer();
-                setToolOptionsMenu(null);
-              }}
-              onSelectionPixelSnapChange={(selectionPixelSnap) => {
-                setEditorSession((current) => ({ ...current, selectionPixelSnap }));
-              }}
-              onZoomPreset={setExactZoom}
-              onZoomFit={fitZoom}
-              onClose={() => setToolOptionsMenu(null)}
-            />
-          ) : null}
-        </>
+        <EditorOverlayLayer
+          document={imageDocument}
+          layerStyles={layerStyleEditor}
+          dialogs={{
+            controller: editorDialogs,
+            photoshopReport: imageDocument?.photoshopImportReport ?? null,
+            differenceMetrics: psdDifferenceMetrics,
+            onFeather: featherCurrentSelection,
+            onFlatten: commitFlattenRequest,
+            onError: setError
+          }}
+          toolOptions={toolOptionsMenu ? {
+            x: toolOptionsMenu.x,
+            y: toolOptionsMenu.y,
+            activeTool: visibleTool,
+            brush: editorSession.brush,
+            warp: editorSession.warp,
+            selectionPixelSnap: editorSession.selectionPixelSnap,
+            zoomPercent: activeScale * 100,
+            onBrushChange: updateBrush,
+            onWarpChange: updateWarp,
+            onWarpReset: () => {
+              warpSessionController.clearActiveLayer();
+              setToolOptionsMenu(null);
+            },
+            onSelectionPixelSnapChange: (selectionPixelSnap) => {
+              setEditorSession((current) => ({ ...current, selectionPixelSnap }));
+            },
+            onZoomPreset: setExactZoom,
+            onZoomFit: fitZoom,
+            onClose: () => setToolOptionsMenu(null)
+          } : null}
+        />
       )}
     >
           <LightTableDockWorkspace
