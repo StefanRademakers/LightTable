@@ -88,38 +88,6 @@ export class WebGpuEngine {
   private readonly renderDirty = new RenderDirtyState();
   private readonly imageResources = new DocumentImageGpuResources();
 
-  // Compatibility accessors keep the facade stable while ownership moves to
-  // the document-scoped resource set. New renderer code should use the set
-  // directly rather than adding another nullable engine field.
-  private get sourceTexture() { return this.imageResources.sourceTexture; }
-  private set sourceTexture(value: GPUTexture | null) { this.imageResources.sourceTexture = value; }
-  private get correctedTexture() { return this.imageResources.correctedTexture; }
-  private set correctedTexture(value: GPUTexture | null) { this.imageResources.correctedTexture = value; }
-  private get downsampleTexture() { return this.imageResources.downsampleTexture; }
-  private set downsampleTexture(value: GPUTexture | null) { this.imageResources.downsampleTexture = value; }
-  private get blurTexture() { return this.imageResources.blurTexture; }
-  private set blurTexture(value: GPUTexture | null) { this.imageResources.blurTexture = value; }
-  private get creativeTexture() { return this.imageResources.creativeTexture; }
-  private set creativeTexture(value: GPUTexture | null) { this.imageResources.creativeTexture = value; }
-  private get displayTexture() { return this.imageResources.displayTexture; }
-  private set displayTexture(value: GPUTexture | null) { this.imageResources.displayTexture = value; }
-  private get finalTexture() { return this.imageResources.finalTexture; }
-  private set finalTexture(value: GPUTexture | null) { this.imageResources.finalTexture = value; }
-  private get downsampleBindGroup() { return this.imageResources.downsampleBindGroup; }
-  private set downsampleBindGroup(value: GPUBindGroup | null) { this.imageResources.downsampleBindGroup = value; }
-  private get blurHorizontalBindGroup() { return this.imageResources.blurHorizontalBindGroup; }
-  private set blurHorizontalBindGroup(value: GPUBindGroup | null) { this.imageResources.blurHorizontalBindGroup = value; }
-  private get blurVerticalBindGroup() { return this.imageResources.blurVerticalBindGroup; }
-  private set blurVerticalBindGroup(value: GPUBindGroup | null) { this.imageResources.blurVerticalBindGroup = value; }
-  private get creativeBindGroup() { return this.imageResources.creativeBindGroup; }
-  private set creativeBindGroup(value: GPUBindGroup | null) { this.imageResources.creativeBindGroup = value; }
-  private get blitOriginalBindGroup() { return this.imageResources.blitOriginalBindGroup; }
-  private set blitOriginalBindGroup(value: GPUBindGroup | null) { this.imageResources.blitOriginalBindGroup = value; }
-  private get blitCorrectedBindGroup() { return this.imageResources.blitCorrectedBindGroup; }
-  private set blitCorrectedBindGroup(value: GPUBindGroup | null) { this.imageResources.blitCorrectedBindGroup = value; }
-  private get differenceBindGroup() { return this.imageResources.differenceBindGroup; }
-  private set differenceBindGroup(value: GPUBindGroup | null) { this.imageResources.differenceBindGroup = value; }
-
   private constructor(
     canvas: HTMLCanvasElement,
     device: GPUDevice,
@@ -350,7 +318,7 @@ export class WebGpuEngine {
     }
     this.destroyImageResources();
     this.metadata = loaded.metadata;
-    this.sourceTexture = loaded.texture;
+    this.imageResources.sourceTexture = loaded.texture;
     this.createImageResources(loaded.metadata.width, loaded.metadata.height);
     this.writeAdjustments();
     this.writeOutputSettings();
@@ -361,10 +329,10 @@ export class WebGpuEngine {
   }
 
   setDocument(document: ImageDocument) {
-    if (!this.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
+    if (!this.imageResources.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
     const firstDocument = !this.imageDocument || this.imageDocument.id !== document.id;
     this.imageDocument = document;
-    if (firstDocument) this.documentRenderer.initialize(document, this.sourceTexture);
+    if (firstDocument) this.documentRenderer.initialize(document, this.imageResources.sourceTexture);
     else this.documentRenderer.syncDocument(document);
     this.initializeLayerStylesIfNeeded(document);
     this.adjustmentLayerResources.syncDocument(document);
@@ -609,14 +577,14 @@ export class WebGpuEngine {
   }
 
   async exportMergedSelection(bounds: Rect) {
-    if (!this.metadata || !this.finalTexture || !this.documentRenderer) {
+    if (!this.metadata || !this.imageResources.finalTexture || !this.documentRenderer) {
       throw new Error('No processed image is available for Copy Merged.');
     }
     this.effectRuntime?.setInteractionActive(false);
     this.renderDirty.invalidate('effects');
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
-    return this.documentRenderer.exportDisplaySelection(this.finalTexture, bounds);
+    return this.documentRenderer.exportDisplaySelection(this.imageResources.finalTexture, bounds);
   }
 
   async pasteClipboardImage(
@@ -748,7 +716,7 @@ export class WebGpuEngine {
   }
 
   private createImageResources(width: number, height: number) {
-    if (!this.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.viewBuffer ||
+    if (!this.imageResources.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.viewBuffer ||
       !this.blurHorizontalBuffer || !this.blurVerticalBuffer || !this.curveTexture ||
       !this.basicPipeline || !this.downsamplePipeline || !this.blurPipeline || !this.creativePipeline ||
       !this.outputPipeline || !this.outputSettingsBuffer || !this.effectRuntime || !this.displayResolvePipeline ||
@@ -756,31 +724,31 @@ export class WebGpuEngine {
 
     const downsampleWidth = Math.max(1, Math.ceil(width / 4));
     const downsampleHeight = Math.max(1, Math.ceil(height / 4));
-    this.correctedTexture = this.device.createTexture({
+    this.imageResources.correctedTexture = this.device.createTexture({
       label: 'LightTable linear working image',
       size: [width, height],
       format: 'rgba16float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     });
-    this.downsampleTexture = this.device.createTexture({
+    this.imageResources.downsampleTexture = this.device.createTexture({
       label: 'LightTable reduced luminance',
       size: [downsampleWidth, downsampleHeight],
       format: 'rgba16float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     });
-    this.blurTexture = this.device.createTexture({
+    this.imageResources.blurTexture = this.device.createTexture({
       label: 'LightTable blurred luminance',
       size: [downsampleWidth, downsampleHeight],
       format: 'rgba16float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     });
-    this.creativeTexture = this.device.createTexture({
+    this.imageResources.creativeTexture = this.device.createTexture({
       label: 'LightTable linear creative grade',
       size: [width, height],
       format: 'rgba16float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     });
-    this.displayTexture = this.device.createTexture({
+    this.imageResources.displayTexture = this.device.createTexture({
       label: 'LightTable display-mapped image before display effects',
       size: [width, height],
       format: 'rgba16float',
@@ -788,7 +756,7 @@ export class WebGpuEngine {
     });
     this.effectRuntime.resize(width, height);
     this.layerEffectRenderer?.resize(width, height);
-    this.finalTexture = this.device.createTexture({
+    this.imageResources.finalTexture = this.device.createTexture({
       label: 'LightTable display-encoded result',
       size: [width, height],
       format: 'rgba8unorm',
@@ -798,38 +766,38 @@ export class WebGpuEngine {
     this.adjustmentLayerResources.configure({
       sampler: this.sampler,
       creativePipeline: this.creativePipeline,
-      correctedTexture: this.correctedTexture,
-      downsampleTexture: this.downsampleTexture
+      correctedTexture: this.imageResources.correctedTexture,
+      downsampleTexture: this.imageResources.downsampleTexture
     });
 
-    this.downsampleBindGroup = this.device.createBindGroup({
+    this.imageResources.downsampleBindGroup = this.device.createBindGroup({
       layout: this.downsamplePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.correctedTexture.createView() },
+        { binding: 0, resource: this.imageResources.correctedTexture.createView() },
         { binding: 1, resource: this.sampler }
       ]
     });
-    this.blurHorizontalBindGroup = this.device.createBindGroup({
+    this.imageResources.blurHorizontalBindGroup = this.device.createBindGroup({
       layout: this.blurPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.downsampleTexture.createView() },
+        { binding: 0, resource: this.imageResources.downsampleTexture.createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: this.blurHorizontalBuffer } }
       ]
     });
-    this.blurVerticalBindGroup = this.device.createBindGroup({
+    this.imageResources.blurVerticalBindGroup = this.device.createBindGroup({
       layout: this.blurPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.blurTexture.createView() },
+        { binding: 0, resource: this.imageResources.blurTexture.createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: this.blurVerticalBuffer } }
       ]
     });
-    this.creativeBindGroup = this.device.createBindGroup({
+    this.imageResources.creativeBindGroup = this.device.createBindGroup({
       layout: this.creativePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.correctedTexture.createView() },
-        { binding: 1, resource: this.downsampleTexture.createView() },
+        { binding: 0, resource: this.imageResources.correctedTexture.createView() },
+        { binding: 1, resource: this.imageResources.downsampleTexture.createView() },
         { binding: 2, resource: this.sampler },
         { binding: 3, resource: { buffer: this.adjustmentBuffer } },
         { binding: 4, resource: this.curveTexture.createView() }
@@ -841,43 +809,47 @@ export class WebGpuEngine {
       downsamplePipeline: this.downsamplePipeline,
       blurPipeline: this.blurPipeline,
       creativePipeline: this.creativePipeline,
-      correctedTexture: this.correctedTexture,
-      downsampleTexture: this.downsampleTexture,
-      blurTexture: this.blurTexture,
-      creativeTexture: this.creativeTexture,
-      downsampleBindGroup: this.downsampleBindGroup,
-      blurHorizontalBindGroup: this.blurHorizontalBindGroup,
-      blurVerticalBindGroup: this.blurVerticalBindGroup,
+      correctedTexture: this.imageResources.correctedTexture,
+      downsampleTexture: this.imageResources.downsampleTexture,
+      blurTexture: this.imageResources.blurTexture,
+      creativeTexture: this.imageResources.creativeTexture,
+      downsampleBindGroup: this.imageResources.downsampleBindGroup,
+      blurHorizontalBindGroup: this.imageResources.blurHorizontalBindGroup,
+      blurVerticalBindGroup: this.imageResources.blurVerticalBindGroup,
       width,
       height
     });
-    this.blitOriginalBindGroup = this.device.createBindGroup({
+    this.imageResources.blitOriginalBindGroup = this.device.createBindGroup({
       layout: this.blitPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.sourceTexture.createView() },
+        { binding: 0, resource: this.imageResources.sourceTexture.createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: this.viewBuffer } }
       ]
     });
-    this.blitCorrectedBindGroup = this.device.createBindGroup({
+    this.imageResources.blitCorrectedBindGroup = this.device.createBindGroup({
       layout: this.blitPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.finalTexture.createView() },
+        { binding: 0, resource: this.imageResources.finalTexture.createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: this.viewBuffer } }
       ]
     });
-    this.differenceBindGroup = this.device.createBindGroup({
+    this.imageResources.differenceBindGroup = this.device.createBindGroup({
       layout: this.differencePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.sourceTexture.createView() },
-        { binding: 1, resource: this.finalTexture.createView() },
+        { binding: 0, resource: this.imageResources.sourceTexture.createView() },
+        { binding: 1, resource: this.imageResources.finalTexture.createView() },
         { binding: 2, resource: this.sampler },
         { binding: 3, resource: { buffer: this.viewBuffer } }
       ]
     });
-    this.histogramRuntime.configure(this.sourceTexture, this.finalTexture, this.metadata);
-    if (this.metadata) this.scopeRuntime.setTextures(this.sourceTexture, this.finalTexture, this.metadata);
+    this.histogramRuntime.configure(this.imageResources.sourceTexture, this.imageResources.finalTexture, this.metadata);
+    if (this.metadata) this.scopeRuntime.setTextures(
+      this.imageResources.sourceTexture,
+      this.imageResources.finalTexture,
+      this.metadata
+    );
   }
 
   setAdjustments(adjustments: BasicAdjustments) {
@@ -941,7 +913,7 @@ export class WebGpuEngine {
   }
 
   async measureReferenceDifference(threshold = 2 / 255): Promise<ReferenceDifferenceMetrics> {
-    if (!this.metadata || !this.sourceTexture || !this.finalTexture || !this.differenceMetricsPipeline) {
+    if (!this.metadata || !this.imageResources.sourceTexture || !this.imageResources.finalTexture || !this.differenceMetricsPipeline) {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
     }
     await this.layerStyleInitialization;
@@ -953,8 +925,8 @@ export class WebGpuEngine {
       this.device,
       this.differenceMetricsPipeline
     ).measure({
-      sourceTexture: this.sourceTexture,
-      reconstructedTexture: this.finalTexture,
+      sourceTexture: this.imageResources.sourceTexture,
+      reconstructedTexture: this.imageResources.finalTexture,
       width: this.metadata.width,
       height: this.metadata.height,
       threshold
@@ -1072,13 +1044,13 @@ export class WebGpuEngine {
       width: this.metadata.width,
       height: this.metadata.height,
       sourceBitDepth: this.metadata.sourceBitDepth ?? 8,
-      source: Boolean(this.sourceTexture),
-      corrected: Boolean(this.correctedTexture),
-      downsample: Boolean(this.downsampleTexture),
-      blur: Boolean(this.blurTexture),
-      creative: Boolean(this.creativeTexture),
-      display: Boolean(this.displayTexture),
-      final: Boolean(this.finalTexture),
+      source: Boolean(this.imageResources.sourceTexture),
+      corrected: Boolean(this.imageResources.correctedTexture),
+      downsample: Boolean(this.imageResources.downsampleTexture),
+      blur: Boolean(this.imageResources.blurTexture),
+      creative: Boolean(this.imageResources.creativeTexture),
+      display: Boolean(this.imageResources.displayTexture),
+      final: Boolean(this.imageResources.finalTexture),
       curveLutBytes: this.curveTexture ? CURVE_LUT_SIZE * 16 : 0,
       adjustmentLayerBytes: this.adjustmentLayerResources.estimatedBytes(),
       layerDocumentBytes: this.documentRenderer?.estimatedTextureBytes() ?? 0,
@@ -1094,16 +1066,17 @@ export class WebGpuEngine {
   }
 
   private renderNow() {
-    if (this.destroyed || !this.metadata || !this.correctedTexture || !this.downsampleTexture ||
-      !this.blurTexture || !this.creativeTexture || !this.displayTexture ||
-      !this.finalTexture || !this.basicPipeline || !this.downsamplePipeline ||
+    if (this.destroyed || !this.metadata || !this.imageResources.correctedTexture || !this.imageResources.downsampleTexture ||
+      !this.imageResources.blurTexture || !this.imageResources.creativeTexture || !this.imageResources.displayTexture ||
+      !this.imageResources.finalTexture || !this.basicPipeline || !this.downsamplePipeline ||
       !this.blurPipeline || !this.creativePipeline || !this.outputPipeline || !this.outputSettingsBuffer ||
-      !this.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.curveTexture ||
+      !this.imageResources.sourceTexture || !this.sampler || !this.adjustmentBuffer || !this.curveTexture ||
       !this.effectRuntime || !this.documentRenderer || !this.imageDocument ||
       !this.displayResolvePipeline || !this.blitPipeline || !this.differencePipeline ||
-      !this.downsampleBindGroup || !this.blurHorizontalBindGroup || !this.blurVerticalBindGroup ||
-      !this.creativeBindGroup ||
-      !this.blitOriginalBindGroup || !this.blitCorrectedBindGroup || !this.differenceBindGroup) return;
+      !this.imageResources.downsampleBindGroup || !this.imageResources.blurHorizontalBindGroup || !this.imageResources.blurVerticalBindGroup ||
+      !this.imageResources.creativeBindGroup ||
+      !this.imageResources.blitOriginalBindGroup || !this.imageResources.blitCorrectedBindGroup ||
+      !this.imageResources.differenceBindGroup) return;
 
     // Capture the first validation failure from the frame. Without a scope the
     // useful error is commonly followed by—and visually replaced with—the
@@ -1144,10 +1117,15 @@ export class WebGpuEngine {
           { binding: 1, resource: { buffer: this.outputSettingsBuffer } }
         ]
       });
-      this.drawFullscreenPass(encoder, this.outputPipeline, outputBindGroup, this.displayTexture.createView());
+      this.drawFullscreenPass(
+        encoder,
+        this.outputPipeline,
+        outputBindGroup,
+        this.imageResources.displayTexture.createView()
+      );
       const displayEffectTexture = this.effectRuntime.encodeDisplayPost(
         encoder,
-        this.displayTexture,
+        this.imageResources.displayTexture,
         visualizingDepth
       );
       const displayResolveBindGroup = this.device.createBindGroup({
@@ -1158,7 +1136,7 @@ export class WebGpuEngine {
         encoder,
         this.displayResolvePipeline,
         displayResolveBindGroup,
-        this.finalTexture.createView()
+        this.imageResources.finalTexture.createView()
       );
       this.renderDirty.markCorrectionRendered();
       renderedCorrection = true;
@@ -1169,14 +1147,16 @@ export class WebGpuEngine {
         this.drawFullscreenPass(
           encoder,
           this.differencePipeline,
-          this.differenceBindGroup,
+          this.imageResources.differenceBindGroup,
           canvasView
         );
       } else {
         this.drawFullscreenPass(
           encoder,
           this.blitPipeline,
-          this.before ? this.blitOriginalBindGroup : this.blitCorrectedBindGroup,
+          this.before
+            ? this.imageResources.blitOriginalBindGroup
+            : this.imageResources.blitCorrectedBindGroup,
           canvasView
         );
       }
@@ -1229,7 +1209,7 @@ export class WebGpuEngine {
   }
 
   async exportPng() {
-    if (!this.metadata || !this.finalTexture) throw new Error('No processed image is available for export.');
+    if (!this.metadata || !this.imageResources.finalTexture) throw new Error('No processed image is available for export.');
     this.effectRuntime?.setInteractionActive(false);
     this.renderDirty.invalidate('effects');
     this.renderScheduler.flush();
@@ -1237,7 +1217,7 @@ export class WebGpuEngine {
 
     const pixels = await readRgba8Texture(
       this.device,
-      this.finalTexture,
+      this.imageResources.finalTexture,
       this.metadata.width,
       this.metadata.height,
       'LightTable PNG export readback'

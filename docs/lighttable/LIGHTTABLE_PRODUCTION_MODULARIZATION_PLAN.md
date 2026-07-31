@@ -1068,11 +1068,14 @@ Disabled effects compile nothing, successful compilation schedules one new
 frame, and failed features require an explicit retry rather than repeatedly
 poisoning frames.
 
-Loaded-image textures, the histogram buffer and every image-derived bind group
-now have one document-scoped resource owner. Reload and disposal perform one
-idempotent reset, including alias protection, instead of manually destroying
-and nulling a scattered set of engine fields. Static device resources and
-effect-owned caches retain their separate lifetimes.
+Loaded-image textures and every image-derived bind group now have one
+document-scoped resource owner. The render facade accesses that owner directly;
+the temporary field-like compatibility accessors have been removed, so new
+render code cannot accidentally reintroduce split ownership. Reload and
+disposal perform one idempotent reset, including alias protection, instead of
+manually destroying and nulling a scattered set of engine fields. Histogram,
+scope, static device and effect-owned resources retain their separate,
+explicit lifetimes.
 
 Resource lifecycle coverage now spans shared-device loss/reacquisition,
 idempotent document image-resource reset and optional feature compilation.
