@@ -932,13 +932,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setShowDifference(false);
         setShowOriginal((current) => !current);
       },
-      changeBrushSize: (direction) => setEditorSession((current) => ({
-        ...current,
-        brush: {
-          ...current.brush,
-          size: steppedBrushSize(current.brush.size, direction)
-        }
-      })),
+      changeBrushSize: (direction) => setEditorSession((current) => current.activeTool === 'warp'
+        ? {
+            ...current,
+            warp: {
+              ...current.warp,
+              diameterPx: steppedBrushSize(current.warp.diameterPx, direction)
+            }
+          }
+        : {
+            ...current,
+            brush: {
+              ...current.brush,
+              size: steppedBrushSize(current.brush.size, direction)
+            }
+          }),
       activateAdjacentDocument: (direction) => {
         if (!onActivateWorkspaceDocument || !workspaceDocuments?.length) return;
         const currentIndex = workspaceDocuments.findIndex(

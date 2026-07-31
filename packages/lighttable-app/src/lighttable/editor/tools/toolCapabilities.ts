@@ -31,6 +31,10 @@ export const isPaintTool = (tool: ToolId): tool is 'brush' | 'erase' =>
 export const isWarpTool = (tool: ToolId): tool is 'warp' =>
   toolDefinition(tool).role === 'warp';
 
+/** Tools whose on-canvas interaction is driven by a brush diameter. */
+export const usesBrushSize = (tool: ToolId): tool is 'brush' | 'erase' | 'warp' =>
+  isPaintTool(tool) || isWarpTool(tool);
+
 export const selectionKindForTool = (tool: SelectionToolId): SelectionShapeKind => {
   switch (tool) {
     case 'select-rectangle':

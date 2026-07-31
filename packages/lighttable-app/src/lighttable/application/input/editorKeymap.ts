@@ -1,5 +1,5 @@
 import type { ToolId } from '../../editor/session/editorSession';
-import { isPaintTool } from '../../editor/tools/toolCapabilities';
+import { usesBrushSize } from '../../editor/tools/toolCapabilities';
 import { TOOL_DEFINITIONS } from '../../editor/tools/toolRegistry';
 
 export interface EditorKeyboardInput {
@@ -152,10 +152,10 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     }),
     command('colors.swap', { key: 'x', primary: false, alt: false }, 'swap-colors'),
     command('brush.size-decrease', { key: '[', primary: false, alt: false }, 'brush-size-decrease', {
-      when: (context) => isPaintTool(context.activeTool)
+      when: (context) => usesBrushSize(context.activeTool)
     }),
     command('brush.size-increase', { key: ']', primary: false, alt: false }, 'brush-size-increase', {
-      when: (context) => isPaintTool(context.activeTool)
+      when: (context) => usesBrushSize(context.activeTool)
     }),
     command(
       'workspace.previous-document',

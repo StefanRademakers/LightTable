@@ -268,7 +268,13 @@ export class WebGpuEngine {
       this.device,
       coreResources.sampler,
       pipelines.vertexModule,
-      effectCallbacks
+      {
+        // Layer effects are encoded into the retained document composite.
+        // A lazy pipeline becoming ready must invalidate that composite; merely
+        // scheduling a frame would keep displaying the clean cached texture.
+        requestRender: () => this.markDocumentDirty(),
+        reportError: effectCallbacks.reportError
+      }
     );
     this.layerProcessingRenderer = new LayerProcessingRenderer(
       this.adjustmentLayerRenderer,

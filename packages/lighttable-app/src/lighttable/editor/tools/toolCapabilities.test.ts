@@ -4,7 +4,8 @@ import {
   isPaintTool,
   isSelectionTool,
   selectionKindForTool,
-  steppedBrushSize
+  steppedBrushSize,
+  usesBrushSize
 } from './toolCapabilities';
 
 describe('tool capabilities', () => {
@@ -24,6 +25,10 @@ describe('tool capabilities', () => {
     expect(isPaintTool('brush')).toBe(true);
     expect(isPaintTool('erase')).toBe(true);
     expect(isPaintTool('view')).toBe(false);
+    expect(usesBrushSize('brush')).toBe(true);
+    expect(usesBrushSize('erase')).toBe(true);
+    expect(usesBrushSize('warp')).toBe(true);
+    expect(usesBrushSize('view')).toBe(false);
     expect(isSelectionTool('select-rectangle')).toBe(true);
     expect(isSelectionTool('select-ellipse')).toBe(true);
     expect(isSelectionTool('select-free')).toBe(true);

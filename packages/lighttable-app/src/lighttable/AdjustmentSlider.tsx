@@ -236,7 +236,11 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
             }
           }}
           onDragStart={(event) => event.preventDefault()}
-          onChange={(event) => {
+          // React still uses `onChange` to classify a controlled range as
+          // editable. Continuous native range updates arrive through input;
+          // Chromium/WebKit may defer change until pointer-up.
+          onChange={() => undefined}
+          onInput={(event) => {
             // Only a pointer interaction started by this control or an
             // intentional keyboard edit may alter the value. This guards
             // against native range controls that get stuck dragging and then

@@ -55,6 +55,11 @@ describe('editor keymap', () => {
       input({ key: 'Dead', code: 'BracketLeft' }),
       context({ activeTool: 'brush' })
     )).toBe('brush-size-decrease');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Dead', code: 'BracketRight' }),
+      context({ activeTool: 'warp' })
+    )).toBe('brush-size-increase');
   });
 
   it('normalizes physical browser-zoom keys across main and numeric keyboards', () => {
