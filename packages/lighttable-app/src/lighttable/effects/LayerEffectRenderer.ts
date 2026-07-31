@@ -2,7 +2,6 @@ import type {
   AdjustmentLayer,
   RasterLayer
 } from '../editor/document/documentTypes';
-import { materializeBasicAdjustments } from '../processing/adjustmentStack';
 import type { LightTableEffectRuntimeCallbacks } from './types';
 import { DocumentEffectRuntime } from './DocumentEffectRuntime';
 
@@ -37,24 +36,23 @@ export class LayerEffectRenderer {
     layer: AdjustmentLayer | RasterLayer
   ): GPUTexture {
     if (!layer.adjustmentStack) return source;
-    const adjustments = materializeBasicAdjustments(
-      layer.adjustmentStack,
-      undefined,
-      layer.type === 'adjustment' ? 'adjustment-layer' : 'layer'
-    );
+    const scope = layer.type === 'adjustment' ? 'adjustment-layer' : 'layer';
     let runtime = this.runtimes.get(layer.id);
     if (!runtime) {
-      runtime = DocumentEffectRuntime.create(
-        this.device,
-        this.sampler,
-        this.vertexModule,
-        adjustments,
-        this.callbacks
+      runtime = DocumentEffectRuntime.createFromStack(
+        {
+          device: this.device,
+          sampler: this.sampler,
+          vertexModule: this.vertexModule,
+          callbacks: this.callbacks
+        },
+        layer.adjustmentStack,
+        scope
       );
       runtime.resize(this.width, this.height);
       this.runtimes.set(layer.id, runtime);
     } else {
-      runtime.setSettings(adjustments);
+      runtime.setAdjustmentStack(layer.adjustmentStack);
     }
     const geometry = runtime.encodeSourceGeometry(encoder, source);
     const spatial = runtime.encodeLinearSpatial(

@@ -1,92 +1,131 @@
 import type { DepthAnalysisResult } from '../analysis/depth/types';
+import {
+  cloneAdjustmentStack,
+  createAdjustmentStackFromBasicAdjustments,
+  materializeBasicAdjustments,
+  type AdjustmentModuleInstance,
+  type AdjustmentStack
+} from '../processing/adjustmentStack';
+import type { ProcessingScope } from '../processing/moduleDefinitions';
+import { buildProcessingPlan } from '../processing/processingNodeRuntime';
+import { currentProcessingModuleRegistry } from '../processing/processingModuleRegistry';
 import type { BasicAdjustments } from '../types';
-import { ChromaticAberrationEffect } from './chromaticAberration/ChromaticAberrationEffect';
-import { GrainEffect } from './grain/GrainEffect';
-import { HalationEffect } from './halation/HalationEffect';
-import { LensBlurEffect } from './lensBlur/LensBlurEffect';
-import { LensDistortionEffect } from './lensDistortion/LensDistortionEffect';
-import type { LightTableEffectRuntimeCallbacks } from './types';
+import {
+  currentDocumentEffectNodeRegistry,
+  type DocumentEffectFactoryContext,
+  type DocumentEffectNodeDefinition,
+  type DocumentEffectNodeRegistry,
+  type DocumentGpuEffect
+} from './documentEffectNodeRegistry';
+import type {
+  LightTableEffectRuntimeCallbacks,
+  LightTableEffectStage
+} from './types';
 
-interface TextureEffect {
-  encode(encoder: GPUCommandEncoder, input: GPUTexture): GPUTexture;
-  resize(width: number, height: number): void;
-  destroyImageResources(): void;
-  destroy(): void;
-  estimatedTextureBytes(): number;
+interface DocumentEffectRuntimeNode {
+  readonly instanceId: string;
+  readonly type: string;
+  readonly definition: DocumentEffectNodeDefinition;
+  readonly effect: DocumentGpuEffect;
 }
 
-export interface DocumentEffectSet {
-  grain: GrainEffect;
-  halation: HalationEffect;
-  chromaticAberration: ChromaticAberrationEffect;
-  lensDistortion: LensDistortionEffect;
-  lensBlur: LensBlurEffect;
+interface PlannedDocumentEffectNode {
+  readonly instance: AdjustmentModuleInstance;
+  readonly definition: DocumentEffectNodeDefinition;
+  readonly nodeAdjustments: BasicAdjustments;
 }
 
 export interface LinearSpatialEffectOptions {
   visualizeDepth: boolean;
 }
 
+const EFFECT_STAGE_ORDER: Record<LightTableEffectStage, number> = {
+  'source-geometry': 0,
+  'linear-spatial': 1,
+  'display-post': 2
+};
+
+const stackForInstance = (
+  stack: AdjustmentStack,
+  instance: AdjustmentModuleInstance
+): AdjustmentStack => ({
+  id: stack.id,
+  revision: stack.revision,
+  modules: [instance]
+});
+
+const isEffectCategory = (category: string) =>
+  category === 'lens' || category === 'output';
+
 /**
- * Owns the document effect instances and their authoritative processing order.
+ * Owns GPU effect instances for one processing-stack owner.
  *
- * WebGpuEngine supplies stage inputs; it does not know the individual effect
- * implementation order or lifecycle anymore.
+ * Serialized node order is authoritative inside each render stage. Stage order
+ * itself is constrained by texture domain: source geometry, linear spatial,
+ * then display post. Every node instance owns its own effect resources, so
+ * repeated node types cannot accidentally share mutable uniform state.
  */
 export class DocumentEffectRuntime {
-  constructor(private readonly effects: DocumentEffectSet) {}
+  private stack: AdjustmentStack;
+  private readonly nodesByInstanceId = new Map<string, DocumentEffectRuntimeNode>();
+  private orderedNodes: readonly DocumentEffectRuntimeNode[] = [];
+  private width = 0;
+  private height = 0;
+
+  private constructor(
+    private readonly factoryContext: DocumentEffectFactoryContext,
+    stack: AdjustmentStack,
+    private readonly scope: ProcessingScope,
+    private readonly effectRegistry: DocumentEffectNodeRegistry
+  ) {
+    this.stack = cloneAdjustmentStack(stack);
+    this.synchronizeNodes(this.stack);
+  }
 
   static create(
     device: GPUDevice,
     sampler: GPUSampler,
     vertexModule: GPUShaderModule,
     adjustments: BasicAdjustments,
-    callbacks: LightTableEffectRuntimeCallbacks = {}
+    callbacks: LightTableEffectRuntimeCallbacks = {},
+    scope: ProcessingScope = 'document-creative'
   ): DocumentEffectRuntime {
-    return new DocumentEffectRuntime({
-      grain: new GrainEffect(device, sampler, vertexModule, adjustments.effects.grain, callbacks),
-      halation: new HalationEffect(device, sampler, vertexModule, adjustments.effects.halation, callbacks),
-      chromaticAberration: new ChromaticAberrationEffect(
-        device,
-        sampler,
-        vertexModule,
-        adjustments.effects.chromaticAberration,
-        callbacks
-      ),
-      lensDistortion: new LensDistortionEffect(
-        device,
-        sampler,
-        vertexModule,
-        adjustments.effects.lensDistortion,
-        callbacks
-      ),
-      lensBlur: new LensBlurEffect(
-        device,
-        sampler,
-        vertexModule,
-        adjustments.effects.lensBlur,
-        adjustments.effects.lensDistortion,
-        callbacks
-      )
-    });
+    return DocumentEffectRuntime.createFromStack(
+      { device, sampler, vertexModule, callbacks },
+      createAdjustmentStackFromBasicAdjustments(adjustments),
+      scope
+    );
+  }
+
+  static createFromStack(
+    context: DocumentEffectFactoryContext,
+    stack: AdjustmentStack,
+    scope: ProcessingScope,
+    registry: DocumentEffectNodeRegistry = currentDocumentEffectNodeRegistry
+  ): DocumentEffectRuntime {
+    return new DocumentEffectRuntime(context, stack, scope, registry);
   }
 
   setSettings(adjustments: BasicAdjustments): void {
-    this.effects.grain.setSettings(adjustments.effects.grain);
-    this.effects.halation.setSettings(adjustments.effects.halation);
-    this.effects.chromaticAberration.setSettings(adjustments.effects.chromaticAberration);
-    this.effects.lensDistortion.setSettings(adjustments.effects.lensDistortion);
-    this.effects.lensBlur.setSettings(adjustments.effects.lensBlur);
-    this.effects.lensBlur.setDistortionSettings(adjustments.effects.lensDistortion);
+    this.setAdjustmentStack(
+      createAdjustmentStackFromBasicAdjustments(adjustments, this.stack)
+    );
+  }
+
+  setAdjustmentStack(stack: AdjustmentStack): void {
+    const nextStack = cloneAdjustmentStack(stack);
+    this.synchronizeNodes(nextStack);
+    this.stack = nextStack;
   }
 
   resize(width: number, height: number): void {
+    this.width = width;
+    this.height = height;
     this.forEachEffect((effect) => effect.resize(width, height));
   }
 
   encodeSourceGeometry(encoder: GPUCommandEncoder, input: GPUTexture): GPUTexture {
-    const distorted = this.effects.lensDistortion.encode(encoder, input);
-    return this.effects.chromaticAberration.encode(encoder, distorted);
+    return this.encodeStage('source-geometry', encoder, input);
   }
 
   encodeLinearSpatial(
@@ -94,8 +133,12 @@ export class DocumentEffectRuntime {
     input: GPUTexture,
     options: LinearSpatialEffectOptions
   ): GPUTexture {
-    const blurred = this.effects.lensBlur.encode(encoder, input);
-    return options.visualizeDepth ? blurred : this.effects.halation.encode(encoder, blurred);
+    return this.encodeStage(
+      'linear-spatial',
+      encoder,
+      input,
+      options.visualizeDepth ? new Set(['lt.halation']) : undefined
+    );
   }
 
   encodeDisplayPost(
@@ -103,23 +146,23 @@ export class DocumentEffectRuntime {
     input: GPUTexture,
     bypass: boolean
   ): GPUTexture {
-    return bypass ? input : this.effects.grain.encode(encoder, input);
+    return bypass ? input : this.encodeStage('display-post', encoder, input);
   }
 
   setDepthMap(depth: DepthAnalysisResult): void {
-    this.effects.lensBlur.setDepthMap(depth);
+    this.forEachEffect((effect) => effect.setDepthMap?.(depth));
   }
 
   setInteractionActive(active: boolean): void {
-    this.effects.lensBlur.setInteractionActive(active);
+    this.forEachEffect((effect) => effect.setInteractionActive?.(active));
   }
 
   setDepthVisualization(visible: boolean): void {
-    this.effects.lensBlur.setDepthVisualization(visible);
+    this.forEachEffect((effect) => effect.setDepthVisualization?.(visible));
   }
 
   get hasDepth(): boolean {
-    return this.effects.lensBlur.hasDepth;
+    return this.orderedNodes.some((node) => node.effect.hasDepth === true);
   }
 
   estimatedTextureBytes(): number {
@@ -134,13 +177,124 @@ export class DocumentEffectRuntime {
 
   destroy(): void {
     this.forEachEffect((effect) => effect.destroy());
+    this.nodesByInstanceId.clear();
+    this.orderedNodes = [];
   }
 
-  private forEachEffect(operation: (effect: TextureEffect) => void): void {
-    operation(this.effects.lensDistortion);
-    operation(this.effects.chromaticAberration);
-    operation(this.effects.lensBlur);
-    operation(this.effects.halation);
-    operation(this.effects.grain);
+  private synchronizeNodes(stack: AdjustmentStack): void {
+    const aggregateAdjustments = materializeBasicAdjustments(
+      stack,
+      currentProcessingModuleRegistry,
+      this.scope
+    );
+    const plan = buildProcessingPlan(stack, { scope: this.scope });
+    const plannedNodes: PlannedDocumentEffectNode[] = [];
+    let previousStage = -1;
+
+    for (const step of plan.steps) {
+      if (!isEffectCategory(step.definition.category)) continue;
+      const definition = this.effectRegistry.definition(step.instance.type);
+      if (!definition) {
+        throw new Error(
+          `No document effect executor is registered for enabled node: ${step.instance.type}`
+        );
+      }
+      const stageOrder = EFFECT_STAGE_ORDER[definition.stage];
+      if (stageOrder < previousStage) {
+        throw new Error(
+          `Effect node ${step.instance.type} violates render-stage order in stack ${stack.id}`
+        );
+      }
+      previousStage = stageOrder;
+      plannedNodes.push({
+        instance: step.instance,
+        definition,
+        nodeAdjustments: materializeBasicAdjustments(
+          stackForInstance(stack, step.instance),
+          currentProcessingModuleRegistry,
+          this.scope
+        )
+      });
+    }
+
+    const nextNodes: DocumentEffectRuntimeNode[] = [];
+    const createdNodes: DocumentEffectRuntimeNode[] = [];
+    const createdEffects = new Set<DocumentGpuEffect>();
+    try {
+      for (const planned of plannedNodes) {
+        const existing = this.nodesByInstanceId.get(planned.instance.id);
+        if (existing?.type === planned.instance.type) {
+          nextNodes.push(existing);
+          continue;
+        }
+        const effect = planned.definition.create(
+          this.factoryContext,
+          planned.nodeAdjustments,
+          aggregateAdjustments
+        );
+        if (effect.stage !== planned.definition.stage) {
+          effect.destroy();
+          throw new Error(
+            `Effect ${planned.instance.type} declared ${planned.definition.stage} but created ${effect.stage}`
+          );
+        }
+        if (this.width > 0 && this.height > 0) effect.resize(this.width, this.height);
+        const node = {
+          instanceId: planned.instance.id,
+          type: planned.instance.type,
+          definition: planned.definition,
+          effect
+        };
+        createdNodes.push(node);
+        createdEffects.add(effect);
+        nextNodes.push(node);
+      }
+    } catch (error) {
+      createdNodes.forEach((node) => node.effect.destroy());
+      throw error;
+    }
+
+    try {
+      for (let index = 0; index < plannedNodes.length; index += 1) {
+        const planned = plannedNodes[index];
+        const node = nextNodes[index];
+        if (!planned || !node || createdEffects.has(node.effect)) continue;
+        planned.definition.update(
+          node.effect,
+          planned.nodeAdjustments,
+          aggregateAdjustments
+        );
+      }
+    } catch (error) {
+      createdNodes.forEach((node) => node.effect.destroy());
+      throw error;
+    }
+
+    const retainedEffects = new Set(nextNodes.map((node) => node.effect));
+    for (const node of this.nodesByInstanceId.values()) {
+      if (retainedEffects.has(node.effect)) continue;
+      node.effect.destroy();
+    }
+    this.nodesByInstanceId.clear();
+    nextNodes.forEach((node) => this.nodesByInstanceId.set(node.instanceId, node));
+    this.orderedNodes = nextNodes;
+  }
+
+  private encodeStage(
+    stage: LightTableEffectStage,
+    encoder: GPUCommandEncoder,
+    input: GPUTexture,
+    bypassTypes?: ReadonlySet<string>
+  ): GPUTexture {
+    let output = input;
+    for (const node of this.orderedNodes) {
+      if (node.definition.stage !== stage || bypassTypes?.has(node.type)) continue;
+      output = node.effect.encode(encoder, output);
+    }
+    return output;
+  }
+
+  private forEachEffect(operation: (effect: DocumentGpuEffect) => void): void {
+    this.orderedNodes.forEach((node) => operation(node.effect));
   }
 }

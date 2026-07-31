@@ -1,46 +1,108 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DocumentEffectRuntime, type DocumentEffectSet } from './DocumentEffectRuntime';
+import {
+  createAdjustmentStackFromBasicAdjustments,
+  type AdjustmentStack
+} from '../processing/adjustmentStack';
+import { createDefaultAdjustments } from '../types';
+import { DocumentEffectRuntime } from './DocumentEffectRuntime';
+import {
+  DocumentEffectNodeRegistry,
+  type DocumentEffectNodeDefinition,
+  type DocumentGpuEffect
+} from './documentEffectNodeRegistry';
+import type { LightTableEffectStage } from './types';
 
 const texture = (name: string) => ({ name }) as unknown as GPUTexture;
 
-const effect = (id: string) => ({
+const effect = (id: string, stage: LightTableEffectStage): DocumentGpuEffect => ({
+  id,
+  stage,
   encode: vi.fn((_encoder: GPUCommandEncoder, input: GPUTexture) =>
     texture(`${(input as unknown as { name: string }).name}>${id}`)),
   resize: vi.fn(),
   destroyImageResources: vi.fn(),
   destroy: vi.fn(),
-  estimatedTextureBytes: vi.fn(() => 10),
-  setSettings: vi.fn()
+  estimatedTextureBytes: vi.fn(() => 10)
 });
 
-const createRuntime = () => {
-  const grain = effect('grain');
-  const halation = effect('halation');
-  const chromaticAberration = effect('chromatic');
-  const lensDistortion = effect('distortion');
-  const lensBlur = {
-    ...effect('lens-blur'),
-    setDistortionSettings: vi.fn(),
-    setDepthMap: vi.fn(),
-    setInteractionActive: vi.fn(),
-    setDepthVisualization: vi.fn(),
-    hasDepth: true
-  };
-  const effects = {
-    grain,
-    halation,
-    chromaticAberration,
-    lensDistortion,
-    lensBlur
-  } as unknown as DocumentEffectSet;
-  return { runtime: new DocumentEffectRuntime(effects), effects };
+const effectTypes = [
+  ['lt.lens-distortion', 'distortion', 'source-geometry'],
+  ['lt.chromatic-aberration', 'chromatic', 'source-geometry'],
+  ['lt.lens-blur', 'lens-blur', 'linear-spatial'],
+  ['lt.halation', 'halation', 'linear-spatial'],
+  ['lt.grain', 'grain', 'display-post']
+] as const;
+
+const createRuntime = (stack = createAdjustmentStackFromBasicAdjustments(
+  createDefaultAdjustments(),
+  undefined,
+  (() => {
+    let id = 0;
+    return (kind: 'stack' | 'module') => `${kind}-${id++}`;
+  })()
+)) => {
+  const effects: DocumentGpuEffect[] = [];
+  const definitions: DocumentEffectNodeDefinition[] = effectTypes.map(
+    ([type, id, stage]) => ({
+      type,
+      stage,
+      create: () => {
+        const created = effect(id, stage);
+        effects.push(created);
+        return created;
+      },
+      update: vi.fn()
+    })
+  );
+  const runtime = DocumentEffectRuntime.createFromStack(
+    {
+      device: {} as GPUDevice,
+      sampler: {} as GPUSampler,
+      vertexModule: {} as GPUShaderModule,
+      callbacks: {}
+    },
+    stack,
+    'document-creative',
+    new DocumentEffectNodeRegistry(definitions)
+  );
+  return { runtime, effects, stack };
+};
+
+const moduleOfType = (stack: AdjustmentStack, type: string) => {
+  const module = stack.modules.find((candidate) => candidate.type === type);
+  if (!module) throw new Error(`Missing test module: ${type}`);
+  return module;
 };
 
 describe('DocumentEffectRuntime', () => {
-  it('evaluates source geometry in the declared order', () => {
+  it('evaluates source geometry in serialized order', () => {
     const { runtime } = createRuntime();
     const result = runtime.encodeSourceGeometry({} as GPUCommandEncoder, texture('source'));
     expect((result as unknown as { name: string }).name).toBe('source>distortion>chromatic');
+  });
+
+  it('creates independent resources for repeated node instances', () => {
+    const initial = createRuntime();
+    const distortion = moduleOfType(initial.stack, 'lt.lens-distortion');
+    const chromaticIndex = initial.stack.modules.findIndex(
+      (module) => module.type === 'lt.chromatic-aberration'
+    );
+    const repeatedStack: AdjustmentStack = {
+      ...initial.stack,
+      modules: [
+        ...initial.stack.modules.slice(0, chromaticIndex),
+        { ...distortion, id: 'repeated-distortion' },
+        ...initial.stack.modules.slice(chromaticIndex)
+      ]
+    };
+    initial.runtime.destroy();
+
+    const { runtime, effects } = createRuntime(repeatedStack);
+    const result = runtime.encodeSourceGeometry({} as GPUCommandEncoder, texture('source'));
+
+    expect((result as unknown as { name: string }).name)
+      .toBe('source>distortion>distortion>chromatic');
+    expect(effects.filter((current) => current.id === 'distortion')).toHaveLength(2);
   });
 
   it('keeps depth visualization free of halation and display grain', () => {
@@ -53,8 +115,27 @@ describe('DocumentEffectRuntime', () => {
     const display = runtime.encodeDisplayPost({} as GPUCommandEncoder, linear, true);
 
     expect((display as unknown as { name: string }).name).toBe('grade>lens-blur');
-    expect(effects.halation.encode).not.toHaveBeenCalled();
-    expect(effects.grain.encode).not.toHaveBeenCalled();
+    expect(effects.find((current) => current.id === 'halation')?.encode)
+      .not.toHaveBeenCalled();
+    expect(effects.find((current) => current.id === 'grain')?.encode)
+      .not.toHaveBeenCalled();
+  });
+
+  it('rejects serialized effect order that crosses texture-domain stages', () => {
+    const { runtime, stack } = createRuntime();
+    const grain = moduleOfType(stack, 'lt.grain');
+    const distortion = moduleOfType(stack, 'lt.lens-distortion');
+    const invalidStack = {
+      ...stack,
+      modules: [
+        grain,
+        distortion,
+        ...stack.modules.filter((module) => module !== grain && module !== distortion)
+      ]
+    };
+
+    expect(() => runtime.setAdjustmentStack(invalidStack))
+      .toThrow(/violates render-stage order/);
   });
 
   it('owns aggregate lifecycle and memory accounting', () => {
@@ -64,7 +145,7 @@ describe('DocumentEffectRuntime', () => {
     runtime.destroyImageResources();
     runtime.destroy();
 
-    Object.values(effects).forEach((current) => {
+    effects.forEach((current) => {
       expect(current.resize).toHaveBeenCalledWith(1920, 1080);
       expect(current.destroyImageResources).toHaveBeenCalledOnce();
       expect(current.destroy).toHaveBeenCalledOnce();

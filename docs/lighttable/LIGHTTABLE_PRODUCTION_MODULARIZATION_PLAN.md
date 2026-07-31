@@ -1076,8 +1076,13 @@ Progress:
       effect, adjustment, document and source changes have tested boundaries.
 - [x] Give per-Adjustment-Layer uniforms, curve LUTs and bind groups one
       document-generation resource owner with deterministic pruning/reset.
+- [x] Execute Lens Fx through registered per-instance GPU nodes in serialized
+      stack order. Repeated nodes own independent resources, stage-domain
+      violations fail explicitly, and partial synchronization failures clean up
+      newly allocated resources.
 - [ ] Replace the remaining concrete grade/effect calls with registered
-      processing modules and one authoritative evaluator.
+      processing modules and one authoritative evaluator. Lens Fx is complete;
+      the combined grade shader remains the compatibility bridge to replace.
 
 Work:
 

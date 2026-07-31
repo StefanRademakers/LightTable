@@ -1134,7 +1134,7 @@ export class WebGpuEngine {
 
   private applyMaterializedAdjustments(adjustments: BasicAdjustments) {
     this.adjustments = cloneAdjustments(adjustments);
-    this.effectRuntime?.setSettings(this.adjustments);
+    this.effectRuntime?.setAdjustmentStack(this.adjustmentStack);
     this.writeCurveLut();
     this.writeAdjustments();
     this.writeOutputSettings();
