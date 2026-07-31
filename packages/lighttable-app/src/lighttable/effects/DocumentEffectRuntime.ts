@@ -25,6 +25,7 @@ import type {
 interface DocumentEffectRuntimeNode {
   readonly instanceId: string;
   readonly type: string;
+  readonly updateRevision: string;
   readonly definition: DocumentEffectNodeDefinition;
   readonly effect: DocumentGpuEffect;
 }
@@ -56,6 +57,25 @@ const stackForInstance = (
 
 const isEffectCategory = (category: string) =>
   category === 'geometry' || category === 'lens' || category === 'output';
+
+const effectUpdateRevision = (
+  instance: AdjustmentModuleInstance,
+  definition: DocumentEffectNodeDefinition,
+  stack: AdjustmentStack
+): string => {
+  const dependencies = definition.aggregateDependencyTypes ?? [];
+  if (dependencies.length === 0) return `${instance.revision}`;
+  const modulesByType = new Map(stack.modules.map((module) => [module.type, module]));
+  return [
+    instance.revision,
+    ...dependencies.map((type) => {
+      const dependency = modulesByType.get(type);
+      return dependency
+        ? `${type}:${dependency.enabled ? 1 : 0}:${dependency.revision}`
+        : `${type}:missing`;
+    })
+  ].join('|');
+};
 
 /**
  * Owns GPU effect instances for one processing-stack owner.
@@ -243,6 +263,11 @@ export class DocumentEffectRuntime {
         const node = {
           instanceId: planned.instance.id,
           type: planned.instance.type,
+          updateRevision: effectUpdateRevision(
+            planned.instance,
+            planned.definition,
+            stack
+          ),
           definition: planned.definition,
           effect
         };
@@ -260,12 +285,19 @@ export class DocumentEffectRuntime {
         const planned = plannedNodes[index];
         const node = nextNodes[index];
         if (!planned || !node || createdEffects.has(node.effect)) continue;
+        const updateRevision = effectUpdateRevision(
+          planned.instance,
+          planned.definition,
+          stack
+        );
+        if (node.updateRevision === updateRevision) continue;
         planned.definition.update(
           node.effect,
           planned.instance,
           planned.nodeAdjustments,
           aggregateAdjustments
         );
+        nextNodes[index] = { ...node, updateRevision };
       }
     } catch (error) {
       createdNodes.forEach((node) => node.effect.destroy());

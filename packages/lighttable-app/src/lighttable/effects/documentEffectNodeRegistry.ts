@@ -37,6 +37,11 @@ export interface DocumentGpuEffect {
 export interface DocumentEffectNodeDefinition {
   readonly type: string;
   readonly stage: LightTableEffectStage;
+  /**
+   * Other serialized modules whose settings are consumed by this executor.
+   * The runtime uses these revisions to avoid updating unchanged GPU state.
+   */
+  readonly aggregateDependencyTypes?: readonly string[];
   create(
     context: DocumentEffectFactoryContext,
     instance: AdjustmentModuleInstance,
@@ -65,10 +70,12 @@ const definition = <Effect extends DocumentGpuEffect>(
     instance: AdjustmentModuleInstance,
     nodeAdjustments: BasicAdjustments,
     aggregateAdjustments: BasicAdjustments
-  ) => void
+  ) => void,
+  aggregateDependencyTypes?: readonly string[]
 ): DocumentEffectNodeDefinition => ({
   type,
   stage,
+  aggregateDependencyTypes,
   create,
   update: (effect, instance, nodeAdjustments, aggregateAdjustments) => {
     update(effect as Effect, instance, nodeAdjustments, aggregateAdjustments);
@@ -126,7 +133,8 @@ export const DOCUMENT_EFFECT_NODE_DEFINITIONS = [
     (effect, _instance, node, aggregate) => {
       effect.setSettings(node.effects.lensBlur);
       effect.setDistortionSettings(aggregate.effects.lensDistortion);
-    }
+    },
+    ['lt.lens-distortion']
   ),
   definition(
     'lt.halation',

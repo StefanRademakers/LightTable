@@ -122,6 +122,140 @@ describe('DocumentEffectRuntime', () => {
     expect(update.mock.calls[0]?.[1]).toEqual(changed);
   });
 
+  it('does not update retained GPU effects when relevant revisions are unchanged', () => {
+    const update = vi.fn();
+    const stack: AdjustmentStack = {
+      id: 'stable-stack',
+      revision: 4,
+      modules: [createWarpModuleInstance('stable-warp')]
+    };
+    const runtime = DocumentEffectRuntime.createFromStack(
+      {
+        device: {} as GPUDevice,
+        sampler: {} as GPUSampler,
+        vertexModule: {} as GPUShaderModule,
+        callbacks: {}
+      },
+      stack,
+      'layer',
+      new DocumentEffectNodeRegistry([{
+        type: 'lt.warp',
+        stage: 'source-geometry',
+        create: () => effect('warp', 'source-geometry'),
+        update
+      }])
+    );
+
+    runtime.setAdjustmentStack(structuredClone(stack));
+    runtime.setAdjustmentStack({ ...structuredClone(stack), revision: 5 });
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('updates an effect when an explicitly declared aggregate dependency changes', () => {
+    const distortion = {
+      id: 'distortion',
+      type: 'lt.lens-distortion',
+      enabled: true,
+      revision: 0,
+      settings: {}
+    };
+    const blur = {
+      id: 'blur',
+      type: 'lt.lens-blur',
+      enabled: true,
+      revision: 0,
+      settings: {}
+    };
+    const updateBlur = vi.fn();
+    const registry = new DocumentEffectNodeRegistry([
+      {
+        type: 'lt.lens-distortion',
+        stage: 'source-geometry',
+        create: () => effect('distortion', 'source-geometry'),
+        update: vi.fn()
+      },
+      {
+        type: 'lt.lens-blur',
+        stage: 'linear-spatial',
+        aggregateDependencyTypes: ['lt.lens-distortion'],
+        create: () => effect('blur', 'linear-spatial'),
+        update: updateBlur
+      }
+    ]);
+    const runtime = DocumentEffectRuntime.createFromStack(
+      {
+        device: {} as GPUDevice,
+        sampler: {} as GPUSampler,
+        vertexModule: {} as GPUShaderModule,
+        callbacks: {}
+      },
+      { id: 'dependent-stack', revision: 0, modules: [distortion, blur] },
+      'document-creative',
+      registry
+    );
+
+    runtime.setAdjustmentStack({
+      id: 'dependent-stack',
+      revision: 1,
+      modules: [{ ...distortion, revision: 1 }, blur]
+    });
+
+    expect(updateBlur).toHaveBeenCalledOnce();
+  });
+
+  it('does not update instance-only effects for unrelated module revisions', () => {
+    const updateDistortion = vi.fn();
+    const updateBlur = vi.fn();
+    const distortion = {
+      id: 'distortion',
+      type: 'lt.lens-distortion',
+      enabled: true,
+      revision: 0,
+      settings: {}
+    };
+    const blur = {
+      id: 'blur',
+      type: 'lt.lens-blur',
+      enabled: true,
+      revision: 0,
+      settings: {}
+    };
+    const runtime = DocumentEffectRuntime.createFromStack(
+      {
+        device: {} as GPUDevice,
+        sampler: {} as GPUSampler,
+        vertexModule: {} as GPUShaderModule,
+        callbacks: {}
+      },
+      { id: 'independent-stack', revision: 0, modules: [distortion, blur] },
+      'document-creative',
+      new DocumentEffectNodeRegistry([
+        {
+          type: 'lt.lens-distortion',
+          stage: 'source-geometry',
+          create: () => effect('distortion', 'source-geometry'),
+          update: updateDistortion
+        },
+        {
+          type: 'lt.lens-blur',
+          stage: 'linear-spatial',
+          create: () => effect('blur', 'linear-spatial'),
+          update: updateBlur
+        }
+      ])
+    );
+
+    runtime.setAdjustmentStack({
+      id: 'independent-stack',
+      revision: 1,
+      modules: [distortion, { ...blur, revision: 1 }]
+    });
+
+    expect(updateDistortion).not.toHaveBeenCalled();
+    expect(updateBlur).toHaveBeenCalledOnce();
+  });
+
   it('evaluates source geometry in serialized order', () => {
     const { runtime } = createRuntime();
     const result = runtime.encodeSourceGeometry({} as GPUCommandEncoder, texture('source'));
