@@ -282,12 +282,12 @@
   --dv-tabs-and-actions-container-background-color: var(--lt-surface-panel-tab-strip);
   --dv-tabs-and-actions-container-height: 34px;
   --dv-activegroup-visiblepanel-tab-background-color: var(--lt-surface-panel-tab-active);
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--lt-surface-tab);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--lt-surface-panel-tab-inactive);
   /* A selected tab keeps the same semantic surface when another dock group
    * owns keyboard focus. Dockview calls that state an "inactive group", but
    * from the user's perspective this is still the visible/active panel tab. */
   --dv-inactivegroup-visiblepanel-tab-background-color: var(--lt-surface-panel-tab-active);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--lt-surface-panel);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--lt-surface-panel-tab-inactive);
   --dv-tab-divider-color: var(--lt-border);
   --dv-separator-border: var(--lt-border);
   --dv-active-sash-color: var(--lt-accent);
@@ -309,6 +309,14 @@
   .dv-tabs-container
   > .dv-tab.dv-active-tab {
   background-color: var(--lt-surface-panel-tab-active);
+}
+
+.lighttable-dock-workspace
+  .dv-groupview
+  > .dv-tabs-and-actions-container
+  .dv-tabs-container
+  > .dv-tab.dv-inactive-tab {
+  background-color: var(--lt-surface-panel-tab-inactive);
 }
 
 .lighttable img {
@@ -1100,31 +1108,33 @@
   border: 0;
   color: var(--lt-text-secondary);
   background: var(--lt-surface-collapsible-header);
-  cursor: pointer;
 }
 
-.lighttable-scope__header > span {
+.lighttable-scope__toggle {
+  min-width: 0;
+  align-self: stretch;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 7px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 
-.lighttable-scope__header img {
+.lighttable-scope__toggle img {
   width: 12px;
   height: 12px;
   object-fit: contain;
   opacity: 0.8;
 }
 
-.lighttable-scope__header strong {
+.lighttable-scope__toggle strong {
   font-size: var(--lt-type-body);
   font-weight: var(--lt-weight-semibold);
-}
-
-.lighttable-scope__status {
-  color: var(--lt-text-subtle);
-  font-size: var(--lt-type-micro);
-  text-transform: uppercase;
 }
 
 .lighttable-scope__body {
@@ -1508,14 +1518,19 @@
   align-items: center;
   gap: 6px;
   padding: 3px 5px;
-  border: 1px solid transparent;
+  border: 1px solid var(--lt-border-layer-row);
   border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-control);
+  background: var(--lt-surface-layer-row);
   cursor: pointer;
 }
 
-.lighttable-layer--selected { background: var(--lt-accent-selected-subtle); }
-.lighttable-layer--active { border-color: var(--lt-accent); background: var(--lt-accent-selected); }
+.lighttable-layer:hover { background: var(--lt-surface-layer-row-hover); }
+.lighttable-layer--selected { background: var(--lt-surface-layer-row-selected); }
+.lighttable-layer--active,
+.lighttable-layer--active:hover {
+  border-color: var(--lt-border-layer-row-active);
+  background: var(--lt-surface-layer-row-active);
+}
 .lighttable-layer--dragging { opacity: 0.45; }
 
 .lighttable-layer__clipping-mark {
@@ -2307,8 +2322,8 @@
 
 .lighttable-group__reset,
 .lighttable-group__visibility {
-  width: 23px;
-  height: 23px;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
   border-radius: var(--lt-radius-sm);
@@ -2321,8 +2336,8 @@
 
 .lighttable-group__reset img,
 .lighttable-group__visibility img {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   object-fit: contain;
   opacity: 0.72;
 }
@@ -2783,6 +2798,7 @@
 
 .lighttable-adjustment__track-axis {
   position: absolute;
+  z-index: 0;
   top: 50%;
   right: calc(var(--lt-range-thumb-size) / 2);
   left: calc(var(--lt-range-thumb-size) / 2);
@@ -2805,6 +2821,8 @@
 }
 
 .lighttable-adjustment input[type='range'] {
+  position: relative;
+  z-index: 2;
   width: 100%;
   height: 18px;
   margin: 0;
@@ -2910,8 +2928,43 @@
   background: rgba(255, 82, 82, 0.1);
 }
 
-.lighttable-lens-blur__shapes {
+.lighttable-lens-blur__select-controls {
+  display: grid;
+  gap: 6px;
+}
+
+.lighttable-lens-blur__select-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, 46%);
+  align-items: center;
+  gap: 10px;
+  color: var(--lt-text-muted);
+  font-size: var(--lt-type-body);
+  user-select: none;
+}
+
+.lighttable-lens-blur__select-row > span {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.lighttable-lens-blur__select-row select {
   width: 100%;
+  min-width: 0;
+  height: 25px;
+  padding: 2px 24px 2px 7px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  color: var(--lt-text-secondary);
+  background: var(--lt-surface-control);
+  font: inherit;
+  cursor: pointer;
+}
+
+.lighttable-lens-blur__select-row select:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .lighttable-lens-blur__viewport-modes {

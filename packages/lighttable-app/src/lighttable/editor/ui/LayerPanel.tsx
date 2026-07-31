@@ -99,15 +99,20 @@ const layerTypeIcon = (layer: LayerNode) => {
 
 const displayedThumbnailSize = (
   preview: LayerThumbnailPreview | undefined,
-  maximumSize = 40
+  maximumSize = 40,
+  fallbackWidth = maximumSize,
+  fallbackHeight = maximumSize
 ) => {
-  if (!preview || preview.width < 1 || preview.height < 1) {
-    return { width: maximumSize, height: maximumSize };
-  }
-  const scale = Math.min(maximumSize / preview.width, maximumSize / preview.height);
+  const sourceWidth = preview?.width && preview.width > 0
+    ? preview.width
+    : Math.max(1, fallbackWidth);
+  const sourceHeight = preview?.height && preview.height > 0
+    ? preview.height
+    : Math.max(1, fallbackHeight);
+  const scale = Math.min(maximumSize / sourceWidth, maximumSize / sourceHeight);
   return {
-    width: Math.max(1, Math.round(preview.width * scale)),
-    height: Math.max(1, Math.round(preview.height * scale))
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale))
   };
 };
 
@@ -394,8 +399,20 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         {rows.map(({ layer, depth }) => {
           const icon = layerTypeIcon(layer);
           const previews = thumbnails.get(layer.id);
-          const pixelThumbnailSize = displayedThumbnailSize(previews?.pixels);
-          const maskThumbnailSize = displayedThumbnailSize(previews?.mask);
+          const fallbackThumbnailWidth = layer.type === 'raster' ? layer.width : 40;
+          const fallbackThumbnailHeight = layer.type === 'raster' ? layer.height : 40;
+          const pixelThumbnailSize = displayedThumbnailSize(
+            previews?.pixels,
+            40,
+            fallbackThumbnailWidth,
+            fallbackThumbnailHeight
+          );
+          const maskThumbnailSize = displayedThumbnailSize(
+            previews?.mask,
+            40,
+            layer.type === 'raster' ? layer.width : document.width,
+            layer.type === 'raster' ? layer.height : document.height
+          );
           const hasStyles = layer.styleStack.effects.length > 0;
           const stylesExpanded = hasStyles && !collapsedStyles.has(layer.id);
           const siblings = siblingLayers(document, layer.id);
@@ -587,7 +604,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     ? 'lighttable-layer__thumbnail--active'
                     : ''
                 ].filter(Boolean).join(' ')}
-                style={previews?.pixels ? pixelThumbnailSize : undefined}
+                style={pixelThumbnailSize}
                 onClick={(event) => { event.stopPropagation(); selectLayer(event, layer.id); }}
                 title={layer.type === 'raster' ? 'Edit layer pixels' : layer.type === 'group' ? 'Group' : 'Adjustment layer'}
               >
@@ -608,7 +625,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   type="button"
                   draggable
                   className={`lighttable-layer__thumbnail lighttable-layer__mask${document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
-                  style={previews?.mask ? maskThumbnailSize : undefined}
+                  style={maskThumbnailSize}
                   onClick={(event) => { event.stopPropagation(); selectLayer(event, layer.id, 'mask'); }}
                   onDoubleClick={(event) => { event.stopPropagation(); onToggleMask(); }}
                   onDragStart={(event) => {

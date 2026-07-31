@@ -493,7 +493,7 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const pasteSelectedContent = async (_selection: readonly SelectionOperation[]) => {
+  const pasteSelectedContent = async (selection: readonly SelectionOperation[]) => {
     const dependencies = dependenciesRef.current;
     const before = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
@@ -522,6 +522,10 @@ export const createLayerDocumentCommands = (
       && fastClipboardDocumentId === dependencies.getDocumentId()
       && renderer.hasSelectionClipboard()
     );
+    const selectionPlacement = selection.length
+      ? clipboardBounds(before, selection)
+      : null;
+    const requestedPlacement = clipboardImage.placement ?? selectionPlacement;
     const dirtyBounds = sameDocumentCopy && clipboardImage.placement
       ? {
           x: clipboardImage.placement.x,
@@ -537,10 +541,10 @@ export const createLayerDocumentCommands = (
       : await renderer.pasteClipboardImage(
           pastedLayerId,
           clipboardImage.blob,
-          clipboardImage.placement
+          requestedPlacement
             ? {
-                x: clipboardImage.placement.x,
-                y: clipboardImage.placement.y
+                x: requestedPlacement.x,
+                y: requestedPlacement.y
               }
             : null
         );

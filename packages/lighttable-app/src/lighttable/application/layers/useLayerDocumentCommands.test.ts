@@ -134,6 +134,19 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers).toHaveLength(2);
   });
 
+  it('places an external clipboard image at the active selection origin', async () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const selection = createFullCanvasSelection(16, 12);
+
+    await expect(state.commands.pasteSelectedContent(selection)).resolves.toBe(true);
+
+    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
+      state.document().activeLayerId,
+      expect.any(Blob),
+      { x: 0, y: 0 }
+    );
+  });
+
   it('duplicates the active layer pixels and records one document command', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const sourceId = state.document().activeLayerId;

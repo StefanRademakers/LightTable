@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
+import { SwitchControl } from '../../../ui/SwitchControl';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
 import { ColorGradingWheel } from '../../ColorGradingWheel';
@@ -159,19 +160,11 @@ const GroupHeader = ({
       >
         <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
       </button>
-      <button
-        type="button"
-        className="lighttable-group__visibility"
-        onClick={toggleVisibility}
-        aria-label={`${visible ? 'Disable' : 'Enable'} ${label} adjustments`}
-        title={`${visible ? 'Disable' : 'Enable'} ${label} adjustments`}
-      >
-        <img
-          src={lightTableIcon(visible ? 'visible.png' : 'visible_off.png')}
-          alt=""
-          aria-hidden="true"
-        />
-      </button>
+      <SwitchControl
+        checked={visible}
+        onCheckedChange={toggleVisibility}
+        label={`${visible ? 'Disable' : 'Enable'} ${label} adjustments`}
+      />
     </div>
   </div>
 );
@@ -518,23 +511,13 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
             >
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              className="lighttable-group__visibility"
-              onClick={commands.toggleOriginal}
-              aria-label={model.showOriginal
+            <SwitchControl
+              checked={!model.showOriginal}
+              onCheckedChange={commands.toggleOriginal}
+              label={model.showOriginal
                 ? 'Show image with all settings'
                 : 'Show original image'}
-              title={model.showOriginal
-                ? 'Show image with all settings'
-                : 'Show original image'}
-            >
-              <img
-                src={lightTableIcon(model.showOriginal ? 'visible_off.png' : 'visible.png')}
-                alt=""
-                aria-hidden="true"
-              />
-            </button>
+            />
           </div>
         </div>
       </section>

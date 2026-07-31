@@ -1,5 +1,6 @@
 import React from 'react';
 import { lightTableIcon } from '../../assets/icons';
+import { SwitchControl } from '../../ui/SwitchControl';
 
 interface EffectPanelProps {
   label: string;
@@ -51,15 +52,11 @@ export const EffectPanel: React.FC<EffectPanelProps> = ({
         <button type="button" className="lighttable-group__reset" onClick={onReset} aria-label={`Reset ${label}`} title={`Reset ${label}`}>
           <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          className="lighttable-group__visibility"
-          onClick={() => onEnabledChange(!enabled)}
-          aria-label={`${enabled ? 'Disable' : 'Enable'} ${label}`}
-          title={`${enabled ? 'Disable' : 'Enable'} ${label}`}
-        >
-          <img src={lightTableIcon(enabled ? 'visible.png' : 'visible_off.png')} alt="" aria-hidden="true" />
-        </button>
+        <SwitchControl
+          checked={enabled}
+          onCheckedChange={onEnabledChange}
+          label={`${enabled ? 'Disable' : 'Enable'} ${label}`}
+        />
       </div>
     </div>
     {expanded ? <div className="lighttable-group__controls">{children}</div> : null}

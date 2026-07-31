@@ -216,28 +216,34 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
                 : null}
             </div>
           ) : null}
-          <span className="lighttable-control-label">Render quality</span>
-          <SegmentedControl
-            options={LENS_BLUR_QUALITY_OPTIONS.map((option) => ({
-              ...option,
-              disabled: !lensBlur.enabled || analyzing
-            }))}
-            value={lensBlur.quality}
-            onChange={commands.lensBlur.setQuality}
-            ariaLabel="Lens Blur render quality"
-            className="lighttable-lens-blur__shapes"
-          />
-          <span className="lighttable-control-label">Bokeh shape</span>
-          <SegmentedControl
-            options={BOKEH_SHAPE_OPTIONS.map((option) => ({
-              ...option,
-              disabled: !lensBlur.enabled || analyzing
-            }))}
-            value={lensBlur.bokehShape}
-            onChange={commands.lensBlur.setShape}
-            ariaLabel="Lens Blur bokeh shape"
-            className="lighttable-lens-blur__shapes"
-          />
+          <div className="lighttable-lens-blur__select-controls">
+            <label className="lighttable-lens-blur__select-row">
+              <span>Render quality</span>
+              <select
+                aria-label="Lens Blur render quality"
+                value={lensBlur.quality}
+                disabled={!lensBlur.enabled || analyzing}
+                onChange={(event) => commands.lensBlur.setQuality(event.currentTarget.value as LensBlurQuality)}
+              >
+                {LENS_BLUR_QUALITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="lighttable-lens-blur__select-row">
+              <span>Bokeh shape</span>
+              <select
+                aria-label="Lens Blur bokeh shape"
+                value={lensBlur.bokehShape}
+                disabled={!lensBlur.enabled || analyzing}
+                onChange={(event) => commands.lensBlur.setShape(event.currentTarget.value as BokehShape)}
+              >
+                {BOKEH_SHAPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div
             className="lighttable-lens-blur__visualization"
             style={focusVisualizationStyle}

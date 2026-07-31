@@ -1,5 +1,6 @@
 import React from 'react';
 import { SegmentedControl, type SegmentedControlOption } from '../ui/SegmentedControl';
+import { SwitchControl } from '../ui/SwitchControl';
 import { lightTableIcon } from '../assets/icons';
 import { Histogram } from './Histogram';
 import {
@@ -42,18 +43,22 @@ interface ScopeSectionProps {
 
 const ScopeSection: React.FC<ScopeSectionProps> = ({ title, visible, onVisibleChange, children }) => (
   <section className={`lighttable-scope${visible ? '' : ' lighttable-scope--collapsed'}`}>
-    <button
-      type="button"
-      className="lighttable-scope__header"
-      onClick={() => onVisibleChange(!visible)}
-      aria-expanded={visible}
-    >
-      <span>
+    <div className="lighttable-scope__header">
+      <button
+        type="button"
+        className="lighttable-scope__toggle"
+        onClick={() => onVisibleChange(!visible)}
+        aria-expanded={visible}
+      >
         <img src={lightTableIcon(visible ? 'area_open.png' : 'area_closed.png')} alt="" aria-hidden="true" />
         <strong>{title}</strong>
-      </span>
-      <span className="lighttable-scope__status">{visible ? 'On' : 'Off'}</span>
-    </button>
+      </button>
+      <SwitchControl
+        checked={visible}
+        onCheckedChange={onVisibleChange}
+        label={`${visible ? 'Disable' : 'Enable'} ${title}`}
+      />
+    </div>
     <div className="lighttable-scope__body" hidden={!visible}>{children}</div>
   </section>
 );
