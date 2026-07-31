@@ -30,12 +30,38 @@ export class LayerEffectRenderer {
     this.runtimes.forEach((runtime) => runtime.resize(width, height));
   }
 
-  encode(
+  encodeSourceGeometry(
     encoder: GPUCommandEncoder,
     source: GPUTexture,
     layer: AdjustmentLayer | RasterLayer
   ): GPUTexture {
-    if (!layer.adjustmentStack) return source;
+    return this.runtimeFor(layer)?.encodeSourceGeometry(encoder, source) ?? source;
+  }
+
+  encodeLinearSpatial(
+    encoder: GPUCommandEncoder,
+    source: GPUTexture,
+    layer: AdjustmentLayer | RasterLayer
+  ): GPUTexture {
+    return this.runtimeFor(layer)?.encodeLinearSpatial(
+      encoder,
+      source,
+      { visualizeDepth: false }
+    ) ?? source;
+  }
+
+  encodeDisplayPost(
+    encoder: GPUCommandEncoder,
+    source: GPUTexture,
+    layer: AdjustmentLayer | RasterLayer
+  ): GPUTexture {
+    return this.runtimeFor(layer)?.encodeDisplayPost(encoder, source, false) ?? source;
+  }
+
+  private runtimeFor(
+    layer: AdjustmentLayer | RasterLayer
+  ): DocumentEffectRuntime | null {
+    if (!layer.adjustmentStack) return null;
     const scope = layer.type === 'adjustment' ? 'adjustment-layer' : 'layer';
     let runtime = this.runtimes.get(layer.id);
     if (!runtime) {
@@ -54,13 +80,7 @@ export class LayerEffectRenderer {
     } else {
       runtime.setAdjustmentStack(layer.adjustmentStack);
     }
-    const geometry = runtime.encodeSourceGeometry(encoder, source);
-    const spatial = runtime.encodeLinearSpatial(
-      encoder,
-      geometry,
-      { visualizeDepth: false }
-    );
-    return runtime.encodeDisplayPost(encoder, spatial, false);
+    return runtime;
   }
 
   syncOwners(ownerIds: ReadonlySet<string>): void {

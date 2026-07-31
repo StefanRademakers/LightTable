@@ -1080,6 +1080,9 @@ Progress:
       stack order. Repeated nodes own independent resources, stage-domain
       violations fail explicitly, and partial synchronization failures clean up
       newly allocated resources.
+- [x] Route interactive compositing and destructive bake commands through one
+      per-layer processing boundary with the explicit domain order source
+      geometry -> grade -> linear spatial -> display post.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator. Lens Fx is complete;
       the combined grade shader remains the compatibility bridge to replace.

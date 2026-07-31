@@ -58,6 +58,7 @@ import { encodeRgba8Png, mapGpuBufferCopy, readRgba8Texture } from './gpuReadbac
 import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
+import { LayerProcessingRenderer } from './layerProcessingRenderer';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 const DIFFERENCE_METRICS_BYTE_SIZE = 8 * Uint32Array.BYTES_PER_ELEMENT;
@@ -175,6 +176,7 @@ export class WebGpuEngine {
   private outputPipeline: GPURenderPipeline | null = null;
   private effectRuntime: DocumentEffectRuntime | null = null;
   private layerEffectRenderer: LayerEffectRenderer | null = null;
+  private layerProcessingRenderer: LayerProcessingRenderer | null = null;
   private displayResolvePipeline: GPURenderPipeline | null = null;
   private precisionSourceResolvePipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
@@ -355,6 +357,10 @@ export class WebGpuEngine {
       this.sampler,
       pipelines.vertexModule,
       effectCallbacks
+    );
+    this.layerProcessingRenderer = new LayerProcessingRenderer(
+      this.adjustmentLayerRenderer,
+      this.layerEffectRenderer
     );
     this.displayResolvePipeline = pipelines.displayResolve;
     this.blitPipeline = pipelines.blit;
@@ -951,12 +957,7 @@ export class WebGpuEngine {
     source: GPUTexture,
     layer: AdjustmentLayer | RasterLayer
   ): GPUTexture {
-    const graded = adjustmentStackHasOwner(layer.adjustmentStack, 'grade')
-      ? this.adjustmentLayerRenderer.encode(encoder, source, layer)
-      : source;
-    return adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx')
-      ? this.layerEffectRenderer?.encode(encoder, graded, layer) ?? graded
-      : graded;
+    return this.layerProcessingRenderer?.encode(encoder, source, layer) ?? source;
   }
 
   private createImageResources(width: number, height: number) {
@@ -1615,6 +1616,7 @@ export class WebGpuEngine {
     this.effectRuntime = null;
     this.layerEffectRenderer?.destroy();
     this.layerEffectRenderer = null;
+    this.layerProcessingRenderer = null;
     this.documentRenderer?.destroy();
     this.documentRenderer = null;
   }
