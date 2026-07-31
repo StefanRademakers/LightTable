@@ -4,6 +4,12 @@ Explicit later work that must not disappear while the implementation roadmap is
 being executed. Items here are capabilities, not the current implementation
 order.
 
+Status: retained capability inventory, reviewed 31 July 2026. An unchecked item
+is not proof that the feature is absent: verify current code and the owning
+tracker before starting it. Current execution order lives in
+`lighttable_product_roadmap.md`; current architecture work lives in
+`LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`.
+
 ## Production hardening audit — July 2026
 
 These items came from the broad LightTable audit of the GPU pipeline, layers,

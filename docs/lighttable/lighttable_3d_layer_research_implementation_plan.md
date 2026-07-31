@@ -1,5 +1,10 @@
 # Lighttable — 3D Placement Layer, Perspective Match en Cached Rendering
 
+> **Deferred product research.** The product goal remains valuable. Component
+> paths and integration assumptions predate the standalone, multi-document
+> architecture; implement this later through the current host ports, document
+> sessions, processing runtime and renderer ownership boundaries.
+
 ## Doel
 
 Voeg een minimale maar solide **3D Placement Layer** toe aan Lighttable.

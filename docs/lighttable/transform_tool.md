@@ -17,7 +17,8 @@ Perspective and warp are later extensions of the same matrix/preview seam.
 
 ## UX
 
-- Add a Transform tool to the left toolbar, shortcut `T`.
+- Add a Transform tool to the left toolbar, shortcut `V` (`T` is reserved for
+  the future Text tool).
 - Drag inside the bounds to move.
 - Drag corner handles to scale both axes.
 - Drag edge handles to scale one axis.

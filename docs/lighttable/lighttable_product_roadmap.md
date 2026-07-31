@@ -1,74 +1,78 @@
-# LightTable implementation roadmap
+# LightTable product roadmap
 
-This is the canonical eight-step implementation order. Detailed design
-documents remain the source of truth for each feature.
+Updated: 2026-07-31
 
-1. **Define one shared render contract** — implemented; browser GPU smoke test pending
-   - Texture.
-   - Dimensions and bounds.
-   - Linear, premultiplied alpha.
-   - Revision.
-   - Transform.
-2. **Build the Transform tool** — implemented; browser interaction smoke test pending
-   - Complete active layer or active selection.
-   - Non-destructive preview, commit and cancel.
-   - One completed transform is one undo step.
-   - Persist transforms in layered documents.
-   - See `transform_tool.md`.
-3. **Build similarity Auto Align** — GPU prototype implemented; browser smoke test pending
-   - Reuse the shared transform contract from steps 1 and 2.
-   - Uses source-linear layer textures in one document-space analysis pass.
-   - Gradient-domain translation, uniform-scale and bounded-rotation search,
-     overlap and confidence checks run on WebGPU.
-   - Layer-menu preview/apply/cancel flow; apply creates one geometry undo step.
-   - The locked reference is never modified.
-   - See `LIGHTTABLE_WEBGPU_AUTO_ALIGN_LAYERS.md`.
-4. **Split the existing grade into reusable adjustment modules** — implemented
-   - Add a small evaluator without duplicating the current grading engine.
-5. **Add per-layer adjustment stacks** — stack contract implemented; recursive evaluator planned
-   - See `LIGHTTABLE_PER_LAYER_ADJUSTMENTS_AND_FUTURE_NODE_GRAPH.md`.
-6. **Add adjustment layers, then clipping and groups** — in progress
-   - Build these on the same evaluator and layer contract.
-   - One top-level Document Grade Adjustment Layer is editable and persisted.
-   - Arbitrary placement, multiple adjustments, below-layer evaluation,
-     clipping, masks and isolated groups remain.
-7. **Run the Three.js/WebGPU interoperability spike, then add 3D layers** — planned
-   - See `lighttable_3d_layer_research_implementation_plan.md`.
-8. **Run wasm-vips as an isolated worker spike** — production hardening in progress
-   - This work may happen earlier and must not block the editor architecture.
-   - Ordinary 8-bit images remain on the native fast path.
-   - Explicit u8/u16 precision-preserving import is implemented; performance,
-     production smoke testing and broader professional formats remain.
-   - See `lighttable_wasm_vips_implementation_checklist.md`.
+This is the current product-level order of work. Detailed checkmarks belong to
+their owning plans; this file intentionally stays short.
 
-## Current work
+## 1. Finish the production decomposition
 
-Steps 1 and 2 now share an authoritative raster contract with source and
-geometry revisions, linear premultiplied pixels and a persisted
-source-to-document transform. Whole-layer transforms update geometry without
-resampling; selection transforms remain atomic pixel edits.
+Continue `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md` until the application
+root, renderer facade and feature views are composition surfaces rather than
+state owners. Preserve the working WebGPU math while extracting coherent,
+document-scoped services with tested lifecycles.
 
-Step 8 continues to be hardened in parallel because it is isolated from the
-editor architecture. Step 3 now has its first end-to-end similarity prototype
-on the shared transform contract. Browser testing with real layer pairs is
-required before affine alignment is considered.
+Current foundations already include multi-document sessions, one active
+document, host-neutral web/Electron opening, document-scoped history/tasks,
+registered panels, explicit GPU resource owners and renderer error containment.
 
-The ordered processing runtime now also has its first opt-in geometry proof:
-`lt.warp` owns serialized layer-local strokes, builds a persistent inverse
-displacement field on WebGPU, and samples the immutable layer source once per
-frame. Warp remains absent from ordinary stacks, so images that do not use it
-allocate no Warp textures and compile no Warp pipelines. The first tool
-frontend, browser GPU smoke tests and additional brush modes remain before the
-feature is user-ready.
+## 2. Complete Warp on those boundaries
 
-## PSD/PSB convergence
+The current `lt.warp` proof provides a persistent, non-destructive Push node,
+document-scoped gestures, one undo entry per stroke, lazy GPU allocation and
+layered-document roundtrip. Continue from
+`../LIGHTTABLE_GPU_WARP_TOOL_SPEC.md` with:
 
-PSD parity is not a ninth independent editor architecture. It depends on and
-validates steps 4 through 6: reusable adjustments, typed layer kinds, nested
-groups, clipping, masks and the shared compositor. The PSD codec must wrap the
-same canonical LightTable document graph and asset registry used by native
-LightTable documents.
+- the remaining brush modes;
+- selection, freeze and linked-mask influence;
+- production undo/checkpoint and device-loss behavior;
+- settle/export quality and visual golden tests;
+- later structured grid/cage editing.
 
-Use `AG_PSD_FEATURE_PARITY_REFERENCE.md` for library/format facts and
-`PSD_FEATURE_PARITY_IMPLEMENTATION_PLAN.md` for the capability matrix,
-required editing UI, phased implementation and release gates.
+Do not grow Warp through editor-root callbacks or a private render path.
+
+## 3. Complete the ordered processing runtime
+
+Lens Fx and Warp already execute as registered serialized nodes. The remaining
+combined grade shader is an intentional compatibility bridge. Replace it only
+after registered grade executors preserve neutral bypass, operation order,
+color domains, alpha behavior, curve LUT behavior and PSD mappings in tests.
+
+The user-facing model remains simple: local Grade/Lens Fx, Adjustment Layers
+and attached stacks. The engine may be node-based without exposing a node graph.
+
+## 4. Harden document editing and workspace behavior
+
+- finish typed command and gesture transaction migration;
+- define inactive-document GPU eviction without losing document state;
+- keep workspace state separate from image-document state;
+- keep panels movable while document tools and rendering remain document-local;
+- preserve responsive UI during expensive preview and final rendering.
+
+## 5. Advance PSD/PSB parity through the canonical model
+
+PSD compatibility validates the same layer tree, masks, clipping, groups,
+adjustments, styles, smart content and processing stacks used by native
+LightTable documents. Follow `PSD_PARITY_TESTABLE_IMPORT_PATH.md` and maintain
+progress only in `PSD_FEATURE_PARITY_IMPLEMENTATION_PLAN.md`. Never substitute
+the embedded Photoshop composite for editable reconstruction.
+
+## 6. Finish professional image I/O and precision
+
+Keep ordinary PNG/JPEG/WebP on the native fast path. Route precision and
+professional formats through capability-selected codecs without initializing
+WASM for files that do not need it. Complete precision-preserving layered save,
+color-management verification, performance budgets and broader desktop formats.
+
+## 7. Add AI-first and advanced creative systems
+
+Media Browser, GenAI, 3D placement, perspective tools and future AI operations
+must consume the same host ports, document commands, processing nodes and
+resource policies. They are extensions of the editor architecture, not new
+global systems.
+
+## Release discipline
+
+LightTable remains alpha. Prefer one clean current model over legacy native
+document compatibility. Web and Electron must stay green at every milestone;
+StoryBuilder integrates only through the host/package boundary.

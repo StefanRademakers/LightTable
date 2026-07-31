@@ -3,17 +3,24 @@
 Updated: 2026-07-31  
 Repository: `D:\mediavibe\LightTable`  
 Branch: `main`  
-Resume from: `5a9fa02 Centralize document adjustment state`
+Architecture checkpoint: `5a9fa02 Centralize document adjustment state`
+Latest committed UI checkpoint: `883d1e6 css ui tweaks`
 
 This is the short operational handoff. The architectural source of truth remains
 `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`.
 
-## Stable state
+## Working state
 
-The current milestone is complete and committed. There is no intentionally
-unfinished source edit.
+The architecture milestone is complete and committed. The commits after it are
+an intentional UI/theme polish interlude, not a change of architecture
+direction.
 
-Verification at `5a9fa02`:
+At this documentation cleanup the working tree also contains the new default
+workspace-layout edits: Scopes and Grade start visible beside each other and
+Layers starts as a compact floating panel. Treat those edits as active work;
+do not discard them while resuming the refactor.
+
+Verification at the architecture checkpoint:
 
 - app TypeScript check passed;
 - 171 test files and 749 tests passed;
@@ -76,7 +83,13 @@ Recent GPU/refactor commits, newest first:
 - `dc0a5bf` transient editor overlays;
 - `aff15f4` document workspace surface.
 
-## Last fixed issue
+Recent UI-only commits after the architecture checkpoint include CSS hot
+reload, consolidated theme tokens, tool-option alignment, slider/segmented
+control consistency and compact styling. These changes must keep using the
+extracted workspace/panel contracts; they are not justification for moving
+state back into the editor root.
+
+## Last architecture issue fixed
 
 Vite requires the second argument of `import.meta.glob` to be an inline object
 literal. Reusing an `iconImportOptions` identifier broke development startup.
@@ -87,6 +100,11 @@ proves the fix.
 
 Continue reducing `WebGpuEngine` as a facade, one contract-tested seam at a
 time. Do not combine this with new rendering behavior.
+
+After the next coherent decomposition milestone, resume the active Warp track
+from `../LIGHTTABLE_GPU_WARP_TOOL_SPEC.md`. Push is a working architecture
+proof; the remaining Warp modes, masking, quality and resilience work are not
+complete yet.
 
 Recommended order:
 

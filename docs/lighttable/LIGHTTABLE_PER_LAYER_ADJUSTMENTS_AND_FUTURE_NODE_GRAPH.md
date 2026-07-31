@@ -1,11 +1,19 @@
 # Lighttable — Per-Layer Adjustments, Adjustment Layers and Future Node-Graph Architecture
 
+> **Historical architecture proposal.** Retained for its design rationale, not
+> as a current-state description or execution tracker. It predates the
+> standalone repository, multi-document sessions, explicit Grade/Lens Fx
+> ownership and registered processing-node runtime. Start with `README.md`,
+> `LIGHTTABLE_EXPLICIT_PROCESSING_OWNERSHIP.md` and
+> `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`; current code and tests win on
+> any conflict.
+>
 > **Scope/PSD companion:** `LIGHTTABLE_LAYER_SCOPE_AND_PSD_MAPPING.md` defines
 > how the existing Grade and Lens Fx controls map to layer-local processing,
 > Adjustment Layers, Smart Objects, Smart Filters, Layer Styles and
 > document-output processing.
 
-**Status:** implementation proposal for an AI coding agent  
+**Status:** superseded proposal/reference
 **Target project:** Lighttable / StoryBuilderOnline  
 **Primary goal:** move Lighttable from one document-wide grade to a familiar Photoshop-like layered adjustment workflow, while retaining Lighttable's richer Lightroom-style controls and preparing the render engine for a future Resolve-like node graph.
 

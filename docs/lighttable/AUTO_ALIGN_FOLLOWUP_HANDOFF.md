@@ -4,6 +4,12 @@ Status: the legacy scorer was not working. A feature-based V2 replacement is
 now wired for browser validation; see the resume checkpoint in
 `auto_align_v2_implementation_plan.md`.
 
+This handoff predates the standalone extraction. Current implementation lives
+under `packages/lighttable-app/src/lighttable/editor/autoAlign/` and
+`packages/lighttable-app/src/lighttable/application/tools/autoAlign/`. Preserve
+the research and acceptance criteria below, but do not restore the old
+`client/src/features/lighttable/...` ownership.
+
 Do not tune or restore the legacy brute-force scorer described below. Its
 practical failures motivated V2. Do not call V2 production-ready until the
 real-layer browser gate and direct-refinement milestone are complete.
@@ -16,8 +22,8 @@ Read first:
 - `docs/lighttable/auto_align_audit_and_production_plan.md`
 - `docs/lighttable/LIGHTTABLE_WEBGPU_AUTO_ALIGN_LAYERS.md`
 - `docs/lighttable/transform_tool.md`
-- `client/src/features/lighttable/editor/autoAlign/`
-- `client/src/features/lighttable/editor/rendering/renderContract.ts`
+- `packages/lighttable-app/src/lighttable/editor/autoAlign/`
+- `packages/lighttable-app/src/lighttable/editor/rendering/renderContract.ts`
 
 ## Actual user goal
 

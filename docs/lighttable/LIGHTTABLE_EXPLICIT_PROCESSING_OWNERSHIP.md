@@ -1,6 +1,7 @@
 # LightTable explicit processing ownership
 
-Status: architecture baseline and staged migration plan, 30 July 2026.
+Status: authoritative ownership contract; progress reconciled with code on
+31 July 2026.
 
 This document replaces ambiguous document-wide creative processing with one
 rule: every editable creative operation has a visible owner. It complements:
@@ -9,9 +10,10 @@ rule: every editable creative operation has a visible owner. It complements:
 - `LIGHTTABLE_PER_LAYER_ADJUSTMENTS_AND_FUTURE_NODE_GRAPH.md`
 - `PSD_FEATURE_PARITY_IMPLEMENTATION_PLAN.md`
 
-The current change implements explicit Grade ownership. The generic processing
-stack and Lens Fx migration described below are design targets, not claims that
-all nodes already exist.
+The code now implements explicit Grade and Lens Fx ownership plus a registered,
+ordered processing-node runtime. The generic runtime is real, but not every
+Grade module has its own GPU executor yet; the combined Grade shader remains an
+intentional bridge.
 
 ## Product model
 
@@ -46,9 +48,11 @@ effect declares its valid domain, coordinates, bounds expansion and supported
 owners. Lens blur, distortion and chromatic aberration cannot be moved between
 scopes by merely copying parameters.
 
-The current Lens Fx implementation is still a document-output pass. It remains
-there until the compositor can evaluate it through the same explicit stack
-contract. UI must not present it as local before that is true.
+Lens Fx now use serialized owner-tagged stacks, registered GPU node executors,
+local raster badges/toggles and explicit Lens Fx Layers. The renderer still has
+scope-specific adapters while the full generic evaluator is being completed;
+that limitation must remain visible in tests rather than being hidden as a
+document-output fallback.
 
 ### Document output
 
@@ -312,16 +316,22 @@ Required test layers:
       selections.
 - [ ] Add explicit Rasterize Local Grade.
 - [ ] Add Merge Down/Rasterize semantics for Grade Layers.
-- [ ] Replace the temporary document Lens Fx pass with registered Lens nodes.
-- [ ] Add Local Lens Fx ownership and layer-row badge.
-- [ ] Add Lens Fx Layer creation, masks, order, groups and clipping.
-- [ ] Introduce the generic `ProcessingStack`/node registry behind adapters.
-- [ ] Prove the registry with one spatial node and exact bypass/golden tests.
-- [ ] Move distortion, CA, blur, halation and grain one at a time.
+- [x] Replace the fixed Lens Fx sequence with registered Lens nodes in
+      serialized stack order.
+- [x] Add Local Lens Fx ownership and layer-row badge/toggle.
+- [x] Add Lens Fx Layer creation using the canonical mask, order, group and
+      clipping model.
+- [x] Introduce the generic `AdjustmentStack`/processing-node registry behind
+      current adapters.
+- [x] Prove the registry with spatial nodes and exact disabled-node bypass.
+- [x] Register distortion, CA, blur, halation and grain as node executors.
 - [ ] Add Smart Object assets and ordered Smart Filter stacks.
 - [ ] Map supported PSD filters to typed nodes and report all fallbacks.
-- [ ] Add revision caches, texture pooling and inactive-document eviction.
-- [ ] Add a graph compiler/evaluator; a graph UI remains a later product step.
+- [ ] Finish revision caches, texture pooling and explicit inactive-document
+      eviction. Inactive renderer suspension and multiple resource owners are
+      implemented; the final eviction policy is not.
+- [ ] Replace the combined Grade bridge with per-module executors in the
+      ordered evaluator. A graph UI remains a later product step.
 
 The immediate production checkpoint is two differently graded raster layers,
 one masked Grade Layer and one clipped Grade Layer surviving undo/redo,

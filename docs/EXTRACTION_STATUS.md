@@ -27,11 +27,13 @@ The Electron renderer has no Node integration. A sandboxed preload exposes only
 native open and save operations, and the main process validates the IPC sender
 and arguments. All editor rendering, UI and document logic remains shared.
 
-## Documentation archive
+## Documentation map
 
-`docs/lighttable` is a lossless copy of the existing notes. Some documents are
-implemented, some are research, and some are active goals. Do not delete or
-rewrite them until a later documentation audit has classified each file.
+The original notes remain available, but they are now classified in
+`docs/lighttable/README.md`. That index distinguishes active plans,
+authoritative contracts, feature trackers, deferred research, superseded
+proposals and historical implementation notes. Preserve useful research while
+keeping current authority unambiguous.
 
 ## Verified extraction baseline
 

@@ -3,6 +3,14 @@
 Status: V2 feature pipeline implemented; browser validation and direct
 refinement remain.
 
+Standalone code location (31 July 2026):
+
+- `packages/lighttable-app/src/lighttable/editor/autoAlign/`
+- `packages/lighttable-app/src/lighttable/application/tools/autoAlign/`
+
+Older `client/src/features/lighttable/...` paths below document the extraction
+history only. Do not recreate those boundaries.
+
 Goal: replace the current scorer with a robust, browser-native registration
 pipeline. This is a replacement, not another threshold-tuning pass.
 
@@ -11,7 +19,7 @@ Read first:
 - `docs/lighttable/open_source_alignment_research.md`
 - `docs/lighttable/photoshop_auto_align_research.md`
 - `docs/lighttable/AUTO_ALIGN_FOLLOWUP_HANDOFF.md`
-- `client/src/features/lighttable/editor/autoAlign/`
+- `packages/lighttable-app/src/lighttable/editor/autoAlign/`
 
 ## Architecture
 

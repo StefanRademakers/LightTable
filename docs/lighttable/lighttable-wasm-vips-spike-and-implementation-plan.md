@@ -1,5 +1,10 @@
 # Lighttable — wasm-vips Ingest Spike and Implementation Plan
 
+> **Historical spike.** The decoder boundary and fast/precision routing now
+> exist in the standalone codebase. Use
+> `lighttable_wasm_vips_implementation_checklist.md` for current progress; keep
+> this document for the original test rationale and format requirements.
+
 ## Purpose
 
 Evaluate whether `wasm-vips` is suitable as Lighttable's primary browser-side image I/O layer for high-bit-depth raster formats, without changing the existing WebGPU grading and compositing architecture.

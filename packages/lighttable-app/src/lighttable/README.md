@@ -1,67 +1,55 @@
-# LightTable
+# LightTable application package
 
-LightTable is StoryBuilderOnline's portable, single-image WebGPU correction tool. It intentionally owns no board, project-media, S3, or upload state. The host passes an existing project image key into `LightTableEditorOverlay`; the editor returns one full-resolution PNG `File` and a correction recipe through `onSave`. The board, GenAI, and shots hosts then use their existing transformed-media upload flows.
+Status: current package boundary, updated 31 July 2026.
 
-Flattened results store `metadataJson.lighttable` on their central `ProjectMedia` row. The recipe contains the original source key and current slider settings. `LightTable` always starts a fresh correction on the selected image; `Edit LightTable filters` is only offered for a parseable recipe and reloads that original source. Recipe source keys are counted as live media references during cleanup. Version fields are intentionally deferred while the controls and shader behavior are still being tuned.
+This directory contains the host-neutral LightTable application used by both
+the web and Electron hosts. StoryBuilder is an adapter/consumer; it is not the
+owner of editor state, assets, UI, GPU resources or persistence behavior.
 
-## Browser support
+LightTable supports multiple open document sessions with exactly one active
+document. Canonical document data is serializable and document-scoped. React,
+GPU resources, workspace layout and host storage handles are projections or
+services, never the document source of truth.
 
-- Current Chromium-based desktop browser with WebGPU enabled.
-- JPEG, PNG, and WebP input.
-- There is deliberately no CSS-filter or Canvas 2D processing fallback. Unsupported browsers receive an explicit error.
+## Current boundaries
 
-## Processing pipeline
+- `application/` owns use cases, commands, input routing and tool controllers.
+- `domain/` owns canonical document/session concepts without React or WebGPU.
+- `editor/` owns presentation, workspace panels and feature views.
+- `gpu/`, `effects/` and `processing/` own rendering contracts, registered
+  processing nodes and GPU execution.
+- `host/` exposes the web/Electron/StoryBuilder ports without importing host
+  application state into the editor.
+- `assets/` owns LightTable icons and other package-local resources.
 
-The canonical current order is documented in `docs/lighttable/lighttable_operationorder.md`.
+The editor includes layered documents, masks, transforms, selections, Grade
+and Lens Fx ownership, registered ordered processing nodes, PSD reconstruction,
+professional raster ingest, scopes and an alpha Warp implementation. Feature
+presence in a UI is not sufficient proof of production readiness; use tests and
+the owning implementation tracker.
 
-In short: sRGB decode -> CAT16 Temperature/Tint -> Exposure -> tonal masks and Contrast -> Texture/Clarity/Dehaze -> Color Mixer -> Saturation/Vibrance -> Color Grading -> Lift -> Custom Curves -> Vignette -> conditional display shoulder and Whites -> gamut fit -> sRGB encode -> Grain. The linear working image and pre-grain grade use `rgba16float`; only the final display/export texture resolves to full-resolution `rgba8unorm`.
+## Architecture and current work
 
-LightTable treats imported JPEG/PNG/WebP images as already-rendered, display-referred sRGB images. Linearization makes correction math well-behaved but does not reconstruct RAW scene data. The highlight shoulder is therefore reserved for controls that can create new luminance headroom; color-only edits retain source luminance and use only hue-preserving gamut safety where required.
+Read these repository documents before changing cross-cutting behavior:
 
-The original GPU texture remains unchanged. Every adjustment render starts from that original texture. Slider updates write one packed uniform buffer and reuse all pipelines, textures, samplers, and bind groups.
+1. `docs/lighttable/CURRENT_REFACTOR_HANDOFF.md`
+2. `docs/lighttable/LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`
+3. `docs/lighttable/README.md`
+4. `docs/LIGHTTABLE_GPU_WARP_TOOL_SPEC.md`
 
-## Scopes and export
+The immediate direction is to finish the production decomposition, keeping the
+working rendering math intact, and then complete Warp through those extracted
+document, command, processing and renderer boundaries.
 
-Histogram, RGB Parade and Vectorscope follow the same Before/After texture as the viewport. The histogram uses 768 atomic bins and reads only that small counter buffer back for its Canvas 2D graph. Parade and Vectorscope use GPU-resident density buffers and WebGPU display passes, with no pixel or bin readback. Their details and pass counts are documented in `docs/lighttable/lighttable_scopes.md`.
+## Non-negotiable validation
 
-PNG export copies the full-resolution corrected GPU texture to an aligned readback buffer. Canvas 2D is used only to encode those final pixels as PNG; it is never used for image correction.
+- Keep web and Electron targets green.
+- Preserve exact disabled-node bypass and current operation-order tests.
+- Keep ordinary 8-bit images on the fast path; initialize precision codecs only
+  for inputs that require them.
+- Keep inactive documents free of active rendering work without discarding
+  canonical state.
+- Do not add native-format legacy branches during alpha development.
 
-## Module boundary
-
-```text
-features/lighttable/
-  LightTableEditorOverlay.tsx  host-facing tool overlay
-  lightTableRecipe.ts          persisted recipe contract and parser
-  useLightTableRecipe.ts       active shot recipe lookup
-  AdjustmentSlider.tsx        Basic-panel control
-  Histogram.tsx               small histogram UI canvas
-  types.ts                    immutable adjustment contract
-  colorMath.ts                CPU reference math
-  colorGrading.ts             grading state and CPU mask references
-  ColorGradingWheel.tsx       accessible opponent-color wheel control
-  CurvesEditor.tsx            Master/R/G/B curve editor
-  curves.ts                   PCHIP interpolation and GPU LUT generation
-  ScopesPanel.tsx             simultaneous scope column and controls
-  scopes.ts                   scope settings and CPU reference math
-  gpu/WebGpuEngine.ts         GPU lifecycle and orchestration
-  gpu/WebGpuScopeEngine.ts    GPU scope analysis/display consumer
-  gpu/scopeShaders.ts         scope compute and density display shaders
-  gpu/shaders.ts              WGSL passes
-```
-
-## Validation
-
-- `npm test` validates sRGB, EV, OKLab roundtrips, finite edge cases, and parses every WGSL module.
-- `npm run build` performs the strict TypeScript and production Vite build.
-- The initial implementation was also exercised through a real Chromium WebGPU smoke page: device creation, shader/pipeline validation, all correction groups, histogram dispatch, and PNG export.
-
-## Known limitations
-
-- The fast browser decoder is used for ordinary 8-bit sRGB images. The optional
-  precision-preserving wasm-vips route converts embedded ICC profiles to sRGB
-  through LittleCMS at the source bit depth; RAW decoding remains out of scope.
-- The controls are coherent approximations, not Adobe Camera Raw or darktable equivalence.
-- Temperature is a relative rendered-image correction, not Kelvin-based RAW white balance.
-- The histogram is sampled for responsiveness on large images.
-- PNG is the only output format; JPEG quality and metadata preservation are not implemented.
-- No masks, layers, crop, rotate, perspective, denoise, sharpen, lens correction, or presets are included.
+The top-level scripts and the active modularization plan define the current
+typecheck, unit-test and build commands.

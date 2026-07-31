@@ -25,7 +25,10 @@ import {
 } from './workspacePanelRegistry';
 
 const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
-const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v1';
+// Increment only when the intended fresh-workspace composition changes. A
+// versioned key prevents a structurally valid older layout from silently
+// overriding the new product default.
+const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v2';
 const ACCESSORY_PANEL_MINIMUM_WIDTH = 250;
 const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
 const PANEL_TAB_BAR_HEIGHT = 34;
@@ -135,7 +138,23 @@ const createDefaultLayout = (
   // receive panel drops. LightTable converts a centre drop there into a
   // floating panel; edge drops remain regular Dockview splits.
   documentHost.group.locked = false;
-  panels.forEach((panel) => addRegisteredPanel(api, panel));
+  const registeredPanels = new Map(
+    panels.map((panel) => [panel.id, addRegisteredPanel(api, panel)] as const)
+  );
+  panels.forEach((panel) => {
+    const floating = panel.defaultFloating;
+    const dockPanel = registeredPanels.get(panel.id);
+    if (!floating || !dockPanel) return;
+
+    const width = Math.min(floating.width, Math.max(250, api.width - 24));
+    const height = Math.min(floating.height, Math.max(240, api.height - 24));
+    api.addFloatingGroup(dockPanel, {
+      x: Math.max(12, Math.min(Math.round(api.width * floating.xRatio), api.width - width - 12)),
+      y: Math.max(12, Math.min(Math.round(api.height * floating.yRatio), api.height - height - 12)),
+      width,
+      height
+    });
+  });
   applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
 };
 
@@ -278,6 +297,10 @@ export const LightTableDockWorkspace = forwardRef<
       panel.initialWidth,
       panel.initialHeight,
       panel.minimumHeight,
+      panel.defaultFloating?.width,
+      panel.defaultFloating?.height,
+      panel.defaultFloating?.xRatio,
+      panel.defaultFloating?.yRatio,
       panel.initiallyInactive,
       panel.requiredForSavedLayout
     ].join(':'))

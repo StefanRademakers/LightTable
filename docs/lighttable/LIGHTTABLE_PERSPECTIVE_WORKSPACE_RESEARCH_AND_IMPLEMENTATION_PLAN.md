@@ -1,5 +1,12 @@
 # Lighttable — Perspective Workspace, Spatial Guides and Paint-Over-3D
 
+> **Deferred product research.** Preserve this specification as a future
+> direction, but do not use its StoryBuilder-era component paths or proposed
+> ownership as current architecture. A future implementation must enter through
+> the standalone document, command, processing-node, renderer and host
+> boundaries described by `README.md` and
+> `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`.
+
 **Status:** researched product and implementation specification  
 **Target:** Lighttable / StoryBuilderOnline  
 **Audience:** AI coding agent and product/architecture review  

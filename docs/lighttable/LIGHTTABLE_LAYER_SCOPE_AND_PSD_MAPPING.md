@@ -1,6 +1,14 @@
 # LightTable layer scope and Photoshop mapping
 
-Status: architecture decision baseline, 28 July 2026.
+Status: authoritative semantic contract, 28 July 2026; implementation progress
+reconciled elsewhere on 31 July 2026.
+
+The scope definitions and Photoshop mappings in this document remain current.
+Its implementation sequence is historical: use
+`LIGHTTABLE_EXPLICIT_PROCESSING_OWNERSHIP.md` for current processing ownership,
+`PSD_FEATURE_PARITY_IMPLEMENTATION_PLAN.md` for PSD progress and
+`LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md` for the active architecture
+milestone. Code and tests are authoritative when an old checklist differs.
 
 This document defines where the existing LightTable Grade and Lens Fx tools
 live once layers become independently editable. It also defines how Photoshop
@@ -428,4 +436,3 @@ layer.
 The first production checkpoint is not "the sliders moved to the layer." It is
 two differently graded layers, one masked Adjustment Layer and one clipped
 Adjustment Layer surviving undo/redo and save/open with identical output.
-
