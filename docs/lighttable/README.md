@@ -47,7 +47,7 @@ contract and current code.
 ### Image I/O
 
 - `lighttable_wasm_vips_implementation_checklist.md` is the active checklist.
-- `lighttable-wasm-vips-spike-and-implementation-plan.md` is the original
+- `archive/lighttable-wasm-vips-spike-and-implementation-plan.md` is the original
   research spike and is retained for rationale only.
 
 ### Transform and alignment
@@ -56,9 +56,9 @@ contract and current code.
   interaction validation.
 - `auto_align_v2_implementation_plan.md` is the newest Auto Align feature
   checkpoint.
-- `AUTO_ALIGN_FOLLOWUP_HANDOFF.md`,
-  `auto_align_audit_and_production_plan.md`,
-  `LIGHTTABLE_WEBGPU_AUTO_ALIGN_LAYERS.md`,
+- `archive/AUTO_ALIGN_FOLLOWUP_HANDOFF.md`,
+  `archive/auto_align_audit_and_production_plan.md`,
+  `archive/LIGHTTABLE_WEBGPU_AUTO_ALIGN_LAYERS.md`,
   `photoshop_auto_align_research.md` and
   `open_source_alignment_research.md` are historical design/research inputs.
   They are not the current application architecture plan.
@@ -74,7 +74,7 @@ creating parallel systems.
 
 ## Superseded architecture proposals
 
-`LIGHTTABLE_PER_LAYER_ADJUSTMENTS_AND_FUTURE_NODE_GRAPH.md` contains useful
+`archive/LIGHTTABLE_PER_LAYER_ADJUSTMENTS_AND_FUTURE_NODE_GRAPH.md` contains useful
 design reasoning, but its description of a single document-wide pipeline and
 StoryBuilder-local implementation predates the standalone repository,
 multi-document sessions, explicit processing ownership and registered node
@@ -91,6 +91,11 @@ Files under `implemented/` are snapshots of completed milestones and effect
 research. They explain why code exists but do not define the current complete
 pipeline. In particular, old operation-order notes must not override the
 registered processing plan or current renderer tests.
+
+Files under `archive/` are obsolete or replaced plans and handoffs. They retain
+decisions, experiments and acceptance criteria that may still be useful, but
+they never override root-level contracts, active trackers, current code or
+tests.
 
 ## Backlog policy
 

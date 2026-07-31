@@ -4,11 +4,11 @@
 > as a current-state description or execution tracker. It predates the
 > standalone repository, multi-document sessions, explicit Grade/Lens Fx
 > ownership and registered processing-node runtime. Start with `README.md`,
-> `LIGHTTABLE_EXPLICIT_PROCESSING_OWNERSHIP.md` and
-> `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`; current code and tests win on
+> `../LIGHTTABLE_EXPLICIT_PROCESSING_OWNERSHIP.md` and
+> `../LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`; current code and tests win on
 > any conflict.
 >
-> **Scope/PSD companion:** `LIGHTTABLE_LAYER_SCOPE_AND_PSD_MAPPING.md` defines
+> **Scope/PSD companion:** `../LIGHTTABLE_LAYER_SCOPE_AND_PSD_MAPPING.md` defines
 > how the existing Grade and Lens Fx controls map to layer-local processing,
 > Adjustment Layers, Smart Objects, Smart Filters, Layer Styles and
 > document-output processing.
@@ -57,7 +57,9 @@ Do **not** build a Resolve-like node editor in this milestone. Build the process
 
 ## 2. Current project state
 
-The original `LIGHTTABLE_LAYERED_PAINT_FIRST_STEPS.md` milestone is approximately 90% complete and already includes more functionality than originally required.
+The original LIGHTTABLE_LAYERED_PAINT_FIRST_STEPS milestone (not present in
+this repository) was approximately 90% complete and already included more
+functionality than originally required.
 
 ### Present capabilities
 
@@ -238,7 +240,7 @@ A quick-add entry creates an adjustment layer with one enabled module. `Full Lig
 `Full Lighttable Grade` does not include Lens Fx whose declared scope or
 processing domain is incompatible with an Adjustment Layer, and it never
 includes technical display/output processing. See
-`LIGHTTABLE_LAYER_SCOPE_AND_PSD_MAPPING.md`.
+`../LIGHTTABLE_LAYER_SCOPE_AND_PSD_MAPPING.md`.
 
 ### Default targeting
 

@@ -7,7 +7,7 @@ This document replaces ambiguous document-wide creative processing with one
 rule: every editable creative operation has a visible owner. It complements:
 
 - `LIGHTTABLE_LAYER_SCOPE_AND_PSD_MAPPING.md`
-- `LIGHTTABLE_PER_LAYER_ADJUSTMENTS_AND_FUTURE_NODE_GRAPH.md`
+- `archive/LIGHTTABLE_PER_LAYER_ADJUSTMENTS_AND_FUTURE_NODE_GRAPH.md`
 - `PSD_FEATURE_PARITY_IMPLEMENTATION_PLAN.md`
 
 The code now implements explicit Grade and Lens Fx ownership plus a registered,

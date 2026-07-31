@@ -18,7 +18,7 @@ Read first:
 
 - `docs/lighttable/open_source_alignment_research.md`
 - `docs/lighttable/photoshop_auto_align_research.md`
-- `docs/lighttable/AUTO_ALIGN_FOLLOWUP_HANDOFF.md`
+- `docs/lighttable/archive/AUTO_ALIGN_FOLLOWUP_HANDOFF.md`
 - `packages/lighttable-app/src/lighttable/editor/autoAlign/`
 
 ## Architecture
@@ -153,9 +153,9 @@ without reconstructing history.
   and similarity RANSAC pass synthetic translation, scale/rotation, local-edit
   and rejection tests
 - Active implementation paths:
-  - `client/src/features/lighttable/editor/autoAlign/FeatureAlignmentService.ts`
-  - `client/src/features/lighttable/editor/autoAlign/featureAlignment.ts`
-  - `client/src/features/lighttable/editor/autoAlign/featureAlignment.test.ts`
+  - `packages/lighttable-app/src/lighttable/editor/autoAlign/FeatureAlignmentService.ts`
+  - `packages/lighttable-app/src/lighttable/editor/autoAlign/featureAlignment.ts`
+  - `packages/lighttable-app/src/lighttable/editor/autoAlign/featureAlignment.test.ts`
 - Editor integration: V2 is wired into the existing target-only
   Preview/Apply/Cancel path. Apply remains one history step.
 - Diagnostics: accepted previews report inliers, spatial coverage and residual;

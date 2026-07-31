@@ -735,7 +735,7 @@ uses an explicit preview/raster fallback.
 ### Phase 0 — converge the canonical document model
 
 - [x] Reconcile this plan with
-      `LIGHTTABLE_PER_LAYER_ADJUSTMENTS_AND_FUTURE_NODE_GRAPH.md`.
+      `archive/LIGHTTABLE_PER_LAYER_ADJUSTMENTS_AND_FUTURE_NODE_GRAPH.md`.
 - [x] Inventory current Grade/Lens Fx parameters with explicit domains and
       allowed processing scopes.
 - [x] Introduce typed Raster, Group and Adjustment nodes with nested groups.

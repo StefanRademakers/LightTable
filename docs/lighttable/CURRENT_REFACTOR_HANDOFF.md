@@ -4,7 +4,7 @@ Updated: 2026-07-31
 Repository: `D:\mediavibe\LightTable`  
 Branch: `main`  
 Architecture checkpoint: `5a9fa02 Centralize document adjustment state`
-Latest committed UI checkpoint: `883d1e6 css ui tweaks`
+Latest committed checkpoint: `d766cca voor restructure`
 
 This is the short operational handoff. The architectural source of truth remains
 `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`.
@@ -15,10 +15,10 @@ The architecture milestone is complete and committed. The commits after it are
 an intentional UI/theme polish interlude, not a change of architecture
 direction.
 
-At this documentation cleanup the working tree also contains the new default
-workspace-layout edits: Scopes and Grade start visible beside each other and
-Layers starts as a compact floating panel. Treat those edits as active work;
-do not discard them while resuming the refactor.
+The default workspace-layout edits are committed at `d766cca`: Scopes and Grade
+start visible beside each other and Layers starts as a compact floating panel.
+That commit also contains the first documentation classification pass. It is
+the baseline for resuming the refactor.
 
 Verification at the architecture checkpoint:
 

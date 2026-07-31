@@ -1,8 +1,8 @@
-# Auto Align follow-up handoff
+# Archived Auto Align follow-up handoff
 
 Status: the legacy scorer was not working. A feature-based V2 replacement is
 now wired for browser validation; see the resume checkpoint in
-`auto_align_v2_implementation_plan.md`.
+`../auto_align_v2_implementation_plan.md`.
 
 This handoff predates the standalone extraction. Current implementation lives
 under `packages/lighttable-app/src/lighttable/editor/autoAlign/` and
@@ -19,8 +19,8 @@ Read first:
 - `docs/lighttable/auto_align_v2_implementation_plan.md`
 - `docs/lighttable/photoshop_auto_align_research.md`
 - `docs/lighttable/open_source_alignment_research.md`
-- `docs/lighttable/auto_align_audit_and_production_plan.md`
-- `docs/lighttable/LIGHTTABLE_WEBGPU_AUTO_ALIGN_LAYERS.md`
+- `docs/lighttable/archive/auto_align_audit_and_production_plan.md`
+- `docs/lighttable/archive/LIGHTTABLE_WEBGPU_AUTO_ALIGN_LAYERS.md`
 - `docs/lighttable/transform_tool.md`
 - `packages/lighttable-app/src/lighttable/editor/autoAlign/`
 - `packages/lighttable-app/src/lighttable/editor/rendering/renderContract.ts`

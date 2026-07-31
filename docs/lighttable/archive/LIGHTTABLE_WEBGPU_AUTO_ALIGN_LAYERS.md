@@ -1,4 +1,4 @@
-# Lighttable — WebGPU Auto Align Layers
+# Archived Lighttable — WebGPU Auto Align Layers
 
 ## Doel
 

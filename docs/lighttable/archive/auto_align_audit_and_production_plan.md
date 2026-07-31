@@ -1,4 +1,4 @@
-# LightTable Auto Align audit and production plan
+# Archived LightTable Auto Align audit and production plan
 
 Status: research/design gate, 2026-07-28.
 

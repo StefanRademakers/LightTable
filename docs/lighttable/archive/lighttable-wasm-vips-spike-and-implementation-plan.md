@@ -2,7 +2,7 @@
 
 > **Historical spike.** The decoder boundary and fast/precision routing now
 > exist in the standalone codebase. Use
-> `lighttable_wasm_vips_implementation_checklist.md` for current progress; keep
+> `../lighttable_wasm_vips_implementation_checklist.md` for current progress; keep
 > this document for the original test rationale and format requirements.
 
 ## Purpose
