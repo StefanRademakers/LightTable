@@ -44,6 +44,11 @@ interface ViewportSize {
   height: number;
 }
 
+interface ViewportBounds {
+  readonly left: number;
+  readonly top: number;
+}
+
 interface ViewportInteractionOptions {
   metadata: LightTableImageMetadata | null;
   document: ImageDocument | null;
@@ -132,9 +137,11 @@ export const useViewportInteractionController = ({
       `translate3d(${center.x - diameter / 2}px, ${center.y - diameter / 2}px, 0)`;
   }, [activeScale, editorSession.activeTool, editorSession.brush.size, editorSession.warp.diameterPx]);
 
-  const documentPoint = (event: PointerEvent<HTMLDivElement>) => {
+  const documentPoint = (
+    event: PointerEvent<HTMLDivElement>,
+    bounds: ViewportBounds = event.currentTarget.getBoundingClientRect()
+  ) => {
     if (!metadata) return null;
-    const bounds = event.currentTarget.getBoundingClientRect();
     const point = localToDocumentPointer(
       clientToLocalPoint(
         { x: event.clientX, y: event.clientY },
@@ -164,7 +171,10 @@ export const useViewportInteractionController = ({
     if (brushCursorRef.current) brushCursorRef.current.style.opacity = '0';
   };
 
-  const updateBrushCursor = (event: PointerEvent<HTMLDivElement>) => {
+  const updateBrushCursor = (
+    event: PointerEvent<HTMLDivElement>,
+    bounds: ViewportBounds = event.currentTarget.getBoundingClientRect()
+  ) => {
     const cursor = brushCursorRef.current;
     if (!cursor) return;
     if (
@@ -176,7 +186,6 @@ export const useViewportInteractionController = ({
       hideBrushCursor();
       return;
     }
-    const bounds = event.currentTarget.getBoundingClientRect();
     const point = clientToLocalPoint(
       { x: event.clientX, y: event.clientY },
       { x: bounds.left, y: bounds.top }
@@ -260,14 +269,17 @@ export const useViewportInteractionController = ({
       }));
     },
     onPointerDown: (event) => {
-      updateBrushCursor(event);
+      // A bounding-client-rect read may force layout. Snapshot it once for all
+      // pointer-down routing instead of asking the cursor and document
+      // projection paths to perform separate synchronous reads.
+      const bounds = event.currentTarget.getBoundingClientRect();
+      updateBrushCursor(event, bounds);
       if (
         editorSession.activeTool === 'zoom'
         && !temporaryTools.active
         && event.button === 0
         && metadata
       ) {
-        const bounds = event.currentTarget.getBoundingClientRect();
         const cursor = clientToLocalPoint(
           { x: event.clientX, y: event.clientY },
           { x: bounds.left, y: bounds.top }
@@ -286,7 +298,7 @@ export const useViewportInteractionController = ({
         event.preventDefault();
         return;
       }
-      const point = documentPoint(event);
+      const point = documentPoint(event, bounds);
       const activeTool = editorSession.activeTool;
       const paintTarget = document
         ? editorSession.activeChannel === 'mask'
@@ -386,8 +398,11 @@ export const useViewportInteractionController = ({
       }
     },
     onPointerMove: (event) => {
-      updateBrushCursor(event);
-      const point = documentPoint(event);
+      // Pointer devices can deliver substantially more than one event per
+      // display frame. Keep this hot path to one layout-dependent read.
+      const bounds = event.currentTarget.getBoundingClientRect();
+      updateBrushCursor(event, bounds);
+      const point = documentPoint(event, bounds);
       if (
         editorSession.activeTool === 'select-polygonal'
         && selection.polygonActive
