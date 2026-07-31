@@ -54,6 +54,30 @@ export const createVectorViewportTransform = (
   scale: number
 ): string => `translate(${imageRect.x}px, ${imageRect.y}px) scale(${scale})`;
 
+interface PrimitiveSelectionBounds {
+  kind: 'rectangle' | 'ellipse';
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export const getPrimitiveSelectionBounds = (
+  shape: SelectionShape | null
+): PrimitiveSelectionBounds | null => {
+  if (!shape || (shape.kind !== 'rectangle' && shape.kind !== 'ellipse')) return null;
+  if (shape.points.length < 2) return null;
+  const first = shape.points[0];
+  const second = shape.points[1];
+  return {
+    kind: shape.kind,
+    left: Math.min(first.x, second.x),
+    top: Math.min(first.y, second.y),
+    width: Math.abs(second.x - first.x),
+    height: Math.abs(second.y - first.y)
+  };
+};
+
 const renderSelectionShape = (
   shape: SelectionShape,
   draftStyle: boolean
@@ -133,6 +157,10 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     () => directVectorSelection
       ? renderSelectionShape(directVectorSelection, false)
       : null,
+    [directVectorSelection]
+  );
+  const directPrimitiveBounds = useMemo(
+    () => getPrimitiveSelectionBounds(directVectorSelection),
     [directVectorSelection]
   );
   const documentSize = useMemo(() => ({
@@ -314,7 +342,17 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
 
   return (
     <>
-      {directVectorSelection ? (
+      {directPrimitiveBounds ? (
+        <div
+          className={`lighttable-selection-primitive lighttable-selection-primitive--${directPrimitiveBounds.kind}`}
+          style={{
+            height: directPrimitiveBounds.height * scale,
+            transform: `translate3d(${imageRect.x + directPrimitiveBounds.left * scale}px, ${imageRect.y + directPrimitiveBounds.top * scale}px, 0)`,
+            width: directPrimitiveBounds.width * scale
+          }}
+          aria-hidden="true"
+        />
+      ) : directVectorSelection ? (
         <svg
           className="lighttable-selection lighttable-selection--direct"
           viewBox={`0 0 ${documentSize.width} ${documentSize.height}`}

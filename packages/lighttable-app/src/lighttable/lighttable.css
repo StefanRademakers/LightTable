@@ -791,6 +791,24 @@
   will-change: transform;
 }
 
+.lighttable-selection-primitive {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  contain: layout paint style;
+  pointer-events: none;
+  border: 1px dashed rgba(255, 255, 255, 0.96);
+  outline: 1px dashed rgba(18, 18, 18, 0.9);
+  outline-offset: -2px;
+  will-change: transform;
+}
+
+.lighttable-selection-primitive--ellipse {
+  border-radius: 50%;
+}
+
 .lighttable-selection__shape {
   fill: none;
   stroke: rgba(255, 255, 255, 0.96);

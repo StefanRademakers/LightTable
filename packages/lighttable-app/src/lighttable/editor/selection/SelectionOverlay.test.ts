@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createRasterViewportTransform,
   createVectorViewportTransform,
+  getPrimitiveSelectionBounds,
   isDirectVectorSelection
 } from './SelectionOverlay';
 import type { SelectionOperation } from './selectionTypes';
@@ -45,5 +46,20 @@ describe('createVectorViewportTransform', () => {
   it('keeps committed geometry in document coordinates and projects its composited overlay', () => {
     expect(createVectorViewportTransform({ x: 120, y: 45 }, 2.5))
       .toBe('translate(120px, 45px) scale(2.5)');
+  });
+});
+
+describe('getPrimitiveSelectionBounds', () => {
+  it('bounds primitive selections without allocating a document-sized overlay', () => {
+    expect(getPrimitiveSelectionBounds({
+      kind: 'ellipse',
+      points: [{ x: 80, y: 100 }, { x: 20, y: 40 }]
+    })).toEqual({
+      kind: 'ellipse',
+      left: 20,
+      top: 40,
+      width: 60,
+      height: 60
+    });
   });
 });
