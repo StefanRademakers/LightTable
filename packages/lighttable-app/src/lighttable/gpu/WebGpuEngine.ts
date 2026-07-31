@@ -60,9 +60,9 @@ import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
 import { LayerProcessingRenderer } from './layerProcessingRenderer';
+import { ReferenceDifferenceMeasurer } from './referenceDifferenceMeasurer';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
-const DIFFERENCE_METRICS_BYTE_SIZE = 8 * Uint32Array.BYTES_PER_ELEMENT;
 interface ViewportRect {
   x: number;
   y: number;
@@ -1182,90 +1182,16 @@ export class WebGpuEngine {
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
 
-    const maximumSamples = 4_000_000;
-    const stride = Math.max(
-      1,
-      Math.ceil(Math.sqrt((this.metadata.width * this.metadata.height) / maximumSamples))
-    );
-    const metricsBuffer = this.device.createBuffer({
-      label: 'LightTable reference difference metrics',
-      size: DIFFERENCE_METRICS_BYTE_SIZE,
-      // clearBuffer() requires COPY_DST. Without it the command buffer becomes
-      // invalid and a zero-filled readback can masquerade as a perfect match.
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+    return new ReferenceDifferenceMeasurer(
+      this.device,
+      this.differenceMetricsPipeline
+    ).measure({
+      sourceTexture: this.sourceTexture,
+      reconstructedTexture: this.finalTexture,
+      width: this.metadata.width,
+      height: this.metadata.height,
+      threshold
     });
-    const uniformBuffer = this.device.createBuffer({
-      label: 'LightTable reference difference settings',
-      size: 4 * Uint32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    const readBuffer = this.device.createBuffer({
-      label: 'LightTable reference difference readback',
-      size: DIFFERENCE_METRICS_BYTE_SIZE,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-    });
-    try {
-      this.device.queue.writeBuffer(uniformBuffer, 0, new Uint32Array([
-        this.metadata.width,
-        this.metadata.height,
-        stride,
-        Math.round(Math.max(0, Math.min(1, threshold)) * 255)
-      ]));
-      const bindGroup = this.device.createBindGroup({
-        label: 'LightTable reference difference metrics',
-        layout: this.differenceMetricsPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: this.sourceTexture.createView() },
-          { binding: 1, resource: this.finalTexture.createView() },
-          { binding: 2, resource: { buffer: metricsBuffer } },
-          { binding: 3, resource: { buffer: uniformBuffer } }
-        ]
-      });
-      const encoder = this.device.createCommandEncoder({
-        label: 'LightTable measure reference difference'
-      });
-      encoder.clearBuffer(metricsBuffer);
-      const pass = encoder.beginComputePass({
-        label: 'LightTable reference difference metrics'
-      });
-      pass.setPipeline(this.differenceMetricsPipeline);
-      pass.setBindGroup(0, bindGroup);
-      pass.dispatchWorkgroups(
-        Math.ceil(this.metadata.width / stride / 8),
-        Math.ceil(this.metadata.height / stride / 8)
-      );
-      pass.end();
-      encoder.copyBufferToBuffer(
-        metricsBuffer,
-        0,
-        readBuffer,
-        0,
-        DIFFERENCE_METRICS_BYTE_SIZE
-      );
-      this.device.queue.submit([encoder.finish()]);
-      const values = new Uint32Array(await mapGpuBufferCopy(readBuffer));
-      const sampledPixels = values[0] ?? 0;
-      const differingPixels = values[1] ?? 0;
-      if (sampledPixels === 0) {
-        throw new Error('LightTable reference comparison produced no samples.');
-      }
-      return {
-        sampledPixels,
-        differingPixels,
-        differingPixelPercentage: differingPixels / sampledPixels * 100,
-        meanAbsoluteRgbError: (values[2] ?? 0) / (sampledPixels * 3 * 255),
-        maximumChannelError: (values[3] ?? 0) / 255,
-        meanAbsoluteAlphaError: (values[4] ?? 0) / (sampledPixels * 255),
-        maximumAlphaError: (values[5] ?? 0) / 255,
-        threshold,
-        stride
-      };
-    } finally {
-      if (readBuffer.mapState === 'mapped') readBuffer.unmap();
-      readBuffer.destroy();
-      uniformBuffer.destroy();
-      metricsBuffer.destroy();
-    }
   }
 
   setScopeOptions(histogramVisible: boolean, options: WebGpuScopeOptions) {

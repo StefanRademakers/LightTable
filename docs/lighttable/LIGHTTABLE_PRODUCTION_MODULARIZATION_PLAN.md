@@ -1034,6 +1034,11 @@ outside the document engine. Browser PNG encoding is behind a replaceable
 function, leaving a clean seam for a desktop-native or 16-bit encoder without
 changing renderer orchestration.
 
+Photoshop-reference comparison now has a separate compute/readback service.
+The document engine only guarantees that source and reconstructed textures are
+current before delegating the bounded measurement. Diagnostic buffer ownership,
+sampling policy and metric normalization no longer expand the render loop.
+
 Lens effects now compile their complete pipeline bundles asynchronously behind
 an atomic optional-feature boundary. Until every pipeline in a feature is
 valid, rendering uses the exact input texture; compilation failure is reported
