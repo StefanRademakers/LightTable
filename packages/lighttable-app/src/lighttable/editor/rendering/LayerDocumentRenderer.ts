@@ -79,12 +79,7 @@ import { LayerStyleTextureStore } from './LayerStyleTextureStore';
 import { RenderTargetPair } from './RenderTargetPair';
 import { SelectionTextureStore } from './SelectionTextureStore';
 import { TransformSessionStore } from './TransformSessionStore';
-
-interface PixelSnapshot {
-  layerId: LayerId;
-  channel: PaintChannel;
-  texture: GPUTexture;
-}
+import { PixelEditSessionStore } from './PixelEditSessionStore';
 
 interface GeometryPreview {
   matrix: AffineMatrix;
@@ -191,10 +186,10 @@ export class LayerDocumentRenderer {
   private readonly compositeTargets: RenderTargetPair;
   private readonly selectionTextures: SelectionTextureStore;
   private readonly transformSessions = new TransformSessionStore();
+  private readonly pixelEditSessions = new PixelEditSessionStore();
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
-  private pendingPixelSnapshot: PixelSnapshot | null = null;
   private readonly geometryPreviews = new Map<LayerId, GeometryPreview>();
   private styleQuality: 'interactive' | 'final' = 'final';
 
@@ -357,7 +352,7 @@ export class LayerDocumentRenderer {
     bytes += this.layerStyleTextures.estimatedTextureBytes(this.width, this.height);
     bytes += this.compositeTargets.estimatedTextureBytes(this.width, this.height, 8);
     bytes += this.selectionTextures.estimatedTextureBytes(this.width, this.height);
-    if (this.pendingPixelSnapshot) bytes += rgba16Bytes;
+    bytes += this.pixelEditSessions.estimatedTextureBytes(rgba16Bytes);
     bytes += this.transformSessions.estimatedTextureBytes(rgba16Bytes, r8Bytes);
     return bytes;
   }
@@ -554,7 +549,7 @@ export class LayerDocumentRenderer {
         // and deliberately bypass the persistent cache. Committed pixels,
         // masks, geometry, styles and quality are represented by
         // layerStyleCacheKey.
-        const activePixelEdit = this.pendingPixelSnapshot?.layerId === layer.id;
+        const activePixelEdit = this.pixelEditSessions.current?.layerId === layer.id;
         const styleCacheKey = activeTransform || activePixelEdit
           ? null
           : layerStyleCacheKey(layer, sourceToDocument, this.styleQuality);
@@ -1177,7 +1172,6 @@ export class LayerDocumentRenderer {
   beginPixelEdit(layerId: LayerId, channel: PaintChannel) {
     const runtime = this.layerResources.raster(layerId);
     if (channel === 'pixels' && !runtime) throw new Error('The active raster layer is not available on the GPU.');
-    this.destroySnapshot(this.pendingPixelSnapshot);
     const texture = this.createTexture('LightTable brush undo snapshot');
     const encoder = this.device.createCommandEncoder({ label: 'LightTable begin brush stroke' });
     const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
@@ -1187,12 +1181,11 @@ export class LayerDocumentRenderer {
     this.invalidateStyledLayerCache(layerId);
     encoder.copyTextureToTexture({ texture: target }, { texture }, [this.width, this.height]);
     this.device.queue.submit([encoder.finish()]);
-    this.pendingPixelSnapshot = { layerId, channel, texture };
+    this.pixelEditSessions.begin({ layerId, channel, texture });
   }
 
   finishPixelEdit(): ReversiblePixelEdit | null {
-    const before = this.pendingPixelSnapshot;
-    this.pendingPixelSnapshot = null;
+    const before = this.pixelEditSessions.complete();
     if (!before) return null;
     let undoTexture: GPUTexture | null = before.texture;
     let redoTexture: GPUTexture | null = null;
@@ -1235,8 +1228,7 @@ export class LayerDocumentRenderer {
   }
 
   cancelPixelEdit() {
-    this.destroySnapshot(this.pendingPixelSnapshot);
-    this.pendingPixelSnapshot = null;
+    this.pixelEditSessions.cancel();
   }
 
   beginTransform(layer: RasterLayer, useSelection: boolean) {
@@ -2271,8 +2263,6 @@ export class LayerDocumentRenderer {
     pass.end();
   }
 
-  private destroySnapshot(snapshot: PixelSnapshot | null) { snapshot?.texture.destroy(); }
-
   destroyImageResources() {
     this.resourceGeneration += 1;
     this.layerResources.destroy();
@@ -2284,8 +2274,7 @@ export class LayerDocumentRenderer {
     this.selectionTextures.destroy();
     this.geometryPreviews.clear();
     this.cancelTransform();
-    this.destroySnapshot(this.pendingPixelSnapshot);
-    this.pendingPixelSnapshot = null;
+    this.pixelEditSessions.destroy();
   }
 
   destroy() {
