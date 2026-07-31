@@ -1564,3 +1564,6 @@ The refactor is successful when:
       lifecycle behind a renderer-neutral reversible-pixel-edit contract.
       Complete-layer transforms remain non-destructive geometry and do not
       compile raster tool pipelines.
+- [x] Extract transactional pixel and mask snapshots into a dedicated GPU
+      history service; paint, fill and invert now share one reversible
+      begin/finish/cancel boundary without owning undo textures themselves.

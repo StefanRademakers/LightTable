@@ -54,6 +54,7 @@ import { LayerStyleRenderer } from './LayerStyleRenderer';
 import { LayerCompositor } from './LayerCompositor';
 import type { ReversiblePixelEdit } from '../history/ReversiblePixelEdit';
 import { TransformRasterizer } from './TransformRasterizer';
+import { PixelEditHistoryService } from './PixelEditHistoryService';
 
 export interface LayerThumbnailBlob {
   blob: Blob;
@@ -85,6 +86,7 @@ export class LayerDocumentRenderer {
   private readonly selectionContentAnalyzer: SelectionContentAnalyzer;
   private readonly selectionClipboard: SelectionClipboardService;
   private readonly transformRasterizer: TransformRasterizer;
+  private readonly pixelEditHistory: PixelEditHistoryService;
   private readonly rasterDocumentOperations: RasterDocumentOperations;
   private width = 0;
   private height = 0;
@@ -172,6 +174,15 @@ export class LayerDocumentRenderer {
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+    });
+    this.pixelEditHistory = new PixelEditHistoryService({
+      device,
+      layerResources: this.layerResources,
+      sessions: this.pixelEditSessions,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      createTexture: (label) => this.createTexture(label),
+      maskTextureFor: (layerId) => this.maskTextureFor(layerId),
+      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId)
     });
     this.selectionRasterizer = new SelectionRasterizer({
       device,
@@ -543,65 +554,15 @@ export class LayerDocumentRenderer {
   }
 
   beginPixelEdit(layerId: LayerId, channel: PaintChannel) {
-    const runtime = this.layerResources.raster(layerId);
-    if (channel === 'pixels' && !runtime) throw new Error('The active raster layer is not available on the GPU.');
-    const texture = this.createTexture('LightTable brush undo snapshot');
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable begin brush stroke' });
-    const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
-    if (!target) throw new Error('The active paint channel is not available on the GPU.');
-    // Invalidate at edit start rather than waiting for React document state to
-    // publish its revision. This also covers cancelled/replayed GPU edits.
-    this.invalidateStyledLayerCache(layerId);
-    encoder.copyTextureToTexture({ texture: target }, { texture }, [this.width, this.height]);
-    this.device.queue.submit([encoder.finish()]);
-    this.pixelEditSessions.begin({ layerId, channel, texture });
+    return this.pixelEditHistory.begin(layerId, channel);
   }
 
   finishPixelEdit(): ReversiblePixelEdit | null {
-    const before = this.pixelEditSessions.complete();
-    if (!before) return null;
-    let undoTexture: GPUTexture | null = before.texture;
-    let redoTexture: GPUTexture | null = null;
-    let applied = true;
-    const swap = (direction: 'undo' | 'redo') => {
-      const source = direction === 'undo' ? undoTexture : redoTexture;
-      if (!source || applied !== (direction === 'undo')) return false;
-      const runtime = this.layerResources.raster(before.layerId);
-      const target = before.channel === 'mask' ? this.maskTextureFor(before.layerId) : runtime?.texture;
-      if (!target) return false;
-      const inverse = this.createTexture(`LightTable ${direction} pixel history`);
-      const encoder = this.device.createCommandEncoder({ label: `LightTable ${direction} pixel edit` });
-      encoder.copyTextureToTexture({ texture: target }, { texture: inverse }, [this.width, this.height]);
-      encoder.copyTextureToTexture({ texture: source }, { texture: target }, [this.width, this.height]);
-      this.device.queue.submit([encoder.finish()]);
-      this.invalidateStyledLayerCache(before.layerId);
-      source.destroy();
-      if (direction === 'undo') {
-        undoTexture = null;
-        redoTexture = inverse;
-        applied = false;
-      } else {
-        redoTexture = null;
-        undoTexture = inverse;
-        applied = true;
-      }
-      return true;
-    };
-    return {
-      byteSize: this.width * this.height * 8,
-      undo: () => swap('undo'),
-      redo: () => swap('redo'),
-      destroy: () => {
-        undoTexture?.destroy();
-        redoTexture?.destroy();
-        undoTexture = null;
-        redoTexture = null;
-      }
-    };
+    return this.pixelEditHistory.finish();
   }
 
   cancelPixelEdit() {
-    this.pixelEditSessions.cancel();
+    return this.pixelEditHistory.cancel();
   }
 
   beginTransform(layer: RasterLayer, useSelection: boolean) {
