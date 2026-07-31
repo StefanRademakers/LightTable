@@ -49,10 +49,6 @@ import {
   type CompositorPlan,
   type CompositorPlanEntry
 } from './compositorGraph';
-import {
-  encodeRgba8Png,
-  readRgba8Texture
-} from '../../gpu/gpuReadback';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
 import { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import { LayerStyleTextureStore } from './LayerStyleTextureStore';
@@ -72,6 +68,7 @@ import { LayerDocumentAssetService } from './LayerDocumentAssetService';
 import { LayerTextureCodec } from './LayerTextureCodec';
 import { SelectionRasterizer } from './SelectionRasterizer';
 import { SelectionContentAnalyzer } from './SelectionContentAnalyzer';
+import { SelectionClipboardService } from './SelectionClipboardService';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -109,6 +106,7 @@ export class LayerDocumentRenderer {
   private readonly textureCodec: LayerTextureCodec;
   private readonly selectionRasterizer: SelectionRasterizer;
   private readonly selectionContentAnalyzer: SelectionContentAnalyzer;
+  private readonly selectionClipboard: SelectionClipboardService;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -179,6 +177,21 @@ export class LayerDocumentRenderer {
       ensureTargets: () => this.ensureSelectionTargets(),
       rasterRuntime: (layerId) => this.layerResources.raster(layerId),
       createCoverageTexture: (label) => this.createSelectionTexture(label),
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+    });
+    this.selectionClipboard = new SelectionClipboardService({
+      device,
+      textures: this.selectionTextures,
+      layerResources: this.layerResources,
+      textureCodec: this.textureCodec,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      generation: () => this.resourceGeneration,
+      pipelines: () => {
+        this.ensureToolPipelines();
+        return this.toolPipelines!;
+      },
+      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
@@ -1447,7 +1460,6 @@ export class LayerDocumentRenderer {
     if (!this.selectionTextures.active || !this.selectionTextures.mask) return false;
     const layer = findRasterLayer(document, layerId);
     if (!layer || !layer.visible) return false;
-    const selectionClipboard = this.selectionTextures.replaceClipboard();
     const encoder = this.device.createCommandEncoder({ label: 'LightTable copy selected layer pixels' });
     // Blend modes describe the relationship with lower layers. Copying one
     // active layer must preserve its own pixels/mask/opacity, not blend it
@@ -1458,120 +1470,21 @@ export class LayerDocumentRenderer {
       layers: [isolatedLayer],
       activeLayerId: layer.id
     });
-    const bindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.selectionCopy.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: isolatedLayerTexture.createView() },
-        { binding: 1, resource: this.selectionTextures.mask.createView() }
-      ]
-    });
-    this.drawFullscreen(
-      encoder,
-      this.toolPipelines!.selectionCopy,
-      bindGroup,
-      selectionClipboard.createView(),
-      { r: 0, g: 0, b: 0, a: 0 }
-    );
+    if (!this.selectionClipboard.encodeLayerCopy(encoder, isolatedLayerTexture)) return false;
     this.device.queue.submit([encoder.finish()]);
     this.releaseSubmittedResources();
     return true;
   }
 
   async exportSelectionClipboard(bounds: Rect) {
-    if (!this.selectionTextures.clipboard) {
-      throw new Error('No copied LightTable pixels are available.');
-    }
-    const crop = this.clipboardCrop(bounds);
-    const croppedTexture = this.device.createTexture({
-      label: 'LightTable cropped selection clipboard',
-      size: [crop.width, crop.height],
-      format: 'rgba16float',
-      usage: textureUsage
-    });
-    try {
-      const encoder = this.device.createCommandEncoder({
-        label: 'LightTable crop selected layer clipboard'
-      });
-      encoder.copyTextureToTexture(
-        {
-          texture: this.selectionTextures.clipboard,
-          origin: { x: crop.x, y: crop.y }
-        },
-        { texture: croppedTexture },
-        [crop.width, crop.height]
-      );
-      this.device.queue.submit([encoder.finish()]);
-      return await this.textureCodec.encodeUnchecked(
-        croppedTexture,
-        false,
-        crop.width,
-        crop.height
-      );
-    } finally {
-      croppedTexture.destroy();
-    }
+    return this.selectionClipboard.exportLayerSelection(bounds);
   }
 
   async exportDisplaySelection(
     displayTexture: GPUTexture,
     bounds: Rect
   ) {
-    this.ensureToolPipelines();
-    if (!this.selectionTextures.active || !this.selectionTextures.mask) {
-      throw new Error('A selection is required for Copy Merged.');
-    }
-    const crop = this.clipboardCrop(bounds);
-    const selectedDisplay = this.device.createTexture({
-      label: 'LightTable selected display clipboard',
-      size: [this.width, this.height],
-      format: 'rgba8unorm',
-      usage: textureUsage
-    });
-    const croppedTexture = this.device.createTexture({
-      label: 'LightTable cropped selected display clipboard',
-      size: [crop.width, crop.height],
-      format: 'rgba8unorm',
-      usage: textureUsage
-    });
-    try {
-      const bindGroup = this.device.createBindGroup({
-        layout: this.toolPipelines!.selectionDisplayCopy.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: displayTexture.createView() },
-          { binding: 1, resource: this.selectionTextures.mask.createView() }
-        ]
-      });
-      const encoder = this.device.createCommandEncoder({
-        label: 'LightTable Copy Merged selection'
-      });
-      this.drawFullscreen(
-        encoder,
-        this.toolPipelines!.selectionDisplayCopy,
-        bindGroup,
-        selectedDisplay.createView(),
-        { r: 0, g: 0, b: 0, a: 0 }
-      );
-      encoder.copyTextureToTexture(
-        {
-          texture: selectedDisplay,
-          origin: { x: crop.x, y: crop.y }
-        },
-        { texture: croppedTexture },
-        [crop.width, crop.height]
-      );
-      this.device.queue.submit([encoder.finish()]);
-      const pixels = await readRgba8Texture(
-        this.device,
-        croppedTexture,
-        crop.width,
-        crop.height,
-        'LightTable Copy Merged readback'
-      );
-      return await encodeRgba8Png(pixels, crop.width, crop.height);
-    } finally {
-      selectedDisplay.destroy();
-      croppedTexture.destroy();
-    }
+    return this.selectionClipboard.exportDisplaySelection(displayTexture, bounds);
   }
 
   async pasteClipboardImage(
@@ -1579,58 +1492,7 @@ export class LayerDocumentRenderer {
     blob: Blob,
     requestedPosition: { x: number; y: number } | null
   ) {
-    const destination = this.layerResources.raster(layerId);
-    if (!destination) return false;
-    const decoded = await decodeNativeImage(blob);
-    try {
-      const x = requestedPosition
-        ? Math.round(requestedPosition.x)
-        : Math.round((this.width - decoded.descriptor.width) / 2);
-      const y = requestedPosition
-        ? Math.round(requestedPosition.y)
-        : Math.round((this.height - decoded.descriptor.height) / 2);
-      const canvas = document.createElement('canvas');
-      canvas.width = this.width;
-      canvas.height = this.height;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('Clipboard image placement could not be created.');
-      context.clearRect(0, 0, this.width, this.height);
-      context.drawImage(decoded.bitmap, x, y);
-      const normalized = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (result) => result
-            ? resolve(result)
-            : reject(new Error('Clipboard image placement could not be encoded.')),
-          'image/png'
-        );
-      });
-      const generation = this.resourceGeneration;
-      await this.textureCodec.decode(
-        normalized,
-        destination.texture,
-        false,
-        this.width,
-        this.height,
-        () => generation === this.resourceGeneration
-      );
-      this.invalidateStyledLayerCache(layerId);
-      return true;
-    } finally {
-      decoded.close();
-    }
-  }
-
-  private clipboardCrop(bounds: Rect) {
-    const x = Math.max(0, Math.floor(bounds.x));
-    const y = Math.max(0, Math.floor(bounds.y));
-    const right = Math.min(this.width, Math.ceil(bounds.x + bounds.width));
-    const bottom = Math.min(this.height, Math.ceil(bounds.y + bounds.height));
-    return {
-      x,
-      y,
-      width: Math.max(1, right - x),
-      height: Math.max(1, bottom - y)
-    };
+    return this.selectionClipboard.pasteExternalImage(layerId, blob, requestedPosition);
   }
 
   async measureSelectedLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
@@ -1642,20 +1504,11 @@ export class LayerDocumentRenderer {
   }
 
   pasteSelectionClipboard(layerId: LayerId) {
-    const destination = this.layerResources.raster(layerId);
-    if (!destination || !this.selectionTextures.clipboard) return false;
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable paste selected pixels' });
-    encoder.copyTextureToTexture(
-      { texture: this.selectionTextures.clipboard },
-      { texture: destination.texture },
-      [this.width, this.height]
-    );
-    this.device.queue.submit([encoder.finish()]);
-    return true;
+    return this.selectionClipboard.pasteInternal(layerId);
   }
 
   hasSelectionClipboard() {
-    return Boolean(this.selectionTextures.clipboard);
+    return this.selectionClipboard.hasInternalClipboard();
   }
 
   clearSelection() {
