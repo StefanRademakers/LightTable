@@ -1,6 +1,6 @@
 # LightTable production modularization plan
 
-Status: proposed architecture and migration plan  
+Status: active production migration  
 Scope: LightTable core, web host and Electron host  
 Primary goal: make continued high-end editor development safer without pausing
 feature delivery or rewriting the application in one step.
@@ -1107,13 +1107,27 @@ Progress:
 - [x] Retain transient buffers and isolated-group textures by GPU submit
       boundary, and own compositor ping-pong targets through one lazy reusable
       render-target abstraction.
+- [x] Isolate baseline document pipelines, optional Layer Style compilation
+      and lazy tool pipelines behind explicit providers. Optional feature
+      failures no longer invalidate the base image pipeline, and compatible
+      tool pipelines are shared safely per GPU device.
+- [x] Give selection, transform, pixel-edit, pattern and geometry-preview
+      resources dedicated lifecycle owners. Replacement, history transfer,
+      cancellation, pruning, VRAM accounting and document teardown now follow
+      one deterministic ownership path per resource family.
+- [x] Make Warp a complete proof of the processing-node direction: persisted
+      descriptor, lazy GPU executor, document-scoped gesture transaction,
+      bounded preview publication, reset command, roundtrip coverage and
+      dependency-aware cache invalidation.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator. Lens Fx is complete;
       the combined grade shader remains the compatibility bridge to replace.
 
 Work:
 
-- extract graph construction from `LayerDocumentRenderer`;
+- extract the remaining compositor graph encoding from
+  `LayerDocumentRenderer`;
+- isolate document asset transfer/readback from interactive rendering;
 - register grade, lens FX and layer styles through common module contracts;
 - refine correction invalidation into module-level revision tracking;
 - preserve exact bypass behavior;
@@ -1525,3 +1539,21 @@ The refactor is successful when:
 - [x] Make the standalone application window and empty launcher a file drop
       target without claiming Dockview panel drags. Dropped files use the same
       format policy and multi-document workspace command as File > Open.
+- [x] Suspend inactive document renderers at workspace activation boundaries;
+      multi-document tabs retain their state without continuing interactive
+      rendering behind the active document.
+- [x] Establish an ordered processing-node runtime and execute serialized Lens
+      Fx instances through registered GPU executors with exact disabled bypass
+      and dependency-aware cache invalidation.
+- [x] Establish persistent Warp nodes, GPU displacement resources and
+      document-scoped authoring transactions, including one-step undo,
+      cancellation, reset, save/reopen roundtrip and feature-owned controls.
+- [x] Extract semantic compositor planning and explicit GPU owners for layer
+      pixels, masks, Layer Style caches, render targets and submit-lifetime
+      transient resources.
+- [x] Extract selection, transform, pixel-edit, pattern and geometry-preview
+      resource stores from the concrete renderer, with focused lifecycle and
+      revision tests.
+- [x] Separate baseline document pipelines, optional Layer Style pipelines and
+      lazy shared tool pipelines so basic image startup never compiles unused
+      authoring or style features.
