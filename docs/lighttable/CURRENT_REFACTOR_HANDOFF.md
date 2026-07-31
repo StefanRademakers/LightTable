@@ -4,7 +4,7 @@ Updated: 2026-07-31
 Repository: `D:\mediavibe\LightTable`  
 Branch: `main`  
 Architecture checkpoint: `5a9fa02 Centralize document adjustment state`
-Latest committed checkpoint: `d766cca voor restructure`
+Current milestone: correction-stage reuse on top of `fe5a645 Track earliest dirty effect stage`
 
 This is the short operational handoff. The architectural source of truth remains
 `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`.
@@ -27,6 +27,13 @@ Verification at the architecture checkpoint:
 - repository boundary verification passed;
 - standalone web production build passed;
 - Electron/desktop TypeScript check passed.
+
+Latest renderer-performance verification:
+
+- repository boundary verification passed;
+- 176 test files and 775 tests passed;
+- standalone web production build passed;
+- packaged Electron verification passed.
 
 Known non-blocking build warnings:
 
@@ -165,6 +172,16 @@ handle does not allocate another texture and is cleared with the document GPU
 generation. Keep this dependency boundary explicit when adding processing
 nodes: a node attached to a layer invalidates the composite, while a document
 post-process does not.
+
+The correction graph now retains its existing stage outputs by handle (without
+allocating duplicate textures) and tracks the earliest dirty stage. A
+source-geometry edit rebuilds every downstream stage; a linear-spatial edit
+reuses geometry; an output-transform edit reuses geometry and spatial work;
+and a display-post edit such as Grain reuses all earlier work. Missing handles
+invalidate their downstream dependency chain, and exports/reference metrics no
+longer force a complete effect pass when the committed full-quality frame is
+already current. The next performance task is development telemetry for actual
+stage execution/timing on macOS, not another speculative bypass.
 
 Recommended order:
 

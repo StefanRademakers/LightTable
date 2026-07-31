@@ -68,6 +68,21 @@ describe('RenderDirtyState', () => {
     expect(state.viewportRequired).toBe(true);
   });
 
+  it('tracks downstream correction dependencies without waking earlier stages', () => {
+    const state = cleanState();
+    state.invalidateCorrectionFrom('display-post');
+    expect(state.correctionStageRequired('source-geometry')).toBe(false);
+    expect(state.correctionStageRequired('linear-spatial')).toBe(false);
+    expect(state.correctionStageRequired('output')).toBe(false);
+    expect(state.correctionStageRequired('display-post')).toBe(true);
+
+    state.invalidateCorrectionFrom('linear-spatial');
+    expect(state.correctionStageRequired('source-geometry')).toBe(false);
+    expect(state.correctionStageRequired('linear-spatial')).toBe(true);
+    expect(state.correctionStageRequired('output')).toBe(true);
+    expect(state.correctionStageRequired('display-post')).toBe(true);
+  });
+
   it('only reports frame work for stages that can emit commands', () => {
     const state = cleanState();
     expect(state.hasPendingFrameWork).toBe(false);

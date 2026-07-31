@@ -15,6 +15,19 @@ export interface RenderDirtySnapshot {
   histogram: boolean;
 }
 
+export type CorrectionRenderStage =
+  | 'source-geometry'
+  | 'linear-spatial'
+  | 'output'
+  | 'display-post';
+
+const CORRECTION_STAGE_ORDER: Record<CorrectionRenderStage, number> = {
+  'source-geometry': 0,
+  'linear-spatial': 1,
+  output: 2,
+  'display-post': 3
+};
+
 /**
  * Owns the dependency fan-out between editor mutations and renderer stages.
  *
@@ -22,6 +35,7 @@ export interface RenderDirtySnapshot {
  * resize must not rebuild the grade, while a source/document mutation must.
  */
 export class RenderDirtyState {
+  private earliestDirtyCorrectionStage: CorrectionRenderStage | null = 'source-geometry';
   private dirty: RenderDirtySnapshot = {
     documentComposite: true,
     correction: true,
@@ -36,6 +50,19 @@ export class RenderDirtyState {
 
   get correctionRequired() {
     return this.dirty.correction;
+  }
+
+  correctionStageRequired(stage: CorrectionRenderStage) {
+    return this.earliestDirtyCorrectionStage !== null
+      && CORRECTION_STAGE_ORDER[stage] >= CORRECTION_STAGE_ORDER[this.earliestDirtyCorrectionStage];
+  }
+
+  invalidateCorrectionFrom(stage: CorrectionRenderStage) {
+    if (
+      this.earliestDirtyCorrectionStage === null
+      || CORRECTION_STAGE_ORDER[stage] < CORRECTION_STAGE_ORDER[this.earliestDirtyCorrectionStage]
+    ) this.earliestDirtyCorrectionStage = stage;
+    this.dirty.correction = true;
   }
 
   get blurInputRequired() {
@@ -70,6 +97,7 @@ export class RenderDirtyState {
   invalidate(reason: RenderInvalidationReason) {
     switch (reason) {
       case 'source':
+        this.earliestDirtyCorrectionStage = 'source-geometry';
         this.dirty = {
           documentComposite: true,
           correction: true,
@@ -79,18 +107,18 @@ export class RenderDirtyState {
         };
         break;
       case 'document':
+        this.invalidateCorrectionFrom('source-geometry');
         this.dirty.documentComposite = true;
-        this.dirty.correction = true;
         this.dirty.blurInput = true;
         this.dirty.histogram = true;
         break;
       case 'adjustments':
-        this.dirty.correction = true;
+        this.invalidateCorrectionFrom('source-geometry');
         this.dirty.blurInput = true;
         this.dirty.histogram = true;
         break;
       case 'effects':
-        this.dirty.correction = true;
+        this.invalidateCorrectionFrom('source-geometry');
         this.dirty.histogram = true;
         break;
       case 'view-mode':
@@ -115,6 +143,7 @@ export class RenderDirtyState {
   }
 
   markCorrectionRendered() {
+    this.earliestDirtyCorrectionStage = null;
     this.dirty.correction = false;
     this.dirty.viewport = true;
   }

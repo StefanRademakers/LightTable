@@ -1152,6 +1152,14 @@ Progress:
       descriptor, lazy GPU executor, document-scoped gesture transaction,
       bounded preview publication, reset command, roundtrip coverage and
       dependency-aware cache invalidation.
+- [x] Track the earliest changed document-effect stage from stable node IDs,
+      serialized order and module revisions. Geometry, linear-spatial and
+      display-post changes now invalidate only their downstream domains.
+- [x] Retain valid intermediate correction outputs without allocating duplicate
+      textures. Grain-only edits reuse geometry, spatial and output work;
+      linear effects reuse geometry; viewport and scope-only work cannot wake
+      correction. Export/reference readback only exits preview quality when an
+      active interaction actually requires a final pass.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator. Lens Fx is complete;
       the combined grade shader remains the compatibility bridge to replace.
@@ -1162,7 +1170,8 @@ Work:
   `LayerDocumentRenderer`;
 - isolate document asset transfer/readback from interactive rendering;
 - register grade, lens FX and layer styles through common module contracts;
-- refine correction invalidation into module-level revision tracking;
+- expose per-stage timing/counter telemetry in the development Debug panel so
+  performance regressions can be measured on representative macOS hardware;
 - preserve exact bypass behavior;
 - retain PSD mapping into the same descriptors.
 

@@ -97,6 +97,10 @@ export class WebGpuEngine {
    * Ownership remains with the document renderer/raster runtime.
    */
   private documentCompositeTexture: GPUTexture | null = null;
+  private sourceGeometryTexture: GPUTexture | null = null;
+  private linearSpatialTexture: GPUTexture | null = null;
+  private displayPostTexture: GPUTexture | null = null;
+  private lastOutputSettings: Float32Array | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
   private readonly renderDirty = new RenderDirtyState();
@@ -414,10 +418,15 @@ export class WebGpuEngine {
     this.paintInteractionActive = active;
     this.histogramRuntime?.setInteractionActive(active);
     this.scopeRuntime.setInteractionActive(active);
-    this.effectRuntime?.setInteractionActive(active);
-    this.documentRenderer?.setLayerStyleInteractionActive(active);
+    const effectQualityChanged = this.effectRuntime?.setInteractionActive(active) ?? false;
+    const layerStyleQualityChanged = this.documentRenderer?.setLayerStyleInteractionActive(active) ?? false;
     if (!active) {
-      this.renderDirty.invalidate('effects');
+      if (layerStyleQualityChanged) {
+        this.renderDirty.invalidate('document');
+      } else if (effectQualityChanged) {
+        this.renderDirty.invalidateCorrectionFrom('linear-spatial');
+        this.renderDirty.invalidate('histogram');
+      }
       this.scopeRuntime.markImageDirty();
       this.requestRender();
     }
@@ -622,8 +631,7 @@ export class WebGpuEngine {
     if (!this.metadata || !this.imageResources.finalTexture || !this.documentRenderer) {
       throw new Error('No processed image is available for Copy Merged.');
     }
-    this.effectRuntime?.setInteractionActive(false);
-    this.renderDirty.invalidate('effects');
+    this.settleInteractiveRenderQuality();
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
     return this.documentRenderer.exportDisplaySelection(this.imageResources.finalTexture, bounds);
@@ -909,11 +917,22 @@ export class WebGpuEngine {
   }
 
   private applyMaterializedAdjustments() {
-    this.effectRuntime?.setAdjustmentStack(this.adjustmentState.stackSnapshot());
+    const effectChange = this.effectRuntime?.setAdjustmentStack(
+      this.adjustmentState.stackSnapshot()
+    );
     this.writeCurveLut();
     this.writeAdjustments();
-    this.writeOutputSettings();
-    this.renderDirty.invalidate('adjustments');
+    const outputChanged = this.writeOutputSettings();
+    if (effectChange?.earliestStage) {
+      this.renderDirty.invalidateCorrectionFrom(effectChange.earliestStage);
+    } else {
+      // Non-effect grade settings currently enter the final output contract.
+      // Keep that conservative boundary until every grade module has its own
+      // registered executor.
+      this.renderDirty.invalidateCorrectionFrom('output');
+    }
+    if (outputChanged) this.renderDirty.invalidateCorrectionFrom('output');
+    this.renderDirty.invalidate('histogram');
     this.scopeRuntime.markImageDirty();
     this.requestRender();
   }
@@ -921,7 +940,8 @@ export class WebGpuEngine {
   setDepthMap(depth: DepthAnalysisResult) {
     if (!this.effectRuntime?.setDepthMap(depth)) return;
     this.writeOutputSettings();
-    this.renderDirty.invalidate('effects');
+    this.renderDirty.invalidateCorrectionFrom('linear-spatial');
+    this.renderDirty.invalidate('histogram');
     this.scopeRuntime.markImageDirty();
     this.requestRender();
   }
@@ -951,7 +971,7 @@ export class WebGpuEngine {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
     }
     await this.layerStyleInitialization;
-    this.renderDirty.invalidate('effects');
+    this.settleInteractiveRenderQuality();
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
 
@@ -982,7 +1002,8 @@ export class WebGpuEngine {
 
   setLensBlurInteractionActive(active: boolean) {
     if (!this.effectRuntime?.setInteractionActive(active)) return;
-    this.renderDirty.invalidate('effects');
+    this.renderDirty.invalidateCorrectionFrom('linear-spatial');
+    this.renderDirty.invalidate('histogram');
     this.scopeRuntime.markImageDirty();
     this.requestRender();
   }
@@ -998,7 +1019,7 @@ export class WebGpuEngine {
     this.lensBlurDepthVisualization = visualize;
     this.effectRuntime?.setDepthVisualization(visualize);
     this.writeOutputSettings();
-    this.renderDirty.invalidate('effects');
+    this.renderDirty.invalidateCorrectionFrom('linear-spatial');
     this.requestRender();
   }
 
@@ -1043,15 +1064,15 @@ export class WebGpuEngine {
     );
   }
 
-  private writeOutputSettings() {
-    if (!this.outputSettingsBuffer) return;
+  private writeOutputSettings(): boolean {
+    if (!this.outputSettingsBuffer) return false;
     const settings = calculateOutputTransformSettings(this.adjustmentState.current);
     const visualizingDepth = Boolean(
       this.adjustmentState.current.effects.lensBlur.enabled &&
       this.lensBlurDepthVisualization &&
       this.effectRuntime?.hasDepth
     );
-    this.device.queue.writeBuffer(this.outputSettingsBuffer, 0, new Float32Array([
+    const next = new Float32Array([
       visualizingDepth ? 0 : settings.whites,
       visualizingDepth ? 0 : settings.shoulderStrength,
       visualizingDepth ? 0 : (settings.active ? 1 : 0),
@@ -1060,11 +1081,39 @@ export class WebGpuEngine {
       this.metadata?.height ?? 1,
       0,
       0
-    ]));
+    ]);
+    if (
+      this.lastOutputSettings
+      && this.lastOutputSettings.length === next.length
+      && next.every((value, index) => value === this.lastOutputSettings?.[index])
+    ) return false;
+    this.lastOutputSettings = next;
+    this.device.queue.writeBuffer(this.outputSettingsBuffer, 0, next);
+    return true;
   }
 
   private requestRender() {
     if (!this.destroyed) this.renderScheduler.invalidate();
+  }
+
+  /**
+   * Leaves preview-quality paths only when an interaction actually changed
+   * their output. Export and reference measurement can therefore reuse the
+   * committed frame instead of forcing the complete effect graph.
+   */
+  private settleInteractiveRenderQuality() {
+    const effectQualityChanged = this.effectRuntime?.setInteractionActive(false) ?? false;
+    const layerStyleQualityChanged = this.documentRenderer?.setLayerStyleInteractionActive(false) ?? false;
+    if (layerStyleQualityChanged) {
+      this.renderDirty.invalidate('document');
+    } else if (effectQualityChanged) {
+      this.renderDirty.invalidateCorrectionFrom('linear-spatial');
+      this.renderDirty.invalidate('histogram');
+    }
+    if (effectQualityChanged || layerStyleQualityChanged) {
+      this.scopeRuntime.markImageDirty();
+      this.requestRender();
+    }
   }
 
   private estimatedGpuTextureBytes() {
@@ -1121,6 +1170,16 @@ export class WebGpuEngine {
     const encoder = this.device.createCommandEncoder({ label: 'LightTable render' });
     let renderedCorrection = false;
     if (this.renderDirty.correctionRequired) {
+      // Missing cached handles invalidate their complete downstream chain.
+      // This prevents a freshly rebuilt source from being paired with a stale
+      // spatial or display result after image-resource lifecycle changes.
+      if (!this.sourceGeometryTexture) {
+        this.renderDirty.invalidateCorrectionFrom('source-geometry');
+      } else if (!this.linearSpatialTexture) {
+        this.renderDirty.invalidateCorrectionFrom('linear-spatial');
+      } else if (!this.displayPostTexture) {
+        this.renderDirty.invalidateCorrectionFrom('display-post');
+      }
       if (this.renderDirty.documentCompositeRequired || !this.documentCompositeTexture) {
         this.documentCompositeTexture = this.documentRenderer.encodeComposite(
           encoder,
@@ -1139,35 +1198,58 @@ export class WebGpuEngine {
           )
           .map(({ node }) => node.id)
       ));
-      const sourceGeometryTexture = this.effectRuntime.encodeSourceGeometry(encoder, documentTexture);
+      if (
+        this.renderDirty.correctionStageRequired('source-geometry')
+        || !this.sourceGeometryTexture
+      ) {
+        this.sourceGeometryTexture = this.effectRuntime.encodeSourceGeometry(
+          encoder,
+          documentTexture
+        );
+      }
+      const sourceGeometryTexture = this.sourceGeometryTexture;
       const visualizingDepth = Boolean(
         this.adjustmentState.current.effects.lensBlur.enabled &&
         this.lensBlurDepthVisualization &&
         this.effectRuntime.hasDepth
       );
-      const linearEffectTexture = this.effectRuntime.encodeLinearSpatial(
-        encoder,
-        sourceGeometryTexture,
-        { visualizeDepth: visualizingDepth }
-      );
-      const outputBindGroup = this.device.createBindGroup({
-        layout: this.outputPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: linearEffectTexture.createView() },
-          { binding: 1, resource: { buffer: this.outputSettingsBuffer } }
-        ]
-      });
-      this.drawFullscreenPass(
-        encoder,
-        this.outputPipeline,
-        outputBindGroup,
-        this.imageResources.displayTexture.createView()
-      );
-      const displayEffectTexture = this.effectRuntime.encodeDisplayPost(
-        encoder,
-        this.imageResources.displayTexture,
-        visualizingDepth
-      );
+      if (
+        this.renderDirty.correctionStageRequired('linear-spatial')
+        || !this.linearSpatialTexture
+      ) {
+        this.linearSpatialTexture = this.effectRuntime.encodeLinearSpatial(
+          encoder,
+          sourceGeometryTexture,
+          { visualizeDepth: visualizingDepth }
+        );
+      }
+      const linearEffectTexture = this.linearSpatialTexture;
+      if (this.renderDirty.correctionStageRequired('output')) {
+        const outputBindGroup = this.device.createBindGroup({
+          layout: this.outputPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: linearEffectTexture.createView() },
+            { binding: 1, resource: { buffer: this.outputSettingsBuffer } }
+          ]
+        });
+        this.drawFullscreenPass(
+          encoder,
+          this.outputPipeline,
+          outputBindGroup,
+          this.imageResources.displayTexture.createView()
+        );
+      }
+      if (
+        this.renderDirty.correctionStageRequired('display-post')
+        || !this.displayPostTexture
+      ) {
+        this.displayPostTexture = this.effectRuntime.encodeDisplayPost(
+          encoder,
+          this.imageResources.displayTexture,
+          visualizingDepth
+        );
+      }
+      const displayEffectTexture = this.displayPostTexture;
       const displayResolveBindGroup = this.device.createBindGroup({
         layout: this.displayResolvePipeline.getBindGroupLayout(0),
         entries: [{ binding: 0, resource: displayEffectTexture.createView() }]
@@ -1250,8 +1332,7 @@ export class WebGpuEngine {
 
   async exportPng() {
     if (!this.metadata || !this.imageResources.finalTexture) throw new Error('No processed image is available for export.');
-    this.effectRuntime?.setInteractionActive(false);
-    this.renderDirty.invalidate('effects');
+    this.settleInteractiveRenderQuality();
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
 
@@ -1299,6 +1380,9 @@ export class WebGpuEngine {
     this.imageDocument = null;
     this.documentRenderRevision = null;
     this.documentCompositeTexture = null;
+    this.sourceGeometryTexture = null;
+    this.linearSpatialTexture = null;
+    this.displayPostTexture = null;
     this.scopeRuntime.clearTextures();
     this.histogramRuntime?.clear();
     this.effectRuntime?.destroyImageResources();
