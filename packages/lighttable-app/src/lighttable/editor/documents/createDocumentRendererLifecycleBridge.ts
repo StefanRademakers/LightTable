@@ -9,6 +9,7 @@ import type { LightTableStartupTimings } from '../../application/telemetry/edito
 import type { WebGpuScopeOptions } from '../../gpu/WebGpuScopeEngine';
 
 export interface EditorDocumentRenderer {
+  setActive(active: boolean): void;
   setLensBlurDepthVisualization(enabled: boolean): void;
   setScopeOptions(
     histogramVisible: boolean,
@@ -103,6 +104,7 @@ export const createDocumentRendererLifecycleBridge = <
     onRendererReady: (createdRenderer, elapsedMs) => {
       renderer = createdRenderer;
       options.telemetry.rendererReady(elapsedMs);
+      createdRenderer.setActive(options.lifecycle.getSnapshot().active);
       createdRenderer.setLensBlurDepthVisualization(false);
       const scopeOptions = options.getScopeOptions();
       createdRenderer.setScopeOptions(false, scopeOptions.options);

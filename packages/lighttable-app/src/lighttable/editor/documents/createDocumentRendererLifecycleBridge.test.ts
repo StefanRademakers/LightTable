@@ -11,6 +11,7 @@ const canvases = {
 };
 
 const createRenderer = () => ({
+  setActive: vi.fn(),
   setLensBlurDepthVisualization: vi.fn(),
   setScopeOptions: vi.fn(),
   initializeScopes: vi.fn().mockResolvedValue(undefined)
@@ -55,6 +56,7 @@ describe('createDocumentRendererLifecycleBridge', () => {
     bridge.callbacks.onFirstFrame?.();
     await Promise.resolve();
 
+    expect(renderer.setActive).toHaveBeenCalledWith(true);
     expect(renderer.setLensBlurDepthVisualization).toHaveBeenCalledWith(false);
     expect(renderer.setScopeOptions).toHaveBeenCalledTimes(2);
     expect(renderer.initializeScopes).toHaveBeenCalledOnce();
@@ -103,5 +105,40 @@ describe('createDocumentRendererLifecycleBridge', () => {
     expect(publishGpuMemory).not.toHaveBeenCalled();
     expect(publishError).not.toHaveBeenCalled();
     expect(publishLoading).not.toHaveBeenCalled();
+  });
+
+  it('starts a background document renderer suspended', () => {
+    const lifecycle = new DocumentRendererLifecycle();
+    lifecycle.setActive(false);
+    const renderer = createRenderer();
+    const bridge = createDocumentRendererLifecycleBridge({
+      isCurrent: () => true,
+      telemetry: new DocumentStartupTelemetry(() => 0),
+      lifecycle,
+      scopeCanvases: canvases,
+      getScopeOptions: () => ({
+        histogramVisible: false,
+        options: {
+          hueDistributionVisible: true,
+          paradeVisible: false,
+          vectorscopeVisible: false,
+          quality: 'medium',
+          traceBrightness: 0.8,
+          vectorscopeRange: 'all',
+          vectorscopeZoom2x: false
+        }
+      }),
+      publishHistogram: vi.fn(),
+      publishGpuMemory: vi.fn(),
+      publishError: vi.fn(),
+      publishScopeError: vi.fn(),
+      publishFeatureError: vi.fn(),
+      publishTimings: vi.fn(),
+      publishLoading: vi.fn()
+    });
+
+    bridge.onRendererReady(renderer, 0);
+
+    expect(renderer.setActive).toHaveBeenCalledWith(false);
   });
 });

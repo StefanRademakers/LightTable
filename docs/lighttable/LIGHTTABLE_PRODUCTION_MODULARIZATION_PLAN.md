@@ -1003,8 +1003,11 @@ the concrete WebGPU engine. Each document reports `idle`, `starting`, `ready`,
 application code depend on renderer-neutral types; concrete engine construction
 is owned by the infrastructure adapter. Its public method surface is still
 deliberately broad and will narrow as tool operations become application
-commands. A suspended renderer currently retains resources; deterministic
-eviction is the next lifecycle policy to introduce. Renderer construction and
+commands. A suspended renderer retains resources but no longer submits
+animation-frame work: pending and later invalidations are coalesced until the
+document resumes. Deterministic eviction is the next lifecycle policy to
+introduce and deliberately remains separate because it first requires a
+lossless checkpoint for GPU-resident edits. Renderer construction and
 source download still overlap for startup performance, while the application
 startup service now guarantees cleanup when either side fails or becomes stale.
 

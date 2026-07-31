@@ -196,6 +196,7 @@ export class WebGpuEngine {
   private readonly deviceLostListener: (info: GPUDeviceLostInfo) => void;
   private readonly unsubscribeDeviceLost: () => void;
   private destroyed = false;
+  private active = true;
   private lastReportedGpuBytes = -1;
 
   static async create(
@@ -276,6 +277,23 @@ export class WebGpuEngine {
 
   get imageMetadata() {
     return this.metadata;
+  }
+
+  /**
+   * Controls presentation residency for a mounted document.
+   *
+   * Suspension preserves textures and editor state, but prevents background
+   * documents from submitting animation-frame renders. Explicit operations
+   * such as export may still flush synchronously.
+   */
+  setActive(active: boolean) {
+    if (this.destroyed || active === this.active) return;
+    this.active = active;
+    this.renderScheduler.setPaused(!active);
+    if (active) {
+      this.scopeEngine?.resize();
+      this.requestRender();
+    }
   }
 
   private createStaticResources() {

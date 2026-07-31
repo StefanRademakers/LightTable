@@ -72,6 +72,42 @@ describe('RenderInvalidationScheduler', () => {
     expect(frames.host.request).toHaveBeenCalledTimes(2);
   });
 
+  it('retains one dirty render while paused and submits it after resume', () => {
+    const frames = createFrameHost();
+    const render = vi.fn();
+    const scheduler = new RenderInvalidationScheduler(render, frames.host);
+
+    scheduler.invalidate();
+    scheduler.setPaused(true);
+    expect(frames.host.cancel).toHaveBeenCalledWith(1);
+    expect(scheduler.hasPendingFrame).toBe(false);
+    expect(scheduler.hasPendingInvalidation).toBe(true);
+
+    expect(scheduler.invalidate()).toBe(false);
+    expect(frames.host.request).toHaveBeenCalledTimes(1);
+    scheduler.setPaused(false);
+    expect(frames.host.request).toHaveBeenCalledTimes(2);
+
+    frames.run(2);
+    expect(render).toHaveBeenCalledOnce();
+    expect(scheduler.hasPendingInvalidation).toBe(false);
+  });
+
+  it('accepts invalidations raised entirely while paused', () => {
+    const frames = createFrameHost();
+    const render = vi.fn();
+    const scheduler = new RenderInvalidationScheduler(render, frames.host);
+
+    scheduler.setPaused(true);
+    expect(scheduler.invalidate()).toBe(true);
+    expect(scheduler.invalidate()).toBe(false);
+    expect(frames.host.request).not.toHaveBeenCalled();
+
+    scheduler.setPaused(false);
+    frames.run();
+    expect(render).toHaveBeenCalledOnce();
+  });
+
   it('cancels terminal work and rejects later invalidations', () => {
     const frames = createFrameHost();
     const render = vi.fn();

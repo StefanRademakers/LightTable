@@ -18,6 +18,8 @@ const browserAnimationFrameHost = (): AnimationFrameHost => ({
  */
 export class RenderInvalidationScheduler {
   private frameHandle: number | null = null;
+  private invalidated = false;
+  private paused = false;
   private disposed = false;
 
   constructor(
@@ -29,13 +31,52 @@ export class RenderInvalidationScheduler {
     return this.frameHandle !== null;
   }
 
+  get hasPendingInvalidation(): boolean {
+    return this.invalidated;
+  }
+
+  get isPaused(): boolean {
+    return this.paused;
+  }
+
   invalidate(): boolean {
-    if (this.disposed || this.frameHandle !== null) return false;
+    if (this.disposed) return false;
+    const newlyInvalidated = !this.invalidated;
+    this.invalidated = true;
+    this.schedule();
+    return newlyInvalidated;
+  }
+
+  /**
+   * Suspends browser-frame submission without discarding dirty renderer state.
+   *
+   * Inactive documents keep their resident GPU resources for instant tab
+   * switching. Any invalidation raised while suspended is rendered once after
+   * resume instead of consuming GPU time in the background.
+   */
+  setPaused(paused: boolean): void {
+    if (this.disposed || paused === this.paused) return;
+    this.paused = paused;
+    if (paused) {
+      this.cancelFrame();
+    } else {
+      this.schedule();
+    }
+  }
+
+  private schedule(): void {
+    if (
+      this.disposed
+      || this.paused
+      || !this.invalidated
+      || this.frameHandle !== null
+    ) return;
     this.frameHandle = this.frameHost.request(() => {
       this.frameHandle = null;
-      if (!this.disposed) this.render();
+      if (this.disposed || this.paused || !this.invalidated) return;
+      this.invalidated = false;
+      this.render();
     });
-    return true;
   }
 
   /**
@@ -45,12 +86,20 @@ export class RenderInvalidationScheduler {
    */
   flush(): boolean {
     if (this.disposed) return false;
-    this.cancelPending();
+    this.cancelFrame();
+    this.invalidated = false;
     this.render();
     return true;
   }
 
   cancelPending(): boolean {
+    const hadPendingWork = this.invalidated || this.frameHandle !== null;
+    this.invalidated = false;
+    this.cancelFrame();
+    return hadPendingWork;
+  }
+
+  private cancelFrame(): boolean {
     if (this.frameHandle === null) return false;
     this.frameHost.cancel(this.frameHandle);
     this.frameHandle = null;

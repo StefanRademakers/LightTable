@@ -830,6 +830,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
 
   useEffect(() => {
+    engineRef.current?.setActive(active);
+  }, [active]);
+
+  useEffect(() => {
     if (!gradeStatus) return;
     const timeout = window.setTimeout(() => setGradeStatus(null), 2400);
     return () => window.clearTimeout(timeout);
