@@ -50,7 +50,9 @@ SVG overlay. Compound, feathered and inverted selections retain the raster path,
 but its viewport-sized mask is cached while pan or zoom is active, transformed
 with the viewport and rebuilt once after interaction settles. Viewport-only
 changes therefore no longer perform `getImageData()` and a full JavaScript pixel
-scan per input event.
+scan per input event. Committed vector geometry remains in document coordinates,
+so even a freehand selection with many points only updates one SVG group matrix
+during viewport movement instead of rebuilding its path.
 
 Canvas panning now follows the same interaction rule as GPU rendering: raw
 pointer events are accepted at device frequency, but only the newest pan value

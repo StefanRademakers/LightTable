@@ -49,6 +49,66 @@ export const createRasterViewportTransform = (
   return `translate(${translateX}px, ${translateY}px) scale(${ratio})`;
 };
 
+export const createVectorViewportTransform = (
+  imageRect: { x: number; y: number },
+  scale: number
+): string => `translate(${imageRect.x} ${imageRect.y}) scale(${scale})`;
+
+const renderSelectionShape = (
+  shape: SelectionShape,
+  draftStyle: boolean
+) => {
+  const points = shape.points;
+  if (!points.length) return null;
+  const className = `lighttable-selection__shape${draftStyle ? ' lighttable-selection__shape--draft' : ''}`;
+  if (shape.kind === 'free' || shape.kind === 'polygon') {
+    const path = points
+      .map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`)
+      .join(' ');
+    return (
+      <>
+        <path
+          className={className}
+          d={shape.kind === 'free' && points.length > 2 ? `${path} Z` : path}
+        />
+        {draftStyle && shape.kind === 'polygon' && points.length ? (
+          <circle
+            className={`${className} lighttable-selection__polygon-origin`}
+            cx={points[0].x}
+            cy={points[0].y}
+            r="4"
+          />
+        ) : null}
+      </>
+    );
+  }
+  if (points.length < 2) return null;
+  const left = Math.min(points[0].x, points[1].x);
+  const top = Math.min(points[0].y, points[1].y);
+  const shapeWidth = Math.abs(points[1].x - points[0].x);
+  const shapeHeight = Math.abs(points[1].y - points[0].y);
+  if (shape.kind === 'ellipse') {
+    return (
+      <ellipse
+        className={className}
+        cx={left + shapeWidth / 2}
+        cy={top + shapeHeight / 2}
+        rx={shapeWidth / 2}
+        ry={shapeHeight / 2}
+      />
+    );
+  }
+  return (
+    <rect
+      className={className}
+      x={left}
+      y={top}
+      width={shapeWidth}
+      height={shapeHeight}
+    />
+  );
+};
+
 export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   operations,
   draft,
@@ -69,6 +129,12 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     height
   }), [height, imageRect.x, imageRect.y, scale, width]);
   const [rasterViewport, setRasterViewport] = useState(currentViewport);
+  const directVectorGeometry = useMemo(
+    () => directVectorSelection
+      ? renderSelectionShape(directVectorSelection, false)
+      : null,
+    [directVectorSelection]
+  );
 
   useEffect(() => {
     if (directVectorSelection || sameRasterViewport(rasterViewport, currentViewport)) return;
@@ -210,60 +276,13 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     return createRasterViewportTransform(rasterViewport, currentViewport);
   }, [currentViewport, rasterViewport]);
 
-  const renderShape = (shape: SelectionShape, draftStyle: boolean) => {
-    const points = shape.points.map((point) => ({
+  const projectShape = (shape: SelectionShape): SelectionShape => ({
+    ...shape,
+    points: shape.points.map((point) => ({
       x: imageRect.x + point.x * scale,
       y: imageRect.y + point.y * scale
-    }));
-    if (!points.length) return null;
-    const className = `lighttable-selection__shape${draftStyle ? ' lighttable-selection__shape--draft' : ''}`;
-    if (shape.kind === 'free' || shape.kind === 'polygon') {
-      const path = points
-        .map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`)
-        .join(' ');
-      return (
-        <>
-          <path
-            className={className}
-            d={shape.kind === 'free' && points.length > 2 ? `${path} Z` : path}
-          />
-          {draftStyle && shape.kind === 'polygon' && points.length ? (
-            <circle
-              className={`${className} lighttable-selection__polygon-origin`}
-              cx={points[0].x}
-              cy={points[0].y}
-              r="4"
-            />
-          ) : null}
-        </>
-      );
-    }
-    if (points.length < 2) return null;
-    const left = Math.min(points[0].x, points[1].x);
-    const top = Math.min(points[0].y, points[1].y);
-    const shapeWidth = Math.abs(points[1].x - points[0].x);
-    const shapeHeight = Math.abs(points[1].y - points[0].y);
-    if (shape.kind === 'ellipse') {
-      return (
-        <ellipse
-          className={className}
-          cx={left + shapeWidth / 2}
-          cy={top + shapeHeight / 2}
-          rx={shapeWidth / 2}
-          ry={shapeHeight / 2}
-        />
-      );
-    }
-    return (
-      <rect
-        className={className}
-        x={left}
-        y={top}
-        width={shapeWidth}
-        height={shapeHeight}
-      />
-    );
-  };
+    }))
+  });
 
   const renderDraftDimensions = (shape: SelectionShape) => {
     if (shape.kind !== 'rectangle' || shape.points.length < 2) return null;
@@ -298,7 +317,9 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          {renderShape(directVectorSelection, false)}
+          <g transform={createVectorViewportTransform(imageRect, scale)}>
+            {directVectorGeometry}
+          </g>
         </svg>
       ) : (
         <canvas
@@ -320,7 +341,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          {renderShape(draft, true)}
+          {renderSelectionShape(projectShape(draft), true)}
           {renderDraftDimensions(draft)}
         </svg>
       ) : null}

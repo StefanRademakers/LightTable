@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createRasterViewportTransform,
+  createVectorViewportTransform,
   isDirectVectorSelection
 } from './SelectionOverlay';
 import type { SelectionOperation } from './selectionTypes';
@@ -37,5 +38,12 @@ describe('createRasterViewportTransform', () => {
       { imageX: 100, imageY: 50, scale: 1 },
       { imageX: 40, imageY: 20, scale: 2 }
     )).toBe('translate(-160px, -80px) scale(2)');
+  });
+});
+
+describe('createVectorViewportTransform', () => {
+  it('keeps committed geometry in document coordinates and projects only its group', () => {
+    expect(createVectorViewportTransform({ x: 120, y: 45 }, 2.5))
+      .toBe('translate(120 45) scale(2.5)');
   });
 });
