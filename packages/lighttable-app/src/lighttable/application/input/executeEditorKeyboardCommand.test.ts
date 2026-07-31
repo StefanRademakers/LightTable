@@ -29,6 +29,8 @@ const ports = (): EditorKeyboardCommandPorts => ({
   changeBrushSize: vi.fn(),
   activateAdjacentDocument: vi.fn(),
   closeActiveDocument: vi.fn(),
+  changeZoom: vi.fn(),
+  fitZoom: vi.fn(),
   cancelOrClose: vi.fn()
 });
 
@@ -79,5 +81,17 @@ describe('executeEditorKeyboardCommand', () => {
     expect(target.mergeDown).toHaveBeenCalledOnce();
     expect(target.activateAdjacentDocument).toHaveBeenCalledWith(-1);
     expect(target.closeActiveDocument).toHaveBeenCalledOnce();
+  });
+
+  it('routes browser zoom chords to the active document viewport', () => {
+    const target = ports();
+
+    executeEditorKeyboardCommand('zoom-in', target);
+    executeEditorKeyboardCommand('zoom-out', target);
+    executeEditorKeyboardCommand('zoom-fit', target);
+
+    expect(target.changeZoom).toHaveBeenNthCalledWith(1, 1);
+    expect(target.changeZoom).toHaveBeenNthCalledWith(2, -1);
+    expect(target.fitZoom).toHaveBeenCalledOnce();
   });
 });

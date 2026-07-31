@@ -39,6 +39,9 @@ describe('resolveEditorKeyboardCommand', () => {
     [{ ctrlKey: true, shiftKey: true, key: 'Tab' }, 'activate-previous-document'],
     [{ ctrlKey: true, key: 'w' }, 'close-active-document'],
     [{ metaKey: true, key: 'F4' }, 'close-active-document'],
+    [{ ctrlKey: true, key: '+', code: 'Equal' }, 'zoom-in'],
+    [{ metaKey: true, key: '-', code: 'Minus' }, 'zoom-out'],
+    [{ ctrlKey: true, key: '0', code: 'Digit0' }, 'zoom-fit'],
     [{ key: 'Tab' }, 'suppress-tab-navigation'],
     [{ altKey: true, key: 'Backspace' }, 'fill-foreground'],
     [{ metaKey: true, key: 'Delete' }, 'fill-background']

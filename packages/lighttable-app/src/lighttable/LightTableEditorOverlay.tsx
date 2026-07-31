@@ -29,7 +29,10 @@ import {
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { zoomViewToScaleAtPoint } from './editor/tools/pointer/viewportCoordinates';
-import { zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
+import {
+  steppedZoomPercent,
+  zoomPercentToScale
+} from './editor/tools/zoom/zoomLevels';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
@@ -867,6 +870,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const clearCurrentSelection = selectionSessionController.clear;
   const invertCurrentSelection = selectionSessionController.invert;
   const featherCurrentSelection = selectionSessionController.feather;
+  const setExactZoom = (percent: number) => {
+    setZoomMode('custom');
+    setView(zoomViewToScaleAtPoint({
+      cursor: {
+        x: viewportSize.width / 2,
+        y: viewportSize.height / 2
+      },
+      viewport: viewportSize,
+      view: { scale: activeScale, panX: view.panX, panY: view.panY },
+      scale: zoomPercentToScale(percent)
+    }));
+  };
+  const fitZoom = () => {
+    setZoomMode('fit');
+    setView({ scale: 1, panX: 0, panY: 0 });
+  };
 
   useEditorKeyboardController({
     enabled: open && active,
@@ -935,6 +954,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
       },
       closeActiveDocument: onClose,
+      changeZoom: (direction) => {
+        setExactZoom(steppedZoomPercent(activeScale * 100, direction));
+      },
+      fitZoom,
       cancelOrClose: () => {
         if (transformActiveRef.current()) {
           cancelTransformRef.current();
@@ -1360,23 +1383,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       warp: { ...current.warp, ...change }
     }));
   };
-  const setExactZoom = (percent: number) => {
-    setZoomMode('custom');
-    setView(zoomViewToScaleAtPoint({
-      cursor: {
-        x: viewportSize.width / 2,
-        y: viewportSize.height / 2
-      },
-      viewport: viewportSize,
-      view: { scale: activeScale, panX: view.panX, panY: view.panY },
-      scale: zoomPercentToScale(percent)
-    }));
-  };
-  const fitZoom = () => {
-    setZoomMode('fit');
-    setView({ scale: 1, panX: 0, panY: 0 });
-  };
-
   return (
     <LightTableEditorShell
       active={active}

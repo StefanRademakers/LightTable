@@ -57,6 +57,24 @@ describe('editor keymap', () => {
     )).toBe('brush-size-decrease');
   });
 
+  it('normalizes physical browser-zoom keys across main and numeric keyboards', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '=', code: 'Equal', ctrlKey: true }),
+      context({ editable: true })
+    )).toBe('zoom-in');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Subtract', code: 'NumpadSubtract', metaKey: true }),
+      context()
+    )).toBe('zoom-out');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Insert', code: 'Numpad0', ctrlKey: true }),
+      context()
+    )).toBe('zoom-fit');
+  });
+
   it('preserves modifier-specific tool bindings', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

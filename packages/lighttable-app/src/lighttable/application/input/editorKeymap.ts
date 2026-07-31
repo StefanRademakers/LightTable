@@ -46,6 +46,9 @@ export type EditorKeyboardCommand =
   | 'activate-next-document'
   | 'activate-previous-document'
   | 'close-active-document'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'zoom-fit'
   | 'suppress-tab-navigation'
   | 'cancel-or-close'
   | { readonly type: 'activate-tool'; readonly tool: ToolId };
@@ -176,6 +179,18 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       'close-active-document',
       { when: (context) => !context.saving }
     ),
+    // Own the browser's native page-zoom chords. LightTable is a document
+    // editor: these keys must change the active canvas view while the app UI
+    // itself remains at the host's 100% zoom.
+    command('viewport.zoom-in', { key: '+', primary: true, alt: false }, 'zoom-in', {
+      allowWhileEditing: true
+    }),
+    command('viewport.zoom-out', { key: '-', primary: true, alt: false }, 'zoom-out', {
+      allowWhileEditing: true
+    }),
+    command('viewport.zoom-fit', { key: '0', primary: true, alt: false }, 'zoom-fit', {
+      allowWhileEditing: true
+    }),
     command(
       'browser.suppress-tab-navigation',
       { key: 'tab', primary: false, alt: false },
@@ -198,6 +213,9 @@ export const normalizedEditorKey = (
   if (input.code === 'Space') return 'space';
   if (input.code === 'BracketLeft') return '[';
   if (input.code === 'BracketRight') return ']';
+  if (input.code === 'Equal' || input.code === 'NumpadAdd') return '+';
+  if (input.code === 'Minus' || input.code === 'NumpadSubtract') return '-';
+  if (input.code === 'Digit0' || input.code === 'Numpad0') return '0';
   if (input.key === 'Backspace' || input.key === 'Delete') return 'delete';
   return input.key.toLowerCase();
 };

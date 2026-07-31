@@ -25,6 +25,8 @@ export interface EditorKeyboardCommandPorts {
   changeBrushSize(direction: -1 | 1): void;
   activateAdjacentDocument(direction: -1 | 1): void;
   closeActiveDocument(): void;
+  changeZoom(direction: -1 | 1): void;
+  fitZoom(): void;
   cancelOrClose(): void;
 }
 
@@ -119,6 +121,15 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'close-active-document':
       ports.closeActiveDocument();
+      return;
+    case 'zoom-in':
+      ports.changeZoom(1);
+      return;
+    case 'zoom-out':
+      ports.changeZoom(-1);
+      return;
+    case 'zoom-fit':
+      ports.fitZoom();
       return;
     case 'suppress-tab-navigation':
       return;
