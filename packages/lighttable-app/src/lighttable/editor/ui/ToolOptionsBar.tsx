@@ -22,7 +22,7 @@ export interface ToolOptionsProps {
 
 const TOOL_LABELS: Record<ToolId, string> = {
   transform: 'Transform',
-  warp: 'Warp · Push',
+  warp: 'Warp - Push',
   'select-rectangle': 'Rectangular selection',
   'select-ellipse': 'Elliptical selection',
   'select-free': 'Free selection',

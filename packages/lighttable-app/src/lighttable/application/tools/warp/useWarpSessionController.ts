@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { WarpGestureController } from './warpGestureController';
 import {
   createWarpSessionController,
@@ -19,7 +19,7 @@ export const useWarpSessionController = (
 ): WarpSessionController => {
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies;
-  return useMemo(
+  const controller = useMemo(
     () => createWarpSessionController(
       () => dependenciesRef.current,
       gesture,
@@ -30,4 +30,9 @@ export const useWarpSessionController = (
     ),
     [gesture]
   );
+  useEffect(
+    () => () => controller.reset(),
+    [controller]
+  );
+  return controller;
 };

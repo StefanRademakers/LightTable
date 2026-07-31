@@ -11,6 +11,7 @@ import {
   readWarpNodeSettings
 } from '../../../effects/warp/warpTypes';
 import { createWarpSessionController } from './warpSessionController';
+import { createWarpPreviewScheduler } from './warpPreviewScheduler';
 
 const brush = {
   diameterPx: 120,
@@ -144,5 +145,44 @@ describe('Warp session controller', () => {
     expect(controller.move(4, point(60, 60, 20))).toBe(false);
     expect(controller.active).toBe(false);
     expect(state.dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+  });
+
+  it('coalesces previews while preserving every authored sample at commit', () => {
+    const state = harness();
+    let frameCallback: (() => void) | null = null;
+    const scheduler = createWarpPreviewScheduler({
+      request: (callback) => {
+        frameCallback = callback;
+        return 1;
+      },
+      cancel: vi.fn()
+    });
+    const controller = createWarpSessionController(
+      () => state.dependencies,
+      undefined,
+      scheduler
+    );
+    expect(controller.begin({
+      pointerId: 8,
+      mode: 'push',
+      settings: brush,
+      point: point(80, 40, 10)
+    })).toBe(true);
+    const publicationsAfterBegin = state.dependencies.applyDocumentSnapshot.mock.calls.length;
+
+    expect(controller.move(8, point(60, 60, 20))).toBe(true);
+    expect(controller.move(8, point(40, 80, 30))).toBe(true);
+    expect(state.dependencies.applyDocumentSnapshot).toHaveBeenCalledTimes(publicationsAfterBegin);
+
+    (frameCallback as (() => void) | null)?.();
+    expect(state.dependencies.applyDocumentSnapshot)
+      .toHaveBeenCalledTimes(publicationsAfterBegin + 1);
+
+    expect(controller.move(8, point(20, 100, 40))).toBe(true);
+    expect(controller.finish(8, 50)).toBe(true);
+    const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    const settings = readWarpNodeSettings(findWarpModuleInstance(layer.adjustmentStack)!);
+    expect(settings.strokes[0]?.samples).toHaveLength(4);
+    expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
   });
 });
