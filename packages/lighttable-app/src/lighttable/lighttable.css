@@ -296,6 +296,21 @@
   --dv-tabs-and-actions-container-font-size: var(--lt-type-label);
 }
 
+/* Keep the semantic LightTable tab surfaces authoritative. Dockview applies
+ * separate active/inactive group variables and may resolve those before a
+ * runtime theme-token edit; these selectors target the painted elements. */
+.lighttable-dock-workspace .dv-tabs-and-actions-container {
+  background-color: var(--lt-surface-panel-tab-strip);
+}
+
+.lighttable-dock-workspace
+  .dv-groupview
+  > .dv-tabs-and-actions-container
+  .dv-tabs-container
+  > .dv-tab.dv-active-tab {
+  background-color: var(--lt-surface-panel-tab-active);
+}
+
 .lighttable img {
   -webkit-user-drag: none;
 }
@@ -2419,15 +2434,15 @@
 
 .lighttable-color-grading__modes {
   width: 100%;
-  min-height: 30px;
+  min-height: 27px;
   margin-bottom: 10px;
 }
 
 .lighttable-color-grading__modes .segmented-control__button {
   flex: 1 1 20%;
   min-width: 0;
-  min-height: 28px;
-  padding: 6px 3px;
+  min-height: 25px;
+  padding: 4px 3px;
   font-size: var(--lt-type-caption);
 }
 
@@ -2766,13 +2781,26 @@
   height: 18px;
 }
 
+.lighttable-adjustment__track-axis {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--lt-range-thumb-size) / 2);
+  left: calc(var(--lt-range-thumb-size) / 2);
+  height: var(--lt-range-track-height);
+  border-radius: var(--lt-radius-pill);
+  background: var(--lighttable-slider-track);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .lighttable-adjustment__neutral {
   position: absolute;
   z-index: 1;
-  top: 3px;
-  bottom: 3px;
+  top: 50%;
+  height: 12px;
   width: 1px;
   background: rgba(255, 255, 255, 0.28);
+  transform: translate(-0.5px, -50%);
   pointer-events: none;
 }
 
@@ -2803,7 +2831,7 @@
   height: var(--lt-range-track-height);
   border: 0;
   border-radius: var(--lt-radius-pill);
-  background: var(--lighttable-slider-track);
+  background: transparent;
 }
 
 .lighttable-adjustment input[type='range']::-webkit-slider-thumb {
@@ -2822,7 +2850,7 @@
   height: var(--lt-range-track-height);
   border: 0;
   border-radius: var(--lt-radius-pill);
-  background: var(--lighttable-slider-track);
+  background: transparent;
 }
 
 .lighttable-adjustment input[type='range']::-moz-range-progress {

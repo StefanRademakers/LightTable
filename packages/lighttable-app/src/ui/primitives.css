@@ -138,7 +138,7 @@
 }
 
 .segmented-control {
-  min-height: 36px;
+  min-height: 27px;
   display: inline-flex;
   gap: 0;
   overflow: hidden;
@@ -148,8 +148,8 @@
 }
 
 .segmented-control__button {
-  min-height: 34px;
-  padding: 8px 14px;
+  min-height: 25px;
+  padding: 4px 10px;
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -165,7 +165,7 @@
 .segmented-control__button + .segmented-control__button::before {
   content: "";
   position: absolute;
-  inset: 6px auto 6px 0;
+  inset: 5px auto 5px 0;
   width: 1px;
   background: var(--lt-control-border);
 }

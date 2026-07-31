@@ -174,7 +174,13 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
         <output>{format(displayValue)}</output>
       </span>
       <span className="lighttable-adjustment__track-wrap">
-        <span className="lighttable-adjustment__neutral" style={{ left: `${neutral}%` }} aria-hidden="true" />
+        <span
+          className="lighttable-adjustment__track-axis"
+          style={{ ['--lighttable-slider-track' as string]: trackBackground }}
+          aria-hidden="true"
+        >
+          <span className="lighttable-adjustment__neutral" style={{ left: `${neutral}%` }} />
+        </span>
         <input
           type="range"
           min={min}
@@ -244,7 +250,6 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
             setDisplayValue(next);
             scheduleValuePublish();
           }}
-          style={{ ['--lighttable-slider-track' as string]: trackBackground }}
           aria-label={label}
         />
       </span>
