@@ -1,7 +1,4 @@
 import type { BasicAdjustments, LightTableImageMetadata } from '../types';
-import { decodeNativeImage } from '../image-io/NativeImageDecoder';
-import type { WasmVipsDecoder } from '../image-io/WasmVipsDecoder';
-import type { AdvancedDecodedImage } from '../image-io/types';
 import { cloneAdjustments, createDefaultAdjustments } from '../types';
 import { buildCurveLut, CURVE_LUT_SIZE } from '../curves';
 import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
@@ -50,8 +47,7 @@ import { evaluateAdjustmentStack } from '../processing/adjustmentEvaluator';
 import { WebGpuScopeEngine, type WebGpuScopeOptions } from './WebGpuScopeEngine';
 import {
   requestSharedWebGpuDevice,
-  subscribeSharedWebGpuDeviceLost,
-  TEXTURE_FORMATS_TIER1
+  subscribeSharedWebGpuDeviceLost
 } from './sharedWebGpuDevice';
 import { ADJUSTMENT_UNIFORM_FLOATS, buildAdjustmentUniform } from './adjustmentUniform';
 import { getCorePipelineBundle } from './corePipelineLibrary';
@@ -62,6 +58,7 @@ import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
 import { LayerProcessingRenderer } from './layerProcessingRenderer';
 import { ReferenceDifferenceMeasurer } from './referenceDifferenceMeasurer';
 import { estimateDocumentGpuBytes } from './documentGpuMemoryEstimate';
+import { DocumentSourceGpuLoader } from './documentSourceGpuLoader';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 interface ViewportRect {
@@ -81,8 +78,7 @@ export class WebGpuEngine {
   private scopeInitialization: Promise<void> | null = null;
   private pendingScopeOptions: WebGpuScopeOptions | null = null;
   private scopeInteractionActive = false;
-  private advancedImageDecoder: WasmVipsDecoder | null = null;
-  private imageLoadRevision = 0;
+  private sourceLoader: DocumentSourceGpuLoader | null = null;
   private documentRenderer: LayerDocumentRenderer | null = null;
   private readonly adjustmentLayerResources: AdjustmentLayerGpuResources;
   private readonly adjustmentLayerRenderer: AdjustmentLayerRenderer;
@@ -180,7 +176,6 @@ export class WebGpuEngine {
   private layerEffectRenderer: LayerEffectRenderer | null = null;
   private layerProcessingRenderer: LayerProcessingRenderer | null = null;
   private displayResolvePipeline: GPURenderPipeline | null = null;
-  private precisionSourceResolvePipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
   private differencePipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
@@ -341,7 +336,10 @@ export class WebGpuEngine {
     this.blurPipeline = pipelines.blur;
     this.creativePipeline = pipelines.creative;
     this.outputPipeline = pipelines.output;
-    this.precisionSourceResolvePipeline = pipelines.precisionSourceResolve;
+    this.sourceLoader = new DocumentSourceGpuLoader(
+      this.device,
+      pipelines.precisionSourceResolve
+    );
     const effectCallbacks = {
       requestRender: () => this.requestRender(),
       reportError: (featureId: string, message: string) => this.callbacks.onFeatureError?.(featureId, message)
@@ -381,198 +379,22 @@ export class WebGpuEngine {
   }
 
   async loadImage(blob: Blob, name: string, options: LightTableLoadImageOptions = {}) {
-    const loadRevision = ++this.imageLoadRevision;
-    if (options.decodeMode === 'preserve-precision') {
-      return this.loadAdvancedImage(blob, name, options.signal, loadRevision);
+    if (!this.sourceLoader) throw new Error('LightTable source loading is unavailable.');
+    const loaded = await this.sourceLoader.load(blob, name, options);
+    if (this.destroyed) {
+      loaded.texture.destroy();
+      throw new Error('LightTable was closed while the image was loading.');
     }
-    return this.loadNativeImage(blob, name, options.signal, loadRevision);
-  }
-
-  private async loadNativeImage(blob: Blob, name: string, signal: AbortSignal | undefined, loadRevision: number) {
-    if (signal?.aborted) throw new DOMException('The image load was cancelled.', 'AbortError');
-    const decoded = await decodeNativeImage(blob);
-    const { bitmap, descriptor } = decoded;
-    try {
-      if (signal?.aborted || loadRevision !== this.imageLoadRevision) {
-        throw new DOMException('The image load was cancelled.', 'AbortError');
-      }
-      if (this.destroyed) throw new Error('LightTable was closed while the image was loading.');
-      this.destroyImageResources();
-      this.metadata = {
-        name,
-        width: descriptor.width,
-        height: descriptor.height,
-        contentType: descriptor.contentType
-      };
-      this.sourceTexture = this.device.createTexture({
-        label: 'LightTable original sRGB image',
-        size: [bitmap.width, bitmap.height],
-        format: 'rgba8unorm',
-        // Dawn's external-image copy path requires RenderAttachment in addition to CopyDst.
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
-      });
-      this.device.queue.copyExternalImageToTexture(
-        { source: bitmap },
-        { texture: this.sourceTexture },
-        [bitmap.width, bitmap.height]
-      );
-      this.createImageResources(bitmap.width, bitmap.height);
-      this.writeAdjustments();
-      this.writeOutputSettings();
-      this.renderDirty.invalidate('source');
-      this.firstFramePending = true;
-      this.requestRender();
-      return this.metadata;
-    } finally {
-      decoded.close();
-    }
-  }
-
-  private async loadAdvancedImage(
-    blob: Blob,
-    name: string,
-    signal: AbortSignal | undefined,
-    loadRevision: number
-  ) {
-    const decodeStartedAt = performance.now();
-    if (!this.advancedImageDecoder) {
-      const { WasmVipsDecoder: AdvancedDecoder } = await import('../image-io/WasmVipsDecoder');
-      if (signal?.aborted || loadRevision !== this.imageLoadRevision) {
-        throw new DOMException('The image load was cancelled.', 'AbortError');
-      }
-      this.advancedImageDecoder = new AdvancedDecoder();
-    }
-    const decoded = await this.advancedImageDecoder.decode(blob, signal);
-    if (signal?.aborted || loadRevision !== this.imageLoadRevision) {
-      throw new DOMException('The image load was cancelled.', 'AbortError');
-    }
-    if (this.destroyed) throw new Error('LightTable was closed while the image was loading.');
-    if (decoded.descriptor.iccProfile && !decoded.descriptor.iccProfileAppliedToSrgb) {
-      throw new Error('Precision-preserving import of embedded ICC profiles is not enabled yet.');
-    }
-    if (
-      decoded.descriptor.sourceProfile === 'embedded-icc-to-srgb'
-      && (!decoded.descriptor.iccProfile || !decoded.descriptor.iccProfileAppliedToSrgb)
-    ) {
-      throw new Error('The precision-preserving decoder returned inconsistent embedded ICC metadata.');
-    }
-    if (
-      decoded.descriptor.sourceProfile === 'assumed-srgb'
-      && (decoded.descriptor.iccProfile || decoded.descriptor.iccProfileAppliedToSrgb)
-    ) {
-      throw new Error('The precision-preserving decoder returned inconsistent assumed-sRGB metadata.');
-    }
-    this.installAdvancedSourceTexture(decoded, name, performance.now() - decodeStartedAt);
-    return this.metadata!;
-  }
-
-  private installAdvancedSourceTexture(decoded: AdvancedDecodedImage, name: string, decodeDurationMs: number) {
-    const { descriptor, pixels } = decoded;
-    if (descriptor.storage === 'f32') {
-      throw new Error('Floating-point image ingest is not enabled yet.');
-    }
-    if (descriptor.storage === 'u16' && !this.device.features.has(TEXTURE_FORMATS_TIER1)) {
-      throw new Error(
-        'This WebGPU adapter cannot upload 16-bit normalized images because texture-formats-tier1 is unavailable. '
-        + 'Ordinary 8-bit images remain supported.'
-      );
-    }
-    const supportedInterpretations = new Set(['srgb', 'rgb', 'rgb16', 'b-w', 'grey', 'grey16']);
-    if (
-      !descriptor.iccProfileAppliedToSrgb
-      && !supportedInterpretations.has(descriptor.sourceInterpretation.toLowerCase())
-    ) {
-      throw new Error(
-        `Precision-preserving import does not yet support ${descriptor.sourceInterpretation} source color.`
-      );
-    }
-    const bytesPerChannel = descriptor.storage === 'u16' ? 2 : 1;
-    const expectedBytes = descriptor.width * descriptor.height * descriptor.channels * bytesPerChannel;
-    if (pixels.byteLength !== expectedBytes) {
-      throw new Error(`The decoded image buffer has ${pixels.byteLength} bytes; expected ${expectedBytes}.`);
-    }
-
     this.destroyImageResources();
-    this.metadata = {
-      name,
-      width: descriptor.width,
-      height: descriptor.height,
-      contentType: descriptor.contentType,
-      decoder: 'wasm-vips',
-      sourceBitDepth: descriptor.sourceBitDepth,
-      sourceFormat: descriptor.sourceFormat,
-      sourceInterpretation: descriptor.sourceInterpretation,
-      sourceProfile: descriptor.sourceProfile === 'embedded-icc-to-srgb'
-        ? 'embedded ICC -> sRGB'
-        : 'no embedded ICC; assumed sRGB',
-      decodeDurationMs
-    };
-    if (descriptor.storage === 'u16') {
-      if (!this.precisionSourceResolvePipeline) {
-        throw new Error('The precision-preserving GPU ingest pipeline is unavailable.');
-      }
-      const stagingTexture = this.device.createTexture({
-        label: `LightTable ${descriptor.sourceBitDepth}-bit UNORM staging image`,
-        size: [descriptor.width, descriptor.height],
-        format: 'rgba16unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-      });
-      this.device.queue.writeTexture(
-        { texture: stagingTexture },
-        pixels,
-        {
-          offset: 0,
-          bytesPerRow: descriptor.width * descriptor.channels * bytesPerChannel,
-          rowsPerImage: descriptor.height
-        },
-        [descriptor.width, descriptor.height]
-      );
-      this.sourceTexture = this.device.createTexture({
-        label: `LightTable original ${descriptor.sourceBitDepth}-bit sRGB working image`,
-        size: [descriptor.width, descriptor.height],
-        format: 'rgba16float',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
-      });
-      const bindGroup = this.device.createBindGroup({
-        layout: this.precisionSourceResolvePipeline.getBindGroupLayout(0),
-        entries: [{ binding: 0, resource: stagingTexture.createView() }]
-      });
-      const encoder = this.device.createCommandEncoder({ label: 'LightTable precision source ingest' });
-      this.drawFullscreenPass(
-        encoder,
-        this.precisionSourceResolvePipeline,
-        bindGroup,
-        this.sourceTexture.createView()
-      );
-      this.device.queue.submit([encoder.finish()]);
-      void this.device.queue.onSubmittedWorkDone().then(
-        () => stagingTexture.destroy(),
-        () => stagingTexture.destroy()
-      );
-    } else {
-      this.sourceTexture = this.device.createTexture({
-        label: `LightTable original ${descriptor.sourceBitDepth}-bit sRGB image`,
-        size: [descriptor.width, descriptor.height],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-      });
-      this.device.queue.writeTexture(
-        { texture: this.sourceTexture },
-        pixels,
-        {
-          offset: 0,
-          bytesPerRow: descriptor.width * descriptor.channels * bytesPerChannel,
-          rowsPerImage: descriptor.height
-        },
-        [descriptor.width, descriptor.height]
-      );
-    }
-    this.createImageResources(descriptor.width, descriptor.height);
+    this.metadata = loaded.metadata;
+    this.sourceTexture = loaded.texture;
+    this.createImageResources(loaded.metadata.width, loaded.metadata.height);
     this.writeAdjustments();
     this.writeOutputSettings();
     this.renderDirty.invalidate('source');
     this.firstFramePending = true;
     this.requestRender();
+    return loaded.metadata;
   }
 
   setDocument(document: ImageDocument) {
@@ -1527,13 +1349,12 @@ export class WebGpuEngine {
     this.destroyed = true;
     this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
     this.unsubscribeDeviceLost();
-    this.imageLoadRevision += 1;
+    this.sourceLoader?.destroy();
+    this.sourceLoader = null;
     this.renderScheduler.dispose();
     this.destroyImageResources();
     this.scopeEngine?.destroy();
     this.scopeEngine = null;
-    this.advancedImageDecoder?.destroy();
-    this.advancedImageDecoder = null;
     this.adjustmentBuffer?.destroy();
     this.outputSettingsBuffer?.destroy();
     this.viewBuffer?.destroy();

@@ -1044,6 +1044,11 @@ The concrete engine supplies resource presence and subsystem totals, while
 format costs and reduced-resolution accounting are independently tested. This
 is the measurement seam required by later workspace-level residency budgets.
 
+Native and precision-preserving source ingest now share one document-source GPU
+loader. Decode selection, cancellation generations, ICC/descriptor validation,
+16-bit staging and source-texture creation are outside the render engine. The
+engine atomically installs only a completed source result.
+
 Lens effects now compile their complete pipeline bundles asynchronously behind
 an atomic optional-feature boundary. Until every pipeline in a feature is
 valid, rendering uses the exact input texture; compilation failure is reported
