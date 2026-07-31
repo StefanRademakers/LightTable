@@ -1,4 +1,5 @@
 import React from 'react';
+import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
 import type {
   BrushSettings,
@@ -6,6 +7,7 @@ import type {
   ToolId
 } from '../session/editorSession';
 import { WarpToolOptions } from '../../application/tools/warp/WarpToolOptions';
+import { toolDefinition } from '../tools/toolRegistry';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 
 export interface ToolOptionsProps {
@@ -51,9 +53,15 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onZoomPreset,
   onZoomFit,
   orientation = 'horizontal'
-}) => (
-  <div className={`lighttable-tool-options__content lighttable-tool-options__content--${orientation}`}>
-      <strong>{TOOL_LABELS[activeTool]}</strong>
+}) => {
+  const activeToolDefinition = toolDefinition(activeTool);
+
+  return (
+    <div className={`lighttable-tool-options__content lighttable-tool-options__content--${orientation}`}>
+      <div className="lighttable-tool-options__identity">
+        <img src={lightTableIcon(activeToolDefinition.iconName)} alt="" aria-hidden="true" />
+        <strong>{TOOL_LABELS[activeTool]}</strong>
+      </div>
       {activeTool === 'select-rectangle' || activeTool === 'select-ellipse' ? (
         <label className="lighttable-tool-options__toggle">
           <input
@@ -149,8 +157,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           />
         </>
       ) : null}
-  </div>
-);
+    </div>
+  );
+};
 
 export const ToolOptionsBar: React.FC<ToolOptionsProps> = (props) => (
   <section className="lighttable-tool-options" aria-label="Tool settings">

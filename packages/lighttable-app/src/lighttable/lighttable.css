@@ -63,7 +63,7 @@
   flex: 0 0 48px;
   overflow-x: auto;
   overflow-y: hidden;
-  border-bottom: 1px solid var(--lt-border);
+  border-bottom: 1px solid var(--lt-tool-options-separator);
   background: var(--lt-surface-panel);
 }
 
@@ -121,10 +121,30 @@
   margin-bottom: 4px;
 }
 
-.lighttable-tool-options__content > strong {
+.lighttable-tool-options__identity {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lt-text-secondary);
+  white-space: nowrap;
+}
+
+.lighttable-tool-options__identity img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+.lighttable-tool-options__identity strong {
   color: var(--lt-text-secondary);
   font-size: var(--lt-type-label);
   font-weight: var(--lt-weight-semibold);
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__identity {
+  width: 100%;
 }
 
 .lighttable-tool-options__toggle {

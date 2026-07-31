@@ -18,8 +18,8 @@
   --lt-surface-panel-subtle: #171a1f;
   --lt-surface-panel-raised: #1b1f25;
   --lt-surface-section: #1c2026;
-  --lt-surface-collapsible-content: #313539;
-  --lt-surface-collapsible-header: #252a31;
+  --lt-surface-collapsible-content: #222528;
+  --lt-surface-collapsible-header: #313539;
   --lt-surface-panel-tab-strip: #20202f;
   --lt-surface-panel-tab-active: #111922;
   --lt-surface-tab: #1a1e23;
@@ -94,10 +94,11 @@
   --lt-control-text-size: 12px;
   --lt-control-border: rgb(226 231 232 / 24%);
   --lt-control-text: rgb(226 231 232 / 86%);
-  --lt-range-track: #4a515b;
-  --lt-range-track-fill: var(--lt-accent);
-  --lt-range-thumb: var(--lt-accent);
-  --lt-range-thumb-hover: var(--lt-accent-hover);
+  --lt-tool-options-separator: var(--lt-border-strong);
+  --lt-range-track: #414344;
+  --lt-range-track-fill: #606264;
+  --lt-range-thumb: #919294;
+  --lt-range-thumb-hover: #a6a7a8;
   --lt-range-track-height: 4px;
   --lt-range-thumb-size: 14px;
   --lt-scrollbar-track: transparent;
