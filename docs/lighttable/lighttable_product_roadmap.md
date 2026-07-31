@@ -53,6 +53,14 @@ editor architecture. Step 3 now has its first end-to-end similarity prototype
 on the shared transform contract. Browser testing with real layer pairs is
 required before affine alignment is considered.
 
+The ordered processing runtime now also has its first opt-in geometry proof:
+`lt.warp` owns serialized layer-local strokes, builds a persistent inverse
+displacement field on WebGPU, and samples the immutable layer source once per
+frame. Warp remains absent from ordinary stacks, so images that do not use it
+allocate no Warp textures and compile no Warp pipelines. The first tool
+frontend, browser GPU smoke tests and additional brush modes remain before the
+feature is user-ready.
+
 ## PSD/PSB convergence
 
 PSD parity is not a ninth independent editor architecture. It depends on and

@@ -32,6 +32,7 @@ import {
   LENS_BLUR_DOWNSAMPLE_WGSL,
   LENS_BLUR_GATHER_WGSL
 } from '../effects/lensBlur/shaders';
+import { WARP_FIELD_COMPUTE_WGSL, WARP_RENDER_WGSL } from '../effects/warp/shaders';
 import {
   COMBINED_SCOPE_ANALYSIS_WGSL,
   HUE_DISTRIBUTION_ANALYSIS_WGSL,
@@ -84,7 +85,8 @@ const renderShaders = [
   ['grain blur', GRAIN_BLUR_WGSL],
   ['grain composite', GRAIN_COMPOSITE_WGSL],
   ['display resolve', DISPLAY_RESOLVE_WGSL],
-  ['viewport blit', VIEWPORT_BLIT_WGSL]
+  ['viewport blit', VIEWPORT_BLIT_WGSL],
+  ['warp', WARP_RENDER_WGSL]
 ] as const;
 
 describe('LightTable WGSL modules', () => {
@@ -191,6 +193,10 @@ describe('LightTable WGSL modules', () => {
 
   it.each(renderShaders)('parses the %s render module', (_name, shader) => {
     expect(() => new WgslReflect(`${FULLSCREEN_VERTEX_WGSL}\n${shader}`)).not.toThrow();
+  });
+
+  it('parses the Warp displacement compute module', () => {
+    expect(() => new WgslReflect(WARP_FIELD_COMPUTE_WGSL)).not.toThrow();
   });
 
   it.each([

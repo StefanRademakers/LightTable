@@ -55,7 +55,7 @@ const stackForInstance = (
 });
 
 const isEffectCategory = (category: string) =>
-  category === 'lens' || category === 'output';
+  category === 'geometry' || category === 'lens' || category === 'output';
 
 /**
  * Owns GPU effect instances for one processing-stack owner.
@@ -229,6 +229,7 @@ export class DocumentEffectRuntime {
         }
         const effect = planned.definition.create(
           this.factoryContext,
+          planned.instance,
           planned.nodeAdjustments,
           aggregateAdjustments
         );
@@ -261,6 +262,7 @@ export class DocumentEffectRuntime {
         if (!planned || !node || createdEffects.has(node.effect)) continue;
         planned.definition.update(
           node.effect,
+          planned.instance,
           planned.nodeAdjustments,
           aggregateAdjustments
         );

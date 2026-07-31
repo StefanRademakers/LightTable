@@ -1,10 +1,13 @@
 import type { BasicAdjustments } from '../types';
+import type { AdjustmentModuleInstance } from '../processing/adjustmentStack';
 import type { DepthAnalysisResult } from '../analysis/depth/types';
 import { ChromaticAberrationEffect } from './chromaticAberration/ChromaticAberrationEffect';
 import { GrainEffect } from './grain/GrainEffect';
 import { HalationEffect } from './halation/HalationEffect';
 import { LensBlurEffect } from './lensBlur/LensBlurEffect';
 import { LensDistortionEffect } from './lensDistortion/LensDistortionEffect';
+import { WarpEffect } from './warp/WarpEffect';
+import { readWarpNodeSettings } from './warp/warpTypes';
 import type {
   LightTableEffectRuntimeCallbacks,
   LightTableEffectStage
@@ -36,11 +39,13 @@ export interface DocumentEffectNodeDefinition {
   readonly stage: LightTableEffectStage;
   create(
     context: DocumentEffectFactoryContext,
+    instance: AdjustmentModuleInstance,
     nodeAdjustments: BasicAdjustments,
     aggregateAdjustments: BasicAdjustments
   ): DocumentGpuEffect;
   update(
     effect: DocumentGpuEffect,
+    instance: AdjustmentModuleInstance,
     nodeAdjustments: BasicAdjustments,
     aggregateAdjustments: BasicAdjustments
   ): void;
@@ -51,11 +56,13 @@ const definition = <Effect extends DocumentGpuEffect>(
   stage: LightTableEffectStage,
   create: (
     context: DocumentEffectFactoryContext,
+    instance: AdjustmentModuleInstance,
     nodeAdjustments: BasicAdjustments,
     aggregateAdjustments: BasicAdjustments
   ) => Effect,
   update: (
     effect: Effect,
+    instance: AdjustmentModuleInstance,
     nodeAdjustments: BasicAdjustments,
     aggregateAdjustments: BasicAdjustments
   ) => void
@@ -63,40 +70,52 @@ const definition = <Effect extends DocumentGpuEffect>(
   type,
   stage,
   create,
-  update: (effect, nodeAdjustments, aggregateAdjustments) => {
-    update(effect as Effect, nodeAdjustments, aggregateAdjustments);
+  update: (effect, instance, nodeAdjustments, aggregateAdjustments) => {
+    update(effect as Effect, instance, nodeAdjustments, aggregateAdjustments);
   }
 });
 
 export const DOCUMENT_EFFECT_NODE_DEFINITIONS = [
   definition(
+    'lt.warp',
+    'source-geometry',
+    (context, instance) => new WarpEffect(
+      context.device,
+      context.sampler,
+      context.vertexModule,
+      readWarpNodeSettings(instance),
+      context.callbacks
+    ),
+    (effect, instance) => effect.setSettings(readWarpNodeSettings(instance))
+  ),
+  definition(
     'lt.lens-distortion',
     'source-geometry',
-    (context, node) => new LensDistortionEffect(
+    (context, _instance, node) => new LensDistortionEffect(
       context.device,
       context.sampler,
       context.vertexModule,
       node.effects.lensDistortion,
       context.callbacks
     ),
-    (effect, node) => effect.setSettings(node.effects.lensDistortion)
+    (effect, _instance, node) => effect.setSettings(node.effects.lensDistortion)
   ),
   definition(
     'lt.chromatic-aberration',
     'source-geometry',
-    (context, node) => new ChromaticAberrationEffect(
+    (context, _instance, node) => new ChromaticAberrationEffect(
       context.device,
       context.sampler,
       context.vertexModule,
       node.effects.chromaticAberration,
       context.callbacks
     ),
-    (effect, node) => effect.setSettings(node.effects.chromaticAberration)
+    (effect, _instance, node) => effect.setSettings(node.effects.chromaticAberration)
   ),
   definition(
     'lt.lens-blur',
     'linear-spatial',
-    (context, node, aggregate) => new LensBlurEffect(
+    (context, _instance, node, aggregate) => new LensBlurEffect(
       context.device,
       context.sampler,
       context.vertexModule,
@@ -104,7 +123,7 @@ export const DOCUMENT_EFFECT_NODE_DEFINITIONS = [
       aggregate.effects.lensDistortion,
       context.callbacks
     ),
-    (effect, node, aggregate) => {
+    (effect, _instance, node, aggregate) => {
       effect.setSettings(node.effects.lensBlur);
       effect.setDistortionSettings(aggregate.effects.lensDistortion);
     }
@@ -112,26 +131,26 @@ export const DOCUMENT_EFFECT_NODE_DEFINITIONS = [
   definition(
     'lt.halation',
     'linear-spatial',
-    (context, node) => new HalationEffect(
+    (context, _instance, node) => new HalationEffect(
       context.device,
       context.sampler,
       context.vertexModule,
       node.effects.halation,
       context.callbacks
     ),
-    (effect, node) => effect.setSettings(node.effects.halation)
+    (effect, _instance, node) => effect.setSettings(node.effects.halation)
   ),
   definition(
     'lt.grain',
     'display-post',
-    (context, node) => new GrainEffect(
+    (context, _instance, node) => new GrainEffect(
       context.device,
       context.sampler,
       context.vertexModule,
       node.effects.grain,
       context.callbacks
     ),
-    (effect, node) => effect.setSettings(node.effects.grain)
+    (effect, _instance, node) => effect.setSettings(node.effects.grain)
   )
 ] as const satisfies readonly DocumentEffectNodeDefinition[];
 

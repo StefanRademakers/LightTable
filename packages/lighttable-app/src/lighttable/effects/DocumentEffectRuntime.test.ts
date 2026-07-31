@@ -11,6 +11,7 @@ import {
   type DocumentGpuEffect
 } from './documentEffectNodeRegistry';
 import type { LightTableEffectStage } from './types';
+import { createWarpModuleInstance } from './warp/warpTypes';
 
 const texture = (name: string) => ({ name }) as unknown as GPUTexture;
 
@@ -75,6 +76,52 @@ const moduleOfType = (stack: AdjustmentStack, type: string) => {
 };
 
 describe('DocumentEffectRuntime', () => {
+  it('passes authoritative serialized node settings to arbitrary effect executors', () => {
+    const warp = createWarpModuleInstance('warp-node', {
+      version: 1,
+      opacity: 0.75,
+      borderMode: 'mirror',
+      topologyMode: 'protected',
+      edgePinning: 0.25,
+      maskLinkMode: 'linked',
+      strokes: []
+    });
+    const create = vi.fn((
+      ..._args: Parameters<DocumentEffectNodeDefinition['create']>
+    ) => effect('warp', 'source-geometry'));
+    const update = vi.fn((
+      ..._args: Parameters<DocumentEffectNodeDefinition['update']>
+    ) => undefined);
+    const runtime = DocumentEffectRuntime.createFromStack(
+      {
+        device: {} as GPUDevice,
+        sampler: {} as GPUSampler,
+        vertexModule: {} as GPUShaderModule,
+        callbacks: {}
+      },
+      { id: 'geometry-stack', revision: 0, modules: [warp] },
+      'layer',
+      new DocumentEffectNodeRegistry([{
+        type: 'lt.warp',
+        stage: 'source-geometry',
+        create,
+        update
+      }])
+    );
+
+    expect(create.mock.calls[0]?.[1]).toEqual(warp);
+
+    const changed = structuredClone(warp);
+    changed.revision += 1;
+    changed.settings.opacity = 0.5;
+    runtime.setAdjustmentStack({
+      id: 'geometry-stack',
+      revision: 1,
+      modules: [changed]
+    });
+    expect(update.mock.calls[0]?.[1]).toEqual(changed);
+  });
+
   it('evaluates source geometry in serialized order', () => {
     const { runtime } = createRuntime();
     const result = runtime.encodeSourceGeometry({} as GPUCommandEncoder, texture('source'));
