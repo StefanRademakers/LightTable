@@ -15,11 +15,7 @@ import type { BrushDab } from '../tools/brush/strokeBuilder';
 import type { PaintChannel } from '../session/editorSession';
 import type { SelectionMode, SelectionShape } from '../selection/selectionTypes';
 import type { SelectionCoverageBounds } from '../selection/selectionCoverage';
-import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
-import type {
-  DocumentAssetBlob,
-  PatternAssetBlob
-} from '../persistence/layeredDocumentFormat';
+import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import {
   identityAffineMatrix,
@@ -55,6 +51,7 @@ import type { ReversiblePixelEdit } from '../history/ReversiblePixelEdit';
 import { TransformRasterizer } from './TransformRasterizer';
 import { PixelEditHistoryService } from './PixelEditHistoryService';
 import { RasterPaintService } from './RasterPaintService';
+import { PatternAssetLoader } from './PatternAssetLoader';
 
 export interface LayerThumbnailBlob {
   blob: Blob;
@@ -67,6 +64,7 @@ const textureUsage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_AT
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
   private readonly patternAssets = new PatternAssetStore();
+  private readonly patternAssetLoader: PatternAssetLoader;
   private readonly decodePipeline: GPURenderPipeline;
   private readonly compositePipeline: GPURenderPipeline;
   private readonly adjustmentMixPipeline: GPURenderPipeline;
@@ -125,6 +123,16 @@ export class LayerDocumentRenderer {
       submittedResources: this.submittedResources,
       dimensions: () => ({ width: this.width, height: this.height }),
       createTexture: (label) => this.createTexture(label),
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+    });
+    this.patternAssetLoader = new PatternAssetLoader({
+      device,
+      sampler,
+      decodePipeline: this.decodePipeline,
+      store: this.patternAssets,
+      generation: () => this.resourceGeneration,
+      invalidateStyledLayers: () => this.releaseStyledLayerCache(),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
@@ -273,7 +281,7 @@ export class LayerDocumentRenderer {
       },
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       patternSource: (patternId) => this.patternAssets.getSource(patternId),
-      loadPattern: (asset) => this.loadPatternAsset(asset)
+      loadPattern: (asset) => this.patternAssetLoader.load(asset)
     });
   }
 
@@ -436,63 +444,6 @@ export class LayerDocumentRenderer {
 
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {
     await this.documentAssets.load(assets);
-  }
-
-  private async loadPatternAsset(asset: PatternAssetBlob) {
-    // Pattern pixels are immutable document assets, but restoring/replacing an
-    // asset with the same stable id must invalidate every styled-layer result
-    // that may have sampled its previous GPU texture.
-    this.releaseStyledLayerCache();
-    const generation = this.resourceGeneration;
-    const decoded = await decodeNativeImage(asset.source);
-    const { bitmap } = decoded;
-    let encodedTexture: GPUTexture | null = null;
-    let target: GPUTexture | null = null;
-    try {
-      if (generation !== this.resourceGeneration) {
-        throw new Error('LightTable was closed while restoring its patterns.');
-      }
-      encodedTexture = this.device.createTexture({
-        label: 'LightTable persisted pattern source',
-        size: [bitmap.width, bitmap.height],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-      });
-      target = this.device.createTexture({
-        label: `LightTable pattern: ${asset.patternId}`,
-        size: [bitmap.width, bitmap.height],
-        format: 'rgba16float',
-        usage: textureUsage
-      });
-      this.device.queue.copyExternalImageToTexture(
-        { source: bitmap },
-        { texture: encodedTexture },
-        [bitmap.width, bitmap.height]
-      );
-      const bindGroup = this.device.createBindGroup({
-        layout: this.decodePipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: encodedTexture.createView() },
-          { binding: 1, resource: this.sampler }
-        ]
-      });
-      const encoder = this.device.createCommandEncoder({ label: 'Restore LightTable pattern pixels' });
-      this.drawFullscreen(
-        encoder,
-        this.decodePipeline,
-        bindGroup,
-        target.createView(),
-        { r: 0, g: 0, b: 0, a: 0 }
-      );
-      this.device.queue.submit([encoder.finish()]);
-      await this.device.queue.onSubmittedWorkDone();
-      this.patternAssets.set(asset.patternId, asset.source, target);
-      target = null;
-    } finally {
-      encodedTexture?.destroy();
-      target?.destroy();
-      decoded.close();
-    }
   }
 
   mergeLayerDown(

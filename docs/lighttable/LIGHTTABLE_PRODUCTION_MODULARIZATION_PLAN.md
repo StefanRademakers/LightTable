@@ -1571,3 +1571,7 @@ The refactor is successful when:
       GPU service. Brush-only uniforms are now allocated on first use, empty
       strokes and unavailable targets remain allocation-free, and renderer
       cache invalidation is explicit at the raster-operation boundary.
+- [x] Extract persisted-pattern decode, linear GPU upload and publication into
+      a generation-guarded asset loader. Async pattern work now has atomic
+      ownership transfer and cannot publish into a replacement document before
+      or after GPU submission.
