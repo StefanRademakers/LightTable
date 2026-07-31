@@ -28,6 +28,10 @@ import {
   WarpGestureController,
   type WarpGesturePoint
 } from './warpGestureController';
+import {
+  createImmediateWarpPreviewScheduler,
+  type WarpPreviewScheduler
+} from './warpPreviewScheduler';
 
 export interface WarpHistoryEntry {
   readonly label?: string;
@@ -121,7 +125,8 @@ const toLayerSourcePoint = (
  */
 export const createWarpSessionController = (
   resolveDependencies: () => WarpSessionDependencies,
-  gesture = new WarpGestureController()
+  gesture = new WarpGestureController(),
+  previewScheduler: WarpPreviewScheduler = createImmediateWarpPreviewScheduler()
 ): WarpSessionController => {
   let active: ActiveWarpSession | null = null;
 
@@ -149,8 +154,17 @@ export const createWarpSessionController = (
     return true;
   };
 
+  const scheduleStroke = (stroke: WarpStroke): boolean => {
+    if (!currentTarget()) return false;
+    previewScheduler.schedule(() => {
+      if (!publishStroke(stroke)) reset();
+    });
+    return true;
+  };
+
   const restoreBefore = () => {
     if (!active) return;
+    previewScheduler.cancel();
     const dependencies = resolveDependencies();
     if (dependencies.getDocument()?.id === active.documentId) {
       dependencies.applyDocumentSnapshot(active.before);
@@ -158,6 +172,7 @@ export const createWarpSessionController = (
   };
 
   const reset = () => {
+    previewScheduler.cancel();
     gesture.reset();
     active = null;
   };
@@ -216,7 +231,7 @@ export const createWarpSessionController = (
       const sourcePoint = toLayerSourcePoint(target.layer, point);
       if (!sourcePoint) return false;
       const stroke = gesture.move(pointerId, sourcePoint);
-      return stroke ? publishStroke(stroke) : false;
+      return stroke ? scheduleStroke(stroke) : false;
     },
     finish: (pointerId, timeMs) => {
       const session = active;
@@ -227,6 +242,7 @@ export const createWarpSessionController = (
         active = null;
         return true;
       }
+      previewScheduler.cancel();
       if (!publishStroke(stroke)) {
         reset();
         return false;
@@ -258,6 +274,7 @@ export const createWarpSessionController = (
     },
     cancel: (pointerId) => {
       if (!gesture.cancel(pointerId)) return false;
+      previewScheduler.cancel();
       restoreBefore();
       active = null;
       return true;
