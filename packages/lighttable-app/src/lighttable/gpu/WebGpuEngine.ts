@@ -44,7 +44,7 @@ import {
   type AdjustmentStack
 } from '../processing/adjustmentStack';
 import { evaluateAdjustmentStack } from '../processing/adjustmentEvaluator';
-import { WebGpuScopeEngine, type WebGpuScopeOptions } from './WebGpuScopeEngine';
+import type { WebGpuScopeOptions } from './WebGpuScopeEngine';
 import {
   requestSharedWebGpuDevice,
   subscribeSharedWebGpuDeviceLost
@@ -59,6 +59,7 @@ import { LayerProcessingRenderer } from './layerProcessingRenderer';
 import { ReferenceDifferenceMeasurer } from './referenceDifferenceMeasurer';
 import { estimateDocumentGpuBytes } from './documentGpuMemoryEstimate';
 import { DocumentSourceGpuLoader } from './documentSourceGpuLoader';
+import { DocumentScopeRuntime } from './documentScopeRuntime';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 interface ViewportRect {
@@ -74,10 +75,7 @@ export class WebGpuEngine {
   private readonly context: GPUCanvasContext;
   private readonly canvasFormat: GPUTextureFormat;
   private readonly callbacks: DocumentRendererCallbacks;
-  private scopeEngine: WebGpuScopeEngine | null = null;
-  private scopeInitialization: Promise<void> | null = null;
-  private pendingScopeOptions: WebGpuScopeOptions | null = null;
-  private scopeInteractionActive = false;
+  private readonly scopeRuntime: DocumentScopeRuntime;
   private sourceLoader: DocumentSourceGpuLoader | null = null;
   private documentRenderer: LayerDocumentRenderer | null = null;
   private readonly adjustmentLayerResources: AdjustmentLayerGpuResources;
@@ -145,6 +143,11 @@ export class WebGpuEngine {
       this.adjustmentLayerResources
     );
     this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
+    this.scopeRuntime = new DocumentScopeRuntime(
+      device,
+      callbacks.onScopeError,
+      () => this.requestRender()
+    );
     this.deviceErrorListener = ((event: GPUUncapturedErrorEvent) => {
       if (!this.destroyed) {
         this.callbacks.onDeviceLost?.(`LightTable WebGPU runtime error: ${event.error.message}`);
@@ -239,39 +242,7 @@ export class WebGpuEngine {
    * to put the image on screen.
    */
   async initializeScopes(scopeCanvases: DocumentRendererScopeCanvases) {
-    if (this.destroyed || this.scopeEngine) return;
-    if (this.scopeInitialization) return this.scopeInitialization;
-    this.scopeInitialization = (async () => {
-      try {
-        const scopeEngine = await WebGpuScopeEngine.create(
-          this.device,
-          scopeCanvases,
-          this.callbacks.onScopeError
-        );
-        if (this.destroyed) {
-          scopeEngine.destroy();
-          return;
-        }
-        this.scopeEngine = scopeEngine;
-        if (this.pendingScopeOptions) scopeEngine.setOptions(this.pendingScopeOptions);
-        scopeEngine.setInteractionActive(this.scopeInteractionActive);
-        scopeEngine.setBefore(this.before);
-        if (this.metadata && this.sourceTexture && this.finalTexture) {
-          scopeEngine.setTextures(this.sourceTexture, this.finalTexture, this.metadata);
-        }
-        scopeEngine.resize();
-        this.requestRender();
-      } catch (reason) {
-        this.callbacks.onScopeError?.(
-          reason instanceof Error ? reason.message : 'LightTable scopes could not be initialized.'
-        );
-      }
-    })();
-    try {
-      await this.scopeInitialization;
-    } finally {
-      this.scopeInitialization = null;
-    }
+    await this.scopeRuntime.initialize(scopeCanvases);
   }
 
   get imageMetadata() {
@@ -290,7 +261,7 @@ export class WebGpuEngine {
     this.active = active;
     this.renderScheduler.setPaused(!active);
     if (active) {
-      this.scopeEngine?.resize();
+      this.scopeRuntime.resize();
       this.requestRender();
     }
   }
@@ -767,7 +738,7 @@ export class WebGpuEngine {
 
   private markDocumentDirty() {
     this.renderDirty.invalidate('document');
-    this.scopeEngine?.markImageDirty();
+    this.scopeRuntime.markImageDirty();
     this.requestRender();
   }
 
@@ -933,7 +904,7 @@ export class WebGpuEngine {
         { binding: 2, resource: { buffer: this.histogramUniformBuffer } }
       ]
     });
-    if (this.metadata) this.scopeEngine?.setTextures(this.sourceTexture, this.finalTexture, this.metadata);
+    if (this.metadata) this.scopeRuntime.setTextures(this.sourceTexture, this.finalTexture, this.metadata);
   }
 
   setAdjustments(adjustments: BasicAdjustments) {
@@ -964,7 +935,7 @@ export class WebGpuEngine {
     this.writeAdjustments();
     this.writeOutputSettings();
     this.renderDirty.invalidate('adjustments');
-    this.scopeEngine?.markImageDirty();
+    this.scopeRuntime.markImageDirty();
     this.requestRender();
   }
 
@@ -972,7 +943,7 @@ export class WebGpuEngine {
     this.effectRuntime?.setDepthMap(depth);
     this.writeOutputSettings();
     this.renderDirty.invalidate('effects');
-    this.scopeEngine?.markImageDirty();
+    this.scopeRuntime.markImageDirty();
     this.requestRender();
   }
 
@@ -981,7 +952,7 @@ export class WebGpuEngine {
     this.before = before;
     if (before) this.difference = false;
     this.renderDirty.invalidate('view-mode');
-    this.scopeEngine?.setBefore(before);
+    this.scopeRuntime.setBefore(before);
     this.requestRender();
   }
 
@@ -992,7 +963,7 @@ export class WebGpuEngine {
     this.renderDirty.invalidate('viewport');
     // Scopes remain tied to the reconstructed image. A difference image is a
     // diagnostic view, not a grade source and must not silently replace them.
-    this.scopeEngine?.setBefore(false);
+    this.scopeRuntime.setBefore(false);
     this.requestRender();
   }
 
@@ -1020,22 +991,20 @@ export class WebGpuEngine {
   setScopeOptions(histogramVisible: boolean, options: WebGpuScopeOptions) {
     const histogramBecameVisible = histogramVisible && !this.histogramVisible;
     this.histogramVisible = histogramVisible;
-    this.pendingScopeOptions = { ...options };
     if (histogramBecameVisible) this.renderDirty.invalidate('histogram');
-    this.scopeEngine?.setOptions(options);
+    this.scopeRuntime.setOptions(options);
     this.requestRender();
   }
 
   setScopeInteractionActive(active: boolean) {
-    this.scopeInteractionActive = active;
-    this.scopeEngine?.setInteractionActive(active);
+    this.scopeRuntime.setInteractionActive(active);
     this.requestRender();
   }
 
   setLensBlurInteractionActive(active: boolean) {
     this.effectRuntime?.setInteractionActive(active);
     this.renderDirty.invalidate('effects');
-    this.scopeEngine?.markImageDirty();
+    this.scopeRuntime.markImageDirty();
     this.requestRender();
   }
 
@@ -1054,7 +1023,7 @@ export class WebGpuEngine {
   }
 
   resizeScopes() {
-    this.scopeEngine?.resize();
+    this.scopeRuntime.resize();
     this.requestRender();
   }
 
@@ -1243,7 +1212,7 @@ export class WebGpuEngine {
     }
 
     const histogramReadBuffer = this.encodeHistogram(encoder);
-    this.scopeEngine?.encode(encoder);
+    this.scopeRuntime.encode(encoder);
     this.device.queue.submit([encoder.finish()]);
     void this.device.popErrorScope().then((validationError) => {
       if (!this.destroyed && validationError) {
@@ -1353,8 +1322,7 @@ export class WebGpuEngine {
     this.sourceLoader = null;
     this.renderScheduler.dispose();
     this.destroyImageResources();
-    this.scopeEngine?.destroy();
-    this.scopeEngine = null;
+    this.scopeRuntime.destroy();
     this.adjustmentBuffer?.destroy();
     this.outputSettingsBuffer?.destroy();
     this.viewBuffer?.destroy();
@@ -1376,7 +1344,7 @@ export class WebGpuEngine {
     this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();
     this.imageDocument = null;
-    this.scopeEngine?.clearTextures();
+    this.scopeRuntime.clearTextures();
     this.effectRuntime?.destroyImageResources();
     this.layerEffectRenderer?.destroyImageResources();
     this.imageResources.reset();

@@ -1049,6 +1049,12 @@ loader. Decode selection, cancellation generations, ICC/descriptor validation,
 16-bit staging and source-texture creation are outside the render engine. The
 engine atomically installs only a completed source result.
 
+Deferred scopes now have one document-scoped runtime. It owns asynchronous
+creation, pre-initialization options, original/corrected state, interaction
+quality and texture rebinding. The render engine only forwards invalidation and
+command encoding, so floating or remounted scope panels cannot leak lifecycle
+state into the frame coordinator.
+
 Lens effects now compile their complete pipeline bundles asynchronously behind
 an atomic optional-feature boundary. Until every pipeline in a feature is
 valid, rendering uses the exact input texture; compilation failure is reported
