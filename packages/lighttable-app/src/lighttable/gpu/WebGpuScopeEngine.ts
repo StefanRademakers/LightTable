@@ -59,6 +59,16 @@ export interface ScopeCanvasVisibility {
   readonly vectorscope: boolean;
 }
 
+export interface ScopeEncodeResult {
+  readonly analysisPasses: number;
+  readonly displayPasses: number;
+}
+
+export const EMPTY_SCOPE_ENCODE_RESULT: ScopeEncodeResult = {
+  analysisPasses: 0,
+  displayPasses: 0
+};
+
 const HIDDEN_SCOPE_CANVASES: ScopeCanvasVisibility = {
   hueDistribution: false,
   colorMixerHueDistribution: false,
@@ -461,11 +471,14 @@ export class WebGpuScopeEngine {
       this.hasVisibleScopes() && (this.analysisDirty || this.displayDirty);
   }
 
-  encode(encoder: GPUCommandEncoder) {
-    if (this.destroyed || this.failed || !this.metadata || !this.hasVisibleScopes()) return;
+  encode(encoder: GPUCommandEncoder): ScopeEncodeResult {
+    if (this.destroyed || this.failed || !this.metadata || !this.hasVisibleScopes()) {
+      return EMPTY_SCOPE_ENCODE_RESULT;
+    }
     this.device.pushErrorScope('validation');
+    let result = EMPTY_SCOPE_ENCODE_RESULT;
     try {
-      this.encodeInternal(encoder);
+      result = this.encodeInternal(encoder);
     } catch (reason) {
       this.disable(reason instanceof Error ? reason.message : 'Unknown scope rendering error');
     } finally {
@@ -473,48 +486,65 @@ export class WebGpuScopeEngine {
         if (error) this.disable(error.message);
       });
     }
+    return result;
   }
 
-  private encodeInternal(encoder: GPUCommandEncoder) {
-    if (!this.metadata) return;
+  private encodeInternal(encoder: GPUCommandEncoder): ScopeEncodeResult {
+    if (!this.metadata) return EMPTY_SCOPE_ENCODE_RESULT;
+    let analysisPasses = 0;
+    let displayPasses = 0;
     if (this.analysisDirty && this.interactiveRefresh.shouldRefresh(performance.now())) {
       this.encodeAnalysis(encoder);
+      analysisPasses = 1;
     }
     if (this.displayDirty) {
-      if (this.canvasVisibility.hueDistribution) this.encodeDisplay(
-        encoder,
-        this.canvases.hueDistribution,
-        this.hueDistributionContext,
-        this.hueDisplayPipeline,
-        this.hueDisplayBindGroup
-      );
+      if (this.canvasVisibility.hueDistribution) {
+        this.encodeDisplay(
+          encoder,
+          this.canvases.hueDistribution,
+          this.hueDistributionContext,
+          this.hueDisplayPipeline,
+          this.hueDisplayBindGroup
+        );
+        displayPasses += 1;
+      }
       if (
         this.canvasVisibility.colorMixerHueDistribution
         && this.canvases.colorMixerHueDistribution
         && this.colorMixerHueDistributionContext
-      ) this.encodeDisplay(
-        encoder,
-        this.canvases.colorMixerHueDistribution,
-        this.colorMixerHueDistributionContext,
-        this.hueDisplayPipeline,
-        this.hueDisplayBindGroup
-      );
-      if (this.canvasVisibility.parade) this.encodeDisplay(
-        encoder,
-        this.canvases.parade,
-        this.paradeContext,
-        this.paradeDisplayPipeline,
-        this.paradeDisplayBindGroup
-      );
-      if (this.canvasVisibility.vectorscope) this.encodeDisplay(
-        encoder,
-        this.canvases.vectorscope,
-        this.vectorscopeContext,
-        this.vectorDisplayPipeline,
-        this.vectorDisplayBindGroup
-      );
+      ) {
+        this.encodeDisplay(
+          encoder,
+          this.canvases.colorMixerHueDistribution,
+          this.colorMixerHueDistributionContext,
+          this.hueDisplayPipeline,
+          this.hueDisplayBindGroup
+        );
+        displayPasses += 1;
+      }
+      if (this.canvasVisibility.parade) {
+        this.encodeDisplay(
+          encoder,
+          this.canvases.parade,
+          this.paradeContext,
+          this.paradeDisplayPipeline,
+          this.paradeDisplayBindGroup
+        );
+        displayPasses += 1;
+      }
+      if (this.canvasVisibility.vectorscope) {
+        this.encodeDisplay(
+          encoder,
+          this.canvases.vectorscope,
+          this.vectorscopeContext,
+          this.vectorDisplayPipeline,
+          this.vectorDisplayBindGroup
+        );
+        displayPasses += 1;
+      }
       this.displayDirty = false;
     }
+    return { analysisPasses, displayPasses };
   }
 
   private encodeAnalysis(encoder: GPUCommandEncoder) {

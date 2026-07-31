@@ -2,7 +2,9 @@ import type { LightTableImageMetadata } from '../types';
 import type { DocumentRendererScopeCanvases } from '../application/rendering/rendererTypes';
 import {
   WebGpuScopeEngine,
+  EMPTY_SCOPE_ENCODE_RESULT,
   webGpuScopeOptionsEqual,
+  type ScopeEncodeResult,
   type WebGpuScopeOptions
 } from './WebGpuScopeEngine';
 
@@ -86,8 +88,8 @@ export class DocumentScopeRuntime {
     return this.engine?.hasPendingWork() ?? false;
   }
 
-  encode(encoder: GPUCommandEncoder): void {
-    this.engine?.encode(encoder);
+  encode(encoder: GPUCommandEncoder): ScopeEncodeResult {
+    return this.engine?.encode(encoder) ?? EMPTY_SCOPE_ENCODE_RESULT;
   }
 
   destroy(): void {

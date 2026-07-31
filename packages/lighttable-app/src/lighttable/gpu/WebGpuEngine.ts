@@ -1316,7 +1316,11 @@ export class WebGpuEngine {
       required: this.renderDirty.histogramRequired
     }) ?? null;
     if (histogramReadBuffer) this.renderDirty.markHistogramScheduled();
-    this.scopeRuntime.encode(encoder);
+    const scopePasses = this.scopeRuntime.encode(encoder);
+    this.renderTelemetry.recordScopePasses(
+      scopePasses.analysisPasses,
+      scopePasses.displayPasses
+    );
     this.device.queue.submit([encoder.finish()]);
     this.renderTelemetry.recordSubmittedFrame();
     void this.device.popErrorScope().then((validationError) => {

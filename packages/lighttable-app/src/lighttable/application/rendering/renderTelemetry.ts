@@ -16,6 +16,8 @@ export interface RenderTelemetrySnapshot {
   readonly submittedFrames: number;
   readonly noWorkSkips: number;
   readonly correctionFrames: number;
+  readonly scopeAnalysisPasses: number;
+  readonly scopeDisplayPasses: number;
   readonly stages: Readonly<Record<RenderTelemetryStage, RenderStageTelemetrySnapshot>>;
 }
 
@@ -52,6 +54,8 @@ export class RenderTelemetry {
   private submittedFrames = 0;
   private noWorkSkips = 0;
   private correctionFrames = 0;
+  private scopeAnalysisPasses = 0;
+  private scopeDisplayPasses = 0;
   private stages = emptyStages();
 
   recordRenderCall() {
@@ -68,6 +72,11 @@ export class RenderTelemetry {
 
   recordCorrectionFrame() {
     this.correctionFrames += 1;
+  }
+
+  recordScopePasses(analysisPasses: number, displayPasses: number) {
+    this.scopeAnalysisPasses += analysisPasses;
+    this.scopeDisplayPasses += displayPasses;
   }
 
   measure<Output>(stage: RenderTelemetryStage, operation: () => Output): Output {
@@ -92,6 +101,8 @@ export class RenderTelemetry {
       submittedFrames: this.submittedFrames,
       noWorkSkips: this.noWorkSkips,
       correctionFrames: this.correctionFrames,
+      scopeAnalysisPasses: this.scopeAnalysisPasses,
+      scopeDisplayPasses: this.scopeDisplayPasses,
       stages: Object.fromEntries(STAGES.map((stage) => [
         stage,
         { ...this.stages[stage] }
@@ -104,6 +115,8 @@ export class RenderTelemetry {
     this.submittedFrames = 0;
     this.noWorkSkips = 0;
     this.correctionFrames = 0;
+    this.scopeAnalysisPasses = 0;
+    this.scopeDisplayPasses = 0;
     this.stages = emptyStages();
   }
 }
@@ -126,6 +139,8 @@ export const formatRenderTelemetry = (snapshot: RenderTelemetrySnapshot) => {
     `Submitted frames: ${snapshot.submittedFrames}`,
     `No-work skips: ${snapshot.noWorkSkips}`,
     `Correction frames: ${correctionFrames}`,
+    `Scope analysis passes: ${snapshot.scopeAnalysisPasses}`,
+    `Scope display passes: ${snapshot.scopeDisplayPasses}`,
     ...stageLines
   ].join('\n');
 };
