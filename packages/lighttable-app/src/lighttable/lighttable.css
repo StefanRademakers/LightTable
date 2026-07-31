@@ -783,13 +783,20 @@
   pointer-events: none;
 }
 
+.lighttable-selection--direct {
+  inset: auto;
+  left: 0;
+  top: 0;
+  contain: layout paint style;
+  will-change: transform;
+}
+
 .lighttable-selection__shape {
-  fill: rgba(92, 145, 225, 0.08);
+  fill: none;
   stroke: rgba(255, 255, 255, 0.96);
   stroke-width: 1;
   stroke-dasharray: 5 4;
   vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 1px #000);
 }
 
 .lighttable-selection__shape--subtract { fill: rgba(225, 92, 92, 0.08); }

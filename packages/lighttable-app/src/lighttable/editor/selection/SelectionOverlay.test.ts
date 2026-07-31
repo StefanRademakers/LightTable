@@ -42,8 +42,8 @@ describe('createRasterViewportTransform', () => {
 });
 
 describe('createVectorViewportTransform', () => {
-  it('keeps committed geometry in document coordinates and projects only its group', () => {
+  it('keeps committed geometry in document coordinates and projects its composited overlay', () => {
     expect(createVectorViewportTransform({ x: 120, y: 45 }, 2.5))
-      .toBe('translate(120 45) scale(2.5)');
+      .toBe('translate(120px, 45px) scale(2.5)');
   });
 });

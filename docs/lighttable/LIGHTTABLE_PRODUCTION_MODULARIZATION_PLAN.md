@@ -1190,7 +1190,9 @@ Work:
 - [x] Remove selection visualization from the viewport hot path: simple
       selections use SVG geometry, complex masks cache their raster result by
       selection revision and reuse it during pan/zoom, and wheel input publishes
-      only the newest accumulated viewport state once per animation frame;
+      only the newest accumulated viewport state once per animation frame.
+      The common single-shape SVG now moves through a compositor CSS transform
+      and avoids viewport-sized filter/fill rasterization;
 - preserve exact bypass behavior;
 - retain PSD mapping into the same descriptors.
 

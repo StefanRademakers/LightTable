@@ -169,6 +169,13 @@ requests one final-quality effects/analysis render. This is a safe baseline,
 not a substitute for profiling full-document compositing on representative
 Macs.
 
+Committed single-shape selections no longer move by mutating an SVG group in a
+viewport-sized overlay. Their document-space SVG is fixed and pan/zoom is a
+CSS transform on the overlay itself, allowing the browser compositor to move
+it without rerasterizing the path. The committed outline also avoids the
+former full-overlay filter and translucent fill. Composite, feathered and
+inverted selections retain the cached raster fallback.
+
 Viewport presentation state is also compared at the actual WebGPU boundary:
 canvas pixel dimensions and the eight `f32` view-uniform values. Repeated
 ResizeObserver/layout emissions that resolve to identical GPU state no longer

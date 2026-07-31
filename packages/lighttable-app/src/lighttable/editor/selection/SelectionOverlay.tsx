@@ -7,7 +7,7 @@ import type {
 export interface SelectionOverlayProps {
   operations: SelectionOperation[];
   draft: SelectionShape | null;
-  imageRect: { x: number; y: number };
+  imageRect: { x: number; y: number; width: number; height: number };
   scale: number;
   width: number;
   height: number;
@@ -52,7 +52,7 @@ export const createRasterViewportTransform = (
 export const createVectorViewportTransform = (
   imageRect: { x: number; y: number },
   scale: number
-): string => `translate(${imageRect.x} ${imageRect.y}) scale(${scale})`;
+): string => `translate(${imageRect.x}px, ${imageRect.y}px) scale(${scale})`;
 
 const renderSelectionShape = (
   shape: SelectionShape,
@@ -135,6 +135,10 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
       : null,
     [directVectorSelection]
   );
+  const documentSize = useMemo(() => ({
+    width: imageRect.width / Math.max(scale, 1e-6),
+    height: imageRect.height / Math.max(scale, 1e-6)
+  }), [imageRect.height, imageRect.width, scale]);
 
   useEffect(() => {
     if (directVectorSelection || sameRasterViewport(rasterViewport, currentViewport)) return;
@@ -312,14 +316,18 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     <>
       {directVectorSelection ? (
         <svg
-          className="lighttable-selection"
-          viewBox={`0 0 ${width} ${height}`}
+          className="lighttable-selection lighttable-selection--direct"
+          viewBox={`0 0 ${documentSize.width} ${documentSize.height}`}
           preserveAspectRatio="none"
+          style={{
+            height: documentSize.height,
+            transform: createVectorViewportTransform(imageRect, scale),
+            transformOrigin: '0 0',
+            width: documentSize.width
+          }}
           aria-hidden="true"
         >
-          <g transform={createVectorViewportTransform(imageRect, scale)}>
-            {directVectorGeometry}
-          </g>
+          {directVectorGeometry}
         </svg>
       ) : (
         <canvas
