@@ -1,13 +1,12 @@
 import type { LayerId, RasterLayer, Rect } from '../document/documentTypes';
-
-export interface AffineMatrix {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-  tx: number;
-  ty: number;
-}
+import type { AffineMatrix } from '../geometry/affine';
+export type { AffineMatrix } from '../geometry/affine';
+export {
+  identityAffineMatrix,
+  isFiniteAffineMatrix,
+  isIdentityAffineMatrix
+} from '../geometry/affine';
+import { identityAffineMatrix } from '../geometry/affine';
 
 export interface RasterRenderContract<TTexture = GPUTexture> {
   layerId: LayerId;
@@ -23,31 +22,6 @@ export interface RasterRenderContract<TTexture = GPUTexture> {
   /** Maps layer/source pixels into document pixels. */
   transform: AffineMatrix;
 }
-
-export const identityAffineMatrix = (): AffineMatrix => ({
-  a: 1,
-  b: 0,
-  c: 0,
-  d: 1,
-  tx: 0,
-  ty: 0
-});
-
-export const isFiniteAffineMatrix = (value: AffineMatrix) =>
-  Number.isFinite(value.a)
-  && Number.isFinite(value.b)
-  && Number.isFinite(value.c)
-  && Number.isFinite(value.d)
-  && Number.isFinite(value.tx)
-  && Number.isFinite(value.ty);
-
-export const isIdentityAffineMatrix = (value: AffineMatrix, epsilon = 1e-6) =>
-  Math.abs(value.a - 1) <= epsilon
-  && Math.abs(value.b) <= epsilon
-  && Math.abs(value.c) <= epsilon
-  && Math.abs(value.d - 1) <= epsilon
-  && Math.abs(value.tx) <= epsilon
-  && Math.abs(value.ty) <= epsilon;
 
 export const rasterRenderContract = <TTexture>(
   layer: RasterLayer,

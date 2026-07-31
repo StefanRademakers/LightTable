@@ -1,6 +1,6 @@
 import type { BlendMode } from './blendModes';
-import type { AffineMatrix } from '../rendering/renderContract';
-import { identityAffineMatrix } from '../rendering/renderContract';
+import type { AffineMatrix } from '../geometry/affine';
+import { identityAffineMatrix } from '../geometry/affine';
 import type { AdjustmentStack } from '../../processing/adjustmentStack';
 import type { LayerStyleStack } from '../styles/layerStyleTypes';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
