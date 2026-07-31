@@ -13,6 +13,7 @@ import {
   duplicateLayer,
   flattenGroup,
   flattenImage,
+  getMergeLayersPlan,
   groupLayers,
   mergeLayerDown,
   mergeLayers,
@@ -231,6 +232,19 @@ describe('LightTable document commands', () => {
     expect(mergeLayers(document, [background.id, top.id])).toBe(document);
     const grouped = createGroupLayer(document, 'Group');
     expect(mergeLayers(grouped, [top.id, grouped.activeLayerId!])).toBe(grouped);
+  });
+
+  it('plans multi-layer merges in document order regardless of selection order', () => {
+    const base = createImageDocument('Image', 100, 50, 'asset');
+    const withMiddle = createRasterLayer(base, 'Middle');
+    const document = createRasterLayer(withMiddle, 'Top');
+    const [background, middle, top] = document.layers;
+
+    expect(getMergeLayersPlan(document, [top.id, background.id, middle.id])).toEqual({
+      destinationId: background.id,
+      layerIds: [background.id, middle.id, top.id],
+      name: top.name
+    });
   });
 
   it('moves, hides, locks and deletes a multi-layer selection as one command', () => {

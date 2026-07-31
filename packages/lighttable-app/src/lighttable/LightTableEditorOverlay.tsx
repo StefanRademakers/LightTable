@@ -305,6 +305,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
+  const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);
   const fillActiveTargetRef = useRef<(color: string) => void>(() => undefined);
   const temporaryToolRef = useRef(new TemporaryToolController());
@@ -1102,6 +1103,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
   const mergeSelectedRasterLayers = layerDocumentCommands.mergeSelectedRasterLayers;
   const mergeActiveLayerDown = layerDocumentCommands.mergeActiveLayerDown;
+  const mergeSelectionOrActiveDown = useCallback(() => {
+    const selectedLayerIds = selectedLayerIdsRef.current;
+    return selectedLayerIds.length > 1
+      ? mergeSelectedRasterLayers(selectedLayerIds)
+      : mergeActiveLayerDown();
+  }, [mergeActiveLayerDown, mergeSelectedRasterLayers]);
+  const handleLayerSelectionChange = useCallback((layerIds: LayerId[]) => {
+    selectedLayerIdsRef.current = layerIds;
+  }, []);
 
   const copySelectedContent = () => {
     void layerDocumentCommands.copySelectedContent(editorSession.selection);
@@ -1122,7 +1132,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layerDocumentCommands.layerViaCopy(editorSession.selection);
   };
   layerViaCopyRef.current = layerViaCopy;
-  mergeActiveLayerDownRef.current = mergeActiveLayerDown;
+  mergeActiveLayerDownRef.current = mergeSelectionOrActiveDown;
 
   const autoAlignController = useAutoAlignController({
     getDocument: () => imageDocumentRef.current,
@@ -1166,7 +1176,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     endDocumentTransaction,
     createAdjustmentLayer: layerDocumentCommands.createAdjustmentLayer,
     createLensFxLayer: layerDocumentCommands.createLensFxLayer,
-    mergeActiveLayerDown,
+    mergeActiveLayerDown: mergeSelectionOrActiveDown,
     mergeSelectedRasterLayers,
     requestFlattenGroup: (groupId) =>
       editorDialogs.requestFlatten({ kind: 'group', groupId }),
@@ -1337,7 +1347,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       layerViaCopy,
       rename: focusActiveLayerName,
       invertColors: invertActiveLayerColors,
-      mergeDown: mergeActiveLayerDown
+      mergeDown: mergeSelectionOrActiveDown
     },
     autoAlign: {
       begin: () => void beginAutoAlign(),
@@ -1363,6 +1373,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       thumbnails={layerThumbnails}
       activeChannel={editorSession.activeChannel}
       controller={layerPanelController}
+      onSelectionChange={handleLayerSelectionChange}
     />
   );
 

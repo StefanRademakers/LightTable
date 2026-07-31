@@ -19,6 +19,7 @@ export interface LayersWorkspacePanelProps {
   thumbnails: ReadonlyMap<LayerId, LayerThumbnailSet>;
   activeChannel: PaintChannel;
   controller: LayerPanelController;
+  onSelectionChange?: (layerIds: LayerId[]) => void;
 }
 
 /**
@@ -31,7 +32,8 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   document,
   thumbnails,
   activeChannel,
-  controller
+  controller,
+  onSelectionChange
 }) => {
   if (!document) {
     return (
@@ -79,6 +81,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onLocalLensFxEnabled={controller.setLocalLensFxEnabled}
         onStyleEnabled={controller.setStyleEnabled}
         onClearStyles={controller.clearStyles}
+        onSelectionChange={onSelectionChange}
       />
     </div>
   );

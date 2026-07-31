@@ -62,6 +62,7 @@ interface LayerPanelProps {
   onLocalLensFxEnabled: (layerId: LayerId, enabled: boolean) => void;
   onStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => void;
   onClearStyles: (layerId: LayerId) => void;
+  onSelectionChange?: (layerIds: LayerId[]) => void;
 }
 
 interface VisualLayerRow {
@@ -151,7 +152,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onLocalGradeEnabled,
   onLocalLensFxEnabled,
   onStyleEnabled,
-  onClearStyles
+  onClearStyles,
+  onSelectionChange
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
@@ -173,6 +175,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const allRows = visualLayerRows(document.layers, new Set());
   const allLayerIds = new Set(allRows.map(({ layer }) => layer.id));
   const selectedIds = [...selectedLayerIds].filter((layerId) => allLayerIds.has(layerId));
+  const selectedIdsKey = selectedIds.join('\u0000');
   const selectionFor = (layerId: LayerId) =>
     selectedLayerIds.has(layerId) ? selectedIds : [layerId];
   const layerCapabilities = queryLayerCommandCapabilities(document, selectedIds);
@@ -201,6 +204,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   // in the dependency list would make every render look like a selection change.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document.revision, document.activeLayerId]);
+
+  React.useEffect(() => {
+    onSelectionChange?.(selectedIds);
+  // selectedIds is rebuilt while rendering; the stable id key avoids emitting
+  // selection changes merely because another panel property rendered.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIdsKey, onSelectionChange]);
 
   const selectLayer = (
     event: React.MouseEvent,
