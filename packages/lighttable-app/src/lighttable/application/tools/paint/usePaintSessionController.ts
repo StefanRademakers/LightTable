@@ -20,6 +20,12 @@ import {
   type PaintGestureUpdate
 } from '../../../editor/tools/paint/paintGestureController';
 import { srgbHexToLinearRgb } from '../fill/fillOperation';
+import {
+  createImmediatePaintDabScheduler,
+  createPaintDabScheduler,
+  type PaintDabScheduler,
+  type PaintFramePort
+} from './paintDabScheduler';
 
 export interface PaintHistoryEntry {
   byteSize: number;
@@ -86,7 +92,8 @@ const cloneBrush = (brush: BrushSettings): BrushSettings => ({ ...brush });
  */
 export const createPaintSessionController = (
   resolveDependencies: () => PaintSessionDependencies,
-  gesture = new PaintGestureController()
+  gesture = new PaintGestureController(),
+  frame?: PaintFramePort
 ): PaintSessionController => {
   let activeBrush: BrushSettings | null = null;
 
@@ -106,12 +113,16 @@ export const createPaintSessionController = (
       update.target.sourceToDocument
     );
   };
+  const paintScheduler: PaintDabScheduler = frame
+    ? createPaintDabScheduler(frame, paint)
+    : createImmediatePaintDabScheduler(paint);
 
   const reset = () => {
     if (gesture.active) {
       resolveDependencies().getRenderer()?.setPaintInteractionActive(false);
     }
     gesture.reset();
+    paintScheduler.cancel();
     activeBrush = null;
   };
 
@@ -128,7 +139,7 @@ export const createPaintSessionController = (
         renderer.setPaintInteractionActive(true);
         renderer.beginBrushStroke(layer, target.channel);
         activeBrush = cloneBrush(brush);
-        paint(gesture.begin(pointerId, target, activeBrush, point));
+        paintScheduler.schedule(gesture.begin(pointerId, target, activeBrush, point));
         dependencies.setError(null);
         return true;
       } catch (reason) {
@@ -146,13 +157,14 @@ export const createPaintSessionController = (
     move: (pointerId, point) => {
       const update = gesture.move(pointerId, point);
       if (!update) return false;
-      paint(update);
+      paintScheduler.schedule(update);
       return true;
     },
     finish: (pointerId) => {
       const finished = gesture.finish(pointerId);
-      activeBrush = null;
       if (!finished) return false;
+      paintScheduler.flush();
+      activeBrush = null;
       const dependencies = resolveDependencies();
       const renderer = dependencies.getRenderer();
       const before = dependencies.getDocument();
@@ -203,6 +215,7 @@ export const createPaintSessionController = (
     },
     cancel: (pointerId) => {
       if (!gesture.cancel(pointerId)) return false;
+      paintScheduler.cancel();
       activeBrush = null;
       const renderer = resolveDependencies().getRenderer();
       const pixelEdit = renderer?.finishPixelEdit();
@@ -226,7 +239,14 @@ export const usePaintSessionController = (
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies;
   return useMemo(
-    () => createPaintSessionController(() => dependenciesRef.current, gesture),
+    () => createPaintSessionController(
+      () => dependenciesRef.current,
+      gesture,
+      {
+        request: (callback) => window.requestAnimationFrame(callback),
+        cancel: (handle) => window.cancelAnimationFrame(handle)
+      }
+    ),
     [gesture]
   );
 };
