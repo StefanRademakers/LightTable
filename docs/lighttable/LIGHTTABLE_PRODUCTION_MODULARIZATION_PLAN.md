@@ -1588,3 +1588,5 @@ The refactor is successful when:
 - [x] Centralize document-sized GPU texture allocation and primitive clear/draw
       encoding. Color, mask and selection formats/usages now have one tested
       owner shared by renderer services instead of private renderer helpers.
+- [x] Centralize active-document dimensions and async GPU resource generations
+      so stale decode/readback work cannot cross document lifecycles.

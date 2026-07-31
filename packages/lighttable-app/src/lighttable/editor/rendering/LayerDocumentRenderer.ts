@@ -56,6 +56,7 @@ import {
 } from './LayerThumbnailService';
 import { ImportedLayerInitializer } from './ImportedLayerInitializer';
 import { DocumentTextureFactory } from './DocumentTextureFactory';
+import { DocumentResourceState } from './DocumentResourceState';
 
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
@@ -85,9 +86,7 @@ export class LayerDocumentRenderer {
   private readonly layerThumbnails: LayerThumbnailService;
   private readonly importedLayerInitializer: ImportedLayerInitializer;
   private readonly textures: DocumentTextureFactory;
-  private width = 0;
-  private height = 0;
-  private resourceGeneration = 0;
+  private readonly resources = new DocumentResourceState();
   private readonly geometryPreviews = new GeometryPreviewStore();
 
   private readonly device: GPUDevice;
@@ -103,7 +102,7 @@ export class LayerDocumentRenderer {
     this.fullscreenModule = pipelines.fullscreenModule;
     this.textures = new DocumentTextureFactory({
       device,
-      dimensions: () => ({ width: this.width, height: this.height })
+      dimensions: this.resources.dimensions
     });
     this.textureCodec = new LayerTextureCodec(device, sampler, {
       decode: pipelines.decode,
@@ -115,7 +114,7 @@ export class LayerDocumentRenderer {
       createMaskTexture: (label) => this.textures.createMask(label)
     });
     this.layerThumbnails = new LayerThumbnailService({
-      dimensions: () => ({ width: this.width, height: this.height }),
+      dimensions: this.resources.dimensions,
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
       maskTexture: (layerId) => this.maskTextureFor(layerId),
       encode: (source, maskChannel, width, height) =>
@@ -139,7 +138,7 @@ export class LayerDocumentRenderer {
       shapePipeline: pipelines.styleShape,
       patternAssets: this.patternAssets,
       submittedResources: this.submittedResources,
-      dimensions: () => ({ width: this.width, height: this.height }),
+      dimensions: this.resources.dimensions,
       createTexture: (label) => this.textures.createColor(label),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
@@ -149,7 +148,7 @@ export class LayerDocumentRenderer {
       sampler,
       decodePipeline: this.decodePipeline,
       store: this.patternAssets,
-      generation: () => this.resourceGeneration,
+      generation: this.resources.generation,
       invalidateStyledLayers: () => this.releaseStyledLayerCache(),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
@@ -171,7 +170,7 @@ export class LayerDocumentRenderer {
       pixelEditSessions: this.pixelEditSessions,
       geometryPreviews: this.geometryPreviews,
       layerStyles: this.layerStyleRenderer,
-      dimensions: () => ({ width: this.width, height: this.height }),
+      dimensions: this.resources.dimensions,
       syncDocument: (document) => this.syncDocument(document),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
       createTexture: (label) => this.textures.createColor(label),
@@ -189,7 +188,7 @@ export class LayerDocumentRenderer {
       layerResources: this.layerResources,
       selectionTextures: this.selectionTextures,
       sessions: this.transformSessions,
-      dimensions: () => ({ width: this.width, height: this.height }),
+      dimensions: this.resources.dimensions,
       pipelines: () => {
         this.ensureToolPipelines();
         return this.toolPipelines!;
@@ -205,7 +204,7 @@ export class LayerDocumentRenderer {
       device,
       layerResources: this.layerResources,
       sessions: this.pixelEditSessions,
-      dimensions: () => ({ width: this.width, height: this.height }),
+      dimensions: this.resources.dimensions,
       createTexture: (label) => this.textures.createColor(label),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId)
@@ -214,7 +213,7 @@ export class LayerDocumentRenderer {
       device,
       layerResources: this.layerResources,
       selectionTextures: this.selectionTextures,
-      dimensions: () => ({ width: this.width, height: this.height }),
+      dimensions: this.resources.dimensions,
       pipelines: () => {
         this.ensureToolPipelines();
         return this.toolPipelines!;
@@ -231,7 +230,7 @@ export class LayerDocumentRenderer {
       device,
       sampler,
       textures: this.selectionTextures,
-      dimensions: () => ({ width: this.width, height: this.height }),
+      dimensions: this.resources.dimensions,
       pipelines: () => {
         this.ensureToolPipelines();
         return this.toolPipelines!;
@@ -245,8 +244,8 @@ export class LayerDocumentRenderer {
     this.selectionContentAnalyzer = new SelectionContentAnalyzer({
       device,
       textures: this.selectionTextures,
-      dimensions: () => ({ width: this.width, height: this.height }),
-      generation: () => this.resourceGeneration,
+      dimensions: this.resources.dimensions,
+      generation: this.resources.generation,
       pipelines: () => {
         this.ensureToolPipelines();
         return this.toolPipelines!;
@@ -262,8 +261,8 @@ export class LayerDocumentRenderer {
       textures: this.selectionTextures,
       layerResources: this.layerResources,
       textureCodec: this.textureCodec,
-      dimensions: () => ({ width: this.width, height: this.height }),
-      generation: () => this.resourceGeneration,
+      dimensions: this.resources.dimensions,
+      generation: this.resources.generation,
       pipelines: () => {
         this.ensureToolPipelines();
         return this.toolPipelines!;
@@ -275,7 +274,7 @@ export class LayerDocumentRenderer {
     this.rasterDocumentOperations = new RasterDocumentOperations({
       device,
       layerResources: this.layerResources,
-      dimensions: () => ({ width: this.width, height: this.height }),
+      dimensions: this.resources.dimensions,
       encodeComposite: (encoder, document, encodeAdjustment) =>
         this.encodeComposite(encoder, document, encodeAdjustment),
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
@@ -284,17 +283,20 @@ export class LayerDocumentRenderer {
     this.documentAssets = new LayerDocumentAssetService({
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
       maskTexture: (layerId) => this.maskTextureFor(layerId),
-      encodeTexture: (texture, maskChannel) =>
-        this.textureCodec.encode(texture, maskChannel, this.width, this.height),
+      encodeTexture: (texture, maskChannel) => {
+        const { width, height } = this.resources.dimensions();
+        return this.textureCodec.encode(texture, maskChannel, width, height);
+      },
       decodeTexture: async (blob, texture, maskChannel) => {
-        const generation = this.resourceGeneration;
+        const generation = this.resources.generation();
+        const { width, height } = this.resources.dimensions();
         await this.textureCodec.decode(
           blob,
           texture,
           maskChannel,
-          this.width,
-          this.height,
-          () => generation === this.resourceGeneration
+          width,
+          height,
+          () => this.resources.isCurrent(generation)
         );
       },
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
@@ -313,8 +315,7 @@ export class LayerDocumentRenderer {
 
   initialize(document: ImageDocument, sourceTexture: GPUTexture) {
     this.destroyImageResources();
-    this.width = document.width;
-    this.height = document.height;
+    this.resources.setDimensions(document.width, document.height);
     this.selectionTextures.active = false;
     this.syncDocument(document);
     this.importedLayerInitializer.initialize(document, sourceTexture);
@@ -348,15 +349,16 @@ export class LayerDocumentRenderer {
    * raster runtimes retained for lossless undo.
    */
   estimatedTextureBytes() {
-    const pixels = Math.max(1, this.width) * Math.max(1, this.height);
+    const { width, height } = this.resources.dimensions();
+    const pixels = Math.max(1, width) * Math.max(1, height);
     const rgba16Bytes = pixels * 8;
     const r8Bytes = pixels;
     let bytes = 0;
-    bytes += this.layerResources.estimatedTextureBytes(this.width, this.height);
+    bytes += this.layerResources.estimatedTextureBytes(width, height);
     bytes += this.patternAssets.estimatedTextureBytes();
-    bytes += this.layerStyleRenderer.estimatedTextureBytes(this.width, this.height);
-    bytes += this.compositeTargets.estimatedTextureBytes(this.width, this.height, 8);
-    bytes += this.selectionTextures.estimatedTextureBytes(this.width, this.height);
+    bytes += this.layerStyleRenderer.estimatedTextureBytes(width, height);
+    bytes += this.compositeTargets.estimatedTextureBytes(width, height, 8);
+    bytes += this.selectionTextures.estimatedTextureBytes(width, height);
     bytes += this.pixelEditSessions.estimatedTextureBytes(rgba16Bytes);
     bytes += this.transformSessions.estimatedTextureBytes(rgba16Bytes, r8Bytes);
     return bytes;
@@ -629,7 +631,7 @@ export class LayerDocumentRenderer {
   }
 
   destroyImageResources() {
-    this.resourceGeneration += 1;
+    this.resources.invalidate();
     this.layerResources.destroy();
     this.patternAssets.clear();
     this.layerStyleRenderer.destroy();
