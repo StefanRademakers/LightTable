@@ -1087,6 +1087,14 @@ Progress:
       settings validation and explicit layer/smart-filter scope. The legacy
       `BasicAdjustments` bridge cannot synthesize it, and layer processing
       recognizes geometry ownership independently from Lens Fx.
+- [x] Execute the first Warp backend as a lazy WebGPU source-geometry node with
+      a persistent inverse displacement field and exact disabled bypass.
+- [x] Move Warp Push authoring into a document/layer-scoped application
+      transaction. Input is stored in immutable layer-source pixels, preview
+      publication is animation-frame bounded, pointer-up is one undo entry and
+      tab changes cannot leak a gesture into another document.
+- [x] Prove that Warp recipes survive layered save/reopen while the original
+      raster payload remains byte-exact and unbaked.
 - [ ] Replace the remaining concrete grade/effect calls with registered
       processing modules and one authoritative evaluator. Lens Fx is complete;
       the combined grade shader remains the compatibility bridge to replace.

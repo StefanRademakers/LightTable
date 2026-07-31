@@ -1,6 +1,6 @@
 # Lighttable Desktop — High-End GPU Warp Tool & WarpNode Specification
 
-**Status:** Proposed production specification  
+**Status:** Phase 1 proof implemented; production brush work remains  
 **Target:** Lighttable Desktop, WebGPU, TypeScript, layered `rgba16float` render pipeline  
 **Scope:** Non-destructive brush-based reshaping with a dedicated GPU node, designed to match or exceed Pixelmator Pro's current reshape workflow and to support a later structured grid/cage warp editor without replacing the backend.
 
@@ -1309,6 +1309,30 @@ All fallback format and manual filtering paths must be exercised in CI or dedica
 ---
 
 ## 21. Recommended implementation phases
+
+### Current implementation checkpoint
+
+Implemented and verified in both shared product builds:
+
+- registered `lt.warp` geometry node with serialized settings;
+- lazy WebGPU displacement-field backend and exact bypass;
+- non-destructive Push tool operating in layer-source coordinates;
+- pressure-aware immutable stroke sampling;
+- animation-frame-bounded preview publication without dropping input;
+- document/layer identity locking, cancel semantics and one undo entry per
+  completed gesture;
+- layered document round-trip with byte-exact source pixels.
+
+Still deliberately outside the current proof:
+
+- Twirl, Pinch, Bloat, Smooth, Reconstruct, Freeze and Thaw;
+- selection/freeze influence masks and linked layer-mask deformation;
+- dirty-tile field updates, checkpoints and device-loss restoration;
+- high-quality settle/export sampling and visual golden fixtures;
+- structured grid/cage editing.
+
+The implemented Push path proves the system boundaries and persistent node
+model. It is not yet presented as the complete production Warp feature.
 
 ### Phase 1 — Field prototype
 
