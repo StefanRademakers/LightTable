@@ -1721,3 +1721,8 @@ The refactor is successful when:
       graphs. Lens Blur and Halation now opt into a renderer-owned cadence cap;
       ordinary grade stacks remain full-rate and final gesture output is never
       left at preview cadence or quality.
+- [x] Put adjustment uniforms and curve LUTs behind one retained GPU
+      publication boundary. Document grades, attached grades and Adjustment
+      Layers now upload only payloads whose bytes actually changed; Lens Fx
+      edits no longer rebuild either grade payload and ordinary non-curve
+      gestures no longer regenerate the 1024-sample curve texture.

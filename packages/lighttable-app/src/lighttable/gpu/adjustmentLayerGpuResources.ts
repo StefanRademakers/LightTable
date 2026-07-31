@@ -7,11 +7,13 @@ import type {
   RasterLayer
 } from '../editor/document/documentTypes';
 import { ADJUSTMENT_UNIFORM_FLOATS } from './adjustmentUniform';
+import { AdjustmentGpuPayloadWriter } from './AdjustmentGpuPayloadWriter';
 
 export interface AdjustmentLayerGpuRuntime {
   uniformBuffer: GPUBuffer;
   curveTexture: GPUTexture;
   creativeBindGroup: GPUBindGroup;
+  payloadWriter: AdjustmentGpuPayloadWriter;
 }
 
 export interface AdjustmentLayerGpuDependencies {
@@ -85,6 +87,10 @@ export class AdjustmentLayerGpuResources {
           { binding: 3, resource: { buffer: uniformBuffer } },
           { binding: 4, resource: curveTexture.createView() }
         ]
+      }),
+      payloadWriter: new AdjustmentGpuPayloadWriter(this.device, {
+        uniformBuffer,
+        curveTexture
       })
     };
     this.runtimes.set(layer.id, runtime);

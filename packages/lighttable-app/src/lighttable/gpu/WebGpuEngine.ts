@@ -1,5 +1,5 @@
 import type { BasicAdjustments, LightTableImageMetadata } from '../types';
-import { buildCurveLut, CURVE_LUT_SIZE } from '../curves';
+import { CURVE_LUT_SIZE } from '../curves';
 import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
 import { LayerEffectRenderer } from '../effects/LayerEffectRenderer';
 import type { DepthAnalysisResult } from '../analysis/depth/types';
@@ -52,7 +52,8 @@ import {
   requestSharedWebGpuDevice,
   subscribeSharedWebGpuDeviceLost
 } from './sharedWebGpuDevice';
-import { ADJUSTMENT_UNIFORM_FLOATS, buildAdjustmentUniform } from './adjustmentUniform';
+import { ADJUSTMENT_UNIFORM_FLOATS } from './adjustmentUniform';
+import { AdjustmentGpuPayloadWriter } from './AdjustmentGpuPayloadWriter';
 import { getCorePipelineBundle } from './corePipelineLibrary';
 import { encodeRgba8Png, readRgba8Texture } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
@@ -102,6 +103,7 @@ export class WebGpuEngine {
   private linearSpatialTexture: GPUTexture | null = null;
   private displayPostTexture: GPUTexture | null = null;
   private lastOutputSettings: Float32Array | null = null;
+  private adjustmentPayloadWriter: AdjustmentGpuPayloadWriter | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
   private readonly renderDirty = new RenderDirtyState();
@@ -269,7 +271,11 @@ export class WebGpuEngine {
       format: 'rgba32float',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
     });
-    this.writeCurveLut();
+    this.adjustmentPayloadWriter = new AdjustmentGpuPayloadWriter(this.device, {
+      uniformBuffer: this.adjustmentBuffer,
+      curveTexture: this.curveTexture
+    });
+    this.syncAdjustmentPayload();
     this.viewBuffer = this.device.createBuffer({
       size: 8 * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
@@ -924,8 +930,7 @@ export class WebGpuEngine {
       this.adjustmentState.stackSnapshot()
     );
     this.syncInteractiveRenderCadence();
-    this.writeCurveLut();
-    this.writeAdjustments();
+    this.syncAdjustmentPayload();
     const outputChanged = this.writeOutputSettings();
     if (effectChange?.earliestStage) {
       this.renderDirty.invalidateCorrectionFrom(effectChange.earliestStage);
@@ -1051,22 +1056,15 @@ export class WebGpuEngine {
   }
 
   private writeAdjustments() {
-    if (!this.adjustmentBuffer) return;
-    this.device.queue.writeBuffer(this.adjustmentBuffer, 0, buildAdjustmentUniform(
+    this.syncAdjustmentPayload();
+  }
+
+  private syncAdjustmentPayload() {
+    this.adjustmentPayloadWriter?.sync(
       this.adjustmentState.current,
       this.metadata?.width ?? 1,
       this.metadata?.height ?? 1,
       Boolean(this.imageDocument)
-    ));
-  }
-
-  private writeCurveLut() {
-    if (!this.curveTexture) return;
-    this.device.queue.writeTexture(
-      { texture: this.curveTexture },
-      buildCurveLut(this.adjustmentState.current.curves),
-      { bytesPerRow: CURVE_LUT_SIZE * 4 * Float32Array.BYTES_PER_ELEMENT },
-      { width: CURVE_LUT_SIZE, height: 1 }
     );
   }
 
@@ -1405,6 +1403,7 @@ export class WebGpuEngine {
     this.blurHorizontalBuffer?.destroy();
     this.blurVerticalBuffer?.destroy();
     this.curveTexture?.destroy();
+    this.adjustmentPayloadWriter = null;
     this.effectRuntime?.destroy();
     this.effectRuntime = null;
     this.layerEffectRenderer?.destroy();

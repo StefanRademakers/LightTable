@@ -220,6 +220,15 @@ dirty state, and gesture completion removes the cap before the final-quality
 render. Keep future expensive multipass nodes on this explicit cost-hint path
 instead of adding component-specific timers.
 
+Adjustment payload publication is also retained at the GPU boundary. The
+document grade and every per-layer/Adjustment Layer grade compare the next
+uniform payload and curve control points against their last published state.
+Only changed uniform bytes or a changed 1024-sample curve LUT cross the GPU
+queue. This means an effect-only edit performs no grade upload, a regular
+slider edit does not rebuild the curve texture, and an active curve shape edit
+does not rewrite an unchanged uniform. Keep this rule in the GPU payload owner;
+do not duplicate dirty comparisons in React components or command handlers.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in

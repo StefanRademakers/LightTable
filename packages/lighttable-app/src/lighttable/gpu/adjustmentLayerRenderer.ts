@@ -1,4 +1,3 @@
-import { buildCurveLut, CURVE_LUT_SIZE } from '../curves';
 import type {
   AdjustmentLayer,
   RasterLayer
@@ -6,7 +5,6 @@ import type {
 import { evaluateAdjustmentStack, type AdjustmentEvaluation } from '../processing/adjustmentEvaluator';
 import type { BasicAdjustments } from '../types';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
-import { buildAdjustmentUniform } from './adjustmentUniform';
 import { encodeFullscreenPass } from './fullscreenPass';
 
 const SPATIAL_EPSILON = 0.00001;
@@ -91,21 +89,11 @@ export class AdjustmentLayerRenderer {
     const plan = createAdjustmentLayerRenderPlan(layer);
     const adjustments = plan.evaluation.adjustments;
     const runtime = this.resources.getOrCreate(layer);
-    this.device.queue.writeBuffer(
-      runtime.uniformBuffer,
-      0,
-      buildAdjustmentUniform(
-        adjustments,
-        dependencies.width,
-        dependencies.height,
-        true
-      )
-    );
-    this.device.queue.writeTexture(
-      { texture: runtime.curveTexture },
-      buildCurveLut(adjustments.curves),
-      { bytesPerRow: CURVE_LUT_SIZE * 4 * Float32Array.BYTES_PER_ELEMENT },
-      { width: CURVE_LUT_SIZE, height: 1 }
+    runtime.payloadWriter.sync(
+      adjustments,
+      dependencies.width,
+      dependencies.height,
+      true
     );
 
     const basicBindGroup = this.device.createBindGroup({
