@@ -62,6 +62,9 @@ import {
   LayersWorkspacePanel
 } from './composition/workspace/LayersWorkspacePanel';
 import {
+  createEditorWorkspacePanels
+} from './composition/workspace/createEditorWorkspacePanels';
+import {
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
 import { useLightTableGradeClipboard } from './lightTableGradeClipboard';
@@ -75,25 +78,18 @@ import {
 } from './effects/lensDistortion/settings';
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
-import { ScopesPanel } from './ScopesPanel';
 import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
 import { EditorDialogs } from './editor/ui/EditorDialogs';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
-import { DebugPanel } from './editor/ui/DebugPanel';
 import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
 import { ToolOptionsContextMenu } from './editor/ui/ToolOptionsContextMenu';
 import { EditorStatusBar } from './editor/ui/EditorStatusBar';
-import { GradePanel } from './editor/panels/GradePanel';
-import { LensFxPanel } from './editor/panels/LensFxPanel';
 import {
   LightTableDockWorkspace,
   type LightTableDockWorkspaceHandle
 } from './editor/workspace/LightTableDockWorkspace';
-import {
-  createDefaultLightTableWorkspacePanels,
-  LIGHTTABLE_WORKSPACE_PANEL_IDS
-} from './editor/workspace/workspacePanelRegistry';
+import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePanelRegistry';
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import { useFillCommandController } from './application/tools/fill/useFillCommandController';
@@ -1529,54 +1525,48 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             accessoryWidthConstraintsEnabled={accessoryWidthConstraintsEnabled}
             onResizeInteractionChange={handleDockResizeInteractionChange}
             onDocumentSurfaceReady={handleDocumentSurfaceReady}
-            panels={createDefaultLightTableWorkspacePanels({
-              scopes: (
-
-              <ScopesPanel
-                containerRef={scopesColumnRef}
-                visibility={scopeVisibility}
-                settings={scopeSettings}
-                histogram={histogram}
-                hueDistributionCanvasRef={hueDistributionCanvasRef}
-                paradeCanvasRef={paradeCanvasRef}
-                vectorscopeCanvasRef={vectorscopeCanvasRef}
-                error={scopeError}
-                onVisibilityChange={(scope, visible) => {
+            panels={createEditorWorkspacePanels({
+              scopes: {
+                containerRef: scopesColumnRef,
+                visibility: scopeVisibility,
+                settings: scopeSettings,
+                histogram,
+                hueDistributionCanvasRef,
+                paradeCanvasRef,
+                vectorscopeCanvasRef,
+                error: scopeError,
+                onVisibilityChange: (scope, visible) => {
                   setScopeVisibility((current) => ({ ...current, [scope]: visible }));
-                }}
-                onSettingsChange={setScopeSettings}
-              />
-              ),
+                },
+                onSettingsChange: setScopeSettings
+              },
               layers: layersPanel,
-              debug: (
-              <DebugPanel
-                messages={debugMessages}
-                onClear={clearDebugMessages}
-                accessoryWidthConstraintsEnabled={accessoryWidthConstraintsEnabled}
-                editorResizeObserversEnabled={editorResizeObserversEnabled}
-                dockResizeActive={dockResizeActiveRef.current}
-                onAccessoryWidthConstraintsChange={(enabled) => {
+              debug: {
+                messages: debugMessages,
+                onClear: clearDebugMessages,
+                accessoryWidthConstraintsEnabled,
+                editorResizeObserversEnabled,
+                dockResizeActive: dockResizeActiveRef.current,
+                onAccessoryWidthConstraintsChange: (enabled) => {
                   setAccessoryWidthConstraintsEnabled(enabled);
                   appendDebugMessage(
                     'info',
                     'Layout diagnostics',
                     `Accessory width constraints ${enabled ? 'enabled' : 'disabled'}.`
                   );
-                }}
-                onEditorResizeObserversChange={(enabled) => {
+                },
+                onEditorResizeObserversChange: (enabled) => {
                   setEditorResizeObserversEnabled(enabled);
                   appendDebugMessage(
                     'info',
                     'Layout diagnostics',
                     `Editor ResizeObservers ${enabled ? 'enabled' : 'disabled'}.`
                   );
-                }}
-              />
-              ),
-              lensFx: (
-              <LensFxPanel
-                key={sourceIdentity || sourceName}
-                model={{
+                }
+              },
+              lensFxKey: sourceIdentity || sourceName,
+              lensFx: {
+                model: {
                   adjustments,
                   // Grade controls are contextual. A group or missing
                   // selection must never fall back to an invisible global
@@ -1587,8 +1577,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   depthResult,
                   viewportMode: lensBlurViewportMode,
                   focusPickerActive
-                }}
-                commands={{
+                },
+                commands: {
                   beginAdjustment: beginAdjustmentTransaction,
                   endAdjustment: endAdjustmentTransaction,
                   grain: {
@@ -1625,12 +1615,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     setViewportMode: setLensBlurViewportMode,
                     toggleFocusPicker: () => setFocusPickerActive((current) => !current)
                   }
-                }}
-              />
-              ),
-              grade: (
-              <GradePanel
-                model={{
+                }
+              },
+              grade: {
+                model: {
                   adjustments,
                   metadata,
                   visibility: groupVisibility,
@@ -1639,8 +1627,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   showOriginal,
                   colorMixerScopeContainerRef,
                   colorMixerHueCanvasRef
-                }}
-                commands={{
+                },
+                commands: {
                   resetAll,
                   toggleOriginal: () => {
                     setShowDifference(false);
@@ -1662,9 +1650,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetColorGradingLuminance,
                   updateCurve,
                   resetCurve
-                }}
-              />
-              )
+                }
+              }
             })}
           />
     </LightTableEditorShell>

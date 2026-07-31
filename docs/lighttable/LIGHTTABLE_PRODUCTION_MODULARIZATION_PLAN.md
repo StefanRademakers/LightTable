@@ -1536,6 +1536,10 @@ The refactor is successful when:
       registry. Stable IDs preserve saved layouts, optional panels are restored
       generically, and future feature/host panels can supply content and default
       placement without changing Dockview's document-host policy.
+- [x] Move built-in feature-view mounting behind one workspace composition
+      adapter; Scopes, Debug, Grade and Lens Fx now receive typed models and
+      command ports without their React construction leaking into the document
+      composition root.
 - [x] Compose renderer creation, source hydration, atomic publication,
       generation cancellation and teardown through one document-lifecycle hook.
       Startup open and local File-open now use the same source-load controller;
