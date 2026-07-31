@@ -140,6 +140,14 @@ dimensions no longer request display frames, and ordinary scope renders no
 longer read DOM layout. Scope analysis is deliberately unaffected by a
 display-only resize.
 
+Document publication now has the same explicit GPU boundary. `document.id`
+plus the monotonic immutable `document.revision` is the render contract:
+replaying that pair updates the engine's latest editor-only document snapshot
+but skips retained layer synchronization, adjustment-resource reconciliation,
+uniform uploads, scope invalidation and frame scheduling. Active-layer changes
+therefore remain instant UI state, while every structural, pixel, mask and
+style command still crosses the boundary through its revision increment.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in

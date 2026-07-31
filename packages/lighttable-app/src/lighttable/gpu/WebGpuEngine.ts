@@ -63,6 +63,11 @@ import { estimateDocumentGpuBytes } from './documentGpuMemoryEstimate';
 import { DocumentSourceGpuLoader } from './documentSourceGpuLoader';
 import { DocumentScopeRuntime } from './documentScopeRuntime';
 import { DocumentHistogramRuntime } from './documentHistogramRuntime';
+import {
+  documentRenderRevisionsEqual,
+  resolveDocumentRenderRevision,
+  type DocumentRenderRevision
+} from '../application/rendering/documentRenderRevision';
 
 interface ViewportRect {
   x: number;
@@ -85,6 +90,7 @@ export class WebGpuEngine {
   private readonly adjustmentLayerRenderer: AdjustmentLayerRenderer;
   private translationAlignmentService: FeatureAlignmentService | null = null;
   private imageDocument: ImageDocument | null = null;
+  private documentRenderRevision: DocumentRenderRevision | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
   private readonly renderDirty = new RenderDirtyState();
@@ -334,12 +340,20 @@ export class WebGpuEngine {
   setDocument(document: ImageDocument) {
     if (!this.imageResources.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
     const firstDocument = !this.imageDocument || this.imageDocument.id !== document.id;
+    const nextRenderRevision = resolveDocumentRenderRevision(document);
     this.imageDocument = document;
+    // Always retain the latest editor-only state, but only cross the GPU
+    // boundary when immutable document content actually changed.
+    if (documentRenderRevisionsEqual(this.documentRenderRevision, nextRenderRevision)) return;
+    this.documentRenderRevision = nextRenderRevision;
     if (firstDocument) this.documentRenderer.initialize(document, this.imageResources.sourceTexture);
     else this.documentRenderer.syncDocument(document);
     this.initializeLayerStylesIfNeeded(document);
     this.adjustmentLayerResources.syncDocument(document);
-    this.writeAdjustments();
+    // The first layered document changes the shared shader input domain from
+    // an encoded source image to a linear layer composite. Later document
+    // revisions do not change this uniform contract.
+    if (firstDocument) this.writeAdjustments();
     this.markDocumentDirty();
   }
 
@@ -1266,6 +1280,7 @@ export class WebGpuEngine {
     this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();
     this.imageDocument = null;
+    this.documentRenderRevision = null;
     this.scopeRuntime.clearTextures();
     this.histogramRuntime?.clear();
     this.effectRuntime?.destroyImageResources();
