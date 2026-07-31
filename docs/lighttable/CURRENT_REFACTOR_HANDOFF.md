@@ -152,7 +152,9 @@ time. Do not combine this with new rendering behavior.
 After the next coherent decomposition milestone, resume the active Warp track
 from `../LIGHTTABLE_GPU_WARP_TOOL_SPEC.md`. Push, Twirl clockwise/counterclockwise,
 Pinch and Bloat now share the same lazy inverse-displacement executor. The next
-Warp milestone is rate-based stationary-pointer authoring; Smooth, Reconstruct,
+Warp interaction milestone is complete too: rate-based tools keep authoring
+while held stationary at a display-independent, bounded 20 Hz cadence, while
+preview publication remains animation-frame coalesced. Smooth, Reconstruct,
 Freeze/Thaw, masking, quality and resilience work remain incomplete.
 
 A macOS test also exposed noticeably slower tool switching and painting. Treat

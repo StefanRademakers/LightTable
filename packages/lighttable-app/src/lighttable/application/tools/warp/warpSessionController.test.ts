@@ -186,6 +186,40 @@ describe('Warp session controller', () => {
     expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
   });
 
+  it('continues rate-based brushes while held still and commits one command', () => {
+    const state = harness();
+    let heldTick: ((timeMs: number) => void) | null = null;
+    const stop = vi.fn();
+    const controller = createWarpSessionController(
+      () => state.dependencies,
+      undefined,
+      undefined,
+      {
+        start: (tick) => { heldTick = tick; },
+        stop
+      }
+    );
+    expect(controller.begin({
+      pointerId: 12,
+      mode: 'twirl-cw',
+      settings: brush,
+      point: point(80, 40, 10)
+    })).toBe(true);
+    (heldTick as ((timeMs: number) => void) | null)?.(60);
+    (heldTick as ((timeMs: number) => void) | null)?.(110);
+    expect(controller.finish(12, 120)).toBe(true);
+
+    const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    const settings = readWarpNodeSettings(findWarpModuleInstance(layer.adjustmentStack)!);
+    expect(settings.strokes[0]?.mode).toBe('twirl-cw');
+    expect(settings.strokes[0]?.samples).toHaveLength(3);
+    expect(settings.strokes[0]?.samples.map(({ deltaPx }) => deltaPx)).toEqual([
+      [0, 0], [0, 0], [0, 0]
+    ]);
+    expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalled();
+  });
+
   it('removes only Warp from the active layer and records one reversible command', () => {
     const state = harness();
     const controller = createWarpSessionController(() => state.dependencies);

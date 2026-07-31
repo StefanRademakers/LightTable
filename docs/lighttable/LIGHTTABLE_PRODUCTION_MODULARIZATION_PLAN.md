@@ -1137,8 +1137,11 @@ Progress:
       tab changes cannot leak a gesture into another document.
 - [x] Generalize the Warp stamp contract and inverse-field executor for Push,
       Twirl clockwise/counterclockwise, Pinch and Bloat without introducing a
-      second persistence or preview path. Rate-based stationary-pointer input
-      remains the next interaction milestone.
+      second persistence or preview path.
+- [x] Give rate-based Warp brushes a display-independent 20 Hz hold scheduler.
+      A stationary pointer now continues Twirl/Pinch/Bloat authoring without
+      tying document publication to 60/120 Hz display frames or producing
+      catch-up bursts after a slow frame.
 - [x] Prove that Warp recipes survive layered save/reopen while the original
       raster payload remains byte-exact and unbaked.
 - [x] Make persistent effect updates dependency-aware at module-instance

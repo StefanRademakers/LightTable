@@ -33,6 +33,10 @@ import {
   createImmediateWarpPreviewScheduler,
   type WarpPreviewScheduler
 } from './warpPreviewScheduler';
+import {
+  createInactiveWarpHoldScheduler,
+  type WarpHoldScheduler
+} from './warpHoldScheduler';
 
 export interface WarpHistoryEntry {
   readonly label?: string;
@@ -143,7 +147,8 @@ const toLayerSourcePoint = (
 export const createWarpSessionController = (
   resolveDependencies: () => WarpSessionDependencies,
   gesture = new WarpGestureController(),
-  previewScheduler: WarpPreviewScheduler = createImmediateWarpPreviewScheduler()
+  previewScheduler: WarpPreviewScheduler = createImmediateWarpPreviewScheduler(),
+  holdScheduler: WarpHoldScheduler = createInactiveWarpHoldScheduler()
 ): WarpSessionController => {
   let active: ActiveWarpSession | null = null;
 
@@ -189,6 +194,7 @@ export const createWarpSessionController = (
   };
 
   const reset = () => {
+    holdScheduler.stop();
     previewScheduler.cancel();
     gesture.reset();
     active = null;
@@ -236,6 +242,12 @@ export const createWarpSessionController = (
         reset();
         return false;
       }
+      if (request.mode !== 'push') {
+        holdScheduler.start((timeMs) => {
+          const heldStroke = gesture.tick(request.pointerId, timeMs);
+          if (heldStroke && !scheduleStroke(heldStroke)) reset();
+        });
+      }
       dependencies.setError(null);
       return true;
     },
@@ -251,6 +263,7 @@ export const createWarpSessionController = (
       return stroke ? scheduleStroke(stroke) : false;
     },
     finish: (pointerId, timeMs) => {
+      holdScheduler.stop();
       const session = active;
       const stroke = gesture.finish(pointerId, timeMs);
       if (!session) return false;
@@ -291,6 +304,7 @@ export const createWarpSessionController = (
     },
     cancel: (pointerId) => {
       if (!gesture.cancel(pointerId)) return false;
+      holdScheduler.stop();
       previewScheduler.cancel();
       restoreBefore();
       active = null;

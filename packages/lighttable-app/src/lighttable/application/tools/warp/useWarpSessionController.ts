@@ -6,6 +6,7 @@ import {
   type WarpSessionDependencies
 } from './warpSessionController';
 import { createWarpPreviewScheduler } from './warpPreviewScheduler';
+import { createWarpHoldScheduler } from './warpHoldScheduler';
 
 /**
  * React lifetime adapter for the application-owned Warp transaction.
@@ -24,6 +25,10 @@ export const useWarpSessionController = (
       () => dependenciesRef.current,
       gesture,
       createWarpPreviewScheduler({
+        request: (callback) => requestAnimationFrame(callback),
+        cancel: (handle) => cancelAnimationFrame(handle)
+      }),
+      createWarpHoldScheduler({
         request: (callback) => requestAnimationFrame(callback),
         cancel: (handle) => cancelAnimationFrame(handle)
       })

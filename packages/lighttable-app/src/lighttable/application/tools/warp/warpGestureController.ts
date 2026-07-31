@@ -85,9 +85,21 @@ export class WarpGestureController {
     return this.snapshot(point.timeMs);
   }
 
+  tick(pointerId: number, timeMs: number): WarpStroke | null {
+    if (!this.owns(pointerId) || !this.previousPoint || this.mode === 'push') {
+      return null;
+    }
+    const point = { ...this.previousPoint, timeMs };
+    this.samples.push(sample(point, this.previousPoint));
+    this.previousPoint = point;
+    return this.snapshot(timeMs);
+  }
+
   finish(pointerId: number, timeMs: number): WarpStroke | null {
     if (!this.owns(pointerId)) return null;
-    const result = this.samples.length > 1 ? this.snapshot(timeMs) : null;
+    const result = this.samples.length > 1 || this.mode !== 'push'
+      ? this.snapshot(timeMs)
+      : null;
     this.reset();
     return result;
   }
