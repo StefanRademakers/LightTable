@@ -18,21 +18,12 @@ import {
 import type { BrushDab } from '../tools/brush/strokeBuilder';
 import {
   ADJUSTMENT_LAYER_MIX_WGSL,
-  BRUSH_DAB_WGSL,
   LAYER_COMPOSITE_WGSL,
   LAYER_EXPORT_WGSL,
-  LAYER_FILL_COLOR_WGSL,
-  LAYER_INVERT_COLORS_WGSL,
   LAYER_MASK_DECODE_WGSL,
   LAYER_SOURCE_DECODE_WGSL,
   LAYER_STYLE_SHAPE_WGSL,
-  LAYER_STYLE_EFFECT_WGSL,
-  SELECTION_COMBINE_WGSL,
-  SELECTION_CONTENT_COVERAGE_WGSL,
-  SELECTION_COPY_WGSL,
-  SELECTION_DISPLAY_COPY_WGSL,
-  SELECTION_FEATHER_WGSL,
-  SELECTION_SHAPE_WGSL
+  LAYER_STYLE_EFFECT_WGSL
 } from './layerShaders';
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
@@ -47,7 +38,6 @@ import type {
 import type { DocumentAssetId } from '../document/documentTypes';
 import { invertMatrix } from '../tools/transform/affine';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
-import { LAYER_TRANSFORM_WGSL, SELECTION_TRANSFORM_WGSL } from './transformShaders';
 import {
   identityAffineMatrix,
   isIdentityAffineMatrix,
@@ -81,6 +71,10 @@ import { SelectionTextureStore } from './SelectionTextureStore';
 import { TransformSessionStore } from './TransformSessionStore';
 import { PixelEditSessionStore } from './PixelEditSessionStore';
 import { PatternAssetStore } from './PatternAssetStore';
+import {
+  toolPipelinesFor,
+  type ToolPipelineBundle
+} from './ToolPipelineBundle';
 
 interface GeometryPreview {
   matrix: AffineMatrix;
@@ -167,19 +161,7 @@ export class LayerDocumentRenderer {
   private styleEffectModule: GPUShaderModule | null = null;
   private readonly fullscreenModule: GPUShaderModule;
   private readonly styleShapePipeline: GPURenderPipeline;
-  private brushPipeline!: GPURenderPipeline;
-  private erasePipeline!: GPURenderPipeline;
-  private fillColorPipeline!: GPURenderPipeline;
-  private invertColorsPipeline!: GPURenderPipeline;
-  private selectionShapePipeline!: GPURenderPipeline;
-  private selectionCombinePipeline!: GPURenderPipeline;
-  private selectionContentCoveragePipeline!: GPURenderPipeline;
-  private selectionFeatherPipeline!: GPURenderPipeline;
-  private selectionCopyPipeline!: GPURenderPipeline;
-  private selectionDisplayCopyPipeline!: GPURenderPipeline;
-  private transformPipeline!: GPURenderPipeline;
-  private selectionTransformPipeline!: GPURenderPipeline;
-  private toolPipelinesReady = false;
+  private toolPipelines: ToolPipelineBundle | null = null;
   private readonly brushCanvasBuffer: GPUBuffer;
   private readonly submittedResources: SubmittedResourceRetainer;
   private readonly layerStyleTextures: LayerStyleTextureStore;
@@ -1281,7 +1263,7 @@ export class LayerDocumentRenderer {
     const selectionSource = session.selectionTexture ?? this.selectionTextures.mask;
     if (!selectionSource) return false;
     const transformBindGroup = this.device.createBindGroup({
-      layout: this.transformPipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.transform.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: session.sourceTexture.createView() },
         { binding: 1, resource: selectionSource.createView() },
@@ -1292,14 +1274,14 @@ export class LayerDocumentRenderer {
     const encoder = this.device.createCommandEncoder({ label: 'LightTable update transform preview' });
     this.drawFullscreen(
       encoder,
-      this.transformPipeline,
+      this.toolPipelines!.transform,
       transformBindGroup,
       session.previewTexture.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
     );
     if (session.selectionTexture && session.selectionPreview) {
       const selectionBindGroup = this.device.createBindGroup({
-        layout: this.selectionTransformPipeline.getBindGroupLayout(0),
+        layout: this.toolPipelines!.selectionTransform.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: session.selectionTexture.createView() },
           { binding: 1, resource: this.sampler },
@@ -1308,7 +1290,7 @@ export class LayerDocumentRenderer {
       });
       this.drawFullscreen(
         encoder,
-        this.selectionTransformPipeline,
+        this.toolPipelines!.selectionTransform,
         selectionBindGroup,
         session.selectionPreview.createView(),
         { r: 0, g: 0, b: 0, a: 1 }
@@ -1448,7 +1430,7 @@ export class LayerDocumentRenderer {
     });
     this.device.queue.writeBuffer(dabBuffer, 0, values);
     const bindGroup = this.device.createBindGroup({
-      layout: (erase ? this.erasePipeline : this.brushPipeline).getBindGroupLayout(0),
+      layout: (erase ? this.toolPipelines!.erase : this.toolPipelines!.brush).getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: dabBuffer } },
         { binding: 1, resource: { buffer: this.brushCanvasBuffer } },
@@ -1463,7 +1445,7 @@ export class LayerDocumentRenderer {
         storeOp: 'store'
       }]
     });
-    pass.setPipeline(erase ? this.erasePipeline : this.brushPipeline);
+    pass.setPipeline(erase ? this.toolPipelines!.erase : this.toolPipelines!.brush);
     pass.setBindGroup(0, bindGroup);
     pass.draw(6, dabs.length);
     pass.end();
@@ -1499,7 +1481,7 @@ export class LayerDocumentRenderer {
       transform.b, transform.d, transform.ty, 0
     ]));
     const bindGroup = this.device.createBindGroup({
-      layout: this.fillColorPipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.fillColor.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: target.createView() },
         { binding: 1, resource: this.selectionTextures.mask.createView() },
@@ -1509,7 +1491,7 @@ export class LayerDocumentRenderer {
     const encoder = this.device.createCommandEncoder({ label: 'LightTable fill layer color' });
     this.drawFullscreen(
       encoder,
-      this.fillColorPipeline,
+      this.toolPipelines!.fillColor,
       bindGroup,
       result.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
@@ -1532,13 +1514,13 @@ export class LayerDocumentRenderer {
     if (!target) return false;
     const result = this.createTexture('LightTable inverted layer colors');
     const bindGroup = this.device.createBindGroup({
-      layout: this.invertColorsPipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.invertColors.getBindGroupLayout(0),
       entries: [{ binding: 0, resource: target.createView() }]
     });
     const encoder = this.device.createCommandEncoder({ label: 'LightTable invert layer colors' });
     this.drawFullscreen(
       encoder,
-      this.invertColorsPipeline,
+      this.toolPipelines!.invertColors,
       bindGroup,
       result.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
@@ -1595,14 +1577,14 @@ export class LayerDocumentRenderer {
     });
     this.device.queue.writeBuffer(combineBuffer, 0, new Float32Array([selectionModeValue[mode], 0, 0, 0]));
     const shapeBindGroup = this.device.createBindGroup({
-      layout: this.selectionShapePipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.selectionShape.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: shapeBuffer } },
         { binding: 1, resource: { buffer: pointBuffer } }
       ]
     });
     const combineBindGroup = this.device.createBindGroup({
-      layout: this.selectionCombinePipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.selectionCombine.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.selectionTextures.mask.createView() },
         { binding: 1, resource: this.selectionTextures.shape.createView() },
@@ -1612,10 +1594,10 @@ export class LayerDocumentRenderer {
     // Separate submissions make the attachment-to-sampled transition explicit
     // and keep backend diagnostics tied to the pass that caused them.
     const shapeEncoder = this.device.createCommandEncoder({ label: 'LightTable rasterize selection shape' });
-    this.drawFullscreen(shapeEncoder, this.selectionShapePipeline, shapeBindGroup, this.selectionTextures.shape.createView(), { r: 0, g: 0, b: 0, a: 1 });
+    this.drawFullscreen(shapeEncoder, this.toolPipelines!.selectionShape, shapeBindGroup, this.selectionTextures.shape.createView(), { r: 0, g: 0, b: 0, a: 1 });
     this.device.queue.submit([shapeEncoder.finish()]);
     const combineEncoder = this.device.createCommandEncoder({ label: 'LightTable combine selection mask' });
-    this.drawFullscreen(combineEncoder, this.selectionCombinePipeline, combineBindGroup, this.selectionTextures.result.createView(), { r: 0, g: 0, b: 0, a: 1 });
+    this.drawFullscreen(combineEncoder, this.toolPipelines!.selectionCombine, combineBindGroup, this.selectionTextures.result.createView(), { r: 0, g: 0, b: 0, a: 1 });
     this.device.queue.submit([combineEncoder.finish()]);
     this.selectionTextures.swapMaskAndResult();
     this.selectionTextures.active = true;
@@ -1644,7 +1626,7 @@ export class LayerDocumentRenderer {
       this.width, this.height, 1, 0, clampedRadius, 0, 0, 0
     ]));
     const horizontalBindGroup = this.device.createBindGroup({
-      layout: this.selectionFeatherPipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.selectionFeather.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.selectionTextures.mask.createView() },
         { binding: 1, resource: this.sampler },
@@ -1654,7 +1636,7 @@ export class LayerDocumentRenderer {
     const horizontalEncoder = this.device.createCommandEncoder({ label: 'LightTable feather selection horizontal' });
     this.drawFullscreen(
       horizontalEncoder,
-      this.selectionFeatherPipeline,
+      this.toolPipelines!.selectionFeather,
       horizontalBindGroup,
       this.selectionTextures.result.createView(),
       { r: 0, g: 0, b: 0, a: 1 }
@@ -1670,7 +1652,7 @@ export class LayerDocumentRenderer {
       this.width, this.height, 0, 1, clampedRadius, 0, 0, 0
     ]));
     const verticalBindGroup = this.device.createBindGroup({
-      layout: this.selectionFeatherPipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.selectionFeather.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.selectionTextures.result.createView() },
         { binding: 1, resource: this.sampler },
@@ -1680,7 +1662,7 @@ export class LayerDocumentRenderer {
     const verticalEncoder = this.device.createCommandEncoder({ label: 'LightTable feather selection vertical' });
     this.drawFullscreen(
       verticalEncoder,
-      this.selectionFeatherPipeline,
+      this.toolPipelines!.selectionFeather,
       verticalBindGroup,
       this.selectionTextures.mask.createView(),
       { r: 0, g: 0, b: 0, a: 1 }
@@ -1710,7 +1692,7 @@ export class LayerDocumentRenderer {
       activeLayerId: layer.id
     });
     const bindGroup = this.device.createBindGroup({
-      layout: this.selectionCopyPipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.selectionCopy.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: isolatedLayerTexture.createView() },
         { binding: 1, resource: this.selectionTextures.mask.createView() }
@@ -1718,7 +1700,7 @@ export class LayerDocumentRenderer {
     });
     this.drawFullscreen(
       encoder,
-      this.selectionCopyPipeline,
+      this.toolPipelines!.selectionCopy,
       bindGroup,
       selectionClipboard.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
@@ -1786,7 +1768,7 @@ export class LayerDocumentRenderer {
     });
     try {
       const bindGroup = this.device.createBindGroup({
-        layout: this.selectionDisplayCopyPipeline.getBindGroupLayout(0),
+        layout: this.toolPipelines!.selectionDisplayCopy.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: displayTexture.createView() },
           { binding: 1, resource: this.selectionTextures.mask.createView() }
@@ -1797,7 +1779,7 @@ export class LayerDocumentRenderer {
       });
       this.drawFullscreen(
         encoder,
-        this.selectionDisplayCopyPipeline,
+        this.toolPipelines!.selectionDisplayCopy,
         bindGroup,
         selectedDisplay.createView(),
         { r: 0, g: 0, b: 0, a: 0 }
@@ -1914,7 +1896,7 @@ export class LayerDocumentRenderer {
       0
     ]));
     const bindGroup = this.device.createBindGroup({
-      layout: this.selectionContentCoveragePipeline.getBindGroupLayout(0),
+      layout: this.toolPipelines!.selectionContentCoverage.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: runtime.texture.createView() },
         { binding: 1, resource: this.selectionTextures.mask.createView() },
@@ -1930,7 +1912,7 @@ export class LayerDocumentRenderer {
       });
       this.drawFullscreen(
         encoder,
-        this.selectionContentCoveragePipeline,
+        this.toolPipelines!.selectionContentCoverage,
         bindGroup,
         coverageTexture.createView(),
         { r: 0, g: 0, b: 0, a: 1 }
@@ -1990,99 +1972,7 @@ export class LayerDocumentRenderer {
   }
 
   private ensureToolPipelines() {
-    if (this.toolPipelinesReady) return;
-    const fullscreenModule = this.device.createShaderModule({ code: FULLSCREEN_VERTEX_WGSL });
-    const fullscreenPipeline = (
-      label: string,
-      code: string,
-      format: GPUTextureFormat = 'rgba16float'
-    ) => this.device.createRenderPipeline({
-      label,
-      layout: 'auto',
-      vertex: { module: fullscreenModule, entryPoint: 'fullscreenVertex' },
-      fragment: {
-        module: this.device.createShaderModule({ code: `${FULLSCREEN_VERTEX_WGSL}\n${code}` }),
-        entryPoint: 'main',
-        targets: [{ format }]
-      },
-      primitive: { topology: 'triangle-list' }
-    });
-    const brushModule = this.device.createShaderModule({ code: BRUSH_DAB_WGSL });
-    const brushPipeline = (
-      label: string,
-      color: GPUBlendComponent,
-      alpha: GPUBlendComponent
-    ) => this.device.createRenderPipeline({
-      label,
-      layout: 'auto',
-      vertex: { module: brushModule, entryPoint: 'brushVertex' },
-      fragment: {
-        module: brushModule,
-        entryPoint: 'brushFragment',
-        targets: [{
-          format: 'rgba16float',
-          blend: { color, alpha }
-        }]
-      },
-      primitive: { topology: 'triangle-list' }
-    });
-    this.brushPipeline = brushPipeline(
-      'LightTable round brush',
-      { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-      { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
-    );
-    this.erasePipeline = brushPipeline(
-      'LightTable round eraser',
-      { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-      { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' }
-    );
-    this.fillColorPipeline = fullscreenPipeline(
-      'LightTable fill layer color',
-      LAYER_FILL_COLOR_WGSL
-    );
-    this.invertColorsPipeline = fullscreenPipeline(
-      'LightTable invert layer colors',
-      LAYER_INVERT_COLORS_WGSL
-    );
-    this.selectionShapePipeline = fullscreenPipeline(
-      'LightTable selection shape rasterizer',
-      SELECTION_SHAPE_WGSL,
-      'r8unorm'
-    );
-    this.selectionCombinePipeline = fullscreenPipeline(
-      'LightTable selection boolean compositor',
-      SELECTION_COMBINE_WGSL,
-      'r8unorm'
-    );
-    this.selectionContentCoveragePipeline = fullscreenPipeline(
-      'LightTable selected content coverage',
-      SELECTION_CONTENT_COVERAGE_WGSL,
-      'r8unorm'
-    );
-    this.selectionFeatherPipeline = fullscreenPipeline(
-      'LightTable selection feather',
-      SELECTION_FEATHER_WGSL,
-      'r8unorm'
-    );
-    this.selectionCopyPipeline = fullscreenPipeline(
-      'LightTable selected pixel copy',
-      SELECTION_COPY_WGSL
-    );
-    this.selectionDisplayCopyPipeline = fullscreenPipeline(
-      'LightTable selected display copy',
-      SELECTION_DISPLAY_COPY_WGSL,
-      'rgba8unorm'
-    );
-    this.transformPipeline = fullscreenPipeline(
-      'LightTable layer transform preview',
-      LAYER_TRANSFORM_WGSL
-    );
-    this.selectionTransformPipeline = fullscreenPipeline(
-      'LightTable selection transform preview',
-      SELECTION_TRANSFORM_WGSL,
-      'r8unorm'
-    );
-    this.toolPipelinesReady = true;
+    this.toolPipelines ??= toolPipelinesFor(this.device);
   }
 
   private createTexture(label: string) {
