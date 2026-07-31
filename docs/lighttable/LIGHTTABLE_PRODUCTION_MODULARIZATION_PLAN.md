@@ -1039,6 +1039,11 @@ The document engine only guarantees that source and reconstructed textures are
 current before delegating the bounded measurement. Diagnostic buffer ownership,
 sampling policy and metric normalization no longer expand the render loop.
 
+Per-document GPU-memory estimation is now a pure renderer-neutral policy input.
+The concrete engine supplies resource presence and subsystem totals, while
+format costs and reduced-resolution accounting are independently tested. This
+is the measurement seam required by later workspace-level residency budgets.
+
 Lens effects now compile their complete pipeline bundles asynchronously behind
 an atomic optional-feature boundary. Until every pipeline in a feature is
 valid, rendering uses the exact input texture; compilation failure is reported

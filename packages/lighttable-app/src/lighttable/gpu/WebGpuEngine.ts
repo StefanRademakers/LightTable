@@ -61,6 +61,7 @@ import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
 import { LayerProcessingRenderer } from './layerProcessingRenderer';
 import { ReferenceDifferenceMeasurer } from './referenceDifferenceMeasurer';
+import { estimateDocumentGpuBytes } from './documentGpuMemoryEstimate';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 interface ViewportRect {
@@ -1304,21 +1305,22 @@ export class WebGpuEngine {
 
   private estimatedGpuTextureBytes() {
     if (!this.metadata) return 0;
-    const pixels = this.metadata.width * this.metadata.height;
-    const reducedPixels = Math.ceil(this.metadata.width / 4) * Math.ceil(this.metadata.height / 4);
-    let bytes = 0;
-    if (this.sourceTexture) bytes += pixels * ((this.metadata.sourceBitDepth ?? 8) > 8 ? 8 : 4);
-    if (this.correctedTexture) bytes += pixels * 8;
-    if (this.downsampleTexture) bytes += reducedPixels * 8;
-    if (this.blurTexture) bytes += reducedPixels * 8;
-    if (this.creativeTexture) bytes += pixels * 8;
-    if (this.displayTexture) bytes += pixels * 8;
-    if (this.finalTexture) bytes += pixels * 4;
-    if (this.curveTexture) bytes += CURVE_LUT_SIZE * 16;
-    bytes += this.adjustmentLayerResources.estimatedBytes();
-    bytes += this.documentRenderer?.estimatedTextureBytes() ?? 0;
-    bytes += this.effectRuntime?.estimatedTextureBytes() ?? 0;
-    return bytes;
+    return estimateDocumentGpuBytes({
+      width: this.metadata.width,
+      height: this.metadata.height,
+      sourceBitDepth: this.metadata.sourceBitDepth ?? 8,
+      source: Boolean(this.sourceTexture),
+      corrected: Boolean(this.correctedTexture),
+      downsample: Boolean(this.downsampleTexture),
+      blur: Boolean(this.blurTexture),
+      creative: Boolean(this.creativeTexture),
+      display: Boolean(this.displayTexture),
+      final: Boolean(this.finalTexture),
+      curveLutBytes: this.curveTexture ? CURVE_LUT_SIZE * 16 : 0,
+      adjustmentLayerBytes: this.adjustmentLayerResources.estimatedBytes(),
+      layerDocumentBytes: this.documentRenderer?.estimatedTextureBytes() ?? 0,
+      effectBytes: this.effectRuntime?.estimatedTextureBytes() ?? 0
+    });
   }
 
   private reportGpuMemoryEstimate() {
