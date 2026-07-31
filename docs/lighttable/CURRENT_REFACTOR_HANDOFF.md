@@ -229,6 +229,12 @@ slider edit does not rebuild the curve texture, and an active curve shape edit
 does not rewrite an unchanged uniform. Keep this rule in the GPU payload owner;
 do not duplicate dirty comparisons in React components or command handlers.
 
+The render invalidation boundary also follows the visible payload. Editing the
+stored settings of a disabled processing node now updates document state but
+does not schedule correction, histogram or scope work. Uniform, curve, output
+and enabled-effect changes resolve to their earliest affected correction stage;
+only that stage and its dependants are rerun.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in

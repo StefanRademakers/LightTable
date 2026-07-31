@@ -28,6 +28,34 @@ const CORRECTION_STAGE_ORDER: Record<CorrectionRenderStage, number> = {
   'display-post': 3
 };
 
+export interface AdjustmentRenderChange {
+  readonly effectStage: CorrectionRenderStage | null;
+  readonly uniformChanged: boolean;
+  readonly curveChanged: boolean;
+  readonly outputChanged: boolean;
+}
+
+/**
+ * Resolves the earliest correction stage whose visible output changed.
+ *
+ * Adjustment state is allowed to change without producing GPU work. This is
+ * important for disabled effect nodes: their settings must remain editable and
+ * serializable, but changing them must not wake the correction pipeline,
+ * histogram or scopes until the node becomes visible.
+ */
+export const resolveAdjustmentInvalidationStage = (
+  change: AdjustmentRenderChange
+): CorrectionRenderStage | null => {
+  const gradeOrOutputChanged = change.uniformChanged
+    || change.curveChanged
+    || change.outputChanged;
+  if (!gradeOrOutputChanged) return change.effectStage;
+  if (change.effectStage === 'source-geometry' || change.effectStage === 'linear-spatial') {
+    return change.effectStage;
+  }
+  return 'output';
+};
+
 /**
  * Owns the dependency fan-out between editor mutations and renderer stages.
  *

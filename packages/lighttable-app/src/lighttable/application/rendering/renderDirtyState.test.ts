@@ -1,5 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { RenderDirtyState } from './renderDirtyState';
+import {
+  RenderDirtyState,
+  resolveAdjustmentInvalidationStage
+} from './renderDirtyState';
+
+describe('resolveAdjustmentInvalidationStage', () => {
+  const unchanged = {
+    effectStage: null,
+    uniformChanged: false,
+    curveChanged: false,
+    outputChanged: false
+  } as const;
+
+  it('does not render for state changes with no visible GPU output', () => {
+    expect(resolveAdjustmentInvalidationStage(unchanged)).toBeNull();
+  });
+
+  it.each([
+    ['uniform', { ...unchanged, uniformChanged: true }],
+    ['curve', { ...unchanged, curveChanged: true }],
+    ['output', { ...unchanged, outputChanged: true }]
+  ])('starts %s changes at the output stage', (_name, change) => {
+    expect(resolveAdjustmentInvalidationStage(change)).toBe('output');
+  });
+
+  it('preserves an earlier effect stage', () => {
+    expect(resolveAdjustmentInvalidationStage({
+      ...unchanged,
+      effectStage: 'linear-spatial',
+      uniformChanged: true
+    })).toBe('linear-spatial');
+  });
+
+  it('uses output before a later display-post effect', () => {
+    expect(resolveAdjustmentInvalidationStage({
+      ...unchanged,
+      effectStage: 'display-post',
+      curveChanged: true
+    })).toBe('output');
+  });
+
+  it('renders an effect-only change from its own stage', () => {
+    expect(resolveAdjustmentInvalidationStage({
+      ...unchanged,
+      effectStage: 'source-geometry'
+    })).toBe('source-geometry');
+  });
+});
 
 describe('RenderDirtyState', () => {
   it('starts with every stage dirty for the first frame', () => {

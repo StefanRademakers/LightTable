@@ -1726,3 +1726,6 @@ The refactor is successful when:
       Layers now upload only payloads whose bytes actually changed; Lens Fx
       edits no longer rebuild either grade payload and ordinary non-curve
       gestures no longer regenerate the 1024-sample curve texture.
+- [x] Resolve adjustment invalidation from visible GPU payload changes. Stored
+      settings on disabled nodes no longer wake correction, histogram or scope
+      work; active changes restart at the earliest dependent render stage.

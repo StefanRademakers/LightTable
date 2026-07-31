@@ -33,7 +33,10 @@ import type {
   ReferenceDifferenceMetrics
 } from '../application/rendering/rendererTypes';
 import { RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
-import { RenderDirtyState } from '../application/rendering/renderDirtyState';
+import {
+  RenderDirtyState,
+  resolveAdjustmentInvalidationStage
+} from '../application/rendering/renderDirtyState';
 import { RenderTelemetry } from '../application/rendering/renderTelemetry';
 import {
   resolveViewportRenderState,
@@ -930,17 +933,16 @@ export class WebGpuEngine {
       this.adjustmentState.stackSnapshot()
     );
     this.syncInteractiveRenderCadence();
-    this.syncAdjustmentPayload();
+    const payloadChange = this.syncAdjustmentPayload();
     const outputChanged = this.writeOutputSettings();
-    if (effectChange?.earliestStage) {
-      this.renderDirty.invalidateCorrectionFrom(effectChange.earliestStage);
-    } else {
-      // Non-effect grade settings currently enter the final output contract.
-      // Keep that conservative boundary until every grade module has its own
-      // registered executor.
-      this.renderDirty.invalidateCorrectionFrom('output');
-    }
-    if (outputChanged) this.renderDirty.invalidateCorrectionFrom('output');
+    const invalidationStage = resolveAdjustmentInvalidationStage({
+      effectStage: effectChange?.earliestStage ?? null,
+      uniformChanged: payloadChange?.uniformChanged ?? false,
+      curveChanged: payloadChange?.curveChanged ?? false,
+      outputChanged
+    });
+    if (!invalidationStage) return;
+    this.renderDirty.invalidateCorrectionFrom(invalidationStage);
     this.renderDirty.invalidate('histogram');
     this.scopeRuntime.markImageDirty();
     this.requestRender();
@@ -1060,7 +1062,7 @@ export class WebGpuEngine {
   }
 
   private syncAdjustmentPayload() {
-    this.adjustmentPayloadWriter?.sync(
+    return this.adjustmentPayloadWriter?.sync(
       this.adjustmentState.current,
       this.metadata?.width ?? 1,
       this.metadata?.height ?? 1,
