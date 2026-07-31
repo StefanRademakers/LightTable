@@ -28,10 +28,6 @@ import { SelectionTextureStore } from './SelectionTextureStore';
 import { TransformSessionStore } from './TransformSessionStore';
 import { PixelEditSessionStore } from './PixelEditSessionStore';
 import { PatternAssetStore } from './PatternAssetStore';
-import {
-  toolPipelinesFor,
-  type ToolPipelineBundle
-} from './ToolPipelineBundle';
 import { GeometryPreviewStore } from './GeometryPreviewStore';
 import { documentPipelinesFor } from './DocumentPipelineBundle';
 import { LayerDocumentAssetService } from './LayerDocumentAssetService';
@@ -59,16 +55,13 @@ import { DocumentTextureFactory } from './DocumentTextureFactory';
 import { DocumentResourceState } from './DocumentResourceState';
 import { DocumentImageResourceLifecycle } from './DocumentImageResourceLifecycle';
 import { DocumentTextureMemoryEstimator } from './DocumentTextureMemoryEstimator';
+import { ToolPipelineProvider } from './ToolPipelineProvider';
 
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
   private readonly patternAssets = new PatternAssetStore();
   private readonly patternAssetLoader: PatternAssetLoader;
-  private readonly decodePipeline: GPURenderPipeline;
-  private readonly compositePipeline: GPURenderPipeline;
-  private readonly adjustmentMixPipeline: GPURenderPipeline;
-  private readonly fullscreenModule: GPUShaderModule;
-  private toolPipelines: ToolPipelineBundle | null = null;
+  private readonly toolPipelines: ToolPipelineProvider;
   private readonly submittedResources: SubmittedResourceRetainer;
   private readonly layerStyleRenderer: LayerStyleRenderer;
   private readonly compositor: LayerCompositor;
@@ -93,17 +86,9 @@ export class LayerDocumentRenderer {
   private readonly imageResources: DocumentImageResourceLifecycle;
   private readonly textureMemory: DocumentTextureMemoryEstimator;
 
-  private readonly device: GPUDevice;
-  private readonly sampler: GPUSampler;
-
   constructor(device: GPUDevice, sampler: GPUSampler) {
-    this.device = device;
-    this.sampler = sampler;
     const pipelines = documentPipelinesFor(device);
-    this.decodePipeline = pipelines.decode;
-    this.compositePipeline = pipelines.composite;
-    this.adjustmentMixPipeline = pipelines.adjustmentMix;
-    this.fullscreenModule = pipelines.fullscreenModule;
+    this.toolPipelines = new ToolPipelineProvider(device);
     this.textures = new DocumentTextureFactory({
       device,
       dimensions: this.resources.dimensions
@@ -127,18 +112,18 @@ export class LayerDocumentRenderer {
     this.importedLayerInitializer = new ImportedLayerInitializer({
       device,
       sampler,
-      decodePipeline: this.decodePipeline,
+      decodePipeline: pipelines.decode,
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.submittedResources = new SubmittedResourceRetainer({
-      onSubmittedWorkDone: () => this.device.queue.onSubmittedWorkDone()
+      onSubmittedWorkDone: () => device.queue.onSubmittedWorkDone()
     });
     this.layerStyleRenderer = new LayerStyleRenderer({
       device,
       sampler,
-      fullscreenModule: this.fullscreenModule,
+      fullscreenModule: pipelines.fullscreenModule,
       shapePipeline: pipelines.styleShape,
       patternAssets: this.patternAssets,
       submittedResources: this.submittedResources,
@@ -150,7 +135,7 @@ export class LayerDocumentRenderer {
     this.patternAssetLoader = new PatternAssetLoader({
       device,
       sampler,
-      decodePipeline: this.decodePipeline,
+      decodePipeline: pipelines.decode,
       store: this.patternAssets,
       generation: this.resources.generation,
       invalidateStyledLayers: () => this.releaseStyledLayerCache(),
@@ -165,8 +150,8 @@ export class LayerDocumentRenderer {
     this.compositor = new LayerCompositor({
       device,
       sampler,
-      compositePipeline: this.compositePipeline,
-      adjustmentMixPipeline: this.adjustmentMixPipeline,
+      compositePipeline: pipelines.composite,
+      adjustmentMixPipeline: pipelines.adjustmentMix,
       layerResources: this.layerResources,
       targets: this.compositeTargets,
       submittedResources: this.submittedResources,
@@ -195,10 +180,7 @@ export class LayerDocumentRenderer {
       selectionTextures: this.selectionTextures,
       sessions: this.transformSessions,
       dimensions: this.resources.dimensions,
-      pipelines: () => {
-        this.ensureToolPipelines();
-        return this.toolPipelines!;
-      },
+      pipelines: this.toolPipelines.get,
       ensureSelectionTargets: () => this.ensureSelectionTargets(),
       createTexture: (label) => this.textures.createColor(label),
       createSelectionTexture: (label) => this.textures.createSelection(label),
@@ -220,10 +202,7 @@ export class LayerDocumentRenderer {
       layerResources: this.layerResources,
       selectionTextures: this.selectionTextures,
       dimensions: this.resources.dimensions,
-      pipelines: () => {
-        this.ensureToolPipelines();
-        return this.toolPipelines!;
-      },
+      pipelines: this.toolPipelines.get,
       ensureSelectionTargets: () => this.ensureSelectionTargets(),
       createTexture: (label) => this.textures.createColor(label),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
@@ -237,10 +216,7 @@ export class LayerDocumentRenderer {
       sampler,
       textures: this.selectionTextures,
       dimensions: this.resources.dimensions,
-      pipelines: () => {
-        this.ensureToolPipelines();
-        return this.toolPipelines!;
-      },
+      pipelines: this.toolPipelines.get,
       ensureTargets: () => this.ensureSelectionTargets(),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue),
@@ -252,10 +228,7 @@ export class LayerDocumentRenderer {
       textures: this.selectionTextures,
       dimensions: this.resources.dimensions,
       generation: this.resources.generation,
-      pipelines: () => {
-        this.ensureToolPipelines();
-        return this.toolPipelines!;
-      },
+      pipelines: this.toolPipelines.get,
       ensureTargets: () => this.ensureSelectionTargets(),
       rasterRuntime: (layerId) => this.layerResources.raster(layerId),
       createCoverageTexture: (label) => this.textures.createSelection(label),
@@ -269,10 +242,7 @@ export class LayerDocumentRenderer {
       textureCodec: this.textureCodec,
       dimensions: this.resources.dimensions,
       generation: this.resources.generation,
-      pipelines: () => {
-        this.ensureToolPipelines();
-        return this.toolPipelines!;
-      },
+      pipelines: this.toolPipelines.get,
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
@@ -595,7 +565,6 @@ export class LayerDocumentRenderer {
   }
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
-    this.ensureToolPipelines();
     return this.selectionClipboard.copySelectedLayer(
       document,
       layerId,
@@ -642,10 +611,6 @@ export class LayerDocumentRenderer {
 
   clearSelection() {
     return this.selectionRasterizer.clear();
-  }
-
-  private ensureToolPipelines() {
-    this.toolPipelines ??= toolPipelinesFor(this.device);
   }
 
   destroyImageResources() {

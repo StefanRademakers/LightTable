@@ -1596,3 +1596,5 @@ The refactor is successful when:
       a generation-safe lifecycle boundary.
 - [x] Move active-document GPU memory accounting behind an extensible estimator
       to keep resource budgets independent from the renderer facade.
+- [x] Give optional authoring pipelines one lazy provider boundary so basic
+      document construction cannot accidentally compile tool shaders.
