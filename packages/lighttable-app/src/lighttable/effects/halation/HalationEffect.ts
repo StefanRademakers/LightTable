@@ -91,6 +91,10 @@ export class HalationEffect implements LightTableGpuEffect<HalationSettings> {
     this.writeSettings();
   }
 
+  interactionFrameIntervalMs() {
+    return halationIsActive(this.settings) ? 30 : 0;
+  }
+
   private ensureImageResources() {
     if (this.extractTexture && this.blurTexture && this.outputTexture) return;
     const reducedWidth = Math.max(1, Math.ceil(this.width / 4));

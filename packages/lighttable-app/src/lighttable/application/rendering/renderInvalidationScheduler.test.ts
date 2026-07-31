@@ -19,10 +19,10 @@ const createFrameHost = () => {
   };
   return {
     host,
-    run(handle = 1) {
+    run(handle = 1, timestamp = 0) {
       const callback = callbacks.get(handle);
       callbacks.delete(handle);
-      callback?.(0);
+      callback?.(timestamp);
     }
   };
 };
@@ -122,5 +122,44 @@ describe('RenderInvalidationScheduler', () => {
     expect(scheduler.flush()).toBe(false);
     frames.run();
     expect(render).not.toHaveBeenCalled();
+  });
+
+  it('retains only the newest invalidation while an interactive frame cap is active', () => {
+    const frames = createFrameHost();
+    const render = vi.fn();
+    const scheduler = new RenderInvalidationScheduler(render, frames.host);
+
+    scheduler.setMinimumFrameInterval(30);
+    scheduler.invalidate();
+    frames.run(1, 0);
+    expect(render).toHaveBeenCalledTimes(1);
+
+    scheduler.invalidate();
+    frames.run(2, 16);
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(scheduler.hasPendingInvalidation).toBe(true);
+    expect(scheduler.hasPendingFrame).toBe(true);
+
+    scheduler.invalidate();
+    frames.run(3, 33);
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(scheduler.hasPendingInvalidation).toBe(false);
+  });
+
+  it('restores full-rate rendering immediately when the frame cap is removed', () => {
+    const frames = createFrameHost();
+    const render = vi.fn();
+    const scheduler = new RenderInvalidationScheduler(render, frames.host);
+
+    scheduler.setMinimumFrameInterval(30);
+    scheduler.invalidate();
+    frames.run(1, 100);
+    scheduler.invalidate();
+    frames.run(2, 110);
+    expect(render).toHaveBeenCalledOnce();
+
+    scheduler.setMinimumFrameInterval(0);
+    frames.run(3, 111);
+    expect(render).toHaveBeenCalledTimes(2);
   });
 });

@@ -421,6 +421,7 @@ export class WebGpuEngine {
     this.histogramRuntime?.setInteractionActive(active);
     this.scopeRuntime.setInteractionActive(active);
     const effectQualityChanged = this.effectRuntime?.setInteractionActive(active) ?? false;
+    this.syncInteractiveRenderCadence();
     const layerStyleQualityChanged = this.documentRenderer?.setLayerStyleInteractionActive(active) ?? false;
     if (!active) {
       if (layerStyleQualityChanged) {
@@ -922,6 +923,7 @@ export class WebGpuEngine {
     const effectChange = this.effectRuntime?.setAdjustmentStack(
       this.adjustmentState.stackSnapshot()
     );
+    this.syncInteractiveRenderCadence();
     this.writeCurveLut();
     this.writeAdjustments();
     const outputChanged = this.writeOutputSettings();
@@ -1003,7 +1005,9 @@ export class WebGpuEngine {
   }
 
   setLensBlurInteractionActive(active: boolean) {
-    if (!this.effectRuntime?.setInteractionActive(active)) return;
+    const outputChanged = this.effectRuntime?.setInteractionActive(active) ?? false;
+    this.syncInteractiveRenderCadence();
+    if (!outputChanged) return;
     this.renderDirty.invalidateCorrectionFrom('linear-spatial');
     this.renderDirty.invalidate('histogram');
     this.scopeRuntime.markImageDirty();
@@ -1098,6 +1102,12 @@ export class WebGpuEngine {
     if (!this.destroyed) this.renderScheduler.invalidate();
   }
 
+  private syncInteractiveRenderCadence() {
+    this.renderScheduler.setMinimumFrameInterval(
+      this.effectRuntime?.preferredInteractionFrameIntervalMs() ?? 0
+    );
+  }
+
   /**
    * Leaves preview-quality paths only when an interaction actually changed
    * their output. Export and reference measurement can therefore reuse the
@@ -1105,6 +1115,7 @@ export class WebGpuEngine {
    */
   private settleInteractiveRenderQuality() {
     const effectQualityChanged = this.effectRuntime?.setInteractionActive(false) ?? false;
+    this.syncInteractiveRenderCadence();
     const layerStyleQualityChanged = this.documentRenderer?.setLayerStyleInteractionActive(false) ?? false;
     if (layerStyleQualityChanged) {
       this.renderDirty.invalidate('document');

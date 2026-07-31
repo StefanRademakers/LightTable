@@ -1326,6 +1326,9 @@ GPU is not the performance baseline.
 - inactive documents and hidden panels/scopes must schedule no frame work;
 - scope refresh, thumbnails and expensive effects must use explicit budgets and
   may update below display refresh rate;
+- render cadence belongs to the document scheduler: active expensive nodes
+  declare a cost hint, invalidations coalesce while capped, and releasing the
+  gesture restores uncapped cadence before the committed final-quality frame;
 - profile pointer-to-preview latency, long main-thread tasks, React commits,
   layout/ResizeObserver churn, GPU submission time and queued render count
   separately before changing algorithms.
@@ -1714,3 +1717,7 @@ The refactor is successful when:
 - [x] Remove whole-tree adjustment serialization from the pointer-move path.
       Gestures preview cloned immutable snapshots and perform one final equality
       check at pointer release; no-op gestures still produce no history entry.
+- [x] Add interaction-aware GPU submission budgets for expensive processing
+      graphs. Lens Blur and Halation now opt into a renderer-owned cadence cap;
+      ordinary grade stacks remain full-rate and final gesture output is never
+      left at preview cadence or quality.

@@ -21,6 +21,8 @@ export class RenderInvalidationScheduler {
   private invalidated = false;
   private paused = false;
   private disposed = false;
+  private minimumFrameIntervalMs = 0;
+  private lastRenderTimestamp: number | null = null;
 
   constructor(
     private readonly render: () => void,
@@ -37,6 +39,24 @@ export class RenderInvalidationScheduler {
 
   get isPaused(): boolean {
     return this.paused;
+  }
+
+  /**
+   * Caps renderer submissions without slowing the browser's input/event loop.
+   *
+   * A value of zero keeps normal requestAnimationFrame behaviour. Expensive
+   * interactive effect graphs can temporarily request a larger interval while
+   * lightweight grade-only graphs remain full-rate. Dirty state is retained
+   * while a frame is skipped, so the newest state wins and no intermediate GPU
+   * work is queued.
+   */
+  setMinimumFrameInterval(milliseconds: number): void {
+    if (this.disposed) return;
+    const next = Number.isFinite(milliseconds) ? Math.max(0, milliseconds) : 0;
+    if (next === this.minimumFrameIntervalMs) return;
+    this.minimumFrameIntervalMs = next;
+    if (next === 0) this.lastRenderTimestamp = null;
+    this.schedule();
   }
 
   invalidate(): boolean {
@@ -71,10 +91,19 @@ export class RenderInvalidationScheduler {
       || !this.invalidated
       || this.frameHandle !== null
     ) return;
-    this.frameHandle = this.frameHost.request(() => {
+    this.frameHandle = this.frameHost.request((timestamp) => {
       this.frameHandle = null;
       if (this.disposed || this.paused || !this.invalidated) return;
+      if (
+        this.minimumFrameIntervalMs > 0
+        && this.lastRenderTimestamp !== null
+        && timestamp - this.lastRenderTimestamp < this.minimumFrameIntervalMs
+      ) {
+        this.schedule();
+        return;
+      }
       this.invalidated = false;
+      this.lastRenderTimestamp = timestamp;
       this.render();
     });
   }
@@ -88,6 +117,7 @@ export class RenderInvalidationScheduler {
     if (this.disposed) return false;
     this.cancelFrame();
     this.invalidated = false;
+    this.lastRenderTimestamp = null;
     this.render();
     return true;
   }

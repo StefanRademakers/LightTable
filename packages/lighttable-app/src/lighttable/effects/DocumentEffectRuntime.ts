@@ -203,6 +203,17 @@ export class DocumentEffectRuntime {
     return outputChanged;
   }
 
+  preferredInteractionFrameIntervalMs(): number {
+    if (!this.interactionActive) return 0;
+    return this.orderedNodes.reduce(
+      (interval, node) => Math.max(
+        interval,
+        node.effect.interactionFrameIntervalMs?.() ?? 0
+      ),
+      0
+    );
+  }
+
   setDepthVisualization(visible: boolean): boolean {
     if (this.depthVisualization === visible) return false;
     this.depthVisualization = visible;

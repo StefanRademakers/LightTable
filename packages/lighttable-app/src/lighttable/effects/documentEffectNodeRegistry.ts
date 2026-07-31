@@ -30,6 +30,8 @@ export interface DocumentGpuEffect {
   estimatedTextureBytes(): number;
   setDepthMap?(depth: DepthAnalysisResult): void;
   setInteractionActive?(active: boolean): void;
+  /** Preferred render cadence while this active effect is upstream-dirty. */
+  interactionFrameIntervalMs?(): number;
   setDepthVisualization?(visible: boolean): void;
   readonly hasDepth?: boolean;
 }

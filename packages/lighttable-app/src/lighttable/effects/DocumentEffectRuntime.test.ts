@@ -121,6 +121,18 @@ describe('DocumentEffectRuntime', () => {
     expect(runtime.setInteractionActive(true)).toBe(false);
   });
 
+  it('applies the slowest requested cadence only during an active gesture', () => {
+    const { runtime, effects } = createRuntime();
+    effects[0]!.interactionFrameIntervalMs = () => 16;
+    effects[2]!.interactionFrameIntervalMs = () => 30;
+
+    expect(runtime.preferredInteractionFrameIntervalMs()).toBe(0);
+    runtime.setInteractionActive(true);
+    expect(runtime.preferredInteractionFrameIntervalMs()).toBe(30);
+    runtime.setInteractionActive(false);
+    expect(runtime.preferredInteractionFrameIntervalMs()).toBe(0);
+  });
+
   it('passes authoritative serialized node settings to arbitrary effect executors', () => {
     const warp = createWarpModuleInstance('warp-node', {
       version: 1,

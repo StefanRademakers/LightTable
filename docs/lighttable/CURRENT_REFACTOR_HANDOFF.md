@@ -211,6 +211,15 @@ paste deliberately publish to both domains. This is a React/main-thread
 optimization, not a GPU bypass: renderer invalidation continues to follow the
 processing-node dependency graph and the existing dirty-stage caches.
 
+Interactive render cadence is now a renderer policy rather than a UI debounce.
+Effect executors may report a preferred frame interval while their graph is
+interaction-dirty. Active Lens Blur and Halation currently cap GPU submissions
+at roughly 33 fps; lightweight grade-only stacks retain normal display-frame
+cadence. Pointer/React updates are never delayed, skipped frames keep the newest
+dirty state, and gesture completion removes the cap before the final-quality
+render. Keep future expensive multipass nodes on this explicit cost-hint path
+instead of adding component-specific timers.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in

@@ -125,6 +125,10 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     this.interactionActive = active;
   }
 
+  interactionFrameIntervalMs() {
+    return lensBlurIsActive(this.settings) && this.rawDepthTexture ? 30 : 0;
+  }
+
   setDepthVisualization(visualize: boolean) {
     this.visualizeDepth = visualize;
     if (this.rawDepthTexture && (lensBlurIsActive(this.settings) || visualize)) {
