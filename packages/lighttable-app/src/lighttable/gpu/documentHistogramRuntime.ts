@@ -1,6 +1,7 @@
 import type { RgbHistogram } from '../types';
 import type { LightTableImageMetadata } from '../types';
 import { mapGpuBufferCopy } from './gpuReadback';
+import { InteractiveRefreshGate } from '../application/rendering/interactiveRefreshGate';
 
 const HISTOGRAM_BYTE_SIZE = 768 * Uint32Array.BYTES_PER_ELEMENT;
 
@@ -19,6 +20,7 @@ export class DocumentHistogramRuntime {
   private pending = false;
   private visible = true;
   private destroyed = false;
+  private readonly interactiveRefresh = new InteractiveRefreshGate(100);
 
   constructor(
     private readonly device: GPUDevice,
@@ -63,6 +65,16 @@ export class DocumentHistogramRuntime {
     return becameVisible;
   }
 
+  /**
+   * Histogram readback is an observer, not part of direct image feedback.
+   * While a gesture is active it may sample periodically, but it must not
+   * compete with every paint dab or slider frame. Leaving the interaction
+   * resets the gate so the next dirty frame is always a final sample.
+   */
+  setInteractionActive(active: boolean): void {
+    this.interactiveRefresh.setActive(active);
+  }
+
   encode(
     encoder: GPUCommandEncoder,
     options: { readonly before: boolean; readonly required: boolean }
@@ -75,6 +87,7 @@ export class DocumentHistogramRuntime {
       || !this.histogramBuffer
       || !this.originalBindGroup
       || !this.correctedBindGroup
+      || !this.interactiveRefresh.shouldRefresh(performance.now())
     ) {
       return null;
     }

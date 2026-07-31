@@ -386,6 +386,7 @@ export class WebGpuEngine {
   setPaintInteractionActive(active: boolean) {
     if (this.paintInteractionActive === active) return;
     this.paintInteractionActive = active;
+    this.histogramRuntime?.setInteractionActive(active);
     this.scopeRuntime.setInteractionActive(active);
     this.effectRuntime?.setInteractionActive(active);
     this.documentRenderer?.setLayerStyleInteractionActive(active);
@@ -948,6 +949,7 @@ export class WebGpuEngine {
   }
 
   setScopeInteractionActive(active: boolean) {
+    this.histogramRuntime?.setInteractionActive(active);
     this.scopeRuntime.setInteractionActive(active);
     this.requestRender();
   }

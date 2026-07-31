@@ -113,10 +113,12 @@ before optimizing; the measurable budgets live in the modularization plan.
 
 The first interaction pass is now in place: viewport pointer routing performs
 one bounds read per event, paint owns an explicit preview/final-quality
-lifecycle, and visible scope analysis is capped at 10 Hz during a stroke while
-the document preview remains frame-coalesced. Stroke completion or cancellation
-requests one final-quality effects/scope render. This is a safe baseline, not a
-substitute for profiling full-document compositing on representative Macs.
+lifecycle, and visible scope analysis plus histogram GPU readback are capped at
+10 Hz during paint and adjustment gestures while the document preview remains
+frame-coalesced. Gesture completion or cancellation resets that budget and
+requests one final-quality effects/analysis render. This is a safe baseline,
+not a substitute for profiling full-document compositing on representative
+Macs.
 
 Recommended order:
 
