@@ -1600,3 +1600,6 @@ The refactor is successful when:
       document construction cannot accidentally compile tool shaders.
 - [x] Move immutable layer-tree synchronization, retained-undo pruning and
       raster render-contract resolution behind one runtime coordinator.
+- [x] Centralize styled-layer invalidation, cache release and submit-lifetime
+      transient resource policy behind one document-scoped render-resource
+      coordinator.

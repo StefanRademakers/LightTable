@@ -56,6 +56,7 @@ import { DocumentImageResourceLifecycle } from './DocumentImageResourceLifecycle
 import { DocumentTextureMemoryEstimator } from './DocumentTextureMemoryEstimator';
 import { ToolPipelineProvider } from './ToolPipelineProvider';
 import { LayerRuntimeCoordinator } from './LayerRuntimeCoordinator';
+import { RenderResourceCoordinator } from './RenderResourceCoordinator';
 
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
@@ -86,6 +87,7 @@ export class LayerDocumentRenderer {
   private readonly imageResources: DocumentImageResourceLifecycle;
   private readonly textureMemory: DocumentTextureMemoryEstimator;
   private readonly layerRuntimeCoordinator: LayerRuntimeCoordinator;
+  private readonly renderResources: RenderResourceCoordinator;
 
   constructor(device: GPUDevice, sampler: GPUSampler) {
     const pipelines = documentPipelinesFor(device);
@@ -105,7 +107,7 @@ export class LayerDocumentRenderer {
     });
     this.layerRuntimeCoordinator = new LayerRuntimeCoordinator({
       store: this.layerResources,
-      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId)
+      invalidateLayer: (layerId) => this.renderResources.invalidateLayer(layerId)
     });
     this.layerThumbnails = new LayerThumbnailService({
       dimensions: this.resources.dimensions,
@@ -137,13 +139,17 @@ export class LayerDocumentRenderer {
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
+    this.renderResources = new RenderResourceCoordinator({
+      layerStyles: this.layerStyleRenderer,
+      submittedResources: this.submittedResources
+    });
     this.patternAssetLoader = new PatternAssetLoader({
       device,
       sampler,
       decodePipeline: pipelines.decode,
       store: this.patternAssets,
       generation: this.resources.generation,
-      invalidateStyledLayers: () => this.releaseStyledLayerCache(),
+      invalidateStyledLayers: () => this.renderResources.invalidateAllStyles(),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
@@ -189,7 +195,7 @@ export class LayerDocumentRenderer {
       ensureSelectionTargets: () => this.ensureSelectionTargets(),
       createTexture: (label) => this.textures.createColor(label),
       createSelectionTexture: (label) => this.textures.createSelection(label),
-      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
+      invalidateLayer: (layerId) => this.renderResources.invalidateLayer(layerId),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
@@ -200,7 +206,7 @@ export class LayerDocumentRenderer {
       dimensions: this.resources.dimensions,
       createTexture: (label) => this.textures.createColor(label),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
-      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId)
+      invalidateLayer: (layerId) => this.renderResources.invalidateLayer(layerId)
     });
     this.rasterPaint = new RasterPaintService({
       device,
@@ -211,8 +217,8 @@ export class LayerDocumentRenderer {
       ensureSelectionTargets: () => this.ensureSelectionTargets(),
       createTexture: (label) => this.textures.createColor(label),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
-      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
-      releaseSubmittedResources: () => this.releaseSubmittedResources(),
+      invalidateLayer: (layerId) => this.renderResources.invalidateLayer(layerId),
+      releaseSubmittedResources: () => this.renderResources.releaseAfterSubmit(),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
@@ -248,7 +254,7 @@ export class LayerDocumentRenderer {
       dimensions: this.resources.dimensions,
       generation: this.resources.generation,
       pipelines: this.toolPipelines.get,
-      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
+      invalidateLayer: (layerId) => this.renderResources.invalidateLayer(layerId),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
         this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
@@ -258,8 +264,8 @@ export class LayerDocumentRenderer {
       dimensions: this.resources.dimensions,
       encodeComposite: (encoder, document, encodeAdjustment) =>
         this.encodeComposite(encoder, document, encodeAdjustment),
-      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
-      releaseSubmittedResources: () => this.releaseSubmittedResources()
+      invalidateLayer: (layerId) => this.renderResources.invalidateLayer(layerId),
+      releaseSubmittedResources: () => this.renderResources.releaseAfterSubmit()
     });
     this.documentAssets = new LayerDocumentAssetService({
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
@@ -280,7 +286,7 @@ export class LayerDocumentRenderer {
           () => this.resources.isCurrent(generation)
         );
       },
-      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
+      invalidateLayer: (layerId) => this.renderResources.invalidateLayer(layerId),
       patternSource: (patternId) => this.patternAssets.getSource(patternId),
       loadPattern: (asset) => this.patternAssetLoader.load(asset)
     });
@@ -379,24 +385,12 @@ export class LayerDocumentRenderer {
     return this.compositor.encode(encoder, document, encodeAdjustment);
   }
 
-  private releaseStyleTargets() {
-    this.layerStyleRenderer.releaseTargets();
-  }
-
-  private releaseStyledLayerCache() {
-    this.layerStyleRenderer.releaseCache();
-  }
-
-  private invalidateStyledLayerCache(layerId: LayerId) {
-    this.layerStyleRenderer.invalidate(layerId);
-  }
-
   private ensureSelectionTargets() {
     this.selectionTextures.ensureTargets();
   }
 
   releaseSubmittedResources() {
-    this.submittedResources.releaseAfterSubmittedWork();
+    this.renderResources.releaseAfterSubmit();
   }
 
   duplicateLayer(sourceId: LayerId, destinationId: LayerId) {
@@ -622,6 +616,6 @@ export class LayerDocumentRenderer {
   destroy() {
     this.destroyImageResources();
     this.rasterPaint.destroy();
-    this.submittedResources.destroyPending();
+    this.renderResources.destroyPending();
   }
 }
