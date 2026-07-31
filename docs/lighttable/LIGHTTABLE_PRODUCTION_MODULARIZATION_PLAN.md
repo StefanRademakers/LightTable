@@ -1585,3 +1585,6 @@ The refactor is successful when:
       layer semantics, selection encoding, submission and transient-resource
       release now cross one explicit boundary instead of being assembled by the
       document renderer.
+- [x] Centralize document-sized GPU texture allocation and primitive clear/draw
+      encoding. Color, mask and selection formats/usages now have one tested
+      owner shared by renderer services instead of private renderer helpers.

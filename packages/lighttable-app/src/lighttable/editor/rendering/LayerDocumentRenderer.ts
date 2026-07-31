@@ -55,9 +55,8 @@ import {
   type LayerThumbnailBlob
 } from './LayerThumbnailService';
 import { ImportedLayerInitializer } from './ImportedLayerInitializer';
+import { DocumentTextureFactory } from './DocumentTextureFactory';
 
-const textureUsage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
-  GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST;
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
   private readonly patternAssets = new PatternAssetStore();
@@ -85,6 +84,7 @@ export class LayerDocumentRenderer {
   private readonly rasterDocumentOperations: RasterDocumentOperations;
   private readonly layerThumbnails: LayerThumbnailService;
   private readonly importedLayerInitializer: ImportedLayerInitializer;
+  private readonly textures: DocumentTextureFactory;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -101,14 +101,18 @@ export class LayerDocumentRenderer {
     this.compositePipeline = pipelines.composite;
     this.adjustmentMixPipeline = pipelines.adjustmentMix;
     this.fullscreenModule = pipelines.fullscreenModule;
+    this.textures = new DocumentTextureFactory({
+      device,
+      dimensions: () => ({ width: this.width, height: this.height })
+    });
     this.textureCodec = new LayerTextureCodec(device, sampler, {
       decode: pipelines.decode,
       maskDecode: pipelines.maskDecode,
       exportLayer: pipelines.exportLayer
     });
     this.layerResources = new LayerRuntimeStore({
-      createRasterTexture: (label) => this.createTexture(label),
-      createMaskTexture: (label) => this.createMaskTexture(label)
+      createRasterTexture: (label) => this.textures.createColor(label),
+      createMaskTexture: (label) => this.textures.createMask(label)
     });
     this.layerThumbnails = new LayerThumbnailService({
       dimensions: () => ({ width: this.width, height: this.height }),
@@ -123,7 +127,7 @@ export class LayerDocumentRenderer {
       decodePipeline: this.decodePipeline,
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.submittedResources = new SubmittedResourceRetainer({
       onSubmittedWorkDone: () => this.device.queue.onSubmittedWorkDone()
@@ -136,9 +140,9 @@ export class LayerDocumentRenderer {
       patternAssets: this.patternAssets,
       submittedResources: this.submittedResources,
       dimensions: () => ({ width: this.width, height: this.height }),
-      createTexture: (label) => this.createTexture(label),
+      createTexture: (label) => this.textures.createColor(label),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.patternAssetLoader = new PatternAssetLoader({
       device,
@@ -148,10 +152,10 @@ export class LayerDocumentRenderer {
       generation: () => this.resourceGeneration,
       invalidateStyledLayers: () => this.releaseStyledLayerCache(),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.compositeTargets = new RenderTargetPair({
-      createTexture: (label) => this.createTexture(label),
+      createTexture: (label) => this.textures.createColor(label),
       firstLabel: 'LightTable layer composite A',
       secondLabel: 'LightTable layer composite B'
     });
@@ -170,14 +174,14 @@ export class LayerDocumentRenderer {
       dimensions: () => ({ width: this.width, height: this.height }),
       syncDocument: (document) => this.syncDocument(document),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
-      createTexture: (label) => this.createTexture(label),
-      clearTexture: (encoder, texture) => this.clearTexture(encoder, texture),
+      createTexture: (label) => this.textures.createColor(label),
+      clearTexture: (encoder, texture) => this.textures.clear(encoder, texture),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.selectionTextures = new SelectionTextureStore({
-      createSelectionTexture: (label) => this.createSelectionTexture(label),
-      createClipboardTexture: (label) => this.createTexture(label)
+      createSelectionTexture: (label) => this.textures.createSelection(label),
+      createClipboardTexture: (label) => this.textures.createColor(label)
     });
     this.transformRasterizer = new TransformRasterizer({
       device,
@@ -191,18 +195,18 @@ export class LayerDocumentRenderer {
         return this.toolPipelines!;
       },
       ensureSelectionTargets: () => this.ensureSelectionTargets(),
-      createTexture: (label) => this.createTexture(label),
-      createSelectionTexture: (label) => this.createSelectionTexture(label),
+      createTexture: (label) => this.textures.createColor(label),
+      createSelectionTexture: (label) => this.textures.createSelection(label),
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.pixelEditHistory = new PixelEditHistoryService({
       device,
       layerResources: this.layerResources,
       sessions: this.pixelEditSessions,
       dimensions: () => ({ width: this.width, height: this.height }),
-      createTexture: (label) => this.createTexture(label),
+      createTexture: (label) => this.textures.createColor(label),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId)
     });
@@ -216,12 +220,12 @@ export class LayerDocumentRenderer {
         return this.toolPipelines!;
       },
       ensureSelectionTargets: () => this.ensureSelectionTargets(),
-      createTexture: (label) => this.createTexture(label),
+      createTexture: (label) => this.textures.createColor(label),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       releaseSubmittedResources: () => this.releaseSubmittedResources(),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.selectionRasterizer = new SelectionRasterizer({
       device,
@@ -234,9 +238,9 @@ export class LayerDocumentRenderer {
       },
       ensureTargets: () => this.ensureSelectionTargets(),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue),
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue),
       clearTexture: (encoder, texture, clearValue) =>
-        this.clearTexture(encoder, texture, clearValue)
+        this.textures.clear(encoder, texture, clearValue)
     });
     this.selectionContentAnalyzer = new SelectionContentAnalyzer({
       device,
@@ -249,9 +253,9 @@ export class LayerDocumentRenderer {
       },
       ensureTargets: () => this.ensureSelectionTargets(),
       rasterRuntime: (layerId) => this.layerResources.raster(layerId),
-      createCoverageTexture: (label) => this.createSelectionTexture(label),
+      createCoverageTexture: (label) => this.textures.createSelection(label),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.selectionClipboard = new SelectionClipboardService({
       device,
@@ -266,7 +270,7 @@ export class LayerDocumentRenderer {
       },
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
       drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
-        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+        this.textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.rasterDocumentOperations = new RasterDocumentOperations({
       device,
@@ -393,9 +397,9 @@ export class LayerDocumentRenderer {
   private ensureSelectionTargets() {
     if (!this.selectionTextures.ensureTargets()) return;
     const encoder = this.device.createCommandEncoder({ label: 'Initialize LightTable selection' });
-    this.clearTexture(encoder, this.selectionTextures.mask!, { r: 1, g: 0, b: 0, a: 1 });
-    this.clearTexture(encoder, this.selectionTextures.result!, { r: 1, g: 0, b: 0, a: 1 });
-    this.clearTexture(encoder, this.selectionTextures.shape!);
+    this.textures.clear(encoder, this.selectionTextures.mask!, { r: 1, g: 0, b: 0, a: 1 });
+    this.textures.clear(encoder, this.selectionTextures.result!, { r: 1, g: 0, b: 0, a: 1 });
+    this.textures.clear(encoder, this.selectionTextures.shape!);
     this.device.queue.submit([encoder.finish()]);
   }
 
@@ -622,55 +626,6 @@ export class LayerDocumentRenderer {
 
   private ensureToolPipelines() {
     this.toolPipelines ??= toolPipelinesFor(this.device);
-  }
-
-  private createTexture(label: string) {
-    return this.device.createTexture({
-      label,
-      size: [Math.max(1, this.width), Math.max(1, this.height)],
-      format: 'rgba16float',
-      usage: textureUsage
-    });
-  }
-
-  private createMaskTexture(label: string) {
-    const texture = this.createTexture(label);
-    const encoder = this.device.createCommandEncoder({ label: `Initialize ${label}` });
-    this.clearTexture(encoder, texture, { r: 1, g: 1, b: 1, a: 1 });
-    this.device.queue.submit([encoder.finish()]);
-    return texture;
-  }
-
-  private createSelectionTexture(label: string) {
-    return this.device.createTexture({
-      label,
-      size: [Math.max(1, this.width), Math.max(1, this.height)],
-      format: 'r8unorm',
-      usage: textureUsage
-    });
-  }
-
-  private clearTexture(encoder: GPUCommandEncoder, texture: GPUTexture, clearValue: GPUColor = { r: 0, g: 0, b: 0, a: 0 }) {
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{ view: texture.createView(), clearValue, loadOp: 'clear', storeOp: 'store' }]
-    });
-    pass.end();
-  }
-
-  private drawFullscreen(
-    encoder: GPUCommandEncoder,
-    pipeline: GPURenderPipeline,
-    bindGroup: GPUBindGroup,
-    target: GPUTextureView,
-    clearValue: GPUColor
-  ) {
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{ view: target, clearValue, loadOp: 'clear', storeOp: 'store' }]
-    });
-    pass.setPipeline(pipeline);
-    pass.setBindGroup(0, bindGroup);
-    pass.draw(3);
-    pass.end();
   }
 
   destroyImageResources() {
