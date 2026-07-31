@@ -99,7 +99,10 @@ export const documentRenderStatesEqual = (
   next: ImageDocument
 ): boolean => {
   if (!current || current.id !== next.id) return false;
-  if (current === next || current.revision === next.revision) return true;
+  // Preview projections may deliberately keep the canonical document revision
+  // while publishing a new render-bearing layer/adjustment snapshot. Object
+  // identity is therefore the only safe whole-document fast path here.
+  if (current === next) return true;
   return current.width === next.width
     && current.height === next.height
     && current.assets === next.assets

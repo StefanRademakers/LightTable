@@ -2,11 +2,25 @@ import type {
   AdjustmentLayer,
   RasterLayer
 } from '../editor/document/documentTypes';
+import { adjustmentStackHasOwner } from '../processing/adjustmentStack';
 import type { LightTableEffectRuntimeCallbacks } from './types';
 import { DocumentEffectRuntime } from './DocumentEffectRuntime';
 
 /**
- * Owns one Lens Fx runtime per layer owner.
+ * Returns whether a layer needs a per-owner GPU effect runtime.
+ *
+ * Keep this lifecycle predicate aligned with the stages encoded below. Warp
+ * nodes belong to `geometry`; Lens Fx and output nodes belong to `lens-fx`.
+ * Grade-only stacks are handled by AdjustmentLayerRenderer and must not retain
+ * a DocumentEffectRuntime.
+ */
+export const layerNeedsEffectRuntime = (
+  layer: AdjustmentLayer | RasterLayer
+): boolean => adjustmentStackHasOwner(layer.adjustmentStack, 'geometry')
+  || adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx');
+
+/**
+ * Owns one geometry/Lens Fx runtime per layer owner.
  *
  * GPU settings buffers cannot be shared between several encoded layer passes:
  * queue writes performed before submit would otherwise make every pass observe

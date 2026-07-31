@@ -58,4 +58,24 @@ describe('document render state', () => {
 
     expect(documentRenderStatesEqual(document, changed)).toBe(false);
   });
+
+  it('detects render-bearing preview changes that retain the canonical revision', () => {
+    const document = createImageDocument('Image', 64, 32, 'asset');
+    const raster = document.layers[0];
+    if (raster.type !== 'raster') throw new Error('Expected raster fixture.');
+    const preview = {
+      ...document,
+      layers: [{
+        ...raster,
+        adjustmentStack: {
+          id: 'preview-adjustments',
+          revision: 1,
+          modules: []
+        }
+      }]
+    };
+
+    expect(preview.revision).toBe(document.revision);
+    expect(documentRenderStatesEqual(document, preview)).toBe(false);
+  });
 });

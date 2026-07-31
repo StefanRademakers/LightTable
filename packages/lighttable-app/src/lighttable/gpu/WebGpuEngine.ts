@@ -1,7 +1,10 @@
 import type { BasicAdjustments, LightTableImageMetadata } from '../types';
 import { CURVE_LUT_SIZE } from '../curves';
 import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
-import { LayerEffectRenderer } from '../effects/LayerEffectRenderer';
+import {
+  LayerEffectRenderer,
+  layerNeedsEffectRuntime
+} from '../effects/LayerEffectRenderer';
 import type { DepthAnalysisResult } from '../analysis/depth/types';
 import {
   layerIsLocked,
@@ -45,10 +48,7 @@ import {
 } from '../application/rendering/viewportRenderState';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
-import {
-  adjustmentStackHasOwner,
-  type AdjustmentStack
-} from '../processing/adjustmentStack';
+import type { AdjustmentStack } from '../processing/adjustmentStack';
 import { DocumentAdjustmentState } from '../processing/documentAdjustmentState';
 import type { WebGpuScopeOptions } from './WebGpuScopeEngine';
 import {
@@ -1162,7 +1162,7 @@ export class WebGpuEngine {
         walkLayerTree(this.imageDocument.layers)
           .filter(({ node }) =>
             (node.type === 'raster' || node.type === 'adjustment')
-            && adjustmentStackHasOwner(node.adjustmentStack, 'lens-fx')
+            && layerNeedsEffectRuntime(node)
           )
           .map(({ node }) => node.id)
       ));
