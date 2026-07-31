@@ -21,6 +21,9 @@ const effect = (id: string, stage: LightTableEffectStage): DocumentGpuEffect => 
   encode: vi.fn((_encoder: GPUCommandEncoder, input: GPUTexture) =>
     texture(`${(input as unknown as { name: string }).name}>${id}`)),
   resize: vi.fn(),
+  setDepthMap: vi.fn(),
+  setInteractionActive: vi.fn(),
+  setDepthVisualization: vi.fn(),
   destroyImageResources: vi.fn(),
   destroy: vi.fn(),
   estimatedTextureBytes: vi.fn(() => 10)
@@ -76,6 +79,38 @@ const moduleOfType = (stack: AdjustmentStack, type: string) => {
 };
 
 describe('DocumentEffectRuntime', () => {
+  it('forwards transient effect state once and restores it on recreated nodes', () => {
+    const { runtime, effects, stack } = createRuntime();
+    const depth = {
+      width: 1,
+      height: 1,
+      data: new Float32Array([0.5]),
+      nearIsOne: true as const
+    };
+    expect(runtime.setInteractionActive(true)).toBe(true);
+    expect(runtime.setInteractionActive(true)).toBe(false);
+    expect(runtime.setDepthVisualization(true)).toBe(true);
+    expect(runtime.setDepthVisualization(true)).toBe(false);
+    expect(runtime.setDepthMap(depth)).toBe(true);
+    expect(runtime.setDepthMap(depth)).toBe(false);
+
+    effects.forEach((item) => {
+      expect(item.setInteractionActive).toHaveBeenCalledOnce();
+      expect(item.setDepthVisualization).toHaveBeenCalledOnce();
+      expect(item.setDepthMap).toHaveBeenCalledOnce();
+    });
+
+    const replaced = structuredClone(stack);
+    replaced.revision += 1;
+    replaced.modules[0]!.id = 'replacement-effect';
+    replaced.modules[0]!.revision += 1;
+    runtime.setAdjustmentStack(replaced);
+    const replacement = effects.at(-1)!;
+    expect(replacement.setInteractionActive).toHaveBeenCalledWith(true);
+    expect(replacement.setDepthVisualization).toHaveBeenCalledWith(true);
+    expect(replacement.setDepthMap).toHaveBeenCalledWith(depth);
+  });
+
   it('passes authoritative serialized node settings to arbitrary effect executors', () => {
     const warp = createWarpModuleInstance('warp-node', {
       version: 1,

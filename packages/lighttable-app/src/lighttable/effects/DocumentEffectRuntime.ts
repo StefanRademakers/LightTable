@@ -91,6 +91,9 @@ export class DocumentEffectRuntime {
   private orderedNodes: readonly DocumentEffectRuntimeNode[] = [];
   private width = 0;
   private height = 0;
+  private interactionActive = false;
+  private depthVisualization = false;
+  private depthMap: DepthAnalysisResult | null = null;
 
   private constructor(
     private readonly factoryContext: DocumentEffectFactoryContext,
@@ -169,16 +172,25 @@ export class DocumentEffectRuntime {
     return bypass ? input : this.encodeStage('display-post', encoder, input);
   }
 
-  setDepthMap(depth: DepthAnalysisResult): void {
+  setDepthMap(depth: DepthAnalysisResult): boolean {
+    if (this.depthMap === depth) return false;
+    this.depthMap = depth;
     this.forEachEffect((effect) => effect.setDepthMap?.(depth));
+    return true;
   }
 
-  setInteractionActive(active: boolean): void {
+  setInteractionActive(active: boolean): boolean {
+    if (this.interactionActive === active) return false;
+    this.interactionActive = active;
     this.forEachEffect((effect) => effect.setInteractionActive?.(active));
+    return true;
   }
 
-  setDepthVisualization(visible: boolean): void {
+  setDepthVisualization(visible: boolean): boolean {
+    if (this.depthVisualization === visible) return false;
+    this.depthVisualization = visible;
     this.forEachEffect((effect) => effect.setDepthVisualization?.(visible));
+    return true;
   }
 
   get hasDepth(): boolean {
@@ -260,6 +272,9 @@ export class DocumentEffectRuntime {
           );
         }
         if (this.width > 0 && this.height > 0) effect.resize(this.width, this.height);
+        if (this.interactionActive) effect.setInteractionActive?.(true);
+        if (this.depthVisualization) effect.setDepthVisualization?.(true);
+        if (this.depthMap) effect.setDepthMap?.(this.depthMap);
         const node = {
           instanceId: planned.instance.id,
           type: planned.instance.type,

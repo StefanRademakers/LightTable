@@ -875,12 +875,12 @@ export class WebGpuEngine {
   }
 
   setAdjustments(adjustments: BasicAdjustments) {
-    this.adjustmentState.replaceBasic(adjustments);
+    if (!this.adjustmentState.replaceBasic(adjustments)) return;
     this.applyMaterializedAdjustments();
   }
 
   setAdjustmentStack(stack: AdjustmentStack) {
-    this.adjustmentState.replaceStack(stack);
+    if (!this.adjustmentState.replaceStack(stack)) return;
     this.applyMaterializedAdjustments();
   }
 
@@ -899,7 +899,7 @@ export class WebGpuEngine {
   }
 
   setDepthMap(depth: DepthAnalysisResult) {
-    this.effectRuntime?.setDepthMap(depth);
+    if (!this.effectRuntime?.setDepthMap(depth)) return;
     this.writeOutputSettings();
     this.renderDirty.invalidate('effects');
     this.scopeRuntime.markImageDirty();
@@ -961,7 +961,7 @@ export class WebGpuEngine {
   }
 
   setLensBlurInteractionActive(active: boolean) {
-    this.effectRuntime?.setInteractionActive(active);
+    if (!this.effectRuntime?.setInteractionActive(active)) return;
     this.renderDirty.invalidate('effects');
     this.scopeRuntime.markImageDirty();
     this.requestRender();
@@ -974,6 +974,7 @@ export class WebGpuEngine {
   }
 
   setLensBlurDepthVisualization(visualize: boolean) {
+    if (this.lensBlurDepthVisualization === visualize) return;
     this.lensBlurDepthVisualization = visualize;
     this.effectRuntime?.setDepthVisualization(visualize);
     this.writeOutputSettings();

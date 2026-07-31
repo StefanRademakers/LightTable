@@ -128,6 +128,12 @@ Scope option and interaction setters now follow the same semantic rule:
 replaying an identical options object or interaction flag is a no-op instead
 of scheduling analysis/render work.
 
+Document-grade replacements, Lens Blur interaction flags, depth-view flags
+and identical depth-result objects now follow that rule too. They are rejected
+before GPU buffer uploads, effect invalidation, scope work or frame scheduling.
+The effect runtime owns transient Lens Blur state and replays it when a node is
+recreated, so this optimization preserves correctness across stack changes.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in
