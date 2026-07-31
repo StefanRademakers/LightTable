@@ -2,6 +2,10 @@ import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import { OptionalGpuFeature } from '../../gpu/optionalGpuFeature';
 import type { LightTableEffectRuntimeCallbacks, LightTableGpuEffect } from '../types';
 import { WARP_FIELD_COMPUTE_WGSL, WARP_RENDER_WGSL } from './shaders';
+import {
+  planWarpFieldUpdate,
+  type WarpFieldUpdateKind
+} from './warpFieldUpdatePlan';
 import { createWarpGpuStamps, packWarpGpuStamps } from './warpStrokeSampling';
 import type { WarpNodeSettings } from './warpTypes';
 
@@ -24,12 +28,16 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   private settings: WarpNodeSettings;
   private width = 1;
   private height = 1;
-  private displacementTexture: GPUTexture | null = null;
+  private displacementTextures: [GPUTexture, GPUTexture] | null = null;
+  private activeDisplacementIndex = 0;
   private outputTexture: GPUTexture | null = null;
   private stampBuffer: GPUBuffer | null = null;
-  private stampCount = 0;
+  private pendingStampCount = 0;
+  private totalStampCount = 0;
   private fieldDirty = true;
-  private fieldSettingsKey = '';
+  private pendingFieldUpdate: WarpFieldUpdateKind = 'rebuild';
+  private committedStamps: Float32Array<ArrayBufferLike> = new Float32Array();
+  private desiredStamps: Float32Array<ArrayBufferLike> = new Float32Array();
 
   constructor(
     private readonly device: GPUDevice,
@@ -76,52 +84,63 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
     });
     this.fieldSettingsBuffer = device.createBuffer({
       label: 'LightTable Warp field settings',
-      size: 4 * Float32Array.BYTES_PER_ELEMENT,
+      size: 8 * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     this.renderSettingsBuffer = device.createBuffer({
       label: 'LightTable Warp render settings',
-      size: 4 * Float32Array.BYTES_PER_ELEMENT,
+      size: 8 * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     this.setSettings(settings);
   }
 
   setSettings(settings: WarpNodeSettings): void {
-    const fieldSettingsKey = JSON.stringify({
-      edgePinning: settings.edgePinning,
-      strokes: settings.strokes
-    });
-    const fieldChanged = fieldSettingsKey !== this.fieldSettingsKey;
     this.settings = structuredClone(settings);
-    if (fieldChanged) {
-      const stamps = createWarpGpuStamps(settings.strokes);
-      this.replaceStampBuffer(packWarpGpuStamps(stamps));
-      this.stampCount = stamps.length;
+    const nextStamps = packWarpGpuStamps(createWarpGpuStamps(settings.strokes));
+    const update = planWarpFieldUpdate(this.committedStamps, nextStamps);
+    this.desiredStamps = nextStamps;
+    this.totalStampCount = nextStamps.length / 8;
+    if (update.kind === 'none') {
+      this.pendingStampCount = 0;
+      this.pendingFieldUpdate = 'none';
+      this.fieldDirty = false;
+    } else {
+      this.replaceStampBuffer(update.upload);
+      this.pendingStampCount = update.upload.length / 8;
+      this.pendingFieldUpdate = update.kind;
       this.fieldDirty = true;
-      this.fieldSettingsKey = fieldSettingsKey;
     }
-    if (this.stampCount > 0) {
+    if (this.totalStampCount > 0) {
       void this.fieldPipeline.ensure();
       void this.renderPipeline.ensure();
       this.ensureImageResources();
     } else {
       this.destroyImageResources();
+      this.committedStamps = new Float32Array();
+      this.pendingFieldUpdate = 'none';
+      this.fieldDirty = false;
     }
     this.writeSettings();
   }
 
   resize(width: number, height: number): void {
-    this.destroyImageResources();
+    this.releaseImageTextures();
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    this.fieldDirty = true;
-    if (this.stampCount > 0) this.ensureImageResources();
+    this.committedStamps = new Float32Array();
+    if (this.totalStampCount > 0) {
+      this.replaceStampBuffer(this.desiredStamps);
+      this.pendingStampCount = this.totalStampCount;
+      this.pendingFieldUpdate = 'rebuild';
+      this.fieldDirty = true;
+      this.ensureImageResources();
+    }
     this.writeSettings();
   }
 
   encode(encoder: GPUCommandEncoder, input: GPUTexture): GPUTexture {
-    if (this.stampCount === 0) return input;
+    if (this.totalStampCount === 0) return input;
     const fieldPipeline = this.fieldPipeline.resource;
     const renderPipeline = this.renderPipeline.resource;
     if (!fieldPipeline || !renderPipeline) {
@@ -130,22 +149,32 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
       return input;
     }
     this.ensureImageResources();
-    if (!this.displacementTexture || !this.outputTexture || !this.stampBuffer) return input;
+    if (!this.displacementTextures || !this.outputTexture || !this.stampBuffer) return input;
 
     if (this.fieldDirty) {
+      const previousIndex = this.activeDisplacementIndex;
+      const outputIndex = previousIndex === 0 ? 1 : 0;
       const bindGroup = this.device.createBindGroup({
         layout: fieldPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: { buffer: this.stampBuffer } },
-          { binding: 1, resource: this.displacementTexture.createView() },
-          { binding: 2, resource: { buffer: this.fieldSettingsBuffer } }
+          { binding: 1, resource: this.displacementTextures[previousIndex].createView() },
+          { binding: 2, resource: this.displacementTextures[outputIndex].createView() },
+          { binding: 3, resource: { buffer: this.fieldSettingsBuffer } }
         ]
       });
-      const pass = encoder.beginComputePass({ label: 'LightTable rebuild Warp displacement' });
+      const pass = encoder.beginComputePass({
+        label: this.pendingFieldUpdate === 'append'
+          ? 'LightTable append Warp displacement'
+          : 'LightTable rebuild Warp displacement'
+      });
       pass.setPipeline(fieldPipeline);
       pass.setBindGroup(0, bindGroup);
       pass.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8));
       pass.end();
+      this.activeDisplacementIndex = outputIndex;
+      this.committedStamps = this.desiredStamps.slice();
+      this.pendingFieldUpdate = 'none';
       this.fieldDirty = false;
     }
 
@@ -153,7 +182,10 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
       layout: renderPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: input.createView() },
-        { binding: 1, resource: this.displacementTexture.createView() },
+        {
+          binding: 1,
+          resource: this.displacementTextures[this.activeDisplacementIndex].createView()
+        },
         { binding: 2, resource: this.sampler },
         { binding: 3, resource: { buffer: this.renderSettingsBuffer } }
       ]
@@ -175,20 +207,33 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   }
 
   estimatedTextureBytes(): number {
-    return this.displacementTexture && this.outputTexture
-      ? this.width * this.height * 16
+    return this.displacementTextures && this.outputTexture
+      ? this.width * this.height * 24
       : 0;
   }
 
   destroyImageResources(): void {
-    this.displacementTexture?.destroy();
+    this.releaseImageTextures();
+    this.committedStamps = new Float32Array();
+    if (this.totalStampCount > 0) {
+      this.replaceStampBuffer(this.desiredStamps);
+      this.pendingStampCount = this.totalStampCount;
+      this.pendingFieldUpdate = 'rebuild';
+      this.fieldDirty = true;
+      this.writeSettings();
+    }
+  }
+
+  private releaseImageTextures(): void {
+    this.displacementTextures?.forEach((texture) => texture.destroy());
     this.outputTexture?.destroy();
-    this.displacementTexture = null;
+    this.displacementTextures = null;
     this.outputTexture = null;
+    this.activeDisplacementIndex = 0;
   }
 
   destroy(): void {
-    this.destroyImageResources();
+    this.releaseImageTextures();
     this.stampBuffer?.destroy();
     this.stampBuffer = null;
     this.fieldPipeline.dispose();
@@ -198,13 +243,13 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   }
 
   private ensureImageResources(): void {
-    if (this.displacementTexture && this.outputTexture) return;
-    this.displacementTexture = this.device.createTexture({
-      label: 'LightTable Warp displacement',
+    if (this.displacementTextures && this.outputTexture) return;
+    this.displacementTextures = [0, 1].map((index) => this.device.createTexture({
+      label: `LightTable Warp displacement ${index}`,
       size: [this.width, this.height],
       format: 'rgba16float',
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
-    });
+    })) as [GPUTexture, GPUTexture];
     this.outputTexture = this.device.createTexture({
       label: 'LightTable Warp source output',
       size: [this.width, this.height],
@@ -227,20 +272,21 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   }
 
   private writeSettings(): void {
-    const field = new ArrayBuffer(16);
+    const field = new ArrayBuffer(32);
     const fieldView = new DataView(field);
     fieldView.setFloat32(0, this.width, true);
     fieldView.setFloat32(4, this.height, true);
-    fieldView.setUint32(8, this.stampCount, true);
-    fieldView.setFloat32(12, this.settings.edgePinning, true);
+    fieldView.setUint32(8, this.pendingStampCount, true);
+    fieldView.setUint32(12, this.pendingFieldUpdate === 'append' ? 1 : 0, true);
     this.device.queue.writeBuffer(this.fieldSettingsBuffer, 0, field);
 
-    const render = new ArrayBuffer(16);
+    const render = new ArrayBuffer(32);
     const renderView = new DataView(render);
     renderView.setFloat32(0, this.width, true);
     renderView.setFloat32(4, this.height, true);
     renderView.setFloat32(8, this.settings.opacity, true);
     renderView.setUint32(12, borderModeIndex(this.settings.borderMode), true);
+    renderView.setFloat32(16, this.settings.edgePinning, true);
     this.device.queue.writeBuffer(this.renderSettingsBuffer, 0, render);
   }
 }

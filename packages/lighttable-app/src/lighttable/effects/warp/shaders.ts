@@ -7,12 +7,30 @@ struct Stamp {
 struct WarpFieldSettings {
   canvasSize: vec2f,
   stampCount: u32,
-  edgePinning: f32,
+  reusePrevious: u32,
 }
 
 @group(0) @binding(0) var<storage, read> stamps: array<Stamp>;
-@group(0) @binding(1) var displacementOutput: texture_storage_2d<rgba16float, write>;
-@group(0) @binding(2) var<uniform> settings: WarpFieldSettings;
+@group(0) @binding(1) var previousDisplacement: texture_2d<f32>;
+@group(0) @binding(2) var displacementOutput: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(3) var<uniform> settings: WarpFieldSettings;
+
+fn samplePreviousDisplacement(pixel: vec2f) -> vec2f {
+  let maximum = vec2i(settings.canvasSize) - vec2i(1);
+  let base = floor(pixel - vec2f(0.5));
+  let fraction = fract(pixel - vec2f(0.5));
+  let lower = clamp(vec2i(base), vec2i(0), maximum);
+  let upper = clamp(lower + vec2i(1), vec2i(0), maximum);
+  let topLeft = textureLoad(previousDisplacement, lower, 0).xy;
+  let topRight = textureLoad(previousDisplacement, vec2i(upper.x, lower.y), 0).xy;
+  let bottomLeft = textureLoad(previousDisplacement, vec2i(lower.x, upper.y), 0).xy;
+  let bottomRight = textureLoad(previousDisplacement, upper, 0).xy;
+  return mix(
+    mix(topLeft, topRight, fraction.x),
+    mix(bottomLeft, bottomRight, fraction.x),
+    fraction.y
+  );
+}
 
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) invocation: vec3u) {
@@ -35,13 +53,10 @@ fn main(@builtin(global_invocation_id) invocation: vec3u) {
     source -= stamp.centerDelta.zw * influence;
   }
 
-  let edgeDistance = min(
-    min(destination.x, settings.canvasSize.x - destination.x),
-    min(destination.y, settings.canvasSize.y - destination.y)
-  );
-  let pinWidth = max(1.0, min(settings.canvasSize.x, settings.canvasSize.y) * 0.08);
-  let edgeWeight = mix(1.0, smoothstep(0.0, pinWidth, edgeDistance), settings.edgePinning);
-  let displacement = (source - destination) * edgeWeight;
+  if (settings.reusePrevious != 0u) {
+    source += samplePreviousDisplacement(source);
+  }
+  let displacement = source - destination;
   textureStore(displacementOutput, vec2i(invocation.xy), vec4f(displacement, 0.0, 1.0));
 }
 `;
@@ -51,6 +66,7 @@ struct WarpRenderSettings {
   canvasSize: vec2f,
   opacity: f32,
   borderMode: u32,
+  edgePinning: f32,
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
@@ -65,11 +81,19 @@ fn mirrorCoordinate(value: f32) -> f32 {
 
 @fragment
 fn main(input: FullscreenOutput) -> @location(0) vec4f {
-  let displacement = textureLoad(
+  var displacement = textureLoad(
     displacementTexture,
     clamp(vec2i(input.uv * settings.canvasSize), vec2i(0), vec2i(settings.canvasSize) - 1),
     0
   ).xy;
+  let destination = input.uv * settings.canvasSize;
+  let edgeDistance = min(
+    min(destination.x, settings.canvasSize.x - destination.x),
+    min(destination.y, settings.canvasSize.y - destination.y)
+  );
+  let pinWidth = max(1.0, min(settings.canvasSize.x, settings.canvasSize.y) * 0.08);
+  let edgeWeight = mix(1.0, smoothstep(0.0, pinWidth, edgeDistance), settings.edgePinning);
+  displacement *= edgeWeight;
   let sourceUvRaw = input.uv + displacement / settings.canvasSize;
   var sourceUv = sourceUvRaw;
   if (settings.borderMode == 2u) {
