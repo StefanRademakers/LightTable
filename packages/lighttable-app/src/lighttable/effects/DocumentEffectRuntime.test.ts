@@ -181,10 +181,60 @@ describe('DocumentEffectRuntime', () => {
       }])
     );
 
-    runtime.setAdjustmentStack(structuredClone(stack));
-    runtime.setAdjustmentStack({ ...structuredClone(stack), revision: 5 });
+    expect(runtime.setAdjustmentStack(structuredClone(stack)).earliestStage).toBeNull();
+    expect(runtime.setAdjustmentStack({ ...structuredClone(stack), revision: 5 }).earliestStage)
+      .toBeNull();
 
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('reports the earliest texture-domain stage changed by stack updates', () => {
+    const { runtime, stack } = createRuntime();
+    const updateModule = (type: string, revision: number) => ({
+      ...structuredClone(stack),
+      revision,
+      modules: stack.modules.map((module) => module.type === type
+        ? { ...module, revision: module.revision + revision }
+        : module)
+    });
+
+    expect(runtime.setAdjustmentStack(updateModule('lt.grain', 1)).earliestStage)
+      .toBe('display-post');
+    expect(runtime.setAdjustmentStack(updateModule('lt.halation', 2)).earliestStage)
+      .toBe('linear-spatial');
+    expect(runtime.setAdjustmentStack(updateModule('lt.lens-distortion', 3)).earliestStage)
+      .toBe('source-geometry');
+  });
+
+  it('reports stage changes when executable nodes are inserted, removed or reordered', () => {
+    const { runtime, stack } = createRuntime();
+    const grain = moduleOfType(stack, 'lt.grain');
+    const withoutGrain = {
+      ...structuredClone(stack),
+      revision: stack.revision + 1,
+      modules: stack.modules.filter((module) => module.type !== 'lt.grain')
+    };
+    expect(runtime.setAdjustmentStack(withoutGrain).earliestStage).toBe('display-post');
+
+    const restored = {
+      ...structuredClone(stack),
+      revision: stack.revision + 2,
+      modules: [...withoutGrain.modules, grain]
+    };
+    expect(runtime.setAdjustmentStack(restored).earliestStage).toBe('display-post');
+
+    const distortion = moduleOfType(restored, 'lt.lens-distortion');
+    const chromatic = moduleOfType(restored, 'lt.chromatic-aberration');
+    const reordered = {
+      ...structuredClone(restored),
+      revision: restored.revision + 1,
+      modules: restored.modules.map((module) => module.type === distortion.type
+        ? chromatic
+        : module.type === chromatic.type
+          ? distortion
+          : module)
+    };
+    expect(runtime.setAdjustmentStack(reordered).earliestStage).toBe('source-geometry');
   });
 
   it('updates an effect when an explicitly declared aggregate dependency changes', () => {

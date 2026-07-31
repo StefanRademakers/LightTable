@@ -40,6 +40,14 @@ export interface LinearSpatialEffectOptions {
   visualizeDepth: boolean;
 }
 
+export interface DocumentEffectStackChange {
+  /**
+   * First texture-domain stage whose output may have changed. All later stages
+   * depend on it. `null` means the executable effect plan is unchanged.
+   */
+  readonly earliestStage: LightTableEffectStage | null;
+}
+
 const EFFECT_STAGE_ORDER: Record<LightTableEffectStage, number> = {
   'source-geometry': 0,
   'linear-spatial': 1,
@@ -135,10 +143,16 @@ export class DocumentEffectRuntime {
     );
   }
 
-  setAdjustmentStack(stack: AdjustmentStack): void {
+  setAdjustmentStack(stack: AdjustmentStack): DocumentEffectStackChange {
+    const previousSignatures = this.stageSignatures();
     const nextStack = cloneAdjustmentStack(stack);
     this.synchronizeNodes(nextStack);
     this.stack = nextStack;
+    const nextSignatures = this.stageSignatures();
+    const earliestStage = (Object.keys(EFFECT_STAGE_ORDER) as LightTableEffectStage[])
+      .sort((left, right) => EFFECT_STAGE_ORDER[left] - EFFECT_STAGE_ORDER[right])
+      .find((stage) => previousSignatures.get(stage) !== nextSignatures.get(stage)) ?? null;
+    return { earliestStage };
   }
 
   resize(width: number, height: number): void {
@@ -345,5 +359,16 @@ export class DocumentEffectRuntime {
 
   private forEachEffect(operation: (effect: DocumentGpuEffect) => void): void {
     this.orderedNodes.forEach((node) => operation(node.effect));
+  }
+
+  private stageSignatures(): ReadonlyMap<LightTableEffectStage, string> {
+    const signatures = new Map<LightTableEffectStage, string>();
+    for (const stage of Object.keys(EFFECT_STAGE_ORDER) as LightTableEffectStage[]) {
+      signatures.set(stage, this.orderedNodes
+        .filter((node) => node.definition.stage === stage)
+        .map((node) => `${node.instanceId}:${node.type}:${node.updateRevision}`)
+        .join('|'));
+    }
+    return signatures;
   }
 }
