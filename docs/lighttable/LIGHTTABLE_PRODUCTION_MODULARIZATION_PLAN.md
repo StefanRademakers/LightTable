@@ -1567,3 +1567,7 @@ The refactor is successful when:
 - [x] Extract transactional pixel and mask snapshots into a dedicated GPU
       history service; paint, fill and invert now share one reversible
       begin/finish/cancel boundary without owning undo textures themselves.
+- [x] Extract raster paint, erase, fill and invert encoding into a dedicated
+      GPU service. Brush-only uniforms are now allocated on first use, empty
+      strokes and unavailable targets remain allocation-free, and renderer
+      cache invalidation is explicit at the raster-operation boundary.

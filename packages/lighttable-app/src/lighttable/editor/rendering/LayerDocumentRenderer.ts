@@ -20,7 +20,6 @@ import type {
   DocumentAssetBlob,
   PatternAssetBlob
 } from '../persistence/layeredDocumentFormat';
-import { invertMatrix } from '../tools/transform/affine';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import {
   identityAffineMatrix,
@@ -55,6 +54,7 @@ import { LayerCompositor } from './LayerCompositor';
 import type { ReversiblePixelEdit } from '../history/ReversiblePixelEdit';
 import { TransformRasterizer } from './TransformRasterizer';
 import { PixelEditHistoryService } from './PixelEditHistoryService';
+import { RasterPaintService } from './RasterPaintService';
 
 export interface LayerThumbnailBlob {
   blob: Blob;
@@ -72,7 +72,6 @@ export class LayerDocumentRenderer {
   private readonly adjustmentMixPipeline: GPURenderPipeline;
   private readonly fullscreenModule: GPUShaderModule;
   private toolPipelines: ToolPipelineBundle | null = null;
-  private readonly brushCanvasBuffer: GPUBuffer;
   private readonly submittedResources: SubmittedResourceRetainer;
   private readonly layerStyleRenderer: LayerStyleRenderer;
   private readonly compositor: LayerCompositor;
@@ -87,6 +86,7 @@ export class LayerDocumentRenderer {
   private readonly selectionClipboard: SelectionClipboardService;
   private readonly transformRasterizer: TransformRasterizer;
   private readonly pixelEditHistory: PixelEditHistoryService;
+  private readonly rasterPaint: RasterPaintService;
   private readonly rasterDocumentOperations: RasterDocumentOperations;
   private width = 0;
   private height = 0;
@@ -184,6 +184,23 @@ export class LayerDocumentRenderer {
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
       invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId)
     });
+    this.rasterPaint = new RasterPaintService({
+      device,
+      layerResources: this.layerResources,
+      selectionTextures: this.selectionTextures,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      pipelines: () => {
+        this.ensureToolPipelines();
+        return this.toolPipelines!;
+      },
+      ensureSelectionTargets: () => this.ensureSelectionTargets(),
+      createTexture: (label) => this.createTexture(label),
+      maskTextureFor: (layerId) => this.maskTextureFor(layerId),
+      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
+      releaseSubmittedResources: () => this.releaseSubmittedResources(),
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
+    });
     this.selectionRasterizer = new SelectionRasterizer({
       device,
       sampler,
@@ -258,13 +275,6 @@ export class LayerDocumentRenderer {
       patternSource: (patternId) => this.patternAssets.getSource(patternId),
       loadPattern: (asset) => this.loadPatternAsset(asset)
     });
-    // Tool-only pipelines are compiled on first use. The normal image-open
-    // path needs decode/composite, but not brush, selection or transform.
-    this.brushCanvasBuffer = device.createBuffer({
-      label: 'LightTable brush canvas settings',
-      size: 80,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
   }
 
   async initializeLayerStylePipeline() {
@@ -280,13 +290,6 @@ export class LayerDocumentRenderer {
     this.width = document.width;
     this.height = document.height;
     this.selectionTextures.active = false;
-    this.device.queue.writeBuffer(this.brushCanvasBuffer, 0, new Float32Array([
-      this.width, this.height, 0, 0,
-      1, 0, 0, 0,
-      0, 1, 0, 0,
-      1, 0, 0, 0,
-      0, 1, 0, 0
-    ]));
     this.syncDocument(document);
     const imported = walkRasterLayers(document.layers)
       .map(({ layer }) => layer)
@@ -592,62 +595,17 @@ export class LayerDocumentRenderer {
     erase = false,
     transform: AffineMatrix = identityAffineMatrix()
   ) {
-    if (!dabs.length) return;
-    this.ensureToolPipelines();
-    this.ensureSelectionTargets();
-    const runtime = this.layerResources.raster(layerId);
-    if (channel === 'pixels' && !runtime) throw new Error('The active raster layer is not available on the GPU.');
-    const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
-    if (!target) throw new Error('The active paint channel is not available on the GPU.');
-    if (!this.selectionTextures.mask) throw new Error('The LightTable selection mask is not initialized.');
-    const inverse = invertMatrix(transform);
-    if (!inverse) throw new Error('The active layer transform cannot be inverted for painting.');
-    this.device.queue.writeBuffer(this.brushCanvasBuffer, 0, new Float32Array([
-      this.width, this.height, 0, 0,
-      inverse.a, inverse.c, inverse.tx, 0,
-      inverse.b, inverse.d, inverse.ty, 0,
-      transform.a, transform.c, transform.tx, 0,
-      transform.b, transform.d, transform.ty, 0
-    ]));
-    const paintColor: [number, number, number] = channel === 'mask'
-      ? [color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722, color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722, color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722]
-      : color;
-    const values = new Float32Array(dabs.length * 8);
-    dabs.forEach((dab, index) => {
-      const pressure = Math.min(1, Math.max(0.05, dab.pressure || 1));
-      values.set([
-        dab.x, dab.y, dab.size * (0.2 + pressure * 0.8), hardness,
-        paintColor[0], paintColor[1], paintColor[2], opacity * flow * pressure
-      ], index * 8);
-    });
-    const dabBuffer = this.device.createBuffer({
-      label: 'LightTable brush dab batch',
-      size: values.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(dabBuffer, 0, values);
-    const bindGroup = this.device.createBindGroup({
-      layout: (erase ? this.toolPipelines!.erase : this.toolPipelines!.brush).getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: dabBuffer } },
-        { binding: 1, resource: { buffer: this.brushCanvasBuffer } },
-        { binding: 2, resource: this.selectionTextures.mask.createView() }
-      ]
-    });
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable brush dabs' });
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: target.createView(),
-        loadOp: 'load',
-        storeOp: 'store'
-      }]
-    });
-    pass.setPipeline(erase ? this.toolPipelines!.erase : this.toolPipelines!.brush);
-    pass.setBindGroup(0, bindGroup);
-    pass.draw(6, dabs.length);
-    pass.end();
-    this.device.queue.submit([encoder.finish()]);
-    void this.device.queue.onSubmittedWorkDone().then(() => dabBuffer.destroy());
+    return this.rasterPaint.paintDabs(
+      layerId,
+      channel,
+      dabs,
+      color,
+      hardness,
+      opacity,
+      flow,
+      erase,
+      transform
+    );
   }
 
   fillLayerColor(
@@ -657,76 +615,17 @@ export class LayerDocumentRenderer {
     preserveTransparency: boolean,
     transform: AffineMatrix = identityAffineMatrix()
   ) {
-    this.ensureToolPipelines();
-    this.ensureSelectionTargets();
-    const runtime = this.layerResources.raster(layerId);
-    const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
-    if (!target || !this.selectionTextures.mask) return false;
-
-    const result = this.createTexture('LightTable filled layer color');
-    const settingsBuffer = this.device.createBuffer({
-      label: 'LightTable fill color settings',
-      size: 64,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
-      color[0], color[1], color[2], 1,
-      preserveTransparency ? 1 : 0,
-      channel === 'mask' ? 1 : 0,
-      0, 0,
-      transform.a, transform.c, transform.tx, 0,
-      transform.b, transform.d, transform.ty, 0
-    ]));
-    const bindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.fillColor.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: target.createView() },
-        { binding: 1, resource: this.selectionTextures.mask.createView() },
-        { binding: 2, resource: { buffer: settingsBuffer } }
-      ]
-    });
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable fill layer color' });
-    this.drawFullscreen(
-      encoder,
-      this.toolPipelines!.fillColor,
-      bindGroup,
-      result.createView(),
-      { r: 0, g: 0, b: 0, a: 0 }
+    return this.rasterPaint.fillColor(
+      layerId,
+      channel,
+      color,
+      preserveTransparency,
+      transform
     );
-    encoder.copyTextureToTexture({ texture: result }, { texture: target }, [this.width, this.height]);
-    this.device.queue.submit([encoder.finish()]);
-    this.invalidateStyledLayerCache(layerId);
-    this.releaseSubmittedResources();
-    void this.device.queue.onSubmittedWorkDone().then(() => {
-      result.destroy();
-      settingsBuffer.destroy();
-    });
-    return true;
   }
 
   invertLayerColors(layerId: LayerId, channel: PaintChannel = 'pixels') {
-    this.ensureToolPipelines();
-    const runtime = this.layerResources.raster(layerId);
-    const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
-    if (!target) return false;
-    const result = this.createTexture('LightTable inverted layer colors');
-    const bindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.invertColors.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: target.createView() }]
-    });
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable invert layer colors' });
-    this.drawFullscreen(
-      encoder,
-      this.toolPipelines!.invertColors,
-      bindGroup,
-      result.createView(),
-      { r: 0, g: 0, b: 0, a: 0 }
-    );
-    encoder.copyTextureToTexture({ texture: result }, { texture: target }, [this.width, this.height]);
-    this.device.queue.submit([encoder.finish()]);
-    this.releaseSubmittedResources();
-    void this.device.queue.onSubmittedWorkDone().then(() => result.destroy());
-    return true;
+    return this.rasterPaint.invertColors(layerId, channel);
   }
 
   setSelection(shape: SelectionShape, requestedMode: SelectionMode) {
@@ -864,7 +763,7 @@ export class LayerDocumentRenderer {
 
   destroy() {
     this.destroyImageResources();
-    this.brushCanvasBuffer.destroy();
+    this.rasterPaint.destroy();
     this.submittedResources.destroyPending();
   }
 }
