@@ -1603,3 +1603,6 @@ The refactor is successful when:
 - [x] Centralize styled-layer invalidation, cache release and submit-lifetime
       transient resource policy behind one document-scoped render-resource
       coordinator.
+- [x] Move concrete GPU service-graph assembly out of the renderer facade.
+      Feature services now meet only in one document-runtime composition
+      module, while the editor-facing renderer exposes stable operations.
