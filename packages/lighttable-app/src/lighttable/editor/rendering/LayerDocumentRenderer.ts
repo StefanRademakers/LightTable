@@ -7,7 +7,6 @@ import {
   type RasterLayer
 } from '../document/documentTypes';
 import {
-  findRasterLayer,
   walkLayerTree
 } from '../document/layerTree';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
@@ -573,23 +572,13 @@ export class LayerDocumentRenderer {
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
     this.ensureToolPipelines();
-    if (!this.selectionTextures.active || !this.selectionTextures.mask) return false;
-    const layer = findRasterLayer(document, layerId);
-    if (!layer || !layer.visible) return false;
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable copy selected layer pixels' });
-    // Blend modes describe the relationship with lower layers. Copying one
-    // active layer must preserve its own pixels/mask/opacity, not blend it
-    // against a synthetic transparent background.
-    const isolatedLayer = { ...layer, blendMode: 'normal' as const };
-    const isolatedLayerTexture = this.encodeComposite(encoder, {
-      ...document,
-      layers: [isolatedLayer],
-      activeLayerId: layer.id
-    });
-    if (!this.selectionClipboard.encodeLayerCopy(encoder, isolatedLayerTexture)) return false;
-    this.device.queue.submit([encoder.finish()]);
-    this.releaseSubmittedResources();
-    return true;
+    return this.selectionClipboard.copySelectedLayer(
+      document,
+      layerId,
+      (encoder, isolatedDocument) =>
+        this.encodeComposite(encoder, isolatedDocument),
+      () => this.releaseSubmittedResources()
+    );
   }
 
   async exportSelectionClipboard(bounds: Rect) {

@@ -1,4 +1,5 @@
-import type { LayerId, Rect } from '../document/documentTypes';
+import type { ImageDocument, LayerId, Rect } from '../document/documentTypes';
+import { findRasterLayer } from '../document/layerTree';
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
 import { encodeRgba8Png, readRgba8Texture } from '../../gpu/gpuReadback';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
@@ -59,6 +60,37 @@ interface SelectionClipboardServiceOptions {
  */
 export class SelectionClipboardService {
   constructor(private readonly options: SelectionClipboardServiceOptions) {}
+
+  copySelectedLayer(
+    document: ImageDocument,
+    layerId: LayerId,
+    encodeComposite: (
+      encoder: GPUCommandEncoder,
+      document: ImageDocument
+    ) => GPUTexture,
+    releaseSubmittedResources: () => void
+  ) {
+    const { device, textures } = this.options;
+    if (!textures.active || !textures.mask) return false;
+    const layer = findRasterLayer(document, layerId);
+    if (!layer || !layer.visible) return false;
+    const encoder = device.createCommandEncoder({
+      label: 'LightTable copy selected layer pixels'
+    });
+    // A layer blend mode describes its relationship with lower layers.
+    // Isolated copy preserves the layer's pixels, mask and opacity without
+    // blending it against an artificial transparent background.
+    const isolatedLayer = { ...layer, blendMode: 'normal' as const };
+    const isolatedLayerTexture = encodeComposite(encoder, {
+      ...document,
+      layers: [isolatedLayer],
+      activeLayerId: layer.id
+    });
+    if (!this.encodeLayerCopy(encoder, isolatedLayerTexture)) return false;
+    device.queue.submit([encoder.finish()]);
+    releaseSubmittedResources();
+    return true;
+  }
 
   encodeLayerCopy(encoder: GPUCommandEncoder, sourceTexture: GPUTexture) {
     const { textures, device, drawFullscreen } = this.options;

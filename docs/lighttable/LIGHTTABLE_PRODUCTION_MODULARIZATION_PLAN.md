@@ -1581,3 +1581,7 @@ The refactor is successful when:
 - [x] Extract flat-document source hydration into a dedicated imported-layer
       initializer. Runtime-only layered documents bypass it explicitly and the
       renderer no longer owns startup decode command construction.
+- [x] Move selected-layer copy compositing into the clipboard service. Isolated
+      layer semantics, selection encoding, submission and transient-resource
+      release now cross one explicit boundary instead of being assembled by the
+      document renderer.
