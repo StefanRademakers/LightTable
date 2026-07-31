@@ -16,15 +16,7 @@ import {
   walkRasterLayers
 } from '../document/layerTree';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
-import {
-  ADJUSTMENT_LAYER_MIX_WGSL,
-  LAYER_COMPOSITE_WGSL,
-  LAYER_EXPORT_WGSL,
-  LAYER_MASK_DECODE_WGSL,
-  LAYER_SOURCE_DECODE_WGSL,
-  LAYER_STYLE_SHAPE_WGSL,
-  LAYER_STYLE_EFFECT_WGSL
-} from './layerShaders';
+import { LAYER_STYLE_EFFECT_WGSL } from './layerShaders';
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
 import type { PaintChannel } from '../session/editorSession';
@@ -76,6 +68,7 @@ import {
   type ToolPipelineBundle
 } from './ToolPipelineBundle';
 import { GeometryPreviewStore } from './GeometryPreviewStore';
+import { documentPipelinesFor } from './DocumentPipelineBundle';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -101,49 +94,11 @@ const selectionModeValue: Record<SelectionMode, number> = {
   feather: 5
 };
 const LAYER_EXPORT_SETTINGS_FLOATS = 4;
-interface DocumentPipelineBundle {
-  decode: GPURenderPipeline;
-  maskDecode: GPURenderPipeline;
-  exportLayer: GPURenderPipeline;
-  composite: GPURenderPipeline;
-  adjustmentMix: GPURenderPipeline;
-  fullscreenModule: GPUShaderModule;
-  styleShape: GPURenderPipeline;
-}
-const documentPipelineCache = new WeakMap<GPUDevice, DocumentPipelineBundle>();
 interface StyleEffectPipelineEntry {
   module: GPUShaderModule;
   pipeline: Promise<GPURenderPipeline>;
 }
 const styleEffectPipelineCache = new WeakMap<GPUDevice, StyleEffectPipelineEntry>();
-
-const documentPipelines = (device: GPUDevice) => {
-  const cached = documentPipelineCache.get(device);
-  if (cached) return cached;
-  const fullscreenModule = device.createShaderModule({ code: FULLSCREEN_VERTEX_WGSL });
-  const create = (label: string, code: string, format: GPUTextureFormat) => device.createRenderPipeline({
-    label,
-    layout: 'auto',
-    vertex: { module: fullscreenModule, entryPoint: 'fullscreenVertex' },
-    fragment: {
-      module: device.createShaderModule({ code: `${FULLSCREEN_VERTEX_WGSL}\n${code}` }),
-      entryPoint: 'main',
-      targets: [{ format }]
-    },
-    primitive: { topology: 'triangle-list' }
-  });
-  const bundle: DocumentPipelineBundle = {
-    decode: create('LightTable layer source decode', LAYER_SOURCE_DECODE_WGSL, 'rgba16float'),
-    maskDecode: create('LightTable mask source decode', LAYER_MASK_DECODE_WGSL, 'rgba16float'),
-    exportLayer: create('LightTable raster layer export', LAYER_EXPORT_WGSL, 'rgba8unorm'),
-    composite: create('LightTable layer compositor', LAYER_COMPOSITE_WGSL, 'rgba16float'),
-    adjustmentMix: create('LightTable adjustment layer mix', ADJUSTMENT_LAYER_MIX_WGSL, 'rgba16float'),
-    styleShape: create('LightTable Layer Style shape', LAYER_STYLE_SHAPE_WGSL, 'rgba16float'),
-    fullscreenModule
-  };
-  documentPipelineCache.set(device, bundle);
-  return bundle;
-};
 
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
@@ -177,7 +132,7 @@ export class LayerDocumentRenderer {
   constructor(device: GPUDevice, sampler: GPUSampler) {
     this.device = device;
     this.sampler = sampler;
-    const pipelines = documentPipelines(device);
+    const pipelines = documentPipelinesFor(device);
     this.decodePipeline = pipelines.decode;
     this.maskDecodePipeline = pipelines.maskDecode;
     this.exportPipeline = pipelines.exportLayer;
