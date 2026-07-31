@@ -16,6 +16,37 @@ const forbidden = [
 ];
 
 const failures = [];
+const rendererFacadePath =
+  'packages/lighttable-app/src/lighttable/editor/rendering/LayerDocumentRenderer.ts';
+const rendererFacadeImports = new Set([
+  '../document/documentTypes',
+  '../history/ReversiblePixelEdit',
+  '../persistence/layeredDocumentFormat',
+  '../selection/selectionCoverage',
+  '../selection/selectionTypes',
+  '../session/editorSession',
+  '../tools/brush/strokeBuilder',
+  '../tools/transform/transformTypes',
+  './LayerThumbnailService',
+  './RasterDocumentOperations',
+  './createLayerDocumentRendererRuntime',
+  './renderContract'
+]);
+
+function verifyRendererFacadeImports(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (normalizedPath !== rendererFacadePath) return;
+
+  const importPattern = /from\s+['"]([^'"]+)['"]/g;
+  for (const match of source.matchAll(importPattern)) {
+    const moduleSpecifier = match[1];
+    if (!rendererFacadeImports.has(moduleSpecifier)) {
+      failures.push(
+        `${relativePath}: renderer facade import "${moduleSpecifier}" is outside its allowlist`
+      );
+    }
+  }
+}
 
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
@@ -28,6 +59,7 @@ async function scan(relativeDirectory) {
     if (!sourceExtensions.has(path.extname(entry.name))) continue;
 
     const source = await readFile(relativePath, 'utf8');
+    verifyRendererFacadeImports(relativePath, source);
     for (const token of forbidden) {
       if (source.includes(token)) failures.push(`${relativePath}: ${token}`);
     }

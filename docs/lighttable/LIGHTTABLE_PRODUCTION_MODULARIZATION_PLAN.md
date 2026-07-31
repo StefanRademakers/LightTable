@@ -1606,3 +1606,6 @@ The refactor is successful when:
 - [x] Move concrete GPU service-graph assembly out of the renderer facade.
       Feature services now meet only in one document-runtime composition
       module, while the editor-facing renderer exposes stable operations.
+- [x] Enforce the renderer-facade boundary in the repository verifier with an
+      explicit import allowlist, so concrete GPU services cannot silently
+      migrate back into the facade.
