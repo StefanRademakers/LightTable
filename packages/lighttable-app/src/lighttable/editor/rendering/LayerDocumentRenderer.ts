@@ -70,6 +70,7 @@ import { documentPipelinesFor } from './DocumentPipelineBundle';
 import { LayerStylePipelineProvider } from './LayerStylePipelineProvider';
 import { LayerDocumentAssetService } from './LayerDocumentAssetService';
 import { LayerTextureCodec } from './LayerTextureCodec';
+import { SelectionRasterizer } from './SelectionRasterizer';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -86,14 +87,6 @@ export interface LayerThumbnailBlob {
 
 const textureUsage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
   GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST;
-const selectionModeValue: Record<SelectionMode, number> = {
-  replace: 0,
-  add: 1,
-  subtract: 2,
-  intersect: 3,
-  invert: 4,
-  feather: 5
-};
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
   private readonly patternAssets = new PatternAssetStore();
@@ -113,6 +106,7 @@ export class LayerDocumentRenderer {
   private readonly pixelEditSessions = new PixelEditSessionStore();
   private readonly documentAssets: LayerDocumentAssetService;
   private readonly textureCodec: LayerTextureCodec;
+  private readonly selectionRasterizer: SelectionRasterizer;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -155,6 +149,21 @@ export class LayerDocumentRenderer {
     this.selectionTextures = new SelectionTextureStore({
       createSelectionTexture: (label) => this.createSelectionTexture(label),
       createClipboardTexture: (label) => this.createTexture(label)
+    });
+    this.selectionRasterizer = new SelectionRasterizer({
+      device,
+      sampler,
+      textures: this.selectionTextures,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      pipelines: () => {
+        this.ensureToolPipelines();
+        return this.toolPipelines!;
+      },
+      ensureTargets: () => this.ensureSelectionTargets(),
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue),
+      clearTexture: (encoder, texture, clearValue) =>
+        this.clearTexture(encoder, texture, clearValue)
     });
     this.documentAssets = new LayerDocumentAssetService({
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
@@ -1409,146 +1418,11 @@ export class LayerDocumentRenderer {
   }
 
   setSelection(shape: SelectionShape, requestedMode: SelectionMode) {
-    this.ensureToolPipelines();
-    this.ensureSelectionTargets();
-    if (!this.selectionTextures.mask || !this.selectionTextures.result || !this.selectionTextures.shape) return false;
-    if (
-      (shape.kind === 'free' || shape.kind === 'polygon')
-      && shape.points.length < 3
-    ) return false;
-    if (
-      shape.kind !== 'free'
-      && shape.kind !== 'polygon'
-      && shape.points.length < 2
-    ) return false;
-    if (!this.selectionTextures.active && requestedMode === 'subtract') return false;
-    const mode = this.selectionTextures.active ? requestedMode : 'replace';
-    const points = shape.points.length ? shape.points : [{ x: 0, y: 0 }];
-    const pointValues = new Float32Array(points.length * 2);
-    points.forEach((point, index) => pointValues.set([point.x, point.y], index * 2));
-    const pointBuffer = this.device.createBuffer({
-      label: 'LightTable selection points',
-      size: Math.max(8, pointValues.byteLength),
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(pointBuffer, 0, pointValues);
-    const first = points[0];
-    const last = points[points.length - 1];
-    const shapeSettings = new Float32Array([
-      this.width, this.height,
-      shape.kind === 'rectangle' ? 0 : shape.kind === 'ellipse' ? 1 : 2,
-      points.length,
-      first.x, first.y, last.x, last.y
-    ]);
-    const shapeBuffer = this.device.createBuffer({
-      label: 'LightTable selection shape settings',
-      size: shapeSettings.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(shapeBuffer, 0, shapeSettings);
-    const combineBuffer = this.device.createBuffer({
-      label: 'LightTable selection combine settings',
-      size: 16,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(combineBuffer, 0, new Float32Array([selectionModeValue[mode], 0, 0, 0]));
-    const shapeBindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.selectionShape.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: shapeBuffer } },
-        { binding: 1, resource: { buffer: pointBuffer } }
-      ]
-    });
-    const combineBindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.selectionCombine.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: this.selectionTextures.mask.createView() },
-        { binding: 1, resource: this.selectionTextures.shape.createView() },
-        { binding: 2, resource: { buffer: combineBuffer } }
-      ]
-    });
-    // Separate submissions make the attachment-to-sampled transition explicit
-    // and keep backend diagnostics tied to the pass that caused them.
-    const shapeEncoder = this.device.createCommandEncoder({ label: 'LightTable rasterize selection shape' });
-    this.drawFullscreen(shapeEncoder, this.toolPipelines!.selectionShape, shapeBindGroup, this.selectionTextures.shape.createView(), { r: 0, g: 0, b: 0, a: 1 });
-    this.device.queue.submit([shapeEncoder.finish()]);
-    const combineEncoder = this.device.createCommandEncoder({ label: 'LightTable combine selection mask' });
-    this.drawFullscreen(combineEncoder, this.toolPipelines!.selectionCombine, combineBindGroup, this.selectionTextures.result.createView(), { r: 0, g: 0, b: 0, a: 1 });
-    this.device.queue.submit([combineEncoder.finish()]);
-    this.selectionTextures.swapMaskAndResult();
-    this.selectionTextures.active = true;
-    void this.device.queue.onSubmittedWorkDone().then(() => {
-      pointBuffer.destroy();
-      shapeBuffer.destroy();
-      combineBuffer.destroy();
-    });
-    return true;
+    return this.selectionRasterizer.set(shape, requestedMode);
   }
 
   featherSelection(radius: number) {
-    this.ensureToolPipelines();
-    if (!this.selectionTextures.active || !this.selectionTextures.mask || !this.selectionTextures.result) return false;
-    const clampedRadius = Math.max(0, Math.min(250, radius));
-    if (clampedRadius <= 0) return true;
-    const settingsBuffer = this.device.createBuffer({
-      label: 'LightTable selection feather settings',
-      size: 32,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    // Queue writes are visible to later submissions, so use a separate immutable
-    // settings buffer per direction to avoid both passes observing the final write.
-    const horizontalBuffer = settingsBuffer;
-    this.device.queue.writeBuffer(horizontalBuffer, 0, new Float32Array([
-      this.width, this.height, 1, 0, clampedRadius, 0, 0, 0
-    ]));
-    const horizontalBindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.selectionFeather.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: this.selectionTextures.mask.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: horizontalBuffer } }
-      ]
-    });
-    const horizontalEncoder = this.device.createCommandEncoder({ label: 'LightTable feather selection horizontal' });
-    this.drawFullscreen(
-      horizontalEncoder,
-      this.toolPipelines!.selectionFeather,
-      horizontalBindGroup,
-      this.selectionTextures.result.createView(),
-      { r: 0, g: 0, b: 0, a: 1 }
-    );
-    this.device.queue.submit([horizontalEncoder.finish()]);
-
-    const verticalBuffer = this.device.createBuffer({
-      label: 'LightTable selection feather vertical settings',
-      size: 32,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(verticalBuffer, 0, new Float32Array([
-      this.width, this.height, 0, 1, clampedRadius, 0, 0, 0
-    ]));
-    const verticalBindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.selectionFeather.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: this.selectionTextures.result.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: verticalBuffer } }
-      ]
-    });
-    const verticalEncoder = this.device.createCommandEncoder({ label: 'LightTable feather selection vertical' });
-    this.drawFullscreen(
-      verticalEncoder,
-      this.toolPipelines!.selectionFeather,
-      verticalBindGroup,
-      this.selectionTextures.mask.createView(),
-      { r: 0, g: 0, b: 0, a: 1 }
-    );
-    this.device.queue.submit([verticalEncoder.finish()]);
-    void this.device.queue.onSubmittedWorkDone().then(() => {
-      horizontalBuffer.destroy();
-      verticalBuffer.destroy();
-    });
-    return true;
+    return this.selectionRasterizer.feather(radius);
   }
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
@@ -1845,14 +1719,7 @@ export class LayerDocumentRenderer {
   }
 
   clearSelection() {
-    if (!this.selectionTextures.mask || !this.selectionTextures.result) return false;
-    const encoder = this.device.createCommandEncoder({ label: 'Clear LightTable selection' });
-    this.clearTexture(encoder, this.selectionTextures.mask, { r: 1, g: 0, b: 0, a: 1 });
-    this.clearTexture(encoder, this.selectionTextures.result, { r: 1, g: 0, b: 0, a: 1 });
-    this.device.queue.submit([encoder.finish()]);
-    const changed = this.selectionTextures.active;
-    this.selectionTextures.active = false;
-    return changed;
+    return this.selectionRasterizer.clear();
   }
 
   private ensureToolPipelines() {
