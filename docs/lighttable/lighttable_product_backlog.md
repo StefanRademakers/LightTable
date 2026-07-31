@@ -55,6 +55,14 @@ handled before a broad production rollout.
 
 ### P1 — GPU memory and frame scalability
 
+- [ ] Profile and fix the reported macOS responsiveness gap for tool switching,
+  painting and pointer-driven UI. Attribute time separately to React commits,
+  layout/ResizeObserver work, input routing, GPU submission/compositing, scopes
+  and Electron/browser hosting before optimizing. Enforce the measurable gate
+  in `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md` on both web and Electron.
+- [ ] Decouple immediate tool/cursor and paint-stroke feedback from expensive
+  full-document recomposition; coalesce superseded preview renders and lower
+  the update rate of scopes, thumbnails and heavy effects while interacting.
 - [ ] Lazily allocate full-resolution effect targets on enable/first encode and
   release reusable targets when an effect is disabled.
 - [ ] Store layer masks in a single-channel format (`r8unorm` or `r16float`

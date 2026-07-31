@@ -1300,6 +1300,39 @@ Run one shared behavior suite against the web and Electron host implementations.
 - dock/float panels while a document stays resident;
 - device or optional-pipeline failure produces a recoverable error.
 
+### Cross-platform interaction performance gate
+
+Responsiveness is product correctness. Validate the same representative
+document on Windows and macOS in both supported hosts; a fast discrete Windows
+GPU is not the performance baseline.
+
+- tool activation must update its toolbar/cursor without waiting for a GPU
+  frame, scope refresh or document render;
+- paint pointer sampling and stroke preview must remain interactive while final
+  compositing is coalesced or reduced in quality;
+- pointer handlers must not synchronously wait for GPU completion, readback,
+  image encoding or expensive React/layout work;
+- inactive documents and hidden panels/scopes must schedule no frame work;
+- scope refresh, thumbnails and expensive effects must use explicit budgets and
+  may update below display refresh rate;
+- profile pointer-to-preview latency, long main-thread tasks, React commits,
+  layout/ResizeObserver churn, GPU submission time and queued render count
+  separately before changing algorithms.
+
+Initial alpha budgets for an ordinary 2K single-layer document with optional
+effects disabled:
+
+- tool switch visible within 50 ms;
+- first paint feedback within 33 ms, with subsequent feedback targeting the
+  display frame cadence;
+- no repeated main-thread task above 50 ms during a paint gesture;
+- no more than one interactive render outstanding per document; newer
+  invalidations supersede older preview work.
+
+Record hardware, macOS version, browser/Electron version, device limits,
+document dimensions, layer count, active scopes and enabled processing nodes
+with every failed performance capture.
+
 ## 17. Rules for future feature work during migration
 
 New work should follow these rules immediately:
@@ -1365,6 +1398,8 @@ The refactor is successful when:
 - renderer/document/UI state have one clear owner each;
 - tools share a tested coordinate and transaction model;
 - optional effects cannot brick basic image loading;
+- ordinary tool switching and painting meet the cross-platform interaction
+  gate on supported Windows and macOS hardware;
 - adding a panel, effect, tool or AI operation does not require editing a
   multi-thousand-line root;
 - architecture boundaries fail in CI when violated;

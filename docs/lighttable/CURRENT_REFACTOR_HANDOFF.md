@@ -106,6 +106,11 @@ from `../LIGHTTABLE_GPU_WARP_TOOL_SPEC.md`. Push is a working architecture
 proof; the remaining Warp modes, masking, quality and resilience work are not
 complete yet.
 
+A macOS test also exposed noticeably slower tool switching and painting. Treat
+this as a cross-platform production gate, not cosmetic polish. Instrument the
+main thread, React/layout, render scheduler, GPU queue and scope refresh paths
+before optimizing; the measurable budgets live in the modularization plan.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in
