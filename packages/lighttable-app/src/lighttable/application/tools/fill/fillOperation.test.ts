@@ -4,7 +4,7 @@ import {
   type RasterLayer,
   type RasterMask
 } from '../../../editor/document/documentTypes';
-import type { ReversiblePixelEdit } from '../../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import {
   executeFillOperation,
   srgbHexToLinearRgb,

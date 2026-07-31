@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import type { ImageDocument, LayerId } from '../../../editor/document/documentTypes';
-import type { ReversiblePixelEdit } from '../../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { PaintChannel } from '../../../editor/session/editorSession';
 import {
   executeFillOperation,

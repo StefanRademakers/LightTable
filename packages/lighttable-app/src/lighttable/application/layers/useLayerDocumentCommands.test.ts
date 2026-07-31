@@ -4,7 +4,7 @@ import {
   createImageDocument,
   type ImageDocument
 } from '../../editor/document/documentTypes';
-import type { ReversiblePixelEdit } from '../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import { createFullCanvasSelection } from '../../editor/selection/selectionTypes';
 import { cloneAdjustments, createDefaultAdjustments } from '../../types';
 import {

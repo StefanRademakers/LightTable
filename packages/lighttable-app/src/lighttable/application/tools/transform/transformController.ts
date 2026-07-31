@@ -8,7 +8,7 @@ import type {
   Rect
 } from '../../../editor/document/documentTypes';
 import { findRasterLayer } from '../../../editor/document/layerTree';
-import type { ReversiblePixelEdit } from '../../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { SelectionCoverageBounds } from '../../../editor/selection/selectionCoverage';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 import {

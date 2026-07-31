@@ -23,7 +23,7 @@ import {
   findRasterLayer,
   siblingLayers
 } from '../../editor/document/layerTree';
-import type { ReversiblePixelEdit } from '../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import { selectionOperationsBounds } from '../../editor/tools/transform/selectionTransform';

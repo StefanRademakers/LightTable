@@ -23,7 +23,8 @@ import type { PaintChannel } from '../editor/session/editorSession';
 import type { SelectionMode, SelectionOperation, SelectionShape } from '../editor/selection/selectionTypes';
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
 import type { DocumentAssetBlob } from '../editor/persistence/layeredDocumentFormat';
-import { LayerDocumentRenderer, type ReversiblePixelEdit } from '../editor/rendering/LayerDocumentRenderer';
+import { LayerDocumentRenderer } from '../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../editor/history/ReversiblePixelEdit';
 import { FeatureAlignmentService } from '../editor/autoAlign/FeatureAlignmentService';
 import type {
   TranslationAlignmentOptions,

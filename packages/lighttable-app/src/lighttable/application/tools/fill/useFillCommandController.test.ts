@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument, type ImageDocument } from '../../../editor/document/documentTypes';
-import type { ReversiblePixelEdit } from '../../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { FillHistoryEntry } from './useFillCommandController';
 import { createFillCommandController } from './useFillCommandController';
 

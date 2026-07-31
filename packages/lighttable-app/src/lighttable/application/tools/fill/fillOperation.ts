@@ -13,7 +13,7 @@ import {
   findRasterLayer
 } from '../../../editor/document/layerTree';
 import type { PaintChannel } from '../../../editor/session/editorSession';
-import type { ReversiblePixelEdit } from '../../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 
 export interface FillRendererPort {
   beginBrushStroke(layer: LayerNode, channel: PaintChannel): void;

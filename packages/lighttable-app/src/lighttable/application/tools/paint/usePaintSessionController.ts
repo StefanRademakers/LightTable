@@ -8,7 +8,7 @@ import type {
   LayerId,
   LayerNode
 } from '../../../editor/document/documentTypes';
-import type { ReversiblePixelEdit } from '../../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type {
   BrushSettings,
   PaintChannel

@@ -52,13 +52,8 @@ import {
 } from './RasterDocumentOperations';
 import { LayerStyleRenderer } from './LayerStyleRenderer';
 import { LayerCompositor } from './LayerCompositor';
-
-export interface ReversiblePixelEdit {
-  byteSize: number;
-  undo: () => boolean;
-  redo: () => boolean;
-  destroy: () => void;
-}
+import type { ReversiblePixelEdit } from '../history/ReversiblePixelEdit';
+import { TransformRasterizer } from './TransformRasterizer';
 
 export interface LayerThumbnailBlob {
   blob: Blob;
@@ -89,6 +84,7 @@ export class LayerDocumentRenderer {
   private readonly selectionRasterizer: SelectionRasterizer;
   private readonly selectionContentAnalyzer: SelectionContentAnalyzer;
   private readonly selectionClipboard: SelectionClipboardService;
+  private readonly transformRasterizer: TransformRasterizer;
   private readonly rasterDocumentOperations: RasterDocumentOperations;
   private width = 0;
   private height = 0;
@@ -158,6 +154,24 @@ export class LayerDocumentRenderer {
     this.selectionTextures = new SelectionTextureStore({
       createSelectionTexture: (label) => this.createSelectionTexture(label),
       createClipboardTexture: (label) => this.createTexture(label)
+    });
+    this.transformRasterizer = new TransformRasterizer({
+      device,
+      sampler,
+      layerResources: this.layerResources,
+      selectionTextures: this.selectionTextures,
+      sessions: this.transformSessions,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      pipelines: () => {
+        this.ensureToolPipelines();
+        return this.toolPipelines!;
+      },
+      ensureSelectionTargets: () => this.ensureSelectionTargets(),
+      createTexture: (label) => this.createTexture(label),
+      createSelectionTexture: (label) => this.createSelectionTexture(label),
+      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId),
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.selectionRasterizer = new SelectionRasterizer({
       device,
@@ -591,178 +605,19 @@ export class LayerDocumentRenderer {
   }
 
   beginTransform(layer: RasterLayer, useSelection: boolean) {
-    this.ensureToolPipelines();
-    if (useSelection) this.ensureSelectionTargets();
-    if (this.transformSessions.current) throw new Error('Finish or cancel the active transform first.');
-    if (layerIsLocked(layer, 'position') || !layer.visible) throw new Error('Select a visible, unlocked raster layer before transforming.');
-    const runtime = this.layerResources.raster(layer.id);
-    if (!runtime) throw new Error('The active raster layer is not available on the GPU.');
-    if (useSelection && (!this.selectionTextures.active || !this.selectionTextures.mask)) {
-      throw new Error('The active selection is not available on the GPU.');
-    }
-    const sourceTexture = this.createTexture('LightTable transform source snapshot');
-    const selectionTexture = useSelection ? this.createSelectionTexture('LightTable transform selection snapshot') : null;
-    const previewTexture = this.createTexture('LightTable transform preview');
-    const selectionPreview = useSelection ? this.createSelectionTexture('LightTable transformed selection preview') : null;
-    const settingsBuffer = this.device.createBuffer({
-      label: 'LightTable transform settings',
-      size: 48,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable begin transform' });
-    encoder.copyTextureToTexture({ texture: runtime.texture }, { texture: sourceTexture }, [this.width, this.height]);
-    if (selectionTexture && this.selectionTextures.mask) {
-      encoder.copyTextureToTexture({ texture: this.selectionTextures.mask }, { texture: selectionTexture }, [this.width, this.height]);
-    }
-    this.device.queue.submit([encoder.finish()]);
-    this.transformSessions.begin({
-      layerId: layer.id,
-      matrix: identityAffineMatrix(),
-      sourceTexture,
-      selectionTexture,
-      previewTexture,
-      selectionPreview,
-      settingsBuffer,
-      usesSelection: useSelection
-    });
+    return this.transformRasterizer.begin(layer, useSelection);
   }
 
   updateTransform(matrix: AffineMatrix) {
-    const session = this.transformSessions.current;
-    if (!session) return false;
-    const inverse = invertMatrix(matrix);
-    if (!inverse) return false;
-    session.matrix = matrix;
-    // Whole-layer preview is a compositor geometry override. It deliberately
-    // leaves source pixels and the layer mask untouched and avoids resampling.
-    if (!session.usesSelection) return true;
-    this.device.queue.writeBuffer(session.settingsBuffer, 0, new Float32Array([
-      inverse.a, inverse.c, inverse.tx, 0,
-      inverse.b, inverse.d, inverse.ty, 0,
-      this.width, this.height, session.usesSelection ? 1 : 0, 0
-    ]));
-    const selectionSource = session.selectionTexture ?? this.selectionTextures.mask;
-    if (!selectionSource) return false;
-    const transformBindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.transform.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: session.sourceTexture.createView() },
-        { binding: 1, resource: selectionSource.createView() },
-        { binding: 2, resource: this.sampler },
-        { binding: 3, resource: { buffer: session.settingsBuffer } }
-      ]
-    });
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable update transform preview' });
-    this.drawFullscreen(
-      encoder,
-      this.toolPipelines!.transform,
-      transformBindGroup,
-      session.previewTexture.createView(),
-      { r: 0, g: 0, b: 0, a: 0 }
-    );
-    if (session.selectionTexture && session.selectionPreview) {
-      const selectionBindGroup = this.device.createBindGroup({
-        layout: this.toolPipelines!.selectionTransform.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: session.selectionTexture.createView() },
-          { binding: 1, resource: this.sampler },
-          { binding: 2, resource: { buffer: session.settingsBuffer } }
-        ]
-      });
-      this.drawFullscreen(
-        encoder,
-        this.toolPipelines!.selectionTransform,
-        selectionBindGroup,
-        session.selectionPreview.createView(),
-        { r: 0, g: 0, b: 0, a: 1 }
-      );
-    }
-    this.device.queue.submit([encoder.finish()]);
-    return true;
+    return this.transformRasterizer.update(matrix);
   }
 
   commitTransform(): ReversiblePixelEdit | null {
-    const session = this.transformSessions.current;
-    if (!session) return null;
-    const runtime = this.layerResources.raster(session.layerId);
-    if (!runtime) {
-      this.cancelTransform();
-      return null;
-    }
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable commit transform' });
-    encoder.copyTextureToTexture({ texture: session.previewTexture }, { texture: runtime.texture }, [this.width, this.height]);
-    if (session.selectionPreview && this.selectionTextures.mask && this.selectionTextures.result) {
-      encoder.copyTextureToTexture({ texture: session.selectionPreview }, { texture: this.selectionTextures.mask }, [this.width, this.height]);
-      encoder.copyTextureToTexture({ texture: session.selectionPreview }, { texture: this.selectionTextures.result }, [this.width, this.height]);
-      this.selectionTextures.active = true;
-    }
-    this.device.queue.submit([encoder.finish()]);
-    const historySeed = this.transformSessions.complete();
-    if (!historySeed) return null;
-    let undoPixels: GPUTexture | null = historySeed.sourceTexture;
-    let undoSelection: GPUTexture | null = historySeed.selectionTexture;
-    let redoPixels: GPUTexture | null = null;
-    let redoSelection: GPUTexture | null = null;
-    let applied = true;
-    const usesSelection = historySeed.usesSelection;
-    const layerId = historySeed.layerId;
-
-    const swap = (direction: 'undo' | 'redo') => {
-      const sourcePixels = direction === 'undo' ? undoPixels : redoPixels;
-      const sourceSelection = direction === 'undo' ? undoSelection : redoSelection;
-      if (!sourcePixels || applied !== (direction === 'undo')) return false;
-      const targetRuntime = this.layerResources.raster(layerId);
-      if (!targetRuntime) return false;
-      const inversePixels = this.createTexture(`LightTable ${direction} transform history`);
-      const inverseSelection = usesSelection
-        ? this.createSelectionTexture(`LightTable ${direction} selection transform history`)
-        : null;
-      const historyEncoder = this.device.createCommandEncoder({ label: `LightTable ${direction} transform` });
-      historyEncoder.copyTextureToTexture({ texture: targetRuntime.texture }, { texture: inversePixels }, [this.width, this.height]);
-      historyEncoder.copyTextureToTexture({ texture: sourcePixels }, { texture: targetRuntime.texture }, [this.width, this.height]);
-      if (usesSelection && sourceSelection && inverseSelection && this.selectionTextures.mask && this.selectionTextures.result) {
-        historyEncoder.copyTextureToTexture({ texture: this.selectionTextures.mask }, { texture: inverseSelection }, [this.width, this.height]);
-        historyEncoder.copyTextureToTexture({ texture: sourceSelection }, { texture: this.selectionTextures.mask }, [this.width, this.height]);
-        historyEncoder.copyTextureToTexture({ texture: sourceSelection }, { texture: this.selectionTextures.result }, [this.width, this.height]);
-      }
-      this.device.queue.submit([historyEncoder.finish()]);
-      sourcePixels.destroy();
-      sourceSelection?.destroy();
-      if (direction === 'undo') {
-        undoPixels = null;
-        undoSelection = null;
-        redoPixels = inversePixels;
-        redoSelection = inverseSelection;
-        applied = false;
-      } else {
-        redoPixels = null;
-        redoSelection = null;
-        undoPixels = inversePixels;
-        undoSelection = inverseSelection;
-        applied = true;
-      }
-      return true;
-    };
-
-    return {
-      byteSize: this.width * this.height * 8 * (usesSelection ? 2 : 1),
-      undo: () => swap('undo'),
-      redo: () => swap('redo'),
-      destroy: () => {
-        undoPixels?.destroy();
-        undoSelection?.destroy();
-        redoPixels?.destroy();
-        redoSelection?.destroy();
-        undoPixels = null;
-        undoSelection = null;
-        redoPixels = null;
-        redoSelection = null;
-      }
-    };
+    return this.transformRasterizer.commit();
   }
 
   cancelTransform() {
-    return this.transformSessions.cancel();
+    return this.transformRasterizer.cancel();
   }
 
   paintDabs(

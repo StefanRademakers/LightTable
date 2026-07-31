@@ -1557,3 +1557,10 @@ The refactor is successful when:
 - [x] Separate baseline document pipelines, optional Layer Style pipelines and
       lazy shared tool pipelines so basic image startup never compiles unused
       authoring or style features.
+- [x] Extract GPU compositing orchestration from the document renderer into a
+      dedicated compositor with explicit document, resource, style and preview
+      inputs.
+- [x] Extract transform rasterization and its atomic pixel/selection history
+      lifecycle behind a renderer-neutral reversible-pixel-edit contract.
+      Complete-layer transforms remain non-destructive geometry and do not
+      compile raster tool pipelines.

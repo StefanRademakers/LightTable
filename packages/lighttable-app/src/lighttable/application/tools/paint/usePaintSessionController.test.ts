@@ -3,7 +3,7 @@ import {
   createImageDocument,
   type RasterLayer
 } from '../../../editor/document/documentTypes';
-import type { ReversiblePixelEdit } from '../../../editor/rendering/LayerDocumentRenderer';
+import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import { createEditorSession } from '../../../editor/session/editorSession';
 import { identityMatrix } from '../../../editor/tools/transform/affine';
 import {
