@@ -1511,6 +1511,10 @@ The refactor is successful when:
       mutations, opacity transactions and destructive-command delegation are
       now shared by docked and floating panel presentations instead of being
       reconstructed in the editor root.
+- [x] Move the complete Layers-panel presentation binding behind a feature
+      workspace adapter; the editor root no longer maps the controller's
+      command surface to individual UI callbacks, and alternate panel hosts
+      cannot accidentally create a second mutation path.
 - [x] Route the top Layer menu through that same controller; mask lifecycle,
       ordering, clipping, blend, visibility, lock and delete semantics now have
       one tested command path regardless of which presentation invokes them.

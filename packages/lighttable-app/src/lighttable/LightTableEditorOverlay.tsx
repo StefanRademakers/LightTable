@@ -59,6 +59,9 @@ import {
   createEditorMenuController
 } from './composition/menus/createEditorMenuController';
 import {
+  LayersWorkspacePanel
+} from './composition/workspace/LayersWorkspacePanel';
+import {
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
 import { useLightTableGradeClipboard } from './lightTableGradeClipboard';
@@ -73,7 +76,6 @@ import {
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
 import { ScopesPanel } from './ScopesPanel';
-import { LayerPanel } from './editor/ui/LayerPanel';
 import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
 import { EditorDialogs } from './editor/ui/EditorDialogs';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
@@ -1309,48 +1311,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   });
   const createAppMenuOptions = editorMenuController.optionsFor;
-  const layersPanel = imageDocument ? (
-    <div className="lighttable-layers-panel">
-      <LayerPanel
-        document={imageDocument}
-        thumbnails={layerThumbnails}
-        activeChannel={editorSession.activeChannel}
-        onSelect={layerPanelController.select}
-        onChannelChange={layerPanelController.changeChannel}
-        onVisibility={layerPanelController.setVisibility}
-        onRename={layerPanelController.rename}
-        onOpacity={layerPanelController.setOpacity}
-        onFillOpacity={layerPanelController.setFillOpacity}
-        onOpacityInteractionStart={layerPanelController.beginOpacityInteraction}
-        onOpacityInteractionEnd={layerPanelController.endOpacityInteraction}
-        onBlendMode={layerPanelController.setBlendMode}
-        onClipping={layerPanelController.setClipping}
-        onReorder={layerPanelController.reorder}
-        onAddMask={layerPanelController.addMask}
-        onToggleMask={layerPanelController.toggleMask}
-        onRemoveMask={layerPanelController.removeMask}
-        onLockChange={layerPanelController.setLock}
-        onCreate={layerPanelController.createRasterLayer}
-        onCreateAdjustment={layerPanelController.createAdjustmentLayer}
-        onCreateLensFx={layerPanelController.createLensFxLayer}
-        onCreateGroup={layerPanelController.createGroup}
-        onGroupSelection={layerPanelController.groupSelection}
-        onUngroupSelection={layerPanelController.ungroupSelection}
-        onDelete={layerPanelController.deleteSelection}
-        onMergeDown={layerPanelController.mergeDown}
-        onMergeSelected={layerPanelController.mergeSelected}
-        onFlattenGroup={layerPanelController.flattenGroup}
-        onFlattenImage={layerPanelController.flattenImage}
-        onEditStyles={layerPanelController.editStyles}
-        onStyleStackEnabled={layerPanelController.setStyleStackEnabled}
-        onLocalGradeEnabled={layerPanelController.setLocalGradeEnabled}
-        onLocalLensFxEnabled={layerPanelController.setLocalLensFxEnabled}
-        onStyleEnabled={layerPanelController.setStyleEnabled}
-        onClearStyles={layerPanelController.clearStyles}
-      />
-    </div>
-  ) : (
-    <div className="lighttable-layers-panel lighttable-layers-panel--empty">No document layers</div>
+  const layersPanel = (
+    <LayersWorkspacePanel
+      document={imageDocument}
+      thumbnails={layerThumbnails}
+      activeChannel={editorSession.activeChannel}
+      controller={layerPanelController}
+    />
   );
 
   const statusBar = buildEditorStatus({
