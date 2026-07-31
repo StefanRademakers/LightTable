@@ -1101,6 +1101,13 @@ export class WebGpuEngine {
       !this.imageResources.blitOriginalBindGroup || !this.imageResources.blitCorrectedBindGroup ||
       !this.imageResources.differenceBindGroup) return;
 
+    // Observer completion (notably histogram readback) may request a retry in
+    // case the image changed while a read was pending. If no renderer stage or
+    // scope actually remained dirty, stop before allocating/submitting an
+    // empty GPU command buffer. This boundary also prevents presentation-only
+    // React updates from accidentally waking the heavy frame graph.
+    if (!this.renderDirty.hasPendingFrameWork && !this.scopeRuntime.hasPendingWork()) return;
+
     // Capture the first validation failure from the frame. Without a scope the
     // useful error is commonly followed by—and visually replaced with—the
     // generic "Invalid CommandBuffer due to a previous error" message.

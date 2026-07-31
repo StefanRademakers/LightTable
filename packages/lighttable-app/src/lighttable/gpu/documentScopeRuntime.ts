@@ -82,6 +82,10 @@ export class DocumentScopeRuntime {
     return this.engine?.resize() ?? false;
   }
 
+  hasPendingWork(): boolean {
+    return this.engine?.hasPendingWork() ?? false;
+  }
+
   encode(encoder: GPUCommandEncoder): void {
     this.engine?.encode(encoder);
   }

@@ -44,6 +44,18 @@ export class RenderDirtyState {
     return this.dirty.histogram;
   }
 
+  /**
+   * Reports work that can produce commands in the current frame graph.
+   *
+   * `blurInput` is dependency bookkeeping for correction implementations and
+   * is deliberately not counted separately: a blur input is only consumed as
+   * part of a correction frame. This keeps observer callbacks from submitting
+   * an empty command buffer after all visible work has already completed.
+   */
+  get hasPendingFrameWork() {
+    return this.dirty.correction || this.dirty.viewport || this.dirty.histogram;
+  }
+
   snapshot(): Readonly<RenderDirtySnapshot> {
     return { ...this.dirty };
   }

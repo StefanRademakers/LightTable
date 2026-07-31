@@ -400,6 +400,11 @@ export class WebGpuScopeEngine {
     return this.options.hueDistributionVisible || this.options.paradeVisible || this.options.vectorscopeVisible;
   }
 
+  hasPendingWork() {
+    return !this.destroyed && !this.failed && Boolean(this.metadata) &&
+      this.hasVisibleScopes() && (this.analysisDirty || this.displayDirty);
+  }
+
   encode(encoder: GPUCommandEncoder) {
     if (this.destroyed || this.failed || !this.metadata || !this.hasVisibleScopes()) return;
     this.device.pushErrorScope('validation');

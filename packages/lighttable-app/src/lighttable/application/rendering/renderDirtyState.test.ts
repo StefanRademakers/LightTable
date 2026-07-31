@@ -53,6 +53,16 @@ describe('RenderDirtyState', () => {
     expect(state.correctionRequired).toBe(false);
     expect(state.viewportRequired).toBe(true);
   });
+
+  it('only reports frame work for stages that can emit commands', () => {
+    const state = cleanState();
+    expect(state.hasPendingFrameWork).toBe(false);
+
+    state.invalidate('viewport');
+    expect(state.hasPendingFrameWork).toBe(true);
+    state.markViewportRendered();
+    expect(state.hasPendingFrameWork).toBe(false);
+  });
 });
 
 function cleanState() {

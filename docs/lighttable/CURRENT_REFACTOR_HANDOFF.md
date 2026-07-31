@@ -148,6 +148,14 @@ uniform uploads, scope invalidation and frame scheduling. Active-layer changes
 therefore remain instant UI state, while every structural, pixel, mask and
 style command still crosses the boundary through its revision increment.
 
+Frame submission now has an explicit no-work boundary as well. Renderer dirty
+state reports only stages that can emit commands, and visible scopes expose
+their own pending analysis/display state. A late histogram readback retry or a
+presentation-only publication can therefore stop before creating and
+submitting an empty WebGPU command buffer. This is intentionally a frame-graph
+contract rather than a React heuristic; future processing nodes should expose
+dirty work through the same boundary.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in
