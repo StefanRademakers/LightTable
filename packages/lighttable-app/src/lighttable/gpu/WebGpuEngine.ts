@@ -68,6 +68,7 @@ import { DocumentSourceGpuLoader } from './documentSourceGpuLoader';
 import { DocumentScopeRuntime } from './documentScopeRuntime';
 import { DocumentHistogramRuntime } from './documentHistogramRuntime';
 import { documentRenderStatesEqual } from '../application/rendering/documentRenderState';
+import type { WarpDebugView } from '../effects/warp/warpTypes';
 
 interface ViewportRect {
   x: number;
@@ -160,6 +161,7 @@ export class WebGpuEngine {
   private before = false;
   private difference = false;
   private lensBlurDepthVisualization = false;
+  private warpDebugVisualization: WarpDebugView = 'result';
   private firstFramePending = false;
   private layerStyleInitialization: Promise<void> | null = null;
   private layerStyleInitializationFailed = false;
@@ -316,9 +318,16 @@ export class WebGpuEngine {
     const previousDocument = this.imageDocument;
     const firstDocument = !previousDocument || previousDocument.id !== document.id;
     this.imageDocument = document;
+    const warpDebugOwnerChanged = this.layerEffectRenderer?.setWarpDebugVisualization(
+      this.warpDebugVisualization,
+      document.activeLayerId
+    ) ?? false;
     // Always retain the latest editor-only state, but only cross the GPU
     // boundary when render-bearing immutable document content changed.
-    if (documentRenderStatesEqual(previousDocument, document)) return;
+    if (documentRenderStatesEqual(previousDocument, document)) {
+      if (warpDebugOwnerChanged) this.markDocumentDirty();
+      return;
+    }
     if (firstDocument) this.documentRenderer.initialize(document, this.imageResources.sourceTexture);
     else this.documentRenderer.syncDocument(document);
     this.initializeLayerStylesIfNeeded(document);
@@ -989,6 +998,17 @@ export class WebGpuEngine {
     this.writeOutputSettings();
     this.renderDirty.invalidateCorrectionFrom('linear-spatial');
     this.requestRender();
+  }
+
+  /** Presentation-only Warp diagnostic; never mutates the authored stack. */
+  setWarpDebugVisualization(view: WarpDebugView) {
+    if (this.warpDebugVisualization === view) return;
+    this.warpDebugVisualization = view;
+    const changed = this.layerEffectRenderer?.setWarpDebugVisualization(
+      view,
+      this.imageDocument?.activeLayerId ?? null
+    ) ?? false;
+    if (changed) this.markDocumentDirty();
   }
 
   resizeScopes() {

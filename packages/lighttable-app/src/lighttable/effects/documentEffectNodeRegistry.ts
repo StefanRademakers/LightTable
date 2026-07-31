@@ -8,6 +8,7 @@ import { LensBlurEffect } from './lensBlur/LensBlurEffect';
 import { LensDistortionEffect } from './lensDistortion/LensDistortionEffect';
 import { WarpEffect } from './warp/WarpEffect';
 import { readWarpNodeSettings } from './warp/warpTypes';
+import type { WarpDebugView } from './warp/warpTypes';
 import type {
   LightTableEffectRuntimeCallbacks,
   LightTableEffectStage
@@ -33,6 +34,7 @@ export interface DocumentGpuEffect {
   /** Preferred render cadence while this active effect is upstream-dirty. */
   interactionFrameIntervalMs?(): number;
   setDepthVisualization?(visible: boolean): void;
+  setWarpDebugVisualization?(view: WarpDebugView): void;
   readonly hasDepth?: boolean;
 }
 

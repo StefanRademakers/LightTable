@@ -34,6 +34,16 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
         <option value="bloat">Bloat</option>
       </select>
     </label>
+    <label className="lighttable-tool-options__toggle">
+      <input
+        type="checkbox"
+        checked={warp.debugView === 'displacement'}
+        onChange={(event) => onChange({
+          debugView: event.currentTarget.checked ? 'displacement' : 'result'
+        })}
+      />
+      Show displacement
+    </label>
     <AdjustmentSlider
       label="Size"
       value={warp.diameterPx}

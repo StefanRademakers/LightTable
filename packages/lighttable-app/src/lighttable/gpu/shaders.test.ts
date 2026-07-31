@@ -32,7 +32,11 @@ import {
   LENS_BLUR_DOWNSAMPLE_WGSL,
   LENS_BLUR_GATHER_WGSL
 } from '../effects/lensBlur/shaders';
-import { WARP_FIELD_COMPUTE_WGSL, WARP_RENDER_WGSL } from '../effects/warp/shaders';
+import {
+  WARP_DISPLACEMENT_DEBUG_WGSL,
+  WARP_FIELD_COMPUTE_WGSL,
+  WARP_RENDER_WGSL
+} from '../effects/warp/shaders';
 import {
   COMBINED_SCOPE_ANALYSIS_WGSL,
   HUE_DISTRIBUTION_ANALYSIS_WGSL,
@@ -86,7 +90,8 @@ const renderShaders = [
   ['grain composite', GRAIN_COMPOSITE_WGSL],
   ['display resolve', DISPLAY_RESOLVE_WGSL],
   ['viewport blit', VIEWPORT_BLIT_WGSL],
-  ['warp', WARP_RENDER_WGSL]
+  ['warp', WARP_RENDER_WGSL],
+  ['warp displacement debug', WARP_DISPLACEMENT_DEBUG_WGSL]
 ] as const;
 
 describe('LightTable WGSL modules', () => {
@@ -202,6 +207,11 @@ describe('LightTable WGSL modules', () => {
   it('uses the shared fullscreen vertex output contract for Warp rendering', () => {
     expect(WARP_RENDER_WGSL).toContain('fn main(input: VertexOutput)');
     expect(WARP_RENDER_WGSL).not.toContain('FullscreenOutput');
+  });
+
+  it('keeps the Warp displacement diagnostic independent from source pixels', () => {
+    expect(WARP_DISPLACEMENT_DEBUG_WGSL).toContain('displacementTexture');
+    expect(WARP_DISPLACEMENT_DEBUG_WGSL).not.toContain('sourceTexture');
   });
 
   it.each([

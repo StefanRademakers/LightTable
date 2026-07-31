@@ -128,3 +128,53 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   return mix(original, warped, settings.opacity);
 }
 `;
+
+/**
+ * Development-only visualization of the signed Warp displacement texture.
+ * No document pixels are sampled and the view is never part of export.
+ *
+ * Neutral gray means no movement. Horizontal movement travels along the
+ * red/cyan axis, vertical movement along green/magenta. The deformed grid
+ * makes discontinuities and overly sparse stroke stamping easy to spot.
+ */
+export const WARP_DISPLACEMENT_DEBUG_WGSL = /* wgsl */`
+struct WarpRenderSettings {
+  canvasSize: vec2f,
+  opacity: f32,
+  borderMode: u32,
+  edgePinning: f32,
+}
+
+@group(0) @binding(0) var displacementTexture: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> settings: WarpRenderSettings;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let pixel = clamp(
+    vec2i(input.uv * settings.canvasSize),
+    vec2i(0),
+    vec2i(settings.canvasSize) - 1
+  );
+  let displacement = textureLoad(displacementTexture, pixel, 0).xy;
+  let debugRange = max(min(settings.canvasSize.x, settings.canvasSize.y) * 0.04, 8.0);
+  let signedDisplacement = clamp(displacement / debugRange, vec2f(-1.0), vec2f(1.0));
+  let magnitude = clamp(length(signedDisplacement), 0.0, 1.0);
+
+  // Signed XY encoding: +X red, -X cyan, +Y green, -Y magenta.
+  let encoded = vec3f(
+    0.5 + 0.5 * signedDisplacement.x,
+    0.5 + 0.5 * signedDisplacement.y,
+    0.5 - 0.25 * (signedDisplacement.x + signedDisplacement.y)
+  );
+  var color = mix(vec3f(0.18), encoded, smoothstep(0.002, 0.12, magnitude));
+
+  // A source-space grid exposes folds, gaps and jagged stamp transitions.
+  let sourcePixel = vec2f(pixel) + vec2f(0.5) + displacement;
+  let gridCoordinate = sourcePixel / 32.0;
+  let gridDistance = abs(fract(gridCoordinate) - vec2f(0.5));
+  let gridLine = smoothstep(0.46, 0.5, max(gridDistance.x, gridDistance.y));
+  color = mix(color, vec3f(0.92), gridLine * 0.32);
+
+  return vec4f(color, 1.0);
+}
+`;

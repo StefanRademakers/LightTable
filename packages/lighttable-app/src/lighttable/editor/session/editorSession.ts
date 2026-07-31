@@ -49,6 +49,7 @@ export const createEditorSession = (): EditorSession => ({
   },
   warp: {
     mode: 'push',
+    debugView: 'result',
     diameterPx: 200,
     strength: 0.35,
     hardness: 0.75,

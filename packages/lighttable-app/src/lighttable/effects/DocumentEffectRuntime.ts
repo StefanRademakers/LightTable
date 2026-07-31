@@ -21,6 +21,7 @@ import type {
   LightTableEffectRuntimeCallbacks,
   LightTableEffectStage
 } from './types';
+import type { WarpDebugView } from './warp/warpTypes';
 
 interface DocumentEffectRuntimeNode {
   readonly instanceId: string;
@@ -101,6 +102,7 @@ export class DocumentEffectRuntime {
   private height = 0;
   private interactionActive = false;
   private depthVisualization = false;
+  private warpDebugVisualization: WarpDebugView = 'result';
   private depthMap: DepthAnalysisResult | null = null;
 
   private constructor(
@@ -221,6 +223,13 @@ export class DocumentEffectRuntime {
     return true;
   }
 
+  setWarpDebugVisualization(view: WarpDebugView): boolean {
+    if (this.warpDebugVisualization === view) return false;
+    this.warpDebugVisualization = view;
+    this.forEachEffect((effect) => effect.setWarpDebugVisualization?.(view));
+    return true;
+  }
+
   get hasDepth(): boolean {
     return this.orderedNodes.some((node) => node.effect.hasDepth === true);
   }
@@ -302,6 +311,9 @@ export class DocumentEffectRuntime {
         if (this.width > 0 && this.height > 0) effect.resize(this.width, this.height);
         if (this.interactionActive) effect.setInteractionActive?.(true);
         if (this.depthVisualization) effect.setDepthVisualization?.(true);
+        if (this.warpDebugVisualization !== 'result') {
+          effect.setWarpDebugVisualization?.(this.warpDebugVisualization);
+        }
         if (this.depthMap) effect.setDepthMap?.(this.depthMap);
         const node = {
           instanceId: planned.instance.id,

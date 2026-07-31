@@ -14,6 +14,7 @@ export type WarpBrushMode =
   | 'thaw';
 
 export type WarpBorderMode = 'transparent' | 'clamp' | 'mirror' | 'extend-edge';
+export type WarpDebugView = 'result' | 'displacement';
 
 export interface WarpInputSample {
   readonly positionPx: readonly [number, number];
@@ -36,6 +37,8 @@ export interface WarpBrushSettingsSnapshot {
 /** Mutable editor preferences. The authored stroke keeps mode separately. */
 export interface WarpToolSettings extends WarpBrushSettingsSnapshot {
   readonly mode: WarpBrushMode;
+  /** Transient editor visualization; never copied into an authored stroke. */
+  readonly debugView: WarpDebugView;
 }
 
 export interface WarpStroke {

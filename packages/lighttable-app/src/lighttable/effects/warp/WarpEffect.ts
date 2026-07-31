@@ -1,13 +1,17 @@
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import { OptionalGpuFeature } from '../../gpu/optionalGpuFeature';
 import type { LightTableEffectRuntimeCallbacks, LightTableGpuEffect } from '../types';
-import { WARP_FIELD_COMPUTE_WGSL, WARP_RENDER_WGSL } from './shaders';
+import {
+  WARP_DISPLACEMENT_DEBUG_WGSL,
+  WARP_FIELD_COMPUTE_WGSL,
+  WARP_RENDER_WGSL
+} from './shaders';
 import {
   planWarpFieldUpdate,
   type WarpFieldUpdateKind
 } from './warpFieldUpdatePlan';
 import { createWarpGpuStamps, packWarpGpuStamps } from './warpStrokeSampling';
-import type { WarpNodeSettings } from './warpTypes';
+import type { WarpDebugView, WarpNodeSettings } from './warpTypes';
 
 const EMPTY_STORAGE_BYTES = 32;
 
@@ -23,6 +27,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   readonly stage = 'source-geometry' as const;
   private readonly fieldPipeline: OptionalGpuFeature<GPUComputePipeline>;
   private readonly renderPipeline: OptionalGpuFeature<GPURenderPipeline>;
+  private readonly debugPipeline: OptionalGpuFeature<GPURenderPipeline>;
   private readonly fieldSettingsBuffer: GPUBuffer;
   private readonly renderSettingsBuffer: GPUBuffer;
   private settings: WarpNodeSettings;
@@ -38,6 +43,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   private pendingFieldUpdate: WarpFieldUpdateKind = 'rebuild';
   private committedStamps: Float32Array<ArrayBufferLike> = new Float32Array();
   private desiredStamps: Float32Array<ArrayBufferLike> = new Float32Array();
+  private debugView: WarpDebugView = 'result';
 
   constructor(
     private readonly device: GPUDevice,
@@ -82,6 +88,25 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
       onReady: callbacks.requestRender,
       onError: (message) => callbacks.reportError?.(this.id, message)
     });
+    this.debugPipeline = new OptionalGpuFeature({
+      id: 'warp-displacement-debug',
+      compile: () => this.device.createRenderPipelineAsync({
+        label: 'LightTable Warp displacement debug',
+        layout: 'auto',
+        vertex: { module: vertexModule, entryPoint: 'fullscreenVertex' },
+        fragment: {
+          module: this.device.createShaderModule({
+            label: 'LightTable Warp displacement debug shader',
+            code: `${FULLSCREEN_VERTEX_WGSL}\n${WARP_DISPLACEMENT_DEBUG_WGSL}`
+          }),
+          entryPoint: 'main',
+          targets: [{ format: 'rgba16float' }]
+        },
+        primitive: { topology: 'triangle-list' }
+      }),
+      onReady: callbacks.requestRender,
+      onError: (message) => callbacks.reportError?.('warp-displacement-debug', message)
+    });
     this.fieldSettingsBuffer = device.createBuffer({
       label: 'LightTable Warp field settings',
       size: 8 * Float32Array.BYTES_PER_ELEMENT,
@@ -124,6 +149,14 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
     this.writeSettings();
   }
 
+  setWarpDebugVisualization(view: WarpDebugView): void {
+    if (this.debugView === view) return;
+    this.debugView = view;
+    if (view === 'displacement' && this.totalStampCount > 0) {
+      void this.debugPipeline.ensure();
+    }
+  }
+
   resize(width: number, height: number): void {
     this.releaseImageTextures();
     this.width = Math.max(1, width);
@@ -142,12 +175,19 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
   encode(encoder: GPUCommandEncoder, input: GPUTexture): GPUTexture {
     if (this.totalStampCount === 0) return input;
     const fieldPipeline = this.fieldPipeline.resource;
-    const renderPipeline = this.renderPipeline.resource;
-    if (!fieldPipeline || !renderPipeline) {
+    const normalPipeline = this.renderPipeline.resource;
+    const debugPipeline = this.debugView === 'displacement'
+      ? this.debugPipeline.resource
+      : null;
+    if (!fieldPipeline || !normalPipeline || (this.debugView === 'displacement' && !debugPipeline)) {
       void this.fieldPipeline.ensure();
       void this.renderPipeline.ensure();
+      if (this.debugView === 'displacement') void this.debugPipeline.ensure();
       return input;
     }
+    const renderPipeline = this.debugView === 'displacement'
+      ? debugPipeline!
+      : normalPipeline;
     this.ensureImageResources();
     if (!this.displacementTextures || !this.outputTexture || !this.stampBuffer) return input;
 
@@ -178,17 +218,20 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
       this.fieldDirty = false;
     }
 
+    const displacementView = this.displacementTextures[this.activeDisplacementIndex].createView();
     const bindGroup = this.device.createBindGroup({
       layout: renderPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: input.createView() },
-        {
-          binding: 1,
-          resource: this.displacementTextures[this.activeDisplacementIndex].createView()
-        },
-        { binding: 2, resource: this.sampler },
-        { binding: 3, resource: { buffer: this.renderSettingsBuffer } }
-      ]
+      entries: this.debugView === 'displacement'
+        ? [
+            { binding: 0, resource: displacementView },
+            { binding: 1, resource: { buffer: this.renderSettingsBuffer } }
+          ]
+        : [
+            { binding: 0, resource: input.createView() },
+            { binding: 1, resource: displacementView },
+            { binding: 2, resource: this.sampler },
+            { binding: 3, resource: { buffer: this.renderSettingsBuffer } }
+          ]
     });
     const pass = encoder.beginRenderPass({
       label: 'LightTable render Warp',
@@ -238,6 +281,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
     this.stampBuffer = null;
     this.fieldPipeline.dispose();
     this.renderPipeline.dispose();
+    this.debugPipeline.dispose();
     this.fieldSettingsBuffer.destroy();
     this.renderSettingsBuffer.destroy();
   }

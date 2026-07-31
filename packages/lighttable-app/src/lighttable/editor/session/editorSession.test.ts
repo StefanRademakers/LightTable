@@ -13,7 +13,8 @@ describe('LightTable editor session', () => {
       strength: 0.35,
       spacing: 0.1,
       pressureSize: true,
-      pressureStrength: true
+      pressureStrength: true,
+      debugView: 'result'
     });
   });
 });

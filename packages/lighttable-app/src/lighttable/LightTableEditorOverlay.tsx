@@ -850,6 +850,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     showOriginal,
     showDifference,
     lensBlurViewportMode,
+    warpDebugView: editorSession.warp.debugView,
     scopeVisibility,
     scopeSettings,
     scopeVisibilityRef,

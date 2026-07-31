@@ -5,6 +5,7 @@ import type {
 import { adjustmentStackHasOwner } from '../processing/adjustmentStack';
 import type { LightTableEffectRuntimeCallbacks } from './types';
 import { DocumentEffectRuntime } from './DocumentEffectRuntime';
+import type { WarpDebugView } from './warp/warpTypes';
 
 /**
  * Returns whether a layer needs a per-owner GPU effect runtime.
@@ -30,6 +31,8 @@ export class LayerEffectRenderer {
   private readonly runtimes = new Map<string, DocumentEffectRuntime>();
   private width = 0;
   private height = 0;
+  private warpDebugView: WarpDebugView = 'result';
+  private warpDebugLayerId: string | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -42,6 +45,29 @@ export class LayerEffectRenderer {
     this.width = width;
     this.height = height;
     this.runtimes.forEach((runtime) => runtime.resize(width, height));
+  }
+
+  /**
+   * Restricts the transient Warp diagnostic to one layer. Rendering every
+   * warped owner as a displacement map would make a multi-layer composite
+   * impossible to interpret and could obscure the selected layer entirely.
+   */
+  setWarpDebugVisualization(
+    view: WarpDebugView,
+    layerId: string | null
+  ): boolean {
+    if (
+      this.warpDebugView === view
+      && this.warpDebugLayerId === layerId
+    ) return false;
+    this.warpDebugView = view;
+    this.warpDebugLayerId = layerId;
+    this.runtimes.forEach((runtime, ownerId) => {
+      runtime.setWarpDebugVisualization(
+        view === 'displacement' && ownerId === layerId ? view : 'result'
+      );
+    });
+    return true;
   }
 
   encodeSourceGeometry(
@@ -94,6 +120,12 @@ export class LayerEffectRenderer {
     } else {
       runtime.setAdjustmentStack(layer.adjustmentStack);
     }
+    runtime.setWarpDebugVisualization(
+      this.warpDebugView === 'displacement'
+        && layer.id === this.warpDebugLayerId
+        ? this.warpDebugView
+        : 'result'
+    );
     return runtime;
   }
 
