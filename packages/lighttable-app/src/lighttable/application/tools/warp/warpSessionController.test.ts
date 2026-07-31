@@ -185,4 +185,52 @@ describe('Warp session controller', () => {
     expect(settings.strokes[0]?.samples).toHaveLength(4);
     expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
   });
+
+  it('removes only Warp from the active layer and records one reversible command', () => {
+    const state = harness();
+    const controller = createWarpSessionController(() => state.dependencies);
+    expect(controller.begin({
+      pointerId: 9,
+      mode: 'push',
+      settings: brush,
+      point: point(80, 40, 10)
+    })).toBe(true);
+    expect(controller.move(9, point(60, 60, 20))).toBe(true);
+    expect(controller.finish(9, 30)).toBe(true);
+    state.dependencies.pushHistoryEntry.mockClear();
+
+    const nonWarpBefore = findRasterLayer(
+      state.document,
+      state.document.activeLayerId
+    )!.adjustmentStack!.modules.filter(({ type }) => type !== 'lt.warp');
+    expect(controller.clearActiveLayer()).toBe(true);
+    const clearedLayer = findRasterLayer(
+      state.document,
+      state.document.activeLayerId
+    )!;
+    expect(findWarpModuleInstance(clearedLayer.adjustmentStack)).toBeNull();
+    expect(clearedLayer.adjustmentStack?.modules).toEqual(nonWarpBefore);
+    expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
+
+    const resetEntry = state.dependencies.pushHistoryEntry.mock.calls[0]![0];
+    resetEntry.undo();
+    expect(findWarpModuleInstance(
+      findRasterLayer(state.document, state.document.activeLayerId)?.adjustmentStack
+    )).not.toBeNull();
+    resetEntry.redo();
+    expect(findWarpModuleInstance(
+      findRasterLayer(state.document, state.document.activeLayerId)?.adjustmentStack
+    )).toBeNull();
+  });
+
+  it('does not create reset history when no Warp recipe exists', () => {
+    const state = harness();
+    const controller = createWarpSessionController(() => state.dependencies);
+    expect(controller.clearActiveLayer()).toBe(false);
+    expect(state.dependencies.applyDocumentSnapshot).not.toHaveBeenCalled();
+    expect(state.dependencies.pushHistoryEntry).not.toHaveBeenCalled();
+    expect(state.dependencies.setError).toHaveBeenLastCalledWith(
+      'The active layer has no Warp edit to reset.'
+    );
+  });
 });

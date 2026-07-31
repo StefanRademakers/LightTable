@@ -19,6 +19,7 @@ import {
   createWarpModuleInstance,
   findWarpModuleInstance,
   readWarpNodeSettings,
+  removeWarpNodeFromStack,
   setWarpNodeSettings,
   type WarpBrushMode,
   type WarpBrushSettingsSnapshot,
@@ -64,6 +65,7 @@ export interface WarpSessionController {
   move(pointerId: number, point: WarpGesturePoint): boolean;
   finish(pointerId: number, timeMs: number): boolean;
   cancel(pointerId: number): boolean;
+  clearActiveLayer(): boolean;
   reset(): void;
 }
 
@@ -104,6 +106,21 @@ const documentWithStroke = (
     strokes: [...strokes, structuredClone(stroke)]
   });
   return setRasterLayerAdjustmentStack(document, layerId, stack);
+};
+
+const documentWithoutWarp = (
+  document: ImageDocument,
+  layerId: RasterLayer['id']
+): ImageDocument => {
+  const layer = findRasterLayer(document, layerId);
+  if (!layer?.adjustmentStack) return document;
+  const stack = removeWarpNodeFromStack(layer.adjustmentStack);
+  if (stack === layer.adjustmentStack) return document;
+  return setRasterLayerAdjustmentStack(
+    document,
+    layerId,
+    stack.modules.length > 0 ? stack : null
+  );
 };
 
 const toLayerSourcePoint = (
@@ -277,6 +294,48 @@ export const createWarpSessionController = (
       previewScheduler.cancel();
       restoreBefore();
       active = null;
+      return true;
+    },
+    clearActiveLayer: () => {
+      const dependencies = resolveDependencies();
+      if (active) {
+        dependencies.setError('Finish or cancel the active Warp stroke first.');
+        return false;
+      }
+      const before = dependencies.getDocument();
+      const layer = before
+        ? findRasterLayer(before, before.activeLayerId)
+        : null;
+      if (!before || !layer) {
+        dependencies.setError('Select a raster layer with a Warp edit first.');
+        return false;
+      }
+      const after = documentWithoutWarp(before, layer.id);
+      if (after === before) {
+        dependencies.setError('The active layer has no Warp edit to reset.');
+        return false;
+      }
+      dependencies.applyDocumentSnapshot(after);
+      dependencies.pushHistoryEntry({
+        label: 'Reset Warp',
+        type: 'layer.warp.reset',
+        layerIds: [layer.id],
+        undo: () => {
+          const latest = resolveDependencies();
+          if (latest.getDocument()?.id !== before.id) {
+            throw new Error('The Warp edit belongs to a different document.');
+          }
+          latest.applyDocumentSnapshot(before);
+        },
+        redo: () => {
+          const latest = resolveDependencies();
+          if (latest.getDocument()?.id !== before.id) {
+            throw new Error('The Warp edit belongs to a different document.');
+          }
+          latest.applyDocumentSnapshot(after);
+        }
+      });
+      dependencies.setError(null);
       return true;
     },
     reset: () => {

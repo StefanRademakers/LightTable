@@ -109,6 +109,23 @@ export const findWarpModuleInstance = (
 ): AdjustmentModuleInstance | null =>
   stack?.modules.find((instance) => instance.type === WARP_NODE_TYPE) ?? null;
 
+/**
+ * Removes the authored Warp recipe without disturbing the relative order or
+ * identity of any other processing node in the stack.
+ */
+export const removeWarpNodeFromStack = (
+  stack: AdjustmentStack
+): AdjustmentStack => {
+  if (!findWarpModuleInstance(stack)) return stack;
+  return {
+    ...structuredClone(stack),
+    revision: stack.revision + 1,
+    modules: stack.modules
+      .filter((instance) => instance.type !== WARP_NODE_TYPE)
+      .map((instance) => structuredClone(instance))
+  };
+};
+
 export const setWarpNodeSettings = (
   stack: AdjustmentStack,
   settings: WarpNodeSettings
