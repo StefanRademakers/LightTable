@@ -73,17 +73,7 @@ import {
   encodeRgba8Png,
   readRgba8Texture
 } from '../../gpu/gpuReadback';
-
-interface LayerRuntime {
-  texture: GPUTexture;
-  maskTexture: GPUTexture | null;
-  maskId: string | null;
-}
-
-interface MaskRuntime {
-  texture: GPUTexture;
-  maskId: string;
-}
+import { LayerRuntimeStore } from './LayerRuntimeStore';
 
 interface PixelSnapshot {
   layerId: LayerId;
@@ -181,8 +171,7 @@ const documentPipelines = (device: GPUDevice) => {
 };
 
 export class LayerDocumentRenderer {
-  private readonly runtimes = new Map<LayerId, LayerRuntime>();
-  private readonly nodeMasks = new Map<LayerId, MaskRuntime>();
+  private readonly layerResources: LayerRuntimeStore;
   private readonly patternTextures = new Map<DocumentAssetId, GPUTexture>();
   private readonly patternSources = new Map<DocumentAssetId, Blob>();
   private readonly decodePipeline: GPURenderPipeline;
@@ -244,6 +233,10 @@ export class LayerDocumentRenderer {
     this.adjustmentMixPipeline = pipelines.adjustmentMix;
     this.fullscreenModule = pipelines.fullscreenModule;
     this.styleShapePipeline = pipelines.styleShape;
+    this.layerResources = new LayerRuntimeStore({
+      createRasterTexture: (label) => this.createTexture(label),
+      createMaskTexture: (label) => this.createMaskTexture(label)
+    });
     // Tool-only pipelines are compiled on first use. The normal image-open
     // path needs decode/composite, but not brush, selection or transform.
     this.brushCanvasBuffer = device.createBuffer({
@@ -317,7 +310,7 @@ export class LayerDocumentRenderer {
     // Persisted layered documents contain runtime raster layers only. They are
     // populated immediately afterwards by loadDocumentAssets().
     if (!imported) return;
-    const runtime = this.runtimes.get(imported.id);
+    const runtime = this.layerResources.raster(imported.id);
     if (!runtime) throw new Error('The imported LightTable layer could not be initialized.');
     const bindGroup = this.device.createBindGroup({
       layout: this.decodePipeline.getBindGroupLayout(0),
@@ -335,54 +328,22 @@ export class LayerDocumentRenderer {
     // Keep detached runtimes alive for the bounded editor history. This makes
     // delete/create/duplicate undo lossless without a synchronous GPU readback.
     // All cached runtimes are released when the image/editor is destroyed.
-    walkRasterLayers(document.layers).forEach(({ layer }) => {
-      const existing = this.runtimes.get(layer.id);
-      if (!existing) {
-        this.runtimes.set(layer.id, {
-          texture: this.createTexture(`LightTable layer: ${layer.name}`),
-          maskTexture: layer.mask ? this.createMaskTexture(`LightTable mask: ${layer.name}`) : null,
-          maskId: layer.mask?.id ?? null
-        });
-      } else if (layer.mask && (!existing.maskTexture || existing.maskId !== layer.mask.id)) {
-        existing.maskTexture?.destroy();
-        existing.maskTexture = this.createMaskTexture(`LightTable mask: ${layer.name}`);
-        existing.maskId = layer.mask.id;
-      }
-    });
-    walkLayerTree(document.layers).forEach(({ node }) => {
-      if (node.type === 'raster' || !node.mask) return;
-      const existing = this.nodeMasks.get(node.id);
-      if (existing?.maskId === node.mask.id) return;
-      existing?.texture.destroy();
-      this.nodeMasks.set(node.id, {
-        texture: this.createMaskTexture(`LightTable mask: ${node.name}`),
-        maskId: node.mask.id
-      });
-    });
+    this.layerResources.sync(document.layers);
   }
 
   pruneDetachedRuntimes(keepLayerIds: ReadonlySet<LayerId>) {
-    this.runtimes.forEach((runtime, id) => {
-      if (keepLayerIds.has(id)) return;
-      runtime.texture.destroy();
-      runtime.maskTexture?.destroy();
-      this.runtimes.delete(id);
+    this.layerResources.pruneDetached(keepLayerIds).forEach((id) => {
       this.styledLayerCache.get(id)?.texture.destroy();
       this.styledLayerCache.delete(id);
-    });
-    this.nodeMasks.forEach((runtime, id) => {
-      if (keepLayerIds.has(id)) return;
-      runtime.texture.destroy();
-      this.nodeMasks.delete(id);
     });
   }
 
   private maskTextureFor(layerId: LayerId) {
-    return this.runtimes.get(layerId)?.maskTexture ?? this.nodeMasks.get(layerId)?.texture ?? null;
+    return this.layerResources.maskTexture(layerId);
   }
 
   resolveRasterRenderContract(layer: RasterLayer): RasterRenderContract | null {
-    const runtime = this.runtimes.get(layer.id);
+    const runtime = this.layerResources.raster(layer.id);
     return runtime ? rasterRenderContract(layer, runtime.texture) : null;
   }
 
@@ -396,11 +357,7 @@ export class LayerDocumentRenderer {
     const rgba16Bytes = pixels * 8;
     const r8Bytes = pixels;
     let bytes = 0;
-    this.runtimes.forEach((runtime) => {
-      bytes += rgba16Bytes;
-      if (runtime.maskTexture) bytes += rgba16Bytes;
-    });
-    bytes += this.nodeMasks.size * rgba16Bytes;
+    bytes += this.layerResources.estimatedTextureBytes(this.width, this.height);
     this.patternTextures.forEach((texture) => {
       bytes += Math.max(1, texture.width) * Math.max(1, texture.height) * 8;
     });
@@ -472,7 +429,7 @@ export class LayerDocumentRenderer {
     }
     if (visibleLayers.length === 1 && analysis.visibleLeafNodes.length === 1 && document.layers.length === 1) {
       const layer = visibleLayers[0];
-      const runtime = this.runtimes.get(layer.id);
+      const runtime = this.layerResources.raster(layer.id);
       const geometryPreview = this.geometryPreviews.get(layer.id);
       if (runtime && layer.opacity >= 0.99999 && layer.fillOpacity >= 0.99999 && layer.blendMode === 'normal' &&
         !layer.mask?.enabled && !this.transformSession && !geometryPreview &&
@@ -578,7 +535,7 @@ export class LayerDocumentRenderer {
         return [target, background];
       }
       const layer = node;
-      const runtime = this.runtimes.get(layer.id);
+      const runtime = this.layerResources.raster(layer.id);
       if (!runtime) return [background, target];
       const activeTransform = this.transformSession?.layerId === layer.id
         ? this.transformSession
@@ -994,8 +951,8 @@ export class LayerDocumentRenderer {
   }
 
   duplicateLayer(sourceId: LayerId, destinationId: LayerId) {
-    const source = this.runtimes.get(sourceId);
-    const destination = this.runtimes.get(destinationId);
+    const source = this.layerResources.raster(sourceId);
+    const destination = this.layerResources.raster(destinationId);
     if (!source || !destination) return;
     const encoder = this.device.createCommandEncoder({ label: 'LightTable duplicate raster layer' });
     encoder.copyTextureToTexture({ texture: source.texture }, { texture: destination.texture }, [this.width, this.height]);
@@ -1012,7 +969,7 @@ export class LayerDocumentRenderer {
   async exportDocumentAssets(document: ImageDocument): Promise<DocumentAssetBlob[]> {
     const assets: DocumentAssetBlob[] = [];
     for (const { layer } of walkRasterLayers(document.layers)) {
-      const runtime = this.runtimes.get(layer.id);
+      const runtime = this.layerResources.raster(layer.id);
       if (!runtime) throw new Error(`Layer ${layer.name} is not available for saving.`);
       assets.push({
         layerId: layer.id,
@@ -1044,7 +1001,7 @@ export class LayerDocumentRenderer {
     maximumWidth = 80,
     maximumHeight = 80
   ): Promise<LayerThumbnailBlob | null> {
-    const runtime = this.runtimes.get(layerId);
+    const runtime = this.layerResources.raster(layerId);
     const source = maskChannel
       ? this.maskTextureFor(layerId)
       : runtime?.texture ?? null;
@@ -1073,7 +1030,7 @@ export class LayerDocumentRenderer {
         await this.loadPatternAsset(asset);
         continue;
       }
-      const runtime = this.runtimes.get(asset.layerId);
+      const runtime = this.layerResources.raster(asset.layerId);
       this.invalidateStyledLayerCache(asset.layerId);
       if (asset.pixels.size > 0) {
         if (!runtime) throw new Error(`Layer ${asset.layerId} is not available while opening the document.`);
@@ -1188,14 +1145,14 @@ export class LayerDocumentRenderer {
       layer: AdjustmentLayer | RasterLayer
     ) => GPUTexture
   ) {
-    const destination = this.runtimes.get(destinationId);
+    const destination = this.layerResources.raster(destinationId);
     const layers = layerIds.map((layerId) => findLayerNode(document.layers, layerId)?.node ?? null);
     if (
       !destination
       || layers.length < 2
       || layers.some((layer) => !layer)
       || layers.some((layer) => layer?.type === 'group')
-      || layers.some((layer) => layer?.type === 'raster' && !this.runtimes.has(layer.id))
+      || layers.some((layer) => layer?.type === 'raster' && !this.layerResources.raster(layer.id))
     ) return false;
     const encoder = this.device.createCommandEncoder({ label: 'LightTable merge selected layers' });
     const mergedTexture = this.encodeComposite(encoder, {
@@ -1219,7 +1176,7 @@ export class LayerDocumentRenderer {
     ) => GPUTexture
   ) {
     const group = findLayerNode(document.layers, groupId)?.node;
-    const destination = this.runtimes.get(destinationId);
+    const destination = this.layerResources.raster(destinationId);
     if (!group || group.type !== 'group' || !destination) return false;
     const encoder = this.device.createCommandEncoder({ label: 'LightTable flatten group' });
     const flattenedTexture = this.encodeComposite(encoder, {
@@ -1245,7 +1202,7 @@ export class LayerDocumentRenderer {
       layer: AdjustmentLayer | RasterLayer
     ) => GPUTexture
   ) {
-    const destination = this.runtimes.get(destinationId);
+    const destination = this.layerResources.raster(destinationId);
     if (!destination) return false;
     const encoder = this.device.createCommandEncoder({ label: 'LightTable flatten image' });
     const flattenedTexture = this.encodeComposite(encoder, document, encodeAdjustment);
@@ -1272,7 +1229,7 @@ export class LayerDocumentRenderer {
   }
 
   beginPixelEdit(layerId: LayerId, channel: PaintChannel) {
-    const runtime = this.runtimes.get(layerId);
+    const runtime = this.layerResources.raster(layerId);
     if (channel === 'pixels' && !runtime) throw new Error('The active raster layer is not available on the GPU.');
     this.destroySnapshot(this.pendingPixelSnapshot);
     const texture = this.createTexture('LightTable brush undo snapshot');
@@ -1297,7 +1254,7 @@ export class LayerDocumentRenderer {
     const swap = (direction: 'undo' | 'redo') => {
       const source = direction === 'undo' ? undoTexture : redoTexture;
       if (!source || applied !== (direction === 'undo')) return false;
-      const runtime = this.runtimes.get(before.layerId);
+      const runtime = this.layerResources.raster(before.layerId);
       const target = before.channel === 'mask' ? this.maskTextureFor(before.layerId) : runtime?.texture;
       if (!target) return false;
       const inverse = this.createTexture(`LightTable ${direction} pixel history`);
@@ -1341,7 +1298,7 @@ export class LayerDocumentRenderer {
     if (useSelection) this.ensureSelectionTargets();
     if (this.transformSession) throw new Error('Finish or cancel the active transform first.');
     if (layerIsLocked(layer, 'position') || !layer.visible) throw new Error('Select a visible, unlocked raster layer before transforming.');
-    const runtime = this.runtimes.get(layer.id);
+    const runtime = this.layerResources.raster(layer.id);
     if (!runtime) throw new Error('The active raster layer is not available on the GPU.');
     if (useSelection && (!this.selectionActive || !this.selectionMask)) {
       throw new Error('The active selection is not available on the GPU.');
@@ -1430,7 +1387,7 @@ export class LayerDocumentRenderer {
   commitTransform(): ReversiblePixelEdit | null {
     const session = this.transformSession;
     if (!session) return null;
-    const runtime = this.runtimes.get(session.layerId);
+    const runtime = this.layerResources.raster(session.layerId);
     if (!runtime) {
       this.cancelTransform();
       return null;
@@ -1459,7 +1416,7 @@ export class LayerDocumentRenderer {
       const sourcePixels = direction === 'undo' ? undoPixels : redoPixels;
       const sourceSelection = direction === 'undo' ? undoSelection : redoSelection;
       if (!sourcePixels || applied !== (direction === 'undo')) return false;
-      const targetRuntime = this.runtimes.get(layerId);
+      const targetRuntime = this.layerResources.raster(layerId);
       if (!targetRuntime) return false;
       const inversePixels = this.createTexture(`LightTable ${direction} transform history`);
       const inverseSelection = usesSelection
@@ -1535,7 +1492,7 @@ export class LayerDocumentRenderer {
     if (!dabs.length) return;
     this.ensureToolPipelines();
     this.ensureSelectionTargets();
-    const runtime = this.runtimes.get(layerId);
+    const runtime = this.layerResources.raster(layerId);
     if (channel === 'pixels' && !runtime) throw new Error('The active raster layer is not available on the GPU.');
     const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
     if (!target) throw new Error('The active paint channel is not available on the GPU.');
@@ -1599,7 +1556,7 @@ export class LayerDocumentRenderer {
   ) {
     this.ensureToolPipelines();
     this.ensureSelectionTargets();
-    const runtime = this.runtimes.get(layerId);
+    const runtime = this.layerResources.raster(layerId);
     const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
     if (!target || !this.selectionMask) return false;
 
@@ -1646,7 +1603,7 @@ export class LayerDocumentRenderer {
 
   invertLayerColors(layerId: LayerId, channel: PaintChannel = 'pixels') {
     this.ensureToolPipelines();
-    const runtime = this.runtimes.get(layerId);
+    const runtime = this.layerResources.raster(layerId);
     const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
     if (!target) return false;
     const result = this.createTexture('LightTable inverted layer colors');
@@ -1950,7 +1907,7 @@ export class LayerDocumentRenderer {
     blob: Blob,
     requestedPosition: { x: number; y: number } | null
   ) {
-    const destination = this.runtimes.get(layerId);
+    const destination = this.layerResources.raster(layerId);
     if (!destination) return false;
     const decoded = await decodeNativeImage(blob);
     try {
@@ -2004,7 +1961,7 @@ export class LayerDocumentRenderer {
     this.ensureSelectionTargets();
     if (selectionEnabled && !this.selectionActive) return null;
     if (!this.selectionMask) return null;
-    const runtime = this.runtimes.get(layer.id);
+    const runtime = this.layerResources.raster(layer.id);
     if (!runtime) return null;
     const generation = this.resourceGeneration;
     const coverageTexture = this.createSelectionTexture(
@@ -2082,7 +2039,7 @@ export class LayerDocumentRenderer {
   }
 
   pasteSelectionClipboard(layerId: LayerId) {
-    const destination = this.runtimes.get(layerId);
+    const destination = this.layerResources.raster(layerId);
     if (!destination || !this.selectionClipboard) return false;
     const encoder = this.device.createCommandEncoder({ label: 'LightTable paste selected pixels' });
     encoder.copyTextureToTexture(
@@ -2383,13 +2340,7 @@ export class LayerDocumentRenderer {
 
   destroyImageResources() {
     this.resourceGeneration += 1;
-    this.runtimes.forEach((runtime) => {
-      runtime.texture.destroy();
-      runtime.maskTexture?.destroy();
-    });
-    this.runtimes.clear();
-    this.nodeMasks.forEach((runtime) => runtime.texture.destroy());
-    this.nodeMasks.clear();
+    this.layerResources.destroy();
     this.patternTextures.forEach((texture) => texture.destroy());
     this.patternTextures.clear();
     this.patternSources.clear();
