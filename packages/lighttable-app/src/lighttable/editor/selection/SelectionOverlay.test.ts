@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { isDirectVectorSelection } from './SelectionOverlay';
+import {
+  createRasterViewportTransform,
+  isDirectVectorSelection
+} from './SelectionOverlay';
 import type { SelectionOperation } from './selectionTypes';
 
 const rectangle: SelectionOperation = {
@@ -25,5 +28,14 @@ describe('isDirectVectorSelection', () => {
       mode: 'feather',
       amount: 8
     }])).toBe(false);
+  });
+});
+
+describe('createRasterViewportTransform', () => {
+  it('projects a cached mask into a panned and zoomed viewport', () => {
+    expect(createRasterViewportTransform(
+      { imageX: 100, imageY: 50, scale: 1 },
+      { imageX: 40, imageY: 20, scale: 2 }
+    )).toBe('translate(-160px, -80px) scale(2)');
   });
 });

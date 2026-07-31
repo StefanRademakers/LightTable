@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   SelectionOperation,
   SelectionShape
@@ -20,6 +20,35 @@ export const isDirectVectorSelection = (
   && operations[0].mode === 'replace'
 );
 
+interface RasterViewportSnapshot {
+  imageX: number;
+  imageY: number;
+  scale: number;
+  width: number;
+  height: number;
+}
+
+const sameRasterViewport = (
+  left: RasterViewportSnapshot,
+  right: RasterViewportSnapshot
+) => (
+  left.imageX === right.imageX
+  && left.imageY === right.imageY
+  && left.scale === right.scale
+  && left.width === right.width
+  && left.height === right.height
+);
+
+export const createRasterViewportTransform = (
+  source: Pick<RasterViewportSnapshot, 'imageX' | 'imageY' | 'scale'>,
+  target: Pick<RasterViewportSnapshot, 'imageX' | 'imageY' | 'scale'>
+): string => {
+  const ratio = target.scale / Math.max(source.scale, 1e-6);
+  const translateX = target.imageX - source.imageX * ratio;
+  const translateY = target.imageY - source.imageY * ratio;
+  return `translate(${translateX}px, ${translateY}px) scale(${ratio})`;
+};
+
 export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   operations,
   draft,
@@ -32,6 +61,26 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   const directVectorSelection = isDirectVectorSelection(operations)
     ? operations[0].shape
     : null;
+  const currentViewport = useMemo<RasterViewportSnapshot>(() => ({
+    imageX: imageRect.x,
+    imageY: imageRect.y,
+    scale,
+    width,
+    height
+  }), [height, imageRect.x, imageRect.y, scale, width]);
+  const [rasterViewport, setRasterViewport] = useState(currentViewport);
+
+  useEffect(() => {
+    if (directVectorSelection || sameRasterViewport(rasterViewport, currentViewport)) return;
+    // Keep the previous raster mask moving with the viewport while wheel/pan
+    // input is active. Re-rasterize once the interaction settles so composite
+    // and feathered outlines regain one-device-pixel sharpness without putting
+    // getImageData plus a full pixel scan on every input event.
+    const timeout = window.setTimeout(() => {
+      setRasterViewport(currentViewport);
+    }, 160);
+    return () => window.clearTimeout(timeout);
+  }, [currentViewport, directVectorSelection, rasterViewport]);
 
   useEffect(() => {
     // The common single-shape case is rendered as SVG below. In particular,
@@ -39,9 +88,9 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     // CPU mask merely to move an ellipse or rectangle outline.
     if (directVectorSelection) return;
     const canvas = canvasRef.current;
-    if (!canvas || width <= 0 || height <= 0) return;
-    canvas.width = Math.max(1, Math.round(width));
-    canvas.height = Math.max(1, Math.round(height));
+    if (!canvas || rasterViewport.width <= 0 || rasterViewport.height <= 0) return;
+    canvas.width = Math.max(1, Math.round(rasterViewport.width));
+    canvas.height = Math.max(1, Math.round(rasterViewport.height));
     const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) return;
 
@@ -57,8 +106,8 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
 
     const traceShape = (selectionShape: SelectionShape) => {
       const points = selectionShape.points.map((point) => ({
-        x: imageRect.x + point.x * scale,
-        y: imageRect.y + point.y * scale
+        x: rasterViewport.imageX + point.x * rasterViewport.scale,
+        y: rasterViewport.imageY + point.y * rasterViewport.scale
       }));
       if (!points.length) return false;
       shapeContext.beginPath();
@@ -92,7 +141,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
 
     operations.forEach((operation) => {
       if (operation.mode === 'feather') {
-        const radius = Math.max(0, operation.amount ?? 0) * scale;
+        const radius = Math.max(0, operation.amount ?? 0) * rasterViewport.scale;
         if (radius <= 0) return;
         shapeContext.clearRect(0, 0, shape.width, shape.height);
         shapeContext.filter = `blur(${radius}px)`;
@@ -155,7 +204,11 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     }
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.putImageData(output, 0, 0);
-  }, [directVectorSelection, height, imageRect.x, imageRect.y, operations, scale, width]);
+  }, [directVectorSelection, operations, rasterViewport]);
+
+  const rasterTransform = useMemo(() => {
+    return createRasterViewportTransform(rasterViewport, currentViewport);
+  }, [currentViewport, rasterViewport]);
 
   const renderShape = (shape: SelectionShape, draftStyle: boolean) => {
     const points = shape.points.map((point) => ({
@@ -251,6 +304,12 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
         <canvas
           ref={canvasRef}
           className="lighttable-selection"
+          style={{
+            height: rasterViewport.height,
+            transform: rasterTransform,
+            transformOrigin: '0 0',
+            width: rasterViewport.width
+          }}
           aria-hidden="true"
         />
       )}
