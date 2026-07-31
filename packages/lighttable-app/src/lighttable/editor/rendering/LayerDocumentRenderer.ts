@@ -76,6 +76,7 @@ import {
 import { LayerRuntimeStore } from './LayerRuntimeStore';
 import { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import { LayerStyleTextureStore } from './LayerStyleTextureStore';
+import { RenderTargetPair } from './RenderTargetPair';
 
 interface PixelSnapshot {
   layerId: LayerId;
@@ -196,8 +197,7 @@ export class LayerDocumentRenderer {
   private readonly brushCanvasBuffer: GPUBuffer;
   private readonly submittedResources: SubmittedResourceRetainer;
   private readonly layerStyleTextures: LayerStyleTextureStore;
-  private compositeA: GPUTexture | null = null;
-  private compositeB: GPUTexture | null = null;
+  private readonly compositeTargets: RenderTargetPair;
   private selectionMask: GPUTexture | null = null;
   private selectionResult: GPUTexture | null = null;
   private selectionShape: GPUTexture | null = null;
@@ -234,6 +234,11 @@ export class LayerDocumentRenderer {
     });
     this.layerStyleTextures = new LayerStyleTextureStore({
       createTexture: (label) => this.createTexture(label)
+    });
+    this.compositeTargets = new RenderTargetPair({
+      createTexture: (label) => this.createTexture(label),
+      firstLabel: 'LightTable layer composite A',
+      secondLabel: 'LightTable layer composite B'
     });
     // Tool-only pipelines are compiled on first use. The normal image-open
     // path needs decode/composite, but not brush, selection or transform.
@@ -359,8 +364,7 @@ export class LayerDocumentRenderer {
       bytes += Math.max(1, texture.width) * Math.max(1, texture.height) * 8;
     });
     bytes += this.layerStyleTextures.estimatedTextureBytes(this.width, this.height);
-    if (this.compositeA) bytes += rgba16Bytes;
-    if (this.compositeB) bytes += rgba16Bytes;
+    bytes += this.compositeTargets.estimatedTextureBytes(this.width, this.height, 8);
     if (this.selectionMask) bytes += r8Bytes;
     if (this.selectionResult) bytes += r8Bytes;
     if (this.selectionShape) bytes += r8Bytes;
@@ -432,9 +436,8 @@ export class LayerDocumentRenderer {
         return runtime.texture;
       }
     }
-    this.ensureCompositeTargets();
-    if (!this.compositeA || !this.compositeB) throw new Error('Layer compositor is not initialized.');
-    this.clearTexture(encoder, this.compositeA);
+    const [compositeA, compositeB] = this.compositeTargets.ensure();
+    this.clearTexture(encoder, compositeA);
     const compositeTexture = (
       background: GPUTexture,
       foreground: GPUTexture,
@@ -718,7 +721,7 @@ export class LayerDocumentRenderer {
       });
       return [parentTarget, parentBackground];
     };
-    const [background] = renderNodes(analysis.plan, this.compositeA, this.compositeB);
+    const [background] = renderNodes(analysis.plan, compositeA, compositeB);
     return background;
   }
 
@@ -882,11 +885,6 @@ export class LayerDocumentRenderer {
     // transition back from COPY_DST in the same command buffer, this keeps
     // first-use style rendering reliable on stricter WebGPU implementations.
     return current;
-  }
-
-  private ensureCompositeTargets() {
-    this.compositeA ??= this.createTexture('LightTable layer composite A');
-    this.compositeB ??= this.createTexture('LightTable layer composite B');
   }
 
   private releaseStyleTargets() {
@@ -2312,10 +2310,7 @@ export class LayerDocumentRenderer {
     this.patternTextures.clear();
     this.patternSources.clear();
     this.layerStyleTextures.destroy();
-    this.compositeA?.destroy();
-    this.compositeB?.destroy();
-    this.compositeA = null;
-    this.compositeB = null;
+    this.compositeTargets.destroy();
     this.selectionMask?.destroy();
     this.selectionResult?.destroy();
     this.selectionShape?.destroy();
