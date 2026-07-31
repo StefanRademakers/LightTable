@@ -199,6 +199,11 @@ describe('LightTable WGSL modules', () => {
     expect(() => new WgslReflect(WARP_FIELD_COMPUTE_WGSL)).not.toThrow();
   });
 
+  it('uses the shared fullscreen vertex output contract for Warp rendering', () => {
+    expect(WARP_RENDER_WGSL).toContain('fn main(input: VertexOutput)');
+    expect(WARP_RENDER_WGSL).not.toContain('FullscreenOutput');
+  });
+
   it.each([
     ['layer source decode', `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_SOURCE_DECODE_WGSL}`],
     ['layer mask decode', `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_MASK_DECODE_WGSL}`],

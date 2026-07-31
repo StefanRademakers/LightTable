@@ -98,7 +98,7 @@ fn mirrorCoordinate(value: f32) -> f32 {
 }
 
 @fragment
-fn main(input: FullscreenOutput) -> @location(0) vec4f {
+fn main(input: VertexOutput) -> @location(0) vec4f {
   var displacement = textureLoad(
     displacementTexture,
     clamp(vec2i(input.uv * settings.canvasSize), vec2i(0), vec2i(settings.canvasSize) - 1),
