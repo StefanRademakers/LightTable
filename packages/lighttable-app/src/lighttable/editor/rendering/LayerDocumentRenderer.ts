@@ -78,22 +78,12 @@ import { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import { LayerStyleTextureStore } from './LayerStyleTextureStore';
 import { RenderTargetPair } from './RenderTargetPair';
 import { SelectionTextureStore } from './SelectionTextureStore';
+import { TransformSessionStore } from './TransformSessionStore';
 
 interface PixelSnapshot {
   layerId: LayerId;
   channel: PaintChannel;
   texture: GPUTexture;
-}
-
-interface TransformGpuSession {
-  layerId: LayerId;
-  matrix: AffineMatrix;
-  sourceTexture: GPUTexture;
-  selectionTexture: GPUTexture | null;
-  previewTexture: GPUTexture;
-  selectionPreview: GPUTexture | null;
-  settingsBuffer: GPUBuffer;
-  usesSelection: boolean;
 }
 
 interface GeometryPreview {
@@ -200,11 +190,11 @@ export class LayerDocumentRenderer {
   private readonly layerStyleTextures: LayerStyleTextureStore;
   private readonly compositeTargets: RenderTargetPair;
   private readonly selectionTextures: SelectionTextureStore;
+  private readonly transformSessions = new TransformSessionStore();
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
   private pendingPixelSnapshot: PixelSnapshot | null = null;
-  private transformSession: TransformGpuSession | null = null;
   private readonly geometryPreviews = new Map<LayerId, GeometryPreview>();
   private styleQuality: 'interactive' | 'final' = 'final';
 
@@ -368,11 +358,7 @@ export class LayerDocumentRenderer {
     bytes += this.compositeTargets.estimatedTextureBytes(this.width, this.height, 8);
     bytes += this.selectionTextures.estimatedTextureBytes(this.width, this.height);
     if (this.pendingPixelSnapshot) bytes += rgba16Bytes;
-    if (this.transformSession) {
-      bytes += rgba16Bytes * 2;
-      if (this.transformSession.selectionTexture) bytes += r8Bytes;
-      if (this.transformSession.selectionPreview) bytes += r8Bytes;
-    }
+    bytes += this.transformSessions.estimatedTextureBytes(rgba16Bytes, r8Bytes);
     return bytes;
   }
 
@@ -428,7 +414,7 @@ export class LayerDocumentRenderer {
       const runtime = this.layerResources.raster(layer.id);
       const geometryPreview = this.geometryPreviews.get(layer.id);
       if (runtime && layer.opacity >= 0.99999 && layer.fillOpacity >= 0.99999 && layer.blendMode === 'normal' &&
-        !layer.mask?.enabled && !this.transformSession && !geometryPreview &&
+        !layer.mask?.enabled && !this.transformSessions.current && !geometryPreview &&
         !layerStyleStackIsActive(layer.styleStack) && !layer.adjustmentStack &&
         isIdentityAffineMatrix(layer.transform) && layer.width === this.width && layer.height === this.height) {
         return runtime.texture;
@@ -532,8 +518,8 @@ export class LayerDocumentRenderer {
       const layer = node;
       const runtime = this.layerResources.raster(layer.id);
       if (!runtime) return [background, target];
-      const activeTransform = this.transformSession?.layerId === layer.id
-        ? this.transformSession
+      const activeTransform = this.transformSessions.current?.layerId === layer.id
+        ? this.transformSessions.current
         : null;
       const ungradedForegroundTexture = activeTransform?.usesSelection
         ? activeTransform.previewTexture
@@ -1256,7 +1242,7 @@ export class LayerDocumentRenderer {
   beginTransform(layer: RasterLayer, useSelection: boolean) {
     this.ensureToolPipelines();
     if (useSelection) this.ensureSelectionTargets();
-    if (this.transformSession) throw new Error('Finish or cancel the active transform first.');
+    if (this.transformSessions.current) throw new Error('Finish or cancel the active transform first.');
     if (layerIsLocked(layer, 'position') || !layer.visible) throw new Error('Select a visible, unlocked raster layer before transforming.');
     const runtime = this.layerResources.raster(layer.id);
     if (!runtime) throw new Error('The active raster layer is not available on the GPU.');
@@ -1278,7 +1264,7 @@ export class LayerDocumentRenderer {
       encoder.copyTextureToTexture({ texture: this.selectionTextures.mask }, { texture: selectionTexture }, [this.width, this.height]);
     }
     this.device.queue.submit([encoder.finish()]);
-    this.transformSession = {
+    this.transformSessions.begin({
       layerId: layer.id,
       matrix: identityAffineMatrix(),
       sourceTexture,
@@ -1287,11 +1273,11 @@ export class LayerDocumentRenderer {
       selectionPreview,
       settingsBuffer,
       usesSelection: useSelection
-    };
+    });
   }
 
   updateTransform(matrix: AffineMatrix) {
-    const session = this.transformSession;
+    const session = this.transformSessions.current;
     if (!session) return false;
     const inverse = invertMatrix(matrix);
     if (!inverse) return false;
@@ -1345,7 +1331,7 @@ export class LayerDocumentRenderer {
   }
 
   commitTransform(): ReversiblePixelEdit | null {
-    const session = this.transformSession;
+    const session = this.transformSessions.current;
     if (!session) return null;
     const runtime = this.layerResources.raster(session.layerId);
     if (!runtime) {
@@ -1360,17 +1346,15 @@ export class LayerDocumentRenderer {
       this.selectionTextures.active = true;
     }
     this.device.queue.submit([encoder.finish()]);
-    let undoPixels: GPUTexture | null = session.sourceTexture;
-    let undoSelection: GPUTexture | null = session.selectionTexture;
+    const historySeed = this.transformSessions.complete();
+    if (!historySeed) return null;
+    let undoPixels: GPUTexture | null = historySeed.sourceTexture;
+    let undoSelection: GPUTexture | null = historySeed.selectionTexture;
     let redoPixels: GPUTexture | null = null;
     let redoSelection: GPUTexture | null = null;
     let applied = true;
-    const usesSelection = session.usesSelection;
-    const layerId = session.layerId;
-    session.previewTexture.destroy();
-    session.selectionPreview?.destroy();
-    session.settingsBuffer.destroy();
-    this.transformSession = null;
+    const usesSelection = historySeed.usesSelection;
+    const layerId = historySeed.layerId;
 
     const swap = (direction: 'undo' | 'redo') => {
       const sourcePixels = direction === 'undo' ? undoPixels : redoPixels;
@@ -1427,15 +1411,7 @@ export class LayerDocumentRenderer {
   }
 
   cancelTransform() {
-    const session = this.transformSession;
-    if (!session) return false;
-    session.sourceTexture.destroy();
-    session.selectionTexture?.destroy();
-    session.previewTexture.destroy();
-    session.selectionPreview?.destroy();
-    session.settingsBuffer.destroy();
-    this.transformSession = null;
-    return true;
+    return this.transformSessions.cancel();
   }
 
   paintDabs(
