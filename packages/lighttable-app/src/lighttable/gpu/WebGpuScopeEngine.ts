@@ -52,6 +52,40 @@ interface ScopeCanvases {
   vectorscope: HTMLCanvasElement;
 }
 
+export interface ScopeCanvasVisibility {
+  readonly hueDistribution: boolean;
+  readonly colorMixerHueDistribution: boolean;
+  readonly parade: boolean;
+  readonly vectorscope: boolean;
+}
+
+const HIDDEN_SCOPE_CANVASES: ScopeCanvasVisibility = {
+  hueDistribution: false,
+  colorMixerHueDistribution: false,
+  parade: false,
+  vectorscope: false
+};
+
+export const scopeCanvasVisibilityEqual = (
+  left: ScopeCanvasVisibility,
+  right: ScopeCanvasVisibility
+) => left.hueDistribution === right.hueDistribution &&
+  left.colorMixerHueDistribution === right.colorMixerHueDistribution &&
+  left.parade === right.parade &&
+  left.vectorscope === right.vectorscope;
+
+export const scopeCanvasVisibilityHasAny = (visibility: ScopeCanvasVisibility) =>
+  visibility.hueDistribution ||
+  visibility.colorMixerHueDistribution ||
+  visibility.parade ||
+  visibility.vectorscope;
+
+const scopeCanvasHasVisibleArea = (canvas: HTMLCanvasElement | undefined) => {
+  if (!canvas) return false;
+  const rect = canvas.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+};
+
 const DEFAULT_OPTIONS: WebGpuScopeOptions = {
   hueDistributionVisible: true,
   paradeVisible: true,
@@ -115,6 +149,7 @@ export class WebGpuScopeEngine {
   private before = false;
   private interactionActive = false;
   private readonly interactiveRefresh = new InteractiveRefreshGate(100);
+  private canvasVisibility = { ...HIDDEN_SCOPE_CANVASES };
   private analysisDirty = true;
   private displayDirty = true;
   private failed = false;
@@ -376,6 +411,25 @@ export class WebGpuScopeEngine {
 
   resize(): boolean {
     if (this.destroyed || this.failed) return false;
+    const nextVisibility = this.resolveCanvasVisibility();
+    const visibilityChanged = !scopeCanvasVisibilityEqual(
+      this.canvasVisibility,
+      nextVisibility
+    );
+    const scopeBecameVisible = (
+      nextVisibility.hueDistribution && !this.canvasVisibility.hueDistribution
+    ) || (
+      nextVisibility.colorMixerHueDistribution &&
+      !this.canvasVisibility.colorMixerHueDistribution
+    ) || (
+      nextVisibility.parade && !this.canvasVisibility.parade
+    ) || (
+      nextVisibility.vectorscope && !this.canvasVisibility.vectorscope
+    );
+    this.canvasVisibility = nextVisibility;
+    if (scopeBecameVisible) this.analysisDirty = true;
+    if (visibilityChanged) this.displayDirty = true;
+
     let changed = false;
     const synchronize = (canvas: HTMLCanvasElement | undefined) => {
       if (!canvas) return;
@@ -386,18 +440,20 @@ export class WebGpuScopeEngine {
       canvas.height = size.height;
       changed = true;
     };
-    if (this.options.hueDistributionVisible) {
+    if (nextVisibility.hueDistribution) {
       synchronize(this.canvases.hueDistribution);
+    }
+    if (nextVisibility.colorMixerHueDistribution) {
       synchronize(this.canvases.colorMixerHueDistribution);
     }
-    if (this.options.paradeVisible) synchronize(this.canvases.parade);
-    if (this.options.vectorscopeVisible) synchronize(this.canvases.vectorscope);
+    if (nextVisibility.parade) synchronize(this.canvases.parade);
+    if (nextVisibility.vectorscope) synchronize(this.canvases.vectorscope);
     if (changed) this.displayDirty = true;
-    return changed;
+    return changed || visibilityChanged;
   }
 
   hasVisibleScopes() {
-    return this.options.hueDistributionVisible || this.options.paradeVisible || this.options.vectorscopeVisible;
+    return scopeCanvasVisibilityHasAny(this.canvasVisibility);
   }
 
   hasPendingWork() {
@@ -425,7 +481,7 @@ export class WebGpuScopeEngine {
       this.encodeAnalysis(encoder);
     }
     if (this.displayDirty) {
-      if (this.options.hueDistributionVisible) this.encodeDisplay(
+      if (this.canvasVisibility.hueDistribution) this.encodeDisplay(
         encoder,
         this.canvases.hueDistribution,
         this.hueDistributionContext,
@@ -433,7 +489,7 @@ export class WebGpuScopeEngine {
         this.hueDisplayBindGroup
       );
       if (
-        this.options.hueDistributionVisible
+        this.canvasVisibility.colorMixerHueDistribution
         && this.canvases.colorMixerHueDistribution
         && this.colorMixerHueDistributionContext
       ) this.encodeDisplay(
@@ -443,14 +499,14 @@ export class WebGpuScopeEngine {
         this.hueDisplayPipeline,
         this.hueDisplayBindGroup
       );
-      if (this.options.paradeVisible) this.encodeDisplay(
+      if (this.canvasVisibility.parade) this.encodeDisplay(
         encoder,
         this.canvases.parade,
         this.paradeContext,
         this.paradeDisplayPipeline,
         this.paradeDisplayBindGroup
       );
-      if (this.options.vectorscopeVisible) this.encodeDisplay(
+      if (this.canvasVisibility.vectorscope) this.encodeDisplay(
         encoder,
         this.canvases.vectorscope,
         this.vectorscopeContext,
@@ -484,8 +540,10 @@ export class WebGpuScopeEngine {
       this.before ? 0 : 1
     ]);
     this.device.queue.writeBuffer(this.analysisUniforms, 0, values);
-    const parade = this.options.paradeVisible;
-    const vector = this.options.vectorscopeVisible;
+    const parade = this.canvasVisibility.parade;
+    const vector = this.canvasVisibility.vectorscope;
+    const hue = this.canvasVisibility.hueDistribution ||
+      this.canvasVisibility.colorMixerHueDistribution;
     let pipeline: GPUComputePipeline | null = null;
     let bindGroup: GPUBindGroup | null = null;
     if (parade && vector) {
@@ -506,7 +564,7 @@ export class WebGpuScopeEngine {
       pipeline = this.vectorAnalysisPipeline;
       bindGroup = this.before ? this.vectorSourceBindGroup : this.vectorFinalBindGroup;
     }
-    if (this.options.hueDistributionVisible) {
+    if (hue) {
       encoder.clearBuffer(this.hueBins);
       encoder.clearBuffer(this.hueMaximum);
     }
@@ -518,7 +576,7 @@ export class WebGpuScopeEngine {
       pass.setBindGroup(0, bindGroup);
       pass.dispatchWorkgroups(workgroupsX, workgroupsY);
     }
-    if (this.options.hueDistributionVisible) {
+    if (hue) {
       const hueBindGroup = this.before ? this.hueSourceBindGroup : this.hueFinalBindGroup;
       if (this.hueAnalysisPipeline && hueBindGroup) {
         pass.setPipeline(this.hueAnalysisPipeline);
@@ -530,6 +588,21 @@ export class WebGpuScopeEngine {
     this.analysisDirty = false;
     this.displayDirty = true;
     this.writeDisplayUniforms();
+  }
+
+  private resolveCanvasVisibility(): ScopeCanvasVisibility {
+    return {
+      hueDistribution: this.options.hueDistributionVisible &&
+        scopeCanvasHasVisibleArea(this.canvases.hueDistribution),
+      // The compact Color Mixer shares the Hue Distribution analysis. Its
+      // visibility follows the actual mounted canvas so a collapsed Grade
+      // section, inactive dock tab, or hidden accessory panel costs nothing.
+      colorMixerHueDistribution:
+        scopeCanvasHasVisibleArea(this.canvases.colorMixerHueDistribution),
+      parade: this.options.paradeVisible && scopeCanvasHasVisibleArea(this.canvases.parade),
+      vectorscope: this.options.vectorscopeVisible &&
+        scopeCanvasHasVisibleArea(this.canvases.vectorscope)
+    };
   }
 
   private writeDisplayUniforms() {

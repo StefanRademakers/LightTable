@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { webGpuScopeOptionsEqual, type WebGpuScopeOptions } from './WebGpuScopeEngine';
+import {
+  scopeCanvasVisibilityEqual,
+  scopeCanvasVisibilityHasAny,
+  webGpuScopeOptionsEqual,
+  type ScopeCanvasVisibility,
+  type WebGpuScopeOptions
+} from './WebGpuScopeEngine';
 
 const options: WebGpuScopeOptions = {
   hueDistributionVisible: true,
@@ -25,5 +31,28 @@ describe('WebGPU scope option state', () => {
       ...options,
       traceBrightness: 0.5
     })).toBe(false);
+  });
+});
+
+describe('WebGPU scope canvas visibility', () => {
+  const hidden: ScopeCanvasVisibility = {
+    hueDistribution: false,
+    colorMixerHueDistribution: false,
+    parade: false,
+    vectorscope: false
+  };
+
+  it('does not schedule optional scope work when every canvas is hidden', () => {
+    expect(scopeCanvasVisibilityHasAny(hidden)).toBe(false);
+  });
+
+  it('treats the compact Color Mixer as a visible hue-analysis consumer', () => {
+    const mixerVisible = {
+      ...hidden,
+      colorMixerHueDistribution: true
+    };
+    expect(scopeCanvasVisibilityHasAny(mixerVisible)).toBe(true);
+    expect(scopeCanvasVisibilityEqual(hidden, mixerVisible)).toBe(false);
+    expect(scopeCanvasVisibilityEqual(mixerVisible, { ...mixerVisible })).toBe(true);
   });
 });

@@ -31,7 +31,7 @@ Verification at the architecture checkpoint:
 Latest renderer-performance verification:
 
 - repository boundary verification passed;
-- 176 test files and 775 tests passed;
+- 180 test files and 810 tests passed;
 - standalone web production build passed;
 - packaged Electron verification passed.
 
@@ -183,6 +183,15 @@ presentation-only publication can therefore stop before creating and
 submitting an empty WebGPU command buffer. This is intentionally a frame-graph
 contract rather than a React heuristic; future processing nodes should expose
 dirty work through the same boundary.
+
+Scope analysis now follows actual canvas visibility, not only configured panel
+flags. Collapsed sections, inactive dock tabs and hidden accessory panels do
+not dispatch their analysis or redraw their retained results. The standalone
+Hue Distribution and compact Color Mixer remain independent display consumers
+of the same retained hue bins. Reopening either consumer marks only scope
+analysis/display dirty; panel resize redraws retained bins without rebuilding
+the document correction graph. Interactive analysis remains capped at 10 Hz
+and gesture completion requests the final full-quality observation.
 
 Document compositing and global correction now have separate invalidation
 domains. The renderer retains the last valid document-only composite texture;
