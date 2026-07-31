@@ -1183,6 +1183,10 @@ Work:
       encoding timings in the development Debug panel so performance
       regressions can be measured on representative macOS hardware. True GPU
       execution timing remains a separate future timestamp-query milestone;
+- [x] Remove selection visualization from the viewport hot path: simple
+      selections use SVG geometry, complex masks cache their raster result by
+      selection revision and reuse it during pan/zoom, and wheel input publishes
+      only the newest accumulated viewport state once per animation frame;
 - preserve exact bypass behavior;
 - retain PSD mapping into the same descriptors.
 

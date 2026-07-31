@@ -31,7 +31,7 @@ Verification at the architecture checkpoint:
 Latest renderer-performance verification:
 
 - repository boundary verification passed;
-- 180 test files and 810 tests passed;
+- 183 test files and 818 tests passed;
 - standalone web production build passed;
 - packaged Electron verification passed.
 
@@ -44,12 +44,13 @@ curve LUT and retained GPU payload writers. `WebGpuEngine` no longer manages
 those resources as unrelated nullable fields, giving the renderer one
 idempotent lifecycle boundary for document-core GPU state.
 
-The next interaction-performance target is the selection overlay. The legacy
-overlay rasterizes a viewport-sized mask, performs a full `getImageData()`
-readback and scans every pixel whenever pan or zoom changes. This is noticeable
-on desktop GPUs and severe on macOS. Simple selections must use a vector overlay;
-composite/feathered rasterization must be cached by selection revision and never
-rebuilt for viewport-only changes.
+The selection-overlay hotspot is now removed from the viewport fast path. A
+single rectangle, ellipse, freehand path or polygon is drawn as a lightweight
+SVG overlay. Compound, feathered and inverted selections retain the raster path,
+but its viewport-sized mask is cached while pan or zoom is active, transformed
+with the viewport and rebuilt once after interaction settles. Viewport-only
+changes therefore no longer perform `getImageData()` and a full JavaScript pixel
+scan per input event.
 
 Canvas panning now follows the same interaction rule as GPU rendering: raw
 pointer events are accepted at device frequency, but only the newest pan value
@@ -58,6 +59,12 @@ the final value synchronously and document switches cancel queued input. This
 keeps high-rate trackpads and pens from repeatedly rendering the complete editor
 shell, without reducing visible pan cadence or losing per-document viewport
 state.
+
+Wheel and trackpad zoom now follows the same rule. High-frequency wheel events
+accumulate against the newest queued view, while React/document state receives
+at most one zoom publication per animation frame. This preserves every zoom
+delta and cursor anchor without making trackpad event frequency the editor's
+render frequency.
 
 High-frequency Grade and Lens Fx presentation no longer lives in the editor
 root's React state. Each document owns an adjustment presentation store. During

@@ -37,6 +37,10 @@ export class LatestFrameValueScheduler<Value> {
     });
   }
 
+  pending(): Value | undefined {
+    return this.hasPendingValue ? this.pendingValue : undefined;
+  }
+
   flush(): boolean {
     if (this.disposed || !this.hasPendingValue) return false;
     this.cancelFrame();

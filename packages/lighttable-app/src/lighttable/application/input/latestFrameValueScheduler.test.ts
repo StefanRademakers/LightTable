@@ -40,9 +40,11 @@ describe('LatestFrameValueScheduler', () => {
     scheduler.schedule(2);
     scheduler.schedule(3);
 
+    expect(scheduler.pending()).toBe(3);
     expect(frame.host.request).toHaveBeenCalledOnce();
     expect(publish).not.toHaveBeenCalled();
     frame.runNext();
+    expect(scheduler.pending()).toBeUndefined();
     expect(publish).toHaveBeenCalledOnce();
     expect(publish).toHaveBeenCalledWith(3);
   });

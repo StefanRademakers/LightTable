@@ -129,21 +129,30 @@ export const useViewportInteractionController = ({
     panX: number;
     panY: number;
   }> | null>(null);
+  const zoomFrameRef = useRef<LatestFrameValueScheduler<LightTableViewState> | null>(null);
   if (!panFrameRef.current) {
     panFrameRef.current = new LatestFrameValueScheduler((pan) => {
       setViewRef.current((current) => ({ ...current, ...pan }));
     });
   }
+  if (!zoomFrameRef.current) {
+    zoomFrameRef.current = new LatestFrameValueScheduler((nextView) => {
+      setViewRef.current(nextView);
+    });
+  }
 
   useEffect(() => {
     // A workspace tab can replace the document-owned setter without
-    // unmounting this hook. Never let a queued pan cross that boundary.
+    // unmounting this hook. Never let queued viewport input cross that boundary.
     panFrameRef.current?.cancel();
+    zoomFrameRef.current?.cancel();
   }, [setView]);
 
   useEffect(() => () => {
     panFrameRef.current?.dispose();
     panFrameRef.current = null;
+    zoomFrameRef.current?.dispose();
+    zoomFrameRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -286,14 +295,16 @@ export const useViewportInteractionController = ({
         { x: bounds.left, y: bounds.top }
       );
       setZoomMode('custom');
-      setView(zoomViewAtPoint({
+      const pendingView = zoomFrameRef.current?.pending();
+      const nextView = zoomViewAtPoint({
         cursor,
         viewport: viewportSize,
-        view: { scale: activeScale, panX: view.panX, panY: view.panY },
+        view: pendingView ?? { scale: activeScale, panX: view.panX, panY: view.panY },
         wheelDelta: event.deltaY,
         minScale,
         maxScale
-      }));
+      });
+      zoomFrameRef.current?.schedule(nextView);
     },
     onPointerDown: (event) => {
       // A bounding-client-rect read may force layout. Snapshot it once for all
