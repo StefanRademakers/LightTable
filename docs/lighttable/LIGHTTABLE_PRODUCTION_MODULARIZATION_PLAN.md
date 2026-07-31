@@ -1598,3 +1598,5 @@ The refactor is successful when:
       to keep resource budgets independent from the renderer facade.
 - [x] Give optional authoring pipelines one lazy provider boundary so basic
       document construction cannot accidentally compile tool shaders.
+- [x] Move immutable layer-tree synchronization, retained-undo pruning and
+      raster render-contract resolution behind one runtime coordinator.

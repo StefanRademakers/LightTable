@@ -18,7 +18,6 @@ import type { AffineMatrix } from '../tools/transform/transformTypes';
 import {
   identityAffineMatrix,
   isIdentityAffineMatrix,
-  rasterRenderContract,
   type RasterRenderContract
 } from './renderContract';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
@@ -56,6 +55,7 @@ import { DocumentResourceState } from './DocumentResourceState';
 import { DocumentImageResourceLifecycle } from './DocumentImageResourceLifecycle';
 import { DocumentTextureMemoryEstimator } from './DocumentTextureMemoryEstimator';
 import { ToolPipelineProvider } from './ToolPipelineProvider';
+import { LayerRuntimeCoordinator } from './LayerRuntimeCoordinator';
 
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
@@ -85,6 +85,7 @@ export class LayerDocumentRenderer {
   private readonly geometryPreviews = new GeometryPreviewStore();
   private readonly imageResources: DocumentImageResourceLifecycle;
   private readonly textureMemory: DocumentTextureMemoryEstimator;
+  private readonly layerRuntimeCoordinator: LayerRuntimeCoordinator;
 
   constructor(device: GPUDevice, sampler: GPUSampler) {
     const pipelines = documentPipelinesFor(device);
@@ -101,6 +102,10 @@ export class LayerDocumentRenderer {
     this.layerResources = new LayerRuntimeStore({
       createRasterTexture: (label) => this.textures.createColor(label),
       createMaskTexture: (label) => this.textures.createMask(label)
+    });
+    this.layerRuntimeCoordinator = new LayerRuntimeCoordinator({
+      store: this.layerResources,
+      invalidateLayer: (layerId) => this.invalidateStyledLayerCache(layerId)
     });
     this.layerThumbnails = new LayerThumbnailService({
       dimensions: this.resources.dimensions,
@@ -160,7 +165,7 @@ export class LayerDocumentRenderer {
       geometryPreviews: this.geometryPreviews,
       layerStyles: this.layerStyleRenderer,
       dimensions: this.resources.dimensions,
-      syncDocument: (document) => this.syncDocument(document),
+      syncDocument: (document) => this.layerRuntimeCoordinator.sync(document),
       maskTextureFor: (layerId) => this.maskTextureFor(layerId),
       createTexture: (label) => this.textures.createColor(label),
       clearTexture: (encoder, texture) => this.textures.clear(encoder, texture),
@@ -330,13 +335,11 @@ export class LayerDocumentRenderer {
     // Keep detached runtimes alive for the bounded editor history. This makes
     // delete/create/duplicate undo lossless without a synchronous GPU readback.
     // All cached runtimes are released when the image/editor is destroyed.
-    this.layerResources.sync(document.layers);
+    this.layerRuntimeCoordinator.sync(document);
   }
 
   pruneDetachedRuntimes(keepLayerIds: ReadonlySet<LayerId>) {
-    this.layerResources.pruneDetached(keepLayerIds).forEach((id) => {
-      this.layerStyleRenderer.invalidate(id);
-    });
+    this.layerRuntimeCoordinator.pruneDetached(keepLayerIds);
   }
 
   private maskTextureFor(layerId: LayerId) {
@@ -344,8 +347,7 @@ export class LayerDocumentRenderer {
   }
 
   resolveRasterRenderContract(layer: RasterLayer): RasterRenderContract | null {
-    const runtime = this.layerResources.raster(layer.id);
-    return runtime ? rasterRenderContract(layer, runtime.texture) : null;
+    return this.layerRuntimeCoordinator.resolveRenderContract(layer);
   }
 
   /**
