@@ -592,7 +592,11 @@ export class WebGpuEngine {
   }
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
-    return this.documentRenderer?.copySelectedLayerContent(document, layerId) ?? false;
+    return this.documentRenderer?.copySelectedLayerContent(
+      document,
+      layerId,
+      (encoder, source, layer) => this.encodeLayerProcessing(encoder, source, layer)
+    ) ?? false;
   }
 
   async exportSelectionClipboard(bounds: Rect) {

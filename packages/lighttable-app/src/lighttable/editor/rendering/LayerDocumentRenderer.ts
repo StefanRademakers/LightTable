@@ -271,12 +271,16 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.feather(radius);
   }
 
-  copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
+  copySelectedLayerContent(
+    document: ImageDocument,
+    layerId: LayerId,
+    encodeAdjustment?: EncodeAdjustment
+  ) {
     return this.runtime.selectionClipboard.copySelectedLayer(
       document,
       layerId,
       (encoder, isolatedDocument) =>
-        this.encodeComposite(encoder, isolatedDocument),
+        this.encodeComposite(encoder, isolatedDocument, encodeAdjustment),
       () => this.releaseSubmittedResources()
     );
   }
