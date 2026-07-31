@@ -1594,3 +1594,5 @@ The refactor is successful when:
       the selection store/texture-factory boundary.
 - [x] Centralize active-image resource replacement and ordered teardown behind
       a generation-safe lifecycle boundary.
+- [x] Move active-document GPU memory accounting behind an extensible estimator
+      to keep resource budgets independent from the renderer facade.

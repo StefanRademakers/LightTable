@@ -58,6 +58,7 @@ import { ImportedLayerInitializer } from './ImportedLayerInitializer';
 import { DocumentTextureFactory } from './DocumentTextureFactory';
 import { DocumentResourceState } from './DocumentResourceState';
 import { DocumentImageResourceLifecycle } from './DocumentImageResourceLifecycle';
+import { DocumentTextureMemoryEstimator } from './DocumentTextureMemoryEstimator';
 
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
@@ -90,6 +91,7 @@ export class LayerDocumentRenderer {
   private readonly resources = new DocumentResourceState();
   private readonly geometryPreviews = new GeometryPreviewStore();
   private readonly imageResources: DocumentImageResourceLifecycle;
+  private readonly textureMemory: DocumentTextureMemoryEstimator;
 
   private readonly device: GPUDevice;
   private readonly sampler: GPUSampler;
@@ -320,6 +322,24 @@ export class LayerDocumentRenderer {
         () => this.pixelEditSessions.destroy()
       ]
     });
+    this.textureMemory = new DocumentTextureMemoryEstimator({
+      dimensions: this.resources.dimensions,
+      sources: [
+        ({ width, height }) =>
+          this.layerResources.estimatedTextureBytes(width, height),
+        () => this.patternAssets.estimatedTextureBytes(),
+        ({ width, height }) =>
+          this.layerStyleRenderer.estimatedTextureBytes(width, height),
+        ({ width, height }) =>
+          this.compositeTargets.estimatedTextureBytes(width, height, 8),
+        ({ width, height }) =>
+          this.selectionTextures.estimatedTextureBytes(width, height),
+        ({ rgba16Bytes }) =>
+          this.pixelEditSessions.estimatedTextureBytes(rgba16Bytes),
+        ({ rgba16Bytes, r8Bytes }) =>
+          this.transformSessions.estimatedTextureBytes(rgba16Bytes, r8Bytes)
+      ]
+    });
   }
 
   async initializeLayerStylePipeline() {
@@ -364,19 +384,7 @@ export class LayerDocumentRenderer {
    * raster runtimes retained for lossless undo.
    */
   estimatedTextureBytes() {
-    const { width, height } = this.resources.dimensions();
-    const pixels = Math.max(1, width) * Math.max(1, height);
-    const rgba16Bytes = pixels * 8;
-    const r8Bytes = pixels;
-    let bytes = 0;
-    bytes += this.layerResources.estimatedTextureBytes(width, height);
-    bytes += this.patternAssets.estimatedTextureBytes();
-    bytes += this.layerStyleRenderer.estimatedTextureBytes(width, height);
-    bytes += this.compositeTargets.estimatedTextureBytes(width, height, 8);
-    bytes += this.selectionTextures.estimatedTextureBytes(width, height);
-    bytes += this.pixelEditSessions.estimatedTextureBytes(rgba16Bytes);
-    bytes += this.transformSessions.estimatedTextureBytes(rgba16Bytes, r8Bytes);
-    return bytes;
+    return this.textureMemory.estimate();
   }
 
   setGeometryPreview(layer: RasterLayer, matrix: AffineMatrix | null) {
