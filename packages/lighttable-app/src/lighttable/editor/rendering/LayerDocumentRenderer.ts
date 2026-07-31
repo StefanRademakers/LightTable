@@ -65,10 +65,9 @@ import {
   layerStyleDocumentBounds
 } from '../styles/layerStyleRenderPlan';
 import {
-  buildCompositorSequence,
-  collectVisibleLeafNodes,
-  containsActiveLayerStyles,
-  groupNeedsCompositingEnvelope
+  analyzeDocumentComposite,
+  type CompositorPlan,
+  type CompositorPlanEntry
 } from './compositorGraph';
 import {
   encodeRgba8Png,
@@ -459,15 +458,19 @@ export class LayerDocumentRenderer {
     ) => GPUTexture
   ): GPUTexture {
     this.syncDocument(document);
-    const visibleLeafNodes = collectVisibleLeafNodes(document.layers);
-    const rasterLayers = visibleLeafNodes.filter((node): node is RasterLayer => node.type === 'raster');
-    const visibleLayers = rasterLayers.filter((layer) => layer.visible && layer.opacity > 0);
-    const stylesActive = containsActiveLayerStyles(document.layers);
+    const analysis = analyzeDocumentComposite(
+      document.layers,
+      (layerId) => Boolean(this.maskTextureFor(layerId))
+    );
+    const visibleLayers = analysis.visibleRasterLayers.filter(
+      (layer) => layer.visible && layer.opacity > 0
+    );
+    const stylesActive = analysis.activeLayerStyles;
     if (!stylesActive) {
       this.releaseStyleTargets();
       this.releaseStyledLayerCache();
     }
-    if (visibleLayers.length === 1 && visibleLeafNodes.length === 1 && document.layers.length === 1) {
+    if (visibleLayers.length === 1 && analysis.visibleLeafNodes.length === 1 && document.layers.length === 1) {
       const layer = visibleLayers[0];
       const runtime = this.runtimes.get(layer.id);
       const geometryPreview = this.geometryPreviews.get(layer.id);
@@ -524,14 +527,15 @@ export class LayerDocumentRenderer {
       );
     };
     const renderNode = (
-      node: LayerNode,
+      entry: CompositorPlanEntry,
       background: GPUTexture,
       target: GPUTexture,
       clippingTexture: GPUTexture | null = null
     ): [GPUTexture, GPUTexture] => {
+      const { node } = entry;
       if (!node.visible || node.opacity <= 0) return [background, target];
       if (node.type === 'group') {
-        return renderGroup(node, background, target, clippingTexture);
+        return renderGroup(entry, background, target, clippingTexture);
       }
       if (node.type === 'adjustment') {
         if (!encodeAdjustment) return [background, target];
@@ -684,21 +688,21 @@ export class LayerDocumentRenderer {
       return [target, background];
     };
     const renderNodes = (
-      nodes: readonly LayerNode[],
+      plan: CompositorPlan,
       initialBackground: GPUTexture,
       initialTarget: GPUTexture
     ): [GPUTexture, GPUTexture] => {
       let background = initialBackground;
       let target = initialTarget;
       let clippingBase: GPUTexture | null = null;
-      buildCompositorSequence(nodes).forEach((entry) => {
+      plan.entries.forEach((entry) => {
         const { node } = entry;
         // A clipped layer without a preceding, visible base has no shape to
         // inherit. Treat malformed/imported chains as transparent instead of
         // leaking the complete layer into the document.
         if (entry.skipBecauseClippingBaseMissing) return;
         [background, target] = renderNode(
-          node,
+          entry,
           background,
           target,
           entry.usesClippingBase ? clippingBase : null
@@ -710,33 +714,32 @@ export class LayerDocumentRenderer {
             const baseB = this.createTexture(`LightTable clipping base B: ${node.name}`);
             this.pendingTextures.push(baseA, baseB);
             this.clearTexture(encoder, baseA);
-            [clippingBase] = renderNode(node, baseA, baseB);
+            [clippingBase] = renderNode(entry, baseA, baseB);
           }
         }
       });
       return [background, target];
     };
     const renderGroup = (
-      group: GroupLayer,
+      entry: CompositorPlanEntry,
       parentBackground: GPUTexture,
       parentTarget: GPUTexture,
       clippingTexture: GPUTexture | null = null
     ): [GPUTexture, GPUTexture] => {
-      const hasEnvelope = groupNeedsCompositingEnvelope(
-        group,
-        Boolean(this.maskTextureFor(group.id))
-      );
+      const group = entry.node as GroupLayer;
+      const childPlan = entry.children;
+      if (!childPlan) return [parentBackground, parentTarget];
       // Photoshop pass-through groups without an envelope participate in the
       // parent's stack directly. This preserves adjustment-layer interaction
       // with content below the group.
-      if (!hasEnvelope) {
-        return renderNodes(group.children, parentBackground, parentTarget);
+      if (!entry.groupNeedsEnvelope) {
+        return renderNodes(childPlan, parentBackground, parentTarget);
       }
       const groupA = this.createTexture(`LightTable isolated group A: ${group.name}`);
       const groupB = this.createTexture(`LightTable isolated group B: ${group.name}`);
       this.pendingTextures.push(groupA, groupB);
       this.clearTexture(encoder, groupA);
-      const [groupResult] = renderNodes(group.children, groupA, groupB);
+      const [groupResult] = renderNodes(childPlan, groupA, groupB);
       const maskTexture = this.maskTextureFor(group.id);
       const styledGroup = layerStyleStackIsActive(group.styleStack)
         ? this.encodeStyledLayer(
@@ -762,7 +765,7 @@ export class LayerDocumentRenderer {
       });
       return [parentTarget, parentBackground];
     };
-    const [background] = renderNodes(document.layers, this.compositeA, this.compositeB);
+    const [background] = renderNodes(analysis.plan, this.compositeA, this.compositeB);
     return background;
   }
 

@@ -6,6 +6,8 @@ import {
 } from '../document/documentTypes';
 import { createDefaultLayerStyle } from '../styles/layerStyleDefaults';
 import {
+  analyzeDocumentComposite,
+  buildCompositorPlan,
   buildCompositorSequence,
   collectVisibleLeafNodes,
   containsActiveLayerStyles,
@@ -99,5 +101,52 @@ describe('compositorGraph', () => {
     adjustment.opacity = 1;
     group.visible = false;
     expect(containsVisibleAdjustmentLayer([group])).toBe(false);
+  });
+
+  it('prebuilds nested group and clipping semantics without GPU resources', () => {
+    const base = raster('base');
+    const clipped = { ...raster('clipped'), clipping: true };
+    const group = createGroupLayer('isolated');
+    group.compositing = 'isolated';
+    group.children = [base, clipped];
+
+    const plan = buildCompositorPlan([group]);
+    const groupEntry = plan.entries[0];
+
+    expect(groupEntry.groupNeedsEnvelope).toBe(true);
+    expect(groupEntry.children?.entries.map((entry) => ({
+      name: entry.node.name,
+      use: entry.usesClippingBase,
+      capture: entry.captureClippingBase
+    }))).toEqual([
+      { name: 'base', use: false, capture: true },
+      { name: 'clipped', use: true, capture: false }
+    ]);
+  });
+
+  it('analyzes the fast-path inputs and mask-dependent group envelope once', () => {
+    const visible = raster('visible');
+    const hidden = { ...raster('hidden'), visible: false };
+    const group = createGroupLayer('masked');
+    group.mask = {
+      id: 'group-mask',
+      enabled: true,
+      density: 1,
+      feather: 0,
+      revision: 0,
+      pixelRevision: 0,
+      dirtyBounds: null
+    };
+    group.children = [visible, hidden];
+
+    const analysis = analyzeDocumentComposite(
+      [group],
+      (layerId) => layerId === group.id
+    );
+
+    expect(analysis.visibleLeafNodes.map(({ name }) => name)).toEqual(['visible']);
+    expect(analysis.visibleRasterLayers).toEqual([visible]);
+    expect(analysis.activeLayerStyles).toBe(false);
+    expect(analysis.plan.entries[0].groupNeedsEnvelope).toBe(true);
   });
 });

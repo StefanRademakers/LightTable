@@ -11,6 +11,24 @@ export interface CompositorSequenceEntry {
   captureClippingBase: boolean;
 }
 
+export interface CompositorPlanEntry extends CompositorSequenceEntry {
+  /** Prebuilt child plan for groups; null for leaf nodes. */
+  children: CompositorPlan | null;
+  /** Whether group-level semantics require an isolated offscreen envelope. */
+  groupNeedsEnvelope: boolean;
+}
+
+export interface CompositorPlan {
+  entries: readonly CompositorPlanEntry[];
+}
+
+export interface DocumentCompositeAnalysis {
+  plan: CompositorPlan;
+  visibleLeafNodes: readonly LayerNode[];
+  visibleRasterLayers: readonly Extract<LayerNode, { type: 'raster' }>[];
+  activeLayerStyles: boolean;
+}
+
 /**
  * Resolves sibling clipping-chain semantics without allocating GPU resources.
  * Layer arrays are bottom-most first, matching both LightTable and PSD import.
@@ -33,6 +51,46 @@ export const buildCompositorSequence = (
       captureClippingBase
     };
   });
+};
+
+/**
+ * Builds the semantic compositor graph before GPU encoding starts.
+ *
+ * The plan deliberately contains document nodes rather than GPU resources.
+ * This keeps PSD/group/clipping semantics pure and testable while the renderer
+ * remains responsible only for evaluating the established plan.
+ */
+export const buildCompositorPlan = (
+  nodes: readonly LayerNode[],
+  maskTextureAvailable: (layerId: LayerNode['id']) => boolean = () => false
+): CompositorPlan => ({
+  entries: buildCompositorSequence(nodes).map((entry) => {
+    const group = entry.node.type === 'group' ? entry.node : null;
+    return {
+      ...entry,
+      children: group
+        ? buildCompositorPlan(group.children, maskTextureAvailable)
+        : null,
+      groupNeedsEnvelope: group
+        ? groupNeedsCompositingEnvelope(group, maskTextureAvailable(group.id))
+        : false
+    };
+  })
+});
+
+export const analyzeDocumentComposite = (
+  nodes: readonly LayerNode[],
+  maskTextureAvailable: (layerId: LayerNode['id']) => boolean = () => false
+): DocumentCompositeAnalysis => {
+  const visibleLeafNodes = collectVisibleLeafNodes(nodes);
+  return {
+    plan: buildCompositorPlan(nodes, maskTextureAvailable),
+    visibleLeafNodes,
+    visibleRasterLayers: visibleLeafNodes.filter(
+      (node): node is Extract<LayerNode, { type: 'raster' }> => node.type === 'raster'
+    ),
+    activeLayerStyles: containsActiveLayerStyles(nodes)
+  };
 };
 
 export const collectVisibleLeafNodes = (
