@@ -180,8 +180,16 @@ reuses geometry; an output-transform edit reuses geometry and spatial work;
 and a display-post edit such as Grain reuses all earlier work. Missing handles
 invalidate their downstream dependency chain, and exports/reference metrics no
 longer force a complete effect pass when the committed full-quality frame is
-already current. The next performance task is development telemetry for actual
-stage execution/timing on macOS, not another speculative bypass.
+already current.
+
+The Debug panel can now capture and reset correction render telemetry without
+polling the renderer. A capture reports render calls, submitted frames,
+no-work skips, correction frames and execution/reuse counts for document
+composite, source geometry, linear spatial, output, display post and display
+resolve. Timings deliberately measure CPU command encoding and resource
+preparation; they are not asynchronous GPU execution timings. Use a capture
+before and after one isolated interaction on representative macOS hardware to
+decide the next optimization instead of adding speculative bypasses.
 
 Recommended order:
 

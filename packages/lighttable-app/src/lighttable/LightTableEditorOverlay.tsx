@@ -43,6 +43,7 @@ import { buildEditorStatus } from './application/telemetry/editorStatus';
 import {
   type ReferenceDifferenceMetrics
 } from './application/rendering/rendererTypes';
+import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
 import type {
   DocumentOpenMode
 } from './application/documents/documentSourceProbe';
@@ -1540,6 +1541,33 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     'info',
                     'Layout diagnostics',
                     `Editor ResizeObservers ${enabled ? 'enabled' : 'disabled'}.`
+                  );
+                },
+                onCaptureRenderTelemetry: () => {
+                  const snapshot = engineRef.current?.renderTelemetrySnapshot();
+                  if (!snapshot) {
+                    appendDebugMessage(
+                      'warning',
+                      'Render telemetry',
+                      'No active document renderer is available.'
+                    );
+                    return;
+                  }
+                  appendDebugMessage(
+                    'info',
+                    'Render telemetry',
+                    `${snapshot.correctionFrames} correction frames; `
+                      + `${snapshot.submittedFrames} submitted frames; `
+                      + `${snapshot.noWorkSkips} no-work skips.`,
+                    formatRenderTelemetry(snapshot)
+                  );
+                },
+                onResetRenderTelemetry: () => {
+                  engineRef.current?.resetRenderTelemetry();
+                  appendDebugMessage(
+                    'info',
+                    'Render telemetry',
+                    'Render counters reset.'
                   );
                 }
               },

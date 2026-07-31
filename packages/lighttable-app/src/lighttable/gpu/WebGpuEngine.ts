@@ -34,6 +34,7 @@ import type {
 } from '../application/rendering/rendererTypes';
 import { RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
 import { RenderDirtyState } from '../application/rendering/renderDirtyState';
+import { RenderTelemetry } from '../application/rendering/renderTelemetry';
 import {
   resolveViewportRenderState,
   viewportRenderStatesEqual,
@@ -104,6 +105,7 @@ export class WebGpuEngine {
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
   private readonly renderDirty = new RenderDirtyState();
+  private readonly renderTelemetry = new RenderTelemetry();
   private readonly imageResources = new DocumentImageGpuResources();
   private readonly adjustmentState = new DocumentAdjustmentState();
 
@@ -1156,12 +1158,17 @@ export class WebGpuEngine {
       !this.imageResources.blitOriginalBindGroup || !this.imageResources.blitCorrectedBindGroup ||
       !this.imageResources.differenceBindGroup) return;
 
+    this.renderTelemetry.recordRenderCall();
+
     // Observer completion (notably histogram readback) may request a retry in
     // case the image changed while a read was pending. If no renderer stage or
     // scope actually remained dirty, stop before allocating/submitting an
     // empty GPU command buffer. This boundary also prevents presentation-only
     // React updates from accidentally waking the heavy frame graph.
-    if (!this.renderDirty.hasPendingFrameWork && !this.scopeRuntime.hasPendingWork()) return;
+    if (!this.renderDirty.hasPendingFrameWork && !this.scopeRuntime.hasPendingWork()) {
+      this.renderTelemetry.recordNoWorkSkip();
+      return;
+    }
 
     // Capture the first validation failure from the frame. Without a scope the
     // useful error is commonly followed by—and visually replaced with—the
@@ -1170,6 +1177,7 @@ export class WebGpuEngine {
     const encoder = this.device.createCommandEncoder({ label: 'LightTable render' });
     let renderedCorrection = false;
     if (this.renderDirty.correctionRequired) {
+      this.renderTelemetry.recordCorrectionFrame();
       // Missing cached handles invalidate their complete downstream chain.
       // This prevents a freshly rebuilt source from being paired with a stale
       // spatial or display result after image-resource lifecycle changes.
@@ -1181,11 +1189,14 @@ export class WebGpuEngine {
         this.renderDirty.invalidateCorrectionFrom('display-post');
       }
       if (this.renderDirty.documentCompositeRequired || !this.documentCompositeTexture) {
-        this.documentCompositeTexture = this.documentRenderer.encodeComposite(
-          encoder,
-          this.imageDocument,
-          (layerEncoder, source, layer) =>
-            this.encodeLayerProcessing(layerEncoder, source, layer)
+        this.documentCompositeTexture = this.renderTelemetry.measure(
+          'document-composite',
+          () => this.documentRenderer!.encodeComposite(
+            encoder,
+            this.imageDocument!,
+            (layerEncoder, source, layer) =>
+              this.encodeLayerProcessing(layerEncoder, source, layer)
+          )
         );
         this.renderDirty.markDocumentCompositeRendered();
       }
@@ -1202,9 +1213,9 @@ export class WebGpuEngine {
         this.renderDirty.correctionStageRequired('source-geometry')
         || !this.sourceGeometryTexture
       ) {
-        this.sourceGeometryTexture = this.effectRuntime.encodeSourceGeometry(
-          encoder,
-          documentTexture
+        this.sourceGeometryTexture = this.renderTelemetry.measure(
+          'source-geometry',
+          () => this.effectRuntime!.encodeSourceGeometry(encoder, documentTexture)
         );
       }
       const sourceGeometryTexture = this.sourceGeometryTexture;
@@ -1217,49 +1228,59 @@ export class WebGpuEngine {
         this.renderDirty.correctionStageRequired('linear-spatial')
         || !this.linearSpatialTexture
       ) {
-        this.linearSpatialTexture = this.effectRuntime.encodeLinearSpatial(
-          encoder,
-          sourceGeometryTexture,
-          { visualizeDepth: visualizingDepth }
+        this.linearSpatialTexture = this.renderTelemetry.measure(
+          'linear-spatial',
+          () => this.effectRuntime!.encodeLinearSpatial(
+            encoder,
+            sourceGeometryTexture,
+            { visualizeDepth: visualizingDepth }
+          )
         );
       }
       const linearEffectTexture = this.linearSpatialTexture;
       if (this.renderDirty.correctionStageRequired('output')) {
-        const outputBindGroup = this.device.createBindGroup({
-          layout: this.outputPipeline.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: linearEffectTexture.createView() },
-            { binding: 1, resource: { buffer: this.outputSettingsBuffer } }
-          ]
+        this.renderTelemetry.measure('output', () => {
+          const outputBindGroup = this.device.createBindGroup({
+            layout: this.outputPipeline!.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: linearEffectTexture.createView() },
+              { binding: 1, resource: { buffer: this.outputSettingsBuffer! } }
+            ]
+          });
+          this.drawFullscreenPass(
+            encoder,
+            this.outputPipeline!,
+            outputBindGroup,
+            this.imageResources.displayTexture!.createView()
+          );
         });
-        this.drawFullscreenPass(
-          encoder,
-          this.outputPipeline,
-          outputBindGroup,
-          this.imageResources.displayTexture.createView()
-        );
       }
       if (
         this.renderDirty.correctionStageRequired('display-post')
         || !this.displayPostTexture
       ) {
-        this.displayPostTexture = this.effectRuntime.encodeDisplayPost(
-          encoder,
-          this.imageResources.displayTexture,
-          visualizingDepth
+        this.displayPostTexture = this.renderTelemetry.measure(
+          'display-post',
+          () => this.effectRuntime!.encodeDisplayPost(
+            encoder,
+            this.imageResources.displayTexture!,
+            visualizingDepth
+          )
         );
       }
       const displayEffectTexture = this.displayPostTexture;
-      const displayResolveBindGroup = this.device.createBindGroup({
-        layout: this.displayResolvePipeline.getBindGroupLayout(0),
-        entries: [{ binding: 0, resource: displayEffectTexture.createView() }]
+      this.renderTelemetry.measure('display-resolve', () => {
+        const displayResolveBindGroup = this.device.createBindGroup({
+          layout: this.displayResolvePipeline!.getBindGroupLayout(0),
+          entries: [{ binding: 0, resource: displayEffectTexture.createView() }]
+        });
+        this.drawFullscreenPass(
+          encoder,
+          this.displayResolvePipeline!,
+          displayResolveBindGroup,
+          this.imageResources.finalTexture!.createView()
+        );
       });
-      this.drawFullscreenPass(
-        encoder,
-        this.displayResolvePipeline,
-        displayResolveBindGroup,
-        this.imageResources.finalTexture.createView()
-      );
       this.renderDirty.markCorrectionRendered();
       renderedCorrection = true;
     }
@@ -1292,6 +1313,7 @@ export class WebGpuEngine {
     if (histogramReadBuffer) this.renderDirty.markHistogramScheduled();
     this.scopeRuntime.encode(encoder);
     this.device.queue.submit([encoder.finish()]);
+    this.renderTelemetry.recordSubmittedFrame();
     void this.device.popErrorScope().then((validationError) => {
       if (!this.destroyed && validationError) {
         this.callbacks.onDeviceLost?.(
@@ -1308,6 +1330,14 @@ export class WebGpuEngine {
     }
     this.documentRenderer?.releaseSubmittedResources();
     if (histogramReadBuffer) void this.histogramRuntime?.read(histogramReadBuffer);
+  }
+
+  renderTelemetrySnapshot() {
+    return this.renderTelemetry.snapshot();
+  }
+
+  resetRenderTelemetry() {
+    this.renderTelemetry.reset();
   }
 
   private drawFullscreenPass(

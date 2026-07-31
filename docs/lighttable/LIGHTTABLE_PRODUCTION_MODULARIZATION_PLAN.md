@@ -1170,8 +1170,10 @@ Work:
   `LayerDocumentRenderer`;
 - isolate document asset transfer/readback from interactive rendering;
 - register grade, lens FX and layer styles through common module contracts;
-- expose per-stage timing/counter telemetry in the development Debug panel so
-  performance regressions can be measured on representative macOS hardware;
+- [x] Expose non-polling per-stage execution/reuse counters and CPU command-
+      encoding timings in the development Debug panel so performance
+      regressions can be measured on representative macOS hardware. True GPU
+      execution timing remains a separate future timestamp-query milestone;
 - preserve exact bypass behavior;
 - retain PSD mapping into the same descriptors.
 

@@ -12,6 +12,8 @@ interface DebugPanelProps {
   dockResizeActive: boolean;
   onAccessoryWidthConstraintsChange: (enabled: boolean) => void;
   onEditorResizeObserversChange: (enabled: boolean) => void;
+  onCaptureRenderTelemetry: () => void;
+  onResetRenderTelemetry: () => void;
 }
 
 const formatTimestamp = (timestamp: number) => new Date(timestamp).toLocaleTimeString(
@@ -26,7 +28,9 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   editorResizeObserversEnabled,
   dockResizeActive,
   onAccessoryWidthConstraintsChange,
-  onEditorResizeObserversChange
+  onEditorResizeObserversChange,
+  onCaptureRenderTelemetry,
+  onResetRenderTelemetry
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const summary = useMemo(() => ({
@@ -84,6 +88,10 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           Dockview auto-resizing remains enabled. Editor observers pause automatically during panel resize.
           {dockResizeActive ? ' Currently paused.' : ''}
         </small>
+        <div className="lighttable-debug-panel__actions">
+          <button type="button" onClick={onCaptureRenderTelemetry}>Capture render stats</button>
+          <button type="button" onClick={onResetRenderTelemetry}>Reset render stats</button>
+        </div>
       </fieldset>
       <header className="lighttable-debug-panel__toolbar">
         <span className="lighttable-debug-panel__summary">
