@@ -4,7 +4,7 @@ Updated: 2026-07-31
 Repository: `D:\mediavibe\LightTable`  
 Branch: `main`  
 Architecture checkpoint: `5a9fa02 Centralize document adjustment state`
-Current milestone: interaction-aware adjustment publication and render telemetry
+Current milestone: interaction-aware publication and render invalidation
 
 This is the short operational handoff. The architectural source of truth remains
 `LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`.
@@ -39,6 +39,14 @@ The renderer now exposes on-demand counters and CPU command-encoding timings in
 the Debug panel. Capturing or resetting telemetry is explicit: diagnostics do
 not poll and therefore cannot wake an idle document renderer.
 
+Canvas panning now follows the same interaction rule as GPU rendering: raw
+pointer events are accepted at device frequency, but only the newest pan value
+is published to document/React state once per display frame. Pointer-up flushes
+the final value synchronously and document switches cancel queued input. This
+keeps high-rate trackpads and pens from repeatedly rendering the complete editor
+shell, without reducing visible pan cadence or losing per-document viewport
+state.
+
 High-frequency Grade and Lens Fx presentation no longer lives in the editor
 root's React state. Each document owns an adjustment presentation store. During
 a slider gesture, immutable snapshots update the relevant panels and WebGPU
@@ -63,8 +71,8 @@ hotspots without changing the intended image-processing math.
 Current approximate hotspot sizes:
 
 - `LightTableStandaloneApp.tsx`: 156 lines;
-- `LightTableEditorOverlay.tsx`: 1,638 lines, down from roughly 4,900;
-- `WebGpuEngine.ts`: 1,253 lines, down from roughly 1,900;
+- `LightTableEditorOverlay.tsx`: 1,631 lines, down from roughly 4,900;
+- `WebGpuEngine.ts`: 1,341 lines, down from roughly 1,900;
 - `LayerDocumentRenderer.ts`: 332 lines, down from roughly 2,200.
 
 Important completed boundaries include:

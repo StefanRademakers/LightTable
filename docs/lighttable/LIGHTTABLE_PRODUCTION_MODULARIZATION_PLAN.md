@@ -59,6 +59,8 @@ These are release requirements, not future intentions.
 14. Optional effects must have an exact bypass and cannot prevent a plain image
     from opening when disabled.
 15. Host integrations exchange capabilities and data, not product internals.
+16. High-frequency pointer input is sampled at display cadence before it enters
+    React or document state; gesture completion always flushes the final value.
 
 ## 3. Target architecture
 

@@ -7,6 +7,7 @@ import {
   type SetStateAction,
   type WheelEvent
 } from 'react';
+import { LatestFrameValueScheduler } from '../../application/input/latestFrameValueScheduler';
 import type { PaintSessionController } from '../../application/tools/paint/usePaintSessionController';
 import type { SelectionSessionController } from '../../application/tools/selection/useSelectionSessionController';
 import type { WarpSessionController } from '../../application/tools/warp/warpSessionController';
@@ -122,6 +123,28 @@ export const useViewportInteractionController = ({
   } | null>(null);
   const brushCursorRef = useRef<HTMLDivElement | null>(null);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const setViewRef = useRef(setView);
+  setViewRef.current = setView;
+  const panFrameRef = useRef<LatestFrameValueScheduler<{
+    panX: number;
+    panY: number;
+  }> | null>(null);
+  if (!panFrameRef.current) {
+    panFrameRef.current = new LatestFrameValueScheduler((pan) => {
+      setViewRef.current((current) => ({ ...current, ...pan }));
+    });
+  }
+
+  useEffect(() => {
+    // A workspace tab can replace the document-owned setter without
+    // unmounting this hook. Never let a queued pan cross that boundary.
+    panFrameRef.current?.cancel();
+  }, [setView]);
+
+  useEffect(() => () => {
+    panFrameRef.current?.dispose();
+    panFrameRef.current = null;
+  }, []);
 
   useEffect(() => {
     const cursor = brushCursorRef.current;
@@ -239,11 +262,15 @@ export const useViewportInteractionController = ({
       current: { x: event.clientX, y: event.clientY },
       initialView: { panX: drag.panX, panY: drag.panY }
     });
-    setView((current) => ({ ...current, ...pan }));
+    panFrameRef.current?.schedule(pan);
   };
 
   const endPan = (event: PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    // Pointer-up can arrive before the scheduled display frame. Commit the
+    // newest coordinates so persisted per-document viewport state is exact.
+    panFrameRef.current?.flush();
+    dragRef.current = null;
   };
 
   return {
