@@ -8,6 +8,7 @@ export type RenderInvalidationReason =
   | 'histogram';
 
 export interface RenderDirtySnapshot {
+  documentComposite: boolean;
   correction: boolean;
   blurInput: boolean;
   viewport: boolean;
@@ -22,11 +23,16 @@ export interface RenderDirtySnapshot {
  */
 export class RenderDirtyState {
   private dirty: RenderDirtySnapshot = {
+    documentComposite: true,
     correction: true,
     blurInput: true,
     viewport: true,
     histogram: true
   };
+
+  get documentCompositeRequired() {
+    return this.dirty.documentComposite;
+  }
 
   get correctionRequired() {
     return this.dirty.correction;
@@ -53,7 +59,8 @@ export class RenderDirtyState {
    * an empty command buffer after all visible work has already completed.
    */
   get hasPendingFrameWork() {
-    return this.dirty.correction || this.dirty.viewport || this.dirty.histogram;
+    return this.dirty.documentComposite || this.dirty.correction
+      || this.dirty.viewport || this.dirty.histogram;
   }
 
   snapshot(): Readonly<RenderDirtySnapshot> {
@@ -64,6 +71,7 @@ export class RenderDirtyState {
     switch (reason) {
       case 'source':
         this.dirty = {
+          documentComposite: true,
           correction: true,
           blurInput: true,
           viewport: true,
@@ -71,6 +79,11 @@ export class RenderDirtyState {
         };
         break;
       case 'document':
+        this.dirty.documentComposite = true;
+        this.dirty.correction = true;
+        this.dirty.blurInput = true;
+        this.dirty.histogram = true;
+        break;
       case 'adjustments':
         this.dirty.correction = true;
         this.dirty.blurInput = true;
@@ -91,6 +104,10 @@ export class RenderDirtyState {
         this.dirty.histogram = true;
         break;
     }
+  }
+
+  markDocumentCompositeRendered() {
+    this.dirty.documentComposite = false;
   }
 
   markBlurInputRendered() {

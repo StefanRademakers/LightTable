@@ -156,6 +156,16 @@ submitting an empty WebGPU command buffer. This is intentionally a frame-graph
 contract rather than a React heuristic; future processing nodes should expose
 dirty work through the same boundary.
 
+Document compositing and global correction now have separate invalidation
+domains. The renderer retains the last valid document-only composite texture;
+global Grade and Lens Fx edits reuse it and run only their downstream passes.
+Layer, pixel, mask, transform, local processing and style mutations still mark
+the document composite dirty and rebuild it before correction. The retained
+handle does not allocate another texture and is cleared with the document GPU
+generation. Keep this dependency boundary explicit when adding processing
+nodes: a node attached to a layer invalidates the composite, while a document
+post-process does not.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in

@@ -4,6 +4,7 @@ import { RenderDirtyState } from './renderDirtyState';
 describe('RenderDirtyState', () => {
   it('starts with every stage dirty for the first frame', () => {
     expect(new RenderDirtyState().snapshot()).toEqual({
+      documentComposite: true,
       correction: true,
       blurInput: true,
       viewport: true,
@@ -15,6 +16,7 @@ describe('RenderDirtyState', () => {
     const state = cleanState();
     state.invalidate('viewport');
     expect(state.snapshot()).toEqual({
+      documentComposite: false,
       correction: false,
       blurInput: false,
       viewport: true,
@@ -22,23 +24,35 @@ describe('RenderDirtyState', () => {
     });
   });
 
-  it('fans document and adjustment changes into correction, blur and scopes', () => {
-    for (const reason of ['document', 'adjustments'] as const) {
-      const state = cleanState();
-      state.invalidate(reason);
-      expect(state.snapshot()).toEqual({
-        correction: true,
-        blurInput: true,
-        viewport: false,
-        histogram: true
-      });
-    }
+  it('rebuilds the layer composite for document changes', () => {
+    const state = cleanState();
+    state.invalidate('document');
+    expect(state.snapshot()).toEqual({
+      documentComposite: true,
+      correction: true,
+      blurInput: true,
+      viewport: false,
+      histogram: true
+    });
+  });
+
+  it('reuses the layer composite for global adjustment changes', () => {
+    const state = cleanState();
+    state.invalidate('adjustments');
+    expect(state.snapshot()).toEqual({
+      documentComposite: false,
+      correction: true,
+      blurInput: true,
+      viewport: false,
+      histogram: true
+    });
   });
 
   it('does not rebuild blur input for effect-only changes', () => {
     const state = cleanState();
     state.invalidate('effects');
     expect(state.snapshot()).toEqual({
+      documentComposite: false,
       correction: true,
       blurInput: false,
       viewport: false,
@@ -67,6 +81,7 @@ describe('RenderDirtyState', () => {
 
 function cleanState() {
   const state = new RenderDirtyState();
+  state.markDocumentCompositeRendered();
   state.markBlurInputRendered();
   state.markCorrectionRendered();
   state.markViewportRendered();

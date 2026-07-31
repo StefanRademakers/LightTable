@@ -91,6 +91,12 @@ export class WebGpuEngine {
   private translationAlignmentService: FeatureAlignmentService | null = null;
   private imageDocument: ImageDocument | null = null;
   private documentRenderRevision: DocumentRenderRevision | null = null;
+  /**
+   * Last document-only composite. Global Grade and Lens Fx consume this
+   * texture without rebuilding unchanged layers, masks, transforms or styles.
+   * Ownership remains with the document renderer/raster runtime.
+   */
+  private documentCompositeTexture: GPUTexture | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
   private readonly renderDirty = new RenderDirtyState();
@@ -1115,12 +1121,16 @@ export class WebGpuEngine {
     const encoder = this.device.createCommandEncoder({ label: 'LightTable render' });
     let renderedCorrection = false;
     if (this.renderDirty.correctionRequired) {
-      const documentTexture = this.documentRenderer.encodeComposite(
-        encoder,
-        this.imageDocument,
-        (layerEncoder, source, layer) =>
-          this.encodeLayerProcessing(layerEncoder, source, layer)
-      );
+      if (this.renderDirty.documentCompositeRequired || !this.documentCompositeTexture) {
+        this.documentCompositeTexture = this.documentRenderer.encodeComposite(
+          encoder,
+          this.imageDocument,
+          (layerEncoder, source, layer) =>
+            this.encodeLayerProcessing(layerEncoder, source, layer)
+        );
+        this.renderDirty.markDocumentCompositeRendered();
+      }
+      const documentTexture = this.documentCompositeTexture;
       this.layerEffectRenderer?.syncOwners(new Set(
         walkLayerTree(this.imageDocument.layers)
           .filter(({ node }) =>
@@ -1288,6 +1298,7 @@ export class WebGpuEngine {
     this.adjustmentLayerResources.reset();
     this.imageDocument = null;
     this.documentRenderRevision = null;
+    this.documentCompositeTexture = null;
     this.scopeRuntime.clearTextures();
     this.histogramRuntime?.clear();
     this.effectRuntime?.destroyImageResources();
