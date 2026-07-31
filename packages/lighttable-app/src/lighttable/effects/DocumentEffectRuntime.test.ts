@@ -111,6 +111,16 @@ describe('DocumentEffectRuntime', () => {
     expect(replacement.setDepthMap).toHaveBeenCalledWith(depth);
   });
 
+  it('does not report a render change when no active effect changes preview quality', () => {
+    const { runtime, effects } = createRuntime();
+    effects.forEach((item) => {
+      delete item.setInteractionActive;
+    });
+
+    expect(runtime.setInteractionActive(true)).toBe(false);
+    expect(runtime.setInteractionActive(true)).toBe(false);
+  });
+
   it('passes authoritative serialized node settings to arbitrary effect executors', () => {
     const warp = createWarpModuleInstance('warp-node', {
       version: 1,

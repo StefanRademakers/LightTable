@@ -196,8 +196,11 @@ export class DocumentEffectRuntime {
   setInteractionActive(active: boolean): boolean {
     if (this.interactionActive === active) return false;
     this.interactionActive = active;
+    const outputChanged = this.orderedNodes.some(
+      (node) => typeof node.effect.setInteractionActive === 'function'
+    );
     this.forEachEffect((effect) => effect.setInteractionActive?.(active));
-    return true;
+    return outputChanged;
   }
 
   setDepthVisualization(visible: boolean): boolean {
