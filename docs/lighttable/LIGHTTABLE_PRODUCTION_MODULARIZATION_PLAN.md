@@ -1540,6 +1540,9 @@ The refactor is successful when:
       adapter; Scopes, Debug, Grade and Lens Fx now receive typed models and
       command ports without their React construction leaking into the document
       composition root.
+- [x] Define one document-tab surface contract for viewport interaction and
+      status presentation; multi-document composition no longer duplicates or
+      owns the canvas/status React structure.
 - [x] Compose renderer creation, source hydration, atomic publication,
       generation cancellation and teardown through one document-lifecycle hook.
       Startup open and local File-open now use the same source-load controller;

@@ -65,6 +65,9 @@ import {
   createEditorWorkspacePanels
 } from './composition/workspace/createEditorWorkspacePanels';
 import {
+  EditorDocumentSurface
+} from './composition/workspace/EditorDocumentSurface';
+import {
   type DocumentRendererPort
 } from './infrastructure/rendering/webGpuDocumentRenderer';
 import { useLightTableGradeClipboard } from './lightTableGradeClipboard';
@@ -82,9 +85,7 @@ import { LayerStyleEditor } from './editor/ui/LayerStyleEditor';
 import { EditorDialogs } from './editor/ui/EditorDialogs';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
-import { DocumentViewportSurface } from './editor/ui/DocumentViewportSurface';
 import { ToolOptionsContextMenu } from './editor/ui/ToolOptionsContextMenu';
-import { EditorStatusBar } from './editor/ui/EditorStatusBar';
 import {
   LightTableDockWorkspace,
   type LightTableDockWorkspaceHandle
@@ -1467,57 +1468,56 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     }
                   },
               content: workspaceDocument.id === workspaceDocumentId ? (
-                <section className="lighttable__main">
-                  <DocumentViewportSurface
-                    viewportRef={viewportRef}
-                    canvasRef={canvasRef}
-                    brushCursorRef={viewportInteraction.brushCursorRef}
-                    activeTool={editorSession.activeTool}
-                    temporaryPanActive={temporaryPanActive}
-                    dragging={viewportInteraction.dragging}
-                    focusPickerActive={focusPickerActive}
-                    showBrushCursor={
+                <EditorDocumentSurface
+                  viewport={{
+                    viewportRef,
+                    canvasRef,
+                    brushCursorRef: viewportInteraction.brushCursorRef,
+                    activeTool: editorSession.activeTool,
+                    temporaryPanActive,
+                    dragging: viewportInteraction.dragging,
+                    focusPickerActive,
+                    showBrushCursor: (
                       isPaintTool(editorSession.activeTool)
                       || isWarpTool(editorSession.activeTool)
-                    }
-                    selection={editorSession.selection}
-                    selectionDraft={selectionDraft}
-                    imageRect={imageRect}
-                    scale={activeScale}
-                    viewportSize={viewportSize}
-                    transformState={transformState}
-                    loading={loading}
-                    unavailable={Boolean(error && !metadata)}
-                    onWheel={viewportInteraction.onWheel}
-                    onPointerDown={viewportInteraction.onPointerDown}
-                    onPointerMove={viewportInteraction.onPointerMove}
-                    onPointerUp={viewportInteraction.onPointerUp}
-                    onPointerCancel={viewportInteraction.onPointerCancel}
-                    onPointerLeave={() => {
+                    ),
+                    selection: editorSession.selection,
+                    selectionDraft,
+                    imageRect,
+                    scale: activeScale,
+                    viewportSize,
+                    transformState,
+                    loading,
+                    unavailable: Boolean(error && !metadata),
+                    onWheel: viewportInteraction.onWheel,
+                    onPointerDown: viewportInteraction.onPointerDown,
+                    onPointerMove: viewportInteraction.onPointerMove,
+                    onPointerUp: viewportInteraction.onPointerUp,
+                    onPointerCancel: viewportInteraction.onPointerCancel,
+                    onPointerLeave: () => {
                       if (
                         !paintSessionController.active
                         && !warpSessionController.active
                       ) {
                         viewportInteraction.hideBrushCursor();
                       }
-                    }}
-                    onContextMenu={(event) => {
+                    },
+                    onContextMenu: (event) => {
                       event.preventDefault();
                       event.stopPropagation();
                       setToolOptionsMenu({ x: event.clientX, y: event.clientY });
-                    }}
-                    onTransformChange={updateTransformMatrix}
-                  />
-
-                  <EditorStatusBar
-                    status={error ?? gradeStatus ?? ''}
-                    error={Boolean(error)}
-                    meta={statusBar.meta}
-                    metaTitle={statusBar.title}
-                    reportAvailable={statusBar.reportAvailable}
-                    onOpenReport={editorDialogs.openPsdReport}
-                  />
-                </section>
+                    },
+                    onTransformChange: updateTransformMatrix
+                  }}
+                  status={{
+                    status: error ?? gradeStatus ?? '',
+                    error: Boolean(error),
+                    meta: statusBar.meta,
+                    metaTitle: statusBar.title,
+                    reportAvailable: statusBar.reportAvailable,
+                    onOpenReport: editorDialogs.openPsdReport
+                  }}
+                />
               ) : null
             }))}
             activeDocumentId={workspaceDocumentId}
