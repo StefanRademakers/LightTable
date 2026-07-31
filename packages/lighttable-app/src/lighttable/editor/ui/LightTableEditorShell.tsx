@@ -15,9 +15,11 @@ export interface LightTableEditorShellProps {
   menuOptionsFor: (menuId: EditorMenuId) => Array<ContextMenuOption<string>>;
   activeTool: ToolId;
   brush: EditorSession['brush'];
+  warp: EditorSession['warp'];
   selectionPixelSnap: boolean;
   zoomPercent: number;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
+  onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -50,9 +52,11 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   menuOptionsFor,
   activeTool,
   brush,
+  warp,
   selectionPixelSnap,
   zoomPercent,
   onBrushChange,
+  onWarpChange,
   onSelectionPixelSnapChange,
   onZoomPreset,
   onZoomFit,
@@ -100,9 +104,11 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
       <ToolOptionsBar
         activeTool={activeTool}
         brush={brush}
+        warp={warp}
         selectionPixelSnap={selectionPixelSnap}
         zoomPercent={zoomPercent}
         onBrushChange={onBrushChange}
+        onWarpChange={onWarpChange}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}

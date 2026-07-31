@@ -1,10 +1,15 @@
 import type { ToolId } from '../../editor/session/editorSession';
-import { isPaintTool, isSelectionTool } from '../../editor/tools/toolCapabilities';
+import {
+  isPaintTool,
+  isSelectionTool,
+  isWarpTool
+} from '../../editor/tools/toolCapabilities';
 
 export type ViewportPointerDownIntent =
   | 'temporary-pan'
   | 'selection'
   | 'fill'
+  | 'warp'
   | 'view'
   | 'paint'
   | 'ignore';
@@ -12,10 +17,11 @@ export type ViewportPointerDownIntent =
 export type ViewportPointerMoveIntent =
   | 'pan'
   | 'selection'
+  | 'warp'
   | 'paint'
   | 'ignore';
 
-export type ViewportPointerEndIntent = 'selection' | 'paint' | 'pan';
+export type ViewportPointerEndIntent = 'selection' | 'warp' | 'paint' | 'pan';
 
 export interface ViewportPointerDownContext {
   activeTool: ToolId;
@@ -26,6 +32,7 @@ export interface ViewportPointerDownContext {
   hasDocument: boolean;
   hasDocumentPoint: boolean;
   hasPaintTarget: boolean;
+  hasWarpTarget: boolean;
 }
 
 export interface ViewportPointerMoveContext {
@@ -33,6 +40,7 @@ export interface ViewportPointerMoveContext {
   temporaryPan: boolean;
   panGestureMatches: boolean;
   selectionGestureMatches: boolean;
+  warpGestureMatches: boolean;
   paintGestureMatches: boolean;
   hasDocumentPoint: boolean;
   hasPaintTarget: boolean;
@@ -41,6 +49,7 @@ export interface ViewportPointerMoveContext {
 
 export interface ViewportPointerEndContext {
   selectionGestureMatches: boolean;
+  warpGestureMatches: boolean;
   paintGestureMatches: boolean;
 }
 
@@ -67,6 +76,15 @@ export const resolveViewportPointerDownIntent = (
     return context.primaryButton && context.hasDocumentPoint ? 'fill' : 'ignore';
   }
 
+  if (isWarpTool(context.activeTool) && !context.focusPickerActive) {
+    return context.primaryButton
+      && context.hasDocument
+      && context.hasDocumentPoint
+      && context.hasWarpTarget
+      ? 'warp'
+      : 'ignore';
+  }
+
   if (!isPaintTool(context.activeTool) || context.focusPickerActive) return 'view';
 
   return context.primaryButton
@@ -82,6 +100,9 @@ export const resolveViewportPointerMoveIntent = (
 ): ViewportPointerMoveIntent => {
   if (context.temporaryPan || context.panGestureMatches) return 'pan';
   if (context.selectionGestureMatches) return 'selection';
+  if (context.warpGestureMatches) {
+    return context.hasDocumentPoint ? 'warp' : 'ignore';
+  }
   if (!isPaintTool(context.activeTool) || !context.paintGestureMatches) return 'pan';
   return context.hasDocumentPoint && context.hasPaintTarget && context.hasStrokeBuilder
     ? 'paint'
@@ -92,6 +113,7 @@ export const resolveViewportPointerEndIntent = (
   context: ViewportPointerEndContext
 ): ViewportPointerEndIntent => {
   if (context.selectionGestureMatches) return 'selection';
+  if (context.warpGestureMatches) return 'warp';
   if (context.paintGestureMatches) return 'paint';
   return 'pan';
 };

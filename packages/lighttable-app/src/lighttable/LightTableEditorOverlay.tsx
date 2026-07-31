@@ -101,6 +101,7 @@ import {
 } from '../platform/LightTableImageClipboard';
 import { useLensBlurDepthController } from './application/effects/lensBlur/useLensBlurDepthController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
+import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import {
@@ -136,6 +137,7 @@ import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapte
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
 import {
   isPaintTool,
+  isWarpTool,
   steppedBrushSize
 } from './editor/tools/toolCapabilities';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
@@ -961,6 +963,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setError
   }, paintGestureRef.current);
 
+  const warpSessionController = useWarpSessionController({
+    getDocument: () => imageDocumentRef.current,
+    applyDocumentSnapshot,
+    pushHistoryEntry,
+    setError,
+    createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
+  });
+
   const viewportInteraction = useViewportInteractionController({
     metadata,
     document: imageDocument,
@@ -1000,6 +1010,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onFill: fillActiveTarget,
     selection: selectionSessionController,
     paint: paintSessionController,
+    warp: warpSessionController,
     minScale: MIN_SCALE,
     maxScale: MAX_SCALE
   });
@@ -1151,6 +1162,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   transformActiveRef.current = transformSession.isActive;
 
   const activatePersistentTool = (requestedTool: ToolId) => {
+    if (
+      editorSession.activeTool === 'warp'
+      && requestedTool !== 'warp'
+      && warpSessionController.active
+    ) {
+      warpSessionController.reset();
+    }
     const plan = planPersistentToolActivation(
       editorSession.activeTool,
       requestedTool,
@@ -1355,6 +1373,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       brush: { ...current.brush, ...change }
     }));
   };
+  const updateWarp = (change: Partial<EditorSession['warp']>) => {
+    setEditorSession((current) => ({
+      ...current,
+      warp: { ...current.warp, ...change }
+    }));
+  };
   const setExactZoom = (percent: number) => {
     setZoomMode('custom');
     setView(zoomViewToScaleAtPoint({
@@ -1380,9 +1404,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       menuOptionsFor={createAppMenuOptions}
       activeTool={visibleTool}
       brush={editorSession.brush}
+      warp={editorSession.warp}
       selectionPixelSnap={editorSession.selectionPixelSnap}
       zoomPercent={activeScale * 100}
       onBrushChange={updateBrush}
+      onWarpChange={updateWarp}
       onSelectionPixelSnapChange={(selectionPixelSnap) => {
         setEditorSession((current) => ({ ...current, selectionPixelSnap }));
       }}
@@ -1438,9 +1464,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               y={toolOptionsMenu.y}
               activeTool={visibleTool}
               brush={editorSession.brush}
+              warp={editorSession.warp}
               selectionPixelSnap={editorSession.selectionPixelSnap}
               zoomPercent={activeScale * 100}
               onBrushChange={updateBrush}
+              onWarpChange={updateWarp}
               onSelectionPixelSnapChange={(selectionPixelSnap) => {
                 setEditorSession((current) => ({ ...current, selectionPixelSnap }));
               }}
@@ -1478,7 +1506,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     temporaryPanActive={temporaryPanActive}
                     dragging={viewportInteraction.dragging}
                     focusPickerActive={focusPickerActive}
-                    showBrushCursor={isPaintTool(editorSession.activeTool)}
+                    showBrushCursor={
+                      isPaintTool(editorSession.activeTool)
+                      || isWarpTool(editorSession.activeTool)
+                    }
                     selection={editorSession.selection}
                     selectionDraft={selectionDraft}
                     imageRect={imageRect}
@@ -1493,7 +1524,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     onPointerUp={viewportInteraction.onPointerUp}
                     onPointerCancel={viewportInteraction.onPointerCancel}
                     onPointerLeave={() => {
-                      if (!paintSessionController.active) viewportInteraction.hideBrushCursor();
+                      if (
+                        !paintSessionController.active
+                        && !warpSessionController.active
+                      ) {
+                        viewportInteraction.hideBrushCursor();
+                      }
                     }}
                     onContextMenu={(event) => {
                       event.preventDefault();

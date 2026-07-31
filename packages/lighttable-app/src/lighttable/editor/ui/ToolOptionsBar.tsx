@@ -1,14 +1,20 @@
 import React from 'react';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
-import type { BrushSettings, ToolId } from '../session/editorSession';
+import type {
+  BrushSettings,
+  EditorSession,
+  ToolId
+} from '../session/editorSession';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
   brush: BrushSettings;
+  warp: EditorSession['warp'];
   selectionPixelSnap: boolean;
   zoomPercent: number;
   onBrushChange: (change: Partial<BrushSettings>) => void;
+  onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -16,6 +22,7 @@ export interface ToolOptionsProps {
 
 const TOOL_LABELS: Record<ToolId, string> = {
   transform: 'Transform',
+  warp: 'Warp · Push',
   'select-rectangle': 'Rectangular selection',
   'select-ellipse': 'Elliptical selection',
   'select-free': 'Free selection',
@@ -32,9 +39,11 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
 }> = ({
   activeTool,
   brush,
+  warp,
   selectionPixelSnap,
   zoomPercent,
   onBrushChange,
+  onWarpChange,
   onSelectionPixelSnapChange,
   onZoomPreset,
   onZoomFit,
@@ -76,6 +85,80 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             Fit screen
           </button>
         </div>
+      ) : null}
+      {activeTool === 'warp' ? (
+        <>
+          <AdjustmentSlider
+            label="Size"
+            value={warp.diameterPx}
+            min={1}
+            max={2000}
+            resetValue={200}
+            format={(value) => `${Math.round(value)} px`}
+            onReset={() => onWarpChange({ diameterPx: 200 })}
+            onChange={(diameterPx) => onWarpChange({ diameterPx })}
+          />
+          <AdjustmentSlider
+            label="Strength"
+            value={warp.strength * 100}
+            min={1}
+            max={100}
+            resetValue={35}
+            format={(value) => `${Math.round(value)}%`}
+            onReset={() => onWarpChange({ strength: 0.35 })}
+            onChange={(value) => onWarpChange({ strength: value / 100 })}
+          />
+          <AdjustmentSlider
+            label="Hardness"
+            value={warp.hardness * 100}
+            min={0}
+            max={100}
+            resetValue={75}
+            format={(value) => `${Math.round(value)}%`}
+            onReset={() => onWarpChange({ hardness: 0.75 })}
+            onChange={(value) => onWarpChange({ hardness: value / 100 })}
+          />
+          <AdjustmentSlider
+            label="Flow"
+            value={warp.flow * 100}
+            min={1}
+            max={100}
+            resetValue={50}
+            format={(value) => `${Math.round(value)}%`}
+            onReset={() => onWarpChange({ flow: 0.5 })}
+            onChange={(value) => onWarpChange({ flow: value / 100 })}
+          />
+          <AdjustmentSlider
+            label="Spacing"
+            value={warp.spacing * 100}
+            min={1}
+            max={100}
+            resetValue={10}
+            format={(value) => `${Math.round(value)}%`}
+            onReset={() => onWarpChange({ spacing: 0.1 })}
+            onChange={(value) => onWarpChange({ spacing: value / 100 })}
+          />
+          <label className="lighttable-tool-options__toggle">
+            <input
+              type="checkbox"
+              checked={warp.pressureSize}
+              onChange={(event) => onWarpChange({
+                pressureSize: event.currentTarget.checked
+              })}
+            />
+            Pressure size
+          </label>
+          <label className="lighttable-tool-options__toggle">
+            <input
+              type="checkbox"
+              checked={warp.pressureStrength}
+              onChange={(event) => onWarpChange({
+                pressureStrength: event.currentTarget.checked
+              })}
+            />
+            Pressure strength
+          </label>
+        </>
       ) : null}
       {activeTool === 'brush' || activeTool === 'erase' ? (
         <>

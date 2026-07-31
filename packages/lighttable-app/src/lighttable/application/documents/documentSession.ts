@@ -79,7 +79,8 @@ const DEFAULT_VIEWPORT: DocumentViewport = {
 const cloneEditorSession = (session: EditorSession): EditorSession => ({
   ...session,
   selection: [...session.selection],
-  brush: { ...session.brush }
+  brush: { ...session.brush },
+  warp: { ...session.warp }
 });
 
 /**

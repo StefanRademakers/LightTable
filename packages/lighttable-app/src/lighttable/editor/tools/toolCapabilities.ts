@@ -28,6 +28,9 @@ export const isSelectionTool = (tool: ToolId): tool is SelectionToolId =>
 export const isPaintTool = (tool: ToolId): tool is 'brush' | 'erase' =>
   toolDefinition(tool).role === 'paint';
 
+export const isWarpTool = (tool: ToolId): tool is 'warp' =>
+  toolDefinition(tool).role === 'warp';
+
 export const selectionKindForTool = (tool: SelectionToolId): SelectionShapeKind => {
   switch (tool) {
     case 'select-rectangle':

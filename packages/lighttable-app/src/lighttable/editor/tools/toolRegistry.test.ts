@@ -8,6 +8,7 @@ describe('toolRegistry', () => {
       'view',
       'zoom',
       'transform',
+      'warp',
       'fill',
       'brush',
       'erase',
@@ -28,6 +29,7 @@ describe('toolRegistry', () => {
     expect(toolForShortcut('b', false)).toBe('brush');
     expect(toolForShortcut('b', true)).toBe('brush');
     expect(toolForShortcut('v', false)).toBe('transform');
+    expect(toolForShortcut('w', false)).toBe('warp');
     expect(toolForShortcut('z', false)).toBe('zoom');
   });
 

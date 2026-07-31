@@ -1,8 +1,13 @@
-const icons = import.meta.glob('./icons/*.png', {
+const iconImportOptions = {
   eager: true,
   query: '?url',
   import: 'default'
-}) as Record<string, string>;
+} as const;
+
+const icons = {
+  ...import.meta.glob('./icons/*.png', iconImportOptions),
+  ...import.meta.glob('./icons/*.svg', iconImportOptions)
+} as Record<string, string>;
 
 export const lightTableIcon = (name: string): string => {
   const icon = icons[`./icons/${name}`];

@@ -1,9 +1,11 @@
 import type { SelectionOperation, SelectionToolId } from '../selection/selectionTypes';
+import type { WarpBrushSettingsSnapshot } from '../../effects/warp/warpTypes';
 
 export type ToolId =
   | 'view'
   | 'zoom'
   | 'transform'
+  | 'warp'
   | 'fill'
   | 'brush'
   | 'erase'
@@ -27,6 +29,7 @@ export interface EditorSession {
   selection: SelectionOperation[];
   selectionPixelSnap: boolean;
   brush: BrushSettings;
+  warp: WarpBrushSettingsSnapshot;
 }
 
 export const createEditorSession = (): EditorSession => ({
@@ -43,5 +46,14 @@ export const createEditorSession = (): EditorSession => ({
     spacing: 0.05,
     color: '#000000',
     backgroundColor: '#ffffff'
+  },
+  warp: {
+    diameterPx: 200,
+    strength: 0.35,
+    hardness: 0.75,
+    flow: 0.5,
+    spacing: 0.1,
+    pressureSize: true,
+    pressureStrength: true
   }
 });

@@ -30,6 +30,8 @@ import {
 } from './warpGestureController';
 
 export interface WarpHistoryEntry {
+  readonly label?: string;
+  readonly type?: string;
   readonly layerIds: readonly LayerId[];
   undo(): void;
   redo(): void;
@@ -234,6 +236,8 @@ export const createWarpSessionController = (
       active = null;
       if (!after || after.id !== session.documentId) return false;
       dependencies.pushHistoryEntry({
+        label: 'Warp layer',
+        type: 'layer.warp',
         layerIds: [session.layerId],
         undo: () => {
           const latest = resolveDependencies();

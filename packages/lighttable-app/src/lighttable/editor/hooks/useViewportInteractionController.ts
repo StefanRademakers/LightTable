@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { PaintSessionController } from '../../application/tools/paint/usePaintSessionController';
 import type { SelectionSessionController } from '../../application/tools/selection/useSelectionSessionController';
+import type { WarpSessionController } from '../../application/tools/warp/warpSessionController';
 import {
   resolveViewportPointerDownIntent,
   resolveViewportPointerEndIntent,
@@ -18,7 +19,11 @@ import type { ImageDocument, Rect } from '../document/documentTypes';
 import { findDocumentLayer, findRasterLayer } from '../document/layerTree';
 import type { EditorSession } from '../session/editorSession';
 import { paintTargetSourceToDocument } from '../tools/paint/paintCoordinates';
-import { isPaintTool, isSelectionTool } from '../tools/toolCapabilities';
+import {
+  isPaintTool,
+  isSelectionTool,
+  isWarpTool
+} from '../tools/toolCapabilities';
 import type { TemporaryToolController } from '../tools/temporaryToolController';
 import {
   clientToLocalPoint,
@@ -57,6 +62,7 @@ interface ViewportInteractionOptions {
   onFill: (color: string) => void;
   selection: SelectionSessionController;
   paint: PaintSessionController;
+  warp: WarpSessionController;
   minScale: number;
   maxScale: number;
 }
@@ -98,6 +104,7 @@ export const useViewportInteractionController = ({
   onFill,
   selection,
   paint,
+  warp,
   minScale,
   maxScale
 }: ViewportInteractionOptions): ViewportInteractionController => {
@@ -115,12 +122,15 @@ export const useViewportInteractionController = ({
     const cursor = brushCursorRef.current;
     const center = brushCursorCenterRef.current;
     if (!cursor || !center) return;
-    const diameter = Math.max(2, editorSession.brush.size * activeScale);
+    const diameterPx = isWarpTool(editorSession.activeTool)
+      ? editorSession.warp.diameterPx
+      : editorSession.brush.size;
+    const diameter = Math.max(2, diameterPx * activeScale);
     cursor.style.width = `${diameter}px`;
     cursor.style.height = `${diameter}px`;
     cursor.style.transform =
       `translate3d(${center.x - diameter / 2}px, ${center.y - diameter / 2}px, 0)`;
-  }, [activeScale, editorSession.brush.size]);
+  }, [activeScale, editorSession.activeTool, editorSession.brush.size, editorSession.warp.diameterPx]);
 
   const documentPoint = (event: PointerEvent<HTMLDivElement>) => {
     if (!metadata) return null;
@@ -157,7 +167,12 @@ export const useViewportInteractionController = ({
   const updateBrushCursor = (event: PointerEvent<HTMLDivElement>) => {
     const cursor = brushCursorRef.current;
     if (!cursor) return;
-    if (!isPaintTool(editorSession.activeTool) || temporaryTools.active || focusPickerActive || !metadata) {
+    if (
+      (!isPaintTool(editorSession.activeTool) && !isWarpTool(editorSession.activeTool))
+      || temporaryTools.active
+      || focusPickerActive
+      || !metadata
+    ) {
       hideBrushCursor();
       return;
     }
@@ -170,7 +185,10 @@ export const useViewportInteractionController = ({
       hideBrushCursor();
       return;
     }
-    const diameter = Math.max(2, editorSession.brush.size * activeScale);
+    const diameterPx = isWarpTool(editorSession.activeTool)
+      ? editorSession.warp.diameterPx
+      : editorSession.brush.size;
+    const diameter = Math.max(2, diameterPx * activeScale);
     brushCursorCenterRef.current = point;
     cursor.style.opacity = '1';
     cursor.style.width = `${diameter}px`;
@@ -283,7 +301,10 @@ export const useViewportInteractionController = ({
         hasMetadata: Boolean(metadata),
         hasDocument: Boolean(document),
         hasDocumentPoint: Boolean(point),
-        hasPaintTarget: Boolean(paintTarget)
+        hasPaintTarget: Boolean(paintTarget),
+        hasWarpTarget: Boolean(
+          document && findRasterLayer(document, document.activeLayerId)
+        )
       });
 
       if (intent === 'temporary-pan') {
@@ -317,6 +338,25 @@ export const useViewportInteractionController = ({
       if (intent === 'fill') {
         onFill(editorSession.brush.color);
         event.preventDefault();
+        return;
+      }
+      if (intent === 'warp' && point) {
+        const started = warp.begin({
+          pointerId: event.pointerId,
+          mode: 'push',
+          settings: editorSession.warp,
+          point: {
+            ...point,
+            tiltX: event.tiltX,
+            tiltY: event.tiltY,
+            timeMs: event.timeStamp
+          }
+        });
+        if (started) {
+          setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }
         return;
       }
       if (intent === 'view') {
@@ -361,6 +401,7 @@ export const useViewportInteractionController = ({
         temporaryPan: temporaryTools.active,
         panGestureMatches: dragRef.current?.pointerId === event.pointerId,
         selectionGestureMatches: selection.owns(event.pointerId),
+        warpGestureMatches: warp.owns(event.pointerId),
         paintGestureMatches: paint.owns(event.pointerId),
         hasDocumentPoint: Boolean(point),
         hasPaintTarget: paint.active,
@@ -374,6 +415,19 @@ export const useViewportInteractionController = ({
         if (selection.move(event.pointerId, point)) event.preventDefault();
         return;
       }
+      if (
+        intent === 'warp'
+        && point
+        && warp.move(event.pointerId, {
+          ...point,
+          tiltX: event.tiltX,
+          tiltY: event.tiltY,
+          timeMs: event.timeStamp
+        })
+      ) {
+        event.preventDefault();
+        return;
+      }
       if (intent === 'paint' && point && paint.move(event.pointerId, point)) {
         event.preventDefault();
       }
@@ -381,6 +435,7 @@ export const useViewportInteractionController = ({
     onPointerUp: (event) => {
       const intent = resolveViewportPointerEndIntent({
         selectionGestureMatches: selection.owns(event.pointerId),
+        warpGestureMatches: warp.owns(event.pointerId),
         paintGestureMatches: paint.owns(event.pointerId)
       });
       if (intent === 'selection') {
@@ -395,10 +450,17 @@ export const useViewportInteractionController = ({
         paint.finish(event.pointerId);
         setEditorSession((current) => ({ ...current, pointerId: null }));
       }
+      if (intent === 'warp') {
+        warp.finish(event.pointerId, event.timeStamp);
+        setEditorSession((current) => ({ ...current, pointerId: null }));
+        event.preventDefault();
+        return;
+      }
       endPan(event);
     },
     onPointerCancel: (event) => {
       selection.cancel(event.pointerId);
+      warp.cancel(event.pointerId);
       paint.cancel(event.pointerId);
       setEditorSession((current) => ({ ...current, pointerId: null }));
       endPan(event);

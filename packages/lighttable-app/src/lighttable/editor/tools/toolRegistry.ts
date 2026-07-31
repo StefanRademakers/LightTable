@@ -1,6 +1,13 @@
 import type { ToolId } from '../session/editorSession';
 
-export type ToolRole = 'view' | 'zoom' | 'transform' | 'selection' | 'fill' | 'paint';
+export type ToolRole =
+  | 'view'
+  | 'zoom'
+  | 'transform'
+  | 'warp'
+  | 'selection'
+  | 'fill'
+  | 'paint';
 
 export interface ToolDefinition {
   readonly id: ToolId;
@@ -20,6 +27,14 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     shortcutKey: 'v',
     iconName: 'transform_tool.png',
     role: 'transform'
+  },
+  {
+    id: 'warp',
+    label: 'Warp',
+    shortcutLabel: 'W',
+    shortcutKey: 'w',
+    iconName: 'warp_tool.svg',
+    role: 'warp'
   },
   {
     id: 'select-rectangle',

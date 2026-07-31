@@ -19,6 +19,7 @@ const down = (
   hasDocument: true,
   hasDocumentPoint: true,
   hasPaintTarget: true,
+  hasWarpTarget: true,
   ...patch
 });
 
@@ -29,6 +30,7 @@ const move = (
   temporaryPan: false,
   panGestureMatches: false,
   selectionGestureMatches: false,
+  warpGestureMatches: false,
   paintGestureMatches: false,
   hasDocumentPoint: true,
   hasPaintTarget: true,
@@ -41,6 +43,7 @@ describe('resolveViewportPointerDownIntent', () => {
     'view',
     'zoom',
     'transform',
+    'warp',
     'fill',
     'brush',
     'erase',
@@ -93,6 +96,14 @@ describe('resolveViewportPointerDownIntent', () => {
       hasDocument: false
     }))).toBe('ignore');
   });
+
+  it('starts Warp only with a projected editable raster target', () => {
+    expect(resolveViewportPointerDownIntent(down({ activeTool: 'warp' }))).toBe('warp');
+    expect(resolveViewportPointerDownIntent(down({
+      activeTool: 'warp',
+      hasWarpTarget: false
+    }))).toBe('ignore');
+  });
 });
 
 describe('resolveViewportPointerMoveIntent', () => {
@@ -111,6 +122,10 @@ describe('resolveViewportPointerMoveIntent', () => {
       activeTool: 'brush',
       paintGestureMatches: true
     }))).toBe('paint');
+    expect(resolveViewportPointerMoveIntent(move({
+      activeTool: 'warp',
+      warpGestureMatches: true
+    }))).toBe('warp');
   });
 
   it('does not paint without a complete gesture context', () => {
@@ -132,14 +147,17 @@ describe('resolveViewportPointerEndIntent', () => {
   it('ends selection before paint and otherwise ends pan', () => {
     expect(resolveViewportPointerEndIntent({
       selectionGestureMatches: true,
+      warpGestureMatches: true,
       paintGestureMatches: true
     })).toBe('selection');
     expect(resolveViewportPointerEndIntent({
       selectionGestureMatches: false,
+      warpGestureMatches: false,
       paintGestureMatches: true
     })).toBe('paint');
     expect(resolveViewportPointerEndIntent({
       selectionGestureMatches: false,
+      warpGestureMatches: false,
       paintGestureMatches: false
     })).toBe('pan');
   });
