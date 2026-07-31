@@ -19,7 +19,7 @@ import type { BrushDab } from '../tools/brush/strokeBuilder';
 import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
 import type { PaintChannel } from '../session/editorSession';
 import type { SelectionMode, SelectionShape } from '../selection/selectionTypes';
-import { selectionCoverageBounds, type SelectionCoverageBounds } from '../selection/selectionCoverage';
+import type { SelectionCoverageBounds } from '../selection/selectionCoverage';
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
 import type {
   DocumentAssetBlob,
@@ -71,6 +71,7 @@ import { LayerStylePipelineProvider } from './LayerStylePipelineProvider';
 import { LayerDocumentAssetService } from './LayerDocumentAssetService';
 import { LayerTextureCodec } from './LayerTextureCodec';
 import { SelectionRasterizer } from './SelectionRasterizer';
+import { SelectionContentAnalyzer } from './SelectionContentAnalyzer';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -107,6 +108,7 @@ export class LayerDocumentRenderer {
   private readonly documentAssets: LayerDocumentAssetService;
   private readonly textureCodec: LayerTextureCodec;
   private readonly selectionRasterizer: SelectionRasterizer;
+  private readonly selectionContentAnalyzer: SelectionContentAnalyzer;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -164,6 +166,21 @@ export class LayerDocumentRenderer {
         this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue),
       clearTexture: (encoder, texture, clearValue) =>
         this.clearTexture(encoder, texture, clearValue)
+    });
+    this.selectionContentAnalyzer = new SelectionContentAnalyzer({
+      device,
+      textures: this.selectionTextures,
+      dimensions: () => ({ width: this.width, height: this.height }),
+      generation: () => this.resourceGeneration,
+      pipelines: () => {
+        this.ensureToolPipelines();
+        return this.toolPipelines!;
+      },
+      ensureTargets: () => this.ensureSelectionTargets(),
+      rasterRuntime: (layerId) => this.layerResources.raster(layerId),
+      createCoverageTexture: (label) => this.createSelectionTexture(label),
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.documentAssets = new LayerDocumentAssetService({
       rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
@@ -1616,89 +1633,12 @@ export class LayerDocumentRenderer {
     };
   }
 
-  private async measureLayerCoverage(
-    layer: RasterLayer,
-    selectionEnabled: boolean
-  ): Promise<SelectionCoverageBounds | null> {
-    this.ensureToolPipelines();
-    this.ensureSelectionTargets();
-    if (selectionEnabled && !this.selectionTextures.active) return null;
-    if (!this.selectionTextures.mask) return null;
-    const runtime = this.layerResources.raster(layer.id);
-    if (!runtime) return null;
-    const generation = this.resourceGeneration;
-    const coverageTexture = this.createSelectionTexture(
-      selectionEnabled
-        ? 'LightTable selected content coverage'
-        : 'LightTable layer content coverage'
-    );
-    const bytesPerRow = Math.ceil(this.width / 256) * 256;
-    const readBuffer = this.device.createBuffer({
-      label: selectionEnabled
-        ? 'LightTable selected content bounds readback'
-        : 'LightTable layer content bounds readback',
-      size: bytesPerRow * this.height,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-    });
-    const settingsBuffer = this.device.createBuffer({
-      label: selectionEnabled
-        ? 'LightTable selected content settings'
-        : 'LightTable layer content settings',
-      size: 16,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    this.device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
-      layer.opacity,
-      layer.mask?.enabled && runtime.maskTexture ? 1 : 0,
-      selectionEnabled ? 1 : 0,
-      0
-    ]));
-    const bindGroup = this.device.createBindGroup({
-      layout: this.toolPipelines!.selectionContentCoverage.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: runtime.texture.createView() },
-        { binding: 1, resource: this.selectionTextures.mask.createView() },
-        { binding: 2, resource: (runtime.maskTexture ?? runtime.texture).createView() },
-        { binding: 3, resource: { buffer: settingsBuffer } }
-      ]
-    });
-    try {
-      const encoder = this.device.createCommandEncoder({
-        label: selectionEnabled
-          ? 'LightTable measure selected content'
-          : 'LightTable measure layer content'
-      });
-      this.drawFullscreen(
-        encoder,
-        this.toolPipelines!.selectionContentCoverage,
-        bindGroup,
-        coverageTexture.createView(),
-        { r: 0, g: 0, b: 0, a: 1 }
-      );
-      encoder.copyTextureToBuffer(
-        { texture: coverageTexture },
-        { buffer: readBuffer, bytesPerRow, rowsPerImage: this.height },
-        [this.width, this.height]
-      );
-      this.device.queue.submit([encoder.finish()]);
-      await readBuffer.mapAsync(GPUMapMode.READ);
-      if (generation !== this.resourceGeneration) return null;
-      const bytes = new Uint8Array(readBuffer.getMappedRange());
-      return selectionCoverageBounds(bytes, this.width, this.height, bytesPerRow);
-    } finally {
-      if (readBuffer.mapState === 'mapped') readBuffer.unmap();
-      readBuffer.destroy();
-      settingsBuffer.destroy();
-      coverageTexture.destroy();
-    }
-  }
-
   async measureSelectedLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
-    return this.measureLayerCoverage(layer, true);
+    return this.selectionContentAnalyzer.measure(layer, true);
   }
 
   async measureLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
-    return this.measureLayerCoverage(layer, false);
+    return this.selectionContentAnalyzer.measure(layer, false);
   }
 
   pasteSelectionClipboard(layerId: LayerId) {
