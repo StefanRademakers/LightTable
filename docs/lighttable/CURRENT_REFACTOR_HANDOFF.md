@@ -124,6 +124,9 @@ Viewport presentation state is also compared at the actual WebGPU boundary:
 canvas pixel dimensions and the eight `f32` view-uniform values. Repeated
 ResizeObserver/layout emissions that resolve to identical GPU state no longer
 upload the view buffer, invalidate the viewport or request another frame.
+Scope option and interaction setters now follow the same semantic rule:
+replaying an identical options object or interaction flag is a no-op instead
+of scheduling analysis/render work.
 
 Recommended order:
 

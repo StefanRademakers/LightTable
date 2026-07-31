@@ -1,6 +1,10 @@
 import type { LightTableImageMetadata } from '../types';
 import type { DocumentRendererScopeCanvases } from '../application/rendering/rendererTypes';
-import { WebGpuScopeEngine, type WebGpuScopeOptions } from './WebGpuScopeEngine';
+import {
+  WebGpuScopeEngine,
+  webGpuScopeOptionsEqual,
+  type WebGpuScopeOptions
+} from './WebGpuScopeEngine';
 
 interface ScopeTextures {
   readonly source: GPUTexture;
@@ -56,14 +60,18 @@ export class DocumentScopeRuntime {
     this.engine?.setBefore(before);
   }
 
-  setOptions(options: WebGpuScopeOptions): void {
+  setOptions(options: WebGpuScopeOptions): boolean {
+    if (this.options && webGpuScopeOptionsEqual(this.options, options)) return false;
     this.options = { ...options };
     this.engine?.setOptions(options);
+    return true;
   }
 
-  setInteractionActive(active: boolean): void {
+  setInteractionActive(active: boolean): boolean {
+    if (this.interactionActive === active) return false;
     this.interactionActive = active;
     this.engine?.setInteractionActive(active);
+    return true;
   }
 
   markImageDirty(): void {

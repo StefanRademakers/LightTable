@@ -950,14 +950,14 @@ export class WebGpuEngine {
   setScopeOptions(histogramVisible: boolean, options: WebGpuScopeOptions) {
     const histogramBecameVisible = this.histogramRuntime?.setVisible(histogramVisible) ?? false;
     if (histogramBecameVisible) this.renderDirty.invalidate('histogram');
-    this.scopeRuntime.setOptions(options);
-    this.requestRender();
+    const scopesChanged = this.scopeRuntime.setOptions(options);
+    if (histogramBecameVisible || scopesChanged) this.requestRender();
   }
 
   setScopeInteractionActive(active: boolean) {
-    this.histogramRuntime?.setInteractionActive(active);
-    this.scopeRuntime.setInteractionActive(active);
-    this.requestRender();
+    const histogramChanged = this.histogramRuntime?.setInteractionActive(active) ?? false;
+    const scopesChanged = this.scopeRuntime.setInteractionActive(active);
+    if (histogramChanged || scopesChanged) this.requestRender();
   }
 
   setLensBlurInteractionActive(active: boolean) {

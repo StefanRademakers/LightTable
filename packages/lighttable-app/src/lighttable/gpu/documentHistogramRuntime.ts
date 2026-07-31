@@ -19,6 +19,7 @@ export class DocumentHistogramRuntime {
   private metadata: LightTableImageMetadata | null = null;
   private pending = false;
   private visible = true;
+  private interactionActive = false;
   private destroyed = false;
   private readonly interactiveRefresh = new InteractiveRefreshGate(100);
 
@@ -71,8 +72,11 @@ export class DocumentHistogramRuntime {
    * compete with every paint dab or slider frame. Leaving the interaction
    * resets the gate so the next dirty frame is always a final sample.
    */
-  setInteractionActive(active: boolean): void {
+  setInteractionActive(active: boolean): boolean {
+    if (this.interactionActive === active) return false;
+    this.interactionActive = active;
     this.interactiveRefresh.setActive(active);
+    return true;
   }
 
   encode(

@@ -33,6 +33,17 @@ export interface WebGpuScopeOptions {
   vectorscopeZoom2x: boolean;
 }
 
+export const webGpuScopeOptionsEqual = (
+  left: WebGpuScopeOptions,
+  right: WebGpuScopeOptions
+) => left.hueDistributionVisible === right.hueDistributionVisible &&
+  left.paradeVisible === right.paradeVisible &&
+  left.vectorscopeVisible === right.vectorscopeVisible &&
+  left.quality === right.quality &&
+  left.traceBrightness === right.traceBrightness &&
+  left.vectorscopeRange === right.vectorscopeRange &&
+  left.vectorscopeZoom2x === right.vectorscopeZoom2x;
+
 interface ScopeCanvases {
   hueDistribution: HTMLCanvasElement;
   colorMixerHueDistribution?: HTMLCanvasElement;
@@ -332,7 +343,8 @@ export class WebGpuScopeEngine {
     this.analysisDirty = true;
   }
 
-  setOptions(options: WebGpuScopeOptions) {
+  setOptions(options: WebGpuScopeOptions): boolean {
+    if (webGpuScopeOptionsEqual(this.options, options)) return false;
     const analysisChanged = options.hueDistributionVisible !== this.options.hueDistributionVisible ||
       options.paradeVisible !== this.options.paradeVisible ||
       options.vectorscopeVisible !== this.options.vectorscopeVisible ||
@@ -346,13 +358,15 @@ export class WebGpuScopeEngine {
       this.displayDirty = true;
       this.writeDisplayUniforms();
     }
+    return true;
   }
 
-  setInteractionActive(active: boolean) {
-    if (this.interactionActive === active) return;
+  setInteractionActive(active: boolean): boolean {
+    if (this.interactionActive === active) return false;
     this.interactionActive = active;
     this.interactiveRefresh.setActive(active);
     if (this.options.quality === 'auto') this.analysisDirty = true;
+    return true;
   }
 
   markImageDirty() {
