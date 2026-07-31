@@ -8,8 +8,7 @@ import {
 } from '../document/documentTypes';
 import {
   findRasterLayer,
-  walkLayerTree,
-  walkRasterLayers
+  walkLayerTree
 } from '../document/layerTree';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
 import type { PaintChannel } from '../session/editorSession';
@@ -56,6 +55,7 @@ import {
   LayerThumbnailService,
   type LayerThumbnailBlob
 } from './LayerThumbnailService';
+import { ImportedLayerInitializer } from './ImportedLayerInitializer';
 
 const textureUsage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
   GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST;
@@ -85,6 +85,7 @@ export class LayerDocumentRenderer {
   private readonly rasterPaint: RasterPaintService;
   private readonly rasterDocumentOperations: RasterDocumentOperations;
   private readonly layerThumbnails: LayerThumbnailService;
+  private readonly importedLayerInitializer: ImportedLayerInitializer;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -116,6 +117,14 @@ export class LayerDocumentRenderer {
       maskTexture: (layerId) => this.maskTextureFor(layerId),
       encode: (source, maskChannel, width, height) =>
         this.textureCodec.encode(source, maskChannel, width, height)
+    });
+    this.importedLayerInitializer = new ImportedLayerInitializer({
+      device,
+      sampler,
+      decodePipeline: this.decodePipeline,
+      rasterTexture: (layerId) => this.layerResources.raster(layerId)?.texture ?? null,
+      drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
+        this.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
     });
     this.submittedResources = new SubmittedResourceRetainer({
       onSubmittedWorkDone: () => this.device.queue.onSubmittedWorkDone()
@@ -305,24 +314,7 @@ export class LayerDocumentRenderer {
     this.height = document.height;
     this.selectionTextures.active = false;
     this.syncDocument(document);
-    const imported = walkRasterLayers(document.layers)
-      .map(({ layer }) => layer)
-      .find((layer) => layer.pixelSource.kind === 'imported-image');
-    // Persisted layered documents contain runtime raster layers only. They are
-    // populated immediately afterwards by loadDocumentAssets().
-    if (!imported) return;
-    const runtime = this.layerResources.raster(imported.id);
-    if (!runtime) throw new Error('The imported LightTable layer could not be initialized.');
-    const bindGroup = this.device.createBindGroup({
-      layout: this.decodePipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: sourceTexture.createView() },
-        { binding: 1, resource: this.sampler }
-      ]
-    });
-    const encoder = this.device.createCommandEncoder({ label: 'LightTable initialize layer document' });
-    this.drawFullscreen(encoder, this.decodePipeline, bindGroup, runtime.texture.createView(), { r: 0, g: 0, b: 0, a: 0 });
-    this.device.queue.submit([encoder.finish()]);
+    this.importedLayerInitializer.initialize(document, sourceTexture);
   }
 
   syncDocument(document: ImageDocument) {

@@ -1578,3 +1578,6 @@ The refactor is successful when:
 - [x] Extract aspect-preserving layer and mask thumbnail export into a
       presentation-asset service. Thumbnail sizing, source selection and codec
       delegation no longer live in the document renderer.
+- [x] Extract flat-document source hydration into a dedicated imported-layer
+      initializer. Runtime-only layered documents bypass it explicitly and the
+      renderer no longer owns startup decode command construction.
