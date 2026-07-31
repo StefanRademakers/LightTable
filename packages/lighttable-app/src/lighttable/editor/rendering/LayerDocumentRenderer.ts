@@ -77,6 +77,7 @@ import { LayerRuntimeStore } from './LayerRuntimeStore';
 import { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import { LayerStyleTextureStore } from './LayerStyleTextureStore';
 import { RenderTargetPair } from './RenderTargetPair';
+import { SelectionTextureStore } from './SelectionTextureStore';
 
 interface PixelSnapshot {
   layerId: LayerId;
@@ -198,11 +199,7 @@ export class LayerDocumentRenderer {
   private readonly submittedResources: SubmittedResourceRetainer;
   private readonly layerStyleTextures: LayerStyleTextureStore;
   private readonly compositeTargets: RenderTargetPair;
-  private selectionMask: GPUTexture | null = null;
-  private selectionResult: GPUTexture | null = null;
-  private selectionShape: GPUTexture | null = null;
-  private selectionClipboard: GPUTexture | null = null;
-  private selectionActive = false;
+  private readonly selectionTextures: SelectionTextureStore;
   private width = 0;
   private height = 0;
   private resourceGeneration = 0;
@@ -239,6 +236,10 @@ export class LayerDocumentRenderer {
       createTexture: (label) => this.createTexture(label),
       firstLabel: 'LightTable layer composite A',
       secondLabel: 'LightTable layer composite B'
+    });
+    this.selectionTextures = new SelectionTextureStore({
+      createSelectionTexture: (label) => this.createSelectionTexture(label),
+      createClipboardTexture: (label) => this.createTexture(label)
     });
     // Tool-only pipelines are compiled on first use. The normal image-open
     // path needs decode/composite, but not brush, selection or transform.
@@ -298,7 +299,7 @@ export class LayerDocumentRenderer {
     this.destroyImageResources();
     this.width = document.width;
     this.height = document.height;
-    this.selectionActive = false;
+    this.selectionTextures.active = false;
     this.device.queue.writeBuffer(this.brushCanvasBuffer, 0, new Float32Array([
       this.width, this.height, 0, 0,
       1, 0, 0, 0,
@@ -365,10 +366,7 @@ export class LayerDocumentRenderer {
     });
     bytes += this.layerStyleTextures.estimatedTextureBytes(this.width, this.height);
     bytes += this.compositeTargets.estimatedTextureBytes(this.width, this.height, 8);
-    if (this.selectionMask) bytes += r8Bytes;
-    if (this.selectionResult) bytes += r8Bytes;
-    if (this.selectionShape) bytes += r8Bytes;
-    if (this.selectionClipboard) bytes += rgba16Bytes;
+    bytes += this.selectionTextures.estimatedTextureBytes(this.width, this.height);
     if (this.pendingPixelSnapshot) bytes += rgba16Bytes;
     if (this.transformSession) {
       bytes += rgba16Bytes * 2;
@@ -900,14 +898,11 @@ export class LayerDocumentRenderer {
   }
 
   private ensureSelectionTargets() {
-    if (this.selectionMask && this.selectionResult && this.selectionShape) return;
-    this.selectionMask = this.createSelectionTexture('LightTable active selection');
-    this.selectionResult = this.createSelectionTexture('LightTable selection result');
-    this.selectionShape = this.createSelectionTexture('LightTable selection shape');
+    if (!this.selectionTextures.ensureTargets()) return;
     const encoder = this.device.createCommandEncoder({ label: 'Initialize LightTable selection' });
-    this.clearTexture(encoder, this.selectionMask, { r: 1, g: 0, b: 0, a: 1 });
-    this.clearTexture(encoder, this.selectionResult, { r: 1, g: 0, b: 0, a: 1 });
-    this.clearTexture(encoder, this.selectionShape);
+    this.clearTexture(encoder, this.selectionTextures.mask!, { r: 1, g: 0, b: 0, a: 1 });
+    this.clearTexture(encoder, this.selectionTextures.result!, { r: 1, g: 0, b: 0, a: 1 });
+    this.clearTexture(encoder, this.selectionTextures.shape!);
     this.device.queue.submit([encoder.finish()]);
   }
 
@@ -1265,7 +1260,7 @@ export class LayerDocumentRenderer {
     if (layerIsLocked(layer, 'position') || !layer.visible) throw new Error('Select a visible, unlocked raster layer before transforming.');
     const runtime = this.layerResources.raster(layer.id);
     if (!runtime) throw new Error('The active raster layer is not available on the GPU.');
-    if (useSelection && (!this.selectionActive || !this.selectionMask)) {
+    if (useSelection && (!this.selectionTextures.active || !this.selectionTextures.mask)) {
       throw new Error('The active selection is not available on the GPU.');
     }
     const sourceTexture = this.createTexture('LightTable transform source snapshot');
@@ -1279,8 +1274,8 @@ export class LayerDocumentRenderer {
     });
     const encoder = this.device.createCommandEncoder({ label: 'LightTable begin transform' });
     encoder.copyTextureToTexture({ texture: runtime.texture }, { texture: sourceTexture }, [this.width, this.height]);
-    if (selectionTexture && this.selectionMask) {
-      encoder.copyTextureToTexture({ texture: this.selectionMask }, { texture: selectionTexture }, [this.width, this.height]);
+    if (selectionTexture && this.selectionTextures.mask) {
+      encoder.copyTextureToTexture({ texture: this.selectionTextures.mask }, { texture: selectionTexture }, [this.width, this.height]);
     }
     this.device.queue.submit([encoder.finish()]);
     this.transformSession = {
@@ -1309,7 +1304,7 @@ export class LayerDocumentRenderer {
       inverse.b, inverse.d, inverse.ty, 0,
       this.width, this.height, session.usesSelection ? 1 : 0, 0
     ]));
-    const selectionSource = session.selectionTexture ?? this.selectionMask;
+    const selectionSource = session.selectionTexture ?? this.selectionTextures.mask;
     if (!selectionSource) return false;
     const transformBindGroup = this.device.createBindGroup({
       layout: this.transformPipeline.getBindGroupLayout(0),
@@ -1359,10 +1354,10 @@ export class LayerDocumentRenderer {
     }
     const encoder = this.device.createCommandEncoder({ label: 'LightTable commit transform' });
     encoder.copyTextureToTexture({ texture: session.previewTexture }, { texture: runtime.texture }, [this.width, this.height]);
-    if (session.selectionPreview && this.selectionMask && this.selectionResult) {
-      encoder.copyTextureToTexture({ texture: session.selectionPreview }, { texture: this.selectionMask }, [this.width, this.height]);
-      encoder.copyTextureToTexture({ texture: session.selectionPreview }, { texture: this.selectionResult }, [this.width, this.height]);
-      this.selectionActive = true;
+    if (session.selectionPreview && this.selectionTextures.mask && this.selectionTextures.result) {
+      encoder.copyTextureToTexture({ texture: session.selectionPreview }, { texture: this.selectionTextures.mask }, [this.width, this.height]);
+      encoder.copyTextureToTexture({ texture: session.selectionPreview }, { texture: this.selectionTextures.result }, [this.width, this.height]);
+      this.selectionTextures.active = true;
     }
     this.device.queue.submit([encoder.finish()]);
     let undoPixels: GPUTexture | null = session.sourceTexture;
@@ -1390,10 +1385,10 @@ export class LayerDocumentRenderer {
       const historyEncoder = this.device.createCommandEncoder({ label: `LightTable ${direction} transform` });
       historyEncoder.copyTextureToTexture({ texture: targetRuntime.texture }, { texture: inversePixels }, [this.width, this.height]);
       historyEncoder.copyTextureToTexture({ texture: sourcePixels }, { texture: targetRuntime.texture }, [this.width, this.height]);
-      if (usesSelection && sourceSelection && inverseSelection && this.selectionMask && this.selectionResult) {
-        historyEncoder.copyTextureToTexture({ texture: this.selectionMask }, { texture: inverseSelection }, [this.width, this.height]);
-        historyEncoder.copyTextureToTexture({ texture: sourceSelection }, { texture: this.selectionMask }, [this.width, this.height]);
-        historyEncoder.copyTextureToTexture({ texture: sourceSelection }, { texture: this.selectionResult }, [this.width, this.height]);
+      if (usesSelection && sourceSelection && inverseSelection && this.selectionTextures.mask && this.selectionTextures.result) {
+        historyEncoder.copyTextureToTexture({ texture: this.selectionTextures.mask }, { texture: inverseSelection }, [this.width, this.height]);
+        historyEncoder.copyTextureToTexture({ texture: sourceSelection }, { texture: this.selectionTextures.mask }, [this.width, this.height]);
+        historyEncoder.copyTextureToTexture({ texture: sourceSelection }, { texture: this.selectionTextures.result }, [this.width, this.height]);
       }
       this.device.queue.submit([historyEncoder.finish()]);
       sourcePixels.destroy();
@@ -1461,7 +1456,7 @@ export class LayerDocumentRenderer {
     if (channel === 'pixels' && !runtime) throw new Error('The active raster layer is not available on the GPU.');
     const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
     if (!target) throw new Error('The active paint channel is not available on the GPU.');
-    if (!this.selectionMask) throw new Error('The LightTable selection mask is not initialized.');
+    if (!this.selectionTextures.mask) throw new Error('The LightTable selection mask is not initialized.');
     const inverse = invertMatrix(transform);
     if (!inverse) throw new Error('The active layer transform cannot be inverted for painting.');
     this.device.queue.writeBuffer(this.brushCanvasBuffer, 0, new Float32Array([
@@ -1493,7 +1488,7 @@ export class LayerDocumentRenderer {
       entries: [
         { binding: 0, resource: { buffer: dabBuffer } },
         { binding: 1, resource: { buffer: this.brushCanvasBuffer } },
-        { binding: 2, resource: this.selectionMask.createView() }
+        { binding: 2, resource: this.selectionTextures.mask.createView() }
       ]
     });
     const encoder = this.device.createCommandEncoder({ label: 'LightTable brush dabs' });
@@ -1523,7 +1518,7 @@ export class LayerDocumentRenderer {
     this.ensureSelectionTargets();
     const runtime = this.layerResources.raster(layerId);
     const target = channel === 'mask' ? this.maskTextureFor(layerId) : runtime?.texture;
-    if (!target || !this.selectionMask) return false;
+    if (!target || !this.selectionTextures.mask) return false;
 
     const result = this.createTexture('LightTable filled layer color');
     const settingsBuffer = this.device.createBuffer({
@@ -1543,7 +1538,7 @@ export class LayerDocumentRenderer {
       layout: this.fillColorPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: target.createView() },
-        { binding: 1, resource: this.selectionMask.createView() },
+        { binding: 1, resource: this.selectionTextures.mask.createView() },
         { binding: 2, resource: { buffer: settingsBuffer } }
       ]
     });
@@ -1594,7 +1589,7 @@ export class LayerDocumentRenderer {
   setSelection(shape: SelectionShape, requestedMode: SelectionMode) {
     this.ensureToolPipelines();
     this.ensureSelectionTargets();
-    if (!this.selectionMask || !this.selectionResult || !this.selectionShape) return false;
+    if (!this.selectionTextures.mask || !this.selectionTextures.result || !this.selectionTextures.shape) return false;
     if (
       (shape.kind === 'free' || shape.kind === 'polygon')
       && shape.points.length < 3
@@ -1604,8 +1599,8 @@ export class LayerDocumentRenderer {
       && shape.kind !== 'polygon'
       && shape.points.length < 2
     ) return false;
-    if (!this.selectionActive && requestedMode === 'subtract') return false;
-    const mode = this.selectionActive ? requestedMode : 'replace';
+    if (!this.selectionTextures.active && requestedMode === 'subtract') return false;
+    const mode = this.selectionTextures.active ? requestedMode : 'replace';
     const points = shape.points.length ? shape.points : [{ x: 0, y: 0 }];
     const pointValues = new Float32Array(points.length * 2);
     points.forEach((point, index) => pointValues.set([point.x, point.y], index * 2));
@@ -1645,21 +1640,21 @@ export class LayerDocumentRenderer {
     const combineBindGroup = this.device.createBindGroup({
       layout: this.selectionCombinePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.selectionMask.createView() },
-        { binding: 1, resource: this.selectionShape.createView() },
+        { binding: 0, resource: this.selectionTextures.mask.createView() },
+        { binding: 1, resource: this.selectionTextures.shape.createView() },
         { binding: 2, resource: { buffer: combineBuffer } }
       ]
     });
     // Separate submissions make the attachment-to-sampled transition explicit
     // and keep backend diagnostics tied to the pass that caused them.
     const shapeEncoder = this.device.createCommandEncoder({ label: 'LightTable rasterize selection shape' });
-    this.drawFullscreen(shapeEncoder, this.selectionShapePipeline, shapeBindGroup, this.selectionShape.createView(), { r: 0, g: 0, b: 0, a: 1 });
+    this.drawFullscreen(shapeEncoder, this.selectionShapePipeline, shapeBindGroup, this.selectionTextures.shape.createView(), { r: 0, g: 0, b: 0, a: 1 });
     this.device.queue.submit([shapeEncoder.finish()]);
     const combineEncoder = this.device.createCommandEncoder({ label: 'LightTable combine selection mask' });
-    this.drawFullscreen(combineEncoder, this.selectionCombinePipeline, combineBindGroup, this.selectionResult.createView(), { r: 0, g: 0, b: 0, a: 1 });
+    this.drawFullscreen(combineEncoder, this.selectionCombinePipeline, combineBindGroup, this.selectionTextures.result.createView(), { r: 0, g: 0, b: 0, a: 1 });
     this.device.queue.submit([combineEncoder.finish()]);
-    [this.selectionMask, this.selectionResult] = [this.selectionResult, this.selectionMask];
-    this.selectionActive = true;
+    this.selectionTextures.swapMaskAndResult();
+    this.selectionTextures.active = true;
     void this.device.queue.onSubmittedWorkDone().then(() => {
       pointBuffer.destroy();
       shapeBuffer.destroy();
@@ -1670,7 +1665,7 @@ export class LayerDocumentRenderer {
 
   featherSelection(radius: number) {
     this.ensureToolPipelines();
-    if (!this.selectionActive || !this.selectionMask || !this.selectionResult) return false;
+    if (!this.selectionTextures.active || !this.selectionTextures.mask || !this.selectionTextures.result) return false;
     const clampedRadius = Math.max(0, Math.min(250, radius));
     if (clampedRadius <= 0) return true;
     const settingsBuffer = this.device.createBuffer({
@@ -1687,7 +1682,7 @@ export class LayerDocumentRenderer {
     const horizontalBindGroup = this.device.createBindGroup({
       layout: this.selectionFeatherPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.selectionMask.createView() },
+        { binding: 0, resource: this.selectionTextures.mask.createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: horizontalBuffer } }
       ]
@@ -1697,7 +1692,7 @@ export class LayerDocumentRenderer {
       horizontalEncoder,
       this.selectionFeatherPipeline,
       horizontalBindGroup,
-      this.selectionResult.createView(),
+      this.selectionTextures.result.createView(),
       { r: 0, g: 0, b: 0, a: 1 }
     );
     this.device.queue.submit([horizontalEncoder.finish()]);
@@ -1713,7 +1708,7 @@ export class LayerDocumentRenderer {
     const verticalBindGroup = this.device.createBindGroup({
       layout: this.selectionFeatherPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.selectionResult.createView() },
+        { binding: 0, resource: this.selectionTextures.result.createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: verticalBuffer } }
       ]
@@ -1723,7 +1718,7 @@ export class LayerDocumentRenderer {
       verticalEncoder,
       this.selectionFeatherPipeline,
       verticalBindGroup,
-      this.selectionMask.createView(),
+      this.selectionTextures.mask.createView(),
       { r: 0, g: 0, b: 0, a: 1 }
     );
     this.device.queue.submit([verticalEncoder.finish()]);
@@ -1736,11 +1731,10 @@ export class LayerDocumentRenderer {
 
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId) {
     this.ensureToolPipelines();
-    if (!this.selectionActive || !this.selectionMask) return false;
+    if (!this.selectionTextures.active || !this.selectionTextures.mask) return false;
     const layer = findRasterLayer(document, layerId);
     if (!layer || !layer.visible) return false;
-    this.selectionClipboard?.destroy();
-    this.selectionClipboard = this.createTexture('LightTable selection clipboard');
+    const selectionClipboard = this.selectionTextures.replaceClipboard();
     const encoder = this.device.createCommandEncoder({ label: 'LightTable copy selected layer pixels' });
     // Blend modes describe the relationship with lower layers. Copying one
     // active layer must preserve its own pixels/mask/opacity, not blend it
@@ -1755,14 +1749,14 @@ export class LayerDocumentRenderer {
       layout: this.selectionCopyPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: isolatedLayerTexture.createView() },
-        { binding: 1, resource: this.selectionMask.createView() }
+        { binding: 1, resource: this.selectionTextures.mask.createView() }
       ]
     });
     this.drawFullscreen(
       encoder,
       this.selectionCopyPipeline,
       bindGroup,
-      this.selectionClipboard.createView(),
+      selectionClipboard.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
     );
     this.device.queue.submit([encoder.finish()]);
@@ -1771,7 +1765,7 @@ export class LayerDocumentRenderer {
   }
 
   async exportSelectionClipboard(bounds: Rect) {
-    if (!this.selectionClipboard) {
+    if (!this.selectionTextures.clipboard) {
       throw new Error('No copied LightTable pixels are available.');
     }
     const crop = this.clipboardCrop(bounds);
@@ -1787,7 +1781,7 @@ export class LayerDocumentRenderer {
       });
       encoder.copyTextureToTexture(
         {
-          texture: this.selectionClipboard,
+          texture: this.selectionTextures.clipboard,
           origin: { x: crop.x, y: crop.y }
         },
         { texture: croppedTexture },
@@ -1810,7 +1804,7 @@ export class LayerDocumentRenderer {
     bounds: Rect
   ) {
     this.ensureToolPipelines();
-    if (!this.selectionActive || !this.selectionMask) {
+    if (!this.selectionTextures.active || !this.selectionTextures.mask) {
       throw new Error('A selection is required for Copy Merged.');
     }
     const crop = this.clipboardCrop(bounds);
@@ -1831,7 +1825,7 @@ export class LayerDocumentRenderer {
         layout: this.selectionDisplayCopyPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: displayTexture.createView() },
-          { binding: 1, resource: this.selectionMask.createView() }
+          { binding: 1, resource: this.selectionTextures.mask.createView() }
         ]
       });
       const encoder = this.device.createCommandEncoder({
@@ -1924,8 +1918,8 @@ export class LayerDocumentRenderer {
   ): Promise<SelectionCoverageBounds | null> {
     this.ensureToolPipelines();
     this.ensureSelectionTargets();
-    if (selectionEnabled && !this.selectionActive) return null;
-    if (!this.selectionMask) return null;
+    if (selectionEnabled && !this.selectionTextures.active) return null;
+    if (!this.selectionTextures.mask) return null;
     const runtime = this.layerResources.raster(layer.id);
     if (!runtime) return null;
     const generation = this.resourceGeneration;
@@ -1959,7 +1953,7 @@ export class LayerDocumentRenderer {
       layout: this.selectionContentCoveragePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: runtime.texture.createView() },
-        { binding: 1, resource: this.selectionMask.createView() },
+        { binding: 1, resource: this.selectionTextures.mask.createView() },
         { binding: 2, resource: (runtime.maskTexture ?? runtime.texture).createView() },
         { binding: 3, resource: { buffer: settingsBuffer } }
       ]
@@ -2005,10 +1999,10 @@ export class LayerDocumentRenderer {
 
   pasteSelectionClipboard(layerId: LayerId) {
     const destination = this.layerResources.raster(layerId);
-    if (!destination || !this.selectionClipboard) return false;
+    if (!destination || !this.selectionTextures.clipboard) return false;
     const encoder = this.device.createCommandEncoder({ label: 'LightTable paste selected pixels' });
     encoder.copyTextureToTexture(
-      { texture: this.selectionClipboard },
+      { texture: this.selectionTextures.clipboard },
       { texture: destination.texture },
       [this.width, this.height]
     );
@@ -2017,17 +2011,17 @@ export class LayerDocumentRenderer {
   }
 
   hasSelectionClipboard() {
-    return Boolean(this.selectionClipboard);
+    return Boolean(this.selectionTextures.clipboard);
   }
 
   clearSelection() {
-    if (!this.selectionMask || !this.selectionResult) return false;
+    if (!this.selectionTextures.mask || !this.selectionTextures.result) return false;
     const encoder = this.device.createCommandEncoder({ label: 'Clear LightTable selection' });
-    this.clearTexture(encoder, this.selectionMask, { r: 1, g: 0, b: 0, a: 1 });
-    this.clearTexture(encoder, this.selectionResult, { r: 1, g: 0, b: 0, a: 1 });
+    this.clearTexture(encoder, this.selectionTextures.mask, { r: 1, g: 0, b: 0, a: 1 });
+    this.clearTexture(encoder, this.selectionTextures.result, { r: 1, g: 0, b: 0, a: 1 });
     this.device.queue.submit([encoder.finish()]);
-    const changed = this.selectionActive;
-    this.selectionActive = false;
+    const changed = this.selectionTextures.active;
+    this.selectionTextures.active = false;
     return changed;
   }
 
@@ -2311,15 +2305,7 @@ export class LayerDocumentRenderer {
     this.patternSources.clear();
     this.layerStyleTextures.destroy();
     this.compositeTargets.destroy();
-    this.selectionMask?.destroy();
-    this.selectionResult?.destroy();
-    this.selectionShape?.destroy();
-    this.selectionClipboard?.destroy();
-    this.selectionMask = null;
-    this.selectionResult = null;
-    this.selectionShape = null;
-    this.selectionClipboard = null;
-    this.selectionActive = false;
+    this.selectionTextures.destroy();
     this.geometryPreviews.clear();
     this.cancelTransform();
     this.destroySnapshot(this.pendingPixelSnapshot);
