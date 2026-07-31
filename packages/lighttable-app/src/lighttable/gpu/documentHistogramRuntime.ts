@@ -18,6 +18,7 @@ export class DocumentHistogramRuntime {
   private correctedBindGroup: GPUBindGroup | null = null;
   private metadata: LightTableImageMetadata | null = null;
   private pending = false;
+  private retryAfterPending = false;
   private visible = true;
   private interactionActive = false;
   private destroyed = false;
@@ -83,10 +84,16 @@ export class DocumentHistogramRuntime {
     encoder: GPUCommandEncoder,
     options: { readonly before: boolean; readonly required: boolean }
   ): GPUBuffer | null {
+    if (this.pending) {
+      // A dirty image that arrives during readback must be sampled once the
+      // mapped buffer is released. A normal readback completion must not wake
+      // an otherwise idle renderer merely to discover that there is no work.
+      if (this.visible && options.required) this.retryAfterPending = true;
+      return null;
+    }
     if (
       !this.visible
       || !options.required
-      || this.pending
       || !this.metadata
       || !this.histogramBuffer
       || !this.originalBindGroup
@@ -142,13 +149,16 @@ export class DocumentHistogramRuntime {
     } finally {
       buffer.destroy();
       this.pending = false;
-      if (!this.destroyed) this.requestRender();
+      const retry = this.retryAfterPending;
+      this.retryAfterPending = false;
+      if (!this.destroyed && retry) this.requestRender();
     }
   }
 
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.retryAfterPending = false;
     this.clear();
     this.uniformBuffer.destroy();
   }

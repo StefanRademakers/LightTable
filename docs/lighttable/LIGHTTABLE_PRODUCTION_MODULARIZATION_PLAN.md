@@ -1729,3 +1729,6 @@ The refactor is successful when:
 - [x] Resolve adjustment invalidation from visible GPU payload changes. Stored
       settings on disabled nodes no longer wake correction, histogram or scope
       work; active changes restart at the earliest dependent render stage.
+- [x] Remove unconditional post-readback histogram frames. Concurrent dirty
+      images retain an explicit retry, while completed stable samples leave an
+      idle renderer asleep.

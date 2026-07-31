@@ -235,6 +235,12 @@ does not schedule correction, histogram or scope work. Uniform, curve, output
 and enabled-effect changes resolve to their earliest affected correction stage;
 only that stage and its dependants are rerun.
 
+Histogram readback completion no longer schedules an unconditional follow-up
+frame. The runtime records whether a dirty image arrived while its readback was
+pending and requests a retry only in that case. This preserves fresh scopes
+without producing one empty animation frame after every ordinary histogram
+sample.
+
 Recommended order:
 
 1. Inventory the remaining mutable GPU/static-resource fields in

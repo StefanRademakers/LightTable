@@ -126,4 +126,52 @@ describe('DocumentHistogramRuntime', () => {
     runtime.destroy();
     refreshSpy.mockRestore();
   });
+
+  it('requests another frame only when a dirty sample arrived during readback', async () => {
+    const requestRender = vi.fn();
+    const createBuffer = () => ({
+      destroy: vi.fn(),
+      mapAsync: vi.fn(async () => undefined),
+      getMappedRange: vi.fn(() => new ArrayBuffer(768 * Uint32Array.BYTES_PER_ELEMENT)),
+      unmap: vi.fn()
+    });
+    const device = {
+      createBuffer: vi.fn(createBuffer),
+      createBindGroup: vi.fn(() => ({})),
+      queue: { writeBuffer: vi.fn() }
+    } as unknown as GPUDevice;
+    const pipeline = {
+      getBindGroupLayout: vi.fn(() => ({}))
+    } as unknown as GPUComputePipeline;
+    const runtime = new DocumentHistogramRuntime(
+      device,
+      pipeline,
+      undefined,
+      requestRender
+    );
+    const texture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    runtime.configure(texture, texture, { width: 100, height: 100 } as never);
+    const pass = {
+      setPipeline: vi.fn(),
+      setBindGroup: vi.fn(),
+      dispatchWorkgroups: vi.fn(),
+      end: vi.fn()
+    };
+    const encoder = {
+      clearBuffer: vi.fn(),
+      beginComputePass: vi.fn(() => pass),
+      copyBufferToBuffer: vi.fn()
+    } as unknown as GPUCommandEncoder;
+
+    const firstRead = runtime.encode(encoder, { before: false, required: true });
+    await runtime.read(firstRead!);
+    expect(requestRender).not.toHaveBeenCalled();
+
+    const secondRead = runtime.encode(encoder, { before: false, required: true });
+    expect(runtime.encode(encoder, { before: false, required: true })).toBeNull();
+    await runtime.read(secondRead!);
+    expect(requestRender).toHaveBeenCalledOnce();
+
+    runtime.destroy();
+  });
 });
