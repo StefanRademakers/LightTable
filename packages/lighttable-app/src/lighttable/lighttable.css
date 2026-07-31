@@ -258,9 +258,9 @@
   overflow: hidden;
   --dv-background-color: var(--lt-surface-collapsible-content);
   --dv-paneview-header-border-color: var(--lt-border);
-  --dv-tabs-and-actions-container-background-color: var(--lt-surface-panel);
+  --dv-tabs-and-actions-container-background-color: var(--lt-surface-panel-tab-strip);
   --dv-tabs-and-actions-container-height: 34px;
-  --dv-activegroup-visiblepanel-tab-background-color: var(--lt-surface-tab-active);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--lt-surface-panel-tab-active);
   --dv-activegroup-hiddenpanel-tab-background-color: var(--lt-surface-tab);
   --dv-inactivegroup-visiblepanel-tab-background-color: var(--lt-surface-tab-visible);
   --dv-inactivegroup-hiddenpanel-tab-background-color: var(--lt-surface-panel);
@@ -274,6 +274,33 @@
 
 .lighttable img {
   -webkit-user-drag: none;
+}
+
+.lighttable {
+  scrollbar-color: var(--lt-scrollbar-thumb) var(--lt-scrollbar-track);
+}
+
+.lighttable ::-webkit-scrollbar {
+  width: var(--lt-scrollbar-size);
+  height: var(--lt-scrollbar-size);
+}
+
+.lighttable ::-webkit-scrollbar-track {
+  background: var(--lt-scrollbar-track);
+}
+
+.lighttable ::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: var(--lt-radius-pill);
+  background: var(--lt-scrollbar-thumb);
+}
+
+.lighttable ::-webkit-scrollbar-thumb:hover {
+  background: var(--lt-scrollbar-thumb-hover);
+}
+
+.lighttable ::-webkit-scrollbar-corner {
+  background: var(--lt-scrollbar-track);
 }
 
 .lighttable-dock-workspace,
@@ -2749,44 +2776,52 @@
 }
 
 .lighttable-adjustment input[type='range']::-webkit-slider-runnable-track {
-  height: 4px;
+  height: var(--lt-range-track-height);
   border: 0;
   border-radius: var(--lt-radius-pill);
   background: var(--lighttable-slider-track);
 }
 
 .lighttable-adjustment input[type='range']::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  margin-top: -5px;
+  width: var(--lt-range-thumb-size);
+  height: var(--lt-range-thumb-size);
+  margin-top: calc((var(--lt-range-track-height) - var(--lt-range-thumb-size)) / 2);
   appearance: none;
   -webkit-appearance: none;
   border: 0;
   border-radius: 50%;
-  background: var(--color-tab-active);
+  background: var(--lt-range-thumb);
   box-shadow: none;
 }
 
 .lighttable-adjustment input[type='range']::-moz-range-track {
-  height: 4px;
+  height: var(--lt-range-track-height);
   border: 0;
   border-radius: var(--lt-radius-pill);
   background: var(--lighttable-slider-track);
 }
 
 .lighttable-adjustment input[type='range']::-moz-range-progress {
-  height: 4px;
+  height: var(--lt-range-track-height);
   border-radius: var(--lt-radius-pill);
   background: transparent;
 }
 
 .lighttable-adjustment input[type='range']::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: var(--lt-range-thumb-size);
+  height: var(--lt-range-thumb-size);
   border: 0;
   border-radius: 50%;
-  background: var(--color-tab-active);
+  background: var(--lt-range-thumb);
   box-shadow: none;
+}
+
+.lighttable-adjustment input[type='range']:hover::-webkit-slider-thumb {
+  background: var(--lt-range-thumb-hover);
+}
+
+.lighttable-adjustment input[type='range']:hover::-moz-range-thumb {
+  background: var(--lt-range-thumb-hover);
 }
 
 .lighttable-viewport--focus-picker,

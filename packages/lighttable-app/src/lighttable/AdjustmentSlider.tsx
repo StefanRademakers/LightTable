@@ -141,7 +141,7 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   const neutral = Math.min(100, Math.max(0, ((resetValue - min) / (max - min)) * 100));
   const trackBackground = customTrackBackground ?? (track
     ? TRACK_BACKGROUNDS[track]
-    : `linear-gradient(to right, var(--color-tab-active) 0%, var(--color-tab-active) ${percentage}%, rgba(255, 255, 255, 0.22) ${percentage}%, rgba(255, 255, 255, 0.22) 100%)`);
+    : `linear-gradient(to right, var(--lt-range-track-fill) 0%, var(--lt-range-track-fill) ${percentage}%, var(--lt-range-track) ${percentage}%, var(--lt-range-track) 100%)`);
   return (
     <label className={`lighttable-adjustment${disabled ? ' lighttable-adjustment--disabled' : ''}`}>
       <span

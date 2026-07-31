@@ -20,6 +20,8 @@
   --lt-surface-section: #1c2026;
   --lt-surface-collapsible-content: #313539;
   --lt-surface-collapsible-header: #252a31;
+  --lt-surface-panel-tab-strip: #20202f;
+  --lt-surface-panel-tab-active: #111922;
   --lt-surface-tab: #1a1e23;
   --lt-surface-tab-visible: #20242a;
   --lt-surface-tab-active: #252a31;
@@ -92,7 +94,19 @@
   --lt-control-text-size: 12px;
   --lt-control-border: rgb(226 231 232 / 24%);
   --lt-control-text: rgb(226 231 232 / 86%);
-  --lt-slider-track: #4a515b;
+  --lt-range-track: #4a515b;
+  --lt-range-track-fill: var(--lt-accent);
+  --lt-range-thumb: var(--lt-accent);
+  --lt-range-thumb-hover: var(--lt-accent-hover);
+  --lt-range-track-height: 4px;
+  --lt-range-thumb-size: 14px;
+  --lt-scrollbar-track: transparent;
+  --lt-scrollbar-thumb: #4a515b;
+  --lt-scrollbar-thumb-hover: #626b78;
+  --lt-scrollbar-size: 10px;
+
+  /* Transitional control alias. */
+  --lt-slider-track: var(--lt-range-track);
 
   /* Overlays and elevation */
   --lt-backdrop: rgb(0 0 0 / 50%);
