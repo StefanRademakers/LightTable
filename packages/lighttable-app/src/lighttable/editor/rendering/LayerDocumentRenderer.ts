@@ -16,8 +16,6 @@ import {
   walkRasterLayers
 } from '../document/layerTree';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
-import { LAYER_STYLE_EFFECT_WGSL } from './layerShaders';
-import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
 import type { PaintChannel } from '../session/editorSession';
 import type { SelectionMode, SelectionShape } from '../selection/selectionTypes';
@@ -69,6 +67,7 @@ import {
 } from './ToolPipelineBundle';
 import { GeometryPreviewStore } from './GeometryPreviewStore';
 import { documentPipelinesFor } from './DocumentPipelineBundle';
+import { LayerStylePipelineProvider } from './LayerStylePipelineProvider';
 
 export interface ReversiblePixelEdit {
   byteSize: number;
@@ -94,12 +93,6 @@ const selectionModeValue: Record<SelectionMode, number> = {
   feather: 5
 };
 const LAYER_EXPORT_SETTINGS_FLOATS = 4;
-interface StyleEffectPipelineEntry {
-  module: GPUShaderModule;
-  pipeline: Promise<GPURenderPipeline>;
-}
-const styleEffectPipelineCache = new WeakMap<GPUDevice, StyleEffectPipelineEntry>();
-
 export class LayerDocumentRenderer {
   private readonly layerResources: LayerRuntimeStore;
   private readonly patternAssets = new PatternAssetStore();
@@ -108,8 +101,7 @@ export class LayerDocumentRenderer {
   private readonly exportPipeline: GPURenderPipeline;
   private readonly compositePipeline: GPURenderPipeline;
   private readonly adjustmentMixPipeline: GPURenderPipeline;
-  private styleEffectPipeline: GPURenderPipeline | null = null;
-  private styleEffectModule: GPUShaderModule | null = null;
+  private readonly layerStylePipeline: LayerStylePipelineProvider;
   private readonly fullscreenModule: GPUShaderModule;
   private readonly styleShapePipeline: GPURenderPipeline;
   private toolPipelines: ToolPipelineBundle | null = null;
@@ -140,6 +132,7 @@ export class LayerDocumentRenderer {
     this.adjustmentMixPipeline = pipelines.adjustmentMix;
     this.fullscreenModule = pipelines.fullscreenModule;
     this.styleShapePipeline = pipelines.styleShape;
+    this.layerStylePipeline = new LayerStylePipelineProvider(device, this.fullscreenModule);
     this.layerResources = new LayerRuntimeStore({
       createRasterTexture: (label) => this.createTexture(label),
       createMaskTexture: (label) => this.createMaskTexture(label)
@@ -169,48 +162,11 @@ export class LayerDocumentRenderer {
   }
 
   async initializeLayerStylePipeline() {
-    if (this.styleEffectPipeline) return;
-    let entry = styleEffectPipelineCache.get(this.device);
-    if (!entry) {
-      const module = this.device.createShaderModule({
-        label: 'LightTable Layer Style effect shader',
-        code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_EFFECT_WGSL}`
-      });
-      const pipeline = this.device.createRenderPipelineAsync({
-        label: 'LightTable Layer Style effect',
-        layout: 'auto',
-        vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
-        fragment: {
-          module,
-          entryPoint: 'main',
-          targets: [{ format: 'rgba16float' }]
-        },
-        primitive: { topology: 'triangle-list' }
-      });
-      entry = { module, pipeline };
-      styleEffectPipelineCache.set(this.device, entry);
-    }
-    this.styleEffectModule = entry.module;
-    try {
-      this.styleEffectPipeline = await entry.pipeline;
-    } catch (reason) {
-      // A rejected pipeline promise must not poison future editor instances.
-      styleEffectPipelineCache.delete(this.device);
-      throw reason;
-    }
+    await this.layerStylePipeline.initialize();
   }
 
   async layerStyleShaderErrors() {
-    if (!this.styleEffectModule) return [];
-    const compilation = await this.styleEffectModule.getCompilationInfo();
-    return compilation.messages
-      .filter((message) => message.type === 'error')
-      .map((message) => {
-        const location = message.lineNum
-          ? `:${message.lineNum}:${message.linePos ?? 0}`
-          : '';
-        return `${location} ${message.message}`.trim();
-      });
+    return this.layerStylePipeline.shaderErrors();
   }
 
   initialize(document: ImageDocument, sourceTexture: GPUTexture) {
@@ -664,7 +620,7 @@ export class LayerDocumentRenderer {
     sourceSize: { width: number; height: number },
     cacheKey: string | null
   ) {
-    const styleEffectPipeline = this.styleEffectPipeline;
+    const styleEffectPipeline = this.layerStylePipeline.pipeline;
     if (!styleEffectPipeline) return null;
     const cached = this.layerStyleTextures.cached(layer.id, cacheKey);
     if (cached) return cached;
