@@ -44,11 +44,40 @@ export const validateVectorLiveShape = (shape: VectorLiveShape): VectorValidatio
   }
   const dimensions = shape.geometry.kind === 'rectangle'
     ? [shape.geometry.width, shape.geometry.height, ...shape.geometry.cornerRadii]
-    : [shape.geometry.width, shape.geometry.height];
-  if (dimensions.some((value) => !Number.isFinite(value) || value < 0)) {
+    : shape.geometry.kind === 'ellipse'
+      ? [shape.geometry.width, shape.geometry.height]
+      : shape.geometry.kind === 'triangle'
+        ? [shape.geometry.width, shape.geometry.height, shape.geometry.cornerRadius]
+        : shape.geometry.kind === 'polygon'
+          ? [shape.geometry.radius, shape.geometry.cornerRadius]
+          : shape.geometry.kind === 'star'
+            ? [shape.geometry.outerRadius, shape.geometry.innerRadius, shape.geometry.cornerRadius]
+            : [];
+  const invalidLine = shape.geometry.kind === 'line' && (
+    [shape.geometry.start.x, shape.geometry.start.y, shape.geometry.end.x, shape.geometry.end.y]
+      .some((value) => !Number.isFinite(value))
+    || [shape.geometry.startArrow, shape.geometry.endArrow].some((arrow) => arrow && (
+      !Number.isFinite(arrow.width) || arrow.width < 0
+      || !Number.isFinite(arrow.length) || arrow.length < 0
+      || !Number.isFinite(arrow.concavity) || arrow.concavity < -1 || arrow.concavity > 1
+    ))
+  );
+  const invalidRotation = (shape.geometry.kind === 'polygon' || shape.geometry.kind === 'star')
+    && !Number.isFinite(shape.geometry.rotationRadians);
+  if (invalidLine || invalidRotation || dimensions.some((value) => !Number.isFinite(value) || value < 0)) {
     issues.push({
       code: 'invalid-live-shape-dimension',
       message: 'Live-shape dimensions and radii must be finite and non-negative.',
+      path: 'geometry'
+    });
+  }
+  if ((shape.geometry.kind === 'polygon'
+      && (!Number.isInteger(shape.geometry.sides) || shape.geometry.sides < 3 || shape.geometry.sides > 4096))
+    || (shape.geometry.kind === 'star'
+      && (!Number.isInteger(shape.geometry.points) || shape.geometry.points < 3 || shape.geometry.points > 2048))) {
+    issues.push({
+      code: 'invalid-live-shape-points',
+      message: 'Polygons and stars require a bounded integral point count of at least three.',
       path: 'geometry'
     });
   }

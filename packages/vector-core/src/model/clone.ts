@@ -40,6 +40,14 @@ export const cloneVectorPath = (path: VectorPath): VectorPath => ({
 export const cloneLiveShapeGeometry = (geometry: LiveShapeGeometry): LiveShapeGeometry =>
   geometry.kind === 'rectangle'
     ? { ...geometry, cornerRadii: [...geometry.cornerRadii] }
+    : geometry.kind === 'line'
+      ? {
+          ...geometry,
+          start: { ...geometry.start },
+          end: { ...geometry.end },
+          startArrow: geometry.startArrow ? { ...geometry.startArrow } : null,
+          endArrow: geometry.endArrow ? { ...geometry.endArrow } : null
+        }
     : { ...geometry };
 
 export const cloneVectorLiveShape = (shape: VectorLiveShape): VectorLiveShape => ({

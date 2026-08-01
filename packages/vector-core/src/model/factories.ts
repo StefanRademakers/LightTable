@@ -58,7 +58,7 @@ export const createVectorPath = (
 export const createVectorLiveShape = (
   id: string,
   geometry: LiveShapeGeometry,
-  name = geometry.kind === 'rectangle' ? 'Rectangle' : 'Ellipse'
+  name = `${geometry.kind[0].toUpperCase()}${geometry.kind.slice(1)}`
 ): VectorLiveShape => ({
   id,
   type: 'live-shape',

@@ -70,7 +70,51 @@ export interface EllipseShapeGeometry {
   height: number;
 }
 
-export type LiveShapeGeometry = RectangleShapeGeometry | EllipseShapeGeometry;
+export interface TriangleShapeGeometry {
+  kind: 'triangle';
+  width: number;
+  height: number;
+  cornerRadius: number;
+}
+
+export interface PolygonShapeGeometry {
+  kind: 'polygon';
+  sides: number;
+  radius: number;
+  rotationRadians: number;
+  cornerRadius: number;
+}
+
+export interface StarShapeGeometry {
+  kind: 'star';
+  points: number;
+  outerRadius: number;
+  innerRadius: number;
+  rotationRadians: number;
+  cornerRadius: number;
+}
+
+export interface ArrowheadGeometry {
+  width: number;
+  length: number;
+  concavity: number;
+}
+
+export interface LineShapeGeometry {
+  kind: 'line';
+  start: Vec2;
+  end: Vec2;
+  startArrow: ArrowheadGeometry | null;
+  endArrow: ArrowheadGeometry | null;
+}
+
+export type LiveShapeGeometry =
+  | RectangleShapeGeometry
+  | EllipseShapeGeometry
+  | TriangleShapeGeometry
+  | PolygonShapeGeometry
+  | StarShapeGeometry
+  | LineShapeGeometry;
 
 /**
  * Editable parametric geometry. Rendering derives a VectorPath from this data;

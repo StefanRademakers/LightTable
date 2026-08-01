@@ -6,6 +6,7 @@ import type {
   VectorLiveShape,
   VectorPath
 } from '../model/types';
+import type { Vec2 } from '../math/vector';
 
 // Exact cubic approximation commonly used for a quarter circle.
 const KAPPA = 0.5522847498307936;
@@ -92,17 +93,126 @@ const ellipseAnchors = (width: number, height: number, id: string): VectorAnchor
   ];
 };
 
+const distance = (a: Vec2, b: Vec2) => Math.hypot(b.x - a.x, b.y - a.y);
+const toward = (from: Vec2, to: Vec2, amount: number): Vec2 => {
+  const length = distance(from, to);
+  if (length <= Number.EPSILON) return { ...from };
+  const scale = amount / length;
+  return { x: from.x + (to.x - from.x) * scale, y: from.y + (to.y - from.y) * scale };
+};
+
+/**
+ * Creates a smooth, bounded corner using a cubic form of a quadratic fillet.
+ * Radius is the edge trim distance; it is clamped independently per vertex so
+ * malformed or extreme live parameters cannot invert an adjacent edge.
+ */
+const polygonAnchors = (vertices: readonly Vec2[], cornerRadius: number, id: string): VectorAnchor[] => {
+  if (cornerRadius <= 0) {
+    return vertices.map((point, index) => createAnchor(`${id}:vertex:${index}`, point));
+  }
+  const anchors: VectorAnchor[] = [];
+  vertices.forEach((vertex, index) => {
+    const previous = vertices[(index - 1 + vertices.length) % vertices.length];
+    const next = vertices[(index + 1) % vertices.length];
+    const trim = Math.min(cornerRadius, distance(vertex, previous) / 2, distance(vertex, next) / 2);
+    const entry = toward(vertex, previous, trim);
+    const exit = toward(vertex, next, trim);
+    const controlScale = 2 / 3;
+    anchors.push(createAnchor(`${id}:vertex:${index}:entry`, entry, {
+      handleOut: {
+        x: entry.x + (vertex.x - entry.x) * controlScale,
+        y: entry.y + (vertex.y - entry.y) * controlScale
+      },
+      mode: 'smooth'
+    }));
+    anchors.push(createAnchor(`${id}:vertex:${index}:exit`, exit, {
+      handleIn: {
+        x: exit.x + (vertex.x - exit.x) * controlScale,
+        y: exit.y + (vertex.y - exit.y) * controlScale
+      },
+      mode: 'smooth'
+    }));
+  });
+  return anchors;
+};
+
+const regularVertices = (count: number, radiusAt: (index: number) => number, rotation: number): Vec2[] =>
+  Array.from({ length: count }, (_, index) => {
+    const angle = rotation + index * Math.PI * 2 / count;
+    const radius = radiusAt(index);
+    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+  });
+
+const arrowheadAnchors = (
+  id: string,
+  tip: Vec2,
+  shaftPoint: Vec2,
+  arrow: { width: number; length: number; concavity: number }
+): VectorAnchor[] => {
+  const shaftLength = distance(tip, shaftPoint);
+  if (shaftLength <= Number.EPSILON) return [];
+  const direction = { x: (tip.x - shaftPoint.x) / shaftLength, y: (tip.y - shaftPoint.y) / shaftLength };
+  const normal = { x: -direction.y, y: direction.x };
+  const base = { x: tip.x - direction.x * arrow.length, y: tip.y - direction.y * arrow.length };
+  const halfWidth = arrow.width / 2;
+  const notch = {
+    x: base.x + direction.x * arrow.length * clamp(arrow.concavity, -1, 1) * 0.5,
+    y: base.y + direction.y * arrow.length * clamp(arrow.concavity, -1, 1) * 0.5
+  };
+  return [
+    createAnchor(`${id}:tip`, tip),
+    createAnchor(`${id}:left`, { x: base.x + normal.x * halfWidth, y: base.y + normal.y * halfWidth }),
+    createAnchor(`${id}:notch`, notch),
+    createAnchor(`${id}:right`, { x: base.x - normal.x * halfWidth, y: base.y - normal.y * halfWidth })
+  ];
+};
+
 /** Produces disposable canonical cubic geometry without losing live parameters. */
 export const realizeLiveShape = (shape: VectorLiveShape): VectorPath => {
-  const path = createVectorPath(`${shape.id}:realized`, shape.name, [
-    createSubpath(
-      `${shape.id}:outline`,
-      shape.geometry.kind === 'rectangle'
-        ? roundedRectangleAnchors(shape.geometry, shape.id)
-        : ellipseAnchors(shape.geometry.width, shape.geometry.height, shape.id),
-      true
-    )
-  ]);
+  const geometry = shape.geometry;
+  const subpaths = geometry.kind === 'rectangle'
+    ? [createSubpath(`${shape.id}:outline`, roundedRectangleAnchors(geometry, shape.id), true)]
+    : geometry.kind === 'ellipse'
+      ? [createSubpath(`${shape.id}:outline`, ellipseAnchors(geometry.width, geometry.height, shape.id), true)]
+      : geometry.kind === 'triangle'
+        ? [createSubpath(`${shape.id}:outline`, polygonAnchors([
+            { x: geometry.width / 2, y: 0 },
+            { x: geometry.width, y: geometry.height },
+            { x: 0, y: geometry.height }
+          ], geometry.cornerRadius, shape.id), true)]
+        : geometry.kind === 'polygon'
+          ? [createSubpath(`${shape.id}:outline`, polygonAnchors(
+              regularVertices(Math.max(3, Math.round(geometry.sides)), () => geometry.radius, geometry.rotationRadians),
+              geometry.cornerRadius,
+              shape.id
+            ), true)]
+          : geometry.kind === 'star'
+            ? [createSubpath(`${shape.id}:outline`, polygonAnchors(
+                regularVertices(
+                  Math.max(3, Math.round(geometry.points)) * 2,
+                  (index) => index % 2 === 0 ? geometry.outerRadius : geometry.innerRadius,
+                  geometry.rotationRadians
+                ),
+                geometry.cornerRadius,
+                shape.id
+              ), true)]
+            : [
+                createSubpath(`${shape.id}:shaft`, [
+                  createAnchor(`${shape.id}:start`, geometry.start),
+                  createAnchor(`${shape.id}:end`, geometry.end)
+                ], false),
+                ...(geometry.startArrow ? [createSubpath(
+                  `${shape.id}:start-arrow`,
+                  arrowheadAnchors(`${shape.id}:start-arrow`, geometry.start, geometry.end, geometry.startArrow),
+                  true
+                )] : []),
+                ...(geometry.endArrow ? [createSubpath(
+                  `${shape.id}:end-arrow`,
+                  arrowheadAnchors(`${shape.id}:end-arrow`, geometry.end, geometry.start, geometry.endArrow),
+                  true
+                )] : [])
+              ];
+  const path = createVectorPath(`${shape.id}:realized`, shape.name, subpaths);
   path.transform = { ...shape.transform };
   path.style = cloneVectorStyle(shape.style);
   path.geometryRevision = shape.geometryRevision;

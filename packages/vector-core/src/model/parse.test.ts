@@ -61,7 +61,45 @@ describe('parseVectorLiveShape', () => {
     expect(() => parseVectorLiveShape({
       ...shape,
       geometry: { kind: 'ellipse', width: -1, height: 10 }
-    })).toThrow('dimensions must not be negative');
+    })).toThrow('geometry.width must not be negative');
     expect(() => parseVectorElement({ ...shape, type: 'future-shape' })).toThrow('type is not supported');
+  });
+
+  it.each([
+    { kind: 'triangle', width: 90, height: 60, cornerRadius: 4 },
+    { kind: 'polygon', sides: 7, radius: 40, rotationRadians: 0.25, cornerRadius: 3 },
+    { kind: 'star', points: 5, outerRadius: 50, innerRadius: 22, rotationRadians: -0.5, cornerRadius: 2 },
+    {
+      kind: 'line',
+      start: { x: -10, y: 2 },
+      end: { x: 120, y: 32 },
+      startArrow: null,
+      endArrow: { width: 18, length: 24, concavity: 0.25 }
+    }
+  ] as const)('round-trips $kind geometry without converting it to a path', (geometry) => {
+    const shape = createVectorLiveShape(`shape-${geometry.kind}`, geometry);
+    expect(parseVectorLiveShape(JSON.parse(JSON.stringify(shape)))).toEqual(shape);
+  });
+
+  it('rejects unbounded point counts and invalid arrowheads', () => {
+    const polygon = createVectorLiveShape('polygon', {
+      kind: 'polygon', sides: 5, radius: 20, rotationRadians: 0, cornerRadius: 0
+    });
+    expect(() => parseVectorLiveShape({
+      ...polygon,
+      geometry: { ...polygon.geometry, sides: 4097 }
+    })).toThrow('geometry.sides must be between three and 4096');
+
+    const line = createVectorLiveShape('line', {
+      kind: 'line', start: { x: 0, y: 0 }, end: { x: 10, y: 0 },
+      startArrow: null, endArrow: { width: 5, length: 8, concavity: 0 }
+    });
+    expect(() => parseVectorLiveShape({
+      ...line,
+      geometry: {
+        ...line.geometry,
+        endArrow: { width: 5, length: 8, concavity: 2 }
+      }
+    })).toThrow('concavity');
   });
 });

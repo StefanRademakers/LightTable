@@ -165,26 +165,74 @@ export const parseVectorPath = (value: unknown, location = 'path'): VectorPath =
 
 const parseLiveShapeGeometry = (value: unknown, location: string): LiveShapeGeometry => {
   if (!isRecord(value)) throw new Error(`${location} must be live-shape geometry.`);
-  const width = finiteNumber(value.width, `${location}.width`);
-  const height = finiteNumber(value.height, `${location}.height`);
-  if (width < 0 || height < 0) throw new Error(`${location} dimensions must not be negative.`);
-  if (value.kind === 'ellipse') return { kind: 'ellipse', width, height };
-  if (value.kind !== 'rectangle'
-    || !Array.isArray(value.cornerRadii)
-    || value.cornerRadii.length !== 4
-    || typeof value.linkedCorners !== 'boolean') {
-    throw new Error(`${location} is not supported live-shape geometry.`);
-  }
-  const cornerRadii = value.cornerRadii.map((radius, index) =>
-    finiteNumber(radius, `${location}.cornerRadii[${index}]`));
-  if (cornerRadii.some((radius) => radius < 0)) {
-    throw new Error(`${location}.cornerRadii must not contain negative values.`);
-  }
-  return {
-    kind: 'rectangle', width, height,
-    cornerRadii: [cornerRadii[0], cornerRadii[1], cornerRadii[2], cornerRadii[3]],
-    linkedCorners: value.linkedCorners
+  const nonNegative = (input: unknown, field: string) => {
+    const parsed = finiteNumber(input, `${location}.${field}`);
+    if (parsed < 0) throw new Error(`${location}.${field} must not be negative.`);
+    return parsed;
   };
+  const pointCount = (input: unknown, field: string, maximum: number) => {
+    const parsed = nonNegativeInteger(input, `${location}.${field}`);
+    if (parsed < 3 || parsed > maximum) {
+      throw new Error(`${location}.${field} must be between three and ${maximum}.`);
+    }
+    return parsed;
+  };
+  switch (value.kind) {
+    case 'ellipse':
+      return { kind: 'ellipse', width: nonNegative(value.width, 'width'), height: nonNegative(value.height, 'height') };
+    case 'rectangle': {
+      if (!Array.isArray(value.cornerRadii) || value.cornerRadii.length !== 4 || typeof value.linkedCorners !== 'boolean') {
+        throw new Error(`${location} is not supported live-shape geometry.`);
+      }
+      const cornerRadii = value.cornerRadii.map((radius, index) => nonNegative(radius, `cornerRadii[${index}]`));
+      return {
+        kind: 'rectangle', width: nonNegative(value.width, 'width'), height: nonNegative(value.height, 'height'),
+        cornerRadii: [cornerRadii[0], cornerRadii[1], cornerRadii[2], cornerRadii[3]],
+        linkedCorners: value.linkedCorners
+      };
+    }
+    case 'triangle':
+      return {
+        kind: 'triangle', width: nonNegative(value.width, 'width'), height: nonNegative(value.height, 'height'),
+        cornerRadius: nonNegative(value.cornerRadius, 'cornerRadius')
+      };
+    case 'polygon':
+      return {
+        kind: 'polygon', sides: pointCount(value.sides, 'sides', 4096), radius: nonNegative(value.radius, 'radius'),
+        rotationRadians: finiteNumber(value.rotationRadians, `${location}.rotationRadians`),
+        cornerRadius: nonNegative(value.cornerRadius, 'cornerRadius')
+      };
+    case 'star':
+      return {
+        kind: 'star', points: pointCount(value.points, 'points', 2048),
+        outerRadius: nonNegative(value.outerRadius, 'outerRadius'),
+        innerRadius: nonNegative(value.innerRadius, 'innerRadius'),
+        rotationRadians: finiteNumber(value.rotationRadians, `${location}.rotationRadians`),
+        cornerRadius: nonNegative(value.cornerRadius, 'cornerRadius')
+      };
+    case 'line': {
+      const parseArrow = (input: unknown, field: string) => {
+        if (input === null) return null;
+        if (!isRecord(input)) throw new Error(`${location}.${field} must be an arrowhead.`);
+        const concavity = finiteNumber(input.concavity, `${location}.${field}.concavity`);
+        if (concavity < -1 || concavity > 1) {
+          throw new Error(`${location}.${field}.concavity must be between -1 and 1.`);
+        }
+        return {
+          width: nonNegative(input.width, `${field}.width`),
+          length: nonNegative(input.length, `${field}.length`),
+          concavity
+        };
+      };
+      return {
+        kind: 'line', start: parseVec2(value.start, `${location}.start`), end: parseVec2(value.end, `${location}.end`),
+        startArrow: parseArrow(value.startArrow, 'startArrow'),
+        endArrow: parseArrow(value.endArrow, 'endArrow')
+      };
+    }
+    default:
+      throw new Error(`${location} is not supported live-shape geometry.`);
+  }
 };
 
 export const parseVectorLiveShape = (value: unknown, location = 'shape'): VectorLiveShape => {
