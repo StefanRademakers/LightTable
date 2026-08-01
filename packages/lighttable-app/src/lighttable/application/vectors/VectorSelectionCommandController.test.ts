@@ -3,6 +3,11 @@ import {
   createAnchor,
   createSubpath,
   createVectorPath,
+  multiplyMatrices,
+  rotationMatrix,
+  scaleMatrix,
+  transformPoint,
+  translationMatrix,
   type VectorIdSource
 } from '@lighttable/vector-core';
 import {
@@ -46,6 +51,7 @@ const setup = () => {
     pushDocumentHistory: (before, after) => history.push({ before, after })
   }));
   const controller = new VectorSelectionCommandController(documents, {
+    getDocument: () => document,
     getSelection: () => selection,
     setSelection: (next) => { selection = next; }
   }, ids());
@@ -168,5 +174,59 @@ describe('VectorSelectionCommandController', () => {
       ? layer.paths[0]?.subpaths[0]?.anchors.map(({ id }) => id)
       : []).toEqual(['first-a', 'inserted-anchor', 'first-b']);
     expect(state.selection.anchors[0]?.anchorId).toBe('inserted-anchor');
+  });
+
+  it('nudges anchors in document pixels through transformed path geometry', () => {
+    const state = setup();
+    const layer = findDocumentLayer(state.document, state.first.id);
+    if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
+    layer.transform = scaleMatrix(2, 3);
+    layer.paths[0].transform = rotationMatrix(Math.PI / 4);
+    state.selection = {
+      paths: [],
+      anchors: [{
+        layerId: state.first.id,
+        pathId: 'first-path',
+        subpathId: 'first-path-subpath',
+        anchorId: 'first-a'
+      }],
+      active: null
+    };
+    const before = transformPoint(
+      multiplyMatrices(layer.transform, layer.paths[0].transform),
+      { x: 0, y: 0 }
+    );
+
+    expect(state.controller.nudgeSelection({ x: 7, y: -5 })).toBe(true);
+    const updated = findDocumentLayer(state.document, state.first.id);
+    if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
+    const after = transformPoint(
+      multiplyMatrices(updated.transform, updated.paths[0].transform),
+      updated.paths[0].subpaths[0].anchors[0].position
+    );
+    expect(after.x - before.x).toBeCloseTo(7, 8);
+    expect(after.y - before.y).toBeCloseTo(-5, 8);
+    expect(state.history).toHaveLength(1);
+  });
+
+  it('nudges whole paths in document pixels without baking geometry', () => {
+    const state = setup();
+    const layer = findDocumentLayer(state.document, state.first.id);
+    if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
+    layer.transform = scaleMatrix(2, 4);
+    layer.paths[0].transform = translationMatrix(10, 20);
+    const openingAnchor = { ...layer.paths[0].subpaths[0].anchors[0].position };
+    state.selection = {
+      paths: [{ layerId: state.first.id, pathId: 'first-path' }],
+      anchors: [],
+      active: null
+    };
+
+    expect(state.controller.nudgeSelection({ x: 8, y: -12 })).toBe(true);
+    const updated = findDocumentLayer(state.document, state.first.id);
+    if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(updated.paths[0].subpaths[0].anchors[0].position).toEqual(openingAnchor);
+    expect(updated.paths[0].transform.tx).toBeCloseTo(14, 8);
+    expect(updated.paths[0].transform.ty).toBeCloseTo(17, 8);
   });
 });

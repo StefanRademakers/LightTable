@@ -26,6 +26,8 @@ export interface ResolvedVectorPath {
   layerId: LayerId;
   pathId: string;
   layer: VectorLayer;
+  /** Maps layer-local coordinates into document space. */
+  layerToDocument: VectorPath['transform'];
   /**
    * Read-only query projection whose transform maps path-local coordinates
    * directly into document space. Persisted path data is never modified.
@@ -80,6 +82,7 @@ export const vectorPathsTopmostFirst = (
       layerId: layer.id,
       pathId: path.id,
       layer,
+      layerToDocument,
       documentPath: {
         ...cloneVectorPath(path),
         transform: multiplyMatrices(layerToDocument, path.transform)

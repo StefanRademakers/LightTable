@@ -1,8 +1,13 @@
 import {
   deleteAnchors,
+  invertMatrix,
   insertAnchorOnSegment,
+  moveAnchors,
   setAnchorMode,
+  transformPoint,
+  translateVectorPath,
   type AnchorMode,
+  type Vec2,
   type VectorIdSource,
   type VectorPath
 } from '@lighttable/vector-core';
@@ -12,9 +17,12 @@ import {
   type VectorEditorSelection
 } from '../../editor/session/editorSession';
 import type { LayerId } from '../../editor/document/documentTypes';
+import type { ImageDocument } from '../../editor/document/documentTypes';
 import { VectorDocumentController, type VectorPathEdit } from './VectorDocumentController';
+import { vectorPathsTopmostFirst } from './vectorSceneQueries';
 
 export interface VectorSelectionCommandDependencies {
+  getDocument(): ImageDocument | null;
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
 }
@@ -44,6 +52,17 @@ const groupAnchorsByPath = (anchors: readonly VectorAnchorSelectionReference[]) 
   return [...groups.values()];
 };
 
+const inverseTransformDelta = (
+  transform: Parameters<typeof invertMatrix>[0],
+  documentDelta: Vec2
+): Vec2 | null => {
+  const inverse = invertMatrix(transform);
+  if (!inverse) return null;
+  const origin = transformPoint(inverse, { x: 0, y: 0 });
+  const end = transformPoint(inverse, documentDelta);
+  return { x: end.x - origin.x, y: end.y - origin.y };
+};
+
 /** Atomic keyboard/menu commands for the transient vector selection. */
 export class VectorSelectionCommandController {
   constructor(
@@ -71,6 +90,49 @@ export class VectorSelectionCommandController {
     if (!this.documents.editPaths(edits)) return false;
     this.dependencies.setSelection(createVectorEditorSelection());
     return true;
+  }
+
+  /** Moves selected paths/anchors by a document-space keyboard nudge. */
+  nudgeSelection(documentDelta: Vec2) {
+    if (documentDelta.x === 0 && documentDelta.y === 0) return false;
+    const document = this.dependencies.getDocument();
+    if (!document) return false;
+    const selection = this.dependencies.getSelection();
+    const selectedPathKeys = new Set(
+      selection.paths.map(({ layerId, pathId }) => pathKey(layerId, pathId))
+    );
+    const resolved = new Map(vectorPathsTopmostFirst(document).map((entry) => [
+      pathKey(entry.layerId, entry.pathId),
+      entry
+    ]));
+    const edits: VectorPathEdit[] = [];
+
+    for (const path of selection.paths) {
+      const entry = resolved.get(pathKey(path.layerId, path.pathId));
+      const localDelta = entry
+        ? inverseTransformDelta(entry.layerToDocument, documentDelta)
+        : null;
+      if (!localDelta) return false;
+      edits.push({
+        layerId: path.layerId,
+        pathId: path.pathId,
+        edit: (value) => translateVectorPath(value, localDelta)
+      });
+    }
+    for (const group of groupAnchorsByPath(selection.anchors)) {
+      if (selectedPathKeys.has(pathKey(group.layerId, group.pathId))) continue;
+      const entry = resolved.get(pathKey(group.layerId, group.pathId));
+      const localDelta = entry
+        ? inverseTransformDelta(entry.documentPath.transform, documentDelta)
+        : null;
+      if (!localDelta) return false;
+      edits.push({
+        layerId: group.layerId,
+        pathId: group.pathId,
+        edit: (value) => moveAnchors(value, group.anchors, localDelta)
+      });
+    }
+    return this.documents.editPaths(edits);
   }
 
   setSelectedAnchorMode(mode: AnchorMode) {
