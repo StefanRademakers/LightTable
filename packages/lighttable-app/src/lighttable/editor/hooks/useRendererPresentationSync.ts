@@ -4,13 +4,18 @@ import type { ScopeSettings, ScopeVisibility } from '../../scopes';
 import type { LensBlurViewportMode } from '../config/adjustmentControls';
 import type { WarpDebugView } from '../../effects/warp/warpTypes';
 import type { VectorEditorSelection } from '../session/editorSession';
-import type { SelectionOperation, SelectionShape } from '../selection/selectionTypes';
+import type {
+  CompositeColorChannel,
+  SelectionOperation,
+  SelectionShape
+} from '../selection/selectionTypes';
 import type { LayerId } from '../document/documentTypes';
 
 export interface RendererPresentationPort {
   setBefore(enabled: boolean): void;
   setDifference(enabled: boolean): void;
   setMaskIsolation(layerId: LayerId | null): void;
+  setCompositeChannelIsolation(channel: CompositeColorChannel | null): void;
   setScopeOptions(
     histogramVisible: boolean,
     options: WebGpuScopeOptions
@@ -47,6 +52,7 @@ interface RendererPresentationSyncOptions<
   readonly showOriginal: boolean;
   readonly showDifference: boolean;
   readonly isolatedMaskLayerId: LayerId | null;
+  readonly isolatedCompositeChannel: CompositeColorChannel | null;
   readonly lensBlurViewportMode: LensBlurViewportMode;
   readonly warpDebugView: WarpDebugView;
   readonly vectorSelection: VectorEditorSelection;
@@ -70,6 +76,7 @@ export const useRendererPresentationSync = <
   showOriginal,
   showDifference,
   isolatedMaskLayerId,
+  isolatedCompositeChannel,
   lensBlurViewportMode,
   warpDebugView,
   vectorSelection,
@@ -89,6 +96,10 @@ export const useRendererPresentationSync = <
   useEffect(() => {
     rendererRef.current?.setMaskIsolation(isolatedMaskLayerId);
   }, [isolatedMaskLayerId, rendererRef]);
+
+  useEffect(() => {
+    rendererRef.current?.setCompositeChannelIsolation(isolatedCompositeChannel);
+  }, [isolatedCompositeChannel, rendererRef]);
 
   useEffect(() => {
     rendererRef.current?.setLensBlurDepthVisualization(

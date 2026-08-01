@@ -1,6 +1,7 @@
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import {
   BRUSH_DAB_WGSL,
+  COLOR_CHANNEL_COPY_WGSL,
   LAYER_FILL_COLOR_WGSL,
   LAYER_INVERT_COLORS_WGSL,
   RED_CHANNEL_COPY_WGSL,
@@ -31,6 +32,7 @@ export interface ToolPipelineBundle {
   selectionDisplayCopy: GPURenderPipeline;
   selectionToMask: GPURenderPipeline;
   maskToSelection: GPURenderPipeline;
+  channelToSelection: GPURenderPipeline;
   transform: GPURenderPipeline;
   selectionTransform: GPURenderPipeline;
 }
@@ -102,6 +104,7 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     selectionDisplayCopy: fullscreenPipeline('LightTable selected display copy', SELECTION_DISPLAY_COPY_WGSL, 'rgba8unorm'),
     selectionToMask: fullscreenPipeline('LightTable selection to layer mask', RED_CHANNEL_COPY_WGSL),
     maskToSelection: fullscreenPipeline('LightTable layer mask to selection', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
+    channelToSelection: fullscreenPipeline('LightTable composite channel to selection', COLOR_CHANNEL_COPY_WGSL, 'r8unorm'),
     transform: fullscreenPipeline('LightTable layer transform preview', LAYER_TRANSFORM_WGSL),
     selectionTransform: fullscreenPipeline('LightTable selection transform preview', SELECTION_TRANSFORM_WGSL, 'r8unorm')
   };

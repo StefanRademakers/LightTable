@@ -15,6 +15,7 @@ import {
 export interface EditorWorkspacePanelBindings {
   scopes: React.ComponentProps<typeof ScopesPanel>;
   layers: React.ReactNode;
+  channels: React.ReactNode;
   debug: React.ComponentProps<typeof DebugPanel>;
   lensFxKey: string;
   lensFx: React.ComponentProps<typeof LensFxPanel>;
@@ -30,6 +31,7 @@ export interface EditorWorkspacePanelBindings {
 export const createEditorWorkspacePanels = ({
   scopes,
   layers,
+  channels,
   debug,
   lensFxKey,
   lensFx,
@@ -38,6 +40,7 @@ export const createEditorWorkspacePanels = ({
   createDefaultLightTableWorkspacePanels({
     scopes: <ScopesPanel {...scopes} />,
     layers,
+    channels,
     debug: <DebugPanel {...debug} />,
     lensFx: <LensFxPanel key={lensFxKey} {...lensFx} />,
     grade: <GradePanel {...grade} />

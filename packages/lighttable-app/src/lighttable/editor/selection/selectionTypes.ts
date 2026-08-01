@@ -1,3 +1,5 @@
+import type { LayerId } from '../document/documentTypes';
+
 export type SelectionToolId =
   | 'select-rectangle'
   | 'select-ellipse'
@@ -5,6 +7,8 @@ export type SelectionToolId =
   | 'select-polygonal';
 export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
 export type SelectionMode = SelectionCombineMode | 'invert' | 'feather';
+export type CompositeColorChannel = 'red' | 'green' | 'blue';
+export type CompositeSelectionChannel = 'composite' | CompositeColorChannel;
 
 export interface SelectionPoint {
   x: number;
@@ -19,12 +23,10 @@ export interface SelectionShape {
 export interface SelectionOperation {
   mode: SelectionMode;
   shape: SelectionShape;
-  /** Raster-backed source used when a layer mask is loaded as the selection. */
-  source?: {
-    kind: 'layer-mask';
-    layerId: LayerId;
-    pixelRevision: number;
-  };
+  /** Raster-backed source used when a mask or composite channel becomes a selection. */
+  source?:
+    | { kind: 'layer-mask'; layerId: LayerId; pixelRevision: number }
+    | { kind: 'composite-channel'; channel: CompositeSelectionChannel; documentRevision: number };
   /** Document-space feather radius. Only used by the feather operation. */
   amount?: number;
 }
@@ -39,6 +41,17 @@ export const createLayerMaskSelectionOperation = (
   source: { kind: 'layer-mask', layerId, pixelRevision },
   // Geometry is retained as the document coverage contract. Rendering uses
   // the raster source above, preserving feathered/painted mask values.
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
+
+export const createCompositeChannelSelectionOperation = (
+  channel: CompositeSelectionChannel,
+  documentRevision: number,
+  width: number,
+  height: number
+): SelectionOperation => ({
+  mode: 'replace',
+  source: { kind: 'composite-channel', channel, documentRevision },
   shape: createFullCanvasSelection(width, height)[0].shape
 });
 
@@ -103,4 +116,3 @@ export const selectionShapeIsValid = (shape: SelectionShape): boolean => {
   const [start, end] = shape.points;
   return Math.abs(end.x - start.x) >= 1 && Math.abs(end.y - start.y) >= 1;
 };
-import type { LayerId } from '../document/documentTypes';

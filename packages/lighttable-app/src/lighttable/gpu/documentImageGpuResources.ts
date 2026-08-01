@@ -25,6 +25,8 @@ export class DocumentImageGpuResources {
   differenceBindGroup: GPUBindGroup | null = null;
   blitOriginalNearestBindGroup: GPUBindGroup | null = null;
   blitCorrectedNearestBindGroup: GPUBindGroup | null = null;
+  channelBindGroup: GPUBindGroup | null = null;
+  channelNearestBindGroup: GPUBindGroup | null = null;
   differenceNearestBindGroup: GPUBindGroup | null = null;
 
   reset(): void {
@@ -64,6 +66,8 @@ export class DocumentImageGpuResources {
     this.differenceBindGroup = null;
     this.blitOriginalNearestBindGroup = null;
     this.blitCorrectedNearestBindGroup = null;
+    this.channelBindGroup = null;
+    this.channelNearestBindGroup = null;
     this.differenceNearestBindGroup = null;
   }
 }

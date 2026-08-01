@@ -71,6 +71,9 @@ import {
   LayersWorkspacePanel
 } from './composition/workspace/LayersWorkspacePanel';
 import {
+  ChannelsWorkspacePanel
+} from './composition/workspace/ChannelsWorkspacePanel';
+import {
   createEditorWorkspacePanels
 } from './composition/workspace/createEditorWorkspacePanels';
 import {
@@ -151,6 +154,7 @@ import {
 } from './editor/tools/toolCapabilities';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
 import {
+  type CompositeColorChannel,
   type SelectionShape
 } from './editor/selection/selectionTypes';
 import {
@@ -333,6 +337,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [showOriginal, setShowOriginal] = useState(false);
   const [showDifference, setShowDifference] = useState(false);
   const [isolatedMaskLayerId, setIsolatedMaskLayerId] = useState<LayerId | null>(null);
+  const [isolatedCompositeChannel, setIsolatedCompositeChannel] =
+    useState<CompositeColorChannel | null>(null);
   const [sourceName, setSourceName] = useState(fileNameBase);
   const [groupVisibility, setGroupVisibility] = useState<GroupVisibility>(
     createDefaultGroupVisibility
@@ -744,6 +750,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         resetHistory: clearEditorHistory,
         resetViewport: () => {
           setIsolatedMaskLayerId(null);
+          setIsolatedCompositeChannel(null);
           setShowOriginal(false);
           setShowDifference(false);
           setView({ scale: 1, panX: 0, panY: 0 });
@@ -854,6 +861,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     showOriginal,
     showDifference,
     isolatedMaskLayerId,
+    isolatedCompositeChannel,
     lensBlurViewportMode,
     warpDebugView: editorSession.warp.debugView,
     vectorSelection: editorSession.vectorSelection,
@@ -1417,7 +1425,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       isolatedMaskLayerId={isolatedMaskLayerId}
       controller={layerPanelController}
       onSelectionChange={handleLayerSelectionChange}
-      onMaskIsolationChange={setIsolatedMaskLayerId}
+      onMaskIsolationChange={(layerId) => {
+        setIsolatedMaskLayerId(layerId);
+        if (layerId) setIsolatedCompositeChannel(null);
+      }}
+    />
+  );
+  const channelsPanel = (
+    <ChannelsWorkspacePanel
+      document={imageDocument}
+      thumbnails={layerThumbnails}
+      isolatedCompositeChannel={isolatedCompositeChannel}
+      isolatedMaskLayerId={isolatedMaskLayerId}
+      onCompositeChannelIsolationChange={(channel) => {
+        setIsolatedCompositeChannel(channel);
+        if (channel) setIsolatedMaskLayerId(null);
+      }}
+      onMaskIsolationChange={(layerId) => {
+        setIsolatedMaskLayerId(layerId);
+        if (layerId) setIsolatedCompositeChannel(null);
+      }}
+      onSelectCompositeChannel={selectionSessionController.selectCompositeChannel}
+      onSelectLayerMask={selectionSessionController.selectLayerMask}
     />
   );
 
@@ -1628,6 +1657,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 onSettingsChange: setScopeSettings
               },
               layers: layersPanel,
+              channels: channelsPanel,
               debug: {
                 messages: debugMessages,
                 onClear: clearDebugMessages,

@@ -3,9 +3,11 @@ import type { ImageDocument, LayerId } from '../../../editor/document/documentTy
 import { findDocumentLayer } from '../../../editor/document/layerTree';
 import {
   createFeatherSelectionOperation,
+  createCompositeChannelSelectionOperation,
   createFullCanvasSelection,
   createInvertSelectionOperation,
   createLayerMaskSelectionOperation,
+  type CompositeSelectionChannel,
   type SelectionCombineMode,
   type SelectionMode,
   type SelectionOperation,
@@ -72,6 +74,7 @@ export interface SelectionSessionController {
   invert(): void;
   feather(radius: number): void;
   selectLayerMask(layerId: LayerId): void;
+  selectCompositeChannel(channel: CompositeSelectionChannel): void;
 }
 
 export const cloneSelectionOperations = (
@@ -335,6 +338,19 @@ export const createSelectionSessionController = (
           document.height
         )],
         'The layer mask could not be loaded as a selection.'
+      );
+    },
+    selectCompositeChannel: (channel) => {
+      const document = resolveDependencies().getDocument();
+      if (!document) return;
+      commitSnapshot(
+        [createCompositeChannelSelectionOperation(
+          channel,
+          document.revision,
+          document.width,
+          document.height
+        )],
+        'The composite channel could not be loaded as a selection.'
       );
     }
   };

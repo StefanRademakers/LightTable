@@ -1,4 +1,4 @@
-import type { SelectionMode, SelectionShape } from '../selection/selectionTypes';
+import type { CompositeSelectionChannel, SelectionMode, SelectionShape } from '../selection/selectionTypes';
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { ToolPipelineBundle } from './ToolPipelineBundle';
 
@@ -134,6 +134,46 @@ export class SelectionRasterizer {
       'LightTable load layer mask as selection'
     );
     textures.active = true;
+    return true;
+  }
+
+  loadColorChannel(source: GPUTexture, channel: CompositeSelectionChannel) {
+    this.options.ensureTargets();
+    const { textures, device } = this.options;
+    if (!textures.mask) return false;
+    const pipeline = this.options.pipelines().channelToSelection;
+    const settings = device.createBuffer({
+      label: 'LightTable composite channel selection settings',
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    device.queue.writeBuffer(settings, 0, new Uint32Array([
+      channel === 'red' ? 0 : channel === 'green' ? 1 : channel === 'blue' ? 2 : 3,
+      0,
+      0,
+      0
+    ]));
+    const bindGroup = device.createBindGroup({
+      label: 'LightTable composite channel selection bindings',
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: { buffer: settings } }
+      ]
+    });
+    const encoder = device.createCommandEncoder({
+      label: 'LightTable load composite channel as selection'
+    });
+    this.options.drawFullscreen(
+      encoder,
+      pipeline,
+      bindGroup,
+      textures.mask.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    device.queue.submit([encoder.finish()]);
+    textures.active = true;
+    void device.queue.onSubmittedWorkDone().then(() => settings.destroy());
     return true;
   }
 

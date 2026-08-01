@@ -11,6 +11,7 @@ describe('workspacePanelRegistry', () => {
       grade: 'grade',
       lensFx: 'lensFx',
       layers: 'layers',
+      channels: 'channels',
       debug: 'debug'
     };
 
@@ -18,6 +19,7 @@ describe('workspacePanelRegistry', () => {
 
     expect(panels.map((panel) => panel.id)).toEqual([
       LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.channels,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
@@ -25,6 +27,7 @@ describe('workspacePanelRegistry', () => {
     ]);
     expect(panels.map((panel) => panel.content)).toEqual([
       content.layers,
+      content.channels,
       content.scopes,
       content.grade,
       content.lensFx,
@@ -32,6 +35,7 @@ describe('workspacePanelRegistry', () => {
     ]);
     expect(panels.map((panel) => panel.contentKey)).toEqual([
       'layers',
+      'channels',
       'scopes',
       'grade',
       'lensFx',
@@ -43,6 +47,7 @@ describe('workspacePanelRegistry', () => {
         .map((panel) => panel.id)
     ).toEqual([
       LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.channels,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx
@@ -55,6 +60,7 @@ describe('workspacePanelRegistry', () => {
       grade: null,
       lensFx: null,
       layers: null,
+      channels: null,
       debug: null
     });
     const scopesPanel = panels.find(
@@ -76,6 +82,7 @@ describe('workspacePanelRegistry', () => {
       grade: null,
       lensFx: null,
       layers: null,
+      channels: null,
       debug: null
     });
     const debugPanel = panels.find(
@@ -98,6 +105,7 @@ describe('workspacePanelRegistry', () => {
       grade: null,
       lensFx: null,
       layers: null,
+      channels: null,
       debug: null
     });
     const layersPanel = panels.find(

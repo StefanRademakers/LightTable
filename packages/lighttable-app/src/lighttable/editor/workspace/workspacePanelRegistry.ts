@@ -6,6 +6,7 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   grade: 'lighttable.inspector',
   lensFx: 'lighttable.lens-fx',
   layers: 'lighttable.layers',
+  channels: 'lighttable.channels',
   debug: 'lighttable.debug'
 } as const;
 
@@ -40,6 +41,7 @@ export interface DefaultLightTableWorkspacePanelContent {
   grade: ReactNode;
   lensFx: ReactNode;
   layers: ReactNode;
+  channels: ReactNode;
   debug: ReactNode;
 }
 
@@ -69,6 +71,18 @@ export const createDefaultLightTableWorkspacePanels = (
       xRatio: 0.34,
       yRatio: 0.27
     },
+    requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.channels,
+    contentKey: 'channels',
+    title: 'Channels',
+    content: content.channels,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
+      direction: 'within'
+    },
+    initiallyInactive: true,
     requiredForSavedLayout: true
   },
   {

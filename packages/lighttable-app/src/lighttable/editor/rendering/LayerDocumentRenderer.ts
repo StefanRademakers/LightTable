@@ -8,7 +8,11 @@ import {
 } from '../document/documentTypes';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
 import type { PaintChannel } from '../session/editorSession';
-import type { SelectionMode, SelectionShape } from '../selection/selectionTypes';
+import type {
+  CompositeSelectionChannel,
+  SelectionMode,
+  SelectionShape
+} from '../selection/selectionTypes';
 import type { SelectionCoverageBounds } from '../selection/selectionCoverage';
 import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
@@ -289,6 +293,10 @@ export class LayerDocumentRenderer {
     return source
       ? this.runtime.selectionRasterizer.loadMask(source)
       : false;
+  }
+
+  loadCompositeChannelAsSelection(source: GPUTexture, channel: CompositeSelectionChannel) {
+    return this.runtime.selectionRasterizer.loadColorChannel(source, channel);
   }
 
   setSelection(shape: SelectionShape, requestedMode: SelectionMode) {

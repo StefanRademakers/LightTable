@@ -1155,6 +1155,34 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/** Extracts one RGB channel into a scalar selection texture. */
+export const COLOR_CHANNEL_COPY_WGSL = /* wgsl */ `
+struct ChannelSettings {
+  channel: u32,
+  padding0: u32,
+  padding1: u32,
+  padding2: u32,
+}
+
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> settings: ChannelSettings;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let dimensions = vec2i(textureDimensions(sourceTexture));
+  let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
+  let color = textureLoad(sourceTexture, pixel, 0).rgb;
+  var value = color.r;
+  if (settings.channel == 1u) { value = color.g; }
+  if (settings.channel == 2u) { value = color.b; }
+  if (settings.channel == 3u) {
+    value = dot(color, vec3f(0.2126, 0.7152, 0.0722));
+  }
+  value = clamp(value, 0.0, 1.0);
+  return vec4f(value, value, value, 1.0);
+}
+`;
+
 export const LAYER_FILL_COLOR_WGSL = /* wgsl */ `
 struct FillSettings {
   color: vec4f,

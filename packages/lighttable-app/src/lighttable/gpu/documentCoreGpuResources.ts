@@ -21,6 +21,7 @@ export class DocumentCoreGpuResources {
   readonly adjustmentBuffer: GPUBuffer;
   readonly outputSettingsBuffer: GPUBuffer;
   readonly viewBuffer: GPUBuffer;
+  readonly channelViewBuffer: GPUBuffer;
   readonly blurHorizontalBuffer: GPUBuffer;
   readonly blurVerticalBuffer: GPUBuffer;
   readonly curveTexture: GPUTexture;
@@ -57,6 +58,7 @@ export class DocumentCoreGpuResources {
       8
     );
     this.viewBuffer = createUniformBuffer(device, 'LightTable viewport settings', 8);
+    this.channelViewBuffer = createUniformBuffer(device, 'LightTable channel view settings', 4);
     this.blurHorizontalBuffer = this.createBlurUniformBuffer(1, 0);
     this.blurVerticalBuffer = this.createBlurUniformBuffer(0, 1);
     this.curveTexture = device.createTexture({
@@ -106,6 +108,7 @@ export class DocumentCoreGpuResources {
     this.adjustmentBuffer.destroy();
     this.outputSettingsBuffer.destroy();
     this.viewBuffer.destroy();
+    this.channelViewBuffer.destroy();
     this.blurHorizontalBuffer.destroy();
     this.blurVerticalBuffer.destroy();
     this.curveTexture.destroy();

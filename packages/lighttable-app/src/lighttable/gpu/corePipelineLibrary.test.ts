@@ -25,7 +25,7 @@ describe('getCorePipelineBundle', () => {
     const second = getCorePipelineBundle(device, 'bgra8unorm');
 
     expect(second).toBe(first);
-    expect(device.createRenderPipeline).toHaveBeenCalledTimes(10);
+    expect(device.createRenderPipeline).toHaveBeenCalledTimes(11);
     expect(device.createComputePipeline).toHaveBeenCalledTimes(2);
   });
 
@@ -36,7 +36,7 @@ describe('getCorePipelineBundle', () => {
     const rgba = getCorePipelineBundle(device, 'rgba8unorm');
 
     expect(rgba).not.toBe(bgra);
-    expect(device.createRenderPipeline).toHaveBeenCalledTimes(20);
+    expect(device.createRenderPipeline).toHaveBeenCalledTimes(22);
   });
 
   it('never shares GPU resources across devices', () => {
@@ -47,7 +47,7 @@ describe('getCorePipelineBundle', () => {
     const second = getCorePipelineBundle(secondDevice, 'bgra8unorm');
 
     expect(second).not.toBe(first);
-    expect(firstDevice.createRenderPipeline).toHaveBeenCalledTimes(10);
-    expect(secondDevice.createRenderPipeline).toHaveBeenCalledTimes(10);
+    expect(firstDevice.createRenderPipeline).toHaveBeenCalledTimes(11);
+    expect(secondDevice.createRenderPipeline).toHaveBeenCalledTimes(11);
   });
 });

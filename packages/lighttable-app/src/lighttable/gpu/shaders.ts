@@ -882,6 +882,51 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+// Presentation-only monochrome view of one reconstructed RGB component. The
+// display-domain result is intentional: Channels reflects the pixels users
+// currently see, including the document compositor, rather than a stale source
+// or Photoshop's embedded compatibility preview.
+export const CHANNEL_VIEWPORT_BLIT_WGSL = /* wgsl */ `
+struct ViewUniforms {
+  viewportWidth: f32,
+  viewportHeight: f32,
+  rectX: f32,
+  rectY: f32,
+  rectWidth: f32,
+  rectHeight: f32,
+  checkerSize: f32,
+  padding: f32,
+}
+
+struct ChannelUniforms {
+  channel: u32,
+  padding0: u32,
+  padding1: u32,
+  padding2: u32,
+}
+
+@group(0) @binding(0) var imageTexture: texture_2d<f32>;
+@group(0) @binding(1) var imageSampler: sampler;
+@group(0) @binding(2) var<uniform> view: ViewUniforms;
+@group(0) @binding(3) var<uniform> channelSettings: ChannelUniforms;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let pixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
+  let imageUv = (pixel - vec2f(view.rectX, view.rectY)) / vec2f(view.rectWidth, view.rectHeight);
+  let pasteboardBackground = vec3f(0.031, 0.039, 0.047);
+  if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
+    return vec4f(pasteboardBackground, 1.0);
+  }
+  let image = textureSampleLevel(imageTexture, imageSampler, imageUv, 0.0);
+  let straight = select(vec3f(0.0), image.rgb / max(image.a, 1e-6), image.a > 1e-6);
+  var value = straight.r;
+  if (channelSettings.channel == 1u) { value = straight.g; }
+  if (channelSettings.channel == 2u) { value = straight.b; }
+  return vec4f(vec3f(value), 1.0);
+}
+`;
+
 // Pixel-accurate display-domain comparison between the Photoshop embedded
 // composite/reference and LightTable's reconstructed result. Black means an
 // exact match; the fixed gain makes small but meaningful style/blend errors

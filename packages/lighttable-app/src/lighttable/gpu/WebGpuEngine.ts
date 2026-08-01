@@ -19,7 +19,12 @@ import { findDocumentLayer, findRasterLayer, walkLayerTree } from '../editor/doc
 import { layerStyleStackIsActive } from '../editor/styles/layerStyleDefaults';
 import type { BrushDab } from '../editor/tools/brush/strokeBuilder';
 import type { PaintChannel } from '../editor/session/editorSession';
-import type { SelectionMode, SelectionOperation, SelectionShape } from '../editor/selection/selectionTypes';
+import type {
+  CompositeColorChannel,
+  SelectionMode,
+  SelectionOperation,
+  SelectionShape
+} from '../editor/selection/selectionTypes';
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
 import type { DocumentAssetBlob } from '../editor/persistence/layeredDocumentFormat';
 import { LayerDocumentRenderer } from '../editor/rendering/LayerDocumentRenderer';
@@ -175,6 +180,7 @@ export class WebGpuEngine {
   private displayResolvePipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
   private maskBlitPipeline: GPURenderPipeline | null = null;
+  private channelBlitPipeline: GPURenderPipeline | null = null;
   private differencePipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
   private metadata: LightTableImageMetadata | null = null;
@@ -184,6 +190,7 @@ export class WebGpuEngine {
   private isolatedMaskTexture: GPUTexture | null = null;
   private isolatedMaskBindGroup: GPUBindGroup | null = null;
   private isolatedMaskNearestBindGroup: GPUBindGroup | null = null;
+  private isolatedCompositeChannel: CompositeColorChannel | null = null;
   private lensBlurDepthVisualization = false;
   private warpDebugVisualization: WarpDebugView = 'result';
   private firstFramePending = false;
@@ -322,6 +329,7 @@ export class WebGpuEngine {
     this.displayResolvePipeline = pipelines.displayResolve;
     this.blitPipeline = pipelines.blit;
     this.maskBlitPipeline = pipelines.maskBlit;
+    this.channelBlitPipeline = pipelines.channelBlit;
     this.differencePipeline = pipelines.difference;
     this.differenceMetricsPipeline = pipelines.differenceMetrics;
     this.histogramRuntime = new DocumentHistogramRuntime(
@@ -632,6 +640,23 @@ export class WebGpuEngine {
             || layer.mask.pixelRevision !== operation.source.pixelRevision
             || !this.documentRenderer?.loadLayerMaskAsSelection(layer.id)
           ) return false;
+        } else if (operation.source?.kind === 'composite-channel') {
+          if (
+            !this.imageDocument
+            || this.imageDocument.revision !== operation.source.documentRevision
+            || !this.imageResources.finalTexture
+            || !this.documentRenderer
+          ) return false;
+          // The final reconstructed texture is the canonical source for a
+          // Channels-panel selection. Flush pending correction work before
+          // reading it so the selection never observes a stale grade frame.
+          this.settleInteractiveRenderQuality();
+          this.renderScheduler.flush();
+          await this.device.queue.onSubmittedWorkDone();
+          if (!this.documentRenderer.loadCompositeChannelAsSelection(
+            this.imageResources.finalTexture,
+            operation.source.channel
+          )) return false;
         } else if (operation.mode === 'feather') {
           if (!this.documentRenderer?.featherSelection(operation.amount ?? 0)) return false;
         } else if (!await this.setSelectionNow(operation.shape, operation.mode)) {
@@ -802,7 +827,8 @@ export class WebGpuEngine {
     if (!this.imageResources.sourceTexture || !this.coreResources ||
       !this.basicPipeline || !this.downsamplePipeline || !this.blurPipeline || !this.creativePipeline ||
       !this.outputPipeline || !this.effectRuntime || !this.displayResolvePipeline ||
-      !this.blitPipeline || !this.differencePipeline || !this.histogramRuntime || !this.metadata) return;
+      !this.blitPipeline || !this.channelBlitPipeline || !this.differencePipeline ||
+      !this.histogramRuntime || !this.metadata) return;
     const coreResources = this.coreResources;
 
     const downsampleWidth = Math.max(1, Math.ceil(width / 4));
@@ -934,6 +960,24 @@ export class WebGpuEngine {
         { binding: 2, resource: { buffer: coreResources.viewBuffer } }
       ]
     });
+    this.imageResources.channelBindGroup = this.device.createBindGroup({
+      layout: this.channelBlitPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.imageResources.finalTexture.createView() },
+        { binding: 1, resource: coreResources.sampler },
+        { binding: 2, resource: { buffer: coreResources.viewBuffer } },
+        { binding: 3, resource: { buffer: coreResources.channelViewBuffer } }
+      ]
+    });
+    this.imageResources.channelNearestBindGroup = this.device.createBindGroup({
+      layout: this.channelBlitPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.imageResources.finalTexture.createView() },
+        { binding: 1, resource: coreResources.nearestSampler },
+        { binding: 2, resource: { buffer: coreResources.viewBuffer } },
+        { binding: 3, resource: { buffer: coreResources.channelViewBuffer } }
+      ]
+    });
     this.imageResources.differenceBindGroup = this.device.createBindGroup({
       layout: this.differencePipeline.getBindGroupLayout(0),
       entries: [
@@ -1026,12 +1070,34 @@ export class WebGpuEngine {
   setMaskIsolation(layerId: LayerId | null) {
     if (this.isolatedMaskLayerId === layerId) return;
     this.isolatedMaskLayerId = layerId;
+    if (layerId) this.isolatedCompositeChannel = null;
     this.isolatedMaskTexture = null;
     this.isolatedMaskBindGroup = null;
     this.isolatedMaskNearestBindGroup = null;
     this.renderDirty.invalidate('viewport');
     // Mask isolation is a presentation diagnostic. Scopes deliberately stay
     // attached to the reconstructed document rather than the mask channel.
+    this.requestRender();
+  }
+
+  setCompositeChannelIsolation(channel: CompositeColorChannel | null) {
+    if (this.isolatedCompositeChannel === channel) return;
+    this.isolatedCompositeChannel = channel;
+    if (channel) {
+      this.isolatedMaskLayerId = null;
+      this.isolatedMaskTexture = null;
+      this.isolatedMaskBindGroup = null;
+      this.isolatedMaskNearestBindGroup = null;
+    }
+    if (this.coreResources) {
+      const channelIndex = channel === 'green' ? 1 : channel === 'blue' ? 2 : 0;
+      this.device.queue.writeBuffer(
+        this.coreResources.channelViewBuffer,
+        0,
+        new Uint32Array([channelIndex, 0, 0, 0])
+      );
+    }
+    this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
@@ -1294,13 +1360,16 @@ export class WebGpuEngine {
       !this.blurPipeline || !this.creativePipeline || !this.outputPipeline || !this.coreResources ||
       !this.imageResources.sourceTexture ||
       !this.effectRuntime || !this.documentRenderer || !this.imageDocument ||
-      !this.displayResolvePipeline || !this.blitPipeline || !this.maskBlitPipeline || !this.differencePipeline ||
+      !this.displayResolvePipeline || !this.blitPipeline || !this.maskBlitPipeline ||
+      !this.channelBlitPipeline || !this.differencePipeline ||
       !this.imageResources.downsampleBindGroup || !this.imageResources.blurHorizontalBindGroup || !this.imageResources.blurVerticalBindGroup ||
       !this.imageResources.creativeBindGroup ||
       !this.imageResources.blitOriginalBindGroup || !this.imageResources.blitCorrectedBindGroup ||
       !this.imageResources.differenceBindGroup ||
       !this.imageResources.blitOriginalNearestBindGroup ||
       !this.imageResources.blitCorrectedNearestBindGroup ||
+      !this.imageResources.channelBindGroup ||
+      !this.imageResources.channelNearestBindGroup ||
       !this.imageResources.differenceNearestBindGroup) return;
 
     this.renderTelemetry.recordRenderCall();
@@ -1466,6 +1535,15 @@ export class WebGpuEngine {
           encoder,
           this.maskBlitPipeline,
           isolatedMaskBindGroup,
+          canvasView
+        );
+      } else if (this.isolatedCompositeChannel) {
+        this.drawFullscreenPass(
+          encoder,
+          this.channelBlitPipeline,
+          useNearestSampling
+            ? this.imageResources.channelNearestBindGroup
+            : this.imageResources.channelBindGroup,
           canvasView
         );
       } else if (this.difference) {
@@ -1714,6 +1792,11 @@ export class WebGpuEngine {
     this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();
     this.imageDocument = null;
+    this.isolatedMaskLayerId = null;
+    this.isolatedMaskTexture = null;
+    this.isolatedMaskBindGroup = null;
+    this.isolatedMaskNearestBindGroup = null;
+    this.isolatedCompositeChannel = null;
     this.brushCursorOverlay = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;
