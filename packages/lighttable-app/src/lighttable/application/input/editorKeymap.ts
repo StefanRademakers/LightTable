@@ -88,19 +88,21 @@ const command = (
   resolve: () => result
 });
 
-const toolBindings: readonly EditorKeyBinding[] = TOOL_DEFINITIONS.map((tool) => ({
-  id: `tool.${tool.id}`,
-  chord: {
-    key: tool.shortcutKey,
-    primary: false,
-    alt: false,
-    shift: tool.shortcutShift
-  },
-  resolve: (context) =>
-    tool.id === 'transform' && context.activeTool === 'transform'
-      ? 'commit-transform'
-      : { type: 'activate-tool', tool: tool.id }
-}));
+const toolBindings: readonly EditorKeyBinding[] = TOOL_DEFINITIONS
+  .filter((tool) => Boolean(tool.shortcutKey))
+  .map((tool) => ({
+    id: `tool.${tool.id}`,
+    chord: {
+      key: tool.shortcutKey!,
+      primary: false,
+      alt: false,
+      shift: tool.shortcutShift
+    },
+    resolve: (context) =>
+      tool.id === 'transform' && context.activeTool === 'transform'
+        ? 'commit-transform'
+        : { type: 'activate-tool', tool: tool.id }
+  }));
 
 export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
   id: 'lighttable-default',

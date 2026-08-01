@@ -2,6 +2,7 @@ import type { SelectionOperation, SelectionToolId } from '../selection/selection
 import type { WarpToolSettings } from '../../effects/warp/warpTypes';
 import type { PathSelectionTarget } from '@lighttable/vector-core';
 import type { LayerId } from '../document/documentTypes';
+import type { VectorEditorToolId } from '../tools/vectorToolCatalog';
 
 export type ToolId =
   | 'view'
@@ -11,6 +12,7 @@ export type ToolId =
   | 'fill'
   | 'brush'
   | 'erase'
+  | VectorEditorToolId
   | SelectionToolId;
 export type PaintChannel = 'pixels' | 'mask';
 

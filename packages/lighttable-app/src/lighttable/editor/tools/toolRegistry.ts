@@ -7,13 +7,14 @@ export type ToolRole =
   | 'warp'
   | 'selection'
   | 'fill'
-  | 'paint';
+  | 'paint'
+  | 'vector';
 
 export interface ToolDefinition {
   readonly id: ToolId;
   readonly label: string;
-  readonly shortcutLabel: string;
-  readonly shortcutKey: string;
+  readonly shortcutLabel?: string;
+  readonly shortcutKey?: string;
   readonly shortcutShift?: boolean;
   readonly iconName: string;
   readonly role: ToolRole;
@@ -73,6 +74,80 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'selection'
   },
   {
+    id: 'vector-select',
+    label: 'Path selection',
+    shortcutLabel: 'A',
+    shortcutKey: 'a',
+    shortcutShift: false,
+    iconName: 'tool_path_select_tool.png',
+    role: 'vector'
+  },
+  {
+    id: 'vector-direct-select',
+    label: 'Direct selection',
+    shortcutLabel: 'Shift+A',
+    shortcutKey: 'a',
+    shortcutShift: true,
+    iconName: 'tool_direct_select_tool.png',
+    role: 'vector'
+  },
+  {
+    id: 'vector-pen',
+    label: 'Pen',
+    shortcutLabel: 'P',
+    shortcutKey: 'p',
+    iconName: 'tool_pen_bezier_tool.png',
+    role: 'vector'
+  },
+  {
+    id: 'vector-add-anchor',
+    label: 'Add anchor point',
+    iconName: 'tool_pen_bezier_add_anchor_point.png',
+    role: 'vector'
+  },
+  {
+    id: 'vector-delete-anchor',
+    label: 'Delete anchor point',
+    iconName: 'tool_pen_bezier_remove_anchor_point.png',
+    role: 'vector'
+  },
+  {
+    id: 'vector-convert-anchor',
+    label: 'Convert anchor point',
+    iconName: 'tool_convert_point_tool.png',
+    role: 'vector'
+  },
+  {
+    id: 'shape-rectangle',
+    label: 'Rectangle',
+    shortcutLabel: 'U',
+    shortcutKey: 'u',
+    shortcutShift: false,
+    iconName: 'tool_shape_rectangle.png',
+    role: 'vector'
+  },
+  {
+    id: 'shape-ellipse',
+    label: 'Ellipse',
+    shortcutLabel: 'Shift+U',
+    shortcutKey: 'u',
+    shortcutShift: true,
+    iconName: 'tool_shape_ellipse.png',
+    role: 'vector'
+  },
+  {
+    id: 'shape-triangle',
+    label: 'Triangle',
+    iconName: 'tool_shape_triangle.png',
+    role: 'vector'
+  },
+  {
+    id: 'shape-line',
+    label: 'Line',
+    iconName: 'tool_shape_line.png',
+    role: 'vector'
+  },
+  {
     id: 'fill',
     label: 'Fill',
     shortcutLabel: 'G',
@@ -126,6 +201,7 @@ export const toolDefinition = (tool: ToolId): ToolDefinition => {
 
 export const toolForShortcut = (key: string, shiftKey: boolean): ToolId | null =>
   TOOL_DEFINITIONS.find((definition) =>
-    definition.shortcutKey === key.toLowerCase()
+    definition.shortcutKey !== undefined
+    && definition.shortcutKey === key.toLowerCase()
     && (definition.shortcutShift === undefined || definition.shortcutShift === shiftKey)
   )?.id ?? null;

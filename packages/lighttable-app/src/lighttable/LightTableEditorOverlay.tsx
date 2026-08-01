@@ -112,6 +112,7 @@ import { usePaintSessionController } from './application/tools/paint/usePaintSes
 import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
+import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
 import {
   useDocumentImageState,
   useDocumentEditorSession,
@@ -1027,6 +1028,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
   });
 
+  const vectorToolSessionController = useVectorToolSessionController({
+    document: imageDocument,
+    selection: editorSession.vectorSelection,
+    activeTool: editorSession.activeTool,
+    foregroundColor: editorSession.brush.color,
+    applyDocumentSnapshot,
+    pushDocumentHistory,
+    publishSelection: (vectorSelection) => {
+      setEditorSession((current) => ({ ...current, vectorSelection }));
+    }
+  });
+
   const viewportInteraction = useViewportInteractionController({
     metadata,
     document: imageDocument,
@@ -1067,6 +1080,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selection: selectionSessionController,
     paint: paintSessionController,
     warp: warpSessionController,
+    vector: vectorToolSessionController,
     minScale: MIN_SCALE,
     maxScale: MAX_SCALE
   });

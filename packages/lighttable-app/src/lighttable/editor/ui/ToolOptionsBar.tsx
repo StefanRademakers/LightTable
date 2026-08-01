@@ -35,7 +35,17 @@ const TOOL_LABELS: Record<ToolId, string> = {
   brush: 'Brush',
   erase: 'Erase',
   view: 'Move canvas',
-  zoom: 'Zoom'
+  zoom: 'Zoom',
+  'vector-select': 'Path selection',
+  'vector-direct-select': 'Direct selection',
+  'vector-pen': 'Pen',
+  'vector-add-anchor': 'Add anchor point',
+  'vector-delete-anchor': 'Delete anchor point',
+  'vector-convert-anchor': 'Convert anchor point',
+  'shape-rectangle': 'Rectangle',
+  'shape-ellipse': 'Ellipse',
+  'shape-triangle': 'Triangle',
+  'shape-line': 'Line'
 };
 
 export const ToolOptionsContent: React.FC<ToolOptionsProps & {

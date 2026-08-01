@@ -33,8 +33,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           className={`lighttable-toolbox__button${activeTool === tool.id ? ' lighttable-toolbox__button--active' : ''}`}
           onClick={() => onToolChange(tool.id)}
           aria-pressed={activeTool === tool.id}
-          aria-label={`${tool.label} (${tool.shortcutLabel})`}
-          title={`${tool.label} (${tool.shortcutLabel})`}
+          aria-label={tool.shortcutLabel ? `${tool.label} (${tool.shortcutLabel})` : tool.label}
+          title={tool.shortcutLabel ? `${tool.label} (${tool.shortcutLabel})` : tool.label}
         >
           <img src={lightTableIcon(tool.iconName)} alt="" aria-hidden="true" />
         </button>

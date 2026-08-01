@@ -39,6 +39,8 @@ import {
   zoomPercentToScale
 } from '../tools/zoom/zoomLevels';
 import type { LightTableImageMetadata, LightTableViewState } from '../../types';
+import type { VectorToolSessionController } from '../../application/vectors/VectorToolSessionController';
+import { isVectorEditorTool } from '../tools/vectorToolCatalog';
 
 interface ViewportSize {
   width: number;
@@ -69,6 +71,7 @@ interface ViewportInteractionOptions {
   selection: SelectionSessionController;
   paint: PaintSessionController;
   warp: WarpSessionController;
+  vector: VectorToolSessionController;
   minScale: number;
   maxScale: number;
 }
@@ -111,6 +114,7 @@ export const useViewportInteractionController = ({
   selection,
   paint,
   warp,
+  vector,
   minScale,
   maxScale
 }: ViewportInteractionOptions): ViewportInteractionController => {
@@ -338,6 +342,23 @@ export const useViewportInteractionController = ({
       }
       const point = documentPoint(event, bounds);
       const activeTool = editorSession.activeTool;
+      if (
+        isVectorEditorTool(activeTool)
+        && point
+        && event.button === 0
+        && !temporaryTools.active
+      ) {
+        if (vector.pointerDown(event.pointerId, point, {
+          hitRadius: 7 / Math.max(activeScale, 0.0001),
+          closeTolerance: 8 / Math.max(activeScale, 0.0001),
+          additive: event.shiftKey,
+          preserveAspect: event.shiftKey
+        })) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }
+        return;
+      }
       const paintTarget = document
         ? editorSession.activeChannel === 'mask'
           ? findDocumentLayer(document, document.activeLayerId)
@@ -449,6 +470,10 @@ export const useViewportInteractionController = ({
       const bounds = event.currentTarget.getBoundingClientRect();
       updateBrushCursor(event, bounds);
       const point = documentPoint(event, bounds);
+      if (point && vector.ownsPointer(event.pointerId)) {
+        if (vector.pointerMove(event.pointerId, point)) event.preventDefault();
+        return;
+      }
       if (
         editorSession.activeTool === 'select-polygonal'
         && selection.polygonActive
@@ -494,6 +519,13 @@ export const useViewportInteractionController = ({
       }
     },
     onPointerUp: (event) => {
+      if (vector.ownsPointer(event.pointerId)) {
+        const point = documentPoint(event);
+        if (point) vector.pointerUp(event.pointerId, point, event.detail);
+        else vector.pointerCancel(event.pointerId);
+        event.preventDefault();
+        return;
+      }
       const intent = resolveViewportPointerEndIntent({
         selectionGestureMatches: selection.owns(event.pointerId),
         warpGestureMatches: warp.owns(event.pointerId),
@@ -520,6 +552,7 @@ export const useViewportInteractionController = ({
       endPan(event);
     },
     onPointerCancel: (event) => {
+      vector.pointerCancel(event.pointerId);
       selection.cancel(event.pointerId);
       warp.cancel(event.pointerId);
       paint.cancel(event.pointerId);

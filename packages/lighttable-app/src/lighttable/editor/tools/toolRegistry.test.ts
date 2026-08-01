@@ -12,6 +12,16 @@ describe('toolRegistry', () => {
       'fill',
       'brush',
       'erase',
+      'vector-select',
+      'vector-direct-select',
+      'vector-pen',
+      'vector-add-anchor',
+      'vector-delete-anchor',
+      'vector-convert-anchor',
+      'shape-rectangle',
+      'shape-ellipse',
+      'shape-triangle',
+      'shape-line',
       'select-rectangle',
       'select-ellipse',
       'select-free',
@@ -31,6 +41,16 @@ describe('toolRegistry', () => {
     expect(toolForShortcut('v', false)).toBe('transform');
     expect(toolForShortcut('w', false)).toBe('warp');
     expect(toolForShortcut('z', false)).toBe('zoom');
+    expect(toolForShortcut('a', false)).toBe('vector-select');
+    expect(toolForShortcut('A', true)).toBe('vector-direct-select');
+    expect(toolForShortcut('p', false)).toBe('vector-pen');
+    expect(toolForShortcut('u', false)).toBe('shape-rectangle');
+    expect(toolForShortcut('U', true)).toBe('shape-ellipse');
+  });
+
+  it('keeps visible vector tools without dedicated shortcuts out of key dispatch', () => {
+    expect(toolDefinition('vector-add-anchor').shortcutKey).toBeUndefined();
+    expect(toolDefinition('shape-line').shortcutKey).toBeUndefined();
   });
 
   it('exposes stable capabilities and presentation metadata', () => {
