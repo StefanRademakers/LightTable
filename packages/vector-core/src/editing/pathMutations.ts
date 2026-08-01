@@ -2,6 +2,7 @@ import { distance, normalize, scale, subtract } from '../math/vector';
 import type { Vec2 } from '../math/vector';
 import { cloneVectorAnchor, cloneVectorPath } from '../model/clone';
 import type { AnchorMode, VectorAnchor, VectorPath } from '../model/types';
+import { segmentAt } from '../model/segments';
 
 export interface AnchorReference {
   subpathId: string;
@@ -94,6 +95,41 @@ export const moveAnchorHandle = (
   }
   return anchor;
 });
+
+/**
+ * Pulls one cubic segment through a requested point delta while its end
+ * anchors remain fixed. Moving both adjacent controls by delta / (B1 + B2)
+ * makes the cubic point at t follow the pointer exactly.
+ */
+export const moveSegmentPoint = (
+  path: VectorPath,
+  subpathId: string,
+  segmentIndex: number,
+  t: number,
+  delta: Vec2
+) => {
+  if (delta.x === 0 && delta.y === 0) return path;
+  if (!(t > 0 && t < 1)) throw new RangeError('Segment drag t must be strictly between zero and one.');
+  const subpath = path.subpaths.find(({ id }) => id === subpathId);
+  if (!subpath) throw new Error(`Unknown vector subpath ${subpathId}.`);
+  const segment = segmentAt(subpath, segmentIndex);
+  const influence = 3 * t * (1 - t);
+  if (influence <= 1e-6) throw new RangeError('Segment drag is too close to an anchor.');
+  const controlDelta = { x: delta.x / influence, y: delta.y / influence };
+  const movedStart = moveAnchorHandle(
+    path,
+    { subpathId, anchorId: segment.startAnchorId },
+    'out',
+    { x: segment.p1.x + controlDelta.x, y: segment.p1.y + controlDelta.y }
+  );
+  const moved = moveAnchorHandle(
+    movedStart,
+    { subpathId, anchorId: segment.endAnchorId },
+    'in',
+    { x: segment.p2.x + controlDelta.x, y: segment.p2.y + controlDelta.y }
+  );
+  return { ...moved, geometryRevision: path.geometryRevision + 1 };
+};
 
 export const setAnchorMode = (
   path: VectorPath,

@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createAnchor, createSubpath, createVectorPath } from '../model/factories';
+import { evaluateCubic } from '../geometry/bezier';
+import { segmentAt } from '../model/segments';
 import { PathMutationSession } from './PathMutationSession';
-import { closeSubpath, deleteAnchors, moveAnchorHandle, moveAnchors, setAnchorMode } from './pathMutations';
+import {
+  closeSubpath,
+  deleteAnchors,
+  moveAnchorHandle,
+  moveAnchors,
+  moveSegmentPoint,
+  setAnchorMode
+} from './pathMutations';
 
 const pathFixture = () => createVectorPath('path', 'Path', [createSubpath('subpath', [
   createAnchor('a', { x: 10, y: 10 }, {
@@ -45,6 +54,25 @@ describe('path mutations', () => {
     expect(deleted.subpaths[0]).toMatchObject({ closed: false });
     expect(deleted.subpaths[0].anchors.map(({ id }) => id)).toEqual(['a']);
     expect(deleted.geometryRevision).toBe(2);
+  });
+
+  it('moves a grabbed cubic point exactly while retaining fixed anchors', () => {
+    const source = createVectorPath('curve', 'Curve', [createSubpath('curve-subpath', [
+      createAnchor('start', { x: 0, y: 0 }, { handleOut: { x: 20, y: 80 } }),
+      createAnchor('end', { x: 100, y: 0 }, { handleIn: { x: 80, y: 80 } })
+    ])]);
+    const t = 0.35;
+    const before = evaluateCubic(segmentAt(source.subpaths[0], 0), t);
+    const moved = moveSegmentPoint(source, 'curve-subpath', 0, t, { x: 13, y: -7 });
+    const after = evaluateCubic(segmentAt(moved.subpaths[0], 0), t);
+
+    expect(after.x - before.x).toBeCloseTo(13, 8);
+    expect(after.y - before.y).toBeCloseTo(-7, 8);
+    expect(moved.subpaths[0].anchors.map(({ position }) => position)).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 }
+    ]);
+    expect(moved.geometryRevision).toBe(source.geometryRevision + 1);
   });
 });
 

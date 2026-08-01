@@ -2,6 +2,7 @@ import {
   invertMatrix,
   moveAnchorHandle,
   moveAnchors,
+  moveSegmentPoint,
   transformPoint,
   type AnchorReference,
   type PathSelectionTarget,
@@ -54,7 +55,17 @@ interface ActiveMarqueeGesture {
   additive: boolean;
 }
 
-type ActiveDirectSelectionGesture = ActiveAnchorGesture | ActiveMarqueeGesture;
+interface ActiveSegmentGesture {
+  kind: 'segment';
+  documentId: ImageDocument['id'];
+  layerId: VectorDocumentHit['layerId'];
+  pathId: string;
+  inverseDocumentTransform: NonNullable<ReturnType<typeof invertMatrix>>;
+  startLocal: Vec2;
+  target: Extract<PathSelectionTarget, { kind: 'segment' }>;
+}
+
+type ActiveDirectSelectionGesture = ActiveAnchorGesture | ActiveSegmentGesture | ActiveMarqueeGesture;
 
 const samePath = (left: VectorPathSelectionReference, right: VectorPathSelectionReference) =>
   left.layerId === right.layerId && left.pathId === right.pathId;
@@ -177,12 +188,23 @@ export class DirectSelectionToolController {
     );
     this.dependencies.setSelection(selection);
     const target = selection.active?.target;
-    if (!target || (target.kind !== 'anchor'
-      && target.kind !== 'handle-in'
-      && target.kind !== 'handle-out')) return true;
+    if (!target || target.kind === 'fill') return true;
 
     const inverse = invertMatrix(hit.documentPath.transform);
     if (!inverse || !this.documents.beginPathMutation(hit.layerId, hit.pathId)) return true;
+    const startLocal = transformPoint(inverse, documentPoint);
+    if (target.kind === 'segment') {
+      this.gesture = {
+        kind: 'segment',
+        documentId: document.id,
+        layerId: hit.layerId,
+        pathId: hit.pathId,
+        inverseDocumentTransform: inverse,
+        startLocal,
+        target
+      };
+      return true;
+    }
     const anchors = selection.anchors
       .filter((reference) => samePath(reference, hit))
       .map(({ subpathId, anchorId }) => ({ subpathId, anchorId }));
@@ -192,7 +214,7 @@ export class DirectSelectionToolController {
       layerId: hit.layerId,
       pathId: hit.pathId,
       inverseDocumentTransform: inverse,
-      startLocal: transformPoint(inverse, documentPoint),
+      startLocal,
       target,
       anchors
     };
@@ -231,6 +253,19 @@ export class DirectSelectionToolController {
       return true;
     }
     const local = transformPoint(gesture.inverseDocumentTransform, documentPoint);
+    if (gesture.kind === 'segment') {
+      const delta = {
+        x: local.x - gesture.startLocal.x,
+        y: local.y - gesture.startLocal.y
+      };
+      return this.documents.previewPathMutation((path) => moveSegmentPoint(
+        path,
+        gesture.target.subpathId,
+        gesture.target.segmentIndex,
+        gesture.target.t,
+        delta
+      ));
+    }
     if (gesture.target.kind === 'anchor') {
       const delta = {
         x: local.x - gesture.startLocal.x,

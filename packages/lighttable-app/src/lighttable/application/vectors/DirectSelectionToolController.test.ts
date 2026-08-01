@@ -114,6 +114,30 @@ describe('DirectSelectionToolController', () => {
     expect(state.history).toHaveLength(1);
   });
 
+  it('pulls a segment through the pointer while its anchors stay fixed', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const start = transformPoint(scene.localToDocument, { x: 11, y: 3 });
+    const end = transformPoint(scene.localToDocument, { x: 11, y: 8 });
+
+    expect(state.controller.pointerDown(start, { radius: 2 })).toBe(true);
+    expect(state.selection.active?.target.kind).toBe('segment');
+    expect(state.controller.pointerMove(end)).toBe(true);
+    expect(state.controller.pointerUp(end)).toBe(true);
+
+    const layer = findDocumentLayer(state.document, scene.layer.id);
+    if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
+    const anchors = layer.paths[0]?.subpaths[0]?.anchors ?? [];
+    expect(anchors.map(({ position }) => position)).toEqual([
+      { x: 2, y: 3 },
+      { x: 20, y: 3 }
+    ]);
+    expect(anchors[0]?.handleOut?.y).toBeGreaterThan(3);
+    expect(anchors[1]?.handleIn?.y).toBeGreaterThan(3);
+    expect(state.history).toHaveLength(1);
+  });
+
   it('restores the opening document and avoids history when cancelled', () => {
     const state = setup();
     const scene = transformedPath();
