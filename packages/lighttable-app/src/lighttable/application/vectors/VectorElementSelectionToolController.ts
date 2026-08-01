@@ -1,9 +1,17 @@
 import {
   invertMatrix,
+  multiplyMatrices,
   transformPoint,
+  transformVectorElement,
+  translationMatrix,
   translateVectorElement,
+  type AffineMatrix,
   type Vec2
 } from '@lighttable/vector-core';
+import {
+  buildVectorSelectionFrame,
+  hitTestVectorSelectionFrameHandle
+} from '@lighttable/vector-rendering';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import {
   cloneVectorEditorSelection,
@@ -14,8 +22,14 @@ import {
 import { VectorDocumentController } from './VectorDocumentController';
 import {
   hitTestVectorElementDocument,
+  vectorElementsDocumentBounds,
   vectorElementsTopmostFirst
 } from './vectorSceneQueries';
+import {
+  beginVectorElementScaleGesture,
+  vectorElementScaleOperation,
+  type VectorElementScaleGesture
+} from './vectorElementTransformGesture';
 
 export interface VectorElementSelectionDependencies {
   getDocument(): ImageDocument | null;
@@ -26,18 +40,22 @@ export interface VectorElementSelectionDependencies {
 export interface VectorElementSelectionPointerOptions {
   radius: number;
   additive?: boolean;
+  preserveAspect?: boolean;
 }
 
 interface SelectedElementTransform {
   readonly layerId: LayerId;
   readonly elementId: string;
   readonly documentToLayer: NonNullable<ReturnType<typeof invertMatrix>>;
+  readonly layerToDocument: AffineMatrix;
 }
 
 interface ActiveElementDrag {
   readonly documentId: ImageDocument['id'];
   readonly startDocument: Vec2;
   readonly targets: readonly SelectedElementTransform[];
+  readonly scale: VectorElementScaleGesture | null;
+  readonly preserveAspect: boolean;
   moved: boolean;
 }
 
@@ -83,6 +101,21 @@ export class VectorElementSelectionToolController {
     this.cancel();
     const document = this.dependencies.getDocument();
     if (!document) return false;
+    const current = cloneVectorEditorSelection(this.dependencies.getSelection());
+    const currentBounds = vectorElementsDocumentBounds(document, current.elements);
+    const currentFrame = currentBounds
+      ? buildVectorSelectionFrame(currentBounds, { resourceKey: 'interaction-frame' })
+      : null;
+    const scaleHandle = currentFrame
+      ? hitTestVectorSelectionFrameHandle(currentFrame, documentPoint, options.radius)
+      : null;
+    if (scaleHandle && currentBounds && current.elements.length > 0) {
+      this.dependencies.setSelection(elementOnlySelection(current.elements));
+      return this.beginDrag(document, current.elements, documentPoint, {
+        scale: beginVectorElementScaleGesture(currentBounds, scaleHandle.kind),
+        preserveAspect: options.preserveAspect ?? false
+      });
+    }
     const hit = hitTestVectorElementDocument(document, {
       documentPoint,
       radius: options.radius,
@@ -98,7 +131,6 @@ export class VectorElementSelectionToolController {
       layerId: hit.layerId,
       elementId: hit.elementId
     };
-    const current = cloneVectorEditorSelection(this.dependencies.getSelection());
     const alreadySelected = current.elements.some((item) => sameElement(item, reference));
     if (options.additive && alreadySelected) {
       this.dependencies.setSelection(elementOnlySelection(
@@ -114,25 +146,10 @@ export class VectorElementSelectionToolController {
         : [reference];
     this.dependencies.setSelection(elementOnlySelection(elements));
 
-    const resolved = vectorElementsTopmostFirst(document);
-    const targets = elements.flatMap((selected) => {
-      const entry = resolved.find(
-        (candidate) => candidate.layerId === selected.layerId
-          && candidate.elementId === selected.elementId
-      );
-      const documentToLayer = entry ? invertMatrix(entry.layerToDocument) : null;
-      return documentToLayer ? [{ ...selected, documentToLayer }] : [];
+    return this.beginDrag(document, elements, documentPoint, {
+      scale: null,
+      preserveAspect: false
     });
-    if (targets.length !== elements.length || !this.documents.beginElementMutations(elements)) {
-      return true;
-    }
-    this.drag = {
-      documentId: document.id,
-      startDocument: { ...documentPoint },
-      targets,
-      moved: false
-    };
-    return true;
   }
 
   pointerMove(documentPoint: Vec2) {
@@ -148,14 +165,26 @@ export class VectorElementSelectionToolController {
     const moved = documentDelta.x !== 0 || documentDelta.y !== 0;
     if (!moved && !drag.moved) return true;
     drag.moved = moved;
+    const documentOperation = drag.scale
+      ? vectorElementScaleOperation(drag.scale, documentPoint, drag.preserveAspect)
+      : translationMatrix(documentDelta.x, documentDelta.y);
     return this.documents.previewElementMutations((target) => {
       const mapping = drag.targets.find(
         (candidate) => candidate.layerId === target.layerId
           && candidate.elementId === target.elementId
       );
-      return mapping
-        ? translateVectorElement(target.openingElement, localDelta(mapping.documentToLayer, documentDelta))
-        : target.openingElement;
+      if (!mapping) return target.openingElement;
+      if (!drag.scale) {
+        return translateVectorElement(
+          target.openingElement,
+          localDelta(mapping.documentToLayer, documentDelta)
+        );
+      }
+      const layerOperation = multiplyMatrices(
+        mapping.documentToLayer,
+        multiplyMatrices(documentOperation, mapping.layerToDocument)
+      );
+      return transformVectorElement(target.openingElement, layerOperation);
     });
   }
 
@@ -184,5 +213,36 @@ export class VectorElementSelectionToolController {
 
   dispose() {
     this.cancel();
+  }
+
+  private beginDrag(
+    document: ImageDocument,
+    elements: readonly VectorElementSelectionReference[],
+    documentPoint: Vec2,
+    options: { scale: VectorElementScaleGesture | null; preserveAspect: boolean }
+  ) {
+    const resolved = vectorElementsTopmostFirst(document);
+    const targets = elements.flatMap((selected) => {
+      const entry = resolved.find(
+        (candidate) => candidate.layerId === selected.layerId
+          && candidate.elementId === selected.elementId
+      );
+      const documentToLayer = entry ? invertMatrix(entry.layerToDocument) : null;
+      return entry && documentToLayer
+        ? [{ ...selected, documentToLayer, layerToDocument: entry.layerToDocument }]
+        : [];
+    });
+    if (targets.length !== elements.length || !this.documents.beginElementMutations(elements)) {
+      return true;
+    }
+    this.drag = {
+      documentId: document.id,
+      startDocument: { ...documentPoint },
+      targets,
+      scale: options.scale,
+      preserveAspect: options.preserveAspect,
+      moved: false
+    };
+    return true;
   }
 }

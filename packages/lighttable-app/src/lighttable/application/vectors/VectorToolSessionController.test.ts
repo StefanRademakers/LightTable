@@ -157,6 +157,44 @@ describe('VectorToolSessionController', () => {
     });
   });
 
+  it('scales a live shape through its document-space frame as one transaction', () => {
+    const state = setup();
+    const shape = createVectorLiveShape('shape', {
+      kind: 'rectangle',
+      width: 40,
+      height: 20,
+      cornerRadii: [4, 4, 4, 4],
+      linkedCorners: true
+    });
+    shape.transform = { a: 1, b: 0, c: 0, d: 1, tx: 20, ty: 20 };
+    const layer = createVectorLayer([shape]);
+    layer.transform = { a: 2, b: 0, c: 0, d: 2, tx: 10, ty: 5 };
+    state.document.layers = [layer];
+    state.controller.activate('element-selection');
+
+    // Select through the artwork first. The resulting document-space frame is
+    // x=50..130, y=45..85 despite both the element and layer transforms.
+    state.controller.pointerDown(1, { x: 90, y: 65 }, { hitRadius: 3 });
+    state.controller.pointerUp(1, { x: 90, y: 65 });
+    expect(state.selection.elements).toEqual([{ layerId: layer.id, elementId: shape.id }]);
+
+    expect(state.controller.pointerDown(2, { x: 130, y: 85 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.pointerMove(2, { x: 170, y: 105 })).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.pointerUp(2, { x: 170, y: 105 })).toBe(true);
+    expect(state.history).toHaveLength(1);
+
+    const updated = findDocumentLayer(state.document, layer.id);
+    if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(updated.elements[0]).toMatchObject({
+      id: shape.id,
+      type: 'live-shape',
+      geometry: shape.geometry,
+      transform: { a: 1.5, b: 0, c: 0, d: 1.5, tx: 20, ty: 20 },
+      transformRevision: 1
+    });
+  });
+
   it('moves an additive element selection as one transaction', () => {
     const state = setup();
     const first = createVectorLiveShape('first', {

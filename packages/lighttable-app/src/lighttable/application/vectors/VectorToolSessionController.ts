@@ -46,6 +46,7 @@ export interface VectorPointerDownOptions {
   hitRadius: number;
   closeTolerance?: number;
   additive?: boolean;
+  preserveAspect?: boolean;
 }
 
 interface CapturedPointer {
@@ -148,7 +149,8 @@ export class VectorToolSessionController {
     } else if (this.activeMode === 'element-selection') {
       if (!this.elementSelection.pointerDown(documentPoint, {
         radius: options.hitRadius,
-        additive: options.additive
+        additive: options.additive,
+        preserveAspect: options.preserveAspect
       })) return false;
     } else if (this.activeMode === 'direct-selection') {
       const directOptions: DirectSelectionPointerOptions = {

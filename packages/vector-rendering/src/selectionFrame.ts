@@ -42,6 +42,26 @@ export interface BuildVectorSelectionFrameOptions {
   handleSizePx?: number;
 }
 
+export const hitTestVectorSelectionFrameHandle = (
+  frame: VectorSelectionFrame,
+  point: Vec2,
+  radius: number
+): VectorSelectionFrameHandle | null => {
+  if (!(radius >= 0) || !Number.isFinite(radius)) return null;
+  let closest: VectorSelectionFrameHandle | null = null;
+  let closestDistanceSquared = radius * radius;
+  for (const handle of frame.handles) {
+    const dx = point.x - handle.point.x;
+    const dy = point.y - handle.point.y;
+    const distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared <= closestDistanceSquared) {
+      closest = handle;
+      closestDistanceSquared = distanceSquared;
+    }
+  }
+  return closest;
+};
+
 export const buildVectorSelectionFrame = (
   bounds: Rect,
   options: BuildVectorSelectionFrameOptions
