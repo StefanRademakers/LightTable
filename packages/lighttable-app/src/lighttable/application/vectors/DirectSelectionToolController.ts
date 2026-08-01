@@ -9,6 +9,7 @@ import {
 } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import {
+  cloneVectorEditorSelection,
   createVectorEditorSelection,
   type VectorAnchorSelectionReference,
   type VectorEditorSelection,
@@ -47,14 +48,6 @@ const sameAnchor = (
 ) => samePath(left, right)
   && left.subpathId === right.subpathId
   && left.anchorId === right.anchorId;
-
-const cloneSelection = (selection: VectorEditorSelection): VectorEditorSelection => ({
-  paths: selection.paths.map((reference) => ({ ...reference })),
-  anchors: selection.anchors.map((reference) => ({ ...reference })),
-  active: selection.active
-    ? { ...selection.active, target: { ...selection.active.target } }
-    : null
-});
 
 const selectHit = (
   current: VectorEditorSelection,
@@ -145,7 +138,7 @@ export class DirectSelectionToolController {
     }
 
     const selection = selectHit(
-      cloneSelection(this.dependencies.getSelection()),
+      cloneVectorEditorSelection(this.dependencies.getSelection()),
       hit,
       Boolean(options.additive)
     );

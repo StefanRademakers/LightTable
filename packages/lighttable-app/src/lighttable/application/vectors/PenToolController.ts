@@ -122,6 +122,13 @@ export class PenToolController {
     return this.documents.cancelPathCreation();
   }
 
+  /** Drops only an unfinished pointer-down gesture; placed anchors remain. */
+  cancelPointerGesture() {
+    if (!this.gesture) return false;
+    this.gesture = null;
+    return true;
+  }
+
   snapshot(): PenToolSnapshot {
     return {
       layerId: this.layerId,
