@@ -1,7 +1,8 @@
-import type { AffineMatrix, Rect, VectorId } from '@lighttable/vector-core';
+import { transformedBounds, type AffineMatrix, type Rect, type VectorId, type VectorPath } from '@lighttable/vector-core';
 
 export interface VectorRevision {
   geometry: number;
+  transform: number;
   style: number;
 }
 
@@ -32,3 +33,22 @@ export const vectorGeometryKey = (
 
 export const serializeVectorGeometryKey = (key: VectorGeometryKey) =>
   `${key.pathId}:${key.geometryRevision}:${key.toleranceBucket}`;
+
+export const vectorRenderContract = <TResource>(
+  path: VectorPath,
+  resource: TResource,
+  localBounds: Rect | null
+): VectorRenderContract<TResource> => ({
+  pathId: path.id,
+  resource,
+  localBounds,
+  documentBounds: localBounds ? transformedBounds(path.transform, localBounds) : null,
+  colorSpace: 'linear-srgb',
+  alphaMode: 'premultiplied',
+  revision: {
+    geometry: path.geometryRevision,
+    transform: path.transformRevision,
+    style: path.styleRevision
+  },
+  transform: { ...path.transform }
+});

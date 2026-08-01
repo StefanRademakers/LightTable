@@ -43,5 +43,6 @@ export const createVectorPath = (
   transform: identityAffineMatrix(),
   style: defaultVectorStyle(),
   geometryRevision: 0,
+  transformRevision: 0,
   styleRevision: 0
 });

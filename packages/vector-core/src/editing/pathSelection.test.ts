@@ -32,7 +32,8 @@ describe('path selection and transforms', () => {
       { x: 10, y: 20 }
     );
     expect(transformed.subpaths).toEqual(source.subpaths);
-    expect(transformed.geometryRevision).toBe(2);
+    expect(transformed.geometryRevision).toBe(0);
+    expect(transformed.transformRevision).toBe(2);
     expect(transformed.transform.a).toBeCloseTo(0);
     expect(transformed.transform.b).toBeCloseTo(1);
     expect(transformed.transform.c).toBeCloseTo(-1);

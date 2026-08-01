@@ -3,7 +3,6 @@ import {
   pathBounds,
   segmentAt,
   segmentCount,
-  transformedBounds,
   type Rect,
   type Vec2,
   type VectorPath
@@ -21,7 +20,6 @@ export interface RealizedSubpath {
 export interface RealizedVectorGeometry {
   key: VectorGeometryKey;
   localBounds: Rect | null;
-  documentBounds: Rect | null;
   subpaths: readonly RealizedSubpath[];
   estimatedBytes: number;
 }
@@ -64,7 +62,6 @@ export const realizeVectorPath = (
   return {
     key: vectorGeometryKey(path.id, path.geometryRevision, toleranceBucket),
     localBounds,
-    documentBounds: localBounds ? transformedBounds(path.transform, localBounds) : null,
     subpaths,
     // Two f64 coordinates per point plus a conservative per-subpath overhead.
     estimatedBytes: pointCount * 16 + subpaths.length * 32

@@ -51,6 +51,7 @@ export interface VectorPath {
   transform: AffineMatrix;
   style: VectorStyle;
   geometryRevision: number;
+  transformRevision: number;
   styleRevision: number;
 }
 

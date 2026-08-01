@@ -7,7 +7,7 @@ import type { VectorPath } from '../model/types';
 const withTransform = (path: VectorPath, transform: AffineMatrix) => ({
   ...cloneVectorPath(path),
   transform,
-  geometryRevision: path.geometryRevision + 1
+  transformRevision: path.transformRevision + 1
 });
 
 /** Applies a parent/document-space operation without baking local geometry. */

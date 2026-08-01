@@ -40,6 +40,7 @@ export class PathMutationSession {
     this.assertOpen();
     this.finished = true;
     if (this.preview.geometryRevision === this.before.geometryRevision
+      && this.preview.transformRevision === this.before.transformRevision
       && this.preview.styleRevision === this.before.styleRevision) return null;
     return {
       before: cloneVectorPath(this.before),
