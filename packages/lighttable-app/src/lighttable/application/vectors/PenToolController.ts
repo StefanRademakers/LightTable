@@ -1,5 +1,10 @@
 import {
+  identityAffineMatrix,
+  invertMatrix,
   PenPathBuilder,
+  transformPoint,
+  type AffineMatrix,
+  type PenPathDirection,
   type Vec2,
   type VectorIdSource,
   type VectorPath,
@@ -64,6 +69,9 @@ export class PenToolController {
   private readonly style: () => VectorStyle;
   private readonly layerName: string;
   private readonly pathName: string;
+  private documentToPath: AffineMatrix = identityAffineMatrix();
+  private pathToDocument: AffineMatrix = identityAffineMatrix();
+  private transaction: 'creation' | 'mutation' | null = null;
 
   constructor(
     private readonly documents: VectorDocumentController,
@@ -78,14 +86,14 @@ export class PenToolController {
   pointerDown(position: Vec2) {
     if (this.gesture) return false;
     if (!this.builder && !this.openPath()) return false;
-    this.gesture = { position: { ...position } };
+    this.gesture = { position: transformPoint(this.documentToPath, position) };
     return true;
   }
 
   pointerMove(position: Vec2) {
     if (!this.builder || !this.gesture) return false;
     return this.preview(this.builder.previewPlace(this.gesture.position, {
-      dragTo: position
+      dragTo: transformPoint(this.documentToPath, position)
     }));
   }
 
@@ -93,8 +101,9 @@ export class PenToolController {
     if (!this.builder || !this.gesture) return false;
     const start = this.gesture.position;
     this.gesture = null;
-    const dragTo = distanceSquared(start, position) > 0
-      ? position
+    const local = transformPoint(this.documentToPath, position);
+    const dragTo = distanceSquared(start, local) > 0
+      ? local
       : undefined;
     return this.preview(this.builder.place(start, { dragTo }));
   }
@@ -103,7 +112,8 @@ export class PenToolController {
   tryClose(position: Vec2, tolerance: number) {
     const first = this.builder?.firstAnchor();
     if (!first || !this.builder || this.builder.anchorCount() < 3) return false;
-    if (distanceSquared(first.position, position) > tolerance * tolerance) return false;
+    const firstDocument = transformPoint(this.pathToDocument, first.position);
+    if (distanceSquared(firstDocument, position) > tolerance * tolerance) return false;
     const closed = this.builder.close();
     if (!this.preview(closed)) return false;
     return this.commit();
@@ -118,8 +128,40 @@ export class PenToolController {
 
   cancel() {
     if (!this.builder) return false;
+    const transaction = this.transaction;
     this.reset();
-    return this.documents.cancelPathCreation();
+    return transaction === 'mutation'
+      ? this.documents.cancelPathMutation()
+      : this.documents.cancelPathCreation();
+  }
+
+  resumePath(
+    layerId: LayerId,
+    path: VectorPath,
+    subpathId: string,
+    direction: PenPathDirection,
+    pathToDocument: AffineMatrix
+  ) {
+    if (this.builder || this.gesture) return false;
+    const documentToPath = invertMatrix(pathToDocument);
+    if (!documentToPath) return false;
+    if (!this.documents.beginPathMutation(layerId, path.id)) return false;
+    try {
+      this.builder = PenPathBuilder.resume(path, subpathId, this.ids, direction);
+      this.layerId = layerId;
+      this.documentToPath = { ...documentToPath };
+      this.pathToDocument = { ...pathToDocument };
+      this.transaction = 'mutation';
+      return true;
+    } catch (error) {
+      this.documents.cancelPathMutation();
+      this.reset();
+      throw error;
+    }
+  }
+
+  isActive() {
+    return this.builder !== null;
   }
 
   /** Drops only an unfinished pointer-down gesture; placed anchors remain. */
@@ -147,17 +189,25 @@ export class PenToolController {
     if (!layerId) return false;
     this.builder = builder;
     this.layerId = layerId;
+    this.documentToPath = identityAffineMatrix();
+    this.pathToDocument = identityAffineMatrix();
+    this.transaction = 'creation';
     return true;
   }
 
   private preview(path: VectorPath) {
-    if (this.documents.previewPathCreation(path)) return true;
+    const previewed = this.transaction === 'mutation'
+      ? this.documents.previewPathMutation(() => path)
+      : this.documents.previewPathCreation(path);
+    if (previewed) return true;
     this.reset();
     return false;
   }
 
   private commit() {
-    const committed = this.documents.commitPathCreation();
+    const committed = this.transaction === 'mutation'
+      ? this.documents.commitPathMutation()
+      : this.documents.commitPathCreation();
     this.reset();
     return committed;
   }
@@ -166,5 +216,8 @@ export class PenToolController {
     this.builder = null;
     this.layerId = null;
     this.gesture = null;
+    this.documentToPath = identityAffineMatrix();
+    this.pathToDocument = identityAffineMatrix();
+    this.transaction = null;
   }
 }

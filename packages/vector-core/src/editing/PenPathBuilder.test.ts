@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PenPathBuilder, type VectorIdSource } from './PenPathBuilder';
+import { createAnchor, createSubpath, createVectorPath } from '../model/factories';
 
 const ids = (): VectorIdSource => {
   let value = 0;
@@ -31,5 +32,24 @@ describe('PenPathBuilder', () => {
       handleOut: { x: 14, y: 13 },
       mode: 'symmetric'
     });
+  });
+
+  it('resumes either endpoint of an existing open path without duplicating it', () => {
+    const source = createVectorPath('path', 'Path', [createSubpath('subpath', [
+      createAnchor('first', { x: 10, y: 10 }),
+      createAnchor('last', { x: 30, y: 10 })
+    ])]);
+    const append = PenPathBuilder.resume(source, 'subpath', ids(), 'append');
+    const appended = append.place({ x: 50, y: 20 });
+    expect(appended.subpaths[0].anchors.map(({ id }) => id)).toEqual([
+      'first', 'last', 'anchor-1'
+    ]);
+
+    const prepend = PenPathBuilder.resume(source, 'subpath', ids(), 'prepend');
+    const prepended = prepend.place({ x: -10, y: 20 });
+    expect(prepended.subpaths[0].anchors.map(({ id }) => id)).toEqual([
+      'anchor-1', 'first', 'last'
+    ]);
+    expect(source.subpaths[0].anchors).toHaveLength(2);
   });
 });

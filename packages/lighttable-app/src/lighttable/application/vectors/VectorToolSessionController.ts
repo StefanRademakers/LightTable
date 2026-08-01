@@ -1,4 +1,9 @@
-import type { AnchorMode, VectorIdSource, Vec2, VectorStyle } from '@lighttable/vector-core';
+import {
+  type AnchorMode,
+  type VectorIdSource,
+  type Vec2,
+  type VectorStyle
+} from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { VectorEditorSelection } from '../../editor/session/editorSession';
 import {
@@ -15,6 +20,7 @@ import {
   VectorPointToolController,
   type VectorPointToolMode
 } from './VectorPointToolController';
+import { hitTestVectorDocument } from './vectorSceneQueries';
 
 export type VectorToolMode = 'direct-selection' | 'pen' | VectorPointToolMode;
 
@@ -108,6 +114,9 @@ export class VectorToolSessionController {
     if (!documentId) return false;
 
     if (this.activeMode === 'pen') {
+      if (!this.pen.isActive() && this.tryResumePenPath(documentPoint, options.hitRadius)) {
+        return true;
+      }
       if (this.pen.tryClose(
         documentPoint,
         options.closeTolerance ?? options.hitRadius
@@ -266,5 +275,36 @@ export class VectorToolSessionController {
 
   private assertAvailable() {
     return !this.disposed;
+  }
+
+  private tryResumePenPath(documentPoint: Vec2, radius: number) {
+    const document = this.dependencies.getDocument();
+    if (!document) return false;
+    const hit = hitTestVectorDocument(document, {
+      documentPoint,
+      radius,
+      includeFill: false,
+      includeHandles: false
+    });
+    if (!hit || hit.target.kind !== 'anchor') return false;
+    const target = hit.target;
+    const path = hit.layer.paths.find(({ id }) => id === hit.pathId);
+    const subpath = path?.subpaths.find(({ id }) => id === target.subpathId);
+    if (!path || !subpath || subpath.closed || subpath.anchors.length === 0) return false;
+    const index = subpath.anchors.findIndex(({ id }) => id === target.anchorId);
+    const direction = index === subpath.anchors.length - 1
+      ? 'append'
+      : index === 0
+        ? 'prepend'
+        : null;
+    return direction
+      ? this.pen.resumePath(
+          hit.layerId,
+          path,
+          subpath.id,
+          direction,
+          hit.documentPath.transform
+        )
+      : false;
   }
 }

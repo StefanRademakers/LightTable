@@ -210,6 +210,21 @@ export const appendAnchor = (
   return incrementGeometryRevision(next);
 };
 
+export const prependAnchor = (
+  path: VectorPath,
+  subpathId: string,
+  anchor: VectorAnchor
+) => {
+  if (path.subpaths.some((subpath) => subpath.anchors.some(({ id }) => id === anchor.id))) {
+    throw new Error(`Anchor id ${anchor.id} already exists in path ${path.id}.`);
+  }
+  const next = cloneVectorPath(path);
+  const subpath = next.subpaths.find(({ id }) => id === subpathId);
+  if (!subpath) throw new Error(`Unknown vector subpath ${subpathId}.`);
+  subpath.anchors.unshift(cloneVectorAnchor(anchor));
+  return incrementGeometryRevision(next);
+};
+
 export const closeSubpath = (path: VectorPath, subpathId: string) => {
   const next = cloneVectorPath(path);
   const subpath = next.subpaths.find(({ id }) => id === subpathId);

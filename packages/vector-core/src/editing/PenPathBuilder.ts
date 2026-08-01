@@ -2,7 +2,7 @@ import { createAnchor, createSubpath, createVectorPath } from '../model/factorie
 import { cloneVectorAnchor, cloneVectorPath, cloneVectorStyle } from '../model/clone';
 import type { VectorAnchor, VectorPath, VectorStyle } from '../model/types';
 import type { Vec2 } from '../math/vector';
-import { appendAnchor, closeSubpath } from './pathMutations';
+import { appendAnchor, closeSubpath, prependAnchor } from './pathMutations';
 
 export interface VectorIdSource {
   next(kind: 'path' | 'subpath' | 'anchor'): string;
@@ -12,6 +12,8 @@ export interface PlaceAnchorOptions {
   /** Drag endpoint in path-local coordinates. Creates symmetric Bézier handles. */
   dragTo?: Vec2;
 }
+
+export type PenPathDirection = 'append' | 'prepend';
 
 const anchorFromGesture = (
   id: string,
@@ -40,10 +42,17 @@ export class PenPathBuilder {
   private finished = false;
   private pendingAnchorId: string | null = null;
 
-  constructor(path: VectorPath, subpathId: string, private readonly ids: VectorIdSource) {
-    if (!path.subpaths.some(({ id }) => id === subpathId)) {
+  constructor(
+    path: VectorPath,
+    subpathId: string,
+    private readonly ids: VectorIdSource,
+    private readonly direction: PenPathDirection = 'append'
+  ) {
+    const subpath = path.subpaths.find(({ id }) => id === subpathId);
+    if (!subpath) {
       throw new Error(`Unknown vector subpath ${subpathId}.`);
     }
+    if (subpath.closed) throw new Error('A closed vector subpath cannot be continued.');
     this.path = cloneVectorPath(path);
     this.subpathId = subpathId;
   }
@@ -60,10 +69,25 @@ export class PenPathBuilder {
     );
   }
 
+  static resume(
+    path: VectorPath,
+    subpathId: string,
+    ids: VectorIdSource,
+    direction: PenPathDirection
+  ) {
+    const subpath = path.subpaths.find(({ id }) => id === subpathId);
+    if (!subpath || subpath.closed || subpath.anchors.length === 0) {
+      throw new Error('Only a non-empty open vector subpath can be continued.');
+    }
+    return new PenPathBuilder(path, subpathId, ids, direction);
+  }
+
   place(position: Vec2, options: PlaceAnchorOptions = {}) {
     this.assertOpen();
     const anchor = anchorFromGesture(this.takePendingAnchorId(), position, options);
-    this.path = appendAnchor(this.path, this.subpathId, anchor);
+    this.path = this.direction === 'append'
+      ? appendAnchor(this.path, this.subpathId, anchor)
+      : prependAnchor(this.path, this.subpathId, anchor);
     return this.snapshot();
   }
 
@@ -71,7 +95,9 @@ export class PenPathBuilder {
   previewPlace(position: Vec2, options: PlaceAnchorOptions = {}) {
     this.assertOpen();
     const anchor = anchorFromGesture(this.getPendingAnchorId(), position, options);
-    return appendAnchor(this.path, this.subpathId, anchor);
+    return this.direction === 'append'
+      ? appendAnchor(this.path, this.subpathId, anchor)
+      : prependAnchor(this.path, this.subpathId, anchor);
   }
 
   close() {
@@ -96,7 +122,8 @@ export class PenPathBuilder {
   }
 
   firstAnchor(): VectorAnchor | null {
-    const anchor = this.path.subpaths.find(({ id }) => id === this.subpathId)?.anchors[0];
+    const anchors = this.path.subpaths.find(({ id }) => id === this.subpathId)?.anchors;
+    const anchor = this.direction === 'append' ? anchors?.[0] : anchors?.[anchors.length - 1];
     return anchor ? cloneVectorAnchor(anchor) : null;
   }
 

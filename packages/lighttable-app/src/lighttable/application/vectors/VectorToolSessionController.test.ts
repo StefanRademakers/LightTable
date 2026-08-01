@@ -242,4 +242,55 @@ describe('VectorToolSessionController', () => {
         handleIn: { x: 10, y: 10 }
       });
   });
+
+  it('resumes a transformed open path endpoint as one mutation transaction', () => {
+    const state = setup();
+    const path = createVectorPath('existing', 'Existing', [createSubpath('open', [
+      createAnchor('first', { x: 10, y: 10 }),
+      createAnchor('last', { x: 40, y: 10 })
+    ])]);
+    path.transform = { a: 2, b: 0, c: 0, d: 2, tx: 5, ty: 7 };
+    const layer = createVectorLayer([path]);
+    state.document.layers = [layer];
+    state.controller.activate('pen');
+
+    // First click takes ownership of the existing endpoint, but does not add
+    // a duplicate anchor or start a second history command.
+    expect(state.controller.pointerDown(1, { x: 85, y: 27 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.ownsPointer(1)).toBe(false);
+    expect(state.history).toHaveLength(0);
+
+    expect(state.controller.pointerDown(2, { x: 125, y: 67 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.pointerUp(2, { x: 125, y: 67 })).toBe(true);
+    expect(state.controller.finishPenPath()).toBe(true);
+    expect(state.history).toHaveLength(1);
+    const updated = findDocumentLayer(state.document, layer.id);
+    expect(updated?.type === 'vector'
+      ? updated.paths[0].subpaths[0].anchors.map(({ position }) => position)
+      : []).toEqual([
+        { x: 10, y: 10 },
+        { x: 40, y: 10 },
+        { x: 60, y: 30 }
+      ]);
+    expect(updated?.type === 'vector' ? updated.paths[0].transform : null).toEqual(path.transform);
+  });
+
+  it('restores an existing path exactly when a resumed pen edit is cancelled', () => {
+    const state = setup();
+    const path = createVectorPath('existing', 'Existing', [createSubpath('open', [
+      createAnchor('first', { x: 10, y: 10 }),
+      createAnchor('last', { x: 40, y: 10 })
+    ])]);
+    const layer = createVectorLayer([path]);
+    state.document.layers = [layer];
+    const opening = state.document;
+    state.controller.activate('pen');
+    state.controller.pointerDown(1, { x: 10, y: 10 }, { hitRadius: 3 });
+    state.controller.pointerDown(2, { x: -20, y: 25 }, { hitRadius: 3 });
+    state.controller.pointerUp(2, { x: -20, y: 25 });
+
+    expect(state.controller.cancelPenPath()).toBe(true);
+    expect(state.document).toBe(opening);
+    expect(state.history).toHaveLength(0);
+  });
 });
