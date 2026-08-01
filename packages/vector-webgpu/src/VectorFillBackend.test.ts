@@ -65,6 +65,12 @@ describe('VectorFillBackend', () => {
     expect(backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, realized, target)).toBe(true);
     expect(backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, realized, target)).toBe(true);
     expect(device.createRenderPipeline).toHaveBeenCalledTimes(3);
+    expect(device.createRenderPipeline).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      fragment: expect.objectContaining({
+        entryPoint: 'stencilFragment',
+        targets: [{ format: 'rgba16float', writeMask: 0 }]
+      })
+    }));
     expect(buffers.filter(({ label }) => label.startsWith('LightTable vector geometry'))).toHaveLength(1);
     expect(pass.draw).toHaveBeenCalledTimes(4);
     expect(backend.cacheMetrics()).toMatchObject({ entries: 1, hits: 1, misses: 1 });

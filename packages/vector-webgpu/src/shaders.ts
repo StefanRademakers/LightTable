@@ -21,6 +21,14 @@ fn stencilVertex(input: VertexInput) -> @builtin(position) vec4f {
   let relative = (documentPosition - settings.tile.xy) / settings.tile.zw;
   return vec4f(relative.x * 2.0 - 1.0, 1.0 - relative.y * 2.0, 0.0, 1.0);
 }
+
+// The stencil and cover draws intentionally share one render pass. WebGPU
+// therefore requires both pipelines to declare the same color attachment
+// layout, even though the stencil draw must not modify the color surface.
+@fragment
+fn stencilFragment() -> @location(0) vec4f {
+  return vec4f(0.0);
+}
 `;
 
 export const VECTOR_COVER_WGSL = /* wgsl */ `

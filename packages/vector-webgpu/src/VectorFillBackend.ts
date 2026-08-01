@@ -288,6 +288,11 @@ export class VectorFillBackend {
           attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }]
         }]
       },
+      fragment: {
+        module: stencilModule,
+        entryPoint: 'stencilFragment',
+        targets: [{ format, writeMask: 0 }]
+      },
       primitive: { topology: 'triangle-list', frontFace: 'ccw', cullMode: 'none' },
       depthStencil: {
         format: 'depth24plus-stencil8',
