@@ -356,15 +356,17 @@
   align-content: start;
 }
 
-.lighttable-launcher__new-grid {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 14px;
-  margin-bottom: 6px;
+.lighttable-new-document-dialog {
+  width: min(360px, calc(100vw - 32px));
 }
 
-.lighttable-launcher__new-grid label {
+.lighttable-new-document-dialog__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lighttable-new-document-dialog__fields label {
   min-width: 0;
   display: grid;
   gap: 5px;
@@ -372,27 +374,17 @@
   font-size: var(--lt-type-label);
 }
 
-.lighttable-launcher__new-grid input,
-.lighttable-launcher__new-grid output {
+.lighttable-new-document-dialog__fields input {
   width: 100%;
-}
-
-.lighttable-launcher__number-field {
   appearance: textfield;
   -moz-appearance: textfield;
 }
 
-.lighttable-launcher__number-field::-webkit-inner-spin-button,
-.lighttable-launcher__number-field::-webkit-outer-spin-button {
+.lighttable-new-document-dialog__fields input::-webkit-inner-spin-button,
+.lighttable-new-document-dialog__fields input::-webkit-outer-spin-button {
   margin: 0;
   appearance: none;
   -webkit-appearance: none;
-}
-
-.lighttable-launcher__fixed-field {
-  display: flex;
-  align-items: center;
-  color: var(--lt-text-disabled);
 }
 
 .lighttable-launcher__primary-action,

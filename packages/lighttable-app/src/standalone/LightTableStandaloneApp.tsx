@@ -22,6 +22,7 @@ import {
   imagePickerFormatNames
 } from '../lighttable/image-io/supportedImageFormats';
 import { createBlankPngFile } from './createBlankPngFile';
+import { NewDocumentDialog } from './NewDocumentDialog';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -46,9 +47,7 @@ export function LightTableStandaloneApp({
   } = useStandaloneDocumentWorkspace();
   const [opening, setOpening] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [newWidth, setNewWidth] = useState(1920);
-  const [newHeight, setNewHeight] = useState(1080);
-  const [newResolution, setNewResolution] = useState(72);
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
   const fileDrop = useStandaloneFileDrop(openDocument);
 
@@ -93,22 +92,31 @@ export function LightTableStandaloneApp({
     }
   }, [host, openDocument, refreshRecentFiles]);
 
-  const createDocument = useCallback(async () => {
-    const width = Math.round(newWidth);
-    const height = Math.round(newHeight);
-    const resolutionPpi = Math.round(newResolution);
-    if (
-      !Number.isFinite(width) || !Number.isFinite(height) ||
-      width < 1 || height < 1 || width > 16384 || height > 16384 ||
-      !Number.isFinite(resolutionPpi) || resolutionPpi < 1 || resolutionPpi > 2400
-    ) return;
+  const createDocument = useCallback(async ({
+    width,
+    height
+  }: { width: number; height: number }) => {
     setCreating(true);
     try {
-      openDocument(await createBlankPngFile({ width, height, resolutionPpi }));
+      openDocument(await createBlankPngFile({ width, height, resolutionPpi: 72 }));
+      setNewDialogOpen(false);
     } finally {
       setCreating(false);
     }
-  }, [newHeight, newResolution, newWidth, openDocument]);
+  }, [openDocument]);
+
+  const requestNewDocument = useCallback(() => setNewDialogOpen(true), []);
+
+  useEffect(() => {
+    const handleNewShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey
+        || event.key.toLowerCase() !== 'n') return;
+      event.preventDefault();
+      requestNewDocument();
+    };
+    window.addEventListener('keydown', handleNewShortcut, true);
+    return () => window.removeEventListener('keydown', handleNewShortcut, true);
+  }, [requestNewDocument]);
 
   const closeDocument = useCallback((documentId: string) => {
     const id = documentId as DocumentSessionId;
@@ -171,16 +179,9 @@ export function LightTableStandaloneApp({
 
             <section className="lighttable-launcher__card lighttable-launcher__new-card">
               <h1>New document</h1>
-              <div className="lighttable-launcher__new-grid">
-                <label><span>Width</span><input className="form-input lighttable-launcher__number-field" type="number" inputMode="numeric" min="1" max="16384" value={newWidth} onChange={(event) => setNewWidth(event.currentTarget.valueAsNumber)} /></label>
-                <label><span>Height</span><input className="form-input lighttable-launcher__number-field" type="number" inputMode="numeric" min="1" max="16384" value={newHeight} onChange={(event) => setNewHeight(event.currentTarget.valueAsNumber)} /></label>
-                <label><span>Resolution</span><input className="form-input lighttable-launcher__number-field" type="number" inputMode="numeric" min="1" max="2400" value={newResolution} onChange={(event) => setNewResolution(event.currentTarget.valueAsNumber)} /></label>
-                <label><span>Units</span><output className="form-input lighttable-launcher__fixed-field">pixels</output></label>
-                <label><span>Resolution units</span><output className="form-input lighttable-launcher__fixed-field">pixels/inch</output></label>
-                <label><span>Color depth</span><output className="form-input lighttable-launcher__fixed-field">8 bits/channel</output></label>
-              </div>
-              <button className="action-button lighttable-launcher__primary-action" type="button" disabled={creating} onClick={() => void createDocument()}>
-                {creating ? 'Creating…' : 'Create'}
+              <p>Create an empty image document.</p>
+              <button className="action-button lighttable-launcher__primary-action" type="button" onClick={requestNewDocument}>
+                New document
               </button>
             </section>
           </div>
@@ -201,6 +202,13 @@ export function LightTableStandaloneApp({
             </section>
           ) : null}
         </div>
+        <NewDocumentDialog
+          open={newDialogOpen}
+          clipboard={host.clipboard}
+          creating={creating}
+          onCancel={() => setNewDialogOpen(false)}
+          onCreate={(size) => void createDocument(size)}
+        />
       </main>
     );
   }
@@ -233,9 +241,17 @@ export function LightTableStandaloneApp({
           onActivate={activateDocument}
           onClose={closeDocument}
           onRequestOpen={host.openFile ? requestHostDocument : undefined}
+          onRequestNew={requestNewDocument}
           onOpen={openDocument}
         />
       ))}
+      <NewDocumentDialog
+        open={newDialogOpen}
+        clipboard={host.clipboard}
+        creating={creating}
+        onCancel={() => setNewDialogOpen(false)}
+        onCreate={(size) => void createDocument(size)}
+      />
     </>
   );
 }

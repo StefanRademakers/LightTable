@@ -17,10 +17,10 @@ export interface EditorMenuControllerOptions {
   readonly projection: EditorMenuProjectionInput;
   readonly labels: EditorMenuLabels;
   readonly file: {
+    newDocument(): void;
     open(): void;
     save(): void;
-    download(): void;
-    reset(): void;
+    exportPng(): void;
   };
   readonly edit: {
     copySelectedContent(): void;
@@ -96,10 +96,10 @@ export const createEditorMenuController = ({
     state,
     labels,
     {
+      newDocument: file.newDocument,
       open: file.open,
       save: file.save,
-      download: file.download,
-      reset: file.reset,
+      exportPng: file.exportPng,
       copySelectedContent: edit.copySelectedContent,
       copyMergedContent: edit.copyMergedContent,
       pasteSelectedContent: edit.pasteSelectedContent,

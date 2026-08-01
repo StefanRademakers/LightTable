@@ -26,7 +26,6 @@ describe('projectEditorMenuState', () => {
     const state = projectEditorMenuState(baseInput());
 
     expect(state.hasDocument).toBe(true);
-    expect(state.layered).toBe(false);
     expect(state.layer?.type).toBe('raster');
     expect(state.autoAlignAvailable).toBe(false);
     expect(state.blendModes.find((mode) => mode.id === 'normal')?.selected).toBe(true);
@@ -41,7 +40,6 @@ describe('projectEditorMenuState', () => {
       document: withLockedReference
     });
 
-    expect(state.layered).toBe(true);
     expect(state.autoAlignAvailable).toBe(true);
   });
 

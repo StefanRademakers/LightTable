@@ -7,6 +7,7 @@ import {
 } from 'react';
 import type { DocumentCommandHistory } from '../../application/commands/documentCommandHistory';
 import {
+  buildLightTableOutputName,
   exportLightTableDocument,
   type DocumentExportRenderer,
   type ExportedLightTableDocument
@@ -67,7 +68,7 @@ export interface DocumentFileCommands {
   readonly saving: boolean;
   exportOutput(): Promise<ExportedLightTableDocument>;
   save(): Promise<void>;
-  download(): Promise<void>;
+  exportPng(): Promise<void>;
   openLocalFile(
     file: File | null,
     decodeMode: DocumentOpenMode
@@ -153,22 +154,30 @@ export const useDocumentFileCommands = (
     setSaving(false);
   }, [exportOutput]);
 
-  const download = useCallback(async () => {
+  const exportPng = useCallback(async () => {
     const current = optionsRef.current;
     current.setError(null);
     const result = await current.taskRegistry.run(
       'export',
-      'Export image',
+      'Export PNG',
       async (task) => {
-        const output = await exportOutput();
+        const renderer = current.getRenderer();
+        if (!renderer || !current.hasMetadata) {
+          throw new Error('LightTable is not ready yet.');
+        }
+        const blob = await renderer.exportPng();
         task.throwIfCanceled();
-        downloadOutput(output.file);
+        downloadOutput(new File(
+          [blob],
+          buildLightTableOutputName(current.fileNameBase),
+          { type: 'image/png' }
+        ));
       }
     );
     if (result.status === 'failed') {
       current.setError(result.error.message || 'LightTable export failed.');
     }
-  }, [exportOutput]);
+  }, []);
 
   const openLocalFile = useCallback(async (
     file: File | null,
@@ -251,7 +260,7 @@ export const useDocumentFileCommands = (
     saving,
     exportOutput,
     save,
-    download,
+    exportPng,
     openLocalFile,
     handleFastFileInput: (event) => handleFileInput(event, 'fast'),
     handlePrecisionFileInput: (event) =>

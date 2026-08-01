@@ -10,7 +10,6 @@ const state = (change: Partial<EditorMenuState> = {}): EditorMenuState => ({
   hasDocument: true,
   hasMetadata: true,
   hasSourceKey: true,
-  layered: false,
   copiedGradeName: null,
   hasSelection: false,
   selectionClipboardAvailable: false,
@@ -49,24 +48,23 @@ const commands = (): EditorMenuCommands => new Proxy({} as EditorMenuCommands, {
 });
 
 const labels = {
-  openFormats: 'PNG, JPEG, TIFF',
   primaryShortcut: (key: string, shift = false) => `Ctrl+${shift ? 'Shift+' : ''}${key}`
 };
 
 describe('createEditorMenuOptions', () => {
-  it('keeps file capabilities declarative and distinguishes layered saves', () => {
+  it('keeps the compact file workflow declarative', () => {
     const options = createEditorMenuOptions(
       'file',
-      state({ saving: true, layered: true }),
+      state({ saving: true }),
       labels,
       commands()
     );
 
     expect(options.map((option) => option.label)).toEqual([
-      'Open (PNG, JPEG, TIFF)...',
+      'New (Ctrl+N)',
+      'Open',
       'Saving...',
-      'Download layered document',
-      'Reset'
+      'Export PNG'
     ]);
     expect(options.every((option) => option.disabled)).toBe(true);
   });

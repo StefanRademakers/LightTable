@@ -33,14 +33,13 @@ describe('createEditorMenuController', () => {
         showDifference: false
       },
       labels: {
-        openFormats: 'PNG',
         primaryShortcut: (key) => `Ctrl+${key}`
       },
       file: {
+        newDocument: vi.fn(),
         open: vi.fn(),
         save: vi.fn(),
-        download: vi.fn(),
-        reset: vi.fn()
+        exportPng: vi.fn()
       },
       edit: {
         copySelectedContent: vi.fn(),

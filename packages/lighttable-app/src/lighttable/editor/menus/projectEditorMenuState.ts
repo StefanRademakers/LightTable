@@ -63,7 +63,6 @@ export const projectEditorMenuState = ({
     hasDocument: Boolean(document),
     hasMetadata,
     hasSourceKey,
-    layered: (capabilities?.layerCount ?? 0) > 1,
     copiedGradeName,
     hasSelection,
     selectionClipboardAvailable,

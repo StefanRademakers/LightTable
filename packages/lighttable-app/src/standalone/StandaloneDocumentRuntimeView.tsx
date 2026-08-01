@@ -26,6 +26,7 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onActivate: (id: DocumentSessionId) => void;
   readonly onClose: (id: DocumentSessionId) => void;
   readonly onRequestOpen?: (decodeMode?: StandaloneDecodeMode) => Promise<void>;
+  readonly onRequestNew: () => void;
   readonly onOpen: (
     file: File,
     decodeMode?: StandaloneDecodeMode
@@ -48,6 +49,7 @@ export function StandaloneDocumentRuntimeView({
   onActivate,
   onClose,
   onRequestOpen,
+  onRequestNew,
   onOpen
 }: StandaloneDocumentRuntimeViewProps) {
   const {
@@ -86,6 +88,7 @@ export function StandaloneDocumentRuntimeView({
           onClose(documentId as DocumentSessionId);
         }}
         onRequestOpenWorkspaceDocument={onRequestOpen}
+        onRequestNewWorkspaceDocument={onRequestNew}
         onOpenWorkspaceDocument={onOpen}
         onDocumentReady={() => {
           if (session.getSnapshot().lifecycle !== 'ready') session.setReady();

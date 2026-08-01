@@ -21,7 +21,6 @@ export interface EditorMenuState {
   hasDocument: boolean;
   hasMetadata: boolean;
   hasSourceKey: boolean;
-  layered: boolean;
   copiedGradeName: string | null;
   hasSelection: boolean;
   selectionClipboardAvailable: boolean;
@@ -38,15 +37,14 @@ export interface EditorMenuState {
 }
 
 export interface EditorMenuLabels {
-  openFormats: string;
   primaryShortcut: (key: string, shift?: boolean) => string;
 }
 
 export interface EditorMenuCommands {
+  newDocument: () => void;
   open: () => void;
   save: () => void;
-  download: () => void;
-  reset: () => void;
+  exportPng: () => void;
   copySelectedContent: () => void;
   copyMergedContent: () => void;
   pasteSelectedContent: () => void;
@@ -100,30 +98,27 @@ export const createEditorMenuOptions = (
   if (menu === 'file') {
     return [
       {
+        value: 'new-document',
+        label: `New (${labels.primaryShortcut('N')})`,
+        onClick: commands.newDocument,
+        disabled: state.saving
+      },
+      {
         value: 'open-image',
-        label: `Open (${labels.openFormats})...`,
+        label: 'Open',
         onClick: commands.open,
         disabled: state.saving
       },
       {
         value: 'save-corrected',
-        label: state.saving
-          ? 'Saving...'
-          : state.layered ? 'Save layered LightTable document' : 'Save corrected PNG',
+        label: state.saving ? 'Saving...' : 'Save LightTable',
         onClick: commands.save,
         disabled: !state.hasMetadata || !state.hasSourceKey || state.saving
       },
       {
-        value: 'download',
-        label: state.layered ? 'Download layered document' : 'Download PNG',
-        onClick: commands.download,
-        disabled: !state.hasMetadata || state.saving
-      },
-      {
-        value: 'reset',
-        label: 'Reset',
-        separatorBefore: true,
-        onClick: commands.reset,
+        value: 'export-png',
+        label: 'Export PNG',
+        onClick: commands.exportPng,
         disabled: !state.hasMetadata || state.saving
       }
     ];

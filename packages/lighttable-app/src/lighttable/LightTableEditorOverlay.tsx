@@ -141,8 +141,7 @@ import {
   type PreservedSourceAssetBlob
 } from './editor/persistence/layeredDocumentFormat';
 import {
-  imagePickerAccept,
-  imagePickerFormatNames
+  imagePickerAccept
 } from './image-io/supportedImageFormats';
 import type { PsdDecodeSuccess } from './image-io/psdProtocol';
 import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
@@ -214,6 +213,7 @@ export interface LightTableEditorOverlayProps {
   }>;
   onActivateWorkspaceDocument?: (documentId: string) => void;
   onCloseWorkspaceDocument?: (documentId: string) => void;
+  onRequestNewWorkspaceDocument?: () => void;
   onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void;
   onOpenWorkspaceDocument?: (file: File, decodeMode: DocumentOpenMode) => void;
   onDocumentReady?: () => void;
@@ -245,6 +245,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   workspaceDocuments,
   onActivateWorkspaceDocument,
   onCloseWorkspaceDocument,
+  onRequestNewWorkspaceDocument,
   onRequestOpenWorkspaceDocument,
   onOpenWorkspaceDocument,
   onDocumentReady,
@@ -1323,7 +1324,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const {
     saving,
     save: handleSave,
-    download: handleDownload,
+    exportPng: handleExportPng,
     handleFastFileInput: handleLocalFile,
     handlePrecisionFileInput: handleAdvancedLocalFile,
     chooseLocalFile,
@@ -1368,16 +1369,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       showDifference
     },
     labels: {
-      openFormats: imagePickerFormatNames('fast'),
       primaryShortcut: primaryShortcutLabel
     },
     file: {
+      newDocument: () => onRequestNewWorkspaceDocument?.(),
       // The application probe selects browser-native, wasm-vips, Photoshop or
       // layered-document import after reading the source signature.
       open: () => void chooseLocalFile('automatic'),
       save: () => void handleSave(),
-      download: () => void handleDownload(),
-      reset: resetAll
+      exportPng: () => void handleExportPng()
     },
     edit: {
       copySelectedContent,
