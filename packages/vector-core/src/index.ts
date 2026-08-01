@@ -3,6 +3,7 @@ export * from './editing/pathMutations';
 export * from './editing/PathMutationSession';
 export * from './editing/PenPathBuilder';
 export * from './editing/pathSelection';
+export * from './editing/pathTopology';
 export * from './editing/pathTransforms';
 export * from './editing/vectorSelectionState';
 export * from './geometry/bezier';
