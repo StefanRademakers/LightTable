@@ -23,6 +23,7 @@ import {
   setLayerFillOpacity,
   setLayerMaskEnabled,
   setLayerOpacity,
+  setVectorLayerAntiAlias,
   setRasterLayerAdjustmentStackEnabled,
   setLayersLock,
   setLayersVisibility,
@@ -68,6 +69,7 @@ export interface LayerPanelController {
   setVisibility(layerIds: LayerId[], visible: boolean): void;
   rename(layerId: LayerId, name: string): void;
   setOpacity(layerId: LayerId, opacity: number): void;
+  setVectorAntiAlias(layerId: LayerId, antiAlias: boolean): void;
   setFillOpacity(layerId: LayerId, opacity: number): void;
   beginOpacityInteraction(): void;
   endOpacityInteraction(): void;
@@ -156,6 +158,8 @@ export const createLayerPanelController = (
       mutate((current) => renameLayer(current, layerId, name)),
     setOpacity: (layerId, opacity) =>
       mutate((current) => setLayerOpacity(current, layerId, opacity)),
+    setVectorAntiAlias: (layerId, antiAlias) =>
+      mutate((current) => setVectorLayerAntiAlias(current, layerId, antiAlias)),
     setFillOpacity: (layerId, opacity) =>
       mutate((current) => setLayerFillOpacity(current, layerId, opacity)),
     beginOpacityInteraction: () => resolveDependencies().beginDocumentTransaction(),

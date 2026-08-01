@@ -179,9 +179,9 @@ fn markerFragment(input: MarkerOutput) -> @location(0) vec4f {
   if (distance > 1.0) { discard; }
   let border = distance >= 0.64;
   let selected = input.state >= 1.0 && input.state < 3.0;
-  let active = input.state >= 2.0 && input.state < 3.0;
+  let isActive = input.state >= 2.0 && input.state < 3.0;
   let interior = select(vec4f(0.08, 0.09, 0.11, 1.0), settings.color, selected);
-  let activeInterior = select(interior, vec4f(1.0, 1.0, 1.0, 1.0), active);
+  let activeInterior = select(interior, vec4f(1.0, 1.0, 1.0, 1.0), isActive);
   return select(activeInterior, settings.color, border);
 }
 `;

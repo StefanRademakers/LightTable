@@ -31,6 +31,7 @@ interface LayerPanelProps {
   onVisibility: (layerIds: LayerId[], visible: boolean) => void;
   onRename: (layerId: LayerId, name: string) => void;
   onOpacity: (layerId: LayerId, opacity: number) => void;
+  onVectorAntiAlias: (layerId: LayerId, antiAlias: boolean) => void;
   onFillOpacity: (layerId: LayerId, opacity: number) => void;
   onOpacityInteractionStart: () => void;
   onOpacityInteractionEnd: () => void;
@@ -127,6 +128,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onVisibility,
   onRename,
   onOpacity,
+  onVectorAntiAlias,
   onFillOpacity,
   onOpacityInteractionStart,
   onOpacityInteractionEnd,
@@ -403,6 +405,16 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 onInteractionEnd={onOpacityInteractionEnd}
               />
           </div>
+          {activeLayer.type === 'vector' ? (
+            <label className="lighttable-layers__vector-antialias">
+              <input
+                type="checkbox"
+                checked={activeLayer.antiAlias}
+                onChange={(event) => onVectorAntiAlias(activeLayer.id, event.currentTarget.checked)}
+              />
+              Anti-alias edges
+            </label>
+          ) : null}
         </>
       ) : null}
       <div className="lighttable-layers__list">

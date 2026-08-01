@@ -12,6 +12,7 @@ beforeEach(() => {
 const fixture = () => {
   const destroyed: string[] = [];
   const buffers: { label: string; destroy: ReturnType<typeof vi.fn> }[] = [];
+  const textures: { descriptor: GPUTextureDescriptor; destroy: ReturnType<typeof vi.fn>; view: GPUTextureView }[] = [];
   const pass = {
     setBindGroup: vi.fn(),
     setPipeline: vi.fn(),
@@ -26,6 +27,17 @@ const fixture = () => {
     createShaderModule: vi.fn(() => ({ id: 'shader' })),
     createRenderPipeline: vi.fn(() => ({ id: 'pipeline' })),
     createBindGroup: vi.fn(() => ({ id: 'bind-group' })),
+    createTexture: vi.fn((descriptor: GPUTextureDescriptor) => {
+      const view = {} as GPUTextureView;
+      const texture = {
+        descriptor,
+        view,
+        createView: vi.fn(() => view),
+        destroy: vi.fn(() => destroyed.push(String(descriptor.label)))
+      };
+      textures.push(texture);
+      return texture;
+    }),
     createBuffer: vi.fn(({ label }: { label: string }) => {
       const buffer = { label, destroy: vi.fn(() => destroyed.push(label)) };
       buffers.push(buffer);
@@ -37,7 +49,7 @@ const fixture = () => {
     }
   };
   const encoder = { beginRenderPass: vi.fn(() => pass) };
-  return { device, encoder, pass, buffers, destroyed };
+  return { device, encoder, pass, buffers, textures, destroyed };
 };
 
 const pathFixture = () => createVectorPath('p', 'Shape', [createSubpath('s', [
@@ -47,6 +59,32 @@ const pathFixture = () => createVectorPath('p', 'Shape', [createSubpath('s', [
 ], true)]);
 
 describe('VectorFillBackend', () => {
+  it('creates a four-sample render target resolved into the reusable vector texture', () => {
+    const { device, textures, destroyed } = fixture();
+    const backend = new VectorFillBackend(device as unknown as GPUDevice);
+
+    const surface = backend.createSurface(320, 180, 'rgba16float', true);
+
+    expect(surface.sampleCount).toBe(4);
+    expect(textures.map(({ descriptor }) => ({
+      label: descriptor.label,
+      sampleCount: descriptor.sampleCount ?? 1
+    }))).toEqual([
+      { label: 'LightTable vector color surface', sampleCount: 1 },
+      { label: 'LightTable vector multisample color surface', sampleCount: 4 },
+      { label: 'LightTable vector stencil surface', sampleCount: 4 }
+    ]);
+    expect(surface.renderColor).not.toBe(surface.color);
+
+    surface.dispose();
+    expect(destroyed).toEqual([
+      'LightTable vector color surface',
+      'LightTable vector multisample color surface',
+      'LightTable vector stencil surface'
+    ]);
+    backend.dispose();
+  });
+
   it('compiles lazily and reuses geometry by revision key', async () => {
     const { device, encoder, pass, buffers, destroyed } = fixture();
     const backend = new VectorFillBackend(device as unknown as GPUDevice);
@@ -55,8 +93,10 @@ describe('VectorFillBackend', () => {
     const realized = realizeVectorPath(path, 0.25);
     const target = {
       colorView: {} as GPUTextureView,
+      resolveView: null,
       stencilView: {} as GPUTextureView,
       format: 'rgba16float' as GPUTextureFormat,
+      sampleCount: 1,
       origin: { x: 0, y: 0 },
       width: 200,
       height: 200
@@ -105,8 +145,10 @@ describe('VectorFillBackend', () => {
     const realized = realizeVectorPath(path, 0.25);
     const target = {
       colorView: {} as GPUTextureView,
+      resolveView: null,
       stencilView: {} as GPUTextureView,
       format: 'rgba16float' as GPUTextureFormat,
+      sampleCount: 1,
       origin: { x: 0, y: 0 },
       width: 200,
       height: 200

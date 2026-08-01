@@ -28,11 +28,12 @@ export class VectorLayerRenderer {
     dimensions: { width: number; height: number }
   ): GPUTexture {
     const backend = this.backend ??= new VectorFillBackend(this.device);
-    const surface = this.ensureSurface(backend, dimensions);
+    const surface = this.ensureSurface(backend, dimensions, layer.antiAlias);
     const clear = encoder.beginRenderPass({
       label: `Clear vector layer: ${layer.name}`,
       colorAttachments: [{
-        view: surface.colorView,
+        view: surface.renderColorView,
+        resolveTarget: surface.sampleCount > 1 ? surface.colorView : undefined,
         clearValue: { r: 0, g: 0, b: 0, a: 0 },
         loadOp: 'clear',
         storeOp: 'store'
@@ -55,9 +56,11 @@ export class VectorLayerRenderer {
         renderPath,
         realized,
         {
-          colorView: surface.colorView,
+          colorView: surface.renderColorView,
+          resolveView: surface.sampleCount > 1 ? surface.colorView : null,
           stencilView: surface.stencilView,
           format: surface.format,
+          sampleCount: surface.sampleCount,
           origin: { x: 0, y: 0 },
           width: surface.width,
           height: surface.height
@@ -68,9 +71,11 @@ export class VectorLayerRenderer {
         renderPath,
         realized,
         {
-          colorView: surface.colorView,
+          colorView: surface.renderColorView,
+          resolveView: surface.sampleCount > 1 ? surface.colorView : null,
           stencilView: surface.stencilView,
           format: surface.format,
+          sampleCount: surface.sampleCount,
           origin: { x: 0, y: 0 },
           width: surface.width,
           height: surface.height
@@ -86,8 +91,9 @@ export class VectorLayerRenderer {
 
   estimatedTextureBytes() {
     if (!this.surface) return 0;
-    // rgba16float plus a conservative 4 bytes/pixel stencil estimate.
-    return this.surface.width * this.surface.height * 12;
+    // Resolved rgba16float plus multisampled color and stencil attachments.
+    return this.surface.width * this.surface.height
+      * (8 + this.surface.sampleCount * 12);
   }
 
   destroy() {
@@ -99,15 +105,17 @@ export class VectorLayerRenderer {
 
   private ensureSurface(
     backend: VectorFillBackend,
-    dimensions: { width: number; height: number }
+    dimensions: { width: number; height: number },
+    antiAlias: boolean
   ) {
     if (
       this.surface
       && this.surface.width === dimensions.width
       && this.surface.height === dimensions.height
+      && this.surface.sampleCount === (antiAlias ? 4 : 1)
     ) return this.surface;
     this.surface?.dispose();
-    this.surface = backend.createSurface(dimensions.width, dimensions.height);
+    this.surface = backend.createSurface(dimensions.width, dimensions.height, 'rgba16float', antiAlias);
     return this.surface;
   }
 }

@@ -459,6 +459,7 @@ describe('LightTable layered PNG format', () => {
     shape.transform = translationMatrix(-1, 4);
     shape.transformRevision = 1;
     const vector = createVectorLayer([path, shape], 'Logo shape');
+    vector.antiAlias = false;
     const document = {
       ...source,
       layers: [...source.layers, vector],
@@ -484,6 +485,7 @@ describe('LightTable layered PNG format', () => {
     expect(parsedVector?.type === 'vector' ? parsedVector.elements : null).toEqual([path, shape]);
     expect(parsedVector?.type === 'vector' ? parsedVector.elements[1]?.type : null)
       .toBe('live-shape');
+    expect(parsedVector?.type === 'vector' ? parsedVector.antiAlias : null).toBe(false);
     expect(parsed?.assets.map((asset) => asset.layerId)).toEqual([source.layers[0].id]);
   });
 

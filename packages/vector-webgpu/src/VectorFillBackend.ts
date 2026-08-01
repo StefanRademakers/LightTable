@@ -25,8 +25,10 @@ interface PipelineBundle {
 
 export interface VectorFillTarget {
   colorView: GPUTextureView;
+  resolveView: GPUTextureView | null;
   stencilView: GPUTextureView;
   format: GPUTextureFormat;
+  sampleCount: number;
   origin: { x: number; y: number };
   width: number;
   height: number;
@@ -34,12 +36,15 @@ export interface VectorFillTarget {
 
 export interface VectorFillSurface {
   color: GPUTexture;
+  renderColor: GPUTexture;
   stencil: GPUTexture;
   colorView: GPUTextureView;
+  renderColorView: GPUTextureView;
   stencilView: GPUTextureView;
   width: number;
   height: number;
   format: GPUTextureFormat;
+  sampleCount: number;
   dispose(): void;
 }
 
@@ -55,7 +60,7 @@ const premultiplied = (paint: SolidPaint, opacity: number) => {
 
 export class VectorFillBackend {
   private readonly geometry: RevisionedResourceCache<CachedVertexBuffer>;
-  private readonly pipelines = new Map<GPUTextureFormat, PipelineBundle>();
+  private readonly pipelines = new Map<string, PipelineBundle>();
   private readonly settingsLayout: GPUBindGroupLayout;
   private pendingUniforms: GPUBuffer[] = [];
   private disposed = false;
@@ -72,7 +77,12 @@ export class VectorFillBackend {
     });
   }
 
-  createSurface(width: number, height: number, format: GPUTextureFormat = 'rgba16float'): VectorFillSurface {
+  createSurface(
+    width: number,
+    height: number,
+    format: GPUTextureFormat = 'rgba16float',
+    antiAlias = true
+  ): VectorFillSurface {
     this.assertUsable();
     if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
       throw new RangeError('Vector surface dimensions must be positive integers.');
@@ -83,22 +93,35 @@ export class VectorFillBackend {
       format,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
     });
+    const sampleCount = antiAlias ? 4 : 1;
+    const renderColor = sampleCount === 1 ? color : this.device.createTexture({
+      label: 'LightTable vector multisample color surface',
+      size: { width, height },
+      format,
+      sampleCount,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT
+    });
     const stencil = this.device.createTexture({
       label: 'LightTable vector stencil surface',
       size: { width, height },
       format: 'depth24plus-stencil8',
+      sampleCount,
       usage: GPUTextureUsage.RENDER_ATTACHMENT
     });
     return {
       color,
+      renderColor,
       stencil,
       colorView: color.createView(),
+      renderColorView: renderColor.createView(),
       stencilView: stencil.createView(),
       width,
       height,
       format,
+      sampleCount,
       dispose: () => {
         color.destroy();
+        if (renderColor !== color) renderColor.destroy();
         stencil.destroy();
       }
     };
@@ -115,7 +138,7 @@ export class VectorFillBackend {
     if (!fill || path.style.opacity <= 0 || target.width <= 0 || target.height <= 0) return false;
     const resource = this.prepareFillGeometry(realized);
     if (resource.vertexCount === 0) return false;
-    const bundle = this.pipelineBundle(target.format);
+    const bundle = this.pipelineBundle(target.format, target.sampleCount);
     return this.encodeGeometry(
       encoder,
       resource,
@@ -141,7 +164,7 @@ export class VectorFillBackend {
     if (!mesh.vertices.length) return false;
     const key = `stroke:${serializeVectorGeometryKey(realized.key)}:${path.styleRevision}`;
     const resource = this.prepareVertices(key, mesh.vertices);
-    const bundle = this.pipelineBundle(target.format);
+    const bundle = this.pipelineBundle(target.format, target.sampleCount);
     return this.encodeGeometry(
       encoder,
       resource,
@@ -185,6 +208,7 @@ export class VectorFillBackend {
       label: 'LightTable vector stencil and cover',
       colorAttachments: [{
         view: target.colorView,
+        resolveTarget: target.resolveView ?? undefined,
         loadOp: 'load',
         storeOp: 'store'
       }],
@@ -261,8 +285,9 @@ export class VectorFillBackend {
     }, bytes);
   }
 
-  private pipelineBundle(format: GPUTextureFormat) {
-    const cached = this.pipelines.get(format);
+  private pipelineBundle(format: GPUTextureFormat, sampleCount: number) {
+    const key = `${format}:${sampleCount}`;
+    const cached = this.pipelines.get(key);
     if (cached) return cached;
     const layout = this.device.createPipelineLayout({ bindGroupLayouts: [this.settingsLayout] });
     const stencilModule = this.device.createShaderModule({
@@ -294,6 +319,7 @@ export class VectorFillBackend {
         targets: [{ format, writeMask: 0 }]
       },
       primitive: { topology: 'triangle-list', frontFace: 'ccw', cullMode: 'none' },
+      multisample: { count: sampleCount },
       depthStencil: {
         format: 'depth24plus-stencil8',
         depthWriteEnabled: false,
@@ -329,6 +355,7 @@ export class VectorFillBackend {
           }]
         },
         primitive: { topology: 'triangle-list' },
+        multisample: { count: sampleCount },
         depthStencil: {
           format: 'depth24plus-stencil8',
           depthWriteEnabled: false,
@@ -338,7 +365,7 @@ export class VectorFillBackend {
         }
       })
     };
-    this.pipelines.set(format, bundle);
+    this.pipelines.set(key, bundle);
     return bundle;
   }
 

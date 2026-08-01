@@ -154,6 +154,8 @@ export interface AdjustmentLayer extends CommonLayer {
  */
 export interface VectorLayer extends CommonLayer {
   type: 'vector';
+  /** Four-sample edge antialiasing for native fill and stroke rasterization. */
+  antiAlias: boolean;
   /**
    * Canonical editable vector artwork. Live shapes remain parametric here;
    * renderers may realize them to temporary paths but must never write that
@@ -286,6 +288,7 @@ export const createVectorLayer = (
 ): VectorLayer => ({
   ...createCommonLayer('vector', name),
   type: 'vector',
+  antiAlias: true,
   elements: elements.map(cloneVectorElement),
   mask: null
 });

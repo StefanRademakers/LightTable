@@ -140,7 +140,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {activeTool === 'vector-pen' || activeTool.startsWith('shape-') ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Vector style">
-          {activeTool.startsWith('shape-') && activeTool !== 'shape-line' ? (
+          {activeTool !== 'shape-line' ? (
             <label className="lighttable-tool-options__color-field">
               <span>Fill</span>
               <input

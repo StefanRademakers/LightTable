@@ -41,6 +41,7 @@ import {
   setLayerVisibility,
   setLayersLock,
   setLayersVisibility,
+  setVectorLayerAntiAlias,
   ungroupLayers
 } from './documentCommands';
 import {
@@ -166,6 +167,24 @@ describe('LightTable document commands', () => {
     expect(converted.revision).toBe(withVector.revision + 1);
     expect(() => convertVectorLiveShapeToPath(converted, vectorId, shape.id))
       .toThrow(/already a path/);
+  });
+
+  it('toggles vector antialiasing without changing vector geometry', () => {
+    const source = createImageDocument('Vector AA', 100, 50, 'asset');
+    const shape = createVectorLiveShape('shape', {
+      kind: 'ellipse',
+      width: 40,
+      height: 20
+    });
+    const withVector = createVectorLayer(source, [shape]);
+    const vectorId = withVector.activeLayerId!;
+
+    const updated = setVectorLayerAntiAlias(withVector, vectorId, false);
+    const layer = findDocumentLayer(updated, vectorId);
+
+    expect(layer?.type === 'vector' ? layer.antiAlias : null).toBe(false);
+    expect(layer?.type === 'vector' ? layer.elements : null).toEqual([shape]);
+    expect(updated.revision).toBe(withVector.revision + 1);
   });
 
   it('updates mask density and feather as one canonical mask revision', () => {

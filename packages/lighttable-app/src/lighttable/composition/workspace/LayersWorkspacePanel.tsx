@@ -54,6 +54,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onVisibility={controller.setVisibility}
         onRename={controller.rename}
         onOpacity={controller.setOpacity}
+        onVectorAntiAlias={controller.setVectorAntiAlias}
         onFillOpacity={controller.setFillOpacity}
         onOpacityInteractionStart={controller.beginOpacityInteraction}
         onOpacityInteractionEnd={controller.endOpacityInteraction}

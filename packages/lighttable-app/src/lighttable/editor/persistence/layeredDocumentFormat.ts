@@ -76,6 +76,7 @@ interface AdjustmentLayerManifestEntry extends CommonLayerManifestEntry {
 
 interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'vector';
+  antiAlias: boolean;
   elements: VectorElement[];
   mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
 }
@@ -258,6 +259,7 @@ export const buildLayeredDocumentFile = (
       return {
         ...common,
         type: 'vector',
+        antiAlias: layer.antiAlias,
         elements: layer.elements.map(cloneVectorElement),
         mask
       };
@@ -640,6 +642,9 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       if (!Array.isArray(entry.elements)) {
         throw new Error(`Vector layer ${path} in the LightTable document is invalid.`);
       }
+      if (typeof entry.antiAlias !== 'boolean') {
+        throw new Error(`Vector layer ${path} has an invalid anti-alias setting.`);
+      }
       const parsedMask = parseMask();
       if (parsedMask.blob) {
         assets.push({ layerId: id, pixels: new Blob(), mask: parsedMask.blob });
@@ -647,6 +652,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       return {
         ...common,
         type: 'vector',
+        antiAlias: entry.antiAlias,
         elements: entry.elements.map((candidate, index) =>
           parseVectorElement(candidate, `Layer ${path} element ${index + 1}`)),
         mask: parsedMask.mask

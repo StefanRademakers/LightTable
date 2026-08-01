@@ -493,6 +493,21 @@ export const setLayerFillOpacity = (document: ImageDocument, layerId: LayerId, f
     };
   });
 
+export const setVectorLayerAntiAlias = (
+  document: ImageDocument,
+  layerId: LayerId,
+  antiAlias: boolean
+) => updateLayer(document, layerId, (layer) => (
+  layer.type !== 'vector' || layer.antiAlias === antiAlias
+    ? layer
+    : {
+        ...layer,
+        antiAlias,
+        revision: layer.revision + 1,
+        modifiedAt: Date.now()
+      }
+));
+
 export const setLayerClipping = (document: ImageDocument, layerId: LayerId, clipping: boolean) =>
   updateLayer(document, layerId, (layer) => layer.clipping === clipping ? layer : ({
     ...layer,

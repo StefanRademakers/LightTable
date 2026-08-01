@@ -82,7 +82,7 @@ export const useVectorToolSessionController = ({
       }
     }, {
       penStyle: (): VectorStyle => ({
-        fill: null,
+        fill: { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) },
         stroke: createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth),
         opacity: 1
       }),
