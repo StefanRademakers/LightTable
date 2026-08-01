@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createGroupLayer,
   createImageDocument,
+  createVectorLayer,
   type RasterLayer
 } from '../document/documentTypes';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
@@ -55,29 +56,39 @@ describe('LayerRuntimeStore', () => {
     };
     const group = createGroupLayer('group');
     group.mask = { ...raster.mask, id: 'group-mask-a' };
+    const vector = createVectorLayer([], 'shape');
+    vector.mask = { ...raster.mask, id: 'vector-mask-a' };
 
-    store.sync([raster, group]);
+    store.sync([raster, group, vector]);
     const firstRasterMask = store.maskTexture(raster.id);
     const firstGroupMask = store.maskTexture(group.id);
+    const firstVectorMask = store.maskTexture(vector.id);
     raster.mask = { ...raster.mask, id: 'raster-mask-b' };
     group.mask = { ...group.mask, id: 'group-mask-b' };
-    store.sync([raster, group]);
+    vector.mask = { ...vector.mask, id: 'vector-mask-b' };
+    store.sync([raster, group, vector]);
 
     expect(firstRasterMask?.destroy).toHaveBeenCalledOnce();
     expect(firstGroupMask?.destroy).toHaveBeenCalledOnce();
+    expect(firstVectorMask?.destroy).toHaveBeenCalledOnce();
     expect(store.maskTexture(raster.id)).not.toBe(firstRasterMask);
     expect(store.maskTexture(group.id)).not.toBe(firstGroupMask);
+    expect(store.maskTexture(vector.id)).not.toBe(firstVectorMask);
 
     raster.mask = null;
     group.mask = null;
+    vector.mask = null;
     const secondRasterMask = store.maskTexture(raster.id);
     const secondGroupMask = store.maskTexture(group.id);
-    store.sync([raster, group]);
+    const secondVectorMask = store.maskTexture(vector.id);
+    store.sync([raster, group, vector]);
 
     expect(secondRasterMask?.destroy).toHaveBeenCalledOnce();
     expect(secondGroupMask?.destroy).toHaveBeenCalledOnce();
+    expect(secondVectorMask?.destroy).toHaveBeenCalledOnce();
     expect(store.maskTexture(raster.id)).toBeNull();
     expect(store.maskTexture(group.id)).toBeNull();
+    expect(store.maskTexture(vector.id)).toBeNull();
   });
 
   it('reports only textures it owns', () => {

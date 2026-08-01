@@ -12,6 +12,7 @@ export * from './math/affine';
 export * from './math/vector';
 export * from './model/factories';
 export * from './model/clone';
+export * from './model/parse';
 export * from './model/segments';
 export * from './model/types';
 export * from './model/validation';

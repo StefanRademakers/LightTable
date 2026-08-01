@@ -15,6 +15,8 @@
   },
   "dependencies": {
     "@lighttable/vector-core": "0.0.1",
+    "@lighttable/vector-rendering": "0.0.1",
+    "@lighttable/vector-webgpu": "0.0.1",
     "@huggingface/transformers": "^3.8.1",
     "ag-psd": "^31.0.2",
     "dockview-react": "^7.0.4",

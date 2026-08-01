@@ -93,6 +93,7 @@ const layerTypeIcon = (layer: LayerNode) => {
         : 'layer_adjustment.png'
     );
   }
+  if (layer.type === 'vector') return lightTableIcon('image.png');
   return layer.pixelSource.kind === 'imported-image'
     ? lightTableIcon('image.png')
     : null;

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
-import { createImageDocument, type DocumentAssetId } from '../document/documentTypes';
+import {
+  createImageDocument,
+  createVectorLayer,
+  type DocumentAssetId
+} from '../document/documentTypes';
 import {
   addLayerMask,
   createAdjustmentLayer,
@@ -425,6 +430,45 @@ describe('LightTable layered PNG format', () => {
     expect(parsed?.document.layers[0].transform).toEqual(translationMatrix(14, -3));
     expect(parsed?.document.layers[0].geometryRevision).toBe(1);
     expect(parsed ? findRasterLayer(parsed.document, parsed.document.layers[0].id)?.pixelRevision : null).toBe(0);
+  });
+
+  it('round-trips native vector layers without rasterizing their paths', async () => {
+    const source = createImageDocument('Native vector', 2, 2, 'source');
+    const path = createVectorPath('path-logo', 'Logo', [
+      createSubpath('subpath-logo', [
+        createAnchor('anchor-a', { x: 0.25, y: 0.25 }),
+        createAnchor('anchor-b', { x: 1.75, y: 0.25 }),
+        createAnchor('anchor-c', { x: 1, y: 1.75 })
+      ], true)
+    ]);
+    path.style.fill = { type: 'solid', color: [0.1, 0.25, 0.8, 0.75] };
+    path.transform = translationMatrix(3, -2);
+    path.transformRevision = 1;
+    const vector = createVectorLayer([path], 'Logo shape');
+    const document = {
+      ...source,
+      layers: [...source.layers, vector],
+      activeLayerId: vector.id,
+      revision: source.revision + 1
+    };
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId: source.layers[0].id,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }],
+      'native-vector.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const parsedVector = parsed?.document.layers.find((layer) => layer.id === vector.id);
+
+    expect(parsedVector?.type).toBe('vector');
+    expect(parsedVector?.type === 'vector' ? parsedVector.paths : null).toEqual([path]);
+    expect(parsed?.assets.map((asset) => asset.layerId)).toEqual([source.layers[0].id]);
   });
 
   it('round-trips fill opacity, clipping and structured locks', async () => {

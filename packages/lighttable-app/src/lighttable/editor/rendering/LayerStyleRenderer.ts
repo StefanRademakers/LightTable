@@ -1,7 +1,8 @@
 import type {
   DocumentAssetId,
   GroupLayer,
-  RasterLayer
+  RasterLayer,
+  VectorLayer
 } from '../document/documentTypes';
 import {
   baseLayerStyleUniform,
@@ -14,7 +15,7 @@ import type { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import { LayerStylePipelineProvider } from './LayerStylePipelineProvider';
 import { LayerStyleTextureStore } from './LayerStyleTextureStore';
 
-type StyledNode = RasterLayer | GroupLayer;
+type StyledNode = RasterLayer | GroupLayer | VectorLayer;
 type StyleEffect = RasterLayer['styleStack']['effects'][number];
 
 interface LayerStyleRendererOptions {

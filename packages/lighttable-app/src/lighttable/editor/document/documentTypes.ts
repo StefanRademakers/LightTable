@@ -4,6 +4,7 @@ import { identityAffineMatrix } from '../geometry/affine';
 import type { AdjustmentStack } from '../../processing/adjustmentStack';
 import type { LayerStyleStack } from '../styles/layerStyleTypes';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
+import type { VectorPath } from '@lighttable/vector-core';
 
 export type DocumentId = string & { readonly __brand: 'DocumentId' };
 export type LayerId = string & { readonly __brand: 'LayerId' };
@@ -139,7 +140,21 @@ export interface AdjustmentLayer extends CommonLayer {
   mask: RasterMask | null;
 }
 
-export type LayerNode = RasterLayer | GroupLayer | AdjustmentLayer;
+/**
+ * Native resolution-independent artwork.
+ *
+ * Path transforms map path-local coordinates into this layer's local space;
+ * the common layer transform then maps the complete layer into its parent.
+ * Keeping those two stages explicit is required for nested groups, stable
+ * gizmos and non-destructive editing.
+ */
+export interface VectorLayer extends CommonLayer {
+  type: 'vector';
+  paths: VectorPath[];
+  mask: RasterMask | null;
+}
+
+export type LayerNode = RasterLayer | GroupLayer | AdjustmentLayer | VectorLayer;
 
 export const createDefaultLayerLocks = (): LayerLocks => ({
   transparency: false,
@@ -249,6 +264,16 @@ export const createAdjustmentLayer = (
   ...createCommonLayer('adjustment', name),
   type: 'adjustment',
   adjustmentStack: structuredClone(adjustmentStack),
+  mask: null
+});
+
+export const createVectorLayer = (
+  paths: readonly VectorPath[] = [],
+  name = 'Shape'
+): VectorLayer => ({
+  ...createCommonLayer('vector', name),
+  type: 'vector',
+  paths: structuredClone([...paths]),
   mask: null
 });
 

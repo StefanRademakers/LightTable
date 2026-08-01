@@ -2,10 +2,11 @@ import {
   type GroupLayer,
   type ImageDocument,
   type LayerId,
-  type RasterMask
+  type RasterMask,
+  type VectorLayer
 } from '../document/documentTypes';
 import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
-import { invertMatrix } from '../tools/transform/affine';
+import { invertMatrix, multiplyMatrices } from '../tools/transform/affine';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import {
   identityAffineMatrix,
@@ -30,6 +31,7 @@ import type { RenderTargetPair } from './RenderTargetPair';
 import type { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import type { TransformSessionStore } from './TransformSessionStore';
 import type { EncodeAdjustment } from './RasterDocumentOperations';
+import type { VectorLayerRenderer } from './VectorLayerRenderer';
 
 interface LayerCompositorOptions {
   device: GPUDevice;
@@ -43,6 +45,7 @@ interface LayerCompositorOptions {
   pixelEditSessions: PixelEditSessionStore;
   geometryPreviews: GeometryPreviewStore;
   layerStyles: LayerStyleRenderer;
+  vectors: VectorLayerRenderer;
   dimensions: () => { width: number; height: number };
   syncDocument: (document: ImageDocument) => void;
   maskTextureFor: (layerId: LayerId) => GPUTexture | null;
@@ -79,7 +82,8 @@ export class LayerCompositor {
       transformSessions,
       pixelEditSessions,
       geometryPreviews,
-      layerStyles
+      layerStyles,
+      vectors
     } = this.options;
     const { width, height } = this.options.dimensions();
     this.options.syncDocument(document);
@@ -171,12 +175,13 @@ export class LayerCompositor {
       entry: CompositorPlanEntry,
       background: GPUTexture,
       target: GPUTexture,
-      clippingTexture: GPUTexture | null = null
+      clippingTexture: GPUTexture | null = null,
+      inheritedTransform: AffineMatrix = identityAffineMatrix()
     ): [GPUTexture, GPUTexture] => {
       const { node } = entry;
       if (!node.visible || node.opacity <= 0) return [background, target];
       if (node.type === 'group') {
-        return renderGroup(entry, background, target, clippingTexture);
+        return renderGroup(entry, background, target, clippingTexture, inheritedTransform);
       }
       if (node.type === 'adjustment') {
         if (!encodeAdjustment) return [background, target];
@@ -223,6 +228,16 @@ export class LayerCompositor {
         return [target, background];
       }
 
+      if (node.type === 'vector') {
+        return renderVectorLayer(
+          node,
+          background,
+          target,
+          clippingTexture,
+          inheritedTransform
+        );
+      }
+
       const layer = node;
       const runtime = layerResources.raster(layer.id);
       if (!runtime) return [background, target];
@@ -244,7 +259,10 @@ export class LayerCompositor {
         ? activeTransform.usesSelection
           ? identityAffineMatrix()
           : activeTransform.matrix
-        : geometryPreview ?? renderContract.transform;
+        : multiplyMatrices(
+            inheritedTransform,
+            geometryPreview ?? renderContract.transform
+          );
       const inverse = invertMatrix(sourceToDocument);
 
       if (layerStyleStackIsActive(layer.styleStack) && inverse) {
@@ -315,10 +333,50 @@ export class LayerCompositor {
       return [target, background];
     };
 
+    const renderVectorLayer = (
+      layer: VectorLayer,
+      background: GPUTexture,
+      target: GPUTexture,
+      clippingTexture: GPUTexture | null,
+      inheritedTransform: AffineMatrix
+    ): [GPUTexture, GPUTexture] => {
+      const foreground = vectors.encode(
+        encoder,
+        layer,
+        inheritedTransform,
+        { width, height }
+      );
+      const maskTexture = this.options.maskTextureFor(layer.id);
+      const styled = layerStyleStackIsActive(layer.styleStack)
+        ? layerStyles.encode(
+            encoder,
+            layer,
+            foreground,
+            maskTexture,
+            identityAffineMatrix(),
+            { width, height },
+            null
+          )
+        : null;
+      compositeTexture(background, styled ?? foreground, target, {
+        label: `LightTable vector layer settings: ${layer.name}`,
+        // LayerStyleRenderer already applies fillOpacity to the source while
+        // retaining effects. Without styles the vector source still needs the
+        // ordinary content-opacity multiplier here.
+        opacity: styled ? layer.opacity : layer.opacity * layer.fillOpacity,
+        blendMode: layer.blendMode,
+        maskTexture,
+        mask: styled ? null : layer.mask,
+        clippingTexture
+      });
+      return [target, background];
+    };
+
     const renderNodes = (
       plan: CompositorPlan,
       initialBackground: GPUTexture,
-      initialTarget: GPUTexture
+      initialTarget: GPUTexture,
+      inheritedTransform: AffineMatrix = identityAffineMatrix()
     ): [GPUTexture, GPUTexture] => {
       let background = initialBackground;
       let target = initialTarget;
@@ -329,7 +387,8 @@ export class LayerCompositor {
           entry,
           background,
           target,
-          entry.usesClippingBase ? clippingBase : null
+          entry.usesClippingBase ? clippingBase : null,
+          inheritedTransform
         );
         if (!entry.usesClippingBase) {
           clippingBase = null;
@@ -343,7 +402,13 @@ export class LayerCompositor {
             this.options.submittedResources.retainTexture(baseA);
             this.options.submittedResources.retainTexture(baseB);
             this.options.clearTexture(encoder, baseA);
-            [clippingBase] = renderNode(entry, baseA, baseB);
+            [clippingBase] = renderNode(
+              entry,
+              baseA,
+              baseB,
+              null,
+              inheritedTransform
+            );
           }
         }
       });
@@ -354,13 +419,15 @@ export class LayerCompositor {
       entry: CompositorPlanEntry,
       parentBackground: GPUTexture,
       parentTarget: GPUTexture,
-      clippingTexture: GPUTexture | null = null
+      clippingTexture: GPUTexture | null = null,
+      inheritedTransform: AffineMatrix = identityAffineMatrix()
     ): [GPUTexture, GPUTexture] => {
       const group = entry.node as GroupLayer;
       const childPlan = entry.children;
       if (!childPlan) return [parentBackground, parentTarget];
+      const groupTransform = multiplyMatrices(inheritedTransform, group.transform);
       if (!entry.groupNeedsEnvelope) {
-        return renderNodes(childPlan, parentBackground, parentTarget);
+        return renderNodes(childPlan, parentBackground, parentTarget, groupTransform);
       }
       const groupA = this.options.createTexture(
         `LightTable isolated group A: ${group.name}`
@@ -371,7 +438,7 @@ export class LayerCompositor {
       this.options.submittedResources.retainTexture(groupA);
       this.options.submittedResources.retainTexture(groupB);
       this.options.clearTexture(encoder, groupA);
-      const [groupResult] = renderNodes(childPlan, groupA, groupB);
+      const [groupResult] = renderNodes(childPlan, groupA, groupB, groupTransform);
       const maskTexture = this.options.maskTextureFor(group.id);
       const styledGroup = layerStyleStackIsActive(group.styleStack)
         ? layerStyles.encode(

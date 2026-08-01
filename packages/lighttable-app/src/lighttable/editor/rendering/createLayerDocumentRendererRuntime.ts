@@ -28,10 +28,12 @@ import { DocumentTextureMemoryEstimator } from './DocumentTextureMemoryEstimator
 import { ToolPipelineProvider } from './ToolPipelineProvider';
 import { LayerRuntimeCoordinator } from './LayerRuntimeCoordinator';
 import { RenderResourceCoordinator } from './RenderResourceCoordinator';
+import { VectorLayerRenderer } from './VectorLayerRenderer';
 
 export interface LayerDocumentRendererRuntime {
   layerResources: LayerRuntimeStore;
   layerStyleRenderer: LayerStyleRenderer;
+  vectorLayerRenderer: VectorLayerRenderer;
   compositor: LayerCompositor;
   selectionTextures: SelectionTextureStore;
   documentAssets: LayerDocumentAssetService;
@@ -95,6 +97,7 @@ export const createLayerDocumentRendererRuntime = (
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
   });
+  const vectorLayerRenderer = new VectorLayerRenderer(device);
   const renderResources = new RenderResourceCoordinator({
     layerStyles: layerStyleRenderer,
     submittedResources
@@ -155,6 +158,7 @@ export const createLayerDocumentRendererRuntime = (
     pixelEditSessions,
     geometryPreviews,
     layerStyles: layerStyleRenderer,
+    vectors: vectorLayerRenderer,
     dimensions: resources.dimensions,
     syncDocument: (document) => layerRuntimeCoordinator.sync(document),
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
@@ -279,6 +283,7 @@ export const createLayerDocumentRendererRuntime = (
       () => layerResources.destroy(),
       () => patternAssets.clear(),
       () => layerStyleRenderer.destroy(),
+      () => vectorLayerRenderer.destroy(),
       () => compositeTargets.destroy(),
       () => selectionTextures.destroy(),
       () => geometryPreviews.clear(),
@@ -294,6 +299,7 @@ export const createLayerDocumentRendererRuntime = (
       () => patternAssets.estimatedTextureBytes(),
       ({ width, height }) =>
         layerStyleRenderer.estimatedTextureBytes(width, height),
+      () => vectorLayerRenderer.estimatedTextureBytes(),
       ({ width, height }) =>
         compositeTargets.estimatedTextureBytes(width, height, 8),
       ({ width, height }) =>
@@ -308,6 +314,7 @@ export const createLayerDocumentRendererRuntime = (
   return {
     layerResources,
     layerStyleRenderer,
+    vectorLayerRenderer,
     compositor,
     selectionTextures,
     documentAssets,

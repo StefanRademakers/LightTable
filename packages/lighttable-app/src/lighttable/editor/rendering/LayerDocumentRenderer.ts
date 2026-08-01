@@ -102,6 +102,7 @@ export class LayerDocumentRenderer {
 
   releaseSubmittedResources() {
     this.runtime.renderResources.releaseAfterSubmit();
+    void this.runtime.vectorLayerRenderer.notifySubmitted();
   }
 
   duplicateLayer(sourceId: LayerId, destinationId: LayerId) {

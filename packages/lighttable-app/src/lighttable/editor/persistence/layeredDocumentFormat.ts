@@ -25,6 +25,11 @@ import { identityAffineMatrix, isFiniteAffineMatrix } from '../rendering/renderC
 import type { LayerStyleStack } from '../styles/layerStyleTypes';
 import { cloneLayerStyleStack } from '../styles/layerStyleDefaults';
 import { parseLayerStyleStack } from '../styles/layerStyleValidation';
+import {
+  cloneVectorPath,
+  parseVectorPath,
+  type VectorPath
+} from '@lighttable/vector-core';
 
 const FOOTER_MAGIC = 'LTBLDOC1';
 const FOOTER_SIZE = 12;
@@ -69,10 +74,17 @@ interface AdjustmentLayerManifestEntry extends CommonLayerManifestEntry {
   mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
 }
 
+interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
+  type: 'vector';
+  paths: VectorPath[];
+  mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
+}
+
 type LayerManifestEntry =
   | RasterLayerManifestEntry
   | GroupLayerManifestEntry
-  | AdjustmentLayerManifestEntry;
+  | AdjustmentLayerManifestEntry
+  | VectorLayerManifestEntry;
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
@@ -226,6 +238,27 @@ export const buildLayeredDocumentFile = (
         ...common,
         type: 'adjustment',
         adjustmentStack: cloneAdjustmentStack(layer.adjustmentStack),
+        mask
+      };
+    }
+    if (layer.type === 'vector') {
+      const asset = assetsByLayer.get(layer.id);
+      let mask: VectorLayerManifestEntry['mask'] = null;
+      if (layer.mask && asset?.mask) {
+        mask = {
+          id: layer.mask.id,
+          enabled: layer.mask.enabled,
+          density: layer.mask.density,
+          feather: layer.mask.feather,
+          asset: { offset, length: asset.mask.size }
+        };
+        binaryParts.push(asset.mask);
+        offset += asset.mask.size;
+      }
+      return {
+        ...common,
+        type: 'vector',
+        paths: layer.paths.map(cloneVectorPath),
         mask
       };
     }
@@ -511,7 +544,12 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       || typeof entry.fillOpacity !== 'number'
       || typeof entry.clipping !== 'boolean'
       || !isBlendMode(entry.blendMode)
-      || (entry.type !== 'raster' && entry.type !== 'group' && entry.type !== 'adjustment')
+      || (
+        entry.type !== 'raster'
+        && entry.type !== 'group'
+        && entry.type !== 'adjustment'
+        && entry.type !== 'vector'
+      )
     ) {
       throw new Error(`Layer ${path} in the LightTable document is invalid.`);
     }
@@ -594,6 +632,23 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         ...common,
         type: 'adjustment',
         adjustmentStack: parseAdjustmentStack(entry.adjustmentStack),
+        mask: parsedMask.mask
+      };
+    }
+
+    if (entry.type === 'vector') {
+      if (!Array.isArray(entry.paths)) {
+        throw new Error(`Vector layer ${path} in the LightTable document is invalid.`);
+      }
+      const parsedMask = parseMask();
+      if (parsedMask.blob) {
+        assets.push({ layerId: id, pixels: new Blob(), mask: parsedMask.blob });
+      }
+      return {
+        ...common,
+        type: 'vector',
+        paths: entry.paths.map((candidate, index) =>
+          parseVectorPath(candidate, `Layer ${path} path ${index + 1}`)),
         mask: parsedMask.mask
       };
     }
