@@ -1,18 +1,32 @@
 import type { AffineMatrix } from '../math/affine';
 import { aroundPoint, multiplyMatrices, rotationMatrix, scaleMatrix, translationMatrix } from '../math/affine';
 import type { Vec2 } from '../math/vector';
-import { cloneVectorPath } from '../model/clone';
-import type { VectorPath } from '../model/types';
+import { cloneVectorElement } from '../model/clone';
+import type { VectorElement, VectorPath } from '../model/types';
 
-const withTransform = (path: VectorPath, transform: AffineMatrix) => ({
-  ...cloneVectorPath(path),
+const withElementTransform = <TElement extends VectorElement>(
+  element: TElement,
+  transform: AffineMatrix
+) => ({
+  ...cloneVectorElement(element),
   transform,
-  transformRevision: path.transformRevision + 1
-});
+  transformRevision: element.transformRevision + 1
+}) as TElement;
+
+/** Applies a parent-space operation while preserving path or live-shape authority. */
+export const transformVectorElement = <TElement extends VectorElement>(
+  element: TElement,
+  operation: AffineMatrix
+) => withElementTransform(element, multiplyMatrices(operation, element.transform));
+
+export const translateVectorElement = <TElement extends VectorElement>(
+  element: TElement,
+  delta: Vec2
+) => transformVectorElement(element, translationMatrix(delta.x, delta.y));
 
 /** Applies a parent/document-space operation without baking local geometry. */
 export const transformVectorPath = (path: VectorPath, operation: AffineMatrix) =>
-  withTransform(path, multiplyMatrices(operation, path.transform));
+  transformVectorElement(path, operation);
 
 export const translateVectorPath = (path: VectorPath, delta: Vec2) =>
   transformVectorPath(path, translationMatrix(delta.x, delta.y));

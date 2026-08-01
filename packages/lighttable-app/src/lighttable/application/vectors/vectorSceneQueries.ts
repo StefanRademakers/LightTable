@@ -119,7 +119,7 @@ export const vectorElementsTopmostFirst = (
   const transforms = buildSceneTransformIndex(document);
   return visibleVectorLayersTopmostFirst(document.layers).flatMap((layer) => {
     const layerToDocument = requireSceneTransform(transforms, layer.id).localToDocument;
-    return layer.elements
+    return [...layer.elements]
       .reverse()
       .map((element) => {
         const queryPath = element.type === 'path'

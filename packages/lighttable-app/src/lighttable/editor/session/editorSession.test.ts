@@ -13,6 +13,7 @@ describe('LightTable editor session', () => {
 
   it('starts with document-local vector selection state', () => {
     expect(createEditorSession().vectorSelection).toEqual({
+      elements: [],
       paths: [],
       anchors: [],
       active: null
@@ -22,6 +23,7 @@ describe('LightTable editor session', () => {
   it('compares and clones scene-scoped vector selection without aliasing it', () => {
     const layerId = 'layer-1' as LayerId;
     const source = {
+      elements: [{ layerId, elementId: 'path-1' }],
       paths: [{ layerId, pathId: 'path-1' }],
       anchors: [{
         layerId,
@@ -42,6 +44,7 @@ describe('LightTable editor session', () => {
     const clone = cloneVectorEditorSelection(source);
 
     expect(clone).not.toBe(source);
+    expect(clone.elements[0]).not.toBe(source.elements[0]);
     expect(clone.paths[0]).not.toBe(source.paths[0]);
     expect(clone.active?.target).not.toBe(source.active.target);
     expect(vectorEditorSelectionsEqual(source, clone)).toBe(true);

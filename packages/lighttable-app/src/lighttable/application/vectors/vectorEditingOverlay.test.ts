@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createAnchor,
   createSubpath,
+  createVectorLiveShape,
   createVectorPath,
   scaleMatrix,
   translationMatrix
@@ -77,5 +78,25 @@ describe('vector document editing overlays', () => {
     const selection = createVectorEditorSelection();
     selection.paths = [{ layerId: layer.id, pathId: 'missing-path' }];
     expect(buildVectorDocumentEditingOverlays(document, selection)).toEqual([]);
+  });
+
+  it('outlines a selected live shape without exposing realized anchors', () => {
+    const document = createImageDocument('document', 100, 100, 'asset');
+    const shape = createVectorLiveShape('shape', {
+      kind: 'ellipse',
+      width: 30,
+      height: 20
+    });
+    const layer = createVectorLayer([shape]);
+    document.layers = [layer];
+    const selection = createVectorEditorSelection();
+    selection.elements = [{ layerId: layer.id, elementId: shape.id }];
+
+    const overlays = buildVectorDocumentEditingOverlays(document, selection);
+    expect(overlays).toHaveLength(1);
+    expect(overlays[0]).toMatchObject({ layerId: layer.id, pathId: shape.id });
+    expect(overlays[0]?.cubics.length).toBeGreaterThan(0);
+    expect(overlays[0]?.anchors).toEqual([]);
+    expect(overlays[0]?.handles).toEqual([]);
   });
 });

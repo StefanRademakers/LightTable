@@ -41,6 +41,7 @@ const anchorSelection = (
   subpathId: string,
   anchorId: string
 ): VectorEditorSelection => ({
+  elements: [],
   paths: [],
   anchors: [{ layerId, pathId, subpathId, anchorId }],
   active: {
@@ -86,6 +87,7 @@ export class VectorPointToolController {
     if (mode === 'add-anchor') {
       if (hit.target.kind !== 'segment') return { handled: false, capture: false };
       this.dependencies.setSelection({
+        elements: [],
         paths: [],
         anchors: [],
         active: {

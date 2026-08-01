@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createAnchor,
   createSubpath,
+  createVectorLiveShape,
   createVectorPath,
   multiplyMatrices,
   rotationMatrix,
@@ -70,6 +71,7 @@ describe('VectorSelectionCommandController', () => {
   it('deletes anchors from multiple layers in one history entry', () => {
     const state = setup();
     state.selection = {
+      elements: [],
       paths: [],
       anchors: [
         {
@@ -104,6 +106,7 @@ describe('VectorSelectionCommandController', () => {
     state.second.locks.pixels = true;
     const opening = state.document;
     state.selection = {
+      elements: [],
       paths: [],
       anchors: [
         {
@@ -131,6 +134,7 @@ describe('VectorSelectionCommandController', () => {
   it('converts all selected anchors atomically', () => {
     const state = setup();
     state.selection = {
+      elements: [],
       paths: [],
       anchors: [{
         layerId: state.first.id,
@@ -153,6 +157,7 @@ describe('VectorSelectionCommandController', () => {
   it('inserts an exact segment anchor and selects it', () => {
     const state = setup();
     state.selection = {
+      elements: [],
       paths: [],
       anchors: [],
       active: {
@@ -186,6 +191,7 @@ describe('VectorSelectionCommandController', () => {
     if (layer.elements[0]?.type !== 'path') throw new Error('Expected a vector path.');
     layer.elements[0].transform = rotationMatrix(Math.PI / 4);
     state.selection = {
+      elements: [],
       paths: [],
       anchors: [{
         layerId: state.first.id,
@@ -221,6 +227,7 @@ describe('VectorSelectionCommandController', () => {
     layer.elements[0].transform = translationMatrix(10, 20);
     const openingAnchor = { ...layer.elements[0].subpaths[0].anchors[0].position };
     state.selection = {
+      elements: [],
       paths: [{ layerId: state.first.id, pathId: 'first-path' }],
       anchors: [],
       active: null
@@ -233,5 +240,36 @@ describe('VectorSelectionCommandController', () => {
     expect(updated.elements[0].subpaths[0].anchors[0].position).toEqual(openingAnchor);
     expect(updated.elements[0].transform.tx).toBeCloseTo(14, 8);
     expect(updated.elements[0].transform.ty).toBeCloseTo(17, 8);
+  });
+
+  it('nudges a live shape as an element without converting its geometry', () => {
+    const state = setup();
+    const layer = findDocumentLayer(state.document, state.first.id);
+    if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
+    layer.transform = scaleMatrix(2, 4);
+    layer.elements.push(createVectorLiveShape('live-rectangle', {
+      kind: 'rectangle',
+      width: 80,
+      height: 40,
+      cornerRadii: [8, 8, 8, 8],
+      linkedCorners: true
+    }));
+    state.selection = {
+      elements: [{ layerId: layer.id, elementId: 'live-rectangle' }],
+      paths: [],
+      anchors: [],
+      active: null
+    };
+
+    expect(state.controller.nudgeSelection({ x: 10, y: -12 })).toBe(true);
+    const updated = findDocumentLayer(state.document, layer.id);
+    const shape = updated?.type === 'vector'
+      ? updated.elements.find(({ id }) => id === 'live-rectangle')
+      : null;
+    expect(shape?.type).toBe('live-shape');
+    expect(shape?.transform.tx).toBeCloseTo(5, 8);
+    expect(shape?.transform.ty).toBeCloseTo(-3, 8);
+    expect(shape?.type === 'live-shape' ? shape.geometry.kind : null).toBe('rectangle');
+    expect(state.history).toHaveLength(1);
   });
 });

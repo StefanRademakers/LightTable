@@ -14,6 +14,7 @@ import {
   convertVectorLiveShapeToPath,
   createVectorLayer,
   deleteVectorPaths,
+  deleteVectorElements,
   replaceVectorElement,
   replaceVectorPath
 } from '../../editor/document/documentCommands';
@@ -40,12 +41,29 @@ export interface VectorPathEdit {
   readonly edit: (path: VectorPath) => VectorPath | null;
 }
 
+export interface VectorElementEdit {
+  readonly layerId: LayerId;
+  readonly elementId: string;
+  readonly edit: (element: VectorElement) => VectorElement | null;
+}
+
 interface ActivePathMutation {
   documentId: ImageDocument['id'];
   layerId: LayerId;
   pathId: string;
   beforeDocument: ImageDocument;
   session: PathMutationSession;
+}
+
+interface ActiveElementMutation {
+  documentId: ImageDocument['id'];
+  beforeDocument: ImageDocument;
+  elements: Array<{
+    layerId: LayerId;
+    elementId: string;
+    openingElement: VectorElement;
+  }>;
+  changed: boolean;
 }
 
 interface ActiveElementCreation {
@@ -86,6 +104,7 @@ export interface VectorElementCreationPlacement<TElement extends VectorElement =
  */
 export class VectorDocumentController {
   private activeMutation: ActivePathMutation | null = null;
+  private activeElementMutation: ActiveElementMutation | null = null;
   private activeCreation: ActiveElementCreation | null = null;
 
   constructor(
@@ -106,6 +125,43 @@ export class VectorDocumentController {
 
   deletePaths(layerId: LayerId, pathIds: readonly string[]) {
     return this.applyAtomic((document) => deleteVectorPaths(document, layerId, pathIds));
+  }
+
+  /** Applies type-preserving element edits across vector layers atomically. */
+  editElements(edits: readonly VectorElementEdit[]) {
+    if (edits.length === 0) return false;
+    const addressed = new Set<string>();
+    for (const { layerId, elementId } of edits) {
+      const key = `${layerId}\0${elementId}`;
+      if (addressed.has(key)) throw new Error(`Duplicate vector element edit ${layerId}/${elementId}.`);
+      addressed.add(key);
+    }
+
+    const openingDocument = this.resolveDependencies().getDocument();
+    if (!openingDocument || edits.some(({ layerId, elementId }) => {
+      const layer = findDocumentLayer(openingDocument, layerId);
+      return layer?.type !== 'vector'
+        || layerIsLocked(layer, 'pixels')
+        || !layer.elements.some((element) => element.id === elementId);
+    })) return false;
+
+    return this.applyAtomic((openingDocument) => {
+      let document = openingDocument;
+      for (const change of edits) {
+        const layer = findDocumentLayer(document, change.layerId);
+        if (layer?.type !== 'vector') return openingDocument;
+        const element = layer.elements.find(({ id }) => id === change.elementId);
+        if (!element) return openingDocument;
+        const edited = change.edit(element);
+        if (edited && edited.type !== element.type) {
+          throw new Error(`Vector element ${element.id} cannot change type implicitly.`);
+        }
+        document = edited
+          ? replaceVectorElement(document, change.layerId, edited)
+          : deleteVectorElements(document, change.layerId, [change.elementId]);
+      }
+      return document;
+    });
   }
 
   /**
@@ -301,6 +357,101 @@ export class VectorDocumentController {
     return true;
   }
 
+  beginElementMutation(layerId: LayerId, elementId: string) {
+    return this.beginElementMutations([{ layerId, elementId }]);
+  }
+
+  beginElementMutations(addresses: ReadonlyArray<{ layerId: LayerId; elementId: string }>) {
+    this.cancelActiveInteraction();
+    const document = this.resolveDependencies().getDocument();
+    if (!document || addresses.length === 0) return false;
+    const unique = new Set<string>();
+    const elements: ActiveElementMutation['elements'] = [];
+    for (const address of addresses) {
+      const key = `${address.layerId}\0${address.elementId}`;
+      if (unique.has(key)) return false;
+      unique.add(key);
+      const layer = findDocumentLayer(document, address.layerId);
+      const element = layer?.type === 'vector'
+        ? layer.elements.find(({ id }) => id === address.elementId)
+        : null;
+      if (!element || !layer || layerIsLocked(layer, 'pixels')) return false;
+      elements.push({ ...address, openingElement: cloneVectorElement(element) });
+    }
+    this.activeElementMutation = {
+      documentId: document.id,
+      beforeDocument: document,
+      elements,
+      changed: false
+    };
+    return true;
+  }
+
+  previewElementMutation(mutate: (openingSnapshot: VectorElement) => VectorElement) {
+    return this.previewElementMutations(({ openingElement }) => mutate(openingElement));
+  }
+
+  previewElementMutations(mutate: (target: {
+    layerId: LayerId;
+    elementId: string;
+    openingElement: VectorElement;
+  }) => VectorElement) {
+    const active = this.activeElementMutation;
+    const dependencies = this.resolveDependencies();
+    const document = dependencies.getDocument();
+    if (!active || document?.id !== active.documentId) {
+      this.activeElementMutation = null;
+      return false;
+    }
+    let next = document;
+    for (const target of active.elements) {
+      const layer = findDocumentLayer(next, target.layerId);
+      const current = layer?.type === 'vector'
+        ? layer.elements.find(({ id }) => id === target.elementId)
+        : null;
+      if (!current) {
+        this.activeElementMutation = null;
+        return false;
+      }
+      const preview = mutate({
+        ...target,
+        openingElement: cloneVectorElement(target.openingElement)
+      });
+      if (preview.id !== target.elementId || preview.type !== target.openingElement.type) {
+        throw new Error('Interactive vector mutation cannot change element identity or type.');
+      }
+      next = replaceVectorElement(next, target.layerId, preview);
+    }
+    dependencies.applyDocumentSnapshot(next);
+    active.changed = true;
+    return true;
+  }
+
+  commitElementMutation() {
+    const active = this.activeElementMutation;
+    if (!active) return false;
+    this.activeElementMutation = null;
+    const dependencies = this.resolveDependencies();
+    const document = dependencies.getDocument();
+    if (document?.id !== active.documentId) return false;
+    if (!active.changed) {
+      dependencies.applyDocumentSnapshot(active.beforeDocument);
+      return false;
+    }
+    dependencies.pushDocumentHistory(active.beforeDocument, document);
+    return true;
+  }
+
+  cancelElementMutation() {
+    const active = this.activeElementMutation;
+    if (!active) return false;
+    this.activeElementMutation = null;
+    const dependencies = this.resolveDependencies();
+    if (dependencies.getDocument()?.id !== active.documentId) return false;
+    dependencies.applyDocumentSnapshot(active.beforeDocument);
+    return true;
+  }
+
   previewPathMutation(mutate: (openingSnapshot: VectorPath) => VectorPath) {
     const active = this.activeMutation;
     const dependencies = this.resolveDependencies();
@@ -409,7 +560,7 @@ export class VectorDocumentController {
   }
 
   private applyAtomic(change: (document: ImageDocument) => ImageDocument) {
-    if (this.activeMutation || this.activeCreation) return false;
+    if (this.activeMutation || this.activeElementMutation || this.activeCreation) return false;
     const dependencies = this.resolveDependencies();
     const before = dependencies.getDocument();
     if (!before) return false;
@@ -423,6 +574,7 @@ export class VectorDocumentController {
   private cancelActiveInteraction() {
     if (this.activeCreation) return this.cancelPathCreation();
     if (this.activeMutation) return this.cancelPathMutation();
+    if (this.activeElementMutation) return this.cancelElementMutation();
     return false;
   }
 }

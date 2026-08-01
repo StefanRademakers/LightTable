@@ -80,6 +80,7 @@ const cloneEditorSession = (session: EditorSession): EditorSession => ({
   ...session,
   selection: [...session.selection],
   vectorSelection: {
+    elements: session.vectorSelection.elements.map((reference) => ({ ...reference })),
     paths: session.vectorSelection.paths.map((reference) => ({ ...reference })),
     anchors: session.vectorSelection.anchors.map((reference) => ({ ...reference })),
     active: session.vectorSelection.active

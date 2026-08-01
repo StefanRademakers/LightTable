@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { VectorIdSource, VectorPath } from '@lighttable/vector-core';
-import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
+import {
+  createAnchor,
+  createSubpath,
+  createVectorLiveShape,
+  createVectorPath
+} from '@lighttable/vector-core';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
@@ -117,6 +122,76 @@ describe('VectorToolSessionController', () => {
       },
       transform: { tx: 40, ty: 30 }
     });
+  });
+
+  it('selects and translates a live shape without converting its geometry', () => {
+    const state = setup();
+    const shape = createVectorLiveShape('shape', {
+      kind: 'rectangle',
+      width: 40,
+      height: 20,
+      cornerRadii: [4, 4, 4, 4],
+      linkedCorners: true
+    });
+    shape.transform = { a: 1, b: 0, c: 0, d: 1, tx: 20, ty: 20 };
+    const layer = createVectorLayer([shape]);
+    layer.transform = { a: 2, b: 0, c: 0, d: 2, tx: 10, ty: 5 };
+    state.document.layers = [layer];
+    state.controller.activate('element-selection');
+
+    expect(state.controller.pointerDown(20, { x: 90, y: 65 }, { hitRadius: 3 })).toBe(true);
+    expect(state.selection.elements).toEqual([{ layerId: layer.id, elementId: shape.id }]);
+    expect(state.controller.pointerMove(20, { x: 110, y: 75 })).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.pointerUp(20, { x: 110, y: 75 })).toBe(true);
+    expect(state.history).toHaveLength(1);
+
+    const updated = findDocumentLayer(state.document, layer.id);
+    if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(updated.elements[0]).toMatchObject({
+      id: shape.id,
+      type: 'live-shape',
+      geometry: shape.geometry,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 30, ty: 25 },
+      transformRevision: 1
+    });
+  });
+
+  it('moves an additive element selection as one transaction', () => {
+    const state = setup();
+    const first = createVectorLiveShape('first', {
+      kind: 'ellipse',
+      width: 20,
+      height: 20
+    });
+    first.transform.tx = 20;
+    first.transform.ty = 20;
+    const second = createVectorLiveShape('second', {
+      kind: 'ellipse',
+      width: 20,
+      height: 20
+    });
+    second.transform.tx = 70;
+    second.transform.ty = 20;
+    const layer = createVectorLayer([first, second]);
+    state.document.layers = [layer];
+    state.controller.activate('element-selection');
+
+    state.controller.pointerDown(1, { x: 30, y: 30 }, { hitRadius: 2 });
+    state.controller.pointerUp(1, { x: 30, y: 30 });
+    state.controller.pointerDown(2, { x: 80, y: 30 }, { hitRadius: 2, additive: true });
+    state.controller.pointerUp(2, { x: 80, y: 30 });
+    expect(state.history).toHaveLength(0);
+    expect(state.selection.elements.map(({ elementId }) => elementId)).toEqual(['first', 'second']);
+
+    state.controller.pointerDown(3, { x: 30, y: 30 }, { hitRadius: 2 });
+    state.controller.pointerMove(3, { x: 35, y: 36 });
+    state.controller.pointerUp(3, { x: 35, y: 36 });
+    expect(state.history).toHaveLength(1);
+    const updated = findDocumentLayer(state.document, layer.id);
+    if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(updated.elements.map(({ transform }) => ({ tx: transform.tx, ty: transform.ty })))
+      .toEqual([{ tx: 25, ty: 26 }, { tx: 75, ty: 26 }]);
   });
 
   it('cancels a provisional live shape when the active document changes', () => {

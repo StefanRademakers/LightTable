@@ -109,6 +109,7 @@ const selectHit = (
     const alreadySelected = current.anchors.some((item) => sameAnchor(item, anchorReference));
     if (additive && alreadySelected) {
       return {
+        elements: current.elements.map((reference) => ({ ...reference })),
         paths: current.paths.map((reference) => ({ ...reference })),
         anchors: current.anchors
           .filter((item) => !sameAnchor(item, anchorReference))
@@ -117,6 +118,9 @@ const selectHit = (
       };
     }
     return {
+      elements: additive
+        ? current.elements.map((reference) => ({ ...reference }))
+        : [],
       paths: additive
         ? current.paths.map((reference) => ({ ...reference }))
         : [],
@@ -133,6 +137,9 @@ const selectHit = (
       ? [...current.paths.map((reference) => ({ ...reference })), pathReference]
       : [pathReference];
   return {
+    elements: additive
+      ? current.elements.map((reference) => ({ ...reference }))
+      : [],
     paths,
     anchors: additive
       ? current.anchors.map((reference) => ({ ...reference }))
@@ -244,6 +251,9 @@ export class DirectSelectionToolController {
           ]
         : matches;
       this.dependencies.setSelection({
+        elements: gesture.additive
+          ? gesture.openingSelection.elements.map((reference) => ({ ...reference }))
+          : [],
         paths: gesture.additive
           ? gesture.openingSelection.paths.map((reference) => ({ ...reference }))
           : [],

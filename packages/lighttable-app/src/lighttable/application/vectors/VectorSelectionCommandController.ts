@@ -5,6 +5,7 @@ import {
   moveAnchors,
   setAnchorMode,
   transformPoint,
+  translateVectorElement,
   translateVectorPath,
   type AnchorMode,
   type Vec2,
@@ -18,8 +19,12 @@ import {
 } from '../../editor/session/editorSession';
 import type { LayerId } from '../../editor/document/documentTypes';
 import type { ImageDocument } from '../../editor/document/documentTypes';
-import { VectorDocumentController, type VectorPathEdit } from './VectorDocumentController';
-import { vectorPathsTopmostFirst } from './vectorSceneQueries';
+import {
+  VectorDocumentController,
+  type VectorElementEdit,
+  type VectorPathEdit
+} from './VectorDocumentController';
+import { vectorElementsTopmostFirst, vectorPathsTopmostFirst } from './vectorSceneQueries';
 
 export interface VectorSelectionCommandDependencies {
   getDocument(): ImageDocument | null;
@@ -73,6 +78,16 @@ export class VectorSelectionCommandController {
 
   deleteSelection() {
     const selection = this.dependencies.getSelection();
+    if (selection.elements.length > 0) {
+      const edits: VectorElementEdit[] = selection.elements.map(({ layerId, elementId }) => ({
+        layerId,
+        elementId,
+        edit: () => null
+      }));
+      if (!this.documents.editElements(edits)) return false;
+      this.dependencies.setSelection(createVectorEditorSelection());
+      return true;
+    }
     const anchorGroups = groupAnchorsByPath(selection.anchors);
     const anchorPathKeys = new Set(anchorGroups.map(({ layerId, pathId }) => pathKey(layerId, pathId)));
     const edits: VectorPathEdit[] = anchorGroups.map((group) => ({
@@ -98,6 +113,26 @@ export class VectorSelectionCommandController {
     const document = this.dependencies.getDocument();
     if (!document) return false;
     const selection = this.dependencies.getSelection();
+    if (selection.elements.length > 0) {
+      const resolvedElements = new Map(vectorElementsTopmostFirst(document).map((entry) => [
+        pathKey(entry.layerId, entry.elementId),
+        entry
+      ]));
+      const edits: VectorElementEdit[] = [];
+      for (const reference of selection.elements) {
+        const entry = resolvedElements.get(pathKey(reference.layerId, reference.elementId));
+        const localDelta = entry
+          ? inverseTransformDelta(entry.layerToDocument, documentDelta)
+          : null;
+        if (!localDelta) return false;
+        edits.push({
+          layerId: reference.layerId,
+          elementId: reference.elementId,
+          edit: (element) => translateVectorElement(element, localDelta)
+        });
+      }
+      return this.documents.editElements(edits);
+    }
     const selectedPathKeys = new Set(
       selection.paths.map(({ layerId, pathId }) => pathKey(layerId, pathId))
     );
@@ -180,6 +215,7 @@ export class VectorSelectionCommandController {
     }]);
     if (!changed || !insertedSubpathId) return false;
     this.dependencies.setSelection({
+      elements: [],
       paths: [],
       anchors: [{
         layerId: active.layerId,

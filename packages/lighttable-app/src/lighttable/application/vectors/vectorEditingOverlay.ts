@@ -4,7 +4,7 @@ import {
 } from '@lighttable/vector-rendering';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { VectorEditorSelection } from '../../editor/session/editorSession';
-import { vectorPathsTopmostFirst } from './vectorSceneQueries';
+import { vectorElementsTopmostFirst } from './vectorSceneQueries';
 
 export interface VectorDocumentEditingOverlay extends VectorEditingOverlay {
   layerId: string;
@@ -26,19 +26,24 @@ const samePath = (
 export const buildVectorDocumentEditingOverlays = (
   document: Pick<ImageDocument, 'layers' | 'revision'>,
   selection: VectorEditorSelection
-): VectorDocumentEditingOverlay[] => vectorPathsTopmostFirst(document)
-  .filter(({ layerId, pathId }) => selection.paths.some(
-    (reference) => samePath(reference, layerId, pathId)
+): VectorDocumentEditingOverlay[] => vectorElementsTopmostFirst(document)
+  .filter(({ layerId, elementId }) => selection.elements.some(
+    (reference) => reference.layerId === layerId && reference.elementId === elementId
+  ) || selection.paths.some(
+    (reference) => samePath(reference, layerId, elementId)
   ) || selection.anchors.some(
-    (reference) => samePath(reference, layerId, pathId)
+    (reference) => samePath(reference, layerId, elementId)
   ))
-  .map(({ layerId, pathId, documentPath }) => {
+  .map(({ layerId, elementId, documentPath }) => {
+    const wholeElementSelected = selection.elements.some(
+      (reference) => reference.layerId === layerId && reference.elementId === elementId
+    );
     const anchors = selection.anchors
-      .filter((reference) => samePath(reference, layerId, pathId))
+      .filter((reference) => samePath(reference, layerId, elementId))
       .map(({ subpathId, anchorId }) => ({ subpathId, anchorId }));
     const active = selection.active;
     const activeAnchor = active
-      && samePath(active, layerId, pathId)
+      && samePath(active, layerId, elementId)
       && (active.target.kind === 'anchor'
         || active.target.kind === 'handle-in'
         || active.target.kind === 'handle-out')
@@ -47,11 +52,16 @@ export const buildVectorDocumentEditingOverlays = (
           anchorId: active.target.anchorId
         }
       : null;
+    const overlay = buildVectorEditingOverlay(documentPath, {
+      selection: { anchors, activeAnchor },
+      sceneRevision: document.revision
+    });
     return {
       layerId,
-      ...buildVectorEditingOverlay(documentPath, {
-        selection: { anchors, activeAnchor },
-        sceneRevision: document.revision
-      })
+      ...overlay,
+      pathId: elementId,
+      resourceKey: `${elementId}:${overlay.resourceKey}`,
+      anchors: wholeElementSelected ? [] : overlay.anchors,
+      handles: wholeElementSelected ? [] : overlay.handles
     };
   });

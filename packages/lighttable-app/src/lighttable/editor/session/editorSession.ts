@@ -19,6 +19,11 @@ export interface VectorPathSelectionReference {
   pathId: string;
 }
 
+export interface VectorElementSelectionReference {
+  layerId: LayerId;
+  elementId: string;
+}
+
 export interface VectorAnchorSelectionReference extends VectorPathSelectionReference {
   subpathId: string;
   anchorId: string;
@@ -36,12 +41,14 @@ export interface VectorActiveSelectionTarget extends VectorPathSelectionReferenc
  * here would make multi-document and nested-layer editing ambiguous.
  */
 export interface VectorEditorSelection {
+  elements: VectorElementSelectionReference[];
   paths: VectorPathSelectionReference[];
   anchors: VectorAnchorSelectionReference[];
   active: VectorActiveSelectionTarget | null;
 }
 
 export const createVectorEditorSelection = (): VectorEditorSelection => ({
+  elements: [],
   paths: [],
   anchors: [],
   active: null
@@ -50,6 +57,7 @@ export const createVectorEditorSelection = (): VectorEditorSelection => ({
 export const cloneVectorEditorSelection = (
   selection: VectorEditorSelection
 ): VectorEditorSelection => ({
+  elements: selection.elements.map((reference) => ({ ...reference })),
   paths: selection.paths.map((reference) => ({ ...reference })),
   anchors: selection.anchors.map((reference) => ({ ...reference })),
   active: selection.active
@@ -71,6 +79,14 @@ const pathReferencesEqual = (
 ) => left.length === right.length && left.every((reference, index) => (
   reference.layerId === right[index]?.layerId
   && reference.pathId === right[index]?.pathId
+));
+
+const elementReferencesEqual = (
+  left: readonly VectorElementSelectionReference[],
+  right: readonly VectorElementSelectionReference[]
+) => left.length === right.length && left.every((reference, index) => (
+  reference.layerId === right[index]?.layerId
+  && reference.elementId === right[index]?.elementId
 ));
 
 const anchorReferencesEqual = (
@@ -113,6 +129,7 @@ export const vectorEditorSelectionsEqual = (
   left: VectorEditorSelection,
   right: VectorEditorSelection
 ) => pathReferencesEqual(left.paths, right.paths)
+  && elementReferencesEqual(left.elements, right.elements)
   && anchorReferencesEqual(left.anchors, right.anchors)
   && (
     left.active === right.active
