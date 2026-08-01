@@ -86,7 +86,9 @@ export const buildSelectionEditingOverlay = (
 export const directSelectionShape = (
   operations: readonly SelectionOperation[]
 ): SelectionShape | null => (
-  operations.length === 1 && operations[0]!.mode === 'replace'
+  operations.length === 1
+  && operations[0]!.mode === 'replace'
+  && !operations[0]!.source
     ? operations[0]!.shape
     : null
 );

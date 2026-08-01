@@ -43,6 +43,8 @@ const setup = (initialDocument: ImageDocument) => {
     endDocumentTransaction: vi.fn(),
     createAdjustmentLayer: vi.fn(),
     createLensFxLayer: vi.fn(),
+    addActiveLayerMask: vi.fn(() => true),
+    loadLayerMaskSelection: vi.fn(),
     mergeActiveLayerDown: vi.fn(),
     mergeSelectedRasterLayers: vi.fn(),
     requestFlattenGroup: vi.fn(),
@@ -90,15 +92,24 @@ describe('createLayerPanelController', () => {
 
   it('adds a mask and atomically targets it with a black brush', () => {
     const harness = setup(createImageDocument('test', 100, 100, 'asset'));
-    const activeLayerId = harness.document().activeLayerId!;
 
     harness.controller.addMask();
 
-    expect(findDocumentLayer(harness.document(), activeLayerId)?.mask).not.toBeNull();
+    expect(harness.dependencies.addActiveLayerMask).toHaveBeenCalledOnce();
     expect(harness.dependencies.setPaintTarget).toHaveBeenCalledWith(
       'mask',
       '#000000'
     );
+  });
+
+  it('delegates loading a mask selection without changing the paint target', () => {
+    const harness = setup(createImageDocument('test', 100, 100, 'asset'));
+    const activeLayerId = harness.document().activeLayerId!;
+
+    harness.controller.loadMaskSelection(activeLayerId);
+
+    expect(harness.dependencies.loadLayerMaskSelection).toHaveBeenCalledWith(activeLayerId);
+    expect(harness.dependencies.setPaintTarget).not.toHaveBeenCalled();
   });
 
   it('prepares provisional vector work before changing the active layer', () => {

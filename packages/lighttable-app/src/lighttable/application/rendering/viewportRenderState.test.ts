@@ -58,4 +58,5 @@ describe('viewport render state', () => {
       { x: 1, y: 0, width: 800, height: 600 }
     ))).toBe(false);
   });
+
 });

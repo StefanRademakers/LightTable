@@ -17,6 +17,7 @@ const createUniformBuffer = (device: GPUDevice, label: string, floats: number) =
  */
 export class DocumentCoreGpuResources {
   readonly sampler: GPUSampler;
+  readonly nearestSampler: GPUSampler;
   readonly adjustmentBuffer: GPUBuffer;
   readonly outputSettingsBuffer: GPUBuffer;
   readonly viewBuffer: GPUBuffer;
@@ -33,6 +34,15 @@ export class DocumentCoreGpuResources {
       magFilter: 'linear',
       minFilter: 'linear',
       mipmapFilter: 'linear',
+      addressModeU: 'clamp-to-edge',
+      addressModeV: 'clamp-to-edge'
+    });
+    // Presentation-only sampler for pixel inspection. Processing continues to
+    // use the linear sampler above, so zooming cannot alter authored pixels.
+    this.nearestSampler = device.createSampler({
+      magFilter: 'nearest',
+      minFilter: 'nearest',
+      mipmapFilter: 'nearest',
       addressModeU: 'clamp-to-edge',
       addressModeV: 'clamp-to-edge'
     });

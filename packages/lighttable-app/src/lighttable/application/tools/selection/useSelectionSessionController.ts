@@ -1,9 +1,12 @@
 import { useMemo, useRef } from 'react';
-import type { ImageDocument } from '../../../editor/document/documentTypes';
+import type { ImageDocument, LayerId } from '../../../editor/document/documentTypes';
+import { findDocumentLayer } from '../../../editor/document/layerTree';
 import {
   createFeatherSelectionOperation,
   createFullCanvasSelection,
   createInvertSelectionOperation,
+  createLayerMaskSelectionOperation,
+  type SelectionCombineMode,
   type SelectionMode,
   type SelectionOperation,
   type SelectionPoint,
@@ -44,17 +47,19 @@ export interface SelectionSessionController {
   get polygonActive(): boolean;
   get draft(): SelectionShape | null;
   owns(pointerId: number): boolean;
-  begin(pointerId: number, tool: SelectionToolId, point: SelectionPoint): boolean;
-  move(pointerId: number, point: SelectionPoint): boolean;
-  finish(
+  begin(
     pointerId: number,
-    modifiers: { shiftKey: boolean; altKey: boolean }
+    tool: SelectionToolId,
+    point: SelectionPoint,
+    mode: SelectionCombineMode
   ): boolean;
+  move(pointerId: number, point: SelectionPoint): boolean;
+  finish(pointerId: number): boolean;
   cancel(pointerId: number): boolean;
   polygonClick(
     point: SelectionPoint,
     closeDistance: number,
-    modifiers: { shiftKey: boolean; altKey: boolean },
+    mode: SelectionCombineMode,
     forceClose?: boolean,
     timestamp?: number
   ): boolean;
@@ -66,6 +71,7 @@ export interface SelectionSessionController {
   clear(): void;
   invert(): void;
   feather(radius: number): void;
+  selectLayerMask(layerId: LayerId): void;
 }
 
 export const cloneSelectionOperations = (
@@ -73,6 +79,7 @@ export const cloneSelectionOperations = (
 ): SelectionOperation[] => operations.map((operation) => ({
   mode: operation.mode,
   amount: operation.amount,
+  source: operation.source ? { ...operation.source } : undefined,
   shape: {
     ...operation.shape,
     points: operation.shape.points.map((point) => ({ ...point }))
@@ -213,10 +220,10 @@ export const createSelectionSessionController = (
       return polygonGesture.draft ?? gesture.draft;
     },
     owns: (pointerId) => gesture.owns(pointerId),
-    begin: (pointerId, tool, point) => {
+    begin: (pointerId, tool, point, mode) => {
       const dependencies = resolveDependencies();
       if (!dependencies.getDocument() || !dependencies.getRenderer()) return false;
-      const draft = gesture.begin(pointerId, tool, point);
+      const draft = gesture.begin(pointerId, tool, point, mode);
       dependencies.publishDraft(draft);
       dependencies.publishSelection(dependencies.getSelection(), pointerId);
       return true;
@@ -227,8 +234,8 @@ export const createSelectionSessionController = (
       resolveDependencies().publishDraft(draft);
       return true;
     },
-    finish: (pointerId, modifiers) => {
-      const result = gesture.finish(pointerId, modifiers);
+    finish: (pointerId) => {
+      const result = gesture.finish(pointerId);
       return applyGestureResult(result);
     },
     cancel: (pointerId) => {
@@ -238,12 +245,12 @@ export const createSelectionSessionController = (
       dependencies.publishSelection(dependencies.getSelection(), null);
       return true;
     },
-    polygonClick: (point, closeDistance, modifiers, forceClose = false, timestamp = Date.now()) => {
+    polygonClick: (point, closeDistance, mode, forceClose = false, timestamp = Date.now()) => {
       const dependencies = resolveDependencies();
       if (!dependencies.getDocument() || !dependencies.getRenderer()) return false;
       const result = polygonGesture.click(
         point,
-        modifiers,
+        mode,
         closeDistance,
         forceClose,
         timestamp
@@ -313,6 +320,21 @@ export const createSelectionSessionController = (
           createFeatherSelectionOperation(document.width, document.height, radius)
         ],
         'The selection could not be feathered.'
+      );
+    },
+    selectLayerMask: (layerId) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      const layer = document ? findDocumentLayer(document, layerId) : null;
+      if (!document || !layer?.mask) return;
+      commitSnapshot(
+        [createLayerMaskSelectionOperation(
+          layer.id,
+          layer.mask.pixelRevision,
+          document.width,
+          document.height
+        )],
+        'The layer mask could not be loaded as a selection.'
       );
     }
   };

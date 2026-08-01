@@ -3,6 +3,7 @@ import {
   BRUSH_DAB_WGSL,
   LAYER_FILL_COLOR_WGSL,
   LAYER_INVERT_COLORS_WGSL,
+  RED_CHANNEL_COPY_WGSL,
   SELECTION_COMBINE_WGSL,
   SELECTION_CONTENT_COVERAGE_WGSL,
   SELECTION_COPY_WGSL,
@@ -26,6 +27,8 @@ export interface ToolPipelineBundle {
   selectionFeather: GPURenderPipeline;
   selectionCopy: GPURenderPipeline;
   selectionDisplayCopy: GPURenderPipeline;
+  selectionToMask: GPURenderPipeline;
+  maskToSelection: GPURenderPipeline;
   transform: GPURenderPipeline;
   selectionTransform: GPURenderPipeline;
 }
@@ -94,6 +97,8 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     selectionFeather: fullscreenPipeline('LightTable selection feather', SELECTION_FEATHER_WGSL, 'r8unorm'),
     selectionCopy: fullscreenPipeline('LightTable selected pixel copy', SELECTION_COPY_WGSL),
     selectionDisplayCopy: fullscreenPipeline('LightTable selected display copy', SELECTION_DISPLAY_COPY_WGSL, 'rgba8unorm'),
+    selectionToMask: fullscreenPipeline('LightTable selection to layer mask', RED_CHANNEL_COPY_WGSL),
+    maskToSelection: fullscreenPipeline('LightTable layer mask to selection', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
     transform: fullscreenPipeline('LightTable layer transform preview', LAYER_TRANSFORM_WGSL),
     selectionTransform: fullscreenPipeline('LightTable selection transform preview', SELECTION_TRANSFORM_WGSL, 'r8unorm')
   };

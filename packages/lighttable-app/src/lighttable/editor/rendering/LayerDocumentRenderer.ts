@@ -269,6 +269,20 @@ export class LayerDocumentRenderer {
     return this.runtime.rasterPaint.invertColors(layerId, channel);
   }
 
+  bakeSelectionIntoLayerMask(layerId: LayerId) {
+    const target = this.maskTextureFor(layerId);
+    return target
+      ? this.runtime.selectionRasterizer.copySelectionToMask(target)
+      : false;
+  }
+
+  loadLayerMaskAsSelection(layerId: LayerId) {
+    const source = this.maskTextureFor(layerId);
+    return source
+      ? this.runtime.selectionRasterizer.loadMask(source)
+      : false;
+  }
+
   setSelection(shape: SelectionShape, requestedMode: SelectionMode) {
     return this.runtime.selectionRasterizer.set(shape, requestedMode);
   }

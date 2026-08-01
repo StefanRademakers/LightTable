@@ -18,6 +18,7 @@ import {
 import type { ImageDocument, Rect } from '../document/documentTypes';
 import { findDocumentLayer, findRasterLayer } from '../document/layerTree';
 import type { EditorSession } from '../session/editorSession';
+import { resolveSelectionCombineMode } from '../selection/selectionTypes';
 import { paintTargetSourceToDocument } from '../tools/paint/paintCoordinates';
 import {
   isPaintTool,
@@ -393,10 +394,15 @@ export const useViewportInteractionController = ({
         && point
         && activeTool === 'select-polygonal'
       ) {
+        const selectionCombineMode = resolveSelectionCombineMode(
+          editorSession.selectionCombineMode,
+          event.shiftKey,
+          event.altKey
+        );
         if (selection.polygonClick(
           point,
           8 / Math.max(activeScale, 0.0001),
-          { shiftKey: event.shiftKey, altKey: event.altKey },
+          selectionCombineMode,
           event.detail >= 2,
           event.timeStamp
         )) {
@@ -405,7 +411,12 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent === 'selection' && point && isSelectionTool(activeTool)) {
-        if (selection.begin(event.pointerId, activeTool, point)) {
+        const selectionCombineMode = resolveSelectionCombineMode(
+          editorSession.selectionCombineMode,
+          event.shiftKey,
+          event.altKey
+        );
+        if (selection.begin(event.pointerId, activeTool, point, selectionCombineMode)) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();
         }
@@ -537,10 +548,7 @@ export const useViewportInteractionController = ({
         paintGestureMatches: paint.owns(event.pointerId)
       });
       if (intent === 'selection') {
-        selection.finish(event.pointerId, {
-          shiftKey: event.shiftKey,
-          altKey: event.altKey
-        });
+        selection.finish(event.pointerId);
         event.preventDefault();
         return;
       }

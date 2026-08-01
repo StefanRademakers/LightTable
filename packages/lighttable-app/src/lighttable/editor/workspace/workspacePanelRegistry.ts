@@ -52,15 +52,35 @@ export const createDefaultLightTableWorkspacePanels = (
   content: DefaultLightTableWorkspacePanelContent
 ): LightTableWorkspacePanelRegistration[] => [
   {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
+    contentKey: 'layers',
+    title: 'Layers',
+    content: content.layers,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
+      direction: 'within'
+    },
+    initialWidth: 260,
+    initialHeight: 370,
+    minimumHeight: 140,
+    defaultFloating: {
+      width: 260,
+      height: 370,
+      xRatio: 0.34,
+      yRatio: 0.27
+    },
+    requiredForSavedLayout: true
+  },
+  {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
     contentKey: 'scopes',
     title: 'Scopes',
     content: content.scopes,
     defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
-      direction: 'right'
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
+      direction: 'within'
     },
-    initialWidth: 250,
+    initiallyInactive: true,
     requiredForSavedLayout: true
   },
   {
@@ -69,7 +89,7 @@ export const createDefaultLightTableWorkspacePanels = (
     title: 'Grade',
     content: content.grade,
     defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
       direction: 'right'
     },
     initialWidth: 250,
@@ -97,25 +117,5 @@ export const createDefaultLightTableWorkspacePanels = (
       direction: 'within'
     },
     initiallyInactive: true
-  },
-  {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
-    contentKey: 'layers',
-    title: 'Layers',
-    content: content.layers,
-    defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
-      direction: 'within'
-    },
-    initialWidth: 260,
-    initialHeight: 370,
-    minimumHeight: 140,
-    defaultFloating: {
-      width: 260,
-      height: 370,
-      xRatio: 0.34,
-      yRatio: 0.27
-    },
-    requiredForSavedLayout: true
   }
 ];

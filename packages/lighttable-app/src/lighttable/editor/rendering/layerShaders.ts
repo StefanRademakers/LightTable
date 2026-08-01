@@ -1096,6 +1096,19 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/** Copies a scalar channel without filtering between selection and mask textures. */
+export const RED_CHANNEL_COPY_WGSL = /* wgsl */ `
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let dimensions = vec2i(textureDimensions(sourceTexture));
+  let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
+  let value = clamp(textureLoad(sourceTexture, pixel, 0).r, 0.0, 1.0);
+  return vec4f(value, value, value, 1.0);
+}
+`;
+
 export const LAYER_FILL_COLOR_WGSL = /* wgsl */ `
 struct FillSettings {
   color: vec4f,

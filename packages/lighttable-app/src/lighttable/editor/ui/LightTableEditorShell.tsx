@@ -18,12 +18,14 @@ export interface LightTableEditorShellProps {
   warp: EditorSession['warp'];
   vectorStyle: EditorSession['vectorStyle'];
   selectionPixelSnap: boolean;
+  selectionCombineMode: EditorSession['selectionCombineMode'];
   zoomPercent: number;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
+  onSelectionCombineModeChange: (mode: EditorSession['selectionCombineMode']) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
   onToolChange: (tool: ToolId) => void;
@@ -58,12 +60,14 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   warp,
   vectorStyle,
   selectionPixelSnap,
+  selectionCombineMode,
   zoomPercent,
   onBrushChange,
   onWarpChange,
   onVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
+  onSelectionCombineModeChange,
   onZoomPreset,
   onZoomFit,
   onToolChange,
@@ -113,12 +117,14 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         warp={warp}
         vectorStyle={vectorStyle}
         selectionPixelSnap={selectionPixelSnap}
+        selectionCombineMode={selectionCombineMode}
         zoomPercent={zoomPercent}
         onBrushChange={onBrushChange}
         onWarpChange={onWarpChange}
         onVectorStyleChange={onVectorStyleChange}
         onWarpReset={onWarpReset}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}
+        onSelectionCombineModeChange={onSelectionCombineModeChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}
       />

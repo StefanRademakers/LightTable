@@ -28,7 +28,7 @@ const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 // Increment only when the intended fresh-workspace composition changes. A
 // versioned key prevents a structurally valid older layout from silently
 // overriding the new product default.
-const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v2';
+const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v4';
 const ACCESSORY_PANEL_MINIMUM_WIDTH = 250;
 const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
 const PANEL_TAB_BAR_HEIGHT = 34;
@@ -138,12 +138,12 @@ const createDefaultLayout = (
   // receive panel drops. LightTable converts a centre drop there into a
   // floating panel; edge drops remain regular Dockview splits.
   documentHost.group.locked = false;
-  const registeredPanels = new Map(
-    panels.map((panel) => [panel.id, addRegisteredPanel(api, panel)] as const)
-  );
+  // Build sequentially. A panel that starts floating must become a floating
+  // group before a later registration can be added `within` that group.
+  // Otherwise Dockview leaves the later tab behind in the original dock.
   panels.forEach((panel) => {
+    const dockPanel = addRegisteredPanel(api, panel);
     const floating = panel.defaultFloating;
-    const dockPanel = registeredPanels.get(panel.id);
     if (!floating || !dockPanel) return;
 
     const width = Math.min(floating.width, Math.max(250, api.width - 24));

@@ -3,6 +3,7 @@ import {
   createFeatherSelectionOperation,
   createFullCanvasSelection,
   createInvertSelectionOperation,
+  resolveSelectionCombineMode,
   selectionModeFromModifiers,
   selectionShapeIsValid
 } from './selectionTypes';
@@ -13,6 +14,13 @@ describe('LightTable selections', () => {
     expect(selectionModeFromModifiers(true, false)).toBe('add');
     expect(selectionModeFromModifiers(false, true)).toBe('subtract');
     expect(selectionModeFromModifiers(true, true)).toBe('intersect');
+  });
+
+  it('uses the persistent mode unless pointer-down modifiers override it', () => {
+    expect(resolveSelectionCombineMode('subtract', false, false)).toBe('subtract');
+    expect(resolveSelectionCombineMode('subtract', true, false)).toBe('add');
+    expect(resolveSelectionCombineMode('add', false, true)).toBe('subtract');
+    expect(resolveSelectionCombineMode('replace', true, true)).toBe('intersect');
   });
 
   it('rejects clicks and incomplete free selections', () => {

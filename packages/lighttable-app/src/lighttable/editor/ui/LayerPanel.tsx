@@ -43,6 +43,7 @@ interface LayerPanelProps {
     placement: 'above' | 'below' | 'inside'
   ) => void;
   onAddMask: () => void;
+  onLoadMaskSelection: (layerId: LayerId) => void;
   onToggleMask: () => void;
   onRemoveMask: (layerId: LayerId) => void;
   onLockChange: (layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean) => void;
@@ -136,6 +137,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onClipping,
   onReorder,
   onAddMask,
+  onLoadMaskSelection,
   onToggleMask,
   onRemoveMask,
   onLockChange,
@@ -648,7 +650,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   draggable
                   className={`lighttable-layer__thumbnail lighttable-layer__mask${document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
                   style={maskThumbnailSize}
-                  onClick={(event) => { event.stopPropagation(); selectLayer(event, layer.id, 'mask'); }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (event.ctrlKey || event.metaKey) {
+                      event.preventDefault();
+                      onLoadMaskSelection(layer.id);
+                      return;
+                    }
+                    selectLayer(event, layer.id, 'mask');
+                  }}
                   onDoubleClick={(event) => { event.stopPropagation(); onToggleMask(); }}
                   onDragStart={(event) => {
                     event.stopPropagation();
@@ -660,7 +670,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     event.dataTransfer.setData('application/x-lighttable-layer-mask-id', layer.id);
                   }}
                   onDragEnd={() => setTrashDropActive(false)}
-                  title={layer.mask.enabled ? 'Edit mask; double-click to disable' : 'Edit mask; double-click to enable'}
+                  title={layer.mask.enabled
+                    ? 'Edit mask; Ctrl/Cmd-click to load selection; double-click to disable'
+                    : 'Edit mask; Ctrl/Cmd-click to load selection; double-click to enable'}
                 >
                   {previews?.mask ? (
                     <img

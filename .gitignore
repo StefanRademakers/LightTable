@@ -7,6 +7,8 @@ artifacts/
 .vite/
 coverage/
 .test-data/
+todo/
+done/
 *.log
 .env
 .env.*

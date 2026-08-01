@@ -1,4 +1,8 @@
-import type { SelectionOperation, SelectionToolId } from '../selection/selectionTypes';
+import type {
+  SelectionCombineMode,
+  SelectionOperation,
+  SelectionToolId
+} from '../selection/selectionTypes';
 import type { WarpToolSettings } from '../../effects/warp/warpTypes';
 import type { PathSelectionTarget } from '@lighttable/vector-core';
 import type { LayerId } from '../document/documentTypes';
@@ -167,6 +171,7 @@ export interface EditorSession {
   activeChannel: PaintChannel;
   selection: SelectionOperation[];
   vectorSelection: VectorEditorSelection;
+  selectionCombineMode: SelectionCombineMode;
   selectionPixelSnap: boolean;
   brush: BrushSettings;
   vectorStyle: VectorToolStyleSettings;
@@ -179,6 +184,7 @@ export const createEditorSession = (): EditorSession => ({
   activeChannel: 'pixels',
   selection: [],
   vectorSelection: createVectorEditorSelection(),
+  selectionCombineMode: 'replace',
   selectionPixelSnap: true,
   brush: {
     size: 48,

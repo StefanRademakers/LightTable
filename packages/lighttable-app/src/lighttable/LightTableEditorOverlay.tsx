@@ -1200,6 +1200,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     endDocumentTransaction,
     createAdjustmentLayer: layerDocumentCommands.createAdjustmentLayer,
     createLensFxLayer: layerDocumentCommands.createLensFxLayer,
+    addActiveLayerMask: () => layerDocumentCommands.addActiveLayerMask(
+      editorSession.selection.length > 0
+    ),
+    loadLayerMaskSelection: selectionSessionController.selectLayerMask,
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
     mergeSelectedRasterLayers,
     requestFlattenGroup: (groupId) =>
@@ -1441,6 +1445,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       warp={editorSession.warp}
       vectorStyle={editorSession.vectorStyle}
       selectionPixelSnap={editorSession.selectionPixelSnap}
+      selectionCombineMode={editorSession.selectionCombineMode}
       zoomPercent={activeScale * 100}
       onBrushChange={updateBrush}
       onWarpChange={updateWarp}
@@ -1455,6 +1460,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onSelectionPixelSnapChange={(selectionPixelSnap) => {
         setEditorSession((current) => ({ ...current, selectionPixelSnap }));
+      }}
+      onSelectionCombineModeChange={(selectionCombineMode) => {
+        setEditorSession((current) => ({ ...current, selectionCombineMode }));
       }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
@@ -1495,6 +1503,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             warp: editorSession.warp,
             vectorStyle: editorSession.vectorStyle,
             selectionPixelSnap: editorSession.selectionPixelSnap,
+            selectionCombineMode: editorSession.selectionCombineMode,
             zoomPercent: activeScale * 100,
             onBrushChange: updateBrush,
             onWarpChange: updateWarp,
@@ -1510,6 +1519,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onSelectionPixelSnapChange: (selectionPixelSnap) => {
               setEditorSession((current) => ({ ...current, selectionPixelSnap }));
+            },
+            onSelectionCombineModeChange: (selectionCombineMode) => {
+              setEditorSession((current) => ({ ...current, selectionCombineMode }));
             },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,

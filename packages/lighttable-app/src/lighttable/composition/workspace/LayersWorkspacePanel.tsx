@@ -62,6 +62,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onClipping={controller.setClipping}
         onReorder={controller.reorder}
         onAddMask={controller.addMask}
+        onLoadMaskSelection={controller.loadMaskSelection}
         onToggleMask={controller.toggleMask}
         onRemoveMask={controller.removeMask}
         onLockChange={controller.setLock}

@@ -23,6 +23,9 @@ export class DocumentImageGpuResources {
   blitOriginalBindGroup: GPUBindGroup | null = null;
   blitCorrectedBindGroup: GPUBindGroup | null = null;
   differenceBindGroup: GPUBindGroup | null = null;
+  blitOriginalNearestBindGroup: GPUBindGroup | null = null;
+  blitCorrectedNearestBindGroup: GPUBindGroup | null = null;
+  differenceNearestBindGroup: GPUBindGroup | null = null;
 
   reset(): void {
     const resources: Array<DestroyableGpuResource | null> = [
@@ -59,5 +62,8 @@ export class DocumentImageGpuResources {
     this.blitOriginalBindGroup = null;
     this.blitCorrectedBindGroup = null;
     this.differenceBindGroup = null;
+    this.blitOriginalNearestBindGroup = null;
+    this.blitCorrectedNearestBindGroup = null;
+    this.differenceNearestBindGroup = null;
   }
 }

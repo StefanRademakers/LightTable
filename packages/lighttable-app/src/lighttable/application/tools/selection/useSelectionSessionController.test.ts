@@ -3,6 +3,7 @@ import {
   createImageDocument,
   type ImageDocument
 } from '../../../editor/document/documentTypes';
+import { addLayerMask } from '../../../editor/document/documentCommands';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 import type { SelectionShape } from '../../../editor/selection/selectionTypes';
 import {
@@ -55,10 +56,10 @@ const setup = () => {
 describe('selection session controller', () => {
   it('publishes one pointer gesture and one selection-only history entry', async () => {
     const state = setup();
-    expect(state.controller.begin(7, 'select-rectangle', { x: 10, y: 10 })).toBe(true);
+    expect(state.controller.begin(7, 'select-rectangle', { x: 10, y: 10 }, 'replace')).toBe(true);
     expect(state.pointerId).toBe(7);
     expect(state.controller.move(7, { x: 40, y: 50 })).toBe(true);
-    expect(state.controller.finish(7, { shiftKey: false, altKey: false })).toBe(true);
+    expect(state.controller.finish(7)).toBe(true);
     await Promise.resolve();
     expect(state.renderer.setSelection).toHaveBeenCalledOnce();
     expect(state.selection).toHaveLength(1);
@@ -74,9 +75,9 @@ describe('selection session controller', () => {
     state.renderer.setSelection.mockImplementation(
       () => new Promise<boolean>((resolve) => { resolveSelection = resolve; })
     );
-    state.controller.begin(3, 'select-rectangle', { x: 1, y: 1 });
+    state.controller.begin(3, 'select-rectangle', { x: 1, y: 1 }, 'replace');
     state.controller.move(3, { x: 20, y: 20 });
-    state.controller.finish(3, { shiftKey: false, altKey: false });
+    state.controller.finish(3);
     state.switchDocument(createImageDocument('Other', 100, 80, 'other'));
     resolveSelection(true);
     await Promise.resolve();
@@ -96,29 +97,50 @@ describe('selection session controller', () => {
     expect(state.selection).toHaveLength(1);
   });
 
+  it('loads a layer mask as a raster-backed selection', async () => {
+    const state = setup();
+    const masked = addLayerMask(document, document.activeLayerId!);
+    state.switchDocument(masked);
+
+    state.controller.selectLayerMask(masked.activeLayerId!);
+    await Promise.resolve();
+
+    expect(state.renderer.replaceSelection).toHaveBeenCalledWith([
+      expect.objectContaining({
+        mode: 'replace',
+        source: expect.objectContaining({
+          kind: 'layer-mask',
+          layerId: masked.activeLayerId
+        })
+      })
+    ]);
+    expect(state.selection[0]?.source?.kind).toBe('layer-mask');
+    expect(state.history).toHaveLength(1);
+  });
+
   it('keeps a polygon draft across clicks and commits it near the origin', async () => {
     const state = setup();
     expect(state.controller.polygonClick(
       { x: 10, y: 10 },
       5,
-      { shiftKey: false, altKey: false }
+      'replace'
     )).toBe(true);
     state.controller.polygonMove({ x: 40, y: 10 });
     state.controller.polygonClick(
       { x: 40, y: 10 },
       5,
-      { shiftKey: false, altKey: false }
+      'replace'
     );
     state.controller.polygonClick(
       { x: 40, y: 40 },
       5,
-      { shiftKey: false, altKey: false }
+      'replace'
     );
     expect(state.controller.polygonActive).toBe(true);
     state.controller.polygonClick(
       { x: 12, y: 12 },
       5,
-      { shiftKey: false, altKey: false }
+      'replace'
     );
     await Promise.resolve();
     expect(state.renderer.setSelection).toHaveBeenCalledWith(

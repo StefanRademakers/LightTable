@@ -11,6 +11,7 @@ describe('DocumentImageGpuResources', () => {
     resources.sourceTexture = source as unknown as GPUTexture;
     resources.finalTexture = output as unknown as GPUTexture;
     resources.blitOriginalBindGroup = {} as GPUBindGroup;
+    resources.blitOriginalNearestBindGroup = {} as GPUBindGroup;
 
     resources.reset();
 
@@ -19,6 +20,7 @@ describe('DocumentImageGpuResources', () => {
     expect(resources.sourceTexture).toBeNull();
     expect(resources.finalTexture).toBeNull();
     expect(resources.blitOriginalBindGroup).toBeNull();
+    expect(resources.blitOriginalNearestBindGroup).toBeNull();
   });
 
   it('destroys an aliased resource only once', () => {

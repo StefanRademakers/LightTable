@@ -1,7 +1,6 @@
 import {
-  selectionModeFromModifiers,
   selectionShapeIsValid,
-  type SelectionMode,
+  type SelectionCombineMode,
   type SelectionPoint,
   type SelectionShape,
   type SelectionToolId
@@ -9,7 +8,7 @@ import {
 import { selectionKindForTool } from '../toolCapabilities';
 
 export type SelectionGestureFinish =
-  | { kind: 'apply'; mode: SelectionMode; shape: SelectionShape }
+  | { kind: 'apply'; mode: SelectionCombineMode; shape: SelectionShape }
   | { kind: 'clear' }
   | { kind: 'none' };
 
@@ -31,6 +30,7 @@ const cloneShape = (shape: SelectionShape): SelectionShape => ({
 export class SelectionGestureController {
   private activePointerId: number | null = null;
   private activeDraft: SelectionShape | null = null;
+  private activeMode: SelectionCombineMode = 'replace';
 
   get pointerId(): number | null {
     return this.activePointerId;
@@ -44,9 +44,15 @@ export class SelectionGestureController {
     return this.activePointerId === pointerId;
   }
 
-  begin(pointerId: number, tool: SelectionToolId, point: SelectionPoint): SelectionShape {
+  begin(
+    pointerId: number,
+    tool: SelectionToolId,
+    point: SelectionPoint,
+    mode: SelectionCombineMode
+  ): SelectionShape {
     const start = clonePoint(point);
     this.activePointerId = pointerId;
+    this.activeMode = mode;
     this.activeDraft = {
       kind: selectionKindForTool(tool),
       points: tool === 'select-free' ? [start] : [start, clonePoint(start)]
@@ -75,23 +81,19 @@ export class SelectionGestureController {
     return cloneShape(this.activeDraft);
   }
 
-  finish(
-    pointerId: number,
-    modifiers: { shiftKey: boolean; altKey: boolean }
-  ): SelectionGestureFinish | null {
+  finish(pointerId: number): SelectionGestureFinish | null {
     if (!this.owns(pointerId)) return null;
     const shape = this.activeDraft;
+    const mode = this.activeMode;
     this.reset();
     if (shape && selectionShapeIsValid(shape)) {
       return {
         kind: 'apply',
-        mode: selectionModeFromModifiers(modifiers.shiftKey, modifiers.altKey),
+        mode,
         shape: cloneShape(shape)
       };
     }
-    return !modifiers.shiftKey && !modifiers.altKey
-      ? { kind: 'clear' }
-      : { kind: 'none' };
+    return mode === 'replace' ? { kind: 'clear' } : { kind: 'none' };
   }
 
   cancel(pointerId?: number): boolean {
@@ -104,5 +106,6 @@ export class SelectionGestureController {
   reset(): void {
     this.activePointerId = null;
     this.activeDraft = null;
+    this.activeMode = 'replace';
   }
 }

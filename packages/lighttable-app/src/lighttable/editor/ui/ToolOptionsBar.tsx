@@ -1,6 +1,7 @@
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { SegmentedControl } from '../../../ui/SegmentedControl';
 import type {
   BrushSettings,
   EditorSession,
@@ -9,6 +10,8 @@ import type {
 } from '../session/editorSession';
 import { WarpToolOptions } from '../../application/tools/warp/WarpToolOptions';
 import { toolDefinition } from '../tools/toolRegistry';
+import { isSelectionTool } from '../tools/toolCapabilities';
+import type { SelectionCombineMode } from '../selection/selectionTypes';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 
 export interface ToolOptionsProps {
@@ -17,12 +20,14 @@ export interface ToolOptionsProps {
   warp: EditorSession['warp'];
   vectorStyle: VectorToolStyleSettings;
   selectionPixelSnap: boolean;
+  selectionCombineMode: SelectionCombineMode;
   zoomPercent: number;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<VectorToolStyleSettings>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
+  onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
 }
@@ -59,12 +64,14 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   warp,
   vectorStyle,
   selectionPixelSnap,
+  selectionCombineMode,
   zoomPercent,
   onBrushChange,
   onWarpChange,
   onVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
+  onSelectionCombineModeChange,
   onZoomPreset,
   onZoomFit,
   orientation = 'horizontal'
@@ -96,6 +103,20 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               : warp.mode[0]!.toUpperCase() + warp.mode.slice(1)}`
           : TOOL_LABELS[activeTool]}</strong>
       </div>
+      {isSelectionTool(activeTool) ? (
+        <SegmentedControl
+          className="lighttable-tool-options__selection-mode"
+          ariaLabel="Selection combine mode"
+          value={selectionCombineMode}
+          onChange={onSelectionCombineModeChange}
+          options={[
+            { value: 'replace', label: 'New', title: 'New selection' },
+            { value: 'add', label: 'Add', title: 'Add to selection' },
+            { value: 'subtract', label: 'Subtract', title: 'Subtract from selection' },
+            { value: 'intersect', label: 'Intersect', title: 'Intersect with selection' }
+          ]}
+        />
+      ) : null}
       {activeTool === 'select-rectangle' || activeTool === 'select-ellipse' ? (
         <label className="lighttable-tool-options__toggle">
           <input

@@ -8,7 +8,6 @@ import type {
   LayerLocks
 } from '../../editor/document/documentTypes';
 import {
-  addLayerMask,
   createGroupLayer,
   createRasterLayer,
   deleteLayers,
@@ -55,6 +54,8 @@ export interface LayerPanelControllerDependencies {
   endDocumentTransaction(): void;
   createAdjustmentLayer(): void;
   createLensFxLayer(): void;
+  addActiveLayerMask(): boolean;
+  loadLayerMaskSelection(layerId: LayerId): void;
   mergeActiveLayerDown(): void;
   mergeSelectedRasterLayers(layerIds: LayerId[]): void;
   requestFlattenGroup(groupId: LayerId): void;
@@ -81,6 +82,7 @@ export interface LayerPanelController {
     placement: 'above' | 'below' | 'inside'
   ): void;
   addMask(): void;
+  loadMaskSelection(layerId: LayerId): void;
   toggleMask(): void;
   removeMask(layerId?: LayerId): void;
   moveActive(direction: 'up' | 'down'): void;
@@ -173,11 +175,12 @@ export const createLayerPanelController = (
         moveLayerSelection(current, layerIds, targetLayerId, placement)),
     addMask: () => {
       const dependencies = resolveDependencies();
-      const layerId = dependencies.getDocument()?.activeLayerId;
-      if (!layerId) return;
-      dependencies.mutateDocument((current) => addLayerMask(current, layerId));
-      dependencies.setPaintTarget('mask', '#000000');
+      if (dependencies.addActiveLayerMask()) {
+        dependencies.setPaintTarget('mask', '#000000');
+      }
     },
+    loadMaskSelection: (layerId) =>
+      resolveDependencies().loadLayerMaskSelection(layerId),
     toggleMask: () => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();

@@ -27,6 +27,7 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   flattenGroup: vi.fn(() => true),
   flattenImage: vi.fn(() => true),
   invertLayerColors: vi.fn(() => true),
+  bakeSelectionIntoLayerMask: vi.fn(() => true),
   copySelectedLayerContent: vi.fn(() => true),
   exportSelectionClipboard: vi.fn(async () => new Blob(['selection'], { type: 'image/png' })),
   exportMergedSelection: vi.fn(async () => new Blob(['merged'], { type: 'image/png' })),
@@ -96,6 +97,35 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('useLayerDocumentCommands', () => {
+  it('adds an all-white layer mask without running a selection copy', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const layerId = state.document().activeLayerId!;
+
+    expect(state.commands.addActiveLayerMask(false)).toBe(true);
+
+    expect(state.document().layers[0]?.mask).not.toBeNull();
+    expect(state.renderer.bakeSelectionIntoLayerMask).not.toHaveBeenCalled();
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('mask');
+    expect(state.document().activeLayerId).toBe(layerId);
+  });
+
+  it('bakes the current raster selection into a new mask as one pixel-history step', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const layerId = state.document().activeLayerId!;
+
+    expect(state.commands.addActiveLayerMask(true)).toBe(true);
+
+    expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId, 'mask');
+    expect(state.renderer.bakeSelectionIntoLayerMask).toHaveBeenCalledWith(layerId);
+    expect(state.document().layers[0]?.mask?.pixelRevision).toBe(1);
+    expect(state.historyEntries).toHaveLength(1);
+    state.historyEntries[0].undo();
+    expect(state.document().layers[0]?.mask).toBeNull();
+    state.historyEntries[0].redo();
+    expect(state.document().layers[0]?.mask?.pixelRevision).toBe(1);
+  });
+
   it('copies selected layer pixels to the system image clipboard', async () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const selection = createFullCanvasSelection(32, 24);

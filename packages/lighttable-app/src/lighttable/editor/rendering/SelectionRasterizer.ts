@@ -79,6 +79,56 @@ interface SelectionRasterizerOptions {
 export class SelectionRasterizer {
   constructor(private readonly options: SelectionRasterizerOptions) {}
 
+  private copyRedChannel(
+    source: GPUTexture,
+    target: GPUTexture,
+    pipeline: GPURenderPipeline,
+    label: string
+  ) {
+    const { device } = this.options;
+    const bindGroup = device.createBindGroup({
+      label: `${label} bindings`,
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: source.createView() }]
+    });
+    const encoder = device.createCommandEncoder({ label });
+    this.options.drawFullscreen(
+      encoder,
+      pipeline,
+      bindGroup,
+      target.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    device.queue.submit([encoder.finish()]);
+  }
+
+  copySelectionToMask(target: GPUTexture) {
+    this.options.ensureTargets();
+    const { textures } = this.options;
+    if (!textures.active || !textures.mask) return false;
+    this.copyRedChannel(
+      textures.mask,
+      target,
+      this.options.pipelines().selectionToMask,
+      'LightTable bake selection into layer mask'
+    );
+    return true;
+  }
+
+  loadMask(source: GPUTexture) {
+    this.options.ensureTargets();
+    const { textures } = this.options;
+    if (!textures.mask) return false;
+    this.copyRedChannel(
+      source,
+      textures.mask,
+      this.options.pipelines().maskToSelection,
+      'LightTable load layer mask as selection'
+    );
+    textures.active = true;
+    return true;
+  }
+
   set(shape: SelectionShape, requestedMode: SelectionMode) {
     this.options.ensureTargets();
     const { textures, device } = this.options;

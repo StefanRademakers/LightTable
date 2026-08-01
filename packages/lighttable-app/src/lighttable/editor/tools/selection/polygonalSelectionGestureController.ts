@@ -1,7 +1,6 @@
 import {
-  selectionModeFromModifiers,
   selectionShapeIsValid,
-  type SelectionMode,
+  type SelectionCombineMode,
   type SelectionPoint,
   type SelectionShape
 } from '../../selection/selectionTypes';
@@ -32,7 +31,7 @@ export class PolygonalSelectionGestureController {
   private vertices: SelectionPoint[] = [];
   private previewPoint: SelectionPoint | null = null;
   private lastClick: { point: SelectionPoint; timestamp: number } | null = null;
-  private mode: SelectionMode = 'replace';
+  private mode: SelectionCombineMode = 'replace';
 
   get active(): boolean {
     return this.vertices.length > 0;
@@ -47,7 +46,7 @@ export class PolygonalSelectionGestureController {
 
   click(
     point: SelectionPoint,
-    modifiers: { shiftKey: boolean; altKey: boolean },
+    mode: SelectionCombineMode,
     closeDistance: number,
     forceClose = false,
     timestamp = Date.now()
@@ -57,7 +56,7 @@ export class PolygonalSelectionGestureController {
       this.vertices = [start];
       this.previewPoint = clonePoint(start);
       this.lastClick = { point: clonePoint(point), timestamp };
-      this.mode = selectionModeFromModifiers(modifiers.shiftKey, modifiers.altKey);
+      this.mode = mode;
       return { kind: 'draft', shape: this.draft! };
     }
 

@@ -3,7 +3,8 @@ export type SelectionToolId =
   | 'select-ellipse'
   | 'select-free'
   | 'select-polygonal';
-export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect' | 'invert' | 'feather';
+export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
+export type SelectionMode = SelectionCombineMode | 'invert' | 'feather';
 
 export interface SelectionPoint {
   x: number;
@@ -18,9 +19,28 @@ export interface SelectionShape {
 export interface SelectionOperation {
   mode: SelectionMode;
   shape: SelectionShape;
+  /** Raster-backed source used when a layer mask is loaded as the selection. */
+  source?: {
+    kind: 'layer-mask';
+    layerId: LayerId;
+    pixelRevision: number;
+  };
   /** Document-space feather radius. Only used by the feather operation. */
   amount?: number;
 }
+
+export const createLayerMaskSelectionOperation = (
+  layerId: LayerId,
+  pixelRevision: number,
+  width: number,
+  height: number
+): SelectionOperation => ({
+  mode: 'replace',
+  source: { kind: 'layer-mask', layerId, pixelRevision },
+  // Geometry is retained as the document coverage contract. Rendering uses
+  // the raster source above, preserving feathered/painted mask values.
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
 
 export const createFullCanvasSelection = (
   width: number,
@@ -54,12 +74,28 @@ export const createFeatherSelectionOperation = (
   shape: createFullCanvasSelection(width, height)[0].shape
 });
 
-export const selectionModeFromModifiers = (shiftKey: boolean, altKey: boolean): SelectionMode => {
+/**
+ * Resolves the operation once, when a selection gesture starts.
+ *
+ * The persistent Tool Options choice remains untouched. Shift/Alt only
+ * override that choice for the gesture that is about to begin; modifiers
+ * pressed later are therefore free to constrain selection geometry.
+ */
+export const resolveSelectionCombineMode = (
+  baseMode: SelectionCombineMode,
+  shiftKey: boolean,
+  altKey: boolean
+): SelectionCombineMode => {
   if (shiftKey && altKey) return 'intersect';
   if (shiftKey) return 'add';
   if (altKey) return 'subtract';
-  return 'replace';
+  return baseMode;
 };
+
+export const selectionModeFromModifiers = (
+  shiftKey: boolean,
+  altKey: boolean
+): SelectionCombineMode => resolveSelectionCombineMode('replace', shiftKey, altKey);
 
 export const selectionShapeIsValid = (shape: SelectionShape): boolean => {
   if (shape.kind === 'free' || shape.kind === 'polygon') return shape.points.length >= 3;
@@ -67,3 +103,4 @@ export const selectionShapeIsValid = (shape: SelectionShape): boolean => {
   const [start, end] = shape.points;
   return Math.abs(end.x - start.x) >= 1 && Math.abs(end.y - start.y) >= 1;
 };
+import type { LayerId } from '../document/documentTypes';

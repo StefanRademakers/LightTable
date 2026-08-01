@@ -192,6 +192,9 @@ export class WebGpuEngine {
   private paintInteractionActive = false;
   private lastReportedGpuBytes = -1;
   private viewportRenderState: ViewportRenderState | null = null;
+  private viewportSampling: 'linear' | 'nearest' = 'linear';
+  private viewportScale = Number.NaN;
+  private viewportSamplingSettleTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
   private vectorSelection = createVectorEditorSelection();
   private selectionOverlayOperations: SelectionOperation[] = [];
   private selectionOverlayDraft: SelectionShape | null = null;
@@ -583,6 +586,12 @@ export class WebGpuEngine {
     return changed;
   }
 
+  bakeSelectionIntoLayerMask(layerId: LayerId) {
+    const changed = this.documentRenderer?.bakeSelectionIntoLayerMask(layerId) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
   private async setSelectionNow(shape: SelectionShape, mode: SelectionMode) {
     this.device.pushErrorScope('validation');
     const changed = this.documentRenderer?.setSelection(shape, mode) ?? false;
@@ -608,7 +617,16 @@ export class WebGpuEngine {
     const task = this.selectionQueue.then(async () => {
       this.documentRenderer?.clearSelection();
       for (const operation of operations) {
-        if (operation.mode === 'feather') {
+        if (operation.source?.kind === 'layer-mask') {
+          const layer = this.imageDocument
+            ? findDocumentLayer(this.imageDocument, operation.source.layerId)
+            : null;
+          if (
+            !layer?.mask
+            || layer.mask.pixelRevision !== operation.source.pixelRevision
+            || !this.documentRenderer?.loadLayerMaskAsSelection(layer.id)
+          ) return false;
+        } else if (operation.mode === 'feather') {
           if (!this.documentRenderer?.featherSelection(operation.amount ?? 0)) return false;
         } else if (!await this.setSelectionNow(operation.shape, operation.mode)) {
           return false;
@@ -894,12 +912,37 @@ export class WebGpuEngine {
         { binding: 2, resource: { buffer: coreResources.viewBuffer } }
       ]
     });
+    this.imageResources.blitOriginalNearestBindGroup = this.device.createBindGroup({
+      layout: this.blitPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.imageResources.sourceTexture.createView() },
+        { binding: 1, resource: coreResources.nearestSampler },
+        { binding: 2, resource: { buffer: coreResources.viewBuffer } }
+      ]
+    });
+    this.imageResources.blitCorrectedNearestBindGroup = this.device.createBindGroup({
+      layout: this.blitPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.imageResources.finalTexture.createView() },
+        { binding: 1, resource: coreResources.nearestSampler },
+        { binding: 2, resource: { buffer: coreResources.viewBuffer } }
+      ]
+    });
     this.imageResources.differenceBindGroup = this.device.createBindGroup({
       layout: this.differencePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.imageResources.sourceTexture.createView() },
         { binding: 1, resource: this.imageResources.finalTexture.createView() },
         { binding: 2, resource: coreResources.sampler },
+        { binding: 3, resource: { buffer: coreResources.viewBuffer } }
+      ]
+    });
+    this.imageResources.differenceNearestBindGroup = this.device.createBindGroup({
+      layout: this.differencePipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.imageResources.sourceTexture.createView() },
+        { binding: 1, resource: this.imageResources.finalTexture.createView() },
+        { binding: 2, resource: coreResources.nearestSampler },
         { binding: 3, resource: { buffer: coreResources.viewBuffer } }
       ]
     });
@@ -1098,6 +1141,11 @@ export class WebGpuEngine {
   }
 
   resizeViewport(cssWidth: number, cssHeight: number, dpr: number, rect: ViewportRect) {
+    const scale = this.metadata ? rect.width / this.metadata.width : 1;
+    if (!Number.isFinite(this.viewportScale) || Math.abs(scale - this.viewportScale) > 0.0001) {
+      this.viewportScale = scale;
+      this.beginInteractiveViewportSampling(scale);
+    }
     const nextState = resolveViewportRenderState(cssWidth, cssHeight, dpr, rect);
     if (viewportRenderStatesEqual(this.viewportRenderState, nextState)) return;
     this.viewportRenderState = nextState;
@@ -1107,6 +1155,24 @@ export class WebGpuEngine {
       this.canvas.height = pixelHeight;
     }
     this.coreResources?.writeViewport(nextState.uniforms);
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  private beginInteractiveViewportSampling(scale: number) {
+    if (this.viewportSamplingSettleTimer !== null) {
+      globalThis.clearTimeout(this.viewportSamplingSettleTimer);
+    }
+    this.setViewportSampling('linear');
+    this.viewportSamplingSettleTimer = globalThis.setTimeout(() => {
+      this.viewportSamplingSettleTimer = null;
+      this.setViewportSampling(scale >= 4 ? 'nearest' : 'linear');
+    }, 75);
+  }
+
+  private setViewportSampling(sampling: 'linear' | 'nearest') {
+    if (this.viewportSampling === sampling) return;
+    this.viewportSampling = sampling;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -1214,7 +1280,10 @@ export class WebGpuEngine {
       !this.imageResources.downsampleBindGroup || !this.imageResources.blurHorizontalBindGroup || !this.imageResources.blurVerticalBindGroup ||
       !this.imageResources.creativeBindGroup ||
       !this.imageResources.blitOriginalBindGroup || !this.imageResources.blitCorrectedBindGroup ||
-      !this.imageResources.differenceBindGroup) return;
+      !this.imageResources.differenceBindGroup ||
+      !this.imageResources.blitOriginalNearestBindGroup ||
+      !this.imageResources.blitCorrectedNearestBindGroup ||
+      !this.imageResources.differenceNearestBindGroup) return;
 
     this.renderTelemetry.recordRenderCall();
 
@@ -1344,11 +1413,14 @@ export class WebGpuEngine {
     }
     if (this.renderDirty.viewportRequired) {
       const canvasView = this.context.getCurrentTexture().createView();
+      const useNearestSampling = this.viewportSampling === 'nearest';
       if (this.difference) {
         this.drawFullscreenPass(
           encoder,
           this.differencePipeline,
-          this.imageResources.differenceBindGroup,
+          useNearestSampling
+            ? this.imageResources.differenceNearestBindGroup
+            : this.imageResources.differenceBindGroup,
           canvasView
         );
       } else {
@@ -1356,8 +1428,12 @@ export class WebGpuEngine {
           encoder,
           this.blitPipeline,
           this.before
-            ? this.imageResources.blitOriginalBindGroup
-            : this.imageResources.blitCorrectedBindGroup,
+            ? (useNearestSampling
+              ? this.imageResources.blitOriginalNearestBindGroup
+              : this.imageResources.blitOriginalBindGroup)
+            : (useNearestSampling
+              ? this.imageResources.blitCorrectedNearestBindGroup
+              : this.imageResources.blitCorrectedBindGroup),
           canvasView
         );
       }
@@ -1443,6 +1519,10 @@ export class WebGpuEngine {
   destroy() {
     this.destroyed = true;
     this.paintInteractionActive = false;
+    if (this.viewportSamplingSettleTimer !== null) {
+      globalThis.clearTimeout(this.viewportSamplingSettleTimer);
+      this.viewportSamplingSettleTimer = null;
+    }
     this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
     this.unsubscribeDeviceLost();
     this.sourceLoader?.destroy();

@@ -6,6 +6,7 @@ import type {
 } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import {
+  addLayerMask,
   createAdjustmentLayer,
   duplicateLayer,
   createRasterLayer,
@@ -61,6 +62,7 @@ export interface LayerCommandRendererPort {
   flattenGroup(document: ImageDocument, groupId: LayerId, destinationId: LayerId): boolean;
   flattenImage(document: ImageDocument, destinationId: LayerId): boolean;
   invertLayerColors(layerId: LayerId, channel?: PaintChannel): boolean;
+  bakeSelectionIntoLayerMask(layerId: LayerId): boolean;
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId): boolean;
   exportSelectionClipboard(bounds: Rect): Promise<Blob>;
   exportMergedSelection(bounds: Rect): Promise<Blob>;
@@ -98,6 +100,7 @@ export interface LayerDocumentCommandDependencies {
 }
 
 export interface LayerDocumentCommands {
+  addActiveLayerMask(useSelection: boolean): boolean;
   duplicateActiveLayer(): boolean;
   createAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
@@ -133,6 +136,83 @@ export const createLayerDocumentCommands = (
   const dependenciesRef = {
     get current() {
       return resolveDependencies();
+    }
+  };
+
+  const addActiveLayerMask = (useSelection: boolean) => {
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
+    const layerId = current?.activeLayerId;
+    const layer = current && layerId
+      ? findDocumentLayer(current, layerId)
+      : null;
+    if (!current || !layerId || !layer || layer.mask) return false;
+
+    const withMask = addLayerMask(current, layerId);
+    if (withMask === current) return false;
+
+    dependencies.applyDocumentSnapshot(withMask);
+    if (!useSelection) {
+      dependencies.pushDocumentHistory(current, withMask);
+      dependencies.setActiveChannel('mask');
+      dependencies.setError(null);
+      dependencies.setStatus(`Added layer mask to ${layer.name}`);
+      return true;
+    }
+
+    const renderer = dependencies.getRenderer();
+    if (!renderer) {
+      dependencies.applyDocumentSnapshot(current);
+      dependencies.setError('The current selection could not be baked into a layer mask.');
+      return false;
+    }
+
+    try {
+      renderer.beginLayerPixelEdit(layerId, 'mask');
+      if (!renderer.bakeSelectionIntoLayerMask(layerId)) {
+        throw new Error('The current selection could not be copied into the layer mask.');
+      }
+      const pixelEdit = renderer.finishPixelEdit();
+      if (!pixelEdit) {
+        throw new Error('The layer mask could not create a recoverable undo step.');
+      }
+      const next = markLayerMaskPixelsChanged(
+        withMask,
+        layerId,
+        fullDocumentBounds(current)
+      );
+      dependencies.applyDocumentSnapshot(next);
+      dependencies.pushHistoryEntry({
+        byteSize: pixelEdit.byteSize,
+        layerIds: [layerId],
+        undo: () => {
+          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
+            throw new Error('Add layer mask undo is no longer available.');
+          }
+          dependenciesRef.current.applyDocumentSnapshot(current);
+        },
+        redo: () => {
+          dependenciesRef.current.applyDocumentSnapshot(withMask);
+          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
+            throw new Error('Add layer mask redo is no longer available.');
+          }
+          dependenciesRef.current.applyDocumentSnapshot(next);
+        },
+        dispose: pixelEdit.destroy
+      });
+      dependencies.setActiveChannel('mask');
+      dependencies.setError(null);
+      dependencies.setStatus(`Added selection as a mask to ${layer.name}`);
+      return true;
+    } catch (reason) {
+      renderer.cancelPixelEdit();
+      dependencies.applyDocumentSnapshot(current);
+      dependencies.setError(
+        reason instanceof Error
+          ? reason.message
+          : 'The current selection could not be baked into a layer mask.'
+      );
+      return false;
     }
   };
 
@@ -611,6 +691,7 @@ export const createLayerDocumentCommands = (
   };
 
   return {
+    addActiveLayerMask,
     duplicateActiveLayer,
     createAdjustmentLayer: createGradeAdjustmentLayer,
     createLensFxLayer,
