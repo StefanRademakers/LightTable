@@ -40,6 +40,17 @@ describe('viewportCoordinates', () => {
     )?.pressure).toBe(1);
   });
 
+  it('preserves pasteboard coordinates for an in-progress selection', () => {
+    expect(localToDocumentPointer(
+      { x: -15, y: 135 },
+      { x: 25, y: 35, width: 200, height: 100 },
+      2,
+      { width: 100, height: 50 },
+      1,
+      true
+    )).toEqual({ x: -20, y: 50, pressure: 1 });
+  });
+
   it('keeps the document point below the cursor stable while zooming', () => {
     const before = {
       scale: 1,

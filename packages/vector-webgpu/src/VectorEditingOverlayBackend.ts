@@ -11,7 +11,7 @@ import {
 } from './shaders';
 
 const SETTINGS_BYTES = 64;
-const CUBIC_BYTES = 32;
+const CUBIC_BYTES = 48;
 const MARKER_BYTES = 16;
 const CURVE_SUBDIVISIONS = 24;
 
@@ -44,6 +44,12 @@ export interface VectorEditingOverlayTheme {
   handleColor: readonly [number, number, number, number];
   pathWidthPx: number;
   handleWidthPx: number;
+  /** Screen-pixel dash pattern. Zero keeps the stroke solid. */
+  dashLengthPx?: number;
+  gapLengthPx?: number;
+  /** Optional solid backing stroke, useful for selection visibility. */
+  underlayColor?: readonly [number, number, number, number];
+  underlayWidthPx?: number;
 }
 
 const DEFAULT_THEME: VectorEditingOverlayTheme = {
@@ -58,6 +64,26 @@ const SELECTION_FRAME_THEME: VectorEditingOverlayTheme = {
   handleColor: [0.9, 0.94, 1, 0.95],
   pathWidthPx: 1,
   handleWidthPx: 1
+};
+
+export const SELECTION_OUTLINE_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.96, 0.97, 1, 1],
+  handleColor: [0.96, 0.97, 1, 1],
+  pathWidthPx: 1,
+  handleWidthPx: 1,
+  dashLengthPx: 5,
+  gapLengthPx: 4,
+  underlayColor: [0.04, 0.05, 0.06, 0.95],
+  underlayWidthPx: 2
+};
+
+export const BRUSH_CURSOR_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.96, 0.97, 1, 0.96],
+  handleColor: [0.96, 0.97, 1, 0.96],
+  pathWidthPx: 1,
+  handleWidthPx: 1,
+  underlayColor: [0.035, 0.04, 0.05, 0.9],
+  underlayWidthPx: 2
 };
 
 const selectionFrameOverlay = (frame: VectorSelectionFrame): VectorEditingOverlay => ({
@@ -109,20 +135,59 @@ const createBuffer = (
   return buffer;
 };
 
-const cubicData = (overlay: VectorEditingOverlay) => new Float32Array(
-  overlay.cubics.flatMap(({ p0, p1, p2, p3 }) => [
-    p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y
-  ])
-);
+const cubicPoint = (
+  cubic: VectorEditingOverlay['cubics'][number],
+  t: number
+) => {
+  const inverse = 1 - t;
+  return {
+    x: inverse ** 3 * cubic.p0.x
+      + 3 * inverse ** 2 * t * cubic.p1.x
+      + 3 * inverse * t ** 2 * cubic.p2.x
+      + t ** 3 * cubic.p3.x,
+    y: inverse ** 3 * cubic.p0.y
+      + 3 * inverse ** 2 * t * cubic.p1.y
+      + 3 * inverse * t ** 2 * cubic.p2.y
+      + t ** 3 * cubic.p3.y
+  };
+};
 
-const handleData = (overlay: VectorEditingOverlay) => new Float32Array(
-  overlay.handles.flatMap(({ anchor, point }) => [
-    anchor.x, anchor.y,
-    anchor.x, anchor.y,
-    point.x, point.y,
-    point.x, point.y
-  ])
-);
+const approximateCubicLength = (cubic: VectorEditingOverlay['cubics'][number]) => {
+  let length = 0;
+  let previous = cubic.p0;
+  for (let index = 1; index <= CURVE_SUBDIVISIONS; index += 1) {
+    const point = cubicPoint(cubic, index / CURVE_SUBDIVISIONS);
+    length += Math.hypot(point.x - previous.x, point.y - previous.y);
+    previous = point;
+  }
+  return length;
+};
+
+const cubicData = (overlay: VectorEditingOverlay) => {
+  let accumulatedLength = 0;
+  return new Float32Array(overlay.cubics.flatMap((cubic) => {
+    const length = approximateCubicLength(cubic);
+    const values = [
+      cubic.p0.x, cubic.p0.y, cubic.p1.x, cubic.p1.y,
+      cubic.p2.x, cubic.p2.y, cubic.p3.x, cubic.p3.y,
+      accumulatedLength, length, 0, 0
+    ];
+    accumulatedLength += length;
+    return values;
+  }));
+};
+
+const handleData = (overlay: VectorEditingOverlay) => cubicData({
+  ...overlay,
+  cubics: overlay.handles.map(({ anchor, point }, segmentIndex) => ({
+    subpathId: 'editing-handles',
+    segmentIndex,
+    p0: anchor,
+    p1: anchor,
+    p2: point,
+    p3: point
+  }))
+});
 
 const markerData = (overlay: VectorEditingOverlay) => new Float32Array([
   ...overlay.anchors.flatMap(({ point, markerSizePx, selected, active }) => [
@@ -199,7 +264,8 @@ export class VectorEditingOverlayBackend {
       theme.pathWidthPx,
       theme.pathColor,
       target,
-      pipelines.lines
+      pipelines.lines,
+      theme
     );
     if (resource.handles) this.drawLines(
       pass,
@@ -209,7 +275,8 @@ export class VectorEditingOverlayBackend {
       theme.handleWidthPx,
       theme.handleColor,
       target,
-      pipelines.lines
+      pipelines.lines,
+      theme
     );
     if (resource.markers) {
       const settings = this.createSettings(target, 0, 0, theme.pathColor);
@@ -283,9 +350,30 @@ export class VectorEditingOverlayBackend {
     width: number,
     color: readonly [number, number, number, number],
     target: VectorEditingOverlayTarget,
-    pipeline: GPURenderPipeline
+    pipeline: GPURenderPipeline,
+    theme: VectorEditingOverlayTheme
   ) {
-    const settings = this.createSettings(target, width, subdivisions, color);
+    if (theme.underlayColor && (theme.underlayWidthPx ?? 0) > 0) {
+      const underlaySettings = this.createSettings(
+        target,
+        theme.underlayWidthPx!,
+        subdivisions,
+        theme.underlayColor,
+        0,
+        0
+      );
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, this.bindGroup(underlaySettings, buffer));
+      pass.draw(6, curveCount * subdivisions);
+    }
+    const settings = this.createSettings(
+      target,
+      width,
+      subdivisions,
+      color,
+      theme.dashLengthPx ?? 0,
+      theme.gapLengthPx ?? 0
+    );
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, this.bindGroup(settings, buffer));
     pass.draw(6, curveCount * subdivisions);
@@ -295,7 +383,9 @@ export class VectorEditingOverlayBackend {
     target: VectorEditingOverlayTarget,
     width: number,
     subdivisions: number,
-    color: readonly [number, number, number, number]
+    color: readonly [number, number, number, number],
+    dashLength = 0,
+    gapLength = 0
   ) {
     const settings = this.device.createBuffer({
       label: 'LightTable vector overlay settings',
@@ -306,7 +396,7 @@ export class VectorEditingOverlayBackend {
     this.device.queue.writeBuffer(settings, 0, new Float32Array([
       matrix.a, matrix.b, matrix.c, matrix.d,
       matrix.tx, matrix.ty, target.width, target.height,
-      width, subdivisions, 0, 0,
+      width, subdivisions, dashLength, gapLength,
       ...color
     ]));
     this.pendingUniforms.push(settings);

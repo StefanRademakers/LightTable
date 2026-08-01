@@ -3,7 +3,6 @@ import {
   useRef,
   type Dispatch,
   type PointerEvent,
-  type RefObject,
   type SetStateAction,
   type WheelEvent
 } from 'react';
@@ -74,10 +73,13 @@ interface ViewportInteractionOptions {
   vector: VectorToolSessionController;
   minScale: number;
   maxScale: number;
+  onBrushCursorChange: (cursor: {
+    center: { x: number; y: number };
+    diameter: number;
+  } | null) => void;
 }
 
 export interface ViewportInteractionController {
-  brushCursorRef: RefObject<HTMLDivElement | null>;
   dragging: boolean;
   onWheel(event: WheelEvent<HTMLDivElement>): void;
   onPointerDown(event: PointerEvent<HTMLDivElement>): void;
@@ -116,7 +118,8 @@ export const useViewportInteractionController = ({
   warp,
   vector,
   minScale,
-  maxScale
+  maxScale,
+  onBrushCursorChange
 }: ViewportInteractionOptions): ViewportInteractionController => {
   const dragRef = useRef<{
     pointerId: number;
@@ -125,10 +128,11 @@ export const useViewportInteractionController = ({
     panX: number;
     panY: number;
   } | null>(null);
-  const brushCursorRef = useRef<HTMLDivElement | null>(null);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
   const setViewRef = useRef(setView);
   setViewRef.current = setView;
+  const onBrushCursorChangeRef = useRef(onBrushCursorChange);
+  onBrushCursorChangeRef.current = onBrushCursorChange;
   const panFrameRef = useRef<LatestFrameValueScheduler<{
     panX: number;
     panY: number;
@@ -160,18 +164,22 @@ export const useViewportInteractionController = ({
   }, []);
 
   useEffect(() => {
-    const cursor = brushCursorRef.current;
     const center = brushCursorCenterRef.current;
-    if (!cursor || !center) return;
+    if (!center) return;
+    if (!isPaintTool(editorSession.activeTool) && !isWarpTool(editorSession.activeTool)) {
+      brushCursorCenterRef.current = null;
+      onBrushCursorChangeRef.current(null);
+      return;
+    }
     const diameterPx = isWarpTool(editorSession.activeTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
-    const diameter = Math.max(2, diameterPx * activeScale);
-    cursor.style.width = `${diameter}px`;
-    cursor.style.height = `${diameter}px`;
-    cursor.style.transform =
-      `translate3d(${center.x - diameter / 2}px, ${center.y - diameter / 2}px, 0)`;
-  }, [activeScale, editorSession.activeTool, editorSession.brush.size, editorSession.warp.diameterPx]);
+    onBrushCursorChangeRef.current({ center, diameter: diameterPx });
+  }, [editorSession.activeTool, editorSession.brush.size, editorSession.warp.diameterPx]);
+
+  useEffect(() => () => {
+    onBrushCursorChangeRef.current(null);
+  }, []);
 
   const documentPoint = (
     event: PointerEvent<HTMLDivElement>,
@@ -186,7 +194,8 @@ export const useViewportInteractionController = ({
       imageRect,
       activeScale,
       metadata,
-      event.pressure
+      event.pressure,
+      isSelectionTool(editorSession.activeTool)
     );
     if (
       !point
@@ -204,15 +213,13 @@ export const useViewportInteractionController = ({
 
   const hideBrushCursor = () => {
     brushCursorCenterRef.current = null;
-    if (brushCursorRef.current) brushCursorRef.current.style.opacity = '0';
+    onBrushCursorChangeRef.current(null);
   };
 
   const updateBrushCursor = (
     event: PointerEvent<HTMLDivElement>,
     bounds: ViewportBounds = event.currentTarget.getBoundingClientRect()
   ) => {
-    const cursor = brushCursorRef.current;
-    if (!cursor) return;
     if (
       (!isPaintTool(editorSession.activeTool) && !isWarpTool(editorSession.activeTool))
       || temporaryTools.active
@@ -233,13 +240,12 @@ export const useViewportInteractionController = ({
     const diameterPx = isWarpTool(editorSession.activeTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
-    const diameter = Math.max(2, diameterPx * activeScale);
-    brushCursorCenterRef.current = point;
-    cursor.style.opacity = '1';
-    cursor.style.width = `${diameter}px`;
-    cursor.style.height = `${diameter}px`;
-    cursor.style.transform =
-      `translate3d(${point.x - diameter / 2}px, ${point.y - diameter / 2}px, 0)`;
+    const center = {
+      x: (point.x - imageRect.x) / Math.max(activeScale, 1e-6),
+      y: (point.y - imageRect.y) / Math.max(activeScale, 1e-6)
+    };
+    brushCursorCenterRef.current = center;
+    onBrushCursorChangeRef.current({ center, diameter: diameterPx });
   };
 
   const beginPan = (event: PointerEvent<HTMLDivElement>, forcePan = false) => {
@@ -287,7 +293,6 @@ export const useViewportInteractionController = ({
   };
 
   return {
-    brushCursorRef,
     dragging: Boolean(dragRef.current),
     hideBrushCursor,
     onWheel: (event) => {

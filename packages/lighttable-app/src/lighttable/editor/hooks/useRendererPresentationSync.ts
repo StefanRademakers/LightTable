@@ -4,6 +4,7 @@ import type { ScopeSettings, ScopeVisibility } from '../../scopes';
 import type { LensBlurViewportMode } from '../config/adjustmentControls';
 import type { WarpDebugView } from '../../effects/warp/warpTypes';
 import type { VectorEditorSelection } from '../session/editorSession';
+import type { SelectionOperation, SelectionShape } from '../selection/selectionTypes';
 
 export interface RendererPresentationPort {
   setBefore(enabled: boolean): void;
@@ -15,6 +16,11 @@ export interface RendererPresentationPort {
   setLensBlurDepthVisualization(enabled: boolean): void;
   setWarpDebugVisualization(view: WarpDebugView): void;
   setVectorEditingSelection(selection: VectorEditorSelection): void;
+  setSelectionEditingOverlay(
+    operations: readonly SelectionOperation[],
+    draft: SelectionShape | null,
+    visible: boolean
+  ): void;
 }
 
 export const createScopeRendererOptions = (
@@ -41,6 +47,9 @@ interface RendererPresentationSyncOptions<
   readonly lensBlurViewportMode: LensBlurViewportMode;
   readonly warpDebugView: WarpDebugView;
   readonly vectorSelection: VectorEditorSelection;
+  readonly selection: readonly SelectionOperation[];
+  readonly selectionDraft: SelectionShape | null;
+  readonly selectionOverlayVisible: boolean;
   readonly scopeVisibility: ScopeVisibility;
   readonly scopeSettings: ScopeSettings;
   readonly scopeVisibilityRef: MutableRefObject<ScopeVisibility>;
@@ -60,6 +69,9 @@ export const useRendererPresentationSync = <
   lensBlurViewportMode,
   warpDebugView,
   vectorSelection,
+  selection,
+  selectionDraft,
+  selectionOverlayVisible,
   scopeVisibility,
   scopeSettings,
   scopeVisibilityRef,
@@ -83,6 +95,14 @@ export const useRendererPresentationSync = <
   useEffect(() => {
     rendererRef.current?.setVectorEditingSelection(vectorSelection);
   }, [rendererRef, vectorSelection]);
+
+  useEffect(() => {
+    rendererRef.current?.setSelectionEditingOverlay(
+      selection,
+      selectionDraft,
+      selectionOverlayVisible
+    );
+  }, [rendererRef, selection, selectionDraft, selectionOverlayVisible]);
 
   useEffect(() => {
     scopeVisibilityRef.current = scopeVisibility;

@@ -100,6 +100,11 @@ export class LayerDocumentRenderer {
     this.runtime.selectionTextures.ensureTargets();
   }
 
+  selectionMaskTexture() {
+    const textures = this.runtime.selectionTextures;
+    return textures.active ? textures.mask : null;
+  }
+
   releaseSubmittedResources() {
     this.runtime.renderResources.releaseAfterSubmit();
     void this.runtime.vectorLayerRenderer.notifySubmitted();

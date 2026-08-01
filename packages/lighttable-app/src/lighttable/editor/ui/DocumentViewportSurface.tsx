@@ -15,12 +15,10 @@ import type { ToolId } from '../session/editorSession';
 export interface DocumentViewportSurfaceProps {
   viewportRef: React.RefObject<HTMLDivElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  brushCursorRef: React.RefObject<HTMLDivElement | null>;
   activeTool: ToolId;
   temporaryPanActive: boolean;
   dragging: boolean;
   focusPickerActive: boolean;
-  showBrushCursor: boolean;
   selection: SelectionOperation[];
   selectionDraft: SelectionShape | null;
   imageRect: Rect;
@@ -49,12 +47,10 @@ export interface DocumentViewportSurfaceProps {
 export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = ({
   viewportRef,
   canvasRef,
-  brushCursorRef,
   activeTool,
   temporaryPanActive,
   dragging,
   focusPickerActive,
-  showBrushCursor,
   selection,
   selectionDraft,
   imageRect,
@@ -86,9 +82,6 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
       onContextMenu={onContextMenu}
     >
       <canvas ref={canvasRef} className="lighttable-viewport__canvas" />
-      {showBrushCursor && !temporaryPanActive ? (
-        <div ref={brushCursorRef} className="lighttable-brush-cursor" aria-hidden="true" />
-      ) : null}
       {activeTool !== 'view' && (selection.length || selectionDraft) ? (
         <SelectionOverlay
           operations={selection}

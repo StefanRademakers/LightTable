@@ -70,6 +70,8 @@ import { DocumentHistogramRuntime } from './documentHistogramRuntime';
 import { documentRenderStatesEqual } from '../application/rendering/documentRenderState';
 import type { WarpDebugView } from '../effects/warp/warpTypes';
 import {
+  BRUSH_CURSOR_THEME,
+  SELECTION_OUTLINE_THEME,
   VectorEditingOverlayBackend,
   type VectorEditingOverlayTarget
 } from '@lighttable/vector-webgpu';
@@ -80,6 +82,12 @@ import {
   vectorEditorSelectionsEqual,
   type VectorEditorSelection
 } from '../editor/session/editorSession';
+import {
+  buildBrushCursorEditingOverlay,
+  buildSelectionEditingOverlay,
+  directSelectionShape
+} from '../editor/selection/selectionEditingOverlay';
+import { SelectionContourOverlayBackend } from '../editor/rendering/SelectionContourOverlayBackend';
 
 interface ViewportRect {
   x: number;
@@ -185,7 +193,15 @@ export class WebGpuEngine {
   private lastReportedGpuBytes = -1;
   private viewportRenderState: ViewportRenderState | null = null;
   private vectorSelection = createVectorEditorSelection();
+  private selectionOverlayOperations: SelectionOperation[] = [];
+  private selectionOverlayDraft: SelectionShape | null = null;
+  private selectionOverlayVisible = false;
+  private brushCursorOverlay: {
+    center: { x: number; y: number };
+    diameter: number;
+  } | null = null;
   private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
+  private selectionContourOverlayBackend: SelectionContourOverlayBackend | null = null;
 
   static async create(
     canvas: HTMLCanvasElement,
@@ -965,6 +981,47 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setSelectionEditingOverlay(
+    operations: readonly SelectionOperation[],
+    draft: SelectionShape | null,
+    visible: boolean
+  ) {
+    this.selectionOverlayOperations = operations.map((operation) => ({
+      ...operation,
+      shape: {
+        ...operation.shape,
+        points: operation.shape.points.map((point) => ({ ...point }))
+      }
+    }));
+    this.selectionOverlayDraft = draft ? {
+      ...draft,
+      points: draft.points.map((point) => ({ ...point }))
+    } : null;
+    this.selectionOverlayVisible = visible;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  setBrushCursorOverlay(cursor: {
+    center: { x: number; y: number };
+    diameter: number;
+  } | null) {
+    const current = this.brushCursorOverlay;
+    if (
+      current === null && cursor === null
+      || current !== null && cursor !== null
+        && current.center.x === cursor.center.x
+        && current.center.y === cursor.center.y
+        && current.diameter === cursor.diameter
+    ) return;
+    this.brushCursorOverlay = cursor ? {
+      center: { ...cursor.center },
+      diameter: cursor.diameter
+    } : null;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   async measureReferenceDifference(threshold = 2 / 255): Promise<ReferenceDifferenceMetrics> {
     if (!this.metadata || !this.imageResources.sourceTexture || !this.imageResources.finalTexture || !this.differenceMetricsPipeline) {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
@@ -1417,7 +1474,31 @@ export class WebGpuEngine {
       this.imageDocument,
       this.vectorSelection
     );
-    if (!overlayScene.paths.length && !overlayScene.selectionFrame) return;
+    const directShape = this.selectionOverlayVisible
+      ? directSelectionShape(this.selectionOverlayOperations)
+      : null;
+    // A draft may extend over the pasteboard. Once committed, the selection
+    // mask is authoritative because it is clipped to the document bounds.
+    const selectionShape = directShape?.points.every((point) => (
+      point.x >= 0
+      && point.y >= 0
+      && point.x <= this.imageDocument!.width
+      && point.y <= this.imageDocument!.height
+    )) ? directShape : null;
+    const selectionDraft = this.selectionOverlayVisible
+      ? this.selectionOverlayDraft
+      : null;
+    const selectionMask = this.selectionOverlayVisible && !selectionShape
+      ? this.documentRenderer?.selectionMaskTexture() ?? null
+      : null;
+    if (
+      !overlayScene.paths.length
+      && !overlayScene.selectionFrame
+      && !selectionShape
+      && !selectionDraft
+      && !selectionMask
+      && !this.brushCursorOverlay
+    ) return;
     const uniforms = this.viewportRenderState.uniforms;
     const target: VectorEditingOverlayTarget = {
       colorView: canvasView,
@@ -1446,6 +1527,46 @@ export class WebGpuEngine {
         target
       );
     }
+    if (selectionShape) {
+      this.vectorEditingOverlayBackend.encode(
+        encoder,
+        buildSelectionEditingOverlay(selectionShape, 'committed'),
+        target,
+        SELECTION_OUTLINE_THEME
+      );
+    }
+    if (selectionMask && this.coreResources) {
+      this.selectionContourOverlayBackend ??= new SelectionContourOverlayBackend(
+        this.device,
+        this.canvasFormat
+      );
+      this.selectionContourOverlayBackend.encode(
+        encoder,
+        canvasView,
+        selectionMask,
+        this.coreResources.sampler,
+        this.coreResources.viewBuffer
+      );
+    }
+    if (selectionDraft) {
+      this.vectorEditingOverlayBackend.encode(
+        encoder,
+        buildSelectionEditingOverlay(selectionDraft, 'draft'),
+        target,
+        SELECTION_OUTLINE_THEME
+      );
+    }
+    if (this.brushCursorOverlay) {
+      this.vectorEditingOverlayBackend.encode(
+        encoder,
+        buildBrushCursorEditingOverlay(
+          this.brushCursorOverlay.center,
+          this.brushCursorOverlay.diameter
+        ),
+        target,
+        BRUSH_CURSOR_THEME
+      );
+    }
   }
 
   private destroyImageResources() {
@@ -1453,6 +1574,7 @@ export class WebGpuEngine {
     this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();
     this.imageDocument = null;
+    this.brushCursorOverlay = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;
     this.linearSpatialTexture = null;

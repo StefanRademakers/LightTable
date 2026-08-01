@@ -854,6 +854,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     lensBlurViewportMode,
     warpDebugView: editorSession.warp.debugView,
     vectorSelection: editorSession.vectorSelection,
+    selection: editorSession.selection,
+    selectionDraft,
+    selectionOverlayVisible: editorSession.activeTool !== 'view',
     scopeVisibility,
     scopeSettings,
     scopeVisibilityRef,
@@ -1085,7 +1088,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     warp: warpSessionController,
     vector: vectorToolSessionController,
     minScale: MIN_SCALE,
-    maxScale: MAX_SCALE
+    maxScale: MAX_SCALE,
+    onBrushCursorChange: (cursor) => {
+      engineRef.current?.setBrushCursorOverlay(cursor);
+    }
   });
 
   const applyDocumentChange = (
@@ -1533,15 +1539,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   viewport={{
                     viewportRef,
                     canvasRef,
-                    brushCursorRef: viewportInteraction.brushCursorRef,
                     activeTool: editorSession.activeTool,
                     temporaryPanActive,
                     dragging: viewportInteraction.dragging,
                     focusPickerActive,
-                    showBrushCursor: (
-                      isPaintTool(editorSession.activeTool)
-                      || isWarpTool(editorSession.activeTool)
-                    ),
                     selection: editorSession.selection,
                     selectionDraft,
                     imageRect,

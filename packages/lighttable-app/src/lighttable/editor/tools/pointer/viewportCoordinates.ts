@@ -38,16 +38,20 @@ export const localToDocumentPointer = (
   imageRect: RectLike,
   scale: number,
   documentSize: Pick<RectLike, 'width' | 'height'>,
-  pressure = 1
+  pressure = 1,
+  allowOutsideDocument = false
 ): DocumentPointer | null => {
   const safeScale = Math.max(scale, 0.0001);
   const x = (local.x - imageRect.x) / safeScale;
   const y = (local.y - imageRect.y) / safeScale;
   if (
+    !allowOutsideDocument
+    && (
     x < 0
     || y < 0
     || x > documentSize.width
     || y > documentSize.height
+    )
   ) {
     return null;
   }

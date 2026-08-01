@@ -785,19 +785,6 @@
 .lighttable-viewport--brush,
 .lighttable-viewport--erase { cursor: crosshair; }
 
-.lighttable-brush-cursor {
-  position: absolute;
-  z-index: 8;
-  top: 0;
-  left: 0;
-  box-sizing: border-box;
-  opacity: 0;
-  pointer-events: none;
-  border: 1px solid rgba(255, 255, 255, 0.94);
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.78);
-  will-change: width, height, transform;
-}
 .lighttable-viewport--select-rectangle,
 .lighttable-viewport--select-ellipse,
 .lighttable-viewport--select-free { cursor: crosshair; }

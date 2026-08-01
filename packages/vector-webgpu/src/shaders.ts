@@ -69,6 +69,13 @@ struct CubicData {
   p1: vec2f,
   p2: vec2f,
   p3: vec2f,
+  lengthData: vec2f,
+  padding: vec2f,
+};
+
+struct LineOutput {
+  @builtin(position) position: vec4f,
+  @location(0) distancePx: f32,
 };
 
 @group(0) @binding(0) var<uniform> settings: OverlaySettings;
@@ -98,7 +105,7 @@ fn pixelToClip(point: vec2f) -> vec4f {
 fn lineVertex(
   @builtin(vertex_index) vertexIndex: u32,
   @builtin(instance_index) instanceIndex: u32
-) -> @builtin(position) vec4f {
+) -> LineOutput {
   let subdivisions = max(1u, u32(settings.style.y));
   let curveIndex = instanceIndex / subdivisions;
   let segmentIndex = instanceIndex % subdivisions;
@@ -114,11 +121,24 @@ fn lineVertex(
   var sides = array<f32, 6>(-1.0, -1.0, 1.0, 1.0, -1.0, 1.0);
   let point = mix(start, end, endpoints[vertexIndex])
     + normal * sides[vertexIndex] * settings.style.x * 0.5;
-  return pixelToClip(point);
+  let viewportScale = length(vec2f(settings.transform.x, settings.transform.y));
+  var output: LineOutput;
+  output.position = pixelToClip(point);
+  output.distancePx = (curve.lengthData.x
+    + curve.lengthData.y * mix(t0, t1, endpoints[vertexIndex])) * viewportScale;
+  return output;
 }
 
 @fragment
-fn lineFragment() -> @location(0) vec4f {
+fn lineFragment(input: LineOutput) -> @location(0) vec4f {
+  let dashLength = settings.style.z;
+  let gapLength = settings.style.w;
+  if (dashLength > 0.0 && gapLength > 0.0) {
+    let period = dashLength + gapLength;
+    if (fract(input.distancePx / period) * period >= dashLength) {
+      discard;
+    }
+  }
   return settings.color;
 }
 `;
