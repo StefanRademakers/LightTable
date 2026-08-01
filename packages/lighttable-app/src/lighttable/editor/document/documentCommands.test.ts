@@ -9,6 +9,7 @@ import {
   createGroupLayer,
   createRasterLayer,
   createVectorLayer,
+  convertVectorLiveShapeToPath,
   appendVectorElement,
   replaceVectorLayerElements,
   appendVectorPath,
@@ -136,6 +137,35 @@ describe('LightTable document commands', () => {
     });
 
     expect(() => createVectorLayer(source, [path, ellipse])).toThrow(/Duplicate vector element id/);
+  });
+
+  it('converts live shapes to editable paths as one explicit document command', () => {
+    const source = createImageDocument('Convert shape', 100, 50, 'asset');
+    const shape = createVectorLiveShape('shape', {
+      kind: 'rectangle',
+      width: 40,
+      height: 20,
+      cornerRadii: [3, 3, 3, 3],
+      linkedCorners: true
+    }, 'Rounded rectangle');
+    shape.geometryRevision = 6;
+    const withVector = createVectorLayer(source, [shape]);
+    const vectorId = withVector.activeLayerId!;
+
+    const converted = convertVectorLiveShapeToPath(withVector, vectorId, shape.id);
+    const layer = findDocumentLayer(converted, vectorId);
+    const element = layer?.type === 'vector' ? layer.elements[0] : null;
+
+    expect(element).toMatchObject({
+      id: shape.id,
+      type: 'path',
+      name: shape.name,
+      geometryRevision: 7
+    });
+    expect(element?.type === 'path' ? element.subpaths : []).not.toHaveLength(0);
+    expect(converted.revision).toBe(withVector.revision + 1);
+    expect(() => convertVectorLiveShapeToPath(converted, vectorId, shape.id))
+      .toThrow(/already a path/);
   });
 
   it('updates mask density and feather as one canonical mask revision', () => {

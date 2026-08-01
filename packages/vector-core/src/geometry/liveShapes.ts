@@ -220,3 +220,17 @@ export const realizeLiveShape = (shape: VectorLiveShape): VectorPath => {
   path.styleRevision = shape.styleRevision;
   return path;
 };
+
+/**
+ * Permanently replaces parametric live-shape authority with editable path
+ * geometry. Unlike `realizeLiveShape`, this preserves the document element id
+ * so selections and external references remain stable across the conversion.
+ */
+export const convertLiveShapeToPath = (shape: VectorLiveShape): VectorPath => {
+  const path = realizeLiveShape(shape);
+  return {
+    ...path,
+    id: shape.id,
+    geometryRevision: shape.geometryRevision + 1
+  };
+};

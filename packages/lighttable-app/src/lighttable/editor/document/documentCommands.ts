@@ -16,6 +16,7 @@ import {
 } from './documentTypes';
 import {
   cloneVectorElement,
+  convertLiveShapeToPath,
   parseVectorElement,
   type VectorElement,
   type VectorLiveShape,
@@ -329,6 +330,23 @@ export const replaceVectorLiveShape = (
   layerId: LayerId,
   shape: VectorLiveShape
 ) => replaceVectorElement(document, layerId, shape);
+
+/** Explicitly discards live parameters and makes their realized anchors authoritative. */
+export const convertVectorLiveShapeToPath = (
+  document: ImageDocument,
+  layerId: LayerId,
+  elementId: string
+) => updateVectorLayerElements(document, layerId, (layer) => {
+  const index = layer.elements.findIndex(({ id }) => id === elementId);
+  if (index < 0) throw new Error(`Unknown vector element ${elementId}.`);
+  const element = layer.elements[index];
+  if (element.type !== 'live-shape') {
+    throw new Error(`Vector element ${elementId} is already a path.`);
+  }
+  const elements = [...layer.elements];
+  elements[index] = convertLiveShapeToPath(element);
+  return elements;
+});
 
 export const deleteVectorElements = (
   document: ImageDocument,

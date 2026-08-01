@@ -1,8 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { createVectorLiveShape } from '../model/factories';
-import { realizeLiveShape, resolvedRectangleCornerRadii } from './liveShapes';
+import {
+  convertLiveShapeToPath,
+  realizeLiveShape,
+  resolvedRectangleCornerRadii
+} from './liveShapes';
 
 describe('live shape realization', () => {
+  it('converts a live shape into path authority while preserving its identity', () => {
+    const shape = createVectorLiveShape('editable-shape', {
+      kind: 'ellipse', width: 120, height: 80
+    }, 'Editable ellipse');
+    shape.geometryRevision = 4;
+    shape.transformRevision = 2;
+    shape.styleRevision = 3;
+    shape.transform = { a: 1, b: 0, c: 0, d: 1, tx: 35, ty: 24 };
+    shape.style.opacity = 0.6;
+
+    const path = convertLiveShapeToPath(shape);
+
+    expect(path).toMatchObject({
+      id: shape.id,
+      type: 'path',
+      name: shape.name,
+      geometryRevision: 5,
+      transformRevision: 2,
+      styleRevision: 3,
+      transform: shape.transform,
+      style: shape.style
+    });
+    expect(path.transform).not.toBe(shape.transform);
+    expect(path.style).not.toBe(shape.style);
+    expect(path.subpaths).not.toHaveLength(0);
+    expect(realizeLiveShape(shape).id).toBe(`${shape.id}:realized`);
+  });
+
   it('realizes a rectangle while preserving live geometry as authority', () => {
     const shape = createVectorLiveShape('shape', {
       kind: 'rectangle', width: 100, height: 50,
