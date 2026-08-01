@@ -13,7 +13,10 @@ import {
   createVectorLayer
 } from '../../editor/document/documentTypes';
 import { createVectorEditorSelection } from '../../editor/session/editorSession';
-import { buildVectorDocumentEditingOverlays } from './vectorEditingOverlay';
+import {
+  buildVectorDocumentEditingOverlays,
+  buildVectorDocumentEditingSceneOverlay
+} from './vectorEditingOverlay';
 
 describe('vector document editing overlays', () => {
   it('resolves nested scene transforms without touching raster realization', () => {
@@ -98,5 +101,39 @@ describe('vector document editing overlays', () => {
     expect(overlays[0]?.cubics.length).toBeGreaterThan(0);
     expect(overlays[0]?.anchors).toEqual([]);
     expect(overlays[0]?.handles).toEqual([]);
+  });
+
+  it('builds one stable transform frame around the whole element selection', () => {
+    const document = createImageDocument('document', 100, 100, 'asset');
+    const first = createVectorLiveShape('first', {
+      kind: 'rectangle',
+      width: 10,
+      height: 20,
+      cornerRadii: [0, 0, 0, 0],
+      linkedCorners: true
+    });
+    first.transform = translationMatrix(10, 15);
+    const second = createVectorLiveShape('second', {
+      kind: 'ellipse',
+      width: 20,
+      height: 10
+    });
+    second.transform = translationMatrix(40, 45);
+    const layer = createVectorLayer([first, second]);
+    document.layers = [layer];
+    const selection = createVectorEditorSelection();
+    selection.elements = [
+      { layerId: layer.id, elementId: second.id },
+      { layerId: layer.id, elementId: first.id }
+    ];
+
+    const scene = buildVectorDocumentEditingSceneOverlay(document, selection);
+    expect(scene.paths).toHaveLength(2);
+    expect(scene.selectionFrame).toMatchObject({
+      bounds: { x: 10, y: 15, width: 50, height: 40 },
+      pivot: { x: 35, y: 35 }
+    });
+    expect(scene.selectionFrame?.handles).toHaveLength(8);
+    expect(scene.selectionFrame?.resourceKey).toContain(`${layer.id}/first,${layer.id}/second`);
   });
 });

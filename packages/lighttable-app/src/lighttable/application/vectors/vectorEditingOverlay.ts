@@ -1,13 +1,23 @@
 import {
   buildVectorEditingOverlay,
+  buildVectorSelectionFrame,
+  type VectorSelectionFrame,
   type VectorEditingOverlay
 } from '@lighttable/vector-rendering';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { VectorEditorSelection } from '../../editor/session/editorSession';
-import { vectorElementsTopmostFirst } from './vectorSceneQueries';
+import {
+  vectorElementsDocumentBounds,
+  vectorElementsTopmostFirst
+} from './vectorSceneQueries';
 
 export interface VectorDocumentEditingOverlay extends VectorEditingOverlay {
   layerId: string;
+}
+
+export interface VectorDocumentEditingSceneOverlay {
+  paths: readonly VectorDocumentEditingOverlay[];
+  selectionFrame: VectorSelectionFrame | null;
 }
 
 const samePath = (
@@ -65,3 +75,30 @@ export const buildVectorDocumentEditingOverlays = (
       handles: wholeElementSelected ? [] : overlay.handles
     };
   });
+
+/**
+ * Builds the complete transient vector-editing scene.
+ *
+ * Path outlines and the shared whole-element frame remain separate resources:
+ * selecting multiple elements creates one transform frame without coupling
+ * their live geometry or invalidating artwork caches.
+ */
+export const buildVectorDocumentEditingSceneOverlay = (
+  document: Pick<ImageDocument, 'layers' | 'revision'>,
+  selection: VectorEditorSelection
+): VectorDocumentEditingSceneOverlay => {
+  const paths = buildVectorDocumentEditingOverlays(document, selection);
+  const bounds = vectorElementsDocumentBounds(document, selection.elements);
+  const selectionKey = selection.elements
+    .map(({ layerId, elementId }) => `${layerId}/${elementId}`)
+    .sort()
+    .join(',');
+  return {
+    paths,
+    selectionFrame: bounds
+      ? buildVectorSelectionFrame(bounds, {
+          resourceKey: `selection-frame:${document.revision}:${selectionKey}`
+        })
+      : null
+  };
+};

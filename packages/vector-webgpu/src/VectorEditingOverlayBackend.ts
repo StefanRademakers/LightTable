@@ -2,7 +2,8 @@ import type { AffineMatrix } from '@lighttable/vector-core';
 import {
   RevisionedResourceCache,
   type ResourceCacheMetrics,
-  type VectorEditingOverlay
+  type VectorEditingOverlay,
+  type VectorSelectionFrame
 } from '@lighttable/vector-rendering';
 import {
   VECTOR_EDITING_OVERLAY_LINE_WGSL,
@@ -51,6 +52,47 @@ const DEFAULT_THEME: VectorEditingOverlayTheme = {
   pathWidthPx: 1.5,
   handleWidthPx: 1
 };
+
+const SELECTION_FRAME_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.9, 0.94, 1, 0.95],
+  handleColor: [0.9, 0.94, 1, 0.95],
+  pathWidthPx: 1,
+  handleWidthPx: 1
+};
+
+const selectionFrameOverlay = (frame: VectorSelectionFrame): VectorEditingOverlay => ({
+  pathId: 'selection-frame',
+  resourceKey: frame.resourceKey,
+  geometryRevision: 0,
+  transformRevision: 0,
+  cubics: frame.edges.map(({ start, end }, segmentIndex) => ({
+    subpathId: 'selection-frame',
+    segmentIndex,
+    p0: start,
+    p1: start,
+    p2: end,
+    p3: end
+  })),
+  anchors: [
+    ...frame.handles.map(({ kind, point, markerSizePx }) => ({
+      subpathId: 'selection-frame',
+      anchorId: kind,
+      point,
+      markerSizePx,
+      selected: true,
+      active: false
+    })),
+    {
+      subpathId: 'selection-frame',
+      anchorId: 'pivot',
+      point: frame.pivot,
+      markerSizePx: 6,
+      selected: false,
+      active: true
+    }
+  ],
+  handles: []
+});
 
 const createBuffer = (
   device: GPUDevice,
@@ -177,6 +219,15 @@ export class VectorEditingOverlayBackend {
     }
     pass.end();
     return true;
+  }
+
+  /** Encodes one shared transform frame for the complete element selection. */
+  encodeSelectionFrame(
+    encoder: GPUCommandEncoder,
+    frame: VectorSelectionFrame,
+    target: VectorEditingOverlayTarget
+  ) {
+    return this.encode(encoder, selectionFrameOverlay(frame), target, SELECTION_FRAME_THEME);
   }
 
   /** Call directly after queue.submit for command buffers encoded by this backend. */

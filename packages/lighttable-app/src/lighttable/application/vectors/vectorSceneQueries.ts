@@ -6,6 +6,7 @@ import {
   pathBounds,
   realizeLiveShape,
   transformPoint,
+  unionRects,
   type PathHitTestOptions,
   type PathSelectionTarget,
   type Rect as VectorRect,
@@ -231,4 +232,19 @@ export const vectorElementDocumentBounds = (
     (entry) => entry.layerId === layerId && entry.elementId === elementId
   );
   return resolved ? pathBounds(bakeDocumentTransform(resolved.documentPath)) : null;
+};
+
+/** Exact union of selected element geometry in document space. */
+export const vectorElementsDocumentBounds = (
+  document: Pick<ImageDocument, 'layers'>,
+  references: readonly { layerId: LayerId; elementId: string }[]
+): VectorRect | null => {
+  if (!references.length) return null;
+  const selected = new Set(references.map(({ layerId, elementId }) => `${layerId}\u0000${elementId}`));
+  return vectorElementsTopmostFirst(document).reduce<VectorRect | null>(
+    (bounds, resolved) => selected.has(`${resolved.layerId}\u0000${resolved.elementId}`)
+      ? unionRects(bounds, pathBounds(bakeDocumentTransform(resolved.documentPath)))
+      : bounds,
+    null
+  );
 };

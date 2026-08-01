@@ -18,6 +18,7 @@ import {
   hitTestVectorElementDocument,
   vectorAnchorsInDocumentRect,
   vectorElementDocumentBounds,
+  vectorElementsDocumentBounds,
   vectorElementsTopmostFirst,
   vectorPathDocumentBounds,
   vectorPathsTopmostFirst
@@ -165,5 +166,27 @@ describe('vector scene queries', () => {
       width: 10,
       height: 20
     });
+  });
+
+  it('unions selected path and live-shape bounds without realizing document elements', () => {
+    const document = createImageDocument('selection bounds', 200, 200, 'asset');
+    const path = square('path', 10);
+    path.transform = translationMatrix(10, 20);
+    const shape = createVectorLiveShape('shape', {
+      kind: 'ellipse',
+      width: 20,
+      height: 10
+    });
+    shape.transform = translationMatrix(40, 50);
+    const layer = createVectorLayer([path, shape]);
+    document.layers = [layer];
+    const originalShape = structuredClone(shape);
+
+    expect(vectorElementsDocumentBounds(document, [
+      { layerId: layer.id, elementId: path.id },
+      { layerId: layer.id, elementId: shape.id },
+      { layerId: layer.id, elementId: 'stale-reference' }
+    ])).toMatchObject({ x: 10, y: 20, width: 50, height: 40 });
+    expect(shape).toEqual(originalShape);
   });
 });

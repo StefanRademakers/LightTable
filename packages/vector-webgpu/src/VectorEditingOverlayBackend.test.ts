@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { identityMatrix } from '@lighttable/vector-core';
-import type { VectorEditingOverlay } from '@lighttable/vector-rendering';
+import type { VectorEditingOverlay, VectorSelectionFrame } from '@lighttable/vector-rendering';
 import { VectorEditingOverlayBackend } from './VectorEditingOverlayBackend';
 
 beforeEach(() => {
@@ -136,6 +136,44 @@ describe('VectorEditingOverlayBackend', () => {
 
     expect(backend.invalidatePath('path')).toBe(1);
     expect(backend.cacheMetrics().entries).toBe(1);
+    backend.dispose();
+  });
+
+  it('caches a shared selection frame independently from viewport changes', () => {
+    const { device, encoder, pass, buffers } = fixture();
+    const backend = new VectorEditingOverlayBackend(device as unknown as GPUDevice);
+    const target = {
+      colorView: {} as GPUTextureView,
+      format: 'rgba16float' as GPUTextureFormat,
+      width: 400,
+      height: 300,
+      documentToViewport: identityMatrix()
+    };
+    const frame: VectorSelectionFrame = {
+      resourceKey: 'selection-frame:4:a,b',
+      bounds: { x: 10, y: 20, width: 80, height: 60 },
+      pivot: { x: 50, y: 50 },
+      edges: [
+        { start: { x: 10, y: 20 }, end: { x: 90, y: 20 } },
+        { start: { x: 90, y: 20 }, end: { x: 90, y: 80 } },
+        { start: { x: 90, y: 80 }, end: { x: 10, y: 80 } },
+        { start: { x: 10, y: 80 }, end: { x: 10, y: 20 } }
+      ],
+      handles: [{ kind: 'north-west', point: { x: 10, y: 20 }, markerSizePx: 8 }]
+    };
+
+    expect(backend.encodeSelectionFrame(encoder as unknown as GPUCommandEncoder, frame, target))
+      .toBe(true);
+    expect(backend.encodeSelectionFrame(encoder as unknown as GPUCommandEncoder, frame, {
+      ...target,
+      documentToViewport: { ...identityMatrix(), tx: 20 }
+    })).toBe(true);
+
+    expect(buffers.filter(({ label }) => label.includes('vector overlay curves'))).toHaveLength(1);
+    expect(buffers.filter(({ label }) => label.includes('vector overlay markers'))).toHaveLength(1);
+    expect(pass.draw).toHaveBeenNthCalledWith(1, 6, 96);
+    expect(pass.draw).toHaveBeenNthCalledWith(2, 6, 2);
+    expect(backend.cacheMetrics()).toMatchObject({ entries: 1, hits: 1, misses: 1 });
     backend.dispose();
   });
 });

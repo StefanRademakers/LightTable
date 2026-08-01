@@ -73,7 +73,7 @@ import {
   VectorEditingOverlayBackend,
   type VectorEditingOverlayTarget
 } from '@lighttable/vector-webgpu';
-import { buildVectorDocumentEditingOverlays } from '../application/vectors/vectorEditingOverlay';
+import { buildVectorDocumentEditingSceneOverlay } from '../application/vectors/vectorEditingOverlay';
 import {
   cloneVectorEditorSelection,
   createVectorEditorSelection,
@@ -1413,11 +1413,11 @@ export class WebGpuEngine {
     canvasView: GPUTextureView
   ) {
     if (!this.imageDocument || !this.viewportRenderState) return;
-    const overlays = buildVectorDocumentEditingOverlays(
+    const overlayScene = buildVectorDocumentEditingSceneOverlay(
       this.imageDocument,
       this.vectorSelection
     );
-    if (!overlays.length) return;
+    if (!overlayScene.paths.length && !overlayScene.selectionFrame) return;
     const uniforms = this.viewportRenderState.uniforms;
     const target: VectorEditingOverlayTarget = {
       colorView: canvasView,
@@ -1436,8 +1436,15 @@ export class WebGpuEngine {
     this.vectorEditingOverlayBackend ??= new VectorEditingOverlayBackend(this.device);
     // Queries return topmost-first. Encode bottom-to-top so the topmost path's
     // handles remain the final visible editing affordance.
-    for (let index = overlays.length - 1; index >= 0; index -= 1) {
-      this.vectorEditingOverlayBackend.encode(encoder, overlays[index]!, target);
+    for (let index = overlayScene.paths.length - 1; index >= 0; index -= 1) {
+      this.vectorEditingOverlayBackend.encode(encoder, overlayScene.paths[index]!, target);
+    }
+    if (overlayScene.selectionFrame) {
+      this.vectorEditingOverlayBackend.encodeSelectionFrame(
+        encoder,
+        overlayScene.selectionFrame,
+        target
+      );
     }
   }
 
