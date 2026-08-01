@@ -1,5 +1,5 @@
 import { isFiniteAffineMatrix } from '../math/affine';
-import type { VectorPath } from './types';
+import type { VectorLiveShape, VectorPath } from './types';
 
 export interface VectorValidationIssue {
   code: string;
@@ -33,5 +33,24 @@ export const validateVectorPath = (path: VectorPath): VectorValidationIssue[] =>
       }
     });
   });
+  return issues;
+};
+
+export const validateVectorLiveShape = (shape: VectorLiveShape): VectorValidationIssue[] => {
+  const issues: VectorValidationIssue[] = [];
+  if (!shape.id) issues.push({ code: 'empty-id', message: 'Vector ids must not be empty.', path: 'id' });
+  if (!isFiniteAffineMatrix(shape.transform)) {
+    issues.push({ code: 'invalid-transform', message: 'Shape transform contains a non-finite value.', path: 'transform' });
+  }
+  const dimensions = shape.geometry.kind === 'rectangle'
+    ? [shape.geometry.width, shape.geometry.height, ...shape.geometry.cornerRadii]
+    : [shape.geometry.width, shape.geometry.height];
+  if (dimensions.some((value) => !Number.isFinite(value) || value < 0)) {
+    issues.push({
+      code: 'invalid-live-shape-dimension',
+      message: 'Live-shape dimensions and radii must be finite and non-negative.',
+      path: 'geometry'
+    });
+  }
   return issues;
 };

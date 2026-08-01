@@ -1,4 +1,12 @@
-import type { VectorAnchor, VectorPath, VectorStyle, VectorSubpath } from './types';
+import type {
+  LiveShapeGeometry,
+  VectorAnchor,
+  VectorElement,
+  VectorLiveShape,
+  VectorPath,
+  VectorStyle,
+  VectorSubpath
+} from './types';
 
 export const cloneVectorAnchor = (anchor: VectorAnchor): VectorAnchor => ({
   ...anchor,
@@ -28,3 +36,18 @@ export const cloneVectorPath = (path: VectorPath): VectorPath => ({
   style: cloneVectorStyle(path.style),
   subpaths: path.subpaths.map(cloneVectorSubpath)
 });
+
+export const cloneLiveShapeGeometry = (geometry: LiveShapeGeometry): LiveShapeGeometry =>
+  geometry.kind === 'rectangle'
+    ? { ...geometry, cornerRadii: [...geometry.cornerRadii] }
+    : { ...geometry };
+
+export const cloneVectorLiveShape = (shape: VectorLiveShape): VectorLiveShape => ({
+  ...shape,
+  geometry: cloneLiveShapeGeometry(shape.geometry),
+  transform: { ...shape.transform },
+  style: cloneVectorStyle(shape.style)
+});
+
+export const cloneVectorElement = (element: VectorElement): VectorElement =>
+  element.type === 'path' ? cloneVectorPath(element) : cloneVectorLiveShape(element);

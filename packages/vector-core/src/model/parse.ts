@@ -3,14 +3,17 @@ import type { Vec2 } from '../math/vector';
 import type {
   AnchorMode,
   FillRule,
+  LiveShapeGeometry,
   SolidPaint,
   VectorAnchor,
+  VectorElement,
+  VectorLiveShape,
   VectorPath,
   VectorStroke,
   VectorStyle,
   VectorSubpath
 } from './types';
-import { validateVectorPath } from './validation';
+import { validateVectorLiveShape, validateVectorPath } from './validation';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -158,4 +161,57 @@ export const parseVectorPath = (value: unknown, location = 'path'): VectorPath =
     throw new Error(`${location} is invalid: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')}`);
   }
   return path;
+};
+
+const parseLiveShapeGeometry = (value: unknown, location: string): LiveShapeGeometry => {
+  if (!isRecord(value)) throw new Error(`${location} must be live-shape geometry.`);
+  const width = finiteNumber(value.width, `${location}.width`);
+  const height = finiteNumber(value.height, `${location}.height`);
+  if (width < 0 || height < 0) throw new Error(`${location} dimensions must not be negative.`);
+  if (value.kind === 'ellipse') return { kind: 'ellipse', width, height };
+  if (value.kind !== 'rectangle'
+    || !Array.isArray(value.cornerRadii)
+    || value.cornerRadii.length !== 4
+    || typeof value.linkedCorners !== 'boolean') {
+    throw new Error(`${location} is not supported live-shape geometry.`);
+  }
+  const cornerRadii = value.cornerRadii.map((radius, index) =>
+    finiteNumber(radius, `${location}.cornerRadii[${index}]`));
+  if (cornerRadii.some((radius) => radius < 0)) {
+    throw new Error(`${location}.cornerRadii must not contain negative values.`);
+  }
+  return {
+    kind: 'rectangle', width, height,
+    cornerRadii: [cornerRadii[0], cornerRadii[1], cornerRadii[2], cornerRadii[3]],
+    linkedCorners: value.linkedCorners
+  };
+};
+
+export const parseVectorLiveShape = (value: unknown, location = 'shape'): VectorLiveShape => {
+  if (!isRecord(value) || value.type !== 'live-shape') {
+    throw new Error(`${location} must be a vector live shape.`);
+  }
+  const shape: VectorLiveShape = {
+    id: stringValue(value.id, `${location}.id`),
+    type: 'live-shape',
+    name: stringValue(value.name, `${location}.name`),
+    geometry: parseLiveShapeGeometry(value.geometry, `${location}.geometry`),
+    transform: parseAffineMatrix(value.transform, `${location}.transform`),
+    style: parseStyle(value.style, `${location}.style`),
+    geometryRevision: nonNegativeInteger(value.geometryRevision, `${location}.geometryRevision`),
+    transformRevision: nonNegativeInteger(value.transformRevision, `${location}.transformRevision`),
+    styleRevision: nonNegativeInteger(value.styleRevision, `${location}.styleRevision`)
+  };
+  const issues = validateVectorLiveShape(shape);
+  if (issues.length > 0) {
+    throw new Error(`${location} is invalid: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')}`);
+  }
+  return shape;
+};
+
+export const parseVectorElement = (value: unknown, location = 'element'): VectorElement => {
+  if (!isRecord(value)) throw new Error(`${location} must be a vector element.`);
+  if (value.type === 'path') return parseVectorPath(value, location);
+  if (value.type === 'live-shape') return parseVectorLiveShape(value, location);
+  throw new Error(`${location}.type is not supported.`);
 };

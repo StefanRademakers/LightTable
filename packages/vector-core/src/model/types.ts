@@ -55,6 +55,41 @@ export interface VectorPath {
   styleRevision: number;
 }
 
+export interface RectangleShapeGeometry {
+  kind: 'rectangle';
+  width: number;
+  height: number;
+  /** Top-left, top-right, bottom-right and bottom-left radii. */
+  cornerRadii: [number, number, number, number];
+  linkedCorners: boolean;
+}
+
+export interface EllipseShapeGeometry {
+  kind: 'ellipse';
+  width: number;
+  height: number;
+}
+
+export type LiveShapeGeometry = RectangleShapeGeometry | EllipseShapeGeometry;
+
+/**
+ * Editable parametric geometry. Rendering derives a VectorPath from this data;
+ * the derived anchors are deliberately not serialization authority.
+ */
+export interface VectorLiveShape {
+  id: VectorId;
+  type: 'live-shape';
+  name: string;
+  geometry: LiveShapeGeometry;
+  transform: AffineMatrix;
+  style: VectorStyle;
+  geometryRevision: number;
+  transformRevision: number;
+  styleRevision: number;
+}
+
+export type VectorElement = VectorPath | VectorLiveShape;
+
 export interface CubicSegment {
   startAnchorId: VectorId;
   endAnchorId: VectorId;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createAnchor, createSubpath, createVectorPath } from './factories';
-import { validateVectorPath } from './validation';
+import { createAnchor, createSubpath, createVectorLiveShape, createVectorPath } from './factories';
+import { validateVectorLiveShape, validateVectorPath } from './validation';
 
 describe('vector validation', () => {
   it('accepts a valid path', () => {
@@ -18,5 +18,14 @@ describe('vector validation', () => {
     expect(validateVectorPath(path).map(({ code }) => code)).toEqual([
       'duplicate-id', 'invalid-point', 'duplicate-id'
     ]);
+  });
+});
+
+describe('live-shape validation', () => {
+  it('rejects non-finite dimensions independently from rendering', () => {
+    const shape = createVectorLiveShape('shape', { kind: 'ellipse', width: 10, height: Number.NaN });
+    expect(validateVectorLiveShape(shape)).toContainEqual(expect.objectContaining({
+      code: 'invalid-live-shape-dimension', path: 'geometry'
+    }));
   });
 });

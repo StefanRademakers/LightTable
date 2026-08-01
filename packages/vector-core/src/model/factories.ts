@@ -1,6 +1,14 @@
 import { identityAffineMatrix } from '../math/affine';
 import type { Vec2 } from '../math/vector';
-import type { AnchorMode, VectorAnchor, VectorPath, VectorStyle, VectorSubpath } from './types';
+import type {
+  AnchorMode,
+  LiveShapeGeometry,
+  VectorAnchor,
+  VectorLiveShape,
+  VectorPath,
+  VectorStyle,
+  VectorSubpath
+} from './types';
 
 export const defaultVectorStyle = (): VectorStyle => ({
   fill: { type: 'solid', color: [0, 0, 0, 1] },
@@ -40,6 +48,22 @@ export const createVectorPath = (
   name,
   subpaths,
   fillRule: 'nonzero',
+  transform: identityAffineMatrix(),
+  style: defaultVectorStyle(),
+  geometryRevision: 0,
+  transformRevision: 0,
+  styleRevision: 0
+});
+
+export const createVectorLiveShape = (
+  id: string,
+  geometry: LiveShapeGeometry,
+  name = geometry.kind === 'rectangle' ? 'Rectangle' : 'Ellipse'
+): VectorLiveShape => ({
+  id,
+  type: 'live-shape',
+  name,
+  geometry,
   transform: identityAffineMatrix(),
   style: defaultVectorStyle(),
   geometryRevision: 0,

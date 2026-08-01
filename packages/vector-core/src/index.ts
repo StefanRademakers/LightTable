@@ -9,6 +9,7 @@ export * from './editing/vectorSelectionState';
 export * from './geometry/bezier';
 export * from './geometry/flatten';
 export * from './geometry/pathGeometry';
+export * from './geometry/liveShapes';
 export * from './math/affine';
 export * from './math/vector';
 export * from './model/factories';
