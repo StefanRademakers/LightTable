@@ -66,6 +66,6 @@ describe('LightTable selection transforms', () => {
     expect(selectionOperationsSupportBounds(
       operations,
       { x: 0, y: 0, width: 100, height: 80 }
-    )).toEqual({ x: 7, y: 2, width: 66, height: 56 });
+    )).toEqual({ x: 0, y: 0, width: 86, height: 71 });
   });
 });

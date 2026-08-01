@@ -157,7 +157,7 @@ describe('useLayerDocumentCommands', () => {
 
     await expect(state.commands.copySelectedContent(selection)).resolves.toBe(true);
 
-    const support = { x: 7, y: 2, width: 66, height: 56 };
+    const support = { x: 0, y: 0, width: 86, height: 71 };
     expect(state.renderer.exportSelectionClipboard).toHaveBeenCalledWith(support);
     expect(state.imageClipboard.writeImage).toHaveBeenCalledWith(
       expect.any(Blob),

@@ -80,7 +80,14 @@ export const selectionOperationsSupportBounds = (
       : sum
   ), 0);
   if (featherSupport <= 0) return core;
-  const padding = Math.ceil(featherSupport);
+  // The authored feather radius controls the Gaussian shape, not a crop
+  // threshold. At exactly one radius the finite kernel still has measurable
+  // coverage, which becomes an obvious rectangular edge once an OS clipboard
+  // image is cropped and pasted over a contrasting background. Retain two
+  // radii plus a texel for resampling so exported alpha has settled to zero.
+  // This only expands pixel/export support; selection and transform gizmos
+  // continue to use the tight geometry bounds above.
+  const padding = Math.ceil(featherSupport * 2) + 1;
   const left = Math.max(fallback.x, Math.floor(core.x) - padding);
   const top = Math.max(fallback.y, Math.floor(core.y) - padding);
   const right = Math.min(fallback.x + fallback.width, Math.ceil(core.x + core.width) + padding);
