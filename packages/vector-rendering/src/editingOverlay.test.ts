@@ -35,6 +35,7 @@ describe('buildVectorEditingOverlay', () => {
     });
 
     expect(overlay.cubics).toHaveLength(1);
+    expect(overlay.resourceKey).toContain('path:0:0:0:subpath/a:subpath/a');
     expect(overlay.cubics[0]).toMatchObject({
       p0: { x: 24, y: 22 },
       p1: { x: 24, y: 28 },

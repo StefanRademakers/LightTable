@@ -24,7 +24,7 @@ const samePath = (
  * selection and viewport feedback outside the expensive artwork cache.
  */
 export const buildVectorDocumentEditingOverlays = (
-  document: Pick<ImageDocument, 'layers'>,
+  document: Pick<ImageDocument, 'layers' | 'revision'>,
   selection: VectorEditorSelection
 ): VectorDocumentEditingOverlay[] => vectorPathsTopmostFirst(document)
   .filter(({ layerId, pathId }) => selection.paths.some(
@@ -50,7 +50,8 @@ export const buildVectorDocumentEditingOverlays = (
     return {
       layerId,
       ...buildVectorEditingOverlay(documentPath, {
-        selection: { anchors, activeAnchor }
+        selection: { anchors, activeAnchor },
+        sceneRevision: document.revision
       })
     };
   });

@@ -55,6 +55,8 @@ export interface VectorOverlayAnchor {
  */
 export interface VectorEditingOverlay {
   pathId: string;
+  /** Stable cache identity supplied by the scene adapter. */
+  resourceKey: string;
   geometryRevision: number;
   transformRevision: number;
   cubics: readonly VectorOverlayCubic[];
@@ -66,6 +68,8 @@ export interface BuildVectorEditingOverlayOptions {
   selection?: VectorOverlaySelection;
   anchorSizePx?: number;
   handleSizePx?: number;
+  /** Parent/group transforms must be represented by this caller-owned key. */
+  sceneRevision?: number;
 }
 
 const sameAnchor = (
@@ -155,6 +159,19 @@ export const buildVectorEditingOverlay = (
 
   return {
     pathId: documentPath.id,
+    resourceKey: [
+      documentPath.id,
+      documentPath.geometryRevision,
+      documentPath.transformRevision,
+      options.sceneRevision ?? 0,
+      selection.anchors
+        .map(({ subpathId, anchorId }) => `${subpathId}/${anchorId}`)
+        .sort()
+        .join(','),
+      selection.activeAnchor
+        ? `${selection.activeAnchor.subpathId}/${selection.activeAnchor.anchorId}`
+        : '-'
+    ].join(':'),
     geometryRevision: documentPath.geometryRevision,
     transformRevision: documentPath.transformRevision,
     cubics,
