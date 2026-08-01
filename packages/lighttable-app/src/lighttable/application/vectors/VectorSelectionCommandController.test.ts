@@ -93,9 +93,9 @@ describe('VectorSelectionCommandController', () => {
     expect(state.selection).toEqual(createVectorEditorSelection());
     const first = findDocumentLayer(state.document, state.first.id);
     const second = findDocumentLayer(state.document, state.second.id);
-    expect(first?.type === 'vector' ? first.paths[0]?.subpaths[0]?.anchors[0]?.id : null)
+    expect(first?.type === 'vector' && first.elements[0]?.type === 'path' ? first.elements[0].subpaths[0]?.anchors[0]?.id : null)
       .toBe('first-b');
-    expect(second?.type === 'vector' ? second.paths[0]?.subpaths[0]?.anchors[0]?.id : null)
+    expect(second?.type === 'vector' && second.elements[0]?.type === 'path' ? second.elements[0].subpaths[0]?.anchors[0]?.id : null)
       .toBe('second-a');
   });
 
@@ -145,7 +145,8 @@ describe('VectorSelectionCommandController', () => {
     expect(state.history).toHaveLength(1);
     const layer = findDocumentLayer(state.document, state.first.id);
     expect(layer?.type === 'vector'
-      ? layer.paths[0]?.subpaths[0]?.anchors[0]?.mode
+      && layer.elements[0]?.type === 'path'
+      ? layer.elements[0].subpaths[0]?.anchors[0]?.mode
       : null).toBe('symmetric');
   });
 
@@ -171,7 +172,8 @@ describe('VectorSelectionCommandController', () => {
     expect(state.history).toHaveLength(1);
     const layer = findDocumentLayer(state.document, state.first.id);
     expect(layer?.type === 'vector'
-      ? layer.paths[0]?.subpaths[0]?.anchors.map(({ id }) => id)
+      && layer.elements[0]?.type === 'path'
+      ? layer.elements[0].subpaths[0]?.anchors.map(({ id }) => id)
       : []).toEqual(['first-a', 'inserted-anchor', 'first-b']);
     expect(state.selection.anchors[0]?.anchorId).toBe('inserted-anchor');
   });
@@ -181,7 +183,8 @@ describe('VectorSelectionCommandController', () => {
     const layer = findDocumentLayer(state.document, state.first.id);
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
     layer.transform = scaleMatrix(2, 3);
-    layer.paths[0].transform = rotationMatrix(Math.PI / 4);
+    if (layer.elements[0]?.type !== 'path') throw new Error('Expected a vector path.');
+    layer.elements[0].transform = rotationMatrix(Math.PI / 4);
     state.selection = {
       paths: [],
       anchors: [{
@@ -193,7 +196,7 @@ describe('VectorSelectionCommandController', () => {
       active: null
     };
     const before = transformPoint(
-      multiplyMatrices(layer.transform, layer.paths[0].transform),
+      multiplyMatrices(layer.transform, layer.elements[0].transform),
       { x: 0, y: 0 }
     );
 
@@ -201,8 +204,8 @@ describe('VectorSelectionCommandController', () => {
     const updated = findDocumentLayer(state.document, state.first.id);
     if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
     const after = transformPoint(
-      multiplyMatrices(updated.transform, updated.paths[0].transform),
-      updated.paths[0].subpaths[0].anchors[0].position
+      multiplyMatrices(updated.transform, updated.elements[0].transform),
+      updated.elements[0].type === 'path' ? updated.elements[0].subpaths[0].anchors[0].position : { x: 0, y: 0 }
     );
     expect(after.x - before.x).toBeCloseTo(7, 8);
     expect(after.y - before.y).toBeCloseTo(-5, 8);
@@ -214,8 +217,9 @@ describe('VectorSelectionCommandController', () => {
     const layer = findDocumentLayer(state.document, state.first.id);
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
     layer.transform = scaleMatrix(2, 4);
-    layer.paths[0].transform = translationMatrix(10, 20);
-    const openingAnchor = { ...layer.paths[0].subpaths[0].anchors[0].position };
+    if (layer.elements[0]?.type !== 'path') throw new Error('Expected a vector path.');
+    layer.elements[0].transform = translationMatrix(10, 20);
+    const openingAnchor = { ...layer.elements[0].subpaths[0].anchors[0].position };
     state.selection = {
       paths: [{ layerId: state.first.id, pathId: 'first-path' }],
       anchors: [],
@@ -225,8 +229,9 @@ describe('VectorSelectionCommandController', () => {
     expect(state.controller.nudgeSelection({ x: 8, y: -12 })).toBe(true);
     const updated = findDocumentLayer(state.document, state.first.id);
     if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
-    expect(updated.paths[0].subpaths[0].anchors[0].position).toEqual(openingAnchor);
-    expect(updated.paths[0].transform.tx).toBeCloseTo(14, 8);
-    expect(updated.paths[0].transform.ty).toBeCloseTo(17, 8);
+    if (updated.elements[0]?.type !== 'path') throw new Error('Expected a vector path.');
+    expect(updated.elements[0].subpaths[0].anchors[0].position).toEqual(openingAnchor);
+    expect(updated.elements[0].transform.tx).toBeCloseTo(14, 8);
+    expect(updated.elements[0].transform.ty).toBeCloseTo(17, 8);
   });
 });

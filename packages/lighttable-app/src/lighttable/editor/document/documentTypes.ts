@@ -4,7 +4,11 @@ import { identityAffineMatrix } from '../geometry/affine';
 import type { AdjustmentStack } from '../../processing/adjustmentStack';
 import type { LayerStyleStack } from '../styles/layerStyleTypes';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
-import type { VectorPath } from '@lighttable/vector-core';
+import {
+  cloneVectorElement,
+  type VectorElement,
+  type VectorPath
+} from '@lighttable/vector-core';
 
 export type DocumentId = string & { readonly __brand: 'DocumentId' };
 export type LayerId = string & { readonly __brand: 'LayerId' };
@@ -150,9 +154,18 @@ export interface AdjustmentLayer extends CommonLayer {
  */
 export interface VectorLayer extends CommonLayer {
   type: 'vector';
-  paths: VectorPath[];
+  /**
+   * Canonical editable vector artwork. Live shapes remain parametric here;
+   * renderers may realize them to temporary paths but must never write that
+   * derived geometry back into the document.
+   */
+  elements: VectorElement[];
   mask: RasterMask | null;
 }
+
+/** Path-editing projection; live shapes require an explicit Convert to Path. */
+export const vectorPathElements = (layer: VectorLayer): VectorPath[] =>
+  layer.elements.filter((element): element is VectorPath => element.type === 'path');
 
 export type LayerNode = RasterLayer | GroupLayer | AdjustmentLayer | VectorLayer;
 
@@ -268,12 +281,12 @@ export const createAdjustmentLayer = (
 });
 
 export const createVectorLayer = (
-  paths: readonly VectorPath[] = [],
+  elements: readonly VectorElement[] = [],
   name = 'Shape'
 ): VectorLayer => ({
   ...createCommonLayer('vector', name),
   type: 'vector',
-  paths: structuredClone([...paths]),
+  elements: elements.map(cloneVectorElement),
   mask: null
 });
 

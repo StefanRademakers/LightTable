@@ -51,8 +51,9 @@ describe('PenToolController', () => {
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
     expect(layer?.type).toBe('vector');
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
-    expect(layer.paths[0]?.subpaths[0]?.anchors).toHaveLength(2);
-    expect(layer.paths[0]?.subpaths[0]?.anchors[0]).toMatchObject({
+    const createdPath = layer.elements[0];
+    expect(createdPath?.type === 'path' ? createdPath.subpaths[0]?.anchors : []).toHaveLength(2);
+    expect(createdPath?.type === 'path' ? createdPath.subpaths[0]?.anchors[0] : null).toMatchObject({
       handleIn: { x: 2, y: 10 },
       handleOut: { x: 18, y: 10 }
     });
@@ -68,7 +69,7 @@ describe('PenToolController', () => {
     expect(state.controller.tryClose({ x: 12, y: 11 }, 3)).toBe(true);
     expect(state.history).toHaveLength(1);
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
-    expect(layer?.type === 'vector' ? layer.paths[0]?.subpaths[0]?.closed : false).toBe(true);
+    expect(layer?.type === 'vector' && layer.elements[0]?.type === 'path' ? layer.elements[0].subpaths[0]?.closed : false).toBe(true);
   });
 
   it('cancels the complete provisional layer without history', () => {
@@ -99,7 +100,7 @@ describe('PenToolController', () => {
     expect(state.controller.finishOpen()).toBe(true);
 
     const updated = findDocumentLayer(state.document, layer.id);
-    const path = updated?.type === 'vector' ? updated.paths[0] : null;
+    const path = updated?.type === 'vector' && updated.elements[0]?.type === 'path' ? updated.elements[0] : null;
     expect(path).not.toBeNull();
     const pathToDocument = multiplyMatrices(
       multiplyMatrices(group.transform, layer.transform),

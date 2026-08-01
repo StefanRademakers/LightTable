@@ -85,8 +85,9 @@ describe('DirectSelectionToolController', () => {
     const layer = findDocumentLayer(state.document, scene.layer.id);
     expect(layer?.type).toBe('vector');
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
-    expect(layer.paths[0]?.subpaths[0]?.anchors[0]?.position).toEqual({ x: 8, y: 7 });
-    expect(layer.paths[0]?.subpaths[0]?.anchors[0]?.handleOut).toEqual({ x: 13, y: 7 });
+    const editedPath = layer.elements[0];
+    expect(editedPath?.type === 'path' ? editedPath.subpaths[0]?.anchors[0]?.position : null).toEqual({ x: 8, y: 7 });
+    expect(editedPath?.type === 'path' ? editedPath.subpaths[0]?.anchors[0]?.handleOut : null).toEqual({ x: 13, y: 7 });
     expect(state.selection.anchors).toEqual([{
       layerId: scene.layer.id,
       pathId: 'path',
@@ -107,7 +108,7 @@ describe('DirectSelectionToolController', () => {
 
     const layer = findDocumentLayer(state.document, scene.layer.id);
     const handle = layer?.type === 'vector'
-      ? layer.paths[0]?.subpaths[0]?.anchors[0]?.handleOut
+      ? layer.elements[0]?.type === 'path' ? layer.elements[0].subpaths[0]?.anchors[0]?.handleOut : null
       : null;
     expect(handle?.x).toBeCloseTo(9, 10);
     expect(handle?.y).toBeCloseTo(11, 10);
@@ -128,7 +129,7 @@ describe('DirectSelectionToolController', () => {
 
     const layer = findDocumentLayer(state.document, scene.layer.id);
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
-    const anchors = layer.paths[0]?.subpaths[0]?.anchors ?? [];
+    const anchors = layer.elements[0]?.type === 'path' ? layer.elements[0].subpaths[0]?.anchors ?? [] : [];
     expect(anchors.map(({ position }) => position)).toEqual([
       { x: 2, y: 3 },
       { x: 20, y: 3 }

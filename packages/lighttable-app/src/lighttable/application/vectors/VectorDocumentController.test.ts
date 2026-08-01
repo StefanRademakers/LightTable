@@ -60,7 +60,7 @@ describe('VectorDocumentController', () => {
     const layer = findDocumentLayer(state.document, layerId);
     expect(layer?.type).toBe('vector');
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
-    expect(layer.paths[0]?.transform).toMatchObject({ tx: 7, ty: 3 });
+    expect(layer.elements[0]?.transform).toMatchObject({ tx: 7, ty: 3 });
   });
 
   it('constructs a new path as one document transaction', () => {
@@ -82,7 +82,7 @@ describe('VectorDocumentController', () => {
     const layer = findDocumentLayer(state.document, placement!.layerId);
     expect(layer?.type).toBe('vector');
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
-    expect(layer.paths[0]?.transform).toMatchObject({ tx: 12, ty: 5 });
+    expect(layer.elements[0]?.transform).toMatchObject({ tx: 12, ty: 5 });
   });
 
   it('appends a provisional path to an editable active vector layer', () => {
@@ -93,7 +93,7 @@ describe('VectorDocumentController', () => {
 
     expect(state.controller.beginPathCreation(createVectorPath('new'))?.layerId).toBe(layerId);
     const layer = findDocumentLayer(state.document, layerId);
-    expect(layer?.type === 'vector' ? layer.paths.map(({ id }) => id) : []).toEqual([
+    expect(layer?.type === 'vector' ? layer.elements.map(({ id }) => id) : []).toEqual([
       'existing',
       'new'
     ]);
@@ -130,7 +130,7 @@ describe('VectorDocumentController', () => {
     expect(transformPoint(placement!.documentToPath, { x: 42, y: 19 })).toEqual({ x: 42, y: 19 });
 
     const stored = findDocumentLayer(state.document, layer.id);
-    const path = stored?.type === 'vector' ? stored.paths[0] : null;
+    const path = stored?.type === 'vector' && stored.elements[0]?.type === 'path' ? stored.elements[0] : null;
     const layerToDocument = multiplyMatrices(group.transform, layer.transform);
     expect(path).not.toBeNull();
     expect(multiplyMatrices(layerToDocument, path!.transform)).toEqual(placement!.pathToDocument);

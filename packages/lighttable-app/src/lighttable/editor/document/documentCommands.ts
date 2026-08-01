@@ -15,8 +15,10 @@ import {
   type VectorLayer
 } from './documentTypes';
 import {
-  cloneVectorPath,
-  validateVectorPath,
+  cloneVectorElement,
+  parseVectorElement,
+  type VectorElement,
+  type VectorLiveShape,
   type VectorPath
 } from '@lighttable/vector-core';
 import {
@@ -222,26 +224,26 @@ export const createAdjustmentLayer = (
   );
 };
 
-const validatedVectorPaths = (paths: readonly VectorPath[]) => {
+const validatedVectorElements = (elements: readonly VectorElement[]) => {
   const ids = new Set<string>();
-  return paths.map((path) => {
-    validateVectorPath(path);
-    if (ids.has(path.id)) {
-      throw new Error(`Duplicate vector path id ${path.id}.`);
+  return elements.map((element, index) => {
+    const parsed = parseVectorElement(element, `Vector element ${index + 1}`);
+    if (ids.has(parsed.id)) {
+      throw new Error(`Duplicate vector element id ${parsed.id}.`);
     }
-    ids.add(path.id);
-    return cloneVectorPath(path);
+    ids.add(parsed.id);
+    return cloneVectorElement(parsed);
   });
 };
 
 /** Inserts a native vector layer without allocating a raster backing store. */
 export const createVectorLayer = (
   document: ImageDocument,
-  paths: readonly VectorPath[] = [],
+  elements: readonly VectorElement[] = [],
   name = 'Shape',
   aboveLayerId = document.activeLayerId ?? undefined
 ): ImageDocument => {
-  const layer = createVectorLayerNode(validatedVectorPaths(paths), name);
+  const layer = createVectorLayerNode(validatedVectorElements(elements), name);
   const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
   const parentId = anchor?.parentId ?? null;
   const insertionIndex = anchor
@@ -254,49 +256,97 @@ export const createVectorLayer = (
   );
 };
 
-const updateVectorLayerPaths = (
+const updateVectorLayerElements = (
   document: ImageDocument,
   layerId: LayerId,
-  change: (layer: VectorLayer) => readonly VectorPath[]
+  change: (layer: VectorLayer) => readonly VectorElement[]
 ) => updateLayer(document, layerId, (layer) => {
   if (layer.type !== 'vector') return layer;
-  const paths = validatedVectorPaths(change(layer));
+  const elements = validatedVectorElements(change(layer));
   return {
     ...layer,
-    paths,
+    elements,
     revision: layer.revision + 1,
     modifiedAt: Date.now()
   };
 });
 
-export const replaceVectorLayerPaths = (
+export const replaceVectorLayerElements = (
   document: ImageDocument,
   layerId: LayerId,
-  paths: readonly VectorPath[]
-) => updateVectorLayerPaths(document, layerId, () => paths);
+  elements: readonly VectorElement[]
+) => updateVectorLayerElements(document, layerId, () => elements);
+
+export const appendVectorElement = (
+  document: ImageDocument,
+  layerId: LayerId,
+  element: VectorElement
+) => updateVectorLayerElements(document, layerId, (layer) => {
+  if (layer.elements.some(({ id }) => id === element.id)) {
+    throw new Error(`Vector element ${element.id} already exists in layer ${layer.name}.`);
+  }
+  return [...layer.elements, element];
+});
+
+export const replaceVectorElement = (
+  document: ImageDocument,
+  layerId: LayerId,
+  element: VectorElement
+) => updateVectorLayerElements(document, layerId, (layer) => {
+  const index = layer.elements.findIndex(({ id }) => id === element.id);
+  if (index < 0) throw new Error(`Unknown vector element ${element.id}.`);
+  if (layer.elements[index].type !== element.type) {
+    throw new Error(`Vector element ${element.id} cannot change type implicitly.`);
+  }
+  const elements = [...layer.elements];
+  elements[index] = element;
+  return elements;
+});
 
 export const appendVectorPath = (
   document: ImageDocument,
   layerId: LayerId,
   path: VectorPath
-) => updateVectorLayerPaths(document, layerId, (layer) => {
-  if (layer.paths.some(({ id }) => id === path.id)) {
-    throw new Error(`Vector path ${path.id} already exists in layer ${layer.name}.`);
-  }
-  return [...layer.paths, path];
-});
+) => appendVectorElement(document, layerId, path);
 
 export const replaceVectorPath = (
   document: ImageDocument,
   layerId: LayerId,
   path: VectorPath
-) => updateVectorLayerPaths(document, layerId, (layer) => {
-  const index = layer.paths.findIndex(({ id }) => id === path.id);
-  if (index < 0) throw new Error(`Unknown vector path ${path.id}.`);
-  const paths = [...layer.paths];
-  paths[index] = path;
-  return paths;
-});
+) => {
+  const layer = findLayerNode(document.layers, layerId)?.node;
+  const current = layer?.type === 'vector'
+    ? layer.elements.find(({ id }) => id === path.id)
+    : null;
+  if (current?.type === 'live-shape') {
+    throw new Error(`Vector element ${path.id} is a live shape; convert it to a path before path editing.`);
+  }
+  return replaceVectorElement(document, layerId, path);
+};
+
+export const replaceVectorLiveShape = (
+  document: ImageDocument,
+  layerId: LayerId,
+  shape: VectorLiveShape
+) => replaceVectorElement(document, layerId, shape);
+
+export const deleteVectorElements = (
+  document: ImageDocument,
+  layerId: LayerId,
+  elementIds: readonly string[]
+) => {
+  const selected = new Set(elementIds);
+  if (!selected.size) return document;
+  const layer = findLayerNode(document.layers, layerId)?.node;
+  if (layer?.type !== 'vector' || !layer.elements.some(({ id }) => selected.has(id))) {
+    return document;
+  }
+  return updateVectorLayerElements(
+    document,
+    layerId,
+    (current) => current.elements.filter(({ id }) => !selected.has(id))
+  );
+};
 
 export const deleteVectorPaths = (
   document: ImageDocument,
@@ -306,13 +356,15 @@ export const deleteVectorPaths = (
   const selected = new Set(pathIds);
   if (!selected.size) return document;
   const layer = findLayerNode(document.layers, layerId)?.node;
-  if (layer?.type !== 'vector' || !layer.paths.some(({ id }) => selected.has(id))) {
+  if (layer?.type !== 'vector'
+    || !layer.elements.some((element) => element.type === 'path' && selected.has(element.id))) {
     return document;
   }
-  return updateVectorLayerPaths(
+  return updateVectorLayerElements(
     document,
     layerId,
-    (current) => current.paths.filter(({ id }) => !selected.has(id))
+    (current) => current.elements.filter((element) =>
+      element.type !== 'path' || !selected.has(element.id))
   );
 };
 

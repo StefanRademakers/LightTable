@@ -26,9 +26,9 @@ import type { LayerStyleStack } from '../styles/layerStyleTypes';
 import { cloneLayerStyleStack } from '../styles/layerStyleDefaults';
 import { parseLayerStyleStack } from '../styles/layerStyleValidation';
 import {
-  cloneVectorPath,
-  parseVectorPath,
-  type VectorPath
+  cloneVectorElement,
+  parseVectorElement,
+  type VectorElement
 } from '@lighttable/vector-core';
 
 const FOOTER_MAGIC = 'LTBLDOC1';
@@ -76,7 +76,7 @@ interface AdjustmentLayerManifestEntry extends CommonLayerManifestEntry {
 
 interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'vector';
-  paths: VectorPath[];
+  elements: VectorElement[];
   mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
 }
 
@@ -258,7 +258,7 @@ export const buildLayeredDocumentFile = (
       return {
         ...common,
         type: 'vector',
-        paths: layer.paths.map(cloneVectorPath),
+        elements: layer.elements.map(cloneVectorElement),
         mask
       };
     }
@@ -637,7 +637,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     }
 
     if (entry.type === 'vector') {
-      if (!Array.isArray(entry.paths)) {
+      if (!Array.isArray(entry.elements)) {
         throw new Error(`Vector layer ${path} in the LightTable document is invalid.`);
       }
       const parsedMask = parseMask();
@@ -647,8 +647,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       return {
         ...common,
         type: 'vector',
-        paths: entry.paths.map((candidate, index) =>
-          parseVectorPath(candidate, `Layer ${path} path ${index + 1}`)),
+        elements: entry.elements.map((candidate, index) =>
+          parseVectorElement(candidate, `Layer ${path} element ${index + 1}`)),
         mask: parsedMask.mask
       };
     }

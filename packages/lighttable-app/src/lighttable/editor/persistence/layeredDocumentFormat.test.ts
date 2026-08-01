@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
+import {
+  createAnchor,
+  createSubpath,
+  createVectorLiveShape,
+  createVectorPath
+} from '@lighttable/vector-core';
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import {
@@ -432,7 +437,7 @@ describe('LightTable layered PNG format', () => {
     expect(parsed ? findRasterLayer(parsed.document, parsed.document.layers[0].id)?.pixelRevision : null).toBe(0);
   });
 
-  it('round-trips native vector layers without rasterizing their paths', async () => {
+  it('round-trips native vector layers without rasterizing paths or live shapes', async () => {
     const source = createImageDocument('Native vector', 2, 2, 'source');
     const path = createVectorPath('path-logo', 'Logo', [
       createSubpath('subpath-logo', [
@@ -444,7 +449,16 @@ describe('LightTable layered PNG format', () => {
     path.style.fill = { type: 'solid', color: [0.1, 0.25, 0.8, 0.75] };
     path.transform = translationMatrix(3, -2);
     path.transformRevision = 1;
-    const vector = createVectorLayer([path], 'Logo shape');
+    const shape = createVectorLiveShape('shape-badge', {
+      kind: 'rectangle',
+      width: 1.5,
+      height: 0.75,
+      cornerRadii: [0.1, 0.2, 0.1, 0.2],
+      linkedCorners: false
+    }, 'Editable badge');
+    shape.transform = translationMatrix(-1, 4);
+    shape.transformRevision = 1;
+    const vector = createVectorLayer([path, shape], 'Logo shape');
     const document = {
       ...source,
       layers: [...source.layers, vector],
@@ -467,7 +481,9 @@ describe('LightTable layered PNG format', () => {
     const parsedVector = parsed?.document.layers.find((layer) => layer.id === vector.id);
 
     expect(parsedVector?.type).toBe('vector');
-    expect(parsedVector?.type === 'vector' ? parsedVector.paths : null).toEqual([path]);
+    expect(parsedVector?.type === 'vector' ? parsedVector.elements : null).toEqual([path, shape]);
+    expect(parsedVector?.type === 'vector' ? parsedVector.elements[1]?.type : null)
+      .toBe('live-shape');
     expect(parsed?.assets.map((asset) => asset.layerId)).toEqual([source.layers[0].id]);
   });
 

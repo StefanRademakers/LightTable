@@ -1,6 +1,7 @@
 import {
   type AnchorMode,
   type VectorIdSource,
+  type VectorPath,
   type Vec2,
   type VectorStyle
 } from '@lighttable/vector-core';
@@ -291,7 +292,9 @@ export class VectorToolSessionController {
     });
     if (!hit || hit.target.kind !== 'anchor') return false;
     const target = hit.target;
-    const path = hit.layer.paths.find(({ id }) => id === hit.pathId);
+    const path = hit.layer.elements.find(
+      (element): element is VectorPath => element.type === 'path' && element.id === hit.pathId
+    );
     const subpath = path?.subpaths.find(({ id }) => id === target.subpathId);
     if (!path || !subpath || subpath.closed || subpath.anchors.length === 0) return false;
     const index = subpath.anchors.findIndex(({ id }) => id === target.anchorId);

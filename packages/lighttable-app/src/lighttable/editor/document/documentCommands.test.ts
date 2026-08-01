@@ -9,6 +9,8 @@ import {
   createGroupLayer,
   createRasterLayer,
   createVectorLayer,
+  appendVectorElement,
+  replaceVectorLayerElements,
   appendVectorPath,
   replaceVectorPath,
   deleteVectorPaths,
@@ -43,6 +45,7 @@ import {
 import {
   createAnchor,
   createSubpath,
+  createVectorLiveShape,
   createVectorPath
 } from '@lighttable/vector-core';
 import { translationMatrix } from '../tools/transform/affine';
@@ -70,7 +73,7 @@ describe('LightTable document commands', () => {
 
     expect(vector?.type).toBe('vector');
     if (vector?.type !== 'vector') throw new Error('Expected a vector layer.');
-    expect(vector.paths[0]).not.toBe(first);
+    expect(vector.elements[0]).not.toBe(first);
 
     const second = createVectorPath('second', 'Second');
     const appended = appendVectorPath(withVector, vectorId, second);
@@ -81,9 +84,9 @@ describe('LightTable document commands', () => {
 
     expect(result?.type).toBe('vector');
     if (result?.type !== 'vector') throw new Error('Expected a vector layer.');
-    expect(result.paths).toHaveLength(1);
-    expect(result.paths[0]?.name).toBe('Renamed');
-    expect(result.paths[0]).not.toBe(replacement);
+    expect(result.elements).toHaveLength(1);
+    expect(result.elements[0]?.name).toBe('Renamed');
+    expect(result.elements[0]).not.toBe(replacement);
     expect(deleted.revision).toBe(withVector.revision + 3);
   });
 
@@ -94,6 +97,45 @@ describe('LightTable document commands', () => {
 
     expect(() => appendVectorPath(withVector, withVector.activeLayerId!, path))
       .toThrow(/already exists/);
+  });
+
+  it('preserves parametrically editable live shapes beside paths', () => {
+    const source = createImageDocument('Mixed vectors', 100, 50, 'asset');
+    const path = createVectorPath('path', 'Path');
+    const ellipse = createVectorLiveShape('ellipse', {
+      kind: 'ellipse',
+      width: 32,
+      height: 18
+    }, 'Editable ellipse');
+    const withVector = createVectorLayer(source, [ellipse, path]);
+    const vectorId = withVector.activeLayerId!;
+    const replacement = createVectorLiveShape('rectangle', {
+      kind: 'rectangle',
+      width: 48,
+      height: 24,
+      cornerRadii: [4, 8, 4, 8],
+      linkedCorners: false
+    }, 'Editable rectangle');
+    const updated = replaceVectorLayerElements(withVector, vectorId, [replacement, path]);
+    const appended = appendVectorElement(updated, vectorId, ellipse);
+    const layer = findDocumentLayer(appended, vectorId);
+
+    expect(layer?.type === 'vector' ? layer.elements : null).toEqual([replacement, path, ellipse]);
+    expect(layer?.type === 'vector' ? layer.elements[0] : null).not.toBe(replacement);
+    expect(() => replaceVectorPath(updated, vectorId, createVectorPath(replacement.id, 'Wrong type')))
+      .toThrow(/live shape/);
+  });
+
+  it('rejects duplicate ids across paths and live shapes', () => {
+    const source = createImageDocument('Mixed vectors', 100, 50, 'asset');
+    const path = createVectorPath('shared-id', 'Path');
+    const ellipse = createVectorLiveShape('shared-id', {
+      kind: 'ellipse',
+      width: 20,
+      height: 20
+    });
+
+    expect(() => createVectorLayer(source, [path, ellipse])).toThrow(/Duplicate vector element id/);
   });
 
   it('updates mask density and feather as one canonical mask revision', () => {

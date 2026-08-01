@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { VectorIdSource } from '@lighttable/vector-core';
+import type { VectorIdSource, VectorPath } from '@lighttable/vector-core';
 import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
@@ -13,6 +13,12 @@ const ids = (): VectorIdSource => {
   let value = 0;
   return { next: (kind) => `${kind}-${++value}` };
 };
+
+const layerPaths = (layer: ReturnType<typeof findDocumentLayer>): VectorPath[] => (
+  layer?.type === 'vector'
+    ? layer.elements.filter((element): element is VectorPath => element.type === 'path')
+    : []
+);
 
 const setup = () => {
   let document = createImageDocument('Vector tools', 200, 100, 'asset');
@@ -47,7 +53,7 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.finishPenPath()).toBe(true);
     expect(state.history).toHaveLength(1);
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
-    expect(layer?.type === 'vector' ? layer.paths[0]?.subpaths[0]?.anchors : []).toHaveLength(2);
+    expect(layerPaths(layer)[0]?.subpaths[0]?.anchors).toHaveLength(2);
   });
 
   it('closes a pen path through the first-anchor hit without capturing the pointer', () => {
@@ -69,7 +75,7 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.ownsPointer(9)).toBe(false);
     expect(state.history).toHaveLength(1);
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
-    expect(layer?.type === 'vector' ? layer.paths[0]?.subpaths[0]?.closed : false).toBe(true);
+    expect(layerPaths(layer)[0]?.subpaths[0]?.closed ?? false).toBe(true);
   });
 
   it('rejects a competing pointer and releases ownership at pointer-up', () => {
@@ -154,9 +160,8 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.setSelectedAnchorMode('symmetric')).toBe(true);
     expect(state.history).toHaveLength(2);
     const updated = findDocumentLayer(state.document, layer.id);
-    expect(updated?.type === 'vector'
-      ? updated.paths[0]?.subpaths[0]?.anchors[0]?.position
-      : null).toEqual({ x: 24, y: 17 });
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors[0]?.position ?? null)
+      .toEqual({ x: 24, y: 17 });
 
     expect(state.controller.deleteSelection()).toBe(true);
     expect(state.history).toHaveLength(3);
@@ -191,18 +196,15 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.ownsPointer(1)).toBe(false);
     expect(state.history).toHaveLength(1);
     let updated = findDocumentLayer(state.document, layer.id);
-    expect(updated?.type === 'vector'
-      ? updated.paths[0].subpaths[0].anchors
-      : []).toHaveLength(3);
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors ?? []).toHaveLength(3);
 
     state.controller.activate('delete-anchor');
     expect(state.controller.pointerDown(2, { x: 50, y: 20 }, { hitRadius: 3 })).toBe(true);
     expect(state.controller.ownsPointer(2)).toBe(false);
     expect(state.history).toHaveLength(2);
     updated = findDocumentLayer(state.document, layer.id);
-    expect(updated?.type === 'vector'
-      ? updated.paths[0].subpaths[0].anchors.map(({ id }) => id)
-      : []).toEqual(['first', 'second']);
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors.map(({ id }) => id) ?? [])
+      .toEqual(['first', 'second']);
   });
 
   it('converts an anchor click or drag as one transform-safe history command', () => {
@@ -224,9 +226,8 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.pointerUp(3, { x: 50, y: 45 })).toBe(true);
     expect(state.history).toHaveLength(1);
     let updated = findDocumentLayer(state.document, layer.id);
-    expect(updated?.type === 'vector'
-      ? updated.paths[0].subpaths[0].anchors[0]
-      : null).toMatchObject({ mode: 'corner', handleIn: null, handleOut: null });
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors[0] ?? null)
+      .toMatchObject({ mode: 'corner', handleIn: null, handleOut: null });
 
     expect(state.controller.pointerDown(4, { x: 50, y: 45 }, { hitRadius: 3 })).toBe(true);
     expect(state.controller.ownsPointer(4)).toBe(true);
@@ -234,9 +235,7 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.pointerUp(4, { x: 70, y: 65 })).toBe(true);
     expect(state.history).toHaveLength(2);
     updated = findDocumentLayer(state.document, layer.id);
-    expect(updated?.type === 'vector'
-      ? updated.paths[0].subpaths[0].anchors[0]
-      : null).toMatchObject({
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors[0] ?? null).toMatchObject({
         mode: 'symmetric',
         handleOut: { x: 30, y: 30 },
         handleIn: { x: 10, y: 10 }
@@ -265,14 +264,12 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.finishPenPath()).toBe(true);
     expect(state.history).toHaveLength(1);
     const updated = findDocumentLayer(state.document, layer.id);
-    expect(updated?.type === 'vector'
-      ? updated.paths[0].subpaths[0].anchors.map(({ position }) => position)
-      : []).toEqual([
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors.map(({ position }) => position) ?? []).toEqual([
         { x: 10, y: 10 },
         { x: 40, y: 10 },
         { x: 60, y: 30 }
       ]);
-    expect(updated?.type === 'vector' ? updated.paths[0].transform : null).toEqual(path.transform);
+    expect(layerPaths(updated)[0]?.transform ?? null).toEqual(path.transform);
   });
 
   it('restores an existing path exactly when a resumed pen edit is cancelled', () => {
@@ -328,18 +325,16 @@ describe('VectorToolSessionController', () => {
 
     const updatedActive = findDocumentLayer(state.document, activeLayer.id);
     const updatedTarget = findDocumentLayer(state.document, targetLayer.id);
-    expect(updatedActive?.type === 'vector'
-      ? updatedActive.paths[0].subpaths.map(({ id }) => id)
-      : []).toEqual(['active-open', 'target-sibling']);
-    expect(updatedActive?.type === 'vector'
-      ? updatedActive.paths[0].subpaths[0].anchors.map(({ id, position }) => ({ id, position }))
-      : []).toEqual([
+    expect(layerPaths(updatedActive)[0]?.subpaths.map(({ id }) => id) ?? [])
+      .toEqual(['active-open', 'target-sibling']);
+    expect(layerPaths(updatedActive)[0]?.subpaths[0]?.anchors.map(({ id, position }) => ({ id, position })) ?? [])
+      .toEqual([
         { id: 'active-first', position: { x: 10, y: 10 } },
         { id: 'active-end', position: { x: 40, y: 10 } },
         { id: 'target-start', position: { x: 85, y: 10 } },
         { id: 'target-end', position: { x: 115, y: 10 } }
       ]);
-    expect(updatedTarget?.type === 'vector' ? updatedTarget.paths : []).toEqual([]);
+    expect(layerPaths(updatedTarget)).toEqual([]);
   });
 
   it('connects a newly drawn path into an existing endpoint without interim history', () => {
@@ -360,10 +355,9 @@ describe('VectorToolSessionController', () => {
     expect(state.history).toHaveLength(1);
 
     const updated = findDocumentLayer(state.document, layer.id);
-    expect(updated?.type === 'vector' ? updated.paths : []).toHaveLength(1);
-    expect(updated?.type === 'vector'
-      ? updated.paths[0].subpaths[0].anchors.map(({ id, position }) => ({ id, position }))
-      : []).toEqual([
+    expect(layerPaths(updated)).toHaveLength(1);
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors.map(({ id, position }) => ({ id, position })) ?? [])
+      .toEqual([
         { id: 'anchor-3', position: { x: 10, y: 20 } },
         { id: 'existing-start', position: { x: 60, y: 20 } },
         { id: 'existing-end', position: { x: 100, y: 20 } }

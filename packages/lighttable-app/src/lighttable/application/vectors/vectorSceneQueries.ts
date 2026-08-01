@@ -78,7 +78,10 @@ export const vectorPathsTopmostFirst = (
   const transforms = buildSceneTransformIndex(document);
   return visibleVectorLayersTopmostFirst(document.layers).flatMap((layer) => {
     const layerToDocument = requireSceneTransform(transforms, layer.id).localToDocument;
-    return [...layer.paths].reverse().map((path) => ({
+    return layer.elements
+      .filter((element): element is VectorPath => element.type === 'path')
+      .reverse()
+      .map((path) => ({
       layerId: layer.id,
       pathId: path.id,
       layer,
@@ -87,7 +90,7 @@ export const vectorPathsTopmostFirst = (
         ...cloneVectorPath(path),
         transform: multiplyMatrices(layerToDocument, path.transform)
       }
-    }));
+      }));
   });
 };
 

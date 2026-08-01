@@ -83,7 +83,7 @@ const layerRenderStatesEqual = (left: LayerNode, right: LayerNode): boolean => {
   }
 
   if (left.type === 'vector' && right.type === 'vector') {
-    return left.paths === right.paths
+    return left.elements === right.elements
       && masksEqual(left.mask, right.mask);
   }
 

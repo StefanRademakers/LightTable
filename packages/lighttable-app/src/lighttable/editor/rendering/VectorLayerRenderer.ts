@@ -1,4 +1,8 @@
-import { multiplyMatrices, type VectorPath } from '@lighttable/vector-core';
+import {
+  multiplyMatrices,
+  realizeLiveShape,
+  type VectorPath
+} from '@lighttable/vector-core';
 import { realizeVectorPath } from '@lighttable/vector-rendering';
 import { VectorFillBackend, type VectorFillSurface } from '@lighttable/vector-webgpu';
 import type { VectorLayer } from '../document/documentTypes';
@@ -37,7 +41,10 @@ export class VectorLayerRenderer {
     clear.end();
 
     const layerToDocument = multiplyMatrices(inheritedTransform, layer.transform);
-    for (const path of layer.paths) {
+    for (const element of layer.elements) {
+      // Parametric shapes stay canonical in the document. Realization is a
+      // renderer-local projection with the same id/style/transform/revisions.
+      const path = element.type === 'path' ? element : realizeLiveShape(element);
       const realized = realizeVectorPath(path, DEFAULT_TOLERANCE_PX);
       const renderPath: VectorPath = {
         ...path,

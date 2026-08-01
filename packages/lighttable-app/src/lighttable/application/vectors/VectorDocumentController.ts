@@ -109,7 +109,7 @@ export class VectorDocumentController {
       const layer = findDocumentLayer(openingDocument, layerId);
       return layer?.type !== 'vector'
         || layerIsLocked(layer, 'pixels')
-        || !layer.paths.some(({ id }) => id === pathId);
+        || !layer.elements.some((element) => element.type === 'path' && element.id === pathId);
     })) return false;
 
     return this.applyAtomic((openingDocument) => {
@@ -120,7 +120,9 @@ export class VectorDocumentController {
         // protect the transaction from an edit that unexpectedly invalidates
         // a later target.
         if (layer?.type !== 'vector') return openingDocument;
-        const path = layer.paths.find(({ id }) => id === change.pathId);
+        const path = layer.elements.find(
+          (element): element is VectorPath => element.type === 'path' && element.id === change.pathId
+        );
         if (!path) return openingDocument;
         const edited = change.edit(path);
         document = edited
@@ -197,7 +199,10 @@ export class VectorDocumentController {
       return false;
     }
     const layer = findDocumentLayer(document, active.layerId);
-    if (layer?.type !== 'vector' || !layer.paths.some(({ id }) => id === active.pathId)) {
+    if (
+      layer?.type !== 'vector'
+      || !layer.elements.some((element) => element.type === 'path' && element.id === active.pathId)
+    ) {
       this.activeCreation = null;
       return false;
     }
@@ -233,7 +238,9 @@ export class VectorDocumentController {
     const document = this.resolveDependencies().getDocument();
     const layer = document ? findDocumentLayer(document, layerId) : null;
     const path = layer?.type === 'vector'
-      ? layer.paths.find(({ id }) => id === pathId)
+      ? layer.elements.find(
+          (element): element is VectorPath => element.type === 'path' && element.id === pathId
+        )
       : null;
     if (!document || !path || !layer || layerIsLocked(layer, 'pixels')) return false;
     this.activeMutation = {
@@ -255,7 +262,10 @@ export class VectorDocumentController {
       return false;
     }
     const layer = findDocumentLayer(document, active.layerId);
-    if (layer?.type !== 'vector' || !layer.paths.some(({ id }) => id === active.pathId)) {
+    if (
+      layer?.type !== 'vector'
+      || !layer.elements.some((element) => element.type === 'path' && element.id === active.pathId)
+    ) {
       this.activeMutation = null;
       return false;
     }
@@ -320,8 +330,8 @@ export class VectorDocumentController {
       || targetLayer?.type !== 'vector'
       || layerIsLocked(activeLayer, 'pixels')
       || layerIsLocked(targetLayer, 'pixels')
-      || !activeLayer.paths.some(({ id }) => id === interaction.pathId)
-      || !targetLayer.paths.some(({ id }) => id === targetPathId)
+      || !activeLayer.elements.some((element) => element.type === 'path' && element.id === interaction.pathId)
+      || !targetLayer.elements.some((element) => element.type === 'path' && element.id === targetPathId)
     ) return false;
 
     if (this.activeMutation) {
