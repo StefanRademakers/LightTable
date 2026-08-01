@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   effectiveSelectionMode,
+  selectionFeatherScale,
   selectionShapeBuffers
 } from './SelectionRasterizer';
 
@@ -21,6 +22,19 @@ describe('selectionShapeBuffers', () => {
       kind: 'polygon',
       points: [{ x: 1, y: 2 }, { x: 3, y: 4 }]
     }, 100, 100)).toBeNull();
+  });
+});
+
+describe('selectionFeatherScale', () => {
+  it('keeps small feathers at full resolution', () => {
+    expect(selectionFeatherScale(0)).toBe(1);
+    expect(selectionFeatherScale(32)).toBe(1);
+  });
+
+  it('bounds wide-feather working resolution without exceeding an 8x scale', () => {
+    expect(selectionFeatherScale(64)).toBe(2);
+    expect(selectionFeatherScale(128)).toBe(4);
+    expect(selectionFeatherScale(250)).toBe(8);
   });
 });
 

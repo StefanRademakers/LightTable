@@ -58,6 +58,8 @@ import {
   LAYER_STYLE_EFFECT_WGSL,
   LAYER_STYLE_SHAPE_WGSL,
   SELECTION_COMBINE_WGSL,
+  SELECTION_FEATHER_WGSL,
+  SELECTION_RESAMPLE_WGSL,
   SELECTION_SHAPE_WGSL
 } from '../editor/rendering/layerShaders';
 import {
@@ -225,6 +227,8 @@ describe('LightTable WGSL modules', () => {
     ['layer color invert', `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_INVERT_COLORS_WGSL}`],
     ['selection shape', `${FULLSCREEN_VERTEX_WGSL}\n${SELECTION_SHAPE_WGSL}`],
     ['selection combine', `${FULLSCREEN_VERTEX_WGSL}\n${SELECTION_COMBINE_WGSL}`],
+    ['selection feather', `${FULLSCREEN_VERTEX_WGSL}\n${SELECTION_FEATHER_WGSL}`],
+    ['selection feather resample', `${FULLSCREEN_VERTEX_WGSL}\n${SELECTION_RESAMPLE_WGSL}`],
     ['layer transform', `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_TRANSFORM_WGSL}`],
     ['selection transform', `${FULLSCREEN_VERTEX_WGSL}\n${SELECTION_TRANSFORM_WGSL}`],
     ['alignment reprojection', `${FULLSCREEN_VERTEX_WGSL}\n${ALIGNMENT_REPROJECT_WGSL}`],

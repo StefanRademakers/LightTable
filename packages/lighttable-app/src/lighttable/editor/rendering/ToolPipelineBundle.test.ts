@@ -15,8 +15,8 @@ describe('toolPipelinesFor', () => {
     const second = toolPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(14);
-    expect(Object.keys(first)).toHaveLength(14);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(15);
+    expect(Object.keys(first)).toHaveLength(15);
   });
 
   it('does not share pipelines across GPU devices', () => {

@@ -999,24 +999,68 @@ struct FeatherSettings {
 @group(0) @binding(1) var sourceSampler: sampler;
 @group(0) @binding(2) var<uniform> settings: FeatherSettings;
 
+const gaussianKernel = array<vec2f, 17>(
+  vec2f(0.00000000, 0.074947560),
+  vec2f(0.06250000, 0.073641634),
+  vec2f(0.12500000, 0.069858807),
+  vec2f(0.18750000, 0.063980960),
+  vec2f(0.25000000, 0.056573386),
+  vec2f(0.31250000, 0.048295362),
+  vec2f(0.37500000, 0.039804348),
+  vec2f(0.43750000, 0.031672872),
+  vec2f(0.50000000, 0.024331910),
+  vec2f(0.56250000, 0.018046658),
+  vec2f(0.62500000, 0.012922580),
+  vec2f(0.68750000, 0.008933744),
+  vec2f(0.75000000, 0.005962791),
+  vec2f(0.81250000, 0.003842355),
+  vec2f(0.87500000, 0.002390437),
+  vec2f(0.93750000, 0.001435783),
+  vec2f(1.00000000, 0.000832592),
+);
+
+fn maskSample(uv: vec2f) -> f32 {
+  let inside = select(
+    0.0,
+    1.0,
+    all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0))
+  );
+  return textureSampleLevel(
+    sourceTexture,
+    sourceSampler,
+    clamp(uv, vec2f(0.0), vec2f(1.0)),
+    0.0
+  ).r * inside;
+}
+
 @fragment
 fn main(input: VertexOutput) -> @location(0) f32 {
   let texel = settings.direction / settings.canvasSize;
   let radius = max(settings.radius, 0.0);
-  // A compact nine-tap Gaussian approximation keeps feathering responsive at
-  // large radii without a radius-sized loop per full-resolution pixel.
-  let center = textureSample(sourceTexture, sourceSampler, input.uv).r * 0.227027;
-  let nearOffset = texel * radius * 0.384615;
-  let farOffset = texel * radius;
-  let nearSamples = (
-    textureSample(sourceTexture, sourceSampler, input.uv + nearOffset).r +
-    textureSample(sourceTexture, sourceSampler, input.uv - nearOffset).r
-  ) * 0.316216;
-  let farSamples = (
-    textureSample(sourceTexture, sourceSampler, input.uv + farOffset).r +
-    textureSample(sourceTexture, sourceSampler, input.uv - farOffset).r
-  ) * 0.070270;
-  return clamp(center + nearSamples + farSamples, 0.0, 1.0);
+  var result = maskSample(input.uv) * gaussianKernel[0].y;
+  for (var index = 1u; index < 17u; index += 1u) {
+    let kernel = gaussianKernel[index];
+    let offset = texel * radius * kernel.x;
+    result += (
+      maskSample(input.uv + offset) + maskSample(input.uv - offset)
+    ) * kernel.y;
+  }
+  return clamp(result, 0.0, 1.0);
+}
+`;
+
+/**
+ * One-sample linear resample used after a wide feather was evaluated on a
+ * smaller intermediate mask. Keeping this separate from the Gaussian shader
+ * avoids evaluating the full kernel again for every full-resolution pixel.
+ */
+export const SELECTION_RESAMPLE_WGSL = /* wgsl */ `
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var sourceSampler: sampler;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) f32 {
+  return textureSampleLevel(sourceTexture, sourceSampler, input.uv, 0.0).r;
 }
 `;
 

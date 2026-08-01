@@ -50,6 +50,14 @@ export const effectiveSelectionMode = (
   return active ? requestedMode : 'replace';
 };
 
+/**
+ * Wide feathers run on a smaller temporary mask. The Gaussian radius remains
+ * at most 32 samples there, while the final linear upscale keeps the authored
+ * selection at document resolution. Small feathers stay pixel-accurate.
+ */
+export const selectionFeatherScale = (radius: number) =>
+  Math.max(1, Math.min(8, Math.ceil(Math.max(0, radius) / 32)));
+
 interface SelectionRasterizerOptions {
   device: GPUDevice;
   sampler: GPUSampler;
@@ -214,11 +222,35 @@ export class SelectionRasterizer {
     if (clampedRadius <= 0) return true;
     const { width, height } = this.options.dimensions();
     const pipeline = this.options.pipelines().selectionFeather;
+    const scale = selectionFeatherScale(clampedRadius);
+    const featherWidth = Math.max(1, Math.ceil(width / scale));
+    const featherHeight = Math.max(1, Math.ceil(height / scale));
+    const temporaryTextures = scale === 1 ? [] : [
+      device.createTexture({
+        label: 'LightTable feather selection low-resolution horizontal',
+        size: { width: featherWidth, height: featherHeight },
+        format: 'r8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+      }),
+      device.createTexture({
+        label: 'LightTable feather selection low-resolution vertical',
+        size: { width: featherWidth, height: featherHeight },
+        format: 'r8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+      })
+    ];
+    const encoder = device.createCommandEncoder({
+      label: 'LightTable high-quality selection feather'
+    });
+    const submittedBuffers: GPUBuffer[] = [];
     const encodePass = (
       label: string,
       direction: [number, number],
       source: GPUTexture,
-      target: GPUTexture
+      target: GPUTexture,
+      sourceWidth: number,
+      sourceHeight: number,
+      passRadius: number
     ) => {
       const settingsBuffer = device.createBuffer({
         label: `${label} settings`,
@@ -226,7 +258,7 @@ export class SelectionRasterizer {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
       });
       device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
-        width, height, direction[0], direction[1], clampedRadius, 0, 0, 0
+        sourceWidth, sourceHeight, direction[0], direction[1], passRadius, 0, 0, 0
       ]));
       const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
@@ -236,7 +268,6 @@ export class SelectionRasterizer {
           { binding: 2, resource: { buffer: settingsBuffer } }
         ]
       });
-      const encoder = device.createCommandEncoder({ label });
       this.options.drawFullscreen(
         encoder,
         pipeline,
@@ -244,24 +275,50 @@ export class SelectionRasterizer {
         target.createView(),
         { r: 0, g: 0, b: 0, a: 1 }
       );
-      device.queue.submit([encoder.finish()]);
-      return settingsBuffer;
+      submittedBuffers.push(settingsBuffer);
     };
-    const horizontalBuffer = encodePass(
+    const horizontalTarget = temporaryTextures[0] ?? textures.result;
+    const verticalTarget = temporaryTextures[1] ?? textures.mask;
+    encodePass(
       'LightTable feather selection horizontal',
       [1, 0],
       textures.mask,
-      textures.result
+      horizontalTarget,
+      width,
+      height,
+      clampedRadius
     );
-    const verticalBuffer = encodePass(
+    encodePass(
       'LightTable feather selection vertical',
       [0, 1],
-      textures.result,
-      textures.mask
+      horizontalTarget,
+      verticalTarget,
+      featherWidth,
+      featherHeight,
+      clampedRadius / scale
     );
+    if (scale > 1) {
+      const resamplePipeline = this.options.pipelines().selectionResample;
+      const resampleBindGroup = device.createBindGroup({
+        label: 'LightTable feather selection upscale bindings',
+        layout: resamplePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: verticalTarget.createView() },
+          { binding: 1, resource: sampler }
+        ]
+      });
+      this.options.drawFullscreen(
+        encoder,
+        resamplePipeline,
+        resampleBindGroup,
+        textures.mask.createView(),
+        { r: 0, g: 0, b: 0, a: 1 }
+      );
+    }
+    device.queue.submit([encoder.finish()]);
     void device.queue.onSubmittedWorkDone().then(() => {
-      horizontalBuffer.destroy();
-      verticalBuffer.destroy();
+      submittedBuffers.forEach((buffer) => buffer.destroy());
+      temporaryTextures.forEach((texture) => texture.destroy());
     });
     return true;
   }

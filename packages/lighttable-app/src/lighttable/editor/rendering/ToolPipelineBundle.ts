@@ -9,6 +9,7 @@ import {
   SELECTION_COPY_WGSL,
   SELECTION_DISPLAY_COPY_WGSL,
   SELECTION_FEATHER_WGSL,
+  SELECTION_RESAMPLE_WGSL,
   SELECTION_SHAPE_WGSL
 } from './layerShaders';
 import {
@@ -25,6 +26,7 @@ export interface ToolPipelineBundle {
   selectionCombine: GPURenderPipeline;
   selectionContentCoverage: GPURenderPipeline;
   selectionFeather: GPURenderPipeline;
+  selectionResample: GPURenderPipeline;
   selectionCopy: GPURenderPipeline;
   selectionDisplayCopy: GPURenderPipeline;
   selectionToMask: GPURenderPipeline;
@@ -95,6 +97,7 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     selectionCombine: fullscreenPipeline('LightTable selection boolean compositor', SELECTION_COMBINE_WGSL, 'r8unorm'),
     selectionContentCoverage: fullscreenPipeline('LightTable selected content coverage', SELECTION_CONTENT_COVERAGE_WGSL, 'r8unorm'),
     selectionFeather: fullscreenPipeline('LightTable selection feather', SELECTION_FEATHER_WGSL, 'r8unorm'),
+    selectionResample: fullscreenPipeline('LightTable selection feather upscale', SELECTION_RESAMPLE_WGSL, 'r8unorm'),
     selectionCopy: fullscreenPipeline('LightTable selected pixel copy', SELECTION_COPY_WGSL),
     selectionDisplayCopy: fullscreenPipeline('LightTable selected display copy', SELECTION_DISPLAY_COPY_WGSL, 'rgba8unorm'),
     selectionToMask: fullscreenPipeline('LightTable selection to layer mask', RED_CHANNEL_COPY_WGSL),
