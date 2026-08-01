@@ -47,6 +47,84 @@ export const createVectorEditorSelection = (): VectorEditorSelection => ({
   active: null
 });
 
+export const cloneVectorEditorSelection = (
+  selection: VectorEditorSelection
+): VectorEditorSelection => ({
+  paths: selection.paths.map((reference) => ({ ...reference })),
+  anchors: selection.anchors.map((reference) => ({ ...reference })),
+  active: selection.active
+    ? {
+        ...selection.active,
+        target: selection.active.target.kind === 'segment'
+          ? {
+              ...selection.active.target,
+              point: { ...selection.active.target.point }
+            }
+          : { ...selection.active.target }
+      }
+    : null
+});
+
+const pathReferencesEqual = (
+  left: readonly VectorPathSelectionReference[],
+  right: readonly VectorPathSelectionReference[]
+) => left.length === right.length && left.every((reference, index) => (
+  reference.layerId === right[index]?.layerId
+  && reference.pathId === right[index]?.pathId
+));
+
+const anchorReferencesEqual = (
+  left: readonly VectorAnchorSelectionReference[],
+  right: readonly VectorAnchorSelectionReference[]
+) => left.length === right.length && left.every((reference, index) => (
+  reference.layerId === right[index]?.layerId
+  && reference.pathId === right[index]?.pathId
+  && reference.subpathId === right[index]?.subpathId
+  && reference.anchorId === right[index]?.anchorId
+));
+
+const targetsEqual = (
+  left: PathSelectionTarget,
+  right: PathSelectionTarget
+) => {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === 'fill' && right.kind === 'fill') {
+    return left.pathId === right.pathId;
+  }
+  if (left.kind === 'segment' && right.kind === 'segment') {
+    return left.subpathId === right.subpathId
+      && left.segmentIndex === right.segmentIndex
+      && left.t === right.t
+      && left.point.x === right.point.x
+      && left.point.y === right.point.y;
+  }
+  if (left.kind !== 'fill' && left.kind !== 'segment'
+    && right.kind !== 'fill' && right.kind !== 'segment') {
+    return left.subpathId === right.subpathId && left.anchorId === right.anchorId;
+  }
+  return false;
+};
+
+/**
+ * Selection is presentation state, not document state. A structural compare
+ * prevents React object churn from scheduling redundant viewport frames.
+ */
+export const vectorEditorSelectionsEqual = (
+  left: VectorEditorSelection,
+  right: VectorEditorSelection
+) => pathReferencesEqual(left.paths, right.paths)
+  && anchorReferencesEqual(left.anchors, right.anchors)
+  && (
+    left.active === right.active
+    || (
+      left.active !== null
+      && right.active !== null
+      && left.active.layerId === right.active.layerId
+      && left.active.pathId === right.active.pathId
+      && targetsEqual(left.active.target, right.active.target)
+    )
+  );
+
 export interface BrushSettings {
   size: number;
   hardness: number;

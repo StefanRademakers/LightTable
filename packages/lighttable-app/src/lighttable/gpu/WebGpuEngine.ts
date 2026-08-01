@@ -69,6 +69,17 @@ import { DocumentScopeRuntime } from './documentScopeRuntime';
 import { DocumentHistogramRuntime } from './documentHistogramRuntime';
 import { documentRenderStatesEqual } from '../application/rendering/documentRenderState';
 import type { WarpDebugView } from '../effects/warp/warpTypes';
+import {
+  VectorEditingOverlayBackend,
+  type VectorEditingOverlayTarget
+} from '@lighttable/vector-webgpu';
+import { buildVectorDocumentEditingOverlays } from '../application/vectors/vectorEditingOverlay';
+import {
+  cloneVectorEditorSelection,
+  createVectorEditorSelection,
+  vectorEditorSelectionsEqual,
+  type VectorEditorSelection
+} from '../editor/session/editorSession';
 
 interface ViewportRect {
   x: number;
@@ -173,6 +184,8 @@ export class WebGpuEngine {
   private paintInteractionActive = false;
   private lastReportedGpuBytes = -1;
   private viewportRenderState: ViewportRenderState | null = null;
+  private vectorSelection = createVectorEditorSelection();
+  private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
 
   static async create(
     canvas: HTMLCanvasElement,
@@ -945,6 +958,13 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setVectorEditingSelection(selection: VectorEditorSelection) {
+    if (vectorEditorSelectionsEqual(this.vectorSelection, selection)) return;
+    this.vectorSelection = cloneVectorEditorSelection(selection);
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   async measureReferenceDifference(threshold = 2 / 255): Promise<ReferenceDifferenceMetrics> {
     if (!this.metadata || !this.imageResources.sourceTexture || !this.imageResources.finalTexture || !this.differenceMetricsPipeline) {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
@@ -1116,7 +1136,7 @@ export class WebGpuEngine {
       adjustmentLayerBytes: this.adjustmentLayerResources.estimatedBytes(),
       layerDocumentBytes: this.documentRenderer?.estimatedTextureBytes() ?? 0,
       effectBytes: this.effectRuntime?.estimatedTextureBytes() ?? 0
-    });
+    }) + (this.vectorEditingOverlayBackend?.cacheMetrics().bytes ?? 0);
   }
 
   private reportGpuMemoryEstimate() {
@@ -1284,6 +1304,7 @@ export class WebGpuEngine {
           canvasView
         );
       }
+      this.encodeVectorEditingOverlays(encoder, canvasView);
       this.renderDirty.markViewportRendered();
     }
 
@@ -1298,6 +1319,7 @@ export class WebGpuEngine {
       scopePasses.displayPasses
     );
     this.device.queue.submit([encoder.finish()]);
+    void this.vectorEditingOverlayBackend?.notifySubmitted();
     this.renderTelemetry.recordSubmittedFrame();
     void this.device.popErrorScope().then((validationError) => {
       if (!this.destroyed && validationError) {
@@ -1382,6 +1404,41 @@ export class WebGpuEngine {
     this.layerProcessingRenderer = null;
     this.documentRenderer?.destroy();
     this.documentRenderer = null;
+    this.vectorEditingOverlayBackend?.dispose();
+    this.vectorEditingOverlayBackend = null;
+  }
+
+  private encodeVectorEditingOverlays(
+    encoder: GPUCommandEncoder,
+    canvasView: GPUTextureView
+  ) {
+    if (!this.imageDocument || !this.viewportRenderState) return;
+    const overlays = buildVectorDocumentEditingOverlays(
+      this.imageDocument,
+      this.vectorSelection
+    );
+    if (!overlays.length) return;
+    const uniforms = this.viewportRenderState.uniforms;
+    const target: VectorEditingOverlayTarget = {
+      colorView: canvasView,
+      format: this.canvasFormat,
+      width: this.viewportRenderState.pixelWidth,
+      height: this.viewportRenderState.pixelHeight,
+      documentToViewport: {
+        a: uniforms[4] / this.imageDocument.width,
+        b: 0,
+        c: 0,
+        d: uniforms[5] / this.imageDocument.height,
+        tx: uniforms[2],
+        ty: uniforms[3]
+      }
+    };
+    this.vectorEditingOverlayBackend ??= new VectorEditingOverlayBackend(this.device);
+    // Queries return topmost-first. Encode bottom-to-top so the topmost path's
+    // handles remain the final visible editing affordance.
+    for (let index = overlays.length - 1; index >= 0; index -= 1) {
+      this.vectorEditingOverlayBackend.encode(encoder, overlays[index]!, target);
+    }
   }
 
   private destroyImageResources() {

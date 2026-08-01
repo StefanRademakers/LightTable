@@ -3,6 +3,7 @@ import type { WebGpuScopeOptions } from '../../gpu/WebGpuScopeEngine';
 import type { ScopeSettings, ScopeVisibility } from '../../scopes';
 import type { LensBlurViewportMode } from '../config/adjustmentControls';
 import type { WarpDebugView } from '../../effects/warp/warpTypes';
+import type { VectorEditorSelection } from '../session/editorSession';
 
 export interface RendererPresentationPort {
   setBefore(enabled: boolean): void;
@@ -13,6 +14,7 @@ export interface RendererPresentationPort {
   ): void;
   setLensBlurDepthVisualization(enabled: boolean): void;
   setWarpDebugVisualization(view: WarpDebugView): void;
+  setVectorEditingSelection(selection: VectorEditorSelection): void;
 }
 
 export const createScopeRendererOptions = (
@@ -38,6 +40,7 @@ interface RendererPresentationSyncOptions<
   readonly showDifference: boolean;
   readonly lensBlurViewportMode: LensBlurViewportMode;
   readonly warpDebugView: WarpDebugView;
+  readonly vectorSelection: VectorEditorSelection;
   readonly scopeVisibility: ScopeVisibility;
   readonly scopeSettings: ScopeSettings;
   readonly scopeVisibilityRef: MutableRefObject<ScopeVisibility>;
@@ -56,6 +59,7 @@ export const useRendererPresentationSync = <
   showDifference,
   lensBlurViewportMode,
   warpDebugView,
+  vectorSelection,
   scopeVisibility,
   scopeSettings,
   scopeVisibilityRef,
@@ -75,6 +79,10 @@ export const useRendererPresentationSync = <
   useEffect(() => {
     rendererRef.current?.setWarpDebugVisualization(warpDebugView);
   }, [rendererRef, warpDebugView]);
+
+  useEffect(() => {
+    rendererRef.current?.setVectorEditingSelection(vectorSelection);
+  }, [rendererRef, vectorSelection]);
 
   useEffect(() => {
     scopeVisibilityRef.current = scopeVisibility;
