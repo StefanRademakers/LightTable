@@ -18,12 +18,26 @@ export default defineConfig({
     alias: {
       '@lighttable/app': fileURLToPath(
         new URL('../../packages/lighttable-app/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/vector-core': fileURLToPath(
+        new URL('../../packages/vector-core/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/vector-rendering': fileURLToPath(
+        new URL('../../packages/vector-rendering/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/vector-webgpu': fileURLToPath(
+        new URL('../../packages/vector-webgpu/src/index.ts', import.meta.url)
       )
     },
     dedupe: ['react', 'react-dom']
   },
   optimizeDeps: {
-    exclude: ['@lighttable/app']
+    exclude: [
+      '@lighttable/app',
+      '@lighttable/vector-core',
+      '@lighttable/vector-rendering',
+      '@lighttable/vector-webgpu'
+    ]
   },
   server: {
     headers: isolationHeaders

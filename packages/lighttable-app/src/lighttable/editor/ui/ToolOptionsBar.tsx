@@ -4,7 +4,8 @@ import { AdjustmentSlider } from '../../AdjustmentSlider';
 import type {
   BrushSettings,
   EditorSession,
-  ToolId
+  ToolId,
+  VectorToolStyleSettings
 } from '../session/editorSession';
 import { WarpToolOptions } from '../../application/tools/warp/WarpToolOptions';
 import { toolDefinition } from '../tools/toolRegistry';
@@ -14,10 +15,12 @@ export interface ToolOptionsProps {
   activeTool: ToolId;
   brush: BrushSettings;
   warp: EditorSession['warp'];
+  vectorStyle: VectorToolStyleSettings;
   selectionPixelSnap: boolean;
   zoomPercent: number;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
+  onVectorStyleChange: (change: Partial<VectorToolStyleSettings>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
@@ -54,10 +57,12 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   activeTool,
   brush,
   warp,
+  vectorStyle,
   selectionPixelSnap,
   zoomPercent,
   onBrushChange,
   onWarpChange,
+  onVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
   onZoomPreset,
@@ -132,6 +137,42 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={onWarpChange}
           onReset={onWarpReset}
         />
+      ) : null}
+      {activeTool === 'vector-pen' || activeTool.startsWith('shape-') ? (
+        <div className="lighttable-tool-options__vector-style" aria-label="Vector style">
+          {activeTool.startsWith('shape-') && activeTool !== 'shape-line' ? (
+            <label className="lighttable-tool-options__color-field">
+              <span>Fill</span>
+              <input
+                type="color"
+                value={vectorStyle.fillColor}
+                onChange={(event) => onVectorStyleChange({ fillColor: event.currentTarget.value })}
+              />
+            </label>
+          ) : null}
+          <label className="lighttable-tool-options__color-field">
+            <span>Line</span>
+            <input
+              type="color"
+              value={vectorStyle.strokeColor}
+              onChange={(event) => onVectorStyleChange({ strokeColor: event.currentTarget.value })}
+            />
+          </label>
+          <label className="lighttable-tool-options__weight-field">
+            <span>Weight</span>
+            <input
+              type="number"
+              min={0.1}
+              max={1000}
+              step={0.5}
+              value={vectorStyle.strokeWidth}
+              onChange={(event) => onVectorStyleChange({
+                strokeWidth: Math.max(0.1, Number(event.currentTarget.value) || 0.1)
+              })}
+            />
+            <span>px</span>
+          </label>
+        </div>
       ) : null}
       {activeTool === 'brush' || activeTool === 'erase' ? (
         <>

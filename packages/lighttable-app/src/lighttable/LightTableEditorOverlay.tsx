@@ -1033,6 +1033,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selection: editorSession.vectorSelection,
     activeTool: editorSession.activeTool,
     foregroundColor: editorSession.brush.color,
+    fillColor: editorSession.vectorStyle.fillColor,
+    strokeColor: editorSession.vectorStyle.strokeColor,
+    strokeWidth: editorSession.vectorStyle.strokeWidth,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection: (vectorSelection) => {
@@ -1196,7 +1199,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     requestFlattenGroup: (groupId) =>
       editorDialogs.requestFlatten({ kind: 'group', groupId }),
     requestFlattenImage: () => editorDialogs.requestFlatten({ kind: 'image' }),
-    editStyles: openLayerStyleEditor
+    editStyles: openLayerStyleEditor,
+    prepareActiveLayerChange: (layerId) => {
+      vectorToolSessionController.prepareActiveLayerChange(layerId);
+    }
   });
 
   const transformSession = useTransformSessionController({
@@ -1427,10 +1433,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       activeTool={visibleTool}
       brush={editorSession.brush}
       warp={editorSession.warp}
+      vectorStyle={editorSession.vectorStyle}
       selectionPixelSnap={editorSession.selectionPixelSnap}
       zoomPercent={activeScale * 100}
       onBrushChange={updateBrush}
       onWarpChange={updateWarp}
+      onVectorStyleChange={(change) => {
+        setEditorSession((current) => ({
+          ...current,
+          vectorStyle: { ...current.vectorStyle, ...change }
+        }));
+      }}
       onWarpReset={() => {
         warpSessionController.clearActiveLayer();
       }}
@@ -1474,10 +1487,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             activeTool: visibleTool,
             brush: editorSession.brush,
             warp: editorSession.warp,
+            vectorStyle: editorSession.vectorStyle,
             selectionPixelSnap: editorSession.selectionPixelSnap,
             zoomPercent: activeScale * 100,
             onBrushChange: updateBrush,
             onWarpChange: updateWarp,
+            onVectorStyleChange: (change) => {
+              setEditorSession((current) => ({
+                ...current,
+                vectorStyle: { ...current.vectorStyle, ...change }
+              }));
+            },
             onWarpReset: () => {
               warpSessionController.clearActiveLayer();
               setToolOptionsMenu(null);

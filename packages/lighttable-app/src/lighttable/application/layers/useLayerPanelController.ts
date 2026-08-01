@@ -59,6 +59,7 @@ export interface LayerPanelControllerDependencies {
   requestFlattenGroup(groupId: LayerId): void;
   requestFlattenImage(): void;
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
+  prepareActiveLayerChange?(layerId: LayerId): void;
 }
 
 export interface LayerPanelController {
@@ -122,6 +123,8 @@ export const createLayerPanelController = (
     const current = dependencies.getDocument();
     const layer = current ? findDocumentLayer(current, layerId) : null;
     if (!current || !layer) return;
+
+    dependencies.prepareActiveLayerChange?.(layerId);
 
     dependencies.mutateDocument(
       (document) => setActiveLayer(document, layerId),

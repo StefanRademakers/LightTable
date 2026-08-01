@@ -117,6 +117,9 @@ export const createLiveShapeFromDrag = (
   }
 
   shape.style = cloneVectorStyle(style);
+  // Lines have no enclosed area. Keeping fill disabled also prevents the
+  // degenerate line geometry from participating in fill tessellation.
+  if (preset.kind === 'line') shape.style.fill = null;
   return shape;
 };
 
@@ -176,6 +179,15 @@ export class LiveShapeToolController {
       this.shape?.style ?? this.style(),
       this.shape?.name ?? this.shapeName(this.preset)
     );
+
+    // A drag preview mutates both canonical geometry and its placement. The
+    // renderer's GPU geometry cache is revision keyed, so reusing the factory
+    // defaults here would leave every later preview (and the committed shape)
+    // displaying the first threshold-sized mesh.
+    if (this.shape) {
+      draft.geometryRevision = this.shape.geometryRevision + 1;
+      draft.transformRevision = this.shape.transformRevision + 1;
+    }
 
     if (!this.shape) {
       const placement = this.documents.beginElementCreation(draft, this.layerName);

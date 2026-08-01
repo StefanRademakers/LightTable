@@ -16,6 +16,9 @@ export interface VectorToolSessionHookOptions {
   readonly selection: VectorEditorSelection;
   readonly activeTool: ToolId;
   readonly foregroundColor: string;
+  readonly fillColor: string;
+  readonly strokeColor: string;
+  readonly strokeWidth: number;
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
@@ -33,6 +36,9 @@ export const useVectorToolSessionController = ({
   selection,
   activeTool,
   foregroundColor,
+  fillColor,
+  strokeColor,
+  strokeWidth,
   applyDocumentSnapshot,
   pushDocumentHistory,
   publishSelection
@@ -41,6 +47,9 @@ export const useVectorToolSessionController = ({
     document,
     selection,
     foregroundColor,
+    fillColor,
+    strokeColor,
+    strokeWidth,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection
@@ -49,6 +58,9 @@ export const useVectorToolSessionController = ({
     document,
     selection,
     foregroundColor,
+    fillColor,
+    strokeColor,
+    strokeWidth,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection
@@ -69,9 +81,14 @@ export const useVectorToolSessionController = ({
         portsRef.current.publishSelection(next);
       }
     }, {
-      style: (): VectorStyle => ({
-        fill: { type: 'solid', color: cssHexToLinearRgba(portsRef.current.foregroundColor) },
-        stroke: null,
+      penStyle: (): VectorStyle => ({
+        fill: null,
+        stroke: createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth),
+        opacity: 1
+      }),
+      liveShapeStyle: (): VectorStyle => ({
+        fill: { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) },
+        stroke: createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth),
         opacity: 1
       })
     });
@@ -108,6 +125,16 @@ export const useVectorToolSessionController = ({
 
   return controllerRef.current;
 };
+
+const createStroke = (color: string, width: number): NonNullable<VectorStyle['stroke']> => ({
+  paint: { type: 'solid', color: cssHexToLinearRgba(color) },
+  width: Math.max(0.1, width),
+  cap: 'round',
+  join: 'round',
+  miterLimit: 4,
+  dash: [],
+  dashOffset: 0
+});
 
 const srgbToLinear = (value: number) => value <= 0.04045
   ? value / 12.92

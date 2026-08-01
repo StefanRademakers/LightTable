@@ -56,6 +56,25 @@ describe('createLiveShapeFromDrag', () => {
     });
     expect(shape.transform).toMatchObject({ tx: 50, ty: 40 });
   });
+
+  it('keeps line shapes stroke-only even when the current shape fill is enabled', () => {
+    const shape = createLiveShapeFromDrag(
+      'line', { x: 10, y: 10 }, { x: 80, y: 40 }, { kind: 'line' }, {
+        ...style,
+        stroke: {
+          paint: { type: 'solid', color: [0, 0, 0, 1] },
+          width: 3,
+          cap: 'round',
+          join: 'round',
+          miterLimit: 4,
+          dash: [],
+          dashOffset: 0
+        }
+      }
+    );
+    expect(shape.style.fill).toBeNull();
+    expect(shape.style.stroke?.width).toBe(3);
+  });
 });
 
 describe('LiveShapeToolController', () => {
@@ -79,6 +98,32 @@ describe('LiveShapeToolController', () => {
       type: 'live-shape',
       geometry: { kind: 'ellipse', width: 70, height: 40 },
       transform: { tx: 10, ty: 15 }
+    });
+    expect(shape?.geometryRevision).toBe(2);
+    expect(shape?.transformRevision).toBe(2);
+  });
+
+  it('advances render-cache revisions for every changed drag preview', () => {
+    const state = setup();
+    const tool = new LiveShapeToolController(
+      state.documents,
+      { kind: 'rectangle' },
+      { ids: state.ids }
+    );
+
+    tool.pointerDown({ x: 10, y: 10 });
+    tool.pointerMove({ x: 20, y: 20 });
+    let layer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    let shape = layer?.type === 'vector' ? layer.elements[0] : null;
+    expect(shape).toMatchObject({ geometryRevision: 0, transformRevision: 0 });
+
+    tool.pointerMove({ x: 90, y: 70 });
+    layer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    shape = layer?.type === 'vector' ? layer.elements[0] : null;
+    expect(shape).toMatchObject({
+      geometry: { kind: 'rectangle', width: 80, height: 60 },
+      geometryRevision: 1,
+      transformRevision: 1
     });
   });
 

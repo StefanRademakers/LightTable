@@ -7,6 +7,7 @@ import {
   createVectorPath
 } from '@lighttable/vector-core';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
+import { setActiveLayer } from '../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   createVectorEditorSelection,
@@ -59,6 +60,33 @@ describe('VectorToolSessionController', () => {
     expect(state.history).toHaveLength(1);
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
     expect(layerPaths(layer)[0]?.subpaths[0]?.anchors).toHaveLength(2);
+  });
+
+  it('finishes an open Pen path before an external active-layer change', () => {
+    const state = setup();
+    state.controller.activate('pen');
+    for (const [pointerId, point] of [
+      { x: 10, y: 10 },
+      { x: 80, y: 30 }
+    ].entries()) {
+      state.controller.pointerDown(pointerId, point, { hitRadius: 3 });
+      state.controller.pointerUp(pointerId, point);
+    }
+    const firstLayerId = state.document.activeLayerId!;
+
+    expect(state.controller.prepareActiveLayerChange(null)).toBe(true);
+    state.document = setActiveLayer(state.document, null);
+    expect(state.history).toHaveLength(1);
+
+    state.controller.pointerDown(8, { x: 20, y: 70 }, { hitRadius: 3 });
+    state.controller.pointerUp(8, { x: 20, y: 70 });
+    state.controller.pointerDown(9, { x: 100, y: 70 }, { hitRadius: 3 });
+    state.controller.pointerUp(9, { x: 100, y: 70 });
+    state.controller.finishPenPath();
+
+    expect(state.document.activeLayerId).not.toBe(firstLayerId);
+    expect(layerPaths(findDocumentLayer(state.document, firstLayerId))).toHaveLength(1);
+    expect(state.history).toHaveLength(2);
   });
 
   it('closes a pen path through the first-anchor hit without capturing the pointer', () => {

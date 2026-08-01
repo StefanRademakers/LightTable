@@ -17,12 +17,29 @@ export default defineConfig({
     alias: {
       '@lighttable/app': fileURLToPath(
         new URL('../../packages/lighttable-app/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/vector-core': fileURLToPath(
+        new URL('../../packages/vector-core/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/vector-rendering': fileURLToPath(
+        new URL('../../packages/vector-rendering/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/vector-webgpu': fileURLToPath(
+        new URL('../../packages/vector-webgpu/src/index.ts', import.meta.url)
       )
     },
     dedupe: ['react', 'react-dom']
   },
   optimizeDeps: {
-    exclude: ['@lighttable/app']
+    // Workspace code must remain in Vite's live source graph. Optimizing one
+    // of these packages can leave an old GPU pipeline active after HMR even
+    // though its caller already runs the new source.
+    exclude: [
+      '@lighttable/app',
+      '@lighttable/vector-core',
+      '@lighttable/vector-rendering',
+      '@lighttable/vector-webgpu'
+    ]
   },
   server: {
     // StoryBuilder commonly owns 5173 during adapter development. A fixed,

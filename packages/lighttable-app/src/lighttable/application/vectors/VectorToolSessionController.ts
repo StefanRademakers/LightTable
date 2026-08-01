@@ -37,7 +37,8 @@ export interface VectorToolSessionDependencies extends VectorDocumentControllerD
 
 export interface VectorToolSessionOptions {
   ids?: VectorIdSource;
-  style?: () => VectorStyle;
+  penStyle?: () => VectorStyle;
+  liveShapeStyle?: () => VectorStyle;
   layerName?: string;
   pathName?: string;
 }
@@ -85,11 +86,20 @@ export class VectorToolSessionController {
     this.documents = new VectorDocumentController(() => this.dependencies);
     this.directSelection = new DirectSelectionToolController(this.documents, dependencies);
     this.elementSelection = new VectorElementSelectionToolController(this.documents, dependencies);
-    this.pen = new PenToolController(this.documents, options);
+    this.pen = new PenToolController(this.documents, {
+      ids: options.ids,
+      style: options.penStyle,
+      layerName: options.layerName,
+      pathName: options.pathName
+    });
     this.liveShape = new LiveShapeToolController(
       this.documents,
       { kind: 'rectangle' },
-      options
+      {
+        ids: options.ids,
+        style: options.liveShapeStyle,
+        layerName: options.layerName
+      }
     );
     this.selectionCommands = options.ids
       ? new VectorSelectionCommandController(this.documents, dependencies, options.ids)
@@ -227,6 +237,20 @@ export class VectorToolSessionController {
 
   clearSelection() {
     if (!this.assertAvailable()) return false;
+    this.elementSelection.clearSelection();
+    return true;
+  }
+
+  /**
+   * Ends provisional vector work before the host changes the active layer.
+   * A multi-click Pen path otherwise retains its creation layer and subsequent
+   * clicks appear to ignore the Layers panel selection.
+   */
+  prepareActiveLayerChange(nextLayerId: ImageDocument['activeLayerId']) {
+    if (!this.assertAvailable()) return false;
+    const document = this.dependencies.getDocument();
+    if (!document || document.activeLayerId === nextLayerId) return true;
+    this.finishActiveMode();
     this.elementSelection.clearSelection();
     return true;
   }

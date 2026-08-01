@@ -101,6 +101,22 @@ describe('createLayerPanelController', () => {
     );
   });
 
+  it('prepares provisional vector work before changing the active layer', () => {
+    let document = createImageDocument('test', 100, 100, 'asset');
+    document = createRasterLayer(document, 'First');
+    const firstLayerId = document.activeLayerId!;
+    document = createRasterLayer(document, 'Second');
+    const secondLayerId = document.activeLayerId!;
+    document = { ...document, activeLayerId: firstLayerId };
+    const harness = setup(document);
+    harness.dependencies.prepareActiveLayerChange = vi.fn();
+
+    harness.controller.select(secondLayerId);
+
+    expect(harness.dependencies.prepareActiveLayerChange).toHaveBeenCalledWith(secondLayerId);
+    expect(harness.document().activeLayerId).toBe(secondLayerId);
+  });
+
   it('selects a raster layer and projects its attached local grade', () => {
     const base = createImageDocument('test', 100, 100, 'asset');
     const local = createDefaultAdjustments();

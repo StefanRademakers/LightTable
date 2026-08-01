@@ -154,6 +154,13 @@ export interface BrushSettings {
   backgroundColor: string;
 }
 
+/** Authoring style used by native vector shape and Pen tools. */
+export interface VectorToolStyleSettings {
+  fillColor: string;
+  strokeColor: string;
+  strokeWidth: number;
+}
+
 export interface EditorSession {
   activeTool: ToolId;
   pointerId: number | null;
@@ -162,6 +169,7 @@ export interface EditorSession {
   vectorSelection: VectorEditorSelection;
   selectionPixelSnap: boolean;
   brush: BrushSettings;
+  vectorStyle: VectorToolStyleSettings;
   warp: WarpToolSettings;
 }
 
@@ -180,6 +188,11 @@ export const createEditorSession = (): EditorSession => ({
     spacing: 0.05,
     color: '#000000',
     backgroundColor: '#ffffff'
+  },
+  vectorStyle: {
+    fillColor: '#000000',
+    strokeColor: '#ffffff',
+    strokeWidth: 3
   },
   warp: {
     mode: 'push',
