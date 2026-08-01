@@ -1,6 +1,6 @@
 import { createAnchor, createSubpath, createVectorPath } from '../model/factories';
-import { cloneVectorPath } from '../model/clone';
-import type { VectorAnchor, VectorPath } from '../model/types';
+import { cloneVectorAnchor, cloneVectorPath, cloneVectorStyle } from '../model/clone';
+import type { VectorAnchor, VectorPath, VectorStyle } from '../model/types';
 import type { Vec2 } from '../math/vector';
 import { appendAnchor, closeSubpath } from './pathMutations';
 
@@ -38,6 +38,7 @@ export class PenPathBuilder {
   private path: VectorPath;
   private readonly subpathId: string;
   private finished = false;
+  private pendingAnchorId: string | null = null;
 
   constructor(path: VectorPath, subpathId: string, private readonly ids: VectorIdSource) {
     if (!path.subpaths.some(({ id }) => id === subpathId)) {
@@ -47,11 +48,13 @@ export class PenPathBuilder {
     this.subpathId = subpathId;
   }
 
-  static start(ids: VectorIdSource, name = 'Path') {
+  static start(ids: VectorIdSource, name = 'Path', style?: VectorStyle) {
     const pathId = ids.next('path');
     const subpathId = ids.next('subpath');
+    const path = createVectorPath(pathId, name, [createSubpath(subpathId)]);
+    if (style) path.style = cloneVectorStyle(style);
     return new PenPathBuilder(
-      createVectorPath(pathId, name, [createSubpath(subpathId)]),
+      path,
       subpathId,
       ids
     );
@@ -59,9 +62,16 @@ export class PenPathBuilder {
 
   place(position: Vec2, options: PlaceAnchorOptions = {}) {
     this.assertOpen();
-    const anchor = anchorFromGesture(this.ids.next('anchor'), position, options);
+    const anchor = anchorFromGesture(this.takePendingAnchorId(), position, options);
     this.path = appendAnchor(this.path, this.subpathId, anchor);
     return this.snapshot();
+  }
+
+  /** Returns a stable provisional anchor without mutating the authored path. */
+  previewPlace(position: Vec2, options: PlaceAnchorOptions = {}) {
+    this.assertOpen();
+    const anchor = anchorFromGesture(this.getPendingAnchorId(), position, options);
+    return appendAnchor(this.path, this.subpathId, anchor);
   }
 
   close() {
@@ -81,8 +91,27 @@ export class PenPathBuilder {
     return cloneVectorPath(this.path);
   }
 
+  anchorCount() {
+    return this.path.subpaths.find(({ id }) => id === this.subpathId)?.anchors.length ?? 0;
+  }
+
+  firstAnchor(): VectorAnchor | null {
+    const anchor = this.path.subpaths.find(({ id }) => id === this.subpathId)?.anchors[0];
+    return anchor ? cloneVectorAnchor(anchor) : null;
+  }
+
   private assertOpen() {
     if (this.finished) throw new Error('Pen path builder is already finished.');
   }
-}
 
+  private getPendingAnchorId() {
+    this.pendingAnchorId ??= this.ids.next('anchor');
+    return this.pendingAnchorId;
+  }
+
+  private takePendingAnchorId() {
+    const id = this.getPendingAnchorId();
+    this.pendingAnchorId = null;
+    return id;
+  }
+}

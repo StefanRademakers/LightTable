@@ -55,6 +55,54 @@ describe('VectorDocumentController', () => {
     expect(layer.paths[0]?.transform).toMatchObject({ tx: 7, ty: 3 });
   });
 
+  it('constructs a new path as one document transaction', () => {
+    const state = setup();
+    const opening = state.document;
+    const path = createVectorPath('pen-path');
+
+    const layerId = state.controller.beginPathCreation(path);
+    expect(layerId).not.toBeNull();
+    expect(state.history).toHaveLength(0);
+
+    const preview = translateVectorPath(path, { x: 12, y: 5 });
+    expect(state.controller.previewPathCreation(preview)).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.commitPathCreation()).toBe(true);
+    expect(state.history).toHaveLength(1);
+    expect(state.history[0]?.before).toBe(opening);
+
+    const layer = findDocumentLayer(state.document, layerId!);
+    expect(layer?.type).toBe('vector');
+    if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(layer.paths[0]?.transform).toMatchObject({ tx: 12, ty: 5 });
+  });
+
+  it('appends a provisional path to an editable active vector layer', () => {
+    const state = setup();
+    state.controller.createLayer([createVectorPath('existing')]);
+    const layerId = state.document.activeLayerId!;
+    state.history.length = 0;
+
+    expect(state.controller.beginPathCreation(createVectorPath('new'))).toBe(layerId);
+    const layer = findDocumentLayer(state.document, layerId);
+    expect(layer?.type === 'vector' ? layer.paths.map(({ id }) => id) : []).toEqual([
+      'existing',
+      'new'
+    ]);
+    expect(state.controller.commitPathCreation()).toBe(true);
+    expect(state.history).toHaveLength(1);
+  });
+
+  it('restores a newly inserted provisional layer on creation cancel', () => {
+    const state = setup();
+    const opening = state.document;
+    expect(state.controller.beginPathCreation(createVectorPath('cancelled'))).not.toBeNull();
+
+    expect(state.controller.cancelPathCreation()).toBe(true);
+    expect(state.document).toBe(opening);
+    expect(state.history).toHaveLength(0);
+  });
+
   it('restores the exact opening snapshot on cancel', () => {
     const state = setup();
     state.controller.createLayer([createVectorPath('path')]);

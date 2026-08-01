@@ -1,4 +1,4 @@
-import type { VectorAnchor, VectorPath, VectorSubpath } from './types';
+import type { VectorAnchor, VectorPath, VectorStyle, VectorSubpath } from './types';
 
 export const cloneVectorAnchor = (anchor: VectorAnchor): VectorAnchor => ({
   ...anchor,
@@ -12,17 +12,19 @@ export const cloneVectorSubpath = (subpath: VectorSubpath): VectorSubpath => ({
   anchors: subpath.anchors.map(cloneVectorAnchor)
 });
 
+export const cloneVectorStyle = (style: VectorStyle): VectorStyle => ({
+  ...style,
+  fill: style.fill ? { ...style.fill, color: [...style.fill.color] } : null,
+  stroke: style.stroke ? {
+    ...style.stroke,
+    paint: { ...style.stroke.paint, color: [...style.stroke.paint.color] },
+    dash: [...style.stroke.dash]
+  } : null
+});
+
 export const cloneVectorPath = (path: VectorPath): VectorPath => ({
   ...path,
   transform: { ...path.transform },
-  style: {
-    ...path.style,
-    fill: path.style.fill ? { ...path.style.fill, color: [...path.style.fill.color] } : null,
-    stroke: path.style.stroke ? {
-      ...path.style.stroke,
-      paint: { ...path.style.stroke.paint, color: [...path.style.stroke.paint.color] },
-      dash: [...path.style.stroke.dash]
-    } : null
-  },
+  style: cloneVectorStyle(path.style),
   subpaths: path.subpaths.map(cloneVectorSubpath)
 });

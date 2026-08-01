@@ -12,6 +12,7 @@ import type {
   ImageDocument,
   LayerId
 } from '../../editor/document/documentTypes';
+import { layerIsLocked } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 
 export interface VectorDocumentControllerDependencies {
@@ -28,6 +29,13 @@ interface ActivePathMutation {
   session: PathMutationSession;
 }
 
+interface ActivePathCreation {
+  documentId: ImageDocument['id'];
+  layerId: LayerId;
+  pathId: string;
+  beforeDocument: ImageDocument;
+}
+
 /**
  * Application boundary for native vector mutations.
  *
@@ -36,7 +44,8 @@ interface ActivePathMutation {
  * entry and refuses to leak an edit into a newly activated document.
  */
 export class VectorDocumentController {
-  private active: ActivePathMutation | null = null;
+  private activeMutation: ActivePathMutation | null = null;
+  private activeCreation: ActivePathCreation | null = null;
 
   constructor(
     private readonly resolveDependencies: () => VectorDocumentControllerDependencies
@@ -54,15 +63,92 @@ export class VectorDocumentController {
     return this.applyAtomic((document) => deleteVectorPaths(document, layerId, pathIds));
   }
 
+  /**
+   * Opens a path-creation transaction without producing history yet.
+   *
+   * The provisional path is inserted into an editable active vector layer, or
+   * into a newly created vector layer when the current target cannot own it.
+   * Subsequent previews replace that same path. Committing records the entire
+   * gesture as one history item; cancelling restores the exact opening tree.
+   */
+  beginPathCreation(path: VectorPath, name = 'Shape'): LayerId | null {
+    this.cancelActiveInteraction();
+    const dependencies = this.resolveDependencies();
+    const beforeDocument = dependencies.getDocument();
+    if (!beforeDocument) return null;
+
+    const activeLayer = beforeDocument.activeLayerId
+      ? findDocumentLayer(beforeDocument, beforeDocument.activeLayerId)
+      : null;
+    const canAppendToActive = activeLayer?.type === 'vector'
+      && !layerIsLocked(activeLayer, 'pixels');
+    const previewDocument = canAppendToActive
+      ? appendVectorPath(beforeDocument, activeLayer.id, path)
+      : createVectorLayer(beforeDocument, [path], name);
+    const layerId = canAppendToActive
+      ? activeLayer.id
+      : previewDocument.activeLayerId;
+    if (!layerId) return null;
+
+    this.activeCreation = {
+      documentId: beforeDocument.id,
+      layerId,
+      pathId: path.id,
+      beforeDocument
+    };
+    dependencies.applyDocumentSnapshot(previewDocument);
+    return layerId;
+  }
+
+  previewPathCreation(path: VectorPath) {
+    const active = this.activeCreation;
+    const dependencies = this.resolveDependencies();
+    const document = dependencies.getDocument();
+    if (!active || document?.id !== active.documentId || path.id !== active.pathId) {
+      this.activeCreation = null;
+      return false;
+    }
+    const layer = findDocumentLayer(document, active.layerId);
+    if (layer?.type !== 'vector' || !layer.paths.some(({ id }) => id === active.pathId)) {
+      this.activeCreation = null;
+      return false;
+    }
+    const next = replaceVectorPath(document, active.layerId, path);
+    if (next === document) return false;
+    dependencies.applyDocumentSnapshot(next);
+    return true;
+  }
+
+  commitPathCreation() {
+    const active = this.activeCreation;
+    if (!active) return false;
+    this.activeCreation = null;
+    const dependencies = this.resolveDependencies();
+    const document = dependencies.getDocument();
+    if (document?.id !== active.documentId) return false;
+    dependencies.pushDocumentHistory(active.beforeDocument, document);
+    return true;
+  }
+
+  cancelPathCreation() {
+    const active = this.activeCreation;
+    if (!active) return false;
+    this.activeCreation = null;
+    const dependencies = this.resolveDependencies();
+    if (dependencies.getDocument()?.id !== active.documentId) return false;
+    dependencies.applyDocumentSnapshot(active.beforeDocument);
+    return true;
+  }
+
   beginPathMutation(layerId: LayerId, pathId: string) {
-    if (this.active) this.cancelPathMutation();
+    this.cancelActiveInteraction();
     const document = this.resolveDependencies().getDocument();
     const layer = document ? findDocumentLayer(document, layerId) : null;
     const path = layer?.type === 'vector'
       ? layer.paths.find(({ id }) => id === pathId)
       : null;
     if (!document || !path) return false;
-    this.active = {
+    this.activeMutation = {
       documentId: document.id,
       layerId,
       pathId,
@@ -73,16 +159,16 @@ export class VectorDocumentController {
   }
 
   previewPathMutation(mutate: (openingSnapshot: VectorPath) => VectorPath) {
-    const active = this.active;
+    const active = this.activeMutation;
     const dependencies = this.resolveDependencies();
     const document = dependencies.getDocument();
     if (!active || document?.id !== active.documentId) {
-      this.active = null;
+      this.activeMutation = null;
       return false;
     }
     const layer = findDocumentLayer(document, active.layerId);
     if (layer?.type !== 'vector' || !layer.paths.some(({ id }) => id === active.pathId)) {
-      this.active = null;
+      this.activeMutation = null;
       return false;
     }
     const preview = active.session.update(mutate);
@@ -93,9 +179,9 @@ export class VectorDocumentController {
   }
 
   commitPathMutation() {
-    const active = this.active;
+    const active = this.activeMutation;
     if (!active) return false;
-    this.active = null;
+    this.activeMutation = null;
     const dependencies = this.resolveDependencies();
     const document = dependencies.getDocument();
     if (document?.id !== active.documentId) return false;
@@ -109,9 +195,9 @@ export class VectorDocumentController {
   }
 
   cancelPathMutation() {
-    const active = this.active;
+    const active = this.activeMutation;
     if (!active) return false;
-    this.active = null;
+    this.activeMutation = null;
     active.session.cancel();
     const dependencies = this.resolveDependencies();
     if (dependencies.getDocument()?.id !== active.documentId) return false;
@@ -120,11 +206,11 @@ export class VectorDocumentController {
   }
 
   dispose() {
-    this.cancelPathMutation();
+    this.cancelActiveInteraction();
   }
 
   private applyAtomic(change: (document: ImageDocument) => ImageDocument) {
-    if (this.active) return false;
+    if (this.activeMutation || this.activeCreation) return false;
     const dependencies = this.resolveDependencies();
     const before = dependencies.getDocument();
     if (!before) return false;
@@ -133,5 +219,11 @@ export class VectorDocumentController {
     dependencies.applyDocumentSnapshot(after);
     dependencies.pushDocumentHistory(before, after);
     return true;
+  }
+
+  private cancelActiveInteraction() {
+    if (this.activeCreation) return this.cancelPathCreation();
+    if (this.activeMutation) return this.cancelPathMutation();
+    return false;
   }
 }
