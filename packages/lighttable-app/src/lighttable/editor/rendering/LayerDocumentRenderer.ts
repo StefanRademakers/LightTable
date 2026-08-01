@@ -63,6 +63,14 @@ export class LayerDocumentRenderer {
     return this.runtime.layerResources.maskTexture(layerId);
   }
 
+  /**
+   * Borrows the live document-owned mask texture for presentation. Callers
+   * must never destroy it; its lifetime remains owned by the layer runtime.
+   */
+  maskPresentationTexture(layerId: LayerId) {
+    return this.maskTextureFor(layerId);
+  }
+
   resolveRasterRenderContract(layer: RasterLayer): RasterRenderContract | null {
     return this.runtime.layerRuntimeCoordinator.resolveRenderContract(layer);
   }

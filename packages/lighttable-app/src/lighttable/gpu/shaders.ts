@@ -850,6 +850,38 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+// Presentation-only view of the active layer mask. The source remains the
+// document-owned mask texture, so painting updates this view without creating
+// a second mask or passing through grade, Lens Fx, alpha compositing or scopes.
+export const MASK_VIEWPORT_BLIT_WGSL = /* wgsl */ `
+struct ViewUniforms {
+  viewportWidth: f32,
+  viewportHeight: f32,
+  rectX: f32,
+  rectY: f32,
+  rectWidth: f32,
+  rectHeight: f32,
+  checkerSize: f32,
+  padding: f32,
+}
+
+@group(0) @binding(0) var maskTexture: texture_2d<f32>;
+@group(0) @binding(1) var imageSampler: sampler;
+@group(0) @binding(2) var<uniform> view: ViewUniforms;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let pixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
+  let imageUv = (pixel - vec2f(view.rectX, view.rectY)) / vec2f(view.rectWidth, view.rectHeight);
+  let pasteboardBackground = vec3f(0.031, 0.039, 0.047);
+  if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
+    return vec4f(pasteboardBackground, 1.0);
+  }
+  let coverage = textureSampleLevel(maskTexture, imageSampler, imageUv, 0.0).r;
+  return vec4f(vec3f(coverage), 1.0);
+}
+`;
+
 // Pixel-accurate display-domain comparison between the Photoshop embedded
 // composite/reference and LightTable's reconstructed result. Black means an
 // exact match; the fixed gain makes small but meaningful style/blend errors

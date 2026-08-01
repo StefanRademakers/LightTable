@@ -6,6 +6,7 @@ import {
   FULLSCREEN_VERTEX_WGSL,
   GAUSSIAN_BLUR_WGSL,
   HISTOGRAM_WGSL,
+  MASK_VIEWPORT_BLIT_WGSL,
   OUTPUT_TRANSFORM_WGSL,
   PRECISION_SOURCE_RESOLVE_WGSL,
   REFERENCE_DIFFERENCE_METRICS_WGSL,
@@ -23,6 +24,7 @@ export interface CorePipelineBundle {
   precisionSourceResolve: GPURenderPipeline;
   displayResolve: GPURenderPipeline;
   blit: GPURenderPipeline;
+  maskBlit: GPURenderPipeline;
   difference: GPURenderPipeline;
   differenceMetrics: GPUComputePipeline;
   histogram: GPUComputePipeline;
@@ -128,6 +130,11 @@ export const getCorePipelineBundle = (
     blit: createRenderPipeline(
       'LightTable viewport blit',
       VIEWPORT_BLIT_WGSL,
+      canvasFormat
+    ),
+    maskBlit: createRenderPipeline(
+      'LightTable mask viewport blit',
+      MASK_VIEWPORT_BLIT_WGSL,
       canvasFormat
     ),
     difference: createRenderPipeline(

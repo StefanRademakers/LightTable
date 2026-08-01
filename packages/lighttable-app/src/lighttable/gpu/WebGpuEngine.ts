@@ -174,11 +174,16 @@ export class WebGpuEngine {
   private layerProcessingRenderer: LayerProcessingRenderer | null = null;
   private displayResolvePipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
+  private maskBlitPipeline: GPURenderPipeline | null = null;
   private differencePipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
   private metadata: LightTableImageMetadata | null = null;
   private before = false;
   private difference = false;
+  private isolatedMaskLayerId: LayerId | null = null;
+  private isolatedMaskTexture: GPUTexture | null = null;
+  private isolatedMaskBindGroup: GPUBindGroup | null = null;
+  private isolatedMaskNearestBindGroup: GPUBindGroup | null = null;
   private lensBlurDepthVisualization = false;
   private warpDebugVisualization: WarpDebugView = 'result';
   private firstFramePending = false;
@@ -316,6 +321,7 @@ export class WebGpuEngine {
     );
     this.displayResolvePipeline = pipelines.displayResolve;
     this.blitPipeline = pipelines.blit;
+    this.maskBlitPipeline = pipelines.maskBlit;
     this.differencePipeline = pipelines.difference;
     this.differenceMetricsPipeline = pipelines.differenceMetrics;
     this.histogramRuntime = new DocumentHistogramRuntime(
@@ -1017,6 +1023,18 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setMaskIsolation(layerId: LayerId | null) {
+    if (this.isolatedMaskLayerId === layerId) return;
+    this.isolatedMaskLayerId = layerId;
+    this.isolatedMaskTexture = null;
+    this.isolatedMaskBindGroup = null;
+    this.isolatedMaskNearestBindGroup = null;
+    this.renderDirty.invalidate('viewport');
+    // Mask isolation is a presentation diagnostic. Scopes deliberately stay
+    // attached to the reconstructed document rather than the mask channel.
+    this.requestRender();
+  }
+
   setVectorEditingSelection(selection: VectorEditorSelection) {
     if (vectorEditorSelectionsEqual(this.vectorSelection, selection)) return;
     this.vectorSelection = cloneVectorEditorSelection(selection);
@@ -1276,7 +1294,7 @@ export class WebGpuEngine {
       !this.blurPipeline || !this.creativePipeline || !this.outputPipeline || !this.coreResources ||
       !this.imageResources.sourceTexture ||
       !this.effectRuntime || !this.documentRenderer || !this.imageDocument ||
-      !this.displayResolvePipeline || !this.blitPipeline || !this.differencePipeline ||
+      !this.displayResolvePipeline || !this.blitPipeline || !this.maskBlitPipeline || !this.differencePipeline ||
       !this.imageResources.downsampleBindGroup || !this.imageResources.blurHorizontalBindGroup || !this.imageResources.blurVerticalBindGroup ||
       !this.imageResources.creativeBindGroup ||
       !this.imageResources.blitOriginalBindGroup || !this.imageResources.blitCorrectedBindGroup ||
@@ -1414,7 +1432,43 @@ export class WebGpuEngine {
     if (this.renderDirty.viewportRequired) {
       const canvasView = this.context.getCurrentTexture().createView();
       const useNearestSampling = this.viewportSampling === 'nearest';
-      if (this.difference) {
+      const maskTexture = this.isolatedMaskLayerId
+        ? this.documentRenderer.maskPresentationTexture(this.isolatedMaskLayerId)
+        : null;
+      if (maskTexture && maskTexture !== this.isolatedMaskTexture) {
+        this.isolatedMaskTexture = maskTexture;
+        this.isolatedMaskBindGroup = this.device.createBindGroup({
+          layout: this.maskBlitPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: maskTexture.createView() },
+            { binding: 1, resource: this.coreResources.sampler },
+            { binding: 2, resource: { buffer: this.coreResources.viewBuffer } }
+          ]
+        });
+        this.isolatedMaskNearestBindGroup = this.device.createBindGroup({
+          layout: this.maskBlitPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: maskTexture.createView() },
+            { binding: 1, resource: this.coreResources.nearestSampler },
+            { binding: 2, resource: { buffer: this.coreResources.viewBuffer } }
+          ]
+        });
+      } else if (!maskTexture) {
+        this.isolatedMaskTexture = null;
+        this.isolatedMaskBindGroup = null;
+        this.isolatedMaskNearestBindGroup = null;
+      }
+      const isolatedMaskBindGroup = useNearestSampling
+        ? this.isolatedMaskNearestBindGroup
+        : this.isolatedMaskBindGroup;
+      if (isolatedMaskBindGroup) {
+        this.drawFullscreenPass(
+          encoder,
+          this.maskBlitPipeline,
+          isolatedMaskBindGroup,
+          canvasView
+        );
+      } else if (this.difference) {
         this.drawFullscreenPass(
           encoder,
           this.differencePipeline,
@@ -1519,6 +1573,12 @@ export class WebGpuEngine {
   destroy() {
     this.destroyed = true;
     this.paintInteractionActive = false;
+    // The isolated mask texture is borrowed from the document renderer. Drop
+    // references here, but let the document renderer own its destruction.
+    this.isolatedMaskLayerId = null;
+    this.isolatedMaskTexture = null;
+    this.isolatedMaskBindGroup = null;
+    this.isolatedMaskNearestBindGroup = null;
     if (this.viewportSamplingSettleTimer !== null) {
       globalThis.clearTimeout(this.viewportSamplingSettleTimer);
       this.viewportSamplingSettleTimer = null;

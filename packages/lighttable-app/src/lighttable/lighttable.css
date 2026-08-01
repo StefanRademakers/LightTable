@@ -1724,6 +1724,13 @@
 }
 
 .lighttable-layer__thumbnail--active { outline: 2px solid var(--lt-accent-hover); outline-offset: -2px; }
+.lighttable-layer__thumbnail--active-mask {
+  box-shadow: 0 0 0 1px var(--lt-text-primary) inset;
+}
+.lighttable-layer__thumbnail--mask-isolated {
+  outline: 2px solid var(--lt-text-primary);
+  outline-offset: 2px;
+}
 .lighttable-layer__mask { background: #f3f3f3; color: #111; }
 .lighttable-layer__mask--disabled { opacity: 0.4; }
 

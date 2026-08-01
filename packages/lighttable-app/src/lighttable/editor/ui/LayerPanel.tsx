@@ -26,6 +26,8 @@ interface LayerPanelProps {
   document: ImageDocument;
   thumbnails: ReadonlyMap<LayerId, LayerThumbnailSet>;
   activeChannel: PaintChannel;
+  isolatedMaskLayerId: LayerId | null;
+  onMaskIsolationChange: (layerId: LayerId | null) => void;
   onSelect: (layerId: LayerId) => void;
   onChannelChange: (channel: PaintChannel) => void;
   onVisibility: (layerIds: LayerId[], visible: boolean) => void;
@@ -124,6 +126,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   document,
   thumbnails,
   activeChannel,
+  isolatedMaskLayerId,
+  onMaskIsolationChange,
   onSelect,
   onChannelChange,
   onVisibility,
@@ -629,7 +633,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     : ''
                 ].filter(Boolean).join(' ')}
                 style={pixelThumbnailSize}
-                onClick={(event) => { event.stopPropagation(); selectLayer(event, layer.id); }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onMaskIsolationChange(null);
+                  selectLayer(event, layer.id);
+                }}
                 title={layer.type === 'raster' ? 'Edit layer pixels' : layer.type === 'group' ? 'Group' : 'Adjustment layer'}
               >
                 {previews?.pixels ? (
@@ -648,15 +656,25 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <button
                   type="button"
                   draggable
-                  className={`lighttable-layer__thumbnail lighttable-layer__mask${document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
+                  className={`lighttable-layer__thumbnail lighttable-layer__mask${document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active lighttable-layer__thumbnail--active-mask' : ''}${isolatedMaskLayerId === layer.id ? ' lighttable-layer__thumbnail--mask-isolated' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
                   style={maskThumbnailSize}
                   onClick={(event) => {
                     event.stopPropagation();
                     if (event.ctrlKey || event.metaKey) {
                       event.preventDefault();
+                      onMaskIsolationChange(null);
                       onLoadMaskSelection(layer.id);
                       return;
                     }
+                    if (event.altKey) {
+                      event.preventDefault();
+                      selectLayer(event, layer.id, 'mask');
+                      onMaskIsolationChange(
+                        isolatedMaskLayerId === layer.id ? null : layer.id
+                      );
+                      return;
+                    }
+                    onMaskIsolationChange(null);
                     selectLayer(event, layer.id, 'mask');
                   }}
                   onDoubleClick={(event) => { event.stopPropagation(); onToggleMask(); }}
@@ -671,8 +689,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   }}
                   onDragEnd={() => setTrashDropActive(false)}
                   title={layer.mask.enabled
-                    ? 'Edit mask; Ctrl/Cmd-click to load selection; double-click to disable'
-                    : 'Edit mask; Ctrl/Cmd-click to load selection; double-click to enable'}
+                    ? 'Edit mask; Alt-click to isolate; Ctrl/Cmd-click to load selection; double-click to disable'
+                    : 'Edit mask; Alt-click to isolate; Ctrl/Cmd-click to load selection; double-click to enable'}
                 >
                   {previews?.mask ? (
                     <img

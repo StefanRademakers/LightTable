@@ -10,6 +10,7 @@ import {
   FULLSCREEN_VERTEX_WGSL,
   GAUSSIAN_BLUR_WGSL,
   HISTOGRAM_WGSL,
+  MASK_VIEWPORT_BLIT_WGSL,
   OUTPUT_TRANSFORM_WGSL,
   REFERENCE_DIFFERENCE_METRICS_WGSL,
   VIEWPORT_BLIT_WGSL
@@ -92,6 +93,7 @@ const renderShaders = [
   ['grain composite', GRAIN_COMPOSITE_WGSL],
   ['display resolve', DISPLAY_RESOLVE_WGSL],
   ['viewport blit', VIEWPORT_BLIT_WGSL],
+  ['mask viewport blit', MASK_VIEWPORT_BLIT_WGSL],
   ['warp', WARP_RENDER_WGSL],
   ['warp displacement debug', WARP_DISPLACEMENT_DEBUG_WGSL]
 ] as const;

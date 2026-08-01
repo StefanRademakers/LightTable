@@ -5,10 +5,12 @@ import type { LensBlurViewportMode } from '../config/adjustmentControls';
 import type { WarpDebugView } from '../../effects/warp/warpTypes';
 import type { VectorEditorSelection } from '../session/editorSession';
 import type { SelectionOperation, SelectionShape } from '../selection/selectionTypes';
+import type { LayerId } from '../document/documentTypes';
 
 export interface RendererPresentationPort {
   setBefore(enabled: boolean): void;
   setDifference(enabled: boolean): void;
+  setMaskIsolation(layerId: LayerId | null): void;
   setScopeOptions(
     histogramVisible: boolean,
     options: WebGpuScopeOptions
@@ -44,6 +46,7 @@ interface RendererPresentationSyncOptions<
   readonly rendererRef: MutableRefObject<Renderer | null>;
   readonly showOriginal: boolean;
   readonly showDifference: boolean;
+  readonly isolatedMaskLayerId: LayerId | null;
   readonly lensBlurViewportMode: LensBlurViewportMode;
   readonly warpDebugView: WarpDebugView;
   readonly vectorSelection: VectorEditorSelection;
@@ -66,6 +69,7 @@ export const useRendererPresentationSync = <
   rendererRef,
   showOriginal,
   showDifference,
+  isolatedMaskLayerId,
   lensBlurViewportMode,
   warpDebugView,
   vectorSelection,
@@ -81,6 +85,10 @@ export const useRendererPresentationSync = <
     rendererRef.current?.setBefore(showOriginal);
     rendererRef.current?.setDifference(showDifference);
   }, [rendererRef, showDifference, showOriginal]);
+
+  useEffect(() => {
+    rendererRef.current?.setMaskIsolation(isolatedMaskLayerId);
+  }, [isolatedMaskLayerId, rendererRef]);
 
   useEffect(() => {
     rendererRef.current?.setLensBlurDepthVisualization(

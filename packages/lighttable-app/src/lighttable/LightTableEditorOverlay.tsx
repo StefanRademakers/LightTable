@@ -332,6 +332,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [error, setError] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
   const [showDifference, setShowDifference] = useState(false);
+  const [isolatedMaskLayerId, setIsolatedMaskLayerId] = useState<LayerId | null>(null);
   const [sourceName, setSourceName] = useState(fileNameBase);
   const [groupVisibility, setGroupVisibility] = useState<GroupVisibility>(
     createDefaultGroupVisibility
@@ -742,6 +743,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         },
         resetHistory: clearEditorHistory,
         resetViewport: () => {
+          setIsolatedMaskLayerId(null);
           setShowOriginal(false);
           setShowDifference(false);
           setView({ scale: 1, panX: 0, panY: 0 });
@@ -851,6 +853,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererRef: engineRef,
     showOriginal,
     showDifference,
+    isolatedMaskLayerId,
     lensBlurViewportMode,
     warpDebugView: editorSession.warp.debugView,
     vectorSelection: editorSession.vectorSelection,
@@ -862,6 +865,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     scopeVisibilityRef,
     scopeSettingsRef
   });
+
+  useEffect(() => {
+    if (!isolatedMaskLayerId) return;
+    const isolatedLayer = imageDocument
+      ? findDocumentLayer(imageDocument, isolatedMaskLayerId)
+      : null;
+    if (!isolatedLayer?.mask) setIsolatedMaskLayerId(null);
+  }, [imageDocument, isolatedMaskLayerId]);
 
   useEffect(() => {
     engineRef.current?.setActive(active);
@@ -1403,8 +1414,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       document={imageDocument}
       thumbnails={layerThumbnails}
       activeChannel={editorSession.activeChannel}
+      isolatedMaskLayerId={isolatedMaskLayerId}
       controller={layerPanelController}
       onSelectionChange={handleLayerSelectionChange}
+      onMaskIsolationChange={setIsolatedMaskLayerId}
     />
   );
 
