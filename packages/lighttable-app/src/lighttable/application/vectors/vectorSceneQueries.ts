@@ -1,13 +1,16 @@
 import {
+  cloneVectorElement,
   cloneVectorPath,
   hitTestVectorPath,
   identityAffineMatrix,
   pathBounds,
+  realizeLiveShape,
   transformPoint,
   type PathHitTestOptions,
   type PathSelectionTarget,
   type Rect as VectorRect,
   type Vec2,
+  type VectorElement,
   type VectorPath
 } from '@lighttable/vector-core';
 import type {
@@ -33,6 +36,21 @@ export interface ResolvedVectorPath {
    * directly into document space. Persisted path data is never modified.
    */
   documentPath: VectorPath;
+}
+
+export interface ResolvedVectorElement {
+  layerId: LayerId;
+  elementId: string;
+  layer: VectorLayer;
+  element: VectorElement;
+  /** Maps layer-local coordinates into document space. */
+  layerToDocument: VectorPath['transform'];
+  /** Disposable canonical path used only for geometry queries. */
+  documentPath: VectorPath;
+}
+
+export interface VectorDocumentElementHit extends ResolvedVectorElement {
+  target: PathSelectionTarget;
 }
 
 export interface VectorDocumentHit extends ResolvedVectorPath {
@@ -82,16 +100,53 @@ export const vectorPathsTopmostFirst = (
       .filter((element): element is VectorPath => element.type === 'path')
       .reverse()
       .map((path) => ({
-      layerId: layer.id,
-      pathId: path.id,
-      layer,
-      layerToDocument,
-      documentPath: {
-        ...cloneVectorPath(path),
-        transform: multiplyMatrices(layerToDocument, path.transform)
-      }
+        layerId: layer.id,
+        pathId: path.id,
+        layer,
+        layerToDocument,
+        documentPath: {
+          ...cloneVectorPath(path),
+          transform: multiplyMatrices(layerToDocument, path.transform)
+        }
       }));
   });
+};
+
+/** Resolves paths and parametric live shapes in visual hit-test order. */
+export const vectorElementsTopmostFirst = (
+  document: Pick<ImageDocument, 'layers'>
+): ResolvedVectorElement[] => {
+  const transforms = buildSceneTransformIndex(document);
+  return visibleVectorLayersTopmostFirst(document.layers).flatMap((layer) => {
+    const layerToDocument = requireSceneTransform(transforms, layer.id).localToDocument;
+    return layer.elements
+      .reverse()
+      .map((element) => {
+        const queryPath = element.type === 'path'
+          ? cloneVectorPath(element)
+          : realizeLiveShape(element);
+        queryPath.transform = multiplyMatrices(layerToDocument, queryPath.transform);
+        return {
+          layerId: layer.id,
+          elementId: element.id,
+          layer,
+          layerToDocument,
+          element: cloneVectorElement(element),
+          documentPath: queryPath
+        };
+      });
+  });
+};
+
+export const hitTestVectorElementDocument = (
+  document: Pick<ImageDocument, 'layers'>,
+  options: PathHitTestOptions
+): VectorDocumentElementHit | null => {
+  for (const resolved of vectorElementsTopmostFirst(document)) {
+    const target = hitTestVectorPath(resolved.documentPath, options);
+    if (target) return { ...resolved, target };
+  }
+  return null;
 };
 
 export const hitTestVectorDocument = (
@@ -161,6 +216,19 @@ export const vectorPathDocumentBounds = (
 ): VectorRect | null => {
   const resolved = vectorPathsTopmostFirst(document).find(
     (entry) => entry.layerId === layerId && entry.pathId === pathId
+  );
+  return resolved ? pathBounds(bakeDocumentTransform(resolved.documentPath)) : null;
+};
+
+
+/** Exact document-space geometry bounds for a path or parametric live shape. */
+export const vectorElementDocumentBounds = (
+  document: Pick<ImageDocument, 'layers'>,
+  layerId: LayerId,
+  elementId: string
+): VectorRect | null => {
+  const resolved = vectorElementsTopmostFirst(document).find(
+    (entry) => entry.layerId === layerId && entry.elementId === elementId
   );
   return resolved ? pathBounds(bakeDocumentTransform(resolved.documentPath)) : null;
 };

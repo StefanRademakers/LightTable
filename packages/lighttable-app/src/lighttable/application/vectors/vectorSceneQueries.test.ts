@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createAnchor,
   createSubpath,
+  createVectorLiveShape,
   createVectorPath,
   rotationMatrix,
   scaleMatrix,
@@ -14,7 +15,10 @@ import {
 } from '../../editor/document/documentTypes';
 import {
   hitTestVectorDocument,
+  hitTestVectorElementDocument,
   vectorAnchorsInDocumentRect,
+  vectorElementDocumentBounds,
+  vectorElementsTopmostFirst,
   vectorPathDocumentBounds,
   vectorPathsTopmostFirst
 } from './vectorSceneQueries';
@@ -106,5 +110,60 @@ describe('vector scene queries', () => {
       width: -2,
       height: -2
     }).map(({ anchorId }) => anchorId)).toEqual(['nested-a']);
+  });
+
+  it('realizes live shapes for whole-element hit testing without losing parameters', () => {
+    const document = createImageDocument('live shape hit', 200, 200, 'asset');
+    const shape = createVectorLiveShape('ellipse', {
+      kind: 'ellipse',
+      width: 40,
+      height: 20
+    });
+    shape.transform = translationMatrix(5, 7);
+    const vector = createVectorLayer([shape]);
+    vector.transform = scaleMatrix(2, 3);
+    const group = createGroupLayer('parent');
+    group.transform = translationMatrix(20, 30);
+    group.children = [vector];
+    document.layers = [group];
+
+    const resolved = vectorElementsTopmostFirst(document)[0];
+    expect(resolved?.element).toMatchObject({
+      id: 'ellipse',
+      type: 'live-shape',
+      geometry: { kind: 'ellipse', width: 40, height: 20 }
+    });
+    expect(hitTestVectorElementDocument(document, {
+      documentPoint: { x: 70, y: 81 },
+      radius: 0.1,
+      includeFill: true
+    })?.elementId).toBe('ellipse');
+    expect(hitTestVectorDocument(document, {
+      documentPoint: { x: 70, y: 81 },
+      radius: 0.1,
+      includeFill: true
+    })).toBeNull();
+  });
+
+  it('computes exact document bounds for live shape geometry', () => {
+    const document = createImageDocument('live shape bounds', 100, 100, 'asset');
+    const shape = createVectorLiveShape('rectangle', {
+      kind: 'rectangle',
+      width: 20,
+      height: 10,
+      cornerRadii: [0, 0, 0, 0],
+      linkedCorners: true
+    });
+    shape.transform = rotationMatrix(Math.PI / 2);
+    const vector = createVectorLayer([shape]);
+    vector.transform = translationMatrix(30, 40);
+    document.layers = [vector];
+
+    expect(vectorElementDocumentBounds(document, vector.id, shape.id)).toMatchObject({
+      x: 20,
+      y: 40,
+      width: 10,
+      height: 20
+    });
   });
 });
