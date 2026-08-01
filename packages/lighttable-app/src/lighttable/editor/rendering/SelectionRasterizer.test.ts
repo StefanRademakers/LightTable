@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   effectiveSelectionMode,
+  selectionFeatherPlan,
   selectionFeatherScale,
   selectionShapeBuffers
 } from './SelectionRasterizer';
@@ -35,6 +36,35 @@ describe('selectionFeatherScale', () => {
     expect(selectionFeatherScale(64)).toBe(2);
     expect(selectionFeatherScale(128)).toBe(4);
     expect(selectionFeatherScale(250)).toBe(8);
+  });
+});
+
+describe('selectionFeatherPlan', () => {
+  it('keeps both blur axes in the same full-resolution working space', () => {
+    expect(selectionFeatherPlan(24, 1920, 1080)).toEqual({
+      scale: 1,
+      workingWidth: 1920,
+      workingHeight: 1080,
+      workingRadius: 24
+    });
+  });
+
+  it('scales wide feathers before either blur axis is evaluated', () => {
+    expect(selectionFeatherPlan(96, 1920, 1080)).toEqual({
+      scale: 3,
+      workingWidth: 640,
+      workingHeight: 360,
+      workingRadius: 32
+    });
+  });
+
+  it('clamps extreme authoring values to the supported radius', () => {
+    expect(selectionFeatherPlan(500, 101, 51)).toEqual({
+      scale: 8,
+      workingWidth: 13,
+      workingHeight: 7,
+      workingRadius: 31.25
+    });
   });
 });
 

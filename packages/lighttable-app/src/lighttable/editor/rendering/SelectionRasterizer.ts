@@ -58,6 +58,34 @@ export const effectiveSelectionMode = (
 export const selectionFeatherScale = (radius: number) =>
   Math.max(1, Math.min(8, Math.ceil(Math.max(0, radius) / 32)));
 
+export interface SelectionFeatherPlan {
+  scale: number;
+  workingWidth: number;
+  workingHeight: number;
+  workingRadius: number;
+}
+
+/**
+ * Describes the symmetric working space used by both Gaussian passes. Wide
+ * feathers are downsampled before either axis is blurred; mixing a full-size
+ * horizontal pass with a low-resolution vertical pass produces rectangular
+ * support artefacts around otherwise round selections.
+ */
+export const selectionFeatherPlan = (
+  radius: number,
+  width: number,
+  height: number
+): SelectionFeatherPlan => {
+  const clampedRadius = Math.max(0, Math.min(250, radius));
+  const scale = selectionFeatherScale(clampedRadius);
+  return {
+    scale,
+    workingWidth: Math.max(1, Math.ceil(width / scale)),
+    workingHeight: Math.max(1, Math.ceil(height / scale)),
+    workingRadius: clampedRadius / scale
+  };
+};
+
 interface SelectionRasterizerOptions {
   device: GPUDevice;
   sampler: GPUSampler;
@@ -262,10 +290,15 @@ export class SelectionRasterizer {
     if (clampedRadius <= 0) return true;
     const { width, height } = this.options.dimensions();
     const pipeline = this.options.pipelines().selectionFeather;
-    const scale = selectionFeatherScale(clampedRadius);
-    const featherWidth = Math.max(1, Math.ceil(width / scale));
-    const featherHeight = Math.max(1, Math.ceil(height / scale));
+    const plan = selectionFeatherPlan(clampedRadius, width, height);
+    const { scale, workingWidth: featherWidth, workingHeight: featherHeight } = plan;
     const temporaryTextures = scale === 1 ? [] : [
+      device.createTexture({
+        label: 'LightTable feather selection low-resolution source',
+        size: { width: featherWidth, height: featherHeight },
+        format: 'r8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+      }),
       device.createTexture({
         label: 'LightTable feather selection low-resolution horizontal',
         size: { width: featherWidth, height: featherHeight },
@@ -317,16 +350,38 @@ export class SelectionRasterizer {
       );
       submittedBuffers.push(settingsBuffer);
     };
-    const horizontalTarget = temporaryTextures[0] ?? textures.result;
-    const verticalTarget = temporaryTextures[1] ?? textures.mask;
+    let horizontalSource = textures.mask;
+    let horizontalTarget = textures.result;
+    let verticalTarget = textures.mask;
+    if (scale > 1) {
+      const resamplePipeline = this.options.pipelines().selectionResample;
+      const downsampleBindGroup = device.createBindGroup({
+        label: 'LightTable feather selection downsample bindings',
+        layout: resamplePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: textures.mask.createView() },
+          { binding: 1, resource: sampler }
+        ]
+      });
+      this.options.drawFullscreen(
+        encoder,
+        resamplePipeline,
+        downsampleBindGroup,
+        temporaryTextures[0].createView(),
+        { r: 0, g: 0, b: 0, a: 1 }
+      );
+      horizontalSource = temporaryTextures[0];
+      horizontalTarget = temporaryTextures[1];
+      verticalTarget = temporaryTextures[2];
+    }
     encodePass(
       'LightTable feather selection horizontal',
       [1, 0],
-      textures.mask,
+      horizontalSource,
       horizontalTarget,
-      width,
-      height,
-      clampedRadius
+      featherWidth,
+      featherHeight,
+      plan.workingRadius
     );
     encodePass(
       'LightTable feather selection vertical',
@@ -335,7 +390,7 @@ export class SelectionRasterizer {
       verticalTarget,
       featherWidth,
       featherHeight,
-      clampedRadius / scale
+      plan.workingRadius
     );
     if (scale > 1) {
       const resamplePipeline = this.options.pipelines().selectionResample;
