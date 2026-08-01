@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createAnchor, createSubpath } from '../model/factories';
+import { createAnchor, createSubpath, createVectorPath } from '../model/factories';
+import { multiplyMatrices, scaleMatrix, transformPoint, translationMatrix } from '../math/affine';
 import { segmentAt } from '../model/segments';
-import { reverseSubpath, joinOpenSubpaths, type SubpathEndpoint } from './pathTopology';
+import {
+  joinOpenSubpaths,
+  joinVectorPathEndpoints,
+  reverseSubpath,
+  type SubpathEndpoint
+} from './pathTopology';
 
 const curved = () => createSubpath('curve', [
   createAnchor('a', { x: 0, y: 0 }, {
@@ -68,5 +74,86 @@ describe('vector path topology', () => {
     expect(() => joinOpenSubpaths(
       curved(), 'end', curved(), 'start'
     )).toThrow('duplicate anchor id');
+  });
+
+  it('joins subpaths inside one path without disturbing sibling order', () => {
+    const path = createVectorPath('compound', 'Compound', [
+      createSubpath('first', [createAnchor('a', { x: 0, y: 0 })]),
+      createSubpath('untouched', [createAnchor('x', { x: 50, y: 50 })]),
+      createSubpath('second', [createAnchor('b', { x: 10, y: 0 })])
+    ]);
+    const result = joinVectorPathEndpoints(
+      path,
+      { subpathId: 'first', endpoint: 'end' },
+      path,
+      { subpathId: 'second', endpoint: 'start' }
+    );
+
+    expect(result.subpaths.map(({ id }) => id)).toEqual(['first', 'untouched']);
+    expect(result.subpaths[0].anchors.map(({ id }) => id)).toEqual(['a', 'b']);
+    expect(result.subpaths[1]).toEqual(path.subpaths[1]);
+    expect(result.geometryRevision).toBe(1);
+  });
+
+  it('rebases all geometry from a second transformed path into the first path', () => {
+    const first = createVectorPath('first-path', 'First', [
+      createSubpath('first', [createAnchor('a', { x: 0, y: 0 })])
+    ]);
+    first.transform = multiplyMatrices(translationMatrix(100, 20), scaleMatrix(2, 2));
+    const second = createVectorPath('second-path', 'Second', [
+      createSubpath('second', [createAnchor('b', { x: 5, y: 7 }, {
+        handleIn: { x: 3, y: 6 }
+      })]),
+      createSubpath('sibling', [createAnchor('c', { x: 40, y: 30 })])
+    ]);
+    second.transform = multiplyMatrices(translationMatrix(-15, 60), scaleMatrix(0.5, 3));
+    const originalDocumentPoints = second.subpaths.flatMap((subpath) =>
+      subpath.anchors.map((anchor) => transformPoint(second.transform, anchor.position))
+    );
+
+    const result = joinVectorPathEndpoints(
+      first,
+      { subpathId: 'first', endpoint: 'end' },
+      second,
+      { subpathId: 'second', endpoint: 'start' }
+    );
+    const transferredDocumentPoints = result.subpaths.flatMap((subpath) =>
+      subpath.anchors
+        .filter(({ id }) => id === 'b' || id === 'c')
+        .map((anchor) => transformPoint(result.transform, anchor.position))
+    );
+
+    expect(transferredDocumentPoints).toHaveLength(2);
+    transferredDocumentPoints.forEach((point, index) => {
+      expect(point.x).toBeCloseTo(originalDocumentPoints[index].x, 10);
+      expect(point.y).toBeCloseTo(originalDocumentPoints[index].y, 10);
+    });
+    expect(result.transform).toEqual(first.transform);
+    expect(result.style).toEqual(first.style);
+    expect(result.subpaths.map(({ id }) => id)).toEqual(['first', 'sibling']);
+  });
+
+  it('refuses same-subpath closure and a non-invertible destination transform', () => {
+    const path = createVectorPath('path', 'Path', [curved()]);
+    expect(() => joinVectorPathEndpoints(
+      path,
+      { subpathId: 'curve', endpoint: 'start' },
+      path,
+      { subpathId: 'curve', endpoint: 'end' }
+    )).toThrow('close operation');
+
+    const singular = createVectorPath('singular', 'Singular', [
+      createSubpath('first', [createAnchor('first-anchor', { x: 0, y: 0 })])
+    ]);
+    singular.transform = scaleMatrix(0, 1);
+    const second = createVectorPath('second', 'Second', [
+      createSubpath('second', [createAnchor('second-anchor', { x: 1, y: 1 })])
+    ]);
+    expect(() => joinVectorPathEndpoints(
+      singular,
+      { subpathId: 'first', endpoint: 'end' },
+      second,
+      { subpathId: 'second', endpoint: 'start' }
+    )).toThrow('not invertible');
   });
 });
