@@ -38,6 +38,7 @@ export class VectorLayerRenderer {
 
     const layerToDocument = multiplyMatrices(inheritedTransform, layer.transform);
     for (const path of layer.paths) {
+      const realized = realizeVectorPath(path, DEFAULT_TOLERANCE_PX);
       const renderPath: VectorPath = {
         ...path,
         transform: multiplyMatrices(layerToDocument, path.transform)
@@ -45,7 +46,20 @@ export class VectorLayerRenderer {
       backend.encodeFill(
         encoder,
         renderPath,
-        realizeVectorPath(path, DEFAULT_TOLERANCE_PX),
+        realized,
+        {
+          colorView: surface.colorView,
+          stencilView: surface.stencilView,
+          format: surface.format,
+          origin: { x: 0, y: 0 },
+          width: surface.width,
+          height: surface.height
+        }
+      );
+      backend.encodeStroke(
+        encoder,
+        renderPath,
+        realized,
         {
           colorView: surface.colorView,
           stencilView: surface.stencilView,

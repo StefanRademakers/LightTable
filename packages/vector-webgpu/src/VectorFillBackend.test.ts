@@ -74,4 +74,46 @@ describe('VectorFillBackend', () => {
     backend.dispose();
     expect(destroyed.some((label) => label.startsWith('LightTable vector geometry'))).toBe(true);
   });
+
+  it('renders and caches union-safe stroke geometry independently from fills', async () => {
+    const { device, encoder, pass, buffers } = fixture();
+    const backend = new VectorFillBackend(device as unknown as GPUDevice);
+    const source = pathFixture();
+    const path = {
+      ...source,
+      style: {
+        ...source.style,
+        fill: null,
+        stroke: {
+          paint: { type: 'solid' as const, color: [0.25, 0.5, 1, 0.75] as const },
+          width: 8,
+          cap: 'round' as const,
+          join: 'round' as const,
+          miterLimit: 4,
+          dash: [12, 6],
+          dashOffset: 2
+        }
+      },
+      styleRevision: 1
+    };
+    const realized = realizeVectorPath(path, 0.25);
+    const target = {
+      colorView: {} as GPUTextureView,
+      stencilView: {} as GPUTextureView,
+      format: 'rgba16float' as GPUTextureFormat,
+      origin: { x: 0, y: 0 },
+      width: 200,
+      height: 200
+    };
+
+    expect(backend.encodeStroke(encoder as unknown as GPUCommandEncoder, path, realized, target)).toBe(true);
+    expect(backend.encodeStroke(encoder as unknown as GPUCommandEncoder, path, realized, target)).toBe(true);
+    expect(device.createRenderPipeline).toHaveBeenCalledTimes(3);
+    expect(buffers.filter(({ label }) => label.includes('stroke:p:0'))).toHaveLength(1);
+    expect(pass.draw).toHaveBeenCalledTimes(4);
+    expect(backend.cacheMetrics()).toMatchObject({ entries: 1, hits: 1, misses: 1 });
+    expect(backend.invalidatePath('p')).toBe(1);
+    await backend.notifySubmitted();
+    backend.dispose();
+  });
 });

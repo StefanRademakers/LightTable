@@ -1,5 +1,6 @@
 import type { SolidPaint, VectorPath } from '@lighttable/vector-core';
 import {
+  buildStrokeTriangleGeometry,
   RevisionedResourceCache,
   serializeVectorGeometryKey,
   type RealizedVectorGeometry,
@@ -112,15 +113,63 @@ export class VectorFillBackend {
     this.assertUsable();
     const fill = path.style.fill;
     if (!fill || path.style.opacity <= 0 || target.width <= 0 || target.height <= 0) return false;
-    const resource = this.prepareGeometry(realized);
+    const resource = this.prepareFillGeometry(realized);
     if (resource.vertexCount === 0) return false;
     const bundle = this.pipelineBundle(target.format);
+    return this.encodeGeometry(
+      encoder,
+      resource,
+      path,
+      fill,
+      path.style.opacity,
+      target,
+      bundle,
+      path.fillRule
+    );
+  }
+
+  encodeStroke(
+    encoder: GPUCommandEncoder,
+    path: VectorPath,
+    realized: RealizedVectorGeometry,
+    target: VectorFillTarget
+  ) {
+    this.assertUsable();
+    const stroke = path.style.stroke;
+    if (!stroke || path.style.opacity <= 0 || target.width <= 0 || target.height <= 0) return false;
+    const mesh = buildStrokeTriangleGeometry(realized, stroke);
+    if (!mesh.vertices.length) return false;
+    const key = `stroke:${serializeVectorGeometryKey(realized.key)}:${path.styleRevision}`;
+    const resource = this.prepareVertices(key, mesh.vertices);
+    const bundle = this.pipelineBundle(target.format);
+    return this.encodeGeometry(
+      encoder,
+      resource,
+      path,
+      stroke.paint,
+      path.style.opacity,
+      target,
+      bundle,
+      'nonzero'
+    );
+  }
+
+  private encodeGeometry(
+    encoder: GPUCommandEncoder,
+    resource: CachedVertexBuffer,
+    path: VectorPath,
+    paint: SolidPaint,
+    opacity: number,
+    target: VectorFillTarget,
+    bundle: PipelineBundle,
+    fillRule: VectorPath['fillRule']
+  ) {
     const settings = this.device.createBuffer({
       label: 'LightTable vector draw settings',
       size: SETTINGS_BYTES,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
-    const color = premultiplied(fill, path.style.opacity);
+    const color = premultiplied(paint, opacity);
     this.device.queue.writeBuffer(settings, 0, new Float32Array([
       target.origin.x, target.origin.y, target.width, target.height,
       path.transform.a, path.transform.b, path.transform.c, path.transform.d,
@@ -150,7 +199,7 @@ export class VectorFillBackend {
       }
     });
     pass.setBindGroup(0, bindGroup);
-    pass.setPipeline(path.fillRule === 'evenodd' ? bundle.evenodd : bundle.nonzero);
+    pass.setPipeline(fillRule === 'evenodd' ? bundle.evenodd : bundle.nonzero);
     pass.setVertexBuffer(0, resource.buffer);
     pass.draw(resource.vertexCount);
     pass.setPipeline(bundle.cover);
@@ -177,7 +226,7 @@ export class VectorFillBackend {
   }
 
   invalidatePath(pathId: string) {
-    return this.geometry.deleteWhere((key) => key.startsWith(`${pathId}:`));
+    return this.geometry.deleteWhere((key) => key.includes(`:${pathId}:`));
   }
 
   dispose() {
@@ -189,14 +238,18 @@ export class VectorFillBackend {
     this.pipelines.clear();
   }
 
-  private prepareGeometry(realized: RealizedVectorGeometry) {
-    const key = serializeVectorGeometryKey(realized.key);
+  private prepareFillGeometry(realized: RealizedVectorGeometry) {
+    const key = `fill:${serializeVectorGeometryKey(realized.key)}`;
+    const vertices = buildStencilFanVertices(realized);
+    return this.prepareVertices(key, vertices);
+  }
+
+  private prepareVertices(key: string, vertices: Float32Array<ArrayBuffer>) {
     const cached = this.geometry.get(key);
     if (cached) return cached;
-    const vertices = buildStencilFanVertices(realized);
     const bytes = Math.max(4, vertices.byteLength);
     const buffer = this.device.createBuffer({
-      label: `LightTable vector geometry ${realized.key.pathId}`,
+      label: `LightTable vector geometry ${key}`,
       size: bytes,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
     });
