@@ -4,6 +4,7 @@ import process from 'node:process';
 
 const roots = [
   'packages/vector-core/src',
+  'packages/vector-rendering/src',
   'packages/lighttable-app/src',
   'apps/web/src',
   'apps/desktop/src'
@@ -67,6 +68,20 @@ function verifyVectorCoreBoundary(relativePath, source) {
   }
 }
 
+function verifyVectorRenderingBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/vector-rendering/src/')) return;
+  const forbiddenRenderingDependencies = [
+    'react', 'react-dom', 'document.', 'window.', 'navigator.',
+    'GPUDevice', 'GPUTexture', '@lighttable/app'
+  ];
+  for (const token of forbiddenRenderingDependencies) {
+    if (source.includes(token)) {
+      failures.push(`${relativePath}: vector-rendering must not depend on ${token}`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -80,6 +95,7 @@ async function scan(relativeDirectory) {
     const source = await readFile(relativePath, 'utf8');
     verifyRendererFacadeImports(relativePath, source);
     verifyVectorCoreBoundary(relativePath, source);
+    verifyVectorRenderingBoundary(relativePath, source);
     for (const token of forbidden) {
       if (source.includes(token)) failures.push(`${relativePath}: ${token}`);
     }
