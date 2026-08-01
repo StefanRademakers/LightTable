@@ -1,9 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createVectorPath,
+  multiplyMatrices,
+  scaleMatrix,
+  transformPoint,
+  translationMatrix,
   translateVectorPath
 } from '@lighttable/vector-core';
-import { createImageDocument } from '../../editor/document/documentTypes';
+import {
+  createGroupLayer,
+  createImageDocument,
+  createVectorLayer
+} from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { VectorDocumentController } from './VectorDocumentController';
 
@@ -60,8 +68,8 @@ describe('VectorDocumentController', () => {
     const opening = state.document;
     const path = createVectorPath('pen-path');
 
-    const layerId = state.controller.beginPathCreation(path);
-    expect(layerId).not.toBeNull();
+    const placement = state.controller.beginPathCreation(path);
+    expect(placement).not.toBeNull();
     expect(state.history).toHaveLength(0);
 
     const preview = translateVectorPath(path, { x: 12, y: 5 });
@@ -71,7 +79,7 @@ describe('VectorDocumentController', () => {
     expect(state.history).toHaveLength(1);
     expect(state.history[0]?.before).toBe(opening);
 
-    const layer = findDocumentLayer(state.document, layerId!);
+    const layer = findDocumentLayer(state.document, placement!.layerId);
     expect(layer?.type).toBe('vector');
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
     expect(layer.paths[0]?.transform).toMatchObject({ tx: 12, ty: 5 });
@@ -83,7 +91,7 @@ describe('VectorDocumentController', () => {
     const layerId = state.document.activeLayerId!;
     state.history.length = 0;
 
-    expect(state.controller.beginPathCreation(createVectorPath('new'))).toBe(layerId);
+    expect(state.controller.beginPathCreation(createVectorPath('new'))?.layerId).toBe(layerId);
     const layer = findDocumentLayer(state.document, layerId);
     expect(layer?.type === 'vector' ? layer.paths.map(({ id }) => id) : []).toEqual([
       'existing',
@@ -101,6 +109,31 @@ describe('VectorDocumentController', () => {
     expect(state.controller.cancelPathCreation()).toBe(true);
     expect(state.document).toBe(opening);
     expect(state.history).toHaveLength(0);
+  });
+
+  it('rebases document-space creation into a transformed nested vector layer', () => {
+    const state = setup();
+    const group = createGroupLayer('Nested');
+    group.transform = multiplyMatrices(translationMatrix(30, -4), scaleMatrix(2, 3));
+    const layer = createVectorLayer([], 'Paths');
+    layer.transform = translationMatrix(7, 11);
+    group.children = [layer];
+    state.replaceDocument({
+      ...state.document,
+      layers: [group],
+      activeLayerId: layer.id
+    });
+
+    const placement = state.controller.beginPathCreation(createVectorPath('nested'));
+    expect(placement?.layerId).toBe(layer.id);
+    expect(placement?.pathToDocument).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
+    expect(transformPoint(placement!.documentToPath, { x: 42, y: 19 })).toEqual({ x: 42, y: 19 });
+
+    const stored = findDocumentLayer(state.document, layer.id);
+    const path = stored?.type === 'vector' ? stored.paths[0] : null;
+    const layerToDocument = multiplyMatrices(group.transform, layer.transform);
+    expect(path).not.toBeNull();
+    expect(multiplyMatrices(layerToDocument, path!.transform)).toEqual(placement!.pathToDocument);
   });
 
   it('restores the exact opening snapshot on cancel', () => {

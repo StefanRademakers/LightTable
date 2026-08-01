@@ -1,5 +1,9 @@
 import {
+  cloneVectorPath,
+  invertMatrix,
+  multiplyMatrices,
   PathMutationSession,
+  type AffineMatrix,
   type VectorPath
 } from '@lighttable/vector-core';
 import {
@@ -14,6 +18,10 @@ import type {
 } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import {
+  buildSceneTransformIndex,
+  requireSceneTransform
+} from '../../editor/document/sceneTransformGraph';
 
 export interface VectorDocumentControllerDependencies {
   getDocument(): ImageDocument | null;
@@ -40,6 +48,16 @@ interface ActivePathCreation {
   layerId: LayerId;
   pathId: string;
   beforeDocument: ImageDocument;
+}
+
+export interface VectorPathCreationPlacement {
+  layerId: LayerId;
+  /** Path rebased for persistence in the selected vector layer. */
+  path: VectorPath;
+  /** Effective path-local to document-space mapping. */
+  pathToDocument: AffineMatrix;
+  /** Effective document-space to path-local mapping. */
+  documentToPath: AffineMatrix;
 }
 
 /**
@@ -121,7 +139,7 @@ export class VectorDocumentController {
    * Subsequent previews replace that same path. Committing records the entire
    * gesture as one history item; cancelling restores the exact opening tree.
    */
-  beginPathCreation(path: VectorPath, name = 'Shape'): LayerId | null {
+  beginPathCreation(path: VectorPath, name = 'Shape'): VectorPathCreationPlacement | null {
     this.cancelActiveInteraction();
     const dependencies = this.resolveDependencies();
     const beforeDocument = dependencies.getDocument();
@@ -132,13 +150,28 @@ export class VectorDocumentController {
       : null;
     const canAppendToActive = activeLayer?.type === 'vector'
       && !layerIsLocked(activeLayer, 'pixels');
-    const previewDocument = canAppendToActive
+    let previewDocument = canAppendToActive
       ? appendVectorPath(beforeDocument, activeLayer.id, path)
       : createVectorLayer(beforeDocument, [path], name);
     const layerId = canAppendToActive
       ? activeLayer.id
       : previewDocument.activeLayerId;
     if (!layerId) return null;
+
+    // Pen input arrives in document space. Persist the inverse layer mapping
+    // on the path so nested/transformed vector layers do not reinterpret new
+    // anchors as layer-local pixels. The effective path transform remains the
+    // transform supplied by the caller (identity for a newly started path).
+    const layerToDocument = requireSceneTransform(
+      buildSceneTransformIndex(previewDocument),
+      layerId
+    ).localToDocument;
+    const documentToLayer = invertMatrix(layerToDocument);
+    const documentToPath = invertMatrix(path.transform);
+    if (!documentToLayer || !documentToPath) return null;
+    const storedPath = cloneVectorPath(path);
+    storedPath.transform = multiplyMatrices(documentToLayer, path.transform);
+    previewDocument = replaceVectorPath(previewDocument, layerId, storedPath);
 
     this.activeCreation = {
       documentId: beforeDocument.id,
@@ -147,7 +180,12 @@ export class VectorDocumentController {
       beforeDocument
     };
     dependencies.applyDocumentSnapshot(previewDocument);
-    return layerId;
+    return {
+      layerId,
+      path: cloneVectorPath(storedPath),
+      pathToDocument: { ...path.transform },
+      documentToPath: { ...documentToPath }
+    };
   }
 
   previewPathCreation(path: VectorPath) {

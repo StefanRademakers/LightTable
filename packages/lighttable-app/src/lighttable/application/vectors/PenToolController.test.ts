@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { VectorIdSource } from '@lighttable/vector-core';
-import { createImageDocument } from '../../editor/document/documentTypes';
+import {
+  multiplyMatrices,
+  scaleMatrix,
+  transformPoint,
+  translationMatrix,
+  type VectorIdSource
+} from '@lighttable/vector-core';
+import {
+  createGroupLayer,
+  createImageDocument,
+  createVectorLayer
+} from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { VectorDocumentController } from './VectorDocumentController';
 import { PenToolController } from './PenToolController';
@@ -70,5 +80,36 @@ describe('PenToolController', () => {
     expect(state.controller.cancel()).toBe(true);
     expect(state.document).toBe(opening);
     expect(state.history).toHaveLength(0);
+  });
+
+  it('draws in document space inside a transformed nested vector layer', () => {
+    const state = setup();
+    const group = createGroupLayer('Group');
+    group.transform = translationMatrix(20, 30);
+    const layer = createVectorLayer([], 'Paths');
+    layer.transform = scaleMatrix(2, 4);
+    group.children = [layer];
+    state.document.layers = [group];
+    state.document.activeLayerId = layer.id;
+
+    expect(state.controller.pointerDown({ x: 80, y: 90 })).toBe(true);
+    expect(state.controller.pointerUp({ x: 80, y: 90 })).toBe(true);
+    expect(state.controller.pointerDown({ x: 120, y: 130 })).toBe(true);
+    expect(state.controller.pointerUp({ x: 120, y: 130 })).toBe(true);
+    expect(state.controller.finishOpen()).toBe(true);
+
+    const updated = findDocumentLayer(state.document, layer.id);
+    const path = updated?.type === 'vector' ? updated.paths[0] : null;
+    expect(path).not.toBeNull();
+    const pathToDocument = multiplyMatrices(
+      multiplyMatrices(group.transform, layer.transform),
+      path!.transform
+    );
+    expect(path!.subpaths[0].anchors.map((anchor) =>
+      transformPoint(pathToDocument, anchor.position)
+    )).toEqual([
+      { x: 80, y: 90 },
+      { x: 120, y: 130 }
+    ]);
   });
 });

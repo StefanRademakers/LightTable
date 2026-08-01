@@ -221,12 +221,16 @@ export class PenToolController {
 
   private openPath() {
     const builder = PenPathBuilder.start(this.ids, this.pathName, this.style());
-    const layerId = this.documents.beginPathCreation(builder.snapshot(), this.layerName);
-    if (!layerId) return false;
-    this.builder = builder;
-    this.layerId = layerId;
-    this.documentToPath = identityAffineMatrix();
-    this.pathToDocument = identityAffineMatrix();
+    const placement = this.documents.beginPathCreation(builder.snapshot(), this.layerName);
+    if (!placement) return false;
+    this.builder = new PenPathBuilder(
+      placement.path,
+      builder.activeSubpathId(),
+      this.ids
+    );
+    this.layerId = placement.layerId;
+    this.documentToPath = { ...placement.documentToPath };
+    this.pathToDocument = { ...placement.pathToDocument };
     this.transaction = 'creation';
     return true;
   }
