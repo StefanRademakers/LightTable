@@ -121,6 +121,9 @@ export class VectorToolSessionController {
         documentPoint,
         options.closeTolerance ?? options.hitRadius
       )) return true;
+      if (this.pen.isActive() && this.tryConnectPenPath(documentPoint, options.hitRadius)) {
+        return true;
+      }
       if (!this.pen.pointerDown(documentPoint)) return false;
     } else if (this.activeMode === 'direct-selection') {
       const directOptions: DirectSelectionPointerOptions = {
@@ -304,6 +307,35 @@ export class VectorToolSessionController {
           subpath.id,
           direction,
           hit.documentPath.transform
+        )
+      : false;
+  }
+
+  private tryConnectPenPath(documentPoint: Vec2, radius: number) {
+    const document = this.dependencies.getDocument();
+    if (!document) return false;
+    const hit = hitTestVectorDocument(document, {
+      documentPoint,
+      radius,
+      includeFill: false,
+      includeHandles: false
+    });
+    if (!hit || hit.target.kind !== 'anchor') return false;
+    const target = hit.target;
+    const subpath = hit.documentPath.subpaths.find(({ id }) => id === target.subpathId);
+    if (!subpath || subpath.closed || subpath.anchors.length === 0) return false;
+    const index = subpath.anchors.findIndex(({ id }) => id === target.anchorId);
+    const endpoint = index === 0
+      ? 'start'
+      : index === subpath.anchors.length - 1
+        ? 'end'
+        : null;
+    return endpoint
+      ? this.pen.connectPath(
+          hit.layerId,
+          hit.documentPath,
+          subpath.id,
+          endpoint
         )
       : false;
   }

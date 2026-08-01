@@ -293,4 +293,80 @@ describe('VectorToolSessionController', () => {
     expect(state.document).toBe(opening);
     expect(state.history).toHaveLength(0);
   });
+
+  it('connects transformed endpoints across layers as one atomic Pen command', () => {
+    const state = setup();
+    const activePath = createVectorPath('active-path', 'Active', [createSubpath('active-open', [
+      createAnchor('active-first', { x: 10, y: 10 }),
+      createAnchor('active-end', { x: 40, y: 10 })
+    ])]);
+    activePath.transform = { a: 1, b: 0, c: 0, d: 1, tx: 5, ty: 0 };
+    const activeLayer = createVectorLayer([activePath]);
+    activeLayer.transform = { a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 0 };
+
+    const targetPath = createVectorPath('target-path', 'Target', [
+      createSubpath('target-open', [
+        createAnchor('target-start', { x: 0, y: 10 }),
+        createAnchor('target-end', { x: 30, y: 10 })
+      ]),
+      createSubpath('target-sibling', [
+        createAnchor('target-sibling-anchor', { x: 20, y: 30 })
+      ])
+    ]);
+    const targetLayer = createVectorLayer([targetPath]);
+    targetLayer.transform = { a: 1, b: 0, c: 0, d: 1, tx: 100, ty: 0 };
+    state.document.layers = [activeLayer, targetLayer];
+    state.controller.activate('pen');
+
+    // Resume active-path at document x=55, then connect to target-path at
+    // document x=100. Neither endpoint is duplicated and the complete target
+    // compound geometry transfers into active-path's local coordinate space.
+    expect(state.controller.pointerDown(1, { x: 55, y: 10 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.pointerDown(2, { x: 100, y: 10 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.ownsPointer(2)).toBe(false);
+    expect(state.history).toHaveLength(1);
+
+    const updatedActive = findDocumentLayer(state.document, activeLayer.id);
+    const updatedTarget = findDocumentLayer(state.document, targetLayer.id);
+    expect(updatedActive?.type === 'vector'
+      ? updatedActive.paths[0].subpaths.map(({ id }) => id)
+      : []).toEqual(['active-open', 'target-sibling']);
+    expect(updatedActive?.type === 'vector'
+      ? updatedActive.paths[0].subpaths[0].anchors.map(({ id, position }) => ({ id, position }))
+      : []).toEqual([
+        { id: 'active-first', position: { x: 10, y: 10 } },
+        { id: 'active-end', position: { x: 40, y: 10 } },
+        { id: 'target-start', position: { x: 85, y: 10 } },
+        { id: 'target-end', position: { x: 115, y: 10 } }
+      ]);
+    expect(updatedTarget?.type === 'vector' ? updatedTarget.paths : []).toEqual([]);
+  });
+
+  it('connects a newly drawn path into an existing endpoint without interim history', () => {
+    const state = setup();
+    const existing = createVectorPath('existing', 'Existing', [createSubpath('existing-open', [
+      createAnchor('existing-start', { x: 60, y: 20 }),
+      createAnchor('existing-end', { x: 100, y: 20 })
+    ])]);
+    const layer = createVectorLayer([existing]);
+    state.document.layers = [layer];
+    state.document.activeLayerId = layer.id;
+    state.controller.activate('pen');
+
+    expect(state.controller.pointerDown(1, { x: 10, y: 20 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.pointerUp(1, { x: 10, y: 20 })).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.pointerDown(2, { x: 60, y: 20 }, { hitRadius: 3 })).toBe(true);
+    expect(state.history).toHaveLength(1);
+
+    const updated = findDocumentLayer(state.document, layer.id);
+    expect(updated?.type === 'vector' ? updated.paths : []).toHaveLength(1);
+    expect(updated?.type === 'vector'
+      ? updated.paths[0].subpaths[0].anchors.map(({ id, position }) => ({ id, position }))
+      : []).toEqual([
+        { id: 'anchor-3', position: { x: 10, y: 20 } },
+        { id: 'existing-start', position: { x: 60, y: 20 } },
+        { id: 'existing-end', position: { x: 100, y: 20 } }
+      ]);
+  });
 });

@@ -1,6 +1,7 @@
 import {
   identityAffineMatrix,
   invertMatrix,
+  joinVectorPathEndpoints,
   PenPathBuilder,
   transformPoint,
   type AffineMatrix,
@@ -117,6 +118,41 @@ export class PenToolController {
     const closed = this.builder.close();
     if (!this.preview(closed)) return false;
     return this.commit();
+  }
+
+  connectPath(
+    targetLayerId: LayerId,
+    targetPath: VectorPath,
+    targetSubpathId: string,
+    targetEndpoint: 'start' | 'end'
+  ) {
+    if (!this.builder || !this.layerId || this.gesture) return false;
+    const active = this.builder.snapshot();
+    if (
+      active.id === targetPath.id
+      && this.builder.activeSubpathId() === targetSubpathId
+    ) return false;
+    const activeDocumentPath = { ...active, transform: { ...this.pathToDocument } };
+    const connectedDocumentPath = joinVectorPathEndpoints(
+      activeDocumentPath,
+      {
+        subpathId: this.builder.activeSubpathId(),
+        endpoint: this.builder.activeEndpoint() === 'append' ? 'end' : 'start'
+      },
+      targetPath,
+      { subpathId: targetSubpathId, endpoint: targetEndpoint }
+    );
+    const connectedStoredPath = {
+      ...connectedDocumentPath,
+      transform: { ...active.transform }
+    };
+    const committed = this.documents.commitActivePathConnection(
+      targetLayerId,
+      targetPath.id,
+      connectedStoredPath
+    );
+    if (committed) this.reset();
+    return committed;
   }
 
   finishOpen() {

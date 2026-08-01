@@ -255,6 +255,56 @@ export class VectorDocumentController {
     return true;
   }
 
+  /**
+   * Finalizes the active Pen transaction while atomically absorbing another
+   * path. The opening document remains the sole undo snapshot, so provisional
+   * anchors, topology replacement and source removal can never split across
+   * history entries.
+   */
+  commitActivePathConnection(
+    targetLayerId: LayerId,
+    targetPathId: string,
+    connectedPath: VectorPath
+  ) {
+    const interaction = this.activeMutation ?? this.activeCreation;
+    if (!interaction || connectedPath.id !== interaction.pathId) return false;
+    const dependencies = this.resolveDependencies();
+    const document = dependencies.getDocument();
+    if (document?.id !== interaction.documentId) {
+      this.activeMutation = null;
+      this.activeCreation = null;
+      return false;
+    }
+    const activeLayer = findDocumentLayer(document, interaction.layerId);
+    const targetLayer = findDocumentLayer(document, targetLayerId);
+    if (
+      activeLayer?.type !== 'vector'
+      || targetLayer?.type !== 'vector'
+      || layerIsLocked(activeLayer, 'pixels')
+      || layerIsLocked(targetLayer, 'pixels')
+      || !activeLayer.paths.some(({ id }) => id === interaction.pathId)
+      || !targetLayer.paths.some(({ id }) => id === targetPathId)
+    ) return false;
+
+    if (this.activeMutation) {
+      this.activeMutation.session.update(() => connectedPath);
+    }
+    let next = replaceVectorPath(document, interaction.layerId, connectedPath);
+    if (targetLayerId !== interaction.layerId || targetPathId !== interaction.pathId) {
+      next = deleteVectorPaths(next, targetLayerId, [targetPathId]);
+    }
+    dependencies.applyDocumentSnapshot(next);
+    if (this.activeMutation && !this.activeMutation.session.commit()) {
+      this.activeMutation = null;
+      dependencies.applyDocumentSnapshot(interaction.beforeDocument);
+      return false;
+    }
+    this.activeMutation = null;
+    this.activeCreation = null;
+    dependencies.pushDocumentHistory(interaction.beforeDocument, next);
+    return true;
+  }
+
   dispose() {
     this.cancelActiveInteraction();
   }

@@ -121,6 +121,14 @@ export class PenPathBuilder {
     return this.path.subpaths.find(({ id }) => id === this.subpathId)?.anchors.length ?? 0;
   }
 
+  activeSubpathId() {
+    return this.subpathId;
+  }
+
+  activeEndpoint(): PenPathDirection {
+    return this.direction;
+  }
+
   firstAnchor(): VectorAnchor | null {
     const anchors = this.path.subpaths.find(({ id }) => id === this.subpathId)?.anchors;
     const anchor = this.direction === 'append' ? anchors?.[0] : anchors?.[anchors.length - 1];
