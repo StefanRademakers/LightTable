@@ -141,4 +141,42 @@ describe('DirectSelectionToolController', () => {
     expect(state.controller.pointerMove({ x: 20, y: 20 })).toBe(false);
     expect(state.history).toHaveLength(0);
   });
+
+  it('marquee-selects transformed anchors without creating document history', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const first = transformPoint(scene.localToDocument, { x: 2, y: 3 });
+
+    expect(state.controller.pointerDown(
+      { x: first.x - 4, y: first.y - 4 },
+      { radius: 1 }
+    )).toBe(true);
+    expect(state.controller.pointerMove({ x: first.x + 4, y: first.y + 4 })).toBe(true);
+    expect(state.controller.marqueeRect()).toEqual({
+      x: first.x - 4,
+      y: first.y - 4,
+      width: 8,
+      height: 8
+    });
+    expect(state.controller.pointerUp({ x: first.x + 4, y: first.y + 4 })).toBe(true);
+    expect(state.selection.anchors.map(({ anchorId }) => anchorId)).toEqual(['anchor']);
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('restores the opening selection when a marquee gesture is cancelled', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const first = transformPoint(scene.localToDocument, { x: 2, y: 3 });
+    state.controller.pointerDown(first, { radius: 2 });
+    state.controller.pointerUp(first);
+    const opening = state.selection;
+
+    state.controller.pointerDown({ x: 0, y: 0 }, { radius: 1 });
+    state.controller.pointerMove({ x: 300, y: 200 });
+    expect(state.selection.anchors).toHaveLength(2);
+    expect(state.controller.cancel()).toBe(true);
+    expect(state.selection).toEqual(opening);
+  });
 });

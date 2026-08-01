@@ -14,6 +14,7 @@ import {
 } from '../../editor/document/documentTypes';
 import {
   hitTestVectorDocument,
+  vectorAnchorsInDocumentRect,
   vectorPathDocumentBounds,
   vectorPathsTopmostFirst
 } from './vectorSceneQueries';
@@ -86,5 +87,24 @@ describe('vector scene queries', () => {
     expect(bounds?.y).toBeCloseTo(30, 8);
     expect(bounds?.width).toBeCloseTo(Math.sqrt(200), 8);
     expect(bounds?.height).toBeCloseTo(Math.sqrt(200), 8);
+  });
+
+  it('queries anchors in document space through nested transforms', () => {
+    const document = createImageDocument('marquee', 200, 200, 'asset');
+    const path = square('nested');
+    path.transform = translationMatrix(3, 4);
+    const vector = createVectorLayer([path]);
+    vector.transform = scaleMatrix(2, 3);
+    const group = createGroupLayer('parent');
+    group.transform = translationMatrix(20, 30);
+    group.children = [vector];
+    document.layers = [group];
+
+    expect(vectorAnchorsInDocumentRect(document, {
+      x: 27,
+      y: 43,
+      width: -2,
+      height: -2
+    }).map(({ anchorId }) => anchorId)).toEqual(['nested-a']);
   });
 });

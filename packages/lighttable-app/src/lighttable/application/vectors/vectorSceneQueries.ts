@@ -7,6 +7,7 @@ import {
   type PathHitTestOptions,
   type PathSelectionTarget,
   type Rect as VectorRect,
+  type Vec2,
   type VectorPath
 } from '@lighttable/vector-core';
 import type {
@@ -34,6 +35,14 @@ export interface ResolvedVectorPath {
 
 export interface VectorDocumentHit extends ResolvedVectorPath {
   target: PathSelectionTarget;
+}
+
+export interface VectorDocumentAnchor {
+  layerId: LayerId;
+  pathId: string;
+  subpathId: string;
+  anchorId: string;
+  documentPoint: Vec2;
 }
 
 const visibleVectorLayersTopmostFirst = (
@@ -88,6 +97,40 @@ export const hitTestVectorDocument = (
     if (target) return { ...resolved, target };
   }
   return null;
+};
+
+const normalizedRect = (rect: VectorRect): VectorRect => ({
+  x: Math.min(rect.x, rect.x + rect.width),
+  y: Math.min(rect.y, rect.y + rect.height),
+  width: Math.abs(rect.width),
+  height: Math.abs(rect.height)
+});
+
+/** Returns visible anchors contained by a document-space marquee. */
+export const vectorAnchorsInDocumentRect = (
+  document: Pick<ImageDocument, 'layers'>,
+  rect: VectorRect
+): VectorDocumentAnchor[] => {
+  const bounds = normalizedRect(rect);
+  const maxX = bounds.x + bounds.width;
+  const maxY = bounds.y + bounds.height;
+  return vectorPathsTopmostFirst(document).flatMap((resolved) =>
+    resolved.documentPath.subpaths.flatMap((subpath) =>
+      subpath.anchors.flatMap((anchor) => {
+        const documentPoint = transformPoint(resolved.documentPath.transform, anchor.position);
+        return documentPoint.x >= bounds.x && documentPoint.x <= maxX
+          && documentPoint.y >= bounds.y && documentPoint.y <= maxY
+          ? [{
+              layerId: resolved.layerId,
+              pathId: resolved.pathId,
+              subpathId: subpath.id,
+              anchorId: anchor.id,
+              documentPoint
+            }]
+          : [];
+      })
+    )
+  );
 };
 
 const bakeDocumentTransform = (path: VectorPath): VectorPath => ({

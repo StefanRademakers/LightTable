@@ -157,6 +157,10 @@ export class VectorToolSessionController {
     return true;
   }
 
+  directSelectionMarquee() {
+    return this.directSelection.marqueeRect();
+  }
+
   ownsPointer(pointerId: number) {
     return this.capturedPointer?.id === pointerId;
   }

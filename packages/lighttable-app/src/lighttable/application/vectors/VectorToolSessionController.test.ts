@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { VectorIdSource } from '@lighttable/vector-core';
-import { createImageDocument } from '../../editor/document/documentTypes';
+import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
+import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   createVectorEditorSelection,
@@ -113,5 +114,26 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.pointerDown(2, { x: 5, y: 5 }, { hitRadius: 2 })).toBe(true);
     expect(state.history).toHaveLength(0);
     expect(state.document.name).toBe('Replacement');
+  });
+
+  it('captures and releases a blank direct-selection marquee', () => {
+    const state = setup();
+    state.document.layers = [createVectorLayer([createVectorPath('path', 'Path', [
+      createSubpath('subpath', [createAnchor('anchor', { x: 50, y: 30 })])
+    ])])];
+    state.controller.activate('direct-selection');
+
+    expect(state.controller.pointerDown(8, { x: 40, y: 20 }, { hitRadius: 2 })).toBe(true);
+    expect(state.controller.ownsPointer(8)).toBe(true);
+    state.controller.pointerMove(8, { x: 60, y: 40 });
+    expect(state.controller.directSelectionMarquee()).toEqual({
+      x: 40,
+      y: 20,
+      width: 20,
+      height: 20
+    });
+    expect(state.controller.pointerUp(8, { x: 60, y: 40 })).toBe(true);
+    expect(state.controller.ownsPointer(8)).toBe(false);
+    expect(state.selection.anchors.map(({ anchorId }) => anchorId)).toEqual(['anchor']);
   });
 });

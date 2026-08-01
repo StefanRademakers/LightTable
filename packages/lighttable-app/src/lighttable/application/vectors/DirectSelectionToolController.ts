@@ -5,6 +5,7 @@ import {
   transformPoint,
   type AnchorReference,
   type PathSelectionTarget,
+  type Rect,
   type Vec2
 } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
@@ -16,7 +17,11 @@ import {
   type VectorPathSelectionReference
 } from '../../editor/session/editorSession';
 import { VectorDocumentController } from './VectorDocumentController';
-import { hitTestVectorDocument, type VectorDocumentHit } from './vectorSceneQueries';
+import {
+  hitTestVectorDocument,
+  vectorAnchorsInDocumentRect,
+  type VectorDocumentHit
+} from './vectorSceneQueries';
 
 export interface DirectSelectionToolDependencies {
   getDocument(): ImageDocument | null;
@@ -29,7 +34,8 @@ export interface DirectSelectionPointerOptions {
   additive?: boolean;
 }
 
-interface ActiveDirectSelectionGesture {
+interface ActiveAnchorGesture {
+  kind: 'anchors';
   documentId: ImageDocument['id'];
   layerId: VectorDocumentHit['layerId'];
   pathId: string;
@@ -38,6 +44,17 @@ interface ActiveDirectSelectionGesture {
   target: Extract<PathSelectionTarget, { kind: 'anchor' | 'handle-in' | 'handle-out' }>;
   anchors: AnchorReference[];
 }
+
+interface ActiveMarqueeGesture {
+  kind: 'marquee';
+  documentId: ImageDocument['id'];
+  startDocument: Vec2;
+  currentDocument: Vec2;
+  openingSelection: VectorEditorSelection;
+  additive: boolean;
+}
+
+type ActiveDirectSelectionGesture = ActiveAnchorGesture | ActiveMarqueeGesture;
 
 const samePath = (left: VectorPathSelectionReference, right: VectorPathSelectionReference) =>
   left.layerId === right.layerId && left.pathId === right.pathId;
@@ -48,6 +65,13 @@ const sameAnchor = (
 ) => samePath(left, right)
   && left.subpathId === right.subpathId
   && left.anchorId === right.anchorId;
+
+const rectBetween = (start: Vec2, end: Vec2): Rect => ({
+  x: Math.min(start.x, end.x),
+  y: Math.min(start.y, end.y),
+  width: Math.abs(end.x - start.x),
+  height: Math.abs(end.y - start.y)
+});
 
 const selectHit = (
   current: VectorEditorSelection,
@@ -133,8 +157,17 @@ export class DirectSelectionToolController {
       includeHandles: true
     });
     if (!hit) {
+      const openingSelection = cloneVectorEditorSelection(this.dependencies.getSelection());
       if (!options.additive) this.dependencies.setSelection(createVectorEditorSelection());
-      return false;
+      this.gesture = {
+        kind: 'marquee',
+        documentId: document.id,
+        startDocument: { ...documentPoint },
+        currentDocument: { ...documentPoint },
+        openingSelection,
+        additive: Boolean(options.additive)
+      };
+      return true;
     }
 
     const selection = selectHit(
@@ -154,6 +187,7 @@ export class DirectSelectionToolController {
       .filter((reference) => samePath(reference, hit))
       .map(({ subpathId, anchorId }) => ({ subpathId, anchorId }));
     this.gesture = {
+      kind: 'anchors',
       documentId: document.id,
       layerId: hit.layerId,
       pathId: hit.pathId,
@@ -170,6 +204,31 @@ export class DirectSelectionToolController {
     if (!gesture || this.dependencies.getDocument()?.id !== gesture.documentId) {
       if (gesture) this.cancel();
       return false;
+    }
+    if (gesture.kind === 'marquee') {
+      gesture.currentDocument = { ...documentPoint };
+      const document = this.dependencies.getDocument();
+      if (!document) return false;
+      const matches = vectorAnchorsInDocumentRect(
+        document,
+        rectBetween(gesture.startDocument, gesture.currentDocument)
+      ).map(({ documentPoint: _documentPoint, ...reference }) => reference);
+      const anchors = gesture.additive
+        ? [
+            ...gesture.openingSelection.anchors.map((reference) => ({ ...reference })),
+            ...matches.filter((match) => !gesture.openingSelection.anchors.some(
+              (reference) => sameAnchor(reference, match)
+            ))
+          ]
+        : matches;
+      this.dependencies.setSelection({
+        paths: gesture.additive
+          ? gesture.openingSelection.paths.map((reference) => ({ ...reference }))
+          : [],
+        anchors,
+        active: null
+      });
+      return true;
     }
     const local = transformPoint(gesture.inverseDocumentTransform, documentPoint);
     if (gesture.target.kind === 'anchor') {
@@ -191,16 +250,31 @@ export class DirectSelectionToolController {
   }
 
   pointerUp(documentPoint: Vec2) {
-    if (!this.gesture) return false;
+    const gesture = this.gesture;
+    if (!gesture) return false;
     this.pointerMove(documentPoint);
     this.gesture = null;
+    if (gesture.kind === 'marquee') return true;
     return this.documents.commitPathMutation();
   }
 
   cancel() {
-    if (!this.gesture) return false;
+    const gesture = this.gesture;
+    if (!gesture) return false;
     this.gesture = null;
+    if (gesture.kind === 'marquee') {
+      if (this.dependencies.getDocument()?.id === gesture.documentId) {
+        this.dependencies.setSelection(cloneVectorEditorSelection(gesture.openingSelection));
+      }
+      return true;
+    }
     return this.documents.cancelPathMutation();
+  }
+
+  marqueeRect() {
+    return this.gesture?.kind === 'marquee'
+      ? rectBetween(this.gesture.startDocument, this.gesture.currentDocument)
+      : null;
   }
 
   clearSelection() {
