@@ -17,11 +17,18 @@ export const multiplyScalar = (value: Vec2, scalar: number): Vec2 => ({
   x: value.x * scalar,
   y: value.y * scalar
 });
+export const scale = multiplyScalar;
 export const dot = (a: Vec2, b: Vec2) => a.x * b.x + a.y * b.y;
 export const cross = (a: Vec2, b: Vec2) => a.x * b.y - a.y * b.x;
 export const lengthSquared = (value: Vec2) => dot(value, value);
 export const distanceSquared = (a: Vec2, b: Vec2) => lengthSquared(subtract(a, b));
 export const distance = (a: Vec2, b: Vec2) => Math.sqrt(distanceSquared(a, b));
+export const normalize = (value: Vec2): Vec2 => {
+  const magnitude = Math.sqrt(lengthSquared(value));
+  return magnitude > Number.EPSILON
+    ? { x: value.x / magnitude, y: value.y / magnitude }
+    : { x: 0, y: 0 };
+};
 export const lerp = (a: Vec2, b: Vec2, t: number): Vec2 => ({
   x: a.x + (b.x - a.x) * t,
   y: a.y + (b.y - a.y) * t
