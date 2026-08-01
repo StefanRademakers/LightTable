@@ -1,0 +1,144 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  createAnchor,
+  createSubpath,
+  createVectorPath,
+  multiplyMatrices,
+  rotationMatrix,
+  scaleMatrix,
+  transformPoint,
+  translationMatrix
+} from '@lighttable/vector-core';
+import {
+  createGroupLayer,
+  createImageDocument,
+  createVectorLayer
+} from '../../editor/document/documentTypes';
+import { findDocumentLayer } from '../../editor/document/layerTree';
+import {
+  createVectorEditorSelection,
+  type VectorEditorSelection
+} from '../../editor/session/editorSession';
+import { DirectSelectionToolController } from './DirectSelectionToolController';
+import { VectorDocumentController } from './VectorDocumentController';
+
+const setup = () => {
+  let document = createImageDocument('Direct selection', 300, 200, 'asset');
+  let selection: VectorEditorSelection = createVectorEditorSelection();
+  const history: Array<{ before: typeof document; after: typeof document }> = [];
+  const documents = new VectorDocumentController(() => ({
+    getDocument: () => document,
+    applyDocumentSnapshot: (next) => { document = next; },
+    pushDocumentHistory: (before, after) => { history.push({ before, after }); }
+  }));
+  const controller = new DirectSelectionToolController(documents, {
+    getDocument: () => document,
+    getSelection: () => selection,
+    setSelection: vi.fn((next) => { selection = next; })
+  });
+  return {
+    controller,
+    documents,
+    history,
+    get document() { return document; },
+    set document(next) { document = next; },
+    get selection() { return selection; }
+  };
+};
+
+const transformedPath = () => {
+  const path = createVectorPath('path', 'Path', [
+    createSubpath('subpath', [
+      createAnchor('anchor', { x: 2, y: 3 }, {
+        handleOut: { x: 7, y: 3 },
+        mode: 'corner'
+      }),
+      createAnchor('end', { x: 20, y: 3 })
+    ])
+  ]);
+  path.transform = rotationMatrix(Math.PI / 6);
+  const layer = createVectorLayer([path]);
+  layer.transform = scaleMatrix(2, 3);
+  const group = createGroupLayer('Nested');
+  group.transform = translationMatrix(40, 25);
+  group.children = [layer];
+  const localToDocument = multiplyMatrices(
+    group.transform,
+    multiplyMatrices(layer.transform, path.transform)
+  );
+  return { path, layer, group, localToDocument };
+};
+
+describe('DirectSelectionToolController', () => {
+  it('moves an anchor in path-local coordinates under nested scale and rotation', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const start = transformPoint(scene.localToDocument, { x: 2, y: 3 });
+    const end = transformPoint(scene.localToDocument, { x: 8, y: 7 });
+
+    expect(state.controller.pointerDown(start, { radius: 2 })).toBe(true);
+    expect(state.controller.pointerMove(end)).toBe(true);
+    expect(state.controller.pointerUp(end)).toBe(true);
+    expect(state.history).toHaveLength(1);
+
+    const layer = findDocumentLayer(state.document, scene.layer.id);
+    expect(layer?.type).toBe('vector');
+    if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(layer.paths[0]?.subpaths[0]?.anchors[0]?.position).toEqual({ x: 8, y: 7 });
+    expect(layer.paths[0]?.subpaths[0]?.anchors[0]?.handleOut).toEqual({ x: 13, y: 7 });
+    expect(state.selection.anchors).toEqual([{
+      layerId: scene.layer.id,
+      pathId: 'path',
+      subpathId: 'subpath',
+      anchorId: 'anchor'
+    }]);
+  });
+
+  it('moves a handle through the same inverse scene transform', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const start = transformPoint(scene.localToDocument, { x: 7, y: 3 });
+    const end = transformPoint(scene.localToDocument, { x: 9, y: 11 });
+
+    state.controller.pointerDown(start, { radius: 1 });
+    state.controller.pointerUp(end);
+
+    const layer = findDocumentLayer(state.document, scene.layer.id);
+    const handle = layer?.type === 'vector'
+      ? layer.paths[0]?.subpaths[0]?.anchors[0]?.handleOut
+      : null;
+    expect(handle?.x).toBeCloseTo(9, 10);
+    expect(handle?.y).toBeCloseTo(11, 10);
+    expect(state.history).toHaveLength(1);
+  });
+
+  it('restores the opening document and avoids history when cancelled', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const opening = state.document;
+    const start = transformPoint(scene.localToDocument, { x: 2, y: 3 });
+    const end = transformPoint(scene.localToDocument, { x: 12, y: 9 });
+
+    state.controller.pointerDown(start, { radius: 2 });
+    state.controller.pointerMove(end);
+    expect(state.controller.cancel()).toBe(true);
+
+    expect(state.document).toBe(opening);
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('does not leak an active drag into a newly activated document', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const start = transformPoint(scene.localToDocument, { x: 2, y: 3 });
+    state.controller.pointerDown(start, { radius: 2 });
+
+    state.document = createImageDocument('Other', 10, 10, 'other');
+    expect(state.controller.pointerMove({ x: 20, y: 20 })).toBe(false);
+    expect(state.history).toHaveLength(0);
+  });
+});

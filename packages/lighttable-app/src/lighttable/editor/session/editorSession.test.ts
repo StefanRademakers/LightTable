@@ -6,6 +6,14 @@ describe('LightTable editor session', () => {
     expect(createEditorSession().brush.spacing).toBe(0.05);
   });
 
+  it('starts with document-local vector selection state', () => {
+    expect(createEditorSession().vectorSelection).toEqual({
+      paths: [],
+      anchors: [],
+      active: null
+    });
+  });
+
   it('keeps Warp settings document-scoped and source-pixel based', () => {
     expect(createEditorSession().warp).toMatchObject({
       mode: 'push',

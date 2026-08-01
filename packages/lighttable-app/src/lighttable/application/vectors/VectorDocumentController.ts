@@ -147,7 +147,7 @@ export class VectorDocumentController {
     const path = layer?.type === 'vector'
       ? layer.paths.find(({ id }) => id === pathId)
       : null;
-    if (!document || !path) return false;
+    if (!document || !path || !layer || layerIsLocked(layer, 'pixels')) return false;
     this.activeMutation = {
       documentId: document.id,
       layerId,

@@ -1,5 +1,7 @@
 import type { SelectionOperation, SelectionToolId } from '../selection/selectionTypes';
 import type { WarpToolSettings } from '../../effects/warp/warpTypes';
+import type { PathSelectionTarget } from '@lighttable/vector-core';
+import type { LayerId } from '../document/documentTypes';
 
 export type ToolId =
   | 'view'
@@ -11,6 +13,39 @@ export type ToolId =
   | 'erase'
   | SelectionToolId;
 export type PaintChannel = 'pixels' | 'mask';
+
+export interface VectorPathSelectionReference {
+  layerId: LayerId;
+  pathId: string;
+}
+
+export interface VectorAnchorSelectionReference extends VectorPathSelectionReference {
+  subpathId: string;
+  anchorId: string;
+}
+
+export interface VectorActiveSelectionTarget extends VectorPathSelectionReference {
+  target: PathSelectionTarget;
+}
+
+/**
+ * Transient vector editing state for one document tab.
+ *
+ * References are fully scene-scoped. Path and anchor ids are only required to
+ * be stable inside their owning vector layer, so storing an unscoped path id
+ * here would make multi-document and nested-layer editing ambiguous.
+ */
+export interface VectorEditorSelection {
+  paths: VectorPathSelectionReference[];
+  anchors: VectorAnchorSelectionReference[];
+  active: VectorActiveSelectionTarget | null;
+}
+
+export const createVectorEditorSelection = (): VectorEditorSelection => ({
+  paths: [],
+  anchors: [],
+  active: null
+});
 
 export interface BrushSettings {
   size: number;
@@ -27,6 +62,7 @@ export interface EditorSession {
   pointerId: number | null;
   activeChannel: PaintChannel;
   selection: SelectionOperation[];
+  vectorSelection: VectorEditorSelection;
   selectionPixelSnap: boolean;
   brush: BrushSettings;
   warp: WarpToolSettings;
@@ -37,6 +73,7 @@ export const createEditorSession = (): EditorSession => ({
   pointerId: null,
   activeChannel: 'pixels',
   selection: [],
+  vectorSelection: createVectorEditorSelection(),
   selectionPixelSnap: true,
   brush: {
     size: 48,

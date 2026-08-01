@@ -79,6 +79,16 @@ const DEFAULT_VIEWPORT: DocumentViewport = {
 const cloneEditorSession = (session: EditorSession): EditorSession => ({
   ...session,
   selection: [...session.selection],
+  vectorSelection: {
+    paths: session.vectorSelection.paths.map((reference) => ({ ...reference })),
+    anchors: session.vectorSelection.anchors.map((reference) => ({ ...reference })),
+    active: session.vectorSelection.active
+      ? {
+          ...session.vectorSelection.active,
+          target: { ...session.vectorSelection.active.target }
+        }
+      : null
+  },
   brush: { ...session.brush },
   warp: { ...session.warp }
 });
