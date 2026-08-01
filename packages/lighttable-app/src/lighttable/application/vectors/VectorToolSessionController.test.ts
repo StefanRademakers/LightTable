@@ -89,6 +89,50 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.ownsPointer(4)).toBe(false);
   });
 
+  it('creates a live shape through the document-owned pointer session', () => {
+    const state = setup();
+    expect(state.controller.setLiveShapePreset({
+      kind: 'star',
+      points: 6,
+      innerRatio: 0.35
+    })).toBe(true);
+    expect(state.controller.activate('live-shape')).toBe(true);
+
+    expect(state.controller.pointerDown(12, { x: 40, y: 30 }, { hitRadius: 2 })).toBe(true);
+    expect(state.controller.pointerMove(12, { x: 70, y: 70 })).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.pointerUp(12, { x: 70, y: 70 })).toBe(true);
+    expect(state.history).toHaveLength(1);
+
+    const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    expect(layer?.type).toBe('vector');
+    if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(layer.elements[0]).toMatchObject({
+      type: 'live-shape',
+      geometry: {
+        kind: 'star',
+        points: 6,
+        outerRadius: 50,
+        innerRadius: 17.5
+      },
+      transform: { tx: 40, ty: 30 }
+    });
+  });
+
+  it('cancels a provisional live shape when the active document changes', () => {
+    const state = setup();
+    const opening = state.document;
+    state.controller.activate('live-shape');
+    state.controller.pointerDown(3, { x: 10, y: 10 }, { hitRadius: 2 });
+    state.controller.pointerMove(3, { x: 50, y: 40 });
+    expect(state.document).not.toBe(opening);
+
+    state.document = createImageDocument('Replacement', 50, 50, 'replacement');
+    expect(state.controller.pointerMove(3, { x: 60, y: 50 })).toBe(false);
+    expect(state.document.name).toBe('Replacement');
+    expect(state.history).toHaveLength(0);
+  });
+
   it('cancels only the active pen pointer gesture and can continue the path', () => {
     const state = setup();
     state.controller.activate('pen');

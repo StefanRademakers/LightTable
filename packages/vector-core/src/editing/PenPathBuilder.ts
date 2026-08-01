@@ -5,7 +5,7 @@ import type { Vec2 } from '../math/vector';
 import { appendAnchor, closeSubpath, prependAnchor } from './pathMutations';
 
 export interface VectorIdSource {
-  next(kind: 'path' | 'subpath' | 'anchor'): string;
+  next(kind: 'path' | 'subpath' | 'anchor' | 'live-shape'): string;
 }
 
 export interface PlaceAnchorOptions {

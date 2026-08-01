@@ -73,6 +73,8 @@ export interface VectorElementCreationPlacement<TElement extends VectorElement =
   elementToDocument: AffineMatrix;
   /** Effective document-space to element-local mapping. */
   documentToElement: AffineMatrix;
+  /** Rebase used to persist subsequent document-space previews in the layer. */
+  documentToLayer: AffineMatrix;
 }
 
 /**
@@ -208,7 +210,8 @@ export class VectorDocumentController {
       layerId,
       element: cloneVectorElement(storedElement) as TElement,
       elementToDocument: { ...element.transform },
-      documentToElement: { ...documentToElement }
+      documentToElement: { ...documentToElement },
+      documentToLayer: { ...documentToLayer }
     };
   }
 

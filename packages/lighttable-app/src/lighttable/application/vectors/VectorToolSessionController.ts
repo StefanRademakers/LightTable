@@ -13,6 +13,10 @@ import {
 } from './DirectSelectionToolController';
 import { PenToolController } from './PenToolController';
 import {
+  LiveShapeToolController,
+  type LiveShapeToolPreset
+} from './LiveShapeToolController';
+import {
   VectorDocumentController,
   type VectorDocumentControllerDependencies
 } from './VectorDocumentController';
@@ -23,7 +27,7 @@ import {
 } from './VectorPointToolController';
 import { hitTestVectorDocument } from './vectorSceneQueries';
 
-export type VectorToolMode = 'direct-selection' | 'pen' | VectorPointToolMode;
+export type VectorToolMode = 'direct-selection' | 'pen' | 'live-shape' | VectorPointToolMode;
 
 export interface VectorToolSessionDependencies extends VectorDocumentControllerDependencies {
   getSelection(): VectorEditorSelection;
@@ -62,6 +66,7 @@ export class VectorToolSessionController {
   private readonly documents: VectorDocumentController;
   private readonly directSelection: DirectSelectionToolController;
   private readonly pen: PenToolController;
+  private readonly liveShape: LiveShapeToolController;
   private readonly selectionCommands: VectorSelectionCommandController;
   private readonly pointTools: VectorPointToolController;
   private capturedPointer: CapturedPointer | null = null;
@@ -77,6 +82,11 @@ export class VectorToolSessionController {
     this.documents = new VectorDocumentController(() => this.dependencies);
     this.directSelection = new DirectSelectionToolController(this.documents, dependencies);
     this.pen = new PenToolController(this.documents, options);
+    this.liveShape = new LiveShapeToolController(
+      this.documents,
+      { kind: 'rectangle' },
+      options
+    );
     this.selectionCommands = options.ids
       ? new VectorSelectionCommandController(this.documents, dependencies, options.ids)
       : new VectorSelectionCommandController(this.documents, dependencies);
@@ -102,6 +112,12 @@ export class VectorToolSessionController {
     this.finishActiveMode();
     this.activeMode = null;
     return changed;
+  }
+
+  setLiveShapePreset(preset: LiveShapeToolPreset) {
+    if (!this.assertAvailable() || this.capturedPointer) return false;
+    if (!this.synchronizeDocument()) return false;
+    return this.liveShape.setPreset(preset);
   }
 
   pointerDown(
@@ -132,6 +148,8 @@ export class VectorToolSessionController {
         additive: options.additive
       };
       if (!this.directSelection.pointerDown(documentPoint, directOptions)) return false;
+    } else if (this.activeMode === 'live-shape') {
+      if (!this.liveShape.pointerDown(documentPoint)) return false;
     } else {
       const result = this.pointTools.pointerDown(
         this.activeMode,
@@ -151,6 +169,7 @@ export class VectorToolSessionController {
     if (!capture) return false;
     if (capture.mode === 'pen') return this.pen.pointerMove(documentPoint);
     if (capture.mode === 'direct-selection') return this.directSelection.pointerMove(documentPoint);
+    if (capture.mode === 'live-shape') return this.liveShape.pointerMove(documentPoint);
     return this.pointTools.pointerMove(documentPoint);
   }
 
@@ -161,6 +180,7 @@ export class VectorToolSessionController {
     if (capture.mode === 'direct-selection') {
       return this.directSelection.pointerUp(documentPoint);
     }
+    if (capture.mode === 'live-shape') return this.liveShape.pointerUp(documentPoint);
     if (capture.mode !== 'pen') return this.pointTools.pointerUp(documentPoint);
     const changed = this.pen.pointerUp(documentPoint);
     if (clickCount >= 2) this.pen.finishOpen();
@@ -172,6 +192,7 @@ export class VectorToolSessionController {
     const mode = this.capturedPointer?.mode ?? this.activeMode;
     this.capturedPointer = null;
     if (mode === 'direct-selection') return this.directSelection.cancel();
+    if (mode === 'live-shape') return this.liveShape.cancel();
     if (mode && mode !== 'pen') return this.pointTools.cancel();
     // Cancelling a pointer gesture must not discard previously placed anchors.
     return mode === 'pen' ? this.pen.cancelPointerGesture() : false;
@@ -227,6 +248,7 @@ export class VectorToolSessionController {
     this.finishActiveMode();
     this.directSelection.dispose();
     this.pen.dispose();
+    this.liveShape.dispose();
     this.pointTools.dispose();
     this.documents.dispose();
     this.disposed = true;
@@ -267,6 +289,10 @@ export class VectorToolSessionController {
       else this.pen.cancel();
       return;
     }
+    if (this.activeMode === 'live-shape') {
+      this.liveShape.cancel();
+      return;
+    }
     this.pointTools.cancel();
   }
 
@@ -274,6 +300,7 @@ export class VectorToolSessionController {
     this.capturedPointer = null;
     this.directSelection.cancel();
     this.pen.cancel();
+    this.liveShape.cancel();
     this.pointTools.cancel();
   }
 
