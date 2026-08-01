@@ -1,4 +1,4 @@
-import type { VectorIdSource, Vec2, VectorStyle } from '@lighttable/vector-core';
+import type { AnchorMode, VectorIdSource, Vec2, VectorStyle } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { VectorEditorSelection } from '../../editor/session/editorSession';
 import {
@@ -10,6 +10,7 @@ import {
   VectorDocumentController,
   type VectorDocumentControllerDependencies
 } from './VectorDocumentController';
+import { VectorSelectionCommandController } from './VectorSelectionCommandController';
 
 export type VectorToolMode = 'direct-selection' | 'pen';
 
@@ -50,6 +51,7 @@ export class VectorToolSessionController {
   private readonly documents: VectorDocumentController;
   private readonly directSelection: DirectSelectionToolController;
   private readonly pen: PenToolController;
+  private readonly selectionCommands: VectorSelectionCommandController;
   private capturedPointer: CapturedPointer | null = null;
   private activeMode: VectorToolMode | null = null;
   private documentId: ImageDocument['id'] | null;
@@ -63,6 +65,9 @@ export class VectorToolSessionController {
     this.documents = new VectorDocumentController(() => this.dependencies);
     this.directSelection = new DirectSelectionToolController(this.documents, dependencies);
     this.pen = new PenToolController(this.documents, options);
+    this.selectionCommands = options.ids
+      ? new VectorSelectionCommandController(this.documents, dependencies, options.ids)
+      : new VectorSelectionCommandController(this.documents, dependencies);
   }
 
   activate(mode: VectorToolMode) {
@@ -157,6 +162,25 @@ export class VectorToolSessionController {
     return true;
   }
 
+  deleteSelection() {
+    return this.prepareSelectionCommand() && this.selectionCommands.deleteSelection();
+  }
+
+  nudgeSelection(documentDelta: Vec2) {
+    return this.prepareSelectionCommand()
+      && this.selectionCommands.nudgeSelection(documentDelta);
+  }
+
+  setSelectedAnchorMode(mode: AnchorMode) {
+    return this.prepareSelectionCommand()
+      && this.selectionCommands.setSelectedAnchorMode(mode);
+  }
+
+  insertAnchorAtActiveSegment() {
+    return this.prepareSelectionCommand()
+      && this.selectionCommands.insertAnchorAtActiveSegment();
+  }
+
   directSelectionMarquee() {
     return this.directSelection.marqueeRect();
   }
@@ -186,6 +210,11 @@ export class VectorToolSessionController {
     this.cancelActiveMode();
     this.documentId = currentId;
     return currentId !== null;
+  }
+
+  private prepareSelectionCommand() {
+    if (!this.assertAvailable() || this.capturedPointer) return false;
+    return this.synchronizeDocument();
   }
 
   private finishActiveMode() {

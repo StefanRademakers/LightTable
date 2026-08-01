@@ -136,4 +136,43 @@ describe('VectorToolSessionController', () => {
     expect(state.controller.ownsPointer(8)).toBe(false);
     expect(state.selection.anchors.map(({ anchorId }) => anchorId)).toEqual(['anchor']);
   });
+
+  it('routes atomic selection commands through the document-owned tool session', () => {
+    const state = setup();
+    const layer = createVectorLayer([createVectorPath('path', 'Path', [
+      createSubpath('subpath', [
+        createAnchor('first', { x: 20, y: 20 }),
+        createAnchor('second', { x: 80, y: 20 })
+      ])
+    ])]);
+    state.document.layers = [layer];
+    state.controller.activate('direct-selection');
+    state.controller.pointerDown(1, { x: 20, y: 20 }, { hitRadius: 2 });
+    state.controller.pointerUp(1, { x: 20, y: 20 });
+
+    expect(state.controller.nudgeSelection({ x: 4, y: -3 })).toBe(true);
+    expect(state.controller.setSelectedAnchorMode('symmetric')).toBe(true);
+    expect(state.history).toHaveLength(2);
+    const updated = findDocumentLayer(state.document, layer.id);
+    expect(updated?.type === 'vector'
+      ? updated.paths[0]?.subpaths[0]?.anchors[0]?.position
+      : null).toEqual({ x: 24, y: 17 });
+
+    expect(state.controller.deleteSelection()).toBe(true);
+    expect(state.history).toHaveLength(3);
+    expect(state.selection).toEqual(createVectorEditorSelection());
+  });
+
+  it('does not run a keyboard command through an active pointer mutation', () => {
+    const state = setup();
+    state.document.layers = [createVectorLayer([createVectorPath('path', 'Path', [
+      createSubpath('subpath', [createAnchor('anchor', { x: 50, y: 30 })])
+    ])])];
+    state.controller.activate('direct-selection');
+    state.controller.pointerDown(8, { x: 50, y: 30 }, { hitRadius: 2 });
+
+    expect(state.controller.nudgeSelection({ x: 1, y: 0 })).toBe(false);
+    expect(state.history).toHaveLength(0);
+    state.controller.pointerCancel(8);
+  });
 });
