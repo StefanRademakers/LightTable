@@ -11,8 +11,12 @@ import {
   type VectorDocumentControllerDependencies
 } from './VectorDocumentController';
 import { VectorSelectionCommandController } from './VectorSelectionCommandController';
+import {
+  VectorPointToolController,
+  type VectorPointToolMode
+} from './VectorPointToolController';
 
-export type VectorToolMode = 'direct-selection' | 'pen';
+export type VectorToolMode = 'direct-selection' | 'pen' | VectorPointToolMode;
 
 export interface VectorToolSessionDependencies extends VectorDocumentControllerDependencies {
   getSelection(): VectorEditorSelection;
@@ -52,6 +56,7 @@ export class VectorToolSessionController {
   private readonly directSelection: DirectSelectionToolController;
   private readonly pen: PenToolController;
   private readonly selectionCommands: VectorSelectionCommandController;
+  private readonly pointTools: VectorPointToolController;
   private capturedPointer: CapturedPointer | null = null;
   private activeMode: VectorToolMode | null = null;
   private documentId: ImageDocument['id'] | null;
@@ -68,6 +73,11 @@ export class VectorToolSessionController {
     this.selectionCommands = options.ids
       ? new VectorSelectionCommandController(this.documents, dependencies, options.ids)
       : new VectorSelectionCommandController(this.documents, dependencies);
+    this.pointTools = new VectorPointToolController(
+      this.documents,
+      this.selectionCommands,
+      dependencies
+    );
   }
 
   activate(mode: VectorToolMode) {
@@ -103,12 +113,20 @@ export class VectorToolSessionController {
         options.closeTolerance ?? options.hitRadius
       )) return true;
       if (!this.pen.pointerDown(documentPoint)) return false;
-    } else {
+    } else if (this.activeMode === 'direct-selection') {
       const directOptions: DirectSelectionPointerOptions = {
         radius: options.hitRadius,
         additive: options.additive
       };
       if (!this.directSelection.pointerDown(documentPoint, directOptions)) return false;
+    } else {
+      const result = this.pointTools.pointerDown(
+        this.activeMode,
+        documentPoint,
+        options.hitRadius
+      );
+      if (!result.handled) return false;
+      if (!result.capture) return true;
     }
 
     this.capturedPointer = { id: pointerId, mode: this.activeMode, documentId };
@@ -118,9 +136,9 @@ export class VectorToolSessionController {
   pointerMove(pointerId: number, documentPoint: Vec2) {
     const capture = this.validCapture(pointerId);
     if (!capture) return false;
-    return capture.mode === 'pen'
-      ? this.pen.pointerMove(documentPoint)
-      : this.directSelection.pointerMove(documentPoint);
+    if (capture.mode === 'pen') return this.pen.pointerMove(documentPoint);
+    if (capture.mode === 'direct-selection') return this.directSelection.pointerMove(documentPoint);
+    return this.pointTools.pointerMove(documentPoint);
   }
 
   pointerUp(pointerId: number, documentPoint: Vec2, clickCount = 1) {
@@ -130,6 +148,7 @@ export class VectorToolSessionController {
     if (capture.mode === 'direct-selection') {
       return this.directSelection.pointerUp(documentPoint);
     }
+    if (capture.mode !== 'pen') return this.pointTools.pointerUp(documentPoint);
     const changed = this.pen.pointerUp(documentPoint);
     if (clickCount >= 2) this.pen.finishOpen();
     return changed;
@@ -140,6 +159,7 @@ export class VectorToolSessionController {
     const mode = this.capturedPointer?.mode ?? this.activeMode;
     this.capturedPointer = null;
     if (mode === 'direct-selection') return this.directSelection.cancel();
+    if (mode && mode !== 'pen') return this.pointTools.cancel();
     // Cancelling a pointer gesture must not discard previously placed anchors.
     return mode === 'pen' ? this.pen.cancelPointerGesture() : false;
   }
@@ -194,6 +214,7 @@ export class VectorToolSessionController {
     this.finishActiveMode();
     this.directSelection.dispose();
     this.pen.dispose();
+    this.pointTools.dispose();
     this.documents.dispose();
     this.disposed = true;
   }
@@ -231,13 +252,16 @@ export class VectorToolSessionController {
       ) ?? 0;
       if (anchorCount >= 2) this.pen.finishOpen();
       else this.pen.cancel();
+      return;
     }
+    this.pointTools.cancel();
   }
 
   private cancelActiveMode() {
     this.capturedPointer = null;
     this.directSelection.cancel();
     this.pen.cancel();
+    this.pointTools.cancel();
   }
 
   private assertAvailable() {

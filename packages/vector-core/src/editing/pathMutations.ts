@@ -163,6 +163,38 @@ export const setAnchorMode = (
   return anchor;
 });
 
+/** Converts an anchor into a true corner by removing both direction handles. */
+export const convertAnchorToCorner = (
+  path: VectorPath,
+  reference: AnchorReference
+) => updateAnchor(path, reference, (anchor) => ({
+  ...anchor,
+  mode: 'corner',
+  handleIn: null,
+  handleOut: null
+}));
+
+/**
+ * Creates a symmetric handle pair from an anchor to a dragged local point.
+ * This is the canonical mutation used by a Convert Point drag gesture.
+ */
+export const setSymmetricAnchorHandles = (
+  path: VectorPath,
+  reference: AnchorReference,
+  handleOut: Vec2
+) => updateAnchor(path, reference, (anchor) => {
+  const delta = subtract(handleOut, anchor.position);
+  return {
+    ...anchor,
+    mode: 'symmetric',
+    handleOut: { ...handleOut },
+    handleIn: {
+      x: anchor.position.x - delta.x,
+      y: anchor.position.y - delta.y
+    }
+  };
+});
+
 export const appendAnchor = (
   path: VectorPath,
   subpathId: string,

@@ -175,4 +175,71 @@ describe('VectorToolSessionController', () => {
     expect(state.history).toHaveLength(0);
     state.controller.pointerCancel(8);
   });
+
+  it('adds and deletes anchors through exact one-shot point tools', () => {
+    const state = setup();
+    const layer = createVectorLayer([createVectorPath('path', 'Path', [
+      createSubpath('subpath', [
+        createAnchor('first', { x: 20, y: 20 }),
+        createAnchor('second', { x: 80, y: 20 })
+      ])
+    ])]);
+    state.document.layers = [layer];
+    state.controller.activate('add-anchor');
+
+    expect(state.controller.pointerDown(1, { x: 50, y: 20 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.ownsPointer(1)).toBe(false);
+    expect(state.history).toHaveLength(1);
+    let updated = findDocumentLayer(state.document, layer.id);
+    expect(updated?.type === 'vector'
+      ? updated.paths[0].subpaths[0].anchors
+      : []).toHaveLength(3);
+
+    state.controller.activate('delete-anchor');
+    expect(state.controller.pointerDown(2, { x: 50, y: 20 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.ownsPointer(2)).toBe(false);
+    expect(state.history).toHaveLength(2);
+    updated = findDocumentLayer(state.document, layer.id);
+    expect(updated?.type === 'vector'
+      ? updated.paths[0].subpaths[0].anchors.map(({ id }) => id)
+      : []).toEqual(['first', 'second']);
+  });
+
+  it('converts an anchor click or drag as one transform-safe history command', () => {
+    const state = setup();
+    const path = createVectorPath('path', 'Path', [createSubpath('subpath', [
+      createAnchor('first', { x: 20, y: 20 }, {
+        mode: 'smooth',
+        handleIn: { x: 10, y: 20 },
+        handleOut: { x: 30, y: 20 }
+      }),
+      createAnchor('second', { x: 80, y: 20 })
+    ])]);
+    path.transform = { a: 2, b: 0, c: 0, d: 2, tx: 10, ty: 5 };
+    const layer = createVectorLayer([path]);
+    state.document.layers = [layer];
+    state.controller.activate('convert-anchor');
+
+    expect(state.controller.pointerDown(3, { x: 50, y: 45 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.pointerUp(3, { x: 50, y: 45 })).toBe(true);
+    expect(state.history).toHaveLength(1);
+    let updated = findDocumentLayer(state.document, layer.id);
+    expect(updated?.type === 'vector'
+      ? updated.paths[0].subpaths[0].anchors[0]
+      : null).toMatchObject({ mode: 'corner', handleIn: null, handleOut: null });
+
+    expect(state.controller.pointerDown(4, { x: 50, y: 45 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.ownsPointer(4)).toBe(true);
+    state.controller.pointerMove(4, { x: 70, y: 65 });
+    expect(state.controller.pointerUp(4, { x: 70, y: 65 })).toBe(true);
+    expect(state.history).toHaveLength(2);
+    updated = findDocumentLayer(state.document, layer.id);
+    expect(updated?.type === 'vector'
+      ? updated.paths[0].subpaths[0].anchors[0]
+      : null).toMatchObject({
+        mode: 'symmetric',
+        handleOut: { x: 30, y: 30 },
+        handleIn: { x: 10, y: 10 }
+      });
+  });
 });

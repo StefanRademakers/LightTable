@@ -5,11 +5,13 @@ import { segmentAt } from '../model/segments';
 import { PathMutationSession } from './PathMutationSession';
 import {
   closeSubpath,
+  convertAnchorToCorner,
   deleteAnchors,
   moveAnchorHandle,
   moveAnchors,
   moveSegmentPoint,
-  setAnchorMode
+  setAnchorMode,
+  setSymmetricAnchorHandles
 } from './pathMutations';
 
 const pathFixture = () => createVectorPath('path', 'Path', [createSubpath('subpath', [
@@ -45,6 +47,23 @@ describe('path mutations', () => {
     path = setAnchorMode(path, { subpathId: 'subpath', anchorId: 'a' }, 'symmetric');
     path = moveAnchorHandle(path, { subpathId: 'subpath', anchorId: 'a' }, 'out', { x: 13, y: 14 });
     expect(path.subpaths[0].anchors[0].handleIn).toEqual({ x: 7, y: 6 });
+  });
+
+  it('converts point gestures into canonical corner and symmetric geometry', () => {
+    const reference = { subpathId: 'subpath', anchorId: 'a' };
+    const symmetric = setSymmetricAnchorHandles(pathFixture(), reference, { x: 18, y: 16 });
+    expect(symmetric.subpaths[0].anchors[0]).toMatchObject({
+      mode: 'symmetric',
+      handleOut: { x: 18, y: 16 },
+      handleIn: { x: 2, y: 4 }
+    });
+
+    const corner = convertAnchorToCorner(symmetric, reference);
+    expect(corner.subpaths[0].anchors[0]).toMatchObject({
+      mode: 'corner',
+      handleOut: null,
+      handleIn: null
+    });
   });
 
   it('closes and deletes anchors with explicit path revisions', () => {
