@@ -2,6 +2,7 @@ import {
   createDefaultLayerLocks,
   createAdjustmentLayer as createAdjustmentLayerNode,
   createGroupLayer as createGroupLayerNode,
+  createVectorLayer as createVectorLayerNode,
   createLayerId,
   layerIsLocked,
   type ImageDocument,
@@ -10,8 +11,14 @@ import {
   type LayerNode,
   type RasterMask,
   type RasterLayer,
-  type Rect
+  type Rect,
+  type VectorLayer
 } from './documentTypes';
+import {
+  cloneVectorPath,
+  validateVectorPath,
+  type VectorPath
+} from '@lighttable/vector-core';
 import {
   setAdjustmentStackOwnerEnabled,
   type AdjustmentStackOwner,
@@ -212,6 +219,100 @@ export const createAdjustmentLayer = (
     document,
     insertLayerNode(document.layers, layer, parentId, insertionIndex),
     layer.id
+  );
+};
+
+const validatedVectorPaths = (paths: readonly VectorPath[]) => {
+  const ids = new Set<string>();
+  return paths.map((path) => {
+    validateVectorPath(path);
+    if (ids.has(path.id)) {
+      throw new Error(`Duplicate vector path id ${path.id}.`);
+    }
+    ids.add(path.id);
+    return cloneVectorPath(path);
+  });
+};
+
+/** Inserts a native vector layer without allocating a raster backing store. */
+export const createVectorLayer = (
+  document: ImageDocument,
+  paths: readonly VectorPath[] = [],
+  name = 'Shape',
+  aboveLayerId = document.activeLayerId ?? undefined
+): ImageDocument => {
+  const layer = createVectorLayerNode(validatedVectorPaths(paths), name);
+  const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
+  const parentId = anchor?.parentId ?? null;
+  const insertionIndex = anchor
+    ? anchor.path[anchor.path.length - 1] + 1
+    : document.layers.length;
+  return updateDocument(
+    document,
+    insertLayerNode(document.layers, layer, parentId, insertionIndex),
+    layer.id
+  );
+};
+
+const updateVectorLayerPaths = (
+  document: ImageDocument,
+  layerId: LayerId,
+  change: (layer: VectorLayer) => readonly VectorPath[]
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'vector') return layer;
+  const paths = validatedVectorPaths(change(layer));
+  return {
+    ...layer,
+    paths,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const replaceVectorLayerPaths = (
+  document: ImageDocument,
+  layerId: LayerId,
+  paths: readonly VectorPath[]
+) => updateVectorLayerPaths(document, layerId, () => paths);
+
+export const appendVectorPath = (
+  document: ImageDocument,
+  layerId: LayerId,
+  path: VectorPath
+) => updateVectorLayerPaths(document, layerId, (layer) => {
+  if (layer.paths.some(({ id }) => id === path.id)) {
+    throw new Error(`Vector path ${path.id} already exists in layer ${layer.name}.`);
+  }
+  return [...layer.paths, path];
+});
+
+export const replaceVectorPath = (
+  document: ImageDocument,
+  layerId: LayerId,
+  path: VectorPath
+) => updateVectorLayerPaths(document, layerId, (layer) => {
+  const index = layer.paths.findIndex(({ id }) => id === path.id);
+  if (index < 0) throw new Error(`Unknown vector path ${path.id}.`);
+  const paths = [...layer.paths];
+  paths[index] = path;
+  return paths;
+});
+
+export const deleteVectorPaths = (
+  document: ImageDocument,
+  layerId: LayerId,
+  pathIds: readonly string[]
+) => {
+  const selected = new Set(pathIds);
+  if (!selected.size) return document;
+  const layer = findLayerNode(document.layers, layerId)?.node;
+  if (layer?.type !== 'vector' || !layer.paths.some(({ id }) => selected.has(id))) {
+    return document;
+  }
+  return updateVectorLayerPaths(
+    document,
+    layerId,
+    (current) => current.paths.filter(({ id }) => !selected.has(id))
   );
 };
 

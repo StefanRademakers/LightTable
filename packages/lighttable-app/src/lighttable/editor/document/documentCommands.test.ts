@@ -8,6 +8,10 @@ import {
   createAdjustmentLayer,
   createGroupLayer,
   createRasterLayer,
+  createVectorLayer,
+  appendVectorPath,
+  replaceVectorPath,
+  deleteVectorPaths,
   deleteLayers,
   deleteLayer,
   duplicateLayer,
@@ -36,6 +40,11 @@ import {
   setLayersVisibility,
   ungroupLayers
 } from './documentCommands';
+import {
+  createAnchor,
+  createSubpath,
+  createVectorPath
+} from '@lighttable/vector-core';
 import { translationMatrix } from '../tools/transform/affine';
 import {
   findDocumentLayer,
@@ -46,6 +55,47 @@ import {
 import { addLayerStyle } from '../styles/layerStyleCommands';
 
 describe('LightTable document commands', () => {
+  it('owns native vector paths through immutable document commands', () => {
+    const source = createImageDocument('Vectors', 100, 50, 'asset');
+    const first = createVectorPath('triangle', 'Triangle', [
+      createSubpath('triangle-outline', [
+        createAnchor('a', { x: 5, y: 5 }),
+        createAnchor('b', { x: 25, y: 5 }),
+        createAnchor('c', { x: 15, y: 25 })
+      ], true)
+    ]);
+    const withVector = createVectorLayer(source, [first], 'Shapes');
+    const vectorId = withVector.activeLayerId!;
+    const vector = findDocumentLayer(withVector, vectorId);
+
+    expect(vector?.type).toBe('vector');
+    if (vector?.type !== 'vector') throw new Error('Expected a vector layer.');
+    expect(vector.paths[0]).not.toBe(first);
+
+    const second = createVectorPath('second', 'Second');
+    const appended = appendVectorPath(withVector, vectorId, second);
+    const replacement = { ...second, name: 'Renamed', styleRevision: 1 };
+    const replaced = replaceVectorPath(appended, vectorId, replacement);
+    const deleted = deleteVectorPaths(replaced, vectorId, [first.id]);
+    const result = findDocumentLayer(deleted, vectorId);
+
+    expect(result?.type).toBe('vector');
+    if (result?.type !== 'vector') throw new Error('Expected a vector layer.');
+    expect(result.paths).toHaveLength(1);
+    expect(result.paths[0]?.name).toBe('Renamed');
+    expect(result.paths[0]).not.toBe(replacement);
+    expect(deleted.revision).toBe(withVector.revision + 3);
+  });
+
+  it('rejects duplicate vector path ids without changing the document', () => {
+    const source = createImageDocument('Vectors', 100, 50, 'asset');
+    const path = createVectorPath('path', 'Path');
+    const withVector = createVectorLayer(source, [path]);
+
+    expect(() => appendVectorPath(withVector, withVector.activeLayerId!, path))
+      .toThrow(/already exists/);
+  });
+
   it('updates mask density and feather as one canonical mask revision', () => {
     const source = createImageDocument('Masked', 100, 50, 'asset');
     const layerId = source.activeLayerId!;
