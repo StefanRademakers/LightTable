@@ -5,6 +5,7 @@ import process from 'node:process';
 const roots = [
   'packages/vector-core/src',
   'packages/vector-rendering/src',
+  'packages/vector-webgpu/src',
   'packages/lighttable-app/src',
   'apps/web/src',
   'apps/desktop/src'
@@ -82,6 +83,19 @@ function verifyVectorRenderingBoundary(relativePath, source) {
   }
 }
 
+function verifyVectorWebGpuBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/vector-webgpu/src/')) return;
+  const forbiddenDependencies = [
+    'react', 'react-dom', 'document.', 'window.', 'navigator.', '@lighttable/app'
+  ];
+  for (const token of forbiddenDependencies) {
+    if (source.includes(token)) {
+      failures.push(`${relativePath}: vector-webgpu must not depend on ${token}`);
+    }
+  }
+}
+
 async function scan(relativeDirectory) {
   const entries = await readdir(relativeDirectory, { withFileTypes: true });
   for (const entry of entries) {
@@ -96,6 +110,7 @@ async function scan(relativeDirectory) {
     verifyRendererFacadeImports(relativePath, source);
     verifyVectorCoreBoundary(relativePath, source);
     verifyVectorRenderingBoundary(relativePath, source);
+    verifyVectorWebGpuBoundary(relativePath, source);
     for (const token of forbidden) {
       if (source.includes(token)) failures.push(`${relativePath}: ${token}`);
     }

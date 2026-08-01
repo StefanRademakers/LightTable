@@ -1,6 +1,6 @@
 # Vector rendering backend decision
 
-Status: accepted direction; backend implementation in progress.
+Status: accepted direction; initial fill backend implemented.
 
 ## Boundary
 
@@ -9,7 +9,18 @@ Status: accepted direction; backend implementation in progress.
 backend-neutral caches. A WebGPU backend owns buffers, textures, pipelines and
 command encoding. React, Electron and viewport state stay outside all three.
 
-## First production route
+## Implemented first route
+
+The first backend uses adaptive cubic flattening followed by signed triangle
+fans and stencil-then-cover rasterization into a document-space premultiplied
+linear-sRGB texture. It supports nonzero and even-odd fill rules without making
+triangulation the authority for concavity, holes or self-intersection.
+
+GPU pipelines are compiled lazily per target format. Flattened geometry is
+cached by the backend-neutral realization revision key under a bounded byte
+budget. Per-draw uniforms live until the containing command buffers have been
+submitted; hosts must call `notifySubmitted()` immediately after
+`queue.submit(...)` so those transient buffers are retired safely.
 
 Use adaptive cubic flattening followed by a robust fill/stroke realization and
 WebGPU rasterization into a document-space premultiplied linear-sRGB texture.
@@ -56,3 +67,11 @@ Any future dependency needs a separate benchmark and license decision.
 - Stale worker/backend results cannot replace newer revisions.
 - One edit gesture commits one document transaction and one undo entry.
 - Web and desktop run the same core and backend implementation.
+
+## Still required before production vector fills
+
+- Browser/device validation fixtures for concavity, holes, both fill rules and
+  self-intersection.
+- Bounded tile/cover rectangles instead of a full-target cover pass.
+- Stroke realization including caps, joins, miter limits and dashes.
+- Device-loss recovery and integration into LightTable's shared render graph.
