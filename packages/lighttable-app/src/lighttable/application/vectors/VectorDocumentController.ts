@@ -1,15 +1,20 @@
 import {
+  cloneVectorElement,
   cloneVectorPath,
   invertMatrix,
   multiplyMatrices,
   PathMutationSession,
   type AffineMatrix,
+  type VectorElement,
   type VectorPath
 } from '@lighttable/vector-core';
 import {
+  appendVectorElement,
   appendVectorPath,
+  convertVectorLiveShapeToPath,
   createVectorLayer,
   deleteVectorPaths,
+  replaceVectorElement,
   replaceVectorPath
 } from '../../editor/document/documentCommands';
 import type {
@@ -43,10 +48,10 @@ interface ActivePathMutation {
   session: PathMutationSession;
 }
 
-interface ActivePathCreation {
+interface ActiveElementCreation {
   documentId: ImageDocument['id'];
   layerId: LayerId;
-  pathId: string;
+  elementId: string;
   beforeDocument: ImageDocument;
 }
 
@@ -60,6 +65,16 @@ export interface VectorPathCreationPlacement {
   documentToPath: AffineMatrix;
 }
 
+export interface VectorElementCreationPlacement<TElement extends VectorElement = VectorElement> {
+  layerId: LayerId;
+  /** Element rebased for persistence in the selected vector layer. */
+  element: TElement;
+  /** Effective element-local to document-space mapping. */
+  elementToDocument: AffineMatrix;
+  /** Effective document-space to element-local mapping. */
+  documentToElement: AffineMatrix;
+}
+
 /**
  * Application boundary for native vector mutations.
  *
@@ -69,18 +84,22 @@ export interface VectorPathCreationPlacement {
  */
 export class VectorDocumentController {
   private activeMutation: ActivePathMutation | null = null;
-  private activeCreation: ActivePathCreation | null = null;
+  private activeCreation: ActiveElementCreation | null = null;
 
   constructor(
     private readonly resolveDependencies: () => VectorDocumentControllerDependencies
   ) {}
 
-  createLayer(paths: readonly VectorPath[] = [], name = 'Shape') {
-    return this.applyAtomic((document) => createVectorLayer(document, paths, name));
+  createLayer(elements: readonly VectorElement[] = [], name = 'Shape') {
+    return this.applyAtomic((document) => createVectorLayer(document, elements, name));
   }
 
   appendPath(layerId: LayerId, path: VectorPath) {
     return this.applyAtomic((document) => appendVectorPath(document, layerId, path));
+  }
+
+  convertLiveShapeToPath(layerId: LayerId, elementId: string) {
+    return this.applyAtomic((document) => convertVectorLiveShapeToPath(document, layerId, elementId));
   }
 
   deletePaths(layerId: LayerId, pathIds: readonly string[]) {
@@ -141,7 +160,10 @@ export class VectorDocumentController {
    * Subsequent previews replace that same path. Committing records the entire
    * gesture as one history item; cancelling restores the exact opening tree.
    */
-  beginPathCreation(path: VectorPath, name = 'Shape'): VectorPathCreationPlacement | null {
+  beginElementCreation<TElement extends VectorElement>(
+    element: TElement,
+    name = 'Shape'
+  ): VectorElementCreationPlacement<TElement> | null {
     this.cancelActiveInteraction();
     const dependencies = this.resolveDependencies();
     const beforeDocument = dependencies.getDocument();
@@ -153,66 +175,67 @@ export class VectorDocumentController {
     const canAppendToActive = activeLayer?.type === 'vector'
       && !layerIsLocked(activeLayer, 'pixels');
     let previewDocument = canAppendToActive
-      ? appendVectorPath(beforeDocument, activeLayer.id, path)
-      : createVectorLayer(beforeDocument, [path], name);
+      ? appendVectorElement(beforeDocument, activeLayer.id, element)
+      : createVectorLayer(beforeDocument, [element], name);
     const layerId = canAppendToActive
       ? activeLayer.id
       : previewDocument.activeLayerId;
     if (!layerId) return null;
 
-    // Pen input arrives in document space. Persist the inverse layer mapping
-    // on the path so nested/transformed vector layers do not reinterpret new
-    // anchors as layer-local pixels. The effective path transform remains the
-    // transform supplied by the caller (identity for a newly started path).
+    // Tool input arrives in document space. Persist the inverse layer mapping
+    // on the element so nested/transformed vector layers do not reinterpret
+    // new geometry as layer-local pixels. The effective element transform
+    // remains the transform supplied by the caller.
     const layerToDocument = requireSceneTransform(
       buildSceneTransformIndex(previewDocument),
       layerId
     ).localToDocument;
     const documentToLayer = invertMatrix(layerToDocument);
-    const documentToPath = invertMatrix(path.transform);
-    if (!documentToLayer || !documentToPath) return null;
-    const storedPath = cloneVectorPath(path);
-    storedPath.transform = multiplyMatrices(documentToLayer, path.transform);
-    previewDocument = replaceVectorPath(previewDocument, layerId, storedPath);
+    const documentToElement = invertMatrix(element.transform);
+    if (!documentToLayer || !documentToElement) return null;
+    const storedElement = cloneVectorElement(element) as TElement;
+    storedElement.transform = multiplyMatrices(documentToLayer, element.transform);
+    previewDocument = replaceVectorElement(previewDocument, layerId, storedElement);
 
     this.activeCreation = {
       documentId: beforeDocument.id,
       layerId,
-      pathId: path.id,
+      elementId: element.id,
       beforeDocument
     };
     dependencies.applyDocumentSnapshot(previewDocument);
     return {
       layerId,
-      path: cloneVectorPath(storedPath),
-      pathToDocument: { ...path.transform },
-      documentToPath: { ...documentToPath }
+      element: cloneVectorElement(storedElement) as TElement,
+      elementToDocument: { ...element.transform },
+      documentToElement: { ...documentToElement }
     };
   }
 
-  previewPathCreation(path: VectorPath) {
+  previewElementCreation(element: VectorElement) {
     const active = this.activeCreation;
     const dependencies = this.resolveDependencies();
     const document = dependencies.getDocument();
-    if (!active || document?.id !== active.documentId || path.id !== active.pathId) {
+    if (!active || document?.id !== active.documentId || element.id !== active.elementId) {
       this.activeCreation = null;
       return false;
     }
     const layer = findDocumentLayer(document, active.layerId);
     if (
       layer?.type !== 'vector'
-      || !layer.elements.some((element) => element.type === 'path' && element.id === active.pathId)
+      || !layer.elements.some((candidate) =>
+        candidate.id === active.elementId && candidate.type === element.type)
     ) {
       this.activeCreation = null;
       return false;
     }
-    const next = replaceVectorPath(document, active.layerId, path);
+    const next = replaceVectorElement(document, active.layerId, element);
     if (next === document) return false;
     dependencies.applyDocumentSnapshot(next);
     return true;
   }
 
-  commitPathCreation() {
+  commitElementCreation() {
     const active = this.activeCreation;
     if (!active) return false;
     this.activeCreation = null;
@@ -223,7 +246,7 @@ export class VectorDocumentController {
     return true;
   }
 
-  cancelPathCreation() {
+  cancelElementCreation() {
     const active = this.activeCreation;
     if (!active) return false;
     this.activeCreation = null;
@@ -231,6 +254,28 @@ export class VectorDocumentController {
     if (dependencies.getDocument()?.id !== active.documentId) return false;
     dependencies.applyDocumentSnapshot(active.beforeDocument);
     return true;
+  }
+
+  beginPathCreation(path: VectorPath, name = 'Shape'): VectorPathCreationPlacement | null {
+    const placement = this.beginElementCreation(path, name);
+    return placement ? {
+      layerId: placement.layerId,
+      path: placement.element,
+      pathToDocument: placement.elementToDocument,
+      documentToPath: placement.documentToElement
+    } : null;
+  }
+
+  previewPathCreation(path: VectorPath) {
+    return this.previewElementCreation(path);
+  }
+
+  commitPathCreation() {
+    return this.commitElementCreation();
+  }
+
+  cancelPathCreation() {
+    return this.cancelElementCreation();
   }
 
   beginPathMutation(layerId: LayerId, pathId: string) {
@@ -315,7 +360,10 @@ export class VectorDocumentController {
     connectedPath: VectorPath
   ) {
     const interaction = this.activeMutation ?? this.activeCreation;
-    if (!interaction || connectedPath.id !== interaction.pathId) return false;
+    const interactionPathId = interaction
+      ? 'pathId' in interaction ? interaction.pathId : interaction.elementId
+      : null;
+    if (!interaction || connectedPath.id !== interactionPathId) return false;
     const dependencies = this.resolveDependencies();
     const document = dependencies.getDocument();
     if (document?.id !== interaction.documentId) {
@@ -330,7 +378,7 @@ export class VectorDocumentController {
       || targetLayer?.type !== 'vector'
       || layerIsLocked(activeLayer, 'pixels')
       || layerIsLocked(targetLayer, 'pixels')
-      || !activeLayer.elements.some((element) => element.type === 'path' && element.id === interaction.pathId)
+      || !activeLayer.elements.some((element) => element.type === 'path' && element.id === interactionPathId)
       || !targetLayer.elements.some((element) => element.type === 'path' && element.id === targetPathId)
     ) return false;
 
@@ -338,7 +386,7 @@ export class VectorDocumentController {
       this.activeMutation.session.update(() => connectedPath);
     }
     let next = replaceVectorPath(document, interaction.layerId, connectedPath);
-    if (targetLayerId !== interaction.layerId || targetPathId !== interaction.pathId) {
+    if (targetLayerId !== interaction.layerId || targetPathId !== interactionPathId) {
       next = deleteVectorPaths(next, targetLayerId, [targetPathId]);
     }
     dependencies.applyDocumentSnapshot(next);

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createVectorLiveShape,
   createVectorPath,
   multiplyMatrices,
   scaleMatrix,
@@ -83,6 +84,52 @@ describe('VectorDocumentController', () => {
     expect(layer?.type).toBe('vector');
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
     expect(layer.elements[0]?.transform).toMatchObject({ tx: 12, ty: 5 });
+  });
+
+  it('constructs and previews a live shape as one document transaction', () => {
+    const state = setup();
+    const opening = state.document;
+    const shape = createVectorLiveShape('ellipse', {
+      kind: 'ellipse', width: 1, height: 1
+    });
+    shape.transform = translationMatrix(10, 12);
+
+    const placement = state.controller.beginElementCreation(shape);
+    expect(placement).not.toBeNull();
+    expect(state.history).toHaveLength(0);
+
+    const preview = createVectorLiveShape(shape.id, {
+      kind: 'ellipse', width: 48, height: 24
+    });
+    preview.transform = translationMatrix(10, 12);
+    expect(state.controller.previewElementCreation(preview)).toBe(true);
+    expect(state.controller.commitElementCreation()).toBe(true);
+    expect(state.history).toHaveLength(1);
+    expect(state.history[0]?.before).toBe(opening);
+
+    const layer = findDocumentLayer(state.document, placement!.layerId);
+    const result = layer?.type === 'vector' ? layer.elements[0] : null;
+    expect(result).toMatchObject({
+      id: shape.id,
+      type: 'live-shape',
+      geometry: { kind: 'ellipse', width: 48, height: 24 },
+      transform: { tx: 10, ty: 12 }
+    });
+  });
+
+  it('converts a live shape through the atomic application boundary', () => {
+    const state = setup();
+    const shape = createVectorLiveShape('shape', {
+      kind: 'ellipse', width: 20, height: 10
+    });
+    state.controller.createLayer([shape]);
+    state.history.length = 0;
+    const layerId = state.document.activeLayerId!;
+
+    expect(state.controller.convertLiveShapeToPath(layerId, shape.id)).toBe(true);
+    expect(state.history).toHaveLength(1);
+    const layer = findDocumentLayer(state.document, layerId);
+    expect(layer?.type === 'vector' ? layer.elements[0]?.type : null).toBe('path');
   });
 
   it('appends a provisional path to an editable active vector layer', () => {
