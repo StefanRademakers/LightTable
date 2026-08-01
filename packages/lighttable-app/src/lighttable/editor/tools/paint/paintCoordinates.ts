@@ -5,14 +5,16 @@ import type { AffineMatrix } from '../transform/transformTypes';
 import type { PaintChannel } from '../../session/editorSession';
 
 /**
- * Raster pixels are currently editable only before a non-destructive layer
- * transform is applied. A layer mask is layer-local and follows that transform,
- * so document-space pointer input must be mapped back through the layer matrix.
+ * Raster authoring textures and layer masks both use document-sized storage.
+ * A non-destructive layer transform changes how raster pixels are projected by
+ * the compositor; it must not move the mask or its paint coordinate system.
+ * Keeping both paint targets in document space also makes painted mask pixels
+ * line up exactly with selection-to-mask and mask-to-selection operations.
  */
 export const paintTargetSourceToDocument = (
-  layer: LayerNode,
-  channel: PaintChannel
-): AffineMatrix => channel === 'mask' ? layer.transform : identityAffineMatrix();
+  _layer: LayerNode,
+  _channel: PaintChannel
+): AffineMatrix => identityAffineMatrix();
 
 export const documentPointToPaintTarget = (
   point: TransformPoint,

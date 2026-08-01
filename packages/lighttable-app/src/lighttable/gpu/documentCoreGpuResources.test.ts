@@ -31,7 +31,7 @@ describe('DocumentCoreGpuResources', () => {
     const { device, buffers, texture } = createDevice();
     const resources = new DocumentCoreGpuResources(device);
 
-    expect(device.createSampler).toHaveBeenCalledTimes(1);
+    expect(device.createSampler).toHaveBeenCalledTimes(2);
     expect(device.createBuffer).toHaveBeenCalledTimes(5);
     expect(device.createTexture).toHaveBeenCalledTimes(1);
 

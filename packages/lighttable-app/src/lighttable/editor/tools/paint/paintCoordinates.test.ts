@@ -6,7 +6,6 @@ import {
   multiplyMatrices,
   rotationMatrix,
   scaleMatrix,
-  transformPoint,
   translationMatrix
 } from '../transform/affine';
 import { documentPointToPaintTarget, paintTargetSourceToDocument } from './paintCoordinates';
@@ -21,15 +20,14 @@ describe('paint coordinate contract', () => {
     });
   });
 
-  it('maps a translated mask pointer back to the matching local pixel', () => {
+  it('keeps a mask in document space when its raster content is translated', () => {
     const transformed = { ...layer(), transform: translationMatrix(48, -12) };
     const matrix = paintTargetSourceToDocument(transformed, 'mask');
-    const local = { x: 70, y: 60 };
-    const document = transformPoint(matrix, local);
-    expect(documentPointToPaintTarget(document, matrix)).toEqual(local);
+    expect(matrix).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
+    expect(documentPointToPaintTarget({ x: 70, y: 60 }, matrix)).toEqual({ x: 70, y: 60 });
   });
 
-  it('round-trips scale and rotation around a layer-space pivot', () => {
+  it('keeps mask painting fixed under rotated and scaled raster content', () => {
     const matrix = multiplyMatrices(
       translationMatrix(31, -17),
       aroundPoint(
@@ -38,11 +36,11 @@ describe('paint coordinate contract', () => {
       )
     );
     const transformed = { ...layer(), transform: matrix };
-    const local = { x: 83.25, y: 112.5 };
-    const document = transformPoint(paintTargetSourceToDocument(transformed, 'mask'), local);
-    const restored = documentPointToPaintTarget(document, transformed.transform);
-    expect(restored?.x).toBeCloseTo(local.x, 5);
-    expect(restored?.y).toBeCloseTo(local.y, 5);
+    const paintMatrix = paintTargetSourceToDocument(transformed, 'mask');
+    expect(paintMatrix).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
+    expect(documentPointToPaintTarget({ x: 83.25, y: 112.5 }, paintMatrix)).toEqual({
+      x: 83.25,
+      y: 112.5
+    });
   });
 });
-

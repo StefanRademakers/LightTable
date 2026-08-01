@@ -264,12 +264,13 @@ describe('LightTable WGSL modules', () => {
     expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('return mix(source, blended, amount)');
   });
 
-  it('samples layer pixels and masks through the shared source-to-document transform', () => {
+  it('transforms layer pixels while keeping masks in document space', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('let sourceInside = select(');
     expect(LAYER_COMPOSITE_WGSL).toContain('textureSample(foregroundTexture, sourceSampler, sourceUv) * sourceInside');
-    expect(LAYER_COMPOSITE_WGSL).toContain('let mask = select(1.0, evaluatedMask(sourceUv)');
+    expect(LAYER_COMPOSITE_WGSL).toContain('let mask = select(1.0, evaluatedMask(input.uv)');
+    expect(LAYER_COMPOSITE_WGSL).not.toContain('evaluatedMask(sourceUv)');
     expect(LAYER_COMPOSITE_WGSL).toContain('settings.maskFeather > 0.01');
     expect(LAYER_COMPOSITE_WGSL).toContain('settings.maskDensity');
   });
@@ -277,6 +278,8 @@ describe('LightTable WGSL modules', () => {
   it('materializes the Layer Style shape without a synthetic background blend', () => {
     expect(() => new WgslReflect(`${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_SHAPE_WGSL}`)).not.toThrow();
     expect(LAYER_STYLE_SHAPE_WGSL).toContain('return sampled * coverage');
+    expect(LAYER_STYLE_SHAPE_WGSL).toContain('evaluatedMask(input.uv)');
+    expect(LAYER_STYLE_SHAPE_WGSL).not.toContain('evaluatedMask(sourceUv)');
     expect(LAYER_STYLE_SHAPE_WGSL).not.toContain('backgroundTexture');
     expect(LAYER_STYLE_EFFECT_WGSL).toContain('return clamp(value / 68.0, 0.0, 1.0)');
     expect(LAYER_STYLE_EFFECT_WGSL).not.toContain('if (index < directionCount)');

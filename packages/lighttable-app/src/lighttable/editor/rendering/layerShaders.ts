@@ -224,7 +224,9 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   );
   let sourceUv = clamp(sourcePixel / settings.sourceSize, vec2f(0.0), vec2f(1.0));
   let sampledForeground = textureSample(foregroundTexture, sourceSampler, sourceUv) * sourceInside;
-  let mask = select(1.0, evaluatedMask(sourceUv), settings.maskEnabled > 0.5);
+  // Layer masks are authored in document space. The raster source transform
+  // must never rotate, scale or translate their coverage.
+  let mask = select(1.0, evaluatedMask(input.uv), settings.maskEnabled > 0.5);
   let clipping = select(
     1.0,
     clamp(textureSample(clippingTexture, sourceSampler, input.uv).a, 0.0, 1.0),
@@ -297,7 +299,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let sampled = textureSample(sourceTexture, sourceSampler, sourceUv);
   let mask = select(
     1.0,
-    evaluatedMask(sourceUv),
+    evaluatedMask(input.uv),
     settings.header.x > 0.5
   );
   let coverage = select(0.0, mask, sourceInside);
