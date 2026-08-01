@@ -21,6 +21,12 @@ export interface VectorDocumentControllerDependencies {
   pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
 }
 
+export interface VectorPathEdit {
+  readonly layerId: LayerId;
+  readonly pathId: string;
+  readonly edit: (path: VectorPath) => VectorPath | null;
+}
+
 interface ActivePathMutation {
   documentId: ImageDocument['id'];
   layerId: LayerId;
@@ -61,6 +67,50 @@ export class VectorDocumentController {
 
   deletePaths(layerId: LayerId, pathIds: readonly string[]) {
     return this.applyAtomic((document) => deleteVectorPaths(document, layerId, pathIds));
+  }
+
+  /**
+   * Applies edits across any number of vector layers as one document command.
+   * Returning null removes the addressed path. Duplicate path addresses are
+   * rejected so edit order can never change the meaning of a transaction.
+   */
+  editPaths(edits: readonly VectorPathEdit[]) {
+    if (edits.length === 0) return false;
+    const addressed = new Set<string>();
+    for (const { layerId, pathId } of edits) {
+      const key = `${layerId}\0${pathId}`;
+      if (addressed.has(key)) throw new Error(`Duplicate vector path edit ${layerId}/${pathId}.`);
+      addressed.add(key);
+    }
+
+    // Preflight every address against the same opening snapshot. A multi-path
+    // command must never partially succeed because one target disappeared or
+    // became locked between selection and execution.
+    const openingDocument = this.resolveDependencies().getDocument();
+    if (!openingDocument || edits.some(({ layerId, pathId }) => {
+      const layer = findDocumentLayer(openingDocument, layerId);
+      return layer?.type !== 'vector'
+        || layerIsLocked(layer, 'pixels')
+        || !layer.paths.some(({ id }) => id === pathId);
+    })) return false;
+
+    return this.applyAtomic((openingDocument) => {
+      let document = openingDocument;
+      for (const change of edits) {
+        const layer = findDocumentLayer(document, change.layerId);
+        // The complete address set was validated above. These guards only
+        // protect the transaction from an edit that unexpectedly invalidates
+        // a later target.
+        if (layer?.type !== 'vector') return openingDocument;
+        const path = layer.paths.find(({ id }) => id === change.pathId);
+        if (!path) return openingDocument;
+        const edited = change.edit(path);
+        document = edited
+          ? replaceVectorPath(document, change.layerId, edited)
+          : deleteVectorPaths(document, change.layerId, [change.pathId]);
+      }
+      return document;
+    });
   }
 
   /**
