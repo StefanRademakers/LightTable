@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { translationMatrix } from './affine';
-import { selectionOperationsBounds, transformSelectionOperations } from './selectionTransform';
+import {
+  selectionOperationsBounds,
+  selectionOperationsSupportBounds,
+  transformSelectionOperations
+} from './selectionTransform';
 
 describe('LightTable selection transforms', () => {
   it('calculates selection bounds and transforms its outline', () => {
@@ -42,5 +46,26 @@ describe('LightTable selection transforms', () => {
     });
     const transformed = transformSelectionOperations(operations, translationMatrix(4, -5));
     expect(transformed[1]).toEqual(operations[1]);
+  });
+
+  it('expands pixel support around feathered geometry without leaving the canvas', () => {
+    const operations = [{
+      mode: 'replace' as const,
+      shape: {
+        kind: 'rectangle' as const,
+        points: [{ x: 20, y: 15 }, { x: 60, y: 45 }]
+      }
+    }, {
+      mode: 'feather' as const,
+      amount: 12.4,
+      shape: {
+        kind: 'rectangle' as const,
+        points: [{ x: 0, y: 0 }, { x: 100, y: 80 }]
+      }
+    }];
+    expect(selectionOperationsSupportBounds(
+      operations,
+      { x: 0, y: 0, width: 100, height: 80 }
+    )).toEqual({ x: 7, y: 2, width: 66, height: 56 });
   });
 });

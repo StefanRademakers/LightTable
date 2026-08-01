@@ -27,7 +27,7 @@ import {
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
-import { selectionOperationsBounds } from '../../editor/tools/transform/selectionTransform';
+import { selectionOperationsSupportBounds } from '../../editor/tools/transform/selectionTransform';
 import {
   adjustmentStackForOwner,
   adjustmentStackForScope,
@@ -499,7 +499,7 @@ export const createLayerDocumentCommands = (
   const clipboardBounds = (
     document: ImageDocument,
     selection: readonly SelectionOperation[]
-  ) => selectionOperationsBounds([...selection], fullDocumentBounds(document));
+  ) => selectionOperationsSupportBounds([...selection], fullDocumentBounds(document));
 
   const writeClipboard = async (
     blob: Blob,
@@ -672,7 +672,7 @@ export const createLayerDocumentCommands = (
     after = markLayerPixelsChanged(
       after,
       copiedLayerId,
-      selectionOperationsBounds([...selection], fullDocumentBounds(before))
+      selectionOperationsSupportBounds([...selection], fullDocumentBounds(before))
     );
     dependenciesRef.current.applyDocumentSnapshot(after);
     if (!renderer.pasteSelectionClipboard(copiedLayerId)) {

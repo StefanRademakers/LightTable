@@ -63,3 +63,32 @@ export const selectionOperationsBounds = (
   if (right <= left || bottom <= top) return fallback;
   return { x: left, y: top, width: right - left, height: bottom - top };
 };
+
+/**
+ * Complete non-zero support needed by clipboard crops and compositor
+ * invalidation. Transform gizmos deliberately use the tighter geometry
+ * bounds; pixel operations must retain the feather tail outside that contour.
+ */
+export const selectionOperationsSupportBounds = (
+  operations: SelectionOperation[],
+  fallback: Rect
+): Rect => {
+  const core = selectionOperationsBounds(operations, fallback);
+  const featherSupport = operations.reduce((sum, operation) => (
+    operation.mode === 'feather'
+      ? sum + Math.max(0, operation.amount ?? 0)
+      : sum
+  ), 0);
+  if (featherSupport <= 0) return core;
+  const padding = Math.ceil(featherSupport);
+  const left = Math.max(fallback.x, Math.floor(core.x) - padding);
+  const top = Math.max(fallback.y, Math.floor(core.y) - padding);
+  const right = Math.min(fallback.x + fallback.width, Math.ceil(core.x + core.width) + padding);
+  const bottom = Math.min(fallback.y + fallback.height, Math.ceil(core.y + core.height) + padding);
+  return {
+    x: left,
+    y: top,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top)
+  };
+};

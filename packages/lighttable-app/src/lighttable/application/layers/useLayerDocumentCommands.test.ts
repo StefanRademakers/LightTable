@@ -5,7 +5,10 @@ import {
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
-import { createFullCanvasSelection } from '../../editor/selection/selectionTypes';
+import {
+  createFeatherSelectionOperation,
+  createFullCanvasSelection
+} from '../../editor/selection/selectionTypes';
 import { cloneAdjustments, createDefaultAdjustments } from '../../types';
 import {
   createLayerDocumentCommands,
@@ -140,6 +143,26 @@ describe('useLayerDocumentCommands', () => {
       height: 24
     });
     expect(state.imageClipboard.writeImage).toHaveBeenCalledOnce();
+  });
+
+  it('retains feather support in clipboard export and placement bounds', async () => {
+    const state = setup(createImageDocument('Test', 100, 80, 'asset'));
+    const selection = [{
+      mode: 'replace' as const,
+      shape: {
+        kind: 'rectangle' as const,
+        points: [{ x: 20, y: 15 }, { x: 60, y: 45 }]
+      }
+    }, createFeatherSelectionOperation(100, 80, 12.4)];
+
+    await expect(state.commands.copySelectedContent(selection)).resolves.toBe(true);
+
+    const support = { x: 7, y: 2, width: 66, height: 56 };
+    expect(state.renderer.exportSelectionClipboard).toHaveBeenCalledWith(support);
+    expect(state.imageClipboard.writeImage).toHaveBeenCalledWith(
+      expect.any(Blob),
+      expect.objectContaining(support)
+    );
   });
 
   it('copies the visible composited result for Copy Merged', async () => {
