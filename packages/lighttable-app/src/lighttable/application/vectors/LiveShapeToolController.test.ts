@@ -11,7 +11,11 @@ import {
   createVectorLayer
 } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { LiveShapeToolController, createLiveShapeFromDrag } from './LiveShapeToolController';
+import {
+  LiveShapeToolController,
+  createLiveShapeFromDrag,
+  resolveLiveShapeDrag
+} from './LiveShapeToolController';
 import { VectorDocumentController } from './VectorDocumentController';
 
 const setup = () => {
@@ -74,6 +78,31 @@ describe('createLiveShapeFromDrag', () => {
     );
     expect(shape.style.fill).toBeNull();
     expect(shape.style.stroke?.width).toBe(3);
+  });
+});
+
+describe('resolveLiveShapeDrag', () => {
+  it('draws box shapes from their centre while preserving equal sides', () => {
+    expect(resolveLiveShapeDrag(
+      { x: 50, y: 40 },
+      { x: 70, y: 50 },
+      { kind: 'rectangle' },
+      { fromCenter: true, preserveAspect: true }
+    )).toEqual([
+      { x: 30, y: 20 },
+      { x: 70, y: 60 }
+    ]);
+  });
+
+  it('constrains lines to the nearest 45-degree direction', () => {
+    const [, current] = resolveLiveShapeDrag(
+      { x: 10, y: 10 },
+      { x: 31, y: 19 },
+      { kind: 'line' },
+      { preserveAspect: true }
+    );
+    expect(current.x).toBeCloseTo(26.15, 1);
+    expect(current.y).toBeCloseTo(26.15, 1);
   });
 });
 

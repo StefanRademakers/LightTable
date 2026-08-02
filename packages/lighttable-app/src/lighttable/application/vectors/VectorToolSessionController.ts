@@ -48,6 +48,7 @@ export interface VectorPointerDownOptions {
   closeTolerance?: number;
   additive?: boolean;
   preserveAspect?: boolean;
+  fromCenter?: boolean;
 }
 
 interface CapturedPointer {
@@ -169,7 +170,10 @@ export class VectorToolSessionController {
       };
       if (!this.directSelection.pointerDown(documentPoint, directOptions)) return false;
     } else if (this.activeMode === 'live-shape') {
-      if (!this.liveShape.pointerDown(documentPoint)) return false;
+      if (!this.liveShape.pointerDown(documentPoint, {
+        preserveAspect: options.preserveAspect,
+        fromCenter: options.fromCenter
+      })) return false;
     } else {
       const result = this.pointTools.pointerDown(
         this.activeMode,

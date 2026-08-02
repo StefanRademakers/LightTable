@@ -1,6 +1,10 @@
 import type { ToolId } from '../../editor/session/editorSession';
 import { usesBrushSize } from '../../editor/tools/toolCapabilities';
-import { TOOL_DEFINITIONS } from '../../editor/tools/toolRegistry';
+import {
+  TOOL_DEFINITIONS,
+  TOOL_SHORTCUT_GROUPS,
+  toolForShortcutCycle
+} from '../../editor/tools/toolRegistry';
 
 export interface EditorKeyboardInput {
   readonly key: string;
@@ -90,7 +94,8 @@ const command = (
 });
 
 const toolBindings: readonly EditorKeyBinding[] = TOOL_DEFINITIONS
-  .filter((tool) => Boolean(tool.shortcutKey))
+  .filter((tool) => Boolean(tool.shortcutKey)
+    && !TOOL_SHORTCUT_GROUPS.some((group) => group.key === tool.shortcutKey))
   .map((tool) => ({
     id: `tool.${tool.id}`,
     chord: {
@@ -104,6 +109,22 @@ const toolBindings: readonly EditorKeyBinding[] = TOOL_DEFINITIONS
         ? 'commit-transform'
         : { type: 'activate-tool', tool: tool.id }
   }));
+
+const toolGroupBindings: readonly EditorKeyBinding[] = TOOL_SHORTCUT_GROUPS
+  .flatMap((group) => [false, true].map((reverse) => ({
+    id: `tool-group.${group.key}.${reverse ? 'reverse' : 'forward'}`,
+    chord: {
+      key: group.key,
+      primary: false,
+      alt: false,
+      shift: reverse
+    },
+    resolve: (context: EditorKeyboardContext): EditorKeyboardCommand => ({
+      type: 'activate-tool',
+      tool: toolForShortcutCycle(group.key, context.activeTool, reverse)
+        ?? context.activeTool
+    })
+  })));
 
 export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
   id: 'lighttable-default',
@@ -205,6 +226,7 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       'suppress-tab-navigation',
       { allowWhileEditing: true }
     ),
+    ...toolGroupBindings,
     ...toolBindings,
     command('transform.commit', { key: 'enter' }, 'commit-transform', {
       when: (context) => context.transforming

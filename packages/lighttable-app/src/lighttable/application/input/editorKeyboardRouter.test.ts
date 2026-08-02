@@ -94,4 +94,19 @@ describe('resolveEditorKeyboardCommand', () => {
       context()
     )).toEqual({ type: 'activate-tool', tool: tool as ToolId });
   });
+
+  it('cycles vector tool families from the active family member', () => {
+    expect(resolveEditorKeyboardCommand(
+      input({ key: 'a' }),
+      context({ activeTool: 'vector-select' })
+    )).toEqual({ type: 'activate-tool', tool: 'vector-direct-select' });
+    expect(resolveEditorKeyboardCommand(
+      input({ key: 'u' }),
+      context({ activeTool: 'shape-ellipse' })
+    )).toEqual({ type: 'activate-tool', tool: 'shape-triangle' });
+    expect(resolveEditorKeyboardCommand(
+      input({ key: 'p', shiftKey: true }),
+      context({ activeTool: 'vector-pen' })
+    )).toEqual({ type: 'activate-tool', tool: 'vector-convert-anchor' });
+  });
 });

@@ -358,7 +358,8 @@ export const useViewportInteractionController = ({
           hitRadius: 7 / Math.max(activeScale, 0.0001),
           closeTolerance: 8 / Math.max(activeScale, 0.0001),
           additive: event.shiftKey,
-          preserveAspect: event.shiftKey
+          preserveAspect: event.shiftKey,
+          fromCenter: event.altKey
         })) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();

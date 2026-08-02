@@ -36,6 +36,13 @@ export interface LiveShapeToolSnapshot {
   gestureActive: boolean;
 }
 
+export interface LiveShapeDragOptions {
+  /** Constrain rectangular shapes to equal sides and lines to 45-degree steps. */
+  preserveAspect?: boolean;
+  /** Treat the pointer-down position as the shape centre instead of a corner. */
+  fromCenter?: boolean;
+}
+
 const uuidIds: VectorIdSource = {
   next: (kind) => `${kind}-${crypto.randomUUID()}`
 };
@@ -50,6 +57,44 @@ const defaultShapeName = (preset: LiveShapeToolPreset) =>
   `${preset.kind[0].toUpperCase()}${preset.kind.slice(1)}`;
 
 const positive = (value: number) => Math.max(Number.EPSILON, value);
+
+export const resolveLiveShapeDrag = (
+  origin: Vec2,
+  pointer: Vec2,
+  preset: LiveShapeToolPreset,
+  options: LiveShapeDragOptions = {}
+): readonly [Vec2, Vec2] => {
+  let dx = pointer.x - origin.x;
+  let dy = pointer.y - origin.y;
+
+  if (options.preserveAspect) {
+    if (preset.kind === 'line') {
+      const length = Math.hypot(dx, dy);
+      if (length > Number.EPSILON) {
+        const angle = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+        dx = Math.cos(angle) * length;
+        dy = Math.sin(angle) * length;
+      }
+    } else if (
+      preset.kind === 'rectangle'
+      || preset.kind === 'ellipse'
+      || preset.kind === 'triangle'
+    ) {
+      const extent = Math.max(Math.abs(dx), Math.abs(dy));
+      dx = (dx < 0 ? -1 : 1) * extent;
+      dy = (dy < 0 ? -1 : 1) * extent;
+    }
+  }
+
+  const constrained = { x: origin.x + dx, y: origin.y + dy };
+  if (!options.fromCenter || preset.kind === 'polygon' || preset.kind === 'star') {
+    return [{ ...origin }, constrained];
+  }
+  return [
+    { x: origin.x - dx, y: origin.y - dy },
+    constrained
+  ];
+};
 
 /** Builds canonical local geometry plus an explicit local-to-document transform. */
 export const createLiveShapeFromDrag = (
@@ -139,6 +184,7 @@ export class LiveShapeToolController {
   private readonly layerName: string;
   private readonly shapeName: (preset: LiveShapeToolPreset) => string;
   private readonly minimumDragDistanceSquared: number;
+  private dragOptions: LiveShapeDragOptions = {};
 
   constructor(
     private readonly documents: VectorDocumentController,
@@ -159,9 +205,10 @@ export class LiveShapeToolController {
     return true;
   }
 
-  pointerDown(position: Vec2) {
+  pointerDown(position: Vec2, options: LiveShapeDragOptions = {}) {
     if (this.start) return false;
     this.start = { ...position };
+    this.dragOptions = { ...options };
     return true;
   }
 
@@ -171,10 +218,16 @@ export class LiveShapeToolController {
     const dy = position.y - this.start.y;
     if (!this.shape && dx * dx + dy * dy < this.minimumDragDistanceSquared) return false;
 
-    const draft = createLiveShapeFromDrag(
-      this.shape?.id ?? this.ids.next('live-shape'),
+    const [shapeStart, shapeCurrent] = resolveLiveShapeDrag(
       this.start,
       position,
+      this.preset,
+      this.dragOptions
+    );
+    const draft = createLiveShapeFromDrag(
+      this.shape?.id ?? this.ids.next('live-shape'),
+      shapeStart,
+      shapeCurrent,
       this.preset,
       this.shape?.style ?? this.style(),
       this.shape?.name ?? this.shapeName(this.preset)
@@ -246,5 +299,6 @@ export class LiveShapeToolController {
     this.shape = null;
     this.layerId = null;
     this.documentToLayer = identityAffineMatrix();
+    this.dragOptions = {};
   }
 }

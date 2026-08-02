@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolId } from '../session/editorSession';
-import { TOOL_DEFINITIONS, toolDefinition, toolForShortcut } from './toolRegistry';
+import {
+  TOOL_DEFINITIONS,
+  toolDefinition,
+  toolForShortcut,
+  toolForShortcutCycle
+} from './toolRegistry';
 
 describe('toolRegistry', () => {
   it('defines every editor tool exactly once', () => {
@@ -29,6 +34,16 @@ describe('toolRegistry', () => {
     ];
     expect(new Set(TOOL_DEFINITIONS.map(({ id }) => id))).toEqual(new Set(expected));
     expect(TOOL_DEFINITIONS).toHaveLength(expected.length);
+  });
+
+  it('cycles Photoshop-style vector tool groups without leaking state', () => {
+    expect(toolForShortcutCycle('a', 'view', false)).toBe('vector-select');
+    expect(toolForShortcutCycle('a', 'vector-select', false)).toBe('vector-direct-select');
+    expect(toolForShortcutCycle('a', 'vector-direct-select', true)).toBe('vector-select');
+    expect(toolForShortcutCycle('u', 'view', true)).toBe('shape-ellipse');
+    expect(toolForShortcutCycle('u', 'shape-ellipse', false)).toBe('shape-triangle');
+    expect(toolForShortcutCycle('p', 'vector-pen', false)).toBe('vector-add-anchor');
+    expect(toolForShortcutCycle('p', 'vector-pen', true)).toBe('vector-convert-anchor');
   });
 
   it('resolves modifier-sensitive shortcuts', () => {

@@ -20,6 +20,13 @@ export interface ToolDefinition {
   readonly role: ToolRole;
 }
 
+export interface ToolShortcutGroup {
+  readonly key: string;
+  readonly tools: readonly ToolId[];
+  /** Photoshop-compatible first alternate when Shift is used from outside the group. */
+  readonly shiftedEntry?: ToolId;
+}
+
 export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     id: 'transform',
@@ -189,6 +196,34 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   }
 ];
 
+/**
+ * Photoshop-style tool families. The ordering is user-facing: repeatedly
+ * pressing the family key walks forward, while Shift walks backward once a
+ * member is active. Keeping this beside the registry prevents the keymap and
+ * toolbar from inventing different notions of the same family.
+ */
+export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
+  {
+    key: 'a',
+    tools: ['vector-select', 'vector-direct-select'],
+    shiftedEntry: 'vector-direct-select'
+  },
+  {
+    key: 'p',
+    tools: [
+      'vector-pen',
+      'vector-add-anchor',
+      'vector-delete-anchor',
+      'vector-convert-anchor'
+    ]
+  },
+  {
+    key: 'u',
+    tools: ['shape-rectangle', 'shape-ellipse', 'shape-triangle', 'shape-line'],
+    shiftedEntry: 'shape-ellipse'
+  }
+];
+
 const definitionsById = new Map<ToolId, ToolDefinition>(
   TOOL_DEFINITIONS.map((definition) => [definition.id, definition])
 );
@@ -205,3 +240,24 @@ export const toolForShortcut = (key: string, shiftKey: boolean): ToolId | null =
     && definition.shortcutKey === key.toLowerCase()
     && (definition.shortcutShift === undefined || definition.shortcutShift === shiftKey)
   )?.id ?? null;
+
+export const toolForShortcutCycle = (
+  key: string,
+  activeTool: ToolId,
+  reverse: boolean
+): ToolId | null => {
+  const group = TOOL_SHORTCUT_GROUPS.find(
+    (candidate) => candidate.key === key.toLowerCase()
+  );
+  if (!group) return null;
+  const currentIndex = group.tools.indexOf(activeTool);
+  if (currentIndex < 0) {
+    return reverse && group.shiftedEntry
+      ? group.shiftedEntry
+      : group.tools[0] ?? null;
+  }
+  const offset = reverse ? -1 : 1;
+  return group.tools[
+    (currentIndex + offset + group.tools.length) % group.tools.length
+  ] ?? null;
+};
