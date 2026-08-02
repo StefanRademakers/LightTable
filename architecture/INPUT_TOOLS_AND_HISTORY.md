@@ -37,8 +37,9 @@ single case work.
 Selections are document-space authoring state. Rectangle, ellipse, freehand and
 polygonal tools support new/add/subtract/intersect and may operate outside the
 canvas until commit. Feathering expands the work envelope. Adding a layer mask
-with a selection bakes that selection into the mask; primary-clicking a mask
-thumbnail reloads its coverage as a selection.
+with a selection bakes that selection into the mask. Ctrl-click on
+Windows/Linux or Cmd-click on macOS reloads the mask coverage as a selection;
+a normal thumbnail click only selects the mask as the active edit target.
 
 Selection visualization is presentation-only and must stay cheap while
 panning/zooming. Consolidate outlines and handles onto shared GPU vector overlay

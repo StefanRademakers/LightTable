@@ -32,14 +32,22 @@ the owning implementation tracker.
 
 Read these repository documents before changing cross-cutting behavior:
 
-1. `docs/lighttable/CURRENT_REFACTOR_HANDOFF.md`
-2. `docs/lighttable/LIGHTTABLE_PRODUCTION_MODULARIZATION_PLAN.md`
-3. `docs/lighttable/README.md`
-4. `docs/LIGHTTABLE_GPU_WARP_TOOL_SPEC.md`
+1. `architecture/README.md`
+2. `architecture/SYSTEM_MAP.md`
+3. `architecture/DOCUMENT_AND_SCENE_MODEL.md`
+4. `architecture/RENDERING_AND_PROCESSING.md`
+5. `architecture/PERFORMANCE_CONTRACT.md`
+6. `architecture/CURRENT_STATE_AND_ROADMAP.md`
 
-The immediate direction is to finish the production decomposition, keeping the
-working rendering math intact, and then complete Warp through those extracted
-document, command, processing and renderer boundaries.
+Feature specifications live under `architecture/features/`; detailed UX specs
+live under `architecture/ux/`. Research and implementation records under
+`architecture/reference/` are supporting context, not current contracts.
+Retired handoffs under `architecture/obsolete/` must not drive new code.
+
+The immediate direction is to finish the production decomposition while
+keeping working rendering math intact, complete the ordered processing
+executor model, and evolve Warp through the extracted document, command,
+processing and renderer boundaries.
 
 ## Non-negotiable validation
 

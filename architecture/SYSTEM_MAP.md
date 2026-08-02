@@ -13,7 +13,8 @@ architecture             Canonical product and engineering contracts
 fixtures                 Stable import/render regression material
 work/todo                Versioned executable task queue
 work/done                Versioned completed-task archive
-docs                     Historical research and handoffs, not authoritative
+architecture/reference   Supporting research and implementation records
+architecture/obsolete    Superseded historical material
 ```
 
 ## Runtime layers
@@ -29,9 +30,13 @@ Canonical document tree and scene transforms
                     |
 Renderer facade and semantic dirty-state scheduler
                     |
-Compositor plan  ->  ordered processing runtime  ->  output/presentation
-        |                       |
-Vector realization/WebGPU   Effect executors and analysis resources
+Content: compositor plan -> processing runtime -> composited texture
+                    |
+Presentation: viewport sampling -> visible canvas
+        |                                      |
+Editor overlays                         Scopes/analysis
+        |                                      |
+Vector realization/WebGPU          Revision-keyed analysis resources
                     |
 Explicit WebGPU resource owners
 ```
@@ -72,6 +77,11 @@ It never owns GPU handles.
 Resolves the document into render contracts, GPU resources and output. The
 renderer observes revisions and dirty domains; it must not become a second
 document model.
+
+Content recomposition, viewport presentation, editor overlays and scope
+analysis are distinct products. Pan/zoom must not re-run document compositing
+or scopes; overlay animation must not invalidate pixels; scopes follow the
+content revision rather than the viewport revision.
 
 ### UI
 

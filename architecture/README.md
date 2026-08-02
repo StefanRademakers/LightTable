@@ -12,12 +12,13 @@ Use this order when sources disagree:
 1. Current code and tests.
 2. The contracts in this directory.
 3. Current task specifications under `work/todo/` and fixtures.
-4. Completed work under `work/done/`, historical material under `docs/`, and
+4. Supporting material under `reference/`.
+5. Completed work under `work/done/`, retired material under `obsolete/`, and
    source-control history.
 
-Files under `docs/` are research, handoffs and design history. They can explain
-why a decision was made, but they are not the canonical architecture. Keep
-temporary task notes out of this directory.
+Files under `reference/` explain research or implementation history but are not
+canonical contracts. Files under `obsolete/` are retained only when their
+history still has value. Keep temporary task notes out of this directory.
 
 ## Reading order
 
@@ -28,9 +29,22 @@ temporary task notes out of this directory.
 5. [Vector system](VECTOR_SYSTEM.md)
 6. [Performance contract](PERFORMANCE_CONTRACT.md)
 7. [Hosts, I/O and portability](HOSTS_IO_AND_PORTABILITY.md)
-8. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
-9. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
-10. [Change rules](CHANGE_RULES.md)
+8. [Photoshop interchange](PHOTOSHOP_INTERCHANGE.md)
+9. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
+10. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
+11. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
+12. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
+13. [Change rules](CHANGE_RULES.md)
+
+## Directory roles
+
+- `contracts/`: narrow invariants shared by multiple systems.
+- `features/`: active feature-level architecture and specifications.
+- `integrations/`: host-adapter contracts and verification plans.
+- `ui/`: visual direction for the shared LightTable UI.
+- `ux/`: detailed interaction specifications.
+- `reference/`: useful research and implementation records.
+- `obsolete/`: superseded material kept only for historical context.
 
 ## Shared vocabulary
 
