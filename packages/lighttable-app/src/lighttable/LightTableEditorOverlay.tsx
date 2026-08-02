@@ -102,6 +102,10 @@ import {
   LightTableDockWorkspace,
   type LightTableDockWorkspaceHandle
 } from './editor/workspace/LightTableDockWorkspace';
+import {
+  nextEditorScreenMode,
+  type EditorScreenMode
+} from './editor/workspace/editorScreenMode';
 import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePanelRegistry';
 import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
@@ -235,7 +239,7 @@ export interface LightTableEditorOverlayProps {
   imageClipboard?: LightTableImageClipboard;
 }
 
-export type EditorScreenMode = 'normal' | 'canvas-only';
+export type { EditorScreenMode } from './editor/workspace/editorScreenMode';
 
 type ZoomMode = 'fit' | '100' | 'custom';
 const cloneAdjustments = cloneAllAdjustments;
@@ -336,7 +340,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [localScreenMode, setLocalScreenMode] = useState<EditorScreenMode>('normal');
   const screenMode = controlledScreenMode ?? localScreenMode;
   const toggleScreenMode = useCallback(() => {
-    const next = screenMode === 'normal' ? 'canvas-only' : 'normal';
+    const next = nextEditorScreenMode(screenMode);
     if (onScreenModeChange) {
       onScreenModeChange(next);
     } else {

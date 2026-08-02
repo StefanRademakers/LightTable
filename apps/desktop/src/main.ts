@@ -213,6 +213,12 @@ async function createWindow(): Promise<void> {
     console.error(`[LightTable renderer] Process exited: ${details.reason} (${details.exitCode})`);
   });
   window.once('ready-to-show', () => window.show());
+  window.on('enter-full-screen', () => {
+    window.webContents.send('lighttable:fullscreen-changed', true);
+  });
+  window.on('leave-full-screen', () => {
+    window.webContents.send('lighttable:fullscreen-changed', false);
+  });
 
   try {
     await window.loadURL(`${rendererOrigin}/`);
@@ -275,6 +281,12 @@ void app.whenReady().then(async () => {
 
     await rememberRecentFile(selectedPath);
     return readDesktopFilePayload(selectedPath);
+  });
+
+  ipcMain.handle('lighttable:set-fullscreen', async (event, enabled: boolean) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof enabled !== 'boolean') throw new Error('Invalid fullscreen request.');
+    mainWindow?.setFullScreen(enabled);
   });
 
   ipcMain.handle('lighttable:list-recent-files', async (event) => {

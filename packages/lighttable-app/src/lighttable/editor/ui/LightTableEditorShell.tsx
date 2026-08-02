@@ -7,9 +7,10 @@ import type { EditorSession, ToolId } from '../session/editorSession';
 import { EditorMenuBar } from './EditorMenuBar';
 import { EditorToolbar } from './EditorToolbar';
 import { ToolOptionsBar } from './ToolOptionsBar';
+import type { EditorScreenMode } from '../workspace/editorScreenMode';
 
 export interface LightTableEditorShellProps {
-  screenMode: 'normal' | 'canvas-only';
+  screenMode: EditorScreenMode;
   active: boolean;
   saving: boolean;
   onClose: () => void;
@@ -103,7 +104,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
       className={`modal lighttable${screenMode === 'canvas-only' ? ' lighttable--canvas-only' : ''}`}
       onClick={(event) => event.stopPropagation()}
     >
-      {screenMode === 'normal' ? <div className="modal__header concept-art-editor__header lighttable__header">
+      {screenMode !== 'canvas-only' ? <div className="modal__header concept-art-editor__header lighttable__header">
         <div className="lighttable__header-left">
           <EditorMenuBar optionsFor={menuOptionsFor} />
         </div>
@@ -117,7 +118,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         />
       </div> : null}
 
-      {screenMode === 'normal' ? <ToolOptionsBar
+      {screenMode !== 'canvas-only' ? <ToolOptionsBar
         activeTool={activeTool}
         brush={brush}
         warp={warp}
@@ -153,7 +154,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
       />
 
       <div className="lighttable__body">
-        {screenMode === 'normal' ? <EditorToolbar
+        {screenMode !== 'canvas-only' ? <EditorToolbar
           activeTool={activeTool}
           foregroundColor={brush.color}
           backgroundColor={brush.backgroundColor}

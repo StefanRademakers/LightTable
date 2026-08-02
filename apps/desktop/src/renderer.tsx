@@ -45,6 +45,12 @@ const desktopHost: LightTableHost = {
       type: payload.type
     });
   },
+  setFullscreen(enabled) {
+    return window.lightTableDesktop.setFullscreen(enabled);
+  },
+  subscribeFullscreen(listener) {
+    return window.lightTableDesktop.onFullscreenChange(listener);
+  },
   confirmDiscardChanges(documentTitle) {
     return window.lightTableDesktop.confirmDiscardChanges(documentTitle);
   },

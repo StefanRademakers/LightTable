@@ -5,6 +5,13 @@ const bridge: LightTableDesktopBridge = {
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),
   listRecentFiles: () => ipcRenderer.invoke('lighttable:list-recent-files'),
   openRecentFile: (id: string) => ipcRenderer.invoke('lighttable:open-recent-file', id),
+  setFullscreen: (enabled: boolean) =>
+    ipcRenderer.invoke('lighttable:set-fullscreen', enabled),
+  onFullscreenChange: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, enabled: boolean) => listener(enabled);
+    ipcRenderer.on('lighttable:fullscreen-changed', handler);
+    return () => ipcRenderer.removeListener('lighttable:fullscreen-changed', handler);
+  },
   confirmDiscardChanges: (documentTitle: string) =>
     ipcRenderer.invoke('lighttable:confirm-discard-changes', documentTitle),
   saveFile: (payload: DesktopSavePayload) =>

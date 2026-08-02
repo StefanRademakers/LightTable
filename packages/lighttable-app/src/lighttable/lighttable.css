@@ -367,8 +367,7 @@
 
 .lighttable-dock-workspace--canvas-only
   .dv-groupview:has(.lighttable-document-host)
-  > .dv-tabs-and-actions-container,
-.lighttable-dock-workspace--canvas-only .lighttable-document-tabs {
+  > .dv-tabs-and-actions-container {
   display: none;
 }
 

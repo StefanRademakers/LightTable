@@ -12,6 +12,7 @@ import {
 } from '../platform/LightTableHost';
 import { StandaloneDocumentRuntimeView } from './StandaloneDocumentRuntimeView';
 import type { EditorScreenMode } from '../lighttable/LightTableEditorOverlay';
+import { screenModeUsesHostFullscreen } from '../lighttable/editor/workspace/editorScreenMode';
 import {
   type StandaloneDecodeMode,
   useStandaloneDocumentWorkspace
@@ -52,6 +53,23 @@ export function LightTableStandaloneApp({
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
   const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
   const fileDrop = useStandaloneFileDrop(openDocument);
+
+  const changeScreenMode = useCallback((mode: EditorScreenMode) => {
+    setScreenMode(mode);
+    void host.setFullscreen?.(screenModeUsesHostFullscreen(mode)).catch(() => {
+      setScreenMode('normal');
+    });
+  }, [host]);
+
+  useEffect(() => host.subscribeFullscreen?.((enabled) => {
+    if (!enabled) setScreenMode('normal');
+  }), [host]);
+
+  useEffect(() => {
+    if (snapshot.documentOrder.length === 0 && screenMode !== 'normal') {
+      changeScreenMode('normal');
+    }
+  }, [changeScreenMode, screenMode, snapshot.documentOrder.length]);
 
   const refreshRecentFiles = useCallback(async () => {
     if (!host.listRecentFiles) {
@@ -241,7 +259,7 @@ export function LightTableStandaloneApp({
           workspaceDocuments={workspaceDocuments}
           host={host}
           screenMode={screenMode}
-          onScreenModeChange={setScreenMode}
+          onScreenModeChange={changeScreenMode}
           onActivate={activateDocument}
           onClose={closeDocument}
           onRequestOpen={host.openFile ? requestHostDocument : undefined}

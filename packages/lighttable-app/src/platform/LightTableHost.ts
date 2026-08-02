@@ -34,6 +34,10 @@ export interface LightTableHost {
   openFile?(): Promise<File | null>;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
   openRecentFile?(id: string): Promise<File | null>;
+  /** Enter or leave the host window's native/browser fullscreen presentation. */
+  setFullscreen?(enabled: boolean): Promise<void>;
+  /** Observe fullscreen exits initiated by the OS, browser or Escape key. */
+  subscribeFullscreen?(listener: (enabled: boolean) => void): () => void;
   /**
    * Ask the host whether unsaved changes may be discarded.
    */
@@ -48,6 +52,18 @@ export interface LightTableHost {
 export const createBrowserHost = (): LightTableHost => ({
   kind: 'web',
   clipboard: browserImageClipboard(),
+  async setFullscreen(enabled) {
+    if (enabled) {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+    } else if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    }
+  },
+  subscribeFullscreen(listener) {
+    const publish = () => listener(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', publish);
+    return () => document.removeEventListener('fullscreenchange', publish);
+  },
   async confirmDiscardChanges(documentTitle) {
     return window.confirm(`Discard unsaved changes to “${documentTitle}”?`);
   },
