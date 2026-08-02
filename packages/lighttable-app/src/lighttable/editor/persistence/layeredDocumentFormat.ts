@@ -2,6 +2,7 @@ import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import type {
   DocumentId,
   DocumentAssetId,
+  DocumentFontAsset,
   ImageDocument,
   LayerId,
   LayerLocks,
@@ -38,6 +39,8 @@ import {
 
 const FOOTER_MAGIC = 'LTBLDOC1';
 const FOOTER_SIZE = 12;
+const MAX_FONT_BYTES = 64 * 1024 * 1024;
+const MAX_DOCUMENT_FONT_BYTES = 256 * 1024 * 1024;
 
 interface BinaryAssetReference {
   offset: number;
@@ -101,7 +104,7 @@ type LayerManifestEntry =
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
-  version: 2;
+  version: 3;
   previewLength: number;
   document: {
     id: string;
@@ -127,6 +130,7 @@ interface LayeredDocumentManifest {
       byteLength: number;
       asset: BinaryAssetReference;
     }>;
+    fonts: Array<DocumentFontAsset & { asset: BinaryAssetReference }>;
     layers: LayerManifestEntry[];
   };
   adjustmentStack: AdjustmentStack;
@@ -149,7 +153,16 @@ export interface PreservedSourceAssetBlob {
   source: Blob;
 }
 
-export type DocumentAssetBlob = LayerAssetBlobs | PatternAssetBlob | PreservedSourceAssetBlob;
+export interface FontAssetBlob {
+  fingerprintSha256: string;
+  source: Blob;
+}
+
+export type DocumentAssetBlob =
+  | LayerAssetBlobs
+  | PatternAssetBlob
+  | PreservedSourceAssetBlob
+  | FontAssetBlob;
 
 export interface ParsedLayeredDocument {
   document: ImageDocument;
@@ -158,10 +171,14 @@ export interface ParsedLayeredDocument {
   assets: LayerAssetBlobs[];
   patternAssets: PatternAssetBlob[];
   preservedSourceAssets: PreservedSourceAssetBlob[];
+  fontAssets: FontAssetBlob[];
 }
 
 const encodeText = (value: string) => new TextEncoder().encode(value);
 const decodeText = (value: ArrayBuffer) => new TextDecoder().decode(value);
+const sha256Hex = async (value: Blob) => [...new Uint8Array(
+  await crypto.subtle.digest('SHA-256', await value.arrayBuffer())
+)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const isBlendMode = (value: unknown): value is BlendMode => BLEND_MODES.some((mode) => mode.id === value);
 
@@ -193,6 +210,11 @@ export const buildLayeredDocumentFile = (
     assets
       .filter((asset): asset is PreservedSourceAssetBlob => 'sourceId' in asset)
       .map((asset) => [asset.sourceId, asset])
+  );
+  const assetsByFontFingerprint = new Map(
+    assets
+      .filter((asset): asset is FontAssetBlob => 'fingerprintSha256' in asset)
+      .map((asset) => [asset.fingerprintSha256, asset])
   );
   let offset = preview.size;
   const binaryParts: Blob[] = [];
@@ -345,9 +367,24 @@ export const buildLayeredDocumentFile = (
     offset += binary.source.size;
     return { ...source, asset };
   });
+  const fontReferences = new Map<string, BinaryAssetReference>();
+  const fonts = document.assets.fonts.map((font) => {
+    let asset = fontReferences.get(font.fingerprintSha256);
+    if (!asset) {
+      const binary = assetsByFontFingerprint.get(font.fingerprintSha256);
+      if (!binary || binary.source.size !== font.byteLength) {
+        throw new Error(`Font asset is missing or inconsistent for ${font.familyNames[0]}.`);
+      }
+      asset = { offset, length: binary.source.size };
+      fontReferences.set(font.fingerprintSha256, asset);
+      binaryParts.push(binary.source);
+      offset += binary.source.size;
+    }
+    return { ...structuredClone(font), asset };
+  });
   const manifest: LayeredDocumentManifest = {
     format: 'lighttable-layered-png',
-    version: 2,
+    version: 3,
     previewLength: preview.size,
     document: {
       id: document.id,
@@ -361,6 +398,7 @@ export const buildLayeredDocumentFile = (
         : null,
       patterns,
       preservedSources,
+      fonts,
       layers
     },
     adjustmentStack: cloneAdjustmentStack(adjustmentStack)
@@ -554,12 +592,12 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   if (
     !isRecord(raw)
     || raw.format !== 'lighttable-layered-png'
-    || (raw.version !== 1 && raw.version !== 2)
+    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3)
     || !isRecord(raw.document)
   ) {
     throw new Error('This LightTable document format is not supported.');
   }
-  const manifestVersion = raw.version as 1 | 2;
+  const manifestVersion = raw.version as 1 | 2 | 3;
   const source = raw.document;
   const width = source.width;
   const height = source.height;
@@ -575,6 +613,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   const assets: LayerAssetBlobs[] = [];
   const patternAssets: PatternAssetBlob[] = [];
   const preservedSourceAssets: PreservedSourceAssetBlob[] = [];
+  const fontAssets: FontAssetBlob[] = [];
   const parseLayer = (entry: unknown, path: string): LayerNode => {
     if (
       !isRecord(entry)
@@ -817,6 +856,128 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       byteLength: Number(entry.byteLength)
     };
   });
+  const rawFonts = manifestVersion < 3 || source.fonts === undefined ? [] : source.fonts;
+  if (!Array.isArray(rawFonts)) {
+    throw new Error('The LightTable document font registry is invalid.');
+  }
+  if (rawFonts.length > 256) {
+    throw new Error('The LightTable document exceeds the 256 font-face limit.');
+  }
+  const budgetedFingerprints = new Set<string>();
+  let budgetedFontBytes = 0;
+  rawFonts.forEach((entry) => {
+    if (!isRecord(entry) || !Number.isSafeInteger(entry.byteLength)) return;
+    const byteLength = Number(entry.byteLength);
+    if (byteLength > MAX_FONT_BYTES) {
+      throw new Error('A LightTable font exceeds the 64 MiB font limit.');
+    }
+    if (
+      byteLength > 0
+      && typeof entry.fingerprintSha256 === 'string'
+      && !budgetedFingerprints.has(entry.fingerprintSha256.toLowerCase())
+    ) {
+      budgetedFingerprints.add(entry.fingerprintSha256.toLowerCase());
+      budgetedFontBytes += byteLength;
+      if (budgetedFontBytes > MAX_DOCUMENT_FONT_BYTES) {
+        throw new Error('The LightTable document exceeds the 256 MiB font limit.');
+      }
+    }
+  });
+  const seenFontIds = new Set<string>();
+  const seenFontFingerprints = new Map<string, BinaryAssetReference>();
+  let uniqueFontByteLength = 0;
+  const fonts = rawFonts.map((entry, index): DocumentFontAsset => {
+    if (
+      !isRecord(entry)
+      || typeof entry.assetId !== 'string'
+      || !entry.assetId
+      || entry.assetId.length > 1_024
+      || seenFontIds.has(entry.assetId)
+      || !Number.isSafeInteger(entry.faceIndex)
+      || Number(entry.faceIndex) < 0
+      || Number(entry.faceIndex) >= 64
+      || typeof entry.fingerprintSha256 !== 'string'
+      || !/^[a-f\d]{64}$/i.test(entry.fingerprintSha256)
+      || !['bundled', 'document', 'system', 'imported', 'pdf-subset'].includes(String(entry.source))
+      || !['sfnt', 'woff', 'woff2', 'raw-cff', 'unknown'].includes(String(entry.container))
+      || !['truetype', 'cff', 'cff2', 'svg', 'bitmap', 'mixed', 'unknown'].includes(String(entry.outline))
+      || !isRecord(entry.embedding)
+      || !['installable', 'editable', 'preview-print', 'restricted', 'unknown'].includes(String(entry.embedding.level))
+      || typeof entry.embedding.noSubsetting !== 'boolean'
+      || typeof entry.embedding.bitmapOnly !== 'boolean'
+      || !Array.isArray(entry.familyNames)
+      || entry.familyNames.length < 1
+      || entry.familyNames.length > 64
+      || !entry.familyNames.every((name) =>
+        typeof name === 'string' && name.trim() && name.length <= 1_024
+      )
+      || typeof entry.styleName !== 'string'
+      || !entry.styleName.trim()
+      || entry.styleName.length > 1_024
+      || (entry.postScriptName !== undefined && (
+        typeof entry.postScriptName !== 'string'
+        || !entry.postScriptName.trim()
+        || entry.postScriptName.length > 1_024
+      ))
+      || typeof entry.weight !== 'number'
+      || !Number.isFinite(entry.weight)
+      || entry.weight < 1
+      || entry.weight > 1_000
+      || typeof entry.stretch !== 'number'
+      || !Number.isFinite(entry.stretch)
+      || entry.stretch <= 0
+      || typeof entry.italic !== 'boolean'
+      || !Number.isSafeInteger(entry.byteLength)
+      || Number(entry.byteLength) < 1
+      || Number(entry.byteLength) > MAX_FONT_BYTES
+      || !validAssetReference(entry.asset, Number(previewLength), manifestStart)
+      || Number(entry.asset.length) !== Number(entry.byteLength)
+    ) throw new Error(`Font ${index + 1} in the LightTable document is invalid.`);
+    const reference = entry.asset;
+    const fingerprint = entry.fingerprintSha256.toLowerCase();
+    const existingReference = seenFontFingerprints.get(fingerprint);
+    if (existingReference && (
+      existingReference.offset !== reference.offset
+      || existingReference.length !== reference.length
+    )) throw new Error(`Font ${index + 1} duplicates bytes inconsistently.`);
+    if (!existingReference) {
+      uniqueFontByteLength += Number(entry.byteLength);
+      if (uniqueFontByteLength > MAX_DOCUMENT_FONT_BYTES) {
+        throw new Error('The LightTable document exceeds the 256 MiB font limit.');
+      }
+      seenFontFingerprints.set(fingerprint, reference);
+      fontAssets.push({
+        fingerprintSha256: fingerprint,
+        source: blob.slice(reference.offset, reference.offset + reference.length, 'font/otf')
+      });
+    }
+    seenFontIds.add(entry.assetId);
+    return {
+      assetId: entry.assetId,
+      faceIndex: Number(entry.faceIndex),
+      fingerprintSha256: fingerprint,
+      source: entry.source as DocumentFontAsset['source'],
+      container: entry.container as DocumentFontAsset['container'],
+      outline: entry.outline as DocumentFontAsset['outline'],
+      ...(typeof entry.postScriptName === 'string' ? { postScriptName: entry.postScriptName } : {}),
+      embedding: {
+        level: entry.embedding.level as DocumentFontAsset['embedding']['level'],
+        noSubsetting: entry.embedding.noSubsetting,
+        bitmapOnly: entry.embedding.bitmapOnly
+      },
+      familyNames: [...entry.familyNames] as string[],
+      styleName: entry.styleName,
+      weight: Number(entry.weight),
+      stretch: Number(entry.stretch),
+      italic: entry.italic,
+      byteLength: Number(entry.byteLength)
+    };
+  });
+  for (const fontAsset of fontAssets) {
+    if (await sha256Hex(fontAsset.source) !== fontAsset.fingerprintSha256) {
+      throw new Error(`Font bytes for ${fontAsset.fingerprintSha256} failed SHA-256 validation.`);
+    }
+  }
   const document: ImageDocument = {
     id: (typeof source.id === 'string' ? source.id : `document-${crypto.randomUUID()}`) as DocumentId,
     name: typeof source.name === 'string' ? source.name : 'LightTable document',
@@ -826,7 +987,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     activeLayerId,
     importProvenance,
     photoshopImportReport,
-    assets: { patterns, preservedSources },
+    assets: { patterns, preservedSources, fonts },
     revision: 0,
     createdAt: now,
     modifiedAt: now
@@ -837,6 +998,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     preview: blob.slice(0, Number(previewLength), 'image/png'),
     assets,
     patternAssets,
-    preservedSourceAssets
+    preservedSourceAssets,
+    fontAssets
   };
 };

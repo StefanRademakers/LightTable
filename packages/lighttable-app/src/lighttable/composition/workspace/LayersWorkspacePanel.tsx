@@ -4,6 +4,7 @@ import type {
 } from '../../application/layers/useLayerPanelController';
 import type {
   ImageDocument,
+  DocumentFontAsset,
   LayerId
 } from '../../editor/document/documentTypes';
 import type {
@@ -16,6 +17,7 @@ import { LayerPanel } from '../../editor/ui/LayerPanel';
 
 export interface LayersWorkspacePanelProps {
   document: ImageDocument | null;
+  availableFonts: readonly DocumentFontAsset[];
   thumbnails: ReadonlyMap<LayerId, LayerThumbnailSet>;
   activeChannel: PaintChannel;
   isolatedMaskLayerId: LayerId | null;
@@ -32,6 +34,7 @@ export interface LayersWorkspacePanelProps {
  */
 export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   document,
+  availableFonts,
   thumbnails,
   activeChannel,
   isolatedMaskLayerId,
@@ -51,6 +54,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
     <div className="lighttable-layers-panel">
       <LayerPanel
         document={document}
+        availableFonts={availableFonts}
         thumbnails={thumbnails}
         activeChannel={activeChannel}
         isolatedMaskLayerId={isolatedMaskLayerId}

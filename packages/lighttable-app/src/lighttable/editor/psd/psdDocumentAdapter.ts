@@ -603,7 +603,8 @@ export const importPsdDocument = (
         })),
         // PSD is an import format, not a second payload inside LightTable's
         // native document. Imported layers/assets become authoritative.
-        preservedSources: []
+        preservedSources: [],
+        fonts: []
       },
       revision: 0,
       createdAt: now,

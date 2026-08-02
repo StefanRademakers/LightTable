@@ -15,6 +15,11 @@ import {
   type DocumentRendererSnapshot
 } from '../rendering/documentRendererLifecycle';
 import type { ImageDocument } from '../../editor/document/documentTypes';
+import {
+  DocumentFontRegistry,
+  type SystemFontByteProvider
+} from '../../text/fonts/DocumentFontRegistry';
+import { FontationsFontFaceParser } from '../../text/fonts/FontationsFontFaceParser';
 
 export type DocumentSessionId = string & {
   readonly __brand: 'DocumentSessionId';
@@ -67,6 +72,7 @@ export interface CreateDocumentSessionOptions {
   readonly title?: string;
   readonly editor?: EditorSession;
   readonly viewport?: DocumentViewport;
+  readonly systemFontProvider?: SystemFontByteProvider;
 }
 
 const DEFAULT_VIEWPORT: DocumentViewport = {
@@ -106,6 +112,7 @@ export class DocumentSession {
   readonly history: DocumentCommandHistory;
   readonly tasks: DocumentTaskRegistry;
   readonly renderer: DocumentRendererLifecycle;
+  readonly fonts: DocumentFontRegistry;
 
   private snapshot: DocumentSessionSnapshot;
   private readonly listeners = new Set<DocumentSessionListener>();
@@ -119,6 +126,11 @@ export class DocumentSession {
     this.history = new DocumentCommandHistory(options.id);
     this.tasks = new DocumentTaskRegistry(options.id);
     this.renderer = new DocumentRendererLifecycle();
+    this.fonts = new DocumentFontRegistry({
+      parser: new FontationsFontFaceParser(),
+      systemProvider: options.systemFontProvider
+    });
+    this.disposers.add(() => this.fonts.dispose());
     this.snapshot = {
       id: options.id,
       source: { ...options.source },
@@ -201,6 +213,7 @@ export class DocumentSession {
   setDocument(document: ImageDocument | null): void {
     this.assertEditable();
     if (this.snapshot.document === document) return;
+    document?.assets.fonts.forEach((asset) => this.fonts.registerReference(asset));
     this.update({ document });
   }
 

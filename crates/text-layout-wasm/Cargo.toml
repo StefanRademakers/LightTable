@@ -10,3 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen.workspace = true
+read-fonts.workspace = true
+skrifa.workspace = true
+serde.workspace = true
+serde_json.workspace = true

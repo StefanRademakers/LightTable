@@ -4,6 +4,10 @@ import type { PsdImportCompatibilityEntry } from '../../editor/psd/psdDocumentAd
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { BasicAdjustments, LightTableImageMetadata } from '../../types';
 import type { PreparedDocumentSource } from './prepareDocumentSource';
+import type {
+  FontAssetBlob,
+  PreservedSourceAssetBlob
+} from '../../editor/persistence/layeredDocumentFormat';
 
 export interface PreparedDocumentPublicationPorts {
   mergeStartupTimings(
@@ -24,6 +28,10 @@ export interface PreparedDocumentPublicationPorts {
   publishStatus(status: string | null): void;
   reportDifferenceFailure(error: unknown): void;
   reportPsdWarnings(warnings: readonly string[]): void;
+  publishBinaryAssets?(
+    fontAssets: readonly FontAssetBlob[],
+    preservedSourceAssets: readonly PreservedSourceAssetBlob[]
+  ): void;
 }
 
 /**
@@ -61,6 +69,7 @@ export const publishPreparedDocument = (
   ports.publishPsdCompatibility([...psdCompatibility]);
   ports.publishPsdDifference(null);
   ports.publishSource(source.name, imageBlob, source.identity);
+  ports.publishBinaryAssets?.(loaded.fontAssets, loaded.preservedSourceAssets);
   ports.resetDocumentInteraction();
   ports.publishAdjustments(hydration.adjustments);
 

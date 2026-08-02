@@ -20,6 +20,7 @@ import {
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
+import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import {
@@ -54,6 +55,10 @@ import {
 } from './application/rendering/rendererTypes';
 import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
+import {
+  documentTextFontDiagnostics,
+  summarizeTextFontDiagnostics
+} from './text/fonts/textLayerFontStatus';
 import type {
   DocumentOpenMode
 } from './application/documents/documentSourceProbe';
@@ -150,6 +155,7 @@ import {
   findRasterLayer
 } from './editor/document/layerTree';
 import {
+  type FontAssetBlob,
   type PreservedSourceAssetBlob
 } from './editor/persistence/layeredDocumentFormat';
 import {
@@ -311,6 +317,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const resetAdjustmentTransactionRef = useRef<() => void>(() => undefined);
   const resetDocumentTransactionRef = useRef<() => void>(() => undefined);
   const preservedSourceAssetsRef = useRef<PreservedSourceAssetBlob[]>([]);
+  const fontAssetsRef = useRef<FontAssetBlob[]>([]);
+  const [fontAvailabilityRevision, setFontAvailabilityRevision] = useState(0);
+  const [fontHydrationPending, setFontHydrationPending] = useState(false);
   const paintGestureRef = useRef(new PaintGestureController());
   const selectionGestureRef = useRef(new SelectionGestureController());
   const commitTransformRef = useRef<() => void>(() => undefined);
@@ -461,6 +470,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererReadyDocumentId: thumbnailDocumentReadyId,
     getRenderer: () => engineRef.current
   });
+  const availableFontAssets = useMemo(
+    () => documentSession?.fonts.availableAssets ?? imageDocument?.assets.fonts ?? [],
+    [documentSession, fontAvailabilityRevision, imageDocument]
+  );
+  const fontDiagnostics = useMemo(
+    () => imageDocument && !fontHydrationPending
+      ? documentTextFontDiagnostics(imageDocument, availableFontAssets)
+      : [],
+    [availableFontAssets, fontHydrationPending, imageDocument]
+  );
+  const fontDiagnosticStatus = useMemo(
+    () => summarizeTextFontDiagnostics(fontDiagnostics),
+    [fontDiagnostics]
+  );
   const {
     messages: debugMessages,
     photoshopCompatibilitySummary: psdCompatibilitySummary,
@@ -478,6 +501,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onDocumentReady,
     onDocumentError
   });
+  const reportedFontDiagnosticsRef = useRef('');
+  useEffect(() => {
+    const signature = `${imageDocument?.id ?? 'no-document'}:${JSON.stringify(fontDiagnostics)}`;
+    if (signature === reportedFontDiagnosticsRef.current) return;
+    reportedFontDiagnosticsRef.current = signature;
+    fontDiagnostics.forEach(({ layerId, layerName, status }) => {
+      appendDebugMessage(
+        'warning',
+        'Text fonts',
+        `${status.label}: ${layerName}`,
+        `layer=${layerId}; ${status.detail}`
+      );
+    });
+  }, [appendDebugMessage, fontDiagnostics, imageDocument?.id]);
   const documentProjectionController = useMemo(
     () => createDocumentProjectionController({
       getDocument: () => imageDocumentRef.current,
@@ -691,10 +728,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       // PSD sources are converted into native LightTable assets. The source
       // file itself is not duplicated in the native document.
       preservedSourceAssetsRef.current = [];
+      fontAssetsRef.current = [];
+      setFontHydrationPending(nextDocument.assets.fonts.length > 0);
       setImageDocument(nextDocument);
       setThumbnailDocumentReadyId(nextDocument.id);
     },
     publishMetadata: setMetadata,
+    publishBinaryAssets: (fontAssets: readonly FontAssetBlob[], preservedSources: readonly PreservedSourceAssetBlob[]) => {
+      fontAssetsRef.current = [...fontAssets];
+      preservedSourceAssetsRef.current = [...preservedSources];
+      if (documentSession) {
+        const fontMetadata = imageDocumentRef.current?.assets.fonts ?? [];
+        void hydrateDocumentFonts(documentSession.fonts, fontAssets, fontMetadata).catch((reason) => setError(
+          reason instanceof Error ? reason.message : 'Document fonts could not be loaded.'
+        )).finally(() => setFontHydrationPending(false));
+      } else {
+        setFontHydrationPending(false);
+      }
+    },
     publishPsdImport: setPsdImportInfo,
     publishPsdCompatibility: (entries: readonly PsdImportCompatibilityEntry[]) =>
       setPsdCompatibility([...entries]),
@@ -733,6 +784,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   }), [
     clearEditorHistory,
+    documentSession,
     publishAdjustmentPresentation,
     resetLensBlurDepth,
     setEditorSession,
@@ -740,6 +792,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setView,
     setZoomMode
   ]);
+
+  useEffect(() => {
+    if (!documentSession) return;
+    return documentSession.fonts.subscribeAvailability(() => {
+      setFontAvailabilityRevision((revision) => revision + 1);
+    });
+  }, [documentSession]);
 
   const beforeDocumentOpen = useCallback(() => {
     resetDocumentOpenPresentation({
@@ -759,6 +818,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setMetadata(null);
           imageDocumentRef.current = null;
           preservedSourceAssetsRef.current = [];
+          fontAssetsRef.current = [];
+          setFontHydrationPending(false);
           setImageDocument(null);
           setThumbnailDocumentReadyId(null);
         },
@@ -1440,6 +1501,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
     getPreservedSourceAssets: () => preservedSourceAssetsRef.current,
+    getFontAssets: async () => {
+      if (!documentSession) return fontAssetsRef.current;
+      const materialized = await documentSession.fonts.materializeBytes();
+      return materialized.map(({ fingerprintSha256, bytes }) => ({
+        fingerprintSha256,
+        source: new Blob([Uint8Array.from(bytes).buffer], { type: 'font/otf' })
+      }));
+    },
     cancelAutoAlign: cancelAutoAlignPreview,
     onSave,
     onClose,
@@ -1519,6 +1588,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const layersPanel = (
     <LayersWorkspacePanel
       document={imageDocument}
+      availableFonts={availableFontAssets}
       thumbnails={layerThumbnails}
       activeChannel={editorSession.activeChannel}
       isolatedMaskLayerId={isolatedMaskLayerId}
@@ -1752,7 +1822,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     onTransformProjectiveChange: updateTransformProjective
                   }}
                   status={{
-                    status: error ?? gradeStatus ?? '',
+                    status: error ?? gradeStatus ?? fontDiagnosticStatus,
                     error: Boolean(error),
                     meta: statusBar.meta,
                     metaTitle: statusBar.title,

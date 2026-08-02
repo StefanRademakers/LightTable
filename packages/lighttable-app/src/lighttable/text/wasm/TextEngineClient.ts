@@ -1,6 +1,7 @@
 import {
   TEXT_ENGINE_PROTOCOL_VERSION,
   type TextEngineCapability,
+  type TextEngineFontInspection,
   type TextEngineWorkerRequest,
   type TextEngineWorkerResponse
 } from './textEngineProtocol';
@@ -10,11 +11,16 @@ interface PendingProbe {
   readonly reject: (reason: Error) => void;
 }
 
+interface PendingInspection {
+  readonly resolve: (inspection: TextEngineFontInspection) => void;
+  readonly reject: (reason: Error) => void;
+}
+
 export interface TextEngineWorkerPort {
   onmessage: ((event: MessageEvent<TextEngineWorkerResponse>) => void) | null;
   onerror: ((event: ErrorEvent) => void) | null;
   onmessageerror: ((event: MessageEvent<unknown>) => void) | null;
-  postMessage(message: TextEngineWorkerRequest): void;
+  postMessage(message: TextEngineWorkerRequest, transfer?: Transferable[]): void;
   terminate(): void;
 }
 
@@ -35,6 +41,7 @@ export class TextEngineClient {
   private worker: TextEngineWorkerPort | null = null;
   private requestId = 0;
   private readonly pending = new Map<number, PendingProbe>();
+  private readonly pendingInspections = new Map<number, PendingInspection>();
   private capability: TextEngineCapability | null = null;
   private inFlight: Promise<TextEngineCapability> | null = null;
 
@@ -72,6 +79,27 @@ export class TextEngineClient {
     return trackedPromise;
   }
 
+  inspectFont(bytes: Uint8Array, faceIndex: number): Promise<TextEngineFontInspection> {
+    let worker: TextEngineWorkerPort;
+    try {
+      worker = this.ensureWorker();
+    } catch (reason) {
+      return Promise.reject(reason instanceof Error ? reason : new Error('The text engine worker could not start.'));
+    }
+    const requestId = ++this.requestId;
+    const transferred = Uint8Array.from(bytes).buffer;
+    return new Promise((resolve, reject) => {
+      this.pendingInspections.set(requestId, { resolve, reject });
+      worker.postMessage({
+        kind: 'inspect-font',
+        protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
+        requestId,
+        bytes: transferred,
+        faceIndex
+      }, [transferred]);
+    });
+  }
+
   dispose() {
     this.resetWorker(new Error('Text engine probing was canceled.'));
     this.capability = null;
@@ -82,9 +110,11 @@ export class TextEngineClient {
     if (this.worker) return this.worker;
     const worker = this.workerFactory();
     worker.onmessage = ({ data }) => {
-      const pending = this.pending.get(data.requestId);
+      const pending = this.pending.get(data.requestId)
+        ?? this.pendingInspections.get(data.requestId);
       if (!pending) return;
       this.pending.delete(data.requestId);
+      this.pendingInspections.delete(data.requestId);
       if (data.protocolVersion !== TEXT_ENGINE_PROTOCOL_VERSION) {
         pending.reject(new Error(`Unsupported text engine protocol ${data.protocolVersion}.`));
         this.resetWorker(new Error('The text engine protocol changed during initialization.'));
@@ -95,10 +125,22 @@ export class TextEngineClient {
         this.resetWorker(new Error(data.message));
         return;
       }
-      pending.resolve({
-        engineVersion: data.engineVersion,
-        loadDurationMs: data.loadDurationMs
-      });
+      if (data.kind === 'font-inspected') {
+        (pending as PendingInspection).resolve({
+          glyphCount: data.glyphCount,
+          unitsPerEm: data.unitsPerEm,
+          axisCount: data.axisCount,
+          outline: data.outline,
+          embeddingLevel: data.embeddingLevel,
+          noSubsetting: data.noSubsetting,
+          bitmapOnly: data.bitmapOnly
+        });
+      } else {
+        (pending as PendingProbe).resolve({
+          engineVersion: data.engineVersion,
+          loadDurationMs: data.loadDurationMs
+        });
+      }
     };
     worker.onerror = (event) => {
       this.resetWorker(new Error(event.message || 'The text engine worker failed.'));
@@ -116,6 +158,8 @@ export class TextEngineClient {
     worker?.terminate();
     for (const pending of this.pending.values()) pending.reject(reason);
     this.pending.clear();
+    for (const pending of this.pendingInspections.values()) pending.reject(reason);
+    this.pendingInspections.clear();
   }
 }
 

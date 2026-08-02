@@ -23,6 +23,8 @@ const loadedSource = (
   psdImport: null,
   psdWarnings: [],
   psdCompatibility: [],
+  fontAssets: [],
+  preservedSourceAssets: [],
   timings: {
     layeredProbeMs: 1,
     decodeAndUploadMs: 2,

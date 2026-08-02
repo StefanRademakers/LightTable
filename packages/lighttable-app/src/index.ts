@@ -15,6 +15,7 @@ export {
   WorkspaceSession,
   type CloseDocumentOptions,
   type OpenDocumentOptions,
+  type WorkspaceSessionOptions,
   type WorkspaceError,
   type WorkspaceSnapshot
 } from './lighttable/application/workspace/workspaceSession';
@@ -30,6 +31,7 @@ export {
   type DocumentSourceDescriptor,
   type DocumentViewport
 } from './lighttable/application/documents/documentSession';
+export type { SystemFontByteProvider } from './lighttable/text/fonts/DocumentFontRegistry';
 export {
   DocumentCommandHistory,
   type DocumentCommandHistoryOptions,

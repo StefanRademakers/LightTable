@@ -294,13 +294,13 @@ Exit gate: save/open, undo/redo, duplicate and rasterize fixture tests pass.
 
 #### Slice 05 — document font asset registry and resolver
 
-- [ ] Store font bytes once by fingerprint with source and embedding metadata.
-- [ ] Resolve bundled, system-provided, imported and PDF subset fonts through
+- [x] Store font bytes once by fingerprint with source and embedding metadata.
+- [x] Resolve bundled, system-provided, imported and PDF subset fonts through
   one browser-safe abstraction.
-- [ ] Keep system font discovery outside the WASM core and host-optional.
-- [ ] Implement missing-font and substitution results without silent fallback.
-- [ ] Add lazy parsing, byte accounting, disposal and malformed-font limits.
-- [ ] Add licensed open-font fixtures covering TrueType, CFF and variable fonts.
+- [x] Keep system font discovery outside the WASM core and host-optional.
+- [x] Implement missing-font and substitution results without silent fallback.
+- [x] Add lazy parsing, byte accounting, disposal and malformed-font limits.
+- [x] Add licensed open-font fixtures covering TrueType, CFF and variable fonts.
 
 UI exposure: missing/substituted font badge in the Layers row; status message
 and copyable Debug detail. Font picker remains read-only until point text ships.
@@ -651,6 +651,29 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 — Slice 05 complete
+
+- Owner: Codex `/root`; two-pass read-only blocker audit by
+  `/root/slice01_audit` and diagnostics seam review by `/root/text_ui_map`.
+- Registry: immutable SHA-256-deduplicated bytes, deterministic face resolution,
+  browser-safe limits, lazy parse/disposal and optional host system provider.
+  System bytes are materialized for portable save only when embedding permits.
+- Fontations: the persistent Rust/WASM worker validates real TrueType, CFF and
+  variable fixtures, face indexes, outline kind and complete OS/2 embedding
+  policy without DOM, CSS font loading or Node-only APIs.
+- Persistence: native manifest v3 retains multiple collection faces over one
+  verified binary, migrates v1/v2 documents, rejects corrupt hashes and applies
+  64 MiB/256 MiB resource budgets before hashing untrusted blobs.
+- UI: Layers, persistent status and the bounded copyable Debug log use actual
+  runtime byte availability for explicit missing/substituted results. No Text
+  tool or editable font picker was exposed.
+- Tests: 4 Rust tests; 6 focused files / 34 tests; complete 243-file / 1,169-test
+  workspace suite. Rust formatting, text-WASM runtime, boundary and every
+  workspace typecheck passed.
+- Distribution: web and packaged Electron builds passed; the lazy worker is
+  3.22 kB and the text WASM is 52.37 kB in the web output.
+- Next safe slice: Slice 06, Parley WASM layout worker.
 
 ### 2026-08-02 — Slice 03 complete
 

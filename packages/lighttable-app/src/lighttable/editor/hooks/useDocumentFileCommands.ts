@@ -17,7 +17,10 @@ import type {
   DocumentOpenMode
 } from '../../application/documents/documentSourceProbe';
 import type { ImageDocument } from '../document/documentTypes';
-import type { PreservedSourceAssetBlob } from '../persistence/layeredDocumentFormat';
+import type {
+  FontAssetBlob,
+  PreservedSourceAssetBlob
+} from '../persistence/layeredDocumentFormat';
 import {
   pickSupportedImageFile
 } from '../../image-io/supportedImageFormats';
@@ -40,6 +43,7 @@ export interface DocumentFileCommandsOptions {
     document: ImageDocument
   ) => BasicAdjustments;
   readonly getPreservedSourceAssets: () => readonly PreservedSourceAssetBlob[];
+  readonly getFontAssets: () => Promise<readonly FontAssetBlob[]> | readonly FontAssetBlob[];
   readonly hydrateLocalFile: (
     file: File,
     decodeMode: DocumentOpenMode,
@@ -118,7 +122,8 @@ export const useDocumentFileCommands = (
       documentAdjustments: current.getDocumentAdjustments(),
       effectiveLayeredAdjustments:
         current.getEffectiveLayeredAdjustments(imageDocument),
-      preservedSourceAssets: current.getPreservedSourceAssets()
+      preservedSourceAssets: current.getPreservedSourceAssets(),
+      fontAssets: await current.getFontAssets()
     });
   }, []);
 

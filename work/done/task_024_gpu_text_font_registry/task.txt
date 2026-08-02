@@ -1,0 +1,36 @@
+# Task 024 — GPU text document font registry and resolver
+
+Status: complete. Implements Slice 05 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+## Required outcome
+
+- Store immutable font bytes once per SHA-256 fingerprint with explicit source,
+  container, outline and embedding metadata.
+- Resolve preferred assets, PostScript names and requested families
+  deterministically across bundled, document, imported, PDF-subset and optional
+  host system sources.
+- Report missing and substituted fonts explicitly; never silently choose a
+  fallback.
+- Parse lazily behind a browser-safe adapter, enforce per-font/total limits,
+  account bytes and dispose owned resources.
+- Persist document font assets without duplicating bytes and reject malformed
+  registry entries.
+- Add licensed open-font fixtures for TrueType, CFF and variable-font coverage.
+- Expose missing/substituted status through the existing text layer row/status
+  seams without adding a production Text tool or editable font picker.
+
+## Verification
+
+- Focused registry, resolver, persistence and presentation tests.
+- Full boundary, typecheck and test gates.
+- Web build and packaged Electron verification.
+- Update Slice 05 evidence and move this task to `work/done/` only with the
+  cohesive commit.
+
+## Completion evidence
+
+- 4 Rust tests and text-WASM runtime verification passed.
+- 6 focused files / 34 tests passed.
+- Full boundary, all workspace typechecks and 243 files / 1,169 tests passed.
+- Web build and packaged Electron distribution verification passed.

@@ -4,6 +4,7 @@ import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
 import type {
   ImageDocument,
+  DocumentFontAsset,
   LayerId,
   LayerLocks,
   LayerNode
@@ -22,9 +23,11 @@ import {
   adjustmentStackHasOwner,
   adjustmentStackOwnerIsEnabled
 } from '../../processing/adjustmentStack';
+import { textLayerFontStatus } from '../../text/fonts/textLayerFontStatus';
 
 interface LayerPanelProps {
   document: ImageDocument;
+  availableFonts: readonly DocumentFontAsset[];
   thumbnails: ReadonlyMap<LayerId, LayerThumbnailSet>;
   activeChannel: PaintChannel;
   isolatedMaskLayerId: LayerId | null;
@@ -128,6 +131,7 @@ const displayedThumbnailSize = (
 
 export const LayerPanel: React.FC<LayerPanelProps> = ({
   document,
+  availableFonts,
   thumbnails,
   activeChannel,
   isolatedMaskLayerId,
@@ -496,6 +500,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           const siblingIndex = siblings.findIndex((sibling) => sibling.id === layer.id);
           const clippingBase = siblingIndex > 0 ? siblings[siblingIndex - 1] : null;
           const canToggleClipping = layer.clipping || Boolean(clippingBase);
+          const fontStatus = layer.type === 'text'
+            ? textLayerFontStatus(layer, availableFonts)
+            : null;
           return (
           <React.Fragment key={layer.id}>
           <div
@@ -820,10 +827,18 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             />
             <span className="lighttable-layer__status">
               {layer.type === 'text' ? (
-                <span
-                  className="lighttable-layer__text-status"
-                  title="Text is shown with the GPU diagnostic placeholder until its renderer is available"
-                >{layer.text.source.kind === 'positioned' ? 'Positioned' : 'Flow'}</span>
+                <>
+                  <span
+                    className="lighttable-layer__text-status"
+                    title="Text is shown with the GPU diagnostic placeholder until its renderer is available"
+                  >{layer.text.source.kind === 'positioned' ? 'Positioned' : 'Flow'}</span>
+                  {fontStatus && fontStatus.kind !== 'exact' ? (
+                    <span
+                      className={`lighttable-layer__text-status lighttable-layer__text-status--${fontStatus.kind}`}
+                      title={fontStatus.detail}
+                    >{fontStatus.label}</span>
+                  ) : null}
+                </>
               ) : null}
               {layer.type === 'raster'
                 && layer.adjustmentStack

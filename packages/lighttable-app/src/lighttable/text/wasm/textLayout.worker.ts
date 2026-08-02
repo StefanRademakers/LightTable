@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import initializeTextLayoutWasm, {
+  inspect_font_json as inspectFontJson,
   text_engine_version as textEngineVersion
 } from './generated/text_layout_wasm.js';
 import {
@@ -24,7 +25,6 @@ const initialize = () => {
 };
 
 self.onmessage = async ({ data }: MessageEvent<TextEngineWorkerRequest>) => {
-  if (data.kind !== 'probe') return;
   let response: TextEngineWorkerResponse;
   if (data.protocolVersion !== TEXT_ENGINE_PROTOCOL_VERSION) {
     response = {
@@ -39,12 +39,19 @@ self.onmessage = async ({ data }: MessageEvent<TextEngineWorkerRequest>) => {
 
   try {
     const capability = await initialize();
-    response = {
-      kind: 'ready',
-      protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
-      requestId: data.requestId,
-      ...capability
-    };
+    response = data.kind === 'probe'
+      ? {
+          kind: 'ready',
+          protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
+          requestId: data.requestId,
+          ...capability
+        }
+      : {
+          kind: 'font-inspected',
+          protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
+          requestId: data.requestId,
+          ...JSON.parse(inspectFontJson(new Uint8Array(data.bytes), data.faceIndex))
+        };
   } catch (error) {
     initialization = null;
     response = {

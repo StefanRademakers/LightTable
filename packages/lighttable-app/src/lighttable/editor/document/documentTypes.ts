@@ -11,6 +11,7 @@ import {
 } from '@lighttable/vector-core';
 import {
   cloneTextLayerData,
+  type FontAssetRef,
   type TextLayer as TextLayerContract,
   type TextLayerData
 } from '@lighttable/text-core';
@@ -252,10 +253,21 @@ export interface PreservedSourceAsset {
   byteLength: number;
 }
 
+export interface DocumentFontAsset extends FontAssetRef {
+  readonly familyNames: readonly string[];
+  readonly styleName: string;
+  readonly weight: number;
+  readonly stretch: number;
+  readonly italic: boolean;
+  readonly byteLength: number;
+}
+
 export interface DocumentAssetRegistry {
   patterns: PatternAsset[];
   /** Immutable source files retained for lossless future round-tripping. */
   preservedSources: PreservedSourceAsset[];
+  /** Deduplicated font faces; bytes are persisted once by fingerprint. */
+  fonts: DocumentFontAsset[];
 }
 
 const opaqueId = <T extends string>(prefix: string) =>
@@ -370,7 +382,7 @@ export const createImageDocument = (
     activeLayerId: backgroundId,
     importProvenance,
     photoshopImportReport: null,
-    assets: { patterns: [], preservedSources: [] },
+    assets: { patterns: [], preservedSources: [], fonts: [] },
     revision: 0,
     createdAt: now,
     modifiedAt: now

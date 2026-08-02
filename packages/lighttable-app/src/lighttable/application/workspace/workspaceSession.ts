@@ -5,6 +5,7 @@ import {
   type DocumentSessionSnapshot,
   type DocumentSourceDescriptor
 } from '../documents/documentSession';
+import type { SystemFontByteProvider } from '../../text/fonts/DocumentFontRegistry';
 import {
   failure,
   success,
@@ -37,6 +38,7 @@ export interface CloseDocumentOptions {
 
 export interface WorkspaceSessionOptions {
   readonly createId?: () => DocumentSessionId;
+  readonly systemFontProvider?: SystemFontByteProvider;
 }
 
 let fallbackId = 0;
@@ -52,6 +54,7 @@ const defaultCreateId = (): DocumentSessionId => {
  */
 export class WorkspaceSession {
   private readonly createId: () => DocumentSessionId;
+  private readonly systemFontProvider?: SystemFontByteProvider;
   private readonly sessions = new Map<DocumentSessionId, DocumentSession>();
   private readonly sessionUnsubscribers = new Map<DocumentSessionId, () => void>();
   private readonly listeners = new Set<WorkspaceListener>();
@@ -65,6 +68,7 @@ export class WorkspaceSession {
 
   constructor(options: WorkspaceSessionOptions = {}) {
     this.createId = options.createId ?? defaultCreateId;
+    this.systemFontProvider = options.systemFontProvider;
   }
 
   getSnapshot = (): WorkspaceSnapshot => this.snapshot;
@@ -103,7 +107,8 @@ export class WorkspaceSession {
     const createOptions: CreateDocumentSessionOptions = {
       id: this.createId(),
       source: options.source,
-      title: options.title
+      title: options.title,
+      systemFontProvider: this.systemFontProvider
     };
     const session = new DocumentSession(createOptions);
     this.sessions.set(session.id, session);

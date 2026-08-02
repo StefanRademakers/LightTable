@@ -15,6 +15,7 @@ import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adju
 import {
   createImageDocument,
   createVectorLayer,
+  type DocumentFontAsset,
   type DocumentAssetId
 } from '../document/documentTypes';
 import {
@@ -35,6 +36,7 @@ import { translationMatrix } from '../tools/transform/affine';
 import { findDocumentLayer, findRasterLayer, walkRasterLayers } from '../document/layerTree';
 import { buildLayeredDocumentFile, parseLayeredDocumentFile } from './layeredDocumentFormat';
 import { addLayerStyle, updateLayerStyle } from '../styles/layerStyleCommands';
+import { fingerprintFontBytes } from '../../text/fonts/DocumentFontRegistry';
 import {
   addWarpNodeToStack,
   createWarpModuleInstance,
@@ -150,7 +152,7 @@ describe('LightTable layered PNG format', () => {
       }],
       'versions.png'
     );
-    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 3; });
+    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 4; });
     const futureText = await rewriteManifest(file, (manifest) => {
       const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
       const text = layers.find((layer) => layer.type === 'text')!.text as Record<string, unknown>;
@@ -196,6 +198,82 @@ describe('LightTable layered PNG format', () => {
     expect(parsed?.document.layers).toHaveLength(1);
     expect(parsed?.document.layers[0]?.type).toBe('text');
     expect(parsed?.assets).toEqual([]);
+  });
+
+  it('persists shared font bytes once per fingerprint and validates them on open', async () => {
+    const document = createImageDocument('Fonts', 2, 2, 'source');
+    const bytes = new Uint8Array([0, 1, 0, 0, 70, 79, 78, 84]);
+    const fingerprintSha256 = await fingerprintFontBytes(bytes);
+    const base: DocumentFontAsset = {
+      assetId: 'font-face-0',
+      faceIndex: 0,
+      fingerprintSha256,
+      source: 'document',
+      container: 'sfnt',
+      outline: 'truetype',
+      postScriptName: 'FixtureSans-Regular',
+      embedding: { level: 'editable', noSubsetting: false, bitmapOnly: false },
+      familyNames: ['Fixture Sans'],
+      styleName: 'Regular',
+      weight: 400,
+      stretch: 100,
+      italic: false,
+      byteLength: bytes.byteLength
+    };
+    document.assets.fonts.push(base, {
+      ...base,
+      assetId: 'font-face-1',
+      faceIndex: 1,
+      styleName: 'Bold',
+      weight: 700
+    });
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [
+        { layerId: document.layers[0].id, pixels: new Blob([BACKGROUND_PNG]), mask: null },
+        { fingerprintSha256, source: new Blob([bytes]) }
+      ],
+      'fonts.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    expect(parsed?.document.assets.fonts).toEqual(document.assets.fonts);
+    expect(parsed?.fontAssets).toHaveLength(1);
+    expect(new Uint8Array(await parsed!.fontAssets[0].source.arrayBuffer())).toEqual(bytes);
+    const manifest = await readManifest(file);
+    const fonts = (manifest.document as { fonts: Array<{ asset: { offset: number; length: number } }> }).fonts;
+    expect(fonts[0].asset).toEqual(fonts[1].asset);
+
+    const v2 = await rewriteManifest(file, (current) => { current.version = 2; });
+    expect((await parseLayeredDocumentFile(v2))?.document.assets.fonts).toEqual([]);
+
+    const oversized = await rewriteManifest(file, (current) => {
+      const [font] = (current.document as { fonts: Array<Record<string, unknown>> }).fonts;
+      font.byteLength = 64 * 1024 * 1024 + 1;
+    });
+    await expect(parseLayeredDocumentFile(oversized)).rejects.toThrow(/64 MiB font limit/);
+
+    const cumulative = await rewriteManifest(file, (current) => {
+      const documentManifest = current.document as { fonts: Array<Record<string, unknown>> };
+      const baseFont = documentManifest.fonts[0];
+      documentManifest.fonts = [1, 2, 3, 4, 5].map((value) => ({
+        ...structuredClone(baseFont),
+        assetId: `budget-face-${value}`,
+        fingerprintSha256: String(value).repeat(64),
+        byteLength: 60 * 1024 * 1024
+      }));
+    });
+    await expect(parseLayeredDocumentFile(cumulative)).rejects.toThrow(/256 MiB font limit/);
+
+    const offset = fonts[0].asset.offset;
+    const corrupted = new Blob([
+      file.slice(0, offset),
+      new Uint8Array([bytes[0] ^ 0xff]),
+      file.slice(offset + 1)
+    ], { type: file.type });
+    await expect(parseLayeredDocumentFile(corrupted)).rejects.toThrow(/SHA-256/);
   });
 
   it('retains the original Photoshop document byte-exact as a preserved source asset', async () => {

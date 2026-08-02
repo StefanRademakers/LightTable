@@ -1974,6 +1974,12 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
+.lighttable-layer__text-status--missing {
+  color: #f0a45d;
+}
+.lighttable-layer__text-status--substituted {
+  color: #e2c66f;
+}
 .lighttable-layer__name {
   min-width: 0;
   width: auto;

@@ -6,6 +6,7 @@ import {
 import {
   buildLayeredDocumentFile,
   type DocumentAssetBlob,
+  type FontAssetBlob,
   type PreservedSourceAssetBlob
 } from '../../editor/persistence/layeredDocumentFormat';
 import {
@@ -33,6 +34,7 @@ export interface ExportLightTableDocumentOptions {
   documentAdjustments: BasicAdjustments;
   effectiveLayeredAdjustments: BasicAdjustments;
   preservedSourceAssets: readonly PreservedSourceAssetBlob[];
+  fontAssets?: readonly FontAssetBlob[];
 }
 
 export interface ExportedLightTableDocument {
@@ -50,7 +52,8 @@ export const buildLightTableOutputName = (base: string) =>
 export const canExportAsFlatRecipe = (document: ImageDocument) =>
   rasterLayerCount(document) === 1
   && walkLayerTree(document.layers).length === 1
-  && document.assets.preservedSources.length === 0;
+  && document.assets.preservedSources.length === 0
+  && document.assets.fonts.length === 0;
 
 export const exportLightTableDocument = async ({
   document,
@@ -60,7 +63,8 @@ export const exportLightTableDocument = async ({
   flatAdjustments,
   documentAdjustments,
   effectiveLayeredAdjustments,
-  preservedSourceAssets
+  preservedSourceAssets,
+  fontAssets = []
 }: ExportLightTableDocumentOptions): Promise<ExportedLightTableDocument> => {
   const preview = await renderer.exportPng();
   const outputName = buildLightTableOutputName(fileNameBase);
@@ -74,7 +78,8 @@ export const exportLightTableDocument = async ({
 
   const assets = [
     ...await renderer.exportLayerAssets(document),
-    ...preservedSourceAssets
+    ...preservedSourceAssets,
+    ...fontAssets
   ];
   const adjustmentStack = createAdjustmentStackFromBasicAdjustments(
     documentAdjustments,

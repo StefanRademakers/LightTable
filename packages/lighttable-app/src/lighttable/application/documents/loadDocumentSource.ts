@@ -13,6 +13,8 @@ import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   parseLayeredDocumentFile,
   type DocumentAssetBlob,
+  type FontAssetBlob,
+  type PreservedSourceAssetBlob,
   type ParsedLayeredDocument
 } from '../../editor/persistence/layeredDocumentFormat';
 import {
@@ -60,6 +62,8 @@ export interface LoadedDocumentSource {
   readonly psdImport: PsdDecodeSuccess | null;
   readonly psdWarnings: readonly string[];
   readonly psdCompatibility: readonly PsdImportCompatibilityEntry[];
+  readonly fontAssets: readonly FontAssetBlob[];
+  readonly preservedSourceAssets: readonly PreservedSourceAssetBlob[];
   readonly timings: DocumentSourceLoadTimings;
 }
 
@@ -238,6 +242,8 @@ export const loadDocumentSource = async (
       semanticPsd?.compatibility
       ?? document.photoshopImportReport?.compatibility
       ?? [],
+    fontAssets: layered?.fontAssets ?? [],
+    preservedSourceAssets: layered?.preservedSourceAssets ?? [],
     timings: {
       layeredProbeMs,
       decodeAndUploadMs,

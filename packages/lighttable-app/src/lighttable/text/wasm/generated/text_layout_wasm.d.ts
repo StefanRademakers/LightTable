@@ -2,6 +2,11 @@
 /* eslint-disable */
 
 /**
+ * Memory-safe OpenType metadata inspection for the browser/Electron worker.
+ */
+export function inspect_font_json(data: Uint8Array, face_index: number): string;
+
+/**
  * Smoke-test API for the cross-host text engine boundary.
  *
  * Layout and font APIs are added only after their serializable contracts are
@@ -14,8 +19,11 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly inspect_font_json: (a: number, b: number, c: number) => [number, number, number, number];
     readonly text_engine_version: () => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_malloc: (a: number, b: number) => number;
+    readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }

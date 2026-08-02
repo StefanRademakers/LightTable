@@ -67,6 +67,7 @@ export class LayerDocumentAssetService {
   async load(assets: readonly DocumentAssetBlob[]) {
     for (const asset of assets) {
       if ('sourceId' in asset) continue;
+      if ('fingerprintSha256' in asset) continue;
       if ('patternId' in asset) {
         await this.ports.loadPattern(asset);
         continue;

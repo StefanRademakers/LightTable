@@ -20,6 +20,23 @@ class FakeWorker implements TextEngineWorkerPort {
       }
     } as MessageEvent);
   }
+
+  inspected(requestId: number) {
+    this.onmessage?.({
+      data: {
+        kind: 'font-inspected',
+        protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
+        requestId,
+        glyphCount: 625,
+        unitsPerEm: 1_000,
+        axisCount: 2,
+        outline: 'cff2',
+        embeddingLevel: 'editable',
+        noSubsetting: false,
+        bitmapOnly: false
+      }
+    } as MessageEvent);
+  }
 }
 
 describe('TextEngineClient', () => {
@@ -70,6 +87,24 @@ describe('TextEngineClient', () => {
     secondWorker.ready(2);
     await expect(retried).resolves.toMatchObject({ engineVersion: '0.1.0' });
     expect(factory).toHaveBeenCalledTimes(2);
+  });
+
+  it('transfers font bytes to the persistent worker and returns inspected metadata', async () => {
+    const worker = new FakeWorker();
+    const client = new TextEngineClient(() => worker);
+
+    const inspection = client.inspectFont(new Uint8Array([0, 1, 0, 0]), 2);
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'inspect-font', faceIndex: 2 }),
+      [expect.any(ArrayBuffer)]
+    );
+    worker.inspected(1);
+
+    await expect(inspection).resolves.toMatchObject({
+      glyphCount: 625,
+      outline: 'cff2',
+      embeddingLevel: 'editable'
+    });
   });
 
   it('terminates the worker and rejects pending probes on dispose', async () => {
