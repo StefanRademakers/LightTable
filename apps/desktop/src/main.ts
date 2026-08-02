@@ -12,6 +12,12 @@ import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
+import {
+  normalizeRecentFiles,
+  RECENT_FILE_LIMIT,
+  touchRecentFile,
+  type PersistedRecentFile
+} from './recentFiles';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -25,15 +31,8 @@ let rendererOrigin = '';
 let packagedRendererServer: Server | null = null;
 
 const NAVIGATION_ABORTED = -3;
-const RECENT_FILE_LIMIT = 4;
-
-interface PersistedRecentFile {
-  id: string;
-  path: string;
-  openedAt: number;
-}
-
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
+let recentFileMutation = Promise.resolve();
 
 const recentFileId = (filePath: string): string => createHash('sha256')
   .update(path.resolve(filePath).toLowerCase())
@@ -44,26 +43,35 @@ const loadRecentFiles = async (): Promise<PersistedRecentFile[]> => {
   try {
     const parsed: unknown = JSON.parse(await readFile(recentFilesPath(), 'utf8'));
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((entry): entry is PersistedRecentFile => Boolean(
+    return normalizeRecentFiles(parsed.filter((entry): entry is PersistedRecentFile => Boolean(
       entry &&
       typeof entry === 'object' &&
       typeof (entry as PersistedRecentFile).id === 'string' &&
       typeof (entry as PersistedRecentFile).path === 'string' &&
       typeof (entry as PersistedRecentFile).openedAt === 'number'
-    ));
+    )));
   } catch {
     return [];
   }
 };
 
 const saveRecentFiles = async (entries: readonly PersistedRecentFile[]): Promise<void> => {
-  await writeFile(recentFilesPath(), JSON.stringify(entries.slice(0, RECENT_FILE_LIMIT), null, 2));
+  await writeFile(recentFilesPath(), JSON.stringify(normalizeRecentFiles(entries), null, 2));
 };
 
 const rememberRecentFile = async (filePath: string): Promise<void> => {
-  const id = recentFileId(filePath);
-  const entries = (await loadRecentFiles()).filter((entry) => entry.id !== id);
-  await saveRecentFiles([{ id, path: filePath, openedAt: Date.now() }, ...entries]);
+  const update = recentFileMutation.then(async () => {
+    const id = recentFileId(filePath);
+    await saveRecentFiles(touchRecentFile(await loadRecentFiles(), {
+      id,
+      path: filePath,
+      openedAt: Date.now()
+    }));
+  });
+  // Keep the queue usable after a failed disk write while still surfacing the
+  // failure to the caller that initiated this mutation.
+  recentFileMutation = update.catch(() => undefined);
+  await update;
 };
 
 const readDesktopFilePayload = async (filePath: string) => ({

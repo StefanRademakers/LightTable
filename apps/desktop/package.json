@@ -8,6 +8,7 @@
     "start": "electron-forge start",
     "package": "electron-forge package && node ../../scripts/verify-distribution-boundary.mjs",
     "make": "electron-forge make",
+    "test": "vitest run",
     "typecheck": "tsc -b"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "@webgpu/types": "^0.1.71",
     "electron": "^39.2.7",
     "typescript": "~5.9.3",
-    "vite": "^8.0.1"
+    "vite": "^8.0.1",
+    "vitest": "^4.1.10"
   }
 }
