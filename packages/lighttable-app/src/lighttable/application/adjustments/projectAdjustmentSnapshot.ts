@@ -33,7 +33,8 @@ export interface AdjustmentProjection {
  *
  * Both categories share the typed processing stack and layer ordering, but
  * presence and bypass remain independent. An untouched category is never
- * manufactured merely because the other category changed.
+ * manufactured merely because the other category changed. Scope-valid
+ * geometry nodes remain authored independently and survive color projection.
  */
 export const projectAdjustmentSnapshot = ({
   snapshot,
@@ -59,15 +60,25 @@ export const projectAdjustmentSnapshot = ({
     ),
     target.type === 'adjustment' ? 'adjustment-layer' : 'layer'
   );
+  const scope = target.type === 'adjustment' ? 'adjustment-layer' : 'layer';
   const owners = (['grade', 'lens-fx'] as const).filter((owner) =>
     Boolean(target.adjustmentStack && adjustmentStackHasOwner(target.adjustmentStack, owner))
     || adjustmentStackOwnerHasAuthoredSettings(editorAdjustments, owner)
   );
+  const preservedModules = target.adjustmentStack
+    ? adjustmentStackForScope(target.adjustmentStack, scope).modules.filter((module) =>
+        !adjustmentModuleBelongsToOwner(module.type, 'grade')
+        && !adjustmentModuleBelongsToOwner(module.type, 'lens-fx')
+      )
+    : [];
   const nextStack = {
     ...generatedStack,
-    modules: generatedStack.modules.filter((module) =>
-      owners.some((owner) => adjustmentModuleBelongsToOwner(module.type, owner))
-    )
+    modules: [
+      ...preservedModules,
+      ...generatedStack.modules.filter((module) =>
+        owners.some((owner) => adjustmentModuleBelongsToOwner(module.type, owner))
+      )
+    ]
   };
   const nextDocumentAdjustments = createDefaultAdjustments();
   return {
@@ -76,6 +87,6 @@ export const projectAdjustmentSnapshot = ({
     document: target.type === 'adjustment'
       ? setAdjustmentLayerStack(document, targetLayerId, nextStack)
       : setRasterLayerAdjustmentStack(document, targetLayerId, nextStack),
-    scope: target.type === 'adjustment' ? 'adjustment-layer' : 'layer'
+    scope
   };
 };

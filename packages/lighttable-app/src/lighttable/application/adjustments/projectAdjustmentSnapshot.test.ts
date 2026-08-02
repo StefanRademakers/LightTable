@@ -7,7 +7,8 @@ import {
   createLayerId
 } from '../../editor/document/documentTypes';
 import {
-  createAdjustmentLayer
+  createAdjustmentLayer,
+  setRasterLayerAdjustmentStack
 } from '../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
@@ -15,6 +16,13 @@ import {
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
 import { projectAdjustmentSnapshot } from './projectAdjustmentSnapshot';
+import {
+  addWarpNodeToStack,
+  createDefaultWarpNodeSettings,
+  createWarpModuleInstance,
+  findWarpModuleInstance,
+  readWarpNodeSettings
+} from '../../effects/warp/warpTypes';
 
 describe('adjustment snapshot projection', () => {
   it('rejects an adjustment when no explicit layer target is selected', () => {
@@ -61,6 +69,63 @@ describe('adjustment snapshot projection', () => {
     expect(projected.adjustmentStack?.modules.some((module) => (
       module.type === 'lt.grain'
     ))).toBe(true);
+  });
+
+  it('keeps an authored pixel-layer warp intact when its grade changes', () => {
+    const base = createImageDocument('Image', 64, 48, 'image');
+    const rasterId = base.activeLayerId!;
+    const warpSettings = {
+      ...createDefaultWarpNodeSettings(),
+      strokes: [{
+        id: 'stroke-1',
+        mode: 'push' as const,
+        settings: {
+          diameterPx: 24,
+          hardness: 0.5,
+          strength: 0.75,
+          flow: 1,
+          spacing: 0.2,
+          pressureSize: true,
+          pressureStrength: true
+        },
+        samples: [{
+          positionPx: [12, 18] as const,
+          deltaPx: [4, -2] as const,
+          pressure: 1,
+          tilt: [0, 0] as const,
+          timeMs: 10
+        }],
+        startedAtMs: 10,
+        durationMs: 16
+      }]
+    };
+    const warp = createWarpModuleInstance('warp-1', warpSettings);
+    const warpedStack = addWarpNodeToStack(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      warp
+    );
+    const document = setRasterLayerAdjustmentStack(base, rasterId, warpedStack);
+    const snapshot = createDefaultAdjustments();
+    snapshot.exposureEV = 1.25;
+
+    const result = projectAdjustmentSnapshot({
+      snapshot,
+      targetLayerId: rasterId,
+      document,
+      documentAdjustments: createDefaultAdjustments()
+    });
+    const projected = result.document
+      ? findDocumentLayer(result.document, rasterId)
+      : null;
+    if (projected?.type !== 'raster') throw new Error('Expected raster projection.');
+
+    const preservedWarp = findWarpModuleInstance(projected.adjustmentStack);
+    expect(preservedWarp).toMatchObject({ id: warp.id, revision: warp.revision });
+    expect(readWarpNodeSettings(preservedWarp!)).toEqual(warpSettings);
+    expect(projected.adjustmentStack?.modules[0]?.type).toBe('lt.warp');
+    expect(projected.adjustmentStack?.modules.some((module) =>
+      module.type === 'lt.light' && module.settings.exposureEV === 1.25
+    )).toBe(true);
   });
 
   it('updates one Grade Layer without manufacturing Lens Fx modules', () => {
