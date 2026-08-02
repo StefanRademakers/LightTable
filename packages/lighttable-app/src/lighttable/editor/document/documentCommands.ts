@@ -16,7 +16,11 @@ import {
   type TextLayer,
   type VectorLayer
 } from './documentTypes';
-import { cloneTextLayerData, type TextLayerData } from '@lighttable/text-core';
+import {
+  bumpTextLayerRevision,
+  cloneTextLayerData,
+  type TextLayerData
+} from '@lighttable/text-core';
 import {
   cloneVectorElement,
   convertLiveShapeToPath,
@@ -160,13 +164,7 @@ export const createRasterLayer = (
 
 export const deleteLayer = (document: ImageDocument, layerId: LayerId): ImageDocument => {
   const entry = findLayerNode(document.layers, layerId);
-  if (!entry) return document;
-  const removedRasterCount = entry.node.type === 'raster'
-    ? 1
-    : entry.node.type === 'group'
-      ? walkLayerTree(entry.node.children).filter(({ node }) => node.type === 'raster').length
-      : 0;
-  if (rasterLayerCount(document) - removedRasterCount < 1) return document;
+  if (!entry || !canDeleteLayers(document, [layerId])) return document;
 
   const visualOrder = walkLayerTree(document.layers);
   const visualIndex = visualOrder.findIndex(({ node }) => node.id === layerId);
@@ -180,12 +178,13 @@ export const deleteLayer = (document: ImageDocument, layerId: LayerId): ImageDoc
   return updateDocument(document, removed.nodes, activeLayerId);
 };
 
-export const deleteLayers = (
+/** Mirrors the canonical delete invariant without allocating a document snapshot. */
+export const canDeleteLayers = (
   document: ImageDocument,
   layerIds: readonly LayerId[]
-): ImageDocument => {
+) => {
   const entries = normalizedSelectionEntries(document, layerIds);
-  if (!entries.length) return document;
+  if (!entries.length) return false;
   const removedRasterCount = entries.reduce((count, entry) => count + (
     entry.node.type === 'raster'
       ? 1
@@ -193,7 +192,23 @@ export const deleteLayers = (
         ? walkLayerTree(entry.node.children).filter(({ node }) => node.type === 'raster').length
         : 0
   ), 0);
-  if (rasterLayerCount(document) - removedRasterCount < 1) return document;
+  const rasterCount = rasterLayerCount(document);
+  if (rasterCount > 0) return rasterCount - removedRasterCount >= 1;
+  const removedNodeCount = entries.reduce(
+    (count, entry) => count + 1 + (
+      entry.node.type === 'group' ? walkLayerTree(entry.node.children).length : 0
+    ),
+    0
+  );
+  return walkLayerTree(document.layers).length - removedNodeCount >= 1;
+};
+
+export const deleteLayers = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[]
+): ImageDocument => {
+  const entries = normalizedSelectionEntries(document, layerIds);
+  if (!entries.length || !canDeleteLayers(document, layerIds)) return document;
 
   const selected = new Set(entries.map(({ node }) => node.id));
   let layers = document.layers;
@@ -646,6 +661,14 @@ export const setLayerTransform = (document: ImageDocument, layerId: LayerId, tra
     return {
       ...layer,
       transform: { ...transform },
+      ...(layer.type === 'text' ? {
+        text: {
+          ...layer.text,
+          revisions: {
+            ...bumpTextLayerRevision(layer.text.revisions, 'geometry')
+          }
+        }
+      } : {}),
       geometryRevision: layer.geometryRevision + 1,
       revision: layer.revision + 1,
       modifiedAt: Date.now()
@@ -911,6 +934,38 @@ export const flattenImage = (document: ImageDocument): ImageDocument => {
   if (!plan || !destination) return document;
   const replacement = flattenedRaster(document, destination, plan.name);
   return updateDocument(document, [replacement], replacement.id);
+};
+
+/** Replaces live text with a full-canvas raster destination using the same stable layer ID. */
+export const rasterizeTextLayer = (
+  document: ImageDocument,
+  layerId: LayerId
+): ImageDocument => {
+  const source = findLayerNode(document.layers, layerId)?.node ?? null;
+  if (source?.type !== 'text' || layerIsLocked(source, 'pixels')) return document;
+  const { text: _text, ...common } = source;
+  const now = Date.now();
+  const replacement: RasterLayer = {
+    ...common,
+    type: 'raster',
+    transform: identityAffineMatrix(),
+    geometryRevision: source.geometryRevision + 1,
+    pixelRevision: 1,
+    width: document.width,
+    height: document.height,
+    offsetX: 0,
+    offsetY: 0,
+    pixelSource: { kind: 'runtime-raster', runtimeId: source.id },
+    adjustmentStack: null,
+    dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height },
+    revision: source.revision + 1,
+    modifiedAt: now
+  };
+  return updateDocument(
+    document,
+    updateLayerNode(document.layers, layerId, () => replacement),
+    replacement.id
+  );
 };
 
 /**

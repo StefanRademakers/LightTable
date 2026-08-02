@@ -37,6 +37,7 @@ export interface EditorMenuControllerOptions {
   readonly layers: {
     panel: LayerPanelController;
     duplicate(): void;
+    rasterizeText(): void;
     layerViaCopy(): void;
     rename(): void;
     invertColors(): void;
@@ -112,6 +113,7 @@ export const createEditorMenuController = ({
       featherSelection: dialogs.openFeather,
       createRasterLayer: layers.panel.createRasterLayer,
       duplicateLayer: layers.duplicate,
+      rasterizeText: layers.rasterizeText,
       layerViaCopy: layers.layerViaCopy,
       renameLayer: layers.rename,
       invertLayerColors: layers.invertColors,

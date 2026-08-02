@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
+import { createTextLayer } from '../../editor/document/documentCommands';
 import {
   createImageDocument,
   type ImageDocument,
@@ -15,7 +17,10 @@ const setup = () => {
   const documentId = 'workspace-document' as DocumentSessionId;
   const history = new DocumentCommandHistory(documentId);
   let document: ImageDocument | null = createImageDocument('Image', 32, 24, 'image');
-  const pruneLayerRuntimes = vi.fn<(ids: ReadonlySet<LayerId>) => void>();
+  const pruneLayerRuntimes = vi.fn<(
+    rasterIds: ReadonlySet<LayerId>,
+    maskIds: ReadonlySet<LayerId>
+  ) => void>();
   const finishOpenTransactions = vi.fn();
   const setError = vi.fn();
   const dependencies: DocumentHistoryDependencies = {
@@ -63,6 +68,43 @@ describe('document history controller', () => {
     const keep = state.pruneLayerRuntimes.mock.lastCall?.[0];
     expect(keep?.has(retained)).toBe(true);
     expect(keep?.size).toBeGreaterThan(1);
+  });
+
+  it('separates active node masks from raster runtime retention', () => {
+    const state = setup();
+    const textDocument = createTextLayer(
+      createImageDocument('Text', 32, 24, 'image'),
+      createDefaultTextLayerData()
+    );
+    const textId = textDocument.activeLayerId!;
+    state.setDocument({ ...textDocument, layers: [textDocument.layers.at(-1)!] });
+
+    state.controller.pruneResources();
+
+    const [rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
+    expect(rasterIds.has(textId)).toBe(false);
+    expect(maskIds.has(textId)).toBe(true);
+  });
+
+  it('does not retain a raster runtime for a text-only semantic history entry', () => {
+    const state = setup();
+    const textDocument = createTextLayer(
+      createImageDocument('Text', 32, 24, 'image'),
+      createDefaultTextLayerData()
+    );
+    const textId = textDocument.activeLayerId!;
+    state.setDocument({ ...textDocument, layers: [textDocument.layers.at(-1)!] });
+
+    state.controller.record({
+      layerIds: [textId],
+      resourceIds: [],
+      undo: () => undefined,
+      redo: () => undefined
+    });
+
+    const [rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
+    expect(rasterIds.has(textId)).toBe(false);
+    expect(maskIds.has(textId)).toBe(true);
   });
 
   it('finishes open transactions before undo and clear', async () => {

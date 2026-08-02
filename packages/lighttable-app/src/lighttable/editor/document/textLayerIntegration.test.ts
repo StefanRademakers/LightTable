@@ -12,6 +12,7 @@ import {
   moveLayerIntoGroup,
   moveLayerRelative,
   replaceVectorLayerElements,
+  rasterizeTextLayer,
   setLayerBlendMode,
   setLayerFillOpacity,
   setLayerOpacity,
@@ -129,5 +130,36 @@ describe('canonical text layer integration', () => {
       .toEqual(beforeOuter);
     expect(requireSceneTransform(buildSceneTransformIndex(transformed), nestedId).localToDocument)
       .toEqual(beforeNested);
+  });
+
+  it('creates a same-ID neutral-geometry raster destination while retaining layer semantics', () => {
+    const document = createTextLayer(
+      createImageDocument('Rasterize', 128, 96, 'background'),
+      createDefaultTextLayerData(),
+      'Headline'
+    );
+    const id = document.activeLayerId!;
+    const prepared = addLayerMask(setLayerTransform(
+      setLayerBlendMode(setLayerOpacity(document, id, 0.75), id, 'multiply'),
+      id,
+      translationMatrix(12, 8)
+    ), id);
+    const rasterized = rasterizeTextLayer(prepared, id);
+    const raster = findDocumentLayer(rasterized, id);
+
+    expect(raster).toMatchObject({
+      id,
+      type: 'raster',
+      opacity: 0.75,
+      blendMode: 'multiply',
+      transform: translationMatrix(0, 0),
+      width: 128,
+      height: 96,
+      pixelRevision: 1
+    });
+    expect(raster?.mask?.id).toBe(findDocumentLayer(prepared, id)?.mask?.id);
+    expect(rasterized.activeLayerId).toBe(id);
+    expect(flattenImage(rasterized)).not.toBe(rasterized);
+    expect(mergeLayerDown(rasterized, id)).not.toBe(rasterized);
   });
 });

@@ -77,9 +77,11 @@ export const projectEditorMenuState = ({
       activeIndex,
       siblingCount: siblings.length,
       belowIsRaster: siblings[activeIndex - 1]?.type === 'raster',
-      canFlattenGroup: capabilities?.canFlattenActiveGroup ?? false
+      canFlattenGroup: capabilities?.canFlattenActiveGroup ?? false,
+      canDelete: capabilities?.canDeleteSelection ?? false
     } : null,
     rasterLayerCount: capabilities?.rasterLayerCount ?? 0,
+    layerCount: capabilities?.layerCount ?? 0,
     canFlattenImage: capabilities?.canFlattenImage ?? false,
     autoAlignPreview,
     autoAlignAvailable: Boolean(

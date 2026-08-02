@@ -3,7 +3,7 @@ import type {
   ImageDocument,
   LayerId
 } from '../../editor/document/documentTypes';
-import { walkLayerTree } from '../../editor/document/layerTree';
+import { walkLayerTree, walkRasterLayers } from '../../editor/document/layerTree';
 import type { DocumentSessionId } from '../documents/documentSession';
 import type { DocumentCommandHistory } from './documentCommandHistory';
 
@@ -12,6 +12,8 @@ export interface EditorHistoryEntry {
   readonly type?: string;
   readonly byteSize?: number;
   readonly layerIds?: readonly LayerId[];
+  /** Raster runtime IDs retained for GPU undo/redo; independent of affected layers. */
+  readonly resourceIds?: readonly LayerId[];
   readonly documentMutation?: boolean;
   undo(): void | Promise<void>;
   redo(): void | Promise<void>;
@@ -19,7 +21,10 @@ export interface EditorHistoryEntry {
 }
 
 export interface HistoryRuntimePruner {
-  pruneLayerRuntimes(keepLayerIds: ReadonlySet<LayerId>): void;
+  pruneLayerRuntimes(
+    keepRasterLayerIds: ReadonlySet<LayerId>,
+    keepMaskLayerIds: ReadonlySet<LayerId>
+  ): void;
 }
 
 export interface DocumentHistoryDependencies {
@@ -55,15 +60,19 @@ export const createDocumentHistoryController = (
   const pruneResources = () => {
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
-    const keep = new Set<LayerId>(
+    const keepRasterLayers = new Set<LayerId>(
       document
-        ? walkLayerTree(document.layers).map(({ node }) => node.id)
+        ? walkRasterLayers(document.layers).map(({ layer }) => layer.id)
         : []
     );
+    const keepMasks = new Set<LayerId>(
+      document ? walkLayerTree(document.layers).map(({ node }) => node.id) : []
+    );
     dependencies.history.getRetainedResourceIds().forEach((id) => {
-      keep.add(id as LayerId);
+      keepRasterLayers.add(id as LayerId);
+      keepMasks.add(id as LayerId);
     });
-    dependencies.getRenderer()?.pruneLayerRuntimes(keep);
+    dependencies.getRenderer()?.pruneLayerRuntimes(keepRasterLayers, keepMasks);
   };
 
   const runHistoryOperation = async (
@@ -96,7 +105,7 @@ export const createDocumentHistoryController = (
         documentId: dependencies.documentId,
         affectsDocument: entry.documentMutation !== false,
         byteSize: entry.byteSize,
-        resourceIds: entry.layerIds,
+        resourceIds: entry.resourceIds ?? entry.layerIds,
         undo: entry.undo,
         redo: entry.redo,
         dispose: entry.dispose

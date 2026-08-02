@@ -17,7 +17,8 @@ import {
   getMergeLayersPlan,
   markLayerMaskPixelsChanged,
   markLayerPixelsChanged,
-  mergeLayers as mergeDocumentLayers
+  mergeLayers as mergeDocumentLayers,
+  rasterizeTextLayer
 } from '../../editor/document/documentCommands';
 import {
   findDocumentLayer,
@@ -61,6 +62,14 @@ export interface LayerCommandRendererPort {
   ): boolean;
   flattenGroup(document: ImageDocument, groupId: LayerId, destinationId: LayerId): boolean;
   flattenImage(document: ImageDocument, destinationId: LayerId): boolean;
+  prepareRasterDestination(destination: import('../../editor/document/documentTypes').RasterLayer): boolean;
+  commitRasterDestination(layerId: LayerId): void;
+  releaseRasterDestination(layerId: LayerId): boolean;
+  rasterizeText(
+    document: ImageDocument,
+    source: import('../../editor/document/documentTypes').TextLayer,
+    destination: import('../../editor/document/documentTypes').RasterLayer
+  ): boolean;
   invertLayerColors(layerId: LayerId, channel?: PaintChannel): boolean;
   bakeSelectionIntoLayerMask(layerId: LayerId): boolean;
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId): boolean;
@@ -107,6 +116,7 @@ export interface LayerDocumentCommands {
   mergeSelectedRasterLayers(selectedLayerIds: LayerId[]): boolean;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
+  rasterizeActiveTextLayer(): boolean;
   invertActiveLayerColors(channel: PaintChannel): boolean;
   copySelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
   copyMergedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
@@ -354,6 +364,10 @@ export const createLayerDocumentCommands = (
     }
     const top = siblings[index];
     const bottom = siblings[index - 1];
+    if (top?.type === 'text') {
+      dependenciesRef.current.setError('Rasterize Type before merging this text layer down.');
+      return false;
+    }
     if (top?.type === 'group' || bottom?.type !== 'raster') {
       dependenciesRef.current.setError(
         'Merge Down requires a raster layer directly below the active raster, Grade, or Lens Fx layer.'
@@ -375,8 +389,8 @@ export const createLayerDocumentCommands = (
     if (!plan) {
       dependenciesRef.current.setError(
         request.kind === 'group'
-          ? 'This group cannot be flattened until its adjustment layers are rasterized.'
-          : 'This image cannot be flattened until its adjustment layers are rasterized.'
+          ? 'This group cannot be flattened until its live text or adjustment layers are rasterized.'
+          : 'This image cannot be flattened until its live text or adjustment layers are rasterized.'
       );
       return false;
     }
@@ -427,6 +441,87 @@ export const createLayerDocumentCommands = (
       request.kind === 'group' ? 'Group flattened' : 'Image flattened'
     );
     return true;
+  };
+
+  const rasterizeActiveTextLayer = () => {
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    const source = current ? findDocumentLayer(current, current.activeLayerId) : null;
+    if (!current || source?.type !== 'text' || !renderer) {
+      dependencies.setError('Select a text layer to rasterize.');
+      return false;
+    }
+    const next = rasterizeTextLayer(current, source.id);
+    const destination = findRasterLayer(next, source.id);
+    if (next === current || !destination) {
+      dependencies.setError('The text layer is locked or cannot be rasterized.');
+      return false;
+    }
+
+    let editOpen = false;
+    let pixelEdit: ReversiblePixelEdit | null = null;
+    try {
+      if (!renderer.prepareRasterDestination(destination)) {
+        dependencies.setError('The raster destination could not be allocated on the GPU.');
+        return false;
+      }
+      renderer.beginLayerPixelEdit(destination.id);
+      editOpen = true;
+      if (!renderer.rasterizeText(current, source, destination)) {
+        renderer.cancelPixelEdit();
+        editOpen = false;
+        renderer.releaseRasterDestination(destination.id);
+        dependencies.setError('The text layer could not be rasterized on the GPU.');
+        return false;
+      }
+      pixelEdit = renderer.finishPixelEdit();
+      editOpen = false;
+      if (!pixelEdit) {
+        renderer.releaseRasterDestination(destination.id);
+        dependencies.setError('Rasterize Type could not create a recoverable undo step.');
+        return false;
+      }
+      const completedEdit = pixelEdit;
+      dependencies.applyDocumentSnapshot(next);
+      dependencies.pushHistoryEntry({
+        byteSize: completedEdit.byteSize,
+        layerIds: [source.id],
+        undo: () => {
+          dependencies.applyDocumentSnapshot(current);
+          if (!dependencies.getRenderer()?.applyPixelHistory(completedEdit, 'undo')) {
+            throw new Error('Rasterize Type undo is no longer available.');
+          }
+        },
+        redo: () => {
+          if (!dependencies.getRenderer()?.applyPixelHistory(completedEdit, 'redo')) {
+            throw new Error('Rasterize Type redo is no longer available.');
+          }
+          dependencies.applyDocumentSnapshot(next);
+        },
+        dispose: completedEdit.destroy
+      });
+      renderer.commitRasterDestination(destination.id);
+      pixelEdit = null;
+      dependencies.setActiveChannel('pixels');
+      dependencies.setError(null);
+      dependencies.setStatus('Text layer rasterized');
+      return true;
+    } catch (reason) {
+      if (editOpen) renderer.cancelPixelEdit();
+      if (pixelEdit) {
+        pixelEdit.undo();
+        pixelEdit.destroy();
+      }
+      if (dependencies.getDocument() === next) {
+        dependencies.applyDocumentSnapshot(current);
+      }
+      renderer.releaseRasterDestination(destination.id);
+      dependencies.setError(
+        reason instanceof Error ? reason.message : 'The text layer could not be rasterized.'
+      );
+      return false;
+    }
   };
 
   const invertActiveLayerColors = (channel: PaintChannel) => {
@@ -701,6 +796,7 @@ export const createLayerDocumentCommands = (
     mergeSelectedRasterLayers,
     mergeActiveLayerDown,
     flatten,
+    rasterizeActiveTextLayer,
     invertActiveLayerColors,
     copySelectedContent,
     copyMergedContent,

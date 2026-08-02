@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   createRasterLayer,
+  createTextLayer,
+  setActiveLayer,
   setLayerLock
 } from '../document/documentCommands';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createImageDocument } from '../document/documentTypes';
 import { projectEditorMenuState } from './projectEditorMenuState';
 
@@ -55,5 +58,20 @@ describe('projectEditorMenuState', () => {
     expect(state.layer).toBeNull();
     expect(state.rasterLayerCount).toBe(0);
     expect(state.autoAlignAvailable).toBe(false);
+  });
+
+  it('disables delete for the final raster even when a text layer also exists', () => {
+    const withText = createTextLayer(
+      baseInput().document,
+      createDefaultTextLayerData(),
+      'Text'
+    );
+    const rasterId = withText.layers.find((layer) => layer.type === 'raster')!.id;
+    const state = projectEditorMenuState({
+      ...baseInput(),
+      document: setActiveLayer(withText, rasterId)
+    });
+
+    expect(state.layer?.canDelete).toBe(false);
   });
 });

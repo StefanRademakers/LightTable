@@ -11,7 +11,7 @@ import type {
   PhotoshopLayerMetadata,
   RasterMask
 } from '../document/documentTypes';
-import { walkLayerTree, walkRasterLayers } from '../document/layerTree';
+import { walkLayerTree } from '../document/layerTree';
 import { parseLightTableSettings } from '../../lightTableRecipe';
 import {
   cloneAdjustmentStack,
@@ -30,6 +30,11 @@ import {
   parseVectorElement,
   type VectorElement
 } from '@lighttable/vector-core';
+import {
+  cloneTextLayerData,
+  parseTextLayerData,
+  type TextLayerData
+} from '@lighttable/text-core';
 
 const FOOTER_MAGIC = 'LTBLDOC1';
 const FOOTER_SIZE = 12;
@@ -81,15 +86,22 @@ interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
   mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
 }
 
+interface TextLayerManifestEntry extends CommonLayerManifestEntry {
+  type: 'text';
+  text: TextLayerData;
+  mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
+}
+
 type LayerManifestEntry =
   | RasterLayerManifestEntry
   | GroupLayerManifestEntry
   | AdjustmentLayerManifestEntry
-  | VectorLayerManifestEntry;
+  | VectorLayerManifestEntry
+  | TextLayerManifestEntry;
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
-  version: 1;
+  version: 2;
   previewLength: number;
   document: {
     id: string;
@@ -265,9 +277,25 @@ export const buildLayeredDocumentFile = (
       };
     }
     if (layer.type === 'text') {
-      throw new Error(
-        `Text layer persistence is not available until GPU text Slice 04 (${layer.name}).`
-      );
+      const asset = assetsByLayer.get(layer.id);
+      let mask: TextLayerManifestEntry['mask'] = null;
+      if (layer.mask && asset?.mask) {
+        mask = {
+          id: layer.mask.id,
+          enabled: layer.mask.enabled,
+          density: layer.mask.density,
+          feather: layer.mask.feather,
+          asset: { offset, length: asset.mask.size }
+        };
+        binaryParts.push(asset.mask);
+        offset += asset.mask.size;
+      }
+      return {
+        ...common,
+        type: 'text',
+        text: cloneTextLayerData(layer.text),
+        mask
+      };
     }
 
     const asset = assetsByLayer.get(layer.id);
@@ -319,7 +347,7 @@ export const buildLayeredDocumentFile = (
   });
   const manifest: LayeredDocumentManifest = {
     format: 'lighttable-layered-png',
-    version: 1,
+    version: 2,
     previewLength: preview.size,
     document: {
       id: document.id,
@@ -523,9 +551,15 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   } catch {
     throw new Error('The LightTable document manifest could not be read.');
   }
-  if (!isRecord(raw) || raw.format !== 'lighttable-layered-png' || raw.version !== 1 || !isRecord(raw.document)) {
+  if (
+    !isRecord(raw)
+    || raw.format !== 'lighttable-layered-png'
+    || (raw.version !== 1 && raw.version !== 2)
+    || !isRecord(raw.document)
+  ) {
     throw new Error('This LightTable document format is not supported.');
   }
+  const manifestVersion = raw.version as 1 | 2;
   const source = raw.document;
   const width = source.width;
   const height = source.height;
@@ -556,6 +590,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         && entry.type !== 'group'
         && entry.type !== 'adjustment'
         && entry.type !== 'vector'
+        && !(manifestVersion >= 2 && entry.type === 'text')
       )
     ) {
       throw new Error(`Layer ${path} in the LightTable document is invalid.`);
@@ -664,6 +699,26 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       };
     }
 
+    if (entry.type === 'text') {
+      const parsedMask = parseMask();
+      if (parsedMask.blob) {
+        assets.push({ layerId: id, pixels: new Blob(), mask: parsedMask.blob });
+      }
+      let text: TextLayerData;
+      try {
+        text = cloneTextLayerData(parseTextLayerData(structuredClone(entry.text)));
+      } catch (reason) {
+        const message = reason instanceof Error ? reason.message : String(reason);
+        throw new Error(`Text layer ${path} is invalid: ${message}`);
+      }
+      return {
+        ...common,
+        type: 'text',
+        text,
+        mask: parsedMask.mask
+      };
+    }
+
     if (!validAssetReference(entry.pixel, Number(previewLength), manifestStart)) {
       throw new Error(`Raster layer ${path} in the LightTable document has invalid pixels.`);
     }
@@ -691,10 +746,11 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     };
   };
   const layers = source.layers.map((entry, index) => parseLayer(entry, `${index + 1}`));
-  if (!layers.length || !walkRasterLayers(layers).length) {
-    throw new Error('The LightTable document contains no raster layers.');
-  }
+  if (!layers.length) throw new Error('The LightTable document contains no layers.');
   const allLayers = walkLayerTree(layers);
+  if (new Set(allLayers.map(({ node }) => node.id)).size !== allLayers.length) {
+    throw new Error('The LightTable document contains duplicate layer IDs.');
+  }
   const activeLayerId = typeof source.activeLayerId === 'string' && allLayers.some(({ node }) => node.id === source.activeLayerId)
     ? source.activeLayerId as LayerId
     : allLayers[allLayers.length - 1].node.id;

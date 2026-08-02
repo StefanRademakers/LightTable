@@ -56,6 +56,7 @@ describe('createEditorMenuController', () => {
       layers: {
         panel,
         duplicate: vi.fn(),
+        rasterizeText: vi.fn(),
         layerViaCopy: vi.fn(),
         rename: vi.fn(),
         invertColors: vi.fn(),

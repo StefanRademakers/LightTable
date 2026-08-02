@@ -44,6 +44,8 @@ const setup = (initialDocument: ImageDocument) => {
     createAdjustmentLayer: vi.fn(),
     createLensFxLayer: vi.fn(),
     addActiveLayerMask: vi.fn(() => true),
+    duplicateActiveLayer: vi.fn(() => true),
+    rasterizeActiveTextLayer: vi.fn(() => true),
     loadLayerMaskSelection: vi.fn(),
     mergeActiveLayerDown: vi.fn(),
     mergeSelectedRasterLayers: vi.fn(),
@@ -61,6 +63,16 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('createLayerPanelController', () => {
+  it('delegates duplicate and fixture text rasterization to the document command owner', () => {
+    const state = setup(createImageDocument('test', 100, 100, 'asset'));
+
+    state.controller.duplicateActive();
+    state.controller.rasterizeActiveText();
+
+    expect(state.dependencies.duplicateActiveLayer).toHaveBeenCalledOnce();
+    expect(state.dependencies.rasterizeActiveTextLayer).toHaveBeenCalledOnce();
+  });
+
   it('selects an adjustment layer and projects its grade without document effects', () => {
     const base = createImageDocument('test', 100, 100, 'asset');
     const grade = createDefaultAdjustments();

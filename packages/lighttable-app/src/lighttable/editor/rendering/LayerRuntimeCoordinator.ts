@@ -26,8 +26,11 @@ export class LayerRuntimeCoordinator {
     this.options.store.sync(document.layers);
   }
 
-  pruneDetached(keepLayerIds: ReadonlySet<LayerId>) {
-    const removed = this.options.store.pruneDetached(keepLayerIds);
+  pruneDetached(
+    keepRasterLayerIds: ReadonlySet<LayerId>,
+    keepMaskLayerIds: ReadonlySet<LayerId> = keepRasterLayerIds
+  ) {
+    const removed = this.options.store.pruneDetached(keepRasterLayerIds, keepMaskLayerIds);
     removed.forEach((layerId) => this.options.invalidateLayer(layerId));
     return removed;
   }

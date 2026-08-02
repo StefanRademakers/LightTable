@@ -48,16 +48,44 @@ export class LayerRuntimeStore {
           existing.maskId = null;
         } else if (layer.mask && (!existing.maskTexture || existing.maskId !== layer.mask.id)) {
           existing.maskTexture?.destroy();
-          existing.maskTexture = this.options.createMaskTexture(`LightTable mask: ${layer.name}`);
+          const nodeMask = this.nodeMasks.get(layer.id);
+          const adoptsNodeMask = nodeMask?.maskId === layer.mask.id;
+          existing.maskTexture = adoptsNodeMask
+            ? nodeMask.texture
+            : this.options.createMaskTexture(`LightTable mask: ${layer.name}`);
           existing.maskId = layer.mask.id;
+          if (adoptsNodeMask) this.nodeMasks.delete(layer.id);
         }
       }
     });
 
     const attachedNodeMasks = new Set<LayerId>();
     walkLayerTree(nodes).forEach(({ node }) => {
-      if (node.type === 'raster' || !node.mask) return;
+      if (node.type === 'raster') return;
+      const retainedRaster = this.rasterRuntimes.get(node.id);
+      if (!node.mask) {
+        retainedRaster?.maskTexture?.destroy();
+        if (retainedRaster) {
+          retainedRaster.maskTexture = null;
+          retainedRaster.maskId = null;
+        }
+        return;
+      }
       attachedNodeMasks.add(node.id);
+      if (
+        retainedRaster?.maskTexture
+        && retainedRaster.maskId === node.mask.id
+      ) {
+        const existingNodeMask = this.nodeMasks.get(node.id);
+        existingNodeMask?.texture.destroy();
+        this.nodeMasks.set(node.id, {
+          texture: retainedRaster.maskTexture,
+          maskId: node.mask.id
+        });
+        retainedRaster.maskTexture = null;
+        retainedRaster.maskId = null;
+        return;
+      }
       const existing = this.nodeMasks.get(node.id);
       if (existing?.maskId === node.mask.id) return;
       existing?.texture.destroy();
@@ -77,23 +105,77 @@ export class LayerRuntimeStore {
     return this.rasterRuntimes.get(layerId) ?? null;
   }
 
+  hasRaster(layerId: LayerId) {
+    return this.rasterRuntimes.has(layerId);
+  }
+
+  /** Releases a newly reserved raster while preserving a same-ID live node mask. */
+  releaseRaster(layerId: LayerId, preserveMask = false) {
+    const runtime = this.rasterRuntimes.get(layerId);
+    if (!runtime) return false;
+    runtime.texture.destroy();
+    if (preserveMask && runtime.maskTexture && runtime.maskId) {
+      this.nodeMasks.set(layerId, {
+        texture: runtime.maskTexture,
+        maskId: runtime.maskId
+      });
+    } else {
+      runtime.maskTexture?.destroy();
+    }
+    this.rasterRuntimes.delete(layerId);
+    return true;
+  }
+
+  /** Reserves a raster destination and transfers an existing node mask without readback. */
+  ensureRaster(layer: RasterLayer): RasterLayerRuntime {
+    const existing = this.rasterRuntimes.get(layer.id);
+    if (existing) {
+      const nodeMask = this.nodeMasks.get(layer.id);
+      if (layer.mask && !existing.maskTexture && nodeMask?.maskId === layer.mask.id) {
+        existing.maskTexture = nodeMask.texture;
+        existing.maskId = nodeMask.maskId;
+        this.nodeMasks.delete(layer.id);
+      }
+      return existing;
+    }
+    const nodeMask = this.nodeMasks.get(layer.id);
+    const adoptsNodeMask = Boolean(
+      layer.mask && nodeMask && nodeMask.maskId === layer.mask.id
+    );
+    const runtime: RasterLayerRuntime = {
+      texture: this.options.createRasterTexture(`LightTable layer: ${layer.name}`),
+      maskTexture: adoptsNodeMask
+        ? nodeMask!.texture
+        : layer.mask
+          ? this.options.createMaskTexture(`LightTable mask: ${layer.name}`)
+          : null,
+      maskId: layer.mask?.id ?? null
+    };
+    if (adoptsNodeMask) this.nodeMasks.delete(layer.id);
+    this.rasterRuntimes.set(layer.id, runtime);
+    return runtime;
+  }
+
   maskTexture(layerId: LayerId) {
     return this.rasterRuntimes.get(layerId)?.maskTexture
       ?? this.nodeMasks.get(layerId)?.texture
       ?? null;
   }
 
-  pruneDetached(keepLayerIds: ReadonlySet<LayerId>) {
+  pruneDetached(
+    keepRasterLayerIds: ReadonlySet<LayerId>,
+    keepMaskLayerIds: ReadonlySet<LayerId> = keepRasterLayerIds
+  ) {
     const removedLayerIds: LayerId[] = [];
     this.rasterRuntimes.forEach((runtime, id) => {
-      if (keepLayerIds.has(id)) return;
+      if (keepRasterLayerIds.has(id)) return;
       runtime.texture.destroy();
       runtime.maskTexture?.destroy();
       this.rasterRuntimes.delete(id);
       removedLayerIds.push(id);
     });
     this.nodeMasks.forEach((runtime, id) => {
-      if (keepLayerIds.has(id)) return;
+      if (keepMaskLayerIds.has(id)) return;
       runtime.texture.destroy();
       this.nodeMasks.delete(id);
     });

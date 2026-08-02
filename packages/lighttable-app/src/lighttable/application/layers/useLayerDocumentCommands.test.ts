@@ -30,6 +30,10 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   mergeLayers: vi.fn(() => true),
   flattenGroup: vi.fn(() => true),
   flattenImage: vi.fn(() => true),
+  prepareRasterDestination: vi.fn(() => true),
+  commitRasterDestination: vi.fn(),
+  releaseRasterDestination: vi.fn(() => true),
+  rasterizeText: vi.fn(() => true),
   invertLayerColors: vi.fn(() => true),
   bakeSelectionIntoLayerMask: vi.fn(() => true),
   copySelectedLayerContent: vi.fn(() => true),
@@ -228,6 +232,88 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers.at(-1)?.type).toBe('text');
     expect(state.renderer.duplicateLayerPixels).not.toHaveBeenCalled();
     expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+  });
+
+  it('rasterizes fixture text as one recoverable GPU and document transaction', () => {
+    const state = setup(createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Text fixture'
+    ));
+    const layerId = state.document().activeLayerId!;
+
+    expect(state.commands.rasterizeActiveTextLayer()).toBe(true);
+
+    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(
+      expect.objectContaining({ id: layerId, type: 'raster' })
+    );
+    expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId);
+    expect(state.renderer.rasterizeText).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: layerId, type: 'text' }),
+      expect.objectContaining({ id: layerId, type: 'raster' })
+    );
+    expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'raster' });
+    expect(state.historyEntries).toHaveLength(1);
+
+    state.historyEntries[0].undo();
+    expect(state.document().layers.at(-1)?.type).toBe('text');
+    expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'undo');
+    state.historyEntries[0].redo();
+    expect(state.document().layers.at(-1)?.type).toBe('raster');
+    expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'redo');
+  });
+
+  it('rolls back a failed GPU text rasterization without document history', () => {
+    const state = setup(createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Text fixture'
+    ));
+    vi.mocked(state.renderer.rasterizeText).mockReturnValue(false);
+
+    expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
+
+    expect(state.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.document().layers.at(-1)?.type).toBe('text');
+    expect(state.historyEntries).toEqual([]);
+  });
+
+  it('releases a reserved raster when no reversible pixel edit can be created', () => {
+    const state = setup(createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Text fixture'
+    ));
+    vi.mocked(state.renderer.finishPixelEdit).mockReturnValue(null);
+
+    expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
+
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.document().layers.at(-1)?.type).toBe('text');
+    expect(state.historyEntries).toEqual([]);
+  });
+
+  it('restores GPU pixels and the text snapshot when history publication throws', () => {
+    const state = setup(createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Text fixture'
+    ));
+    const edit = vi.mocked(state.renderer.finishPixelEdit).getMockImplementation()!();
+    vi.mocked(state.renderer.finishPixelEdit).mockReturnValue(edit);
+    vi.mocked(state.dependencies.pushHistoryEntry).mockImplementation(() => {
+      throw new Error('History unavailable.');
+    });
+
+    expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
+
+    expect(edit?.undo).toHaveBeenCalledOnce();
+    expect(edit?.destroy).toHaveBeenCalledOnce();
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.document().layers.at(-1)?.type).toBe('text');
+    expect(state.dependencies.setError).toHaveBeenLastCalledWith('History unavailable.');
   });
 
   it('creates a Grade layer as one reversible document transaction', () => {

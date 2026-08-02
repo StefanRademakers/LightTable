@@ -2,10 +2,12 @@ import type {
   AdjustmentLayer,
   ImageDocument,
   LayerId,
-  RasterLayer
+  RasterLayer,
+  TextLayer
 } from '../document/documentTypes';
 import { findLayerNode } from '../document/layerTree';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
+import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 
 export type EncodeAdjustment = (
   encoder: GPUCommandEncoder,
@@ -32,6 +34,8 @@ interface RasterDocumentOperationsOptions {
  * merge and flatten operation without leaking compositor details upward.
  */
 export class RasterDocumentOperations {
+  private readonly newRasterReservations = new Set<LayerId>();
+
   constructor(private readonly options: RasterDocumentOperationsOptions) {}
 
   duplicate(sourceId: LayerId, destinationId: LayerId) {
@@ -57,6 +61,58 @@ export class RasterDocumentOperations {
     }
     device.queue.submit([encoder.finish()]);
     this.options.invalidateLayer(destinationId);
+    return true;
+  }
+
+  prepareRasterDestination(destination: RasterLayer) {
+    if (!this.options.layerResources.hasRaster(destination.id)) {
+      this.newRasterReservations.add(destination.id);
+    }
+    this.options.layerResources.ensureRaster(destination);
+    return true;
+  }
+
+  commitRasterDestination(layerId: LayerId) {
+    this.newRasterReservations.delete(layerId);
+  }
+
+  releaseRasterDestination(layerId: LayerId) {
+    if (!this.newRasterReservations.delete(layerId)) return false;
+    return this.options.layerResources.releaseRaster(layerId, true);
+  }
+
+  rasterizeText(
+    document: ImageDocument,
+    source: TextLayer,
+    destination: RasterLayer
+  ) {
+    if (source.id !== destination.id) return false;
+    const runtime = this.options.layerResources.raster(destination.id);
+    if (!runtime) return false;
+    const { device } = this.options;
+    const { width, height } = this.options.dimensions();
+    const encoder = device.createCommandEncoder({ label: 'LightTable rasterize text layer' });
+    const renderedTexture = this.options.encodeComposite(encoder, {
+      ...document,
+      layers: [{
+        ...source,
+        visible: true,
+        opacity: 1,
+        fillOpacity: 1,
+        blendMode: 'normal',
+        clipping: false,
+        styleStack: createDefaultLayerStyleStack(),
+        mask: null
+      }]
+    });
+    encoder.copyTextureToTexture(
+      { texture: renderedTexture },
+      { texture: runtime.texture },
+      [width, height]
+    );
+    device.queue.submit([encoder.finish()]);
+    this.options.releaseSubmittedResources();
+    this.options.invalidateLayer(destination.id);
     return true;
   }
 

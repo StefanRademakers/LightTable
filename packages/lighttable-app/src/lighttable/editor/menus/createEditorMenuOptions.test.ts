@@ -24,9 +24,11 @@ const state = (change: Partial<EditorMenuState> = {}): EditorMenuState => ({
     activeIndex: 0,
     siblingCount: 1,
     belowIsRaster: false,
-    canFlattenGroup: false
+    canFlattenGroup: false,
+    canDelete: false
   },
   rasterLayerCount: 1,
+  layerCount: 1,
   canFlattenImage: false,
   autoAlignPreview: false,
   autoAlignAvailable: false,
@@ -111,6 +113,25 @@ describe('createEditorMenuOptions', () => {
     expect(options.some((option) => option.value === 'apply-auto-align')).toBe(true);
     expect(options.some((option) => option.value === 'cancel-auto-align')).toBe(true);
     expect(options.some((option) => option.value === 'auto-align')).toBe(false);
+  });
+
+  it('exposes only completed fixture-safe text layer actions', () => {
+    const menuCommands = commands();
+    const textLayer = { ...state().layer!, type: 'text' as const };
+    const options = createEditorMenuOptions(
+      'layer',
+      state({ layer: textLayer }),
+      labels,
+      menuCommands
+    );
+
+    expect(options.find((option) => option.value === 'duplicate-layer')?.disabled).toBe(false);
+    expect(options.find((option) => option.value === 'rename-layer')?.disabled).toBe(false);
+    expect(options.find((option) => option.value === 'rasterize-text')?.label).toBe('Rasterize Type');
+    expect(options.find((option) => option.value === 'edit-layer-pixels')?.disabled).toBe(true);
+    expect(options.find((option) => option.value === 'delete-layer')?.disabled).toBe(true);
+    options.find((option) => option.value === 'rasterize-text')?.onClick?.();
+    expect(menuCommands.rasterizeText).toHaveBeenCalledOnce();
   });
 
   it('keeps view state mutually represented in its labels', () => {

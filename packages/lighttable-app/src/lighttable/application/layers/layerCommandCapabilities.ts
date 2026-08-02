@@ -14,6 +14,7 @@ import {
   walkLayerTree
 } from '../../editor/document/layerTree';
 import {
+  canDeleteLayers,
   getFlattenGroupPlan,
   getFlattenImagePlan,
   getMergeLayersPlan
@@ -34,6 +35,7 @@ export interface LayerCommandCapabilities {
   readonly canFlattenActiveGroup: boolean;
   readonly canFlattenImage: boolean;
   readonly canDuplicateActiveLayer: boolean;
+  readonly canDeleteSelection: boolean;
   readonly canEditActivePixels: boolean;
   readonly canEditActiveLayerStyles: boolean;
   readonly canAddActiveMask: boolean;
@@ -85,6 +87,7 @@ export const queryLayerCommandCapabilities = (
       && Boolean(getFlattenGroupPlan(document, activeLayer.id)),
     canFlattenImage: Boolean(getFlattenImagePlan(document)),
     canDuplicateActiveLayer: activeLayer?.type === 'raster' || activeLayer?.type === 'text',
+    canDeleteSelection: canDeleteLayers(document, selectedLayerIds),
     canEditActivePixels: Boolean(activeLayer && layerSupportsPixelEditing(activeLayer)),
     canEditActiveLayerStyles: Boolean(activeLayer && layerSupportsLayerStyles(activeLayer)),
     canAddActiveMask: Boolean(activeLayer && layerSupportsRasterMask(activeLayer) && !activeLayer.mask)

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LayerId } from '../document/documentTypes';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
+import { createTextLayer, rasterizeTextLayer } from '../document/documentCommands';
+import { createImageDocument, type LayerId } from '../document/documentTypes';
+import { findDocumentLayer, findRasterLayer } from '../document/layerTree';
 import { RasterDocumentOperations } from './RasterDocumentOperations';
 
 const texture = (name: string) => ({ name }) as unknown as GPUTexture;
@@ -68,5 +71,76 @@ describe('RasterDocumentOperations', () => {
       layerId('missing-a')
     )).toBe(false);
     expect(createCommandEncoder).not.toHaveBeenCalled();
+  });
+
+  it('renders isolated normalized text into its prepared same-ID raster destination', () => {
+    const document = createTextLayer(
+      createImageDocument('Text', 64, 32, 'background'),
+      createDefaultTextLayerData(),
+      'Headline'
+    );
+    const source = findDocumentLayer(document, document.activeLayerId);
+    const destinationDocument = rasterizeTextLayer(document, document.activeLayerId!);
+    const destination = findRasterLayer(destinationDocument, document.activeLayerId!);
+    if (source?.type !== 'text' || !destination) throw new Error('Expected text rasterization fixtures.');
+    const destinationTexture = texture('destination');
+    const compositeTexture = texture('composite');
+    const ensureRaster = vi.fn(() => ({
+      texture: destinationTexture,
+      maskTexture: null,
+      maskId: null
+    }));
+    const copyTextureToTexture = vi.fn();
+    const submit = vi.fn();
+    const encodeComposite = vi.fn(() => compositeTexture);
+    const releaseSubmittedResources = vi.fn();
+    const invalidateLayer = vi.fn();
+    const layerResources = {
+      hasRaster: vi.fn(() => false),
+      ensureRaster,
+      raster: vi.fn(() => ({ texture: destinationTexture, maskTexture: null, maskId: null })),
+      releaseRaster: vi.fn(() => true)
+    };
+    const operations = new RasterDocumentOperations({
+      device: {
+        createCommandEncoder: () => ({ copyTextureToTexture, finish: () => 'commands' }),
+        queue: { submit }
+      } as unknown as GPUDevice,
+      layerResources: layerResources as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      encodeComposite,
+      invalidateLayer,
+      releaseSubmittedResources
+    });
+
+    expect(operations.prepareRasterDestination(destination)).toBe(true);
+    expect(operations.rasterizeText(document, source, destination)).toBe(true);
+
+    expect(ensureRaster).toHaveBeenCalledWith(destination);
+    expect(encodeComposite).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        layers: [expect.objectContaining({
+          id: source.id,
+          type: 'text',
+          opacity: 1,
+          fillOpacity: 1,
+          blendMode: 'normal',
+          clipping: false,
+          mask: null
+        })]
+      })
+    );
+    expect(copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: compositeTexture },
+      { texture: destinationTexture },
+      [64, 32]
+    );
+    expect(submit).toHaveBeenCalledWith(['commands']);
+    expect(releaseSubmittedResources).toHaveBeenCalledOnce();
+    expect(invalidateLayer).toHaveBeenCalledWith(destination.id);
+
+    expect(operations.releaseRasterDestination(destination.id)).toBe(true);
+    expect(layerResources.releaseRaster).toHaveBeenCalledWith(destination.id, true);
   });
 });

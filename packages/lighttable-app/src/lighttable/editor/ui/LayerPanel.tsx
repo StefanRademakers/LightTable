@@ -57,6 +57,8 @@ interface LayerPanelProps {
   onGroupSelection: (layerIds: LayerId[]) => void;
   onUngroupSelection: (layerIds: LayerId[]) => void;
   onDelete: (layerIds: LayerId[]) => void;
+  onDuplicate: () => void;
+  onRasterizeText: () => void;
   onMergeDown: () => void;
   onMergeSelected: (layerIds: LayerId[]) => void;
   onFlattenGroup: (groupId: LayerId) => void;
@@ -154,6 +156,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onGroupSelection,
   onUngroupSelection,
   onDelete,
+  onDuplicate,
+  onRasterizeText,
   onMergeDown,
   onMergeSelected,
   onFlattenGroup,
@@ -200,11 +204,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     canFlattenActiveGroup,
     canFlattenImage,
     canGroupSelection,
+    canDuplicateActiveLayer,
     canMergeDown,
     canMergeSelected,
     canToggleActiveClipping,
     canUngroupSelection
   } = layerCapabilities;
+  const canDeleteSelection = layerCapabilities.canDeleteSelection;
 
   React.useEffect(() => {
     setSelectedLayerIds((current) => {
@@ -272,6 +278,36 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     { value: 'new-adjustment', label: 'New Grade layer', onClick: onCreateAdjustment },
     { value: 'new-lens-fx', label: 'New Lens Fx layer', onClick: onCreateLensFx },
     { value: 'new-group', label: 'New group', onClick: onCreateGroup },
+    {
+      value: 'duplicate-layer',
+      label: 'Duplicate Layer',
+      separatorBefore: true,
+      disabled: !canDuplicateActiveLayer,
+      onClick: onDuplicate
+    },
+    {
+      value: 'rename-layer',
+      label: 'Rename Layer',
+      disabled: !activeLayer,
+      onClick: () => {
+        if (!activeLayer) return;
+        setRenamingLayerId(activeLayer.id);
+        requestAnimationFrame(() => {
+          const input = globalThis.document?.getElementById(
+            `lighttable-layer-name-${activeLayer.id}`
+          );
+          if (input instanceof HTMLInputElement) {
+            input.focus();
+            input.select();
+          }
+        });
+      }
+    },
+    ...(activeLayer?.type === 'text' ? [{
+      value: 'rasterize-text',
+      label: 'Rasterize Type',
+      onClick: onRasterizeText
+    }] : []),
     {
       value: 'group-selected',
       label: `Group Selected${selectedIds.length > 1 ? ` (${selectedIds.length})` : ''}`,
@@ -357,7 +393,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       value: 'delete',
       label: selectedIds.length > 1 ? `Delete Selected (${selectedIds.length})` : 'Delete layer',
       separatorBefore: true,
-      disabled: !activeLayer,
+      disabled: !activeLayer || !canDeleteSelection,
       onClick: () => onDelete(selectedIds)
     }
   ];
@@ -746,6 +782,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               </span>
             ) : null}
             <input
+              id={`lighttable-layer-name-${layer.id}`}
               key={`${layer.id}:${layer.name}`}
               className="lighttable-layer__name"
               defaultValue={layer.name}

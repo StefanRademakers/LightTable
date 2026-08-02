@@ -13,7 +13,8 @@ import {
   type LayerId,
   type LayerNode,
   type Rect,
-  type RasterLayer
+  type RasterLayer,
+  type TextLayer
 } from '../editor/document/documentTypes';
 import { findDocumentLayer, findRasterLayer, walkLayerTree } from '../editor/document/layerTree';
 import { layerStyleStackIsActive } from '../editor/styles/layerStyleDefaults';
@@ -454,8 +455,11 @@ export class WebGpuEngine {
     return this.documentRenderer?.finishPixelEdit() ?? null;
   }
 
-  pruneLayerRuntimes(keepLayerIds: ReadonlySet<LayerId>) {
-    this.documentRenderer?.pruneDetachedRuntimes(keepLayerIds);
+  pruneLayerRuntimes(
+    keepRasterLayerIds: ReadonlySet<LayerId>,
+    keepMaskLayerIds: ReadonlySet<LayerId>
+  ) {
+    this.documentRenderer?.pruneDetachedRuntimes(keepRasterLayerIds, keepMaskLayerIds);
   }
 
   cancelPixelEdit() {
@@ -798,6 +802,24 @@ export class WebGpuEngine {
       (encoder, source, layer) =>
         this.encodeLayerProcessing(encoder, source, layer)
     ) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
+  prepareRasterDestination(destination: RasterLayer) {
+    return this.documentRenderer?.prepareRasterDestination(destination) ?? false;
+  }
+
+  commitRasterDestination(layerId: LayerId) {
+    this.documentRenderer?.commitRasterDestination(layerId);
+  }
+
+  releaseRasterDestination(layerId: LayerId) {
+    return this.documentRenderer?.releaseRasterDestination(layerId) ?? false;
+  }
+
+  rasterizeText(document: ImageDocument, source: TextLayer, destination: RasterLayer) {
+    const changed = this.documentRenderer?.rasterizeText(document, source, destination) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
   }

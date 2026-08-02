@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 import {
   createGroupLayer,
   createImageDocument,
   createVectorLayer,
+  createTextLayerNode,
   type RasterLayer
 } from '../document/documentTypes';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
@@ -110,5 +112,62 @@ describe('LayerRuntimeStore', () => {
     store.sync(document.layers);
 
     expect(store.estimatedTextureBytes(10, 5)).toBe(10 * 5 * 8 * 2);
+  });
+
+  it('promotes a text node mask into raster ownership without destroying or copying it', () => {
+    const masks: GPUTexture[] = [];
+    const store = new LayerRuntimeStore({
+      createRasterTexture: texture,
+      createMaskTexture: () => {
+        const result = texture();
+        masks.push(result);
+        return result;
+      }
+    });
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    text.mask = {
+      id: 'text-mask',
+      enabled: true,
+      density: 1,
+      feather: 0,
+      revision: 0,
+      pixelRevision: 0,
+      dirtyBounds: null
+    };
+    store.sync([text]);
+    const nodeMask = store.maskTexture(text.id);
+    const raster = {
+      ...text,
+      type: 'raster' as const,
+      width: 10,
+      height: 5,
+      offsetX: 0,
+      offsetY: 0,
+      pixelRevision: 1,
+      pixelSource: { kind: 'runtime-raster' as const, runtimeId: text.id },
+      adjustmentStack: null,
+      dirtyBounds: null
+    };
+    delete (raster as Partial<typeof raster> & { text?: unknown }).text;
+
+    const runtime = store.ensureRaster(raster as RasterLayer);
+    expect(runtime.maskTexture).toBe(nodeMask);
+    store.sync([text]);
+
+    expect(runtime.maskTexture).toBeNull();
+    expect(masks).toHaveLength(1);
+    expect(nodeMask?.destroy).not.toHaveBeenCalled();
+    expect(store.maskTexture(text.id)).toBe(nodeMask);
+
+    store.sync([raster as RasterLayer]);
+    expect(runtime.maskTexture).toBe(nodeMask);
+    expect(masks).toHaveLength(1);
+    expect(store.maskTexture(text.id)).toBe(nodeMask);
+
+    store.sync([text]);
+    expect(store.pruneDetached(new Set(), new Set([text.id]))).toEqual([text.id]);
+    expect(runtime.texture.destroy).toHaveBeenCalledOnce();
+    expect(nodeMask?.destroy).not.toHaveBeenCalled();
+    expect(store.maskTexture(text.id)).toBe(nodeMask);
   });
 });

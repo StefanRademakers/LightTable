@@ -279,13 +279,13 @@ corrupt or hide ordinary layers.
 
 #### Slice 04 — commands, history and native persistence
 
-- [ ] Add commands for content, runs, paragraph geometry and text transform.
-- [ ] Make typing coalescing rules explicit while preserving one undoable edit
+- [x] Add commands for content, runs, paragraph geometry and text transform.
+- [x] Make typing coalescing rules explicit while preserving one undoable edit
   transaction per committed input group.
-- [ ] Serialize text sources, runs, font refs and editability metadata.
-- [ ] Save/open both flow and positioned fixture layers.
-- [ ] Preserve unknown future fields or reject schema versions explicitly.
-- [ ] Define rasterize/merge/flatten behavior and ensure caches never serialize.
+- [x] Serialize text sources, runs, font refs and editability metadata.
+- [x] Save/open both flow and positioned fixture layers.
+- [x] Preserve unknown future fields or reject schema versions explicitly.
+- [x] Define rasterize/merge/flatten behavior and ensure caches never serialize.
 
 UI exposure: Layers context menu may show fixture-only Rename, Duplicate,
 Delete and Rasterize actions after their command tests pass.
@@ -736,6 +736,29 @@ Append newest entries at the top. Keep entries factual and link the slice.
   not enter product builds.
 - Implementation status: no text runtime or product UI implemented.
 - Next safe slice: Slice 01, reproducible Rust/WASM workspace.
+
+### 2026-08-03 — Slice 04 complete
+
+- Owner: Codex `/root`; read-only implementation audit by
+  `/root/slice01_audit`.
+- Commands/history: validated immutable flow, positioned, paragraph-layout and
+  transform commands with domain-specific revisions; explicit typing,
+  composition, deletion, formatting and layout transaction boundaries reject
+  external document publication and retain no raster cache for semantic edits.
+- Persistence: layered manifest v2 round-trips flow and positioned text,
+  font/interchange metadata, masks, grouping and compatible unknown payload
+  fields; v1 remains readable and future manifest/text schemas fail clearly.
+- Rasterize Type: fixture-only GPU bake preserves the same layer ID and common
+  layer semantics, owns one combined GPU/document undo step, and rolls back
+  failed allocation, rendering, snapshot or history publication. Live text
+  remains explicitly blocked from merge/flatten until rasterized.
+- UI: Layers and app Layer menus expose tested Rename, Duplicate, Delete and
+  fixture-only Rasterize Type actions through shared capabilities. Delete
+  availability follows the canonical final-raster invariant.
+- Verification: 9 focused files / 63 tests; complete workspace 238 files /
+  1,151 tests; boundary and all workspace typechecks passed. Web build and
+  packaged Electron verification both passed with text worker/WASM assets.
+- Next safe slice: Slice 05, document font asset registry and resolver.
 
 ## 12. Open decision register
 

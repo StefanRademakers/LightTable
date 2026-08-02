@@ -55,6 +55,8 @@ export interface LayerPanelControllerDependencies {
   createAdjustmentLayer(): void;
   createLensFxLayer(): void;
   addActiveLayerMask(): boolean;
+  duplicateActiveLayer(): boolean;
+  rasterizeActiveTextLayer(): boolean;
   loadLayerMaskSelection(layerId: LayerId): void;
   mergeActiveLayerDown(): void;
   mergeSelectedRasterLayers(layerIds: LayerId[]): void;
@@ -94,6 +96,8 @@ export interface LayerPanelController {
   groupSelection(layerIds: LayerId[]): void;
   ungroupSelection(layerIds: LayerId[]): void;
   deleteSelection(layerIds: LayerId[]): void;
+  duplicateActive(): void;
+  rasterizeActiveText(): void;
   mergeDown(): void;
   mergeSelected(layerIds: LayerId[]): void;
   flattenGroup(groupId: LayerId): void;
@@ -227,6 +231,8 @@ export const createLayerPanelController = (
       usePixelChannel((current) => ungroupLayers(current, layerIds)),
     deleteSelection: (layerIds) =>
       usePixelChannel((current) => deleteLayers(current, layerIds)),
+    duplicateActive: () => { resolveDependencies().duplicateActiveLayer(); },
+    rasterizeActiveText: () => { resolveDependencies().rasterizeActiveTextLayer(); },
     mergeDown: () => resolveDependencies().mergeActiveLayerDown(),
     mergeSelected: (layerIds) =>
       resolveDependencies().mergeSelectedRasterLayers(layerIds),

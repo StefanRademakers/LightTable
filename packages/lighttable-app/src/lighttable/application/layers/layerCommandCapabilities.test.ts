@@ -3,6 +3,7 @@ import { createDefaultTextLayerData } from '@lighttable/text-core';
 import {
   createRasterLayer,
   createTextLayer,
+  deleteLayers,
   groupLayers
 } from '../../editor/document/documentCommands';
 import {
@@ -21,6 +22,7 @@ describe('queryLayerCommandCapabilities', () => {
     const capabilities = queryLayerCommandCapabilities(document);
 
     expect(capabilities.layerCount).toBe(1);
+    expect(capabilities.canDeleteSelection).toBe(false);
     expect(capabilities.rasterLayerCount).toBe(1);
     expect(capabilities.activeIndex).toBe(0);
     expect(capabilities.canMergeDown).toBe(false);
@@ -72,5 +74,30 @@ describe('queryLayerCommandCapabilities', () => {
     expect(capabilities.canAddActiveMask).toBe(true);
     expect(capabilities.canMergeDown).toBe(false);
     expect(capabilities.canFlattenImage).toBe(false);
+  });
+
+  it('keeps deletion availability aligned with the final-raster invariant', () => {
+    const document = createTextLayer(createDocument(), createDefaultTextLayerData(), 'Text');
+    const rasterId = document.layers.find((layer) => layer.type === 'raster')!.id;
+    const textId = document.layers.find((layer) => layer.type === 'text')!.id;
+
+    expect(queryLayerCommandCapabilities(document, [rasterId]).canDeleteSelection).toBe(false);
+    expect(queryLayerCommandCapabilities(document, [textId]).canDeleteSelection).toBe(true);
+  });
+
+  it('allows one of multiple text-only layers to be deleted', () => {
+    const withText = createTextLayer(createDocument(), createDefaultTextLayerData(), 'First');
+    const textOnly = {
+      ...withText,
+      layers: withText.layers.filter((layer) => layer.type === 'text')
+    };
+    const twoText = createTextLayer(textOnly, createDefaultTextLayerData(), 'Second');
+    const firstId = twoText.layers[0]!.id;
+
+    expect(queryLayerCommandCapabilities(twoText, [firstId]).canDeleteSelection).toBe(true);
+    expect(deleteLayers(twoText, [firstId]).layers).toHaveLength(1);
+    expect(queryLayerCommandCapabilities(
+      deleteLayers(twoText, [firstId])
+    ).canDeleteSelection).toBe(false);
   });
 });

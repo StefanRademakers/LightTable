@@ -1,0 +1,28 @@
+# Task 023 — GPU text commands, history and native persistence
+
+Status: complete. Implements Slice 04 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+## Required outcome
+
+- Immutable validated commands update flow content, style/paragraph runs,
+  paragraph geometry and text transforms with exact revision ownership.
+- Explicit text edit transactions coalesce only one committed input group and
+  remain document/layer scoped across undo, redo and cancellation.
+- Native layered files round-trip flow and positioned text, interchange/font
+  metadata, masks and common layer state without serializing runtime caches.
+- Unsupported text schema versions fail explicitly; future payload fields are
+  preserved when their schema remains compatible.
+- Fixture-only Rasterize Type bakes the existing GPU presentation into a
+  recoverable raster runtime and history command.
+- Merge/flatten remain blocked while text is live and become available after
+  rasterization.
+- Layers menus expose only completed fixture-safe actions; no Text tool appears.
+
+## Verification
+
+- Focused command/revision/transaction/persistence/rasterization tests.
+- Full boundary, typecheck and test gates.
+- Web build and packaged Electron verification.
+- Update Slice 04 evidence and move this task to `work/done/` only with the
+  cohesive commit.

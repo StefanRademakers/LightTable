@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultTextLayerData } from '@lighttable/text-core';
+import {
+  createDefaultTextLayerData,
+  createPositionedTextFixture,
+  type TextLayerData
+} from '@lighttable/text-core';
 import {
   createAnchor,
   createSubpath,
@@ -44,15 +48,98 @@ const BACKGROUND_PNG = pngBytes('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAA
 const OVERLAY_PNG = pngBytes('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVR4nGOQi/rQAMIMMAYAQToHoeVM9ZsAAAAASUVORK5CYII=');
 const defaultStack = () => createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
 
+const readManifest = async (file: Blob): Promise<Record<string, unknown>> => {
+  const footer = await file.slice(file.size - 12).arrayBuffer();
+  const manifestLength = new DataView(footer).getUint32(8, true);
+  const manifestStart = file.size - 12 - manifestLength;
+  return JSON.parse(await file.slice(manifestStart, file.size - 12).text()) as Record<string, unknown>;
+};
+
+const rewriteManifest = async (
+  file: Blob,
+  change: (manifest: Record<string, unknown>) => void
+): Promise<Blob> => {
+  const footer = await file.slice(file.size - 12).arrayBuffer();
+  const manifestLength = new DataView(footer).getUint32(8, true);
+  const manifestStart = file.size - 12 - manifestLength;
+  const manifest = await readManifest(file);
+  change(manifest);
+  const bytes = new TextEncoder().encode(JSON.stringify(manifest));
+  const nextFooter = new Uint8Array(12);
+  nextFooter.set(new TextEncoder().encode('LTBLDOC1'));
+  new DataView(nextFooter.buffer).setUint32(8, bytes.byteLength, true);
+  return new Blob([file.slice(0, manifestStart), bytes, nextFooter], { type: file.type });
+};
+
 describe('LightTable layered PNG format', () => {
-  it('rejects text explicitly until the Slice 04 persistence contract is available', () => {
-    const document = createTextLayer(
+  it('round-trips flow and positioned text, masks, nesting and compatible future fields', async () => {
+    const flowFixture = {
+      ...createDefaultTextLayerData(),
+      futureTextMetadata: { producer: 'future-compatible' }
+    } as TextLayerData;
+    const withFlow = createTextLayer(
       createImageDocument('Text fixture', 2, 2, 'source'),
-      createDefaultTextLayerData(),
+      flowFixture,
       'Headline'
     );
+    const flowId = withFlow.activeLayerId!;
+    const masked = addLayerMask(withFlow, flowId);
+    const positionedFixture = {
+      ...createPositionedTextFixture(),
+      interchange: {
+        format: 'pdf' as const,
+        sourceObjectId: 'page-1-object-7',
+        preservedFields: { renderingIntent: 'relative-colorimetric' }
+      }
+    };
+    const withPositioned = createTextLayer(masked, positionedFixture, 'Imported PDF text');
+    const positionedId = withPositioned.activeLayerId!;
+    const withGroup = createGroupLayer(withPositioned, 'Imported objects');
+    const groupId = withGroup.activeLayerId!;
+    const document = moveLayerIntoGroup(withGroup, positionedId, groupId);
 
-    expect(() => buildLayeredDocumentFile(
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId: document.layers[0].id,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }, {
+        layerId: flowId,
+        pixels: new Blob(),
+        mask: new Blob([OVERLAY_PNG], { type: 'image/png' })
+      }],
+      'text-fixture.png'
+    );
+    const parsed = await parseLayeredDocumentFile(file);
+    const flow = findDocumentLayer(parsed!.document, flowId);
+    const positioned = findDocumentLayer(parsed!.document, positionedId);
+
+    expect(flow?.type).toBe('text');
+    expect(flow?.type === 'text' ? flow.text : null).toEqual(flowFixture);
+    expect((flow?.type === 'text' ? flow.text : null) as TextLayerData & { futureTextMetadata?: unknown })
+      .toHaveProperty('futureTextMetadata.producer', 'future-compatible');
+    expect(flow?.mask).not.toBeNull();
+    expect(positioned?.type === 'text' ? positioned.text : null).toEqual(positionedFixture);
+    expect(findDocumentLayer(parsed!.document, positionedId)?.id).toBe(positionedId);
+    expect(await parsed!.assets.find(({ layerId }) => layerId === flowId)?.mask?.arrayBuffer())
+      .toEqual(OVERLAY_PNG.buffer);
+
+    const manifestText = JSON.stringify(await readManifest(file));
+    expect(manifestText).not.toContain('realizedLayout');
+    expect(manifestText).not.toContain('atlas');
+    expect(manifestText).not.toContain('workerState');
+  });
+
+  it('opens legacy v1 files and rejects future manifest or text schema versions', async () => {
+    const document = createTextLayer(
+      createImageDocument('Text versioning', 2, 2, 'source'),
+      createDefaultTextLayerData(),
+      'Versioned text'
+    );
+    const file = buildLayeredDocumentFile(
       new Blob([PREVIEW_PNG], { type: 'image/png' }),
       document,
       defaultStack(),
@@ -61,8 +148,54 @@ describe('LightTable layered PNG format', () => {
         pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
         mask: null
       }],
-      'text-fixture.png'
-    )).toThrow(/Text layer persistence is not available.*Headline/);
+      'versions.png'
+    );
+    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 3; });
+    const futureText = await rewriteManifest(file, (manifest) => {
+      const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
+      const text = layers.find((layer) => layer.type === 'text')!.text as Record<string, unknown>;
+      text.schemaVersion = 2;
+    });
+    const duplicateIds = await rewriteManifest(file, (manifest) => {
+      const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
+      layers[1].id = layers[0].id;
+    });
+    await expect(parseLayeredDocumentFile(futureManifest)).rejects.toThrow(/not supported/);
+    await expect(parseLayeredDocumentFile(futureText)).rejects.toThrow(/schemaVersion/);
+    await expect(parseLayeredDocumentFile(duplicateIds)).rejects.toThrow(/duplicate layer IDs/);
+    const legacyDocument = createImageDocument('Legacy', 2, 2, 'source');
+    const legacyFile = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      legacyDocument,
+      defaultStack(),
+      [{ layerId: legacyDocument.layers[0].id, pixels: new Blob([BACKGROUND_PNG]), mask: null }],
+      'legacy.png'
+    );
+    const v1 = await rewriteManifest(legacyFile, (manifest) => { manifest.version = 1; });
+    await expect(parseLayeredDocumentFile(v1)).resolves.not.toBeNull();
+  });
+
+  it('round-trips a text-only layered document without inventing raster assets', async () => {
+    const withText = createTextLayer(
+      createImageDocument('Text only', 2, 2, 'source'),
+      createDefaultTextLayerData(),
+      'Only layer'
+    );
+    const text = findDocumentLayer(withText, withText.activeLayerId);
+    if (text?.type !== 'text') throw new Error('Expected text fixture.');
+    const document = { ...withText, layers: [text] };
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [],
+      'text-only.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    expect(parsed?.document.layers).toHaveLength(1);
+    expect(parsed?.document.layers[0]?.type).toBe('text');
+    expect(parsed?.assets).toEqual([]);
   });
 
   it('retains the original Photoshop document byte-exact as a preserved source asset', async () => {

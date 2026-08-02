@@ -1231,6 +1231,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   });
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
+  const rasterizeActiveTextLayer = layerDocumentCommands.rasterizeActiveTextLayer;
   const mergeSelectedRasterLayers = layerDocumentCommands.mergeSelectedRasterLayers;
   const mergeActiveLayerDown = layerDocumentCommands.mergeActiveLayerDown;
   const mergeSelectionOrActiveDown = useCallback(() => {
@@ -1309,6 +1310,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     addActiveLayerMask: () => layerDocumentCommands.addActiveLayerMask(
       editorSession.selection.length > 0
     ),
+    duplicateActiveLayer,
+    rasterizeActiveTextLayer,
     loadLayerMaskSelection: selectionSessionController.selectLayerMask,
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
     mergeSelectedRasterLayers,
@@ -1488,6 +1491,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layers: {
       panel: layerPanelController,
       duplicate: duplicateActiveLayer,
+      rasterizeText: rasterizeActiveTextLayer,
       layerViaCopy,
       rename: focusActiveLayerName,
       invertColors: invertActiveLayerColors,

@@ -14,6 +14,7 @@ export interface EditorMenuLayerState {
   siblingCount: number;
   belowIsRaster: boolean;
   canFlattenGroup: boolean;
+  canDelete: boolean;
 }
 
 export interface EditorMenuState {
@@ -27,6 +28,7 @@ export interface EditorMenuState {
   activeChannel: 'pixels' | 'mask';
   layer: EditorMenuLayerState | null;
   rasterLayerCount: number;
+  layerCount: number;
   canFlattenImage: boolean;
   autoAlignPreview: boolean;
   autoAlignAvailable: boolean;
@@ -56,6 +58,7 @@ export interface EditorMenuCommands {
   featherSelection: () => void;
   createRasterLayer: () => void;
   duplicateLayer: () => void;
+  rasterizeText: () => void;
   layerViaCopy: () => void;
   renameLayer: () => void;
   invertLayerColors: () => void;
@@ -221,8 +224,13 @@ export const createEditorMenuOptions = (
         value: 'duplicate-layer',
         label: 'Duplicate Layer',
         onClick: commands.duplicateLayer,
-        disabled: !layer || layer.type !== 'raster'
+        disabled: !layer || (layer.type !== 'raster' && layer.type !== 'text')
       },
+      ...(layer?.type === 'text' ? [{
+        value: 'rasterize-text',
+        label: 'Rasterize Type',
+        onClick: commands.rasterizeText
+      }] : []),
       {
         value: 'layer-via-copy',
         label: 'Layer via Copy',
@@ -362,7 +370,7 @@ export const createEditorMenuOptions = (
         label: 'Delete Layer',
         separatorBefore: true,
         onClick: commands.deleteLayer,
-        disabled: !layer || (layer.type === 'raster' && state.rasterLayerCount <= 1)
+        disabled: !layer?.canDelete
       }
     ];
   }

@@ -59,8 +59,11 @@ export class LayerDocumentRenderer {
     this.runtime.layerRuntimeCoordinator.sync(document);
   }
 
-  pruneDetachedRuntimes(keepLayerIds: ReadonlySet<LayerId>) {
-    this.runtime.layerRuntimeCoordinator.pruneDetached(keepLayerIds);
+  pruneDetachedRuntimes(
+    keepRasterLayerIds: ReadonlySet<LayerId>,
+    keepMaskLayerIds: ReadonlySet<LayerId>
+  ) {
+    this.runtime.layerRuntimeCoordinator.pruneDetached(keepRasterLayerIds, keepMaskLayerIds);
   }
 
   private maskTextureFor(layerId: LayerId) {
@@ -194,6 +197,30 @@ export class LayerDocumentRenderer {
       document,
       destinationId,
       encodeAdjustment
+    );
+  }
+
+  prepareRasterDestination(destination: RasterLayer) {
+    return this.runtime.rasterDocumentOperations.prepareRasterDestination(destination);
+  }
+
+  commitRasterDestination(layerId: LayerId) {
+    this.runtime.rasterDocumentOperations.commitRasterDestination(layerId);
+  }
+
+  releaseRasterDestination(layerId: LayerId) {
+    return this.runtime.rasterDocumentOperations.releaseRasterDestination(layerId);
+  }
+
+  rasterizeText(
+    document: ImageDocument,
+    source: import('../document/documentTypes').TextLayer,
+    destination: RasterLayer
+  ) {
+    return this.runtime.rasterDocumentOperations.rasterizeText(
+      document,
+      source,
+      destination
     );
   }
 
