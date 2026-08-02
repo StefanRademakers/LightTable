@@ -1,0 +1,6 @@
+De handles van onze shape gizo in path selection mode zijn veel te klijn, die kunnen we niet bedienen
+Hetzelfde geld voor bezier curve edit handles... zeker op mac, zo'n handle area moet minstens 20x20px zijn of meer als de ruimte er is. (max 30x30px)
+
+Ook kunnen we niet een shape roteren? Misschien moeten we meer naar de normale transform gizo kijken, je verwacht dezelfde functionaliteit.
+image 2 is de normale pixel layer transform tool, die hoekje clickable areas zijn ook te klein ook visueel te klein.
+Maar die heeft ook een rotatie mogelijkheid... en die rotatie mogelijkheid zou je ook op de hoeken willen maar dan als je wat verder van de hoek af staat (lees hieronline hoe photoshop dat doet)

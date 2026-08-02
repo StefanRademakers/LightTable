@@ -1,0 +1,6 @@
+Fullscreen mode
+-  Eerste keer F zou het programma fullscreen moeten trekken op de huidige actieve monitor (dus window chrome enzo niet meer visible) wel nog de panels active en de toolbar etc… alleen window chrome weg en in fullscreen mode. Geen tab headers hiden!
+- Tweede keer F zou het programma in de fullscreen window maar ook fullscreen app mode moeten doen, dit zou betekenen dat alle panels en toolbars dan weg zijn dus ook de docked en floating panels.
+
+Nu is het zo in onze fullscreen mode dat hij de tab headers hide, dit willen we eigenlijk dus nooit…
+
