@@ -6,6 +6,21 @@ export interface PersistedRecentFile {
 
 export const RECENT_FILE_LIMIT = 4;
 
+/** Serializes manifest operations while allowing the queue to recover after a failure. */
+export class RecentFileOperationQueue {
+  private pending: Promise<void> = Promise.resolve();
+
+  run<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.pending.then(operation);
+    this.pending = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  settled(): Promise<void> {
+    return this.pending;
+  }
+}
+
 /**
  * Produces one deterministic MRU list. Persisted data can arrive unsorted or
  * contain duplicate paths after an interrupted/older desktop write.

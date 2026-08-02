@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRecentFiles, touchRecentFile } from './recentFiles';
+import {
+  normalizeRecentFiles,
+  RecentFileOperationQueue,
+  touchRecentFile
+} from './recentFiles';
 
 describe('desktop recent files', () => {
   it('keeps the four most recently opened unique files', () => {
@@ -36,5 +40,34 @@ describe('desktop recent files', () => {
       { id: 'other', path: 'other.png', openedAt: 3 },
       { id: 'same', path: 'new.png', openedAt: 2 }
     ]);
+  });
+
+  it('serializes launcher pruning with files opened while the refresh is pending', async () => {
+    const queue = new RecentFileOperationQueue();
+    const order: string[] = [];
+    let releaseRefresh!: () => void;
+    const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+
+    const refresh = queue.run(async () => {
+      order.push('refresh:start');
+      await refreshGate;
+      order.push('refresh:save');
+    });
+    const opened = queue.run(async () => {
+      order.push('open:save');
+    });
+
+    await Promise.resolve();
+    expect(order).toEqual(['refresh:start']);
+    releaseRefresh();
+    await Promise.all([refresh, opened]);
+    expect(order).toEqual(['refresh:start', 'refresh:save', 'open:save']);
+  });
+
+  it('continues serial operations after a failed manifest write', async () => {
+    const queue = new RecentFileOperationQueue();
+    await expect(queue.run(async () => { throw new Error('write failed'); }))
+      .rejects.toThrow('write failed');
+    await expect(queue.run(async () => 'recovered')).resolves.toBe('recovered');
   });
 });

@@ -14,6 +14,7 @@ import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
 import {
   normalizeRecentFiles,
+  RecentFileOperationQueue,
   RECENT_FILE_LIMIT,
   touchRecentFile,
   type PersistedRecentFile
@@ -32,7 +33,7 @@ let packagedRendererServer: Server | null = null;
 
 const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
-let recentFileMutation = Promise.resolve();
+const recentFileOperations = new RecentFileOperationQueue();
 
 const recentFileId = (filePath: string): string => createHash('sha256')
   .update(path.resolve(filePath).toLowerCase())
@@ -60,7 +61,7 @@ const saveRecentFiles = async (entries: readonly PersistedRecentFile[]): Promise
 };
 
 const rememberRecentFile = async (filePath: string): Promise<void> => {
-  const update = recentFileMutation.then(async () => {
+  await recentFileOperations.run(async () => {
     const id = recentFileId(filePath);
     await saveRecentFiles(touchRecentFile(await loadRecentFiles(), {
       id,
@@ -68,11 +69,28 @@ const rememberRecentFile = async (filePath: string): Promise<void> => {
       openedAt: Date.now()
     }));
   });
-  // Keep the queue usable after a failed disk write while still surfacing the
-  // failure to the caller that initiated this mutation.
-  recentFileMutation = update.catch(() => undefined);
-  await update;
 };
+
+const loadExistingRecentFiles = (): Promise<PersistedRecentFile[]> =>
+  recentFileOperations.run(async () => {
+    const existing: PersistedRecentFile[] = [];
+    for (const entry of await loadRecentFiles()) {
+      try {
+        if ((await stat(entry.path)).isFile()) existing.push(entry);
+      } catch {
+        // Missing files disappear from the launcher instead of breaking it.
+      }
+    }
+    await saveRecentFiles(existing);
+    return existing;
+  });
+
+const forgetRecentFile = (id: string): Promise<void> =>
+  recentFileOperations.run(async () => {
+    await saveRecentFiles(
+      (await loadRecentFiles()).filter((candidate) => candidate.id !== id)
+    );
+  });
 
 const readDesktopFilePayload = async (filePath: string) => ({
   name: path.basename(filePath),
@@ -261,15 +279,7 @@ void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:list-recent-files', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
-    const existing: PersistedRecentFile[] = [];
-    for (const entry of await loadRecentFiles()) {
-      try {
-        if ((await stat(entry.path)).isFile()) existing.push(entry);
-      } catch {
-        // Missing files disappear from the launcher instead of breaking it.
-      }
-    }
-    await saveRecentFiles(existing);
+    const existing = await loadExistingRecentFiles();
     return Promise.all(existing.map(async (entry) => {
       let thumbnailDataUrl: string | undefined;
       try {
@@ -294,6 +304,9 @@ void app.whenReady().then(async () => {
     if (typeof id !== 'string' || id.length > 128) {
       throw new Error('Invalid recent-file request.');
     }
+    // Do not inspect a manifest while another IPC request is still updating
+    // it. The subsequent touch is serialized by rememberRecentFile.
+    await recentFileOperations.settled();
     const entry = (await loadRecentFiles()).find((candidate) => candidate.id === id);
     if (!entry) return null;
     try {
@@ -301,7 +314,7 @@ void app.whenReady().then(async () => {
       await rememberRecentFile(entry.path);
       return payload;
     } catch {
-      await saveRecentFiles((await loadRecentFiles()).filter((candidate) => candidate.id !== id));
+      await forgetRecentFile(id);
       return null;
     }
   });
