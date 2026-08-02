@@ -1,0 +1,8 @@
+circle feather selection 64 pixels
+copy paste op nieuwe laag
+witte laag eronder voor duidelijkheid -> image 2
+
+
+We moeten een veel betere maar snelle manier hebben of feathered selection te maken.
+Is hiervoor een betere blur pass nodig? Die hebben we sowieso een nodig een goeie ook
+kwaliteit staat hier voor ipv heel snel. (zo snel als kan natuurlijk) maar dit is niet te gebruiken zo.

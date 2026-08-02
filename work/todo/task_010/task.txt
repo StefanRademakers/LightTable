@@ -1,0 +1,2 @@
+Recent files werkt niet goed, laat altijd maar het eerste image wat ooit geladen is zien.
+Hier zouden 4 thumbnails op rij moeten staan van de LAATS gebruikte files

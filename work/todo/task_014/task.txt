@@ -1,0 +1,5 @@
+Controleer onze transform gizmo, deze wordt denk ik nog met css getekend? Moeten we die ook niet naar onze GPU overlay mode omzetten?
+
+zorg wel dat de hanles e.d. goed te grabben zijn... 
+
+Extra feature -> ctrl-click op een punt en drag, distort de afbeelding, zie voorbeeld.

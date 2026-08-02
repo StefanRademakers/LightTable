@@ -1,0 +1,1 @@
+die anti alias optie zou alleen in het rightclick menu moeten staan

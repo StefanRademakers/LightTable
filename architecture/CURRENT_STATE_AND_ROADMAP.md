@@ -1,7 +1,8 @@
 # Current state and roadmap
 
 This file separates verified architecture from direction. Update it when a
-milestone changes those boundaries; feature task details belong in `todo/`.
+milestone changes those boundaries; feature task details belong in
+`work/todo/`.
 
 ## Current strengths
 

@@ -1,0 +1,3 @@
+Bekijk al het gedaan werk,kijk naar de code quality.
+Bekijk grote systemen die beter gestructureerd kunnen worden.
+Werk aan een betere long term codebase.

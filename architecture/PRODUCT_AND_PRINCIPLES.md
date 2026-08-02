@@ -49,6 +49,20 @@ assets—rather than merely showing Photoshop's embedded flat composite. The
 embedded composite can be used transiently as a visual truth/reference, but it
 must not be duplicated inside a saved LightTable document.
 
+Compatibility is an adapter boundary, not the authority for LightTable's
+internal model. Photoshop concepts are translated into native LightTable
+layers, masks, processing nodes and assets. We pursue behavioral parity where
+artists depend on it, but we do not copy Photoshop's historical internals or
+force its UI structure into the product. When an exact mapping is unavailable,
+the importer reports that explicitly instead of weakening the native model.
+
+LightTable's document structure, rendering contracts and interaction design
+remain leading. Its UX may be more direct than Photoshop's while still making
+imported semantics visible, editable and testable. Native capabilities are not
+limited to the PSD feature set: future 3D layers, AI-generated or live content,
+new vector content and additional GPU processing nodes must fit as typed scene
+nodes and registered executors rather than one-off editor exceptions.
+
 ## Quality bar
 
 Every feature should move through a small loop: implement, test, inspect,

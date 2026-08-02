@@ -47,6 +47,6 @@ Use this checklist when adding or restructuring a feature.
 
 Keep commits local and cohesive. A milestone should leave the app loadable and
 the normal image path working. Update this architecture when a boundary or
-contract changes; update `todo/` for unfinished task details. Historical notes
-may move to `done/` or source history, but architectural knowledge must not
-depend on chat transcripts.
+contract changes; update `work/todo/` for unfinished task details. Completed
+task packages move to `work/done/`, but architectural knowledge must not depend
+on task archives or chat transcripts.

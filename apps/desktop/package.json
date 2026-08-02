@@ -6,7 +6,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
-    "package": "electron-forge package",
+    "package": "electron-forge package && node ../../scripts/verify-distribution-boundary.mjs",
     "make": "electron-forge make",
     "typecheck": "tsc -b"
   },

@@ -83,5 +83,12 @@ multi-input nodes are valid; the executor contract must describe their inputs,
 resources and dirty dependencies rather than forcing every operation into one
 fullscreen shader.
 
+The same boundary must accept future producers such as a rasterized 3D scene,
+an asynchronously generated AI result or a live procedural texture. Producers
+resolve to revisioned texture/vector/depth contracts; downstream composition
+does not special-case which product feature created them. Expensive producers
+remain dormant until their own inputs are dirty, and background documents do
+not keep them active.
+
 Remaining migration work is tracked in
 [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md).

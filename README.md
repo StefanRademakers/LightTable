@@ -38,3 +38,15 @@ handoff context; it is not the source of architectural truth.
 The web and desktop applications use the same `@lighttable/app` package.
 Electron is a native file-dialog and filesystem host only; it does not contain
 a second editor implementation.
+
+## Versioned work queue
+
+Concrete task packages live in [`work/todo`](work/todo) and completed evidence
+in [`work/done`](work/done). The queue is tracked in Git for multi-machine work
+but excluded from every build and deployment artifact.
+
+The instruction **"werk alle openstaande tasks uit"** means: process the whole
+queue in order, implement and test each task, make a focused local commit for
+each verified milestone, move its package to `work/done`, and continue without
+requesting confirmation. A status request does not cancel that instruction.
+The full workflow and blocker rules are in [`work/README.md`](work/README.md).

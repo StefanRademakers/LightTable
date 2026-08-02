@@ -1,0 +1,3 @@
+als er een mask is, zie je niet meer duidleijk wat geselecteerd is, pixels of mask, dat blauw kader lijkt niet stabiel..
+wat ook super super zou zijn is dat we de mask alleen kunnen zien met alt-click op de mask en daar dan kunnen painten.
+Dat is een view alleen van het masker.. geen grades geen fx .. alleen het zwartwit kanaal

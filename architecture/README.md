@@ -11,8 +11,9 @@ Use this order when sources disagree:
 
 1. Current code and tests.
 2. The contracts in this directory.
-3. Current task specifications and fixtures.
-4. Historical material under `docs/`, `done/` and source-control history.
+3. Current task specifications under `work/todo/` and fixtures.
+4. Completed work under `work/done/`, historical material under `docs/`, and
+   source-control history.
 
 Files under `docs/` are research, handoffs and design history. They can explain
 why a decision was made, but they are not the canonical architecture. Keep

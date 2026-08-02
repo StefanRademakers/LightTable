@@ -19,6 +19,13 @@ Smart Objects and complete Smart Filter semantics are a target, not yet a
 first-class `LayerNode` variant. PSD metadata and preserved source assets do not
 by themselves mean the Smart Object model is complete.
 
+The current layer union is not a closed-world product limit. Planned native
+node kinds include text, embedded/smart documents, 3D scene layers and
+AI/procedural content whose result can be resolved to the same render contract.
+Each new kind must own serializable canonical state, bounds, transforms,
+revisions and an explicit realization boundary. It may not hide mutable GPU,
+worker or host state inside the saved scene model.
+
 ## Visible processing ownership
 
 - A raster/vector-compatible layer may own a local processing stack. `null`

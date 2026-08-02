@@ -11,7 +11,8 @@ packages/vector-rendering Backend-neutral realization and revision caches
 packages/vector-webgpu   WebGPU vector fill and editing-overlay backends
 architecture             Canonical product and engineering contracts
 fixtures                 Stable import/render regression material
-todo / done              Executable task queue and completed-task archive
+work/todo                Versioned executable task queue
+work/done                Versioned completed-task archive
 docs                     Historical research and handoffs, not authoritative
 ```
 

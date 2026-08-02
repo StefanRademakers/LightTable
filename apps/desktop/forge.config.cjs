@@ -9,6 +9,9 @@ module.exports = {
   // previously built LightTable executable is still open on Windows.
   outDir: process.env.LIGHTTABLE_PACKAGE_OUT || 'out',
   packagerConfig: {
+    // Forge's Vite plugin owns the package filter. The repository-level work/
+    // queue is outside this app package root; the post-package boundary check
+    // also inspects app.asar so a future packaging change cannot ship it.
     asar: true
   },
   rebuildConfig: {},

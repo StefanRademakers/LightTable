@@ -1,0 +1,2 @@
+bij de path select tool -> als je een path selecteerd, zou je de fill en stroke weer willen kunnen editen met hetzelfde menu als bij creatie... dat zou voor alle shape content moeten werken trouwens.
+

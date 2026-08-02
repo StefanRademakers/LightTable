@@ -1,0 +1,4 @@
+Als je een stuk image copy paste op een nieuwe layer.
+Je transformed die eerst, maakt dan een selectie
+Daar maak je een mask van -> mask image is goed
+Maar de rendering is niet ok, je zou verwachten dat het mask in document space leading is voor de pixel layer

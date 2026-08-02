@@ -1,0 +1,11 @@
+op de open pagina remove die velden... laten we hem daar simpler houden.
+
+En pas het file menu aan naar:
+New
+Open
+Save Lighttable
+Export PNG
+
+New laat vanuit het file menu een dialog zien met de width en height...
+Als er iets in de copy buffer zit een image -> dan moeten die width en height ingevuld worden als standaar... 
+en de hotkey is ctrl-n

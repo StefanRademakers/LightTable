@@ -43,6 +43,12 @@ difference measurement. It is not saved as a second full PSD payload in a
 LightTable document. Comparison with zero sampled pixels is invalid and must be
 reported as unavailable, never as a 0% error success.
 
+PSD compatibility is implemented as translation into the native document and
+processing model. Photoshop is a crucial interchange target and visual truth
+source, but it does not define LightTable's internal schema or UX. The same
+native model must remain able to represent capabilities PSD cannot express,
+including future 3D, AI and LightTable-specific GPU workflows.
+
 ## Save and export
 
 - A simple corrected raster can save/export through the host as a normal image

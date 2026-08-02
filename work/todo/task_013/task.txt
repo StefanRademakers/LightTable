@@ -1,0 +1,3 @@
+Nu we goede vector shapes kunnen renderen is het nogmaals kijken naar het PSD formaat en wat we wel en niet kunnen importeren wenselijk.
+We houden onze ui/ux aan, maar kijken of we shapes e.d. uit photoshop kunnen inladen. Zodat we iets dichter bij PSD compatibility zijn.
+
