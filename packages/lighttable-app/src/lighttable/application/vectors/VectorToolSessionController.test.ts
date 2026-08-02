@@ -47,6 +47,29 @@ const setup = () => {
 };
 
 describe('VectorToolSessionController', () => {
+  it('selects an active shape layer when element selection is activated', () => {
+    const state = setup();
+    const shape = createVectorLiveShape('shape-1', {
+      kind: 'rectangle',
+      width: 40,
+      height: 20,
+      cornerRadii: [0, 0, 0, 0],
+      linkedCorners: true
+    }, 'Imported shape');
+    const layer = createVectorLayer([shape], 'PSD Shape');
+    state.document = {
+      ...state.document,
+      layers: [layer],
+      activeLayerId: layer.id
+    };
+
+    expect(state.controller.activate('element-selection')).toBe(true);
+    expect(state.selection.elements).toEqual([{
+      layerId: layer.id,
+      elementId: shape.id
+    }]);
+  });
+
   it('keeps a multi-click pen path provisional and commits it as one command', () => {
     const state = setup();
     state.controller.activate('pen');

@@ -6,6 +6,9 @@ import {
 } from './executeEditorKeyboardCommand';
 
 const ports = (): EditorKeyboardCommandPorts => ({
+  openFile: vi.fn(),
+  saveFile: vi.fn(),
+  quickExportPng: vi.fn(),
   isTransformActive: vi.fn(() => false),
   commitTransform: vi.fn(),
   activateTool: vi.fn(),
@@ -40,6 +43,18 @@ const ports = (): EditorKeyboardCommandPorts => ({
 });
 
 describe('executeEditorKeyboardCommand', () => {
+  it('routes file commands through the active editor file ports', () => {
+    const target = ports();
+
+    executeEditorKeyboardCommand('open-file', target);
+    executeEditorKeyboardCommand('save-file', target);
+    executeEditorKeyboardCommand('quick-export-png', target);
+
+    expect(target.openFile).toHaveBeenCalledOnce();
+    expect(target.saveFile).toHaveBeenCalledOnce();
+    expect(target.quickExportPng).toHaveBeenCalledOnce();
+  });
+
   it('commits an active transform before switching to another tool', () => {
     const target = ports();
     target.isTransformActive = vi.fn(() => true);

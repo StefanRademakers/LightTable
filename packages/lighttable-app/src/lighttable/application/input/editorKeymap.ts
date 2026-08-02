@@ -26,6 +26,9 @@ export interface EditorKeyboardContext {
 }
 
 export type EditorKeyboardCommand =
+  | 'open-file'
+  | 'save-file'
+  | 'quick-export-png'
   | 'undo'
   | 'redo'
   | 'temporary-pan-start'
@@ -148,6 +151,23 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
   id: 'lighttable-default',
   name: 'LightTable Default',
   bindings: [
+    command('file.open', { key: 'o', primary: true, alt: false, shift: false }, 'open-file', {
+      allowWhileEditing: true,
+      when: (context) => !context.saving
+    }),
+    command('file.save', { key: 's', primary: true, alt: false, shift: false }, 'save-file', {
+      allowWhileEditing: true,
+      when: (context) => !context.saving && context.hasActiveLayer
+    }),
+    command(
+      'file.quick-export-png',
+      { key: 's', primary: true, alt: false, shift: true },
+      'quick-export-png',
+      {
+        allowWhileEditing: true,
+        when: (context) => !context.saving && context.hasActiveLayer
+      }
+    ),
     command('history.undo', { key: 'z', primary: true, alt: false, shift: false }, 'undo', {
       allowWhileEditing: true
     }),

@@ -2,6 +2,9 @@ import type { ToolId } from '../../editor/session/editorSession';
 import type { EditorKeyboardCommand } from './editorKeyboardRouter';
 
 export interface EditorKeyboardCommandPorts {
+  openFile(): void;
+  saveFile(): void;
+  quickExportPng(): void;
   isTransformActive(): boolean;
   commitTransform(): void;
   activateTool(tool: ToolId): void;
@@ -59,6 +62,15 @@ export const executeEditorKeyboardCommand = (
   }
 
   switch (command) {
+    case 'open-file':
+      ports.openFile();
+      return;
+    case 'save-file':
+      ports.saveFile();
+      return;
+    case 'quick-export-png':
+      ports.quickExportPng();
+      return;
     case 'undo':
       ports.undo();
       return;

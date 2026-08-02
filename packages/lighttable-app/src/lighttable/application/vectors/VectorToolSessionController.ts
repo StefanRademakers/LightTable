@@ -7,7 +7,11 @@ import {
   type VectorStyle
 } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
-import type { VectorEditorSelection } from '../../editor/session/editorSession';
+import { findDocumentLayer } from '../../editor/document/layerTree';
+import {
+  createVectorEditorSelection,
+  type VectorEditorSelection
+} from '../../editor/session/editorSession';
 import {
   DirectSelectionToolController,
   type DirectSelectionPointerOptions
@@ -116,9 +120,14 @@ export class VectorToolSessionController {
   activate(mode: VectorToolMode) {
     if (!this.assertAvailable()) return false;
     this.synchronizeDocument();
-    if (this.activeMode === mode) return true;
-    this.finishActiveMode();
-    this.activeMode = mode;
+    if (this.activeMode !== mode) {
+      this.finishActiveMode();
+      this.activeMode = mode;
+    }
+    if (mode === 'element-selection'
+      && this.dependencies.getSelection().elements.length === 0) {
+      this.selectLayerElements(this.dependencies.getDocument()?.activeLayerId ?? null);
+    }
     return true;
   }
 
@@ -254,10 +263,23 @@ export class VectorToolSessionController {
   prepareActiveLayerChange(nextLayerId: ImageDocument['activeLayerId']) {
     if (!this.assertAvailable()) return false;
     const document = this.dependencies.getDocument();
-    if (!document || document.activeLayerId === nextLayerId) return true;
-    this.finishActiveMode();
-    this.elementSelection.clearSelection();
+    if (!document) return true;
+    if (document.activeLayerId !== nextLayerId) this.finishActiveMode();
+    this.selectLayerElements(nextLayerId);
     return true;
+  }
+
+  private selectLayerElements(layerId: ImageDocument['activeLayerId']) {
+    const document = this.dependencies.getDocument();
+    const layer = document && layerId ? findDocumentLayer(document, layerId) : null;
+    const selection = createVectorEditorSelection();
+    if (layer?.type === 'vector') {
+      selection.elements = layer.elements.map((element) => ({
+        layerId: layer.id,
+        elementId: element.id
+      }));
+    }
+    this.dependencies.setSelection(selection);
   }
 
   deleteSelection() {

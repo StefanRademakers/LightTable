@@ -956,6 +956,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       transforming: transformActiveRef.current()
     }),
     commands: {
+      openFile: () => { void chooseLocalFile('automatic'); },
+      saveFile: () => { void handleSave(); },
+      quickExportPng: () => { void handleExportPng(); },
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       activateTool: (tool) => activateToolRef.current(tool),

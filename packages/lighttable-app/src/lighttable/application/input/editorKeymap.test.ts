@@ -49,6 +49,25 @@ describe('editor keymap', () => {
     )).toBe(true);
   });
 
+  it.each([
+    { key: 'o', command: 'open-file' },
+    { key: 's', command: 'save-file' }
+  ])('routes primary+$key to $command even while editing', ({ key, command }) => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key, code: `Key${key.toUpperCase()}`, ctrlKey: true }),
+      context({ editable: true })
+    )).toBe(command);
+  });
+
+  it('routes primary+shift+S to Quick Export PNG', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 's', code: 'KeyS', metaKey: true, shiftKey: true }),
+      context({ editable: true })
+    )).toBe('quick-export-png');
+  });
+
   it('uses physical bracket codes for brush size on keyboard layouts that alter key', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
