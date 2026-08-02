@@ -83,6 +83,11 @@ analysis are distinct products. Pan/zoom must not re-run document compositing
 or scopes; overlay animation must not invalidate pixels; scopes follow the
 content revision rather than the viewport revision.
 
+`ViewportPresentationController` owns the DOM-measurement-to-GPU-uniform
+boundary, canvas pixel sizing, interactive sampling quality and settle-timer
+lifecycle. `WebGpuEngine` consumes that retained presentation state; it does
+not independently own another viewport model.
+
 ### UI
 
 Presents application state and dispatches commands. Panels and tools should

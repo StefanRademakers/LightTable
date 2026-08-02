@@ -25,7 +25,9 @@ milestone changes those boundaries; feature task details belong in
 ## Partial or incomplete
 
 - `LightTableEditorOverlay.tsx` and `WebGpuEngine.ts` remain large integration
-  facades; continue extracting cohesive controllers and GPU subsystems.
+  facades. Viewport measurement, sampling-quality settling and timer cleanup now
+  have a typed application owner; continue extracting similarly cohesive
+  controllers and GPU resource owners.
 - Some renderer paths still need to consume the resolved scene-transform graph
   consistently, especially nested groups, masks, bounds and selection tools.
 - Processing is semantically node-based, but not every grade/spatial operation

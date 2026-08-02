@@ -139,6 +139,11 @@ processing/effects, blur input, viewport and scope work are separate domains.
 The render frame reuses cached intermediate textures when their exact
 dependency revisions are unchanged.
 
+`ViewportPresentationController` translates DOM viewport measurements into
+retained GPU uniforms, owns interactive-linear to settled-nearest sampling,
+and disposes its settle timer. GPU resource recreation republishes the retained
+uniforms without manufacturing a document or content change.
+
 Rules:
 
 - a viewport-only change performs a viewport blit, not a composite;

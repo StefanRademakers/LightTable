@@ -46,11 +46,8 @@ import {
   resolveAdjustmentInvalidationStage
 } from '../application/rendering/renderDirtyState';
 import { RenderTelemetry } from '../application/rendering/renderTelemetry';
-import {
-  resolveViewportRenderState,
-  viewportRenderStatesEqual,
-  type ViewportRenderState
-} from '../application/rendering/viewportRenderState';
+import { ViewportPresentationController } from '../application/rendering/viewportPresentationController';
+import type { ViewportRenderRect } from '../application/rendering/viewportRenderState';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
 import type { AdjustmentStack } from '../processing/adjustmentStack';
@@ -95,13 +92,6 @@ import {
 } from '../editor/selection/selectionEditingOverlay';
 import { SelectionContourOverlayBackend } from '../editor/rendering/SelectionContourOverlayBackend';
 
-interface ViewportRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 export class WebGpuEngine {
   private readonly canvas: HTMLCanvasElement;
   private readonly device: GPUDevice;
@@ -131,6 +121,7 @@ export class WebGpuEngine {
   private readonly renderTelemetry = new RenderTelemetry();
   private readonly imageResources = new DocumentImageGpuResources();
   private readonly adjustmentState = new DocumentAdjustmentState();
+  private readonly viewportPresentation: ViewportPresentationController;
   private coreResources: DocumentCoreGpuResources | null = null;
 
   private constructor(
@@ -151,6 +142,11 @@ export class WebGpuEngine {
       this.adjustmentLayerResources
     );
     this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
+    this.viewportPresentation = new ViewportPresentationController(canvas, {
+      writeViewport: (uniforms) => this.coreResources?.writeViewport(uniforms),
+      invalidateViewport: () => this.renderDirty.invalidate('viewport'),
+      requestRender: () => this.requestRender()
+    });
     this.scopeRuntime = new DocumentScopeRuntime(
       device,
       callbacks.onScopeError,
@@ -204,10 +200,6 @@ export class WebGpuEngine {
   private active = true;
   private paintInteractionActive = false;
   private lastReportedGpuBytes = -1;
-  private viewportRenderState: ViewportRenderState | null = null;
-  private viewportSampling: 'linear' | 'nearest' = 'linear';
-  private viewportScale = Number.NaN;
-  private viewportSamplingSettleTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
   private vectorSelection = createVectorEditorSelection();
   private selectionOverlayOperations: SelectionOperation[] = [];
   private selectionOverlayDraft: SelectionShape | null = null;
@@ -289,6 +281,7 @@ export class WebGpuEngine {
     const coreResources = new DocumentCoreGpuResources(this.device);
     this.coreResources = coreResources;
     this.syncAdjustmentPayload();
+    this.viewportPresentation.syncCurrentState();
 
     const pipelines = getCorePipelineBundle(this.device, this.canvasFormat);
     this.basicPipeline = pipelines.basic;
@@ -1254,41 +1247,14 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
-  resizeViewport(cssWidth: number, cssHeight: number, dpr: number, rect: ViewportRect) {
-    const scale = this.metadata ? rect.width / this.metadata.width : 1;
-    if (!Number.isFinite(this.viewportScale) || Math.abs(scale - this.viewportScale) > 0.0001) {
-      this.viewportScale = scale;
-      this.beginInteractiveViewportSampling(scale);
-    }
-    const nextState = resolveViewportRenderState(cssWidth, cssHeight, dpr, rect);
-    if (viewportRenderStatesEqual(this.viewportRenderState, nextState)) return;
-    this.viewportRenderState = nextState;
-    const { pixelWidth, pixelHeight } = nextState;
-    if (this.canvas.width !== pixelWidth || this.canvas.height !== pixelHeight) {
-      this.canvas.width = pixelWidth;
-      this.canvas.height = pixelHeight;
-    }
-    this.coreResources?.writeViewport(nextState.uniforms);
-    this.renderDirty.invalidate('viewport');
-    this.requestRender();
-  }
-
-  private beginInteractiveViewportSampling(scale: number) {
-    if (this.viewportSamplingSettleTimer !== null) {
-      globalThis.clearTimeout(this.viewportSamplingSettleTimer);
-    }
-    this.setViewportSampling('linear');
-    this.viewportSamplingSettleTimer = globalThis.setTimeout(() => {
-      this.viewportSamplingSettleTimer = null;
-      this.setViewportSampling(scale >= 4 ? 'nearest' : 'linear');
-    }, 75);
-  }
-
-  private setViewportSampling(sampling: 'linear' | 'nearest') {
-    if (this.viewportSampling === sampling) return;
-    this.viewportSampling = sampling;
-    this.renderDirty.invalidate('viewport');
-    this.requestRender();
+  resizeViewport(cssWidth: number, cssHeight: number, dpr: number, rect: ViewportRenderRect) {
+    this.viewportPresentation.resize(
+      this.metadata?.width ?? null,
+      cssWidth,
+      cssHeight,
+      dpr,
+      rect
+    );
   }
 
   private writeAdjustments() {
@@ -1530,7 +1496,7 @@ export class WebGpuEngine {
     }
     if (this.renderDirty.viewportRequired) {
       const canvasView = this.context.getCurrentTexture().createView();
-      const useNearestSampling = this.viewportSampling === 'nearest';
+      const useNearestSampling = this.viewportPresentation.sampling === 'nearest';
       const maskTexture = this.isolatedMaskLayerId
         ? this.documentRenderer.maskPresentationTexture(this.isolatedMaskLayerId)
         : null;
@@ -1687,10 +1653,7 @@ export class WebGpuEngine {
     this.isolatedMaskTexture = null;
     this.isolatedMaskBindGroup = null;
     this.isolatedMaskNearestBindGroup = null;
-    if (this.viewportSamplingSettleTimer !== null) {
-      globalThis.clearTimeout(this.viewportSamplingSettleTimer);
-      this.viewportSamplingSettleTimer = null;
-    }
+    this.viewportPresentation.dispose();
     this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
     this.unsubscribeDeviceLost();
     this.sourceLoader?.destroy();
@@ -1717,7 +1680,8 @@ export class WebGpuEngine {
     encoder: GPUCommandEncoder,
     canvasView: GPUTextureView
   ) {
-    if (!this.imageDocument || !this.viewportRenderState) return;
+    const viewportRenderState = this.viewportPresentation.state;
+    if (!this.imageDocument || !viewportRenderState) return;
     const overlayScene = buildVectorDocumentEditingSceneOverlay(
       this.imageDocument,
       this.vectorSelection
@@ -1748,12 +1712,12 @@ export class WebGpuEngine {
       && !this.transformEditingFrame
       && !this.brushCursorOverlay
     ) return;
-    const uniforms = this.viewportRenderState.uniforms;
+    const uniforms = viewportRenderState.uniforms;
     const target: VectorEditingOverlayTarget = {
       colorView: canvasView,
       format: this.canvasFormat,
-      width: this.viewportRenderState.pixelWidth,
-      height: this.viewportRenderState.pixelHeight,
+      width: viewportRenderState.pixelWidth,
+      height: viewportRenderState.pixelHeight,
       documentToViewport: {
         a: uniforms[4] / this.imageDocument.width,
         b: 0,
