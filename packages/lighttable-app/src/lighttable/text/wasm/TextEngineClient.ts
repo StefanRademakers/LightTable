@@ -5,6 +5,21 @@ import {
   type TextEngineWorkerRequest,
   type TextEngineWorkerResponse
 } from './textEngineProtocol';
+import {
+  TEXT_WORKER_PROTOCOL_VERSION,
+  assertTextLayoutWorkerResponse,
+  collectTextRequestTransferBuffers,
+  collectTextResponseTransferBuffers,
+  createTextLayoutError,
+  type RealizedTextLayout,
+  type TextLayoutError,
+  type TextLayoutWorkerRequest,
+  type TextLayoutWorkerResponse,
+  type TextWorkerFontRegistrationRequest,
+  type TextWorkerPerformanceMetrics,
+  type TextWorkerReleaseSessionRequest,
+  type TextWorkerRequest
+} from '@lighttable/text-core';
 
 interface PendingProbe {
   readonly resolve: (capability: TextEngineCapability) => void;
@@ -16,12 +31,36 @@ interface PendingInspection {
   readonly reject: (reason: Error) => void;
 }
 
+interface PendingLayoutRequest {
+  readonly request: TextWorkerRequest;
+  readonly resolve: (response: TextLayoutWorkerResponse) => void;
+  readonly reject: (reason: Error) => void;
+  readonly detachAbort?: () => void;
+}
+
+export class TextLayoutRuntimeError extends Error {
+  constructor(readonly layoutError: TextLayoutError) {
+    super(layoutError.message);
+    this.name = 'TextLayoutRuntimeError';
+  }
+}
+
 export interface TextEngineWorkerPort {
-  onmessage: ((event: MessageEvent<TextEngineWorkerResponse>) => void) | null;
+  onmessage: ((event: MessageEvent<TextEngineWorkerResponse | TextLayoutWorkerResponse>) => void) | null;
   onerror: ((event: ErrorEvent) => void) | null;
   onmessageerror: ((event: MessageEvent<unknown>) => void) | null;
-  postMessage(message: TextEngineWorkerRequest, transfer?: Transferable[]): void;
+  postMessage(message: TextEngineWorkerRequest | TextWorkerRequest, transfer?: Transferable[]): void;
   terminate(): void;
+}
+
+export interface TextEngineOperationReport {
+  readonly metrics: TextWorkerPerformanceMetrics;
+  readonly roundTripDurationMs: number;
+  readonly responseTransferBytes: number;
+}
+
+export interface TextRealizationReport extends TextEngineOperationReport {
+  readonly layout: RealizedTextLayout;
 }
 
 export type TextEngineWorkerFactory = () => TextEngineWorkerPort;
@@ -42,6 +81,7 @@ export class TextEngineClient {
   private requestId = 0;
   private readonly pending = new Map<number, PendingProbe>();
   private readonly pendingInspections = new Map<number, PendingInspection>();
+  private readonly pendingLayouts = new Map<number, PendingLayoutRequest>();
   private capability: TextEngineCapability | null = null;
   private inFlight: Promise<TextEngineCapability> | null = null;
 
@@ -100,6 +140,90 @@ export class TextEngineClient {
     });
   }
 
+  registerFont(
+    input: Omit<TextWorkerFontRegistrationRequest, 'requestId' | 'protocolVersion'>,
+    signal?: AbortSignal
+  ): Promise<void> {
+    return this.registerFontDetailed(input, signal).then(() => undefined);
+  }
+
+  registerFontDetailed(
+    input: Omit<TextWorkerFontRegistrationRequest, 'requestId' | 'protocolVersion'>,
+    signal?: AbortSignal
+  ): Promise<TextEngineOperationReport> {
+    const startedAt = performance.now();
+    return this.requestLayout({
+      ...input,
+      kind: 'register-font',
+      protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId: ++this.requestId
+    }, signal).then((response) => {
+      if (response.kind === 'font-registration-failed') {
+        throw new TextLayoutRuntimeError(response.error);
+      }
+      if (response.kind !== 'font-registered') {
+        throw new Error(`Unexpected ${response.kind} response to font registration.`);
+      }
+      return {
+        metrics: response.metrics,
+        roundTripDurationMs: performance.now() - startedAt,
+        responseTransferBytes: 0
+      };
+    });
+  }
+
+  realizeText(
+    input: Omit<TextLayoutWorkerRequest, 'requestId' | 'protocolVersion'>,
+    signal?: AbortSignal
+  ): Promise<RealizedTextLayout> {
+    return this.realizeTextDetailed(input, signal).then((result) => result.layout);
+  }
+
+  realizeTextDetailed(
+    input: Omit<TextLayoutWorkerRequest, 'requestId' | 'protocolVersion'>,
+    signal?: AbortSignal
+  ): Promise<TextRealizationReport> {
+    const startedAt = performance.now();
+    return this.requestLayout({
+      ...input,
+      kind: 'realize-text',
+      protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId: ++this.requestId
+    }, signal).then((response) => {
+      if (response.kind === 'text-layout-failed') {
+        throw new TextLayoutRuntimeError(response.error);
+      }
+      if (response.kind !== 'text-realized') {
+        throw new Error(`Unexpected ${response.kind} response to text realization.`);
+      }
+      return {
+        layout: response.layout,
+        metrics: response.metrics,
+        roundTripDurationMs: performance.now() - startedAt,
+        responseTransferBytes: collectTextResponseTransferBuffers(response)
+          .reduce((total, buffer) => total + buffer.byteLength, 0)
+      };
+    });
+  }
+
+  releaseSession(documentSessionId: string, sessionGeneration: number): Promise<void> {
+    const request: TextWorkerReleaseSessionRequest = {
+      kind: 'release-session',
+      protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId: ++this.requestId,
+      documentSessionId,
+      sessionGeneration
+    };
+    return this.requestLayout(request).then((response) => {
+      if (response.kind === 'session-release-failed') {
+        throw new TextLayoutRuntimeError(response.error);
+      }
+      if (response.kind !== 'session-released') {
+        throw new Error(`Unexpected ${response.kind} response to session release.`);
+      }
+    });
+  }
+
   dispose() {
     this.resetWorker(new Error('Text engine probing was canceled.'));
     this.capability = null;
@@ -110,13 +234,36 @@ export class TextEngineClient {
     if (this.worker) return this.worker;
     const worker = this.workerFactory();
     worker.onmessage = ({ data }) => {
+      if (data.kind === 'font-registered' || data.kind === 'font-registration-failed'
+        || data.kind === 'text-realized' || data.kind === 'text-layout-failed'
+        || data.kind === 'session-released' || data.kind === 'session-release-failed') {
+        const pending = this.pendingLayouts.get(data.requestId);
+        if (!pending) return;
+        this.pendingLayouts.delete(data.requestId);
+        pending.detachAbort?.();
+        try {
+          assertTextLayoutWorkerResponse(data);
+          if (
+            data.documentSessionId !== pending.request.documentSessionId
+            || data.sessionGeneration !== pending.request.sessionGeneration
+          ) throw new Error('Text layout response identity is stale.');
+          if ('cacheKey' in pending.request && pending.request.kind === 'realize-text'
+            && data.cacheKey !== pending.request.cacheKey) {
+            throw new Error('Text layout response cache identity is stale.');
+          }
+          pending.resolve(data);
+        } catch (reason) {
+          pending.reject(reason instanceof Error ? reason : new Error('Invalid text layout response.'));
+        }
+        return;
+      }
       const pending = this.pending.get(data.requestId)
         ?? this.pendingInspections.get(data.requestId);
       if (!pending) return;
       this.pending.delete(data.requestId);
       this.pendingInspections.delete(data.requestId);
-      if (data.protocolVersion !== TEXT_ENGINE_PROTOCOL_VERSION) {
-        pending.reject(new Error(`Unsupported text engine protocol ${data.protocolVersion}.`));
+      if (Number(data.protocolVersion) !== TEXT_ENGINE_PROTOCOL_VERSION) {
+        pending.reject(new Error(`Unsupported text engine protocol ${Number(data.protocolVersion)}.`));
         this.resetWorker(new Error('The text engine protocol changed during initialization.'));
         return;
       }
@@ -160,6 +307,64 @@ export class TextEngineClient {
     this.pending.clear();
     for (const pending of this.pendingInspections.values()) pending.reject(reason);
     this.pendingInspections.clear();
+    for (const pending of this.pendingLayouts.values()) {
+      pending.detachAbort?.();
+      pending.reject(reason);
+    }
+    this.pendingLayouts.clear();
+  }
+
+  private requestLayout(
+    request: TextWorkerRequest,
+    signal?: AbortSignal
+  ): Promise<TextLayoutWorkerResponse> {
+    if (signal?.aborted) {
+      return Promise.reject(new TextLayoutRuntimeError(
+        createTextLayoutError('cancelled', 'Text layout was cancelled.')
+      ));
+    }
+    let worker: TextEngineWorkerPort;
+    try {
+      worker = this.ensureWorker();
+    } catch (reason) {
+      return Promise.reject(reason instanceof Error ? reason : new Error('The text engine worker could not start.'));
+    }
+    return new Promise((resolve, reject) => {
+      const abort = () => {
+        const pending = this.pendingLayouts.get(request.requestId);
+        if (!pending) return;
+        this.pendingLayouts.delete(request.requestId);
+        const cancelRequest: TextWorkerRequest = {
+          kind: 'cancel-text',
+          protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+          requestId: ++this.requestId,
+          documentSessionId: request.documentSessionId,
+          sessionGeneration: request.sessionGeneration,
+          targetRequestId: request.requestId
+        };
+        try {
+          worker.postMessage(cancelRequest);
+        } catch {
+          // The local rejection is authoritative; a failed best-effort cancel
+          // must not strand the caller or restore the removed pending entry.
+        }
+        reject(new TextLayoutRuntimeError(
+          createTextLayoutError('cancelled', 'Text layout was cancelled.')
+        ));
+      };
+      const detachAbort = signal
+        ? () => signal.removeEventListener('abort', abort)
+        : undefined;
+      signal?.addEventListener('abort', abort, { once: true });
+      this.pendingLayouts.set(request.requestId, { request, resolve, reject, detachAbort });
+      try {
+        worker.postMessage(request, [...collectTextRequestTransferBuffers(request)]);
+      } catch (reason) {
+        this.pendingLayouts.delete(request.requestId);
+        detachAbort?.();
+        reject(reason instanceof Error ? reason : new Error('Text worker request could not be posted.'));
+      }
+    });
   }
 }
 

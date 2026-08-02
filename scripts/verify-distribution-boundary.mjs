@@ -31,6 +31,7 @@ const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.css', '.html']
 const failures = [];
 const textWorkerPattern = /^textLayout\.worker-[A-Za-z0-9_-]+\.js$/;
 const textWasmPattern = /^text_layout_wasm_bg-[A-Za-z0-9_-]+\.wasm$/;
+const textCorpusFixturePattern = /(?:Slice06|Anton-Regular|SourceSerif4-Regular)/i;
 
 function hasWorkSegment(value) {
   return value.split(/[\\/]+/).some((segment) => segment.toLowerCase() === 'work');
@@ -71,12 +72,18 @@ for (const artifactRoot of artifactRoots) {
     if (hasWorkSegment(relativePath)) {
       failures.push(`distribution contains work/: ${filePath}`);
     }
+    if (textCorpusFixturePattern.test(relativePath)) {
+      failures.push(`distribution contains a test-only typography corpus font: ${filePath}`);
+    }
     if (path.basename(filePath).toLowerCase() !== 'app.asar') return;
     asarCount += 1;
     const packagedPaths = listPackage(filePath);
     for (const packagedPath of packagedPaths) {
       if (hasWorkSegment(packagedPath)) {
         failures.push(`Electron ASAR contains work/: ${filePath}:${packagedPath}`);
+      }
+      if (textCorpusFixturePattern.test(packagedPath)) {
+        failures.push(`Electron ASAR contains a test-only typography corpus font: ${filePath}:${packagedPath}`);
       }
     }
     const packagedNames = packagedPaths.map((packagedPath) => path.basename(packagedPath));
@@ -105,5 +112,5 @@ if (failures.length > 0) {
   console.error('LightTable distribution boundary failed:\n' + failures.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('LightTable distribution boundary passed: work/ is not shipped and text WASM assets are present.');
+  console.log('LightTable distribution boundary passed: work/ and text corpus fixtures are not shipped; text WASM assets are present.');
 }

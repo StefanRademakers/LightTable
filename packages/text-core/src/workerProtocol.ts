@@ -14,6 +14,13 @@ export interface TextLayoutOptions {
   readonly locale?: string;
 }
 
+export interface TextWorkerPerformanceMetrics {
+  /** Synchronous font registration or layout work inside the persistent worker. */
+  readonly operationDurationMs: number;
+  /** Reserved WebAssembly linear memory after the operation, not process RSS. */
+  readonly wasmLinearMemoryBytes: number;
+}
+
 interface TextWorkerMessageIdentity {
   readonly protocolVersion: typeof TEXT_WORKER_PROTOCOL_VERSION;
   readonly requestId: number;
@@ -24,9 +31,11 @@ interface TextWorkerMessageIdentity {
 export interface TextWorkerFontRegistrationRequest extends TextWorkerMessageIdentity {
   readonly kind: 'register-font';
   readonly font: FontAssetRef;
+  readonly fontSnapshotRevision: number;
   /** Dedicated, full-span JS-owned storage. Ownership moves to the worker. */
-  readonly bytes: Uint8Array;
-  readonly transferOwnership: 'dedicated';
+  readonly bytes?: Uint8Array;
+  readonly byteSource: 'transferred' | 'registered-fingerprint';
+  readonly transferOwnership?: 'dedicated';
 }
 
 export interface TextLayoutWorkerRequest extends TextWorkerMessageIdentity {
@@ -40,7 +49,22 @@ export interface TextLayoutWorkerRequest extends TextWorkerMessageIdentity {
   readonly options: TextLayoutOptions;
 }
 
-export type TextWorkerRequest = TextWorkerFontRegistrationRequest | TextLayoutWorkerRequest;
+/** Logical cancellation: clients reject immediately; synchronous shaping may finish and is ignored. */
+export interface TextWorkerCancelRequest extends TextWorkerMessageIdentity {
+  readonly kind: 'cancel-text';
+  readonly targetRequestId: number;
+}
+
+/** Releases every font and layout cache owned by this exact session generation. */
+export interface TextWorkerReleaseSessionRequest extends TextWorkerMessageIdentity {
+  readonly kind: 'release-session';
+}
+
+export type TextWorkerRequest =
+  | TextWorkerFontRegistrationRequest
+  | TextLayoutWorkerRequest
+  | TextWorkerCancelRequest
+  | TextWorkerReleaseSessionRequest;
 
 interface TextWorkerResponseIdentity extends TextWorkerMessageIdentity {
   readonly cacheKey?: string;
@@ -50,6 +74,8 @@ export type TextLayoutWorkerResponse =
   | TextWorkerResponseIdentity & {
     readonly kind: 'font-registered';
     readonly assetId: string;
+    readonly fontSnapshotRevision: number;
+    readonly metrics: TextWorkerPerformanceMetrics;
   }
   | TextWorkerResponseIdentity & {
     readonly kind: 'text-realized';
@@ -57,10 +83,23 @@ export type TextLayoutWorkerResponse =
     readonly layout: RealizedTextLayout;
     /** Every typed table owns a distinct, full-span JS ArrayBuffer. */
     readonly transferOwnership: 'dedicated';
+    readonly metrics: TextWorkerPerformanceMetrics;
   }
   | TextWorkerResponseIdentity & {
     readonly kind: 'text-layout-failed';
     readonly cacheKey: string;
+    readonly error: TextLayoutError;
+  }
+  | TextWorkerResponseIdentity & {
+    readonly kind: 'font-registration-failed';
+    readonly assetId: string;
+    readonly error: TextLayoutError;
+  }
+  | TextWorkerResponseIdentity & {
+    readonly kind: 'session-released';
+  }
+  | TextWorkerResponseIdentity & {
+    readonly kind: 'session-release-failed';
     readonly error: TextLayoutError;
   };
 
@@ -98,7 +137,8 @@ export const collectTextRequestTransferBuffers = (
   request: TextWorkerRequest
 ): readonly ArrayBuffer[] => {
   if (request.kind !== 'register-font') return [];
-  if (request.transferOwnership !== 'dedicated') {
+  if (request.byteSource === 'registered-fingerprint') return [];
+  if (!request.bytes || request.transferOwnership !== 'dedicated') {
     throw new TextTransferContractError('Font registration must declare dedicated transfer ownership.');
   }
   const buffers: ArrayBuffer[] = [];

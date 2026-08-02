@@ -1,10 +1,30 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_packedflowlayout_free: (a: number, b: number) => void;
+export const drop_layout_session: (a: number, b: number) => number;
 export const inspect_font_json: (a: number, b: number, c: number) => [number, number, number, number];
+export const packedflowlayout_bounds: (a: number) => [number, number];
+export const packedflowlayout_caret_geometry: (a: number) => [number, number];
+export const packedflowlayout_caret_meta: (a: number) => [number, number];
+export const packedflowlayout_cluster_map: (a: number) => [number, number];
+export const packedflowlayout_clusters: (a: number) => [number, number];
+export const packedflowlayout_geometry: (a: number) => [number, number];
+export const packedflowlayout_glyph_ids: (a: number) => [number, number];
+export const packedflowlayout_grapheme_stops: (a: number) => [number, number];
+export const packedflowlayout_key: (a: number) => [number, number];
+export const packedflowlayout_line_geometry: (a: number) => [number, number];
+export const packedflowlayout_line_meta: (a: number) => [number, number];
+export const packedflowlayout_run_meta: (a: number) => [number, number];
+export const packedflowlayout_selection_geometry: (a: number) => [number, number];
+export const packedflowlayout_selection_meta: (a: number) => [number, number];
+export const realize_flow_text: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number];
+export const register_layout_font: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
 export const text_engine_version: () => [number, number];
+export const text_engine_memory_bytes: () => number;
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
 export const __externref_table_dealloc: (a: number) => void;
 export const __wbindgen_free: (a: number, b: number, c: number) => void;
 export const __wbindgen_start: () => void;

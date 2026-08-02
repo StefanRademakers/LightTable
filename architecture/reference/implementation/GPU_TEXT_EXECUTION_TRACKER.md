@@ -314,14 +314,14 @@ authoring behavior.
 
 #### Slice 06 — Parley WASM layout worker
 
-- [ ] Integrate Parley, Fontique, HarfRust, Skrifa and required ICU4X data.
-- [ ] Shape basic and complex-script fixtures into `RealizedTextLayout`.
-- [ ] Return clusters, caret stops, baselines, bounds and font provenance.
-- [ ] Reuse one persistent lazy worker per application runtime.
-- [ ] Add request IDs, cancellation, session/source revisions and stale-result
+- [x] Integrate Parley, Fontique, HarfRust, Skrifa and required ICU4X data.
+- [x] Shape basic and complex-script fixtures into `RealizedTextLayout`.
+- [x] Return clusters, caret stops, baselines, bounds and font provenance.
+- [x] Reuse one persistent lazy worker per application runtime.
+- [x] Add request IDs, cancellation, session/source revisions and stale-result
   rejection.
-- [ ] Measure cold load, warm layout, memory and output transfer size.
-- [ ] Ensure ordinary image startup does not fetch or instantiate text WASM.
+- [x] Measure cold load, warm layout, memory and output transfer size.
+- [x] Ensure ordinary image startup does not fetch or instantiate text WASM.
 
 UI exposure: Debug diagnostic can run a fixed typography corpus and display
 timings/errors; canvas remains unchanged.
@@ -651,6 +651,35 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 — Slice 06 complete
+
+- Owner: Codex `/root`; independent blocker audits by `/root/slice01_audit`
+  and `/root/text_ui_map`.
+- Layout: pinned Parley/Fontique/HarfRust/Skrifa/ICU4X in Rust/WASM shapes the
+  fixed Latin, Arabic, Hebrew, Devanagari, Thai, CJK, combining, emoji and
+  mixed-bidi corpus into packed typed tables without layout JSON.
+- Correctness: UTF-16/UTF-8 boundaries, ICU grapheme caret stops, logical
+  cluster ordering, visual bidi geometry, per-cluster exact blob/face
+  provenance and conservative Skrifa outline ink bounds are enforced.
+  Unreported variation/synthesis is rejected instead of misrepresented.
+- Runtime: one lazy persistent worker, maximum 16 sessions, exact generation
+  and revision identity, stale-response rejection, abort/late-result discard,
+  session release, per-request glyph limits and validated collection faces.
+- Interchange: positioned text remains persistable but realization is explicitly
+  `unsupported-feature` until exact outline/paint bounds prevent cache clipping.
+- UI/metrics: the development-only Debug corpus reports partial failures, cold
+  initialization, font registration, first/warm timings, transfer bytes and
+  5,636,096 bytes reserved WASM memory. Production artifacts exclude corpus
+  fonts and ordinary rendering constructs no text worker.
+- Verification: 9 Rust tests; fixed WASM structural goldens; complete 245-file /
+  1,181-test workspace suite; boundary and all typechecks passed. Web and
+  packaged Electron builds passed; worker 33.41 kB and WASM 5,788.69 kB
+  (3,082.78 kB gzip). Existing wasm-vips eval/chunk warnings remain unchanged.
+- Limitation: the in-app browser service exposed no browser instance, so the
+  manual Debug-button click could not run; lazy integration and distribution
+  boundaries are automated.
+- Next safe slice: Slice 07, renderer bakeoff and decision record.
 
 ### 2026-08-03 — Slice 05 complete
 

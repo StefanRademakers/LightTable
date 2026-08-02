@@ -1,6 +1,6 @@
 # GPU text contract boundaries
 
-Status: frozen for schema/protocol version 1 (Slice 02).
+Status: document/layout schema 1 and worker protocol 2 (Slice 06 migration).
 
 ## Ownership
 
@@ -93,3 +93,43 @@ Document schema, realized-layout schema and worker protocol versions advance
 independently. Version 1 rejects unknown versions at the boundary. A future
 migration must land before a producer emits a newer document schema, and both
 worker endpoints must support a protocol version before it becomes active.
+
+Worker protocol 2 adds `cancel-text` and `release-session`. Cancellation is
+logical: the client rejects immediately and stale responses are discarded by
+request/session/generation identity. Because Parley shaping is synchronous, it
+is not described as cooperative interruption; hard cancellation terminates and
+restarts the worker. Session release destroys the exact generation's Rust font
+and layout state.
+
+Realized glyph arrays and `clusterMap` are emitted in logical cluster order,
+including RTL and mixed-bidi text, while geometry retains visual positions.
+Renderer paint order must therefore use positions, not array order.
+
+Slice 06 implements the Rust boundary as packed typed tables; flow layout does
+not stringify or parse JSON. Style ranges are UTF-16 offsets at the TypeScript
+boundary, converted once to UTF-8 scalar boundaries in Rust. Run metadata
+proves that Parley's actual blob and face index match the requested registered
+asset before the worker may report `flow-exact`. Dedicated per-run `.slice()`
+buffers preserve the transfer-ownership contract.
+
+Geometry uses unquantized layer-local document units. `fontStretch` and future
+horizontal/vertical scales are percentages; tracking, baseline shift, indents
+and spacing are document units; multiple line height is a multiplier. Slice 06
+supports horizontal point/paragraph text with default paragraph formatting,
+metrics/automatic kerning and zero baseline/scales. Vertical/path layout,
+direction/script overrides, optical or disabled kerning, synthesis, variations,
+custom OpenType features, scaling and non-default paragraph controls return a
+typed `unsupported-feature`; none may be silently ignored.
+
+Flow ink bounds are conservative scalable outline bounds from Skrifa at the
+Parley-selected size and visual position. Empty/whitespace-only ink is a zero
+rectangle. Positioned sources remain a frozen persistence/interchange contract
+in Slice 06, but worker realization returns `unsupported-feature`. Exact
+positioned realization must wait for registered-face outline bounds (including
+stroke/clip paint expansion and projective-transform validation), so cache and
+culling bounds can never clip visible content.
+
+Successful registration/layout responses carry worker operation time and
+reserved WASM linear-memory bytes. The client measures roundtrip and dedicated
+response-transfer bytes separately. These are diagnostics, not cache identity
+or correctness inputs.

@@ -1,0 +1,28 @@
+# Task 025 — GPU text Parley layout worker
+
+Status: complete. Implements Slice 06 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+## Required outcome
+
+- Integrate pinned Parley, Fontique, HarfRust, Skrifa and required ICU4X data
+  into the existing browser-safe Rust/WASM crate.
+- Shape deterministic Latin, Arabic, Hebrew, Devanagari, Thai, CJK, combining
+  mark and emoji fixtures into the frozen `RealizedTextLayout` boundary.
+- Return clusters, caret stops, baselines, bounds and font provenance.
+- Keep one persistent lazy worker with request IDs, cancellation and strict
+  session/source revision stale-result rejection.
+- Bound inputs/outputs and measure cold load, warm layout, WASM memory and
+  structured-clone transfer size.
+- Preserve zero text-WASM startup work for ordinary image documents.
+- Expose only a fixed Debug corpus probe with timings/errors; do not add canvas
+  rendering, a Text tool or editable text UI in this slice.
+
+## Verification
+
+- Rust and TypeScript golden/negative tests for all required scripts.
+- Worker/client lifecycle, transfer, cancellation and stale-result tests.
+- Full boundary, typecheck and test gates.
+- Web build and packaged Electron verification.
+- Update Slice 06 evidence and move this task to `work/done/` only with the
+  cohesive commit.

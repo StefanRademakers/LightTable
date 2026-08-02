@@ -16,9 +16,13 @@ const renderPanel = (status: 'idle' | 'loading' | 'ready' | 'error', summary: st
     onResetRenderTelemetry={vi.fn()}
     textEngineStatus={status}
     textEngineSummary={summary}
+    textEnginePhase={status === 'loading' ? 'Registering fonts' : null}
+    textCorpusReport={null}
+    textCorpusAvailable
     textContractFixtureCount={2}
     lastTextLayoutError={null}
     onProbeTextEngine={vi.fn()}
+    onRunTextCorpus={vi.fn()}
   />);
 
 describe('DebugPanel text engine diagnostic', () => {
@@ -27,6 +31,7 @@ describe('DebugPanel text engine diagnostic', () => {
     expect(markup).toContain('Text engine');
     expect(markup).toContain('Not loaded.');
     expect(markup).toContain('Probe text engine');
+    expect(markup).toContain('Run typography corpus');
     expect(markup).toContain('Contract fixtures: 2');
     expect(markup).toContain('Last layout error: None.');
   });
@@ -35,6 +40,7 @@ describe('DebugPanel text engine diagnostic', () => {
     const markup = renderPanel('loading', 'Loading Rust/WASM text engine...');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('Loading text engine');
+    expect(markup).toContain('Phase: Registering fonts');
   });
 
   it('shows ready and failure details', () => {

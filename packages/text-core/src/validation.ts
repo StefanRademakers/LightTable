@@ -63,9 +63,11 @@ const finite = (value: unknown, path: string): number => {
   return value as number;
 };
 
-const integer = (value: unknown, path: string, minimum = 0): number => {
+const integer = (value: unknown, path: string, minimum = 0, maximum = Number.MAX_SAFE_INTEGER): number => {
   const result = finite(value, path);
-  if (!Number.isSafeInteger(result) || result < minimum) fail(path, `expected a safe integer >= ${minimum}`);
+  if (!Number.isSafeInteger(result) || result < minimum || result > maximum) {
+    fail(path, `expected a safe integer in [${minimum}, ${maximum}]`);
+  }
   return result;
 };
 
@@ -156,7 +158,7 @@ const assertPaint = (value: unknown, path: string): void => {
 const assertFontAsset = (value: unknown, path: string): void => {
   const candidate = record(value, path);
   if (!boundedString(candidate.assetId, `${path}.assetId`)) fail(`${path}.assetId`, 'must not be empty');
-  integer(candidate.faceIndex, `${path}.faceIndex`);
+  integer(candidate.faceIndex, `${path}.faceIndex`, 0, 0xffff_ffff);
   const fingerprint = stringValue(candidate.fingerprintSha256, `${path}.fingerprintSha256`);
   if (!/^[a-f0-9]{64}$/i.test(fingerprint)) fail(`${path}.fingerprintSha256`, 'expected a SHA-256 hex digest');
   oneOf(candidate.source, `${path}.source`, ['bundled', 'document', 'system', 'imported', 'pdf-subset']);
@@ -353,8 +355,8 @@ const assertPositionedSource = (source: Record<string, unknown>, path: string): 
     glyphs.forEach((glyphValue, glyphIndex) => {
       const glyphPath = `${runPath}.glyphs[${glyphIndex}]`;
       const glyph = record(glyphValue, glyphPath);
-      integer(glyph.glyphId, `${glyphPath}.glyphId`);
-      if (glyph.cluster !== undefined) integer(glyph.cluster, `${glyphPath}.cluster`);
+      integer(glyph.glyphId, `${glyphPath}.glyphId`, 0, 0xffff_ffff);
+      if (glyph.cluster !== undefined) integer(glyph.cluster, `${glyphPath}.cluster`, 0, 0xffff_ffff);
       if (glyph.unicode !== undefined) {
         embeddedUnicodeCodeUnits += boundedString(glyph.unicode, `${glyphPath}.unicode`, 64).length;
         if (embeddedUnicodeCodeUnits > MAX_TEXT_CODE_UNITS) fail(`${path}.runs`, 'embedded Unicode exceeds the positioned-text limit');
@@ -561,18 +563,31 @@ const assertLayoutOptions = (value: unknown): void => {
 export function assertTextWorkerRequest(value: unknown): asserts value is TextWorkerRequest {
   const request = record(value, '$');
   assertWorkerIdentity(request);
-  const kind = oneOf(request.kind, '$.kind', ['register-font', 'realize-text']);
+  const kind = oneOf(request.kind, '$.kind', [
+    'register-font', 'realize-text', 'cancel-text', 'release-session'
+  ]);
   if (kind === 'register-font') {
     assertFontAsset(request.font, '$.font');
-    if (!(request.bytes instanceof Uint8Array)) fail('$.bytes', 'expected Uint8Array');
-    const bytes = request.bytes as Uint8Array;
-    if (bytes.byteLength === 0 || bytes.byteLength > MAX_FONT_BYTES) fail('$.bytes', `must contain 1 to ${MAX_FONT_BYTES} bytes`);
-    if (!(bytes.buffer instanceof ArrayBuffer) || bytes.byteOffset !== 0 || bytes.byteLength !== bytes.buffer.byteLength) {
-      fail('$.bytes', 'font registration requires dedicated full-span ArrayBuffer storage');
+    integer(request.fontSnapshotRevision, '$.fontSnapshotRevision');
+    const byteSource = oneOf(request.byteSource, '$.byteSource', ['transferred', 'registered-fingerprint']);
+    if (byteSource === 'transferred') {
+      if (!(request.bytes instanceof Uint8Array)) fail('$.bytes', 'expected Uint8Array');
+      const bytes = request.bytes as Uint8Array;
+      if (bytes.byteLength === 0 || bytes.byteLength > MAX_FONT_BYTES) fail('$.bytes', `must contain 1 to ${MAX_FONT_BYTES} bytes`);
+      if (!(bytes.buffer instanceof ArrayBuffer) || bytes.byteOffset !== 0 || bytes.byteLength !== bytes.buffer.byteLength) {
+        fail('$.bytes', 'font registration requires dedicated full-span ArrayBuffer storage');
+      }
+      if (request.transferOwnership !== 'dedicated') fail('$.transferOwnership', 'expected dedicated');
+    } else if (request.bytes !== undefined || request.transferOwnership !== undefined) {
+      fail('$.bytes', 'registered fingerprint aliases must not resend bytes');
     }
-    if (request.transferOwnership !== 'dedicated') fail('$.transferOwnership', 'expected dedicated');
     return;
   }
+  if (kind === 'cancel-text') {
+    integer(request.targetRequestId, '$.targetRequestId');
+    return;
+  }
+  if (kind === 'release-session') return;
   if (!boundedString(request.layerId, '$.layerId')) fail('$.layerId', 'must not be empty');
   assertTextLayerData(request.layer);
   assertMatrix(request.localToDocument, '$.localToDocument');
@@ -600,14 +615,30 @@ export function assertTextLayoutWorkerRequest(value: unknown): asserts value is 
 export function assertTextLayoutWorkerResponse(value: unknown): asserts value is TextLayoutWorkerResponse {
   const response = record(value, '$');
   assertWorkerIdentity(response);
-  const kind = oneOf(response.kind, '$.kind', ['font-registered', 'text-realized', 'text-layout-failed']);
+  const kind = oneOf(response.kind, '$.kind', [
+    'font-registered', 'font-registration-failed', 'text-realized',
+    'text-layout-failed', 'session-released', 'session-release-failed'
+  ]);
   if (kind === 'font-registered') {
     if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
+    integer(response.fontSnapshotRevision, '$.fontSnapshotRevision');
+    assertPerformanceMetrics(response.metrics, '$.metrics');
+    return;
+  }
+  if (kind === 'session-released') return;
+  if (kind === 'session-release-failed') {
+    assertTextLayoutError(response.error, '$.error');
+    return;
+  }
+  if (kind === 'font-registration-failed') {
+    if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
+    assertTextLayoutError(response.error, '$.error');
     return;
   }
   if (!boundedString(response.cacheKey, '$.cacheKey', 4096)) fail('$.cacheKey', 'must not be empty');
   if (kind === 'text-realized') {
     if (response.transferOwnership !== 'dedicated') fail('$.transferOwnership', 'expected dedicated');
+    assertPerformanceMetrics(response.metrics, '$.metrics');
     assertRealizedTextLayout(response.layout);
     if ((response.layout as RealizedTextLayout).key !== response.cacheKey) fail('$.layout.key', 'must equal the echoed cache key');
     try {
@@ -618,4 +649,12 @@ export function assertTextLayoutWorkerResponse(value: unknown): asserts value is
   } else {
     assertTextLayoutError(response.error, '$.error');
   }
+}
+
+function assertPerformanceMetrics(value: unknown, path: string): void {
+  const metrics = record(value, path);
+  const duration = finite(metrics.operationDurationMs, `${path}.operationDurationMs`);
+  const memory = integer(metrics.wasmLinearMemoryBytes, `${path}.wasmLinearMemoryBytes`);
+  if (duration < 0) fail(`${path}.operationDurationMs`, 'must be non-negative');
+  if (memory < 0) fail(`${path}.wasmLinearMemoryBytes`, 'must be non-negative');
 }

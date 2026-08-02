@@ -14,3 +14,6 @@ read-fonts.workspace = true
 skrifa.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+parley.workspace = true
+fontique.workspace = true
+icu_segmenter.workspace = true

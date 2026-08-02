@@ -3,6 +3,7 @@ import {
   formatLightTableDebugLog,
   type LightTableDebugMessage
 } from '../debug/debugLog';
+import type { TypographyCorpusReport } from '../../text/diagnostics/runTypographyCorpus';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];
@@ -16,9 +17,13 @@ interface DebugPanelProps {
   onResetRenderTelemetry: () => void;
   textEngineStatus: 'idle' | 'loading' | 'ready' | 'error';
   textEngineSummary: string;
+  textEnginePhase: string | null;
+  textCorpusReport: TypographyCorpusReport | null;
+  textCorpusAvailable: boolean;
   textContractFixtureCount: number;
   lastTextLayoutError: string | null;
   onProbeTextEngine: () => void;
+  onRunTextCorpus: () => void;
 }
 
 const formatTimestamp = (timestamp: number) => new Date(timestamp).toLocaleTimeString(
@@ -38,9 +43,13 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   onResetRenderTelemetry,
   textEngineStatus,
   textEngineSummary,
+  textEnginePhase,
+  textCorpusReport,
+  textCorpusAvailable,
   textContractFixtureCount,
   lastTextLayoutError,
-  onProbeTextEngine
+  onProbeTextEngine,
+  onRunTextCorpus
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const summary = useMemo(() => ({
@@ -106,8 +115,29 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
       <fieldset className="lighttable-debug-panel__diagnostics">
         <legend>Text engine</legend>
         <small role="status">{textEngineSummary}</small>
+        {textEnginePhase ? <small role="status">Phase: {textEnginePhase}</small> : null}
         <small>Contract fixtures: {textContractFixtureCount} (flow + positioned).</small>
         <small>Last layout error: {lastTextLayoutError ?? 'None.'}</small>
+        {textCorpusReport ? (
+          <details>
+            <summary>Typography corpus metrics</summary>
+            <dl>
+              <dt>Cold roundtrip</dt><dd>{textCorpusReport.coldRoundTripMs.toFixed(2)} ms</dd>
+              <dt>WASM initialization</dt><dd>{textCorpusReport.wasmInitializationMs.toFixed(2)} ms</dd>
+              <dt>Font registration</dt><dd>{textCorpusReport.fontRegistrationMs.toFixed(2)} ms</dd>
+              <dt>First corpus</dt><dd>{textCorpusReport.firstCorpusLayoutMs.toFixed(2)} ms</dd>
+              <dt>Warm median / p95</dt>
+              <dd>{textCorpusReport.warmCorpusMedianMs.toFixed(2)} / {textCorpusReport.warmCorpusP95Ms.toFixed(2)} ms</dd>
+              <dt>Transfer</dt><dd>{textCorpusReport.responseTransferBytes} bytes</dd>
+              <dt>WASM linear memory</dt><dd>{textCorpusReport.wasmLinearMemoryBytes} bytes</dd>
+            </dl>
+            <ul>
+              {textCorpusReport.cases.map((entry) => (
+                <li key={entry.id}>{entry.passed ? 'Pass' : 'Fail'}: {entry.id} ({entry.glyphCount} glyphs)</li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
         <div className="lighttable-debug-panel__actions">
           <button
             type="button"
@@ -115,6 +145,14 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
             disabled={textEngineStatus === 'loading'}
           >
             {textEngineStatus === 'loading' ? 'Loading text engine...' : 'Probe text engine'}
+          </button>
+          <button
+            type="button"
+            onClick={onRunTextCorpus}
+            disabled={textEngineStatus === 'loading' || !textCorpusAvailable}
+            title={textCorpusAvailable ? undefined : 'Corpus fixtures are development-only.'}
+          >
+            Run typography corpus
           </button>
         </div>
       </fieldset>

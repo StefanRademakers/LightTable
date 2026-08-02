@@ -54,7 +54,7 @@ import {
   type ReferenceDifferenceMetrics
 } from './application/rendering/rendererTypes';
 import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
-import { lightTableTextEngine } from './text/wasm/TextEngineClient';
+import { useTextEngineDiagnostics } from './text/diagnostics/useTextEngineDiagnostics';
 import {
   documentTextFontDiagnostics,
   summarizeTextFontDiagnostics
@@ -401,10 +401,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
-  const [textEngineDiagnostic, setTextEngineDiagnostic] = useState<{
-    status: 'idle' | 'loading' | 'ready' | 'error';
-    summary: string;
-  }>({ status: 'idle', summary: 'Not loaded. The worker and WASM remain lazy until probed.' });
   const [toolOptionsMenu, setToolOptionsMenu] = useState<{ x: number; y: number } | null>(null);
   const copiedGrade = useLightTableGradeClipboard();
   const brushPercentInputRef = useRef(new BrushPercentInput());
@@ -501,6 +497,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onDocumentReady,
     onDocumentError
   });
+  const textEngineDiagnostic = useTextEngineDiagnostics(appendDebugMessage);
   const reportedFontDiagnosticsRef = useRef('');
   useEffect(() => {
     const signature = `${imageDocument?.id ?? 'no-document'}:${JSON.stringify(fontDiagnostics)}`;
@@ -1903,24 +1900,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     'Render counters reset.'
                   );
                 },
-                textEngineStatus: textEngineDiagnostic.status,
-                textEngineSummary: textEngineDiagnostic.summary,
+                textEngineStatus: textEngineDiagnostic.state.status,
+                textEngineSummary: textEngineDiagnostic.state.summary,
+                textEnginePhase: textEngineDiagnostic.state.phase,
+                textCorpusReport: textEngineDiagnostic.state.report,
+                textCorpusAvailable: textEngineDiagnostic.state.corpusAvailable,
                 textContractFixtureCount: TEXT_CONTRACT_FIXTURE_COUNT,
-                lastTextLayoutError: null,
-                onProbeTextEngine: () => {
-                  setTextEngineDiagnostic({ status: 'loading', summary: 'Loading Rust/WASM text engine...' });
-                  void lightTableTextEngine.probe().then((capability) => {
-                    const summary = `Ready: v${capability.engineVersion} in ${capability.loadDurationMs.toFixed(1)} ms.`;
-                    setTextEngineDiagnostic({ status: 'ready', summary });
-                    appendDebugMessage('info', 'Text engine', summary);
-                  }).catch((reason: unknown) => {
-                    const message = reason instanceof Error
-                      ? reason.message
-                      : 'The text engine capability probe failed.';
-                    setTextEngineDiagnostic({ status: 'error', summary: message });
-                    appendDebugMessage('error', 'Text engine', message);
-                  });
-                }
+                lastTextLayoutError: textEngineDiagnostic.state.lastLayoutError,
+                onProbeTextEngine: textEngineDiagnostic.probe,
+                onRunTextCorpus: textEngineDiagnostic.runCorpus
               },
               lensFxKey: sourceIdentity || sourceName,
               lensFx: {

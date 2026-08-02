@@ -146,6 +146,24 @@ describe('text document contracts', () => {
     expect(() => assertTextLayerData({ ...createDefaultTextLayerData(), runtime: new RuntimeHandle() })).toThrow(/plain serializable object/);
   });
 
+  it('rejects positioned identifiers that would truncate in Uint32Array tables', () => {
+    const fixture = createPositionedTextFixture();
+    if (fixture.source.kind !== 'positioned') throw new Error('Expected positioned fixture.');
+    const run = fixture.source.runs[0];
+    const glyph = run.glyphs[0];
+    expect(() => assertTextLayerData({
+      ...fixture,
+      source: { ...fixture.source, runs: [{ ...run, glyphs: [{ ...glyph, glyphId: 0x1_0000_0000 }] }] }
+    })).toThrow(/glyphId/);
+    expect(() => assertTextLayerData({
+      ...fixture,
+      source: {
+        ...fixture.source,
+        runs: [{ ...run, font: { ...run.font, font: { ...run.font.font, faceIndex: 0x1_0000_0000 } } }]
+      }
+    })).toThrow(/faceIndex/);
+  });
+
   it('never permits run boundaries to split a surrogate pair', () => {
     const layer = createDefaultTextLayerData();
     const source = createDefaultFlowTextSource('A\u{1F600}B');
@@ -243,7 +261,7 @@ describe('realized layout and worker contracts', () => {
     const request = createLayoutRequest();
     expect(() => assertTextLayoutWorkerRequest(request)).not.toThrow();
     expect(() => assertTextLayoutWorkerRequest({ ...request, cacheKey: 'stale' })).toThrow(/cacheKey/);
-    expect(() => assertTextLayoutWorkerRequest({ ...request, protocolVersion: 2 })).toThrow(/protocolVersion/);
+    expect(() => assertTextLayoutWorkerRequest({ ...request, protocolVersion: 3 })).toThrow(/protocolVersion/);
   });
 
   it('moves only dedicated font registration storage', () => {
@@ -255,7 +273,9 @@ describe('realized layout and worker contracts', () => {
       documentSessionId: 'document-session-1',
       sessionGeneration: 2,
       font: CONTRACT_FIXTURE_FONT_ASSET,
+      fontSnapshotRevision: 1,
       bytes,
+      byteSource: 'transferred',
       transferOwnership: 'dedicated'
     };
     expect(() => assertTextWorkerRequest(request)).not.toThrow();
@@ -266,6 +286,34 @@ describe('realized layout and worker contracts', () => {
     const pooled = new Uint8Array(8);
     const subarrayRequest = { ...request, bytes: pooled.subarray(2, 6) };
     expect(() => collectTextRequestTransferBuffers(subarrayRequest)).toThrow(TextTransferContractError);
+
+    const aliasRequest: TextWorkerFontRegistrationRequest = {
+      ...request,
+      requestId: 4,
+      fontSnapshotRevision: 2,
+      byteSource: 'registered-fingerprint',
+      bytes: undefined,
+      transferOwnership: undefined
+    };
+    expect(() => assertTextWorkerRequest(aliasRequest)).not.toThrow();
+    expect(collectTextRequestTransferBuffers(aliasRequest)).toEqual([]);
+  });
+
+  it('validates logical cancellation and exact-generation session release', () => {
+    const identity = {
+      protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      documentSessionId: 'document-session-1',
+      sessionGeneration: 2
+    };
+    expect(() => assertTextWorkerRequest({
+      ...identity, kind: 'cancel-text', requestId: 8, targetRequestId: 7
+    })).not.toThrow();
+    expect(() => assertTextWorkerRequest({
+      ...identity, kind: 'release-session', requestId: 9
+    })).not.toThrow();
+    expect(() => assertTextLayoutWorkerResponse({
+      ...identity, kind: 'session-released', requestId: 9
+    })).not.toThrow();
   });
 
   it('moves dedicated realized tables without sharing or detaching unrelated memory', () => {
@@ -278,7 +326,8 @@ describe('realized layout and worker contracts', () => {
       sessionGeneration: request.sessionGeneration,
       cacheKey: request.cacheKey,
       layout: createRealizedFixture(request.cacheKey),
-      transferOwnership: 'dedicated'
+      transferOwnership: 'dedicated',
+      metrics: { operationDurationMs: 1.25, wasmLinearMemoryBytes: 65_536 }
     };
     expect(() => assertTextLayoutWorkerResponse(response)).not.toThrow();
     const transfers = collectTextResponseTransferBuffers(response);
