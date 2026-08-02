@@ -18,10 +18,12 @@ import {
   type LayerNode,
   type PhotoshopImportCompatibilityEntry,
   type PhotoshopImportSupport,
-  type RasterLayer
+  type RasterLayer,
+  type VectorLayer
 } from '../document/documentTypes';
 import { identityAffineMatrix } from '../rendering/renderContract';
 import { importPsdLayerStyles } from './layerStylePsdAdapter';
+import { importPsdVectorShape } from './psdVectorShapeAdapter';
 import type { PsdDecodeSuccess, PsdLayerNodeDto } from '../../image-io/psdProtocol';
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
@@ -472,6 +474,50 @@ export const importPsdDocument = (
       });
       return layer;
     }
+    if (node.kind === 'vector') {
+      const vectorImport = importPsdVectorShape({
+        name: node.name,
+        vectorFill: node.preserved.vectorFill,
+        vectorMask: node.preserved.vectorMask,
+        vectorStroke: node.preserved.vectorStroke
+      });
+      if (vectorImport.status === 'native') {
+        const layer: VectorLayer = {
+          ...common,
+          type: 'vector',
+          antiAlias: true,
+          elements: vectorImport.elements,
+          mask: node.mask ? {
+            id: node.mask.id,
+            enabled: node.mask.enabled,
+            density: node.mask.density,
+            feather: node.mask.feather,
+            revision: 0,
+            pixelRevision: 0,
+            dirtyBounds: null
+          } : null
+        };
+        if (node.mask) {
+          assets.push({ layerId: id, pixels: new Blob(), mask: node.mask.pixels });
+        }
+        compatibility.push({
+          path,
+          feature: 'node',
+          support: 'native',
+          reason: vectorImport.reason
+        });
+        return layer;
+      }
+      warnings.push(`${path}: ${vectorImport.reason}`);
+      compatibility.push({
+        path,
+        feature: 'node',
+        support: node.pixels ? 'raster-preview' : 'preserved',
+        reason: node.pixels
+          ? `${vectorImport.reason} Photoshop's layer-local raster preview remains visible.`
+          : vectorImport.reason
+      });
+    }
     if (!node.pixels) {
       warnings.push(`${path}: ${node.kind} "${node.name}" has no raster preview and is preserved in the PSD inventory but is not rendered yet.`);
       return null;
@@ -498,7 +544,7 @@ export const importPsdDocument = (
       } : null
     };
     assets.push({ layerId: id, pixels: node.pixels, mask: node.mask?.pixels ?? null });
-    if (node.kind !== 'raster') {
+    if (node.kind !== 'raster' && node.kind !== 'vector') {
       compatibility.push({
         path,
         feature: 'node',

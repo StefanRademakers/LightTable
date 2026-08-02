@@ -208,6 +208,76 @@ describe('importPsdDocument', () => {
     expect(result.warnings.join('\n')).toContain('currently imports as its layer-local raster preview');
   });
 
+  it('imports supported Photoshop vector shapes as editable native vector layers', () => {
+    const result = importPsdDocument(decoded([raster('shape', {
+      kind: 'vector',
+      preserved: {
+        text: null,
+        placedLayer: null,
+        vectorFill: { type: 'color', color: { r: 255, g: 0, b: 0 } },
+        vectorMask: {
+          paths: [{
+            open: false,
+            operation: 'combine',
+            fillRule: 'non-zero',
+            knots: [
+              { linked: false, points: [1, 1, 1, 1, 1, 1] },
+              { linked: false, points: [20, 1, 20, 1, 20, 1] },
+              { linked: false, points: [20, 20, 20, 20, 20, 20] }
+            ]
+          }]
+        },
+        vectorStroke: null,
+        realMask: null
+      }
+    })]), 'shape.psd');
+
+    expect(result.document.layers[0]).toMatchObject({
+      type: 'vector',
+      antiAlias: true,
+      elements: [expect.objectContaining({ type: 'path', name: 'shape' })]
+    });
+    expect(result.assets).toHaveLength(0);
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      path: 'layers[0]',
+      feature: 'node',
+      support: 'native',
+      reason: expect.stringContaining('editable LightTable vector paths')
+    }));
+  });
+
+  it('retains the Photoshop raster preview when vector semantics are unsupported', () => {
+    const unsupportedPath = {
+      open: false,
+      operation: 'subtract',
+      fillRule: 'non-zero',
+      knots: [
+        { linked: false, points: [1, 1, 1, 1, 1, 1] },
+        { linked: false, points: [20, 1, 20, 1, 20, 1] },
+        { linked: false, points: [20, 20, 20, 20, 20, 20] }
+      ]
+    };
+    const result = importPsdDocument(decoded([raster('complex-shape', {
+      kind: 'vector',
+      preserved: {
+        text: null,
+        placedLayer: null,
+        vectorFill: { type: 'color', color: { r: 255, g: 0, b: 0 } },
+        vectorMask: { paths: [unsupportedPath] },
+        vectorStroke: null,
+        realMask: null
+      }
+    })]), 'complex-shape.psd');
+
+    expect(result.document.layers[0]?.type).toBe('raster');
+    expect(result.assets).toHaveLength(1);
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      path: 'layers[0]',
+      support: 'raster-preview',
+      reason: expect.stringContaining('Subtract')
+    }));
+  });
+
   it('keeps semantic nodes in the tree when Photoshop has no local raster preview', () => {
     const result = importPsdDocument(decoded([raster('text', {
       kind: 'text',
