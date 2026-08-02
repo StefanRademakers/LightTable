@@ -12,6 +12,7 @@ const buffer = () => ({ destroy: vi.fn() }) as unknown as GPUBuffer;
 const session = (usesSelection = true): TransformGpuSession => ({
   layerId: 'layer-1' as LayerId,
   matrix: identityAffineMatrix(),
+  previewMode: 'none',
   sourceTexture: texture(),
   selectionTexture: usesSelection ? texture() : null,
   previewTexture: texture(),

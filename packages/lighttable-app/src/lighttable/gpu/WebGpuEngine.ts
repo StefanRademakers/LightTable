@@ -80,6 +80,7 @@ import {
   VectorEditingOverlayBackend,
   type VectorEditingOverlayTarget
 } from '@lighttable/vector-webgpu';
+import type { VectorSelectionFrame } from '@lighttable/vector-rendering';
 import { buildVectorDocumentEditingSceneOverlay } from '../application/vectors/vectorEditingOverlay';
 import {
   cloneVectorEditorSelection,
@@ -215,6 +216,7 @@ export class WebGpuEngine {
     center: { x: number; y: number };
     diameter: number;
   } | null = null;
+  private transformEditingFrame: VectorSelectionFrame | null = null;
   private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
   private selectionContourOverlayBackend: SelectionContourOverlayBackend | null = null;
 
@@ -474,6 +476,15 @@ export class WebGpuEngine {
 
   updateLayerTransform(matrix: AffineMatrix) {
     const changed = this.documentRenderer?.updateTransform(matrix) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
+  updateLayerProjectiveTransform(
+    source: import('../editor/tools/transform/transformTypes').TransformQuad,
+    destination: import('../editor/tools/transform/transformTypes').TransformQuad
+  ) {
+    const changed = this.documentRenderer?.updateProjectiveTransform(source, destination) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;
   }
@@ -1149,6 +1160,25 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setTransformEditingFrame(frame: VectorSelectionFrame | null) {
+    if (this.transformEditingFrame?.resourceKey === frame?.resourceKey) return;
+    this.transformEditingFrame = frame ? {
+      ...frame,
+      bounds: { ...frame.bounds },
+      pivot: { ...frame.pivot },
+      edges: frame.edges.map(({ start, end }) => ({
+        start: { ...start },
+        end: { ...end }
+      })),
+      handles: frame.handles.map((handle) => ({
+        ...handle,
+        point: { ...handle.point }
+      }))
+    } : null;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   async measureReferenceDifference(threshold = 2 / 255): Promise<ReferenceDifferenceMetrics> {
     if (!this.metadata || !this.imageResources.sourceTexture || !this.imageResources.finalTexture || !this.differenceMetricsPipeline) {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
@@ -1715,6 +1745,7 @@ export class WebGpuEngine {
       && !selectionShape
       && !selectionDraft
       && !selectionMask
+      && !this.transformEditingFrame
       && !this.brushCursorOverlay
     ) return;
     const uniforms = this.viewportRenderState.uniforms;
@@ -1742,6 +1773,13 @@ export class WebGpuEngine {
       this.vectorEditingOverlayBackend.encodeSelectionFrame(
         encoder,
         overlayScene.selectionFrame,
+        target
+      );
+    }
+    if (this.transformEditingFrame) {
+      this.vectorEditingOverlayBackend.encodeTransformFrame(
+        encoder,
+        this.transformEditingFrame,
         target
       );
     }
@@ -1798,6 +1836,7 @@ export class WebGpuEngine {
     this.isolatedMaskNearestBindGroup = null;
     this.isolatedCompositeChannel = null;
     this.brushCursorOverlay = null;
+    this.transformEditingFrame = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;
     this.linearSpatialTexture = null;

@@ -32,6 +32,7 @@ const renderer = (): TransformRendererPort => ({
   measureLayerContent: vi.fn(async () => coverage),
   beginLayerTransform: vi.fn(),
   updateLayerTransform: vi.fn(() => true),
+  updateLayerProjectiveTransform: vi.fn(() => true),
   commitLayerTransform: vi.fn(pixelEdit),
   cancelLayerTransform: vi.fn()
 });
@@ -123,6 +124,42 @@ describe('TransformController', () => {
       expect(result.afterSelection[0].shape.points[0]).toEqual({ x: 12, y: 10 });
       expect(result.pixelEdit.byteSize).toBe(64);
     }
+  });
+
+  it('previews and bakes a projective corner transform as one pixel edit', async () => {
+    const base = createImageDocument('Transform', 320, 180, 'asset');
+    const layer = base.layers[0] as RasterLayer;
+    const document = {
+      ...base,
+      layers: [{ ...layer, transform: translationMatrix(12, -3) }]
+    };
+    const port = renderer();
+    const controller = new TransformController(port);
+    const launch = await controller.begin(document, []);
+
+    expect(launch.ok).toBe(true);
+    const destination = [
+      { x: 18, y: 5 },
+      { x: 77, y: 9 },
+      { x: 70, y: 54 },
+      { x: 13, y: 50 }
+    ] as const;
+    const state = controller.updateProjective(destination);
+    expect(state?.projectiveQuad).toEqual(destination);
+    expect(port.updateLayerProjectiveTransform).toHaveBeenLastCalledWith([
+      { x: 10, y: 12 },
+      { x: 60, y: 12 },
+      { x: 60, y: 52 },
+      { x: 10, y: 52 }
+    ], destination);
+
+    const result = controller.finish(document, [], true);
+    expect(result.kind).toBe('selection');
+    if (result.kind === 'selection') {
+      expect((result.afterDocument.layers[0] as RasterLayer).transform).toEqual(identityMatrix());
+      expect((result.afterDocument.layers[0] as RasterLayer).pixelRevision).toBe(1);
+    }
+    expect(port.commitLayerTransform).toHaveBeenCalledOnce();
   });
 
   it('cancels stale async launches without opening a renderer preview', async () => {

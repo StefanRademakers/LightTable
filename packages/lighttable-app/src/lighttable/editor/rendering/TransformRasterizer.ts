@@ -1,7 +1,8 @@
 import { layerIsLocked, type LayerId, type RasterLayer } from '../document/documentTypes';
 import type { ReversiblePixelEdit } from '../history/ReversiblePixelEdit';
 import { invertMatrix } from '../tools/transform/affine';
-import type { AffineMatrix } from '../tools/transform/transformTypes';
+import { solveProjectiveTransform } from '../tools/transform/projective';
+import type { AffineMatrix, TransformQuad } from '../tools/transform/transformTypes';
 import { identityAffineMatrix } from './renderContract';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
@@ -66,7 +67,7 @@ export class TransformRasterizer {
       : null;
     const settingsBuffer = this.options.device.createBuffer({
       label: 'LightTable transform settings',
-      size: 48,
+      size: 64,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     const encoder = this.options.device.createCommandEncoder({
@@ -93,7 +94,8 @@ export class TransformRasterizer {
       previewTexture,
       selectionPreview,
       settingsBuffer,
-      usesSelection: useSelection
+      usesSelection: useSelection,
+      previewMode: useSelection ? 'selection' : 'none'
     });
   }
 
@@ -103,25 +105,48 @@ export class TransformRasterizer {
     const inverse = invertMatrix(matrix);
     if (!inverse) return false;
     session.matrix = matrix;
+    session.previewMode = session.usesSelection ? 'selection' : 'none';
     // Whole-layer transforms are compositor geometry overrides. No pixels are
     // resampled until an explicit rasterize/merge operation.
     if (!session.usesSelection) return true;
 
+    return this.renderPreview([
+      inverse.a, inverse.c, inverse.tx, 0,
+      inverse.b, inverse.d, inverse.ty, 0,
+      0, 0, 1, 0
+    ], true);
+  }
+
+  updateProjective(source: TransformQuad, destination: TransformQuad) {
+    const session = this.options.sessions.current;
+    if (!session) return false;
+    const inverse = solveProjectiveTransform(destination, source);
+    if (!inverse) return false;
+    session.previewMode = 'projective';
+    return this.renderPreview([
+      inverse[0], inverse[1], inverse[2], 0,
+      inverse[3], inverse[4], inverse[5], 0,
+      inverse[6], inverse[7], inverse[8], 0
+    ], session.usesSelection);
+  }
+
+  private renderPreview(inverseRows: readonly number[], selectionActive: boolean) {
+    const session = this.options.sessions.current;
+    if (!session) return false;
     const { width, height } = this.options.dimensions();
     const { device, sampler, selectionTextures } = this.options;
     device.queue.writeBuffer(session.settingsBuffer, 0, new Float32Array([
-      inverse.a, inverse.c, inverse.tx, 0,
-      inverse.b, inverse.d, inverse.ty, 0,
-      width, height, 1, 0
+      ...inverseRows,
+      width, height, selectionActive ? 1 : 0, 0
     ]));
     const selectionSource = session.selectionTexture ?? selectionTextures.mask;
-    if (!selectionSource) return false;
+    if (selectionActive && !selectionSource) return false;
     const pipelines = this.options.pipelines();
     const transformBindGroup = device.createBindGroup({
       layout: pipelines.transform.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: session.sourceTexture.createView() },
-        { binding: 1, resource: selectionSource.createView() },
+        { binding: 1, resource: (selectionSource ?? session.sourceTexture).createView() },
         { binding: 2, resource: sampler },
         { binding: 3, resource: { buffer: session.settingsBuffer } }
       ]
@@ -136,7 +161,7 @@ export class TransformRasterizer {
       session.previewTexture.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
     );
-    if (session.selectionTexture && session.selectionPreview) {
+    if (selectionActive && session.selectionTexture && session.selectionPreview) {
       const selectionBindGroup = device.createBindGroup({
         layout: pipelines.selectionTransform.getBindGroupLayout(0),
         entries: [

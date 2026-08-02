@@ -115,6 +115,7 @@ import { usePaintSessionController } from './application/tools/paint/usePaintSes
 import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
+import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
 import {
   patchVectorStyle,
@@ -1342,7 +1343,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus
   });
   const transformState = transformSession.state;
+  useEffect(() => {
+    engineRef.current?.setTransformEditingFrame(
+      transformState
+        ? buildTransformEditingFrame(transformState, activeScale)
+        : null
+    );
+  }, [activeScale, transformState]);
   const updateTransformMatrix = transformSession.update;
+  const updateTransformProjective = transformSession.updateProjective;
   commitTransformRef.current = transformSession.commit;
   cancelTransformRef.current = transformSession.cancel;
   resetTransformRef.current = transformSession.reset;
@@ -1712,7 +1721,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                       event.stopPropagation();
                       setToolOptionsMenu({ x: event.clientX, y: event.clientY });
                     },
-                    onTransformChange: updateTransformMatrix
+                    onTransformChange: updateTransformMatrix,
+                    onTransformProjectiveChange: updateTransformProjective
                   }}
                   status={{
                     status: error ?? gradeStatus ?? '',

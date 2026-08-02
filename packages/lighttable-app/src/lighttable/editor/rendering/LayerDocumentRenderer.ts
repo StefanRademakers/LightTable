@@ -229,6 +229,10 @@ export class LayerDocumentRenderer {
     return this.runtime.transformRasterizer.update(matrix);
   }
 
+  updateProjectiveTransform(source: import('../tools/transform/transformTypes').TransformQuad, destination: import('../tools/transform/transformTypes').TransformQuad) {
+    return this.runtime.transformRasterizer.updateProjective(source, destination);
+  }
+
   commitTransform(): ReversiblePixelEdit | null {
     return this.runtime.transformRasterizer.commit();
   }

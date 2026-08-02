@@ -8,6 +8,7 @@ import type {
 import { TransformOverlay } from '../tools/transform/TransformOverlay';
 import type {
   AffineMatrix,
+  TransformQuad,
   TransformSessionState
 } from '../tools/transform/transformTypes';
 import type { ToolId } from '../session/editorSession';
@@ -35,6 +36,7 @@ export interface DocumentViewportSurfaceProps {
   onPointerLeave: React.PointerEventHandler<HTMLDivElement>;
   onContextMenu: React.MouseEventHandler<HTMLDivElement>;
   onTransformChange: (matrix: AffineMatrix) => void;
+  onTransformProjectiveChange: (quad: TransformQuad) => void;
 }
 
 /**
@@ -66,7 +68,8 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onPointerCancel,
   onPointerLeave,
   onContextMenu,
-  onTransformChange
+  onTransformChange,
+  onTransformProjectiveChange
 }) => {
   const effectiveTool = temporaryPanActive ? 'view' : activeTool;
   return (
@@ -100,6 +103,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           width={viewportSize.width}
           height={viewportSize.height}
           onChange={onTransformChange}
+          onProjectiveChange={onTransformProjectiveChange}
         />
       ) : null}
       {loading ? (

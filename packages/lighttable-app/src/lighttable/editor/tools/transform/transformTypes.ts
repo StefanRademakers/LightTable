@@ -11,9 +11,25 @@ export interface TransformSessionState {
   supportBounds: Rect;
   /** Authoritative source-to-document matrix at session start. */
   sourceMatrix: AffineMatrix;
+  /** Untransformed pixel bounds used as the source domain for projective edits. */
+  sourceContentBounds: Rect;
   /** Document-space delta produced by the gizmo. */
   matrix: AffineMatrix;
+  /** Explicit document-space cage once corner distortion is active. */
+  projectiveQuad: TransformQuad | null;
   sourceKind: 'selection' | 'layer';
+}
+
+export type TransformQuad = readonly [
+  TransformPoint,
+  TransformPoint,
+  TransformPoint,
+  TransformPoint
+];
+
+export interface TransformPoint {
+  x: number;
+  y: number;
 }
 
 export type TransformHandle =

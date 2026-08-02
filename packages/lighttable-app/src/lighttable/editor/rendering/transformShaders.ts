@@ -2,6 +2,7 @@ export const LAYER_TRANSFORM_WGSL = /* wgsl */ `
 struct TransformSettings {
   inverseRow0: vec4f,
   inverseRow1: vec4f,
+  inverseRow2: vec4f,
   canvasSize: vec2f,
   selectionActive: f32,
   padding: f32,
@@ -13,10 +14,13 @@ struct TransformSettings {
 @group(0) @binding(3) var<uniform> settings: TransformSettings;
 
 fn inversePoint(point: vec2f) -> vec2f {
-  return vec2f(
+  let homogeneous = vec3f(
     dot(settings.inverseRow0.xyz, vec3f(point, 1.0)),
-    dot(settings.inverseRow1.xyz, vec3f(point, 1.0))
+    dot(settings.inverseRow1.xyz, vec3f(point, 1.0)),
+    dot(settings.inverseRow2.xyz, vec3f(point, 1.0))
   );
+  let safeW = select(homogeneous.z, select(-1e-6, 1e-6, homogeneous.z >= 0.0), abs(homogeneous.z) < 1e-6);
+  return homogeneous.xy / safeW;
 }
 
 fn insideCanvas(point: vec2f) -> bool {
@@ -56,6 +60,7 @@ export const SELECTION_TRANSFORM_WGSL = /* wgsl */ `
 struct TransformSettings {
   inverseRow0: vec4f,
   inverseRow1: vec4f,
+  inverseRow2: vec4f,
   canvasSize: vec2f,
   selectionActive: f32,
   padding: f32,
@@ -68,10 +73,13 @@ struct TransformSettings {
 @fragment
 fn main(input: VertexOutput) -> @location(0) f32 {
   let destinationPixel = input.uv * settings.canvasSize;
-  let sourcePixel = vec2f(
+  let homogeneous = vec3f(
     dot(settings.inverseRow0.xyz, vec3f(destinationPixel, 1.0)),
-    dot(settings.inverseRow1.xyz, vec3f(destinationPixel, 1.0))
+    dot(settings.inverseRow1.xyz, vec3f(destinationPixel, 1.0)),
+    dot(settings.inverseRow2.xyz, vec3f(destinationPixel, 1.0))
   );
+  let safeW = select(homogeneous.z, select(-1e-6, 1e-6, homogeneous.z >= 0.0), abs(homogeneous.z) < 1e-6);
+  let sourcePixel = homogeneous.xy / safeW;
   let sourceInside = select(
     0.0,
     1.0,

@@ -7,6 +7,7 @@ import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixe
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 import type {
   AffineMatrix,
+  TransformQuad,
   TransformSessionState
 } from '../../../editor/tools/transform/transformTypes';
 import {
@@ -49,6 +50,7 @@ export interface TransformSessionDependencies {
 export interface TransformSessionController {
   state: TransformSessionState | null;
   update(matrix: AffineMatrix): void;
+  updateProjective(quad: TransformQuad): void;
   commit(): void;
   cancel(): void;
   reset(): void;
@@ -182,6 +184,11 @@ export const useTransformSessionController = (
     if (next) setState(next);
   }, []);
 
+  const updateProjective = useCallback((quad: TransformQuad) => {
+    const next = controllerRef.current?.updateProjective(quad);
+    if (next) setState(next);
+  }, []);
+
   useEffect(() => {
     const controller = controllerRef.current;
     if (
@@ -227,6 +234,7 @@ export const useTransformSessionController = (
   return {
     state,
     update,
+    updateProjective,
     commit: () => finish(true),
     cancel: () => finish(false),
     reset,

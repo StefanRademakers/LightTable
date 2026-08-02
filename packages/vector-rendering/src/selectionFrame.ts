@@ -8,7 +8,8 @@ export type VectorSelectionHandleKind =
   | 'south-east'
   | 'south'
   | 'south-west'
-  | 'west';
+  | 'west'
+  | 'rotate';
 
 export interface VectorSelectionFrameHandle {
   kind: VectorSelectionHandleKind;

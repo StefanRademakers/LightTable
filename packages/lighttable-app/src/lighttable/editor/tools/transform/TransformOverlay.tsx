@@ -11,7 +11,7 @@ import {
   translationMatrix,
   type TransformPoint
 } from './affine';
-import type { AffineMatrix, TransformHandle, TransformSessionState } from './transformTypes';
+import type { AffineMatrix, TransformHandle, TransformQuad, TransformSessionState } from './transformTypes';
 
 interface TransformOverlayProps {
   state: TransformSessionState;
@@ -20,6 +20,7 @@ interface TransformOverlayProps {
   width: number;
   height: number;
   onChange: (matrix: AffineMatrix) => void;
+  onProjectiveChange: (quad: TransformQuad) => void;
 }
 
 interface DragState {
@@ -31,6 +32,8 @@ interface DragState {
   handlePoint: TransformPoint;
   pivot: TransformPoint;
   angle: number;
+  projectiveQuad: TransformQuad | null;
+  projectiveCorner: number | null;
 }
 
 const midpoint = (first: TransformPoint, second: TransformPoint): TransformPoint => ({
@@ -44,7 +47,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   scale,
   width,
   height,
-  onChange
+  onChange,
+  onProjectiveChange
 }) => {
   const dragRef = useRef<DragState | null>(null);
   const toScreen = (point: TransformPoint) => ({
@@ -59,12 +63,16 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     };
   };
   const geometry = useMemo(() => {
-    const source = rectCorners(state.sourceBounds);
-    const corners = source.map((point) => transformPoint(state.matrix, point));
-    const center = transformPoint(state.matrix, {
-      x: state.sourceBounds.x + state.sourceBounds.width / 2,
-      y: state.sourceBounds.y + state.sourceBounds.height / 2
-    });
+    const source = rectCorners(state.sourceContentBounds)
+      .map((point) => transformPoint(state.sourceMatrix, point));
+    const affineCorners: TransformQuad = [
+      transformPoint(state.matrix, source[0]),
+      transformPoint(state.matrix, source[1]),
+      transformPoint(state.matrix, source[2]),
+      transformPoint(state.matrix, source[3])
+    ];
+    const corners = state.projectiveQuad ?? affineCorners;
+    const center = midpoint(corners[0], corners[2]);
     const top = midpoint(corners[0], corners[1]);
     const topLength = Math.hypot(corners[1].x - corners[0].x, corners[1].y - corners[0].y);
     const normal = topLength > 1e-6
@@ -86,7 +94,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         ['west', midpoint(source[3], source[0]), midpoint(source[1], source[2]), midpoint(corners[3], corners[0])]
       ] as Array<[TransformHandle, TransformPoint, TransformPoint, TransformPoint]>
     };
-  }, [scale, state.matrix, state.sourceBounds]);
+  }, [scale, state.matrix, state.projectiveQuad, state.sourceContentBounds, state.sourceMatrix]);
 
   const begin = (
     event: React.PointerEvent<SVGElement>,
@@ -101,6 +109,10 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       x: (event.clientX - bounds.left - imageRect.x) / Math.max(scale, 1e-6),
       y: (event.clientY - bounds.top - imageRect.y) / Math.max(scale, 1e-6)
     };
+    const cornerIndex = ['north-west', 'north-east', 'south-east', 'south-west'].indexOf(handle);
+    const projectiveCorner = cornerIndex >= 0 && (event.ctrlKey || event.metaKey || state.projectiveQuad)
+      ? cornerIndex
+      : null;
     dragRef.current = {
       pointerId: event.pointerId,
       handle,
@@ -109,7 +121,14 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       anchor,
       handlePoint,
       pivot: geometry.center,
-      angle: Math.atan2(start.y - geometry.center.y, start.x - geometry.center.x)
+      angle: Math.atan2(start.y - geometry.center.y, start.x - geometry.center.x),
+      projectiveQuad: [
+        { ...geometry.corners[0] },
+        { ...geometry.corners[1] },
+        { ...geometry.corners[2] },
+        { ...geometry.corners[3] }
+      ],
+      projectiveCorner
     };
     svg.setPointerCapture(event.pointerId);
     event.preventDefault();
@@ -120,17 +139,31 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const current = toDocument(event);
-    if (drag.handle === 'body') {
+    if (drag.projectiveCorner !== null && drag.projectiveQuad) {
+      const next = drag.projectiveQuad.map((point, index) => (
+        index === drag.projectiveCorner ? current : { ...point }
+      )) as unknown as TransformQuad;
+      onProjectiveChange(next);
+    } else if (state.projectiveQuad && drag.handle === 'body' && drag.projectiveQuad) {
+      const dx = current.x - drag.start.x;
+      const dy = current.y - drag.start.y;
+      onProjectiveChange([
+        { x: drag.projectiveQuad[0].x + dx, y: drag.projectiveQuad[0].y + dy },
+        { x: drag.projectiveQuad[1].x + dx, y: drag.projectiveQuad[1].y + dy },
+        { x: drag.projectiveQuad[2].x + dx, y: drag.projectiveQuad[2].y + dy },
+        { x: drag.projectiveQuad[3].x + dx, y: drag.projectiveQuad[3].y + dy }
+      ]);
+    } else if (drag.handle === 'body') {
       onChange(multiplyMatrices(
         translationMatrix(current.x - drag.start.x, current.y - drag.start.y),
         drag.matrix
       ));
-    } else if (drag.handle === 'rotate') {
+    } else if (drag.handle === 'rotate' && !state.projectiveQuad) {
       const angle = Math.atan2(current.y - drag.pivot.y, current.x - drag.pivot.x);
       let delta = angle - drag.angle;
       if (event.shiftKey) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
       onChange(multiplyMatrices(aroundPoint(rotationMatrix(delta), drag.pivot), drag.matrix));
-    } else {
+    } else if (!state.projectiveQuad) {
       const inverse = invertMatrix(drag.matrix);
       if (!inverse) return;
       const local = transformPoint(inverse, current);
@@ -179,15 +212,16 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     >
       <polygon
         className="lighttable-transform__body"
+        style={{ fill: 'transparent', stroke: 'none', cursor: 'move' }}
         points={screenCorners.map(({ x, y }) => `${x},${y}`).join(' ')}
         onPointerDown={(event) => begin(event, 'body')}
       />
-      <line className="lighttable-transform__rotation-line" x1={top.x} y1={top.y} x2={rotation.x} y2={rotation.y} />
+      <line style={{ visibility: 'hidden' }} x1={top.x} y1={top.y} x2={rotation.x} y2={rotation.y} />
       <circle
-        className="lighttable-transform__rotation"
+        style={{ fill: 'transparent', stroke: 'none', cursor: 'grab', pointerEvents: state.projectiveQuad ? 'none' : 'all' }}
         cx={rotation.x}
         cy={rotation.y}
-        r="6"
+        r="12"
         onPointerDown={(event) => begin(event, 'rotate')}
       />
       {geometry.handles.map(([handle, sourcePoint, anchor, point]) => {
@@ -195,11 +229,19 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         return (
           <rect
             key={handle}
-            className={`lighttable-transform__handle lighttable-transform__handle--${handle}`}
-            x={screen.x - 5}
-            y={screen.y - 5}
-            width="10"
-            height="10"
+            style={{
+              fill: 'transparent',
+              stroke: 'none',
+              pointerEvents: state.projectiveQuad && !['north-west', 'north-east', 'south-east', 'south-west'].includes(handle) ? 'none' : 'all',
+              cursor: handle === 'north' || handle === 'south' ? 'ns-resize'
+                : handle === 'east' || handle === 'west' ? 'ew-resize'
+                  : handle === 'north-west' || handle === 'south-east' ? 'nwse-resize'
+                    : 'nesw-resize'
+            }}
+            x={screen.x - 10}
+            y={screen.y - 10}
+            width="20"
+            height="20"
             onPointerDown={(event) => begin(event, handle, sourcePoint, anchor)}
           />
         );

@@ -66,6 +66,13 @@ const SELECTION_FRAME_THEME: VectorEditingOverlayTheme = {
   handleWidthPx: 1
 };
 
+const TRANSFORM_FRAME_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.22, 0.64, 1, 1],
+  handleColor: [0.94, 0.97, 1, 1],
+  pathWidthPx: 1.25,
+  handleWidthPx: 1
+};
+
 export const SELECTION_OUTLINE_THEME: VectorEditingOverlayTheme = {
   pathColor: [0.96, 0.97, 1, 1],
   handleColor: [0.96, 0.97, 1, 1],
@@ -295,6 +302,15 @@ export class VectorEditingOverlayBackend {
     target: VectorEditingOverlayTarget
   ) {
     return this.encode(encoder, selectionFrameOverlay(frame), target, SELECTION_FRAME_THEME);
+  }
+
+  /** Encodes the transform cage using the shared GPU editing-overlay path. */
+  encodeTransformFrame(
+    encoder: GPUCommandEncoder,
+    frame: VectorSelectionFrame,
+    target: VectorEditingOverlayTarget
+  ) {
+    return this.encode(encoder, selectionFrameOverlay(frame), target, TRANSFORM_FRAME_THEME);
   }
 
   /** Call directly after queue.submit for command buffers encoded by this backend. */

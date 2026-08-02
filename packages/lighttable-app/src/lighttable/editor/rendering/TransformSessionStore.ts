@@ -10,6 +10,7 @@ export interface TransformGpuSession {
   selectionPreview: GPUTexture | null;
   settingsBuffer: GPUBuffer;
   usesSelection: boolean;
+  previewMode: 'none' | 'selection' | 'projective';
 }
 
 export interface TransformHistorySeed {

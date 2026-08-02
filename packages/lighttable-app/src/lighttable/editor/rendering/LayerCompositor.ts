@@ -244,7 +244,10 @@ export class LayerCompositor {
       const activeTransform = transformSessions.current?.layerId === layer.id
         ? transformSessions.current
         : null;
-      const ungradedForegroundTexture = activeTransform?.usesSelection
+      const transformUsesPreview = Boolean(
+        activeTransform && activeTransform.previewMode !== 'none'
+      );
+      const ungradedForegroundTexture = transformUsesPreview && activeTransform
         ? activeTransform.previewTexture
         : runtime.texture;
       const foregroundTexture = layer.adjustmentStack && encodeAdjustment
@@ -256,7 +259,7 @@ export class LayerCompositor {
         layer.geometryRevision
       );
       const sourceToDocument = activeTransform
-        ? activeTransform.usesSelection
+        ? transformUsesPreview
           ? identityAffineMatrix()
           : activeTransform.matrix
         : multiplyMatrices(
