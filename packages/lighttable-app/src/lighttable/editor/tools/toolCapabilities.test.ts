@@ -31,6 +31,8 @@ describe('tool capabilities', () => {
     expect(usesBrushSize('view')).toBe(false);
     expect(isSelectionTool('select-rectangle')).toBe(true);
     expect(isSelectionTool('select-ellipse')).toBe(true);
+    expect(isSelectionTool('select-horizontal')).toBe(true);
+    expect(isSelectionTool('select-vertical')).toBe(true);
     expect(isSelectionTool('select-free')).toBe(true);
     expect(isSelectionTool('select-polygonal')).toBe(true);
     expect(isSelectionTool('transform')).toBe(false);
@@ -39,6 +41,8 @@ describe('tool capabilities', () => {
   it('maps every selection tool to its document shape', () => {
     expect(selectionKindForTool('select-rectangle')).toBe('rectangle');
     expect(selectionKindForTool('select-ellipse')).toBe('ellipse');
+    expect(selectionKindForTool('select-horizontal')).toBe('rectangle');
+    expect(selectionKindForTool('select-vertical')).toBe('rectangle');
     expect(selectionKindForTool('select-free')).toBe('free');
     expect(selectionKindForTool('select-polygonal')).toBe('polygon');
   });

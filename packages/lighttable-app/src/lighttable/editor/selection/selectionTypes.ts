@@ -3,6 +3,8 @@ import type { LayerId } from '../document/documentTypes';
 export type SelectionToolId =
   | 'select-rectangle'
   | 'select-ellipse'
+  | 'select-horizontal'
+  | 'select-vertical'
   | 'select-free'
   | 'select-polygonal';
 export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';

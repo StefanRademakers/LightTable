@@ -421,7 +421,18 @@ export const useViewportInteractionController = ({
           event.shiftKey,
           event.altKey
         );
-        if (selection.begin(event.pointerId, activeTool, point, selectionCombineMode)) {
+        const stripSize = activeTool === 'select-horizontal'
+          ? editorSession.selectionRowHeight
+          : activeTool === 'select-vertical'
+            ? editorSession.selectionColumnWidth
+            : undefined;
+        if (selection.begin(
+          event.pointerId,
+          activeTool,
+          point,
+          selectionCombineMode,
+          stripSize
+        )) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();
         }

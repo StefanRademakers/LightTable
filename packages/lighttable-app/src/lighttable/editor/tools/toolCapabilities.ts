@@ -44,6 +44,9 @@ export const selectionKindForTool = (tool: SelectionToolId): SelectionShapeKind 
       return 'rectangle';
     case 'select-ellipse':
       return 'ellipse';
+    case 'select-horizontal':
+    case 'select-vertical':
+      return 'rectangle';
     case 'select-free':
       return 'free';
     case 'select-polygonal':

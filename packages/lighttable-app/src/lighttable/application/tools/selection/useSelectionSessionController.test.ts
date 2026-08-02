@@ -69,6 +69,27 @@ describe('selection session controller', () => {
     expect(state.draft).toBeNull();
   });
 
+  it('uses the configured strip thickness against the current document bounds', async () => {
+    const state = setup();
+    expect(state.controller.begin(
+      8,
+      'select-horizontal',
+      { x: 50, y: 20 },
+      'replace',
+      5
+    )).toBe(true);
+    expect(state.draft).toEqual({
+      kind: 'rectangle',
+      points: [{ x: 0, y: 18 }, { x: 100, y: 23 }]
+    });
+    expect(state.controller.finish(8)).toBe(true);
+    await Promise.resolve();
+    expect(state.renderer.setSelection).toHaveBeenCalledWith({
+      kind: 'rectangle',
+      points: [{ x: 0, y: 18 }, { x: 100, y: 23 }]
+    }, 'replace');
+  });
+
   it('does not publish an async result after switching documents', async () => {
     let resolveSelection!: (applied: boolean) => void;
     const state = setup();

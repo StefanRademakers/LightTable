@@ -63,6 +63,18 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'selection'
   },
   {
+    id: 'select-horizontal',
+    label: 'Horizontal selection',
+    iconName: 'select_horizontal_line.png',
+    role: 'selection'
+  },
+  {
+    id: 'select-vertical',
+    label: 'Vertical selection',
+    iconName: 'select_vertical_line.png',
+    role: 'selection'
+  },
+  {
     id: 'select-free',
     label: 'Free selection',
     shortcutLabel: 'L',

@@ -22,6 +22,8 @@ export interface LightTableEditorShellProps {
   selectedVectorStyle: EditorSession['vectorStyle'] | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: EditorSession['selectionCombineMode'];
+  selectionRowHeight: number;
+  selectionColumnWidth: number;
   zoomPercent: number;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
@@ -30,6 +32,8 @@ export interface LightTableEditorShellProps {
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: EditorSession['selectionCombineMode']) => void;
+  onSelectionRowHeightChange: (height: number) => void;
+  onSelectionColumnWidthChange: (width: number) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
   onToolChange: (tool: ToolId) => void;
@@ -67,6 +71,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
+  selectionRowHeight,
+  selectionColumnWidth,
   zoomPercent,
   onBrushChange,
   onWarpChange,
@@ -75,6 +81,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onWarpReset,
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
+  onSelectionRowHeightChange,
+  onSelectionColumnWidthChange,
   onZoomPreset,
   onZoomFit,
   onToolChange,
@@ -126,6 +134,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectedVectorStyle={selectedVectorStyle}
         selectionPixelSnap={selectionPixelSnap}
         selectionCombineMode={selectionCombineMode}
+        selectionRowHeight={selectionRowHeight}
+        selectionColumnWidth={selectionColumnWidth}
         zoomPercent={zoomPercent}
         onBrushChange={onBrushChange}
         onWarpChange={onWarpChange}
@@ -134,6 +144,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onWarpReset={onWarpReset}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}
         onSelectionCombineModeChange={onSelectionCombineModeChange}
+        onSelectionRowHeightChange={onSelectionRowHeightChange}
+        onSelectionColumnWidthChange={onSelectionColumnWidthChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}
       /> : null}

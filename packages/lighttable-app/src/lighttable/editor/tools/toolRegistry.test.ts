@@ -10,10 +10,12 @@ import {
 } from './toolRegistry';
 
 describe('toolRegistry', () => {
-  it('defines the four selection tools as one toolbar family', () => {
+  it('defines all selection tools as one toolbar family', () => {
     expect(SELECTION_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
       'select-rectangle',
       'select-ellipse',
+      'select-horizontal',
+      'select-vertical',
       'select-free',
       'select-polygonal'
     ]);
@@ -47,6 +49,8 @@ describe('toolRegistry', () => {
       'shape-line',
       'select-rectangle',
       'select-ellipse',
+      'select-horizontal',
+      'select-vertical',
       'select-free',
       'select-polygonal'
     ];

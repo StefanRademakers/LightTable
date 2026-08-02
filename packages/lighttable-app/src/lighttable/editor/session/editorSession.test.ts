@@ -7,6 +7,12 @@ import {
 import type { LayerId } from '../document/documentTypes';
 
 describe('LightTable editor session', () => {
+  it('starts row and column selections at one document pixel', () => {
+    const session = createEditorSession();
+    expect(session.selectionRowHeight).toBe(1);
+    expect(session.selectionColumnWidth).toBe(1);
+  });
+
   it('starts the shared paint and erase brush at five percent spacing', () => {
     expect(createEditorSession().brush.spacing).toBe(0.05);
   });

@@ -53,7 +53,8 @@ export interface SelectionSessionController {
     pointerId: number,
     tool: SelectionToolId,
     point: SelectionPoint,
-    mode: SelectionCombineMode
+    mode: SelectionCombineMode,
+    stripSize?: number
   ): boolean;
   move(pointerId: number, point: SelectionPoint): boolean;
   finish(pointerId: number): boolean;
@@ -223,10 +224,15 @@ export const createSelectionSessionController = (
       return polygonGesture.draft ?? gesture.draft;
     },
     owns: (pointerId) => gesture.owns(pointerId),
-    begin: (pointerId, tool, point, mode) => {
+    begin: (pointerId, tool, point, mode, stripSize) => {
       const dependencies = resolveDependencies();
-      if (!dependencies.getDocument() || !dependencies.getRenderer()) return false;
-      const draft = gesture.begin(pointerId, tool, point, mode);
+      const document = dependencies.getDocument();
+      if (!document || !dependencies.getRenderer()) return false;
+      const draft = gesture.begin(pointerId, tool, point, mode, {
+        documentWidth: document.width,
+        documentHeight: document.height,
+        size: stripSize ?? 1
+      });
       dependencies.publishDraft(draft);
       dependencies.publishSelection(dependencies.getSelection(), pointerId);
       return true;

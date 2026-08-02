@@ -173,6 +173,8 @@ export interface EditorSession {
   vectorSelection: VectorEditorSelection;
   selectionCombineMode: SelectionCombineMode;
   selectionPixelSnap: boolean;
+  selectionRowHeight: number;
+  selectionColumnWidth: number;
   brush: BrushSettings;
   vectorStyle: VectorToolStyleSettings;
   warp: WarpToolSettings;
@@ -186,6 +188,8 @@ export const createEditorSession = (): EditorSession => ({
   vectorSelection: createVectorEditorSelection(),
   selectionCombineMode: 'replace',
   selectionPixelSnap: true,
+  selectionRowHeight: 1,
+  selectionColumnWidth: 1,
   brush: {
     size: 48,
     hardness: 0.75,

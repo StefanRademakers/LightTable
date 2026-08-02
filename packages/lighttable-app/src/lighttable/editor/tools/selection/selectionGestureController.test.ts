@@ -62,4 +62,38 @@ describe('SelectionGestureController', () => {
     draft.points[0].x = 999;
     expect(controller.draft?.points[0]).toEqual({ x: 4, y: 5 });
   });
+
+  it('creates and repositions a full-width horizontal strip', () => {
+    const controller = new SelectionGestureController();
+    const options = { documentWidth: 100, documentHeight: 80, size: 3 };
+    expect(controller.begin(
+      20,
+      'select-horizontal',
+      { x: 45, y: 10 },
+      'replace',
+      options
+    )).toEqual({
+      kind: 'rectangle',
+      points: [{ x: 0, y: 9 }, { x: 100, y: 12 }]
+    });
+    expect(controller.move(20, { x: 3, y: 79 })).toEqual({
+      kind: 'rectangle',
+      points: [{ x: 0, y: 77 }, { x: 100, y: 80 }]
+    });
+  });
+
+  it('creates a document-high vertical strip with a one-pixel default', () => {
+    const controller = new SelectionGestureController();
+    expect(controller.begin(
+      21,
+      'select-vertical',
+      { x: 12.8, y: 40 },
+      'add',
+      { documentWidth: 100, documentHeight: 80, size: 1 }
+    )).toEqual({
+      kind: 'rectangle',
+      points: [{ x: 12, y: 0 }, { x: 13, y: 80 }]
+    });
+    expect(controller.finish(21)).toEqual(expect.objectContaining({ kind: 'apply', mode: 'add' }));
+  });
 });

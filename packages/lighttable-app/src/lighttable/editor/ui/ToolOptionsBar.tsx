@@ -22,6 +22,8 @@ export interface ToolOptionsProps {
   selectedVectorStyle?: VectorToolStyleSettings | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
+  selectionRowHeight: number;
+  selectionColumnWidth: number;
   zoomPercent: number;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
@@ -30,6 +32,8 @@ export interface ToolOptionsProps {
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
+  onSelectionRowHeightChange: (height: number) => void;
+  onSelectionColumnWidthChange: (width: number) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
 }
@@ -39,6 +43,8 @@ const TOOL_LABELS: Record<ToolId, string> = {
   warp: 'Warp',
   'select-rectangle': 'Rectangular selection',
   'select-ellipse': 'Elliptical selection',
+  'select-horizontal': 'Horizontal selection',
+  'select-vertical': 'Vertical selection',
   'select-free': 'Free selection',
   'select-polygonal': 'Polygonal selection',
   fill: 'Fill',
@@ -68,6 +74,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
+  selectionRowHeight,
+  selectionColumnWidth,
   zoomPercent,
   onBrushChange,
   onWarpChange,
@@ -76,6 +84,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onWarpReset,
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
+  onSelectionRowHeightChange,
+  onSelectionColumnWidthChange,
   onZoomPreset,
   onZoomFit,
   orientation = 'horizontal'
@@ -134,6 +144,26 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             onChange={(event) => onSelectionPixelSnapChange(event.currentTarget.checked)}
           />
           Snap to pixels
+        </label>
+      ) : null}
+      {activeTool === 'select-horizontal' || activeTool === 'select-vertical' ? (
+        <label className="lighttable-tool-options__weight-field">
+          <span>{activeTool === 'select-horizontal' ? 'Height' : 'Width'}</span>
+          <input
+            type="number"
+            min={1}
+            max={10000}
+            step={1}
+            value={activeTool === 'select-horizontal'
+              ? selectionRowHeight
+              : selectionColumnWidth}
+            onChange={(event) => {
+              const size = Math.max(1, Math.round(Number(event.currentTarget.value) || 1));
+              if (activeTool === 'select-horizontal') onSelectionRowHeightChange(size);
+              else onSelectionColumnWidthChange(size);
+            }}
+          />
+          <span>px</span>
         </label>
       ) : null}
       {activeTool === 'zoom' ? (

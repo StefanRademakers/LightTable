@@ -1586,6 +1586,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectedVectorStyle={selectedVectorStyle}
       selectionPixelSnap={editorSession.selectionPixelSnap}
       selectionCombineMode={editorSession.selectionCombineMode}
+      selectionRowHeight={editorSession.selectionRowHeight}
+      selectionColumnWidth={editorSession.selectionColumnWidth}
       zoomPercent={activeScale * 100}
       onBrushChange={updateBrush}
       onWarpChange={updateWarp}
@@ -1604,6 +1606,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onSelectionCombineModeChange={(selectionCombineMode) => {
         setEditorSession((current) => ({ ...current, selectionCombineMode }));
+      }}
+      onSelectionRowHeightChange={(selectionRowHeight) => {
+        setEditorSession((current) => ({ ...current, selectionRowHeight }));
+      }}
+      onSelectionColumnWidthChange={(selectionColumnWidth) => {
+        setEditorSession((current) => ({ ...current, selectionColumnWidth }));
       }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
@@ -1646,6 +1654,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             selectedVectorStyle,
             selectionPixelSnap: editorSession.selectionPixelSnap,
             selectionCombineMode: editorSession.selectionCombineMode,
+            selectionRowHeight: editorSession.selectionRowHeight,
+            selectionColumnWidth: editorSession.selectionColumnWidth,
             zoomPercent: activeScale * 100,
             onBrushChange: updateBrush,
             onWarpChange: updateWarp,
@@ -1665,6 +1675,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onSelectionCombineModeChange: (selectionCombineMode) => {
               setEditorSession((current) => ({ ...current, selectionCombineMode }));
+            },
+            onSelectionRowHeightChange: (selectionRowHeight) => {
+              setEditorSession((current) => ({ ...current, selectionRowHeight }));
+            },
+            onSelectionColumnWidthChange: (selectionColumnWidth) => {
+              setEditorSession((current) => ({ ...current, selectionColumnWidth }));
             },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,
