@@ -28,3 +28,7 @@ export const resolveEditorKeyboardCommand = (
 export const isTemporaryPanRelease = (
   input: Pick<EditorKeyboardInput, 'code'>
 ): boolean => input.code === 'Space';
+
+export const isTemporaryEraseRelease = (
+  input: Pick<EditorKeyboardInput, 'code'>
+): boolean => input.code === 'Backquote';

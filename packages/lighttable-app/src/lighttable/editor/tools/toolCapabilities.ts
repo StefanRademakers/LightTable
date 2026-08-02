@@ -22,6 +22,9 @@ export const steppedBrushSize = (current: number, direction: -1 | 1): number => 
   return BRUSH_SIZE_STEPS[0];
 };
 
+export const steppedBrushHardness = (current: number, direction: -1 | 1): number =>
+  Math.max(0, Math.min(100, Math.round(current / 10) * 10 + direction * 10));
+
 export const isSelectionTool = (tool: ToolId): tool is SelectionToolId =>
   toolDefinition(tool).role === 'selection';
 

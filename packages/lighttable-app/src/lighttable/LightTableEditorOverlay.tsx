@@ -149,8 +149,10 @@ import { PaintGestureController } from './editor/tools/paint/paintGestureControl
 import {
   isPaintTool,
   isWarpTool,
+  steppedBrushHardness,
   steppedBrushSize
 } from './editor/tools/toolCapabilities';
+import { BrushPercentInput } from './application/input/brushPercentInput';
 import { SelectionGestureController } from './editor/tools/selection/selectionGestureController';
 import {
   type CompositeColorChannel,
@@ -380,12 +382,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const editorDialogs = useEditorDialogController();
   const [selectionClipboardAvailable, setSelectionClipboardAvailable] = useState(false);
   const [temporaryPanActive, setTemporaryPanActive] = useState(false);
+  const [temporaryEraseActive, setTemporaryEraseActive] = useState(false);
   const [startupTimings, setStartupTimings] = useState<LightTableStartupTimings | null>(null);
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
   const [toolOptionsMenu, setToolOptionsMenu] = useState<{ x: number; y: number } | null>(null);
   const copiedGrade = useLightTableGradeClipboard();
+  const brushPercentInputRef = useRef(new BrushPercentInput());
 
   useEffect(() => {
     setToolOptionsMenu(null);
@@ -394,6 +398,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => {
     temporaryToolRef.current.end();
     setTemporaryPanActive(false);
+    setTemporaryEraseActive(false);
+    brushPercentInputRef.current.clear();
   }, [workspaceDocumentId]);
 
   // StoryBuilder supplies an object-storage key. Standalone web/Electron files
@@ -949,6 +955,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       beginTemporaryPan: () => {
         if (temporaryToolRef.current.begin('view')) setTemporaryPanActive(true);
       },
+      beginTemporaryErase: () => {
+        if (temporaryToolRef.current.begin('erase')) setTemporaryEraseActive(true);
+      },
       fillForeground: () =>
         fillActiveTargetRef.current(editorSession.brush.color),
       fillBackground: () =>
@@ -971,6 +980,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           backgroundColor: current.brush.color
         }
       })),
+      resetColors: () => setEditorSession((current) => ({
+        ...current,
+        brush: { ...current.brush, color: '#000000', backgroundColor: '#ffffff' }
+      })),
       toggleOriginal: () => {
         setShowDifference(false);
         setShowOriginal((current) => !current);
@@ -991,6 +1004,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               size: steppedBrushSize(current.brush.size, direction)
             }
           }),
+      changeBrushHardness: (direction) => setEditorSession((current) => current.activeTool === 'warp'
+        ? {
+            ...current,
+            warp: {
+              ...current.warp,
+              hardness: steppedBrushHardness(current.warp.hardness * 100, direction) / 100
+            }
+          }
+        : {
+            ...current,
+            brush: {
+              ...current.brush,
+              hardness: steppedBrushHardness(current.brush.hardness * 100, direction) / 100
+            }
+          }),
+      inputBrushPercent: (target, digit) => {
+        const percent = brushPercentInputRef.current.input(target, digit);
+        setEditorSession((current) => ({
+          ...current,
+          brush: { ...current.brush, [target]: percent / 100 }
+        }));
+      },
       activateAdjacentDocument: (direction) => {
         if (!onActivateWorkspaceDocument || !workspaceDocuments?.length) return;
         const currentIndex = workspaceDocuments.findIndex(
@@ -1030,12 +1065,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onClose();
       }
     },
-    temporaryPanActive: () => temporaryToolRef.current.active,
+    temporaryPanActive: () => temporaryToolRef.current.activeTool === 'view',
     releaseTemporaryPan: () => {
       if (temporaryToolRef.current.end('view')) setTemporaryPanActive(false);
     },
+    temporaryEraseActive: () => temporaryToolRef.current.activeTool === 'erase',
+    releaseTemporaryErase: () => {
+      if (temporaryToolRef.current.end('erase')) setTemporaryEraseActive(false);
+    },
     clearTemporaryTool: () => {
-      if (temporaryToolRef.current.end()) setTemporaryPanActive(false);
+      if (temporaryToolRef.current.end()) {
+        setTemporaryPanActive(false);
+        setTemporaryEraseActive(false);
+      }
+      brushPercentInputRef.current.clear();
     },
     onShiftChange: setShiftPressed
   });
@@ -1481,7 +1524,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   if (!open) return null;
 
-  const visibleTool = temporaryPanActive ? 'view' : editorSession.activeTool;
+  const visibleTool = temporaryPanActive
+    ? 'view'
+    : temporaryEraseActive
+      ? 'erase'
+      : editorSession.activeTool;
   const updateBrush = (change: Partial<EditorSession['brush']>) => {
     setEditorSession((current) => ({
       ...current,

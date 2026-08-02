@@ -62,6 +62,55 @@ describe('editor keymap', () => {
     )).toBe('brush-size-increase');
   });
 
+  it('uses shifted brackets for brush hardness', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '{', code: 'BracketLeft', shiftKey: true }),
+      context({ activeTool: 'brush' })
+    )).toBe('brush-hardness-decrease');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '}', code: 'BracketRight', shiftKey: true }),
+      context({ activeTool: 'erase' })
+    )).toBe('brush-hardness-increase');
+  });
+
+  it('routes Photoshop-style paint controls only for brush-capable tools', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '`', code: 'Backquote' }),
+      context({ activeTool: 'brush' })
+    )).toBe('temporary-erase-start');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '5', code: 'Digit5' }),
+      context({ activeTool: 'erase' })
+    )).toEqual({ type: 'set-brush-percent', target: 'opacity', digit: 5 });
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '5', code: 'Digit5', shiftKey: true }),
+      context({ activeTool: 'warp' })
+    )).toEqual({ type: 'set-brush-percent', target: 'flow', digit: 5 });
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '`', code: 'Backquote' }),
+      context({ activeTool: 'view' })
+    )).toBeNull();
+  });
+
+  it('resets and swaps the editor colors with D and X', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'd', code: 'KeyD' }),
+      context()
+    )).toBe('reset-colors');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'x', code: 'KeyX' }),
+      context()
+    )).toBe('swap-colors');
+  });
+
   it('normalizes physical browser-zoom keys across main and numeric keyboards', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

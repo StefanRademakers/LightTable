@@ -8,6 +8,7 @@ export interface EditorKeyboardCommandPorts {
   undo(): void;
   redo(): void;
   beginTemporaryPan(): void;
+  beginTemporaryErase(): void;
   fillForeground(): void;
   fillBackground(): void;
   selectAll(): void;
@@ -21,9 +22,12 @@ export interface EditorKeyboardCommandPorts {
   invertActiveTarget(): void;
   openSelectionFeather(): void;
   swapColors(): void;
+  resetColors(): void;
   toggleOriginal(): void;
   toggleScreenMode(): void;
   changeBrushSize(direction: -1 | 1): void;
+  changeBrushHardness(direction: -1 | 1): void;
+  inputBrushPercent(target: 'opacity' | 'flow', digit: number): void;
   activateAdjacentDocument(direction: -1 | 1): void;
   closeActiveDocument(): void;
   changeZoom(direction: -1 | 1): void;
@@ -43,6 +47,10 @@ export const executeEditorKeyboardCommand = (
   ports: EditorKeyboardCommandPorts
 ): void => {
   if (typeof command === 'object') {
+    if (command.type === 'set-brush-percent') {
+      ports.inputBrushPercent(command.target, command.digit);
+      return;
+    }
     if (ports.isTransformActive() && command.tool !== 'transform') {
       ports.commitTransform();
     }
@@ -59,6 +67,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'temporary-pan-start':
       ports.beginTemporaryPan();
+      return;
+    case 'temporary-erase-start':
+      ports.beginTemporaryErase();
       return;
     case 'fill-foreground':
       ports.fillForeground();
@@ -102,6 +113,9 @@ export const executeEditorKeyboardCommand = (
     case 'swap-colors':
       ports.swapColors();
       return;
+    case 'reset-colors':
+      ports.resetColors();
+      return;
     case 'toggle-original':
       ports.toggleOriginal();
       return;
@@ -113,6 +127,12 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'brush-size-increase':
       ports.changeBrushSize(1);
+      return;
+    case 'brush-hardness-decrease':
+      ports.changeBrushHardness(-1);
+      return;
+    case 'brush-hardness-increase':
+      ports.changeBrushHardness(1);
       return;
     case 'commit-transform':
       ports.commitTransform();

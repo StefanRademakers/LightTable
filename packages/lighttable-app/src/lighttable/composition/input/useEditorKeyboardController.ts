@@ -1,6 +1,7 @@
 import type { EditorKeymap } from '../../application/input/editorKeymap';
 import {
   isTemporaryPanRelease,
+  isTemporaryEraseRelease,
   resolveEditorKeyboardCommand
 } from '../../application/input/editorKeyboardRouter';
 import {
@@ -26,6 +27,8 @@ export interface EditorKeyboardControllerOptions {
   readonly keymap?: EditorKeymap;
   readonly temporaryPanActive: () => boolean;
   readonly releaseTemporaryPan: () => void;
+  readonly temporaryEraseActive: () => boolean;
+  readonly releaseTemporaryErase: () => void;
   readonly clearTemporaryTool: () => void;
   readonly onShiftChange: (pressed: boolean) => void;
 }
@@ -51,6 +54,8 @@ export const useEditorKeyboardController = ({
   keymap,
   temporaryPanActive,
   releaseTemporaryPan,
+  temporaryEraseActive,
+  releaseTemporaryErase,
   clearTemporaryTool,
   onShiftChange
 }: EditorKeyboardControllerOptions): void => {
@@ -65,9 +70,15 @@ export const useEditorKeyboardController = ({
       return true;
     },
     onKeyUp: (event) => {
-      if (!isTemporaryPanRelease(event) || !temporaryPanActive()) return false;
-      releaseTemporaryPan();
-      return true;
+      if (isTemporaryPanRelease(event) && temporaryPanActive()) {
+        releaseTemporaryPan();
+        return true;
+      }
+      if (isTemporaryEraseRelease(event) && temporaryEraseActive()) {
+        releaseTemporaryErase();
+        return true;
+      }
+      return false;
     },
     onShiftChange,
     onBlur: clearTemporaryTool

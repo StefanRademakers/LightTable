@@ -122,6 +122,8 @@ export const useViewportInteractionController = ({
   maxScale,
   onBrushCursorChange
 }: ViewportInteractionOptions): ViewportInteractionController => {
+  const effectiveTool = temporaryTools.effectiveTool(editorSession.activeTool);
+  const temporaryPan = temporaryTools.activeTool === 'view';
   const dragRef = useRef<{
     pointerId: number;
     x: number;
@@ -167,16 +169,16 @@ export const useViewportInteractionController = ({
   useEffect(() => {
     const center = brushCursorCenterRef.current;
     if (!center) return;
-    if (!isPaintTool(editorSession.activeTool) && !isWarpTool(editorSession.activeTool)) {
+    if (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool)) {
       brushCursorCenterRef.current = null;
       onBrushCursorChangeRef.current(null);
       return;
     }
-    const diameterPx = isWarpTool(editorSession.activeTool)
+    const diameterPx = isWarpTool(effectiveTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
     onBrushCursorChangeRef.current({ center, diameter: diameterPx });
-  }, [editorSession.activeTool, editorSession.brush.size, editorSession.warp.diameterPx]);
+  }, [effectiveTool, editorSession.brush.size, editorSession.warp.diameterPx]);
 
   useEffect(() => () => {
     onBrushCursorChangeRef.current(null);
@@ -222,8 +224,8 @@ export const useViewportInteractionController = ({
     bounds: ViewportBounds = event.currentTarget.getBoundingClientRect()
   ) => {
     if (
-      (!isPaintTool(editorSession.activeTool) && !isWarpTool(editorSession.activeTool))
-      || temporaryTools.active
+      (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool))
+      || temporaryPan
       || focusPickerActive
       || !metadata
     ) {
@@ -238,7 +240,7 @@ export const useViewportInteractionController = ({
       hideBrushCursor();
       return;
     }
-    const diameterPx = isWarpTool(editorSession.activeTool)
+    const diameterPx = isWarpTool(effectiveTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
     const center = {
@@ -323,8 +325,8 @@ export const useViewportInteractionController = ({
       const bounds = event.currentTarget.getBoundingClientRect();
       updateBrushCursor(event, bounds);
       if (
-        editorSession.activeTool === 'zoom'
-        && !temporaryTools.active
+        effectiveTool === 'zoom'
+        && !temporaryPan
         && event.button === 0
         && metadata
       ) {
@@ -347,12 +349,12 @@ export const useViewportInteractionController = ({
         return;
       }
       const point = documentPoint(event, bounds);
-      const activeTool = editorSession.activeTool;
+      const activeTool = effectiveTool;
       if (
         isVectorEditorTool(activeTool)
         && point
         && event.button === 0
-        && !temporaryTools.active
+        && !temporaryPan
       ) {
         if (vector.pointerDown(event.pointerId, point, {
           hitRadius: 7 / Math.max(activeScale, 0.0001),
@@ -373,7 +375,7 @@ export const useViewportInteractionController = ({
         : null;
       const intent = resolveViewportPointerDownIntent({
         activeTool,
-        temporaryPan: temporaryTools.active,
+        temporaryPan,
         focusPickerActive,
         primaryButton: event.button === 0,
         hasMetadata: Boolean(metadata),
@@ -500,8 +502,8 @@ export const useViewportInteractionController = ({
         return;
       }
       const intent = resolveViewportPointerMoveIntent({
-        activeTool: editorSession.activeTool,
-        temporaryPan: temporaryTools.active,
+        activeTool: effectiveTool,
+        temporaryPan,
         panGestureMatches: dragRef.current?.pointerId === event.pointerId,
         selectionGestureMatches: selection.owns(event.pointerId),
         warpGestureMatches: warp.owns(event.pointerId),
