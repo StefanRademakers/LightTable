@@ -106,19 +106,19 @@ export const createEditorMenuOptions = (
       },
       {
         value: 'open-image',
-        label: 'Open',
+        label: `Open (${labels.primaryShortcut('O')})`,
         onClick: commands.open,
         disabled: state.saving
       },
       {
         value: 'save-corrected',
-        label: state.saving ? 'Saving...' : 'Save LightTable',
+        label: `${state.saving ? 'Saving...' : 'Save LightTable'} (${labels.primaryShortcut('S')})`,
         onClick: commands.save,
         disabled: !state.hasMetadata || !state.hasSourceKey || state.saving
       },
       {
         value: 'export-png',
-        label: 'Export PNG',
+        label: `Quick Export PNG (${labels.primaryShortcut('S', true)})`,
         onClick: commands.exportPng,
         disabled: !state.hasMetadata || state.saving
       }

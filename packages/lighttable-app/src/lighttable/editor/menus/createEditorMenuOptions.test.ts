@@ -62,9 +62,9 @@ describe('createEditorMenuOptions', () => {
 
     expect(options.map((option) => option.label)).toEqual([
       'New (Ctrl+N)',
-      'Open',
-      'Saving...',
-      'Export PNG'
+      'Open (Ctrl+O)',
+      'Saving... (Ctrl+S)',
+      'Quick Export PNG (Ctrl+Shift+S)'
     ]);
     expect(options.every((option) => option.disabled)).toBe(true);
   });
