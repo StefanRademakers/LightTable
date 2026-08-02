@@ -1,0 +1,1 @@
+het klikken op een pixel thumbnail zou een blauwe border moeten zien, ik zie ook wel iets flitsen, maar ik denk dat de selected layer border of iets de visualisatie overschijft... hetzelfde geld voor de mask layer -> als ik er op click zie ik daar geen blauwe border
