@@ -692,6 +692,51 @@
 .lighttable-toolbox__button--active { border-color: var(--lt-accent); background: var(--lt-accent-strong); }
 .lighttable-toolbox__button img { width: 18px; height: 18px; object-fit: contain; }
 
+.lighttable-toolbox__group { position: relative; }
+
+.lighttable-toolbox__group-menu-button {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 0 var(--lt-radius-md) 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-toolbox__group-menu-button span {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 0;
+  height: 0;
+  border-bottom: 4px solid var(--lt-text-secondary);
+  border-left: 4px solid transparent;
+}
+
+.lighttable-toolbox__group-menu-button:hover span,
+.lighttable-toolbox__group-menu-button[aria-expanded='true'] span {
+  border-bottom-color: var(--lt-text-on-accent);
+}
+
+.lighttable-toolbox__flyout {
+  position: absolute;
+  z-index: 8;
+  top: -5px;
+  left: calc(100% + 7px);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-md);
+  background: var(--lt-surface-panel);
+  box-shadow: var(--lt-shadow-panel);
+}
+
 .lighttable-toolbox__colors {
   position: relative;
   width: 34px;

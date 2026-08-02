@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolId } from '../session/editorSession';
 import {
+  SELECTION_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
   toolDefinition,
   toolForShortcut,
@@ -8,6 +9,14 @@ import {
 } from './toolRegistry';
 
 describe('toolRegistry', () => {
+  it('defines the four selection tools as one toolbar family', () => {
+    expect(SELECTION_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
+      'select-rectangle',
+      'select-ellipse',
+      'select-free',
+      'select-polygonal'
+    ]);
+  });
   it('defines every editor tool exactly once', () => {
     const expected: ToolId[] = [
       'view',

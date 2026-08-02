@@ -196,6 +196,10 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   }
 ];
 
+/** Selection tools share one toolbar slot while retaining their own shortcuts. */
+export const SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  TOOL_DEFINITIONS.filter(({ role }) => role === 'selection');
+
 /**
  * Photoshop-style tool families. The ordering is user-facing: repeatedly
  * pressing the family key walks forward, while Shift walks backward once a
