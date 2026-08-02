@@ -96,8 +96,8 @@ export const buildVectorEditingOverlay = (
   options: BuildVectorEditingOverlayOptions = {}
 ): VectorEditingOverlay => {
   const selection = options.selection ?? { anchors: [], activeAnchor: null };
-  const anchorSizePx = options.anchorSizePx ?? 7;
-  const handleSizePx = options.handleSizePx ?? 6;
+  const anchorSizePx = options.anchorSizePx ?? 11;
+  const handleSizePx = options.handleSizePx ?? 10;
   if (!(anchorSizePx > 0) || !Number.isFinite(anchorSizePx)) {
     throw new RangeError('Vector overlay anchor size must be finite and greater than zero.');
   }

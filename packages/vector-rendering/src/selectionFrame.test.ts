@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildVectorSelectionFrame, hitTestVectorSelectionFrameHandle } from './selectionFrame';
+import {
+  buildVectorSelectionFrame,
+  hitTestVectorSelectionFrameHandle,
+  hitTestVectorSelectionFrameRotation
+} from './selectionFrame';
 
 describe('buildVectorSelectionFrame', () => {
   it('normalizes bounds and creates stable edge, handle and pivot geometry', () => {
@@ -38,5 +42,15 @@ describe('buildVectorSelectionFrame', () => {
     expect(hitTestVectorSelectionFrameHandle(frame, { x: 49, y: 21 }, 3)?.kind)
       .toBe('north-east');
     expect(hitTestVectorSelectionFrameHandle(frame, { x: 30, y: 35 }, 3)).toBeNull();
+  });
+
+  it('reserves the area beyond corners for rotation without stealing scale handles', () => {
+    const frame = buildVectorSelectionFrame(
+      { x: 10, y: 20, width: 40, height: 30 },
+      { resourceKey: 'selection:rotate' }
+    );
+    expect(hitTestVectorSelectionFrameRotation(frame, { x: 2, y: 12 }, 6)).toBe(true);
+    expect(hitTestVectorSelectionFrameRotation(frame, { x: 8, y: 18 }, 6)).toBe(false);
+    expect(hitTestVectorSelectionFrameRotation(frame, { x: 30, y: 35 }, 6)).toBe(false);
   });
 });

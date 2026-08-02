@@ -63,11 +63,39 @@ export const hitTestVectorSelectionFrameHandle = (
   return closest;
 };
 
+/**
+ * Finds the Photoshop-style rotation zone just outside a frame corner.
+ *
+ * `radius` is supplied in document units by the viewport, so both the inner
+ * exclusion around the scale handle and the outer reach remain screen-sized.
+ */
+export const hitTestVectorSelectionFrameRotation = (
+  frame: VectorSelectionFrame,
+  point: Vec2,
+  radius: number
+): boolean => {
+  if (!(radius > 0) || !Number.isFinite(radius)) return false;
+  const corners = frame.handles.filter(({ kind }) => kind.includes('-'));
+  const innerRadiusSquared = radius * radius;
+  const outerRadiusSquared = (radius * 2.5) ** 2;
+  return corners.some(({ point: corner }) => {
+    const dx = point.x - corner.x;
+    const dy = point.y - corner.y;
+    const distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared <= innerRadiusSquared || distanceSquared > outerRadiusSquared) {
+      return false;
+    }
+    const outsideX = corner.x === frame.bounds.x ? point.x < corner.x : point.x > corner.x;
+    const outsideY = corner.y === frame.bounds.y ? point.y < corner.y : point.y > corner.y;
+    return outsideX || outsideY;
+  });
+};
+
 export const buildVectorSelectionFrame = (
   bounds: Rect,
   options: BuildVectorSelectionFrameOptions
 ): VectorSelectionFrame => {
-  const markerSizePx = options.handleSizePx ?? 8;
+  const markerSizePx = options.handleSizePx ?? 12;
   if (!(markerSizePx > 0) || !Number.isFinite(markerSizePx)) {
     throw new RangeError('Vector selection handle size must be finite and greater than zero.');
   }

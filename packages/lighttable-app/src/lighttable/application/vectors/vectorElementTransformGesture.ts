@@ -1,5 +1,6 @@
 import {
   aroundPoint,
+  rotationMatrix,
   scaleMatrix,
   type AffineMatrix,
   type Rect,
@@ -14,6 +15,39 @@ export interface VectorElementScaleGesture {
   affectsX: boolean;
   affectsY: boolean;
 }
+
+export interface VectorElementRotationGesture {
+  pivot: Vec2;
+  openingAngle: number;
+}
+
+export const beginVectorElementRotationGesture = (
+  bounds: Rect,
+  openingPoint: Vec2
+): VectorElementRotationGesture => {
+  const pivot = {
+    x: bounds.x + bounds.width * 0.5,
+    y: bounds.y + bounds.height * 0.5
+  };
+  return {
+    pivot,
+    openingAngle: Math.atan2(openingPoint.y - pivot.y, openingPoint.x - pivot.x)
+  };
+};
+
+export const vectorElementRotationOperation = (
+  gesture: VectorElementRotationGesture,
+  documentPoint: Vec2,
+  snap = false
+): AffineMatrix => {
+  const angle = Math.atan2(
+    documentPoint.y - gesture.pivot.y,
+    documentPoint.x - gesture.pivot.x
+  );
+  let delta = angle - gesture.openingAngle;
+  if (snap) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
+  return aroundPoint(rotationMatrix(delta), gesture.pivot);
+};
 
 const handleAxes = (handle: VectorSelectionHandleKind) => ({
   affectsX: handle !== 'north' && handle !== 'south',

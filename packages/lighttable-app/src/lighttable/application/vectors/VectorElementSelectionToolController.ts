@@ -10,7 +10,8 @@ import {
 } from '@lighttable/vector-core';
 import {
   buildVectorSelectionFrame,
-  hitTestVectorSelectionFrameHandle
+  hitTestVectorSelectionFrameHandle,
+  hitTestVectorSelectionFrameRotation
 } from '@lighttable/vector-rendering';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import {
@@ -27,7 +28,10 @@ import {
 } from './vectorSceneQueries';
 import {
   beginVectorElementScaleGesture,
+  beginVectorElementRotationGesture,
+  vectorElementRotationOperation,
   vectorElementScaleOperation,
+  type VectorElementRotationGesture,
   type VectorElementScaleGesture
 } from './vectorElementTransformGesture';
 
@@ -55,6 +59,7 @@ interface ActiveElementDrag {
   readonly startDocument: Vec2;
   readonly targets: readonly SelectedElementTransform[];
   readonly scale: VectorElementScaleGesture | null;
+  readonly rotation: VectorElementRotationGesture | null;
   readonly preserveAspect: boolean;
   moved: boolean;
 }
@@ -113,6 +118,20 @@ export class VectorElementSelectionToolController {
       this.dependencies.setSelection(elementOnlySelection(current.elements));
       return this.beginDrag(document, current.elements, documentPoint, {
         scale: beginVectorElementScaleGesture(currentBounds, scaleHandle.kind),
+        rotation: null,
+        preserveAspect: options.preserveAspect ?? false
+      });
+    }
+    if (
+      currentFrame
+      && currentBounds
+      && current.elements.length > 0
+      && hitTestVectorSelectionFrameRotation(currentFrame, documentPoint, options.radius)
+    ) {
+      this.dependencies.setSelection(elementOnlySelection(current.elements));
+      return this.beginDrag(document, current.elements, documentPoint, {
+        scale: null,
+        rotation: beginVectorElementRotationGesture(currentBounds, documentPoint),
         preserveAspect: options.preserveAspect ?? false
       });
     }
@@ -148,6 +167,7 @@ export class VectorElementSelectionToolController {
 
     return this.beginDrag(document, elements, documentPoint, {
       scale: null,
+      rotation: null,
       preserveAspect: false
     });
   }
@@ -167,14 +187,16 @@ export class VectorElementSelectionToolController {
     drag.moved = moved;
     const documentOperation = drag.scale
       ? vectorElementScaleOperation(drag.scale, documentPoint, drag.preserveAspect)
-      : translationMatrix(documentDelta.x, documentDelta.y);
+      : drag.rotation
+        ? vectorElementRotationOperation(drag.rotation, documentPoint, drag.preserveAspect)
+        : translationMatrix(documentDelta.x, documentDelta.y);
     return this.documents.previewElementMutations((target) => {
       const mapping = drag.targets.find(
         (candidate) => candidate.layerId === target.layerId
           && candidate.elementId === target.elementId
       );
       if (!mapping) return target.openingElement;
-      if (!drag.scale) {
+      if (!drag.scale && !drag.rotation) {
         return translateVectorElement(
           target.openingElement,
           localDelta(mapping.documentToLayer, documentDelta)
@@ -219,7 +241,11 @@ export class VectorElementSelectionToolController {
     document: ImageDocument,
     elements: readonly VectorElementSelectionReference[],
     documentPoint: Vec2,
-    options: { scale: VectorElementScaleGesture | null; preserveAspect: boolean }
+    options: {
+      scale: VectorElementScaleGesture | null;
+      rotation: VectorElementRotationGesture | null;
+      preserveAspect: boolean;
+    }
   ) {
     const resolved = vectorElementsTopmostFirst(document);
     const targets = elements.flatMap((selected) => {
@@ -240,6 +266,7 @@ export class VectorElementSelectionToolController {
       startDocument: { ...documentPoint },
       targets,
       scale: options.scale,
+      rotation: options.rotation,
       preserveAspect: options.preserveAspect,
       moved: false
     };

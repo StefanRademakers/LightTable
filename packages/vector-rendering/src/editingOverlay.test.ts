@@ -46,13 +46,13 @@ describe('buildVectorEditingOverlay', () => {
       point: { x: 24, y: 22 },
       selected: true,
       active: true,
-      markerSizePx: 7
+      markerSizePx: 11
     });
     expect(overlay.handles).toEqual([expect.objectContaining({
       kind: 'out',
       anchor: { x: 24, y: 22 },
       point: { x: 24, y: 28 },
-      markerSizePx: 6
+      markerSizePx: 10
     })]);
   });
 

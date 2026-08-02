@@ -9,6 +9,22 @@ const midpoint = (first: TransformPoint, second: TransformPoint): TransformPoint
 
 const finite = (value: number) => Number.isFinite(value) ? value.toFixed(5) : 'invalid';
 
+/** Places 24 px rotation targets beyond each corner, independent of zoom. */
+export const transformCornerRotationTargets = (
+  corners: readonly TransformPoint[],
+  center: TransformPoint,
+  viewportScale: number,
+  offsetPx = 20
+): TransformPoint[] => corners.map((corner) => {
+  const dx = corner.x - center.x;
+  const dy = corner.y - center.y;
+  const length = Math.hypot(dx, dy);
+  const distance = offsetPx / Math.max(viewportScale, 1e-6);
+  return length > 1e-6
+    ? { x: corner.x + dx / length * distance, y: corner.y + dy / length * distance }
+    : { ...corner };
+});
+
 /**
  * Builds the renderer-neutral transform cage in document coordinates.
  * React remains responsible only for hit testing; every visible affordance is
@@ -70,15 +86,15 @@ export const buildTransformEditingFrame = (
       { start: north, end: rotation }
     ],
     handles: [
-      { kind: 'north-west', point: northWest, markerSizePx: 9 },
-      { kind: 'north', point: north, markerSizePx: 8 },
-      { kind: 'north-east', point: northEast, markerSizePx: 9 },
-      { kind: 'east', point: east, markerSizePx: 8 },
-      { kind: 'south-east', point: southEast, markerSizePx: 9 },
-      { kind: 'south', point: south, markerSizePx: 8 },
-      { kind: 'south-west', point: southWest, markerSizePx: 9 },
-      { kind: 'west', point: west, markerSizePx: 8 },
-      { kind: 'rotate', point: rotation, markerSizePx: 10 }
+      { kind: 'north-west', point: northWest, markerSizePx: 13 },
+      { kind: 'north', point: north, markerSizePx: 12 },
+      { kind: 'north-east', point: northEast, markerSizePx: 13 },
+      { kind: 'east', point: east, markerSizePx: 12 },
+      { kind: 'south-east', point: southEast, markerSizePx: 13 },
+      { kind: 'south', point: south, markerSizePx: 12 },
+      { kind: 'south-west', point: southWest, markerSizePx: 13 },
+      { kind: 'west', point: west, markerSizePx: 12 },
+      { kind: 'rotate', point: rotation, markerSizePx: 13 }
     ]
   };
 };

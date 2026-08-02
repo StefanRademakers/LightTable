@@ -931,6 +931,11 @@
 }
 
 .lighttable-transform__rotation { cursor: grab; }
+.lighttable-transform__corner-rotation-target {
+  fill: transparent;
+  stroke: none;
+  cursor: grab;
+}
 .lighttable-transform__handle--north,
 .lighttable-transform__handle--south { cursor: ns-resize; }
 .lighttable-transform__handle--east,

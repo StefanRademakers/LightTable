@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { transformPoint } from '@lighttable/vector-core';
 import {
   beginVectorElementScaleGesture,
+  beginVectorElementRotationGesture,
+  vectorElementRotationOperation,
   vectorElementScaleOperation
 } from './vectorElementTransformGesture';
 
@@ -33,5 +35,16 @@ describe('vector element transform gestures', () => {
     );
     const operation = vectorElementScaleOperation(gesture, { x: 30, y: 12 }, true);
     expect(transformPoint(operation, { x: 20, y: 10 })).toEqual({ x: 30, y: 15 });
+  });
+
+  it('rotates around the selection center and snaps to fifteen degrees', () => {
+    const gesture = beginVectorElementRotationGesture(
+      { x: 0, y: 0, width: 20, height: 20 },
+      { x: 20, y: 10 }
+    );
+    const operation = vectorElementRotationOperation(gesture, { x: 10, y: 20 }, true);
+    const rotated = transformPoint(operation, { x: 20, y: 10 });
+    expect(rotated.x).toBeCloseTo(10);
+    expect(rotated.y).toBeCloseTo(20);
   });
 });

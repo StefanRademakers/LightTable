@@ -357,7 +357,9 @@ export const useViewportInteractionController = ({
         && !temporaryPan
       ) {
         if (vector.pointerDown(event.pointerId, point, {
-          hitRadius: 7 / Math.max(activeScale, 0.0001),
+          // A 24 px target remains comfortably usable with a mouse or trackpad
+          // while staying below the 30 px upper limit for dense vector paths.
+          hitRadius: 12 / Math.max(activeScale, 0.0001),
           closeTolerance: 8 / Math.max(activeScale, 0.0001),
           additive: event.shiftKey,
           preserveAspect: event.shiftKey,

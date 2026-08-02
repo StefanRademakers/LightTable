@@ -12,6 +12,7 @@ import {
   type TransformPoint
 } from './affine';
 import type { AffineMatrix, TransformHandle, TransformQuad, TransformSessionState } from './transformTypes';
+import { transformCornerRotationTargets } from './transformEditingFrame';
 
 interface TransformOverlayProps {
   state: TransformSessionState;
@@ -200,6 +201,11 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   const screenCorners = geometry.corners.map(toScreen);
   const rotation = toScreen(geometry.rotation);
   const top = toScreen(midpoint(geometry.corners[0], geometry.corners[1]));
+  const cornerRotationTargets = transformCornerRotationTargets(
+    geometry.corners,
+    geometry.center,
+    scale
+  ).map(toScreen);
   return (
     <svg
       className="lighttable-transform"
@@ -224,6 +230,16 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         r="12"
         onPointerDown={(event) => begin(event, 'rotate')}
       />
+      {!state.projectiveQuad && cornerRotationTargets.map((target, index) => (
+        <circle
+          key={`corner-rotate-${index}`}
+          className="lighttable-transform__corner-rotation-target"
+          cx={target.x}
+          cy={target.y}
+          r="12"
+          onPointerDown={(event) => begin(event, 'rotate')}
+        />
+      ))}
       {geometry.handles.map(([handle, sourcePoint, anchor, point]) => {
         const screen = toScreen(point);
         return (
@@ -238,10 +254,10 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
                   : handle === 'north-west' || handle === 'south-east' ? 'nwse-resize'
                     : 'nesw-resize'
             }}
-            x={screen.x - 10}
-            y={screen.y - 10}
-            width="20"
-            height="20"
+            x={screen.x - 12}
+            y={screen.y - 12}
+            width="24"
+            height="24"
             onPointerDown={(event) => begin(event, handle, sourcePoint, anchor)}
           />
         );
