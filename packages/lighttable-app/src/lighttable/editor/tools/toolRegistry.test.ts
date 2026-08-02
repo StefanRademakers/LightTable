@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ToolId } from '../session/editorSession';
 import {
   SELECTION_TOOL_DEFINITIONS,
+  SHAPE_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
   toolDefinition,
   toolForShortcut,
@@ -15,6 +16,14 @@ describe('toolRegistry', () => {
       'select-ellipse',
       'select-free',
       'select-polygonal'
+    ]);
+  });
+  it('defines the four live-shape tools as one toolbar family', () => {
+    expect(SHAPE_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
+      'shape-rectangle',
+      'shape-ellipse',
+      'shape-triangle',
+      'shape-line'
     ]);
   });
   it('defines every editor tool exactly once', () => {

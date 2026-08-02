@@ -200,6 +200,10 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
 export const SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   TOOL_DEFINITIONS.filter(({ role }) => role === 'selection');
 
+/** Live shapes share one toolbar slot while retaining their individual presets. */
+export const SHAPE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  TOOL_DEFINITIONS.filter(({ id }) => id.startsWith('shape-'));
+
 /**
  * Photoshop-style tool families. The ordering is user-facing: repeatedly
  * pressing the family key walks forward, while Shift walks backward once a
