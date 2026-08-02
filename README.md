@@ -30,8 +30,10 @@ During the extraction, run `npm run dev:lighttable` from
 StoryBuilder with HMR. StoryBuilder's normal `npm run dev` remains the legacy
 rollback route until the functional comparison is signed off.
 
-The historical design and implementation notes are retained under
-`docs/lighttable`. They are intentionally not cleaned up during extraction.
+The canonical product and engineering contracts live in [`architecture/`](architecture/README.md).
+Start there when changing a system boundary or transferring the project to a
+new engineer or AI agent. Material under `docs/` is historical research and
+handoff context; it is not the source of architectural truth.
 
 The web and desktop applications use the same `@lighttable/app` package.
 Electron is a native file-dialog and filesystem host only; it does not contain

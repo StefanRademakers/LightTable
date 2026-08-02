@@ -1,0 +1,58 @@
+# LightTable architecture
+
+This directory is the durable system context for LightTable. It exists so a
+new engineer, AI agent, web host or desktop host can recover the product model
+without reconstructing it from chat history or historical implementation
+notes.
+
+## Authority
+
+Use this order when sources disagree:
+
+1. Current code and tests.
+2. The contracts in this directory.
+3. Current task specifications and fixtures.
+4. Historical material under `docs/`, `done/` and source-control history.
+
+Files under `docs/` are research, handoffs and design history. They can explain
+why a decision was made, but they are not the canonical architecture. Keep
+temporary task notes out of this directory.
+
+## Reading order
+
+1. [Product and principles](PRODUCT_AND_PRINCIPLES.md)
+2. [System map](SYSTEM_MAP.md)
+3. [Document and scene model](DOCUMENT_AND_SCENE_MODEL.md)
+4. [Rendering and processing](RENDERING_AND_PROCESSING.md)
+5. [Vector system](VECTOR_SYSTEM.md)
+6. [Performance contract](PERFORMANCE_CONTRACT.md)
+7. [Hosts, I/O and portability](HOSTS_IO_AND_PORTABILITY.md)
+8. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
+9. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
+10. [Change rules](CHANGE_RULES.md)
+
+## Shared vocabulary
+
+- **Document space**: stable, unbounded authoring coordinates. The canvas
+  rectangle clips the final document result; it does not limit pointer input.
+- **Layer-local space**: coordinates owned by a layer before its scene
+  transform is applied.
+- **Viewport space**: pan and zoom presentation only. Never serialized into
+  document geometry.
+- **Processing node**: serializable, ordered image operation with an explicit
+  owner, scope, domain and executor.
+- **Grade**: tone/color/detail processing. It may be attached to a compatible
+  layer or live in an adjustment layer.
+- **Lens Fx**: spatial/lens/output processing using the same ownership model as
+  Grade; it is not hidden global state.
+- **Flatten/rasterize**: evaluate pixels and reset the resulting raster's
+  transform to identity with newly measured bounds.
+- **Dirty-only rendering**: only stages invalidated by a semantic change may
+  execute. A UI update is not automatically an image recomposition.
+
+## Updating this context
+
+Change these contracts in the same milestone as an architectural change. Mark
+claims as **current**, **partial**, or **target**. Never describe a target as if
+it already works, and do not preserve obsolete alpha-format branches merely to
+make old LightTable files load.
