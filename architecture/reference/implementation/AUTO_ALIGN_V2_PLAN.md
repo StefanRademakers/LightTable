@@ -16,9 +16,9 @@ pipeline. This is a replacement, not another threshold-tuning pass.
 
 Read first:
 
-- `docs/lighttable/open_source_alignment_research.md`
-- `docs/lighttable/photoshop_auto_align_research.md`
-- `docs/lighttable/archive/AUTO_ALIGN_FOLLOWUP_HANDOFF.md`
+- `OPEN_SOURCE_ALIGNMENT_RESEARCH.md`
+- `PHOTOSHOP_AUTO_ALIGN_RESEARCH.md`
+- `../../obsolete/research/AUTO_ALIGN_FOLLOWUP_HANDOFF.md`
 - `packages/lighttable-app/src/lighttable/editor/autoAlign/`
 
 ## Architecture

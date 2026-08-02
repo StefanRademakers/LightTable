@@ -1,8 +1,8 @@
 # LightTable PSD/PSB feature-parity implementation plan
 
-The executable, test-first import order is maintained in
-[`PSD_PARITY_TESTABLE_IMPORT_PATH.md`](./PSD_PARITY_TESTABLE_IMPORT_PATH.md).
-Its gates take precedence over preview-only import work: the embedded
+The executable, test-first import order is maintained by the import gates and
+checklists in this plan. Those gates take precedence over preview-only import
+work: the embedded
 Photoshop composite is a reference oracle, never a substitute for the
 LightTable document reconstruction.
 
@@ -570,8 +570,8 @@ golden fixtures and algorithms instead of tuning one generic blur for every
 style.
 
 The executable twenty-slice implementation and verification ledger lives in
-[`LAYER_STYLES_IMPLEMENTATION_TRACKER.md`](./LAYER_STYLES_IMPLEMENTATION_TRACKER.md).
-The supplied Photoshop dialog captures in `docs/lighttable/styles/` are the
+[`LAYER_STYLES_IMPLEMENTATION_TRACKER.md`](../implementation/LAYER_STYLES_IMPLEMENTATION_TRACKER.md).
+The supplied Photoshop dialog captures in `styles/` are the
 functional inventory; LightTable uses one modern editor and previews on the
 actual document canvas rather than a detached preview tile.
 
@@ -832,7 +832,8 @@ mutable object graph into LightTable.
       does not execute the PSD parser.
 - [x] First comparison vertical slice: safety preflight -> embedded composite
       -> feature inventory -> canonical preview-backed raster document.
-      Exact original bytes are now stored as a preserved source asset.
+      The embedded composite is transient comparison truth; the original PSD
+      bytes are deliberately not copied into the native LightTable document.
 - [x] Second vertical slice: editable raster layers, bounds metadata, groups
       and bitmap masks.
 

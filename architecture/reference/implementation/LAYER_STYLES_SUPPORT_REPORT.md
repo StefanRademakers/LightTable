@@ -84,7 +84,8 @@ Use a sparse white brush stroke on transparency over a colored background:
    and after with the effect editor closed; styles must be baked exactly once.
 8. Save/reopen the native layered document and repeat the comparison.
 
-Reference-image sign-off still needs Photoshop-generated goldens from
-`docs/lighttable/styles/`. Until that pass, “editable” means the semantic
+Reference-image sign-off still needs Photoshop-generated goldens based on the
+dialog references retained in `../photoshop/styles/`. Until that pass,
+“editable” means the semantic
 controls and stable LightTable rendering work, not pixel-identical Adobe
 rendering.

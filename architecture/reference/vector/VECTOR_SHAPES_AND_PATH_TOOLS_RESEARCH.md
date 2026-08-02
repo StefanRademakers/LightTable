@@ -49,13 +49,13 @@ Before adding production code, inspect and document the existing Lighttable impl
 
 Do not invent a parallel store, undo system, compositor, transform stack or coordinate system when Lighttable already has one.
 
-Produce a short architecture audit before substantial implementation, for example:
+The resulting production contracts now live in the canonical architecture set:
 
 ```text
-/docs/vector/VECTOR_ARCHITECTURE_AUDIT.md
-/docs/vector/ADR_001_VECTOR_LAYER_MODEL.md
-/docs/vector/ADR_002_DOCUMENT_SPACE_RASTER_CACHE.md
-/docs/vector/ADR_003_VECTOR_RASTER_BACKEND.md
+architecture/VECTOR_SYSTEM.md
+architecture/DOCUMENT_AND_SCENE_MODEL.md
+architecture/RENDERING_AND_PROCESSING.md
+architecture/reference/vector/VECTOR_RENDERING_BACKEND_DECISION.md
 ```
 
 ### 2.2 No permanent SVG/Canvas island

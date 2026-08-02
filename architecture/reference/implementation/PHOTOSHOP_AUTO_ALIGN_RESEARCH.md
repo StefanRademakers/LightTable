@@ -8,7 +8,7 @@ confidence-threshold tuning alone.
 
 Open-source implementation comparison:
 
-- `docs/lighttable/open_source_alignment_research.md`
+- `OPEN_SOURCE_ALIGNMENT_RESEARCH.md`
 
 ## What Adobe publicly confirms
 

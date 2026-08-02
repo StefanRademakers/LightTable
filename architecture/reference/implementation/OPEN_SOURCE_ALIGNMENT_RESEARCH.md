@@ -7,8 +7,8 @@ can guide or support replacement of LightTable's current Auto Align estimator.
 
 Read together with:
 
-- `docs/lighttable/photoshop_auto_align_research.md`
-- `docs/lighttable/archive/AUTO_ALIGN_FOLLOWUP_HANDOFF.md`
+- `PHOTOSHOP_AUTO_ALIGN_RESEARCH.md`
+- `../../obsolete/research/AUTO_ALIGN_FOLLOWUP_HANDOFF.md`
 
 ## Main conclusion
 

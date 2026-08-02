@@ -1,4 +1,4 @@
 breng de pain fill en eraser ux closer to photoshop ui/ ux... there is a document in:
-D:\mediavibe\LightTable\docs\UX_lighttable-photoshop-paint-fill-eraser-ux-spec.md which describes the ux
+D:\mediavibe\LightTable\architecture\ux\UX_lighttable-photoshop-paint-fill-eraser-ux-spec.md which describes the ux
 
 

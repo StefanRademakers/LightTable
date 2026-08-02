@@ -20,6 +20,18 @@ Grade, Lens Fx, Layers, Scopes, Debug and future media/AI/3D panels use this
 same registry/host contract. Floating panels must remain recoverable on
 window/display changes.
 
+The built-in fresh-workspace profile currently creates:
+
+- a floating `Layers` group within the document host at roughly 260 x 370;
+- `Channels` and `Scopes` as initially inactive tabs in that group;
+- a 250-pixel `Grade` group docked to the right of the document host;
+- `Lens Fx` and `Debug` as initially inactive tabs in the Grade group.
+
+A valid persisted Dockview layout takes precedence over these fresh-workspace
+positions. This is workspace preference only: switching documents must not
+replace it, and opening a saved image document must not deserialize Dockview
+nodes into the scene model.
+
 ## Design tokens and controls
 
 Shared visual meaning uses LightTable-owned tokens for surfaces, headers, tab
