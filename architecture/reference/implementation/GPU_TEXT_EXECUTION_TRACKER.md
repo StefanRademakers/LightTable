@@ -242,14 +242,14 @@ all load the ordinary app; invoking the diagnostic initializes WASM once.
 
 #### Slice 02 — frozen cross-boundary contracts
 
-- [ ] Define serializable `TextLayer`, `FlowTextSource`, `PositionedTextSource`,
+- [x] Define serializable `TextLayer`, `FlowTextSource`, `PositionedTextSource`,
   `FontAssetRef`, `RealizedTextLayout` and paint/run types.
-- [ ] Define typed-array worker request/response envelopes and schema versions.
-- [ ] Define canonical authored revisions and derived runtime cache keys.
-- [ ] Define coordinate, bounds, color, alpha and transform contracts.
-- [ ] Define text capability/error states and exact fallback policy.
-- [ ] Add contract validation, clone/default and malformed-input tests.
-- [ ] Record ownership in architecture diagrams and boundary verification.
+- [x] Define typed-array worker request/response envelopes and schema versions.
+- [x] Define canonical authored revisions and derived runtime cache keys.
+- [x] Define coordinate, bounds, color, alpha and transform contracts.
+- [x] Define text capability/error states and exact fallback policy.
+- [x] Add contract validation, clone/default and malformed-input tests.
+- [x] Record ownership in architecture diagrams and boundary verification.
 
 UI exposure: Debug can inspect fixture counts and last layout error. No document
 mutation or production control is exposed.
@@ -652,6 +652,34 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-02 — Slice 02 complete
+
+- Owner: Codex `/root`; two-pass read-only contract audit by
+  `/root/slice01_audit`.
+- Contract: pure `@lighttable/text-core` package with generic
+  `TextLayer<TBase>` composition and versioned `TextLayerData`; no duplicate
+  app `CommonLayer`, DOM, React or WebGPU ownership.
+- Interchange: flow and exact positioned sources; all eight PDF text modes;
+  separate fill/stroke; encoded character width; font format, embedding and
+  typed requested/resolved/substitution provenance.
+- Runtime ABI: session/generation/revision/path/font/options cache identity;
+  register-once dedicated font transfer; validated dedicated typed-array
+  response ownership; actual structured-clone transfer/detachment coverage.
+- Validation: schema, finite coordinate/color/alpha/matrix, Unicode run,
+  metadata, allocation and cross-array range limits; explicit error fallback.
+- UI: Debug reports two contract fixtures and the last layout error slot. No
+  Text tool, document mutation or renderer path is exposed.
+- Tests: 12 focused contract tests; complete workspace result 238 files /
+  1,111 tests; all workspace typechecks and boundary verification passed.
+- Distribution: web and packaged Electron builds passed with separate text
+  worker/WASM assets; `npm run dev:web` served the app shell over HTTP 200.
+  Slice 01's clean Electron smoke remains the desktop Phase 0 smoke evidence.
+- Limitation: the in-app browser service still exposes no browser instance, so
+  the manual clickable Debug probe remains deferred; worker laziness is covered
+  by tests and split output artifacts.
+- Phase 0 task complete. Next safe slice: Slice 03, canonical TextLayer
+  integration.
+
 ### 2026-08-02 — Slice 01 complete
 
 - Owner: Codex `/root`; read-only build audit by `/root/slice01_audit`.
@@ -695,7 +723,7 @@ Decisions stay open until their named slice supplies evidence.
 | Decision | Owner slice | Current default |
 |---|---:|---|
 | Exact WASM packaging command/tool | 01 | decided: direct Cargo build plus repo-local wasm-bindgen-cli 0.2.126; committed generated artifacts validated by source hash |
-| Final typed-array ABI | 02/06 | schema-versioned and renderer-neutral |
+| Final typed-array ABI | 02/06 | v1 boundary frozen: dedicated typed arrays; Rust packing details remain in Slice 06 |
 | `hb-gpu` production role | 07 | candidate fidelity route, not sole small-text renderer |
 | Coverage atlas bucket policy | 08 | hinted scale buckets with measured eviction |
 | Direct versus settled cache threshold | 13 | runtime cost model, not a user setting |

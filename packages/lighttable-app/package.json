@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@lighttable/text-core": "0.0.1",
     "@lighttable/vector-core": "0.0.1",
     "@lighttable/vector-rendering": "0.0.1",
     "@lighttable/vector-webgpu": "0.0.1",

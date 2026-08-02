@@ -16,6 +16,8 @@ const renderPanel = (status: 'idle' | 'loading' | 'ready' | 'error', summary: st
     onResetRenderTelemetry={vi.fn()}
     textEngineStatus={status}
     textEngineSummary={summary}
+    textContractFixtureCount={2}
+    lastTextLayoutError={null}
     onProbeTextEngine={vi.fn()}
   />);
 
@@ -25,6 +27,8 @@ describe('DebugPanel text engine diagnostic', () => {
     expect(markup).toContain('Text engine');
     expect(markup).toContain('Not loaded.');
     expect(markup).toContain('Probe text engine');
+    expect(markup).toContain('Contract fixtures: 2');
+    expect(markup).toContain('Last layout error: None.');
   });
 
   it('disables the probe while the engine is loading', () => {

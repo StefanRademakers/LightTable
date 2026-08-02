@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TEXT_CONTRACT_FIXTURE_COUNT } from '@lighttable/text-core';
 import {
   DocumentCommandHistory
 } from './application/commands/documentCommandHistory';
@@ -1830,6 +1831,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 },
                 textEngineStatus: textEngineDiagnostic.status,
                 textEngineSummary: textEngineDiagnostic.summary,
+                textContractFixtureCount: TEXT_CONTRACT_FIXTURE_COUNT,
+                lastTextLayoutError: null,
                 onProbeTextEngine: () => {
                   setTextEngineDiagnostic({ status: 'loading', summary: 'Loading Rust/WASM text engine...' });
                   void lightTableTextEngine.probe().then((capability) => {

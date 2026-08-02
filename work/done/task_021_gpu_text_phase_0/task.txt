@@ -1,5 +1,9 @@
 # Task 021 — GPU text Phase 0: reproducible WASM foundation
 
+Status: complete in commits `683f04c` (Slice 01) and the Slice 02 commit that
+contains this move. Detailed evidence is recorded in
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
 Implement slices 01 and 02 from:
 
 `architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`

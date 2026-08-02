@@ -16,6 +16,8 @@ interface DebugPanelProps {
   onResetRenderTelemetry: () => void;
   textEngineStatus: 'idle' | 'loading' | 'ready' | 'error';
   textEngineSummary: string;
+  textContractFixtureCount: number;
+  lastTextLayoutError: string | null;
   onProbeTextEngine: () => void;
 }
 
@@ -36,6 +38,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   onResetRenderTelemetry,
   textEngineStatus,
   textEngineSummary,
+  textContractFixtureCount,
+  lastTextLayoutError,
   onProbeTextEngine
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -102,6 +106,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
       <fieldset className="lighttable-debug-panel__diagnostics">
         <legend>Text engine</legend>
         <small role="status">{textEngineSummary}</small>
+        <small>Contract fixtures: {textContractFixtureCount} (flow + positioned).</small>
+        <small>Last layout error: {lastTextLayoutError ?? 'None.'}</small>
         <div className="lighttable-debug-panel__actions">
           <button
             type="button"
