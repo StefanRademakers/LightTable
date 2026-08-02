@@ -178,7 +178,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const [selectedLayerIds, setSelectedLayerIds] = React.useState<Set<LayerId>>(
     () => new Set(document.activeLayerId ? [document.activeLayerId] : [])
   );
-  const [moreMenu, setMoreMenu] = React.useState({ open: false, x: 0, y: 0 });
+  const [moreMenu, setMoreMenu] = React.useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    source: 'footer' | 'context';
+  }>({ open: false, x: 0, y: 0, source: 'footer' });
   const selectionAnchorRef = React.useRef<LayerId | null>(document.activeLayerId);
   const rows = visualLayerRows(document.layers, collapsedGroups);
   const allRows = visualLayerRows(document.layers, new Set());
@@ -303,6 +308,21 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         if (activeLayer?.type === 'raster') onClearStyles(activeLayer.id);
       }
     },
+    ...(moreMenu.source === 'context'
+      ? [{
+          value: 'vector-antialias',
+          label: activeLayer?.type === 'vector' && activeLayer.antiAlias
+            ? 'Disable anti-alias edges'
+            : 'Enable anti-alias edges',
+          separatorBefore: true,
+          disabled: activeLayer?.type !== 'vector',
+          onClick: () => {
+            if (activeLayer?.type === 'vector') {
+              onVectorAntiAlias(activeLayer.id, !activeLayer.antiAlias);
+            }
+          }
+        }]
+      : []),
     {
       value: 'merge-down',
       label: 'Merge Down (Ctrl/Cmd+E)',
@@ -411,16 +431,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 onInteractionEnd={onOpacityInteractionEnd}
               />
           </div>
-          {activeLayer.type === 'vector' ? (
-            <label className="lighttable-layers__vector-antialias">
-              <input
-                type="checkbox"
-                checked={activeLayer.antiAlias}
-                onChange={(event) => onVectorAntiAlias(activeLayer.id, event.currentTarget.checked)}
-              />
-              Anti-alias edges
-            </label>
-          ) : null}
         </>
       ) : null}
       <div className="lighttable-layers__list">
@@ -481,6 +491,22 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 return;
               }
               selectLayer(event, layer.id);
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (!selectedLayerIds.has(layer.id)) {
+                setSelectedLayerIds(new Set([layer.id]));
+                selectionAnchorRef.current = layer.id;
+                onSelect(layer.id);
+                onChannelChange('pixels');
+              }
+              setMoreMenu({
+                open: true,
+                x: event.clientX,
+                y: event.clientY,
+                source: 'context'
+              });
             }}
             onDragStart={(event) => {
               window.getSelection()?.removeAllRanges();
@@ -937,7 +963,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           type="button"
           onClick={(event) => {
             const bounds = event.currentTarget.getBoundingClientRect();
-            setMoreMenu({ open: true, x: bounds.right, y: bounds.top });
+            setMoreMenu({
+              open: true,
+              x: bounds.right,
+              y: bounds.top,
+              source: 'footer'
+            });
           }}
           title="Layers menu"
           aria-label="Layers menu"

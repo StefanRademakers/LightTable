@@ -1665,20 +1665,6 @@
   min-width: 0;
 }
 
-.lighttable-layers__vector-antialias {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 24px;
-  font-size: var(--lt-type-caption);
-  color: var(--lt-text-secondary);
-  user-select: none;
-}
-
-.lighttable-layers__vector-antialias input {
-  margin: 0;
-}
-
 .lighttable-layers__footer {
   min-height: 33px;
   flex: 0 0 auto;
