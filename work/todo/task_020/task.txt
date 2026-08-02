@@ -1,0 +1,3 @@
+We willen voor de toolbar de selection tools onder een sub gooien zoals in het demo image.
+dus als je op het menu icon klikt zijn die sub tools ook 3 seconde zichtbaar en gaan dan automatisch uit.
+Je kunt dat een tool uit die category kiezen, de active tool staat in de master toolbar
