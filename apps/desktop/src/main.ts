@@ -297,7 +297,7 @@ void app.whenReady().then(async () => {
       try {
         const thumbnail = await nativeImage.createThumbnailFromPath(entry.path, {
           width: 320,
-          height: 180
+          height: 320
         });
         if (!thumbnail.isEmpty()) thumbnailDataUrl = thumbnail.toDataURL();
       } catch {
