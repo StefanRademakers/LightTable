@@ -9,6 +9,11 @@ import {
   type VectorElement,
   type VectorPath
 } from '@lighttable/vector-core';
+import {
+  cloneTextLayerData,
+  type TextLayer as TextLayerContract,
+  type TextLayerData
+} from '@lighttable/text-core';
 
 export type DocumentId = string & { readonly __brand: 'DocumentId' };
 export type LayerId = string & { readonly __brand: 'LayerId' };
@@ -165,11 +170,29 @@ export interface VectorLayer extends CommonLayer {
   mask: RasterMask | null;
 }
 
+/** Native text composes the frozen text payload with the existing layer base. */
+export type TextLayer = TextLayerContract<CommonLayer> & {
+  readonly type: 'text';
+  text: TextLayerData;
+  mask: RasterMask | null;
+};
+
 /** Path-editing projection; live shapes require an explicit Convert to Path. */
 export const vectorPathElements = (layer: VectorLayer): VectorPath[] =>
   layer.elements.filter((element): element is VectorPath => element.type === 'path');
 
-export type LayerNode = RasterLayer | GroupLayer | AdjustmentLayer | VectorLayer;
+export type LayerNode = RasterLayer | GroupLayer | AdjustmentLayer | VectorLayer | TextLayer;
+
+export const layerSupportsPixelEditing = (
+  layer: LayerNode
+): layer is RasterLayer => layer.type === 'raster';
+
+export const layerSupportsLayerStyles = (layer: LayerNode): boolean => (
+  layer.type === 'raster' || layer.type === 'vector'
+  || layer.type === 'text' || layer.type === 'group'
+);
+
+export const layerSupportsRasterMask = (_layer: LayerNode): boolean => true;
 
 export const createDefaultLayerLocks = (): LayerLocks => ({
   transparency: false,
@@ -290,6 +313,17 @@ export const createVectorLayer = (
   type: 'vector',
   antiAlias: true,
   elements: elements.map(cloneVectorElement),
+  mask: null
+});
+
+/** Fixture/internal construction only until the production Text tool slice. */
+export const createTextLayerNode = (
+  text: TextLayerData,
+  name = 'Text'
+): TextLayer => ({
+  ...createCommonLayer('text', name),
+  type: 'text',
+  text: cloneTextLayerData(text),
   mask: null
 });
 

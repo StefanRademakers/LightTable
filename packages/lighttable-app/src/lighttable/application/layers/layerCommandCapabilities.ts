@@ -1,7 +1,10 @@
 import {
   type ImageDocument,
   type LayerId,
-  type LayerNode
+  type LayerNode,
+  layerSupportsLayerStyles,
+  layerSupportsPixelEditing,
+  layerSupportsRasterMask
 } from '../../editor/document/documentTypes';
 import {
   findDocumentLayer,
@@ -30,6 +33,10 @@ export interface LayerCommandCapabilities {
   readonly canMergeSelected: boolean;
   readonly canFlattenActiveGroup: boolean;
   readonly canFlattenImage: boolean;
+  readonly canDuplicateActiveLayer: boolean;
+  readonly canEditActivePixels: boolean;
+  readonly canEditActiveLayerStyles: boolean;
+  readonly canAddActiveMask: boolean;
 }
 
 /**
@@ -71,10 +78,15 @@ export const queryLayerCommandCapabilities = (
     canToggleActiveClipping: Boolean(activeLayer?.clipping || activeIndex > 0),
     canMergeDown: activeIndex > 0
       && activeSiblings[activeIndex]?.type !== 'group'
+      && activeSiblings[activeIndex]?.type !== 'text'
       && activeSiblings[activeIndex - 1]?.type === 'raster',
     canMergeSelected: Boolean(getMergeLayersPlan(document, selectedLayerIds)),
     canFlattenActiveGroup: activeLayer?.type === 'group'
       && Boolean(getFlattenGroupPlan(document, activeLayer.id)),
-    canFlattenImage: Boolean(getFlattenImagePlan(document))
+    canFlattenImage: Boolean(getFlattenImagePlan(document)),
+    canDuplicateActiveLayer: activeLayer?.type === 'raster' || activeLayer?.type === 'text',
+    canEditActivePixels: Boolean(activeLayer && layerSupportsPixelEditing(activeLayer)),
+    canEditActiveLayerStyles: Boolean(activeLayer && layerSupportsLayerStyles(activeLayer)),
+    canAddActiveMask: Boolean(activeLayer && layerSupportsRasterMask(activeLayer) && !activeLayer.mask)
   };
 };

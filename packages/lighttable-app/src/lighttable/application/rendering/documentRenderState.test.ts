@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { cloneTextLayerData, createDefaultTextLayerData } from '@lighttable/text-core';
 import {
+  createTextLayer,
   renameLayer,
   setLayerLocked,
   setLayerOpacity,
@@ -77,5 +79,28 @@ describe('document render state', () => {
 
     expect(preview.revision).toBe(document.revision);
     expect(documentRenderStatesEqual(document, preview)).toBe(false);
+  });
+
+  it('detects canonical text payload changes', () => {
+    const document = createTextLayer(
+      createImageDocument('Text fixture', 64, 32, 'asset'),
+      createDefaultTextLayerData()
+    );
+    const text = document.layers.at(-1);
+    if (text?.type !== 'text') throw new Error('Expected text fixture.');
+    const clonedText = cloneTextLayerData(text.text);
+    const changedText = {
+      ...clonedText,
+      revisions: {
+        ...clonedText.revisions,
+        content: clonedText.revisions.content + 1
+      }
+    };
+    const changed = {
+      ...document,
+      layers: [...document.layers.slice(0, -1), { ...text, text: changedText }]
+    };
+
+    expect(documentRenderStatesEqual(document, changed)).toBe(false);
   });
 });

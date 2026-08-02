@@ -32,6 +32,7 @@ import type { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import type { TransformSessionStore } from './TransformSessionStore';
 import type { EncodeAdjustment } from './RasterDocumentOperations';
 import type { VectorLayerRenderer } from './VectorLayerRenderer';
+import { textPlaceholderVectorLayer } from './textPlaceholderPresentation';
 
 interface LayerCompositorOptions {
   device: GPUDevice;
@@ -231,6 +232,16 @@ export class LayerCompositor {
       if (node.type === 'vector') {
         return renderVectorLayer(
           node,
+          background,
+          target,
+          clippingTexture,
+          inheritedTransform
+        );
+      }
+
+      if (node.type === 'text') {
+        return renderVectorLayer(
+          textPlaceholderVectorLayer(node),
           background,
           target,
           clippingTexture,

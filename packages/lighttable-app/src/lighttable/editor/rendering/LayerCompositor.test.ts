@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { translationMatrix } from '../geometry/affine';
 import {
   createGroupLayer,
   createImageDocument,
+  createTextLayerNode,
   createVectorLayer
 } from '../document/documentTypes';
 import { LayerCompositor } from './LayerCompositor';
@@ -105,5 +107,55 @@ describe('LayerCompositor', () => {
       { width: 64, height: 32 }
     );
     expect(drawFullscreen).toHaveBeenCalledOnce();
+  });
+
+  it('renders fixture text as a derived GPU vector placeholder without hiding raster layers', () => {
+    const document = createImageDocument('Text fixture', 64, 32, 'source');
+    const textLayer = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
+    document.layers.push(textLayer);
+    document.activeLayerId = textLayer.id;
+    const compositeA = texture();
+    const compositeB = texture();
+    const rasterTexture = texture();
+    const placeholderTexture = texture();
+    const encodeVector = vi.fn(() => placeholderTexture);
+    const raster = vi.fn(() => ({ texture: rasterTexture, maskTexture: null }));
+    const drawFullscreen = vi.fn();
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: encodeVector } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(texture),
+      clearTexture: vi.fn(),
+      drawFullscreen
+    });
+
+    expect(compositor.encode({} as GPUCommandEncoder, document)).toBe(compositeA);
+    expect(raster).toHaveBeenCalledWith(document.layers[0].id);
+    expect(encodeVector).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: textLayer.id, type: 'vector' }),
+      textLayer.transform,
+      { width: 64, height: 32 }
+    );
+    expect(drawFullscreen).toHaveBeenCalledTimes(2);
+    expect(document.layers[1]).toBe(textLayer);
+    expect(textLayer.type).toBe('text');
   });
 });

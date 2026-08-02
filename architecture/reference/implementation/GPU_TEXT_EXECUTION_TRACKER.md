@@ -264,12 +264,12 @@ usable tool.
 
 #### Slice 03 — canonical TextLayer integration
 
-- [ ] Add `TextLayer` to `LayerNode` and tree traversal utilities.
-- [ ] Add creation, cloning, duplication, grouping, reparenting and deletion.
-- [ ] Preserve world transforms and stable layer IDs.
-- [ ] Define masks, opacity, fill opacity, blend and Layer Style applicability.
-- [ ] Ensure raster/vector-only commands reject or handle text explicitly.
-- [ ] Add layer capability query coverage.
+- [x] Add `TextLayer` to `LayerNode` and tree traversal utilities.
+- [x] Add creation, cloning, duplication, grouping, reparenting and deletion.
+- [x] Preserve world transforms and stable layer IDs.
+- [x] Define masks, opacity, fill opacity, blend and Layer Style applicability.
+- [x] Ensure raster/vector-only commands reject or handle text explicitly.
+- [x] Add layer capability query coverage.
 
 UI exposure: fixture-created text layers render as an explicit diagnostic
 placeholder and appear in Layers with a text icon. Users cannot create them.
@@ -651,6 +651,27 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-02 — Slice 03 complete
+
+- Owner: Codex `/root`; read-only blocker audit by `/root/slice01_audit`.
+- Canonical model: `TextLayer` composes frozen `TextLayerData` with common layer
+  state, masks and styles; creation remains fixture/import-only.
+- Tree/history: deep duplicate, group, reparent, ungroup and delete use the
+  canonical immutable paths. Valid moves preserve document-space transforms
+  and source IDs; invalid group-to-descendant moves are exact no-ops.
+- Safety: raster/vector-only pixel, merge and flatten operations reject text;
+  Slice 03 save fails explicitly instead of corrupting text before Slice 04
+  persistence lands. Render invalidation observes text payload identity.
+- GPU/UI: a bounded diagnostic shape uses the existing WebGPU vector/compositor
+  path. Layers shows `T` plus Flow/Positioned status; no Text tool or visible
+  DOM/SVG canvas text was added.
+- Tests: focused model/controller/capability/persistence/compositor tests and
+  the complete 236-file / 1,122-test workspace suite passed. Boundary and all
+  workspace typechecks passed.
+- Distribution: web build and packaged Electron verification passed with text
+  worker/WASM assets present and `work/` excluded.
+- Next safe slice: Slice 04, commands, history and native persistence.
 
 ### 2026-08-02 — Slice 02 complete
 

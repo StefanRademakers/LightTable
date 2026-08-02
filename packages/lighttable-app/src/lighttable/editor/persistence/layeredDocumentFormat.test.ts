@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 import {
   createAnchor,
   createSubpath,
@@ -17,6 +18,7 @@ import {
   createAdjustmentLayer,
   createGroupLayer,
   createRasterLayer,
+  createTextLayer,
   moveLayerIntoGroup,
   setLayerClipping,
   setLayerFillOpacity,
@@ -43,6 +45,26 @@ const OVERLAY_PNG = pngBytes('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACX
 const defaultStack = () => createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
 
 describe('LightTable layered PNG format', () => {
+  it('rejects text explicitly until the Slice 04 persistence contract is available', () => {
+    const document = createTextLayer(
+      createImageDocument('Text fixture', 2, 2, 'source'),
+      createDefaultTextLayerData(),
+      'Headline'
+    );
+
+    expect(() => buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId: document.layers[0].id,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }],
+      'text-fixture.png'
+    )).toThrow(/Text layer persistence is not available.*Headline/);
+  });
+
   it('retains the original Photoshop document byte-exact as a preserved source asset', async () => {
     const document = createImageDocument('PSD source', 2, 2, 'source');
     const sourceId = 'source-photoshop-1' as DocumentAssetId;

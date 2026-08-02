@@ -1,0 +1,29 @@
+# Task 022 — GPU text canonical layer integration
+
+Status: complete in the Slice 03 commit containing this task. Detailed evidence
+is recorded in
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+Implement Slice 03 without exposing an incomplete production Text tool.
+
+## Completed outcome
+
+- Canonical `TextLayer` participates in the document tree and common layer
+  semantics.
+- Fixture/import-only text can be created, duplicated, grouped, reparented,
+  ungrouped and deleted through immutable document/history paths.
+- Structural moves preserve world transforms and stable source layer IDs.
+- Raster/vector-only destructive commands reject text explicitly.
+- Text uses a bounded diagnostic projection in the existing WebGPU vector
+  compositor and cannot hide an ordinary raster below it.
+- Layers exposes a text icon and source-kind diagnostic only.
+- Native save rejects text explicitly until Slice 04 supplies its complete
+  versioned persistence contract.
+
+## Verification
+
+- Focused model, capability, controller, render-state, compositor and
+  persistence tests pass.
+- Boundary verification and every workspace typecheck pass.
+- Full workspace suite passes: 236 files / 1,122 tests.
+- Web production build and packaged Electron distribution verification pass.

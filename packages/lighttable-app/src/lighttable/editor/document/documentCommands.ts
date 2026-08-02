@@ -2,6 +2,7 @@ import {
   createDefaultLayerLocks,
   createAdjustmentLayer as createAdjustmentLayerNode,
   createGroupLayer as createGroupLayerNode,
+  createTextLayerNode,
   createVectorLayer as createVectorLayerNode,
   createLayerId,
   layerIsLocked,
@@ -12,8 +13,10 @@ import {
   type RasterMask,
   type RasterLayer,
   type Rect,
+  type TextLayer,
   type VectorLayer
 } from './documentTypes';
+import { cloneTextLayerData, type TextLayerData } from '@lighttable/text-core';
 import {
   cloneVectorElement,
   convertLiveShapeToPath,
@@ -41,12 +44,17 @@ import {
 import type { BlendMode } from './blendModes';
 import type { AffineMatrix } from '../rendering/renderContract';
 import { identityAffineMatrix, isFiniteAffineMatrix } from '../rendering/renderContract';
+import { multiplyMatrices } from '../geometry/affine';
 import type { TranslationAlignmentResult } from '../autoAlign/alignmentTypes';
 import { alignedTargetTransform } from '../autoAlign/alignmentMath';
 import {
   createDefaultLayerStyleStack,
   duplicateLayerStyleStack
 } from '../styles/layerStyleDefaults';
+import {
+  buildSceneTransformIndex,
+  localTransformForReparent
+} from './sceneTransformGraph';
 
 const updateDocument = (document: ImageDocument, layers: LayerNode[], activeLayerId = document.activeLayerId): ImageDocument => ({
   ...document,
@@ -55,6 +63,39 @@ const updateDocument = (document: ImageDocument, layers: LayerNode[], activeLaye
   revision: document.revision + 1,
   modifiedAt: Date.now()
 });
+
+const affineMatrixEquals = (left: AffineMatrix, right: AffineMatrix) => (
+  left.a === right.a && left.b === right.b && left.c === right.c
+  && left.d === right.d && left.tx === right.tx && left.ty === right.ty
+);
+
+const moveLayerNodePreservingWorld = (
+  nodes: readonly LayerNode[],
+  layerId: LayerId,
+  parentId: LayerId | null,
+  index?: number
+): LayerNode[] => {
+  const transforms = buildSceneTransformIndex({ layers: nodes as LayerNode[] });
+  const source = transforms.get(layerId);
+  if (source?.parentId === parentId) return moveLayerNode(nodes, layerId, parentId, index);
+  const parentToDocument = parentId
+    ? transforms.get(parentId)?.localToDocument ?? null
+    : identityAffineMatrix();
+  if (!source || !parentToDocument) return nodes as LayerNode[];
+  const local = localTransformForReparent(source.localToDocument, parentToDocument);
+  if (!local) return nodes as LayerNode[];
+  const moved = moveLayerNode(nodes, layerId, parentId, index);
+  if (moved === nodes) return nodes as LayerNode[];
+  return affineMatrixEquals(source.localToParent, local)
+    ? moved
+    : updateLayerNode(moved, layerId, (node) => ({
+        ...node,
+        transform: local,
+        geometryRevision: node.geometryRevision + 1,
+        revision: node.revision + 1,
+        modifiedAt: Date.now()
+      }));
+};
 
 const normalizedSelectionEntries = (
   document: ImageDocument,
@@ -245,6 +286,26 @@ export const createVectorLayer = (
   aboveLayerId = document.activeLayerId ?? undefined
 ): ImageDocument => {
   const layer = createVectorLayerNode(validatedVectorElements(elements), name);
+  const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
+  const parentId = anchor?.parentId ?? null;
+  const insertionIndex = anchor
+    ? anchor.path[anchor.path.length - 1] + 1
+    : document.layers.length;
+  return updateDocument(
+    document,
+    insertLayerNode(document.layers, layer, parentId, insertionIndex),
+    layer.id
+  );
+};
+
+/** Inserts canonical text for fixtures/import adapters; no production tool calls this yet. */
+export const createTextLayer = (
+  document: ImageDocument,
+  text: TextLayerData,
+  name = 'Text',
+  aboveLayerId = document.activeLayerId ?? undefined
+): ImageDocument => {
+  const layer = createTextLayerNode(text, name);
   const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
   const parentId = anchor?.parentId ?? null;
   const insertionIndex = anchor
@@ -672,23 +733,36 @@ export const markLayerMaskPixelsChanged = (document: ImageDocument, layerId: Lay
 
 export const duplicateLayer = (document: ImageDocument, layerId: LayerId): ImageDocument => {
   const entry = findLayerNode(document.layers, layerId);
-  if (!entry || entry.node.type !== 'raster') return document;
+  if (!entry || (entry.node.type !== 'raster' && entry.node.type !== 'text')) return document;
   const now = Date.now();
   const source = entry.node;
   const id = createLayerId();
-  const duplicate: RasterLayer = {
-    ...source,
-    id,
-    name: `${source.name} copy`,
-    createdAt: now,
-    modifiedAt: now,
-    revision: 0,
-    pixelRevision: 0,
-    geometryRevision: 0,
-    pixelSource: { kind: 'runtime-raster', runtimeId: id },
-    styleStack: duplicateLayerStyleStack(source.styleStack),
-    mask: source.mask ? { ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0 } : null
-  };
+  const duplicate: RasterLayer | TextLayer = source.type === 'raster'
+    ? {
+        ...source,
+        id,
+        name: `${source.name} copy`,
+        createdAt: now,
+        modifiedAt: now,
+        revision: 0,
+        pixelRevision: 0,
+        geometryRevision: 0,
+        pixelSource: { kind: 'runtime-raster', runtimeId: id },
+        styleStack: duplicateLayerStyleStack(source.styleStack),
+        mask: source.mask ? { ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0 } : null
+      }
+    : {
+        ...source,
+        id,
+        name: `${source.name} copy`,
+        createdAt: now,
+        modifiedAt: now,
+        revision: 0,
+        geometryRevision: 0,
+        text: cloneTextLayerData(source.text),
+        styleStack: duplicateLayerStyleStack(source.styleStack),
+        mask: source.mask ? { ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0 } : null
+      };
   const layers = insertLayerNode(
     document.layers,
     duplicate,
@@ -758,7 +832,7 @@ export const getFlattenGroupPlan = (
   if (!entry || entry.node.type !== 'group') return null;
   // Until adjustment layers participate in the recursive compositor, flatten
   // must not silently discard them.
-  if (walkLayerTree(entry.node.children).some(({ node }) => node.type === 'adjustment')) return null;
+  if (walkLayerTree(entry.node.children).some(({ node }) => node.type === 'adjustment' || node.type === 'text')) return null;
   const layerIds = rasterIdsIn(entry.node.children);
   if (!layerIds.length) return null;
   return {
@@ -770,7 +844,7 @@ export const getFlattenGroupPlan = (
 };
 
 export const getFlattenImagePlan = (document: ImageDocument): FlattenLayersPlan | null => {
-  if (walkLayerTree(document.layers).some(({ node }) => node.type === 'adjustment')) return null;
+  if (walkLayerTree(document.layers).some(({ node }) => node.type === 'adjustment' || node.type === 'text')) return null;
   const layerIds = rasterIdsIn(document.layers);
   if (!layerIds.length) return null;
   return {
@@ -870,7 +944,10 @@ export const getMergeLayersPlan = (
   const layers = siblings.slice(indexes[0], indexes[indexes.length - 1] + 1);
   // The bottom layer owns the baked pixels. Layers above it may be raster or
   // processing layers; the GPU compositor evaluates them in document order.
-  if (layers[0]?.type !== 'raster' || layers.some((layer) => layer.type === 'group')) return null;
+  if (
+    layers[0]?.type !== 'raster'
+    || layers.some((layer) => layer.type === 'group' || layer.type === 'text')
+  ) return null;
   return {
     layerIds: layers.map((layer) => layer.id),
     destinationId: layers[0].id,
@@ -951,7 +1028,12 @@ export const moveLayerRelative = (
     const sourceIndex = source.path[source.path.length - 1];
     if (sourceIndex < insertionIndex) insertionIndex -= 1;
   }
-  const layers = moveLayerNode(document.layers, layerId, target.parentId, insertionIndex);
+  const layers = moveLayerNodePreservingWorld(
+    document.layers,
+    layerId,
+    target.parentId,
+    insertionIndex
+  );
   if (layers === document.layers) return document;
   return updateDocument(document, layers);
 };
@@ -963,7 +1045,12 @@ export const moveLayerIntoGroup = (
 ): ImageDocument => {
   const group = findLayerNode(document.layers, groupId)?.node;
   if (!group || group.type !== 'group' || layerId === groupId) return document;
-  const layers = moveLayerNode(document.layers, layerId, groupId, group.children.length);
+  const layers = moveLayerNodePreservingWorld(
+    document.layers,
+    layerId,
+    groupId,
+    group.children.length
+  );
   return layers === document.layers ? document : updateDocument(document, layers);
 };
 
@@ -1009,7 +1096,29 @@ export const moveLayerSelection = (
     if (targetIndex < 0) return document;
     insertionIndex = targetIndex + (placement === 'above' ? 1 : 0);
   }
-  for (const node of ordered) {
+  const transforms = buildSceneTransformIndex(document);
+  const destinationWorld = destinationParentId
+    ? transforms.get(destinationParentId)?.localToDocument ?? null
+    : identityAffineMatrix();
+  if (!destinationWorld) return document;
+  const preparedNodes = ordered.map((node) => {
+    if (parentId === destinationParentId) return node;
+    const sourceWorld = transforms.get(node.id)?.localToDocument;
+    const transform = sourceWorld
+      ? localTransformForReparent(sourceWorld, destinationWorld)
+      : null;
+    if (!transform) return null;
+    return affineMatrixEquals(node.transform, transform) ? node : {
+      ...node,
+      transform,
+      geometryRevision: node.geometryRevision + 1,
+      revision: node.revision + 1,
+      modifiedAt: Date.now()
+    };
+  });
+  if (preparedNodes.some((node) => !node)) return document;
+  for (const node of preparedNodes) {
+    if (!node) continue;
     layers = insertLayerNode(layers, node, destinationParentId, insertionIndex);
     insertionIndex += 1;
   }
@@ -1055,7 +1164,15 @@ export const ungroupLayers = (
     const removed = removeLayerNode(layers, current.node.id);
     layers = removed.nodes;
     current.node.children.forEach((child, childIndex) => {
-      layers = insertLayerNode(layers, child, current.parentId, index + childIndex);
+      const transform = multiplyMatrices(current.node.transform, child.transform);
+      const prepared = affineMatrixEquals(child.transform, transform) ? child : {
+        ...child,
+        transform,
+        geometryRevision: child.geometryRevision + 1,
+        revision: child.revision + 1,
+        modifiedAt: Date.now()
+      };
+      layers = insertLayerNode(layers, prepared, current.parentId, index + childIndex);
     });
     if (activeLayerId === current.node.id) {
       activeLayerId = current.node.children[current.node.children.length - 1]?.id ?? null;

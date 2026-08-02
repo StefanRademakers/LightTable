@@ -1962,6 +1962,18 @@
   object-fit: contain;
   opacity: 0.75;
 }
+.lighttable-layer__text-icon {
+  color: var(--lt-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+}
+.lighttable-layer__text-status {
+  color: var(--lt-text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
 .lighttable-layer__name {
   min-width: 0;
   width: auto;

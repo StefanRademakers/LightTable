@@ -99,6 +99,7 @@ const layerTypeIcon = (layer: LayerNode) => {
     );
   }
   if (layer.type === 'vector') return lightTableIcon('image.png');
+  if (layer.type === 'text') return null;
   return layer.pixelSource.kind === 'imported-image'
     ? lightTableIcon('image.png')
     : null;
@@ -666,7 +667,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   onMaskIsolationChange(null);
                   selectLayer(event, layer.id);
                 }}
-                title={layer.type === 'raster' ? 'Edit layer pixels' : layer.type === 'group' ? 'Group' : 'Adjustment layer'}
+                title={
+                  layer.type === 'raster'
+                    ? 'Edit layer pixels'
+                    : layer.type === 'group'
+                      ? 'Group'
+                      : layer.type === 'text'
+                        ? 'Text layer (diagnostic rendering)'
+                        : layer.type === 'vector' ? 'Vector layer' : 'Adjustment layer'
+                }
               >
                 {previews?.pixels ? (
                   <img
@@ -676,7 +685,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     height={previews.pixels.height}
                     alt=""
                   />
-                ) : icon ? <img className="lighttable-layer__type-icon" src={icon} alt="" /> : null}
+                ) : icon ? (
+                  <img className="lighttable-layer__type-icon" src={icon} alt="" />
+                ) : layer.type === 'text' ? (
+                  <span className="lighttable-layer__text-icon" aria-hidden="true">T</span>
+                ) : null}
               </button>
             </span>
             {layer.mask ? (
@@ -769,6 +782,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               aria-label="Layer name"
             />
             <span className="lighttable-layer__status">
+              {layer.type === 'text' ? (
+                <span
+                  className="lighttable-layer__text-status"
+                  title="Text is shown with the GPU diagnostic placeholder until its renderer is available"
+                >{layer.text.source.kind === 'positioned' ? 'Positioned' : 'Flow'}</span>
+              ) : null}
               {layer.type === 'raster'
                 && layer.adjustmentStack
                 && adjustmentStackHasOwner(layer.adjustmentStack, 'grade') ? (

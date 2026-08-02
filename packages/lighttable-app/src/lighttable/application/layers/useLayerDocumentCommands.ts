@@ -220,13 +220,16 @@ export const createLayerDocumentCommands = (
     const current = dependenciesRef.current.getDocument();
     if (!current?.activeLayerId) return false;
     const sourceId = current.activeLayerId;
+    const source = findDocumentLayer(current, sourceId);
     const next = duplicateLayer(current, sourceId);
     if (next === current || !next.activeLayerId) return false;
 
     dependenciesRef.current.applyDocumentSnapshot(next);
-    dependenciesRef.current
-      .getRenderer()
-      ?.duplicateLayerPixels(sourceId, next.activeLayerId);
+    if (source?.type === 'raster') {
+      dependenciesRef.current
+        .getRenderer()
+        ?.duplicateLayerPixels(sourceId, next.activeLayerId);
+    }
     dependenciesRef.current.pushDocumentHistory(current, next);
     dependenciesRef.current.setActiveChannel('pixels');
     return true;

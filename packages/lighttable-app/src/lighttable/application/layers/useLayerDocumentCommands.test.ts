@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer, setLayerLocked } from '../../editor/document/documentCommands';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
+import { createRasterLayer, createTextLayer, setLayerLocked } from '../../editor/document/documentCommands';
 import {
   createImageDocument,
   type ImageDocument
@@ -213,6 +214,20 @@ describe('useLayerDocumentCommands', () => {
     );
     expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
     expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('pixels');
+  });
+
+  it('duplicates canonical text without requesting nonexistent raster pixels', () => {
+    const state = setup(createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Text fixture'
+    ));
+
+    expect(state.commands.duplicateActiveLayer()).toBe(true);
+
+    expect(state.document().layers.at(-1)?.type).toBe('text');
+    expect(state.renderer.duplicateLayerPixels).not.toHaveBeenCalled();
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
   });
 
   it('creates a Grade layer as one reversible document transaction', () => {

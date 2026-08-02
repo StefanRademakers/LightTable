@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 import {
   createRasterLayer,
+  createTextLayer,
   groupLayers
 } from '../../editor/document/documentCommands';
 import {
@@ -57,5 +59,18 @@ describe('queryLayerCommandCapabilities', () => {
 
     expect(capabilities.canGroupSelection).toBe(false);
     expect(capabilities.canUngroupSelection).toBe(true);
+  });
+
+  it('exposes shared commands for text while rejecting pixel and flatten operations', () => {
+    const document = createTextLayer(createDocument(), createDefaultTextLayerData(), 'Text fixture');
+    const capabilities = queryLayerCommandCapabilities(document);
+
+    expect(capabilities.activeLayer?.type).toBe('text');
+    expect(capabilities.canDuplicateActiveLayer).toBe(true);
+    expect(capabilities.canEditActivePixels).toBe(false);
+    expect(capabilities.canEditActiveLayerStyles).toBe(true);
+    expect(capabilities.canAddActiveMask).toBe(true);
+    expect(capabilities.canMergeDown).toBe(false);
+    expect(capabilities.canFlattenImage).toBe(false);
   });
 });

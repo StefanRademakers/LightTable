@@ -4,7 +4,7 @@ import type { BlendMode } from '../document/blendModes';
 export type EditorMenuId = 'file' | 'edit' | 'select' | 'layer' | 'view';
 
 export interface EditorMenuLayerState {
-  type: 'raster' | 'group' | 'adjustment' | 'vector';
+  type: 'raster' | 'group' | 'adjustment' | 'vector' | 'text';
   hasMask: boolean;
   maskEnabled: boolean;
   visible: boolean;

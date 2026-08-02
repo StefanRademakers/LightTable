@@ -264,6 +264,11 @@ export const buildLayeredDocumentFile = (
         mask
       };
     }
+    if (layer.type === 'text') {
+      throw new Error(
+        `Text layer persistence is not available until GPU text Slice 04 (${layer.name}).`
+      );
+    }
 
     const asset = assetsByLayer.get(layer.id);
     if (!asset) throw new Error(`Layer asset is missing for ${layer.name}.`);
