@@ -8,16 +8,20 @@
     "packages/*"
   ],
   "scripts": {
+    "setup:text-wasm": "node scripts/text-wasm.mjs setup",
+    "build:text-wasm": "node scripts/text-wasm.mjs build",
+    "ensure:text-wasm": "node scripts/text-wasm.mjs ensure",
+    "test:text-wasm": "npm run ensure:text-wasm && node scripts/verify-text-wasm-runtime.mjs",
     "dev": "npm run dev:web",
-    "dev:web": "npm run dev -w @lighttable/web",
-    "dev:desktop": "npm run start -w @lighttable/desktop",
+    "dev:web": "npm run ensure:text-wasm && npm run dev -w @lighttable/web",
+    "dev:desktop": "npm run ensure:text-wasm && npm run start -w @lighttable/desktop",
     "build": "npm run build:web && npm run package:desktop",
-    "build:web": "npm run build -w @lighttable/web",
-    "package:desktop": "npm run package -w @lighttable/desktop",
-    "package:desktop:verify": "npm run package -w @lighttable/desktop",
-    "make:desktop": "npm run make -w @lighttable/desktop",
-    "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build:web": "npm run ensure:text-wasm && npm run build -w @lighttable/web",
+    "package:desktop": "npm run ensure:text-wasm && npm run package -w @lighttable/desktop",
+    "package:desktop:verify": "npm run ensure:text-wasm && npm run package -w @lighttable/desktop",
+    "make:desktop": "npm run ensure:text-wasm && npm run make -w @lighttable/desktop",
+    "test": "npm run ensure:text-wasm && npm run test --workspaces --if-present",
+    "typecheck": "npm run ensure:text-wasm && npm run typecheck --workspaces --if-present",
     "verify:boundary": "node scripts/verify-boundary.mjs",
     "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
   }

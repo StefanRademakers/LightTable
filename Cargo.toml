@@ -1,0 +1,11 @@
+[workspace]
+members = ["crates/text-layout-wasm"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.93"
+
+[workspace.dependencies]
+wasm-bindgen = "=0.2.126"

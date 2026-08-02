@@ -1,0 +1,36 @@
+# Task 021 — GPU text Phase 0: reproducible WASM foundation
+
+Implement slices 01 and 02 from:
+
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`
+
+This task establishes only the cross-platform Rust/WASM toolchain, lazy worker
+smoke path and frozen serializable contracts. It must not expose a production
+Text tool or add incomplete canonical text layers.
+
+## Required outcome
+
+- A pinned Rust workspace builds the text WASM skeleton reproducibly.
+- Web and Electron load the same lazy worker/WASM capability probe.
+- `run_clean.bat`, `run_dev.bat`, `build.bat` and shell/npm equivalents use one
+  shared ensure script without deleting Cargo incremental caches.
+- Missing developer tooling produces an actionable error; ordinary installed
+  product users do not need Rust.
+- Text/source/layout/font/worker contracts are serializable, validated and
+  independent of DOM/WebGPU handles.
+- Debug diagnostics are the only UI exposure in this task.
+- Both slices and their evidence are updated in the tracker before completion.
+
+## Verification
+
+- Run focused Rust and TypeScript contract tests.
+- Run `npm run verify:boundary`.
+- Run `npm run typecheck`.
+- Run `npm run build:web` and inspect emitted worker/WASM assets.
+- Run `npm run package:desktop:verify` and inspect its distribution.
+- Start a clean Electron dev session through `run_clean.bat`.
+- Start the web host through `npm run dev:web`.
+- Verify ordinary raster startup does not request or initialize text WASM.
+
+Move this complete directory to `work/done/` only when both tracker slices are
+checked and all required evidence is recorded.

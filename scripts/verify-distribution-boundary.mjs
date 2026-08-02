@@ -6,10 +6,18 @@ import process from 'node:process';
 const require = createRequire(import.meta.url);
 const { listPackage } = require('@electron/asar');
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
+const verificationMode = process.argv[2] ?? '--all';
+if (!['--web', '--desktop', '--all'].includes(verificationMode)) {
+  throw new Error(`Unknown distribution verification mode: ${verificationMode}`);
+}
+const configuredDesktopOutput = process.env.LIGHTTABLE_PACKAGE_OUT || 'out';
+const desktopArtifactRoot = path.isAbsolute(configuredDesktopOutput)
+  ? configuredDesktopOutput
+  : path.join(repositoryRoot, 'apps', 'desktop', configuredDesktopOutput);
+const webArtifactRoot = path.join(repositoryRoot, 'apps', 'web', 'dist');
 const artifactRoots = [
-  path.join(repositoryRoot, 'apps', 'web', 'dist'),
-  path.join(repositoryRoot, 'apps', 'desktop', 'out'),
-  path.join(repositoryRoot, 'apps', 'desktop', 'out-verify')
+  ...(verificationMode !== '--desktop' ? [webArtifactRoot] : []),
+  ...(verificationMode !== '--web' ? [desktopArtifactRoot] : [])
 ];
 const sourceRoots = [
   path.join(repositoryRoot, 'apps', 'web', 'src'),
@@ -21,6 +29,8 @@ const sourceRoots = [
 ];
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.css', '.html']);
 const failures = [];
+const textWorkerPattern = /^textLayout\.worker-[A-Za-z0-9_-]+\.js$/;
+const textWasmPattern = /^text_layout_wasm_bg-[A-Za-z0-9_-]+\.wasm$/;
 
 function hasWorkSegment(value) {
   return value.split(/[\\/]+/).some((segment) => segment.toLowerCase() === 'work');
@@ -53,23 +63,47 @@ for (const sourceRoot of sourceRoots) {
 }
 
 for (const artifactRoot of artifactRoots) {
+  const artifactFiles = [];
+  let asarCount = 0;
   await walk(artifactRoot, async (filePath) => {
+    artifactFiles.push(filePath);
     const relativePath = path.relative(artifactRoot, filePath);
     if (hasWorkSegment(relativePath)) {
       failures.push(`distribution contains work/: ${filePath}`);
     }
     if (path.basename(filePath).toLowerCase() !== 'app.asar') return;
-    for (const packagedPath of listPackage(filePath)) {
+    asarCount += 1;
+    const packagedPaths = listPackage(filePath);
+    for (const packagedPath of packagedPaths) {
       if (hasWorkSegment(packagedPath)) {
         failures.push(`Electron ASAR contains work/: ${filePath}:${packagedPath}`);
       }
     }
+    const packagedNames = packagedPaths.map((packagedPath) => path.basename(packagedPath));
+    if (!packagedNames.some((name) => textWorkerPattern.test(name))) {
+      failures.push(`Electron ASAR is missing the lazy text worker: ${filePath}`);
+    }
+    if (!packagedNames.some((name) => textWasmPattern.test(name))) {
+      failures.push(`Electron ASAR is missing the text WASM asset: ${filePath}`);
+    }
   });
+  if (artifactRoot === webArtifactRoot) {
+    const artifactNames = artifactFiles.map((filePath) => path.basename(filePath));
+    if (!artifactNames.some((name) => textWorkerPattern.test(name))) {
+      failures.push(`web distribution is missing the lazy text worker: ${artifactRoot}`);
+    }
+    if (!artifactNames.some((name) => textWasmPattern.test(name))) {
+      failures.push(`web distribution is missing the text WASM asset: ${artifactRoot}`);
+    }
+  }
+  if (artifactRoot === desktopArtifactRoot && asarCount === 0) {
+    failures.push(`desktop distribution contains no app.asar: ${desktopArtifactRoot}`);
+  }
 }
 
 if (failures.length > 0) {
   console.error('LightTable distribution boundary failed:\n' + failures.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('LightTable distribution boundary passed: work/ is not shipped.');
+  console.log('LightTable distribution boundary passed: work/ is not shipped and text WASM assets are present.');
 }

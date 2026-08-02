@@ -7,6 +7,9 @@ artifacts/
 .vite/
 coverage/
 .test-data/
+.referenceCode/
+.tools/
+/target/
 *.log
 .env
 .env.*

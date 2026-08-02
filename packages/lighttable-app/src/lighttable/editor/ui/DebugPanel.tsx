@@ -14,6 +14,9 @@ interface DebugPanelProps {
   onEditorResizeObserversChange: (enabled: boolean) => void;
   onCaptureRenderTelemetry: () => void;
   onResetRenderTelemetry: () => void;
+  textEngineStatus: 'idle' | 'loading' | 'ready' | 'error';
+  textEngineSummary: string;
+  onProbeTextEngine: () => void;
 }
 
 const formatTimestamp = (timestamp: number) => new Date(timestamp).toLocaleTimeString(
@@ -30,7 +33,10 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   onAccessoryWidthConstraintsChange,
   onEditorResizeObserversChange,
   onCaptureRenderTelemetry,
-  onResetRenderTelemetry
+  onResetRenderTelemetry,
+  textEngineStatus,
+  textEngineSummary,
+  onProbeTextEngine
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const summary = useMemo(() => ({
@@ -91,6 +97,19 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         <div className="lighttable-debug-panel__actions">
           <button type="button" onClick={onCaptureRenderTelemetry}>Capture render stats</button>
           <button type="button" onClick={onResetRenderTelemetry}>Reset render stats</button>
+        </div>
+      </fieldset>
+      <fieldset className="lighttable-debug-panel__diagnostics">
+        <legend>Text engine</legend>
+        <small role="status">{textEngineSummary}</small>
+        <div className="lighttable-debug-panel__actions">
+          <button
+            type="button"
+            onClick={onProbeTextEngine}
+            disabled={textEngineStatus === 'loading'}
+          >
+            {textEngineStatus === 'loading' ? 'Loading text engine...' : 'Probe text engine'}
+          </button>
         </div>
       </fieldset>
       <header className="lighttable-debug-panel__toolbar">

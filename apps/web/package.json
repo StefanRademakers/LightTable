@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node ../../scripts/verify-distribution-boundary.mjs",
+    "build": "tsc -b && vite build && node ../../scripts/verify-distribution-boundary.mjs --web",
     "preview": "vite preview",
     "typecheck": "tsc -b"
   },
