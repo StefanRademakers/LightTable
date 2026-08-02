@@ -67,6 +67,7 @@ import {
 import {
   createEditorMenuController
 } from './composition/menus/createEditorMenuController';
+import { primaryShortcutLabel } from './application/input/editorShortcutPresentation';
 import {
   LayersWorkspacePanel
 } from './composition/workspace/LayersWorkspacePanel';
@@ -186,13 +187,6 @@ import './lighttable.css';
 
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
-const IS_MAC_PLATFORM = typeof navigator !== 'undefined' &&
-  /Mac|iPhone|iPad|iPod/i.test(`${navigator.platform} ${navigator.userAgent}`);
-const primaryShortcutLabel = (key: string, shift = false) => (
-  IS_MAC_PLATFORM
-    ? `${shift ? '⇧' : ''}⌘${key}`
-    : `Ctrl+${shift ? 'Shift+' : ''}${key}`
-);
 const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
   if (!document?.activeLayerId) return false;
   const active = findDocumentLayer(document, document.activeLayerId);

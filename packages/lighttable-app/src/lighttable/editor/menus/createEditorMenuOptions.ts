@@ -100,25 +100,29 @@ export const createEditorMenuOptions = (
     return [
       {
         value: 'new-document',
-        label: `New (${labels.primaryShortcut('N')})`,
+        label: 'New',
+        shortcut: labels.primaryShortcut('N'),
         onClick: commands.newDocument,
         disabled: state.saving
       },
       {
         value: 'open-image',
-        label: `Open (${labels.primaryShortcut('O')})`,
+        label: 'Open',
+        shortcut: labels.primaryShortcut('O'),
         onClick: commands.open,
         disabled: state.saving
       },
       {
         value: 'save-corrected',
-        label: `${state.saving ? 'Saving...' : 'Save LightTable'} (${labels.primaryShortcut('S')})`,
+        label: state.saving ? 'Saving...' : 'Save LightTable',
+        shortcut: labels.primaryShortcut('S'),
         onClick: commands.save,
         disabled: !state.hasMetadata || !state.hasSourceKey || state.saving
       },
       {
         value: 'export-png',
-        label: `Quick Export PNG (${labels.primaryShortcut('S', true)})`,
+        label: 'Quick Export PNG',
+        shortcut: labels.primaryShortcut('S', true),
         onClick: commands.exportPng,
         disabled: !state.hasMetadata || state.saving
       }
@@ -129,19 +133,22 @@ export const createEditorMenuOptions = (
     return [
       {
         value: 'copy-selected-content',
-        label: `Copy (${labels.primaryShortcut('C')})`,
+        label: 'Copy',
+        shortcut: labels.primaryShortcut('C'),
         onClick: commands.copySelectedContent,
         disabled: !state.hasMetadata || !state.hasSelection || state.saving
       },
       {
         value: 'copy-merged-content',
-        label: `Copy Merged (${labels.primaryShortcut('C', true)})`,
+        label: 'Copy Merged',
+        shortcut: labels.primaryShortcut('C', true),
         onClick: commands.copyMergedContent,
         disabled: !state.hasMetadata || !state.hasSelection || state.saving
       },
       {
         value: 'paste-selected-content',
-        label: `Paste as new layer (${labels.primaryShortcut('V')})`,
+        label: 'Paste as new layer',
+        shortcut: labels.primaryShortcut('V'),
         onClick: commands.pasteSelectedContent,
         disabled: !state.hasMetadata || state.saving
       },
@@ -165,31 +172,36 @@ export const createEditorMenuOptions = (
     return [
       {
         value: 'select-all',
-        label: `Select all (${labels.primaryShortcut('A')})`,
+        label: 'Select all',
+        shortcut: labels.primaryShortcut('A'),
         onClick: commands.selectAll,
         disabled: !state.hasMetadata || state.saving
       },
       {
         value: 'select-none',
-        label: `Select none (${labels.primaryShortcut('D')})`,
+        label: 'Select none',
+        shortcut: labels.primaryShortcut('D'),
         onClick: commands.clearSelection,
         disabled: !state.hasSelection || state.saving
       },
       {
         value: 'invert-selection',
-        label: `Invert selection (${labels.primaryShortcut('I', true)})`,
+        label: 'Invert selection',
+        shortcut: labels.primaryShortcut('I', true),
         onClick: commands.invertSelection,
         disabled: !state.hasMetadata || state.saving
       },
       {
         value: 'clear-selection',
-        label: `Clear selection (${labels.primaryShortcut('D')})`,
+        label: 'Clear selection',
+        shortcut: labels.primaryShortcut('D'),
         onClick: commands.clearSelection,
         disabled: !state.hasSelection || state.saving
       },
       {
         value: 'feather-selection',
-        label: 'Feather... (Shift+F6)',
+        label: 'Feather...',
+        shortcut: 'Shift+F6',
         separatorBefore: true,
         onClick: commands.featherSelection,
         disabled: !state.hasSelection || state.saving
@@ -213,7 +225,8 @@ export const createEditorMenuOptions = (
       },
       {
         value: 'layer-via-copy',
-        label: `Layer via Copy (${labels.primaryShortcut('J')})`,
+        label: 'Layer via Copy',
+        shortcut: labels.primaryShortcut('J'),
         onClick: commands.layerViaCopy,
         disabled: !layer || layer.type !== 'raster' || state.saving
       },
@@ -225,7 +238,8 @@ export const createEditorMenuOptions = (
       },
       {
         value: 'invert-layer-colors',
-        label: `Invert Colors (${labels.primaryShortcut('I')})`,
+        label: 'Invert Colors',
+        shortcut: labels.primaryShortcut('I'),
         separatorBefore: true,
         onClick: commands.invertLayerColors,
         disabled: !layer || layer.type !== 'raster' || layer.locked
@@ -313,7 +327,8 @@ export const createEditorMenuOptions = (
       },
       {
         value: 'merge-down',
-        label: `Merge Down (${labels.primaryShortcut('E')})`,
+        label: 'Merge Down',
+        shortcut: labels.primaryShortcut('E'),
         onClick: commands.mergeDown,
         disabled: !layer || layer.type !== 'raster' || layer.activeIndex <= 0 || !layer.belowIsRaster
       },
@@ -386,7 +401,8 @@ export const createEditorMenuOptions = (
     },
     {
       value: 'toggle-screen-mode',
-      label: 'Toggle screen mode (F)',
+      label: 'Toggle screen mode',
+      shortcut: 'F',
       separatorBefore: true,
       onClick: commands.toggleScreenMode
     },

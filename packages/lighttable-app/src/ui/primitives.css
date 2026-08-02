@@ -306,6 +306,18 @@
   flex: 1 1 auto;
 }
 
+.context-menu__item-shortcut {
+  flex: 0 0 auto;
+  margin-left: 18px;
+  color: var(--lt-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.context-menu__item:disabled .context-menu__item-shortcut {
+  color: inherit;
+}
+
 .context-menu__submenu-indicator {
   flex: 0 0 auto;
 }

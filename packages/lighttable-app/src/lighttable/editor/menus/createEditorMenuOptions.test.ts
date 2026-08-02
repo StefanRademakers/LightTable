@@ -60,11 +60,11 @@ describe('createEditorMenuOptions', () => {
       commands()
     );
 
-    expect(options.map((option) => option.label)).toEqual([
-      'New (Ctrl+N)',
-      'Open (Ctrl+O)',
-      'Saving... (Ctrl+S)',
-      'Quick Export PNG (Ctrl+Shift+S)'
+    expect(options.map(({ label, shortcut }) => ({ label, shortcut }))).toEqual([
+      { label: 'New', shortcut: 'Ctrl+N' },
+      { label: 'Open', shortcut: 'Ctrl+O' },
+      { label: 'Saving...', shortcut: 'Ctrl+S' },
+      { label: 'Quick Export PNG', shortcut: 'Ctrl+Shift+S' }
     ]);
     expect(options.every((option) => option.disabled)).toBe(true);
   });
@@ -79,8 +79,8 @@ describe('createEditorMenuOptions', () => {
 
     expect(options.find((option) => option.value === 'select-none')?.disabled).toBe(false);
     expect(options.find((option) => option.value === 'feather-selection')?.disabled).toBe(false);
-    expect(options.find((option) => option.value === 'invert-selection')?.label)
-      .toBe('Invert selection (Ctrl+Shift+I)');
+    expect(options.find((option) => option.value === 'invert-selection'))
+      .toMatchObject({ label: 'Invert selection', shortcut: 'Ctrl+Shift+I' });
   });
 
   it('guards invalid layer operations and forwards valid blend commands', () => {
@@ -123,7 +123,7 @@ describe('createEditorMenuOptions', () => {
 
     expect(options.find((option) => option.value === 'actual-size')?.label).toBe('100% (current)');
     expect(options.find((option) => option.value === 'show-original')?.label).toBe('Show corrected');
-    expect(options.find((option) => option.value === 'toggle-screen-mode')?.label)
-      .toBe('Toggle screen mode (F)');
+    expect(options.find((option) => option.value === 'toggle-screen-mode'))
+      .toMatchObject({ label: 'Toggle screen mode', shortcut: 'F' });
   });
 });

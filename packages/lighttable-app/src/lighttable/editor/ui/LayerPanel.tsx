@@ -10,6 +10,7 @@ import type {
 } from '../document/documentTypes';
 import { findLayerNode, siblingLayers } from '../document/layerTree';
 import { queryLayerCommandCapabilities } from '../../application/layers/layerCommandCapabilities';
+import { primaryShortcutLabel } from '../../application/input/editorShortcutPresentation';
 import type { PaintChannel } from '../session/editorSession';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import type { LayerStyleId } from '../styles/layerStyleTypes';
@@ -325,7 +326,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       : []),
     {
       value: 'merge-down',
-      label: 'Merge Down (Ctrl/Cmd+E)',
+      label: 'Merge Down',
+      shortcut: primaryShortcutLabel('E'),
       separatorBefore: true,
       disabled: !canMergeDown,
       onClick: onMergeDown

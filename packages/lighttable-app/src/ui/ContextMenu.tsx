@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 export interface ContextMenuOption<T extends string> {
   value: T;
   label: string;
+  shortcut?: string;
   onClick?: () => void;
   disabled?: boolean;
   icon?: ReactNode;
@@ -205,6 +206,11 @@ export function ContextMenu<T extends string>({
             >
               {option.icon ? <span className="context-menu__item-icon">{option.icon}</span> : null}
               <span className="context-menu__item-label">{option.label}</span>
+              {option.shortcut ? (
+                <span className="context-menu__item-shortcut" aria-hidden="true">
+                  {option.shortcut}
+                </span>
+              ) : null}
               {hasChildren ? <span className="context-menu__submenu-indicator" aria-hidden="true">›</span> : null}
             </button>
             {hasChildren ? renderOptions(option.children ?? [], true, itemPath) : null}
