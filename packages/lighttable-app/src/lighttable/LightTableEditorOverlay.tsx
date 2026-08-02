@@ -117,6 +117,10 @@ import { useSelectionSessionController } from './application/tools/selection/use
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
 import {
+  patchVectorStyle,
+  vectorElementStyleSettings
+} from './application/vectors/vectorStylePresentation';
+import {
   useDocumentImageState,
   useDocumentEditorSession,
   useDocumentViewportState
@@ -1125,6 +1129,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setEditorSession((current) => ({ ...current, vectorSelection }));
     }
   });
+  const selectedVectorStyle = useMemo(() => {
+    const reference = editorSession.vectorSelection.elements[0];
+    if (!reference || !imageDocument) return null;
+    const layer = findDocumentLayer(imageDocument, reference.layerId);
+    const element = layer?.type === 'vector'
+      ? layer.elements.find(({ id }) => id === reference.elementId)
+      : null;
+    return element ? vectorElementStyleSettings(element) : null;
+  }, [editorSession.vectorSelection.elements, imageDocument]);
+  const updateSelectedVectorStyle = (change: Partial<EditorSession['vectorStyle']>) => {
+    vectorToolSessionController.editSelectedElementStyles(
+      (style) => patchVectorStyle(style, change)
+    );
+  };
 
   const viewportInteraction = useViewportInteractionController({
     metadata,
@@ -1552,6 +1570,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       brush={editorSession.brush}
       warp={editorSession.warp}
       vectorStyle={editorSession.vectorStyle}
+      selectedVectorStyle={selectedVectorStyle}
       selectionPixelSnap={editorSession.selectionPixelSnap}
       selectionCombineMode={editorSession.selectionCombineMode}
       zoomPercent={activeScale * 100}
@@ -1563,6 +1582,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           vectorStyle: { ...current.vectorStyle, ...change }
         }));
       }}
+      onSelectedVectorStyleChange={updateSelectedVectorStyle}
       onWarpReset={() => {
         warpSessionController.clearActiveLayer();
       }}
@@ -1610,6 +1630,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             brush: editorSession.brush,
             warp: editorSession.warp,
             vectorStyle: editorSession.vectorStyle,
+            selectedVectorStyle,
             selectionPixelSnap: editorSession.selectionPixelSnap,
             selectionCombineMode: editorSession.selectionCombineMode,
             zoomPercent: activeScale * 100,
@@ -1621,6 +1642,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 vectorStyle: { ...current.vectorStyle, ...change }
               }));
             },
+            onSelectedVectorStyleChange: updateSelectedVectorStyle,
             onWarpReset: () => {
               warpSessionController.clearActiveLayer();
               setToolOptionsMenu(null);

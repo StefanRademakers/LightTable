@@ -1,4 +1,5 @@
 import {
+  cloneVectorElement,
   type AnchorMode,
   type VectorIdSource,
   type VectorPath,
@@ -266,6 +267,31 @@ export class VectorToolSessionController {
   nudgeSelection(documentDelta: Vec2) {
     return this.prepareSelectionCommand()
       && this.selectionCommands.nudgeSelection(documentDelta);
+  }
+
+  editSelectedElementStyles(edit: (style: VectorStyle) => VectorStyle) {
+    if (!this.prepareSelectionCommand()) return false;
+    const selection = this.dependencies.getSelection();
+    const addresses = new Map<string, VectorEditorSelection['elements'][number]>();
+    for (const reference of selection.elements) {
+      addresses.set(`${reference.layerId}\0${reference.elementId}`, reference);
+    }
+    for (const reference of selection.paths) {
+      addresses.set(`${reference.layerId}\0${reference.pathId}`, {
+        layerId: reference.layerId,
+        elementId: reference.pathId
+      });
+    }
+    return this.documents.editElements([...addresses.values()].map(({ layerId, elementId }) => ({
+      layerId,
+      elementId,
+      edit: (element) => {
+        const next = cloneVectorElement(element);
+        next.style = edit(next.style);
+        next.styleRevision += 1;
+        return next;
+      }
+    })));
   }
 
   setSelectedAnchorMode(mode: AnchorMode) {

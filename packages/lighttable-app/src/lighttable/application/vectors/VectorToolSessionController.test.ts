@@ -260,6 +260,59 @@ describe('VectorToolSessionController', () => {
       .toEqual([{ tx: 25, ty: 26 }, { tx: 75, ty: 26 }]);
   });
 
+  it('updates the style of every selected element as one history command', () => {
+    const state = setup();
+    const first = createVectorLiveShape('first', {
+      kind: 'rectangle',
+      width: 20,
+      height: 20,
+      cornerRadii: [0, 0, 0, 0],
+      linkedCorners: true
+    });
+    const second = createVectorLiveShape('second', {
+      kind: 'ellipse',
+      width: 20,
+      height: 20
+    });
+    for (const element of [first, second]) {
+      element.style.stroke = {
+        paint: { type: 'solid', color: [1, 1, 1, 1] },
+        width: 3,
+        cap: 'round',
+        join: 'round',
+        miterLimit: 4,
+        dash: [],
+        dashOffset: 0
+      };
+    }
+    const layer = createVectorLayer([first, second]);
+    state.document.layers = [layer];
+    state.controller.activate('element-selection');
+    // Hit-testing overlapping geometry is intentionally avoided here: the
+    // command accepts the same document-scoped selection model as the tool.
+    state.selection.elements = [
+      { layerId: layer.id, elementId: first.id },
+      { layerId: layer.id, elementId: second.id }
+    ];
+
+    expect(state.controller.editSelectedElementStyles((style) => ({
+      ...style,
+      fill: { type: 'solid', color: [0.25, 0.5, 0.75, 1] },
+      stroke: style.stroke ? { ...style.stroke, width: 9 } : null
+    }))).toBe(true);
+    expect(state.history).toHaveLength(1);
+    const updated = findDocumentLayer(state.document, layer.id);
+    if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(updated.elements.map(({ style, styleRevision }) => ({
+      fill: style.fill?.color,
+      width: style.stroke?.width,
+      styleRevision
+    }))).toEqual([
+      { fill: [0.25, 0.5, 0.75, 1], width: 9, styleRevision: 1 },
+      { fill: [0.25, 0.5, 0.75, 1], width: 9, styleRevision: 1 }
+    ]);
+  });
+
   it('cancels a provisional live shape when the active document changes', () => {
     const state = setup();
     const opening = state.document;

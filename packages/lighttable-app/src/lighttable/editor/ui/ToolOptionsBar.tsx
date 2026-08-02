@@ -19,12 +19,14 @@ export interface ToolOptionsProps {
   brush: BrushSettings;
   warp: EditorSession['warp'];
   vectorStyle: VectorToolStyleSettings;
+  selectedVectorStyle?: VectorToolStyleSettings | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
   zoomPercent: number;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<VectorToolStyleSettings>) => void;
+  onSelectedVectorStyleChange?: (change: Partial<VectorToolStyleSettings>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
@@ -63,12 +65,14 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   brush,
   warp,
   vectorStyle,
+  selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
   zoomPercent,
   onBrushChange,
   onWarpChange,
   onVectorStyleChange,
+  onSelectedVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
@@ -77,6 +81,11 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   orientation = 'horizontal'
 }) => {
   const activeToolDefinition = toolDefinition(activeTool);
+  const editsVectorSelection = activeTool === 'vector-select' && Boolean(selectedVectorStyle);
+  const presentedVectorStyle = editsVectorSelection ? selectedVectorStyle! : vectorStyle;
+  const changeVectorStyle = editsVectorSelection
+    ? onSelectedVectorStyleChange ?? onVectorStyleChange
+    : onVectorStyleChange;
 
   const releaseCompletedSelect = (event: React.ChangeEvent<HTMLDivElement>) => {
     const target = event.target;
@@ -159,15 +168,15 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onReset={onWarpReset}
         />
       ) : null}
-      {activeTool === 'vector-pen' || activeTool.startsWith('shape-') ? (
+      {activeTool === 'vector-pen' || activeTool.startsWith('shape-') || editsVectorSelection ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Vector style">
           {activeTool !== 'shape-line' ? (
             <label className="lighttable-tool-options__color-field">
               <span>Fill</span>
               <input
                 type="color"
-                value={vectorStyle.fillColor}
-                onChange={(event) => onVectorStyleChange({ fillColor: event.currentTarget.value })}
+                value={presentedVectorStyle.fillColor}
+                onChange={(event) => changeVectorStyle({ fillColor: event.currentTarget.value })}
               />
             </label>
           ) : null}
@@ -175,8 +184,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <span>Line</span>
             <input
               type="color"
-              value={vectorStyle.strokeColor}
-              onChange={(event) => onVectorStyleChange({ strokeColor: event.currentTarget.value })}
+              value={presentedVectorStyle.strokeColor}
+              onChange={(event) => changeVectorStyle({ strokeColor: event.currentTarget.value })}
             />
           </label>
           <label className="lighttable-tool-options__weight-field">
@@ -186,8 +195,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               min={0.1}
               max={1000}
               step={0.5}
-              value={vectorStyle.strokeWidth}
-              onChange={(event) => onVectorStyleChange({
+              value={presentedVectorStyle.strokeWidth}
+              onChange={(event) => changeVectorStyle({
                 strokeWidth: Math.max(0.1, Number(event.currentTarget.value) || 0.1)
               })}
             />
