@@ -191,6 +191,8 @@ const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
 export interface LightTableEditorOverlayProps {
   open: boolean;
   active?: boolean;
+  screenMode?: EditorScreenMode;
+  onScreenModeChange?: (mode: EditorScreenMode) => void;
   projectId: string;
   sourceFileKey?: string | null;
   sourceBlob?: Blob | null;
@@ -226,12 +228,16 @@ export interface LightTableEditorOverlayProps {
   imageClipboard?: LightTableImageClipboard;
 }
 
+export type EditorScreenMode = 'normal' | 'canvas-only';
+
 type ZoomMode = 'fit' | '100' | 'custom';
 const cloneAdjustments = cloneAllAdjustments;
 
 export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = ({
   open,
   active = true,
+  screenMode: controlledScreenMode,
+  onScreenModeChange,
   projectId,
   sourceFileKey = null,
   sourceBlob: initialSourceBlob = null,
@@ -320,6 +326,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const scopeVisibilityRef = useRef<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
   const startupTelemetryRef = useRef(new DocumentStartupTelemetry());
   const workspaceRef = useRef<LightTableDockWorkspaceHandle | null>(null);
+  const [localScreenMode, setLocalScreenMode] = useState<EditorScreenMode>('normal');
+  const screenMode = controlledScreenMode ?? localScreenMode;
+  const toggleScreenMode = useCallback(() => {
+    const next = screenMode === 'normal' ? 'canvas-only' : 'normal';
+    if (onScreenModeChange) {
+      onScreenModeChange(next);
+    } else {
+      setLocalScreenMode(next);
+    }
+  }, [onScreenModeChange, screenMode]);
   const [metadata, setMetadata] = useState<LightTableImageMetadata | null>(null);
   const [histogram, setHistogram] = useState<RgbHistogram | null>(null);
   const {
@@ -959,6 +975,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setShowDifference(false);
         setShowOriginal((current) => !current);
       },
+      toggleScreenMode,
       changeBrushSize: (direction) => setEditorSession((current) => current.activeTool === 'warp'
         ? {
             ...current,
@@ -1413,6 +1430,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     workspace: {
       showDebugPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.debug),
+      toggleScreenMode,
       resetLayout: () => workspaceRef.current?.resetLayout()
     }
   });
@@ -1478,6 +1496,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   return (
     <LightTableEditorShell
+      screenMode={screenMode}
       active={active}
       saving={saving}
       onClose={onClose}
@@ -1574,6 +1593,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     >
           <LightTableDockWorkspace
             ref={workspaceRef}
+            canvasOnly={screenMode === 'canvas-only'}
             documents={(workspaceDocuments ?? [{
               id: workspaceDocumentId,
               title: sourceName

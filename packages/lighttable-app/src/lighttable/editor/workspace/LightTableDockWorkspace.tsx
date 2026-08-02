@@ -45,6 +45,7 @@ export interface LightTableWorkspaceDocument {
 }
 
 interface LightTableDockWorkspaceProps {
+  canvasOnly?: boolean;
   documents: LightTableWorkspaceDocument[];
   activeDocumentId: string;
   panels: LightTableWorkspacePanelRegistration[];
@@ -271,6 +272,7 @@ export const LightTableDockWorkspace = forwardRef<
   LightTableDockWorkspaceHandle,
   LightTableDockWorkspaceProps
 >(({
+  canvasOnly = false,
   documents,
   activeDocumentId,
   panels,
@@ -546,7 +548,10 @@ export const LightTableDockWorkspace = forwardRef<
 
   return (
     <WorkspaceContentContext.Provider value={content}>
-      <div ref={workspaceElementRef} className="lighttable-dock-workspace dockview-theme-dark">
+      <div
+        ref={workspaceElementRef}
+        className={`lighttable-dock-workspace dockview-theme-dark${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}`}
+      >
         <DockviewReact
           components={components}
           tabComponents={tabComponents}

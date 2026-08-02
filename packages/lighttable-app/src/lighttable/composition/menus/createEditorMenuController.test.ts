@@ -78,6 +78,7 @@ describe('createEditorMenuController', () => {
       },
       workspace: {
         showDebugPanel: vi.fn(),
+        toggleScreenMode: vi.fn(),
         resetLayout: vi.fn()
       }
     });

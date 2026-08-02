@@ -26,6 +26,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   openSelectionFeather: vi.fn(),
   swapColors: vi.fn(),
   toggleOriginal: vi.fn(),
+  toggleScreenMode: vi.fn(),
   changeBrushSize: vi.fn(),
   activateAdjacentDocument: vi.fn(),
   closeActiveDocument: vi.fn(),
@@ -77,10 +78,12 @@ describe('executeEditorKeyboardCommand', () => {
     executeEditorKeyboardCommand('merge-down', target);
     executeEditorKeyboardCommand('activate-previous-document', target);
     executeEditorKeyboardCommand('close-active-document', target);
+    executeEditorKeyboardCommand('toggle-screen-mode', target);
 
     expect(target.mergeDown).toHaveBeenCalledOnce();
     expect(target.activateAdjacentDocument).toHaveBeenCalledWith(-1);
     expect(target.closeActiveDocument).toHaveBeenCalledOnce();
+    expect(target.toggleScreenMode).toHaveBeenCalledOnce();
   });
 
   it('routes browser zoom chords to the active document viewport', () => {

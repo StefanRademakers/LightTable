@@ -123,5 +123,7 @@ describe('createEditorMenuOptions', () => {
 
     expect(options.find((option) => option.value === 'actual-size')?.label).toBe('100% (current)');
     expect(options.find((option) => option.value === 'show-original')?.label).toBe('Show corrected');
+    expect(options.find((option) => option.value === 'toggle-screen-mode')?.label)
+      .toBe('Toggle screen mode (F)');
   });
 });

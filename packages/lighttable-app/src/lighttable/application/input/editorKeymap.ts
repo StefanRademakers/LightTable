@@ -40,6 +40,7 @@ export type EditorKeyboardCommand =
   | 'selection-feather'
   | 'swap-colors'
   | 'toggle-original'
+  | 'toggle-screen-mode'
   | 'brush-size-decrease'
   | 'brush-size-increase'
   | 'commit-transform'
@@ -153,6 +154,11 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       when: (context) => context.hasSelection
     }),
     command('colors.swap', { key: 'x', primary: false, alt: false }, 'swap-colors'),
+    command(
+      'workspace.toggle-screen-mode',
+      { key: 'f', primary: false, alt: false, shift: false },
+      'toggle-screen-mode'
+    ),
     command('brush.size-decrease', { key: '[', primary: false, alt: false }, 'brush-size-decrease', {
       when: (context) => usesBrushSize(context.activeTool)
     }),

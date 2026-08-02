@@ -81,6 +81,7 @@ export interface EditorMenuCommands {
   actualSize: () => void;
   toggleOriginal: () => void;
   toggleDifference: () => void;
+  toggleScreenMode: () => void;
   showDebugPanel: () => void;
   resetWorkspaceLayout: () => void;
 }
@@ -382,6 +383,12 @@ export const createEditorMenuOptions = (
       label: 'Debug panel',
       separatorBefore: true,
       onClick: commands.showDebugPanel
+    },
+    {
+      value: 'toggle-screen-mode',
+      label: 'Toggle screen mode (F)',
+      separatorBefore: true,
+      onClick: commands.toggleScreenMode
     },
     {
       value: 'reset-workspace-layout',

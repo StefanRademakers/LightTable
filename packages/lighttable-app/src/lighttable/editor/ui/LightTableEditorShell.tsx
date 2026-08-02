@@ -9,6 +9,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { ToolOptionsBar } from './ToolOptionsBar';
 
 export interface LightTableEditorShellProps {
+  screenMode: 'normal' | 'canvas-only';
   active: boolean;
   saving: boolean;
   onClose: () => void;
@@ -51,6 +52,7 @@ export interface LightTableEditorShellProps {
  * or host services, keeping web and Electron on the same UI boundary.
  */
 export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
+  screenMode,
   active,
   saving,
   onClose,
@@ -94,10 +96,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
     }}
   >
     <div
-      className="modal lighttable"
+      className={`modal lighttable${screenMode === 'canvas-only' ? ' lighttable--canvas-only' : ''}`}
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="modal__header concept-art-editor__header lighttable__header">
+      {screenMode === 'normal' ? <div className="modal__header concept-art-editor__header lighttable__header">
         <div className="lighttable__header-left">
           <EditorMenuBar optionsFor={menuOptionsFor} />
         </div>
@@ -109,9 +111,9 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
           aria-label="Close editor"
           icon={<img src={lightTableIcon('close.png')} alt="" aria-hidden />}
         />
-      </div>
+      </div> : null}
 
-      <ToolOptionsBar
+      {screenMode === 'normal' ? <ToolOptionsBar
         activeTool={activeTool}
         brush={brush}
         warp={warp}
@@ -127,7 +129,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectionCombineModeChange={onSelectionCombineModeChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}
-      />
+      /> : null}
 
       <input
         ref={fileInputRef}
@@ -145,7 +147,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
       />
 
       <div className="lighttable__body">
-        <EditorToolbar
+        {screenMode === 'normal' ? <EditorToolbar
           activeTool={activeTool}
           foregroundColor={brush.color}
           backgroundColor={brush.backgroundColor}
@@ -154,7 +156,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
           onBackgroundColorChange={onBackgroundColorChange}
           onSwapColors={onSwapColors}
           onResetColors={onResetColors}
-        />
+        /> : null}
         {children}
       </div>
     </div>

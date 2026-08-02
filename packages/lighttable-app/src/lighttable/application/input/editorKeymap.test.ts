@@ -93,6 +93,14 @@ describe('editor keymap', () => {
     )).toEqual({ type: 'activate-tool', tool: 'select-ellipse' });
   });
 
+  it('routes plain F to the workspace screen-mode command', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'f', code: 'KeyF' }),
+      context()
+    )).toBe('toggle-screen-mode');
+  });
+
   it('allows profiles to remap commands without changing command execution', () => {
     const customKeymap: EditorKeymap = {
       id: 'custom',

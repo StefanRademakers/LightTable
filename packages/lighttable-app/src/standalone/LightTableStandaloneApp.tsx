@@ -11,6 +11,7 @@ import {
   type LightTableRecentFile
 } from '../platform/LightTableHost';
 import { StandaloneDocumentRuntimeView } from './StandaloneDocumentRuntimeView';
+import type { EditorScreenMode } from '../lighttable/LightTableEditorOverlay';
 import {
   type StandaloneDecodeMode,
   useStandaloneDocumentWorkspace
@@ -49,6 +50,7 @@ export function LightTableStandaloneApp({
   const [creating, setCreating] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
+  const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
   const fileDrop = useStandaloneFileDrop(openDocument);
 
   const refreshRecentFiles = useCallback(async () => {
@@ -238,6 +240,8 @@ export function LightTableStandaloneApp({
           document={document}
           workspaceDocuments={workspaceDocuments}
           host={host}
+          screenMode={screenMode}
+          onScreenModeChange={setScreenMode}
           onActivate={activateDocument}
           onClose={closeDocument}
           onRequestOpen={host.openFile ? requestHostDocument : undefined}

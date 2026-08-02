@@ -337,6 +337,41 @@
   grid-template-columns: var(--lt-toolbox-width) minmax(0, 1fr);
 }
 
+/* Canvas-only screen mode is a presentation state, not a second workspace.
+ * Keep Dockview and every panel mounted so their layout and runtime state are
+ * preserved, while the document group temporarily owns the complete editor. */
+.lighttable--canvas-only .lighttable__body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.lighttable-dock-workspace--canvas-only {
+  /* Presentation-only mode: keep Dockview components mounted so their layout,
+     GPU runtimes and document state survive the F-key toggle. */
+  position: relative;
+}
+
+.lighttable-dock-workspace--canvas-only .dv-groupview:not(:has(.lighttable-document-host)),
+.lighttable-dock-workspace--canvas-only .dv-resize-container {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.lighttable-dock-workspace--canvas-only .dv-groupview:has(.lighttable-document-host) {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 20;
+  width: auto !important;
+  height: auto !important;
+  visibility: visible;
+}
+
+.lighttable-dock-workspace--canvas-only
+  .dv-groupview:has(.lighttable-document-host)
+  > .dv-tabs-and-actions-container,
+.lighttable-dock-workspace--canvas-only .lighttable-document-tabs {
+  display: none;
+}
+
 .lighttable-dock-workspace.dockview-theme-dark {
   min-width: 0;
   min-height: 0;

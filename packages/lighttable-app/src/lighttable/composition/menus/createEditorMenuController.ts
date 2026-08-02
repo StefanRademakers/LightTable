@@ -56,6 +56,7 @@ export interface EditorMenuControllerOptions {
   };
   readonly workspace: {
     showDebugPanel(): void;
+    toggleScreenMode(): void;
     resetLayout(): void;
   };
 }
@@ -165,6 +166,7 @@ export const createEditorMenuController = ({
         viewport.setShowDifference((current) => !current);
       },
       showDebugPanel: workspace.showDebugPanel,
+      toggleScreenMode: workspace.toggleScreenMode,
       resetWorkspaceLayout: workspace.resetLayout
     }
   );

@@ -1,4 +1,7 @@
-import { LightTableEditorOverlay } from '../lighttable/LightTableEditorOverlay';
+import {
+  LightTableEditorOverlay,
+  type EditorScreenMode
+} from '../lighttable/LightTableEditorOverlay';
 import type {
   DocumentSessionId
 } from '../lighttable/application/documents/documentSession';
@@ -23,6 +26,8 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly document: StandaloneWorkspaceDocument;
   readonly workspaceDocuments: readonly WorkspaceDocumentTab[];
   readonly host: LightTableHost;
+  readonly screenMode: EditorScreenMode;
+  readonly onScreenModeChange: (mode: EditorScreenMode) => void;
   readonly onActivate: (id: DocumentSessionId) => void;
   readonly onClose: (id: DocumentSessionId) => void;
   readonly onRequestOpen?: (decodeMode?: StandaloneDecodeMode) => Promise<void>;
@@ -46,6 +51,8 @@ export function StandaloneDocumentRuntimeView({
   document,
   workspaceDocuments,
   host,
+  screenMode,
+  onScreenModeChange,
   onActivate,
   onClose,
   onRequestOpen,
@@ -69,6 +76,8 @@ export function StandaloneDocumentRuntimeView({
       <LightTableEditorOverlay
         open
         active={active}
+        screenMode={screenMode}
+        onScreenModeChange={onScreenModeChange}
         projectId=""
         sourceBlob={file}
         sourceDecodeMode={decodeMode}

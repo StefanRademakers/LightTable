@@ -22,6 +22,7 @@ export interface EditorKeyboardCommandPorts {
   openSelectionFeather(): void;
   swapColors(): void;
   toggleOriginal(): void;
+  toggleScreenMode(): void;
   changeBrushSize(direction: -1 | 1): void;
   activateAdjacentDocument(direction: -1 | 1): void;
   closeActiveDocument(): void;
@@ -103,6 +104,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'toggle-original':
       ports.toggleOriginal();
+      return;
+    case 'toggle-screen-mode':
+      ports.toggleScreenMode();
       return;
     case 'brush-size-decrease':
       ports.changeBrushSize(-1);
