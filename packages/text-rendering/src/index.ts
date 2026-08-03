@@ -7,3 +7,4 @@ export * from './currentTextPaint';
 export * from './quality';
 export * from './hbGpuBundle';
 export * from './hbGpuGlyphBlobCache';
+export * from './glyphOutlineCache';

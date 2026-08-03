@@ -11,6 +11,8 @@ Status: in progress. Implements Slice 16 from
   variable-font locations from the existing lazy Rust/WASM font runtime.
 - [x] Transfer outline tables through the versioned, cancellable worker/client
   boundary with strict identity and dedicated-buffer validation.
+- [x] Deduplicate concurrent outline requests and retain owned results in a
+  byte-bounded LRU keyed independently from font size, transforms and zoom.
 - [ ] Replace the fixture-only hb-gpu path with a bounded runtime encoder.
 - [ ] Integrate a device-independent, byte-bounded glyph-blob cache.
 - [ ] Reuse GPU storage across repeated glyphs and submissions.
