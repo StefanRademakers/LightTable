@@ -1170,6 +1170,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ]);
 
   useEffect(() => {
+    const layerId = textEditing.status === 'editing' ? textEditing.layerId : null;
+    if (!layerId) return undefined;
+    const renderer = engineRef.current;
+    renderer?.setTextLayerInteraction(layerId, true);
+    return () => {
+      renderer?.setTextLayerInteraction(layerId, false);
+    };
+  }, [textEditing.layerId, textEditing.status]);
+
+  useEffect(() => {
     const renderer = engineRef.current;
     if (!renderer || !active || !textEditingOverlay) {
       renderer?.setTextEditingOverlay(null);

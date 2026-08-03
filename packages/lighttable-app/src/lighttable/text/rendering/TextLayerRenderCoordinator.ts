@@ -114,6 +114,8 @@ export class TextLayerRenderCoordinator {
   private readonly expectedLayerKeys = new Map<LayerId, string>();
   private readonly retryCounts = new Map<string, number>();
   private readonly editingLayouts = new Map<LayerId, TextLayerEditingLayout>();
+  private readonly interactingLayerScales = new Map<LayerId, number>();
+  private readonly interactivelyPreparedLayers = new Set<LayerId>();
   private readonly sourceCostModel = new TextSourceCostModel();
   private abortController: AbortController | null = null;
   private disposed = false;
@@ -137,6 +139,26 @@ export class TextLayerRenderCoordinator {
     } else {
       this.schedule();
     }
+    return true;
+  }
+
+  /** Freezes source resolution while the compositor applies a live editor gesture. */
+  setLayerInteraction(layerId: LayerId, active: boolean) {
+    if (this.disposed) return false;
+    if (active) {
+      if (this.interactingLayerScales.has(layerId)) return false;
+      const entry = this.document
+        ? visibleTextLayers(this.document).find(({ layer }) => layer.id === layerId)
+        : undefined;
+      this.interactingLayerScales.set(layerId, entry ? sourceScaleFor(entry.transform) : 1);
+      return true;
+    }
+    if (!this.interactingLayerScales.delete(layerId)) return false;
+    if (this.interactivelyPreparedLayers.delete(layerId)) {
+      this.settledLayerKeys.delete(layerId);
+    }
+    this.pendingKey = '';
+    this.schedule();
     return true;
   }
 
@@ -164,12 +186,28 @@ export class TextLayerRenderCoordinator {
       this.publishChanged();
     }
     const retained = new Set(allText.map((layer) => layer.id));
-    this.options.renderer.setVisibleLayerIds(new Set(visibleTextLayers(document).map(({ layer }) => layer.id)));
+    const visibleEntries = visibleTextLayers(document);
+    this.options.renderer.setVisibleLayerIds(new Set(visibleEntries.map(({ layer }) => layer.id)));
     for (const layerId of this.settledLayerKeys.keys()) {
       if (!retained.has(layerId)) this.settledLayerKeys.delete(layerId);
     }
     for (const layerId of this.editingLayouts.keys()) {
       if (!retained.has(layerId)) this.editingLayouts.delete(layerId);
+    }
+    for (const layerId of this.interactingLayerScales.keys()) {
+      if (!retained.has(layerId)) this.interactingLayerScales.delete(layerId);
+    }
+    for (const layerId of this.interactivelyPreparedLayers) {
+      if (!retained.has(layerId)) this.interactivelyPreparedLayers.delete(layerId);
+    }
+    for (const { layer, transform } of visibleEntries) {
+      const editing = this.editingLayouts.get(layer.id);
+      if (!editing || !this.interactingLayerScales.has(layer.id)) continue;
+      this.editingLayouts.set(layer.id, Object.freeze({
+        ...editing,
+        preparationKey: this.layerPreparationKey(document.id, layer, transform, this.fontPort?.revision ?? 0),
+        localToDocument: Object.freeze({ ...transform })
+      }));
     }
     this.schedule();
   }
@@ -258,6 +296,8 @@ export class TextLayerRenderCoordinator {
     this.expectedLayerKeys.clear();
     this.retryCounts.clear();
     this.editingLayouts.clear();
+    this.interactingLayerScales.clear();
+    this.interactivelyPreparedLayers.clear();
     this.publishChanged();
     dependencies?.backend.dispose();
     if (dependencies && sessionId) {
@@ -415,7 +455,7 @@ export class TextLayerRenderCoordinator {
     key: string,
     signal: AbortSignal
   ) {
-    const sourceScale = sourceScaleFor(transform);
+    const sourceScale = this.sourceScaleForLayer(layer.id, transform);
     const options = { quality: 'final' as const, effectiveScale: sourceScale, maxGlyphCount: 100_000 };
     const identity = {
       documentSessionId: this.sessionId,
@@ -468,15 +508,17 @@ export class TextLayerRenderCoordinator {
         && !layer.clipping
         && !layer.mask?.enabled
         && !layerStyleStackIsActive(layer.styleStack);
-      const decision = this.sourceCostModel.decide({
-        glyphCount: prepared.draws.length,
-        pixelCount,
-        byteLength: pixelCount * 8,
-        expectedRecompositions: 8,
-        availableCacheBytes: Math.max(0, snapshot.cacheBudgetBytes - snapshot.textureBytes),
-        directEligible
-      });
-      if (decision.mode === 'atlas') {
+      const mode = this.interactingLayerScales.has(layer.id) && directEligible
+        ? 'atlas'
+        : this.sourceCostModel.decide({
+          glyphCount: prepared.draws.length,
+          pixelCount,
+          byteLength: pixelCount * 8,
+          expectedRecompositions: 8,
+          availableCacheBytes: Math.max(0, snapshot.cacheBudgetBytes - snapshot.textureBytes),
+          directEligible
+        }).mode;
+      if (mode === 'atlas') {
         const candidate = this.options.renderer.prepareAtlasSource(
           layer,
           dependencies.backend,
@@ -494,6 +536,9 @@ export class TextLayerRenderCoordinator {
           layer.id,
           this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
         );
+        if (this.interactingLayerScales.has(layer.id)) {
+          this.interactivelyPreparedLayers.add(layer.id);
+        }
         this.publishChanged();
         this.options.requestRender();
         return;
@@ -521,6 +566,9 @@ export class TextLayerRenderCoordinator {
         layer.id,
         this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
       );
+      if (this.interactingLayerScales.has(layer.id)) {
+        this.interactivelyPreparedLayers.add(layer.id);
+      }
       this.publishChanged();
       this.options.requestRender();
       return;
@@ -537,6 +585,9 @@ export class TextLayerRenderCoordinator {
       layer.id,
       this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
     );
+    if (this.interactingLayerScales.has(layer.id)) {
+      this.interactivelyPreparedLayers.add(layer.id);
+    }
     void dependencies.backend.retireSubmittedResources();
     this.publishChanged();
     this.options.requestRender();
@@ -671,6 +722,10 @@ export class TextLayerRenderCoordinator {
     transform: AffineMatrix,
     fontRevision: number
   ) {
-    return `${documentId}:${layer.id}:${textLayerSourceKey(layer)}:${fontRevision}:${sourceScaleFor(transform)}`;
+    return `${documentId}:${layer.id}:${textLayerSourceKey(layer)}:${fontRevision}:${this.sourceScaleForLayer(layer.id, transform)}`;
+  }
+
+  private sourceScaleForLayer(layerId: LayerId, transform: AffineMatrix) {
+    return this.interactingLayerScales.get(layerId) ?? sourceScaleFor(transform);
   }
 }

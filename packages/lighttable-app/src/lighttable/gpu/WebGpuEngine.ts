@@ -405,6 +405,10 @@ export class WebGpuEngine {
     return this.documentRenderer?.textEditingLayout(layerId) ?? null;
   }
 
+  setTextLayerInteraction(layerId: LayerId, active: boolean) {
+    return this.documentRenderer?.setTextLayerInteraction(layerId, active) ?? false;
+  }
+
   private initializeLayerStylesIfNeeded(document: ImageDocument) {
     if (
       this.layerStyleInitialization ||

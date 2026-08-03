@@ -84,6 +84,10 @@ export class LayerDocumentRenderer {
     return this.runtime.textLayerCoordinator.editingLayout(layerId);
   }
 
+  setTextLayerInteraction(layerId: LayerId, active: boolean) {
+    return this.runtime.textLayerCoordinator.setLayerInteraction(layerId, active);
+  }
+
   pruneDetachedRuntimes(
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>

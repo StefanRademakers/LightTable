@@ -10,7 +10,7 @@ import {
   type DocumentFontAsset
 } from '../../editor/document/documentTypes';
 import { TextLayerRenderCoordinator, type TextFontRuntimePort } from './TextLayerRenderCoordinator';
-import { setFlowTextContent } from '../../editor/document/textLayerCommands';
+import { setFlowTextContent, setTextLayerTransform } from '../../editor/document/textLayerCommands';
 
 const asset: DocumentFontAsset = {
   assetId: 'font-1',
@@ -235,6 +235,52 @@ describe('TextLayerRenderCoordinator', () => {
     await flush();
     expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(3);
     expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(3);
+  });
+
+  it('freezes source scale during an interaction and rebuilds once at settle', async () => {
+    const state = harness();
+    const document = createImageDocument('Interactive transform', 32, 24, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    document.layers = [layer];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+
+    state.coordinator.setLayerInteraction(layer.id, true);
+    const transformed = setTextLayerTransform(document, layer.id, {
+      a: 3, b: 0, c: 0, d: 3, tx: 12, ty: 8
+    });
+    expect(transformed.layers[0]?.transform).toMatchObject({ a: 3, d: 3 });
+    state.coordinator.sync(transformed);
+    await flush();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+    expect(state.renderer.prepareTightSource).toHaveBeenCalledOnce();
+    expect(state.coordinator.editingLayout(layer.id)?.localToDocument).toMatchObject({
+      a: 3, d: 3, tx: 12, ty: 8
+    });
+
+    state.coordinator.setLayerInteraction(layer.id, false);
+    await state.coordinator.waitForSettledSource(layer.id);
+    await flush();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+    expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(2);
+  });
+
+  it('settles text prepared during an editing interaction after the interaction ends', async () => {
+    const state = harness();
+    const document = createImageDocument('Interactive text', 32, 24, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    document.layers = [layer];
+    state.coordinator.setLayerInteraction(layer.id, true);
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    expect(state.renderer.prepareTightSource).toHaveBeenCalledOnce();
+
+    state.coordinator.setLayerInteraction(layer.id, false);
+    await flush();
+    expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(2);
+    expect(state.submit).toHaveBeenCalledTimes(2);
   });
 
   it('publishes editing geometry even when source preparation fails afterward', async () => {
