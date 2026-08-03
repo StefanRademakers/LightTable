@@ -75,6 +75,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   textRenderTelemetry,
   onDevelopmentTextFixtureChange
 }) => {
+  const visibleMessages = messages.slice(-100);
+  const omittedMessageCount = messages.length - visibleMessages.length;
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [rendererView, setRendererView] = useState<'coverage-atlas' | 'hb-gpu' | 'side-by-side'>('side-by-side');
   const summary = useMemo(() => ({
@@ -300,7 +302,12 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         </div>
       </header>
       <div className="lighttable-debug-panel__messages" role="log" aria-live="polite">
-        {messages.length ? messages.map((entry) => (
+        {omittedMessageCount > 0 ? (
+          <div className="lighttable-debug-panel__empty">
+            {omittedMessageCount} older messages remain available through Copy all.
+          </div>
+        ) : null}
+        {visibleMessages.length ? visibleMessages.map((entry) => (
           <article
             key={entry.id}
             className={`lighttable-debug-message lighttable-debug-message--${entry.severity}`}

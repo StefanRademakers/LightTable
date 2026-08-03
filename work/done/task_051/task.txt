@@ -1,0 +1,43 @@
+# Task 051 - Desktop editor stress and retained-memory gate
+
+Status: complete
+
+- [x] Add packaged-Electron automation that accepts repeated `--file` inputs.
+- [x] Exercise repeated layer selection, visibility roundtrips, zoom, pan,
+  panel switching, raster creation, brush input and temporary-layer deletion.
+- [x] Never invoke save and record that invariant in the report.
+- [x] Capture page errors, document-runtime/hook failures, screenshots and
+  layer-count drift.
+- [x] Collect post-GC JavaScript heap, live/detached DOM, listener and reported
+  GPU-memory samples after warm-up.
+- [x] Classify only strong retained-growth signals from the settled tail while
+  retaining raw warm-up and bounded-cache growth.
+- [x] Run the packaged gate against `D:\TextTest.psd`, `D:\shapes.psd` and
+  `D:\FormulierPersoneel.pdf`.
+- [x] Fix the deterministic retained-GPU and hidden-debug-DOM growth found by
+  the first run.
+- [x] Re-run the complete three-document gate cleanly.
+
+Implementation and verification:
+
+- `npm run stress:desktop -- --iterations 10` passes all three documents with
+  zero page errors, runtime crashes, hook failures, layer drift or unexplained
+  settled growth. Local evidence:
+  `tmp/stress/desktop-editor-stress-final.json` and its screenshots.
+- A 60-iteration TextTest paint/create/delete run proves the history cache
+  plateaus: reported GPU memory settles at about 395 MiB from iteration 20
+  through 60, post-GC heap is 13.4 MiB, live DOM and listeners are flat, and
+  no save command is issued. Local evidence:
+  `tmp/stress/text-paint-history-bound.json`.
+- Structural document history now retains only raster/mask resources whose
+  identity changes and reports their conservative GPU size to the existing
+  512 MiB/100-entry history budget. Previously these commands reported zero
+  bytes, so the byte budget could not evict detached textures.
+- Repeated informational diagnostics are idempotent. The Debug panel renders
+  at most the latest 100 entries while Copy all retains the full bounded log,
+  preventing an inactive panel from growing its DOM for repeated comparison
+  samples.
+
+Command: `npm run stress:desktop -- --iterations 10 --file <path>`; repeat
+`--file` for multiple documents. The script defaults to the three verified
+fixtures above and never saves.

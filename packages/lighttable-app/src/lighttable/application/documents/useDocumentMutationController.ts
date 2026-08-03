@@ -7,6 +7,7 @@ import { walkRasterLayers } from '../../editor/document/layerTree';
 
 export interface DocumentMutationHistoryEntry {
   readonly layerIds?: readonly LayerId[];
+  readonly byteSize?: number;
   undo(): void;
   redo(): void;
 }
@@ -34,13 +35,43 @@ interface ActiveDocumentTransaction {
   readonly before: ImageDocument;
 }
 
-const rasterResourceIds = (
+interface RasterResourceRetention {
+  readonly layerIds: readonly LayerId[];
+  readonly byteSize: number;
+}
+
+const rasterResourceRetention = (
   before: ImageDocument,
   after: ImageDocument
-): LayerId[] => [...new Set([
-  ...walkRasterLayers(before.layers),
-  ...walkRasterLayers(after.layers)
-].map(({ layer }) => layer.id))];
+): RasterResourceRetention => {
+  const beforeRasters = new Map(
+    walkRasterLayers(before.layers).map(({ layer }) => [layer.id, layer] as const)
+  );
+  const afterRasters = new Map(
+    walkRasterLayers(after.layers).map(({ layer }) => [layer.id, layer] as const)
+  );
+  const candidateIds = new Set([...beforeRasters.keys(), ...afterRasters.keys()]);
+  const layerIds: LayerId[] = [];
+  let byteSize = 0;
+  candidateIds.forEach((id) => {
+    const previous = beforeRasters.get(id);
+    const next = afterRasters.get(id);
+    const rasterAppearedOrDisappeared = !previous || !next;
+    const maskIdentityChanged = previous?.mask?.id !== next?.mask?.id;
+    if (!rasterAppearedOrDisappeared && !maskIdentityChanged) return;
+    layerIds.push(id);
+    const representative = previous ?? next;
+    if (representative) {
+      byteSize += Math.max(1, representative.width)
+        * Math.max(1, representative.height)
+        * 8;
+    }
+    if (maskIdentityChanged && (previous?.mask || next?.mask)) {
+      byteSize += Math.max(1, before.width) * Math.max(1, before.height) * 8;
+    }
+  });
+  return { layerIds, byteSize };
+};
 
 /**
  * Owns canonical document mutations and their reversible transaction boundary.
@@ -72,8 +103,10 @@ export const createDocumentMutationController = (
       throw new Error('A document mutation cannot replace the document identity.');
     }
     const documentId = before.id;
+    const retained = rasterResourceRetention(before, after);
     resolveDependencies().pushHistoryEntry({
-      layerIds: rasterResourceIds(before, after),
+      layerIds: retained.layerIds,
+      byteSize: retained.byteSize,
       undo: () => applyForDocument(documentId, before),
       redo: () => applyForDocument(documentId, after)
     });

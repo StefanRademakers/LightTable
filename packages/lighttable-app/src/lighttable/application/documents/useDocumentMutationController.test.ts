@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createRasterLayer, deleteLayer } from '../../editor/document/documentCommands';
 import {
   createImageDocument,
   type ImageDocument
@@ -45,6 +46,21 @@ describe('document mutation controller', () => {
     expect(state.document?.name).toBe('First');
     state.history[0].redo();
     expect(state.document?.name).toBe('Renamed');
+    expect(state.history[0].layerIds).toEqual([]);
+    expect(state.history[0].byteSize).toBe(0);
+  });
+
+  it('accounts only raster resources detached by structural mutations', () => {
+    const state = setup();
+    state.controller.change((current) => createRasterLayer(current));
+    const createdId = state.document?.activeLayerId;
+    expect(createdId).toBeTruthy();
+    expect(state.history[0].layerIds).toEqual([createdId]);
+    expect(state.history[0].byteSize).toBe(32 * 24 * 8);
+
+    state.controller.change((current) => deleteLayer(current, createdId!));
+    expect(state.history[1].layerIds).toEqual([createdId]);
+    expect(state.history[1].byteSize).toBe(32 * 24 * 8);
   });
 
   it('coalesces repeated previews into one transaction', () => {

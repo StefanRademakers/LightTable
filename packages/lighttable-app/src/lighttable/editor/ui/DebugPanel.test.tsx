@@ -1,11 +1,16 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import type { LightTableDebugMessage } from '../debug/debugLog';
 import { DebugPanel } from './DebugPanel';
 
-const renderPanel = (status: 'idle' | 'loading' | 'ready' | 'error', summary: string) =>
+const renderPanel = (
+  status: 'idle' | 'loading' | 'ready' | 'error',
+  summary: string,
+  messages: readonly LightTableDebugMessage[] = []
+) =>
   renderToStaticMarkup(<DebugPanel
-    messages={[]}
+    messages={messages}
     onClear={vi.fn()}
     accessoryWidthConstraintsEnabled
     editorResizeObserversEnabled
@@ -77,5 +82,20 @@ describe('DebugPanel text engine diagnostic', () => {
   it('shows ready and failure details', () => {
     expect(renderPanel('ready', 'Ready: v0.1.0 in 4.5 ms.')).toContain('Ready: v0.1.0');
     expect(renderPanel('error', 'WASM unavailable.')).toContain('WASM unavailable.');
+  });
+
+  it('bounds rendered log rows while retaining the full copyable message set', () => {
+    const messages = Array.from({ length: 105 }, (_, index): LightTableDebugMessage => ({
+      id: index,
+      timestamp: index,
+      severity: 'info',
+      source: 'Stress',
+      message: `Message ${index}`
+    }));
+    const markup = renderPanel('idle', 'Not loaded.', messages);
+    expect(markup).toContain('5 older messages remain available through Copy all.');
+    expect(markup.match(/class="lighttable-debug-message /g)).toHaveLength(100);
+    expect(markup).not.toContain('Message 4<');
+    expect(markup).toContain('Message 104<');
   });
 });

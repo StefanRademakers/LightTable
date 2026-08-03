@@ -55,6 +55,19 @@ export const summarizePsdCompatibility = (
   }).filter(Boolean).join('; ');
 };
 
+export const diagnosticMessageAlreadyRecorded = (
+  messages: readonly LightTableDebugMessage[],
+  severity: LightTableDebugSeverity,
+  source: string,
+  message: string,
+  details?: string
+) => severity === 'info' && messages.some((entry) => (
+  entry.severity === severity
+  && entry.source === source
+  && entry.message === message
+  && entry.details === details
+));
+
 /**
  * Converts document-local runtime signals into a bounded, copyable debug log.
  * Hosts receive only terminal ready/error notifications and do not own editor
@@ -90,6 +103,13 @@ export const useEditorDiagnosticsController = ({
     details?: string
   ) => {
     setMessages((current) => {
+      if (diagnosticMessageAlreadyRecorded(
+        current,
+        severity,
+        source,
+        message,
+        details
+      )) return current;
       const previous = current.at(-1);
       if (
         previous
@@ -175,4 +195,3 @@ export const useEditorDiagnosticsController = ({
     clear
   };
 };
-

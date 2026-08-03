@@ -21,6 +21,8 @@
     "package:desktop:verify": "npm run ensure:text-wasm && npm run package -w @lighttable/desktop",
     "screenshot:desktop": "node scripts/capture-desktop-screenshot.mjs",
     "screenshot:desktop:build": "npm run package:desktop:verify && npm run screenshot:desktop --",
+    "stress:desktop": "node scripts/stress-desktop-editor.mjs",
+    "stress:desktop:build": "npm run package:desktop:verify && npm run stress:desktop --",
     "smoke:desktop:paragraph": "node scripts/smoke-desktop-paragraph.mjs",
     "smoke:desktop:paragraph:build": "npm run package:desktop:verify && npm run smoke:desktop:paragraph --",
     "smoke:pdf-corpus": "node scripts/smoke-pdf-corpus.mjs",
