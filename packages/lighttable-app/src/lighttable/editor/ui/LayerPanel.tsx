@@ -27,6 +27,7 @@ import {
   type TextFontDiagnostic
 } from '../../text/fonts/textLayerFontStatus';
 import { DEFAULT_TEXT_SUBSTITUTION_FAMILIES } from '../../text/fonts/flowFontSelection';
+import { layerStyleTreeEffects } from './layerStyleTreePresentation';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -479,7 +480,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         {rows.map(({ layer, depth }) => {
           const icon = layerTypeIcon(layer);
           const previews = thumbnails.get(layer.id);
-          const hasStyles = layer.styleStack.effects.length > 0;
+          const visibleStyleEffects = layerStyleTreeEffects(layer.styleStack);
+          const hasStyles = visibleStyleEffects.length > 0;
           const stylesExpanded = hasStyles && !collapsedStyles.has(layer.id);
           const siblings = siblingLayers(document, layer.id);
           const siblingIndex = siblings.findIndex((sibling) => sibling.id === layer.id);
@@ -930,7 +932,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 ><img src={lightTableIcon(layer.styleStack.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
                 <button type="button" onClick={() => onEditStyles(layer.id)}>Effects</button>
               </div>
-              {[...layer.styleStack.effects].reverse().map((effect) => (
+              {[...visibleStyleEffects].reverse().map((effect) => (
                 <div className="lighttable-layer-effect" key={effect.id}>
                   <button
                     type="button"
