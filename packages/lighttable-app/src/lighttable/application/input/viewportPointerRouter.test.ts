@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolId } from '../../editor/session/editorSession';
 import {
+  capturedGestureUsesUnboundedDocumentPoint,
   resolveViewportPointerDownIntent,
   resolveViewportPointerEndIntent,
   resolveViewportPointerMoveIntent,
@@ -178,5 +179,25 @@ describe('resolveViewportPointerEndIntent', () => {
       warpGestureMatches: false,
       paintGestureMatches: false
     })).toBe('pan');
+  });
+});
+
+describe('capturedGestureUsesUnboundedDocumentPoint', () => {
+  it('keeps paint, erase/paint-backed and warp drags projected beyond the canvas edge', () => {
+    expect(capturedGestureUsesUnboundedDocumentPoint({
+      selectionGestureMatches: false,
+      warpGestureMatches: false,
+      paintGestureMatches: true
+    })).toBe(true);
+    expect(capturedGestureUsesUnboundedDocumentPoint({
+      selectionGestureMatches: false,
+      warpGestureMatches: true,
+      paintGestureMatches: false
+    })).toBe(true);
+    expect(capturedGestureUsesUnboundedDocumentPoint({
+      selectionGestureMatches: false,
+      warpGestureMatches: false,
+      paintGestureMatches: false
+    })).toBe(false);
   });
 });

@@ -55,6 +55,17 @@ export interface ViewportPointerEndContext {
 }
 
 /**
+ * Captured drag gestures keep an unbounded document-space pointer so a fast
+ * move can interpolate cleanly to the document edge. GPU/document targets
+ * remain responsible for clipping the actual edit to document pixels.
+ */
+export const capturedGestureUsesUnboundedDocumentPoint = (
+  context: ViewportPointerEndContext
+) => context.selectionGestureMatches
+  || context.warpGestureMatches
+  || context.paintGestureMatches;
+
+/**
  * Assigns a pointer-down gesture to exactly one editor subsystem.
  *
  * This function deliberately contains no React, DOM or renderer work. Once a

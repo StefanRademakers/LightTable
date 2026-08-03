@@ -11,6 +11,7 @@ import type { PaintSessionController } from '../../application/tools/paint/usePa
 import type { SelectionSessionController } from '../../application/tools/selection/useSelectionSessionController';
 import type { WarpSessionController } from '../../application/tools/warp/warpSessionController';
 import {
+  capturedGestureUsesUnboundedDocumentPoint,
   resolveViewportPointerDownIntent,
   resolveViewportPointerEndIntent,
   resolveViewportPointerMoveIntent
@@ -208,7 +209,11 @@ export const useViewportInteractionController = ({
       activeScale,
       metadata,
       event.pressure,
-      isSelectionTool(editorSession.activeTool)
+      capturedGestureUsesUnboundedDocumentPoint({
+        selectionGestureMatches: selection.owns(event.pointerId),
+        warpGestureMatches: warp.owns(event.pointerId),
+        paintGestureMatches: paint.owns(event.pointerId)
+      }) || isSelectionTool(editorSession.activeTool)
     );
     if (
       !point

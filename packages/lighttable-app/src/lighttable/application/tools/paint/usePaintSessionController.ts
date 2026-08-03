@@ -6,7 +6,8 @@ import {
 import type {
   ImageDocument,
   LayerId,
-  LayerNode
+  LayerNode,
+  Rect
 } from '../../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type {
@@ -81,6 +82,17 @@ export interface PaintSessionController {
 }
 
 const cloneBrush = (brush: BrushSettings): BrushSettings => ({ ...brush });
+
+const clipDirtyBoundsToDocument = (
+  bounds: Rect,
+  document: Pick<ImageDocument, 'width' | 'height'>
+): Rect | null => {
+  const x = Math.max(0, bounds.x);
+  const y = Math.max(0, bounds.y);
+  const right = Math.min(document.width, bounds.x + bounds.width);
+  const bottom = Math.min(document.height, bounds.y + bounds.height);
+  return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : null;
+};
 
 /**
  * Owns one renderer-backed paint transaction from pointer-down to history.
@@ -173,16 +185,22 @@ export const createPaintSessionController = (
         renderer?.setPaintInteractionActive(false);
         return true;
       }
+      const dirtyBounds = clipDirtyBoundsToDocument(finished.dirtyBounds, before);
+      if (!dirtyBounds) {
+        renderer.cancelPixelEdit();
+        renderer.setPaintInteractionActive(false);
+        return true;
+      }
       const after = finished.target.channel === 'mask'
         ? markLayerMaskPixelsChanged(
             before,
             finished.target.layerId,
-            finished.dirtyBounds
+            dirtyBounds
           )
         : markLayerPixelsChanged(
             before,
             finished.target.layerId,
-            finished.dirtyBounds
+            dirtyBounds
           );
       const pixelEdit = renderer.finishPixelEdit();
       if (!pixelEdit) {

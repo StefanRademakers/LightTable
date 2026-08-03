@@ -40,7 +40,7 @@ describe('viewportCoordinates', () => {
     )?.pressure).toBe(1);
   });
 
-  it('preserves pasteboard coordinates for an in-progress selection', () => {
+  it('preserves pasteboard coordinates for a captured document gesture', () => {
     expect(localToDocumentPointer(
       { x: -15, y: 135 },
       { x: 25, y: 35, width: 200, height: 100 },

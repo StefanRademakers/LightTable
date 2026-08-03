@@ -116,6 +116,30 @@ describe('PaintSessionController', () => {
     expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
   });
 
+  it('keeps a captured outside-canvas stroke but clips its document dirty bounds', () => {
+    const fixture = createFixture();
+    const brush = { ...createEditorSession().brush, size: 20, spacing: 0.1 };
+    expect(fixture.controller.begin({
+      pointerId: 9,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: identityMatrix()
+      },
+      brush,
+      point: { x: 95, y: 75, pressure: 1 }
+    })).toBe(true);
+    expect(fixture.controller.move(9, { x: 150, y: 120, pressure: 1 })).toBe(true);
+    expect(fixture.controller.finish(9)).toBe(true);
+
+    const layer = fixture.getDocument().layers[0] as RasterLayer;
+    expect(layer.dirtyBounds).toEqual({ x: 85, y: 65, width: 15, height: 15 });
+    expect(fixture.renderer.paintBrushDabs).toHaveBeenCalledTimes(2);
+    expect(fixture.history).toHaveLength(1);
+  });
+
   it('leaves interactive quality when stroke initialization fails', () => {
     const fixture = createFixture();
     vi.mocked(fixture.renderer.beginBrushStroke).mockImplementationOnce(() => {
