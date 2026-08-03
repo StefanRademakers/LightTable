@@ -554,6 +554,9 @@ export function assertRealizedTextLayout(value: unknown): asserts value is Reali
   });
   assertRect(layout.inkBounds, '$.inkBounds');
   assertRect(layout.logicalBounds, '$.logicalBounds');
+  if (layout.firstBaselineOffset !== undefined) {
+    finite(layout.firstBaselineOffset, '$.firstBaselineOffset');
+  }
   if (layout.paragraphFrame !== undefined) {
     const paragraphFrame = record(layout.paragraphFrame, '$.paragraphFrame');
     assertRect(paragraphFrame.bounds, '$.paragraphFrame.bounds');

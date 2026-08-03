@@ -2523,6 +2523,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const editing = textEditingController.getSnapshot();
     const layerId = activeFlowTextPropertyLayer?.id;
     if (!layerId || mode === textLayoutMode) return;
+    const firstBaselineOffset = engineRef.current
+      ?.textEditingLayout(layerId)?.layout.firstBaselineOffset ?? 0;
     const restoreEditing = editing.status === 'editing' && editing.layerId === layerId;
     const restoreOffset = restoreEditing
       ? textEditingController.getSnapshot().selection.focus
@@ -2531,8 +2533,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const before = imageDocumentRef.current;
     if (!before) return;
     const after = mode === 'paragraph'
-      ? convertPointTextToParagraph(before, layerId, { width: 240, height: 120 })
-      : convertParagraphTextToPoint(before, layerId);
+      ? convertPointTextToParagraph(before, layerId, {
+          width: 240,
+          height: 120,
+          firstBaselineOffset
+        })
+      : convertParagraphTextToPoint(before, layerId, { firstBaselineOffset });
     if (after === before) return;
     applyDocumentSnapshot(after);
     pushDocumentHistory(before, after);

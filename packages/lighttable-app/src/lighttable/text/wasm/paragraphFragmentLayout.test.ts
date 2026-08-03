@@ -99,6 +99,7 @@ describe('paragraph fragment assembly', () => {
       { start: 0, end: 2, baseline: 38 },
       { start: 2, end: 3, baseline: 55 }
     ]);
+    expect(layout.firstBaselineOffset).toBe(8);
     expect(layout.glyphRuns.map((run) => ({
       sourceRunIndex: run.fontResolution.kind === 'flow-exact' ? run.fontResolution.sourceRunIndex : -1,
       clusters: [...run.clusters],

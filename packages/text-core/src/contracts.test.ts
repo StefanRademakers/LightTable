@@ -432,6 +432,9 @@ describe('realized layout and worker contracts', () => {
   it('rejects invalid typed geometry and cross-array cluster ranges', () => {
     const layout = createRealizedFixture();
     expect(() => assertRealizedTextLayout(layout)).not.toThrow();
+    expect(() => assertRealizedTextLayout({ ...layout, firstBaselineOffset: 12.5 })).not.toThrow();
+    expect(() => assertRealizedTextLayout({ ...layout, firstBaselineOffset: Number.NaN }))
+      .toThrow(/firstBaselineOffset/);
     expect(() => assertRealizedTextLayout({
       ...layout,
       paragraphFrame: {

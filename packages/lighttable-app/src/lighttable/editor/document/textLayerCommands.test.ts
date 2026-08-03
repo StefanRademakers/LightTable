@@ -181,7 +181,8 @@ describe('canonical text layer commands', () => {
 
     const paragraph = convertPointTextToParagraph(positioned, id, {
       width: 144,
-      height: 72
+      height: 72,
+      firstBaselineOffset: 47
     });
     const paragraphLayer = activeText(paragraph);
     expect(paragraphLayer.transform).toEqual(before.transform);
@@ -189,7 +190,7 @@ describe('canonical text layer commands', () => {
       ...authored,
       layout: {
         mode: 'paragraph',
-        frame: { x: 8, y: 11, width: 144, height: 72 },
+        frame: { x: 8, y: -36, width: 144, height: 72 },
         overflow: 'indicator',
         writingMode: 'horizontal-tb'
       }
@@ -197,7 +198,7 @@ describe('canonical text layer commands', () => {
     expect(paragraphLayer.text.revisions).toMatchObject({ layout: 2, geometry: 2 });
     expect(paragraphLayer.geometryRevision).toBe(before.geometryRevision);
 
-    const point = convertParagraphTextToPoint(paragraph, id);
+    const point = convertParagraphTextToPoint(paragraph, id, { firstBaselineOffset: 47 });
     const pointLayer = activeText(point);
     expect(pointLayer.transform).toEqual(before.transform);
     expect(pointLayer.text.source).toMatchObject({

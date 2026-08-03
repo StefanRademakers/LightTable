@@ -1506,6 +1506,22 @@ Append newest entries at the top. Keep entries factual and link the slice.
   packaged Electron screenshot of `D:\TextTest.psd` shows one continuous
   character orientation around the curve with zero page errors.
 
+### 2026-08-03 — Point/paragraph conversion preserves the first baseline
+
+- Layout contract: realized point and paragraph layouts expose the derived
+  `firstBaselineOffset`; it is validated but never serialized into the
+  authored document or a format adapter.
+- Commands: Point → Paragraph subtracts that offset from the baseline to obtain
+  the frame top; Paragraph → Point adds it back. The common layer affine stays
+  untouched, so rotated and nested text does not acquire a conversion jump.
+- UI: the mode switch reads the current realized metric before ending the edit
+  session and passes it explicitly to the command. Missing/stale layout keeps
+  the backward-compatible zero-offset fallback instead of guessing font
+  ascent or baking a font-specific constant into the model.
+- Evidence: command tests cover a 47 px baseline delta under a translated layer,
+  paragraph-fragment tests cover the real derived metric, and core validation
+  rejects non-finite offsets.
+
 ### 2026-08-03 — Text input hot path is frame-coalesced
 
 - Root cause: every character synchronously published a full immutable

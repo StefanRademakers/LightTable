@@ -290,6 +290,13 @@ export interface ParagraphFrameConversionOptions {
   readonly width: number;
   readonly height: number;
   readonly overflow?: 'visible' | 'clip' | 'indicator';
+  /** Realized distance from the frame top to the first baseline. */
+  readonly firstBaselineOffset?: number;
+}
+
+export interface PointTextConversionOptions {
+  /** Realized distance from the paragraph frame top to the first baseline. */
+  readonly firstBaselineOffset?: number;
 }
 
 const assertParagraphFrameSize = (
@@ -307,8 +314,8 @@ const assertParagraphFrameSize = (
 
 /**
  * Converts authored point text to a local paragraph frame without touching the
- * common layer transform. The point origin becomes the frame's top-left anchor,
- * so conversion is stable for nested and transformed text layers.
+ * common layer transform. The point baseline is translated to a frame top by
+ * the realized first-baseline offset, so transformed layers do not jump.
  */
 export const convertPointTextToParagraph = (
   document: ImageDocument,
@@ -320,11 +327,14 @@ export const convertPointTextToParagraph = (
   const layout = layer.text.source.layout;
   if (layout.mode !== 'point') return document;
   assertParagraphFrameSize(options);
+  const firstBaselineOffset = Number.isFinite(options.firstBaselineOffset)
+    ? options.firstBaselineOffset!
+    : 0;
   return setFlowTextLayout(document, layerId, {
     mode: 'paragraph',
     frame: {
       x: layout.origin.x,
-      y: layout.origin.y,
+      y: layout.origin.y - firstBaselineOffset,
       width: options.width,
       height: options.height
     },
@@ -334,21 +344,25 @@ export const convertPointTextToParagraph = (
 };
 
 /**
- * Converts a paragraph frame back to point text at the same local anchor.
+ * Converts a paragraph frame back to point text at its first baseline.
  * Authored text and explicit line breaks remain untouched; only layout mode
  * changes and the common layer transform stays authoritative for placement.
  */
 export const convertParagraphTextToPoint = (
   document: ImageDocument,
-  layerId: LayerId
+  layerId: LayerId,
+  options: PointTextConversionOptions = {}
 ): ImageDocument => {
   const layer = findDocumentLayer(document, layerId);
   if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
   const layout = layer.text.source.layout;
   if (layout.mode !== 'paragraph') return document;
+  const firstBaselineOffset = Number.isFinite(options.firstBaselineOffset)
+    ? options.firstBaselineOffset!
+    : 0;
   return setFlowTextLayout(document, layerId, {
     mode: 'point',
-    origin: { x: layout.frame.x, y: layout.frame.y },
+    origin: { x: layout.frame.x, y: layout.frame.y + firstBaselineOffset },
     writingMode: layout.writingMode
   });
 };

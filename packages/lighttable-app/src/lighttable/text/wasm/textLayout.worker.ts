@@ -615,6 +615,12 @@ const realizeFlowRequest = (
   const packedSelectionGeometry = raw.selection_geometry();
   const packedClusterMap = raw.cluster_map();
   const bounds = raw.bounds();
+  const layoutOriginY = source.layout.mode === 'paragraph'
+    ? source.layout.frame.y
+    : source.layout.origin.y;
+  const firstBaselineOffset = lineGeometry.length >= 7
+    ? lineGeometry[0] - layoutOriginY
+    : 0;
   if (source.layout.mode === 'point') {
     alignPackedPointTextBaseline({
       glyphGeometry: geometry,
@@ -685,6 +691,7 @@ const realizeFlowRequest = (
     })),
     inkBounds: rectAt(bounds, 0),
     logicalBounds: rectAt(bounds, 4),
+    firstBaselineOffset,
     ...(source.layout.mode === 'paragraph'
       ? { paragraphFrame: realizeParagraphFrame(source.layout, lines) }
       : {}),

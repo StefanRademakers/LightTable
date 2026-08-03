@@ -328,6 +328,8 @@ export interface RealizedTextLayout {
   readonly clusterMap: readonly GlyphClusterMapEntry[];
   readonly inkBounds: Rect;
   readonly logicalBounds: Rect;
+  /** Distance from the authored point/frame Y origin to the first baseline. */
+  readonly firstBaselineOffset?: number;
   /** Present only when the authored source uses paragraph-frame layout. */
   readonly paragraphFrame?: RealizedParagraphFrame;
   readonly warnings: readonly TextLayoutWarning[];

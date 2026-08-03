@@ -273,6 +273,9 @@ export const assembleParagraphLayout = ({
     clusterMap,
     inkBounds: inkBounds ?? { x: source.layout.frame.x, y: source.layout.frame.y, width: 0, height: 0 },
     logicalBounds,
+    firstBaselineOffset: lines[0]
+      ? lines[0].baseline - source.layout.frame.y
+      : 0,
     paragraphFrame: realizeParagraphFrame(source.layout, lines),
     warnings
   };
