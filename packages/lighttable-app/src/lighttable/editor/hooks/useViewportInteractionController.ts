@@ -457,8 +457,8 @@ export const useViewportInteractionController = ({
         if (activeTool === 'text-paragraph') {
           if (paragraphText.begin(event.pointerId, point)) {
             event.currentTarget.setPointerCapture(event.pointerId);
-            event.preventDefault();
           }
+          event.preventDefault();
           return;
         }
         onPointTextCreate({ x: point.x, y: point.y }, event.detail);
