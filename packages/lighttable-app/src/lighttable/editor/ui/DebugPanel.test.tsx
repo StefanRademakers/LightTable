@@ -27,6 +27,10 @@ const renderPanel = (status: 'idle' | 'loading' | 'ready' | 'error', summary: st
     textRendererPhase={null}
     textRendererReport={null}
     onRunTextRendererBakeoff={vi.fn()}
+    developmentTextFixtureEnabled={false}
+    developmentTextFixtureStatus="off"
+    developmentTextFixtureError={null}
+    onDevelopmentTextFixtureChange={vi.fn()}
   />);
 
 describe('DebugPanel text engine diagnostic', () => {
@@ -37,6 +41,8 @@ describe('DebugPanel text engine diagnostic', () => {
     expect(markup).toContain('Probe text engine');
     expect(markup).toContain('Run typography corpus');
     expect(markup).toContain('Run renderer bakeoff');
+    expect(markup).toContain('Show fixed coverage-atlas text on canvas');
+    expect(markup).toContain('<input type="checkbox"/>Show fixed coverage-atlas text on canvas');
     expect(markup).toContain('Contract fixtures: 2');
     expect(markup).toContain('Last layout error: None.');
   });

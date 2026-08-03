@@ -1,6 +1,6 @@
 export const TEXT_DOCUMENT_SCHEMA_VERSION = 1 as const;
-export const TEXT_LAYOUT_SCHEMA_VERSION = 1 as const;
-export const TEXT_WORKER_PROTOCOL_VERSION = 3 as const;
+export const TEXT_LAYOUT_SCHEMA_VERSION = 2 as const;
+export const TEXT_WORKER_PROTOCOL_VERSION = 4 as const;
 
 export type Matrix3 = readonly [
   number, number, number,
@@ -241,6 +241,8 @@ export type FontResolutionProvenance =
 
 export interface RealizedGlyphRun {
   readonly font: FontInstance;
+  /** Authored layer-local size used to derive hinted raster scale buckets. */
+  readonly fontSize: number;
   readonly fontResolution: FontResolutionProvenance;
   readonly paint: TextRunPaint;
   readonly renderingMode: TextRenderingMode;

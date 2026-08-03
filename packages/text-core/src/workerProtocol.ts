@@ -56,6 +56,11 @@ export interface TextWorkerGlyphRasterRequest extends TextWorkerMessageIdentity 
   readonly glyphId: number;
   readonly ppem: number;
   readonly fontSnapshotRevision: number;
+  readonly variationCoordinates: Readonly<Record<string, number>>;
+  readonly syntheticBold: boolean;
+  readonly syntheticItalic: boolean;
+  readonly hinting: 'smooth';
+  readonly renderMode: 'alpha';
 }
 
 export interface TextWorkerGlyphRasterResult {
@@ -97,6 +102,11 @@ export type TextLayoutWorkerResponse =
     readonly glyphId: number;
     readonly ppem: number;
     readonly fontSnapshotRevision: number;
+    readonly variationCoordinates: Readonly<Record<string, number>>;
+    readonly syntheticBold: boolean;
+    readonly syntheticItalic: boolean;
+    readonly hinting: 'smooth';
+    readonly renderMode: 'alpha';
     readonly raster: TextWorkerGlyphRasterResult;
     readonly transferOwnership: 'dedicated';
     readonly metrics: TextWorkerPerformanceMetrics;

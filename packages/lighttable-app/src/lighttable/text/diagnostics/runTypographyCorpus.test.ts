@@ -16,6 +16,7 @@ const realized = (input: Parameters<TextEngineClient['realizeTextDetailed']>[0])
         font: source.styleRuns[0].requestedFont.preferredAsset!,
         variableAxes: {}, syntheticBold: false, syntheticItalic: false
       },
+      fontSize: source.styleRuns[0].fontSize,
       fontResolution: {
         kind: 'flow-exact', sourceRunIndex: 0, requested: source.styleRuns[0].requestedFont
       },

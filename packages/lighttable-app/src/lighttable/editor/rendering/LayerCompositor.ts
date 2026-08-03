@@ -33,6 +33,7 @@ import type { TransformSessionStore } from './TransformSessionStore';
 import type { EncodeAdjustment } from './RasterDocumentOperations';
 import type { VectorLayerRenderer } from './VectorLayerRenderer';
 import { textPlaceholderVectorLayer } from './textPlaceholderPresentation';
+import type { DevelopmentTextFixtureRenderer } from '../../text/rendering/DevelopmentTextFixtureRenderer';
 
 interface LayerCompositorOptions {
   device: GPUDevice;
@@ -47,6 +48,7 @@ interface LayerCompositorOptions {
   geometryPreviews: GeometryPreviewStore;
   layerStyles: LayerStyleRenderer;
   vectors: VectorLayerRenderer;
+  developmentTextFixture?: DevelopmentTextFixtureRenderer;
   dimensions: () => { width: number; height: number };
   syncDocument: (document: ImageDocument) => void;
   maskTextureFor: (layerId: LayerId) => GPUTexture | null;
@@ -75,7 +77,8 @@ export class LayerCompositor {
   encode(
     encoder: GPUCommandEncoder,
     document: ImageDocument,
-    encodeAdjustment?: EncodeAdjustment
+    encodeAdjustment?: EncodeAdjustment,
+    includeDevelopmentTextFixture = false
   ): GPUTexture {
     const {
       layerResources,
@@ -103,6 +106,7 @@ export class LayerCompositor {
       visibleLayers.length === 1
       && analysis.visibleLeafNodes.length === 1
       && document.layers.length === 1
+      && !(includeDevelopmentTextFixture && this.options.developmentTextFixture?.hasReadyPlan)
     ) {
       const layer = visibleLayers[0];
       const runtime = layerResources.raster(layer.id);
@@ -477,6 +481,13 @@ export class LayerCompositor {
     };
 
     const [background] = renderNodes(analysis.plan, compositeA, compositeB);
+    if (includeDevelopmentTextFixture) {
+      this.options.developmentTextFixture?.encode(
+        encoder,
+        background,
+        { width, height }
+      );
+    }
     return background;
   }
 

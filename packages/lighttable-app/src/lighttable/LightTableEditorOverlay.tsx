@@ -498,6 +498,45 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onDocumentError
   });
   const textEngineDiagnostic = useTextEngineDiagnostics(appendDebugMessage);
+  const [developmentTextFixture, setDevelopmentTextFixture] = useState<{
+    enabled: boolean;
+    status: 'off' | 'preparing' | 'ready' | 'error';
+    error: string | null;
+  }>({ enabled: false, status: 'off', error: null });
+  const developmentTextFixtureGenerationRef = useRef(0);
+  const changeDevelopmentTextFixture = useCallback((enabled: boolean) => {
+    const generation = ++developmentTextFixtureGenerationRef.current;
+    const renderer = engineRef.current;
+    if (!enabled) {
+      setDevelopmentTextFixture({ enabled: false, status: 'off', error: null });
+      if (renderer) void renderer.setDevelopmentTextFixtureEnabled(false);
+      appendDebugMessage('info', 'GPU text canvas fixture', 'Disabled.');
+      return;
+    }
+    if (!import.meta.env.DEV || !renderer) {
+      const error = !import.meta.env.DEV
+        ? 'The canvas text fixture is available only in development builds.'
+        : 'Open a document before enabling the canvas text fixture.';
+      setDevelopmentTextFixture({ enabled: false, status: 'error', error });
+      appendDebugMessage('error', 'GPU text canvas fixture', error);
+      return;
+    }
+    setDevelopmentTextFixture({ enabled: true, status: 'preparing', error: null });
+    void renderer.setDevelopmentTextFixtureEnabled(true).then((snapshot) => {
+      if (generation !== developmentTextFixtureGenerationRef.current) return;
+      setDevelopmentTextFixture({
+        enabled: snapshot.enabled,
+        status: snapshot.status,
+        error: snapshot.error
+      });
+      appendDebugMessage('info', 'GPU text canvas fixture', 'Ready on the real rgba16float canvas path.');
+    }).catch((reason: unknown) => {
+      if (generation !== developmentTextFixtureGenerationRef.current) return;
+      const error = reason instanceof Error ? reason.message : 'The canvas text fixture could not be prepared.';
+      setDevelopmentTextFixture({ enabled: false, status: 'error', error });
+      appendDebugMessage('error', 'GPU text canvas fixture', error);
+    });
+  }, [appendDebugMessage]);
   const reportedFontDiagnosticsRef = useRef('');
   useEffect(() => {
     const signature = `${imageDocument?.id ?? 'no-document'}:${JSON.stringify(fontDiagnostics)}`;
@@ -1912,7 +1951,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 textRendererStatus: textEngineDiagnostic.state.rendererStatus,
                 textRendererPhase: textEngineDiagnostic.state.rendererPhase,
                 textRendererReport: textEngineDiagnostic.state.rendererReport,
-                onRunTextRendererBakeoff: textEngineDiagnostic.runRendererBakeoff
+                onRunTextRendererBakeoff: textEngineDiagnostic.runRendererBakeoff,
+                developmentTextFixtureEnabled: developmentTextFixture.enabled,
+                developmentTextFixtureStatus: developmentTextFixture.status,
+                developmentTextFixtureError: developmentTextFixture.error,
+                onDevelopmentTextFixtureChange: changeDevelopmentTextFixture
               },
               lensFxKey: sourceIdentity || sourceName,
               lensFx: {

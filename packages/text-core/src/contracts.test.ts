@@ -60,6 +60,7 @@ const createRealizedFixture = (key = 'fixture-layout'): RealizedTextLayout => ({
   key,
   glyphRuns: [{
     font: CONTRACT_FIXTURE_FONT_INSTANCE,
+    fontSize: 16,
     fontResolution: {
       kind: 'flow-exact',
       sourceRunIndex: 0,
@@ -170,6 +171,8 @@ describe('text document contracts', () => {
       requestId: 8, documentSessionId: 'document', sessionGeneration: 1,
       assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
       glyphId: 36, ppem: 24, fontSnapshotRevision: 1,
+      variationCoordinates: {}, syntheticBold: false, syntheticItalic: false,
+      hinting: 'smooth', renderMode: 'alpha',
       transferOwnership: 'dedicated',
       raster: {
         width: 2, height: 2, bearingX: 0, bearingY: 2,
@@ -272,6 +275,10 @@ describe('realized layout and worker contracts', () => {
       clusterMap: [{ textStart: 0, textEnd: 1, glyphStart: 0, glyphEnd: 2 }]
     })).toThrow(/cluster ranges/);
     expect(() => assertRealizedTextLayout({ ...layout, lines: [null] })).toThrow(/lines/);
+    expect(() => assertRealizedTextLayout({
+      ...layout,
+      glyphRuns: [{ ...layout.glyphRuns[0], fontSize: 0 }]
+    })).toThrow(/fontSize/);
     expect(() => assertRealizedTextLayout({
       ...layout,
       glyphRuns: [{ ...layout.glyphRuns[0], language: 42 }]

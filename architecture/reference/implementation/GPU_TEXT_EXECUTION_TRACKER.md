@@ -347,14 +347,14 @@ different choice; the fidelity route has a recorded GO/CONDITIONAL GO/NO-GO.
 
 #### Slice 08 — production coverage atlas
 
-- [ ] Define atlas keys including font fingerprint, glyph, variations, hinting,
+- [x] Define atlas keys including font fingerprint, glyph, variations, hinting,
   scale bucket and render mode.
-- [ ] Generate hinted masks off the UI thread.
-- [ ] Pack, upload and draw instanced quads by atlas page and paint batch.
-- [ ] Implement eviction, fragmentation handling and atlas generation guards.
-- [ ] Report atlas bytes, entries, misses, evictions and upload timings.
-- [ ] Handle solid fill first; preserve contracts for stroke/color glyphs.
-- [ ] Add shader reflection, alpha, color and transformed-glyph fixtures.
+- [x] Generate hinted masks off the UI thread.
+- [x] Pack, upload and draw instanced quads by atlas page and paint batch.
+- [x] Implement eviction, fragmentation handling and atlas generation guards.
+- [x] Report atlas bytes, entries, misses, evictions and upload timings.
+- [x] Handle solid fill first; preserve contracts for stroke/color glyphs.
+- [x] Add shader reflection, alpha, color and transformed-glyph fixtures.
 
 UI exposure: fixture text becomes visible on the real canvas behind a
 development capability gate.
@@ -651,6 +651,34 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 — Slice 08 complete
+
+- Owner: Codex `/root`; app-side fixture seam by `/root/text_ui_map` and an
+  independent read-only blocker audit by `/root/slice01_audit`.
+- Contracts: realized-layout schema 2 carries authored run size; worker
+  protocol 4 carries the complete raster identity (variations, synthesis,
+  hinting and render mode) without changing persisted document schema 1.
+- Cache: deterministic f32-normalized keys, exact-integer ppem buckets through
+  64, bounded zero-area entries, fixed append-only R8 pages, whole-page LRU,
+  page/atlas generations and stale reservation/upload/draw rejection.
+- GPU: incremental row-aligned R8 uploads, premultiplied linear solid color,
+  painter-ordered contiguous page batches, a 64-batch guard and production
+  `rgba16float` output. Failed allocations/uploads and evicted textures release
+  safely; device loss requires a fresh backend on the replacement device.
+- Runtime/UI: Debug can opt into one fixed development fixture on the real
+  document canvas. Default-off loads no fixture, worker/WASM or atlas backend;
+  async preparation publishes one immutable ready plan. The seam is excluded
+  from merge, flatten, export and production distribution.
+- Verification: 10 Rust tests; WASM runtime/structural goldens; complete
+  254-file / 1,216-test workspace suite; boundary and all typechecks passed.
+  Web and packaged Electron builds passed; the development Anton fixture is
+  absent from both distributions. Existing wasm-vips eval/chunk warnings are
+  unchanged.
+- Limitation: no automated browser WebGPU surface was available, so the Debug
+  checkbox was not manually clicked on physical hardware; shader reflection,
+  GPU-contract mocks, lifecycle tests and both production builds are green.
+- Next safe slice: Slice 09, compositor, bounds and cache integration.
 
 ### 2026-08-03 — Slice 07 complete
 

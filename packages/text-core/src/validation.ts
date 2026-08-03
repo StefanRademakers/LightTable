@@ -419,6 +419,7 @@ export function assertRealizedTextLayout(value: unknown): asserts value is Reali
     const runPath = `$.glyphRuns[${index}]`;
     const run = record(entry, runPath);
     assertFontInstance(run.font, `${runPath}.font`);
+    if (finite(run.fontSize, `${runPath}.fontSize`) <= 0) fail(`${runPath}.fontSize`, 'must be positive');
     assertFontResolution(run.fontResolution, `${runPath}.fontResolution`);
     assertRunPaint(run.paint, `${runPath}.paint`);
     const renderingMode = oneOf(run.renderingMode, `${runPath}.renderingMode`, [
@@ -593,6 +594,15 @@ export function assertTextWorkerRequest(value: unknown): asserts value is TextWo
     integer(request.glyphId, '$.glyphId', 0, 0xffff);
     numberInRange(request.ppem, '$.ppem', 4, 256);
     integer(request.fontSnapshotRevision, '$.fontSnapshotRevision');
+    const variations = record(request.variationCoordinates, '$.variationCoordinates');
+    for (const [tag, axisValue] of Object.entries(variations)) {
+      if (!/^[\x20-\x7e]{4}$/.test(tag)) fail(`$.variationCoordinates.${tag}`, 'axis tags must contain four printable ASCII characters');
+      finite(axisValue, `$.variationCoordinates.${tag}`);
+    }
+    if (typeof request.syntheticBold !== 'boolean') fail('$.syntheticBold', 'expected boolean');
+    if (typeof request.syntheticItalic !== 'boolean') fail('$.syntheticItalic', 'expected boolean');
+    oneOf(request.hinting, '$.hinting', ['smooth']);
+    oneOf(request.renderMode, '$.renderMode', ['alpha']);
     return;
   }
   if (kind === 'release-session') return;
@@ -656,6 +666,15 @@ export function assertTextLayoutWorkerResponse(value: unknown): asserts value is
     integer(response.glyphId, '$.glyphId', 0, 0xffff);
     numberInRange(response.ppem, '$.ppem', 4, 256);
     integer(response.fontSnapshotRevision, '$.fontSnapshotRevision');
+    const variations = record(response.variationCoordinates, '$.variationCoordinates');
+    for (const [tag, axisValue] of Object.entries(variations)) {
+      if (!/^[\x20-\x7e]{4}$/.test(tag)) fail(`$.variationCoordinates.${tag}`, 'axis tags must contain four printable ASCII characters');
+      finite(axisValue, `$.variationCoordinates.${tag}`);
+    }
+    if (typeof response.syntheticBold !== 'boolean') fail('$.syntheticBold', 'expected boolean');
+    if (typeof response.syntheticItalic !== 'boolean') fail('$.syntheticItalic', 'expected boolean');
+    oneOf(response.hinting, '$.hinting', ['smooth']);
+    oneOf(response.renderMode, '$.renderMode', ['alpha']);
     if (response.transferOwnership !== 'dedicated') fail('$.transferOwnership', 'expected dedicated');
     assertPerformanceMetrics(response.metrics, '$.metrics');
     const raster = record(response.raster, '$.raster');

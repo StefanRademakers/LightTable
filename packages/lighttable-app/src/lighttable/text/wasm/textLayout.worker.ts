@@ -288,6 +288,9 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
       if (data.fontSnapshotRevision !== state.revision) throw new Error('Font snapshot revision is stale.');
       const font = state.fonts.get(data.assetId);
       if (!font || font.faceIndex !== data.faceIndex) throw new Error('Exact registered font face is unavailable.');
+      if (Object.keys(data.variationCoordinates).length > 0 || data.syntheticBold || data.syntheticItalic) {
+        throw new UnsupportedLayoutError('Variable and synthesized glyph rasterization is not enabled yet.');
+      }
       const raw = rasterizeRegisteredGlyph(
         key, font.fingerprintSha256, data.faceIndex, data.glyphId, data.ppem
       );
@@ -299,6 +302,9 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
         sessionGeneration: data.sessionGeneration, assetId: data.assetId,
         faceIndex: data.faceIndex, glyphId: data.glyphId, ppem: data.ppem,
         fontSnapshotRevision: data.fontSnapshotRevision,
+        variationCoordinates: data.variationCoordinates,
+        syntheticBold: data.syntheticBold, syntheticItalic: data.syntheticItalic,
+        hinting: data.hinting, renderMode: data.renderMode,
         transferOwnership: 'dedicated',
         raster: {
           width: raw.width, height: raw.height,
@@ -320,7 +326,8 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
         requestId: data.requestId, documentSessionId: data.documentSessionId,
         sessionGeneration: data.sessionGeneration, assetId: data.assetId, glyphId: data.glyphId,
         error: createTextLayoutError(
-          /limit|ppem|dimension|command/i.test(message) ? 'resource-limit'
+          reason instanceof UnsupportedLayoutError ? 'unsupported-feature'
+            : /limit|ppem|dimension|command/i.test(message) ? 'resource-limit'
             : /font|face|glyph/i.test(message) ? 'font-missing' : 'internal-error',
           message
         )
@@ -450,6 +457,7 @@ const realizeFlowRequest = (
           syntheticBold: style.syntheticBold,
           syntheticItalic: style.syntheticItalic
         },
+        fontSize: style.fontSize,
         fontResolution: {
           kind: 'flow-exact',
           sourceRunIndex,

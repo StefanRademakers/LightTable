@@ -1,0 +1,17 @@
+# Task 027 — production text coverage atlas
+
+Status: complete. Implements Slice 08 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+## Required outcome
+
+- Freeze deterministic glyph atlas keys and ppem bucket policy.
+- Generate exact hinted masks in the existing worker and upload them lazily.
+- Own bounded R8 pages with whole-page LRU eviction, fragmentation reset,
+  generation guards and device-loss rebuild.
+- Encode premultiplied solid-color glyph batches by atlas page and paint.
+- Report entries/pages/bytes/hits/misses/evictions/uploads/timings.
+- Show fixed fixture text on the real canvas only behind a development
+  capability gate; keep all non-text documents and production UI unchanged.
+- Add reflection, alpha, transform, stale-generation and no-recurring-work
+  coverage before the cohesive Slice 08 commit.

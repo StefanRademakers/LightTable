@@ -119,6 +119,7 @@ describe('LayerCompositor', () => {
     const rasterTexture = texture();
     const placeholderTexture = texture();
     const encodeVector = vi.fn(() => placeholderTexture);
+    const encodeDevelopmentText = vi.fn(() => 1);
     const raster = vi.fn(() => ({ texture: rasterTexture, maskTexture: null }));
     const drawFullscreen = vi.fn();
     const compositor = new LayerCompositor({
@@ -138,6 +139,10 @@ describe('LayerCompositor', () => {
       geometryPreviews: { resolve: vi.fn(() => null) } as never,
       layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
       vectors: { encode: encodeVector } as never,
+      developmentTextFixture: {
+        hasReadyPlan: true,
+        encode: encodeDevelopmentText
+      } as never,
       dimensions: () => ({ width: 64, height: 32 }),
       syncDocument: vi.fn(),
       maskTextureFor: vi.fn(() => null),
@@ -157,5 +162,13 @@ describe('LayerCompositor', () => {
     expect(drawFullscreen).toHaveBeenCalledTimes(2);
     expect(document.layers[1]).toBe(textLayer);
     expect(textLayer.type).toBe('text');
+
+    expect(encodeDevelopmentText).not.toHaveBeenCalled();
+    compositor.encode({ fixture: true } as unknown as GPUCommandEncoder, document, undefined, true);
+    expect(encodeDevelopmentText).toHaveBeenCalledWith(
+      { fixture: true },
+      compositeA,
+      { width: 64, height: 32 }
+    );
   });
 });

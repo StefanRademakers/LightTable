@@ -11,6 +11,9 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
+  "dependencies": {
+    "@lighttable/text-core": "0.0.1"
+  },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "typescript": "~5.9.3",

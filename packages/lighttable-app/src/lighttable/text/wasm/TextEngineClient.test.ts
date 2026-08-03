@@ -83,6 +83,8 @@ class FakeWorker implements TextEngineWorkerPort {
       assetId: overrides.assetId ?? CONTRACT_FIXTURE_FONT_ASSET.assetId,
       faceIndex: overrides.faceIndex ?? 0, glyphId: overrides.glyphId ?? 36,
       ppem: overrides.ppem ?? 24, fontSnapshotRevision: overrides.fontSnapshotRevision ?? 1,
+      variationCoordinates: {}, syntheticBold: false, syntheticItalic: false,
+      hinting: 'smooth', renderMode: 'alpha',
       transferOwnership: 'dedicated',
       raster: {
         width: 2, height: 2, bearingX: 0, bearingY: 2, commandCount: 4,
@@ -98,6 +100,7 @@ const realizedLayout = (key: string): RealizedTextLayout => ({
   key,
   glyphRuns: [{
     font: CONTRACT_FIXTURE_FONT_INSTANCE,
+    fontSize: 16,
     fontResolution: { kind: 'flow-exact', sourceRunIndex: 0, requested: { families: ['Inter'] } },
     paint: {}, renderingMode: 'invisible', direction: 'ltr',
     glyphIds: new Uint32Array([1]), clusters: new Uint32Array([0]),
@@ -258,6 +261,7 @@ describe('TextEngineClient', () => {
       key: layoutRequest().cacheKey,
       glyphRuns: [{
         font: CONTRACT_FIXTURE_FONT_INSTANCE,
+        fontSize: 16,
         fontResolution: { kind: 'flow-exact', sourceRunIndex: 0, requested: { families: ['Inter'] } },
         paint: {}, renderingMode: 'invisible', direction: 'ltr',
         glyphIds: new Uint32Array(), clusters: new Uint32Array(), geometry: new Float32Array()
@@ -320,7 +324,9 @@ describe('TextEngineClient', () => {
     const pending = client.rasterizeGlyph({
       kind: 'rasterize-glyph', documentSessionId: 'document', sessionGeneration: 1,
       assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
-      glyphId: 36, ppem: 24, fontSnapshotRevision: 1
+      glyphId: 36, ppem: 24, fontSnapshotRevision: 1,
+      variationCoordinates: {}, syntheticBold: false, syntheticItalic: false,
+      hinting: 'smooth', renderMode: 'alpha'
     });
     expect(worker.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'rasterize-glyph', glyphId: 36, ppem: 24 }), []
@@ -339,7 +345,9 @@ describe('TextEngineClient', () => {
     const pending = client.rasterizeGlyph({
       kind: 'rasterize-glyph', documentSessionId: 'document', sessionGeneration: 1,
       assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
-      glyphId: 36, ppem: 24, fontSnapshotRevision: 1
+      glyphId: 36, ppem: 24, fontSnapshotRevision: 1,
+      variationCoordinates: {}, syntheticBold: false, syntheticItalic: false,
+      hinting: 'smooth', renderMode: 'alpha'
     });
     worker.rasterized(1, { glyphId: 37 });
     await expect(pending).rejects.toThrow('raster response identity is stale');

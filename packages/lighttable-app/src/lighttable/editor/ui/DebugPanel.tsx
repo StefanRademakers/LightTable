@@ -29,6 +29,10 @@ interface DebugPanelProps {
   textRendererPhase: string | null;
   textRendererReport: TextRendererBakeoffReport | null;
   onRunTextRendererBakeoff: () => void;
+  developmentTextFixtureEnabled: boolean;
+  developmentTextFixtureStatus: 'off' | 'preparing' | 'ready' | 'error';
+  developmentTextFixtureError: string | null;
+  onDevelopmentTextFixtureChange: (enabled: boolean) => void;
 }
 
 const formatTimestamp = (timestamp: number) => new Date(timestamp).toLocaleTimeString(
@@ -58,7 +62,11 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   textRendererStatus,
   textRendererPhase,
   textRendererReport,
-  onRunTextRendererBakeoff
+  onRunTextRendererBakeoff,
+  developmentTextFixtureEnabled,
+  developmentTextFixtureStatus,
+  developmentTextFixtureError,
+  onDevelopmentTextFixtureChange
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [rendererView, setRendererView] = useState<'coverage-atlas' | 'hb-gpu' | 'side-by-side'>('side-by-side');
@@ -174,6 +182,19 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           </button>
         </div>
         {textRendererPhase ? <small role="status">Renderer: {textRendererPhase}</small> : null}
+        <label>
+          <input
+            type="checkbox"
+            checked={developmentTextFixtureEnabled}
+            disabled={!textCorpusAvailable || developmentTextFixtureStatus === 'preparing'}
+            onChange={(event) => onDevelopmentTextFixtureChange(event.currentTarget.checked)}
+          />
+          Show fixed coverage-atlas text on canvas (development only)
+        </label>
+        <small role="status">
+          Canvas fixture: {developmentTextFixtureStatus}
+          {developmentTextFixtureError ? ` — ${developmentTextFixtureError}` : ''}
+        </small>
         {textRendererReport ? (
           <details>
             <summary>GPU renderer bakeoff report</summary>

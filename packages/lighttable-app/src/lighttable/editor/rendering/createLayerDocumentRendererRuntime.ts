@@ -29,6 +29,10 @@ import { ToolPipelineProvider } from './ToolPipelineProvider';
 import { LayerRuntimeCoordinator } from './LayerRuntimeCoordinator';
 import { RenderResourceCoordinator } from './RenderResourceCoordinator';
 import { VectorLayerRenderer } from './VectorLayerRenderer';
+import {
+  DevelopmentTextFixtureRenderer,
+  type DevelopmentTextFixtureSnapshot
+} from '../../text/rendering/DevelopmentTextFixtureRenderer';
 
 export interface LayerDocumentRendererRuntime {
   layerResources: LayerRuntimeStore;
@@ -52,6 +56,7 @@ export interface LayerDocumentRendererRuntime {
   textureMemory: DocumentTextureMemoryEstimator;
   layerRuntimeCoordinator: LayerRuntimeCoordinator;
   renderResources: RenderResourceCoordinator;
+  developmentTextFixture: DevelopmentTextFixtureRenderer;
 }
 
 /**
@@ -63,7 +68,8 @@ export interface LayerDocumentRendererRuntime {
  */
 export const createLayerDocumentRendererRuntime = (
   device: GPUDevice,
-  sampler: GPUSampler
+  sampler: GPUSampler,
+  onDevelopmentTextFixtureChanged: (snapshot: DevelopmentTextFixtureSnapshot) => void = () => undefined
 ): LayerDocumentRendererRuntime => {
   const pipelines = documentPipelinesFor(device);
   const resources = new DocumentResourceState();
@@ -98,6 +104,10 @@ export const createLayerDocumentRendererRuntime = (
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
   });
   const vectorLayerRenderer = new VectorLayerRenderer(device);
+  const developmentTextFixture = new DevelopmentTextFixtureRenderer(
+    device,
+    onDevelopmentTextFixtureChanged
+  );
   const renderResources = new RenderResourceCoordinator({
     layerStyles: layerStyleRenderer,
     submittedResources
@@ -159,6 +169,7 @@ export const createLayerDocumentRendererRuntime = (
     geometryPreviews,
     layerStyles: layerStyleRenderer,
     vectors: vectorLayerRenderer,
+    developmentTextFixture,
     dimensions: resources.dimensions,
     syncDocument: (document) => layerRuntimeCoordinator.sync(document),
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
@@ -284,6 +295,7 @@ export const createLayerDocumentRendererRuntime = (
       () => patternAssets.clear(),
       () => layerStyleRenderer.destroy(),
       () => vectorLayerRenderer.destroy(),
+      () => developmentTextFixture.dispose(),
       () => compositeTargets.destroy(),
       () => selectionTextures.destroy(),
       () => geometryPreviews.clear(),
@@ -332,6 +344,7 @@ export const createLayerDocumentRendererRuntime = (
     imageResources,
     textureMemory,
     layerRuntimeCoordinator,
-    renderResources
+    renderResources,
+    developmentTextFixture
   };
 };

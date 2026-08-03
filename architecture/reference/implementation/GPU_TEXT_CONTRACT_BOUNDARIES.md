@@ -1,6 +1,7 @@
 # GPU text contract boundaries
 
-Status: document/layout schema 1 and worker protocol 3 (Slice 07 migration).
+Status: document schema 1, realized-layout schema 2 and worker protocol 4
+(Slice 08 migration).
 
 ## Ownership
 
@@ -8,18 +9,18 @@ Status: document/layout schema 1 and worker protocol 3 (Slice 07 migration).
 DocumentSession
   owns app CommonLayer + TextLayerData + authored revisions + FontAssetRef
         |
-        | session/generation/cache-keyed structured-clone request (version 1)
+        | session/generation/cache-keyed structured-clone request (protocol 4)
         v
 TextLayoutRuntime worker
   owns registered font bytes + shaping/layout caches
         |
-        | RealizedTextLayout + transferable typed arrays (version 1)
+        | RealizedTextLayout + transferable typed arrays (layout schema 2)
         v
 TextLayerRuntimeStore
   owns the last valid realized layout and derived cache key
         |
         v
-TextWebGpuRenderer (future slice)
+TextWebGpuRenderer
   owns GPU buffers/textures only; no canonical document state
 ```
 
@@ -61,7 +62,8 @@ that dependency direction.
 - Authored color components are straight (unpremultiplied), finite values in
   `[0, 1]`, tagged as sRGB or Display P3. The future GPU renderer converts to
   the document working space and premultiplies exactly once at its render
-  boundary.
+  boundary. Slice 08 implements this for solid sRGB fill into the compositor's
+  linear-light `rgba16float` target; other paint spaces/modes fail explicitly.
 - Ink bounds cover visible glyph marks; logical bounds cover layout/caret
   geometry. Neither includes the layer's parent/world transform.
 
@@ -101,11 +103,26 @@ is not described as cooperative interruption; hard cancellation terminates and
 restarts the worker. Session release destroys the exact generation's Rust font
 and layout state.
 
-Worker protocol 3 adds bounded `rasterize-glyph`. It references an exact
+Worker protocol 3 added bounded `rasterize-glyph`. It referenced an exact
 registered asset, collection face, glyph, ppem and font-snapshot revision. The
 client validates that complete identity on the response. The worker returns a
 dedicated transferable R8 mask and frees the temporary WASM allocation after
 copying it.
+
+Worker protocol 4 extends raster identity with sorted variation coordinates,
+synthetic-bold/italic flags, the hinting profile and alpha render mode. The
+Slice 08 worker rejects non-default variation/synthesis until the rasterizer
+can honor them, rather than caching a mask under a false identity. Realized
+layout schema 2 adds the authored `fontSize` to each derived glyph run. The
+persisted document schema remains version 1; this runtime-only addition does
+not invalidate existing LightTable files.
+
+The production coverage cache key uses the exact font SHA-256, face, glyph,
+f32-normalized variation coordinates, synthesis flags, hinting, ppem bucket,
+render mode and rasterizer version. Fixed 1024x1024 R8 pages are append-only;
+whole-page LRU eviction advances a page generation, while device loss advances
+the atlas generation and requires a fresh renderer bound to the replacement
+`GPUDevice`. Stale uploads/draws are rejected.
 
 Realized glyph arrays and `clusterMap` are emitted in logical cluster order,
 including RTL and mixed-bidi text, while geometry retains visual positions.

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { WgslReflect } from 'wgsl_reflect/wgsl_reflect.module.js';
 import { COVERAGE_ATLAS_WGSL } from './coverageShader';
 import { HB_GPU_DRAW_WGSL, HB_GPU_SOURCE_REVISION } from './hbGpuShader.generated';
 
 describe('text renderer bakeoff WGSL', () => {
   it('reflects the bounded R8 atlas entry points and bindings', () => {
+    expect(() => new WgslReflect(COVERAGE_ATLAS_WGSL)).not.toThrow();
     expect(COVERAGE_ATLAS_WGSL).toContain('@vertex fn coverageVertex');
     expect(COVERAGE_ATLAS_WGSL).toContain('@fragment fn coverageFragment');
     expect(COVERAGE_ATLAS_WGSL).toMatch(/@group\(0\) @binding\([0-3]\)/g);

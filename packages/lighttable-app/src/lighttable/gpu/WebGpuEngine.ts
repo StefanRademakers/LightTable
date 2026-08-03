@@ -160,6 +160,7 @@ export class WebGpuEngine {
     }) as EventListener;
     this.deviceLostListener = (info) => {
       if (!this.destroyed) {
+        this.documentRenderer?.handleDeviceLoss();
         this.callbacks.onDeviceLost?.(`WebGPU device lost: ${info.message || info.reason}`);
       }
     };
@@ -298,7 +299,13 @@ export class WebGpuEngine {
       requestRender: () => this.requestRender(),
       reportError: (featureId: string, message: string) => this.callbacks.onFeatureError?.(featureId, message)
     };
-    this.documentRenderer = new LayerDocumentRenderer(this.device, coreResources.sampler);
+    this.documentRenderer = new LayerDocumentRenderer(
+      this.device,
+      coreResources.sampler,
+      () => {
+        if (!this.destroyed && this.imageDocument) this.markDocumentDirty();
+      }
+    );
     this.effectRuntime = DocumentEffectRuntime.create(
       this.device,
       coreResources.sampler,
@@ -1244,6 +1251,15 @@ export class WebGpuEngine {
     }
   }
 
+  /** Development-only presentation fixture; it never mutates or bakes into the document. */
+  async setDevelopmentTextFixtureEnabled(enabled: boolean) {
+    if (!import.meta.env.DEV && enabled) {
+      throw new Error('The canvas text fixture is available only in development builds.');
+    }
+    if (!this.documentRenderer) throw new Error('The document renderer is unavailable.');
+    return this.documentRenderer.setDevelopmentTextFixtureEnabled(enabled);
+  }
+
   setLensBlurDepthVisualization(visualize: boolean) {
     if (this.lensBlurDepthVisualization === visualize) return;
     this.lensBlurDepthVisualization = visualize;
@@ -1427,7 +1443,8 @@ export class WebGpuEngine {
             encoder,
             this.imageDocument!,
             (layerEncoder, source, layer) =>
-              this.encodeLayerProcessing(layerEncoder, source, layer)
+              this.encodeLayerProcessing(layerEncoder, source, layer),
+            true
           )
         );
         this.renderDirty.markDocumentCompositeRendered();

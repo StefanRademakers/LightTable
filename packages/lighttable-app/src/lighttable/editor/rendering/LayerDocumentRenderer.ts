@@ -34,8 +34,16 @@ import {
 export class LayerDocumentRenderer {
   private readonly runtime: LayerDocumentRendererRuntime;
 
-  constructor(device: GPUDevice, sampler: GPUSampler) {
-    this.runtime = createLayerDocumentRendererRuntime(device, sampler);
+  constructor(
+    device: GPUDevice,
+    sampler: GPUSampler,
+    onDevelopmentTextFixtureChanged?: Parameters<typeof createLayerDocumentRendererRuntime>[2]
+  ) {
+    this.runtime = createLayerDocumentRendererRuntime(
+      device,
+      sampler,
+      onDevelopmentTextFixtureChanged
+    );
   }
 
   async initializeLayerStylePipeline() {
@@ -106,9 +114,23 @@ export class LayerDocumentRenderer {
   encodeComposite(
     encoder: GPUCommandEncoder,
     document: ImageDocument,
-    encodeAdjustment?: EncodeAdjustment
+    encodeAdjustment?: EncodeAdjustment,
+    includeDevelopmentTextFixture = false
   ): GPUTexture {
-    return this.runtime.compositor.encode(encoder, document, encodeAdjustment);
+    return this.runtime.compositor.encode(
+      encoder,
+      document,
+      encodeAdjustment,
+      includeDevelopmentTextFixture
+    );
+  }
+
+  setDevelopmentTextFixtureEnabled(enabled: boolean) {
+    return this.runtime.developmentTextFixture.setEnabled(enabled);
+  }
+
+  handleDeviceLoss() {
+    this.runtime.developmentTextFixture.handleDeviceLoss();
   }
 
   private ensureSelectionTargets() {
@@ -123,6 +145,7 @@ export class LayerDocumentRenderer {
   releaseSubmittedResources() {
     this.runtime.renderResources.releaseAfterSubmit();
     void this.runtime.vectorLayerRenderer.notifySubmitted();
+    this.runtime.developmentTextFixture.retireSubmittedResources();
   }
 
   duplicateLayer(sourceId: LayerId, destinationId: LayerId) {

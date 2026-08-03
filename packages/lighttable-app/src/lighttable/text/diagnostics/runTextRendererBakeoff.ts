@@ -94,7 +94,9 @@ export const runTextRendererBakeoff = async (
           const result = await client.rasterizeGlyph({
             kind: 'rasterize-glyph', documentSessionId, sessionGeneration,
             assetId: font.asset.assetId, faceIndex: 0, glyphId,
-            ppem: scenario.ppem, fontSnapshotRevision: revision
+            ppem: scenario.ppem, fontSnapshotRevision: revision,
+            variationCoordinates: {}, syntheticBold: false, syntheticItalic: false,
+            hinting: 'smooth', renderMode: 'alpha'
           }, signal);
           return { key: String(glyphId), width: result.raster.width, height: result.raster.height,
             bearingX: result.raster.bearingX, bearingY: result.raster.bearingY, pixels: result.raster.pixels };

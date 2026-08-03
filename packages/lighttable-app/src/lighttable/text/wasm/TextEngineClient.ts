@@ -76,6 +76,10 @@ const createBrowserWorker = (): TextEngineWorkerPort => new Worker(
   { type: 'module', name: 'LightTable text layout' }
 );
 
+const variationIdentity = (value: Readonly<Record<string, number>>) => JSON.stringify(
+  Object.entries(value).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+);
+
 /**
  * Lazy application-scoped bridge to the Rust/WASM text engine.
  *
@@ -289,7 +293,12 @@ export class TextEngineClient {
               || data.faceIndex !== pending.request.faceIndex
               || data.glyphId !== pending.request.glyphId
               || data.ppem !== pending.request.ppem
-              || data.fontSnapshotRevision !== pending.request.fontSnapshotRevision)) {
+              || data.fontSnapshotRevision !== pending.request.fontSnapshotRevision
+              || variationIdentity(data.variationCoordinates) !== variationIdentity(pending.request.variationCoordinates)
+              || data.syntheticBold !== pending.request.syntheticBold
+              || data.syntheticItalic !== pending.request.syntheticItalic
+              || data.hinting !== pending.request.hinting
+              || data.renderMode !== pending.request.renderMode)) {
             throw new Error('Glyph raster response identity is stale.');
           }
           pending.resolve(data);
