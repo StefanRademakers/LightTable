@@ -128,7 +128,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   orientation = 'horizontal'
 }) => {
   const activeToolDefinition = toolDefinition(activeTool);
-  const editsVectorSelection = activeTool === 'vector-select' && Boolean(selectedVectorStyle);
+  const vectorStyleToolActive = activeTool.startsWith('vector-') || activeTool.startsWith('shape-');
+  const editsVectorSelection = vectorStyleToolActive && Boolean(selectedVectorStyle);
   const presentedVectorStyle = editsVectorSelection ? selectedVectorStyle! : vectorStyle;
   const changeVectorStyle = editsVectorSelection
     ? onSelectedVectorStyleChange ?? onVectorStyleChange

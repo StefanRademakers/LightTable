@@ -30,7 +30,17 @@ the converted canonical layer assets, compatibility report and resolved
 patterns, but deliberately do not duplicate the complete source PSD. PSD/PSB
 export is not implemented.
 
-**Last implementation update:** 29 July 2026.
+**Last implementation update:** 3 August 2026.
+
+Current text/vector exposure: supported PSD text descriptors now prefer native
+editable flow text over the supplied layer preview; the Photoshop composite is
+the reference for font-dependent visual comparison. Supported solid vector
+shapes already follow that same semantic-first rule. Selecting an imported
+vector layer projects its elements into the existing vector selection model,
+and the established Fill, Line and Weight controls now edit that selected style
+throughout the vector/shape tool family. Mixed multi-element vector styles still
+need a truthful mixed-value presentation before full contextual-properties
+parity can be checked off.
 
 LightTable is still pre-0.1. Its own document contract may change freely during
 this work: do not add schema migrations, legacy readers or backward-
@@ -886,6 +896,12 @@ Exit: priority adjustment fixtures render, edit and reopen correctly.
       patterns already resolve for Pattern Overlay and pattern Stroke.
 - [ ] Native renderers.
 - [ ] Type, path and shape tools plus properties.
+
+Partial implementation note: canonical flow/positioned text and vector
+path/live-shape models, WebGPU renderers, type/shape/path tools and shared
+style controls exist. Path-text creation/handles, unsupported Photoshop text
+semantics, vector boolean/gradient/pattern semantics, mixed-style presentation
+and PSD write-back keep this phase open.
 
 Exit: supported edits regenerate valid previews and unsupported variants remain
 visually stable.

@@ -70,6 +70,20 @@ describe('VectorToolSessionController', () => {
     }]);
   });
 
+  it('projects a Layers-panel vector choice into element style selection', () => {
+    const state = setup();
+    const path = createVectorPath('psd-path', 'Imported PSD path', [createSubpath('shape', [
+      createAnchor('a', { x: 0, y: 0 }),
+      createAnchor('b', { x: 20, y: 0 }),
+      createAnchor('c', { x: 20, y: 20 })
+    ], true)]);
+    const layer = createVectorLayer([path], 'Imported PSD Shape');
+    state.document = { ...state.document, layers: [layer], activeLayerId: null };
+
+    expect(state.controller.prepareActiveLayerChange(layer.id)).toBe(true);
+    expect(state.selection.elements).toEqual([{ layerId: layer.id, elementId: path.id }]);
+  });
+
   it('keeps a multi-click pen path provisional and commits it as one command', () => {
     const state = setup();
     state.controller.activate('pen');

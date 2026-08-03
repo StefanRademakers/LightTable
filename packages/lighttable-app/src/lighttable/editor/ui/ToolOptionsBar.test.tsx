@@ -9,7 +9,8 @@ const renderOptions = (
   activeTool: ToolId,
   rowHeight = 1,
   columnWidth = 1,
-  textProperties?: TextPropertyPresentation
+  textProperties?: TextPropertyPresentation,
+  selectedVectorStyle?: ToolOptionsProps['selectedVectorStyle']
 ) => {
   const session = createEditorSession();
   const props: ToolOptionsProps = {
@@ -28,6 +29,7 @@ const renderOptions = (
     }],
     textProperties,
     textLayoutMode: textProperties ? 'point' : null,
+    selectedVectorStyle,
     selectionPixelSnap: session.selectionPixelSnap,
     selectionCombineMode: session.selectionCombineMode,
     selectionRowHeight: rowHeight,
@@ -47,6 +49,7 @@ const renderOptions = (
     onTextPropertyCommit: vi.fn(),
     onTextPropertyCancel: vi.fn(),
     onTextLayoutModeChange: vi.fn(),
+    onSelectedVectorStyleChange: vi.fn(),
     onWarpReset: vi.fn(),
     onSelectionPixelSnapChange: vi.fn(),
     onSelectionCombineModeChange: vi.fn(),
@@ -57,6 +60,26 @@ const renderOptions = (
   };
   return renderToStaticMarkup(<ToolOptionsContent {...props} />);
 };
+
+describe('vector style tool options', () => {
+  it('shows an imported selected shape style across the existing vector tool family', () => {
+    const selected = { fillColor: '#123456', strokeColor: '#abcdef', strokeWidth: 7 };
+    for (const tool of ['shape-rectangle', 'vector-select', 'vector-direct-select'] as const) {
+      const markup = renderOptions(tool, 1, 1, undefined, selected);
+      expect(markup).toContain('aria-label="Vector style"');
+      expect(markup).toContain('value="#123456"');
+      expect(markup).toContain('value="#abcdef"');
+      expect(markup).toContain('value="7"');
+    }
+  });
+
+  it('keeps new-shape defaults when no vector element is selected', () => {
+    const markup = renderOptions('shape-rectangle');
+    const defaults = createEditorSession().vectorStyle;
+    expect(markup).toContain(`value="${defaults.fillColor}"`);
+    expect(markup).toContain(`value="${defaults.strokeColor}"`);
+  });
+});
 
 describe('selection strip tool options', () => {
   it('shows a pixel height for horizontal selections', () => {
