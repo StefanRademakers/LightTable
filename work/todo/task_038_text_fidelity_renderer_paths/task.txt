@@ -16,7 +16,7 @@ Status: in progress. Implements Slice 16 from
 - [ ] Replace the fixture-only hb-gpu path with a bounded runtime encoder.
 - [ ] Integrate a device-independent, byte-bounded glyph-blob cache.
 - [ ] Reuse GPU storage across repeated glyphs and submissions.
-- [ ] Keep viewport zoom out of content identity and quality invalidation.
+- [x] Keep viewport zoom out of content identity and quality invalidation.
 - [ ] Preserve exact document pixels at extreme viewport zoom.
 - [ ] Support native text fill and stroke through the fidelity route.
 
