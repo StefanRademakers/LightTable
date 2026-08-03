@@ -171,4 +171,94 @@ describe('LayerCompositor', () => {
       { width: 64, height: 32 }
     );
   });
+
+  it('composites an exact tight text source with inherited transform instead of the placeholder', () => {
+    const document = createImageDocument('Text source', 64, 32, 'source');
+    const textLayer = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
+    const group = createGroupLayer('Group');
+    group.transform = translationMatrix(9, -3);
+    group.children = [textLayer];
+    document.layers = [group];
+    const compositeA = texture();
+    const compositeB = texture();
+    const sourceTexture = texture();
+    const encodeVector = vi.fn();
+    const resolve = vi.fn(() => ({
+      layerId: textLayer.id,
+      texture: sourceTexture,
+      dimensions: { width: 20, height: 10 },
+      bounds: { x: -2, y: 4, width: 20, height: 10 },
+      colorSpace: 'linear-srgb' as const,
+      alphaMode: 'premultiplied' as const,
+      sourceKey: 'ready',
+      transform: translationMatrix(7, 11)
+    }));
+    const writeBuffer = vi.fn();
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => null) } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: encodeVector } as never,
+      texts: { resolve } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(texture),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+
+    expect(compositor.encode({} as GPUCommandEncoder, document)).toBe(compositeB);
+    expect(resolve).toHaveBeenCalledWith(textLayer, group.transform);
+    expect(encodeVector).not.toHaveBeenCalled();
+    const values = vi.mocked(writeBuffer).mock.calls[0][2] as Float32Array;
+    expect([...values.slice(12, 14)]).toEqual([20, 10]);
+  });
+
+  it('treats settled empty text as transparent instead of drawing a placeholder', () => {
+    const document = createImageDocument('Empty text', 64, 32, 'source');
+    const textLayer = createTextLayerNode(createDefaultTextLayerData(), 'Empty');
+    document.layers = [textLayer];
+    const compositeA = texture();
+    const compositeB = texture();
+    const encodeVector = vi.fn();
+    const drawFullscreen = vi.fn();
+    const compositor = new LayerCompositor({
+      device: {} as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: {} as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => null) } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: {} as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: encodeVector } as never,
+      texts: { isTransparent: vi.fn(() => true), resolve: vi.fn() } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(texture),
+      clearTexture: vi.fn(),
+      drawFullscreen
+    });
+
+    expect(compositor.encode({} as GPUCommandEncoder, document)).toBe(compositeA);
+    expect(encodeVector).not.toHaveBeenCalled();
+    expect(drawFullscreen).not.toHaveBeenCalled();
+  });
 });

@@ -1,0 +1,363 @@
+import type { TextLayer } from '../../editor/document/documentTypes';
+import {
+  identityAffineMatrix,
+  type LayerSourceRenderContract
+} from '../../editor/rendering/renderContract';
+import { multiplyMatrices } from '../../editor/tools/transform/affine';
+import type { AffineMatrix } from '../../editor/tools/transform/transformTypes';
+import type {
+  CoverageAtlasBackend,
+  CoverageAtlasDrawCommand
+} from '@lighttable/text-webgpu';
+
+export type TextLayerSourceMode = 'atlas' | 'cached';
+
+export interface PublishedTextLayerSource<TTexture = GPUTexture> {
+  readonly layerId: TextLayer['id'];
+  readonly texture: TTexture;
+  readonly width: number;
+  readonly height: number;
+  readonly localBounds: Readonly<{ x: number; y: number; width: number; height: number }>;
+  readonly sourceScale: number;
+  readonly sourceKey: string;
+  readonly authoredKey?: string;
+  readonly mode: TextLayerSourceMode;
+  readonly byteLength: number;
+  readonly destroy?: () => void;
+}
+
+interface TextLayerRendererOptions<TTexture> {
+  readonly createTexture: (label: string, width: number, height: number) => TTexture;
+  readonly createView: (texture: TTexture) => GPUTextureView;
+  readonly retireTexture: (texture: TTexture) => void;
+  readonly maximumTextureDimension: number;
+  readonly maximumSourceBytes?: number;
+}
+
+export interface TextLayerRendererSnapshot {
+  readonly publicationRevision: number;
+  readonly readyLayerCount: number;
+  readonly textureBytes: number;
+  readonly mode: 'placeholder' | TextLayerSourceMode;
+}
+
+export interface PreparedTextLayerSource<TTexture = GPUTexture> {
+  readonly contract: LayerSourceRenderContract<TTexture>;
+  publish(): LayerSourceRenderContract<TTexture>;
+  discard(): void;
+}
+
+const translation = (x: number, y: number): AffineMatrix => ({
+  ...identityAffineMatrix(),
+  tx: x,
+  ty: y
+});
+
+const scale = (value: number): AffineMatrix => ({
+  ...identityAffineMatrix(),
+  a: value,
+  d: value
+});
+
+/**
+ * Document-scoped owner for immutable, tight text textures.
+ *
+ * Async layout/raster coordinators publish only completely prepared sources.
+ * The synchronous compositor either receives an exact source or falls back;
+ * it never observes a partially updated texture.
+ */
+export class TextLayerRenderer<TTexture = GPUTexture> {
+  private readonly sources = new Map<TextLayer['id'], PublishedTextLayerSource<TTexture>>();
+  private readonly transparentKeys = new Map<TextLayer['id'], string>();
+  private revision = 0;
+
+  constructor(private readonly options?: TextLayerRendererOptions<TTexture>) {}
+
+  publish(source: PublishedTextLayerSource<TTexture>) {
+    this.assertSource(source);
+    const previous = this.sources.get(source.layerId);
+    if (previous === source) return false;
+    this.sources.set(source.layerId, Object.freeze({ ...source }));
+    this.transparentKeys.delete(source.layerId);
+    if (previous?.texture !== source.texture) previous?.destroy?.();
+    this.revision += 1;
+    return true;
+  }
+
+  isTransparent(layer: TextLayer) {
+    return this.transparentKeys.get(layer.id) === textLayerSourceKey(layer);
+  }
+
+  markTransparent(layer: TextLayer) {
+    const key = textLayerSourceKey(layer);
+    const unchanged = this.transparentKeys.get(layer.id) === key && !this.sources.has(layer.id);
+    if (unchanged) return false;
+    const source = this.sources.get(layer.id);
+    this.sources.delete(layer.id);
+    source?.destroy?.();
+    this.transparentKeys.set(layer.id, key);
+    this.revision += 1;
+    return true;
+  }
+
+  resolve(
+    layer: TextLayer,
+    inheritedTransform: AffineMatrix = identityAffineMatrix()
+  ): LayerSourceRenderContract<TTexture> | null {
+    const source = this.sources.get(layer.id);
+    if (!source || (source.authoredKey ?? source.sourceKey) !== textLayerSourceKey(layer)) return null;
+    const localSourceToLayer = multiplyMatrices(
+      translation(source.localBounds.x, source.localBounds.y),
+      scale(1 / source.sourceScale)
+    );
+    return {
+      layerId: layer.id,
+      texture: source.texture,
+      dimensions: { width: source.width, height: source.height },
+      bounds: { ...source.localBounds },
+      colorSpace: 'linear-srgb',
+      alphaMode: 'premultiplied',
+      sourceKey: source.sourceKey,
+      transform: multiplyMatrices(
+        multiplyMatrices(inheritedTransform, layer.transform),
+        localSourceToLayer
+      )
+    };
+  }
+
+  encodeTightSource(
+    encoder: GPUCommandEncoder,
+    layer: TextLayer,
+    backend: Pick<CoverageAtlasBackend, 'encode'>,
+    draws: readonly CoverageAtlasDrawCommand[],
+    sourceScale = 1,
+    sourceKey = `${textLayerSourceKey(layer)}@${sourceScale}`
+  ) {
+    const prepared = this.prepareTightSource(
+      encoder, layer, backend, draws, sourceScale, sourceKey
+    );
+    return prepared?.publish() ?? null;
+  }
+
+  prepareTightSource(
+    encoder: GPUCommandEncoder,
+    layer: TextLayer,
+    backend: Pick<CoverageAtlasBackend, 'encode'>,
+    draws: readonly CoverageAtlasDrawCommand[],
+    sourceScale = 1,
+    sourceKey = `${textLayerSourceKey(layer)}@${sourceScale}`
+  ): PreparedTextLayerSource<TTexture> | null {
+    if (!this.options) throw new Error('TextLayerRenderer has no GPU texture allocator.');
+    const bounds = tightCoverageBounds(draws, 2);
+    if (!bounds) return null;
+    const width = Math.ceil(bounds.width);
+    const height = Math.ceil(bounds.height);
+    const byteLength = width * height * 8;
+    const maximumBytes = this.options.maximumSourceBytes ?? 64 * 1024 * 1024;
+    if (width > this.options.maximumTextureDimension
+      || height > this.options.maximumTextureDimension
+      || byteLength > maximumBytes) {
+      throw new RangeError('Tight text source exceeds the bounded GPU texture budget.');
+    }
+    const texture = this.options.createTexture(
+      `LightTable tight text source: ${layer.name}`,
+      width,
+      height
+    );
+    const shifted = draws.map((draw) => ({
+      ...draw,
+      x: draw.x - bounds.x,
+      y: draw.y - bounds.y
+    }));
+    try {
+      backend.encode(encoder, {
+        view: this.options.createView(texture),
+        format: 'rgba16float',
+        width,
+        height,
+        loadOp: 'clear'
+      }, shifted);
+      const publishedSource: PublishedTextLayerSource<TTexture> = {
+        layerId: layer.id,
+        texture,
+        width,
+        height,
+        localBounds: {
+          x: bounds.x / sourceScale,
+          y: bounds.y / sourceScale,
+          width: bounds.width / sourceScale,
+          height: bounds.height / sourceScale
+        },
+        sourceScale,
+        sourceKey,
+        authoredKey: textLayerSourceKey(layer),
+        mode: 'cached',
+        byteLength,
+        destroy: () => this.options?.retireTexture(texture)
+      };
+      let settled = false;
+      const contract = {
+        layerId: layer.id,
+        texture,
+        dimensions: { width, height },
+        bounds: { ...publishedSource.localBounds },
+        colorSpace: 'linear-srgb' as const,
+        alphaMode: 'premultiplied' as const,
+        sourceKey,
+        transform: multiplyMatrices(
+          layer.transform,
+          multiplyMatrices(
+            translation(publishedSource.localBounds.x, publishedSource.localBounds.y),
+            scale(1 / sourceScale)
+          )
+        )
+      };
+      return {
+        contract,
+        publish: () => {
+          if (!settled) {
+            settled = true;
+            this.publish(publishedSource);
+          }
+          return this.resolve(layer)!;
+        },
+        discard: () => {
+          if (settled) return;
+          settled = true;
+          this.options?.retireTexture(texture);
+        }
+      };
+    } catch (error) {
+      this.options.retireTexture(texture);
+      throw error;
+    }
+  }
+
+  thumbnailSource(layerId: TextLayer['id']) {
+    const source = this.sources.get(layerId);
+    return source ? {
+      texture: source.texture,
+      width: source.width,
+      height: source.height,
+      revisionKey: source.sourceKey
+    } : null;
+  }
+
+  release(layerId: TextLayer['id']) {
+    const source = this.sources.get(layerId);
+    const transparent = this.transparentKeys.delete(layerId);
+    if (!source && !transparent) return false;
+    this.sources.delete(layerId);
+    source?.destroy?.();
+    this.revision += 1;
+    return true;
+  }
+
+  sync(layers: readonly TextLayer[]) {
+    const retained = new Set(layers.map((layer) => layer.id));
+    for (const layerId of this.sources.keys()) {
+      if (!retained.has(layerId)) this.release(layerId);
+    }
+    for (const layerId of this.transparentKeys.keys()) {
+      if (!retained.has(layerId)) this.release(layerId);
+    }
+  }
+
+  snapshot(): TextLayerRendererSnapshot {
+    let textureBytes = 0;
+    let mode: TextLayerRendererSnapshot['mode'] = 'placeholder';
+    for (const source of this.sources.values()) {
+      textureBytes += source.byteLength;
+      mode = source.mode;
+    }
+    return Object.freeze({
+      publicationRevision: this.revision,
+      readyLayerCount: this.sources.size + this.transparentKeys.size,
+      textureBytes,
+      mode: mode === 'placeholder' && this.transparentKeys.size > 0 ? 'cached' : mode
+    });
+  }
+
+  estimatedTextureBytes() {
+    return this.snapshot().textureBytes;
+  }
+
+  dispose() {
+    for (const source of this.sources.values()) source.destroy?.();
+    if (this.sources.size > 0 || this.transparentKeys.size > 0) this.revision += 1;
+    this.sources.clear();
+    this.transparentKeys.clear();
+  }
+
+  private assertSource(source: PublishedTextLayerSource<TTexture>) {
+    if (!source.sourceKey) throw new TypeError('Text source key must not be empty.');
+    if (!Number.isInteger(source.width) || source.width <= 0
+      || !Number.isInteger(source.height) || source.height <= 0) {
+      throw new TypeError('Text source dimensions must be positive integers.');
+    }
+    if (!Number.isFinite(source.sourceScale) || source.sourceScale <= 0) {
+      throw new TypeError('Text source scale must be finite and positive.');
+    }
+    if (!Number.isSafeInteger(source.byteLength) || source.byteLength < source.width * source.height * 8) {
+      throw new TypeError('Text source byte length must cover its rgba16float texture.');
+    }
+    const bounds = source.localBounds;
+    if (![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)
+      || bounds.width <= 0 || bounds.height <= 0) {
+      throw new TypeError('Text source bounds must be finite and non-empty.');
+    }
+  }
+}
+
+export const tightCoverageBounds = (
+  draws: readonly CoverageAtlasDrawCommand[],
+  fringe = 2
+) => {
+  if (!Number.isFinite(fringe) || fringe < 0) throw new TypeError('Text source fringe must be finite and non-negative.');
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  for (const draw of draws) {
+    const placement = draw.glyph.placement;
+    if (placement.empty) continue;
+    const [a, b, c, d] = draw.transform ?? [1, 0, 0, 1];
+    const originX = draw.x + a * draw.glyph.bearingX - c * draw.glyph.bearingY;
+    const originY = draw.y + b * draw.glyph.bearingX - d * draw.glyph.bearingY;
+    const corners = [
+      [originX, originY],
+      [originX + a * placement.width, originY + b * placement.width],
+      [originX + c * placement.height, originY + d * placement.height],
+      [originX + a * placement.width + c * placement.height,
+        originY + b * placement.width + d * placement.height]
+    ];
+    for (const [x, y] of corners) {
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+  if (!Number.isFinite(left)) return null;
+  const x = Math.floor(left - fringe);
+  const y = Math.floor(top - fringe);
+  return Object.freeze({
+    x,
+    y,
+    width: Math.ceil(right + fringe) - x,
+    height: Math.ceil(bottom + fringe) - y
+  });
+};
+
+/** Canonical authored source identity; common transform and viewport are absent. */
+export const textLayerSourceKey = (layer: TextLayer) => {
+  const revisions = layer.text.revisions as unknown as Record<string, number>;
+  return [
+    revisions.content,
+    revisions.font ?? revisions.style,
+    revisions.layout,
+    revisions.paint ?? revisions.style,
+    revisions.path,
+    revisions.geometry
+  ].join(':');
+};

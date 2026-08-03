@@ -143,4 +143,35 @@ describe('RasterDocumentOperations', () => {
     expect(operations.releaseRasterDestination(destination.id)).toBe(true);
     expect(layerResources.releaseRaster).toHaveBeenCalledWith(destination.id, true);
   });
+
+  it('performs an exact zero-submit bypass while a text source is unready', () => {
+    const document = createTextLayer(
+      createImageDocument('Text', 64, 32, 'background'),
+      createDefaultTextLayerData(),
+      'Headline'
+    );
+    const source = findDocumentLayer(document, document.activeLayerId);
+    const destination = findRasterLayer(
+      rasterizeTextLayer(document, document.activeLayerId!),
+      document.activeLayerId!
+    );
+    if (source?.type !== 'text' || !destination) throw new Error('Expected text fixtures.');
+    const createCommandEncoder = vi.fn();
+    const submit = vi.fn();
+    const operations = new RasterDocumentOperations({
+      device: { createCommandEncoder, queue: { submit } } as unknown as GPUDevice,
+      layerResources: {
+        raster: vi.fn(() => ({ texture: texture('destination'), maskTexture: null }))
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      encodeComposite: vi.fn(),
+      invalidateLayer: vi.fn(),
+      releaseSubmittedResources: vi.fn(),
+      textSourceReady: vi.fn(() => false)
+    });
+
+    expect(operations.rasterizeText(document, source, destination)).toBe(false);
+    expect(createCommandEncoder).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+  });
 });

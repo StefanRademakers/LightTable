@@ -19,6 +19,13 @@ export interface ReferenceDifferenceMetrics {
   stride: number;
 }
 
+export interface TextRenderPresentationSnapshot {
+  readonly publicationRevision: number;
+  readonly readyLayerCount: number;
+  readonly textureBytes: number;
+  readonly mode: 'placeholder' | 'atlas' | 'cached';
+}
+
 export interface DocumentRendererCallbacks {
   onHistogram?: (histogram: RgbHistogram) => void;
   onDeviceLost?: (message: string) => void;
@@ -26,6 +33,7 @@ export interface DocumentRendererCallbacks {
   onFeatureError?: (featureId: string, message: string) => void;
   onFirstFrame?: () => void;
   onGpuMemoryEstimate?: (bytes: number) => void;
+  onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void;
 }
 
 export interface DocumentRendererScopeCanvases {

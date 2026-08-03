@@ -80,7 +80,6 @@ export const queryLayerCommandCapabilities = (
     canToggleActiveClipping: Boolean(activeLayer?.clipping || activeIndex > 0),
     canMergeDown: activeIndex > 0
       && activeSiblings[activeIndex]?.type !== 'group'
-      && activeSiblings[activeIndex]?.type !== 'text'
       && activeSiblings[activeIndex - 1]?.type === 'raster',
     canMergeSelected: Boolean(getMergeLayersPlan(document, selectedLayerIds)),
     canFlattenActiveGroup: activeLayer?.type === 'group'

@@ -22,6 +22,78 @@ const sameValue = (left: unknown, right: unknown) => (
   left === right || JSON.stringify(left) === JSON.stringify(right)
 );
 
+const flowFontSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => runs.map((run) => ({
+  ...(includeRanges ? { start: run.start, end: run.end } : {}),
+  requestedFont: run.requestedFont,
+  fontSize: run.fontSize,
+  fontWeight: run.fontWeight,
+  fontStyle: run.fontStyle,
+  fontStretch: run.fontStretch,
+  kerning: run.kerning,
+  language: run.language,
+  scriptOverride: run.scriptOverride,
+  directionOverride: run.directionOverride,
+  openTypeFeatures: run.openTypeFeatures,
+  variableAxes: run.variableAxes,
+  syntheticBold: run.syntheticBold,
+  syntheticItalic: run.syntheticItalic
+}));
+
+const flowLayoutSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => runs.map((run) => ({
+  ...(includeRanges ? { start: run.start, end: run.end } : {}),
+  tracking: run.tracking,
+  baselineShift: run.baselineShift,
+  horizontalScale: run.horizontalScale,
+  verticalScale: run.verticalScale
+}));
+
+const flowPaintSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => runs.map((run) => ({
+  ...(includeRanges ? { start: run.start, end: run.end } : {}),
+  fill: run.fill,
+  stroke: run.stroke
+}));
+
+const paragraphSignature = (runs: readonly ParagraphStyleRun[], includeRanges: boolean) => runs.map((run) => ({
+  ...(includeRanges ? { start: run.start, end: run.end } : {}),
+  alignment: run.alignment,
+  direction: run.direction,
+  lineHeight: run.lineHeight,
+  firstLineIndent: run.firstLineIndent,
+  startIndent: run.startIndent,
+  endIndent: run.endIndent,
+  spaceBefore: run.spaceBefore,
+  spaceAfter: run.spaceAfter,
+  hyphenation: run.hyphenation
+}));
+
+const positionedContentSignature = (runs: readonly PositionedTextRun[]) => runs.map((run) => ({
+  sourceEncoding: run.sourceEncoding,
+  glyphs: run.glyphs.map((glyph) => ({
+    glyphId: glyph.glyphId,
+    cluster: glyph.cluster,
+    unicode: glyph.unicode,
+    sourceCharacterCode: glyph.sourceCharacterCode
+  }))
+}));
+
+const positionedFontSignature = (runs: readonly PositionedTextRun[]) => runs.map((run) => run.font);
+
+const positionedPaintSignature = (runs: readonly PositionedTextRun[]) => runs.map((run) => ({
+  paint: run.paint,
+  renderingMode: run.renderingMode
+}));
+
+const positionedGeometrySignature = (runs: readonly PositionedTextRun[]) => runs.map((run) => ({
+  textMatrix: run.textMatrix,
+  glyphs: run.glyphs.map((glyph) => ({
+    x: glyph.x,
+    y: glyph.y,
+    advanceX: glyph.advanceX,
+    advanceY: glyph.advanceY,
+    localTransform: glyph.localTransform
+  }))
+}));
+
 const bumpRevisions = (
   data: TextLayerData,
   domains: readonly TextRevisionDomain[]
@@ -77,11 +149,28 @@ export const setFlowTextContent = (
 ) => updateTextLayer(document, layerId, (layer) => {
   if (layer.text.source.kind !== 'flow') return layer.text;
   const contentChanged = layer.text.source.text !== text;
-  const styleChanged = !sameValue(layer.text.source.styleRuns, styleRuns);
-  const paragraphsChanged = !sameValue(layer.text.source.paragraphRuns, paragraphRuns);
+  const includeRanges = !contentChanged;
+  const fontChanged = !sameValue(
+    flowFontSignature(layer.text.source.styleRuns, includeRanges),
+    flowFontSignature(styleRuns, includeRanges)
+  );
+  const inlineLayoutChanged = !sameValue(
+    flowLayoutSignature(layer.text.source.styleRuns, includeRanges),
+    flowLayoutSignature(styleRuns, includeRanges)
+  );
+  const paintChanged = !sameValue(
+    flowPaintSignature(layer.text.source.styleRuns, includeRanges),
+    flowPaintSignature(styleRuns, includeRanges)
+  );
+  const paragraphsChanged = !sameValue(
+    paragraphSignature(layer.text.source.paragraphRuns, includeRanges),
+    paragraphSignature(paragraphRuns, includeRanges)
+  );
   if (
     !contentChanged
-    && !styleChanged
+    && !fontChanged
+    && !inlineLayoutChanged
+    && !paintChanged
     && !paragraphsChanged
   ) return layer.text;
   return bumpRevisions({
@@ -94,8 +183,9 @@ export const setFlowTextContent = (
     }
   }, [
     ...(contentChanged ? ['content' as const] : []),
-    ...(styleChanged ? ['style' as const] : []),
-    ...(paragraphsChanged ? ['layout' as const] : [])
+    ...(fontChanged ? ['font' as const] : []),
+    ...(inlineLayoutChanged || paragraphsChanged ? ['layout' as const] : []),
+    ...(paintChanged ? ['paint' as const] : [])
   ]);
 });
 
@@ -106,9 +196,11 @@ export const setFlowTextRuns = (
   paragraphRuns: readonly ParagraphStyleRun[]
 ) => updateTextLayer(document, layerId, (layer) => {
   if (layer.text.source.kind !== 'flow') return layer.text;
-  const styleChanged = !sameValue(layer.text.source.styleRuns, styleRuns);
-  const paragraphsChanged = !sameValue(layer.text.source.paragraphRuns, paragraphRuns);
-  if (!styleChanged && !paragraphsChanged) return layer.text;
+  const fontChanged = !sameValue(flowFontSignature(layer.text.source.styleRuns, true), flowFontSignature(styleRuns, true));
+  const inlineLayoutChanged = !sameValue(flowLayoutSignature(layer.text.source.styleRuns, true), flowLayoutSignature(styleRuns, true));
+  const paintChanged = !sameValue(flowPaintSignature(layer.text.source.styleRuns, true), flowPaintSignature(styleRuns, true));
+  const paragraphsChanged = !sameValue(paragraphSignature(layer.text.source.paragraphRuns, true), paragraphSignature(paragraphRuns, true));
+  if (!fontChanged && !inlineLayoutChanged && !paintChanged && !paragraphsChanged) return layer.text;
   return bumpRevisions({
     ...layer.text,
     source: {
@@ -117,8 +209,9 @@ export const setFlowTextRuns = (
       paragraphRuns: structuredClone(paragraphRuns)
     }
   }, [
-    ...(styleChanged ? ['style' as const] : []),
-    ...(paragraphsChanged ? ['layout' as const] : [])
+    ...(fontChanged ? ['font' as const] : []),
+    ...(inlineLayoutChanged || paragraphsChanged ? ['layout' as const] : []),
+    ...(paintChanged ? ['paint' as const] : [])
   ]);
 });
 
@@ -129,10 +222,16 @@ export const setPositionedTextRuns = (
 ) => updateTextLayer(document, layerId, (layer) => {
   if (layer.text.source.kind !== 'positioned') return layer.text;
   if (sameValue(layer.text.source.runs, runs)) return layer.text;
+  const currentRuns = layer.text.source.runs;
   return bumpRevisions({
     ...layer.text,
     source: { ...layer.text.source, runs: structuredClone(runs) }
-  }, ['content', 'style', 'geometry']);
+  }, [
+    ...(!sameValue(positionedContentSignature(currentRuns), positionedContentSignature(runs)) ? ['content' as const] : []),
+    ...(!sameValue(positionedFontSignature(currentRuns), positionedFontSignature(runs)) ? ['font' as const] : []),
+    ...(!sameValue(positionedPaintSignature(currentRuns), positionedPaintSignature(runs)) ? ['paint' as const] : []),
+    ...(!sameValue(positionedGeometrySignature(currentRuns), positionedGeometrySignature(runs)) ? ['geometry' as const] : [])
+  ]);
 });
 
 export const setFlowTextLayout = (

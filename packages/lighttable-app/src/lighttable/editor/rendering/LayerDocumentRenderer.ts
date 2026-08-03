@@ -28,7 +28,9 @@ import type { ReversiblePixelEdit } from '../history/ReversiblePixelEdit';
 import type { LayerThumbnailBlob } from './LayerThumbnailService';
 import {
   createLayerDocumentRendererRuntime,
-  type LayerDocumentRendererRuntime
+  type LayerDocumentRendererRuntime,
+  type TextFontRuntimePort,
+  type TextRenderPresentationSnapshot
 } from './createLayerDocumentRendererRuntime';
 
 export class LayerDocumentRenderer {
@@ -37,12 +39,14 @@ export class LayerDocumentRenderer {
   constructor(
     device: GPUDevice,
     sampler: GPUSampler,
-    onDevelopmentTextFixtureChanged?: Parameters<typeof createLayerDocumentRendererRuntime>[2]
+    onDevelopmentTextFixtureChanged?: Parameters<typeof createLayerDocumentRendererRuntime>[2],
+    onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void
   ) {
     this.runtime = createLayerDocumentRendererRuntime(
       device,
       sampler,
-      onDevelopmentTextFixtureChanged
+      onDevelopmentTextFixtureChanged,
+      onTextRenderPresentation
     );
   }
 
@@ -65,6 +69,11 @@ export class LayerDocumentRenderer {
     // delete/create/duplicate undo lossless without a synchronous GPU readback.
     // All cached runtimes are released when the image/editor is destroyed.
     this.runtime.layerRuntimeCoordinator.sync(document);
+    this.runtime.textLayerCoordinator.sync(document);
+  }
+
+  configureTextFonts(port: TextFontRuntimePort | null) {
+    this.runtime.textLayerCoordinator.configureFonts(port);
   }
 
   pruneDetachedRuntimes(
@@ -131,6 +140,7 @@ export class LayerDocumentRenderer {
 
   handleDeviceLoss() {
     this.runtime.developmentTextFixture.handleDeviceLoss();
+    this.runtime.textLayerCoordinator.dispose();
   }
 
   private ensureSelectionTargets() {
@@ -162,6 +172,9 @@ export class LayerDocumentRenderer {
     maximumWidth = 80,
     maximumHeight = 80
   ): Promise<LayerThumbnailBlob | null> {
+    if (!maskChannel && this.runtime.textLayerCoordinator.hasTextLayer(layerId)) {
+      await this.runtime.textLayerCoordinator.waitForSettledSource(layerId);
+    }
     return this.runtime.layerThumbnails.export(
       layerId,
       maskChannel,

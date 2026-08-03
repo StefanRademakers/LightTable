@@ -30,6 +30,8 @@ const renderPanel = (status: 'idle' | 'loading' | 'ready' | 'error', summary: st
     developmentTextFixtureEnabled={false}
     developmentTextFixtureStatus="off"
     developmentTextFixtureError={null}
+    textSourceMode="placeholder"
+    readyTextSourceCount={0}
     onDevelopmentTextFixtureChange={vi.fn()}
   />);
 

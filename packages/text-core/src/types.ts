@@ -200,8 +200,9 @@ export type TextSource = FlowTextSource | PositionedTextSource;
 
 export interface TextLayerRevisions {
   readonly content: number;
-  readonly style: number;
+  readonly font: number;
   readonly layout: number;
+  readonly paint: number;
   readonly path: number;
   readonly geometry: number;
 }

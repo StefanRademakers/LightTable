@@ -32,6 +32,8 @@ interface DebugPanelProps {
   developmentTextFixtureEnabled: boolean;
   developmentTextFixtureStatus: 'off' | 'preparing' | 'ready' | 'error';
   developmentTextFixtureError: string | null;
+  textSourceMode: 'placeholder' | 'atlas' | 'cached';
+  readyTextSourceCount: number;
   onDevelopmentTextFixtureChange: (enabled: boolean) => void;
 }
 
@@ -66,6 +68,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   developmentTextFixtureEnabled,
   developmentTextFixtureStatus,
   developmentTextFixtureError,
+  textSourceMode,
+  readyTextSourceCount,
   onDevelopmentTextFixtureChange
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -194,6 +198,9 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         <small role="status">
           Canvas fixture: {developmentTextFixtureStatus}
           {developmentTextFixtureError ? ` — ${developmentTextFixtureError}` : ''}
+        </small>
+        <small>
+          Text source: {textSourceMode} · {readyTextSourceCount} ready layer{readyTextSourceCount === 1 ? '' : 's'}
         </small>
         {textRendererReport ? (
           <details>

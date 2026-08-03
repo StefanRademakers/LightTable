@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addLayerMask, createRasterLayer } from '../document/documentCommands';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
+import { addLayerMask, createRasterLayer, createTextLayer } from '../document/documentCommands';
 import { createImageDocument } from '../document/documentTypes';
 import {
   collectLayerThumbnailChannels,
@@ -85,5 +86,20 @@ describe('collectLayerThumbnailChannels', () => {
     expect(layerThumbnailChannelsKey(
       collectLayerThumbnailChannels(changedPixels)
     )).not.toBe(initialKey);
+  });
+
+  it('tracks canonical text source revisions as a pixel thumbnail channel', () => {
+    const document = createTextLayer(
+      createImageDocument('Text thumbnail', 64, 32, 'source'),
+      createDefaultTextLayerData(),
+      'Headline'
+    );
+    const layer = document.layers.at(-1)!;
+    expect(collectLayerThumbnailChannels(document)).toContainEqual({
+      identity: `${layer.id}:pixels`,
+      layerId: layer.id,
+      mask: false,
+      revisionKey: 'text:0:0:0:0:0:0'
+    });
   });
 });

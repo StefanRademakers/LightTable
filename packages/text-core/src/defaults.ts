@@ -84,7 +84,7 @@ export const createDefaultFlowTextSource = (text = 'Text'): FlowTextSource => ({
 export const createDefaultTextLayerData = (): TextLayerData => ({
   schemaVersion: TEXT_DOCUMENT_SCHEMA_VERSION,
   source: createDefaultFlowTextSource(),
-  revisions: { content: 0, style: 0, layout: 0, path: 0, geometry: 0 }
+  revisions: { content: 0, font: 0, layout: 0, paint: 0, path: 0, geometry: 0 }
 });
 
 export const createPositionedTextFixture = (): TextLayerData => {

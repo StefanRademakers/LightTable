@@ -17,7 +17,6 @@ import {
   type VectorLayer
 } from './documentTypes';
 import {
-  bumpTextLayerRevision,
   cloneTextLayerData,
   type TextLayerData
 } from '@lighttable/text-core';
@@ -661,14 +660,6 @@ export const setLayerTransform = (document: ImageDocument, layerId: LayerId, tra
     return {
       ...layer,
       transform: { ...transform },
-      ...(layer.type === 'text' ? {
-        text: {
-          ...layer.text,
-          revisions: {
-            ...bumpTextLayerRevision(layer.text.revisions, 'geometry')
-          }
-        }
-      } : {}),
       geometryRevision: layer.geometryRevision + 1,
       revision: layer.revision + 1,
       modifiedAt: Date.now()
@@ -855,7 +846,7 @@ export const getFlattenGroupPlan = (
   if (!entry || entry.node.type !== 'group') return null;
   // Until adjustment layers participate in the recursive compositor, flatten
   // must not silently discard them.
-  if (walkLayerTree(entry.node.children).some(({ node }) => node.type === 'adjustment' || node.type === 'text')) return null;
+  if (walkLayerTree(entry.node.children).some(({ node }) => node.type === 'adjustment')) return null;
   const layerIds = rasterIdsIn(entry.node.children);
   if (!layerIds.length) return null;
   return {
@@ -867,7 +858,7 @@ export const getFlattenGroupPlan = (
 };
 
 export const getFlattenImagePlan = (document: ImageDocument): FlattenLayersPlan | null => {
-  if (walkLayerTree(document.layers).some(({ node }) => node.type === 'adjustment' || node.type === 'text')) return null;
+  if (walkLayerTree(document.layers).some(({ node }) => node.type === 'adjustment')) return null;
   const layerIds = rasterIdsIn(document.layers);
   if (!layerIds.length) return null;
   return {
@@ -1001,7 +992,7 @@ export const getMergeLayersPlan = (
   // processing layers; the GPU compositor evaluates them in document order.
   if (
     layers[0]?.type !== 'raster'
-    || layers.some((layer) => layer.type === 'group' || layer.type === 'text')
+    || layers.some((layer) => layer.type === 'group')
   ) return null;
   return {
     layerIds: layers.map((layer) => layer.id),

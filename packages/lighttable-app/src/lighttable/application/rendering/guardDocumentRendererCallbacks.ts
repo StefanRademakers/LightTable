@@ -17,6 +17,9 @@ export const guardDocumentRendererCallbacks = (
   onGpuMemoryEstimate: (bytes) => {
     if (isCurrent()) callbacks.onGpuMemoryEstimate?.(bytes);
   },
+  onTextRenderPresentation: (snapshot) => {
+    if (isCurrent()) callbacks.onTextRenderPresentation?.(snapshot);
+  },
   onDeviceLost: (message) => {
     if (isCurrent()) callbacks.onDeviceLost?.(message);
   },

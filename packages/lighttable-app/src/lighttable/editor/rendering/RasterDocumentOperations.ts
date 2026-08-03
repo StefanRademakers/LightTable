@@ -2,6 +2,7 @@ import type {
   AdjustmentLayer,
   ImageDocument,
   LayerId,
+  LayerNode,
   RasterLayer,
   TextLayer
 } from '../document/documentTypes';
@@ -15,6 +16,15 @@ export type EncodeAdjustment = (
   layer: AdjustmentLayer | RasterLayer
 ) => GPUTexture;
 
+const findContributingTextLayers = (
+  nodes: readonly LayerNode[],
+  inheritedVisible = true
+): TextLayer[] => nodes.flatMap((node) => {
+  const visible = inheritedVisible && node.visible && node.opacity > 0;
+  if (node.type === 'group') return findContributingTextLayers(node.children, visible);
+  return node.type === 'text' && visible ? [node] : [];
+});
+
 interface RasterDocumentOperationsOptions {
   device: GPUDevice;
   layerResources: LayerRuntimeStore;
@@ -26,6 +36,7 @@ interface RasterDocumentOperationsOptions {
   ) => GPUTexture;
   invalidateLayer: (layerId: LayerId) => void;
   releaseSubmittedResources: () => void;
+  textSourceReady?: (layer: TextLayer) => boolean;
 }
 
 /**
@@ -87,6 +98,7 @@ export class RasterDocumentOperations {
     destination: RasterLayer
   ) {
     if (source.id !== destination.id) return false;
+    if (this.options.textSourceReady && !this.options.textSourceReady(source)) return false;
     const runtime = this.options.layerResources.raster(destination.id);
     if (!runtime) return false;
     const { device } = this.options;
@@ -135,6 +147,11 @@ export class RasterDocumentOperations {
       || layers.some(
         (layer) => layer?.type === 'raster' && !layerResources.raster(layer.id)
       )
+      || layers.some(
+        (layer) => layer?.type === 'text' && layer.visible && layer.opacity > 0
+          && this.options.textSourceReady
+          && !this.options.textSourceReady(layer)
+      )
     ) return false;
     const { width, height } = this.options.dimensions();
     const encoder = device.createCommandEncoder({
@@ -144,7 +161,7 @@ export class RasterDocumentOperations {
       encoder,
       {
         ...document,
-        layers: layers as Array<RasterLayer | AdjustmentLayer>
+        layers: layers as Array<RasterLayer | AdjustmentLayer | TextLayer>
       },
       encodeAdjustment
     );
@@ -169,6 +186,9 @@ export class RasterDocumentOperations {
     const group = findLayerNode(document.layers, groupId)?.node;
     const destination = layerResources.raster(destinationId);
     if (!group || group.type !== 'group' || !destination) return false;
+    if (this.options.textSourceReady && findContributingTextLayers(group.children).some(
+      (layer) => !this.options.textSourceReady!(layer)
+    )) return false;
     const { width, height } = this.options.dimensions();
     const encoder = device.createCommandEncoder({ label: 'LightTable flatten group' });
     const flattenedTexture = this.options.encodeComposite(
@@ -198,6 +218,9 @@ export class RasterDocumentOperations {
     const { device, layerResources } = this.options;
     const destination = layerResources.raster(destinationId);
     if (!destination) return false;
+    if (this.options.textSourceReady && findContributingTextLayers(document.layers).some(
+      (layer) => !this.options.textSourceReady!(layer)
+    )) return false;
     const { width, height } = this.options.dimensions();
     const encoder = device.createCommandEncoder({ label: 'LightTable flatten image' });
     const flattenedTexture = this.options.encodeComposite(

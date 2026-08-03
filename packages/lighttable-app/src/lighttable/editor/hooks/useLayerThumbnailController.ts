@@ -27,6 +27,7 @@ interface LayerThumbnailCacheEntry extends LayerThumbnailPreview {
 interface LayerThumbnailControllerOptions {
   document: ImageDocument | null;
   rendererReadyDocumentId: string | null;
+  textPresentationRevision?: number;
   getRenderer: () => LayerThumbnailRendererPort | null;
 }
 
@@ -40,6 +41,15 @@ export const collectLayerThumbnailChannels = (
       layerId: node.id,
       mask: false,
       revisionKey: `pixels:${node.pixelRevision}`
+    });
+  }
+  if (node.type === 'text') {
+    const revisions = node.text.revisions;
+    channels.push({
+      identity: `${node.id}:pixels`,
+      layerId: node.id,
+      mask: false,
+      revisionKey: `text:${revisions.content}:${revisions.font}:${revisions.layout}:${revisions.paint}:${revisions.path}:${revisions.geometry}`
     });
   }
   if (node.mask) {
@@ -74,6 +84,7 @@ export const layerThumbnailChannelsKey = (
 export const useLayerThumbnailController = ({
   document,
   rendererReadyDocumentId,
+  textPresentationRevision = 0,
   getRenderer
 }: LayerThumbnailControllerOptions): ReadonlyMap<LayerId, LayerThumbnailSet> => {
   const cacheRef = useRef<Map<string, LayerThumbnailCacheEntry>>(new Map());
@@ -82,10 +93,15 @@ export const useLayerThumbnailController = ({
   const [thumbnails, setThumbnails] = useState<
     ReadonlyMap<LayerId, LayerThumbnailSet>
   >(() => new Map());
-  const desired = useMemo(
+  const desiredChannels = useMemo(
     () => document ? collectLayerThumbnailChannels(document) : [],
     [document]
   );
+  const desired = useMemo(() => desiredChannels.map((channel) =>
+    channel.revisionKey.startsWith('text:')
+      ? { ...channel, revisionKey: `${channel.revisionKey}:presentation:${textPresentationRevision}` }
+      : channel
+  ), [desiredChannels, textPresentationRevision]);
   const desiredKey = layerThumbnailChannelsKey(desired);
   const documentId = document?.id ?? null;
 
@@ -164,7 +180,7 @@ export const useLayerThumbnailController = ({
     // `desiredKey` deliberately represents the pixel-bearing subset of the
     // immutable document. `desired` is the matching snapshot from this render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desiredKey, documentId, rendererReadyDocumentId]);
+  }, [desiredKey, documentId, rendererReadyDocumentId, textPresentationRevision]);
 
   useEffect(() => () => {
     cacheRef.current.forEach(({ url }) => URL.revokeObjectURL(url));

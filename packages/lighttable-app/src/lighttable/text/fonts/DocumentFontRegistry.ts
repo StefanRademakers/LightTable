@@ -151,6 +151,7 @@ export class DocumentFontRegistry {
   private readonly availabilityListeners = new Set<() => void>();
   private disposed = false;
   private generation = 0;
+  private availabilityRevisionValue = 0;
 
   constructor(private readonly options: DocumentFontRegistryOptions) {}
 
@@ -169,6 +170,10 @@ export class DocumentFontRegistry {
 
   get availableAssets(): readonly DocumentFontAsset[] {
     return this.assets.filter((asset) => this.bytesByFingerprint.has(asset.fingerprintSha256));
+  }
+
+  get availabilityRevision() {
+    return this.availabilityRevisionValue;
   }
 
   subscribeAvailability(listener: () => void) {
@@ -388,6 +393,7 @@ export class DocumentFontRegistry {
   }
 
   private notifyAvailability() {
+    this.availabilityRevisionValue += 1;
     this.availabilityListeners.forEach((listener) => listener());
   }
 

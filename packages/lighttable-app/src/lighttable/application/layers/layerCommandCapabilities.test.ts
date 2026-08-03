@@ -63,7 +63,7 @@ describe('queryLayerCommandCapabilities', () => {
     expect(capabilities.canUngroupSelection).toBe(true);
   });
 
-  it('exposes shared commands for text while rejecting pixel and flatten operations', () => {
+  it('exposes compositing commands for text while rejecting pixel editing', () => {
     const document = createTextLayer(createDocument(), createDefaultTextLayerData(), 'Text fixture');
     const capabilities = queryLayerCommandCapabilities(document);
 
@@ -72,8 +72,8 @@ describe('queryLayerCommandCapabilities', () => {
     expect(capabilities.canEditActivePixels).toBe(false);
     expect(capabilities.canEditActiveLayerStyles).toBe(true);
     expect(capabilities.canAddActiveMask).toBe(true);
-    expect(capabilities.canMergeDown).toBe(false);
-    expect(capabilities.canFlattenImage).toBe(false);
+    expect(capabilities.canMergeDown).toBe(true);
+    expect(capabilities.canFlattenImage).toBe(true);
   });
 
   it('keeps deletion availability aligned with the final-raster invariant', () => {

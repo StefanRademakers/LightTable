@@ -31,6 +31,7 @@ export interface DocumentRendererLifecycleBridgeOptions<
   };
   readonly publishHistogram: NonNullable<DocumentRendererCallbacks['onHistogram']>;
   readonly publishGpuMemory: (bytes: number) => void;
+  readonly publishTextRenderPresentation?: NonNullable<DocumentRendererCallbacks['onTextRenderPresentation']>;
   readonly publishError: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
   readonly publishFeatureError: (featureId: string, message: string) => void;
@@ -70,6 +71,7 @@ export const createDocumentRendererLifecycleBridge = <
       options.publishGpuMemory(bytes);
       options.lifecycle.setMemoryEstimate(bytes);
     },
+    onTextRenderPresentation: options.publishTextRenderPresentation,
     onDeviceLost: (message) => {
       options.publishError(message);
       options.lifecycle.markFailed(

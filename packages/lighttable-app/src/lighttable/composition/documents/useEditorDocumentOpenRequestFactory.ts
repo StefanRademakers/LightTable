@@ -56,6 +56,7 @@ export interface EditorDocumentOpenRequestFactoryOptions {
   ) => Promise<void>;
   readonly publishHistogram: (histogram: RgbHistogram) => void;
   readonly publishGpuMemory: (bytes: number) => void;
+  readonly publishTextRenderPresentation?: NonNullable<DocumentRendererCallbacks['onTextRenderPresentation']>;
   readonly publishError: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
   readonly publishFeatureError: (featureId: string, message: string) => void;
@@ -81,6 +82,7 @@ export const useEditorDocumentOpenRequestFactory = ({
   hydrate,
   publishHistogram,
   publishGpuMemory,
+  publishTextRenderPresentation,
   publishError,
   publishScopeError,
   publishFeatureError,
@@ -102,6 +104,7 @@ export const useEditorDocumentOpenRequestFactory = ({
     getScopeOptions,
     publishHistogram,
     publishGpuMemory,
+    publishTextRenderPresentation,
     publishError,
     publishScopeError,
     publishFeatureError,
@@ -138,6 +141,7 @@ export const useEditorDocumentOpenRequestFactory = ({
   publishError,
   publishFeatureError,
   publishGpuMemory,
+  publishTextRenderPresentation,
   publishHistogram,
   publishLoading,
   publishScopeError,

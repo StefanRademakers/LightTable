@@ -235,20 +235,46 @@ describe('text document contracts', () => {
 });
 
 describe('text revisions and fallback policy', () => {
-  it('derives cache identity from typed options, session and path dependency', () => {
+  it('derives layout identity only from layout-affecting revisions and options', () => {
     const layer = createDefaultTextLayerData();
     const options = { quality: 'final' as const, effectiveScale: 2, maxGlyphCount: 1000, locale: 'nl-NL' };
     const base = {
       documentSessionId: 'document-a', sessionGeneration: 1, layerId: 'layer-a', revisions: layer.revisions,
       fontSnapshotRevision: 7, pathDependencyRevision: 0, options
     };
-    const nextRevisions = bumpTextLayerRevision(layer.revisions, 'style');
-    expect(nextRevisions).toEqual({ ...layer.revisions, style: 1 });
+    const nextRevisions = bumpTextLayerRevision(layer.revisions, 'font');
+    expect(nextRevisions).toEqual({ ...layer.revisions, font: 1 });
     expect(createTextLayoutCacheKey(base)).toBe(createTextLayoutCacheKey(base));
     expect(createTextLayoutCacheKey({ ...base, revisions: nextRevisions })).not.toBe(createTextLayoutCacheKey(base));
+    expect(createTextLayoutCacheKey({
+      ...base,
+      revisions: bumpTextLayerRevision(layer.revisions, 'paint')
+    })).toBe(createTextLayoutCacheKey(base));
+    expect(createTextLayoutCacheKey({
+      ...base,
+      options: { ...options, effectiveScale: 4 }
+    })).toBe(createTextLayoutCacheKey(base));
     expect(createTextLayoutCacheKey({ ...base, pathDependencyRevision: 1 })).not.toBe(createTextLayoutCacheKey(base));
     expect(createTextLayoutCacheKey({ ...base, sessionGeneration: 2 })).not.toBe(createTextLayoutCacheKey(base));
     expect(createTextLayoutCacheKey({ ...base, options: { ...options, locale: 'ar' } })).not.toBe(createTextLayoutCacheKey(base));
+  });
+
+  it('migrates legacy style revisions to independent font and paint revisions', () => {
+    const layer = createDefaultTextLayerData();
+    const legacy = {
+      ...layer,
+      revisions: { content: 2, style: 7, layout: 3, path: 1, geometry: 4 }
+    };
+
+    expect(parseTextLayerData(legacy).revisions).toEqual({
+      content: 2,
+      font: 7,
+      layout: 3,
+      paint: 7,
+      path: 1,
+      geometry: 4
+    });
+    expect(() => assertTextLayerData(legacy)).toThrow(/revisions\.font/);
   });
 
   it('uses the exact non-silent fallback policy', () => {

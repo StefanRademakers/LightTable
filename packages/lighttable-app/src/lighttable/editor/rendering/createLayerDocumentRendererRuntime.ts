@@ -33,6 +33,12 @@ import {
   DevelopmentTextFixtureRenderer,
   type DevelopmentTextFixtureSnapshot
 } from '../../text/rendering/DevelopmentTextFixtureRenderer';
+import { TextLayerRenderer } from '../../text/rendering/TextLayerRenderer';
+import { TextLayerRenderCoordinator } from '../../text/rendering/TextLayerRenderCoordinator';
+export type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
+import { walkLayerTree } from '../document/layerTree';
+import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
+export type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 
 export interface LayerDocumentRendererRuntime {
   layerResources: LayerRuntimeStore;
@@ -57,6 +63,8 @@ export interface LayerDocumentRendererRuntime {
   layerRuntimeCoordinator: LayerRuntimeCoordinator;
   renderResources: RenderResourceCoordinator;
   developmentTextFixture: DevelopmentTextFixtureRenderer;
+  textLayerRenderer: TextLayerRenderer;
+  textLayerCoordinator: TextLayerRenderCoordinator;
 }
 
 /**
@@ -69,7 +77,8 @@ export interface LayerDocumentRendererRuntime {
 export const createLayerDocumentRendererRuntime = (
   device: GPUDevice,
   sampler: GPUSampler,
-  onDevelopmentTextFixtureChanged: (snapshot: DevelopmentTextFixtureSnapshot) => void = () => undefined
+  onDevelopmentTextFixtureChanged: (snapshot: DevelopmentTextFixtureSnapshot) => void = () => undefined,
+  onTextRenderPresentation: (snapshot: TextRenderPresentationSnapshot) => void = () => undefined
 ): LayerDocumentRendererRuntime => {
   const pipelines = documentPipelinesFor(device);
   const resources = new DocumentResourceState();
@@ -108,6 +117,18 @@ export const createLayerDocumentRendererRuntime = (
     device,
     onDevelopmentTextFixtureChanged
   );
+  const textLayerRenderer = new TextLayerRenderer({
+    createTexture: (label, width, height) => textures.createColorSized(label, width, height),
+    createView: (texture) => texture.createView(),
+    retireTexture: (texture) => submittedResources.retainTexture(texture),
+    maximumTextureDimension: device.limits.maxTextureDimension2D
+  });
+  const textLayerCoordinator = new TextLayerRenderCoordinator({
+    device,
+    renderer: textLayerRenderer,
+    requestRender: () => onDevelopmentTextFixtureChanged(developmentTextFixture.snapshot),
+    onChanged: onTextRenderPresentation
+  });
   const renderResources = new RenderResourceCoordinator({
     layerStyles: layerStyleRenderer,
     submittedResources
@@ -118,7 +139,13 @@ export const createLayerDocumentRendererRuntime = (
   });
   const layerThumbnails = new LayerThumbnailService({
     dimensions: resources.dimensions,
-    rasterTexture: (layerId) => layerResources.raster(layerId)?.texture ?? null,
+    layerSource: (layerId) => {
+      const text = textLayerRenderer.thumbnailSource(layerId);
+      if (text) return text;
+      const raster = layerResources.raster(layerId)?.texture;
+      const { width, height } = resources.dimensions();
+      return raster ? { texture: raster, width, height } : null;
+    },
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
     encode: (source, maskChannel, width, height) =>
       textureCodec.encode(source, maskChannel, width, height)
@@ -169,9 +196,17 @@ export const createLayerDocumentRendererRuntime = (
     geometryPreviews,
     layerStyles: layerStyleRenderer,
     vectors: vectorLayerRenderer,
+    texts: textLayerRenderer,
     developmentTextFixture,
     dimensions: resources.dimensions,
-    syncDocument: (document) => layerRuntimeCoordinator.sync(document),
+    syncDocument: (document) => {
+      layerRuntimeCoordinator.sync(document);
+      textLayerRenderer.sync(
+        walkLayerTree(document.layers)
+          .map(({ node }) => node)
+          .filter((node) => node.type === 'text')
+      );
+    },
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
     createTexture: (label) => textures.createColor(label),
     clearTexture: (encoder, texture) => textures.clear(encoder, texture),
@@ -263,7 +298,8 @@ export const createLayerDocumentRendererRuntime = (
     dimensions: resources.dimensions,
     encodeComposite,
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId),
-    releaseSubmittedResources: () => renderResources.releaseAfterSubmit()
+    releaseSubmittedResources: () => renderResources.releaseAfterSubmit(),
+    textSourceReady: (layer) => textLayerCoordinator.isSettledForCurrentGeneration(layer)
   });
   const documentAssets = new LayerDocumentAssetService({
     rasterTexture: (layerId) => layerResources.raster(layerId)?.texture ?? null,
@@ -296,6 +332,7 @@ export const createLayerDocumentRendererRuntime = (
       () => layerStyleRenderer.destroy(),
       () => vectorLayerRenderer.destroy(),
       () => developmentTextFixture.dispose(),
+      () => textLayerCoordinator.dispose(),
       () => compositeTargets.destroy(),
       () => selectionTextures.destroy(),
       () => geometryPreviews.clear(),
@@ -312,6 +349,7 @@ export const createLayerDocumentRendererRuntime = (
       ({ width, height }) =>
         layerStyleRenderer.estimatedTextureBytes(width, height),
       () => vectorLayerRenderer.estimatedTextureBytes(),
+      () => textLayerCoordinator.estimatedTextureBytes(),
       ({ width, height }) =>
         compositeTargets.estimatedTextureBytes(width, height, 8),
       ({ width, height }) =>
@@ -345,6 +383,8 @@ export const createLayerDocumentRendererRuntime = (
     textureMemory,
     layerRuntimeCoordinator,
     renderResources,
-    developmentTextFixture
+    developmentTextFixture,
+    textLayerRenderer,
+    textLayerCoordinator
   };
 };

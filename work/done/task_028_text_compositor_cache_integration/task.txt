@@ -1,0 +1,21 @@
+# Task 028 — text compositor, bounds and cache integration
+
+Status: complete. Implements Slice 09 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+## Completed outcome
+
+- Production document-scoped text preparation and `TextLayerRenderer` compositor contract.
+- Tight bounded rgba16float sources with exact transform mapping and bounded allocation.
+- Established mask, fill-opacity, Layer Style, opacity, blend, clipping and group order.
+- Separate content/font/layout/paint/path/local-geometry/common-geometry/viewport invalidation.
+- Safe atlas page pinning, submitted texture retirement, disposal and exact VRAM estimates.
+- Lazy hidden/no-text behavior, stale-work rejection and last-valid immutable publication.
+- Aspect-ratio-fitted text thumbnails and truthful Debug source-mode reporting.
+- Ready-source gating for rasterize, merge and flatten with zero-submit rollback.
+
+## Verification
+
+- All workspace package tests and typechecks.
+- Boundary verification, web build and packaged Electron verification.
+- Independent read-only blocker audit before commit.

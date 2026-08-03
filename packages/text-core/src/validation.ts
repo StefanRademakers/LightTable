@@ -382,7 +382,7 @@ export function assertTextLayerData(value: unknown): asserts value is TextLayerD
   const layer = record(value, '$');
   if (layer.schemaVersion !== TEXT_DOCUMENT_SCHEMA_VERSION) fail('$.schemaVersion', `expected ${TEXT_DOCUMENT_SCHEMA_VERSION}`);
   const revisions = record(layer.revisions, '$.revisions');
-  for (const domain of ['content', 'style', 'layout', 'path', 'geometry'] as const) integer(revisions[domain], `$.revisions.${domain}`);
+  for (const domain of ['content', 'font', 'layout', 'paint', 'path', 'geometry'] as const) integer(revisions[domain], `$.revisions.${domain}`);
   const source = record(layer.source, '$.source');
   const sourceKind = oneOf(source.kind, '$.source.kind', ['flow', 'positioned']);
   if (sourceKind === 'flow') assertFlowSource(source, '$.source');
@@ -405,8 +405,24 @@ export function assertTextLayerData(value: unknown): asserts value is TextLayerD
 }
 
 export const parseTextLayerData = (value: unknown): TextLayerData => {
-  assertTextLayerData(value);
-  return value as TextLayerData;
+  const candidate = isRecord(value) && isRecord(value.revisions)
+    && value.revisions.font === undefined
+    && value.revisions.paint === undefined
+    && value.revisions.style !== undefined
+    ? {
+      ...value,
+      revisions: {
+        content: value.revisions.content,
+        font: value.revisions.style,
+        layout: value.revisions.layout,
+        paint: value.revisions.style,
+        path: value.revisions.path,
+        geometry: value.revisions.geometry
+      }
+    }
+    : value;
+  assertTextLayerData(candidate);
+  return candidate as TextLayerData;
 };
 
 export function assertRealizedTextLayout(value: unknown): asserts value is RealizedTextLayout {

@@ -3,9 +3,12 @@ import { createDefaultLayerStyle, createDefaultLayerStyleStack } from './layerSt
 import {
   layerStyleCacheKey,
   layerStyleDocumentBounds,
-  layerStyleExpansion
+  layerStyleExpansion,
+  layerSourceStyleCacheKey,
+  layerSourceStyleDocumentBounds
 } from './layerStyleRenderPlan';
-import { createImageDocument, type RasterLayer } from '../document/documentTypes';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
+import { createImageDocument, createTextLayerNode, type RasterLayer } from '../document/documentTypes';
 
 const rasterLayer = (width: number, height: number) => {
   const document = createImageDocument('Fixture', width, height, 'asset');
@@ -94,5 +97,23 @@ describe('Layer Style render planning', () => {
     layer.opacity = 0.25;
     layer.blendMode = 'multiply';
     expect(layerStyleCacheKey(layer, layer.transform, 'final')).toBe(initial);
+  });
+
+  it('uses tight text source dimensions and identity for style bounds and caching', () => {
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    layer.styleStack.effects = [createDefaultLayerStyle('outer-glow')];
+    const source = {
+      sourceKey: 'text-source-1',
+      dimensions: { width: 40, height: 12 },
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 20, ty: 10 }
+    };
+    expect(layerSourceStyleDocumentBounds(layer, source, { width: 100, height: 80 })).toEqual({
+      x: 13, y: 3, width: 54, height: 26
+    });
+    const key = layerSourceStyleCacheKey(layer, source, 'final');
+    layer.opacity = 0.2;
+    layer.blendMode = 'multiply';
+    expect(layerSourceStyleCacheKey(layer, source, 'final')).toBe(key);
+    expect(layerSourceStyleCacheKey(layer, { ...source, sourceKey: 'text-source-2' }, 'final')).not.toBe(key);
   });
 });

@@ -13,7 +13,9 @@ const harness = (
   const encode = vi.fn(async () => new Blob(['thumbnail']));
   const service = new LayerThumbnailService({
     dimensions: () => dimensions,
-    rasterTexture: () => rasterTexture,
+    layerSource: () => rasterTexture
+      ? { texture: rasterTexture, width: dimensions.width, height: dimensions.height }
+      : null,
     maskTexture: () => maskTexture,
     encode
   });

@@ -19,6 +19,18 @@ export class DocumentTextureFactory {
     return this.create(label, 'rgba16float');
   }
 
+  createColorSized(label: string, width: number, height: number) {
+    if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+      throw new TypeError('Texture dimensions must be positive integers.');
+    }
+    return this.options.device.createTexture({
+      label,
+      size: [width, height],
+      format: 'rgba16float',
+      usage: documentTextureUsage()
+    });
+  }
+
   createMask(label: string) {
     const texture = this.createColor(label);
     const encoder = this.options.device.createCommandEncoder({

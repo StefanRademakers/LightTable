@@ -92,6 +92,7 @@ import {
   directSelectionShape
 } from '../editor/selection/selectionEditingOverlay';
 import { SelectionContourOverlayBackend } from '../editor/rendering/SelectionContourOverlayBackend';
+import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoordinator';
 
 export class WebGpuEngine {
   private readonly canvas: HTMLCanvasElement;
@@ -304,7 +305,8 @@ export class WebGpuEngine {
       coreResources.sampler,
       () => {
         if (!this.destroyed && this.imageDocument) this.markDocumentDirty();
-      }
+      },
+      (snapshot) => this.callbacks.onTextRenderPresentation?.(snapshot)
     );
     this.effectRuntime = DocumentEffectRuntime.create(
       this.device,
@@ -386,6 +388,10 @@ export class WebGpuEngine {
     // revisions do not change this uniform contract.
     if (firstDocument) this.writeAdjustments();
     this.markDocumentDirty();
+  }
+
+  configureTextFonts(port: TextFontRuntimePort | null) {
+    this.documentRenderer?.configureTextFonts(port);
   }
 
   private initializeLayerStylesIfNeeded(document: ImageDocument) {

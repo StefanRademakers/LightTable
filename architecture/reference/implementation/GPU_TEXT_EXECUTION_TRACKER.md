@@ -364,14 +364,14 @@ text work; atlas device-loss rebuild succeeds.
 
 #### Slice 09 — compositor, bounds and cache integration
 
-- [ ] Add `TextLayerRenderer` through the existing compositor contract.
-- [ ] Use tight bounds or tiles instead of a full-document text surface.
-- [ ] Apply transforms, masks, clipping, opacity, blend and Layer Styles in the
+- [x] Add `TextLayerRenderer` through the existing compositor contract.
+- [x] Use tight bounds or tiles instead of a full-document text surface.
+- [x] Apply transforms, masks, clipping, opacity, blend and Layer Styles in the
   established order.
-- [ ] Separate content, layout, font, paint, geometry and viewport revisions.
-- [ ] Implement disposal and VRAM estimates.
-- [ ] Ensure disabled/hidden/background text does no recurring work.
-- [ ] Add merge/rasterize pixel comparisons and exact bypass tests.
+- [x] Separate content, layout, font, paint, geometry and viewport revisions.
+- [x] Implement disposal and VRAM estimates.
+- [x] Ensure disabled/hidden/background text does no recurring work.
+- [x] Add merge/rasterize comparison seams and exact zero-submit bypass tests.
 
 UI exposure: Layers thumbnails can display fixture text with aspect-ratio fit;
 Debug reports direct/atlas/cached source mode.
@@ -861,6 +861,35 @@ Append newest entries at the top. Keep entries factual and link the slice.
   1,151 tests; boundary and all workspace typechecks passed. Web build and
   packaged Electron verification both passed with text worker/WASM assets.
 - Next safe slice: Slice 05, document font asset registry and resolver.
+
+### 2026-08-03 — Slice 09 complete
+
+- Owner: Codex `/root`; atlas lifetime and revision-domain work ran in
+  parallel, followed by an independent read-only blocker audit.
+- Runtime: document-scoped coordination lazily registers exact font bytes,
+  reuses layout across paint and presentation changes, drops stale async work
+  and publishes only complete sources for visible canonical text layers.
+- GPU: coverage pages are pinned across immutable plans and submissions;
+  evicted page textures retire only after submitted work. Text is rasterized
+  once into bounded, AA-fringed tight `rgba16float` sources, never a
+  full-document private surface.
+- Compositor: ready text follows the existing mask/fill-opacity, Layer Style,
+  layer opacity/blend, clipping and group-transform order. Missing, stale,
+  unsupported or empty sources retain the diagnostic placeholder.
+- Cache/lifecycle: content, font, layout, paint, path, local geometry, common
+  geometry and viewport have separate invalidation effects. Translation,
+  rotation and viewport changes do not reshape or reraster; scale rebuilds only
+  when its bounded source bucket changes. Tight sources and atlas pages are
+  included in VRAM estimates and disposed on close/device loss.
+- Commands/UI: text thumbnails fit their tight source aspect ratio; Debug
+  reports source-mode availability. Rasterize and text-aware merge/flatten
+  require an exact ready source and otherwise perform a zero-submit rollback.
+- Verification: focused coordinator, bounds, compositor, style, thumbnail,
+  revision, atlas-pressure and destructive-operation tests plus the complete
+  workspace suite passed. Physical WebGPU inspection remains a manual smoke
+  because no browser surface is attached; deterministic GPU contracts and
+  submission-lifetime tests cover the automated boundary.
+- Next safe slice: Slice 10, Text tool shell and point-text creation.
 
 ## 12. Open decision register
 

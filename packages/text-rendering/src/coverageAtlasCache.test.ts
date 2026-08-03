@@ -49,6 +49,32 @@ describe('production coverage atlas cache', () => {
     expect(cache.metrics()).toMatchObject({ pages: 1, entries: 1, evictions: 1, uploads: 1 });
   });
 
+  it('protects pinned plan pages from eviction until the idempotent release', () => {
+    const cache = new CoverageAtlasCache(64, 1, 1);
+    const retained = cache.reserve(key(1), 60, 60).placement;
+    const release = cache.pinPlacements([retained, retained]);
+    expect(cache.metrics()).toMatchObject({ pages: 1, pinnedPages: 1 });
+    expect(() => cache.reserve(key(2), 60, 60)).toThrow(/unpinned page/);
+    expect(cache.isCurrent(retained)).toBe(true);
+
+    release();
+    release();
+    expect(cache.metrics()).toMatchObject({ pinnedPages: 0 });
+    expect(cache.reserve(key(2), 60, 60).evictedPageId).toBe(retained.pageId);
+    expect(cache.isCurrent(retained)).toBe(false);
+  });
+
+  it('validates every placement before pinning any page', () => {
+    const cache = new CoverageAtlasCache(64, 2, 1);
+    const current = cache.reserve(key(1), 60, 60).placement;
+    const stale = cache.reserve(key(2), 60, 60).placement;
+    cache.lookup(key(1));
+    cache.reserve(key(3), 60, 60);
+    expect(cache.isCurrent(stale)).toBe(false);
+    expect(() => cache.pinPlacements([current, stale])).toThrow(/stale placement/);
+    expect(cache.metrics()).toMatchObject({ pinnedPages: 0 });
+  });
+
   it('invalidates every placement on device loss while keeping counters', () => {
     const cache = new CoverageAtlasCache(64, 1);
     const placement = cache.reserve(key(1), 8, 8).placement;

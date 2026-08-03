@@ -27,9 +27,10 @@ export const createTextLayoutOptionsFingerprint = (options: TextLayoutOptions): 
   if (!Number.isSafeInteger(options.maxGlyphCount) || options.maxGlyphCount < 1) {
     throw new RangeError('maxGlyphCount must be a positive safe integer.');
   }
+  // Scale selects presentation/raster quality downstream; it must never make
+  // identical authored text reshape when the viewport zoom changes.
   return [
     options.quality,
-    options.effectiveScale.toString(),
     String(options.maxGlyphCount),
     encodeURIComponent(options.locale?.trim().toLowerCase() ?? '')
   ].join(',');
@@ -44,12 +45,12 @@ export const createTextLayoutCacheKey = ({
   pathDependencyRevision,
   options
 }: TextLayoutCacheKeyInput): string => [
-  'text-layout-v1',
+  'text-layout-v2',
   encodeURIComponent(documentSessionId),
   cacheInteger(sessionGeneration, 'session generation'),
   encodeURIComponent(layerId),
   cacheInteger(revisions.content, 'content revision'),
-  cacheInteger(revisions.style, 'style revision'),
+  cacheInteger(revisions.font, 'font revision'),
   cacheInteger(revisions.layout, 'layout revision'),
   cacheInteger(revisions.path, 'path revision'),
   cacheInteger(revisions.geometry, 'geometry revision'),

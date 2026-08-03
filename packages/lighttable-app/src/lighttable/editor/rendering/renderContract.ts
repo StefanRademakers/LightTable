@@ -23,6 +23,23 @@ export interface RasterRenderContract<TTexture = GPUTexture> {
   transform: AffineMatrix;
 }
 
+/**
+ * Shared GPU source contract consumed by the compositor. Sources may be
+ * document-sized raster pixels or a tight, scaled cache such as text ink.
+ */
+export interface LayerSourceRenderContract<TTexture = GPUTexture> {
+  layerId: LayerId;
+  texture: TTexture;
+  dimensions: { width: number; height: number };
+  /** Bounds represented by the texture in layer-local coordinates. */
+  bounds: Rect;
+  colorSpace: 'linear-srgb';
+  alphaMode: 'premultiplied';
+  sourceKey: string;
+  /** Maps source texture pixels into document pixels. */
+  transform: AffineMatrix;
+}
+
 export const rasterRenderContract = <TTexture>(
   layer: RasterLayer,
   texture: TTexture

@@ -56,13 +56,13 @@ describe('production coverage atlas WebGPU backend', () => {
     expect(backend.metrics()).toMatchObject({ pages: 1, entries: 1, hits: 2, misses: 1, uploads: 1, drawBatches: 1 });
   });
 
-  it('rejects stale page generations and straight-alpha colors', () => {
+  it('rejects stale page generations and defers evicted texture destruction', async () => {
     const { device, encoder } = harness();
     const backend = new CoverageAtlasBackend(device, 64, 1);
     const stale = backend.prepareGlyph(key(1), raster(60, 60));
     backend.prepareGlyph(key(2), raster(60, 60));
     const firstPage = vi.mocked(device.createTexture).mock.results[0].value;
-    expect(firstPage.destroy).toHaveBeenCalledOnce();
+    expect(firstPage.destroy).not.toHaveBeenCalled();
     expect(device.createTexture).toHaveBeenCalledTimes(2);
     expect(() => backend.encode(encoder, {
       view: {} as GPUTextureView, format: 'rgba16float', width: 64, height: 64
@@ -71,6 +71,44 @@ describe('production coverage atlas WebGPU backend', () => {
     expect(() => backend.encode(encoder, {
       view: {} as GPUTextureView, format: 'rgba16float', width: 64, height: 64
     }, [{ glyph: current, x: 0, y: 0, color: [1, 0, 0, 0.5] }])).toThrow(/premultiplied/);
+    await backend.retireSubmittedResources();
+    expect(firstPage.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('retains published glyph pages and releases them without underflow', () => {
+    const { device } = harness();
+    const backend = new CoverageAtlasBackend(device, 64, 1);
+    const retained = backend.prepareGlyph(key(1), raster(60, 60));
+    const release = backend.retainGlyphs([retained, retained]);
+    expect(backend.metrics()).toMatchObject({ pinnedPages: 1 });
+    expect(() => backend.prepareGlyph(key(2), raster(60, 60))).toThrow(/unpinned page/);
+
+    release();
+    release();
+    expect(backend.metrics()).toMatchObject({ pinnedPages: 0 });
+    expect(() => backend.prepareGlyph(key(2), raster(60, 60))).not.toThrow();
+  });
+
+  it('holds encoded pages through submission completion', async () => {
+    const { device, encoder } = harness();
+    let completeSubmission!: () => void;
+    vi.mocked(device.queue.onSubmittedWorkDone).mockImplementationOnce(() => new Promise<undefined>((resolve) => {
+      completeSubmission = () => resolve(undefined);
+    }));
+    const backend = new CoverageAtlasBackend(device, 64, 1);
+    const glyph = backend.prepareGlyph(key(1), raster(60, 60));
+    backend.encode(encoder, {
+      view: {} as GPUTextureView, format: 'rgba16float', width: 64, height: 64
+    }, [{ glyph, x: 0, y: 0, color: [1, 1, 1, 1] }]);
+    expect(backend.metrics()).toMatchObject({ pinnedPages: 1 });
+    expect(() => backend.prepareGlyph(key(2), raster(60, 60))).toThrow(/unpinned page/);
+
+    const retiring = backend.retireSubmittedResources();
+    expect(backend.metrics()).toMatchObject({ pinnedPages: 1 });
+    completeSubmission();
+    await retiring;
+    expect(backend.metrics()).toMatchObject({ pinnedPages: 0 });
+    expect(() => backend.prepareGlyph(key(2), raster(60, 60))).not.toThrow();
   });
 
   it('invalidates page resources and placements on device loss', () => {

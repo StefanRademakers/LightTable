@@ -8,7 +8,12 @@ export interface LayerThumbnailBlob {
 
 export interface LayerThumbnailServiceOptions {
   dimensions: () => { width: number; height: number };
-  rasterTexture: (layerId: LayerId) => GPUTexture | null;
+  layerSource: (layerId: LayerId) => {
+    texture: GPUTexture;
+    width: number;
+    height: number;
+    revisionKey?: string;
+  } | null;
   maskTexture: (layerId: LayerId) => GPUTexture | null;
   encode: (
     source: GPUTexture,
@@ -31,20 +36,23 @@ export class LayerThumbnailService {
     maximumWidth = 80,
     maximumHeight = 80
   ): Promise<LayerThumbnailBlob | null> {
-    const source = maskChannel
-      ? this.options.maskTexture(layerId)
-      : this.options.rasterTexture(layerId);
     const { width: documentWidth, height: documentHeight } = this.options.dimensions();
-    if (!source || documentWidth < 1 || documentHeight < 1) return null;
+    const source = maskChannel
+      ? (() => {
+          const texture = this.options.maskTexture(layerId);
+          return texture ? { texture, width: documentWidth, height: documentHeight } : null;
+        })()
+      : this.options.layerSource(layerId);
+    if (!source || source.width < 1 || source.height < 1) return null;
 
     const scale = Math.min(
-      Math.max(1, maximumWidth) / documentWidth,
-      Math.max(1, maximumHeight) / documentHeight,
+      Math.max(1, maximumWidth) / source.width,
+      Math.max(1, maximumHeight) / source.height,
       1
     );
-    const width = Math.max(1, Math.round(documentWidth * scale));
-    const height = Math.max(1, Math.round(documentHeight * scale));
-    const blob = await this.options.encode(source, maskChannel, width, height);
+    const width = Math.max(1, Math.round(source.width * scale));
+    const height = Math.max(1, Math.round(source.height * scale));
+    const blob = await this.options.encode(source.texture, maskChannel, width, height);
     return { blob, width, height };
   }
 }

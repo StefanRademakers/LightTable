@@ -16,7 +16,9 @@ import {
 import { layerStyleStackIsActive } from '../styles/layerStyleDefaults';
 import {
   layerStyleCacheKey,
-  layerStyleDocumentBounds
+  layerStyleDocumentBounds,
+  layerSourceStyleCacheKey,
+  layerSourceStyleDocumentBounds
 } from '../styles/layerStyleRenderPlan';
 import {
   analyzeDocumentComposite,
@@ -34,6 +36,7 @@ import type { EncodeAdjustment } from './RasterDocumentOperations';
 import type { VectorLayerRenderer } from './VectorLayerRenderer';
 import { textPlaceholderVectorLayer } from './textPlaceholderPresentation';
 import type { DevelopmentTextFixtureRenderer } from '../../text/rendering/DevelopmentTextFixtureRenderer';
+import type { TextLayerRenderer } from '../../text/rendering/TextLayerRenderer';
 
 interface LayerCompositorOptions {
   device: GPUDevice;
@@ -48,6 +51,7 @@ interface LayerCompositorOptions {
   geometryPreviews: GeometryPreviewStore;
   layerStyles: LayerStyleRenderer;
   vectors: VectorLayerRenderer;
+  texts?: TextLayerRenderer;
   developmentTextFixture?: DevelopmentTextFixtureRenderer;
   dimensions: () => { width: number; height: number };
   syncDocument: (document: ImageDocument) => void;
@@ -244,13 +248,80 @@ export class LayerCompositor {
       }
 
       if (node.type === 'text') {
-        return renderVectorLayer(
-          textPlaceholderVectorLayer(node),
-          background,
-          target,
-          clippingTexture,
-          inheritedTransform
+        if (this.options.texts?.isTransparent?.(node)) return [background, target];
+        const source = this.options.texts?.resolve(node, inheritedTransform) ?? null;
+        if (!source) {
+          return renderVectorLayer(
+            textPlaceholderVectorLayer(node),
+            background,
+            target,
+            clippingTexture,
+            inheritedTransform
+          );
+        }
+        const inverse = invertMatrix(source.transform);
+        const maskTexture = this.options.maskTextureFor(node.id);
+        if (layerStyleStackIsActive(node.styleStack) && inverse) {
+          const styleBounds = layerSourceStyleDocumentBounds(
+            node,
+            source,
+            { width, height }
+          );
+          if (styleBounds.width <= 0 || styleBounds.height <= 0) {
+            return [background, target];
+          }
+          const styled = layerStyles.encode(
+            encoder,
+            node,
+            source.texture,
+            maskTexture,
+            inverse,
+            source.dimensions,
+            layerSourceStyleCacheKey(
+              node,
+              source,
+              layerStyles.cacheKeyQuality()
+            )
+          );
+          if (styled) {
+            compositeTexture(background, styled, target, {
+              label: `LightTable styled text layer settings: ${node.name}`,
+              opacity: node.opacity,
+              blendMode: node.blendMode,
+              clippingTexture
+            });
+            return [target, background];
+          }
+        }
+        const settingsBuffer = this.createCompositeSettingsBuffer(
+          `LightTable text layer settings: ${node.name}`,
+          inverse ? node.opacity * node.fillOpacity : 0,
+          Boolean(node.mask?.enabled && maskTexture),
+          blendModeGpuValue(node.blendMode),
+          Boolean(clippingTexture),
+          inverse ?? identityAffineMatrix(),
+          source.dimensions,
+          node.mask
         );
+        const bindGroup = this.options.device.createBindGroup({
+          layout: this.options.compositePipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: background.createView() },
+            { binding: 1, resource: source.texture.createView() },
+            { binding: 2, resource: this.options.sampler },
+            { binding: 3, resource: { buffer: settingsBuffer } },
+            { binding: 4, resource: (maskTexture ?? source.texture).createView() },
+            { binding: 5, resource: (clippingTexture ?? source.texture).createView() }
+          ]
+        });
+        this.options.drawFullscreen(
+          encoder,
+          this.options.compositePipeline,
+          bindGroup,
+          target.createView(),
+          { r: 0, g: 0, b: 0, a: 0 }
+        );
+        return [target, background];
       }
 
       const layer = node;

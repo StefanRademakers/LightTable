@@ -38,6 +38,7 @@ export interface CoverageAtlasPlacement {
 
 export interface CoverageAtlasCacheMetrics {
   readonly pages: number;
+  readonly pinnedPages: number;
   readonly entries: number;
   readonly allocatedBytes: number;
   readonly occupiedBytes: number;
@@ -57,6 +58,7 @@ interface Page {
   rowHeight: number;
   touched: number;
   occupiedBytes: number;
+  pinCount: number;
   keys: Set<string>;
 }
 
@@ -189,7 +191,14 @@ export class CoverageAtlasCache {
     let evictedPageId: number | null = null;
     if (!page && this.pages.size < this.maximumPages) page = this.createPage();
     if (!page) {
-      page = [...this.pages.values()].sort((left, right) => left.touched - right.touched)[0];
+      page = [...this.pages.values()]
+        .filter((candidate) => candidate.pinCount === 0)
+        .sort((left, right) => left.touched - right.touched)[0];
+      if (!page) {
+        throw new TextRendererResourceLimitError(
+          'Coverage atlas has no unpinned page available for eviction.'
+        );
+      }
       evictedPageId = page.id;
       this.resetPage(page);
       this.evictions += 1;
@@ -238,6 +247,35 @@ export class CoverageAtlasCache {
       && this.entries.get(placement.serializedKey) === placement;
   }
 
+  /**
+   * Prevents the pages behind an immutable render plan or encoded submission
+   * from being recycled. All placements are validated before any pin count is
+   * changed, and the returned release is idempotent.
+   */
+  pinPlacements(placements: readonly CoverageAtlasPlacement[]): () => void {
+    const pages = new Map<number, Page>();
+    for (const placement of placements) {
+      if (!this.isCurrent(placement)) {
+        throw new Error('Coverage atlas cannot pin a stale placement.');
+      }
+      if (placement.empty || pages.has(placement.pageId)) continue;
+      const page = this.pages.get(placement.pageId);
+      if (!page || page.generation !== placement.pageGeneration) {
+        throw new Error('Coverage atlas cannot pin a stale page generation.');
+      }
+      pages.set(page.id, page);
+    }
+    pages.forEach((page) => { page.pinCount += 1; });
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      pages.forEach((page) => {
+        if (this.pages.get(page.id) === page && page.pinCount > 0) page.pinCount -= 1;
+      });
+    };
+  }
+
   resetForDeviceLoss() {
     this.pages.clear();
     this.entries.clear();
@@ -249,6 +287,7 @@ export class CoverageAtlasCache {
   metrics(): CoverageAtlasCacheMetrics {
     return {
       pages: this.pages.size, entries: this.entries.size,
+      pinnedPages: [...this.pages.values()].filter((page) => page.pinCount > 0).length,
       allocatedBytes: this.pages.size * this.pageDimension * this.pageDimension,
       occupiedBytes: [...this.pages.values()].reduce((sum, page) => sum + page.occupiedBytes, 0),
       hits: this.hits, misses: this.misses, evictions: this.evictions,
@@ -258,7 +297,8 @@ export class CoverageAtlasCache {
 
   private createPage() {
     const page: Page = { id: this.nextPageId++, generation: 1, cursorX: this.padding,
-      cursorY: this.padding, rowHeight: 0, touched: ++this.clock, occupiedBytes: 0, keys: new Set() };
+      cursorY: this.padding, rowHeight: 0, touched: ++this.clock, occupiedBytes: 0,
+      pinCount: 0, keys: new Set() };
     this.pages.set(page.id, page);
     return page;
   }
@@ -269,6 +309,7 @@ export class CoverageAtlasCache {
   }
 
   private resetPage(page: Page) {
+    if (page.pinCount !== 0) throw new Error('Coverage atlas cannot recycle a pinned page.');
     for (const key of page.keys) this.entries.delete(key);
     page.keys.clear();
     page.generation += 1;

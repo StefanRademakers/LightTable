@@ -1,5 +1,5 @@
-import type { RasterLayer, Rect } from '../document/documentTypes';
-import type { AffineMatrix } from '../rendering/renderContract';
+import type { RasterLayer, Rect, TextLayer } from '../document/documentTypes';
+import type { AffineMatrix, LayerSourceRenderContract } from '../rendering/renderContract';
 import type { LayerStyleInstance, LayerStyleStack } from './layerStyleTypes';
 
 export type LayerStyleRenderQuality = 'interactive' | 'final';
@@ -98,4 +98,50 @@ export const layerStyleCacheKey = (
   transform.d,
   transform.tx,
   transform.ty
+].join(':');
+
+export const layerSourceStyleDocumentBounds = (
+  layer: RasterLayer | TextLayer,
+  source: Pick<LayerSourceRenderContract, 'dimensions' | 'transform'>,
+  canvas: { width: number; height: number }
+): Rect => {
+  const transformed = transformedBounds(
+    source.dimensions.width,
+    source.dimensions.height,
+    source.transform
+  );
+  const expansion = layerStyleExpansion(layer.styleStack);
+  const left = Math.max(0, transformed.x - expansion);
+  const top = Math.max(0, transformed.y - expansion);
+  const right = Math.min(canvas.width, transformed.x + transformed.width + expansion);
+  const bottom = Math.min(canvas.height, transformed.y + transformed.height + expansion);
+  return {
+    x: left,
+    y: top,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top)
+  };
+};
+
+export const layerSourceStyleCacheKey = (
+  layer: RasterLayer | TextLayer,
+  source: Pick<LayerSourceRenderContract, 'sourceKey' | 'dimensions' | 'transform'>,
+  quality: LayerStyleRenderQuality,
+  maskKey = layer.mask?.enabled
+    ? `${layer.mask.id}:${layer.mask.pixelRevision}:${layer.mask.density}:${layer.mask.feather}`
+    : 'mask-off'
+) => [
+  source.sourceKey,
+  maskKey,
+  source.dimensions.width,
+  source.dimensions.height,
+  layer.fillOpacity,
+  layer.styleStack.revision,
+  quality,
+  source.transform.a,
+  source.transform.b,
+  source.transform.c,
+  source.transform.d,
+  source.transform.tx,
+  source.transform.ty
 ].join(':');

@@ -22,6 +22,7 @@ import type {
   EditorDocumentScopeCanvasRefs
 } from './resolveEditorDocumentCanvases';
 import { useEditorDocumentOpenRequestFactory } from './useEditorDocumentOpenRequestFactory';
+import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 
 export interface EditorDocumentLifecycleControllerOptions {
   readonly enabled: boolean;
@@ -49,6 +50,7 @@ export interface EditorDocumentLifecycleControllerOptions {
   };
   readonly publishHistogram: (histogram: RgbHistogram) => void;
   readonly publishGpuMemory: (bytes: number) => void;
+  readonly publishTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void;
   readonly publishError: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
   readonly publishFeatureError: (featureId: string, message: string) => void;
@@ -94,6 +96,7 @@ export const useEditorDocumentLifecycleController = ({
   getScopeOptions,
   publishHistogram,
   publishGpuMemory,
+  publishTextRenderPresentation,
   publishError,
   publishScopeError,
   publishFeatureError,
@@ -158,6 +161,7 @@ export const useEditorDocumentLifecycleController = ({
     hydrate,
     publishHistogram,
     publishGpuMemory,
+    publishTextRenderPresentation,
     publishError,
     publishScopeError,
     publishFeatureError,

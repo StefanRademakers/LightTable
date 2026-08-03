@@ -46,8 +46,9 @@ describe('canonical text layer commands', () => {
     expect(text.text.source).toEqual(nextSource);
     expect(text.text.revisions).toEqual({
       content: 1,
-      style: 1,
-      layout: 1,
+      font: 0,
+      layout: 0,
+      paint: 0,
       path: 0,
       geometry: 0
     });
@@ -60,7 +61,7 @@ describe('canonical text layer commands', () => {
     )).toBe(changed);
   });
 
-  it('tracks style, layout, path and common geometry revisions independently', () => {
+  it('tracks font, layout, path and common geometry revisions independently', () => {
     const document = flowDocument();
     const id = document.activeLayerId!;
     const source = activeText(document).text.source;
@@ -85,16 +86,17 @@ describe('canonical text layer commands', () => {
 
     expect(text.text.revisions).toEqual({
       content: 0,
-      style: 1,
+      font: 1,
       layout: 2,
+      paint: 0,
       path: 1,
-      geometry: 3
+      geometry: 2
     });
     expect(text.geometryRevision).toBe(1);
     expect(text.transform).toEqual(translationMatrix(7, -3));
   });
 
-  it('invalidates layout but not character style for paragraph-only run changes', () => {
+  it('invalidates layout but not font or paint for paragraph-only run changes', () => {
     const document = flowDocument();
     const id = document.activeLayerId!;
     const source = activeText(document).text.source;
@@ -108,8 +110,33 @@ describe('canonical text layer commands', () => {
 
     expect(activeText(changed).text.revisions).toMatchObject({
       content: 0,
-      style: 0,
+      font: 0,
+      paint: 0,
       layout: 1
+    });
+  });
+
+  it('keeps paint-only edits out of the font and layout domains', () => {
+    const document = flowDocument();
+    const id = document.activeLayerId!;
+    const source = activeText(document).text.source;
+    if (source.kind !== 'flow') throw new Error('Expected flow text.');
+    const paintedRuns = source.styleRuns.map((run) => ({
+      ...run,
+      fill: {
+        kind: 'solid' as const,
+        color: { colorSpace: 'srgb' as const, r: 1, g: 0, b: 0, a: 1 }
+      }
+    }));
+
+    const changed = setFlowTextRuns(document, id, paintedRuns, source.paragraphRuns);
+
+    expect(activeText(changed).text.revisions).toMatchObject({
+      content: 0,
+      font: 0,
+      layout: 0,
+      paint: 1,
+      geometry: 0
     });
   });
 
@@ -131,8 +158,9 @@ describe('canonical text layer commands', () => {
     const changed = setPositionedTextRuns(document, id, runs);
 
     expect(activeText(changed).text.revisions).toMatchObject({
-      content: 1,
-      style: 1,
+      content: 0,
+      font: 0,
+      paint: 0,
       geometry: 1
     });
   });

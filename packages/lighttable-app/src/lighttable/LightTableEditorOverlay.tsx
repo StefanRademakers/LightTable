@@ -51,7 +51,8 @@ import type { LightTableStartupTimings } from './application/telemetry/editorTel
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
 import {
-  type ReferenceDifferenceMetrics
+  type ReferenceDifferenceMetrics,
+  type TextRenderPresentationSnapshot
 } from './application/rendering/rendererTypes';
 import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
 import { useTextEngineDiagnostics } from './text/diagnostics/useTextEngineDiagnostics';
@@ -399,6 +400,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [temporaryEraseActive, setTemporaryEraseActive] = useState(false);
   const [startupTimings, setStartupTimings] = useState<LightTableStartupTimings | null>(null);
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
+  const [textRenderPresentation, setTextRenderPresentation] = useState<TextRenderPresentationSnapshot>({
+    publicationRevision: 0,
+    readyLayerCount: 0,
+    textureBytes: 0,
+    mode: 'placeholder'
+  });
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
   const [toolOptionsMenu, setToolOptionsMenu] = useState<{ x: number; y: number } | null>(null);
@@ -464,6 +471,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const layerThumbnails = useLayerThumbnailController({
     document: imageDocument,
     rendererReadyDocumentId: thumbnailDocumentReadyId,
+    textPresentationRevision: textRenderPresentation.publicationRevision,
     getRenderer: () => engineRef.current
   });
   const availableFontAssets = useMemo(
@@ -476,6 +484,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       : [],
     [availableFontAssets, fontHydrationPending, imageDocument]
   );
+  useEffect(() => {
+    const registry = documentSession?.fonts;
+    const renderer = engineRef.current;
+    if (!renderer) return;
+    if (!registry) {
+      renderer.configureTextFonts(null);
+      return;
+    }
+    renderer.configureTextFonts({
+      revision: registry.availabilityRevision,
+      assets: registry.availableAssets,
+      bytes: (assetId) => registry.bytes(assetId),
+      subscribe: (listener) => registry.subscribeAvailability(listener)
+    });
+    return () => renderer.configureTextFonts(null);
+  }, [documentSession, fontAvailabilityRevision, imageDocument?.id]);
   const fontDiagnosticStatus = useMemo(
     () => summarizeTextFontDiagnostics(fontDiagnostics),
     [fontDiagnostics]
@@ -896,6 +920,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setScopeError(null);
           setGradeStatus(null);
           setGpuMemoryBytes(0);
+          setTextRenderPresentation({
+            publicationRevision: 0,
+            readyLayerCount: 0,
+            textureBytes: 0,
+            mode: 'placeholder'
+          });
           setPsdImportInfo(null);
           setPsdDifferenceMetrics(null);
           setPsdCompatibility([]);
@@ -971,6 +1001,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getScopeOptions: getDocumentOpenScopeOptions,
     publishHistogram: setHistogram,
     publishGpuMemory: setGpuMemoryBytes,
+    publishTextRenderPresentation: setTextRenderPresentation,
     publishError: setError,
     publishScopeError: setScopeError,
     publishFeatureError: (featureId, message) => {
@@ -1955,6 +1986,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 developmentTextFixtureEnabled: developmentTextFixture.enabled,
                 developmentTextFixtureStatus: developmentTextFixture.status,
                 developmentTextFixtureError: developmentTextFixture.error,
+                textSourceMode: textRenderPresentation.mode,
+                readyTextSourceCount: textRenderPresentation.readyLayerCount,
                 onDevelopmentTextFixtureChange: changeDevelopmentTextFixture
               },
               lensFxKey: sourceIdentity || sourceName,

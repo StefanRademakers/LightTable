@@ -46,8 +46,9 @@ describe('text edit transaction controller', () => {
     const authored = findDocumentLayer(state.document, id);
     expect(authored?.type === 'text' ? authored.text.revisions : null).toEqual({
       content: 3,
-      style: 3,
-      layout: 3,
+      font: 0,
+      layout: 0,
+      paint: 0,
       path: 0,
       geometry: 0
     });

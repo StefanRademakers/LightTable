@@ -69,6 +69,8 @@ export class CoverageAtlasBackend {
   private readonly pages = new Map<number, PageResource>();
   private readonly pipelines = new Map<GPUTextureFormat, GPURenderPipeline>();
   private pendingBuffers: GPUBuffer[] = [];
+  private pendingPageTextures: GPUTexture[] = [];
+  private pendingSubmissionPinReleases: Array<() => void> = [];
   private drawBatches = 0;
   private uploadDurationMs = 0;
   private disposed = false;
@@ -98,7 +100,7 @@ export class CoverageAtlasBackend {
       try {
         if (reservation.evictedPageId !== null) {
           const stalePage = this.pages.get(reservation.evictedPageId);
-          stalePage?.texture.destroy();
+          if (stalePage) this.pendingPageTextures.push(stalePage.texture);
           this.pages.delete(reservation.evictedPageId);
         }
         const page = this.ensurePage(placement.pageId);
@@ -134,6 +136,15 @@ export class CoverageAtlasBackend {
     return placement
       ? { placement, bearingX: placement.bearingX, bearingY: placement.bearingY }
       : null;
+  }
+
+  /**
+   * Keeps every atlas page referenced by a published immutable plan resident.
+   * The returned release is idempotent and must run when that plan is replaced.
+   */
+  retainGlyphs(glyphs: readonly PreparedCoverageGlyph[]): () => void {
+    this.assertUsable();
+    return this.cache.pinPlacements(glyphs.map((glyph) => glyph.placement));
   }
 
   encode(
@@ -229,6 +240,9 @@ export class CoverageAtlasBackend {
       });
       throw error;
     }
+    const releaseSubmissionPins = this.cache.pinPlacements(
+      prepared.flatMap(({ commands }) => commands.map(({ glyph }) => glyph.placement))
+    );
     try {
       const pass = encoder.beginRenderPass({
         colorAttachments: [{
@@ -245,6 +259,7 @@ export class CoverageAtlasBackend {
       }
       pass.end();
     } catch (error) {
+      releaseSubmissionPins();
       prepared.forEach(({ settingsBuffer, instanceBuffer }) => {
         settingsBuffer.destroy();
         instanceBuffer.destroy();
@@ -254,14 +269,19 @@ export class CoverageAtlasBackend {
     prepared.forEach(({ settingsBuffer, instanceBuffer }) => {
       this.pendingBuffers.push(settingsBuffer, instanceBuffer);
     });
+    this.pendingSubmissionPinReleases.push(releaseSubmissionPins);
     this.drawBatches += batches.length;
     return batches.length;
   }
 
   async retireSubmittedResources() {
     const submitted = this.pendingBuffers;
+    const retiredPages = this.pendingPageTextures;
+    const releasePins = this.pendingSubmissionPinReleases;
     this.pendingBuffers = [];
-    if (!submitted.length) return;
+    this.pendingPageTextures = [];
+    this.pendingSubmissionPinReleases = [];
+    if (!submitted.length && !retiredPages.length && !releasePins.length) return;
     try {
       await this.device.queue.onSubmittedWorkDone();
     } catch {
@@ -269,6 +289,8 @@ export class CoverageAtlasBackend {
       // engine's device-loss path replaces the complete backend.
     } finally {
       submitted.forEach((buffer) => buffer.destroy());
+      retiredPages.forEach((texture) => texture.destroy());
+      releasePins.forEach((release) => release());
     }
   }
 
@@ -284,6 +306,10 @@ export class CoverageAtlasBackend {
     this.pages.clear();
     this.pendingBuffers.forEach((buffer) => buffer.destroy());
     this.pendingBuffers = [];
+    this.pendingPageTextures.forEach((texture) => texture.destroy());
+    this.pendingPageTextures = [];
+    this.pendingSubmissionPinReleases.forEach((release) => release());
+    this.pendingSubmissionPinReleases = [];
     this.pipelines.clear();
     this.samplerValue = null;
     this.cache.resetForDeviceLoss();
