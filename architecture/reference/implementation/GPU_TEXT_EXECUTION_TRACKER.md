@@ -482,11 +482,11 @@ to render.
 
 #### Slice 15 — fallback, bidi, vertical and complex-script editing
 
-- [ ] Complete deterministic font fallback and per-run provenance.
-- [ ] Verify bidi caret/selection ordering and mixed-direction editing.
-- [ ] Verify Arabic, Hebrew, Indic, Thai, CJK and combining-mark behavior.
+- [x] Complete deterministic font fallback and per-run provenance.
+- [x] Verify bidi caret/selection ordering and mixed-direction editing.
+- [x] Verify Arabic, Hebrew, Indic, Thai, CJK and combining-mark behavior.
 - [ ] Add vertical writing only after horizontal complex scripts are stable.
-- [ ] Expose missing glyphs and substitutions in import/document reports.
+- [x] Expose missing glyphs and substitutions in import/document reports.
 
 UI exposure: direction/language/writing-mode controls appear only when their
 layout and editing paths are complete. Missing-font badges open an actionable
@@ -660,7 +660,7 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
-### 2026-08-03 - Slice 15 deterministic run fallback in progress
+### 2026-08-03 - Slice 15 horizontal implementation complete; manual smoke pending
 
 - Owner: Codex `/root`; tracked in task 037.
 - Contract/runtime: worker protocol v5 carries one validated font selection per
@@ -676,13 +676,26 @@ Append newest entries at the top. Keep entries factual and link the slice.
   text and already-resolved documents allocate and fetch nothing.
 - Registration: a session registers only faces selected by visible text runs;
   substitution does not load the complete catalog.
-- Verification so far: real generated-WASM runtime and structural script
-  goldens; 60 focused tests; complete 247-file / 1,246-test app suite and full
-  workspace suite; all typechecks; web production build and packaged Electron
-  distribution boundary. Existing third-party build warnings are unchanged.
-- Remaining Slice 15 work: glyph-level fallback, visual bidi navigation,
-  horizontal complex-script editing/save-reopen, actionable report UI and
-  deferred vertical writing.
+- Editing: left/right follows realized visual caret order while canonical text,
+  selection anchors and grapheme boundaries remain logical. Home/End and mixed
+  LTR/RTL selection collapse/extension use the same realized layout.
+- Corpus and persistence: Arabic, Hebrew, Devanagari, Thai, CJK, emoji and
+  combining text pass the real generated-WASM corpus and layered save/reopen
+  fixtures without cluster corruption.
+- Interaction performance: continuous fill previews are frame-coalesced, the
+  final value always flushes, and superseded preparation generations are
+  dropped before worker/GPU work so colour dragging cannot serialize a backlog.
+- UI: existing Layers badges and the existing compatibility report expose
+  missing fonts, explicit substitutions and realized missing-glyph warnings;
+  editable entries select the layer and open the established Text properties.
+- Verification: focused unit/worker/real-WASM regressions, the complete
+  workspace test suite, all typechecks, production web build and packaged
+  Electron distribution boundary pass. Existing third-party build warnings
+  are unchanged.
+- Commits: `6efaf57`, `d0a81f0`, `2a995e4`, `b0bc7d9`.
+- Remaining exit evidence: physical Web/Electron corpus and save/reopen smoke.
+  Vertical writing stays deferred and its controls remain absent until that
+  separate layout/editing path is complete.
 
 ### 2026-08-03 — Slice 14 implementation complete; manual smoke pending
 
