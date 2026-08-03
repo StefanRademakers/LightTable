@@ -77,7 +77,8 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'shape-ellipse': 'Ellipse',
   'shape-triangle': 'Triangle',
   'shape-line': 'Line',
-  'text-point': 'Point text'
+  'text-point': 'Point text',
+  'text-paragraph': 'Paragraph text'
 };
 
 export const ToolOptionsContent: React.FC<ToolOptionsProps & {
@@ -226,7 +227,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onReset={onWarpReset}
         />
       ) : null}
-      {activeTool === 'text-point' ? (
+      {activeTool === 'text-point' || activeTool === 'text-paragraph' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
           <ToolOptionSelect
             label="Font"

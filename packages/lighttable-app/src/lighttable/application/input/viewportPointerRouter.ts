@@ -77,7 +77,8 @@ export const resolveViewportPointerDownIntent = (
     return context.primaryButton && context.hasDocumentPoint ? 'fill' : 'ignore';
   }
 
-  if (context.activeTool === 'text-point' && !context.focusPickerActive) {
+  if ((context.activeTool === 'text-point' || context.activeTool === 'text-paragraph')
+    && !context.focusPickerActive) {
     return context.primaryButton
       && context.hasDocument
       && context.hasDocumentPoint

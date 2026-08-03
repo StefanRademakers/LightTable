@@ -176,6 +176,12 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'text'
   },
   {
+    id: 'text-paragraph',
+    label: 'Paragraph text',
+    iconName: 'tool_text.png',
+    role: 'text'
+  },
+  {
     id: 'fill',
     label: 'Fill',
     shortcutLabel: 'G',
@@ -225,7 +231,7 @@ export const SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
 export const SHAPE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   TOOL_DEFINITIONS.filter(({ id }) => id.startsWith('shape-'));
 
-/** Text authoring modes share one slot; paragraph and path modes follow later. */
+/** Text authoring modes share one remembered toolbar slot. */
 export const TEXT_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   TOOL_DEFINITIONS.filter(({ role }) => role === 'text');
 
@@ -252,7 +258,7 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   },
   {
     key: 't',
-    tools: ['text-point']
+    tools: ['text-point', 'text-paragraph']
   },
   {
     key: 'u',

@@ -16,7 +16,9 @@ import { fingerprintFontBytes } from '../../text/fonts/DocumentFontRegistry';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import { createDefaultAdjustments } from '../../types';
 import {
+  ParagraphTextCreationController,
   PointTextCreationController,
+  createParagraphTextDocument,
   createPointTextDocument,
   defaultTextStyleForFamily,
   resolveTextToolFont
@@ -66,6 +68,38 @@ describe('PointTextCreationController', () => {
     controller.begin(document.id, { x: 3, y: 4 });
     expect(controller.cancel()).toBe(true);
     expect(controller.cancel()).toBe(false);
+  });
+});
+
+describe('ParagraphTextCreationController', () => {
+  it('owns its pointer and preserves a dragged frame for one commit', () => {
+    const controller = new ParagraphTextCreationController();
+    const document = createImageDocument('Fixture', 500, 400, 'pixels');
+    expect(controller.begin(document.id, document.activeLayerId, 7, { x: 40, y: 30 })).toBe(true);
+    expect(controller.owns(8)).toBe(false);
+    expect(controller.move(7, { x: 240, y: 150 })).toBe(true);
+    expect(controller.finish(7)).toBe(true);
+    controller.update('A paragraph');
+    expect(controller.commit()).toMatchObject({
+      documentId: document.id,
+      aboveLayerId: document.activeLayerId,
+      pointerId: null,
+      start: { x: 40, y: 30 },
+      end: { x: 240, y: 150 },
+      text: 'A paragraph'
+    });
+    expect(controller.commit()).toBeNull();
+  });
+
+  it('turns a click into the default 240 by 120 pixel paragraph frame', () => {
+    const controller = new ParagraphTextCreationController();
+    const document = createImageDocument('Fixture', 500, 400, 'pixels');
+    controller.begin(document.id, null, 3, { x: 12, y: 18 });
+    expect(controller.finish(3)).toBe(true);
+    expect(controller.getSnapshot().request).toMatchObject({
+      start: { x: 12, y: 18 },
+      end: { x: 252, y: 138 }
+    });
   });
 });
 
@@ -199,5 +233,50 @@ describe('createPointTextDocument', () => {
       expect(layer.text.source.styleRuns[0]?.requestedFont.preferredAsset)
         .toMatchObject({ fingerprintSha256: persistedFont.fingerprintSha256 });
     }
+  });
+});
+
+describe('createParagraphTextDocument', () => {
+  it('creates a canonical paragraph frame from either drag direction', () => {
+    const before = createImageDocument('Fixture', 500, 400, 'pixels');
+    const after = createParagraphTextDocument(before, {
+      documentId: before.id,
+      pointerId: null,
+      aboveLayerId: before.activeLayerId,
+      start: { x: 260, y: 180 },
+      end: { x: 60, y: 40 },
+      text: 'Wrapped paragraph text'
+    }, createEditorSession().text, font, '#3366cc');
+    const layer = findDocumentLayer(after, after.activeLayerId);
+    expect(layer?.type).toBe('text');
+    expect(layer?.transform).toEqual(translationMatrix(60, 40));
+    if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
+    expect(layer.text.source.layout).toEqual({
+      mode: 'paragraph',
+      frame: { x: 0, y: 0, width: 200, height: 140 },
+      overflow: 'indicator',
+      writingMode: 'horizontal-tb'
+    });
+    expect(layer.text.source.styleRuns[0]?.requestedFont.preferredAsset)
+      .toMatchObject({ assetId: font.assetId });
+    expect(after.assets.fonts).toEqual([font]);
+  });
+
+  it('rejects stale and degenerate paragraph requests', () => {
+    const before = createImageDocument('Fixture', 500, 400, 'pixels');
+    const request = {
+      documentId: before.id,
+      pointerId: null,
+      aboveLayerId: before.activeLayerId,
+      start: { x: 10, y: 10 },
+      end: { x: 10, y: 10 },
+      text: 'Text'
+    };
+    expect(createParagraphTextDocument(
+      before, request, createEditorSession().text, font, '#000000'
+    )).toBe(before);
+    expect(createParagraphTextDocument(before, {
+      ...request, documentId: 'other' as typeof before.id, end: { x: 20, y: 20 }
+    }, createEditorSession().text, font, '#000000')).toBe(before);
   });
 });

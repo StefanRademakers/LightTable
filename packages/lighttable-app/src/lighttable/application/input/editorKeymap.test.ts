@@ -161,7 +161,7 @@ describe('editor keymap', () => {
     )).toEqual({ type: 'activate-tool', tool: 'select-ellipse' });
   });
 
-  it('activates the grouped point-text tool with T', () => {
+  it('activates and cycles the grouped text tools with T', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 't', code: 'KeyT' }),
@@ -171,7 +171,7 @@ describe('editor keymap', () => {
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 't', code: 'KeyT', shiftKey: true }),
       context({ activeTool: 'text-point' })
-    )).toEqual({ type: 'activate-tool', tool: 'text-point' });
+    )).toEqual({ type: 'activate-tool', tool: 'text-paragraph' });
   });
 
   it('routes plain F to the workspace screen-mode command', () => {

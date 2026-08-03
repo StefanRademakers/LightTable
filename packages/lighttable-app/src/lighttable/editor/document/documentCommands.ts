@@ -317,7 +317,7 @@ export const createTextLayer = (
   document: ImageDocument,
   text: TextLayerData,
   name = 'Text',
-  aboveLayerId = document.activeLayerId ?? undefined
+  aboveLayerId: LayerId | null | undefined = document.activeLayerId ?? undefined
 ): ImageDocument => {
   const layer = createTextLayerNode(text, name);
   const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;

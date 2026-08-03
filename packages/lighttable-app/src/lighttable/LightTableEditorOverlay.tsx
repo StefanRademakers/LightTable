@@ -111,7 +111,9 @@ import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import { PointTextCreationDialog } from './editor/ui/PointTextCreationDialog';
 import { TextInputBridge } from './editor/ui/TextInputBridge';
 import {
+  ParagraphTextCreationController,
   PointTextCreationController,
+  createParagraphTextDocument,
   createPointTextDocument,
   defaultTextStyleForFamily,
   resolveTextToolFont
@@ -466,9 +468,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pointTextControllerRef = useRef<PointTextCreationController | null>(null);
   pointTextControllerRef.current ??= new PointTextCreationController();
   const pointTextController = pointTextControllerRef.current;
+  const paragraphTextControllerRef = useRef<ParagraphTextCreationController | null>(null);
+  paragraphTextControllerRef.current ??= new ParagraphTextCreationController();
+  const paragraphTextController = paragraphTextControllerRef.current;
   const pointTextCapabilityGenerationRef = useRef(0);
   const commitPointTextRef = useRef<() => boolean>(() => false);
   const cancelPointTextRef = useRef<() => boolean>(() => false);
+  const commitParagraphTextRef = useRef<() => boolean>(() => false);
+  const cancelParagraphTextRef = useRef<() => boolean>(() => false);
   const finishTextEditingRef = useRef<() => boolean>(() => false);
   const textPropertyGestureRef = useRef<
     | { readonly kind: 'text'; readonly layerId: LayerId }
@@ -481,6 +488,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pointTextController.getSnapshot,
     pointTextController.getSnapshot
   );
+  const paragraphTextCreation = useSyncExternalStore(
+    paragraphTextController.subscribe,
+    paragraphTextController.getSnapshot,
+    paragraphTextController.getSnapshot
+  );
   const copiedGrade = useLightTableGradeClipboard();
   const brushPercentInputRef = useRef(new BrushPercentInput());
 
@@ -490,21 +502,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   useEffect(() => () => {
     pointTextController.cancel();
+    paragraphTextController.cancel();
     textEditingControllerRef.current?.finish();
     standaloneFontRegistryRef.current?.dispose();
     standaloneFontRegistryRef.current = null;
-  }, [pointTextController]);
+  }, [paragraphTextController, pointTextController]);
 
   useEffect(() => {
     temporaryToolRef.current.end();
     fontHydrationGenerationRef.current += 1;
     pointTextCapabilityGenerationRef.current += 1;
     pointTextController.cancel();
+    paragraphTextController.cancel();
     textEditingControllerRef.current?.reset();
     setTemporaryPanActive(false);
     setTemporaryEraseActive(false);
     brushPercentInputRef.current.clear();
-  }, [pointTextController, workspaceDocumentId]);
+  }, [paragraphTextController, pointTextController, workspaceDocumentId]);
 
   // StoryBuilder supplies an object-storage key. Standalone web/Electron files
   // do not have one, but still need a stable provenance identifier so recipes
@@ -717,6 +731,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const finishOpenHistoryTransactions = useCallback(() => {
     commitPointTextRef.current();
+    commitParagraphTextRef.current();
     finishTextEditingRef.current();
     resetAdjustmentTransactionRef.current();
     resetDocumentTransactionRef.current();
@@ -1306,8 +1321,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }),
     commands: {
       openFile: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
-      saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); void handleSave(); },
-      quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); void handleExportPng(); },
+      saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
+      quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       activateTool: (tool) => activateToolRef.current(tool),
@@ -1407,6 +1422,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       fitZoom,
       cancelOrClose: () => {
+        if (cancelParagraphTextRef.current()) return;
         if (cancelPointTextRef.current()) return;
         if (transformActiveRef.current()) {
           cancelTransformRef.current();
@@ -1571,6 +1587,74 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   commitPointTextRef.current = commitPointTextCreation;
   cancelPointTextRef.current = cancelPointTextCreation;
 
+  const beginParagraphTextCreation = (
+    pointerId: number,
+    origin: { x: number; y: number }
+  ) => {
+    const document = imageDocumentRef.current;
+    if (!document || !engineRef.current || rendererLifecycle.getSnapshot().status !== 'ready') {
+      setGradeStatus('Text creation is unavailable until the WebGPU renderer is ready.');
+      return false;
+    }
+    pointTextController.cancel();
+    textEditingController.finish();
+    if (!paragraphTextController.begin(
+      document.id,
+      document.activeLayerId,
+      pointerId,
+      origin
+    )) return false;
+    const generation = ++pointTextCapabilityGenerationRef.current;
+    const documentId = document.id;
+    setGradeStatus('Preparing the text engine...');
+    void (async () => {
+      try {
+        await registerBundledTextFontForSettings(textFontRegistry, editorSession.text);
+        await lightTableTextEngine.probe();
+        engineRef.current?.configureTextFonts(textFontRuntimePort);
+        if (
+          generation !== pointTextCapabilityGenerationRef.current
+          || imageDocumentRef.current?.id !== documentId
+        ) return;
+      } catch (reason) {
+        if (generation !== pointTextCapabilityGenerationRef.current) return;
+        paragraphTextController.cancel();
+        setError(reason instanceof Error
+          ? `Text creation is unavailable: ${reason.message}`
+          : 'Text creation is unavailable because the text engine failed to load.');
+      } finally {
+        if (generation === pointTextCapabilityGenerationRef.current) setGradeStatus(null);
+      }
+    })();
+    return true;
+  };
+
+  const commitParagraphTextCreation = () => {
+    const before = imageDocumentRef.current;
+    const font = selectedPointTextFont();
+    if (paragraphTextController.getSnapshot().request && !font) {
+      setError('The selected text font and style are still loading. Try again.');
+      return false;
+    }
+    const request = paragraphTextController.commit();
+    if (!request || !before || !font || request.documentId !== before.id) return false;
+    const after = createParagraphTextDocument(
+      before,
+      request,
+      editorSession.text,
+      font,
+      editorSession.brush.color
+    );
+    if (after === before) return false;
+    applyDocumentSnapshot(after);
+    pushDocumentHistory(before, after);
+    return true;
+  };
+
+  const cancelParagraphTextCreation = () => paragraphTextController.cancel();
+  commitParagraphTextRef.current = commitParagraphTextCreation;
+  cancelParagraphTextRef.current = cancelParagraphTextCreation;
+
   const viewportInteraction = useViewportInteractionController({
     metadata,
     document: imageDocument,
@@ -1627,6 +1711,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
       textEditingController.finish();
       void beginPointTextCreation(point);
+    },
+    paragraphText: {
+      begin: beginParagraphTextCreation,
+      owns: (pointerId) => paragraphTextController.owns(pointerId),
+      move: (pointerId, point) => paragraphTextController.move(pointerId, point),
+      finish: (pointerId) => paragraphTextController.finish(pointerId),
+      cancel: (pointerId) => paragraphTextController.owns(pointerId)
+        ? paragraphTextController.cancel()
+        : false
     },
     selection: selectionSessionController,
     paint: paintSessionController,
@@ -1935,8 +2028,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       // The application probe selects browser-native, wasm-vips, Photoshop or
       // layered-document import after reading the source signature.
       open: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
-      save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); void handleSave(); },
-      exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); void handleExportPng(); }
+      save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
+      exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); }
     },
     edit: {
       copySelectedContent,
@@ -2340,6 +2433,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               onChange={(text) => pointTextController.update(text)}
               onCommit={commitPointTextCreation}
               onCancel={cancelPointTextCreation}
+            />
+          ) : null}
+          {paragraphTextCreation.status === 'editing' && paragraphTextCreation.request ? (
+            <PointTextCreationDialog
+              value={paragraphTextCreation.request.text}
+              onChange={(text) => paragraphTextController.update(text)}
+              onCommit={commitParagraphTextCreation}
+              onCancel={cancelParagraphTextCreation}
             />
           ) : null}
         </>
