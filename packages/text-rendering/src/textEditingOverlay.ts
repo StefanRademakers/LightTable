@@ -18,7 +18,7 @@ export interface TextOverlayQuad {
 }
 
 export interface TextOverlayLine {
-  readonly role: 'caret' | 'baseline' | 'composition' | 'insertion';
+  readonly role: 'caret' | 'baseline' | 'composition' | 'insertion' | 'frame';
   readonly start: TextOverlayPoint;
   readonly end: TextOverlayPoint;
   readonly widthPx: number;
@@ -42,6 +42,13 @@ export interface BuildTextEditingOverlayOptions {
   readonly caretAffinity?: 'upstream' | 'downstream';
   readonly composition?: { readonly start: number; readonly end: number } | null;
   readonly showBaseline?: boolean;
+  readonly frame?: Rect | null;
+}
+
+export interface BuildParagraphFrameOverlayOptions {
+  readonly layerId: string;
+  readonly frame: Rect;
+  readonly localToDocument: TextEditingAffine;
 }
 
 const transformPoint = (matrix: TextEditingAffine, x: number, y: number) => ({
@@ -55,6 +62,38 @@ const transformRect = (matrix: TextEditingAffine, bounds: Rect) => [
   transformPoint(matrix, bounds.x + bounds.width, bounds.y + bounds.height),
   transformPoint(matrix, bounds.x, bounds.y + bounds.height)
 ] as const;
+
+const affineKey = (matrix: TextEditingAffine) => [
+  matrix.a, matrix.b, matrix.c, matrix.d, matrix.tx, matrix.ty
+].join(',');
+
+const frameLines = (
+  frame: Rect,
+  localToDocument: TextEditingAffine
+): TextOverlayLine[] => {
+  const points = transformRect(localToDocument, frame);
+  return points.map((start, index) => ({
+    role: 'frame' as const,
+    start,
+    end: points[(index + 1) % points.length]!,
+    widthPx: 1,
+    color: [0.24, 0.66, 1, 0.95] as const
+  }));
+};
+
+export const buildParagraphFrameOverlay = ({
+  layerId,
+  frame,
+  localToDocument
+}: BuildParagraphFrameOverlayOptions): TextEditingOverlay => Object.freeze({
+  layerId,
+  resourceKey: [
+    layerId, 'paragraph-frame', frame.x, frame.y, frame.width, frame.height,
+    affineKey(localToDocument)
+  ].join(':'),
+  quads: Object.freeze([]),
+  lines: Object.freeze(frameLines(frame, localToDocument))
+});
 
 const selectedGeometry = (
   layout: RealizedTextLayout,
@@ -80,7 +119,8 @@ export const buildTextEditingOverlay = ({
   focus,
   caretAffinity = 'downstream',
   composition = null,
-  showBaseline = true
+  showBaseline = true,
+  frame = null
 }: BuildTextEditingOverlayOptions): TextEditingOverlay => {
   const selectionStart = Math.min(anchor, focus);
   const selectionEnd = Math.max(anchor, focus);
@@ -98,6 +138,7 @@ export const buildTextEditingOverlay = ({
       color: [0.16, 0.48, 0.94, 0.34]
     }));
   const lines: TextOverlayLine[] = [];
+  if (frame) lines.push(...frameLines(frame, localToDocument));
   lines.push({
       role: 'caret',
       start: transformPoint(localToDocument, caret.x, caret.y),
@@ -160,7 +201,9 @@ export const buildTextEditingOverlay = ({
     resourceKey: [
       layerId, layout.key, anchor, focus, caretAffinity,
       composition ? `${composition.start}-${composition.end}` : '-',
-      showBaseline ? 1 : 0
+      showBaseline ? 1 : 0,
+      frame ? `${frame.x},${frame.y},${frame.width},${frame.height}` : '-',
+      affineKey(localToDocument)
     ].join(':'),
     quads: Object.freeze(quads),
     lines: Object.freeze(lines)

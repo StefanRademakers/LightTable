@@ -49,7 +49,7 @@ describe('text editing overlay', () => {
     } as const;
     const overlay = buildTextEditingOverlay(options);
     expect(overlay.lines.filter(({ role }) => role === 'composition')).toHaveLength(2);
-    expect(overlay.resourceKey).toBe('text:layout:7:2:2:downstream:0-2:1');
+    expect(overlay.resourceKey).toBe('text:layout:7:2:2:downstream:0-2:1:-:1,0,0,1,0,0');
   });
 
   it('honors affinity when one bidi boundary has multiple physical stops', () => {
@@ -82,5 +82,26 @@ describe('text editing overlay', () => {
     expect(overlay.lines[0]).toMatchObject({
       start: { x: 14, y: 26 }, end: { x: 14, y: 42 }
     });
+  });
+
+  it('adds a transformed paragraph frame and transform-sensitive cache key', () => {
+    const first = buildTextEditingOverlay({
+      layerId: 'paragraph', layout, anchor: 0, focus: 0,
+      frame: { x: 4, y: 6, width: 120, height: 48 },
+      localToDocument: { a: 2, b: 0, c: 0, d: 2, tx: 10, ty: 20 }
+    });
+    const moved = buildTextEditingOverlay({
+      layerId: 'paragraph', layout, anchor: 0, focus: 0,
+      frame: { x: 4, y: 6, width: 120, height: 48 },
+      localToDocument: { a: 2, b: 0, c: 0, d: 2, tx: 30, ty: 20 }
+    });
+
+    expect(first.lines.filter(({ role }) => role === 'frame')).toEqual([
+      expect.objectContaining({ start: { x: 18, y: 32 }, end: { x: 258, y: 32 } }),
+      expect.objectContaining({ start: { x: 258, y: 32 }, end: { x: 258, y: 128 } }),
+      expect.objectContaining({ start: { x: 258, y: 128 }, end: { x: 18, y: 128 } }),
+      expect.objectContaining({ start: { x: 18, y: 128 }, end: { x: 18, y: 32 } })
+    ]);
+    expect(moved.resourceKey).not.toBe(first.resourceKey);
   });
 });

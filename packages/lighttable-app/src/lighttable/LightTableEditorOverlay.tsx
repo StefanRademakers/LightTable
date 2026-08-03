@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { TEXT_CONTRACT_FIXTURE_COUNT } from '@lighttable/text-core';
-import { buildTextEditingOverlay } from '@lighttable/text-rendering';
+import {
+  buildParagraphFrameOverlay,
+  buildTextEditingOverlay
+} from '@lighttable/text-rendering';
 import {
   DocumentCommandHistory
 } from './application/commands/documentCommandHistory';
@@ -1205,6 +1208,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (textEditing.status !== 'editing' || !textEditing.layerId) return null;
     const presentation = engineRef.current?.textEditingLayout(textEditing.layerId);
     if (!presentation) return null;
+    const layer = imageDocument
+      ? findDocumentLayer(imageDocument, textEditing.layerId)
+      : null;
+    const frame = layer?.type === 'text'
+      && layer.text.source.kind === 'flow'
+      && layer.text.source.layout.mode === 'paragraph'
+      ? layer.text.source.layout.frame
+      : null;
     const composition = textEditing.compositionRange ? {
       start: Math.min(textEditing.compositionRange.anchor, textEditing.compositionRange.focus),
       end: Math.max(textEditing.compositionRange.anchor, textEditing.compositionRange.focus)
@@ -1216,13 +1227,33 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       anchor: textEditing.selection.anchor,
       focus: textEditing.selection.focus,
       caretAffinity: textEditing.caretAffinity,
-      composition
+      composition,
+      frame
     });
   }, [
     imageDocument,
     textEditing,
     textRenderPresentation.publicationRevision
   ]);
+
+  const paragraphCreationOverlay = useMemo(() => {
+    const request = paragraphTextCreation.request;
+    if (!request) return null;
+    const x = Math.min(request.start.x, request.end.x);
+    const y = Math.min(request.start.y, request.end.y);
+    return buildParagraphFrameOverlay({
+      layerId: `paragraph-draft-${request.documentId}`,
+      frame: {
+        x,
+        y,
+        width: Math.abs(request.end.x - request.start.x),
+        height: Math.abs(request.end.y - request.start.y)
+      },
+      localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+    });
+  }, [paragraphTextCreation]);
+
+  const presentedTextOverlay = textEditingOverlay ?? paragraphCreationOverlay;
 
   useEffect(() => {
     const layerId = textEditing.status === 'editing' ? textEditing.layerId : null;
@@ -1236,21 +1267,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   useEffect(() => {
     const renderer = engineRef.current;
-    if (!renderer || !active || !textEditingOverlay) {
+    if (!renderer || !active || !presentedTextOverlay) {
       renderer?.setTextEditingOverlay(null);
       return undefined;
     }
     let caretVisible = true;
-    renderer.setTextEditingOverlay(textEditingOverlay, caretVisible);
+    renderer.setTextEditingOverlay(presentedTextOverlay, caretVisible);
+    if (!textEditingOverlay) {
+      return () => renderer.setTextEditingOverlay(null);
+    }
     const blink = window.setInterval(() => {
       caretVisible = !caretVisible;
-      renderer.setTextEditingOverlay(textEditingOverlay, caretVisible);
+      renderer.setTextEditingOverlay(presentedTextOverlay, caretVisible);
     }, 530);
     return () => {
       window.clearInterval(blink);
       renderer.setTextEditingOverlay(null);
     };
-  }, [active, textEditingOverlay]);
+  }, [active, presentedTextOverlay, textEditingOverlay]);
 
   useRendererPresentationSync({
     rendererRef: engineRef,
