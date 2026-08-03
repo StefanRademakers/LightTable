@@ -1,0 +1,18 @@
+# Task 032 — Settled source cache and interaction performance
+
+Status: complete. Implements Slice 13 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+Started from: `ca4f2f0`
+Owner: Codex `/root`
+
+## Delivered outcome
+
+- Measured direct-atlas versus tight-source policy with production samples.
+- Retained pixels during rebuild and one final source build after interaction settle.
+- Byte-bounded layout/source caches with LRU, visibility priority and full disposal.
+- Authored-revision-correlated input-to-submit/GPU latency and complete Debug telemetry.
+- Warm 10,000-glyph, unchanged-document, background-document and device-loss evidence.
+- On-demand cached materialization for thumbnails without slowing normal atlas presentation.
+
+Named-hardware performance sign-off remains owned by Slice 22.

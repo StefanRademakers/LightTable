@@ -441,16 +441,16 @@ are disabled with a reason rather than ignored.
 
 #### Slice 13 — settled source cache and interaction performance
 
-- [ ] Implement a measured cost model for direct atlas draw versus tight/tiled
+- [x] Implement a measured cost model for direct atlas draw versus tight/tiled
   cached `rgba16float` source.
-- [ ] Cache only when expected recomposition savings exceed allocation/upload
+- [x] Cache only when expected recomposition savings exceed allocation/upload
   cost.
-- [ ] Reuse cached sources during transform and rebuild at settle when needed.
-- [ ] Add byte budgets, LRU eviction, visibility priority and device-loss
+- [x] Reuse cached sources during transform and rebuild at settle when needed.
+- [x] Add byte budgets, LRU eviction, visibility priority and device-loss
   recovery.
-- [ ] Instrument keystroke-to-pixel, shaping, atlas misses, cache hits and GPU
+- [x] Instrument keystroke-to-pixel, shaping, atlas misses, cache hits and GPU
   submission ownership.
-- [ ] Verify no work for unchanged/background documents.
+- [x] Verify no work for unchanged/background documents.
 
 UI exposure: no user cache switch. Debug telemetry explains chosen mode and
 memory. During a rebuild, keep last valid pixels instead of flashing blank.
@@ -651,6 +651,43 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 — Slice 13 complete
+
+- Owner: Codex `/root`; implementation followed renderer, input and GPU-cache
+  audits recorded in task 032.
+- Policy: a document-local rolling cost model chooses direct atlas composition
+  or a tight `rgba16float` source from measured atlas, cache-build and cached
+  composite work. Cache allocation is rejected when it cannot repay its build
+  cost or fit the remaining byte budget; semantic compositor requirements
+  always force the compatible cached route.
+- Interaction: active text edits use retained atlas plans where compatible.
+  Common transforms reuse the current source resolution while the compositor
+  applies the live matrix; settle performs at most one final scale-bucket
+  rebuild. Exact consumers remain strict while presentation retains the last
+  valid pixels.
+- Cache/lifecycle: layout and settled-source caches have byte-bounded LRU,
+  visibility-prioritized eviction and complete close/device-loss disposal.
+  Atlas plans retain pages through source and submission lifetimes. Atlas-only
+  layers materialize a tight source only when a thumbnail consumer requests it.
+- Telemetry/UI: Debug reports mode decisions, measured coefficients, atlas,
+  layout and source-cache hits/misses, bytes/evictions, shaping/raster work,
+  cache submits and authored-revision-correlated input-to-submit/GPU p95/max.
+  Superseded, removed and stale revisions are excluded from latency samples.
+- Performance evidence: a warm 10,000-glyph atlas frame remains one draw batch,
+  adds no upload or miss, retires every transient buffer and releases all pins.
+  Unchanged and suspended/background documents perform no text worker or GPU
+  submissions. Named-hardware p95 sign-off remains the explicit Slice 22 gate;
+  no browser/WebGPU surface was attached for a physical measurement here.
+- Verification: 274 workspace test files / 1,339 tests, WASM runtime and
+  structural goldens, all workspace typechecks, architecture/distribution
+  boundaries, web production build and packaged Electron passed. Existing
+  wasm-vips eval, chunk-size and Electron inlineDynamicImports warnings are
+  unchanged.
+- Commits: `3d94ee2`, `aa1dde0`, `ef40be0`, `0bc8f4d`, `1cb12b6`, `10448c1`,
+  `6ada1b8`, `5caf8c3`, `1aab373`, `9d06267`, `683a664`, `25a96c0`, `ad09346`,
+  `e9a7b4f`.
+- Next safe slice: Slice 14, paragraph frames and layout controls.
 
 ### 2026-08-03 — Slice 12 complete
 
