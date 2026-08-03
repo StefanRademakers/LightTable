@@ -15,6 +15,7 @@ import {
   assertTextWorkerRequest,
   collectTextResponseTransferBuffers,
   createTextLayoutError,
+  realizeParagraphFrame,
   type FontAssetRef,
   type RealizedTextLayout,
   type TextLayoutWorkerRequest,
@@ -473,15 +474,18 @@ const realizeFlowRequest = (
       };
     }
   );
+  const lines: RealizedTextLayout['lines'] = Array.from(
+    { length: lineMeta.length / 2 }, (_, index) => ({
+      start: lineMeta[index * 2], end: lineMeta[index * 2 + 1],
+      baseline: lineGeometry[index * 7], ascent: lineGeometry[index * 7 + 1],
+      descent: lineGeometry[index * 7 + 2], bounds: rectAt(lineGeometry, index * 7 + 3)
+    })
+  );
   const layout: RealizedTextLayout = {
     schemaVersion: TEXT_LAYOUT_SCHEMA_VERSION,
     key: raw.key,
     glyphRuns,
-    lines: Array.from({ length: lineMeta.length / 2 }, (_, index) => ({
-      start: lineMeta[index * 2], end: lineMeta[index * 2 + 1],
-      baseline: lineGeometry[index * 7], ascent: lineGeometry[index * 7 + 1],
-      descent: lineGeometry[index * 7 + 2], bounds: rectAt(lineGeometry, index * 7 + 3)
-    })),
+    lines,
     caretStops: Array.from({ length: caretMeta.length / 2 }, (_, index) => ({
       textOffset: caretMeta[index * 2],
       affinity: caretMeta[index * 2 + 1] === 1 ? 'downstream' : 'upstream',
@@ -498,6 +502,9 @@ const realizeFlowRequest = (
     })),
     inkBounds: rectAt(bounds, 0),
     logicalBounds: rectAt(bounds, 4),
+    ...(source.layout.mode === 'paragraph'
+      ? { paragraphFrame: realizeParagraphFrame(source.layout, lines) }
+      : {}),
     warnings: glyphRuns.flatMap((run, runIndex) => run.glyphIds.includes(0)
       ? [{ code: 'missing-glyph' as const, message: 'The selected font emitted .notdef.', runIndex }]
       : [])

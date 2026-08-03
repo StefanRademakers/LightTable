@@ -340,6 +340,23 @@ describe('realized layout and worker contracts', () => {
     expect(() => assertRealizedTextLayout(layout)).not.toThrow();
     expect(() => assertRealizedTextLayout({
       ...layout,
+      paragraphFrame: {
+        bounds: { x: 0, y: 0, width: 100, height: 40 },
+        overflow: 'indicator',
+        overflowed: true,
+        firstOverflowTextOffset: 1
+      }
+    })).not.toThrow();
+    expect(() => assertRealizedTextLayout({
+      ...layout,
+      paragraphFrame: {
+        bounds: { x: 0, y: 0, width: 100, height: 40 },
+        overflow: 'indicator',
+        overflowed: true
+      }
+    })).toThrow(/firstOverflowTextOffset/);
+    expect(() => assertRealizedTextLayout({
+      ...layout,
       glyphRuns: [{ ...layout.glyphRuns[0], geometry: new Float32Array([0, Number.NaN, 11, 0]) }]
     })).toThrow(/geometry/);
     expect(() => assertRealizedTextLayout({

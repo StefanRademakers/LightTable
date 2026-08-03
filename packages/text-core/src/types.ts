@@ -285,6 +285,14 @@ export interface SelectionGeometryEntry {
   readonly bounds: Rect;
 }
 
+export interface RealizedParagraphFrame {
+  readonly bounds: Rect;
+  readonly overflow: ParagraphTextLayout['overflow'];
+  readonly overflowed: boolean;
+  /** Start of the first line crossing the frame bottom, when overflowed. */
+  readonly firstOverflowTextOffset?: number;
+}
+
 export interface GlyphClusterMapEntry {
   readonly textStart: number;
   readonly textEnd: number;
@@ -310,6 +318,8 @@ export interface RealizedTextLayout {
   readonly clusterMap: readonly GlyphClusterMapEntry[];
   readonly inkBounds: Rect;
   readonly logicalBounds: Rect;
+  /** Present only when the authored source uses paragraph-frame layout. */
+  readonly paragraphFrame?: RealizedParagraphFrame;
   readonly warnings: readonly TextLayoutWarning[];
 }
 

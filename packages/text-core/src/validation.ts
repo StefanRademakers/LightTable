@@ -542,6 +542,26 @@ export function assertRealizedTextLayout(value: unknown): asserts value is Reali
   });
   assertRect(layout.inkBounds, '$.inkBounds');
   assertRect(layout.logicalBounds, '$.logicalBounds');
+  if (layout.paragraphFrame !== undefined) {
+    const paragraphFrame = record(layout.paragraphFrame, '$.paragraphFrame');
+    assertRect(paragraphFrame.bounds, '$.paragraphFrame.bounds');
+    oneOf(paragraphFrame.overflow, '$.paragraphFrame.overflow', ['visible', 'clip', 'indicator']);
+    if (typeof paragraphFrame.overflowed !== 'boolean') {
+      fail('$.paragraphFrame.overflowed', 'expected a boolean');
+    }
+    if (paragraphFrame.firstOverflowTextOffset !== undefined) {
+      const offset = integer(
+        paragraphFrame.firstOverflowTextOffset,
+        '$.paragraphFrame.firstOverflowTextOffset'
+      );
+      if (offset < 0) fail('$.paragraphFrame.firstOverflowTextOffset', 'must be non-negative');
+      if (paragraphFrame.overflowed !== true) {
+        fail('$.paragraphFrame.firstOverflowTextOffset', 'requires overflowed to be true');
+      }
+    } else if (paragraphFrame.overflowed === true) {
+      fail('$.paragraphFrame.firstOverflowTextOffset', 'is required when overflowed is true');
+    }
+  }
 }
 
 export function assertTextCapabilityState(value: unknown): asserts value is TextCapabilityState {
