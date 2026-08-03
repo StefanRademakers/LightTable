@@ -267,6 +267,32 @@ describe('TextEngineClient', () => {
     });
   });
 
+  it('times out stalled font inspection and retries with a fresh worker', async () => {
+    vi.useFakeTimers();
+    try {
+      const firstWorker = new FakeWorker();
+      const secondWorker = new FakeWorker();
+      const factory = vi.fn()
+        .mockReturnValueOnce(firstWorker)
+        .mockReturnValueOnce(secondWorker);
+      const client = new TextEngineClient(factory, 10_000, 25);
+
+      const stalled = client.inspectFont(new Uint8Array([0, 1, 0, 0]), 0);
+      const expectation = expect(stalled).rejects.toThrow(
+        'font inspection request did not respond within 25 milliseconds'
+      );
+      await vi.advanceTimersByTimeAsync(25);
+      await expectation;
+      expect(firstWorker.terminate).toHaveBeenCalledOnce();
+
+      const retry = client.inspectFont(new Uint8Array([0, 1, 0, 0]), 0);
+      secondWorker.inspected(2);
+      await expect(retry).resolves.toMatchObject({ glyphCount: 625 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('terminates the worker and rejects pending probes on dispose', async () => {
     const worker = new FakeWorker();
     const client = new TextEngineClient(() => worker);
@@ -292,6 +318,27 @@ describe('TextEngineClient', () => {
     );
     worker.fontRegistered(1, 1);
     await expect(pending).resolves.toBeUndefined();
+  });
+
+  it('times out a stalled layout operation with its exact phase and resets the worker', async () => {
+    vi.useFakeTimers();
+    try {
+      const worker = new FakeWorker();
+      const client = new TextEngineClient(() => worker, 10_000, 25);
+      const stalled = client.registerFont({
+        kind: 'register-font', documentSessionId: 'document', sessionGeneration: 1,
+        font: CONTRACT_FIXTURE_FONT_ASSET, fontSnapshotRevision: 1,
+        bytes: new Uint8Array([0, 1, 0, 0]), byteSource: 'transferred', transferOwnership: 'dedicated'
+      });
+      const expectation = expect(stalled).rejects.toThrow(
+        "'register-font' request did not respond within 25 milliseconds"
+      );
+      await vi.advanceTimersByTimeAsync(25);
+      await expectation;
+      expect(worker.terminate).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects an aborted layout immediately and discards its late response', async () => {

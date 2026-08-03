@@ -31,6 +31,7 @@ interface PendingProbe {
 interface PendingInspection {
   readonly resolve: (inspection: TextEngineFontInspection) => void;
   readonly reject: (reason: Error) => void;
+  readonly timeout: ReturnType<typeof setTimeout>;
 }
 
 interface PendingLayoutRequest {
@@ -38,6 +39,7 @@ interface PendingLayoutRequest {
   readonly resolve: (response: TextLayoutWorkerResponse) => void;
   readonly reject: (reason: Error) => void;
   readonly detachAbort?: () => void;
+  readonly timeout: ReturnType<typeof setTimeout>;
 }
 
 export class TextLayoutRuntimeError extends Error {
@@ -72,6 +74,7 @@ export interface TextGlyphRasterReport extends TextEngineOperationReport {
 export type TextEngineWorkerFactory = () => TextEngineWorkerPort;
 
 export const TEXT_ENGINE_STARTUP_TIMEOUT_MS = 10_000;
+export const TEXT_ENGINE_OPERATION_TIMEOUT_MS = 10_000;
 
 const startupTimeoutLabel = (milliseconds: number) => milliseconds >= 1_000
   ? `${Math.round(milliseconds / 1_000)} seconds`
@@ -114,7 +117,8 @@ export class TextEngineClient {
 
   constructor(
     private readonly workerFactory: TextEngineWorkerFactory = createBrowserWorker,
-    private readonly startupTimeoutMs = TEXT_ENGINE_STARTUP_TIMEOUT_MS
+    private readonly startupTimeoutMs = TEXT_ENGINE_STARTUP_TIMEOUT_MS,
+    private readonly operationTimeoutMs = TEXT_ENGINE_OPERATION_TIMEOUT_MS
   ) {}
 
   probe(): Promise<TextEngineCapability> {
@@ -178,14 +182,25 @@ export class TextEngineClient {
     const requestId = ++this.requestId;
     const transferred = Uint8Array.from(bytes).buffer;
     return new Promise((resolve, reject) => {
-      this.pendingInspections.set(requestId, { resolve, reject });
-      worker.postMessage({
-        kind: 'inspect-font',
-        protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
-        requestId,
-        bytes: transferred,
-        faceIndex
-      }, [transferred]);
+      const timeout = setTimeout(() => {
+        if (!this.pendingInspections.has(requestId)) return;
+        const reason = this.operationTimeoutError('font inspection');
+        this.resetWorker(reason);
+      }, this.operationTimeoutMs);
+      this.pendingInspections.set(requestId, { resolve, reject, timeout });
+      try {
+        worker.postMessage({
+          kind: 'inspect-font',
+          protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
+          requestId,
+          bytes: transferred,
+          faceIndex
+        }, [transferred]);
+      } catch (reason) {
+        this.pendingInspections.delete(requestId);
+        clearTimeout(timeout);
+        reject(reason instanceof Error ? reason : new Error('Font inspection could not be posted.'));
+      }
     });
   }
 
@@ -315,6 +330,7 @@ export class TextEngineClient {
         if (pendingLayout) {
           this.pendingLayouts.delete(data.requestId);
           pendingLayout.detachAbort?.();
+          clearTimeout(pendingLayout.timeout);
           pendingLayout.reject(reason);
           this.resetWorker(reason);
           return;
@@ -328,6 +344,7 @@ export class TextEngineClient {
         if (!pending) return;
         this.pendingLayouts.delete(data.requestId);
         pending.detachAbort?.();
+        clearTimeout(pending.timeout);
         try {
           assertTextLayoutWorkerResponse(data);
           if (
@@ -362,6 +379,7 @@ export class TextEngineClient {
       if (!pending) return;
       this.pending.delete(data.requestId);
       this.pendingInspections.delete(data.requestId);
+      if ('timeout' in pending) clearTimeout(pending.timeout);
       if (Number(data.protocolVersion) !== TEXT_ENGINE_PROTOCOL_VERSION) {
         pending.reject(new Error(`Unsupported text engine protocol ${Number(data.protocolVersion)}.`));
         this.resetWorker(new Error('The text engine protocol changed during initialization.'));
@@ -405,10 +423,14 @@ export class TextEngineClient {
     worker?.terminate();
     for (const pending of this.pending.values()) pending.reject(reason);
     this.pending.clear();
-    for (const pending of this.pendingInspections.values()) pending.reject(reason);
+    for (const pending of this.pendingInspections.values()) {
+      clearTimeout(pending.timeout);
+      pending.reject(reason);
+    }
     this.pendingInspections.clear();
     for (const pending of this.pendingLayouts.values()) {
       pending.detachAbort?.();
+      clearTimeout(pending.timeout);
       pending.reject(reason);
     }
     this.pendingLayouts.clear();
@@ -434,6 +456,7 @@ export class TextEngineClient {
         const pending = this.pendingLayouts.get(request.requestId);
         if (!pending) return;
         this.pendingLayouts.delete(request.requestId);
+        clearTimeout(pending.timeout);
         const cancelRequest: TextWorkerRequest = {
           kind: 'cancel-text',
           protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
@@ -456,15 +479,27 @@ export class TextEngineClient {
         ? () => signal.removeEventListener('abort', abort)
         : undefined;
       signal?.addEventListener('abort', abort, { once: true });
-      this.pendingLayouts.set(request.requestId, { request, resolve, reject, detachAbort });
+      const timeout = setTimeout(() => {
+        if (!this.pendingLayouts.has(request.requestId)) return;
+        const reason = this.operationTimeoutError(`'${request.kind}'`);
+        this.resetWorker(reason);
+      }, this.operationTimeoutMs);
+      this.pendingLayouts.set(request.requestId, { request, resolve, reject, detachAbort, timeout });
       try {
         worker.postMessage(request, [...collectTextRequestTransferBuffers(request)]);
       } catch (reason) {
         this.pendingLayouts.delete(request.requestId);
         detachAbort?.();
+        clearTimeout(timeout);
         reject(reason instanceof Error ? reason : new Error('Text worker request could not be posted.'));
       }
     });
+  }
+
+  private operationTimeoutError(operation: string) {
+    return new Error(
+      `The text engine ${operation} request did not respond within ${startupTimeoutLabel(this.operationTimeoutMs)}.`
+    );
   }
 }
 
