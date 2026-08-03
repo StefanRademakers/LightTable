@@ -467,6 +467,11 @@ export const useViewportInteractionController = ({
           event.preventDefault();
           return;
         }
+        if (activeTool === 'text-path') {
+          onPointTextCreate({ x: point.x, y: point.y }, event.detail);
+          event.preventDefault();
+          return;
+        }
         if (textGesture.beginPoint(event.pointerId, point)) {
           event.currentTarget.setPointerCapture(event.pointerId);
         } else {

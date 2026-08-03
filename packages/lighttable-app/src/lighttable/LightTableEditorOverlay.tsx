@@ -117,8 +117,11 @@ import {
   ParagraphTextCreationController,
   PointTextCreationController,
   createParagraphTextDocument,
+  createPathTextDocument,
   createPointTextDocument,
   defaultTextStyleForFamily,
+  resolvePathTextCreationTarget,
+  type PathTextCreationTarget,
   resolveTextToolFont
 } from './application/text/pointTextCreation';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
@@ -489,6 +492,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   paragraphTextControllerRef.current ??= new ParagraphTextCreationController();
   const paragraphTextController = paragraphTextControllerRef.current;
   const pointTextCapabilityGenerationRef = useRef(0);
+  const pathTextCreationTargetRef = useRef<PathTextCreationTarget | null>(null);
   const commitPointTextRef = useRef<() => boolean>(() => false);
   const cancelPointTextRef = useRef<() => boolean>(() => false);
   const commitParagraphTextRef = useRef<() => boolean>(() => false);
@@ -522,6 +526,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [editorSession.activeTool]);
 
   useEffect(() => () => {
+    pathTextCreationTargetRef.current = null;
     pointTextController.cancel();
     paragraphTextController.cancel();
     textEditingControllerRef.current?.finish();
@@ -533,6 +538,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     temporaryToolRef.current.end();
     fontHydrationGenerationRef.current += 1;
     pointTextCapabilityGenerationRef.current += 1;
+    pathTextCreationTargetRef.current = null;
     pointTextController.cancel();
     paragraphTextController.cancel();
     textEditingControllerRef.current?.reset();
@@ -1666,7 +1672,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return false;
   };
 
-  const beginPointTextCreation = async (origin: { x: number; y: number }) => {
+  const beginPointTextCreation = async (
+    origin: { x: number; y: number },
+    pathTarget: PathTextCreationTarget | null = null
+  ) => {
     const document = imageDocumentRef.current;
     if (!document) return;
     if (!engineRef.current || rendererLifecycle.getSnapshot().status !== 'ready') {
@@ -1687,10 +1696,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (
         generation !== pointTextCapabilityGenerationRef.current
         || imageDocumentRef.current?.id !== documentId
-        || editorSession.activeTool !== 'text-point'
+        || editorSession.activeTool !== (pathTarget ? 'text-path' : 'text-point')
         || !engineRef.current
         || rendererLifecycle.getSnapshot().status !== 'ready'
       ) return;
+      pathTextCreationTargetRef.current = pathTarget;
       pointTextController.begin(documentId, origin);
       setGradeStatus(null);
     } catch (reason) {
@@ -1713,21 +1723,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return false;
     }
     const request = pointTextController.commit();
+    const pathTarget = pathTextCreationTargetRef.current;
+    pathTextCreationTargetRef.current = null;
     if (!request || !before || !font || request.documentId !== before.id) return false;
-    const after = createPointTextDocument(
-      before,
-      request,
-      editorSession.text,
-      font,
-      editorSession.brush.color
-    );
+    const after = pathTarget
+      ? createPathTextDocument(
+          before, request, pathTarget, editorSession.text, font, editorSession.brush.color
+        )
+      : createPointTextDocument(
+          before, request, editorSession.text, font, editorSession.brush.color
+        );
     if (after === before) return false;
     applyDocumentSnapshot(after);
     pushDocumentHistory(before, after);
     return true;
   };
 
-  const cancelPointTextCreation = () => pointTextController.cancel();
+  const cancelPointTextCreation = () => {
+    pathTextCreationTargetRef.current = null;
+    return pointTextController.cancel();
+  };
   commitPointTextRef.current = commitPointTextCreation;
   cancelPointTextRef.current = cancelPointTextCreation;
 
@@ -1872,6 +1887,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onPointTextCreate: (point) => {
       if (beginExistingFlowTextEditing(point)) return;
       textEditingController.finish();
+      if (editorSession.activeTool === 'text-path') {
+        const resolution = imageDocumentRef.current
+          ? resolvePathTextCreationTarget(
+              imageDocumentRef.current,
+              editorSession.vectorSelection
+            )
+          : { kind: 'none' as const };
+        if (resolution.kind !== 'resolved') {
+          setError(resolution.kind === 'live-shape'
+            ? 'Path text requires a native path. Convert the selected shape to a path first.'
+            : resolution.kind === 'ambiguous-subpath'
+              ? 'Select exactly one contour for Path Text.'
+              : 'Select exactly one native path before creating Path Text.');
+          return;
+        }
+        void beginPointTextCreation(point, resolution.target);
+        return;
+      }
       void beginPointTextCreation(point);
     },
     textGesture: {

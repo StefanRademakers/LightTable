@@ -18,6 +18,7 @@ export type ToolId =
   | 'erase'
   | 'text-point'
   | 'text-paragraph'
+  | 'text-path'
   | VectorEditorToolId
   | SelectionToolId;
 export type PaintChannel = 'pixels' | 'mask';

@@ -182,6 +182,12 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'text'
   },
   {
+    id: 'text-path',
+    label: 'Path text',
+    iconName: 'tool_text.png',
+    role: 'text'
+  },
+  {
     id: 'fill',
     label: 'Fill',
     shortcutLabel: 'G',
@@ -258,7 +264,7 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   },
   {
     key: 't',
-    tools: ['text-point', 'text-paragraph']
+    tools: ['text-point', 'text-paragraph', 'text-path']
   },
   {
     key: 'u',

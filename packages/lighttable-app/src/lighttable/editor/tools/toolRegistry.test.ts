@@ -29,8 +29,10 @@ describe('toolRegistry', () => {
       'shape-line'
     ]);
   });
-  it('defines point and paragraph text as one toolbar family', () => {
-    expect(TEXT_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual(['text-point', 'text-paragraph']);
+  it('defines point, paragraph and path text as one toolbar family', () => {
+    expect(TEXT_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
+      'text-point', 'text-paragraph', 'text-path'
+    ]);
   });
   it('defines every editor tool exactly once', () => {
     const expected: ToolId[] = [
@@ -53,6 +55,7 @@ describe('toolRegistry', () => {
       'shape-line',
       'text-point',
       'text-paragraph',
+      'text-path',
       'select-rectangle',
       'select-ellipse',
       'select-horizontal',
@@ -90,7 +93,9 @@ describe('toolRegistry', () => {
     expect(toolForShortcut('u', false)).toBe('shape-rectangle');
     expect(toolForShortcut('U', true)).toBe('shape-ellipse');
     expect(toolForShortcutCycle('t', 'view', false)).toBe('text-point');
-    expect(toolForShortcutCycle('t', 'text-point', true)).toBe('text-paragraph');
+    expect(toolForShortcutCycle('t', 'text-point', true)).toBe('text-path');
+    expect(toolForShortcutCycle('t', 'text-paragraph', false)).toBe('text-path');
+    expect(toolForShortcutCycle('t', 'text-path', false)).toBe('text-point');
   });
 
   it('keeps visible vector tools without dedicated shortcuts out of key dispatch', () => {

@@ -83,7 +83,8 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'shape-triangle': 'Triangle',
   'shape-line': 'Line',
   'text-point': 'Point text',
-  'text-paragraph': 'Paragraph text'
+  'text-paragraph': 'Paragraph text',
+  'text-path': 'Path text'
 };
 
 export const ToolOptionsContent: React.FC<ToolOptionsProps & {
@@ -238,7 +239,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onReset={onWarpReset}
         />
       ) : null}
-      {activeTool === 'text-point' || activeTool === 'text-paragraph' ? (
+      {activeTool === 'text-point' || activeTool === 'text-paragraph'
+        || activeTool === 'text-path' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
           {textLayoutMode && onTextLayoutModeChange ? (
             <SegmentedControl

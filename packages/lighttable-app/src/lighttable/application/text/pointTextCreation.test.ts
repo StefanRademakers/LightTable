@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { createEditorSession } from '../../editor/session/editorSession';
 import {
   createGroupLayer,
   createImageDocument,
+  createVectorLayer,
   type DocumentFontAsset
 } from '../../editor/document/documentTypes';
 import { translationMatrix } from '../../editor/geometry/affine';
@@ -19,8 +21,10 @@ import {
   ParagraphTextCreationController,
   PointTextCreationController,
   createParagraphTextDocument,
+  createPathTextDocument,
   createPointTextDocument,
   defaultTextStyleForFamily,
+  resolvePathTextCreationTarget,
   resolveTextToolFont
 } from './pointTextCreation';
 
@@ -278,5 +282,88 @@ describe('createParagraphTextDocument', () => {
     expect(createParagraphTextDocument(before, {
       ...request, documentId: 'other' as typeof before.id, end: { x: 20, y: 20 }
     }, createEditorSession().text, font, '#000000')).toBe(before);
+  });
+});
+
+describe('path text creation', () => {
+  const pathDocument = () => {
+    const document = createImageDocument('Fixture', 500, 400, 'pixels');
+    const path = createVectorPath('curve', 'Curve', [
+      createSubpath('contour', [
+        createAnchor('a', { x: 20, y: 40 }),
+        createAnchor('b', { x: 300, y: 80 })
+      ])
+    ]);
+    const vector = createVectorLayer([path], 'Path');
+    return { document: { ...document, layers: [...document.layers, vector] }, vector, path };
+  };
+
+  it('resolves one explicitly selected native path and its sole contour', () => {
+    const { document, vector, path } = pathDocument();
+    expect(resolvePathTextCreationTarget(document, {
+      elements: [{ layerId: vector.id, elementId: path.id }],
+      paths: [], anchors: [], active: null
+    })).toEqual({
+      kind: 'resolved',
+      target: {
+        pathLayerId: vector.id,
+        pathElementId: path.id,
+        pathSubpathId: 'contour'
+      }
+    });
+  });
+
+  it('rejects absent and ambiguous path selections instead of guessing', () => {
+    const { document, vector, path } = pathDocument();
+    expect(resolvePathTextCreationTarget(document, {
+      elements: [], paths: [], anchors: [], active: null
+    })).toEqual({ kind: 'none' });
+    expect(resolvePathTextCreationTarget(document, {
+      elements: [{ layerId: vector.id, elementId: path.id }],
+      paths: [{ layerId: vector.id, pathId: 'another' }],
+      anchors: [], active: null
+    })).toEqual({ kind: 'ambiguous' });
+  });
+
+  it('creates editable flow text with exact stable path references', () => {
+    const { document, vector, path } = pathDocument();
+    const after = createPathTextDocument(document, {
+      documentId: document.id,
+      origin: { x: 200, y: 100 },
+      text: 'Along the curve'
+    }, {
+      pathLayerId: vector.id,
+      pathElementId: path.id,
+      pathSubpathId: 'contour'
+    }, createEditorSession().text, font, '#3366cc');
+    const layer = findDocumentLayer(after, after.activeLayerId);
+    expect(layer?.type).toBe('text');
+    if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
+    expect(layer.text.source.text).toBe('Along the curve');
+    expect(layer.text.source.layout).toEqual({
+      mode: 'path',
+      pathLayerId: vector.id,
+      pathElementId: path.id,
+      pathSubpathId: 'contour',
+      startOffset: 0,
+      side: 'left',
+      upright: true,
+      direction: 'forward'
+    });
+    expect(after.assets.fonts).toEqual([font]);
+  });
+
+  it('rejects a stale target deleted before the creation dialog commits', () => {
+    const { document, vector, path } = pathDocument();
+    const stale = { ...document, layers: document.layers.filter(({ id }) => id !== vector.id) };
+    expect(createPathTextDocument(stale, {
+      documentId: stale.id,
+      origin: { x: 0, y: 0 },
+      text: 'Stale'
+    }, {
+      pathLayerId: vector.id,
+      pathElementId: path.id,
+      pathSubpathId: 'contour'
+    }, createEditorSession().text, font, '#000000')).toBe(stale);
   });
 });

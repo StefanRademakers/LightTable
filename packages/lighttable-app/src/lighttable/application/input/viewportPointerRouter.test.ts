@@ -49,6 +49,7 @@ describe('resolveViewportPointerDownIntent', () => {
     'brush',
     'erase',
     'text-point',
+    'text-path',
     'select-rectangle'
   ])('gives temporary pan precedence over %s', (activeTool) => {
     expect(resolveViewportPointerDownIntent(down({
@@ -87,7 +88,7 @@ describe('resolveViewportPointerDownIntent', () => {
     }))).toBe('ignore');
   });
 
-  it('routes only a primary in-document point to point-text creation', () => {
+  it('routes only a primary in-document point to text creation', () => {
     expect(resolveViewportPointerDownIntent(down({ activeTool: 'text-point' })))
       .toBe('text-create');
     expect(resolveViewportPointerDownIntent(down({
@@ -102,6 +103,8 @@ describe('resolveViewportPointerDownIntent', () => {
       activeTool: 'text-point',
       focusPickerActive: true
     }))).toBe('view');
+    expect(resolveViewportPointerDownIntent(down({ activeTool: 'text-path' })))
+      .toBe('text-create');
   });
 
   it('only starts paint with a document, projected point and editable target', () => {

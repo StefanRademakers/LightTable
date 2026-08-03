@@ -705,6 +705,22 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 17 production Path Text authoring
+
+- Tooling: Path Text is the third member of the existing Text toolbar family;
+  repeated `T`/`Shift+T` traversal uses the established tool-group behavior and
+  the shared Text property controls rather than a new panel or widget family.
+- Targeting: creation requires exactly one explicitly selected native vector
+  path and one unambiguous contour. Live shapes require Convert to Path, and
+  missing, multiple or stale targets produce an explicit error instead of a
+  guessed reference or silent raster fallback.
+- Document semantics: authored layers are editable canonical flow text with
+  exact layer/element/subpath identities, default forward/left/upright
+  traversal, the selected font asset and normal one-command undo history.
+- Remaining UI/UX: the existing GPU path handles expose offsets and direction
+  on canvas. Numeric offset, side and upright controls still need binding in
+  the shared options bar; missing-path Layers feedback remains open.
+
 ### 2026-08-03 - Slice 17 path-reference command safety
 
 - Duplication: duplicating path text deliberately keeps its exact original
