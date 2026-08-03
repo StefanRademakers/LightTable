@@ -563,6 +563,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     () => textFontRegistry.availableAssets,
     [textFontRegistry, fontAvailabilityRevision]
   );
+  const textFontRuntimePort = useMemo(() => ({
+    get revision() { return textFontRegistry.availabilityRevision; },
+    get assets() { return textFontRegistry.availableAssets; },
+    bytes: (assetId: string) => textFontRegistry.bytes(assetId),
+    subscribe: (listener: () => void) => textFontRegistry.subscribeAvailability(listener)
+  }), [textFontRegistry]);
   const fontDiagnostics = useMemo(
     () => imageDocument && !fontHydrationPending
       ? documentTextFontDiagnostics(imageDocument, availableFontAssets)
@@ -570,17 +576,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     [availableFontAssets, fontHydrationPending, imageDocument]
   );
   useEffect(() => {
-    const registry = textFontRegistry;
     const renderer = engineRef.current;
     if (!renderer) return;
-    renderer.configureTextFonts({
-      revision: registry.availabilityRevision,
-      assets: registry.availableAssets,
-      bytes: (assetId) => registry.bytes(assetId),
-      subscribe: (listener) => registry.subscribeAvailability(listener)
-    });
+    renderer.configureTextFonts(textFontRuntimePort);
     return () => renderer.configureTextFonts(null);
-  }, [textFontRegistry, fontAvailabilityRevision, imageDocument?.id]);
+  }, [imageDocument?.id, textFontRuntimePort, thumbnailDocumentReadyId]);
   const fontDiagnosticStatus = useMemo(
     () => summarizeTextFontDiagnostics(fontDiagnostics),
     [fontDiagnostics]

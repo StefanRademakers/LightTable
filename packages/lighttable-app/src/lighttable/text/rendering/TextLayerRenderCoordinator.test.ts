@@ -471,6 +471,35 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.publish).toHaveBeenCalledOnce();
   });
 
+  it('rebuilds once from a stable live font port when availability changes', async () => {
+    const state = harness();
+    let revision = 1;
+    let notifyAvailability = () => undefined;
+    const port: TextFontRuntimePort = {
+      get revision() { return revision; },
+      get assets() { return [asset]; },
+      bytes: vi.fn(async () => new Uint8Array([1, 2, 3, 4])),
+      subscribe: vi.fn((listener) => {
+        notifyAvailability = listener;
+        return () => undefined;
+      })
+    };
+    const document = createImageDocument('Live fonts', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.configureFonts(port);
+    state.coordinator.sync(document);
+    await flush();
+
+    revision = 2;
+    notifyAvailability();
+    await flush();
+
+    expect(state.client.registerFontDetailed).toHaveBeenCalledTimes(2);
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(2);
+    expect(state.publish).toHaveBeenCalledTimes(2);
+    expect(state.renderer.dispose).toHaveBeenCalledTimes(2);
+  });
+
   it('rechecks ownership after asynchronously releasing a previous document session', async () => {
     const state = harness();
     const first = createImageDocument('First', 32, 24, 'source');
