@@ -38,8 +38,24 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
   active,
   layoutPublicationRevision
 }) => {
+  const subscribeAtAnimationFrame = useMemo(() => (
+    notify: () => void
+  ) => {
+    let frame: number | null = null;
+    const unsubscribe = controller.subscribe(() => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        notify();
+      });
+    });
+    return () => {
+      unsubscribe();
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [controller]);
   const editing = useSyncExternalStore(
-    controller.subscribe,
+    subscribeAtAnimationFrame,
     controller.getSnapshot,
     controller.getSnapshot
   );

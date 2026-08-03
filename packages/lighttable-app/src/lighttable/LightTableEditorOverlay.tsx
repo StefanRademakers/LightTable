@@ -658,19 +658,36 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const textEngineDiagnostic = useTextEngineDiagnostics(appendDebugMessage);
   const textRenderTraceSignatureRef = useRef('');
+  const pendingTextRenderPresentationRef = useRef<TextRenderPresentationSnapshot | null>(null);
+  const textRenderPresentationFrameRef = useRef<number | null>(null);
   const publishTextRenderPresentation = useCallback((snapshot: TextRenderPresentationSnapshot) => {
-    setTextRenderPresentation(snapshot);
-    if (!snapshot.traceMessage) return;
-    const signature = `${snapshot.traceRevision}:${snapshot.traceMessage}:${snapshot.traceDetails ?? ''}`;
-    if (textRenderTraceSignatureRef.current === signature) return;
-    textRenderTraceSignatureRef.current = signature;
-    appendDebugMessage(
-      snapshot.preparationStage === 'failed' ? 'error' : 'info',
-      'GPU text pipeline',
-      snapshot.traceMessage,
-      snapshot.traceDetails ?? undefined
-    );
+    pendingTextRenderPresentationRef.current = snapshot;
+    if (textRenderPresentationFrameRef.current !== null) return;
+    textRenderPresentationFrameRef.current = window.requestAnimationFrame(() => {
+      textRenderPresentationFrameRef.current = null;
+      const latest = pendingTextRenderPresentationRef.current;
+      pendingTextRenderPresentationRef.current = null;
+      if (!latest) return;
+      setTextRenderPresentation(latest);
+      if (!latest.traceMessage) return;
+      const signature = `${latest.traceRevision}:${latest.traceMessage}:${latest.traceDetails ?? ''}`;
+      if (textRenderTraceSignatureRef.current === signature) return;
+      textRenderTraceSignatureRef.current = signature;
+      appendDebugMessage(
+        latest.preparationStage === 'failed' ? 'error' : 'info',
+        'GPU text pipeline',
+        latest.traceMessage,
+        latest.traceDetails ?? undefined
+      );
+    });
   }, [appendDebugMessage]);
+  useEffect(() => () => {
+    if (textRenderPresentationFrameRef.current !== null) {
+      window.cancelAnimationFrame(textRenderPresentationFrameRef.current);
+    }
+    textRenderPresentationFrameRef.current = null;
+    pendingTextRenderPresentationRef.current = null;
+  }, []);
   useEffect(() => {
     let activeRegistration = true;
     if (!thumbnailDocumentReadyId && editorSession.activeTool !== 'text-point') return undefined;
@@ -828,17 +845,57 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     )
   }));
   const textToShapeController = textToShapeControllerRef.current;
+  const pendingTextDocumentRef = useRef<ImageDocument | null>(null);
+  const textDocumentPublicationFrameRef = useRef<number | null>(null);
+  const applyTextEditingDocument = (document: ImageDocument) => {
+    // Typing owns the canonical ref immediately. GPU and React shell
+    // projections consume only the newest document once per frame, preventing
+    // a full editor render and obsolete shaping dispatch for every character.
+    imageDocumentRef.current = document;
+    pendingTextDocumentRef.current = document;
+    if (textDocumentPublicationFrameRef.current !== null) return;
+    textDocumentPublicationFrameRef.current = window.requestAnimationFrame(() => {
+      textDocumentPublicationFrameRef.current = null;
+      const pending = pendingTextDocumentRef.current;
+      if (pending && imageDocumentRef.current === pending) {
+        engineRef.current?.setDocument(pending);
+        setImageDocument(pending);
+      }
+    });
+  };
+  const flushTextEditingDocument = () => {
+    if (textDocumentPublicationFrameRef.current !== null) {
+      window.cancelAnimationFrame(textDocumentPublicationFrameRef.current);
+      textDocumentPublicationFrameRef.current = null;
+    }
+    const pending = pendingTextDocumentRef.current;
+    pendingTextDocumentRef.current = null;
+    if (!pending) return;
+    imageDocumentRef.current = pending;
+    engineRef.current?.setDocument(pending);
+    setImageDocument(pending);
+  };
   const textEditingControllerRef = useRef<FlowTextEditingSessionController | null>(null);
   textEditingControllerRef.current ??= new FlowTextEditingSessionController(() => ({
-    getDocument: () => imageDocumentRef.current,
-    applyDocument: applyDocumentSnapshot,
-    pushHistory: (entry) => pushHistoryEntry({
-      ...entry,
-      type: `text.${entry.group}`,
-      label: entry.group === 'composition' ? 'Compose text' : 'Edit text'
-    })
+    getDocument: () => pendingTextDocumentRef.current ?? imageDocumentRef.current,
+    applyDocument: applyTextEditingDocument,
+    pushHistory: (entry) => {
+      flushTextEditingDocument();
+      pushHistoryEntry({
+        ...entry,
+        type: `text.${entry.group}`,
+        label: entry.group === 'composition' ? 'Compose text' : 'Edit text'
+      });
+    }
   }));
   const textEditingController = textEditingControllerRef.current;
+  useEffect(() => () => {
+    if (textDocumentPublicationFrameRef.current !== null) {
+      window.cancelAnimationFrame(textDocumentPublicationFrameRef.current);
+      textDocumentPublicationFrameRef.current = null;
+    }
+    pendingTextDocumentRef.current = null;
+  }, []);
   const textSelectionGestureControllerRef = useRef<TextSelectionGestureController | null>(null);
   textSelectionGestureControllerRef.current ??= new TextSelectionGestureController(() => ({
     focusAt: (layerId, point) => {

@@ -18,6 +18,11 @@ const outputFile = path.resolve(argument(
 ));
 const reportFile = outputFile.replace(/\.[^.]+$/, '.json');
 const executablePath = path.resolve(argument('executable', defaultExecutable));
+const requestedSizeBeforeCreate = Number.parseFloat(argument('size-before-create', ''));
+const sizeBeforeCreate = Number.isFinite(requestedSizeBeforeCreate)
+  ? requestedSizeBeforeCreate
+  : null;
+const maximumTypingMs = Number.parseFloat(argument('max-typing-ms', '10000'));
 const userDataPath = path.join(workspaceRoot, 'tmp', 'playwright-paragraph-user-data');
 const documentSize = { width: 1000, height: 700 };
 const authoredText = [
@@ -38,6 +43,9 @@ const diagnostics = {
   executablePath,
   capturedAt: new Date().toISOString(),
   authoredText,
+  sizeBeforeCreate,
+  maximumTypingMs,
+  typingMs: null,
   finalText: '',
   status: '',
   layers: [],
@@ -83,6 +91,10 @@ try {
   await window.getByRole('button', { name: 'Show text tools' }).click();
   await window.getByRole('toolbar', { name: 'Text tools' })
     .getByRole('button', { name: 'Paragraph text' }).click();
+  if (sizeBeforeCreate !== null) {
+    await window.locator('[aria-label="Text settings"]')
+      .getByLabel('Size').fill(String(sizeBeforeCreate));
+  }
 
   const viewport = window.locator('.lighttable-viewport');
   const viewportBox = await viewport.boundingBox();
@@ -109,6 +121,7 @@ try {
   const input = window.getByRole('textbox', { name: /^Edit / });
   await input.waitFor({ state: 'attached', timeout: 30_000 });
   await input.press('Control+A');
+  const typingStartedAt = performance.now();
   for (const [index, paragraph] of authoredText.split('\n').entries()) {
     if (index > 0) await input.press('Enter');
     await input.pressSequentially(paragraph);
@@ -117,6 +130,7 @@ try {
     const bridge = document.querySelector('.lighttable-text-input-bridge');
     return bridge instanceof HTMLTextAreaElement && bridge.value === expected;
   }, authoredText, { timeout: 30_000 });
+  diagnostics.typingMs = performance.now() - typingStartedAt;
   await window.locator('.lighttable-layer__text-status', { hasText: 'Flow' })
     .waitFor({ state: 'visible', timeout: 30_000 });
 
@@ -202,6 +216,11 @@ try {
   }
   if (!diagnostics.dragSelection || diagnostics.dragSelection.start === diagnostics.dragSelection.end) {
     throw new Error('Viewport mouse drag did not produce a text selection.');
+  }
+  if (diagnostics.typingMs === null || diagnostics.typingMs > maximumTypingMs) {
+    throw new Error(
+      `Paragraph typing took ${diagnostics.typingMs ?? 'an unknown duration'} ms; maximum is ${maximumTypingMs} ms.`
+    );
   }
   if (diagnostics.pageErrors.length > 0) {
     throw new Error(`Paragraph smoke reported page errors: ${diagnostics.pageErrors.join('\n')}`);

@@ -1506,6 +1506,21 @@ Append newest entries at the top. Keep entries factual and link the slice.
   packaged Electron screenshot of `D:\TextTest.psd` shows one continuous
   character orientation around the curve with zero page errors.
 
+### 2026-08-03 — Text input hot path is frame-coalesced
+
+- Root cause: every character synchronously published a full immutable
+  document to React and WebGPU, while `beginTextInput` also pushed a React
+  telemetry/debug snapshot. Removing the GPU delay exposed React error #185;
+  the renderer had accidentally acted as an input throttle.
+- Runtime: the edit transaction's canonical document ref changes immediately,
+  while renderer/document-shell publication, editing UI subscriptions and
+  telemetry presentation publish only the newest state once per animation
+  frame. Undo/redo still uses the explicit typing transaction boundary.
+- Packaged evidence: with Text Size set to 48 before paragraph creation, 157
+  characters went from 15,887.6 ms to 408.7 ms (about 39x faster), retained the
+  full source, produced a real mouse selection and reported zero page errors.
+  The smoke now fails above a deliberately loose 10,000 ms regression ceiling.
+
 ### 2026-08-03 — Point-text transforms now pivot on the authored baseline
 
 - Contract: point-text `origin` is the first-baseline insertion point, matching
