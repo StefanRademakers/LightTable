@@ -80,3 +80,6 @@ and Electron must produce the same native document semantics.
 
 Detailed Photoshop research and historic implementation matrices are retained
 under `reference/photoshop/`; they are not the current architecture contract.
+
+Current implementation status, corpus evidence, missing features and priority
+decisions are maintained in `PHOTOSHOP_PARITY_AND_MISSING_FEATURES.md`.

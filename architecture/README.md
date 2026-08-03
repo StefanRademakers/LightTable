@@ -30,11 +30,12 @@ history still has value. Keep temporary task notes out of this directory.
 6. [Performance contract](PERFORMANCE_CONTRACT.md)
 7. [Hosts, I/O and portability](HOSTS_IO_AND_PORTABILITY.md)
 8. [Photoshop interchange](PHOTOSHOP_INTERCHANGE.md)
-9. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
-10. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
-11. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
-12. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
-13. [Change rules](CHANGE_RULES.md)
+9. [Photoshop parity and missing features](PHOTOSHOP_PARITY_AND_MISSING_FEATURES.md)
+10. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
+11. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
+12. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
+13. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
+14. [Change rules](CHANGE_RULES.md)
 
 ## Directory roles
 

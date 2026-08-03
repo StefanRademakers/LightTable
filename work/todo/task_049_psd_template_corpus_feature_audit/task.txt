@@ -8,6 +8,11 @@ before implementing more PSD features. Compare Photoshop and LightTable at
 document, group and layer level so recurring architectural gaps can be
 separated from fixture-specific defects.
 
+The durable current-status register produced from this audit is
+`architecture/PHOTOSHOP_PARITY_AND_MISSING_FEATURES.md`. Generated evidence
+remains beside this task; architectural decisions are maintained in that
+document.
+
 ## Audit contract
 
 - [x] Record every source document's canvas, color mode, bit depth, layer count,
