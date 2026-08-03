@@ -118,6 +118,11 @@ export class TextLayerRenderCoordinator {
   private abortController: AbortController | null = null;
   private disposed = false;
   private active = true;
+  private shapingOperations = 0;
+  private latestShapingRoundTripMs = 0;
+  private rasterizedGlyphs = 0;
+  private latestRasterRoundTripMs = 0;
+  private textCacheSubmissions = 0;
 
   constructor(private readonly options: CoordinatorOptions) {}
 
@@ -187,7 +192,12 @@ export class TextLayerRenderCoordinator {
       atlasEvictions: atlas?.evictions ?? 0,
       sourceDecisionMeasurements: cost.measurementCount,
       lastSourceDecision: cost.lastDecision
-        ? `${cost.lastDecision.mode}:${cost.lastDecision.reason}` : null
+        ? `${cost.lastDecision.mode}:${cost.lastDecision.reason}` : null,
+      shapingOperations: this.shapingOperations,
+      latestShapingRoundTripMs: this.latestShapingRoundTripMs,
+      rasterizedGlyphs: this.rasterizedGlyphs,
+      latestRasterRoundTripMs: this.latestRasterRoundTripMs,
+      textCacheSubmissions: this.textCacheSubmissions
     });
   }
 
@@ -428,6 +438,8 @@ export class TextLayerRenderCoordinator {
       }, signal);
       layout = report.layout;
       if (!this.current(generation, key)) return;
+      this.shapingOperations += 1;
+      this.latestShapingRoundTripMs = report.roundTripDurationMs;
       this.layoutCache.set(layoutCacheKey, layout);
     }
     if (!this.current(generation, key)) return;
@@ -515,6 +527,7 @@ export class TextLayerRenderCoordinator {
     }
     try {
       this.options.device.queue.submit([encoder.finish()]);
+      this.textCacheSubmissions += 1;
     } catch (error) {
       candidate.discard();
       throw error;
@@ -571,6 +584,8 @@ export class TextLayerRenderCoordinator {
             releases.forEach((release) => release());
             return { draws: [], release: () => undefined };
           }
+          this.rasterizedGlyphs += 1;
+          this.latestRasterRoundTripMs = report.roundTripDurationMs;
           glyph = dependencies.backend.prepareGlyph(raster.key, report.raster);
         }
         glyphs.set(serialized, glyph);

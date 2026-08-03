@@ -444,7 +444,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layoutCacheBytes: 0, layoutCacheBudgetBytes: 32 * 1024 * 1024,
     layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
     atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
-    sourceDecisionMeasurements: 0, lastSourceDecision: null
+    sourceDecisionMeasurements: 0, lastSourceDecision: null,
+    shapingOperations: 0, latestShapingRoundTripMs: 0,
+    rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0
   });
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
@@ -1050,7 +1052,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             layoutCacheBytes: 0, layoutCacheBudgetBytes: 32 * 1024 * 1024,
             layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
             atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
-            sourceDecisionMeasurements: 0, lastSourceDecision: null
+            sourceDecisionMeasurements: 0, lastSourceDecision: null,
+            shapingOperations: 0, latestShapingRoundTripMs: 0,
+            rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0
           });
           setPsdImportInfo(null);
           setPsdDifferenceMetrics(null);

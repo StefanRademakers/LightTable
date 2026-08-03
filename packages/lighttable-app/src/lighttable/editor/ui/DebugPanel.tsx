@@ -223,6 +223,11 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {' · '}{textRenderTelemetry.atlasEncodes} direct encodes
           {textRenderTelemetry.lastSourceDecision ? ` · ${textRenderTelemetry.lastSourceDecision}` : ''}
         </small>
+        <small>
+          Text work: {textRenderTelemetry.shapingOperations} shapes ({textRenderTelemetry.latestShapingRoundTripMs.toFixed(2)} ms latest)
+          {' · '}{textRenderTelemetry.rasterizedGlyphs} rasterized ({textRenderTelemetry.latestRasterRoundTripMs.toFixed(2)} ms latest)
+          {' · '}{textRenderTelemetry.textCacheSubmissions} cache submits
+        </small>
         {textRendererReport ? (
           <details>
             <summary>GPU renderer bakeoff report</summary>

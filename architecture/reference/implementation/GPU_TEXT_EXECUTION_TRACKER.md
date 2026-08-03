@@ -455,7 +455,7 @@ are disabled with a reason rather than ignored.
 UI exposure: no user cache switch. Debug telemetry explains chosen mode and
 memory. During a rebuild, keep last valid pixels instead of flashing blank.
 
-Exit gate: point text meets the performance gates in section 10.
+Exit gate: point text meets the performance gates in section 9.
 
 ### Phase 4 — paragraph, rich and international text
 

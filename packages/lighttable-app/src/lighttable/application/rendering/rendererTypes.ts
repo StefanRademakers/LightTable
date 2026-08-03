@@ -41,6 +41,11 @@ export interface TextRenderPresentationSnapshot {
   readonly atlasEvictions: number;
   readonly sourceDecisionMeasurements: number;
   readonly lastSourceDecision: string | null;
+  readonly shapingOperations: number;
+  readonly latestShapingRoundTripMs: number;
+  readonly rasterizedGlyphs: number;
+  readonly latestRasterRoundTripMs: number;
+  readonly textCacheSubmissions: number;
 }
 
 export interface DocumentRendererCallbacks {
