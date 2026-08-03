@@ -38,6 +38,8 @@ export interface PdfNativeTextPageDependencies {
   readonly document: ImageDocument;
   readonly plan: PdfTextExportPlan;
   readonly realizedLayout: (layerId: LayerId) => RealizedTextLayout | null;
+  /** Limits output to the exact layers authorized by a hybrid export plan. */
+  readonly nativeTextLayerIds?: ReadonlySet<LayerId>;
   readonly pixelsPerInch?: number;
 }
 
@@ -226,6 +228,7 @@ export const buildPdfNativeTextPage = ({
   document,
   plan,
   realizedLayout,
+  nativeTextLayerIds,
   pixelsPerInch = DEFAULT_PIXELS_PER_INCH
 }: PdfNativeTextPageDependencies): PdfNativeTextPage => {
   if (!Number.isFinite(pixelsPerInch) || pixelsPerInch <= 0 || pixelsPerInch > 2_400) {
@@ -244,6 +247,7 @@ export const buildPdfNativeTextPage = ({
   let glyphCount = 0;
   for (const layer of textLayers(document.layers)) {
     const layerPlan = layerPlans.get(layer.id);
+    if (nativeTextLayerIds && !nativeTextLayerIds.has(layer.id)) continue;
     if (!layer.visible || !layerPlan || !['text', 'mixed'].includes(layerPlan.disposition)) continue;
     const layerToPage = multiplyMatrices(
       documentToPage,

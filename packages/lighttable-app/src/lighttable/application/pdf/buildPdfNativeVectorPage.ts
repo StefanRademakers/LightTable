@@ -22,6 +22,16 @@ export interface PdfNativeVectorPageDependencies {
   readonly pixelsPerInch?: number;
 }
 
+export interface PdfNativeVectorLayerOperations {
+  readonly layerId: LayerId;
+  readonly operations: readonly PdfDisplayOperation[];
+}
+
+export interface PdfNativeVectorLayerPage {
+  readonly page: PdfPageDisplayList;
+  readonly layers: readonly PdfNativeVectorLayerOperations[];
+}
+
 const DEFAULT_PIXELS_PER_INCH = 300;
 
 const fail = (message: string): never => {
@@ -120,11 +130,11 @@ const elementOperations = (
 };
 
 /** Converts selected canonical vector layers into exact PDF page operations. */
-export const buildPdfNativeVectorPage = ({
+export const buildPdfNativeVectorLayerPage = ({
   document,
   nativeVectorLayerIds,
   pixelsPerInch = DEFAULT_PIXELS_PER_INCH
-}: PdfNativeVectorPageDependencies): PdfPageDisplayList => {
+}: PdfNativeVectorPageDependencies): PdfNativeVectorLayerPage => {
   if (!Number.isFinite(pixelsPerInch) || pixelsPerInch <= 0 || pixelsPerInch > 2_400) {
     fail('pixelsPerInch must be between zero and 2400.');
   }
@@ -136,24 +146,32 @@ export const buildPdfNativeVectorPage = ({
     a: scale, b: 0, c: 0, d: -scale, tx: 0, ty: heightPoints
   };
   const scene = buildSceneTransformIndex(document);
-  const operations = layers.flatMap(layer => {
+  const outputLayers = layers.map(layer => {
     const layerToPage = multiplyMatrices(
       documentToPage,
       requireSceneTransform(scene, layer.id).localToDocument
     );
-    return layer.elements.flatMap(element => elementOperations(
-      layer,
-      element.type === 'path' ? element : realizeLiveShape(element),
-      layerToPage
-    ));
+    return {
+      layerId: layer.id,
+      operations: layer.elements.flatMap(element => elementOperations(
+        layer,
+        element.type === 'path' ? element : realizeLiveShape(element),
+        layerToPage
+      ))
+    };
   });
-  return {
+  const page: PdfPageDisplayList = {
     pageIndex: 0,
     sourceObjectId: `lighttable:${document.id}:page:1`,
     mediaBox: { x: 0, y: 0, width: document.width * scale, height: heightPoints },
     cropBox: { x: 0, y: 0, width: document.width * scale, height: heightPoints },
     rotation: 0,
     userUnit: 1,
-    operations
+    operations: outputLayers.flatMap(layer => layer.operations)
   };
+  return { page, layers: outputLayers };
 };
+
+export const buildPdfNativeVectorPage = (
+  dependencies: PdfNativeVectorPageDependencies
+): PdfPageDisplayList => buildPdfNativeVectorLayerPage(dependencies).page;

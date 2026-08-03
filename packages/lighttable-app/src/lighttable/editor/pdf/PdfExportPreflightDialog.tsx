@@ -39,6 +39,13 @@ export interface PdfExportPreflightRequest {
     readonly vectorLayerCount: number;
   }>;
   readonly nativeVectorUnavailableReason?: string;
+  readonly nativeMixedLayerCount?: number;
+  readonly exportNativeMixedPage?: () => Promise<{
+    readonly byteLength: number;
+    readonly searchableLayerCount: number;
+    readonly vectorLayerCount: number;
+  }>;
+  readonly nativeMixedUnavailableReason?: string;
 }
 
 interface PdfExportPreflightDialogProps {
@@ -63,6 +70,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
   const pageExportGenerationRef = useRef(0);
   const nativeExportGenerationRef = useRef(0);
   const vectorExportGenerationRef = useRef(0);
+  const mixedExportGenerationRef = useRef(0);
   const [validation, setValidation] = useState<
     | { readonly kind: 'idle' }
     | { readonly kind: 'running' }
@@ -87,15 +95,23 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
     | { readonly kind: 'ready'; readonly message: string }
     | { readonly kind: 'error'; readonly message: string }
   >({ kind: 'idle' });
+  const [mixedExport, setMixedExport] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'running' }
+    | { readonly kind: 'ready'; readonly message: string }
+    | { readonly kind: 'error'; readonly message: string }
+  >({ kind: 'idle' });
   useEffect(() => {
     generationRef.current += 1;
     pageExportGenerationRef.current += 1;
     nativeExportGenerationRef.current += 1;
     vectorExportGenerationRef.current += 1;
+    mixedExportGenerationRef.current += 1;
     setValidation({ kind: 'idle' });
     setPageExport({ kind: 'idle' });
     setNativeExport({ kind: 'idle' });
     setVectorExport({ kind: 'idle' });
+    setMixedExport({ kind: 'idle' });
   }, [request]);
   if (!open || !request) return null;
   const { plan, fontLabels } = request;
@@ -172,6 +188,25 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       setVectorExport({
         kind: 'error',
         message: error instanceof Error ? error.message : 'Native vector PDF export failed.'
+      });
+    }
+  };
+  const exportNativeMixedPage = async () => {
+    if (!request.exportNativeMixedPage || mixedExport.kind === 'running') return;
+    const generation = ++mixedExportGenerationRef.current;
+    setMixedExport({ kind: 'running' });
+    try {
+      const result = await request.exportNativeMixedPage();
+      if (generation !== mixedExportGenerationRef.current) return;
+      setMixedExport({
+        kind: 'ready',
+        message: `Native mixed PDF ready - ${result.searchableLayerCount} searchable text layer${result.searchableLayerCount === 1 ? '' : 's'} - ${result.vectorLayerCount} vector layer${result.vectorLayerCount === 1 ? '' : 's'} - ${formatPdfFontBytes(result.byteLength)}`
+      });
+    } catch (error) {
+      if (generation !== mixedExportGenerationRef.current) return;
+      setMixedExport({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Native mixed PDF export failed.'
       });
     }
   };
@@ -257,6 +292,23 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         ) : request.nativeVectorUnavailableReason ? (
           <div className="lighttable-psd-report__metrics">
             <span>Native vector export unavailable - {request.nativeVectorUnavailableReason}</span>
+          </div>
+        ) : null}
+        {request.exportNativeMixedPage ? (
+          <div className="lighttable-psd-report__metrics">
+            <ActionButton
+              disabled={mixedExport.kind === 'running'}
+              onClick={() => { void exportNativeMixedPage(); }}
+            >
+              {mixedExport.kind === 'running' ? 'Exporting native text and vectors...' : 'Export native text + vectors PDF...'}
+            </ActionButton>
+            {mixedExport.kind !== 'idle' && mixedExport.kind !== 'running' ? (
+              <span role="status">{mixedExport.message}</span>
+            ) : null}
+          </div>
+        ) : request.nativeMixedUnavailableReason ? (
+          <div className="lighttable-psd-report__metrics">
+            <span>Combined native export unavailable - {request.nativeMixedUnavailableReason}</span>
           </div>
         ) : null}
         <div className="lighttable-psd-report__entries">

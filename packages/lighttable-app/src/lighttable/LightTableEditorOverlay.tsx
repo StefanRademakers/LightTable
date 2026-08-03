@@ -54,7 +54,10 @@ import { TextToShapeCommandController } from './application/text/TextToShapeComm
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPreflight';
 import { buildPdfNativeTextPage } from './application/pdf/buildPdfNativeTextPage';
-import { buildPdfNativeVectorPage } from './application/pdf/buildPdfNativeVectorPage';
+import {
+  buildPdfNativeVectorLayerPage,
+  buildPdfNativeVectorPage
+} from './application/pdf/buildPdfNativeVectorPage';
 import {
   pdfDocumentProcessingActive,
   planHybridPdfPageExport,
@@ -64,6 +67,10 @@ import {
   planHybridPdfVectorPageExport,
   type HybridPdfVectorPageExportReason
 } from './application/pdf/planHybridPdfVectorPageExport';
+import {
+  planHybridPdfNativePageExport,
+  type HybridPdfNativePageExportReason
+} from './application/pdf/planHybridPdfNativePageExport';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
@@ -283,6 +290,13 @@ const hybridPdfVectorReasonLabel: Record<HybridPdfVectorPageExportReason, string
   'native-vectors-not-topmost': 'non-vector content is above native vectors',
   'vector-effects-unsupported': 'a vector or ancestor uses unsupported masks, clipping, blend or effects',
   'vector-stroke-alignment-unsupported': 'inside or outside vector strokes require outlining first',
+  'document-processing-active': 'document-wide Grade or Lens Fx is active'
+};
+const hybridPdfNativeReasonLabel: Record<HybridPdfNativePageExportReason, string> = {
+  'no-native-content': 'no text or vector layer can be emitted natively',
+  'native-content-not-topmost': 'non-native content interrupts the native top layer stack',
+  'stale-native-text-layer': 'the document changed after text preflight',
+  'vector-content-unsupported': 'a top vector uses unsupported compositing or stroke alignment',
   'document-processing-active': 'document-wide Grade or Lens Fx is active'
 };
 const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
@@ -2371,6 +2385,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           document,
           pdfDocumentProcessingActive(documentAdjustmentsRef.current)
         );
+        const nativePlan = planHybridPdfNativePageExport({
+          document,
+          textPlan: plan,
+          documentProcessingActive: pdfDocumentProcessingActive(documentAdjustmentsRef.current)
+        });
         editorDialogs.openPdfExportPreflight({
           plan,
           fontLabels: Object.fromEntries(fonts.map((font) => [
@@ -2408,6 +2427,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               document: currentDocument,
               plan,
               realizedLayout: (layerId) => renderer.textEditingLayout(layerId)?.layout ?? null,
+              nativeTextLayerIds: hybridPlan.nativeTextLayerIds,
               pixelsPerInch: 300
             });
             const rasterUnderlayPng = await renderer.exportPng({
@@ -2474,6 +2494,69 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           nativeVectorUnavailableReason: vectorPlan.kind === 'flattened-only'
             && !vectorPlan.reasons.includes('no-native-vectors')
             ? vectorPlan.reasons.map(reason => hybridPdfVectorReasonLabel[reason]).join('; ')
+            : undefined,
+          nativeMixedLayerCount: nativePlan.kind === 'ready'
+            ? nativePlan.nativeLayerOrder.length
+            : 0,
+          exportNativeMixedPage: nativePlan.kind === 'ready'
+            && nativePlan.nativeTextLayerIds.size > 0
+            && nativePlan.nativeVectorLayerIds.size > 0 ? async () => {
+              const currentDocument = imageDocumentRef.current;
+              const renderer = engineRef.current;
+              if (!currentDocument || !renderer) throw new Error('LightTable is not ready yet.');
+              if (currentDocument.id !== document.id || currentDocument.revision !== document.revision) {
+                throw new Error('The document changed after PDF preflight. Open preflight again.');
+              }
+              const { materializePdfFontsWithHarfBuzz } = await import(
+                './infrastructure/pdf/materializePdfFontsWithHarfBuzz'
+              );
+              const resources = await materializePdfFontsWithHarfBuzz(plan, {
+                fonts,
+                loadFontBytes: (assetId) => textFontRegistry.bytes(assetId)
+              });
+              const nativeTextPage = buildPdfNativeTextPage({
+                document: currentDocument,
+                plan,
+                realizedLayout: (layerId) => renderer.textEditingLayout(layerId)?.layout ?? null,
+                nativeTextLayerIds: nativePlan.nativeTextLayerIds,
+                pixelsPerInch: 300
+              });
+              const nativeVectorPage = buildPdfNativeVectorLayerPage({
+                document: currentDocument,
+                nativeVectorLayerIds: nativePlan.nativeVectorLayerIds,
+                pixelsPerInch: 300
+              });
+              const excludedLayerIds = [
+                ...nativePlan.nativeTextLayerIds,
+                ...nativePlan.nativeVectorLayerIds
+              ];
+              const rasterUnderlayPng = await renderer.exportPng({ excludedLayerIds });
+              const { writeNativeTextPdfPage } = await import(
+                './infrastructure/pdf/writeNativeTextPdfPage'
+              );
+              const result = await writeNativeTextPdfPage({
+                page: nativeTextPage,
+                fonts: resources.embedded,
+                title: currentDocument.name,
+                rasterUnderlayPng,
+                vectorLayers: nativeVectorPage.layers,
+                nativeLayerOrder: nativePlan.nativeLayerOrder
+              });
+              downloadEditorFile(new File(
+                [result.blob],
+                `${fileNameBase.replace(/\.pdf$/i, '')}-native-mixed.pdf`,
+                { type: 'application/pdf' }
+              ));
+              return {
+                byteLength: result.blob.size,
+                searchableLayerCount: nativePlan.nativeTextLayerIds.size,
+                vectorLayerCount: nativePlan.nativeVectorLayerIds.size
+              };
+            } : undefined,
+          nativeMixedUnavailableReason: nativePlan.kind === 'flattened-only'
+            && plan.layers.length > 0
+            && vectorPlan.kind === 'ready'
+            ? nativePlan.reasons.map(reason => hybridPdfNativeReasonLabel[reason]).join('; ')
             : undefined,
           exportFlattenedPage: async () => {
             const currentDocument = imageDocumentRef.current;

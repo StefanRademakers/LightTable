@@ -845,6 +845,22 @@ outside strokes, ancestor effects/masks/clipping, document-wide processing and
 non-vector content above the suffix continue to report flattened-only instead
 of changing z-order or appearance.
 
+Mixed native-suffix evidence: the text and vector writers now share one ordered
+PDF page transaction. A combined planner selects only a contiguous visible
+top suffix, classifies every layer as exact native text or supported native
+vector, and passes its canonical bottom-to-top order to the writer. Font and
+graphics-state resources are registered once; each text or vector layer gets
+its own content stream in that exact order above one GPU raster underlay.
+Unsupported content, document-wide processing and interrupted suffixes remain
+flattened-only. The existing preflight dialog exposes the combined action with
+the established `ActionButton` and reports incompatibility without new CSS or
+control primitives. A PDF.js operator test proves vector-text-vector ordering.
+Packaged Playwright automation opened `D:\TextTest.psd`, authored a real native
+rectangle above the imported editable text, exported the mixed page, and
+reopened it through LightTable with zero page errors. Independent PDF.js
+inspection found one raster image, one native constructed path, 197 text-show
+operations and searchable Unicode across all five text layers.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

@@ -1,9 +1,16 @@
 import type {
+  PdfDisplayOperation,
   PdfNativeTextPage,
   PdfNativeTextRun
 } from '@lighttable/pdf-core';
 import type { PdfEmbeddedFontResource } from '../../application/pdf/materializePdfFonts';
 import { parseSfntPdfFontMetrics } from './parseSfntPdfFontMetrics';
+import { serializePdfDisplayListOperations } from './serializePdfDisplayListOperations';
+
+export interface NativeVectorLayerPdfContent {
+  readonly layerId: string;
+  readonly operations: readonly PdfDisplayOperation[];
+}
 
 export interface NativeTextPdfPageInput {
   readonly page: PdfNativeTextPage;
@@ -11,6 +18,10 @@ export interface NativeTextPdfPageInput {
   readonly title?: string;
   /** GPU-rendered page content below the native text layer suffix. */
   readonly rasterUnderlayPng?: Blob;
+  /** Resource-free normalized vector operations grouped by canonical layer. */
+  readonly vectorLayers?: readonly NativeVectorLayerPdfContent[];
+  /** Bottom-to-top native suffix order. Required when vector layers are present. */
+  readonly nativeLayerOrder?: readonly string[];
 }
 
 export interface NativeTextPdfPageResult {
@@ -18,6 +29,7 @@ export interface NativeTextPdfPageResult {
   readonly embeddedFontCount: number;
   readonly textRunCount: number;
   readonly glyphCount: number;
+  readonly pathCount: number;
 }
 
 const fail = (message: string): never => {
@@ -221,7 +233,9 @@ export const writeNativeTextPdfPage = async ({
   page: source,
   fonts,
   title,
-  rasterUnderlayPng
+  rasterUnderlayPng,
+  vectorLayers = [],
+  nativeLayerOrder
 }: NativeTextPdfPageInput): Promise<NativeTextPdfPageResult> => {
   if (!Number.isFinite(source.widthPoints) || !Number.isFinite(source.heightPoints)
     || source.widthPoints <= 0 || source.heightPoints <= 0
@@ -289,7 +303,7 @@ export const writeNativeTextPdfPage = async ({
     shared.set(run.fontInstanceId, { resource, metrics, baseName, descriptorRef });
   }
 
-  const content: string[] = [];
+  const textContentByLayer = new Map<string, string[]>();
   let fontIndex = 0;
   for (const run of source.runs) {
     const font = shared.get(run.fontInstanceId)!;
@@ -335,15 +349,47 @@ export const writeNativeTextPdfPage = async ({
       const state = context.obj({ Type: 'ExtGState', ca: run.paint.fillAlpha, CA: 1 });
       page.node.setExtGState(PDFName.of(graphicsStateName), state);
     }
-    content.push(contentForRun(run, fontName, graphicsStateName, font.metrics.widths));
+    const layerContent = textContentByLayer.get(run.layerId) ?? [];
+    layerContent.push(contentForRun(run, fontName, graphicsStateName, font.metrics.widths));
+    textContentByLayer.set(run.layerId, layerContent);
   }
-  const contentRef = context.register(context.flateStream(content.join('\n')));
-  page.node.addContentStream(contentRef);
+  const vectorByLayer = new Map<string, readonly PdfDisplayOperation[]>();
+  vectorLayers.forEach(layer => {
+    if (vectorByLayer.has(layer.layerId)) fail(`received duplicate vector layer ${layer.layerId}.`);
+    vectorByLayer.set(layer.layerId, layer.operations);
+  });
+  const nativeIds = new Set([...textContentByLayer.keys(), ...vectorByLayer.keys()]);
+  const order = nativeLayerOrder ?? [...textContentByLayer.keys()];
+  if (vectorLayers.length > 0 && !nativeLayerOrder) fail('requires nativeLayerOrder when vector layers are present.');
+  if (new Set(order).size !== order.length
+    || order.length !== nativeIds.size
+    || order.some(layerId => !nativeIds.has(layerId))) {
+    fail('nativeLayerOrder must contain every native text/vector layer exactly once.');
+  }
+  let pathCount = 0;
+  order.forEach((layerId, layerIndex) => {
+    const vectorOperations = vectorByLayer.get(layerId);
+    if (vectorOperations) {
+      const serialized = serializePdfDisplayListOperations(
+        document,
+        page,
+        vectorOperations,
+        `LTV${layerIndex + 1}GS`
+      );
+      pathCount += serialized.pathCount;
+      page.node.addContentStream(context.register(context.flateStream(serialized.content)));
+    }
+    const textContent = textContentByLayer.get(layerId);
+    if (textContent) {
+      page.node.addContentStream(context.register(context.flateStream(textContent.join('\n'))));
+    }
+  });
   const bytes = await document.save({ addDefaultPage: false, useObjectStreams: true });
   return {
     blob: new Blob([Uint8Array.from(bytes).buffer], { type: 'application/pdf' }),
     embeddedFontCount: shared.size,
     textRunCount: source.runs.length,
-    glyphCount: source.runs.reduce((total, run) => total + run.glyphs.length, 0)
+    glyphCount: source.runs.reduce((total, run) => total + run.glyphs.length, 0),
+    pathCount
   };
 };

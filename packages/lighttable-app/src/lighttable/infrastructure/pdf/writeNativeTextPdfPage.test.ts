@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { PdfNativeTextPage, PdfNativeTextRun } from '@lighttable/pdf-core';
+import type { PdfDisplayOperation, PdfNativeTextPage, PdfNativeTextRun } from '@lighttable/pdf-core';
 import { createHarfBuzzFontSubsetter } from './HarfBuzzFontSubsetter';
 import { writeNativeTextPdfPage } from './writeNativeTextPdfPage';
 
@@ -83,6 +83,19 @@ const extractedText = async (blob: Blob) => {
   }
 };
 
+const rectangleOperations = (r: number, g: number, b: number): PdfDisplayOperation[] => [
+  { kind: 'save-state' },
+  { kind: 'set-fill-paint', paint: { kind: 'device-rgb', r, g, b } },
+  { kind: 'draw-path', paint: 'fill', fillRule: 'nonzero', path: { commands: [
+    { kind: 'move', point: { x: 10, y: 10 } },
+    { kind: 'line', point: { x: 190, y: 10 } },
+    { kind: 'line', point: { x: 190, y: 90 } },
+    { kind: 'line', point: { x: 10, y: 90 } },
+    { kind: 'close' }
+  ] } },
+  { kind: 'restore-state' }
+];
+
 describe('writeNativeTextPdfPage', () => {
   it('embeds a retain-GID Type0 font and reopens as searchable Unicode text', async () => {
     const result = await writeNativeTextPdfPage({
@@ -132,5 +145,37 @@ describe('writeNativeTextPdfPage', () => {
     expect(await extractedText(result.blob)).toBe('A');
     const bytes = new Uint8Array(await result.blob.arrayBuffer());
     expect(new TextDecoder('latin1').decode(bytes)).toContain('/Subtype /Image');
+  });
+
+  it('interleaves native vector and searchable text layers in canonical order', async () => {
+    const result = await writeNativeTextPdfPage({
+      page: page(run()),
+      fonts: await resources([0, 36]),
+      vectorLayers: [
+        { layerId: 'vector-bottom', operations: rectangleOperations(1, 0, 0) },
+        { layerId: 'vector-top', operations: rectangleOperations(0, 0, 1) }
+      ],
+      nativeLayerOrder: ['vector-bottom', 'layer-1', 'vector-top']
+    });
+    expect(result).toMatchObject({ pathCount: 2, textRunCount: 1 });
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const loading = pdfjs.getDocument({
+      data: new Uint8Array(await result.blob.arrayBuffer()),
+      isEvalSupported: false,
+      useWorkerFetch: false
+    });
+    try {
+      const operatorList = await (await (await loading.promise).getPage(1)).getOperatorList();
+      const argumentsJson = operatorList.argsArray.map(args => JSON.stringify(args));
+      const bottom = argumentsJson.findIndex(value => value.includes('#ff0000'));
+      const text = operatorList.fnArray.findIndex(value => value === pdfjs.OPS.showText);
+      const top = argumentsJson.findIndex(value => value.includes('#0000ff'));
+      expect(bottom).toBeGreaterThanOrEqual(0);
+      expect(text).toBeGreaterThan(bottom);
+      expect(top).toBeGreaterThan(text);
+      expect(await extractedText(result.blob)).toBe('A');
+    } finally {
+      await loading.destroy();
+    }
   });
 });

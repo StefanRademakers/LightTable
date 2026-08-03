@@ -37,12 +37,15 @@ const strokeColor = argument('stroke-color', '');
 const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const strokeAlignment = argument('stroke-alignment', '');
 const mergeDown = argument('merge-down', '') === 'true';
+const createRectangle = argument('create-rectangle', '') === 'true';
 const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
 const exportFlattenedPdf = argument('pdf-export-flattened', '') === 'true';
 const exportNativePdf = argument('pdf-export-native', '') === 'true';
 const exportNativeVectorPdf = argument('pdf-export-vectors', '') === 'true';
+const exportNativeMixedPdf = argument('pdf-export-mixed', '') === 'true';
 const openPdfPreflight = argument('pdf-preflight', '') === 'true'
-  || validatePdfFonts || exportFlattenedPdf || exportNativePdf || exportNativeVectorPdf;
+  || validatePdfFonts || exportFlattenedPdf || exportNativePdf
+  || exportNativeVectorPdf || exportNativeMixedPdf;
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -71,8 +74,9 @@ const diagnostics = {
   expectedVectorLayers,
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
-    enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown,
-    openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf, exportNativeVectorPdf
+    enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
+    openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf,
+    exportNativeVectorPdf, exportNativeMixedPdf
   },
   outputFile,
   executablePath,
@@ -134,6 +138,21 @@ try {
     return !status.includes('Preparing the text engine');
   }, undefined, { timeout: 15_000 }).catch(() => {});
   await window.waitForTimeout(750);
+
+  if (createRectangle) {
+    await window.getByRole('button', { name: 'Rectangle (U)' }).click();
+    const canvas = window.locator('.lighttable-viewport');
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('The document canvas has no interactive bounds.');
+    // Keep the gesture clear of the floating Layers panel used by this fixture.
+    const startX = box.x + box.width * 0.68;
+    const startY = box.y + box.height * 0.68;
+    await window.mouse.move(startX, startY);
+    await window.mouse.down();
+    await window.mouse.move(startX + 160, startY + 100, { steps: 12 });
+    await window.mouse.up();
+    await window.waitForTimeout(500);
+  }
 
   if (selectLayer) {
     const layerRow = window.locator('.lighttable-layer').filter({
@@ -288,6 +307,28 @@ try {
     if (!exported) throw new Error('The native vector PDF download was not written by Electron.');
     diagnostics.exportedPdf = {
       kind: 'native-vectors', path: exportedPdfFile, byteLength: exported.size
+    };
+  }
+  if (exportNativeMixedPdf) {
+    await mkdir(path.dirname(exportedPdfFile), { recursive: true });
+    await electronApp.evaluate(({ session }, savePath) => {
+      session.defaultSession.once('will-download', (_event, item) => {
+        item.setSavePath(savePath);
+      });
+    }, exportedPdfFile);
+    await window.getByRole('button', { name: 'Export native text + vectors PDF...' }).click();
+    await window.getByRole('status').filter({ hasText: /Native mixed PDF ready/i }).waitFor({
+      state: 'visible', timeout: 60_000
+    });
+    const deadline = Date.now() + 30_000;
+    let exported;
+    while (!exported && Date.now() < deadline) {
+      exported = await stat(exportedPdfFile).catch(() => undefined);
+      if (!exported) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (!exported) throw new Error('The native mixed PDF download was not written by Electron.');
+    diagnostics.exportedPdf = {
+      kind: 'native-mixed', path: exportedPdfFile, byteLength: exported.size
     };
   }
 

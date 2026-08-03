@@ -77,7 +77,8 @@ runtime and Chromium notices are part of the packaged desktop release review.
   or kept preview-backed. It is not an editability claim.
 - **Save**: writes the native LightTable document or a simple graded PNG.
 - **Export**: writes a deliverable. Quick export is PNG; the PDF preflight can
-  write one flattened page or a compatible hybrid raster-underlay with native text or vectors.
+  write one flattened page or a compatible hybrid raster-underlay with an
+  ordered native text/vector top suffix.
 - **Research/target**: architecture exists, but the file format is not accepted
   by the product and must not appear as supported in UI.
 
@@ -92,7 +93,7 @@ runtime and Chromium notices are part of the packaged desktop release review.
 | TIFF 6.0 and BigTIFF signatures | Yes through lazy wasm-vips | Precision still-raster import | No TIFF export | Multi-page TIFF, arbitrary private tags and metadata round-trip are not product features |
 | Adobe PSD v1 (`8BPS`, version 1) | Yes through lazy worker | Progressive semantic import with separate structural, editable, visual and round-trip parity; unsupported data is reported/preview-backed | No PSD export | Requires an embedded composite; 8/16/32-bit preview conversion; max 30,000 px per side, 400 Mpx, 10,000 layers, depth 128 and 1 GiB decoded budget |
 | Adobe PSB v2 (`8BPS`, version 2) | Recognized and routed to the PSD worker | Same adapter target, but representative PSB fixture validation remains incomplete | No PSB export | LightTable intentionally keeps the 30,000 px safety limit, below the 300,000 px PSB format maximum |
-| PDF 1.7 / ISO 32000-1 and PDF 2.0 / ISO 32000-2:2020 | Yes; first page through lazy PDF.js preview | Imported as one 300-ppi raster layer while the original PDF remains an immutable preserved source; canonical positioned-text and display-list contracts are not connected to production parsing yet | Native LightTable save preserves the source; PDF preflight exports one flattened page or a fail-closed raster underlay with a compatible topmost searchable-text or native-vector suffix | Password handling, page selection, multipage documents, semantic import and general vector/group/text interleaving remain gated; the preview must not be presented as editable PDF structure |
+| PDF 1.7 / ISO 32000-1 and PDF 2.0 / ISO 32000-2:2020 | Yes; first page through lazy PDF.js preview | Imported as one 300-ppi raster layer while the original PDF remains an immutable preserved source; canonical positioned-text and display-list contracts are not connected to production parsing yet | Native LightTable save preserves the source; PDF preflight exports one flattened page or a fail-closed raster underlay with a compatible ordered top suffix of searchable text and supported native vectors | Password handling, page selection, multipage documents, semantic import and arbitrary vector/group/text interleaving remain gated; the preview must not be presented as editable PDF structure |
 | Adobe Illustrator `.ai` | No | No AI parser. A future PDF-compatible AI path may reuse a verified PDF display-list adapter, but native Illustrator-private data needs separate preservation rules | No | Do not equate “PDF-compatible AI file” with implemented AI support |
 | SVG, EPS, RAW/NEF, HEIF/AVIF/JXL | No product open route | None | No | Some transitive codecs may exist inside wasm-vips; that does not make them supported LightTable formats |
 
