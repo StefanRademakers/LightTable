@@ -279,6 +279,7 @@ export class WebGpuEngine {
     if (this.destroyed || active === this.active) return;
     this.active = active;
     this.renderScheduler.setPaused(!active);
+    this.documentRenderer?.setActive(active);
     if (active) {
       this.scopeRuntime.resize();
       this.requestRender();

@@ -76,6 +76,10 @@ export class LayerDocumentRenderer {
     this.runtime.textLayerCoordinator.configureFonts(port);
   }
 
+  setActive(active: boolean) {
+    this.runtime.textLayerCoordinator.setActive(active);
+  }
+
   textEditingLayout(layerId: LayerId) {
     return this.runtime.textLayerCoordinator.editingLayout(layerId);
   }

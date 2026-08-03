@@ -39,7 +39,9 @@ const harness = () => {
     sync: vi.fn(),
     snapshot: vi.fn(() => ({ publicationRevision: 0 })),
     dispose: vi.fn(),
-    resolve: vi.fn(() => null),
+    resolve: vi.fn(() => ({})),
+    isTransparent: vi.fn(() => false),
+    markTransparent: vi.fn(() => false),
     release: vi.fn(() => false),
     thumbnailSource: vi.fn(() => null),
     prepareTightSource
@@ -90,6 +92,24 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).not.toHaveBeenCalled();
   });
 
+  it('does no worker or GPU work while suspended and resumes the latest document', async () => {
+    const state = harness();
+    const document = createImageDocument('Background text', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.setActive(false);
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    expect(state.client.registerFontDetailed).not.toHaveBeenCalled();
+    expect(state.client.realizeTextDetailed).not.toHaveBeenCalled();
+    expect(state.submit).not.toHaveBeenCalled();
+
+    state.coordinator.setActive(true);
+    await flush();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+    expect(state.submit).toHaveBeenCalledOnce();
+  });
+
   it('prepares one atomic source and deduplicates unchanged documents', async () => {
     const state = harness();
     const document = createImageDocument('Text', 32, 24, 'source');
@@ -136,6 +156,53 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
     expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(2);
     expect(state.submit).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips exact settled siblings when one visible text layer changes', async () => {
+    const state = harness();
+    const document = createImageDocument('Text siblings', 32, 24, 'source');
+    document.layers = [
+      createTextLayerNode(createDefaultTextLayerData(), 'First'),
+      createTextLayerNode(createDefaultTextLayerData(), 'Second')
+    ];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(2);
+    expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(2);
+
+    const first = document.layers[0]!;
+    if (first.type !== 'text' || first.text.source.kind !== 'flow') {
+      throw new Error('Expected flow text fixture.');
+    }
+    const changed = setFlowTextContent(
+      document,
+      first.id,
+      first.text.source.text,
+      first.text.source.styleRuns.map((run) => ({ ...run, tracking: run.tracking + 1 })),
+      first.text.source.paragraphRuns
+    );
+    state.coordinator.sync(changed);
+    await flush();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(3);
+    expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(3);
+  });
+
+  it('publishes editing geometry even when source preparation fails afterward', async () => {
+    const state = harness();
+    state.renderer.prepareTightSource.mockImplementation(() => {
+      throw new Error('allocation failed');
+    });
+    const document = createImageDocument('Editing geometry', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    expect(state.coordinator.editingLayout(document.layers[0]!.id)).toMatchObject({
+      layerId: document.layers[0]!.id,
+      layout: { key: 'layout' }
+    });
+    expect(state.submit).not.toHaveBeenCalled();
   });
 
   it('invalidates queued work when text becomes hidden', async () => {

@@ -112,8 +112,23 @@ export class TextLayerRenderCoordinator {
   private readonly editingLayouts = new Map<LayerId, TextLayerEditingLayout>();
   private abortController: AbortController | null = null;
   private disposed = false;
+  private active = true;
 
   constructor(private readonly options: CoordinatorOptions) {}
+
+  setActive(active: boolean) {
+    if (this.disposed || this.active === active) return false;
+    this.active = active;
+    if (!active) {
+      this.abortController?.abort();
+      this.abortController = null;
+      this.pendingKey = '';
+      this.generation += 1;
+    } else {
+      this.schedule();
+    }
+    return true;
+  }
 
   configureFonts(port: TextFontRuntimePort | null) {
     if (this.fontPort === port) return;
@@ -210,7 +225,7 @@ export class TextLayerRenderCoordinator {
   }
 
   private schedule() {
-    if (this.disposed || !this.document || !this.fontPort) return;
+    if (this.disposed || !this.active || !this.document || !this.fontPort) return;
     const layers = visibleTextLayers(this.document);
     if (layers.length === 0 || this.fontPort.assets.length === 0) {
       this.abortController?.abort();
@@ -282,6 +297,14 @@ export class TextLayerRenderCoordinator {
     if (!this.current(generation, key)) return;
     for (const entry of layers) {
       if (!this.current(generation, key)) return;
+      const expected = this.layerPreparationKey(
+        document.id, entry.layer, entry.transform, port.revision
+      );
+      if (this.settledLayerKeys.get(entry.layer.id) === expected
+        && (this.options.renderer.resolve(entry.layer)
+          || this.options.renderer.isTransparent(entry.layer))) {
+        continue;
+      }
       await this.prepareLayer(
         dependencies, entry.layer, entry.transform, port.revision, generation, key, signal
       );
@@ -373,9 +396,13 @@ export class TextLayerRenderCoordinator {
         cacheKey: layoutCacheKey
       }, signal);
       layout = report.layout;
+      if (!this.current(generation, key)) return;
       this.layoutCache.set(layoutCacheKey, layout);
     }
     if (!this.current(generation, key)) return;
+    this.publishEditingLayout(layer, layout, transform, fontPortRevision);
+    this.publishChanged();
+    this.options.requestRender();
     const prepared = await this.prepareDraws(
       dependencies,
       projectCurrentTextPaint(layout, layer.text.source),
@@ -410,7 +437,6 @@ export class TextLayerRenderCoordinator {
         layer.id,
         this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
       );
-      this.publishEditingLayout(layer, layout, transform, fontPortRevision);
       this.publishChanged();
       this.options.requestRender();
       return;
@@ -422,7 +448,6 @@ export class TextLayerRenderCoordinator {
       throw error;
     }
     candidate.publish();
-    this.publishEditingLayout(layer, layout, transform, fontPortRevision);
     this.settledLayerKeys.set(
       layer.id,
       this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
@@ -502,7 +527,8 @@ export class TextLayerRenderCoordinator {
   }
 
   private current(generation: number, key: string) {
-    return !this.disposed && generation === this.generation && key === this.pendingKey;
+    return !this.disposed && this.active
+      && generation === this.generation && key === this.pendingKey;
   }
 
   private publishEditingLayout(
