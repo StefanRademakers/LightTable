@@ -15,10 +15,10 @@ describe('toolRegistry', () => {
     expect(SELECTION_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
       'select-rectangle',
       'select-ellipse',
-      'select-horizontal',
-      'select-vertical',
       'select-free',
-      'select-polygonal'
+      'select-polygonal',
+      'select-horizontal',
+      'select-vertical'
     ]);
   });
   it('defines the four live-shape tools as one toolbar family', () => {
