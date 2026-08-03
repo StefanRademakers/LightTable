@@ -705,6 +705,22 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 18 PSD semantic text takes editing priority
+
+- Import policy: a valid supported Photoshop text descriptor now always creates
+  a native editable flow `TextLayer`, even when Photoshop also supplies its
+  usual layer-local raster preview. Previously that preview caused virtually
+  all otherwise-supported PSD text to import as a raster layer.
+- Rich text: point text, paragraph frames, affine transforms and character
+  style runs (including different fills) retain their canonical ranges and
+  immediately use the existing canvas editor, Tool Options and contextual Text
+  Properties surface.
+- Fidelity/UI: the retained Photoshop composite remains the visual comparison
+  reference when source fonts differ; the import report marks visual parity as
+  approximate and semantics as editable. Unsupported warp, vertical and path
+  descriptors remain honestly preview-backed until their complete layout and
+  editing routes exist—no misleading disabled text controls are shown.
+
 ### 2026-08-03 - Slice 17 path-aware editing hit testing
 
 - Interaction: existing text selection/caret gestures now resolve the nearest

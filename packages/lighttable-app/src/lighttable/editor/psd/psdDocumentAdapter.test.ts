@@ -317,23 +317,46 @@ describe('importPsdDocument', () => {
     expect(result.warnings.join('\n')).toContain('exact appearance depends');
   });
 
-  it('keeps the Photoshop raster preview authoritative when native text may differ', () => {
+  it('prefers editable semantic text while retaining the Photoshop composite as reference', () => {
     const result = importPsdDocument(decoded([raster('preview-text', {
       kind: 'text',
       preserved: {
-        text: { text: 'Preview first', style: { font: { name: 'Unknown Font' } } },
+        text: {
+          text: 'Preview first',
+          style: { font: { name: 'Unknown Font' }, fillColor: { r: 255, g: 0, b: 0 } },
+          styleRuns: [
+            { length: 8, style: { fillColor: { r: 255, g: 0, b: 0 } } },
+            { length: 5, style: { fillColor: { r: 0, g: 255, b: 0 } } }
+          ]
+        },
         placedLayer: null, vectorFill: null, vectorMask: null, vectorStroke: null, realMask: null
       }
     })]), 'preview-text.psd');
-    expect(result.document.layers[0]).toMatchObject({ type: 'raster' });
+    expect(result.document.layers[0]).toMatchObject({
+      type: 'text',
+      text: {
+        source: {
+          kind: 'flow',
+          text: 'Preview first',
+          styleRuns: [
+            { start: 0, end: 8, fill: { color: { r: 1, g: 0, b: 0 } } },
+            { start: 8, end: 13, fill: { color: { r: 0, g: 1, b: 0 } } }
+          ]
+        }
+      }
+    });
+    expect(result.assets).toHaveLength(0);
     expect(result.compatibility).toContainEqual(expect.objectContaining({
-      feature: 'text', support: 'raster-preview',
-      layerId: 'preview-text', editable: false,
+      feature: 'text', support: 'approximate',
+      layerId: 'preview-text', editable: true,
       parity: {
-        visual: 'raster-preview', semantic: 'preserved',
-        structural: 'preserved', roundTrip: 'preserved'
-      },
-      reason: expect.stringContaining('remains authoritative')
+        visual: 'approximate', semantic: 'editable',
+        structural: 'native', roundTrip: 'unsupported'
+      }
+    }));
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      feature: 'node',
+      reason: expect.stringContaining('retained Photoshop composite')
     }));
   });
 

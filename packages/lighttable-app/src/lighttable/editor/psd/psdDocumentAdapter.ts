@@ -524,7 +524,7 @@ export const importPsdDocument = (
       const textImport = importPsdText(node.preserved.text, node.id);
       const reason = textImport.reasons.join(' ');
       const previewBacked = node.rasterFallback !== 'transparent-placeholder' && Boolean(node.pixels);
-      if (textImport.kind === 'editable-flow' && !previewBacked) {
+      if (textImport.kind === 'editable-flow') {
         const layer: TextLayer = {
           ...common,
           type: 'text',
@@ -561,9 +561,13 @@ export const importPsdDocument = (
           path,
           feature: 'node',
           support: 'approximate',
-          reason: 'Photoshop text without a usable raster preview is mapped to native editable flow text.'
+          reason: previewBacked
+            ? 'Supported Photoshop text is mapped to native editable flow text; the retained Photoshop composite remains available as the visual reference.'
+            : 'Photoshop text without a usable raster preview is mapped to native editable flow text.'
         });
-        warnings.push(`${path}: ${reason}`);
+        warnings.push(`${path}: ${reason}${previewBacked
+          ? ' The native editable layer is authoritative; compare it with the retained Photoshop composite when fonts differ.'
+          : ''}`);
         return layer;
       }
       compatibility.push({
@@ -578,9 +582,7 @@ export const importPsdDocument = (
           structural: 'preserved',
           roundTrip: 'preserved'
         },
-        reason: previewBacked && textImport.kind === 'editable-flow'
-          ? `${reason} Photoshop's layer-local raster preview remains authoritative until the source font is resolved.`
-          : reason
+        reason
       });
     }
     if (!node.pixels) {
