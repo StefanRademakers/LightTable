@@ -27,7 +27,9 @@ document.
   features without changing rendering during the audit.
 - [x] Group recurring gaps into candidate implementation tasks and rank them by
   affected documents, visual impact and architectural dependency.
-- [ ] Review the completed feature matrix before implementing candidates.
+- [x] Review the completed feature matrix before implementing candidates.
+  Result: the user explicitly approved the inventory-first policy and the
+  proposed dependency order before semantic text/vector/gradient work began.
 
 ## Canonical/native-format requirements to verify
 
@@ -42,8 +44,12 @@ document.
 - [x] Verify unsupported-feature retention. Result: layer-local previews and
   descriptors cover text/vector/smart-object cases, but embedded smart-object
   content and unsupported adjustment-scope previews are missing.
-- [ ] Layer-tree thumbnails use consistent square cells with contained aspect
+- [x] Layer-tree thumbnails use consistent square cells with contained aspect
   ratios, while row sizing remains independent of source layer dimensions.
+  Result: the shared 40 x 40 thumbnail cell contains source aspect ratio, and
+  semantic affine transforms are applied by the GPU thumbnail export. A clean
+  packaged capture of `D:\TextTest.psd` verifies the 90-degree text thumbnail
+  orientation against the canvas with zero page errors.
 
 ## Feature implementation policy
 
@@ -56,4 +62,4 @@ special cases and do not mark cached pixels as semantic support.
 - [x] All ten PSDs open in both applications and have an audit record.
 - [x] Failures and unavailable comparisons are explicit; corpus averages do not
   hide severe per-document differences.
-- [ ] The resulting priority proposal is reviewed before feature work starts.
+- [x] The resulting priority proposal is reviewed before feature work starts.
