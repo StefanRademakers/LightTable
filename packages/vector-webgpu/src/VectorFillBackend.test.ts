@@ -18,6 +18,7 @@ const fixture = () => {
     setPipeline: vi.fn(),
     setVertexBuffer: vi.fn(),
     setStencilReference: vi.fn(),
+    setScissorRect: vi.fn(),
     draw: vi.fn(),
     end: vi.fn()
   };
@@ -162,6 +163,36 @@ describe('VectorFillBackend', () => {
     expect(backend.cacheMetrics()).toMatchObject({ entries: 1, hits: 1, misses: 1 });
     expect(backend.invalidatePath('p')).toBe(1);
     await backend.notifySubmitted();
+    backend.dispose();
+  });
+
+  it('clips vector draws to a bounded target-space scissor rectangle', () => {
+    const { device, encoder, pass } = fixture();
+    const backend = new VectorFillBackend(device as unknown as GPUDevice);
+    const path = pathFixture();
+    const realized = realizeVectorPath(path, 0.25);
+    const encoded = backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, realized, {
+      colorView: {} as GPUTextureView,
+      resolveView: null,
+      stencilView: {} as GPUTextureView,
+      format: 'rgba16float', sampleCount: 1,
+      origin: { x: 100, y: 50 }, width: 200, height: 100,
+      clip: { x: 90.2, y: 60.25, width: 250.1, height: 20.1 }
+    });
+
+    expect(encoded).toBe(true);
+    expect(pass.setScissorRect).toHaveBeenCalledWith(0, 10, 200, 21);
+
+    const outside = backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, realized, {
+      colorView: {} as GPUTextureView,
+      resolveView: null,
+      stencilView: {} as GPUTextureView,
+      format: 'rgba16float', sampleCount: 1,
+      origin: { x: 100, y: 50 }, width: 200, height: 100,
+      clip: { x: 0, y: 0, width: 10, height: 10 }
+    });
+    expect(outside).toBe(false);
+    expect(encoder.beginRenderPass).toHaveBeenCalledTimes(1);
     backend.dispose();
   });
 });

@@ -32,6 +32,8 @@ export interface VectorFillTarget {
   origin: { x: number; y: number };
   width: number;
   height: number;
+  /** Optional target-space clip in the same coordinates as origin. */
+  clip?: { x: number; y: number; width: number; height: number };
 }
 
 export interface VectorFillSurface {
@@ -187,6 +189,13 @@ export class VectorFillBackend {
     bundle: PipelineBundle,
     fillRule: VectorPath['fillRule']
   ) {
+    const scissor = target.clip ? {
+      x: Math.max(0, Math.floor(target.clip.x - target.origin.x)),
+      y: Math.max(0, Math.floor(target.clip.y - target.origin.y)),
+      right: Math.min(target.width, Math.ceil(target.clip.x + target.clip.width - target.origin.x)),
+      bottom: Math.min(target.height, Math.ceil(target.clip.y + target.clip.height - target.origin.y))
+    } : null;
+    if (scissor && (scissor.right <= scissor.x || scissor.bottom <= scissor.y)) return false;
     const settings = this.device.createBuffer({
       label: 'LightTable vector draw settings',
       size: SETTINGS_BYTES,
@@ -222,6 +231,14 @@ export class VectorFillBackend {
         stencilStoreOp: 'discard'
       }
     });
+    if (scissor) {
+      pass.setScissorRect(
+        scissor.x,
+        scissor.y,
+        scissor.right - scissor.x,
+        scissor.bottom - scissor.y
+      );
+    }
     pass.setBindGroup(0, bindGroup);
     pass.setPipeline(fillRule === 'evenodd' ? bundle.evenodd : bundle.nonzero);
     pass.setVertexBuffer(0, resource.buffer);
