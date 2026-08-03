@@ -95,6 +95,7 @@ export interface PdfFontResource {
   readonly baseName: string | null;
   readonly subsetTag: string | null;
   readonly fontProgramResourceId: string | null;
+  readonly type3GlyphProgramResourceIds: readonly string[];
   readonly encodingName: string | null;
   readonly toUnicode: 'present' | 'absent' | 'malformed';
   readonly authoring: 'exact-positioned-only' | 'recoverable' | 'outline-only' | 'visual-only';
@@ -125,6 +126,18 @@ export interface PdfTextSemanticMappingResource {
   readonly spans: readonly PdfTextSemanticSpan[];
   readonly extractedText: string;
   readonly logicalOrderConfidence: number;
+}
+
+export interface PdfType3GlyphProgramResource {
+  readonly id: string;
+  readonly sourceObjectId: PdfObjectId;
+  readonly fontResourceId: string;
+  readonly glyphId: number;
+  readonly sourceCode: readonly number[];
+  readonly advance: PdfPoint;
+  readonly bounds: PdfRect | null;
+  /** Sandboxed glyph-local PDF operations; never interpreted during validation. */
+  readonly operations: readonly PdfDisplayOperation[];
 }
 
 export interface PdfImageResource {
@@ -191,6 +204,7 @@ export interface PdfNormalizedDisplayList {
     readonly fonts: readonly PdfFontResource[];
     readonly fontPrograms: readonly PdfFontProgramResource[];
     readonly semanticMappings: readonly PdfTextSemanticMappingResource[];
+    readonly type3GlyphPrograms: readonly PdfType3GlyphProgramResource[];
     readonly images: readonly PdfImageResource[];
     readonly colorSpaces: readonly PdfColorSpaceResource[];
     readonly transparencyGroups: readonly PdfTransparencyGroupResource[];

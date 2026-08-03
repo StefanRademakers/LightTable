@@ -23,6 +23,7 @@ const fixture = (): PdfNormalizedDisplayList => ({
     fonts: [{
       id: 'font:subset', sourceObjectId: '12 0 R', subtype: 'type0-cid',
       baseName: 'ABCDEF+Inter', subsetTag: 'ABCDEF', fontProgramResourceId: 'font-program:subset',
+      type3GlyphProgramResourceIds: [],
       encodingName: 'Identity-H',
       toUnicode: 'present', authoring: 'recoverable', embedding: 'embedded'
     }],
@@ -35,6 +36,7 @@ const fixture = (): PdfNormalizedDisplayList => ({
       logicalOrderConfidence: 1,
       spans: [{ glyphStart: 0, glyphEnd: 1, unicode: 'A', provenance: 'to-unicode', confidence: 1 }]
     }],
+    type3GlyphPrograms: [],
     images: [{
       id: 'image:hero', sourceObjectId: '14 0 R', assetId: 'asset:image', width: 32,
       height: 16, bitsPerComponent: 8, colorSpaceId: 'color:rgb', softMaskResourceId: 'mask:alpha'
@@ -89,6 +91,27 @@ const fixture = (): PdfNormalizedDisplayList => ({
     ]
   }],
   preserved: { catalogObjectId: '1 0 R', metadataAssetId: 'asset:metadata', unsupportedFeatures: ['native-ai-private-data'] }
+});
+
+const addType3Font = (value: PdfNormalizedDisplayList, id: string, programId: string) => {
+  (value.resources.fonts as Array<PdfNormalizedDisplayList['resources']['fonts'][number]>).push({
+    id, sourceObjectId: `${id}:object`, subtype: 'type3', baseName: id, subsetTag: null,
+    fontProgramResourceId: null, type3GlyphProgramResourceIds: [programId],
+    encodingName: null, toUnicode: 'absent', authoring: 'outline-only', embedding: 'embedded'
+  });
+};
+
+const type3TextOperation = (id: string, fontResourceId: string, glyphId = 65) => ({
+  kind: 'draw-text' as const,
+  runs: [{
+    id, fontResourceId, semanticMappingResourceId: null, fontSize: 1, textMatrix: identity,
+    characterSpacing: 0, wordSpacing: 0, horizontalScale: 100, rise: 0,
+    renderingMode: 0 as PdfTextRenderingMode,
+    glyphs: [{
+      sourceCode: [glyphId], glyphId, origin: { x: 0, y: 0 }, advance: { x: 1, y: 0 },
+      glyphMatrix: identity
+    }]
+  }]
 });
 
 describe('normalized PDF display-list contract', () => {
@@ -167,5 +190,79 @@ describe('normalized PDF display-list contract', () => {
     const noEmbeddedProgram = transportClone(fixture());
     (noEmbeddedProgram.resources.fonts[0] as { fontProgramResourceId: string | null }).fontProgramResourceId = null;
     expect(() => validatePdfDisplayList(noEmbeddedProgram)).toThrow('is required for an embedded font');
+  });
+
+  it('validates bounded, separately owned Type 3 glyph programs', () => {
+    const value = transportClone(fixture());
+    addType3Font(value, 'font:type3', 'type3:glyph-a');
+    (value.resources.type3GlyphPrograms as Array<PdfNormalizedDisplayList['resources']['type3GlyphPrograms'][number]>).push({
+      id: 'type3:glyph-a', sourceObjectId: '30 0 R', fontResourceId: 'font:type3',
+      glyphId: 65, sourceCode: [65], advance: { x: 1, y: 0 },
+      bounds: { x: 0, y: 0, width: 1, height: 1 },
+      operations: [{ kind: 'draw-path', paint: 'fill', fillRule: 'nonzero', path: { commands: [
+        { kind: 'move', point: { x: 0, y: 0 } }, { kind: 'line', point: { x: 1, y: 0 } },
+        { kind: 'line', point: { x: 1, y: 1 } }, { kind: 'close' }
+      ] } }]
+    });
+
+    expect(validatePdfDisplayList(value)).toBe(value);
+    expect(() => validatePdfDisplayList(value, { maximumType3OperationsPerGlyph: 0 }))
+      .toThrow('operation limit');
+    expect(() => validatePdfDisplayList(value, { maximumTotalPathCommands: 3 }))
+      .toThrow('document path-command budget');
+  });
+
+  it('rejects recursive and over-deep Type 3 resource graphs', () => {
+    const recursive = transportClone(fixture());
+    addType3Font(recursive, 'font:type3', 'type3:glyph-a');
+    (recursive.resources.type3GlyphPrograms as Array<PdfNormalizedDisplayList['resources']['type3GlyphPrograms'][number]>).push({
+      id: 'type3:glyph-a', sourceObjectId: '31 0 R', fontResourceId: 'font:type3', glyphId: 65,
+      sourceCode: [65], advance: { x: 1, y: 0 }, bounds: null,
+      operations: [type3TextOperation('run:type3-recursive', 'font:type3')]
+    });
+    expect(() => validatePdfDisplayList(recursive)).toThrow('recursive Type 3 program');
+
+    const nested = transportClone(fixture());
+    addType3Font(nested, 'font:type3-a', 'type3:glyph-a');
+    addType3Font(nested, 'font:type3-b', 'type3:glyph-b');
+    (nested.resources.type3GlyphPrograms as Array<PdfNormalizedDisplayList['resources']['type3GlyphPrograms'][number]>).push(
+      {
+        id: 'type3:glyph-a', sourceObjectId: '32 0 R', fontResourceId: 'font:type3-a', glyphId: 65,
+        sourceCode: [65], advance: { x: 1, y: 0 }, bounds: null,
+        operations: [type3TextOperation('run:type3-a', 'font:type3-b', 66)]
+      },
+      {
+        id: 'type3:glyph-b', sourceObjectId: '33 0 R', fontResourceId: 'font:type3-b', glyphId: 66,
+        sourceCode: [66], advance: { x: 1, y: 0 }, bounds: null, operations: []
+      }
+    );
+    expect(() => validatePdfDisplayList(nested, { maximumType3NestingDepth: 1 }))
+      .toThrow('Type 3 nesting limit');
+  });
+
+  it('follows the exact referenced glyph instead of treating a Type 3 font as recursive', () => {
+    const value = transportClone(fixture());
+    addType3Font(value, 'font:type3', 'type3:glyph-a');
+    (value.resources.fonts.at(-1)!.type3GlyphProgramResourceIds as string[]).push('type3:glyph-b');
+    (value.resources.type3GlyphPrograms as Array<PdfNormalizedDisplayList['resources']['type3GlyphPrograms'][number]>).push(
+      {
+        id: 'type3:glyph-a', sourceObjectId: '34 0 R', fontResourceId: 'font:type3', glyphId: 65,
+        sourceCode: [65], advance: { x: 1, y: 0 }, bounds: null,
+        operations: [type3TextOperation('run:type3-a-to-b', 'font:type3', 66)]
+      },
+      {
+        id: 'type3:glyph-b', sourceObjectId: '35 0 R', fontResourceId: 'font:type3', glyphId: 66,
+        sourceCode: [66], advance: { x: 1, y: 0 }, bounds: null, operations: []
+      }
+    );
+    expect(validatePdfDisplayList(value)).toBe(value);
+  });
+
+  it('enforces document-wide hostile-resource budgets', () => {
+    const value = fixture();
+    expect(() => validatePdfDisplayList(value, { maximumTotalOperations: 1 })).toThrow('document operation budget');
+    expect(() => validatePdfDisplayList(value, { maximumTotalGlyphs: 7 })).toThrow('document glyph budget');
+    expect(() => validatePdfDisplayList(value, { maximumTotalImagePixels: 511 })).toThrow('document image-pixel budget');
+    expect(() => validatePdfDisplayList(value, { maximumTotalFontProgramBytes: 8191 })).toThrow('font-program byte budget');
   });
 });

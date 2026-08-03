@@ -601,7 +601,7 @@ be reproduced.
   PDFium and at least one reference path.
 - [x] Import one page with paths, images, clips and positioned text.
 - [x] Preserve embedded subset fonts and semantic mappings separately.
-- [ ] Bound Type 3 glyph programs and malformed document resource use.
+- [x] Bound Type 3 glyph programs and malformed document resource use.
 - [ ] Detect PDF-compatible Illustrator input; preserve original source bytes.
 - [ ] Record native `.ai` data as preserved/unsupported, not round-trippable.
 
@@ -624,6 +624,12 @@ programs live in separately fingerprinted asset resources, while ToUnicode,
 ActualText and heuristic mappings live in range-based semantic resources with
 explicit provenance and confidence. Validation rejects cross-kind references,
 detached mappings, out-of-range spans and embedded fonts without program bytes.
+
+Type 3/security evidence: Type 3 glyph programs are separately owned resources
+with bounded operations, paths, glyphs and nesting depth. Validation follows
+only the exact referenced Type 3 glyph program, rejects recursive programs and
+unbalanced nested graphics state, and applies document-wide operation, glyph,
+path-command, image-pixel and font-byte budgets before semantic conversion.
 
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but
