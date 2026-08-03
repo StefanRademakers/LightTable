@@ -23,6 +23,7 @@ import type { TextEngineClient } from '../wasm/TextEngineClient';
 import { TextLayerRenderer, textLayerSourceKey, tightCoverageBounds } from './TextLayerRenderer';
 import { TextLayoutCache } from './TextLayoutCache';
 import { TextSourceCostModel } from './TextSourceCostModel';
+import { TextInputLatencyTracker } from './TextInputLatencyTracker';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 
 export interface TextFontRuntimePort {
@@ -117,6 +118,7 @@ export class TextLayerRenderCoordinator {
   private readonly interactingLayerScales = new Map<LayerId, number>();
   private readonly interactivelyPreparedLayers = new Set<LayerId>();
   private readonly sourceCostModel = new TextSourceCostModel();
+  private readonly inputLatency = new TextInputLatencyTracker();
   private abortController: AbortController | null = null;
   private disposed = false;
   private active = true;
@@ -162,6 +164,34 @@ export class TextLayerRenderCoordinator {
     return true;
   }
 
+  beginTextInput(layerId: LayerId, startedAt: number) {
+    if (this.disposed) return false;
+    this.inputLatency.begin(layerId, startedAt);
+    this.publishChanged();
+    return true;
+  }
+
+  markFrameSubmitted(document: ImageDocument, submittedAt: number) {
+    const exactSources = new Map<LayerId, string>();
+    for (const { layer } of visibleTextLayers(document)) {
+      if (this.options.renderer.hasExactSource(layer) || this.options.renderer.isTransparent(layer)) {
+        exactSources.set(layer.id, textLayerSourceKey(layer));
+      }
+    }
+    const submitted = this.inputLatency.markSubmitted(
+      (layerId) => exactSources.get(layerId) ?? null,
+      submittedAt
+    );
+    if (submitted.length > 0) this.publishChanged();
+    return submitted;
+  }
+
+  markFrameGpuComplete(inputIds: readonly number[], completedAt: number) {
+    const completed = this.inputLatency.markGpuComplete(inputIds, completedAt);
+    if (completed > 0) this.publishChanged();
+    return completed;
+  }
+
   configureFonts(port: TextFontRuntimePort | null) {
     if (this.fontPort === port) return;
     this.invalidateFontRuntime();
@@ -200,6 +230,11 @@ export class TextLayerRenderCoordinator {
     for (const layerId of this.interactivelyPreparedLayers) {
       if (!retained.has(layerId)) this.interactivelyPreparedLayers.delete(layerId);
     }
+    const visibleLayerIds = new Set(visibleEntries.map(({ layer }) => layer.id));
+    this.inputLatency.retainLayers(visibleLayerIds);
+    for (const { layer } of visibleEntries) {
+      this.inputLatency.syncSource(layer.id, textLayerSourceKey(layer));
+    }
     for (const { layer, transform } of visibleEntries) {
       const editing = this.editingLayouts.get(layer.id);
       if (!editing || !this.interactingLayerScales.has(layer.id)) continue;
@@ -217,6 +252,7 @@ export class TextLayerRenderCoordinator {
     const layouts = this.layoutCache.metrics();
     const atlas = this.dependencies?.backend.metrics();
     const cost = this.sourceCostModel.snapshot();
+    const inputLatency = this.inputLatency.snapshot();
     return Object.freeze({
       ...source,
       layoutCacheBytes: layouts.byteLength,
@@ -235,7 +271,14 @@ export class TextLayerRenderCoordinator {
       latestShapingRoundTripMs: this.latestShapingRoundTripMs,
       rasterizedGlyphs: this.rasterizedGlyphs,
       latestRasterRoundTripMs: this.latestRasterRoundTripMs,
-      textCacheSubmissions: this.textCacheSubmissions
+      textCacheSubmissions: this.textCacheSubmissions,
+      textInputLatencySamples: inputLatency.sampleCount,
+      pendingTextInputs: inputLatency.pendingCount,
+      supersededTextInputs: inputLatency.supersededCount,
+      inputToSubmitP95Ms: inputLatency.inputToSubmitP95Ms,
+      inputToSubmitMaxMs: inputLatency.inputToSubmitMaxMs,
+      inputToGpuP95Ms: inputLatency.inputToGpuP95Ms,
+      inputToGpuMaxMs: inputLatency.inputToGpuMaxMs
     });
   }
 
@@ -298,6 +341,7 @@ export class TextLayerRenderCoordinator {
     this.editingLayouts.clear();
     this.interactingLayerScales.clear();
     this.interactivelyPreparedLayers.clear();
+    this.inputLatency.reset();
     this.publishChanged();
     dependencies?.backend.dispose();
     if (dependencies && sessionId) {

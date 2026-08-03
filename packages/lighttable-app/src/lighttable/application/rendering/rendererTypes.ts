@@ -46,6 +46,13 @@ export interface TextRenderPresentationSnapshot {
   readonly rasterizedGlyphs: number;
   readonly latestRasterRoundTripMs: number;
   readonly textCacheSubmissions: number;
+  readonly textInputLatencySamples: number;
+  readonly pendingTextInputs: number;
+  readonly supersededTextInputs: number;
+  readonly inputToSubmitP95Ms: number;
+  readonly inputToSubmitMaxMs: number;
+  readonly inputToGpuP95Ms: number;
+  readonly inputToGpuMaxMs: number;
 }
 
 export interface DocumentRendererCallbacks {

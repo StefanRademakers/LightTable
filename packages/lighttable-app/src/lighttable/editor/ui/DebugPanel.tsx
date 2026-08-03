@@ -228,6 +228,15 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {' · '}{textRenderTelemetry.rasterizedGlyphs} rasterized ({textRenderTelemetry.latestRasterRoundTripMs.toFixed(2)} ms latest)
           {' · '}{textRenderTelemetry.textCacheSubmissions} cache submits
         </small>
+        <small>
+          Text input: {textRenderTelemetry.textInputLatencySamples} samples
+          {' · '}submit p95 {textRenderTelemetry.inputToSubmitP95Ms.toFixed(1)} ms
+          {' / '}max {textRenderTelemetry.inputToSubmitMaxMs.toFixed(1)} ms
+          {' · '}GPU p95 {textRenderTelemetry.inputToGpuP95Ms.toFixed(1)} ms
+          {' / '}max {textRenderTelemetry.inputToGpuMaxMs.toFixed(1)} ms
+          {' · '}{textRenderTelemetry.pendingTextInputs} pending
+          {' / '}{textRenderTelemetry.supersededTextInputs} superseded
+        </small>
         {textRendererReport ? (
           <details>
             <summary>GPU renderer bakeoff report</summary>

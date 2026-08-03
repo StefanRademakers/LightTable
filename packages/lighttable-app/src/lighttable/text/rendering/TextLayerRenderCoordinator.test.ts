@@ -72,6 +72,9 @@ const harness = () => {
     prepareGlyph: vi.fn(),
     encode: vi.fn(),
     retainGlyphs: vi.fn(() => vi.fn()),
+    metrics: vi.fn(() => ({
+      allocatedBytes: 0, hits: 0, misses: 0, evictions: 0
+    })),
     retireSubmittedResources: vi.fn(async () => undefined),
     dispose: vi.fn()
   };
@@ -281,6 +284,44 @@ describe('TextLayerRenderCoordinator', () => {
     await flush();
     expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(2);
     expect(state.submit).toHaveBeenCalledTimes(2);
+  });
+
+  it('correlates a text input with the exact source submitted by the document frame', async () => {
+    const state = harness();
+    const document = createImageDocument('Input latency', 32, 24, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    document.layers = [layer];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    if (layer.text.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+
+    state.coordinator.beginTextInput(layer.id, 10);
+    const nextText = `${layer.text.source.text}x`;
+    const styleRuns = layer.text.source.styleRuns.map((run, index, runs) => (
+      index === runs.length - 1 ? { ...run, end: nextText.length } : run
+    ));
+    const paragraphRuns = layer.text.source.paragraphRuns.map((run, index, runs) => (
+      index === runs.length - 1 ? { ...run, end: nextText.length } : run
+    ));
+    const changed = setFlowTextContent(
+      document,
+      layer.id,
+      nextText,
+      styleRuns,
+      paragraphRuns
+    );
+    state.coordinator.sync(changed);
+    await flush();
+    const submitted = state.coordinator.markFrameSubmitted(changed, 24);
+    expect(submitted).toHaveLength(1);
+    state.coordinator.markFrameGpuComplete(submitted, 31);
+    expect(state.coordinator.snapshot()).toMatchObject({
+      textInputLatencySamples: 1,
+      pendingTextInputs: 0,
+      inputToSubmitP95Ms: 14,
+      inputToGpuP95Ms: 21
+    });
   });
 
   it('publishes editing geometry even when source preparation fails afterward', async () => {

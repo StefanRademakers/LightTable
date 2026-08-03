@@ -88,6 +88,18 @@ export class LayerDocumentRenderer {
     return this.runtime.textLayerCoordinator.setLayerInteraction(layerId, active);
   }
 
+  beginTextInput(layerId: LayerId, startedAt: number) {
+    return this.runtime.textLayerCoordinator.beginTextInput(layerId, startedAt);
+  }
+
+  markTextFrameSubmitted(document: ImageDocument, submittedAt: number) {
+    return this.runtime.textLayerCoordinator.markFrameSubmitted(document, submittedAt);
+  }
+
+  markTextFrameGpuComplete(inputIds: readonly number[], completedAt: number) {
+    return this.runtime.textLayerCoordinator.markFrameGpuComplete(inputIds, completedAt);
+  }
+
   pruneDetachedRuntimes(
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>

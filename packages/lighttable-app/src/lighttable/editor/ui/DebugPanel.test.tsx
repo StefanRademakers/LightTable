@@ -41,7 +41,10 @@ const renderPanel = (status: 'idle' | 'loading' | 'ready' | 'error', summary: st
       atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
       sourceDecisionMeasurements: 0, lastSourceDecision: null,
       shapingOperations: 0, latestShapingRoundTripMs: 0,
-      rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0
+      rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0,
+      textInputLatencySamples: 2, pendingTextInputs: 1, supersededTextInputs: 3,
+      inputToSubmitP95Ms: 11, inputToSubmitMaxMs: 14,
+      inputToGpuP95Ms: 18, inputToGpuMaxMs: 22
     }}
     onDevelopmentTextFixtureChange={vi.fn()}
   />);

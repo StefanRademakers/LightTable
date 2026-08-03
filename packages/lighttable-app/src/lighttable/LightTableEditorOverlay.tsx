@@ -446,7 +446,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
     sourceDecisionMeasurements: 0, lastSourceDecision: null,
     shapingOperations: 0, latestShapingRoundTripMs: 0,
-    rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0
+    rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0,
+    textInputLatencySamples: 0, pendingTextInputs: 0, supersededTextInputs: 0,
+    inputToSubmitP95Ms: 0, inputToSubmitMaxMs: 0,
+    inputToGpuP95Ms: 0, inputToGpuMaxMs: 0
   });
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
@@ -1054,7 +1057,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
             sourceDecisionMeasurements: 0, lastSourceDecision: null,
             shapingOperations: 0, latestShapingRoundTripMs: 0,
-            rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0
+            rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0,
+            textInputLatencySamples: 0, pendingTextInputs: 0, supersededTextInputs: 0,
+            inputToSubmitP95Ms: 0, inputToSubmitMaxMs: 0,
+            inputToGpuP95Ms: 0, inputToGpuMaxMs: 0
           });
           setPsdImportInfo(null);
           setPsdDifferenceMetrics(null);
@@ -2029,6 +2035,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     ? activeFlowTextPropertyLayer.text.source : null;
   const editingTargetsActiveLayer = textEditing.status === 'editing'
     && textEditing.layerId === activeFlowTextPropertyLayer?.id;
+  const runMeasuredTextInput = (mutation: () => boolean) => {
+    const startedAt = performance.now();
+    const changed = mutation();
+    if (changed && textEditing.layerId) {
+      engineRef.current?.beginTextInput(textEditing.layerId, startedAt);
+    }
+    return changed;
+  };
   const textFormatProjection = editingTargetsActiveLayer
     ? textEditingController.formatProjection()
     : null;
@@ -2327,8 +2341,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                         focusKey={textEditing.focusKey}
                         selectedText={textEditingController.selectedText()}
                         onEdit={(command) => {
-                          if (command.kind === 'insert') textEditingController.insert(command.text);
-                          else textEditingController.delete(command.direction, command.unit);
+                          runMeasuredTextInput(() => command.kind === 'insert'
+                            ? textEditingController.insert(command.text)
+                            : textEditingController.delete(command.direction, command.unit));
                         }}
                         onNavigate={(command, extend) => {
                           if (command === 'select-all') {
@@ -2352,10 +2367,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                           }
                         }}
                         onCompositionStart={() => { textEditingController.compositionStart(); }}
-                        onCompositionUpdate={(text) => { textEditingController.compositionUpdate(text); }}
-                        onCompositionEnd={(text) => { textEditingController.compositionEnd(text); }}
-                        onPaste={(text) => { textEditingController.paste(text); }}
-                        onCut={() => { textEditingController.delete('backward'); }}
+                        onCompositionUpdate={(text) => {
+                          runMeasuredTextInput(() => textEditingController.compositionUpdate(text));
+                        }}
+                        onCompositionEnd={(text) => {
+                          runMeasuredTextInput(() => textEditingController.compositionUpdate(text));
+                          textEditingController.compositionEnd(text);
+                        }}
+                        onPaste={(text) => {
+                          runMeasuredTextInput(() => textEditingController.paste(text));
+                        }}
+                        onCut={() => {
+                          runMeasuredTextInput(() => textEditingController.delete('backward'));
+                        }}
                         onCheckpoint={() => { textEditingController.checkpoint(); }}
                         onCommit={() => { textEditingController.finish(); }}
                         onCancel={() => {

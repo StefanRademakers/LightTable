@@ -409,6 +409,10 @@ export class WebGpuEngine {
     return this.documentRenderer?.setTextLayerInteraction(layerId, active) ?? false;
   }
 
+  beginTextInput(layerId: LayerId, startedAt = performance.now()) {
+    return this.documentRenderer?.beginTextInput(layerId, startedAt) ?? false;
+  }
+
   private initializeLayerStylesIfNeeded(document: ImageDocument) {
     if (
       this.layerStyleInitialization ||
@@ -1651,6 +1655,18 @@ export class WebGpuEngine {
       scopePasses.displayPasses
     );
     this.device.queue.submit([encoder.finish()]);
+    const textLatencyRenderer = this.documentRenderer;
+    const submittedTextInputs = textLatencyRenderer.markTextFrameSubmitted(
+      this.imageDocument,
+      performance.now()
+    );
+    if (submittedTextInputs.length > 0) {
+      void this.device.queue.onSubmittedWorkDone().then(() => {
+        if (!this.destroyed && this.documentRenderer === textLatencyRenderer) {
+          textLatencyRenderer.markTextFrameGpuComplete(submittedTextInputs, performance.now());
+        }
+      });
+    }
     void this.vectorEditingOverlayBackend?.notifySubmitted();
     void this.textEditingOverlayBackend?.notifySubmitted();
     this.renderTelemetry.recordSubmittedFrame();
