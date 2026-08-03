@@ -217,7 +217,7 @@ describe('LightTable layered PNG format', () => {
       }],
       'versions.png'
     );
-    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 4; });
+    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 5; });
     const futureText = await rewriteManifest(file, (manifest) => {
       const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
       const text = layers.find((layer) => layer.type === 'text')!.text as Record<string, unknown>;
@@ -544,6 +544,67 @@ describe('LightTable layered PNG format', () => {
     expect(parsed!.assets[1].pixels.size).toBe(OVERLAY_PNG.byteLength);
     expect(findRasterLayer(parsed!.document, document.activeLayerId!)?.adjustmentStack)
       .toEqual(localStack);
+  });
+
+  it('round-trips tight and off-canvas raster bounds independently from the document canvas', async () => {
+    const source = createImageDocument('Tight raster roundtrip', 640, 360, 'source');
+    const sourceLayer = source.layers[0];
+    if (sourceLayer.type !== 'raster') throw new Error('Expected raster fixture.');
+    const document = {
+      ...source,
+      layers: [{
+        ...sourceLayer,
+        width: 900,
+        height: 48,
+        offsetX: -137.5,
+        offsetY: 342.25,
+        transform: translationMatrix(18, -23)
+      }]
+    };
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId: sourceLayer.id,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }],
+      'tight-raster.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const parsedLayer = parsed && findRasterLayer(parsed.document, sourceLayer.id);
+
+    expect(await readManifest(file)).toMatchObject({ version: 4 });
+    expect(parsedLayer).toMatchObject({
+      width: 900,
+      height: 48,
+      offsetX: -137.5,
+      offsetY: 342.25,
+      transform: translationMatrix(18, -23)
+    });
+  });
+
+  it('rejects invalid native raster bounds', async () => {
+    const document = createImageDocument('Invalid raster bounds', 2, 2, 'source');
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId: document.layers[0].id,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }],
+      'invalid-raster-bounds.png'
+    );
+    const invalid = await rewriteManifest(file, (manifest) => {
+      const layer = (manifest.document as { layers: Array<Record<string, unknown>> }).layers[0];
+      layer.width = 0;
+    });
+
+    await expect(parseLayeredDocumentFile(invalid)).rejects.toThrow(/invalid bounds/);
   });
 
   it('round-trips a non-destructive Warp recipe without baking its pixels', async () => {

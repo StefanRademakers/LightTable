@@ -25,12 +25,12 @@ const harness = () => {
     } as unknown as GPUDevice,
     layerResources: {
       raster: (layerId: LayerId) => layerId === id
-        ? { texture: target, maskTexture: null, maskId: null }
+        ? { texture: target, maskTexture: null, maskId: null, width: 20, height: 10 }
         : null
     } as never,
     sessions,
     dimensions: () => ({ width: 20, height: 10 }),
-    createTexture: () => {
+    createTextureSized: () => {
       const result = texture();
       created.push(result);
       return result;

@@ -27,6 +27,12 @@ Large existing fidelity gaps in EHS-395 (95.24%) and EHS-404 (99.29%) are
 visible reconstruction/unsupported-adjustment work, not load failures; they
 must not be hidden by corpus averages.
 
+On 2026-08-04, a brush stroke on the tight imported `Join us` preview in
+EHS-396 was saved to native LightTable format v4 and reopened successfully.
+The layer retained its local dimensions, off-canvas-capable offsets, transform,
+painted pixels and document placement. Legacy v1-v3 native files retain their
+previous document-sized raster interpretation.
+
 ## Work
 
 - [x] Serialize PSD layer pixels at their native layer-local dimensions.
@@ -37,9 +43,11 @@ must not be hidden by corpus averages.
   is implemented.
 - [x] Decode, encode and thumbnail using the runtime surface dimensions.
 - [x] Make the GPU memory estimate account for actual retained surface sizes.
-- [ ] Add an explicit promotion path from a tight imported surface to an
-  editable document-sized paint surface before pixel editing/operations that
-  require document-space storage.
+- [x] Keep brush, fill, invert and GPU undo/redo bounded to tight raster
+  dimensions while mapping selection/brush coordinates through the layer
+  transform; packaged EHS-396 painting on `Join us` is verified.
+- [ ] Add an explicit promotion/bake path only for remaining operations that
+  fundamentally require document-space storage.
 - [x] Record per-stage PSD timing so parsing, serialization, decode/upload and
   first composite can be distinguished.
 - [ ] Run the complete 10-pair corpus before and after; preserve or improve each

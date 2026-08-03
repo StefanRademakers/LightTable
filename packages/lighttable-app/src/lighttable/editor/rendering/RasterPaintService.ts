@@ -15,7 +15,7 @@ interface RasterPaintServiceOptions {
   dimensions: () => { width: number; height: number };
   pipelines: () => ToolPipelineBundle;
   ensureSelectionTargets: () => void;
-  createTexture: (label: string) => GPUTexture;
+  createTextureSized: (label: string, width: number, height: number) => GPUTexture;
   maskTextureFor: (layerId: LayerId) => GPUTexture | null;
   invalidateLayer: (layerId: LayerId) => void;
   releaseSubmittedResources: () => void;
@@ -73,7 +73,9 @@ export class RasterPaintService {
       throw new Error('The active layer transform cannot be inverted for painting.');
     }
     const canvasBuffer = this.ensureBrushCanvasBuffer();
-    const { width, height } = this.options.dimensions();
+    const { width, height } = channel === 'pixels' && runtime
+      ? runtime
+      : this.options.dimensions();
     this.options.device.queue.writeBuffer(canvasBuffer, 0, new Float32Array([
       width, height, 0, 0,
       inverse.a, inverse.c, inverse.tx, 0,
@@ -143,7 +145,14 @@ export class RasterPaintService {
     const selection = this.options.selectionTextures.mask;
     if (!target || !selection) return false;
 
-    const result = this.options.createTexture('LightTable filled layer color');
+    const { width, height } = channel === 'pixels' && runtime
+      ? runtime
+      : this.options.dimensions();
+    const result = this.options.createTextureSized(
+      'LightTable filled layer color',
+      width,
+      height
+    );
     const settingsBuffer = this.options.device.createBuffer({
       label: 'LightTable fill color settings',
       size: 64,
@@ -175,7 +184,6 @@ export class RasterPaintService {
       result.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
     );
-    const { width, height } = this.options.dimensions();
     encoder.copyTextureToTexture(
       { texture: result },
       { texture: target },
@@ -198,7 +206,14 @@ export class RasterPaintService {
       : runtime?.texture;
     if (!target) return false;
     const pipelines = this.options.pipelines();
-    const result = this.options.createTexture('LightTable inverted layer colors');
+    const { width, height } = channel === 'pixels' && runtime
+      ? runtime
+      : this.options.dimensions();
+    const result = this.options.createTextureSized(
+      'LightTable inverted layer colors',
+      width,
+      height
+    );
     const bindGroup = this.options.device.createBindGroup({
       layout: pipelines.invertColors.getBindGroupLayout(0),
       entries: [{ binding: 0, resource: target.createView() }]
@@ -213,7 +228,6 @@ export class RasterPaintService {
       result.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
     );
-    const { width, height } = this.options.dimensions();
     encoder.copyTextureToTexture(
       { texture: result },
       { texture: target },

@@ -64,6 +64,10 @@ interface CommonLayerManifestEntry {
 
 interface RasterLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'raster';
+  width: number;
+  height: number;
+  offsetX: number;
+  offsetY: number;
   adjustmentStack: AdjustmentStack | null;
   pixel: BinaryAssetReference;
   mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
@@ -104,7 +108,7 @@ type LayerManifestEntry =
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
-  version: 3;
+  version: 4;
   previewLength: number;
   document: {
     id: string;
@@ -343,6 +347,10 @@ export const buildLayeredDocumentFile = (
     return {
       ...common,
       type: 'raster',
+      width: layer.width,
+      height: layer.height,
+      offsetX: layer.offsetX,
+      offsetY: layer.offsetY,
       adjustmentStack: layer.adjustmentStack
         ? cloneAdjustmentStack(layer.adjustmentStack)
         : null,
@@ -386,7 +394,7 @@ export const buildLayeredDocumentFile = (
   });
   const manifest: LayeredDocumentManifest = {
     format: 'lighttable-layered-png',
-    version: 3,
+    version: 4,
     previewLength: preview.size,
     document: {
       id: document.id,
@@ -621,12 +629,12 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   if (
     !isRecord(raw)
     || raw.format !== 'lighttable-layered-png'
-    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3)
+    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4)
     || !isRecord(raw.document)
   ) {
     throw new Error('This LightTable document format is not supported.');
   }
-  const manifestVersion = raw.version as 1 | 2 | 3;
+  const manifestVersion = raw.version as 1 | 2 | 3 | 4;
   const source = raw.document;
   const width = source.width;
   const height = source.height;
@@ -790,6 +798,22 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     if (!validAssetReference(entry.pixel, Number(previewLength), manifestStart)) {
       throw new Error(`Raster layer ${path} in the LightTable document has invalid pixels.`);
     }
+    const rasterWidth = manifestVersion >= 4 ? entry.width : width;
+    const rasterHeight = manifestVersion >= 4 ? entry.height : height;
+    const rasterOffsetX = manifestVersion >= 4 ? entry.offsetX : 0;
+    const rasterOffsetY = manifestVersion >= 4 ? entry.offsetY : 0;
+    if (
+      !Number.isInteger(rasterWidth)
+      || Number(rasterWidth) <= 0
+      || !Number.isInteger(rasterHeight)
+      || Number(rasterHeight) <= 0
+      || typeof rasterOffsetX !== 'number'
+      || !Number.isFinite(rasterOffsetX)
+      || typeof rasterOffsetY !== 'number'
+      || !Number.isFinite(rasterOffsetY)
+    ) {
+      throw new Error(`Raster layer ${path} in the LightTable document has invalid bounds.`);
+    }
     const parsedMask = parseMask();
     const pixelReference = entry.pixel;
     assets.push({
@@ -801,10 +825,10 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       ...common,
       type: 'raster',
       pixelRevision: 0,
-      width: Number(width),
-      height: Number(height),
-      offsetX: 0,
-      offsetY: 0,
+      width: Number(rasterWidth),
+      height: Number(rasterHeight),
+      offsetX: rasterOffsetX,
+      offsetY: rasterOffsetY,
       pixelSource: { kind: 'runtime-raster', runtimeId: id },
       adjustmentStack: entry.adjustmentStack === null
         ? null

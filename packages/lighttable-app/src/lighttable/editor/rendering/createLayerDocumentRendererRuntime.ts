@@ -239,7 +239,8 @@ export const createLayerDocumentRendererRuntime = (
     layerResources,
     sessions: pixelEditSessions,
     dimensions: resources.dimensions,
-    createTexture: (label) => textures.createColor(label),
+    createTextureSized: (label, width, height) =>
+      textures.createColorSized(label, width, height),
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId)
   });
@@ -250,7 +251,8 @@ export const createLayerDocumentRendererRuntime = (
     dimensions: resources.dimensions,
     pipelines: toolPipelines.get,
     ensureSelectionTargets,
-    createTexture: (label) => textures.createColor(label),
+    createTextureSized: (label, width, height) =>
+      textures.createColorSized(label, width, height),
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId),
     releaseSubmittedResources: () => renderResources.releaseAfterSubmit(),

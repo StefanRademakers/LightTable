@@ -55,9 +55,9 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 
 | Feature | Detect | Preserve | Display | Render | Edit/Create | Export | Verify | Current truth |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Raster layers | Yes | **Partial** | Yes | Yes | Yes | No | Partial | Tight bounds work during import, but native manifest v3 loses raster dimensions on save/reopen. |
+| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Partial | Native manifest v4 preserves tight bounds and offsets; merge/export and complete corpus gates remain. |
 | Groups and nesting | Yes | Yes | Yes | Yes | Yes | No | Partial | 33 pass-through groups occur in nine corpus files; exact contextual parity is not fully signed off. |
-| Off-canvas/oversized layers | Yes | **No** | Yes | Yes | Partial | No | Failed | 63 off-canvas and 13 oversized layers import; native tight-raster roundtrip currently fails. |
+| Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v4 save/reopen is verified on painted EHS-396 content. |
 | Opacity | Yes | Yes | Yes | Yes | Yes | No | Partial | Nineteen partial-opacity layers occur in seven documents. |
 | Fill opacity | Yes | Yes | Yes | Yes | Yes | No | Weak | Canonical property exists, but this corpus contains only one non-default instance. |
 | Blend modes | Yes | Yes | Yes | Partial | Yes | No | Partial | Screen, Multiply, Soft Light and Hard Light occur; contextual mask/group fixtures remain. |
@@ -121,19 +121,18 @@ special editing controls attached to raster previews.
 
 ## Missing-feature register
 
-### PSD-P0-001 - Native tight raster bounds
+### PSD-P0-001 - Native tight raster bounds (resolved in native v4)
 
-**Evidence:** 63 off-canvas layers, 13 layers larger than the canvas and a
-failed EHS-396 native save/reopen.
+**Evidence:** 63 off-canvas layers, 13 layers larger than the canvas and the
+originally failed EHS-396 native save/reopen.
 
-**Gap:** The runtime raster layer has local `width`, `height`, offsets and a
-document transform. Native manifest v3 does not serialize the local dimensions
-or offsets and assigns document dimensions during parsing.
+**Resolution:** Native manifest v4 serializes local `width`, `height`, offsets
+and the document transform. Readers retain v1-v3 compatibility with their
+historic document-sized raster interpretation. A painted tight EHS-396 layer
+has been saved and reopened with its pixels and placement intact.
 
-**Required decision:** Version the native format now, while it is explicitly
-not final. Persist local surface dimensions and offsets; do not add a legacy
-compatibility maze. Verify ordinary, translated, negative-origin, oversized
-and painted tight layers through save/reopen/export.
+**Remaining verification:** Complete the ordinary, translated,
+negative-origin, oversized, merge and export matrix under Task 047.
 
 **Owner:** Task 047. **Priority:** P0.
 

@@ -5,6 +5,8 @@ export interface PixelEditSnapshot {
   layerId: LayerId;
   channel: PaintChannel;
   texture: GPUTexture;
+  width: number;
+  height: number;
 }
 
 /**
@@ -39,8 +41,10 @@ export class PixelEditSessionStore {
     return true;
   }
 
-  estimatedTextureBytes(rgba16Bytes: number) {
-    return this.activeSnapshot ? rgba16Bytes : 0;
+  estimatedTextureBytes(_rgba16Bytes: number) {
+    return this.activeSnapshot
+      ? this.activeSnapshot.width * this.activeSnapshot.height * 8
+      : 0;
   }
 
   destroy() {

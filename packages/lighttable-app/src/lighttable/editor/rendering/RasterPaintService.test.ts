@@ -9,7 +9,7 @@ const texture = () => ({
   destroy: vi.fn()
 }) as unknown as GPUTexture;
 
-const harness = (hasRaster = true) => {
+const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const source = texture();
   const selection = texture();
   const createdTextures: GPUTexture[] = [];
@@ -40,14 +40,14 @@ const harness = (hasRaster = true) => {
     } as unknown as GPUDevice,
     layerResources: {
       raster: (id: LayerId) => hasRaster && id === layerId
-        ? { texture: source, maskTexture: null, maskId: null }
+        ? { texture: source, maskTexture: null, maskId: null, ...rasterSize }
         : null
     } as never,
     selectionTextures: { mask: selection } as never,
     dimensions: () => ({ width: 64, height: 32 }),
     pipelines: pipelines as never,
     ensureSelectionTargets,
-    createTexture: () => {
+    createTextureSized: () => {
       const result = texture();
       createdTextures.push(result);
       return result;
@@ -124,5 +124,17 @@ describe('RasterPaintService', () => {
     expect(test.submit).toHaveBeenCalledOnce();
     expect(test.invalidateLayer).toHaveBeenCalledWith(layerId);
     expect(test.releaseSubmittedResources).toHaveBeenCalledOnce();
+  });
+
+  it('keeps fill work and copies bounded to a tight raster surface', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const test = harness(true, { width: 12, height: 7 });
+
+    expect(test.service.fillColor(layerId, 'pixels', [1, 0, 0], false)).toBe(true);
+    expect(test.copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: test.createdTextures[0] },
+      expect.anything(),
+      [12, 7]
+    );
   });
 });

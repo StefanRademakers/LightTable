@@ -40,7 +40,10 @@ const mergeDown = argument('merge-down', '') === 'true';
 const createRectangle = argument('create-rectangle', '') === 'true';
 const createRasterLayerForPaint = argument('create-raster-layer', '') === 'true';
 const paintStroke = argument('paint-stroke', '') === 'true';
+const paintExistingLayer = argument('paint-existing-layer', '') === 'true';
 const paintColor = argument('paint-color', '#ff0000');
+const paintX = Number.parseFloat(argument('paint-x', '0.2'));
+const paintY = Number.parseFloat(argument('paint-y', '0.25'));
 const saveLightTableArgument = argument('save-lighttable', '');
 const saveLightTableFile = saveLightTableArgument ? path.resolve(saveLightTableArgument) : null;
 const expectLayer = argument('expect-layer', '');
@@ -87,7 +90,7 @@ const diagnostics = {
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
-    createRasterLayerForPaint, paintStroke, paintColor,
+    createRasterLayerForPaint, paintStroke, paintExistingLayer, paintColor, paintX, paintY,
     saveLightTableFile, expectLayer, expectNonemptyLayer, openCompatibilityReport,
     targetZoomPercent, zoomFocusX, zoomFocusY,
     openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf,
@@ -184,12 +187,21 @@ try {
   }
 
   if (createRasterLayerForPaint || paintStroke) {
-    const layerCount = await window.locator('.lighttable-layer').count();
-    await window.getByRole('button', { name: 'New raster layer' }).click();
-    await window.waitForFunction((expected) =>
-      document.querySelectorAll('.lighttable-layer').length === expected,
-    layerCount + 1, { timeout: 15_000 });
-    const activeLayer = window.locator('.lighttable-layer--active');
+    let activeLayer;
+    if (paintExistingLayer) {
+      if (!selectLayer) throw new Error('--paint-existing-layer requires --select-layer.');
+      activeLayer = window.locator('.lighttable-layer').filter({
+        has: window.locator(`.lighttable-layer__name[value="${selectLayer.replaceAll('"', '\\"')}"]`)
+      }).first();
+      await activeLayer.click();
+    } else {
+      const layerCount = await window.locator('.lighttable-layer').count();
+      await window.getByRole('button', { name: 'New raster layer' }).click();
+      await window.waitForFunction((expected) =>
+        document.querySelectorAll('.lighttable-layer').length === expected,
+      layerCount + 1, { timeout: 15_000 });
+      activeLayer = window.locator('.lighttable-layer--active');
+    }
     await activeLayer.waitFor({ state: 'visible', timeout: 15_000 });
     diagnostics.paint = {
       layerName: await activeLayer.locator('.lighttable-layer__name').inputValue(),
@@ -214,8 +226,8 @@ try {
       const displayHeight = Number(size[2]) * Number(zoom[1]) / 100;
       const documentLeft = box.x + (box.width - displayWidth) / 2;
       const documentTop = box.y + (box.height - displayHeight) / 2;
-      const startX = documentLeft + displayWidth * 0.2;
-      const startY = documentTop + displayHeight * 0.25;
+      const startX = documentLeft + displayWidth * paintX;
+      const startY = documentTop + displayHeight * paintY;
       await window.mouse.move(startX, startY);
       await window.mouse.down();
       await window.mouse.move(startX + displayWidth * 0.2, startY, { steps: 16 });

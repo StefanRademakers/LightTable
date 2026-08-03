@@ -9,7 +9,9 @@ const texture = () => ({ destroy: vi.fn() }) as unknown as GPUTexture;
 const snapshot = (layerId = 'layer-1'): PixelEditSnapshot => ({
   layerId: layerId as LayerId,
   channel: 'pixels',
-  texture: texture()
+  texture: texture(),
+  width: 20,
+  height: 10
 });
 
 describe('PixelEditSessionStore', () => {
@@ -40,7 +42,7 @@ describe('PixelEditSessionStore', () => {
     const active = snapshot();
     store.begin(active);
 
-    expect(store.estimatedTextureBytes(80)).toBe(80);
+    expect(store.estimatedTextureBytes(80)).toBe(20 * 10 * 8);
     expect(store.cancel()).toBe(true);
     expect(active.texture.destroy).toHaveBeenCalledOnce();
     expect(store.estimatedTextureBytes(80)).toBe(0);

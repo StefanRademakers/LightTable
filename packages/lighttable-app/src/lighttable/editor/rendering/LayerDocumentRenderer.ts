@@ -18,7 +18,6 @@ import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import {
   identityAffineMatrix,
-  isIdentityAffineMatrix,
   type RasterRenderContract
 } from './renderContract';
 import {
@@ -301,9 +300,6 @@ export class LayerDocumentRenderer {
     if (layerIsLocked(layer, 'pixels') || !layer.visible) throw new Error('Select a visible, unlocked layer before painting.');
     if (channel === 'pixels' && layer.type !== 'raster') {
       throw new Error('Only raster layers have editable pixels.');
-    }
-    if (channel === 'pixels' && layer.type === 'raster' && !isIdentityAffineMatrix(layer.transform)) {
-      throw new Error('Rasterize the transformed layer before painting on it.');
     }
     if (channel === 'mask' && !layer.mask) throw new Error('Add a layer mask before painting the mask channel.');
     this.beginPixelEdit(layer.id, channel);

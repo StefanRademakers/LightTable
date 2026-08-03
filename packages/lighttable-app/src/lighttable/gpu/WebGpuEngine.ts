@@ -633,7 +633,9 @@ export class WebGpuEngine {
       channel,
       color,
       preserveTransparency,
-      channel === 'mask' && layer ? layer.transform : undefined
+      channel === 'pixels' && layer?.type === 'raster'
+        ? layer.transform
+        : undefined
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;

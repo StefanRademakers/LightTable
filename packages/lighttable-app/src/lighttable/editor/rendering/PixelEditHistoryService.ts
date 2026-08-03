@@ -9,7 +9,7 @@ interface PixelEditHistoryServiceOptions {
   layerResources: LayerRuntimeStore;
   sessions: PixelEditSessionStore;
   dimensions: () => { width: number; height: number };
-  createTexture: (label: string) => GPUTexture;
+  createTextureSized: (label: string, width: number, height: number) => GPUTexture;
   maskTextureFor: (layerId: LayerId) => GPUTexture | null;
   invalidateLayer: (layerId: LayerId) => void;
 }
@@ -32,8 +32,14 @@ export class PixelEditHistoryService {
     if (!target) {
       throw new Error('The active paint channel is not available on the GPU.');
     }
-    const snapshot = this.options.createTexture('LightTable pixel edit undo snapshot');
-    const { width, height } = this.options.dimensions();
+    const { width, height } = channel === 'pixels' && runtime
+      ? runtime
+      : this.options.dimensions();
+    const snapshot = this.options.createTextureSized(
+      'LightTable pixel edit undo snapshot',
+      width,
+      height
+    );
     const encoder = this.options.device.createCommandEncoder({
       label: 'LightTable begin pixel edit'
     });
@@ -44,13 +50,13 @@ export class PixelEditHistoryService {
       [width, height]
     );
     this.options.device.queue.submit([encoder.finish()]);
-    this.options.sessions.begin({ layerId, channel, texture: snapshot });
+    this.options.sessions.begin({ layerId, channel, texture: snapshot, width, height });
   }
 
   finish(): ReversiblePixelEdit | null {
     const before = this.options.sessions.complete();
     if (!before) return null;
-    const { width, height } = this.options.dimensions();
+    const { width, height } = before;
     let undoTexture: GPUTexture | null = before.texture;
     let redoTexture: GPUTexture | null = null;
     let applied = true;
@@ -62,8 +68,10 @@ export class PixelEditHistoryService {
         ? this.options.maskTextureFor(before.layerId)
         : runtime?.texture;
       if (!target) return false;
-      const inverse = this.options.createTexture(
-        `LightTable ${direction} pixel history`
+      const inverse = this.options.createTextureSized(
+        `LightTable ${direction} pixel history`,
+        width,
+        height
       );
       const encoder = this.options.device.createCommandEncoder({
         label: `LightTable ${direction} pixel edit`

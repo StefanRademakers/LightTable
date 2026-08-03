@@ -86,7 +86,7 @@ runtime and Chromium notices are part of the packaged desktop release review.
 
 | Format/specification family | Open | Semantic/editable status | Save/export | Current boundary |
 |---|---|---|---|---|
-| LightTable layered PNG, manifest v1-v3 | Yes; v1-v3 read | Native layers, vectors, flow/positioned text, fonts, masks, styles, patterns, grades and preserved-source records according to schema version | Save writes v3 in a PNG-compatible container | Private `LTBLDOC1` footer and typed manifest; not a public PNG extension standard |
+| LightTable layered PNG, manifest v1-v4 | Yes; v1-v4 read | Native layers, vectors, flow/positioned text, fonts, masks, styles, patterns, grades, preserved-source records and v4 layer-local raster bounds according to schema version | Save writes v4 in a PNG-compatible container | Private `LTBLDOC1` footer and typed manifest; not a public PNG extension standard |
 | PNG, W3C PNG Third Edition | Yes | Imported as a still raster; 16-bit input selects the precision path | Flat/native preview and quick export are 8-bit PNG | APNG animation/timeline editing and full metadata round-trip are not implemented |
 | JPEG, ITU-T T.81 / ISO/IEC 10918-1 family | Yes | Still raster, 8-bit product path | No JPEG export | Decoder acceptance is browser/libvips dependent; JPEG metadata is not an editable document model |
 | WebP RIFF container with VP8/VP8L | Yes | Still lossy/lossless raster with decoder-provided alpha/profile handling | No WebP export | Animation/timeline and metadata round-trip are not implemented |

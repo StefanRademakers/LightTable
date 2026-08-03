@@ -12,9 +12,11 @@ import type { PaintChannel } from '../../session/editorSession';
  * line up exactly with selection-to-mask and mask-to-selection operations.
  */
 export const paintTargetSourceToDocument = (
-  _layer: LayerNode,
-  _channel: PaintChannel
-): AffineMatrix => identityAffineMatrix();
+  layer: LayerNode,
+  channel: PaintChannel
+): AffineMatrix => channel === 'pixels' && layer.type === 'raster'
+  ? layer.transform
+  : identityAffineMatrix();
 
 export const documentPointToPaintTarget = (
   point: TransformPoint,

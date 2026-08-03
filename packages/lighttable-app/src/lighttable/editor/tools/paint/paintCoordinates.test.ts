@@ -13,11 +13,10 @@ import { documentPointToPaintTarget, paintTargetSourceToDocument } from './paint
 const layer = (): RasterLayer => createImageDocument('Paint coordinates', 320, 180, 'asset').layers[0] as RasterLayer;
 
 describe('paint coordinate contract', () => {
-  it('keeps raster pixel painting in document space', () => {
+  it('maps tight raster pixel painting through the layer transform', () => {
     const transformed = { ...layer(), transform: translationMatrix(48, -12) };
-    expect(paintTargetSourceToDocument(transformed, 'pixels')).toEqual({
-      a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0
-    });
+    expect(paintTargetSourceToDocument(transformed, 'pixels'))
+      .toEqual(translationMatrix(48, -12));
   });
 
   it('keeps a mask in document space when its raster content is translated', () => {
