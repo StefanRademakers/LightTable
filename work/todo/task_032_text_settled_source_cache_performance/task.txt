@@ -1,0 +1,18 @@
+# Task 032 — Settled source cache and interaction performance
+
+Status: active. Implements Slice 13 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+Started from: `ca4f2f0`
+Owner: Codex `/root`
+
+## Required outcome
+
+- Choose direct atlas draw versus cached tight/tiled rgba16float sources through
+  a measured, deterministic cost model.
+- Reuse valid pixels during interaction and rebuild only after settle when needed.
+- Bound cache bytes with LRU eviction, visibility priority and device-loss reset.
+- Instrument shaping, atlas hits/misses, cache decisions, submissions and
+  keystroke-to-pixel latency.
+- Preserve zero-work behavior for unchanged and background documents.
+- Expose decisions and memory only through Debug telemetry; no user cache switch.

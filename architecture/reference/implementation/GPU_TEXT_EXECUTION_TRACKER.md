@@ -101,7 +101,7 @@ lanes are:
 
 | Slice | Owner | Started from | Status/notes |
 |---|---|---|---|
-| — | — | — | No active claim |
+| 13 | Codex `/root` | `ca4f2f0` | Active: settled source cache and interaction performance |
 
 Handoff requirements:
 
