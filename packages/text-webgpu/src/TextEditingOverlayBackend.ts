@@ -26,11 +26,20 @@ interface CachedGeometry {
   quads: BufferSlot;
   caret: BufferSlot;
   lines: BufferSlot;
+  staticLines: BufferSlot;
   markers: BufferSlot;
   quadCount: number;
   caretCount: number;
   lineCount: number;
+  staticLineCount: number;
   markerCount: number;
+  keys: {
+    quads: string;
+    caret: string;
+    lines: string;
+    staticLines: string;
+    markers: string;
+  };
 }
 
 interface PipelineBundle {
@@ -65,12 +74,16 @@ const quadData = (overlay: TextEditingOverlay) => new Float32Array(
   overlay.quads.flatMap(({ points, color }) => [...points.flatMap(({ x, y }) => [x, y]), ...color])
 );
 
-const lineData = (overlay: TextEditingOverlay, caret: boolean) => new Float32Array(
-  overlay.lines.filter((line) => (line.role === 'caret') === caret).flatMap((line) => [
+const encodedLines = (lines: TextEditingOverlay['lines']) => new Float32Array(
+  lines.flatMap((line) => [
     line.start.x, line.start.y, line.end.x, line.end.y,
     line.widthPx, 0, 0, 0,
     ...line.color
   ])
+);
+
+const lineData = (overlay: TextEditingOverlay, caret: boolean) => encodedLines(
+  overlay.lines.filter((line) => (line.role === 'caret') === caret)
 );
 
 const markerData = (overlay: TextEditingOverlay) => new Float32Array(
@@ -108,7 +121,7 @@ export class TextEditingOverlayBackend {
     if (target.width <= 0 || target.height <= 0) return false;
     const geometry = this.prepare(overlay);
     if (!geometry.quadCount && !geometry.lineCount && !geometry.markerCount
-      && (!caretVisible || !geometry.caretCount)) return false;
+      && !geometry.staticLineCount && (!caretVisible || !geometry.caretCount)) return false;
     const bundle = this.pipelineBundle(target.format);
     const settings = this.createSettings(target);
     const pass = encoder.beginRenderPass({
@@ -117,6 +130,9 @@ export class TextEditingOverlayBackend {
     });
     if (geometry.quadCount) {
       this.draw(pass, bundle.quads, settings, geometry.quads.buffer!, geometry.quadCount);
+    }
+    if (geometry.staticLineCount) {
+      this.draw(pass, bundle.lines, settings, geometry.staticLines.buffer!, geometry.staticLineCount);
     }
     if (geometry.lineCount) {
       this.draw(pass, bundle.lines, settings, geometry.lines.buffer!, geometry.lineCount);
@@ -155,10 +171,6 @@ export class TextEditingOverlayBackend {
   private prepare(overlay: TextEditingOverlay) {
     const cached = this.cache.get(overlay.resourceKey);
     if (cached) return cached;
-    const quads = quadData(overlay);
-    const caret = lineData(overlay, true);
-    const lines = lineData(overlay, false);
-    const markers = markerData(overlay);
     const previousKey = this.layerKeys.get(overlay.layerId);
     const previous = previousKey ? this.cache.get(previousKey) : undefined;
     if (previousKey) this.cache.delete(previousKey);
@@ -166,28 +178,58 @@ export class TextEditingOverlayBackend {
       quads: { buffer: null, capacity: 0 },
       caret: { buffer: null, capacity: 0 },
       lines: { buffer: null, capacity: 0 },
+      staticLines: { buffer: null, capacity: 0 },
       markers: { buffer: null, capacity: 0 },
       quadCount: 0,
       caretCount: 0,
       lineCount: 0,
-      markerCount: 0
+      staticLineCount: 0,
+      markerCount: 0,
+      keys: { quads: '', caret: '', lines: '', staticLines: '', markers: '' }
     };
-    geometry.quads = this.writeGeometry(
-      geometry.quads, `LightTable text overlay quads ${overlay.layerId}`, quads
-    );
-    geometry.caret = this.writeGeometry(
-      geometry.caret, `LightTable text overlay caret ${overlay.layerId}`, caret
-    );
-    geometry.lines = this.writeGeometry(
-      geometry.lines, `LightTable text overlay lines ${overlay.layerId}`, lines
-    );
-    geometry.markers = this.writeGeometry(
-      geometry.markers, `LightTable text overlay markers ${overlay.layerId}`, markers
-    );
-    geometry.quadCount = quads.byteLength / GEOMETRY_BYTES;
-    geometry.caretCount = caret.byteLength / GEOMETRY_BYTES;
-    geometry.lineCount = lines.byteLength / GEOMETRY_BYTES;
-    geometry.markerCount = markers.byteLength / MARKER_BYTES;
+    const keys = {
+      quads: overlay.geometryKeys?.quads ?? overlay.resourceKey,
+      caret: overlay.geometryKeys?.caret ?? overlay.resourceKey,
+      lines: overlay.geometryKeys?.lines ?? overlay.resourceKey,
+      staticLines: overlay.geometryKeys?.staticLines ?? overlay.resourceKey,
+      markers: overlay.geometryKeys?.markers ?? overlay.resourceKey
+    };
+    if (geometry.keys.quads !== keys.quads) {
+      const data = quadData(overlay);
+      geometry.quads = this.writeGeometry(
+        geometry.quads, `LightTable text overlay quads ${overlay.layerId}`, data
+      );
+      geometry.quadCount = data.byteLength / GEOMETRY_BYTES;
+    }
+    if (geometry.keys.caret !== keys.caret) {
+      const data = lineData(overlay, true);
+      geometry.caret = this.writeGeometry(
+        geometry.caret, `LightTable text overlay caret ${overlay.layerId}`, data
+      );
+      geometry.caretCount = data.byteLength / GEOMETRY_BYTES;
+    }
+    if (geometry.keys.lines !== keys.lines) {
+      const data = lineData(overlay, false);
+      geometry.lines = this.writeGeometry(
+        geometry.lines, `LightTable text overlay lines ${overlay.layerId}`, data
+      );
+      geometry.lineCount = data.byteLength / GEOMETRY_BYTES;
+    }
+    if (geometry.keys.staticLines !== keys.staticLines) {
+      const data = encodedLines(overlay.staticLines ?? []);
+      geometry.staticLines = this.writeGeometry(
+        geometry.staticLines, `LightTable text overlay static lines ${overlay.layerId}`, data
+      );
+      geometry.staticLineCount = data.byteLength / GEOMETRY_BYTES;
+    }
+    if (geometry.keys.markers !== keys.markers) {
+      const data = markerData(overlay);
+      geometry.markers = this.writeGeometry(
+        geometry.markers, `LightTable text overlay markers ${overlay.layerId}`, data
+      );
+      geometry.markerCount = data.byteLength / MARKER_BYTES;
+    }
+    geometry.keys = keys;
     this.cache.set(overlay.resourceKey, geometry);
     this.layerKeys.set(overlay.layerId, overlay.resourceKey);
     while (this.cache.size > this.maximumEntries) {
@@ -297,6 +339,7 @@ export class TextEditingOverlayBackend {
 
   private destroyGeometry(geometry: CachedGeometry) {
     geometry.quads.buffer?.destroy(); geometry.caret.buffer?.destroy();
-    geometry.lines.buffer?.destroy(); geometry.markers.buffer?.destroy();
+    geometry.lines.buffer?.destroy(); geometry.staticLines.buffer?.destroy();
+    geometry.markers.buffer?.destroy();
   }
 }

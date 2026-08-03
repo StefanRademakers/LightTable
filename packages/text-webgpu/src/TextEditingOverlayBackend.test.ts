@@ -110,4 +110,44 @@ describe('TextEditingOverlayBackend', () => {
       expect.any(Float32Array)
     );
   });
+
+  it('retains static path guides and markers across caret-only changes', () => {
+    const { device, buffers, encoder } = fixture();
+    const backend = new TextEditingOverlayBackend(device as unknown as GPUDevice);
+    const target = {
+      colorView: {} as GPUTextureView, format: 'rgba16float' as GPUTextureFormat,
+      width: 800, height: 600,
+      documentToViewport: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+    };
+    const pathOverlay: TextEditingOverlay = {
+      ...overlay,
+      resourceKey: 'path:caret:0',
+      staticLines: [{
+        role: 'path-baseline', start: { x: 0, y: 0 }, end: { x: 100, y: 0 },
+        widthPx: 1, color: [0, 0.5, 1, 0.5]
+      }],
+      markers: [{ role: 'path-start-handle', point: { x: 0, y: 0 }, sizePx: 10 }],
+      geometryKeys: {
+        quads: 'selection:0', caret: 'caret:0', lines: 'dynamic:0',
+        staticLines: 'path:7', markers: 'path:7'
+      }
+    };
+    backend.encode(encoder as unknown as GPUCommandEncoder, pathOverlay, target);
+    const staticWrites = () => device.queue.writeBuffer.mock.calls.filter(([buffer]) => (
+      (buffer as { label?: string }).label?.includes('static lines')
+    )).length;
+    const initialStaticWrites = staticWrites();
+    backend.encode(encoder as unknown as GPUCommandEncoder, {
+      ...pathOverlay,
+      resourceKey: 'path:caret:1',
+      geometryKeys: { ...pathOverlay.geometryKeys, caret: 'caret:1', lines: 'dynamic:1' },
+      lines: pathOverlay.lines.map((line) => line.role === 'caret'
+        ? { ...line, start: { x: 20, y: 0 }, end: { x: 20, y: 10 } }
+        : line)
+    }, target);
+
+    expect(staticWrites()).toBe(initialStaticWrites);
+    expect(buffers.filter(({ label }) => label.includes('static lines'))).toHaveLength(1);
+    expect(buffers.filter(({ label }) => label.includes('overlay markers'))).toHaveLength(1);
+  });
 });

@@ -705,6 +705,20 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 17 retained GPU path-editing overlay
+
+- Overlay: rigid path text now has a pure builder for curved per-cluster
+  selection quads, rotated carets, composition/insertion indicators, the
+  realized path baseline and semantic start/end/direction handles. It reuses
+  the existing text WebGPU quad/line/marker shaders and overlay pass.
+- Performance: immutable layouts receive a retained caret index; selection and
+  caret lookup are binary/map based. Static path guides and handles own
+  category-specific GPU resource keys and buffers, so caret/IME updates stream
+  only dynamic geometry instead of re-uploading a potentially large path.
+- UX: handle markers retain a fixed viewport-pixel size while positions remain
+  in document space. No DOM, SVG, CSS overlay or new visual component family
+  was introduced. Hit-testing/drag commands remain gated for the next slice.
+
 ### 2026-08-03 - Slice 17 rigid glyph projection foundation
 
 - Layout: already-shaped horizontal glyph origins can now be projected onto a
@@ -716,9 +730,9 @@ Append newest entries at the top. Keep entries factual and link the slice.
   GPU resource or document state and is not wired into production yet.
 - Editing/UI gap surfaced: path text needs rotated carets, curved selection
   geometry and start/end/direction handles in the existing WebGPU overlay pass.
-  The current rectangle-oriented editing overlay cannot represent those
-  honestly, so the Path Text tool stays hidden until that shared overlay
-  contract is extended and both artwork and editing consume one layout.
+  The existing GPU primitives can represent them, but the realized editing
+  geometry and builder were rectangle-oriented. The Path Text tool stays hidden
+  until artwork and editing consume one path projection end to end.
 
 ### 2026-08-03 - Slice 17 hierarchical path dependency
 

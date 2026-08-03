@@ -18,7 +18,7 @@ export interface TextOverlayQuad {
 }
 
 export interface TextOverlayLine {
-  readonly role: 'caret' | 'baseline' | 'composition' | 'insertion' | 'frame';
+  readonly role: 'caret' | 'baseline' | 'composition' | 'insertion' | 'frame' | 'path-baseline' | 'path-direction';
   readonly start: TextOverlayPoint;
   readonly end: TextOverlayPoint;
   readonly widthPx: number;
@@ -26,7 +26,12 @@ export interface TextOverlayLine {
 }
 
 export interface TextOverlayMarker {
-  readonly role: 'frame-handle' | 'overflow-indicator';
+  readonly role:
+    | 'frame-handle'
+    | 'overflow-indicator'
+    | 'path-start-handle'
+    | 'path-end-handle'
+    | 'path-direction-handle';
   readonly point: TextOverlayPoint;
   readonly sizePx: number;
 }
@@ -36,8 +41,17 @@ export interface TextEditingOverlay {
   /** Excludes blink visibility so the GPU geometry remains reusable. */
   readonly resourceKey: string;
   readonly quads: readonly TextOverlayQuad[];
+  /** Expensive path/frame guides retained independently of caret/selection changes. */
+  readonly staticLines?: readonly TextOverlayLine[];
   readonly lines: readonly TextOverlayLine[];
   readonly markers: readonly TextOverlayMarker[];
+  readonly geometryKeys?: Readonly<{
+    quads?: string;
+    caret?: string;
+    lines?: string;
+    staticLines?: string;
+    markers?: string;
+  }>;
 }
 
 export interface BuildTextEditingOverlayOptions {

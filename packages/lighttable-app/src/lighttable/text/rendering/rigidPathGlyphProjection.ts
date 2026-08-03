@@ -18,6 +18,12 @@ export interface RigidPathGlyphProjection {
   readonly contentAdvance: number;
 }
 
+export interface RigidPathPlacement {
+  readonly point: { readonly x: number; readonly y: number };
+  readonly cosine: number;
+  readonly sine: number;
+}
+
 const horizontalExtent = (layout: RealizedTextLayout) => {
   let minimum = Number.POSITIVE_INFINITY;
   let maximum = Number.NEGATIVE_INFINITY;
@@ -39,6 +45,23 @@ const normalizedUprightAngle = (angle: number) => {
   if (result > Math.PI / 2) result -= Math.PI;
   else if (result < -Math.PI / 2) result += Math.PI;
   return result;
+};
+
+export const rigidPathPlacementAt = (
+  table: PathArcLengthTable,
+  offset: number,
+  direction: ResolvedPathTextRange['direction'],
+  pathLayout: PathTextLayout
+): RigidPathPlacement => {
+  const sample = samplePathArcLength(table, offset, direction);
+  let angle = Math.atan2(sample.tangent.y, sample.tangent.x);
+  if (pathLayout.side === 'right') angle += Math.PI;
+  if (pathLayout.upright) angle = normalizedUprightAngle(angle);
+  return {
+    point: sample.point,
+    cosine: Math.cos(angle) || 0,
+    sine: Math.sin(angle) || 0
+  };
 };
 
 /**
@@ -66,15 +89,11 @@ export const projectRigidGlyphRunsToPath = (
       const x = run.geometry[index * 4]!;
       const y = run.geometry[index * 4 + 1]!;
       const traversalOffset = range.origin + (x - extent.minimum);
-      const sample = samplePathArcLength(table, traversalOffset, range.direction);
-      let angle = Math.atan2(sample.tangent.y, sample.tangent.x);
-      if (pathLayout.side === 'right') angle += Math.PI;
-      if (pathLayout.upright) angle = normalizedUprightAngle(angle);
-      const cosine = Math.cos(angle) || 0;
-      const sine = Math.sin(angle) || 0;
+      const placement = rigidPathPlacementAt(table, traversalOffset, range.direction, pathLayout);
+      const { cosine, sine } = placement;
       transforms.set([
-        cosine, -sine || 0, sample.point.x - x || 0,
-        sine, cosine, sample.point.y - y || 0,
+        cosine, -sine || 0, placement.point.x - x || 0,
+        sine, cosine, placement.point.y - y || 0,
         0, 0, 1
       ], index * 9);
     }
