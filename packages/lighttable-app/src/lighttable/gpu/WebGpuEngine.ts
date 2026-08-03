@@ -1724,6 +1724,9 @@ export class WebGpuEngine {
 
   async exportPng() {
     if (!this.metadata || !this.imageResources.finalTexture) throw new Error('No processed image is available for export.');
+    if (this.documentRenderer && !await this.documentRenderer.waitForTextSourcesForExport()) {
+      throw new Error('Text sources changed or could not be prepared for export.');
+    }
     this.settleInteractiveRenderQuality();
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();

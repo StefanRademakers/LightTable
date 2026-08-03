@@ -382,7 +382,7 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).not.toHaveBeenCalled();
     expect(state.publish).toHaveBeenCalledOnce();
 
-    await state.coordinator.waitForSettledSource(document.layers[0]!.id);
+    await expect(state.coordinator.waitForAllSettledSources()).resolves.toBe(true);
     expect(state.renderer.prepareTightSource).toHaveBeenCalledOnce();
     expect(state.submit).toHaveBeenCalledOnce();
     expect(state.renderer.thumbnailSource(document.layers[0]!.id)).not.toBeNull();

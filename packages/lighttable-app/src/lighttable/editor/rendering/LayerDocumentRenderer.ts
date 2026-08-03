@@ -214,6 +214,10 @@ export class LayerDocumentRenderer {
     return this.runtime.textLayerCoordinator.vectorPathsForLayer(layerId, signal);
   }
 
+  waitForTextSourcesForExport() {
+    return this.runtime.textLayerCoordinator.waitForAllSettledSources();
+  }
+
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {
     await this.runtime.documentAssets.load(assets);
   }

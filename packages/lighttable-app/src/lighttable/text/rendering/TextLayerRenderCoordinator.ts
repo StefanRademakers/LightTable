@@ -460,6 +460,21 @@ export class TextLayerRenderCoordinator {
     return Boolean(layer && this.options.renderer.hasExactSource(layer));
   }
 
+  /** Waits until every currently visible text layer has an exportable source. */
+  async waitForAllSettledSources() {
+    if (this.disposed) return false;
+    await this.work;
+    const openingDocument = this.document;
+    if (!openingDocument) return true;
+    for (const { layer } of visibleTextLayers(openingDocument)) {
+      await this.waitForSettledSource(layer.id);
+      if (this.document !== openingDocument) return false;
+    }
+    return visibleTextLayers(openingDocument).every(({ layer }) =>
+      this.isSettledForCurrentGeneration(layer)
+    );
+  }
+
   retireSubmittedResources() {
     void this.dependencies?.backend.retireSubmittedResources();
   }

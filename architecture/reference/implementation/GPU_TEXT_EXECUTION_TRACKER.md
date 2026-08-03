@@ -704,6 +704,23 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Export waits for canonical text sources
+
+- Correctness: PNG export now waits for all currently visible TextLayers to
+  finish their current-generation source preparation before the compositor is
+  flushed and read back. A direct interactive atlas source is first converted
+  to the established tight cached source required by thumbnails/export.
+- Stale-state guard: document replacement during the wait fails the export
+  explicitly instead of exporting an incomplete or previous text source.
+- Architecture: export enters through the existing document renderer and text
+  coordinator; no export-only canvas, DOM renderer or second compositor was
+  added.
+- Remaining fidelity gate: output-scale-specific outline selection is still
+  open. This slice guarantees complete current document pixels, but does not
+  claim arbitrary-resolution PDF/PSD export parity.
+- UI/UX: no new property is introduced. The existing export task reports the
+  actionable failure if text preparation cannot settle.
+
 ### 2026-08-03 - Slice 16/21 outline lifecycle hardening
 
 - Lifecycle: clearing the scale-independent glyph-outline repository now
