@@ -77,4 +77,37 @@ describe('TextEditingOverlayBackend', () => {
     expect(buffers.filter(({ label }) => label.includes('LightTable text overlay '))
       .every(({ destroy }) => destroy.mock.calls.length === 1)).toBe(true);
   });
+
+  it('streams changing selection geometry into reused per-layer buffers', () => {
+    const { device, buffers, encoder } = fixture();
+    const backend = new TextEditingOverlayBackend(device as unknown as GPUDevice);
+    const target = {
+      colorView: {} as GPUTextureView, format: 'rgba16float' as GPUTextureFormat,
+      width: 800, height: 600,
+      documentToViewport: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+    };
+    backend.encode(encoder as unknown as GPUCommandEncoder, overlay, target);
+    backend.encode(encoder as unknown as GPUCommandEncoder, {
+      ...overlay,
+      resourceKey: 'text:layout:selection-extended',
+      quads: [...overlay.quads, {
+        ...overlay.quads[0]!,
+        points: [
+          { x: 10, y: 0 }, { x: 20, y: 0 },
+          { x: 20, y: 10 }, { x: 10, y: 10 }
+        ]
+      }]
+    }, target);
+
+    expect(buffers.filter(({ label }) => label.includes('overlay quads'))).toHaveLength(1);
+    expect(buffers.filter(({ label }) => label.includes('overlay caret'))).toHaveLength(1);
+    expect(buffers.filter(({ label }) => label.includes('overlay lines'))).toHaveLength(1);
+    expect(buffers.filter(({ label }) => label.includes('overlay markers'))).toHaveLength(1);
+    expect(backend.cacheMetrics()).toEqual({ entries: 1 });
+    expect(device.queue.writeBuffer).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'LightTable text overlay quads text' }),
+      0,
+      expect.any(Float32Array)
+    );
+  });
 });

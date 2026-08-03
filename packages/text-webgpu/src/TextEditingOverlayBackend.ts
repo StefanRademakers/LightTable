@@ -17,15 +17,20 @@ export interface TextEditingOverlayTarget {
   readonly documentToViewport: TextEditingAffine;
 }
 
+interface BufferSlot {
+  readonly buffer: GPUBuffer | null;
+  readonly capacity: number;
+}
+
 interface CachedGeometry {
-  readonly quads: GPUBuffer | null;
-  readonly caret: GPUBuffer | null;
-  readonly lines: GPUBuffer | null;
-  readonly markers: GPUBuffer | null;
-  readonly quadCount: number;
-  readonly caretCount: number;
-  readonly lineCount: number;
-  readonly markerCount: number;
+  quads: BufferSlot;
+  caret: BufferSlot;
+  lines: BufferSlot;
+  markers: BufferSlot;
+  quadCount: number;
+  caretCount: number;
+  lineCount: number;
+  markerCount: number;
 }
 
 interface PipelineBundle {
@@ -34,15 +39,26 @@ interface PipelineBundle {
   readonly markers: GPURenderPipeline;
 }
 
-const createStorage = (device: GPUDevice, label: string, data: Float32Array<ArrayBuffer>) => {
-  if (!data.byteLength) return null;
+const storageCapacity = (required: number) => {
+  let capacity = 256;
+  while (capacity < required) capacity *= 2;
+  return capacity;
+};
+
+const createStorage = (
+  device: GPUDevice,
+  label: string,
+  data: Float32Array<ArrayBuffer>
+): BufferSlot => {
+  if (!data.byteLength) return { buffer: null, capacity: 0 };
+  const capacity = storageCapacity(data.byteLength);
   const buffer = device.createBuffer({
     label,
-    size: data.byteLength,
+    size: capacity,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
   });
   device.queue.writeBuffer(buffer, 0, data);
-  return buffer;
+  return { buffer, capacity };
 };
 
 const quadData = (overlay: TextEditingOverlay) => new Float32Array(
@@ -67,6 +83,7 @@ const markerData = (overlay: TextEditingOverlay) => new Float32Array(
 export class TextEditingOverlayBackend {
   private readonly layout: GPUBindGroupLayout;
   private readonly cache = new Map<string, CachedGeometry>();
+  private readonly layerKeys = new Map<string, string>();
   private readonly pipelines = new Map<GPUTextureFormat, PipelineBundle>();
   private pendingSettings: GPUBuffer[] = [];
   private disposed = false;
@@ -90,21 +107,25 @@ export class TextEditingOverlayBackend {
     if (this.disposed) throw new Error('Text editing overlay backend is disposed.');
     if (target.width <= 0 || target.height <= 0) return false;
     const geometry = this.prepare(overlay);
-    if (!geometry.quads && !geometry.lines && !geometry.markers
-      && (!caretVisible || !geometry.caret)) return false;
+    if (!geometry.quadCount && !geometry.lineCount && !geometry.markerCount
+      && (!caretVisible || !geometry.caretCount)) return false;
     const bundle = this.pipelineBundle(target.format);
     const settings = this.createSettings(target);
     const pass = encoder.beginRenderPass({
       label: 'LightTable text editing overlay',
       colorAttachments: [{ view: target.colorView, loadOp: 'load', storeOp: 'store' }]
     });
-    if (geometry.quads) this.draw(pass, bundle.quads, settings, geometry.quads, geometry.quadCount);
-    if (geometry.lines) this.draw(pass, bundle.lines, settings, geometry.lines, geometry.lineCount);
-    if (geometry.markers) {
-      this.draw(pass, bundle.markers, settings, geometry.markers, geometry.markerCount);
+    if (geometry.quadCount) {
+      this.draw(pass, bundle.quads, settings, geometry.quads.buffer!, geometry.quadCount);
     }
-    if (caretVisible && geometry.caret) {
-      this.draw(pass, bundle.lines, settings, geometry.caret, geometry.caretCount);
+    if (geometry.lineCount) {
+      this.draw(pass, bundle.lines, settings, geometry.lines.buffer!, geometry.lineCount);
+    }
+    if (geometry.markerCount) {
+      this.draw(pass, bundle.markers, settings, geometry.markers.buffer!, geometry.markerCount);
+    }
+    if (caretVisible && geometry.caretCount) {
+      this.draw(pass, bundle.lines, settings, geometry.caret.buffer!, geometry.caretCount);
     }
     pass.end();
     return true;
@@ -127,6 +148,7 @@ export class TextEditingOverlayBackend {
     this.pendingSettings = [];
     for (const geometry of this.cache.values()) this.destroyGeometry(geometry);
     this.cache.clear();
+    this.layerKeys.clear();
     this.pipelines.clear();
   }
 
@@ -137,24 +159,62 @@ export class TextEditingOverlayBackend {
     const caret = lineData(overlay, true);
     const lines = lineData(overlay, false);
     const markers = markerData(overlay);
-    const geometry = {
-      quads: createStorage(this.device, `LightTable text overlay quads ${overlay.layerId}`, quads),
-      caret: createStorage(this.device, `LightTable text overlay caret ${overlay.layerId}`, caret),
-      lines: createStorage(this.device, `LightTable text overlay lines ${overlay.layerId}`, lines),
-      markers: createStorage(this.device, `LightTable text overlay markers ${overlay.layerId}`, markers),
-      quadCount: quads.byteLength / GEOMETRY_BYTES,
-      caretCount: caret.byteLength / GEOMETRY_BYTES,
-      lineCount: lines.byteLength / GEOMETRY_BYTES,
-      markerCount: markers.byteLength / MARKER_BYTES
+    const previousKey = this.layerKeys.get(overlay.layerId);
+    const previous = previousKey ? this.cache.get(previousKey) : undefined;
+    if (previousKey) this.cache.delete(previousKey);
+    const geometry = previous ?? {
+      quads: { buffer: null, capacity: 0 },
+      caret: { buffer: null, capacity: 0 },
+      lines: { buffer: null, capacity: 0 },
+      markers: { buffer: null, capacity: 0 },
+      quadCount: 0,
+      caretCount: 0,
+      lineCount: 0,
+      markerCount: 0
     };
+    geometry.quads = this.writeGeometry(
+      geometry.quads, `LightTable text overlay quads ${overlay.layerId}`, quads
+    );
+    geometry.caret = this.writeGeometry(
+      geometry.caret, `LightTable text overlay caret ${overlay.layerId}`, caret
+    );
+    geometry.lines = this.writeGeometry(
+      geometry.lines, `LightTable text overlay lines ${overlay.layerId}`, lines
+    );
+    geometry.markers = this.writeGeometry(
+      geometry.markers, `LightTable text overlay markers ${overlay.layerId}`, markers
+    );
+    geometry.quadCount = quads.byteLength / GEOMETRY_BYTES;
+    geometry.caretCount = caret.byteLength / GEOMETRY_BYTES;
+    geometry.lineCount = lines.byteLength / GEOMETRY_BYTES;
+    geometry.markerCount = markers.byteLength / MARKER_BYTES;
     this.cache.set(overlay.resourceKey, geometry);
+    this.layerKeys.set(overlay.layerId, overlay.resourceKey);
     while (this.cache.size > this.maximumEntries) {
       const oldest = this.cache.keys().next().value as string | undefined;
       if (!oldest) break;
-      this.destroyGeometry(this.cache.get(oldest)!);
+      const evicted = this.cache.get(oldest)!;
+      this.destroyGeometry(evicted);
       this.cache.delete(oldest);
+      for (const [layerId, key] of this.layerKeys) {
+        if (key === oldest) this.layerKeys.delete(layerId);
+      }
     }
     return geometry;
+  }
+
+  private writeGeometry(
+    slot: BufferSlot,
+    label: string,
+    data: Float32Array<ArrayBuffer>
+  ): BufferSlot {
+    if (!data.byteLength) return slot;
+    if (slot.buffer && slot.capacity >= data.byteLength) {
+      this.device.queue.writeBuffer(slot.buffer, 0, data);
+      return slot;
+    }
+    slot.buffer?.destroy();
+    return createStorage(this.device, label, data);
   }
 
   private createSettings(target: TextEditingOverlayTarget) {
@@ -236,7 +296,7 @@ export class TextEditingOverlayBackend {
   }
 
   private destroyGeometry(geometry: CachedGeometry) {
-    geometry.quads?.destroy(); geometry.caret?.destroy(); geometry.lines?.destroy();
-    geometry.markers?.destroy();
+    geometry.quads.buffer?.destroy(); geometry.caret.buffer?.destroy();
+    geometry.lines.buffer?.destroy(); geometry.markers.buffer?.destroy();
   }
 }
