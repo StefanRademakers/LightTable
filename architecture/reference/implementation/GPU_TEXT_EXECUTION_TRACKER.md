@@ -639,6 +639,12 @@ import. The normalized descriptor references a fingerprinted immutable source
 asset, and LightTable's layered persistence round-trips Photoshop, PDF and
 Illustrator source blobs byte-exact instead of embedding them in render state.
 
+Slice 20 tiling evidence: `planPdfPageTiles()` partitions an unrotated PDF
+crop-box raster into renderer-neutral, non-overlapping content tiles with
+bounded guard pixels for seam-safe filters and antialiasing. UserUnit, scale
+and page rotation produce exact output dimensions; tile-count and duplicated
+render-pixel budgets are checked before large arrays or GPU resources exist.
+
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but
 flow editing is disabled until explicitly recovered.
