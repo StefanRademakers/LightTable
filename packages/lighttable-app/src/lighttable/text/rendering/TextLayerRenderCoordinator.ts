@@ -234,6 +234,7 @@ export class TextLayerRenderCoordinator {
   }
 
   configureFonts(port: TextFontRuntimePort | null) {
+    if (this.disposed) return;
     const revision = port?.revision ?? 0;
     if (this.fontPort === port && this.configuredFontRevision === revision) {
       this.schedule();
@@ -260,6 +261,7 @@ export class TextLayerRenderCoordinator {
   }
 
   sync(document: ImageDocument) {
+    if (this.disposed) return;
     this.document = document;
     const allText = walkLayerTree(document.layers)
       .map(({ node }) => node)
@@ -407,6 +409,20 @@ export class TextLayerRenderCoordinator {
 
   retireSubmittedResources() {
     void this.dependencies?.backend.retireSubmittedResources();
+  }
+
+  /** Releases document-owned text state without permanently retiring the coordinator. */
+  resetDocument() {
+    if (this.disposed) return;
+    this.document = null;
+    this.visibleTextLayerCount = 0;
+    this.invalidateFontRuntime();
+    this.interactingLayerScales.clear();
+    this.interactivelyPreparedLayers.clear();
+    this.forcedCachedLayers.clear();
+    this.inputLatency.reset();
+    this.setPreparationStage('waiting-document');
+    this.trace('Document text resources reset');
   }
 
   dispose() {

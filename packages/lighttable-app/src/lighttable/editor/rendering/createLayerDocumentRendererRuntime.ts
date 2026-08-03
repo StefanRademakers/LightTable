@@ -334,7 +334,9 @@ export const createLayerDocumentRendererRuntime = (
       () => layerStyleRenderer.destroy(),
       () => vectorLayerRenderer.destroy(),
       () => developmentTextFixture.dispose(),
-      () => textLayerCoordinator.dispose(),
+      // Opening/replacing an image resets document-owned text sources, but the
+      // coordinator itself remains reusable for the lifetime of the GPU engine.
+      () => textLayerCoordinator.resetDocument(),
       () => compositeTargets.destroy(),
       () => selectionTextures.destroy(),
       () => geometryPreviews.clear(),

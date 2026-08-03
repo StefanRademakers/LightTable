@@ -460,6 +460,7 @@ export class LayerDocumentRenderer {
 
   destroy() {
     this.destroyImageResources();
+    this.runtime.textLayerCoordinator.dispose();
     this.runtime.rasterPaint.destroy();
     this.runtime.renderResources.destroyPending();
   }

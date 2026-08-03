@@ -173,6 +173,45 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).toHaveBeenCalledOnce();
   });
 
+  it('remains reusable after document-owned resources are reset', async () => {
+    const state = harness();
+    const first = createImageDocument('First', 32, 24, 'source');
+    first.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(first);
+    await flush();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+
+    state.coordinator.resetDocument();
+    expect(state.coordinator.snapshot()).toMatchObject({
+      configuredFontCount: 1,
+      visibleTextLayerCount: 0,
+      preparationStage: 'waiting-document'
+    });
+
+    const second = createImageDocument('Second', 32, 24, 'source');
+    second.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.sync(second);
+    await flush();
+
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(2);
+    expect(state.publish).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores late font and document publications after terminal disposal', async () => {
+    const state = harness();
+    state.coordinator.dispose();
+    const document = createImageDocument('Late', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+
+    expect(state.client.registerFontDetailed).not.toHaveBeenCalled();
+    expect(state.client.realizeTextDetailed).not.toHaveBeenCalled();
+  });
+
   it('does not let synchronous presentation bookkeeping suppress queued text preparation', async () => {
     const state = harness();
     const document = createImageDocument('Text', 32, 24, 'source');
