@@ -176,6 +176,7 @@ describe('text document contracts', () => {
           mode: 'path' as const,
           pathLayerId: 'vector-layer',
           pathElementId: 'curve-a',
+          pathSubpathId: 'contour-a',
           startOffset: 12,
           side: 'left' as const,
           upright: true
@@ -187,6 +188,10 @@ describe('text document contracts', () => {
       ...layer,
       source: { ...layer.source, layout: { ...layer.source.layout, pathElementId: '' } }
     })).toThrow(/pathElementId/);
+    expect(() => assertTextLayerData({
+      ...layer,
+      source: { ...layer.source, layout: { ...layer.source.layout, pathSubpathId: '' } }
+    })).toThrow(/pathSubpathId/);
   });
 
   it('bounds authored character and paragraph numbers in runs and insertion defaults', () => {

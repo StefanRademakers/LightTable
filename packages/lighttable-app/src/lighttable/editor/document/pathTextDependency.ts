@@ -1,4 +1,4 @@
-import type { VectorPath } from '@lighttable/vector-core';
+import type { VectorPath, VectorSubpath } from '@lighttable/vector-core';
 import type { ImageDocument, LayerId, TextLayer, VectorLayer } from './documentTypes';
 import { findDocumentLayer } from './layerTree';
 
@@ -8,11 +8,14 @@ export type PathTextDependencyResolution =
   | { readonly kind: 'incompatible-layer'; readonly revision: 0; readonly layerId: string }
   | { readonly kind: 'missing-element'; readonly revision: 0; readonly layerId: string; readonly elementId: string | null }
   | { readonly kind: 'ambiguous-legacy-reference'; readonly revision: 0; readonly layerId: string }
+  | { readonly kind: 'missing-subpath'; readonly revision: 0; readonly layerId: string; readonly elementId: string; readonly subpathId: string | null }
+  | { readonly kind: 'ambiguous-legacy-subpath'; readonly revision: 0; readonly layerId: string; readonly elementId: string }
   | {
     readonly kind: 'resolved';
     readonly revision: number;
     readonly layer: VectorLayer;
     readonly path: VectorPath;
+    readonly subpath: VectorSubpath;
   };
 
 const hashDependency = (values: readonly (string | number)[]) => {
@@ -24,11 +27,15 @@ const hashDependency = (values: readonly (string | number)[]) => {
   return (hash >>> 0) || 1;
 };
 
-const dependencyRevision = (layer: VectorLayer, path: VectorPath) => hashDependency([
+const dependencyRevision = (
+  layer: VectorLayer,
+  path: VectorPath,
+  subpath: VectorSubpath
+) => hashDependency([
   layer.id,
   layer.transform.a, layer.transform.b, layer.transform.c,
   layer.transform.d, layer.transform.tx, layer.transform.ty,
-  path.id, path.geometryRevision, path.transformRevision,
+  path.id, subpath.id, path.geometryRevision, path.transformRevision,
   path.transform.a, path.transform.b, path.transform.c,
   path.transform.d, path.transform.tx, path.transform.ty
 ]);
@@ -42,29 +49,53 @@ export const resolvePathTextDependency = (
   if (source.kind !== 'flow' || source.layout.mode !== 'path') {
     return { kind: 'not-path-text', revision: 0 };
   }
-  const { pathLayerId, pathElementId } = source.layout;
+  const { pathLayerId, pathElementId, pathSubpathId } = source.layout;
   const target = findDocumentLayer(document, pathLayerId as LayerId);
   if (!target) return { kind: 'missing-layer', revision: 0, layerId: pathLayerId };
   if (target.type !== 'vector') {
     return { kind: 'incompatible-layer', revision: 0, layerId: pathLayerId };
   }
   const paths = target.elements.filter((element): element is VectorPath => element.type === 'path');
+  let path: VectorPath;
   if (pathElementId) {
-    const path = paths.find(({ id }) => id === pathElementId);
-    return path
-      ? { kind: 'resolved', revision: dependencyRevision(target, path), layer: target, path }
-      : {
+    const exact = paths.find(({ id }) => id === pathElementId);
+    if (!exact) return {
         kind: 'missing-element', revision: 0,
         layerId: pathLayerId, elementId: pathElementId
       };
+    path = exact;
+  } else {
+    if (paths.length !== 1) {
+      return paths.length === 0
+        ? { kind: 'missing-element', revision: 0, layerId: pathLayerId, elementId: null }
+        : { kind: 'ambiguous-legacy-reference', revision: 0, layerId: pathLayerId };
+    }
+    path = paths[0]!;
   }
-  if (paths.length === 1) {
-    return {
-      kind: 'resolved', revision: dependencyRevision(target, paths[0]!),
-      layer: target, path: paths[0]!
+  let subpath: VectorSubpath;
+  if (pathSubpathId) {
+    const exact = path.subpaths.find(({ id }) => id === pathSubpathId);
+    if (!exact) return {
+      kind: 'missing-subpath', revision: 0, layerId: pathLayerId,
+      elementId: path.id, subpathId: pathSubpathId
     };
+    subpath = exact;
+  } else {
+    if (path.subpaths.length !== 1) {
+      return path.subpaths.length === 0
+        ? {
+          kind: 'missing-subpath', revision: 0, layerId: pathLayerId,
+          elementId: path.id, subpathId: null
+        }
+        : {
+          kind: 'ambiguous-legacy-subpath', revision: 0,
+          layerId: pathLayerId, elementId: path.id
+        };
+    }
+    subpath = path.subpaths[0]!;
   }
-  return paths.length === 0
-    ? { kind: 'missing-element', revision: 0, layerId: pathLayerId, elementId: null }
-    : { kind: 'ambiguous-legacy-reference', revision: 0, layerId: pathLayerId };
+  return {
+    kind: 'resolved', revision: dependencyRevision(target, path, subpath),
+    layer: target, path, subpath
+  };
 };

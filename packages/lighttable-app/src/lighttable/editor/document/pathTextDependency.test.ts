@@ -1,4 +1,4 @@
-import { createVectorPath } from '@lighttable/vector-core';
+import { createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,8 +10,8 @@ import {
 } from './documentTypes';
 import { resolvePathTextDependency } from './pathTextDependency';
 
-const fixture = (pathElementId?: string) => {
-  const path = createVectorPath('path-a', 'Curve');
+const fixture = (pathElementId?: string, pathSubpathId?: string) => {
+  const path = createVectorPath('path-a', 'Curve', [createSubpath('curve-a')]);
   const vector = createVectorLayer([path], 'Paths');
   const data = createDefaultTextLayerData();
   if (data.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
@@ -20,7 +20,9 @@ const fixture = (pathElementId?: string) => {
     source: {
       ...data.source,
       layout: {
-        mode: 'path', pathLayerId: vector.id, ...(pathElementId ? { pathElementId } : {}),
+        mode: 'path', pathLayerId: vector.id,
+        ...(pathElementId ? { pathElementId } : {}),
+        ...(pathSubpathId ? { pathSubpathId } : {}),
         startOffset: 0, side: 'left', upright: true
       }
     }
@@ -32,9 +34,11 @@ const fixture = (pathElementId?: string) => {
 
 describe('path text dependency', () => {
   it('resolves an exact vector element and changes revision with path geometry or transforms', () => {
-    const { document, vector, text } = fixture('path-a');
+    const { document, vector, text } = fixture('path-a', 'curve-a');
     const opening = resolvePathTextDependency(document, text);
-    expect(opening).toMatchObject({ kind: 'resolved', path: { id: 'path-a' } });
+    expect(opening).toMatchObject({
+      kind: 'resolved', path: { id: 'path-a' }, subpath: { id: 'curve-a' }
+    });
 
     const changedPath = {
       ...vector.elements[0]!, geometryRevision: 1,
@@ -54,7 +58,7 @@ describe('path text dependency', () => {
   it('accepts a legacy layer-only reference only when exactly one path exists', () => {
     const { document, vector, text } = fixture();
     expect(resolvePathTextDependency(document, text).kind).toBe('resolved');
-    vector.elements.push(createVectorPath('path-b', 'Second'));
+    vector.elements.push(createVectorPath('path-b', 'Second', [createSubpath('curve-b')]));
     expect(resolvePathTextDependency(document, text)).toMatchObject({
       kind: 'ambiguous-legacy-reference', layerId: vector.id
     });
@@ -80,6 +84,21 @@ describe('path text dependency', () => {
     };
     expect(resolvePathTextDependency(document, missingLayer)).toMatchObject({
       kind: 'missing-layer', layerId: 'deleted-layer'
+    });
+  });
+
+  it('requires an exact subpath when one vector element contains multiple contours', () => {
+    const { document, vector, text } = fixture('path-a');
+    const path = vector.elements[0];
+    if (path?.type !== 'path') throw new Error('Expected vector path fixture.');
+    path.subpaths.push(createSubpath('curve-b'));
+    expect(resolvePathTextDependency(document, text)).toMatchObject({
+      kind: 'ambiguous-legacy-subpath', layerId: vector.id, elementId: path.id
+    });
+
+    const exact = fixture('path-a', 'missing-curve');
+    expect(resolvePathTextDependency(exact.document, exact.text)).toMatchObject({
+      kind: 'missing-subpath', subpathId: 'missing-curve'
     });
   });
 });

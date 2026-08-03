@@ -110,6 +110,7 @@ describe('LightTable layered PNG format', () => {
           mode: 'path' as const,
           pathLayerId: 'vector-layer',
           pathElementId: 'curve-a',
+          pathSubpathId: 'contour-a',
           startOffset: 12,
           side: 'left' as const,
           upright: true

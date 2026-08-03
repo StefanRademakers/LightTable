@@ -145,6 +145,8 @@ export interface PathTextLayout {
   readonly pathLayerId: string;
   /** Stable vector element identity; omitted only for legacy single-path layers. */
   readonly pathElementId?: string;
+  /** Stable contour identity; omitted only for legacy single-subpath elements. */
+  readonly pathSubpathId?: string;
   readonly startOffset: number;
   readonly side: 'left' | 'right';
   readonly upright: boolean;

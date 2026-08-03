@@ -706,13 +706,14 @@ Append newest entries at the top. Keep entries factual and link the slice.
 
 ### 2026-08-03 - Slice 17 stable path-text dependency
 
-- Contract: path text can identify both its vector layer and stable vector
-  element. The element ID is additive/backward-compatible; legacy layer-only
-  data resolves only when that layer contains exactly one canonical path.
+- Contract: path text can identify its vector layer, stable vector element and
+  stable subpath/contour. The IDs are additive/backward-compatible; legacy
+  layer-only data resolves only when that layer contains exactly one canonical
+  path with exactly one subpath.
 - Safety: dependency resolution reports missing layer, incompatible layer,
-  missing element and ambiguous legacy reference separately. It never chooses
-  the first sibling path silently and does not treat an unrealized live shape
-  as a canonical path.
+  missing element/subpath and ambiguous legacy references separately. It never
+  chooses the first sibling path or contour silently and does not treat an
+  unrealized live shape as a canonical path.
 - Invalidation: the text preparation/cache key now includes a bounded revision
   derived from the referenced layer transform and path geometry/transform.
   Editing that path invalidates dependent text without invalidating unrelated
