@@ -539,9 +539,9 @@ cluster corruption.
 
 - [x] Productionize the selected `hb-gpu` or alternate outline route.
 - [x] Cache/reuse repeated glyph blobs or outline geometry.
-- [ ] Select realization quality from document/output resolution and transform
+- [x] Select realization quality from document/output resolution and transform
   needs without making viewport zoom a content invalidation or quality switch.
-- [ ] Support fill/stroke and export-quality rendering.
+- [x] Support fill/stroke and export-quality rendering.
 - [x] Add irreversible Convert to Shape/Path as one explicit undoable command.
 - [x] Preserve the original TextLayer through undo; do not mutate it in place.
 
@@ -708,16 +708,17 @@ Append newest entries at the top. Keep entries factual and link the slice.
 
 - Correctness: PNG export now waits for all currently visible TextLayers to
   finish their current-generation source preparation before the compositor is
-  flushed and read back. A direct interactive atlas source is first converted
-  to the established tight cached source required by thumbnails/export.
+  flushed and read back. Final output selects the existing scale-independent
+  WebGPU outline route for fill and stroke; repeated exports reuse the settled
+  outline source instead of rebuilding it.
 - Stale-state guard: document replacement during the wait fails the export
   explicitly instead of exporting an incomplete or previous text source.
 - Architecture: export enters through the existing document renderer and text
   coordinator; no export-only canvas, DOM renderer or second compositor was
   added.
-- Remaining fidelity gate: output-scale-specific outline selection is still
-  open. This slice guarantees complete current document pixels, but does not
-  claim arbitrary-resolution PDF/PSD export parity.
+- Scope: the current PNG export is document-sized and therefore realizes at
+  document/output scale 1. Future arbitrary-resolution PDF/PSD export must pass
+  its explicit output scale and reference fixtures; no such parity is claimed.
 - UI/UX: no new property is introduced. The existing export task reports the
   actionable failure if text preparation cannot settle.
 

@@ -382,10 +382,19 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).not.toHaveBeenCalled();
     expect(state.publish).toHaveBeenCalledOnce();
 
-    await expect(state.coordinator.waitForAllSettledSources()).resolves.toBe(true);
+    await state.coordinator.waitForSettledSource(document.layers[0]!.id);
     expect(state.renderer.prepareTightSource).toHaveBeenCalledOnce();
     expect(state.submit).toHaveBeenCalledOnce();
     expect(state.renderer.thumbnailSource(document.layers[0]!.id)).not.toBeNull();
+
+    await expect(state.coordinator.waitForFinalOutputSources()).resolves.toBe(true);
+    expect(state.outlineRepository.resolve).toHaveBeenCalledOnce();
+    expect(state.outlineBackend.encodeTight).toHaveBeenCalledOnce();
+    expect(state.submit).toHaveBeenCalledTimes(2);
+
+    await expect(state.coordinator.waitForFinalOutputSources()).resolves.toBe(true);
+    expect(state.outlineBackend.encodeTight).toHaveBeenCalledOnce();
+    expect(state.submit).toHaveBeenCalledTimes(2);
   });
 
   it('routes stroked text through cached outline WebGPU geometry instead of coverage masks', async () => {

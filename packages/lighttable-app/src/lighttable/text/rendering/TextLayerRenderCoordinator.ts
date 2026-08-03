@@ -147,6 +147,8 @@ export class TextLayerRenderCoordinator {
   private readonly interactingLayerScales = new Map<LayerId, number>();
   private readonly interactivelyPreparedLayers = new Set<LayerId>();
   private readonly forcedCachedLayers = new Set<LayerId>();
+  private readonly forcedOutlineLayers = new Set<LayerId>();
+  private readonly outlineLayerKeys = new Map<LayerId, string>();
   private readonly sourceCostModel = new TextSourceCostModel();
   private readonly inputLatency = new TextInputLatencyTracker();
   private abortController: AbortController | null = null;
@@ -272,6 +274,7 @@ export class TextLayerRenderCoordinator {
     }
     const retained = new Set(allText.map((layer) => layer.id));
     const visibleEntries = visibleTextLayers(document);
+    const visibleLayerIds = new Set(visibleEntries.map(({ layer }) => layer.id));
     this.visibleTextLayerCount = visibleEntries.length;
     this.trace(
       'Document synchronized',
@@ -299,7 +302,12 @@ export class TextLayerRenderCoordinator {
     for (const layerId of this.forcedCachedLayers) {
       if (!retained.has(layerId)) this.forcedCachedLayers.delete(layerId);
     }
-    const visibleLayerIds = new Set(visibleEntries.map(({ layer }) => layer.id));
+    for (const layerId of this.forcedOutlineLayers) {
+      if (!visibleLayerIds.has(layerId)) this.forcedOutlineLayers.delete(layerId);
+    }
+    for (const layerId of this.outlineLayerKeys.keys()) {
+      if (!retained.has(layerId)) this.outlineLayerKeys.delete(layerId);
+    }
     this.inputLatency.retainLayers(visibleLayerIds);
     for (const { layer } of visibleEntries) {
       this.inputLatency.syncSource(layer.id, textLayerSourceKey(layer));
@@ -475,6 +483,41 @@ export class TextLayerRenderCoordinator {
     );
   }
 
+  /** Rebuilds visible text through scale-independent outlines before final readback. */
+  async waitForFinalOutputSources() {
+    if (this.disposed) return false;
+    await this.work;
+    const openingDocument = this.document;
+    const fontRevision = this.fontPort?.revision;
+    if (!openingDocument) return true;
+    if (fontRevision === undefined) return visibleTextLayers(openingDocument).length === 0;
+    const entries = visibleTextLayers(openingDocument);
+    let rebuildRequired = false;
+    for (const { layer, transform } of entries) {
+      const expected = this.layerPreparationKey(
+        openingDocument.id, layer, transform, fontRevision
+      );
+      if (this.outlineLayerKeys.get(layer.id) === expected
+        && this.isSettledForCurrentGeneration(layer)) continue;
+      this.forcedOutlineLayers.add(layer.id);
+      this.settledLayerKeys.delete(layer.id);
+      rebuildRequired = true;
+    }
+    if (rebuildRequired) {
+      this.pendingKey = '';
+      this.schedule();
+      await this.work;
+    }
+    if (this.document !== openingDocument) return false;
+    return visibleTextLayers(openingDocument).every(({ layer, transform }) => {
+      const expected = this.layerPreparationKey(
+        openingDocument.id, layer, transform, fontRevision
+      );
+      return this.outlineLayerKeys.get(layer.id) === expected
+        && this.isSettledForCurrentGeneration(layer);
+    });
+  }
+
   retireSubmittedResources() {
     void this.dependencies?.backend.retireSubmittedResources();
   }
@@ -488,6 +531,8 @@ export class TextLayerRenderCoordinator {
     this.interactingLayerScales.clear();
     this.interactivelyPreparedLayers.clear();
     this.forcedCachedLayers.clear();
+    this.forcedOutlineLayers.clear();
+    this.outlineLayerKeys.clear();
     this.inputLatency.reset();
     this.setPreparationStage('waiting-document');
     this.trace('Document text resources reset');
@@ -523,6 +568,8 @@ export class TextLayerRenderCoordinator {
     this.interactingLayerScales.clear();
     this.interactivelyPreparedLayers.clear();
     this.forcedCachedLayers.clear();
+    this.forcedOutlineLayers.clear();
+    this.outlineLayerKeys.clear();
     this.inputLatency.reset();
     this.publishChanged();
     dependencies?.backend.dispose();
@@ -578,6 +625,7 @@ export class TextLayerRenderCoordinator {
     for (const [layerId, settled] of this.settledLayerKeys) {
       if (expected.get(layerId) !== settled) {
         this.settledLayerKeys.delete(layerId);
+        this.outlineLayerKeys.delete(layerId);
         this.editingLayouts.delete(layerId);
       }
     }
@@ -789,9 +837,10 @@ export class TextLayerRenderCoordinator {
     this.options.requestRender();
     this.setPreparationStage('rasterizing', layer.id);
     const paintedLayout = projectCurrentTextPaint(layout, layer.text.source);
+    const finalOutput = this.forcedOutlineLayers.has(layer.id);
     const realization = selectTextRealizationRoute(paintedLayout, {
       documentScale: sourceScale,
-      purpose: 'interactive'
+      purpose: finalOutput ? 'final-output' : 'interactive'
     });
     if (realization.route === 'outline-vector') {
       this.trace(
@@ -812,6 +861,7 @@ export class TextLayerRenderCoordinator {
       key,
       signal
     );
+    this.outlineLayerKeys.delete(layer.id);
     this.trace('Glyph coverage ready', `layer=${layer.id} draws=${prepared.draws.length}`);
     if (!this.current(generation, key)) {
       prepared.release();
@@ -1007,6 +1057,11 @@ export class TextLayerRenderCoordinator {
     fontPortRevision: number
   ) {
     this.forcedCachedLayers.delete(layer.id);
+    this.forcedOutlineLayers.delete(layer.id);
+    this.outlineLayerKeys.set(
+      layer.id,
+      this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
+    );
     this.settledLayerKeys.set(
       layer.id,
       this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)

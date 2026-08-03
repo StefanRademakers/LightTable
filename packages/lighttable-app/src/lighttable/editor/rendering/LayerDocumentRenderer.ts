@@ -215,7 +215,7 @@ export class LayerDocumentRenderer {
   }
 
   waitForTextSourcesForExport() {
-    return this.runtime.textLayerCoordinator.waitForAllSettledSources();
+    return this.runtime.textLayerCoordinator.waitForFinalOutputSources();
   }
 
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {
