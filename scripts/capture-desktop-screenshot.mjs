@@ -1,5 +1,5 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -37,14 +37,20 @@ const strokeColor = argument('stroke-color', '');
 const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const strokeAlignment = argument('stroke-alignment', '');
 const mergeDown = argument('merge-down', '') === 'true';
-const openPdfPreflight = argument('pdf-preflight', '') === 'true';
 const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
+const exportFlattenedPdf = argument('pdf-export-flattened', '') === 'true';
+const openPdfPreflight = argument('pdf-preflight', '') === 'true'
+  || validatePdfFonts || exportFlattenedPdf;
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
 ));
 const executablePath = path.resolve(argument('executable', defaultExecutable));
 const reportFile = outputFile.replace(/\.[^.]+$/, '.json');
+const exportedPdfFile = path.resolve(argument(
+  'pdf-output',
+  outputFile.replace(/\.[^.]+$/, '.pdf')
+));
 const userDataPath = path.join(workspaceRoot, 'tmp', 'playwright-user-data');
 
 await Promise.all([access(sourceFile), access(executablePath)]).catch((error) => {
@@ -64,7 +70,7 @@ const diagnostics = {
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown,
-    openPdfPreflight, validatePdfFonts
+    openPdfPreflight, validatePdfFonts, exportFlattenedPdf
   },
   outputFile,
   executablePath,
@@ -209,6 +215,29 @@ try {
       await window.getByRole('status').filter({ hasText: /font resources? ready/i }).waitFor({
         state: 'visible', timeout: 30_000
       });
+    }
+    if (exportFlattenedPdf) {
+      await mkdir(path.dirname(exportedPdfFile), { recursive: true });
+      await electronApp.evaluate(({ session }, savePath) => {
+        session.defaultSession.once('will-download', (_event, item) => {
+          item.setSavePath(savePath);
+        });
+      }, exportedPdfFile);
+      await window.getByRole('button', { name: 'Export flattened PDF…' }).click();
+      await window.getByRole('status').filter({ hasText: /Flattened PDF ready/i }).waitFor({
+        state: 'visible', timeout: 30_000
+      });
+      const deadline = Date.now() + 30_000;
+      let exported;
+      while (!exported && Date.now() < deadline) {
+        exported = await stat(exportedPdfFile).catch(() => undefined);
+        if (!exported) await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (!exported) throw new Error('The flattened PDF download was not written by Electron.');
+      diagnostics.exportedPdf = {
+        path: exportedPdfFile,
+        byteLength: exported.size
+      };
     }
     await window.waitForTimeout(250);
   }

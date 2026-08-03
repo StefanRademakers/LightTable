@@ -15,8 +15,8 @@
     ]
   },
   "summary": {
-    "npmPackages": 632,
-    "npmRuntimePackages": 108,
+    "npmPackages": 637,
+    "npmRuntimePackages": 113,
     "cargoPackages": 80,
     "unknownLicenses": 0
   },
@@ -930,6 +930,22 @@
       "version": "0.139.0",
       "license": "MIT",
       "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@pdf-lib/standard-fonts",
+      "version": "1.0.0",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@pdf-lib/upng",
+      "version": "1.0.1",
+      "license": "MIT",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -3815,6 +3831,14 @@
     {
       "ecosystem": "npm",
       "name": "pako",
+      "version": "1.0.11",
+      "license": "(MIT AND Zlib)",
+      "role": "transitive-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "pako",
       "version": "2.1.0",
       "license": "(MIT AND Zlib)",
       "role": "transitive-runtime",
@@ -3898,6 +3922,14 @@
       "version": "2.0.3",
       "license": "MIT",
       "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "pdf-lib",
+      "version": "1.17.1",
+      "license": "MIT",
+      "role": "direct-runtime",
       "optional": false
     },
     {
@@ -4730,6 +4762,14 @@
       "version": "1.0.0",
       "license": "MIT",
       "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "tslib",
+      "version": "1.14.1",
+      "license": "0BSD",
+      "role": "transitive-runtime",
       "optional": false
     },
     {

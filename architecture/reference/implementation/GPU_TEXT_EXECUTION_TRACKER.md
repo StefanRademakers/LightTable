@@ -741,13 +741,24 @@ only CSP `wasm-unsafe-eval` for the bounded lazy WebAssembly instantiation.
 
 Preflight UI evidence: File > PDF Export Preflight uses the existing menu,
 compatibility-report dialog, status badges and ActionButton components. It
-shows font/layer decisions and explicitly says PDF writing is not enabled.
+shows font/layer decisions and explicitly distinguishes flattened page export
+from native text-object writing.
 The packaged desktop automation opened the dialog on `D:\TextTest.psd` and
 reported five searchable text layers, three planned subsets and zero blocked
 resources with no page errors. Its explicit **Validate font resources** action
 then materialized three real Inter retain-GID subsets (20 KiB total) in the
 packaged application. It reuses the same compatibility report, badges and
 ActionButton; no new dropdown, color, spinner or CSS control system was added.
+
+First writer evidence: pinned MIT `pdf-lib` 1.17.1 is dynamically imported only
+after **Export flattened PDF...** is invoked. The bounded writer accepts the
+existing GPU-rendered PNG, derives physical page dimensions at 300 ppi, embeds
+one full-page image and emits a one-page PDF with LightTable producer metadata.
+The packaged desktop run opened `D:\FormulierPersoneel.pdf`, exported a
+5,093,470-byte flattened PDF, then reopened that output through the normal PDF
+route at the same 2457 x 3483 raster dimensions with zero page errors. This is
+round-trip evidence for the first writer boundary, not a claim of native text,
+vector, group, form or multipage export.
 
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.

@@ -25,6 +25,9 @@ export interface PdfExportPreflightRequest {
     readonly embeddedFontCount: number;
     readonly totalEmbeddedBytes: number;
   }>;
+  readonly exportFlattenedPage?: () => Promise<{
+    readonly byteLength: number;
+  }>;
 }
 
 interface PdfExportPreflightDialogProps {
@@ -46,7 +49,14 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
   onClose
 }) => {
   const generationRef = useRef(0);
+  const pageExportGenerationRef = useRef(0);
   const [validation, setValidation] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'running' }
+    | { readonly kind: 'ready'; readonly message: string }
+    | { readonly kind: 'error'; readonly message: string }
+  >({ kind: 'idle' });
+  const [pageExport, setPageExport] = useState<
     | { readonly kind: 'idle' }
     | { readonly kind: 'running' }
     | { readonly kind: 'ready'; readonly message: string }
@@ -54,7 +64,9 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
   >({ kind: 'idle' });
   useEffect(() => {
     generationRef.current += 1;
+    pageExportGenerationRef.current += 1;
     setValidation({ kind: 'idle' });
+    setPageExport({ kind: 'idle' });
   }, [request]);
   if (!open || !request) return null;
   const { plan, fontLabels } = request;
@@ -77,6 +89,25 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     }
   };
+  const exportFlattenedPage = async () => {
+    if (!request.exportFlattenedPage || pageExport.kind === 'running') return;
+    const generation = ++pageExportGenerationRef.current;
+    setPageExport({ kind: 'running' });
+    try {
+      const result = await request.exportFlattenedPage();
+      if (generation !== pageExportGenerationRef.current) return;
+      setPageExport({
+        kind: 'ready',
+        message: `Flattened PDF ready · ${formatPdfFontBytes(result.byteLength)}`
+      });
+    } catch (error) {
+      if (generation !== pageExportGenerationRef.current) return;
+      setPageExport({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'PDF page export failed.'
+      });
+    }
+  };
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
@@ -89,7 +120,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         <header className="lighttable-psd-report__header">
           <div>
             <h2>PDF export preflight</h2>
-            <p>Text and font planning only. PDF writing is not enabled yet.</p>
+            <p>Text and font planning. Flattened one-page PDF export is available; native text writing is not enabled yet.</p>
           </div>
           <ActionButton onClick={onClose}>Close</ActionButton>
         </header>
@@ -111,6 +142,19 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
             </ActionButton>
             {validation.kind !== 'idle' && validation.kind !== 'running' ? (
               <span role="status">{validation.message}</span>
+            ) : null}
+          </div>
+        ) : null}
+        {request.exportFlattenedPage ? (
+          <div className="lighttable-psd-report__metrics">
+            <ActionButton
+              disabled={pageExport.kind === 'running'}
+              onClick={() => { void exportFlattenedPage(); }}
+            >
+              {pageExport.kind === 'running' ? 'Exporting flattened PDF…' : 'Export flattened PDF…'}
+            </ActionButton>
+            {pageExport.kind !== 'idle' && pageExport.kind !== 'running' ? (
+              <span role="status">{pageExport.message}</span>
             ) : null}
           </div>
         ) : null}

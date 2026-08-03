@@ -16,7 +16,7 @@ npm run generate:third-party
 npm run verify:third-party
 ```
 
-The current snapshot contains 632 npm package/version entries, 80 Cargo crates
+The current snapshot contains 637 npm package/version entries, 80 Cargo crates
 and no unknown license fields. Multiple versions are deliberately separate.
 The inventory separates direct/transitive and runtime/development roles so a
 future About > Licenses view can filter the same data without maintaining a
@@ -35,6 +35,7 @@ compiled into `wasm-vips`. Any `UNKNOWN` inventory entry blocks a release.
 | Dockview React | 7.0.4 | MIT | Docked workspace panels |
 | ag-psd | 31.0.2 | MIT | Lazy PSD/PSB parser and structural serializer tests |
 | PDF.js (`pdfjs-dist`) | 5.4.624 | Apache-2.0 | Lazy first-page PDF raster preview for web and Electron; not the semantic importer |
+| pdf-lib | 1.17.1 | MIT | Lazy bounded one-page flattened PDF writer; native text-object export remains planned |
 | HarfBuzzJS subset WASM (`harfbuzzjs`) | 1.5.0 | MIT | Lazy retain-GID SFNT/CFF/CFF2 font subsetting for PDF export transactions |
 | woff-lib | 0.0.3 | MIT | Lazy, CSP-safe WOFF/WOFF2 to SFNT decode before PDF font subsetting |
 | wasm-vips wrapper | 0.0.18 | MIT | Lazy precision image decoder |

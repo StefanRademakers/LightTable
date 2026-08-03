@@ -252,6 +252,14 @@ import './lighttable.css';
 
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
+const downloadEditorFile = (file: File): void => {
+  const url = URL.createObjectURL(file);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = file.name;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+};
 const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
   if (!document?.activeLayerId) return false;
   const active = findDocumentLayer(document, document.activeLayerId);
@@ -2347,6 +2355,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               embeddedFontCount: resources.embedded.length,
               totalEmbeddedBytes: resources.totalEmbeddedBytes
             };
+          },
+          exportFlattenedPage: async () => {
+            const currentDocument = imageDocumentRef.current;
+            const renderer = engineRef.current;
+            if (!currentDocument || !renderer) throw new Error('LightTable is not ready yet.');
+            const png = await renderer.exportPng();
+            const { writeRasterPdfPage } = await import(
+              './infrastructure/pdf/writeRasterPdfPage'
+            );
+            const result = await writeRasterPdfPage({
+              png,
+              widthPixels: currentDocument.width,
+              heightPixels: currentDocument.height,
+              pixelsPerInch: 300,
+              title: currentDocument.name
+            });
+            downloadEditorFile(new File(
+              [result.blob],
+              `${fileNameBase.replace(/\.pdf$/i, '')}.pdf`,
+              { type: 'application/pdf' }
+            ));
+            return { byteLength: result.blob.size };
           }
         });
       }
