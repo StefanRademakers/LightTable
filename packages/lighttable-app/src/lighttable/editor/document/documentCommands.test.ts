@@ -402,6 +402,18 @@ describe('LightTable document commands', () => {
     expect(merged.layers[0]).toMatchObject({ opacity: 1, blendMode: 'normal', mask: null });
   });
 
+  it('projects a merged vector-over-raster pair to the raster destination', () => {
+    const base = createImageDocument('Image', 100, 50, 'asset');
+    const withVector = createVectorLayer(base, [], 'Shape');
+    const merged = mergeLayerDown(withVector, withVector.activeLayerId!);
+
+    expect(merged.layers).toHaveLength(1);
+    expect(merged.layers[0]).toMatchObject({
+      id: base.layers[0]!.id, type: 'raster', name: 'Shape', opacity: 1,
+      fillOpacity: 1, blendMode: 'normal', transform: translationMatrix(0, 0)
+    });
+  });
+
   it('merges a contiguous raster selection and rejects appearance-changing selections', () => {
     const base = createImageDocument('Image', 100, 50, 'asset');
     const middle = createRasterLayer(base, 'Middle');

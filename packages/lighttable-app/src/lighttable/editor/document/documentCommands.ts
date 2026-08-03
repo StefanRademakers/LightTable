@@ -846,34 +846,13 @@ export const duplicateLayer = (document: ImageDocument, layerId: LayerId): Image
 
 export const mergeLayerDown = (document: ImageDocument, layerId: LayerId): ImageDocument => {
   const entry = findLayerNode(document.layers, layerId);
-  if (!entry || entry.node.type !== 'raster') return document;
+  if (!entry || entry.node.type === 'group' || entry.node.type === 'text') return document;
   const siblings = siblingLayers(document, layerId);
   const index = siblings.findIndex((layer) => layer.id === layerId);
   const top = siblings[index];
   const bottom = siblings[index - 1];
-  if (index <= 0 || top?.type !== 'raster' || bottom?.type !== 'raster') return document;
-  const now = Date.now();
-  const merged: RasterLayer = {
-    ...bottom,
-    name: top.name,
-    opacity: 1,
-    fillOpacity: 1,
-    blendMode: 'normal',
-    clipping: false,
-    styleStack: createDefaultLayerStyleStack(),
-    pixelSource: { kind: 'runtime-raster', runtimeId: bottom.id },
-    mask: null,
-    transform: identityAffineMatrix(),
-    geometryRevision: bottom.geometryRevision + 1,
-    revision: bottom.revision + 1,
-    pixelRevision: bottom.pixelRevision + 1,
-    modifiedAt: now,
-    dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
-  };
-  const withoutTop = removeLayerNode(document.layers, top.id);
-  if (!withoutTop.removed) return document;
-  const layers = updateLayerNode(withoutTop.nodes, bottom.id, () => merged);
-  return updateDocument(document, layers, merged.id);
+  if (index <= 0 || !top || bottom?.type !== 'raster') return document;
+  return mergeLayers(document, [bottom.id, top.id]);
 };
 
 export interface MergeLayersPlan {
@@ -1020,7 +999,8 @@ export const rasterizeTextLayer = (
 /**
  * Returns a lossless merge plan for a Layers-panel selection.
  *
- * Selected layers must be contiguous raster siblings. Allowing gaps would
+ * Selected layers must be contiguous drawable/processing siblings above a
+ * raster destination. Allowing gaps would
  * silently move unselected layers above or below the flattened result and
  * therefore change the document's appearance.
  */
@@ -1046,8 +1026,9 @@ export const getMergeLayersPlan = (
   ) return null;
 
   const layers = siblings.slice(indexes[0], indexes[indexes.length - 1] + 1);
-  // The bottom layer owns the baked pixels. Layers above it may be raster or
-  // processing layers; the GPU compositor evaluates them in document order.
+  // The bottom layer owns the baked pixels. Layers above it may be raster,
+  // vector, text or processing layers; the GPU compositor evaluates the
+  // already realized/cached presentation in document order.
   if (
     layers[0]?.type !== 'raster'
     || layers.some((layer) => layer.type === 'group')

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createTextLayer, rasterizeTextLayer } from '../document/documentCommands';
-import { createImageDocument, type LayerId } from '../document/documentTypes';
+import { createImageDocument, createVectorLayer, type LayerId } from '../document/documentTypes';
 import { findDocumentLayer, findRasterLayer } from '../document/layerTree';
 import { RasterDocumentOperations } from './RasterDocumentOperations';
 
@@ -71,6 +71,41 @@ describe('RasterDocumentOperations', () => {
       layerId('missing-a')
     )).toBe(false);
     expect(createCommandEncoder).not.toHaveBeenCalled();
+  });
+
+  it('composites a cached vector presentation into the raster destination', () => {
+    const document = createImageDocument('Shape merge', 64, 32, 'background');
+    const vector = createVectorLayer([], 'Shape');
+    document.layers.push(vector);
+    const destinationId = document.layers[0]!.id;
+    const destinationTexture = texture('destination');
+    const compositeTexture = texture('vector composite');
+    const copyTextureToTexture = vi.fn();
+    const submit = vi.fn();
+    const encodeComposite = vi.fn(() => compositeTexture);
+    const operations = new RasterDocumentOperations({
+      device: {
+        createCommandEncoder: () => ({ copyTextureToTexture, finish: () => 'commands' }),
+        queue: { submit }
+      } as unknown as GPUDevice,
+      layerResources: {
+        raster: (id: string) => id === destinationId
+          ? { texture: destinationTexture, maskTexture: null, maskId: null } : null
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      encodeComposite,
+      invalidateLayer: vi.fn(),
+      releaseSubmittedResources: vi.fn()
+    });
+
+    expect(operations.merge(document, [destinationId, vector.id], destinationId)).toBe(true);
+    expect(encodeComposite).toHaveBeenCalledWith(expect.anything(), {
+      ...document, layers: [document.layers[0], vector]
+    }, undefined);
+    expect(copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: compositeTexture }, { texture: destinationTexture }, [64, 32]
+    );
+    expect(submit).toHaveBeenCalledWith(['commands']);
   });
 
   it('renders isolated normalized text into its prepared same-ID raster destination', () => {

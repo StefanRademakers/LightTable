@@ -4,7 +4,8 @@ import type {
   LayerId,
   LayerNode,
   RasterLayer,
-  TextLayer
+  TextLayer,
+  VectorLayer
 } from '../document/documentTypes';
 import { findLayerNode } from '../document/layerTree';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
@@ -161,7 +162,7 @@ export class RasterDocumentOperations {
       encoder,
       {
         ...document,
-        layers: layers as Array<RasterLayer | AdjustmentLayer | TextLayer>
+        layers: layers as Array<RasterLayer | AdjustmentLayer | TextLayer | VectorLayer>
       },
       encodeAdjustment
     );

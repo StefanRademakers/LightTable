@@ -370,7 +370,7 @@ export const createLayerDocumentCommands = (
     }
     if (top?.type === 'group' || bottom?.type !== 'raster') {
       dependenciesRef.current.setError(
-        'Merge Down requires a raster layer directly below the active raster, Grade, or Lens Fx layer.'
+        'Merge Down requires a raster layer directly below the active raster, Shape, Grade, or Lens Fx layer.'
       );
       return false;
     }

@@ -403,6 +403,28 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
+  it('bakes an active vector shape into the raster layer below with pixel history', () => {
+    const document = createImageDocument('Vector merge', 32, 24, 'asset');
+    const vector = createVectorLayer([
+      createVectorPath('shape', 'Shape', [createSubpath('contour')])
+    ], 'Shape');
+    document.layers.push(vector);
+    document.activeLayerId = vector.id;
+    const state = setup(document);
+    const destinationId = document.layers[0]!.id;
+
+    expect(state.commands.mergeActiveLayerDown()).toBe(true);
+
+    expect(state.renderer.mergeLayers).toHaveBeenCalledWith(
+      expect.anything(), [destinationId, vector.id], destinationId
+    );
+    expect(state.document().layers).toHaveLength(1);
+    expect(state.document().layers[0]).toMatchObject({
+      id: destinationId, type: 'raster', name: 'Shape', blendMode: 'normal'
+    });
+    expect(state.historyEntries).toHaveLength(1);
+  });
+
   it('bakes an active Grade layer into the raster layer below with Ctrl+E semantics', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     expect(state.commands.createAdjustmentLayer()).toBe(true);

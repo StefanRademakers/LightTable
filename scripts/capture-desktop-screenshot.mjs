@@ -36,6 +36,7 @@ const fillColor = argument('fill-color', '');
 const strokeColor = argument('stroke-color', '');
 const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const strokeAlignment = argument('stroke-alignment', '');
+const mergeDown = argument('merge-down', '') === 'true';
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -60,7 +61,7 @@ const diagnostics = {
   expectedVectorLayers,
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
-    enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment
+    enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown
   },
   outputFile,
   executablePath,
@@ -177,6 +178,19 @@ try {
     }
     if (['inside', 'center', 'outside'].includes(strokeAlignment)) {
       await window.getByRole('combobox', { name: 'Stroke alignment' }).selectOption(strokeAlignment);
+    }
+    if (mergeDown) {
+      const layerCount = await window.locator('.lighttable-layer').count();
+      await window.keyboard.press('Control+e');
+      await window.waitForFunction((expected) =>
+        document.querySelectorAll('.lighttable-layer').length === expected,
+      layerCount - 1, { timeout: 15_000 });
+      const mergedRow = window.locator('.lighttable-layer').filter({
+        has: window.locator(`.lighttable-layer__name[value="${selectLayer.replaceAll('"', '\\"')}"]`)
+      });
+      if (await mergedRow.locator('.lighttable-layer__thumbnail[title="Edit layer pixels"]').count() !== 1) {
+        throw new Error('Merge Down did not replace the shape-over-raster pair with a raster layer.');
+      }
     }
     await window.waitForTimeout(500);
   }
