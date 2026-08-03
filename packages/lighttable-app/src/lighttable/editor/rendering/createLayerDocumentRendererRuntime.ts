@@ -153,8 +153,8 @@ export const createLayerDocumentRendererRuntime = (
       } : null;
     },
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
-    encode: (source, maskChannel, width, height) =>
-      textureCodec.encode(source, maskChannel, width, height)
+    encode: (source, maskChannel, width, height, sourceToOutput) =>
+      textureCodec.encode(source, maskChannel, width, height, sourceToOutput)
   });
   const importedLayerInitializer = new ImportedLayerInitializer({
     device,

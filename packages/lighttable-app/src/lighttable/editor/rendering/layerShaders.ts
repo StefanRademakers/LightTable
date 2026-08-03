@@ -33,9 +33,13 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 export const LAYER_EXPORT_WGSL = /* wgsl */ `
 struct ExportSettings {
   maskChannel: f32,
-  padding0: f32,
+  transformed: f32,
   padding1: f32,
   padding2: f32,
+  inverseRow0: vec4f,
+  inverseRow1: vec4f,
+  sourceSize: vec2f,
+  outputSize: vec2f,
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
@@ -48,7 +52,20 @@ fn linearToSrgbChannel(value: f32) -> f32 {
 
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
-  let sampled = textureSample(sourceTexture, sourceSampler, input.uv);
+  let destinationPixel = input.uv * settings.outputSize;
+  let sourcePixel = vec2f(
+    dot(settings.inverseRow0.xyz, vec3f(destinationPixel, 1.0)),
+    dot(settings.inverseRow1.xyz, vec3f(destinationPixel, 1.0))
+  );
+  let sourceInside = select(
+    0.0,
+    1.0,
+    all(sourcePixel >= vec2f(0.0)) && all(sourcePixel < settings.sourceSize)
+  );
+  let transformedUv = clamp(sourcePixel / settings.sourceSize, vec2f(0.0), vec2f(1.0));
+  let sourceUv = select(input.uv, transformedUv, settings.transformed > 0.5);
+  let transformCoverage = select(1.0, sourceInside, settings.transformed > 0.5);
+  let sampled = textureSample(sourceTexture, sourceSampler, sourceUv) * transformCoverage;
   if (settings.maskChannel > 0.5) {
     let value = clamp(sampled.r, 0.0, 1.0);
     return vec4f(value, value, value, 1.0);

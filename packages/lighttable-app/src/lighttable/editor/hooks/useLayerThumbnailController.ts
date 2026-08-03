@@ -45,11 +45,12 @@ export const collectLayerThumbnailChannels = (
   }
   if (node.type === 'text') {
     const revisions = node.text.revisions;
+    const transform = node.transform;
     channels.push({
       identity: `${node.id}:pixels`,
       layerId: node.id,
       mask: false,
-      revisionKey: `text:${revisions.content}:${revisions.font}:${revisions.layout}:${revisions.paint}:${revisions.path}:${revisions.geometry}`
+      revisionKey: `text:${revisions.content}:${revisions.font}:${revisions.layout}:${revisions.paint}:${revisions.path}:${revisions.geometry}:geometry:${node.geometryRevision}:transform:${transform.a}:${transform.b}:${transform.c}:${transform.d}:${transform.tx}:${transform.ty}`
     });
   }
   if (node.mask) {

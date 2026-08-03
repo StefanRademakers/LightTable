@@ -448,11 +448,16 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
 
   thumbnailSource(layerId: TextLayer['id']) {
     const source = this.sources.get(layerId);
+    const layer = this.currentLayers.get(layerId);
+    const contract = source && layer
+      ? this.contractFor(source, layer, identityAffineMatrix())
+      : null;
     return source ? {
       texture: source.texture,
       width: source.width,
       height: source.height,
-      revisionKey: source.sourceKey
+      revisionKey: source.sourceKey,
+      transform: contract?.transform
     } : null;
   }
 

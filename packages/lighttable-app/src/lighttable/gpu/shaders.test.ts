@@ -345,11 +345,14 @@ describe('LightTable WGSL modules', () => {
     expect(SELECTION_COMBINE_WGSL).not.toContain('padding: vec3f');
   });
 
-  it('keeps layer export settings compatible with its 16-byte CPU uniform', () => {
-    expect(LAYER_EXPORT_WGSL).toContain('padding0: f32');
+  it('keeps affine layer export settings compatible with its 64-byte CPU uniform', () => {
+    expect(LAYER_EXPORT_WGSL).toContain('transformed: f32');
     expect(LAYER_EXPORT_WGSL).toContain('padding1: f32');
     expect(LAYER_EXPORT_WGSL).toContain('padding2: f32');
-    expect(LAYER_EXPORT_WGSL).not.toContain('padding: vec3f');
+    expect(LAYER_EXPORT_WGSL).toContain('inverseRow0: vec4f');
+    expect(LAYER_EXPORT_WGSL).toContain('inverseRow1: vec4f');
+    expect(LAYER_EXPORT_WGSL).toContain('sourceSize: vec2f');
+    expect(LAYER_EXPORT_WGSL).toContain('outputSize: vec2f');
   });
 
   it('parses the translation alignment compute module', () => {

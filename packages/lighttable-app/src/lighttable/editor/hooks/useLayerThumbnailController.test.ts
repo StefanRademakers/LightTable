@@ -99,7 +99,26 @@ describe('collectLayerThumbnailChannels', () => {
       identity: `${layer.id}:pixels`,
       layerId: layer.id,
       mask: false,
-      revisionKey: 'text:0:0:0:0:0:0'
+      revisionKey: 'text:0:0:0:0:0:0:geometry:0:transform:1:0:0:1:0:0'
     });
+  });
+
+  it('invalidates text thumbnails when the common layer transform changes', () => {
+    const document = createTextLayer(
+      createImageDocument('Text thumbnail', 64, 32, 'source'),
+      createDefaultTextLayerData(),
+      'Headline'
+    );
+    const initialKey = layerThumbnailChannelsKey(collectLayerThumbnailChannels(document));
+    const transformed = {
+      ...document,
+      layers: document.layers.map((layer) => layer.type === 'text'
+        ? { ...layer, transform: { a: 0, b: 1, c: -1, d: 0, tx: 64, ty: 0 } }
+        : layer)
+    };
+
+    expect(layerThumbnailChannelsKey(
+      collectLayerThumbnailChannels(transformed)
+    )).not.toBe(initialKey);
   });
 });

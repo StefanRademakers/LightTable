@@ -1,8 +1,10 @@
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
 import { PSD_RAW_RGBA8_MEDIA_TYPE } from '../../image-io/psdProtocol';
 import { encodeRgba8Png, stripTextureRowPadding } from '../../gpu/gpuReadback';
+import { invertMatrix } from '../geometry/affine';
+import type { AffineMatrix } from '../geometry/affine';
 
-const EXPORT_SETTINGS_FLOATS = 4;
+const EXPORT_SETTINGS_FLOATS = 16;
 
 export const layerPngReadbackLayout = (width: number, height: number) => {
   const bytesPerRow = Math.ceil((Math.max(1, width) * 4) / 256) * 256;
@@ -120,13 +122,20 @@ export class LayerTextureCodec {
     source: GPUTexture,
     maskChannel: boolean,
     outputWidth: number,
-    outputHeight: number
+    outputHeight: number,
+    sourceToOutput?: AffineMatrix
   ) {
     return this.withValidationScope(
       maskChannel
         ? 'LightTable mask export validation failed'
         : 'LightTable layer export validation failed',
-      () => this.encodeUnchecked(source, maskChannel, outputWidth, outputHeight)
+      () => this.encodeUnchecked(
+        source,
+        maskChannel,
+        outputWidth,
+        outputHeight,
+        sourceToOutput
+      )
     );
   }
 
@@ -134,7 +143,8 @@ export class LayerTextureCodec {
     source: GPUTexture,
     maskChannel: boolean,
     outputWidth: number,
-    outputHeight: number
+    outputHeight: number,
+    sourceToOutput?: AffineMatrix
   ) {
     const layout = layerPngReadbackLayout(outputWidth, outputHeight);
     const outputTexture = this.device.createTexture({
@@ -148,10 +158,30 @@ export class LayerTextureCodec {
       size: EXPORT_SETTINGS_FLOATS * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
+    const sourceWidth = Math.max(1, source.width);
+    const sourceHeight = Math.max(1, source.height);
+    const inverse = sourceToOutput ? invertMatrix(sourceToOutput) : null;
     this.device.queue.writeBuffer(
       settingsBuffer,
       0,
-      new Float32Array([maskChannel ? 1 : 0, 0, 0, 0])
+      new Float32Array([
+        maskChannel ? 1 : 0,
+        inverse ? 1 : 0,
+        0,
+        0,
+        inverse?.a ?? 1,
+        inverse?.c ?? 0,
+        inverse?.tx ?? 0,
+        0,
+        inverse?.b ?? 0,
+        inverse?.d ?? 1,
+        inverse?.ty ?? 0,
+        0,
+        sourceWidth,
+        sourceHeight,
+        layout.width,
+        layout.height
+      ])
     );
     const bindGroup = this.device.createBindGroup({
       layout: this.pipelines.exportLayer.getBindGroupLayout(0),
