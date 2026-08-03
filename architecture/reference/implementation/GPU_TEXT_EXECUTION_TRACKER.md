@@ -602,8 +602,8 @@ be reproduced.
 - [x] Import one page with paths, images, clips and positioned text.
 - [x] Preserve embedded subset fonts and semantic mappings separately.
 - [x] Bound Type 3 glyph programs and malformed document resource use.
-- [ ] Detect PDF-compatible Illustrator input; preserve original source bytes.
-- [ ] Record native `.ai` data as preserved/unsupported, not round-trippable.
+- [x] Detect PDF-compatible Illustrator input; preserve original source bytes.
+- [x] Record native `.ai` data as preserved/unsupported, not round-trippable.
 
 Contract evidence: `@lighttable/pdf-core` owns a versioned, JSON-transportable
 page display list for paths, clips, images, exact positioned glyphs, all PDF text
@@ -630,6 +630,14 @@ with bounded operations, paths, glyphs and nesting depth. Validation follows
 only the exact referenced Type 3 glyph program, rejects recursive programs and
 unbalanced nested graphics state, and applies document-wide operation, glyph,
 path-command, image-pixel and font-byte budgets before semantic conversion.
+
+AI/source evidence: a bounded raw-byte probe distinguishes ordinary PDF,
+PDF-compatible Illustrator and non-PDF/native `.ai` without parsing arbitrary
+private payloads. Illustrator metadata and private-data evidence remain
+explicit; native `.ai` is preserved/unsupported and never enters semantic PDF
+import. The normalized descriptor references a fingerprinted immutable source
+asset, and LightTable's layered persistence round-trips Photoshop, PDF and
+Illustrator source blobs byte-exact instead of embedding them in render state.
 
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but

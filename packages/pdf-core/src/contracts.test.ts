@@ -136,7 +136,12 @@ describe('normalized PDF display-list contract', () => {
     ['non-finite matrix', (value: PdfNormalizedDisplayList) => ((value.pages[0].operations[3] as unknown as { matrix: number[] }).matrix[0] = Number.NaN), 'must be finite'],
     ['unbalanced graphics state', (value: PdfNormalizedDisplayList) => ((value.pages[0].operations as unknown as unknown[]).pop()), 'graphics state unbalanced'],
     ['missing image resource', (value: PdfNormalizedDisplayList) => ((value.pages[0].operations[3] as { imageResourceId: string }).imageResourceId = 'missing'), 'references missing image resource'],
-    ['duplicate resource id', (value: PdfNormalizedDisplayList) => ((value.resources.images[0] as { id: string }).id = 'font:subset'), 'duplicate id']
+    ['duplicate resource id', (value: PdfNormalizedDisplayList) => ((value.resources.images[0] as { id: string }).id = 'font:subset'), 'duplicate id'],
+    ['missing original source asset', (value: PdfNormalizedDisplayList) => ((value.source as { originalAssetId: string }).originalAssetId = ''), 'preserved original bytes'],
+    ['invalid source fingerprint', (value: PdfNormalizedDisplayList) => ((value.source as { fingerprintSha256: string }).fingerprintSha256 = 'bad'), 'SHA-256'],
+    ['private AI data on plain PDF', (value: PdfNormalizedDisplayList) => {
+      (value.source as { format: 'pdf'; nativeAiData: 'preserved-unsupported' }).format = 'pdf';
+    }, 'PDF-compatible Illustrator']
   ])('rejects %s', (_name, mutate, expected) => {
     const value = transportClone(fixture());
     mutate(value);

@@ -124,7 +124,7 @@ interface LayeredDocumentManifest {
     }>;
     preservedSources: Array<{
       id: string;
-      kind: 'photoshop-document';
+      kind: 'photoshop-document' | 'pdf-document' | 'illustrator-document';
       name: string;
       mediaType: string;
       byteLength: number;
@@ -181,6 +181,8 @@ const sha256Hex = async (value: Blob) => [...new Uint8Array(
 )].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const isBlendMode = (value: unknown): value is BlendMode => BLEND_MODES.some((mode) => mode.id === value);
+const isPreservedSourceKind = (value: unknown): value is ImageDocument['assets']['preservedSources'][number]['kind'] =>
+  value === 'photoshop-document' || value === 'pdf-document' || value === 'illustrator-document';
 
 const buildFooter = (manifestLength: number) => {
   const footer = new Uint8Array(FOOTER_SIZE);
@@ -858,7 +860,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     if (
       !isRecord(entry)
       || typeof entry.id !== 'string'
-      || entry.kind !== 'photoshop-document'
+      || !isPreservedSourceKind(entry.kind)
       || typeof entry.name !== 'string'
       || typeof entry.mediaType !== 'string'
       || !Number.isInteger(entry.byteLength)
@@ -876,7 +878,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     });
     return {
       id,
-      kind: 'photoshop-document' as const,
+      kind: entry.kind,
       name: entry.name,
       mediaType: entry.mediaType,
       byteLength: Number(entry.byteLength)

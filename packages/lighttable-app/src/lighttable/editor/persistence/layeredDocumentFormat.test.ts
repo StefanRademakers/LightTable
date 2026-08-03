@@ -384,17 +384,28 @@ describe('LightTable layered PNG format', () => {
     await expect(parseLayeredDocumentFile(corrupted)).rejects.toThrow(/SHA-256/);
   });
 
-  it('retains the original Photoshop document byte-exact as a preserved source asset', async () => {
+  it('retains original Photoshop, PDF and Illustrator documents byte-exact', async () => {
     const document = createImageDocument('PSD source', 2, 2, 'source');
     const sourceId = 'source-photoshop-1' as DocumentAssetId;
+    const pdfSourceId = 'source-pdf-1' as DocumentAssetId;
+    const aiSourceId = 'source-illustrator-1' as DocumentAssetId;
     const psdBytes = new Uint8Array([56, 66, 80, 83, 0, 1, 2, 3, 4]);
-    document.assets.preservedSources.push({
-      id: sourceId,
-      kind: 'photoshop-document',
-      name: 'fixture.psd',
-      mediaType: 'image/vnd.adobe.photoshop',
-      byteLength: psdBytes.byteLength
-    });
+    const pdfBytes = new TextEncoder().encode('%PDF-1.7\nfixture');
+    const aiBytes = new TextEncoder().encode('%!PS-Adobe-3.0\n%%Creator: Adobe Illustrator');
+    document.assets.preservedSources.push(
+      {
+        id: sourceId, kind: 'photoshop-document', name: 'fixture.psd',
+        mediaType: 'image/vnd.adobe.photoshop', byteLength: psdBytes.byteLength
+      },
+      {
+        id: pdfSourceId, kind: 'pdf-document', name: 'fixture.pdf',
+        mediaType: 'application/pdf', byteLength: pdfBytes.byteLength
+      },
+      {
+        id: aiSourceId, kind: 'illustrator-document', name: 'fixture.ai',
+        mediaType: 'application/illustrator', byteLength: aiBytes.byteLength
+      }
+    );
     const file = buildLayeredDocumentFile(
       new Blob([PREVIEW_PNG], { type: 'image/png' }),
       document,
@@ -408,6 +419,14 @@ describe('LightTable layered PNG format', () => {
         {
           sourceId,
           source: new Blob([psdBytes], { type: 'image/vnd.adobe.photoshop' })
+        },
+        {
+          sourceId: pdfSourceId,
+          source: new Blob([pdfBytes], { type: 'application/pdf' })
+        },
+        {
+          sourceId: aiSourceId,
+          source: new Blob([aiBytes], { type: 'application/illustrator' })
         }
       ],
       'psd-source.png'
@@ -416,9 +435,11 @@ describe('LightTable layered PNG format', () => {
     const parsed = await parseLayeredDocumentFile(file);
 
     expect(parsed?.document.assets.preservedSources).toEqual(document.assets.preservedSources);
-    expect(parsed?.preservedSourceAssets).toHaveLength(1);
-    expect(new Uint8Array(await parsed!.preservedSourceAssets[0].source.arrayBuffer()))
-      .toEqual(psdBytes);
+    expect(parsed?.preservedSourceAssets).toHaveLength(3);
+    const expectedBytes = [psdBytes, pdfBytes, aiBytes];
+    await Promise.all(parsed!.preservedSourceAssets.map(async (asset, index) => {
+      expect(new Uint8Array(await asset.source.arrayBuffer())).toEqual(expectedBytes[index]);
+    }));
   });
 
   it('round-trips shared pattern registry metadata and source bytes', async () => {

@@ -144,6 +144,13 @@ export const validatePdfDisplayList = (
   const resourceCount = allResources.length;
   if (resourceCount > limits.maximumResourceCount) fail('$.resources', 'exceeds the resource limit.');
   nonNegative(value.source.byteLength, '$.source.byteLength');
+  if (!value.source.originalAssetId) fail('$.source.originalAssetId', 'must reference preserved original bytes.');
+  if (!/^[a-f0-9]{64}$/i.test(value.source.fingerprintSha256)) {
+    fail('$.source.fingerprintSha256', 'must be a SHA-256 hex digest.');
+  }
+  if (value.source.format === 'pdf' && value.source.nativeAiData !== 'absent') {
+    fail('$.source.nativeAiData', 'requires PDF-compatible Illustrator source format.');
+  }
   const resourceIds = new Set<string>();
   for (const resource of allResources) {
     if (resourceIds.has(resource.id)) fail('$.resources', `contains duplicate id ${resource.id}.`);

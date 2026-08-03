@@ -189,16 +189,19 @@ export interface PdfPageDisplayList {
   readonly operations: readonly PdfDisplayOperation[];
 }
 
+export interface PdfSourceDescriptor {
+  readonly format: 'pdf' | 'pdf-compatible-ai';
+  /** Immutable asset containing the complete original source bytes. */
+  readonly originalAssetId: string;
+  readonly byteLength: number;
+  readonly fingerprintSha256: string;
+  readonly pdfVersion: string | null;
+  readonly nativeAiData: 'absent' | 'preserved-unsupported';
+}
+
 export interface PdfNormalizedDisplayList {
   readonly schemaVersion: typeof PDF_DISPLAY_LIST_SCHEMA_VERSION;
-  readonly source: {
-    readonly format: 'pdf' | 'pdf-compatible-ai';
-    readonly originalAssetId: string;
-    readonly byteLength: number;
-    readonly fingerprintSha256: string;
-    readonly pdfVersion: string | null;
-    readonly nativeAiData: 'absent' | 'preserved-unsupported';
-  };
+  readonly source: PdfSourceDescriptor;
   readonly pages: readonly PdfPageDisplayList[];
   readonly resources: {
     readonly fonts: readonly PdfFontResource[];

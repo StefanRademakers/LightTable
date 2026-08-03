@@ -259,7 +259,7 @@ export interface PatternAsset {
 
 export interface PreservedSourceAsset {
   id: DocumentAssetId;
-  kind: 'photoshop-document';
+  kind: 'photoshop-document' | 'pdf-document' | 'illustrator-document';
   name: string;
   mediaType: string;
   byteLength: number;
