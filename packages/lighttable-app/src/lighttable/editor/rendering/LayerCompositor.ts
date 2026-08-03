@@ -307,6 +307,7 @@ export class LayerCompositor {
             return [target, background];
           }
         }
+        const compositeStartedAt = performance.now();
         const settingsBuffer = this.createCompositeSettingsBuffer(
           `LightTable text layer settings: ${node.name}`,
           inverse ? node.opacity * node.fillOpacity : 0,
@@ -334,6 +335,10 @@ export class LayerCompositor {
           bindGroup,
           target.createView(),
           { r: 0, g: 0, b: 0, a: 0 }
+        );
+        this.options.texts?.observeCachedComposite?.(
+          node,
+          Math.max(0, performance.now() - compositeStartedAt)
         );
         return [target, background];
       }

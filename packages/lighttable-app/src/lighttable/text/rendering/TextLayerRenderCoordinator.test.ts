@@ -10,6 +10,7 @@ import {
   type DocumentFontAsset
 } from '../../editor/document/documentTypes';
 import { TextLayerRenderCoordinator, type TextFontRuntimePort } from './TextLayerRenderCoordinator';
+import type { TextSourceCostSample } from './TextSourceCostModel';
 import { setFlowTextContent, setTextLayerTransform } from '../../editor/document/textLayerCommands';
 
 const asset: DocumentFontAsset = {
@@ -36,6 +37,7 @@ const flush = async () => {
 };
 
 const harness = () => {
+  let costObserver: ((sample: TextSourceCostSample) => void) | null = null;
   const publish = vi.fn(() => ({}));
   const discard = vi.fn();
   const prepareTightSource = vi.fn(() => ({ publish, discard }));
@@ -55,6 +57,9 @@ const harness = () => {
     markTransparent: vi.fn(() => false),
     release: vi.fn(() => false),
     thumbnailSource: vi.fn(() => null),
+    setCostObserver: vi.fn((observer: ((sample: TextSourceCostSample) => void) | null) => {
+      costObserver = observer;
+    }),
     prepareAtlasSource,
     prepareTightSource
   };
@@ -94,10 +99,21 @@ const harness = () => {
     bytes: vi.fn(async () => new Uint8Array([1, 2, 3, 4])),
     subscribe: vi.fn(() => () => undefined)
   };
-  return { coordinator, renderer, client, backend, submit, port, publish, discard };
+  return {
+    coordinator, renderer, client, backend, submit, port, publish, discard,
+    observeCost: (sample: TextSourceCostSample) => costObserver?.(sample)
+  };
 };
 
 describe('TextLayerRenderCoordinator', () => {
+  it('feeds renderer work samples into the document-local source policy', () => {
+    const state = harness();
+    state.observeCost({
+      phase: 'atlas-composite', durationMs: 0.5, glyphCount: 10, pixelCount: 100
+    });
+    expect(state.coordinator.snapshot().sourceDecisionMeasurements).toBe(1);
+  });
+
   it('is inert without visible canonical text', async () => {
     const state = harness();
     state.coordinator.configureFonts(state.port);

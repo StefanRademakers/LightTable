@@ -9,6 +9,7 @@ import type {
   CoverageAtlasBackend,
   CoverageAtlasDrawCommand
 } from '@lighttable/text-webgpu';
+import type { TextSourceCostSample } from './TextSourceCostModel';
 
 export type TextLayerSourceMode = 'atlas' | 'cached';
 
@@ -33,6 +34,7 @@ interface TextLayerRendererOptions<TTexture> {
   readonly maximumTextureDimension: number;
   readonly maximumSourceBytes?: number;
   readonly maximumCacheBytes?: number;
+  readonly now?: () => number;
 }
 
 export interface TextLayerRendererSnapshot {
@@ -98,12 +100,17 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
   private readonly touched = new Map<TextLayer['id'], number>();
   private visibleLayerIds = new Set<TextLayer['id']>();
   private atlasEncodes = 0;
+  private costObserver: ((sample: TextSourceCostSample) => void) | null = null;
 
   constructor(private readonly options?: TextLayerRendererOptions<TTexture>) {
     const budget = options?.maximumCacheBytes ?? 256 * 1024 * 1024;
     if (!Number.isSafeInteger(budget) || budget < 0) {
       throw new RangeError('Text source cache budget must be a non-negative safe integer.');
     }
+  }
+
+  setCostObserver(observer: ((sample: TextSourceCostSample) => void) | null) {
+    this.costObserver = observer;
   }
 
   publish(source: PublishedTextLayerSource<TTexture>) {
@@ -210,6 +217,7 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
         ] as const
       };
     });
+    const startedAt = this.now();
     source.backend.encode(encoder, {
       view: target.texture.createView(),
       format: 'rgba16float',
@@ -217,6 +225,12 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
       height: target.height,
       loadOp: 'load'
     }, draws);
+    this.costObserver?.({
+      phase: 'atlas-composite',
+      durationMs: Math.max(0, this.now() - startedAt),
+      glyphCount: Math.max(1, draws.length),
+      pixelCount: Math.max(1, target.width * target.height)
+    });
     this.atlasEncodes += 1;
     this.touched.set(layer.id, ++this.clock);
     return true;
@@ -340,6 +354,7 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
       y: draw.y - bounds.y
     }));
     try {
+      const startedAt = this.now();
       backend.encode(encoder, {
         view: this.options.createView(texture),
         format: 'rgba16float',
@@ -347,6 +362,12 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
         height,
         loadOp: 'clear'
       }, shifted);
+      this.costObserver?.({
+        phase: 'cache-build',
+        durationMs: Math.max(0, this.now() - startedAt),
+        glyphCount: Math.max(1, draws.length),
+        pixelCount: Math.max(1, width * height)
+      });
       const publishedSource: PublishedTextLayerSource<TTexture> = {
         layerId: layer.id,
         texture,
@@ -486,6 +507,18 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     return this.snapshot().textureBytes;
   }
 
+  observeCachedComposite(layer: TextLayer, durationMs: number) {
+    const source = this.sources.get(layer.id);
+    if (!source || !Number.isFinite(durationMs) || durationMs < 0) return false;
+    this.costObserver?.({
+      phase: 'cached-composite',
+      durationMs,
+      glyphCount: 1,
+      pixelCount: Math.max(1, source.width * source.height)
+    });
+    return Boolean(this.costObserver);
+  }
+
   dispose() {
     for (const source of this.sources.values()) source.destroy?.();
     for (const source of this.atlasSources.values()) source.destroy();
@@ -499,6 +532,10 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
   }
 
   private readonly currentLayers = new Map<TextLayer['id'], TextLayer>();
+
+  private now() {
+    return this.options?.now?.() ?? performance.now();
+  }
 
   private sourceBytes() {
     let bytes = 0;

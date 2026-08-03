@@ -128,7 +128,9 @@ export class TextLayerRenderCoordinator {
   private latestRasterRoundTripMs = 0;
   private textCacheSubmissions = 0;
 
-  constructor(private readonly options: CoordinatorOptions) {}
+  constructor(private readonly options: CoordinatorOptions) {
+    options.renderer.setCostObserver((sample) => this.sourceCostModel.observe(sample));
+  }
 
   setActive(active: boolean) {
     if (this.disposed || this.active === active) return false;
@@ -333,6 +335,7 @@ export class TextLayerRenderCoordinator {
     const sessionGeneration = this.sessionGeneration;
     this.dependencies = null;
     this.generation += 1;
+    this.options.renderer.setCostObserver(null);
     this.options.renderer.dispose();
     this.layoutCache.clear();
     this.settledLayerKeys.clear();

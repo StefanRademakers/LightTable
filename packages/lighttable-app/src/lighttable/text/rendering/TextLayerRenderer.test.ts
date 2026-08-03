@@ -34,6 +34,8 @@ describe('TextLayerRenderer', () => {
   });
   it('publishes a retained atlas plan and transforms it directly into the compositor target', () => {
     const renderer = new TextLayerRenderer<object>();
+    const observeCost = vi.fn();
+    renderer.setCostObserver(observeCost);
     const layer = createTextLayerNode(createDefaultTextLayerData(), 'Direct');
     layer.transform = translationMatrix(10, 20);
     renderer.sync([layer]);
@@ -57,6 +59,9 @@ describe('TextLayerRenderer', () => {
       expect.objectContaining({ width: 320, height: 200, loadOp: 'load' }),
       [expect.objectContaining({ x: 13, y: 25, transform: [0.5, 0, 0, 0.5] })]
     );
+    expect(observeCost).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'atlas-composite', glyphCount: 1, pixelCount: 320 * 200
+    }));
     expect(release).not.toHaveBeenCalled();
     renderer.release(layer.id);
     expect(release).toHaveBeenCalledOnce();
@@ -202,6 +207,8 @@ describe('TextLayerRenderer', () => {
       retireTexture,
       maximumTextureDimension: 4096
     });
+    const observeCost = vi.fn();
+    renderer.setCostObserver(observeCost);
     const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
     const draw = {
       glyph: {
@@ -230,6 +237,13 @@ describe('TextLayerRenderer', () => {
       [expect.objectContaining({ x: 4, y: 17 })]
     );
     expect(renderer.estimatedTextureBytes()).toBe(14 * 24 * 8);
+    expect(observeCost).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'cache-build', glyphCount: 1, pixelCount: 14 * 24
+    }));
+    expect(renderer.observeCachedComposite(layer, 0.25)).toBe(true);
+    expect(observeCost).toHaveBeenCalledWith({
+      phase: 'cached-composite', durationMs: 0.25, glyphCount: 1, pixelCount: 14 * 24
+    });
     expect(retireTexture).not.toHaveBeenCalled();
   });
 });
