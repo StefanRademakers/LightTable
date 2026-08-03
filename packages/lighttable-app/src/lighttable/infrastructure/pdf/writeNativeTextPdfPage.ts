@@ -9,6 +9,8 @@ export interface NativeTextPdfPageInput {
   readonly page: PdfNativeTextPage;
   readonly fonts: readonly PdfEmbeddedFontResource[];
   readonly title?: string;
+  /** GPU-rendered page content below the native text layer suffix. */
+  readonly rasterUnderlayPng?: Blob;
 }
 
 export interface NativeTextPdfPageResult {
@@ -218,7 +220,8 @@ const contentForRun = (
 export const writeNativeTextPdfPage = async ({
   page: source,
   fonts,
-  title
+  title,
+  rasterUnderlayPng
 }: NativeTextPdfPageInput): Promise<NativeTextPdfPageResult> => {
   if (!Number.isFinite(source.widthPoints) || !Number.isFinite(source.heightPoints)
     || source.widthPoints <= 0 || source.heightPoints <= 0
@@ -231,6 +234,21 @@ export const writeNativeTextPdfPage = async ({
   document.setCreator('LightTable');
   if (title) document.setTitle(title);
   const page = document.addPage([source.widthPoints, source.heightPoints]);
+  if (rasterUnderlayPng) {
+    if (rasterUnderlayPng.size <= 0 || rasterUnderlayPng.size > 64 * 1024 * 1024) {
+      fail('raster underlay must contain at most 67108864 bytes.');
+    }
+    if (rasterUnderlayPng.type && rasterUnderlayPng.type !== 'image/png') {
+      fail('raster underlay must be a PNG.');
+    }
+    const underlay = await document.embedPng(await rasterUnderlayPng.arrayBuffer());
+    page.drawImage(underlay, {
+      x: 0,
+      y: 0,
+      width: source.widthPoints,
+      height: source.heightPoints
+    });
+  }
   const context = document.context;
   const fontByInstance = new Map(fonts.map(font => [font.instanceId, font]));
   const shared = new Map<string, {

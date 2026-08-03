@@ -795,6 +795,16 @@ CFF and stroked text still fail closed to the preflight fallback path, and the
 product export remains flattened until native text can be composed with the
 page's raster/vector/group content without duplication.
 
+Hybrid-page planning evidence: the first composable topology is now explicit
+and fail-closed: one GPU-rendered raster underlay followed by a topmost suffix
+of native text layers. The planner rejects stale plans, blocked text, documents
+without native text, raster/vector content above native text, and active
+document-wide processing that cannot yet be reproduced on PDF text objects.
+The Type0 writer accepts a bounded PNG underlay, paints it before all native
+text streams, and reopens with the image present and Unicode text searchable.
+General z-order interleaving remains assigned to the normalized display-list
+writer rather than being approximated by lifting arbitrary text to the top.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

@@ -5,6 +5,10 @@ import type { PdfNativeTextPage, PdfNativeTextRun } from '@lighttable/pdf-core';
 import { createHarfBuzzFontSubsetter } from './HarfBuzzFontSubsetter';
 import { writeNativeTextPdfPage } from './writeNativeTextPdfPage';
 
+const onePixelPng = () => new Blob([Uint8Array.from(atob(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+3MxZ5wAAAABJRU5ErkJggg=='
+), character => character.charCodeAt(0))], { type: 'image/png' });
+
 const workspace = fileURLToPath(new URL('../../../../../../', import.meta.url));
 
 const resources = async (glyphIds: readonly number[]) => {
@@ -117,5 +121,16 @@ describe('writeNativeTextPdfPage', () => {
       fonts: await resources([0, 36, 37])
     });
     expect(await extractedText(result.blob)).toBe('fi');
+  });
+
+  it('keeps a raster underlay below searchable native text', async () => {
+    const result = await writeNativeTextPdfPage({
+      page: page(run()),
+      fonts: await resources([0, 36]),
+      rasterUnderlayPng: onePixelPng()
+    });
+    expect(await extractedText(result.blob)).toBe('A');
+    const bytes = new Uint8Array(await result.blob.arrayBuffer());
+    expect(new TextDecoder('latin1').decode(bytes)).toContain('/Subtype /Image');
   });
 });
