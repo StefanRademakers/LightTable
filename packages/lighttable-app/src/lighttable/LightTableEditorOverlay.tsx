@@ -1500,6 +1500,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     try {
       await registerBundledTextFontForSettings(textFontRegistry, editorSession.text);
       await lightTableTextEngine.probe();
+      // Font selection is the authoritative lazy-load boundary. Rebind here as
+      // well as at renderer publication so a standalone registry replacement
+      // cannot leave the first authored layer behind an empty open-time port.
+      engineRef.current?.configureTextFonts(textFontRuntimePort);
       if (
         generation !== pointTextCapabilityGenerationRef.current
         || imageDocumentRef.current?.id !== documentId
