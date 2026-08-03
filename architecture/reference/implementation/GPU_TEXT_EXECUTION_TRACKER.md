@@ -760,6 +760,20 @@ route at the same 2457 x 3483 raster dimensions with zero page errors. This is
 round-trip evidence for the first writer boundary, not a claim of native text,
 vector, group, form or multipage export.
 
+Native-text writer-input evidence: `PdfNativeTextPage` now snapshots each
+preflight-approved glyph without reshaping. Every glyph carries its retained
+glyph ID, run-local character code, Unicode mapping, origin, advance and exact
+text-space-to-page-space matrix. The builder composes nested layer transforms,
+flow or preserved positioned-text matrices, per-glyph affine transforms, the
+document-pixel to PDF-point scale and the opposing Y-axis conventions exactly
+once. It preserves PDF rendering modes, solid DeviceRGB paint/alpha, stroke
+parameters and `ActualText`, and fails closed when current glyph IDs no longer
+match the preflight encoding. Direct-text eligibility now also rejects
+Display-P3 paint and compositing state not yet represented by the writer
+(masks, clipping, non-normal blend, opacity/fill-opacity and isolated groups),
+so the existing preflight UI reports an explicit outline/raster fallback
+instead of promising a visually incorrect native-text export.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

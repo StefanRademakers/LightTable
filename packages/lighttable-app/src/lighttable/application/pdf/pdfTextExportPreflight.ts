@@ -40,7 +40,9 @@ const affineMatrix = (matrix: Matrix3) => (
   && Math.abs(matrix[8] - 1) <= 1e-6
 );
 
-const paintNeedsOutlines = (paint: TextPaint | undefined) => paint?.kind === 'linear-gradient';
+const paintNeedsOutlines = (paint: TextPaint | undefined) => Boolean(
+  paint && (paint.kind === 'linear-gradient' || paint.color.colorSpace !== 'srgb')
+);
 const paintSupport = (paint: TextRunPaint): PdfExportTextRunInput['paintSupport'] => (
   paintNeedsOutlines(paint.fill) || paintNeedsOutlines(paint.stroke?.paint)
     ? 'outline-required'
@@ -52,6 +54,15 @@ interface VisibleTextLayer {
   readonly ancestorEffectsRequireRaster: boolean;
 }
 
+const compositingRequiresRaster = (node: LayerNode) => (
+  node.clipping
+  || node.opacity !== 1
+  || node.fillOpacity !== 1
+  || node.blendMode !== 'normal'
+  || node.mask !== null
+  || (node.type === 'group' && node.compositing === 'isolated')
+);
+
 const visibleTextLayers = (
   nodes: readonly LayerNode[],
   ancestorsVisible = true,
@@ -59,12 +70,13 @@ const visibleTextLayers = (
 ): readonly VisibleTextLayer[] => nodes.flatMap(node => {
   const visible = ancestorsVisible && node.visible;
   const effectsRequireRaster = ancestorEffectsRequireRaster
-    || layerStyleStackIsActive(node.styleStack);
+    || layerStyleStackIsActive(node.styleStack)
+    || compositingRequiresRaster(node);
   if (node.type === 'group') {
     return visibleTextLayers(node.children, visible, effectsRequireRaster);
   }
   return node.type === 'text' && visible
-    ? [{ layer: node, ancestorEffectsRequireRaster }]
+    ? [{ layer: node, ancestorEffectsRequireRaster: effectsRequireRaster }]
     : [];
 });
 

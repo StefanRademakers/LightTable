@@ -161,6 +161,27 @@ describe('LightTable PDF text export preflight adapter', () => {
     expect(preflight(document, layout('A', 'ltr', [0])).layers[0]?.disposition).toBe('raster');
   });
 
+  it('does not claim native text while layer compositing is not represented by the writer', () => {
+    const document = flowDocument('A');
+    const layerId = document.activeLayerId!;
+    const translucent: ImageDocument = {
+      ...document,
+      layers: updateLayerNode(document.layers, layerId, layer => ({
+        ...layer,
+        opacity: 0.5
+      }))
+    };
+    const clipped: ImageDocument = {
+      ...document,
+      layers: updateLayerNode(document.layers, layerId, layer => ({
+        ...layer,
+        clipping: true
+      }))
+    };
+    expect(preflight(translucent, layout('A')).layers[0]?.disposition).toBe('raster');
+    expect(preflight(clipped, layout('A')).layers[0]?.disposition).toBe('raster');
+  });
+
   it('snapshots each realized layout once and inherits group effects', () => {
     const document = flowDocument('A');
     const textLayerId = document.activeLayerId!;

@@ -4,3 +4,4 @@ export * from './pageScene';
 export * from './sourceProbe';
 export * from './pageTiling';
 export * from './exportTextPlan';
+export * from './nativeTextPage';
