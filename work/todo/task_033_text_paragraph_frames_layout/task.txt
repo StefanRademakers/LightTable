@@ -38,12 +38,20 @@ Owner: Codex `/root`
 - [x] Prove a paragraph-only revision reshapes, rebuilds and submits only its
   owning layer while an exact settled sibling performs zero work; resident
   per-glyph R8 masks are reused with zero rasterization or upload work.
-- [ ] Implement affected-paragraph-only shaping inside one large edited flow;
-  the current layer-local layout revision still reshapes that complete flow.
+- [x] Shape only cache-missing paragraphs inside one edited flow, retain exact
+  UTF-16/style provenance and assemble fresh transferable whole-flow tables
+  from a 16 MiB worker-local LRU (`412631a`, `b65e05d`, `9e00cc0`).
 - [ ] Run the Slice 14 phase gate, update the execution log and move this task
   to `work/done` only after manual web/Electron smoke evidence is recorded.
 
-Latest automated gate: 242 app/workspace test files and 1,224 app tests passed;
-generated text WASM verified all 9 open faces; production web build and
-distribution boundary passed. Existing wasm-vips eval and chunk-size warnings
-are unchanged.
+Latest automated gate: 283 workspace test files / 1,404 tests passed; all
+workspace typechecks passed; generated text WASM verified all 9 open faces and
+LF/CR/CRLF/U+2028/U+2029 fragment boundaries; production web and packaged
+Electron distribution boundaries passed. A real generated-WASM differential
+compares monolithic and incremental glyph, cluster, line, caret, selection,
+geometry and bounds tables across five paragraph fixtures. Existing wasm-vips
+eval, chunk-size and Electron inlineDynamicImports warnings are unchanged.
+
+Manual exit evidence still required: no browser surface was attached to this
+Codex session, so physical paragraph creation/edit/reflow and the Debug
+`paragraphHits`/`paragraphShapes` trace must be smoked before moving to done.

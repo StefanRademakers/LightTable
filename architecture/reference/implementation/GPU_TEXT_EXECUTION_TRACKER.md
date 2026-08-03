@@ -461,11 +461,11 @@ Exit gate: point text meets the performance gates in section 9.
 
 #### Slice 14 — paragraph frames and layout controls
 
-- [ ] Add drag-created paragraph frames and point/paragraph conversion.
-- [ ] Implement wrapping, alignment, leading, indents, spacing and overflow.
-- [ ] Add frame resize as preview plus one committed undo command.
-- [ ] Keep layer transform distinct from paragraph frame geometry.
-- [ ] Implement incremental paragraph/run invalidation.
+- [x] Add drag-created paragraph frames and point/paragraph conversion.
+- [x] Implement wrapping, alignment, leading, indents, spacing and overflow.
+- [x] Add frame resize as preview plus one committed undo command.
+- [x] Keep layer transform distinct from paragraph frame geometry.
+- [x] Implement incremental paragraph/run invalidation.
 
 UI exposure: Text family flyout enables Paragraph Text; canvas shows GPU frame
 and overflow indicator. Frequent paragraph controls appear in Tool Options;
@@ -614,7 +614,7 @@ claims about every device.
 - [ ] Layer movement does not re-layout text.
 - [ ] Ten thousand visible warm glyphs render in bounded batches at target
   interaction cadence on baseline hardware.
-- [ ] Large paragraphs invalidate only affected paragraphs/runs.
+- [x] Large paragraphs invalidate only affected paragraphs/runs.
 - [ ] Unchanged and background documents perform no recurring text CPU/GPU work.
 - [ ] Atlas/cache memory stays within configured budgets and fully releases on
   document close/device loss.
@@ -651,6 +651,39 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 — Slice 14 implementation complete; manual smoke pending
+
+- Owner: Codex `/root`; paragraph input/overlay and incremental-shaping audits
+  were delegated before implementation.
+- Authoring/UI: point and paragraph text share the existing text family;
+  click/drag creation, conversion, transformed eight-handle frame resizing,
+  alignment, leading, indents and paragraph spacing use existing Tool Options,
+  contextual Properties and shared controls.
+- GPU presentation: frame edges, fixed-pixel handles and truthful overflow
+  indicators stay in the existing WebGPU editing overlay. Paragraph clip and
+  hidden-line suppression occur in the text coverage path without CSS/SVG.
+- Invalidation: unrelated layers perform zero work; paragraph reflow reuses
+  resident R8 glyph masks. A worker-local 16 MiB byte-bounded LRU now shapes
+  only cache-missing UTF-16 paragraphs and reassembles fresh transferable
+  whole-flow tables with current style/paint provenance and Y placement.
+- Compatibility: LF, CR, CRLF, U+2028/U+2029, combining/astral clusters and a
+  trailing empty paragraph are gated against monolithic generated Parley/WASM
+  output. Glyphs, clusters, lines, carets, selection, geometry and bounds match.
+- Telemetry: each paragraph response reports request hits/shapes, retained
+  entries/bytes and lifetime evictions; the existing Debug trace prints these
+  values after shaping.
+- Verification: 283 workspace test files / 1,404 tests, all workspace
+  typechecks, generated WASM runtime/structural goldens, production web build,
+  packaged Electron and both distribution boundaries passed. Existing
+  wasm-vips eval, chunk-size and Electron inlineDynamicImports warnings are
+  unchanged.
+- Commits: `7d89332`, `4674262`, `0139235`, `fd7b6a4`, `3fa0e74`, `8aed295`,
+  `1b34ae1`, `52f106c`, `c803fb4`, `46a1a94`, `66e74d9`, `412631a`, `b65e05d`,
+  `9e00cc0`.
+- Remaining exit evidence: the browser-control surface returned no available
+  browser, so physical paragraph create/edit/reflow and Debug cache-trace smoke
+  must be recorded before task 033 moves from `work/todo` to `work/done`.
 
 ### 2026-08-03 — Slice 13 complete
 
