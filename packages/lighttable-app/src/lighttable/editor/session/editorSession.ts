@@ -218,7 +218,7 @@ export const createEditorSession = (): EditorSession => ({
   text: {
     family: 'Inter',
     style: 'Regular',
-    size: 16,
+    size: 250,
     antiAlias: 'smooth',
     alignment: 'start'
   },
