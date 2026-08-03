@@ -32,6 +32,7 @@ interface PsdVectorStrokeDescriptor {
 }
 
 export interface PsdVectorShapeSource {
+  sourceObjectId?: string;
   name: string;
   vectorFill: unknown | null;
   vectorMask: unknown | null;
@@ -137,7 +138,10 @@ const vectorStroke = (
   const dash = (descriptor.lineDashSet ?? []).map((entry) =>
     unitPixels(entry, descriptor.resolution ?? 72));
   if (dash.some((entry) => entry === null)) return null;
-  const opacity = clamp((descriptor.opacity ?? 100) / 100);
+  const sourceOpacity = descriptor.opacity ?? 1;
+  // ag-psd exposes modern Photoshop stroke opacity as a normalized 0..1
+  // value, while older descriptors can still contain a 0..100 percentage.
+  const opacity = clamp(sourceOpacity > 1 ? sourceOpacity / 100 : sourceOpacity);
   // LightTable currently has one opacity for the complete vector style. A
   // differently translucent stroke and fill would require two semantic nodes.
   if (fillPaint && opacity < 1) return null;
@@ -159,10 +163,10 @@ const pointEquals = (a: readonly number[], ax: number, ay: number) =>
   Math.abs((a[ax] ?? 0) - (a[2] ?? 0)) < 1e-5
   && Math.abs((a[ay] ?? 0) - (a[3] ?? 0)) < 1e-5;
 
-const mapPath = (path: BezierPath, pathIndex: number) => createSubpath(
-  `psd-subpath-${pathIndex}`,
+const mapPath = (path: BezierPath, pathIndex: number, idPrefix: string) => createSubpath(
+  `${idPrefix}-subpath-${pathIndex}`,
   path.knots.map((knot, knotIndex) => createAnchor(
-    `psd-anchor-${pathIndex}-${knotIndex}`,
+    `${idPrefix}-anchor-${pathIndex}-${knotIndex}`,
     { x: knot.points[2]!, y: knot.points[3]! },
     {
       handleIn: pointEquals(knot.points, 0, 1)
@@ -225,6 +229,7 @@ export const importPsdVectorShape = (
   }
 
   const elements: VectorElement[] = [];
+  const idPrefix = source.sourceObjectId?.trim() || 'psd-shape';
   const pathGroups = new Map<string, {
     fillRule: FillRule;
     open: boolean;
@@ -242,9 +247,13 @@ export const importPsdVectorShape = (
   pathGroups.forEach(({ paths, fillRule, open }) => {
     const currentElementIndex = elementIndex++;
     const path = createVectorPath(
-      `psd-vector-${currentElementIndex}`,
+      `${idPrefix}-vector-${currentElementIndex}`,
       pathGroups.size === 1 ? source.name : `${source.name} ${currentElementIndex + 1}`,
-      paths.map((item, pathIndex) => mapPath(item, currentElementIndex * 1000 + pathIndex))
+      paths.map((item, pathIndex) => mapPath(
+        item,
+        currentElementIndex * 1000 + pathIndex,
+        idPrefix
+      ))
     );
     const style: VectorStyle = {
       fill: open ? null : fill,

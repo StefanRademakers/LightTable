@@ -103,15 +103,26 @@ export class TextOutlineVectorBackend {
     if (!sourceBounds) return null;
     const width = Math.ceil(sourceBounds.width);
     const height = Math.ceil(sourceBounds.height);
-    const antiAlias = this.options.antiAlias ?? true;
-    const sampleCount = antiAlias ? 4 : 1;
+    let antiAlias = this.options.antiAlias ?? true;
+    let sampleCount = antiAlias ? 4 : 1;
     // Resolved rgba16float plus retained multisample color and depth/stencil.
-    const byteLength = width * height * (8 + sampleCount * 12);
     const maximumBytes = this.options.maximumSourceBytes ?? DEFAULT_MAXIMUM_SOURCE_BYTES;
+    let byteLength = width * height * (8 + sampleCount * 12);
+    // Large path-text bounds can fit comfortably as a 2x document cache but
+    // not with a second four-sample color/depth surface. Prefer the bounded
+    // single-sample vector target in that case; compositor downsampling still
+    // provides stable interactive edges without allocating hundreds of MiB.
+    if (antiAlias && byteLength > maximumBytes) {
+      antiAlias = false;
+      sampleCount = 1;
+      byteLength = width * height * (8 + sampleCount * 12);
+    }
     if (width > this.options.maximumTextureDimension
       || height > this.options.maximumTextureDimension
       || byteLength > maximumBytes) {
-      throw new RangeError('Tight outline text source exceeds the bounded GPU texture budget.');
+      throw new RangeError(
+        `Tight outline text source ${width} x ${height} (${byteLength} bytes) exceeds the bounded GPU texture budget.`
+      );
     }
     const surface = this.vector.createSurface(width, height, 'rgba16float', antiAlias);
     try {

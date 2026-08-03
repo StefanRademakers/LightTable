@@ -579,7 +579,10 @@ or unrelated vector content.
 - [x] Audit every newly supported PSD text property against the existing Text
   property UI; reuse shared controls or record and discuss the missing
   interaction before enabling editable import/export.
-- [ ] Compare editable result against Photoshop composite fixtures.
+- [x] Compare editable result against Photoshop composite fixtures. Exact
+  `D:\\TextTest.psd` Electron screenshots and embedded-composite diagnostics
+  now cover point, paragraph and path text; remaining percentage differences
+  stay explicit and do not imply Photoshop visual parity.
 - [ ] Export supported text semantics back to PSD only when verified.
 
 UI exposure: import report links to affected Layers rows. Badges distinguish
@@ -1462,6 +1465,25 @@ Append newest entries at the top. Keep entries factual and link the slice.
   closed after success or failure.
 - Evidence: the exact file produced 3 editable Flow layers, 3 lazily loaded
   exact faces, 3 ready cached text sources, no page errors and visible GPU text.
+
+### 2026-08-03 — PSD path text and exact shape interaction smoke
+
+- Path import: a bounded tolerant parser recovers Photoshop `Txt2`
+  `TextFrameSet` cubic geometry when an otherwise valid byte string omits the
+  UTF-16 BOM expected by `ag-psd`. The recovered curve becomes a hidden native
+  vector companion referenced by the existing editable Path Text layout.
+- GPU/cache: a large curved line first falls back from a retained four-sample
+  outline surface to a bounded single-sample 2x document cache instead of
+  disabling the whole text renderer. The exact fixture settles with three
+  cached ready text layers and no renderer error.
+- Shape import: normalized Photoshop stroke opacity remains normalized, and
+  every imported element, subpath and anchor identity is scoped to its source
+  layer. This removes cross-layer selection/cache collisions.
+- Visual evidence: the Electron smoke opens `D:\\TextTest.psd` as three Flow
+  layers plus one native path layer and visibly follows the curved path. It
+  opens `D:\\shapes.psd` as four native vector layers; an automated Path
+  Selection drag moves Star alone while triangle, ellipse and line remain
+  unchanged and no duplicate geometry remains.
 
 ## 12. Open decision register
 

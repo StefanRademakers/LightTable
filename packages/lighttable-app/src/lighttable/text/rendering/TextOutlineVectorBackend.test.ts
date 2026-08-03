@@ -81,4 +81,30 @@ describe('TextOutlineVectorBackend', () => {
       .toThrow('bounded GPU texture budget');
     expect(vector.createSurface).not.toHaveBeenCalled();
   });
+
+  it('drops the retained MSAA surface before rejecting a bounded path-text cache', () => {
+    const value = draw();
+    value.path.transform = { ...value.path.transform, a: 10, d: 10 };
+    const created = surface();
+    created.sampleCount = 1;
+    const vector = {
+      createSurface: vi.fn(() => created),
+      encodeFill: vi.fn(() => true), encodeStroke: vi.fn(() => false),
+      notifySubmitted: vi.fn(), cacheMetrics: vi.fn(), dispose: vi.fn()
+    };
+    const pass = { end: vi.fn() };
+    const encoder = { beginRenderPass: vi.fn(() => pass) };
+    const bounds = tightTextOutlineBounds([value])!;
+    const singleSampleBytes = bounds.width * bounds.height * 20;
+    const backend = new TextOutlineVectorBackend({} as GPUDevice, {
+      maximumTextureDimension: 4096,
+      maximumSourceBytes: singleSampleBytes
+    }, vector as never);
+
+    const prepared = backend.encodeTight(encoder as unknown as GPUCommandEncoder, [value]);
+    expect(vector.createSurface).toHaveBeenCalledWith(
+      bounds.width, bounds.height, 'rgba16float', false
+    );
+    expect(prepared?.byteLength).toBe(singleSampleBytes);
+  });
 });

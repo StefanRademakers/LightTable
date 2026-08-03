@@ -33,9 +33,12 @@ export is not implemented.
 **Last implementation update:** 3 August 2026.
 
 Current text/vector exposure: supported PSD text descriptors now prefer native
-editable flow text over the supplied layer preview; the Photoshop composite is
-the reference for font-dependent visual comparison. Supported solid vector
-shapes already follow that same semantic-first rule. Selecting an imported
+editable flow text over the supplied layer preview; recovered Photoshop path
+text binds that flow to a native cubic vector companion. The Photoshop
+composite remains the reference for font-dependent visual comparison.
+Supported solid vector shapes follow that same semantic-first rule. Their
+element, subpath and anchor identities are scoped per source layer so selection,
+editing and GPU caches cannot collide across imported shapes. Selecting an imported
 vector layer projects its elements into the existing vector selection model,
 and the established Fill, Line and Weight controls now edit that selected style
 throughout the vector/shape tool family. Mixed multi-element vector styles still

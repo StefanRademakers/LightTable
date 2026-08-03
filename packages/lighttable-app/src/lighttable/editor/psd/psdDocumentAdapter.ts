@@ -30,6 +30,7 @@ import type { PsdDecodeSuccess, PsdLayerNodeDto } from '../../image-io/psdProtoc
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import type { CurvePoint } from '../../curves';
+import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 
 export interface PsdDocumentImport {
   document: ImageDocument;
@@ -40,6 +41,10 @@ export interface PsdDocumentImport {
 
 export type PsdImportSupport = PhotoshopImportSupport;
 export type PsdImportCompatibilityEntry = PhotoshopImportCompatibilityEntry;
+
+type AdaptedLayer = LayerNode | LayerNode[] | null;
+const adaptedLayers = (value: AdaptedLayer): LayerNode[] =>
+  value === null ? [] : Array.isArray(value) ? value : [value];
 
 const BLEND_MODE_MAP: Record<string, BlendMode | undefined> = {
   normal: 'normal',
@@ -336,7 +341,7 @@ export const importPsdDocument = (
     const patternId = patternIds.get(pattern.id)!;
     assets.push({ patternId, source: pattern.pixels });
   });
-  const adapt = (node: PsdLayerNodeDto, path: string): LayerNode | null => {
+  const adapt = (node: PsdLayerNodeDto, path: string): AdaptedLayer => {
     const id = node.id as LayerId;
     if (node.pixelSummary && node.pixelSummary.nonTransparentPixels === 0) {
       warnings.push(
@@ -445,9 +450,8 @@ export const importPsdDocument = (
           pixelRevision: 0,
           dirtyBounds: null
         } : null,
-        children: node.children
-          .map((child, index) => adapt(child, `${path}.children[${index}]`))
-          .filter((child): child is LayerNode => Boolean(child))
+        children: node.children.flatMap((child, index) =>
+          adaptedLayers(adapt(child, `${path}.children[${index}]`)))
       };
     }
     if (node.kind === 'adjustment') {
@@ -478,6 +482,7 @@ export const importPsdDocument = (
     }
     if (node.kind === 'vector') {
       const vectorImport = importPsdVectorShape({
+        sourceObjectId: node.id,
         name: node.name,
         vectorFill: node.preserved.vectorFill,
         vectorMask: node.preserved.vectorMask,
@@ -521,7 +526,14 @@ export const importPsdDocument = (
       });
     }
     if (node.kind === 'text') {
-      const textImport = importPsdText(node.preserved.text, node.id);
+      const pathLayerId = `${node.id}-text-path` as LayerId;
+      const pathElementId = `${node.id}-text-path-element`;
+      const pathSubpathId = `${node.id}-text-path-subpath`;
+      const textImport = importPsdText(node.preserved.text, node.id, {
+        layerId: pathLayerId,
+        elementId: pathElementId,
+        subpathId: pathSubpathId
+      });
       const reason = textImport.reasons.join(' ');
       const previewBacked = node.rasterFallback !== 'transparent-placeholder' && Boolean(node.pixels);
       if (textImport.kind === 'editable-flow') {
@@ -568,7 +580,28 @@ export const importPsdDocument = (
         warnings.push(`${path}: ${reason}${previewBacked
           ? ' The native editable layer is authoritative; compare it with the retained Photoshop composite when fonts differ.'
           : ''}`);
-        return layer;
+        if (!textImport.path) return layer;
+        const pathLayer: VectorLayer = {
+          id: pathLayerId,
+          type: 'vector',
+          name: `${node.name} Path`,
+          visible: false,
+          locks: createDefaultLayerLocks(),
+          opacity: 1,
+          fillOpacity: 1,
+          blendMode: 'normal',
+          clipping: false,
+          styleStack: createDefaultLayerStyleStack(),
+          transform: textImport.transform,
+          revision: 0,
+          geometryRevision: 0,
+          createdAt: now,
+          modifiedAt: now,
+          antiAlias: true,
+          elements: [textImport.path],
+          mask: null
+        };
+        return [pathLayer, layer];
       }
       compatibility.push({
         path,
@@ -636,9 +669,8 @@ export const importPsdDocument = (
     return layer;
   };
 
-  const layers = source.layers
-    .map((layer, index) => adapt(layer, `layers[${index}]`))
-    .filter((layer): layer is LayerNode => Boolean(layer));
+  const layers = source.layers.flatMap((layer, index) =>
+    adaptedLayers(adapt(layer, `layers[${index}]`)));
   const activeLayerId = layers.at(-1)?.id ?? null;
   return {
     document: {

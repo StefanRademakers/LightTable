@@ -317,6 +317,38 @@ describe('importPsdDocument', () => {
     expect(result.warnings.join('\n')).toContain('exact appearance depends');
   });
 
+  it('places recovered Photoshop path geometry below its editable text layer', () => {
+    const result = importPsdDocument(decoded([raster('path-text', {
+      kind: 'text',
+      rasterFallback: 'transparent-placeholder',
+      preserved: {
+        text: {
+          text: 'Curve', transform: [1, 0, 0, 1, 10, 20],
+          textPath: {
+            bezierCurve: { controlPoints: [10, 20, 20, 20, 30, 30, 40, 40] },
+            data: { frameMatrix: [1, 0, 0, 1, -10, -20], textRange: [0, 1] }
+          }
+        },
+        placedLayer: null, vectorFill: null, vectorMask: null,
+        vectorStroke: null, realMask: null
+      }
+    })]), 'path-text.psd');
+
+    expect(result.document.layers).toHaveLength(2);
+    expect(result.document.layers[0]).toMatchObject({
+      id: 'path-text-text-path', type: 'vector', visible: false,
+      elements: [{ id: 'path-text-text-path-element', type: 'path' }]
+    });
+    expect(result.document.layers[1]).toMatchObject({
+      id: 'path-text', type: 'text',
+      text: { source: { layout: {
+        mode: 'path', pathLayerId: 'path-text-text-path',
+        pathElementId: 'path-text-text-path-element',
+        pathSubpathId: 'path-text-text-path-subpath'
+      } } }
+    });
+  });
+
   it('prefers editable semantic text while retaining the Photoshop composite as reference', () => {
     const result = importPsdDocument(decoded([raster('preview-text', {
       kind: 'text',

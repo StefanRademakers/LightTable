@@ -65,6 +65,39 @@ describe('importPsdVectorShape', () => {
     expect(open?.style.stroke?.width).toBe(3);
   });
 
+  it('preserves normalized Photoshop stroke opacity', () => {
+    const result = importPsdVectorShape({
+      ...source([path()]),
+      vectorStroke: {
+        strokeEnabled: true,
+        fillEnabled: false,
+        lineWidth: { units: 'Pixels', value: 10 },
+        lineAlignment: 'center',
+        opacity: 1,
+        content: { type: 'color', color: { r: 255, g: 0, b: 0 } }
+      }
+    });
+
+    expect(result.status).toBe('native');
+    if (result.status !== 'native') throw new Error(result.reason);
+    expect(result.elements[0]?.style).toMatchObject({
+      fill: null,
+      opacity: 1,
+      stroke: { width: 10 }
+    });
+  });
+
+  it('scopes editable identities to the Photoshop source layer', () => {
+    const first = importPsdVectorShape({ ...source([path()]), sourceObjectId: 'layer-a' });
+    const second = importPsdVectorShape({ ...source([path()]), sourceObjectId: 'layer-b' });
+    expect(first.status).toBe('native');
+    expect(second.status).toBe('native');
+    if (first.status !== 'native' || second.status !== 'native') throw new Error('Expected vectors');
+    expect(first.elements[0]?.id).toBe('layer-a-vector-0');
+    expect(second.elements[0]?.id).toBe('layer-b-vector-0');
+    expect(first.elements[0]?.id).not.toBe(second.elements[0]?.id);
+  });
+
   it('routes unsupported Photoshop boolean and gradient semantics to fallback', () => {
     const subtract = path();
     subtract.operation = 'subtract';

@@ -105,6 +105,35 @@ describe('Photoshop text adapter', () => {
     expect(result.text.source.styleRuns[0]?.stroke).toMatchObject({ width: 2 });
   });
 
+  it('maps recovered Photoshop path text to native cubic geometry and flow binding', () => {
+    const result = importPsdText({
+      text: 'On a curve',
+      transform: [1, 0, 0, 1, 10, 20],
+      textPath: {
+        bezierCurve: { controlPoints: [10, 20, 20, 20, 30, 30, 40, 40] },
+        data: {
+          frameMatrix: [1, 0, 0, 1, -10, -20],
+          textRange: [0, 1],
+          pathData: { reversed: false }
+        }
+      }
+    }, 'text-layer', {
+      layerId: 'path-layer', elementId: 'path-element', subpathId: 'path-subpath'
+    });
+
+    expect(result.kind).toBe('editable-flow');
+    if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
+    expect(result.text.source.layout).toMatchObject({
+      mode: 'path', pathLayerId: 'path-layer', pathElementId: 'path-element',
+      pathSubpathId: 'path-subpath', startOffset: 0, direction: 'forward'
+    });
+    expect(result.path?.subpaths[0]?.anchors).toMatchObject([
+      { position: { x: 0, y: 0 }, handleOut: { x: 10, y: 0 } },
+      { position: { x: 30, y: 20 }, handleIn: { x: 20, y: 10 } }
+    ]);
+    expect(result.path?.style).toEqual({ fill: null, stroke: null, opacity: 1 });
+  });
+
   it('imports a text descriptor after an actual PSD binary write/read round trip', () => {
     const psd: Psd = {
       width: 64,

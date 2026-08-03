@@ -13,6 +13,13 @@ import {
   type TextLayerData,
   type TextStyleRun
 } from '@lighttable/text-core';
+import {
+  createAnchor,
+  createSubpath,
+  createVectorPath,
+  transformPoint,
+  type VectorPath
+} from '@lighttable/vector-core';
 import type { AffineMatrix } from '../rendering/renderContract';
 
 export type PsdTextImportResult =
@@ -20,6 +27,7 @@ export type PsdTextImportResult =
     readonly kind: 'editable-flow';
     readonly text: TextLayerData;
     readonly transform: AffineMatrix;
+    readonly path: VectorPath | null;
     readonly reasons: readonly string[];
   }
   | {
@@ -72,6 +80,62 @@ const affine = (value: unknown): AffineMatrix | null => {
     d: value[3],
     tx: value[4],
     ty: value[5]
+  };
+};
+
+export interface PsdTextPathTarget {
+  readonly layerId: string;
+  readonly elementId: string;
+  readonly subpathId: string;
+}
+
+interface PsdTextPathDescriptor {
+  bezierCurve?: { controlPoints?: unknown };
+  data?: {
+    frameMatrix?: unknown;
+    textRange?: unknown;
+    pathData?: { reversed?: unknown };
+  };
+}
+
+const importTextPath = (
+  value: unknown,
+  target: PsdTextPathTarget
+): { path: VectorPath; startOffset: number; direction: 'forward' | 'reverse' } | null => {
+  if (!value || typeof value !== 'object') return null;
+  const descriptor = value as PsdTextPathDescriptor;
+  const controlPoints = descriptor.bezierCurve?.controlPoints;
+  const matrix = affine(descriptor.data?.frameMatrix);
+  if (!Array.isArray(controlPoints) || controlPoints.length < 8
+    || controlPoints.length % 8 !== 0 || !controlPoints.every(finite) || !matrix) return null;
+  const point = (offset: number) => transformPoint(matrix, {
+    x: controlPoints[offset]!, y: controlPoints[offset + 1]!
+  });
+  const anchors = [createAnchor(`${target.subpathId}-anchor-0`, point(0), {
+    handleOut: point(2), mode: 'smooth'
+  })];
+  for (let segment = 0; segment < controlPoints.length / 8; segment += 1) {
+    const offset = segment * 8;
+    const nextOffset = offset + 8;
+    anchors.push(createAnchor(`${target.subpathId}-anchor-${segment + 1}`, point(offset + 6), {
+      handleIn: point(offset + 4),
+      handleOut: nextOffset < controlPoints.length ? point(nextOffset + 2) : null,
+      mode: 'smooth'
+    }));
+  }
+  const path = createVectorPath(
+    target.elementId,
+    'Photoshop Text Path',
+    [createSubpath(target.subpathId, anchors, false)]
+  );
+  path.style = { fill: null, stroke: null, opacity: 1 };
+  // Photoshop's textRange is a Bezier-parameter range rather than an arc
+  // length. The current file starts close to the canonical path origin; retain
+  // the exact descriptor for round-trip and use the full native traversal now.
+  return {
+    path,
+    startOffset: 0,
+    direction: descriptor.data?.pathData?.reversed === true ? 'reverse' : 'forward'
   };
 };
 
@@ -238,7 +302,11 @@ const unsupportedEditableSemantics = (source: LayerTextData): string[] => {
   return reasons;
 };
 
-export const importPsdText = (value: unknown, sourceObjectId?: string): PsdTextImportResult => {
+export const importPsdText = (
+  value: unknown,
+  sourceObjectId?: string,
+  pathTarget?: PsdTextPathTarget
+): PsdTextImportResult => {
   if (!value || typeof value !== 'object') {
     return { kind: 'preserved', reasons: ['The Photoshop text descriptor is missing or invalid.'] };
   }
@@ -249,7 +317,10 @@ export const importPsdText = (value: unknown, sourceObjectId?: string): PsdTextI
   if (source.warp?.style && source.warp.style !== 'none') {
     return { kind: 'preserved', reasons: ['Warped Photoshop text remains preview-backed until warp semantics are implemented.'] };
   }
-  if (source.textPath) {
+  const importedPath = source.textPath && pathTarget
+    ? importTextPath(source.textPath, pathTarget)
+    : null;
+  if (source.textPath && !importedPath) {
     return { kind: 'preserved', reasons: ['Photoshop text on a path remains preview-backed until path binding is implemented.'] };
   }
   if (source.orientation === 'vertical') {
@@ -291,7 +362,18 @@ export const importPsdText = (value: unknown, sourceObjectId?: string): PsdTextI
   const defaultFlow = createDefaultFlowTextSource(text);
   const pointBase = source.pointBase;
   const boxBounds = source.boxBounds;
-  const layout = source.shapeType === 'box'
+  const layout = importedPath && pathTarget
+    ? {
+      mode: 'path' as const,
+      pathLayerId: pathTarget.layerId,
+      pathElementId: pathTarget.elementId,
+      pathSubpathId: pathTarget.subpathId,
+      startOffset: importedPath.startOffset,
+      direction: importedPath.direction,
+      side: 'left' as const,
+      upright: true
+    }
+    : source.shapeType === 'box'
     && Array.isArray(boxBounds)
     && boxBounds.length === 4
     && boxBounds.every(finite)
@@ -315,7 +397,7 @@ export const importPsdText = (value: unknown, sourceObjectId?: string): PsdTextI
         : { x: 0, y: 0 },
       writingMode: 'horizontal-tb' as const
     };
-  if (source.shapeType === 'box' && layout.mode !== 'paragraph') {
+  if (!importedPath && source.shapeType === 'box' && layout.mode !== 'paragraph') {
     return { kind: 'preserved', reasons: ['The Photoshop paragraph text frame is missing or invalid.'] };
   }
   const insertionStyle = style({ ...(source.style ?? {}) }, 0, 1, reasons);
@@ -353,5 +435,10 @@ export const importPsdText = (value: unknown, sourceObjectId?: string): PsdTextI
       reasons: [`The normalized Photoshop text descriptor is outside LightTable's safe limits: ${error instanceof Error ? error.message : String(error)}`]
     };
   }
-  return { kind: 'editable-flow', text: data, transform, reasons: [...new Set(reasons)] };
+  if (importedPath) reasons.push('Photoshop path geometry is mapped to an editable native text path.');
+  return {
+    kind: 'editable-flow', text: data, transform,
+    path: importedPath?.path ?? null,
+    reasons: [...new Set(reasons)]
+  };
 };

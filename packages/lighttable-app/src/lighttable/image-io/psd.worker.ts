@@ -3,6 +3,7 @@
 import agPsd from 'ag-psd';
 import type { Layer, PatternInfo, Psd } from 'ag-psd';
 import { psdCompositeToPreviewPixels } from './psdPixelConversion';
+import { recoverPsdGlobalTextPaths } from './psdGlobalTextPaths';
 import type {
   PsdFeatureInventory,
   PsdDecodeStage,
@@ -344,6 +345,13 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
       logMissingFeatures: true,
       log: (message) => warnings.push(String(message))
     });
+    try {
+      recoverPsdGlobalTextPaths(psd);
+    } catch (error) {
+      warnings.push(
+        `Photoshop global text paths could not be recovered: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
     publishProgress(data.requestId, 'parsed');
     validateDocument(psd);
     const inventory = emptyInventory();

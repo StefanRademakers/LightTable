@@ -15,6 +15,22 @@ const argument = (name, fallback) => {
 };
 
 const sourceFile = path.resolve(argument('file', 'D:\\TextTest.psd'));
+const sourceName = path.basename(sourceFile);
+const expectedFlowLayers = Number.parseInt(argument(
+  'expect-flow-layers',
+  /^TextTest\.psd$/i.test(sourceName) ? '3' : '0'
+), 10);
+const expectedVectorLayers = Number.parseInt(argument(
+  'expect-vector-layers',
+  /^TextTest\.psd$/i.test(sourceName) ? '1' : '0'
+), 10);
+const selectLayer = argument('select-layer', '');
+const canvasClickX = Number.parseFloat(argument('canvas-click-x', 'NaN'));
+const canvasClickY = Number.parseFloat(argument('canvas-click-y', 'NaN'));
+const nudgeX = Number.parseInt(argument('nudge-x', '0'), 10);
+const nudgeY = Number.parseInt(argument('nudge-y', '0'), 10);
+const dragX = Number.parseFloat(argument('drag-x', '0'));
+const dragY = Number.parseFloat(argument('drag-y', '0'));
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -35,6 +51,9 @@ await Promise.all([
 
 const diagnostics = {
   sourceFile,
+  expectedFlowLayers,
+  expectedVectorLayers,
+  interaction: { selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY },
   outputFile,
   executablePath,
   capturedAt: new Date().toISOString(),
@@ -71,13 +90,21 @@ try {
   window.on('pageerror', (error) => diagnostics.pageErrors.push(error.stack ?? error.message));
 
   await window.getByRole('button', { name: 'Open file' }).click();
-  await window.getByRole('tab', { name: /TextTest\.psd/i }).waitFor({
+  const escapedSourceName = sourceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  await window.getByRole('tab', { name: new RegExp(escapedSourceName, 'i') }).waitFor({
     state: 'visible',
     timeout: 30_000
   });
-  await window.locator('.lighttable-layer__text-status', { hasText: 'Flow' })
-    .first()
-    .waitFor({ state: 'visible', timeout: 30_000 });
+  if (expectedFlowLayers > 0) {
+    await window.locator('.lighttable-layer__text-status', { hasText: 'Flow' })
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
+  }
+  if (expectedVectorLayers > 0) {
+    await window.locator('.lighttable-layer__thumbnail[title="Vector layer"]')
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
+  }
   await window.locator('.lighttable-toolbar__meta')
     .filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 30_000 });
@@ -88,8 +115,40 @@ try {
   }, undefined, { timeout: 15_000 }).catch(() => {});
   await window.waitForTimeout(750);
 
+  if (selectLayer) {
+    const layerRow = window.locator('.lighttable-layer').filter({
+      has: window.locator(`.lighttable-layer__name[value="${selectLayer.replaceAll('"', '\\"')}"]`)
+    });
+    await layerRow.click();
+    await window.getByRole('button', { name: /Path selection/i }).click();
+    if (Number.isFinite(canvasClickX) && Number.isFinite(canvasClickY)) {
+      const canvas = window.locator('.lighttable-viewport__canvas');
+      await canvas.click({
+        position: { x: canvasClickX, y: canvasClickY }
+      });
+      if (dragX !== 0 || dragY !== 0) {
+        const box = await canvas.boundingBox();
+        if (!box) throw new Error('The document canvas has no interactive bounds.');
+        await window.mouse.move(box.x + canvasClickX, box.y + canvasClickY);
+        await window.mouse.down();
+        await window.mouse.move(
+          box.x + canvasClickX + dragX,
+          box.y + canvasClickY + dragY,
+          { steps: 12 }
+        );
+        await window.mouse.up();
+      }
+    }
+    const horizontalKey = nudgeX < 0 ? 'ArrowLeft' : 'ArrowRight';
+    const verticalKey = nudgeY < 0 ? 'ArrowUp' : 'ArrowDown';
+    for (let index = 0; index < Math.abs(nudgeX); index += 1) await window.keyboard.press(horizontalKey);
+    for (let index = 0; index < Math.abs(nudgeY); index += 1) await window.keyboard.press(verticalKey);
+    await window.waitForTimeout(500);
+  }
+
   diagnostics.layers = await window.locator('.lighttable-layer').evaluateAll((rows) => rows.map((row) => ({
     name: row.querySelector('.lighttable-layer__name')?.value ?? '',
+    type: row.querySelector('.lighttable-layer__thumbnail')?.getAttribute('title') ?? '',
     statuses: [...row.querySelectorAll('.lighttable-layer__text-status')]
       .map((status) => status.textContent?.trim() ?? '')
       .filter(Boolean)
@@ -111,16 +170,24 @@ try {
   }
 
   const flowLayers = diagnostics.layers.filter(({ statuses }) => statuses.includes('Flow'));
+  const vectorLayers = diagnostics.layers.filter(({ type }) => type === 'Vector layer');
   const incompatible = diagnostics.layers.filter(({ statuses }) => statuses.some((status) =>
     /substituted|unavailable|raster/i.test(status)
   ));
-  if (flowLayers.length !== 3) {
-    throw new Error(`Expected 3 editable flow-text layers, found ${flowLayers.length}.`);
+  if (flowLayers.length !== expectedFlowLayers) {
+    throw new Error(
+      `Expected ${expectedFlowLayers} editable flow-text layers, found ${flowLayers.length}.`
+    );
+  }
+  if (vectorLayers.length !== expectedVectorLayers) {
+    throw new Error(
+      `Expected ${expectedVectorLayers} editable vector layers, found ${vectorLayers.length}.`
+    );
   }
   if (incompatible.length > 0) {
     throw new Error(`Imported text is not exact: ${JSON.stringify(incompatible)}.`);
   }
-  if (/text-renderer is unavailable/i.test(diagnostics.status)) {
+  if (expectedFlowLayers > 0 && /text-renderer is unavailable/i.test(diagnostics.status)) {
     throw new Error(diagnostics.status);
   }
 } catch (error) {
