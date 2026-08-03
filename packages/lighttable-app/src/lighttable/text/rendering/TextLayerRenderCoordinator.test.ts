@@ -102,6 +102,10 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.renderer.prepareTightSource).toHaveBeenCalledOnce();
     expect(state.publish).toHaveBeenCalledOnce();
     expect(state.submit).toHaveBeenCalledOnce();
+    expect(state.coordinator.editingLayout(document.layers[0]!.id)).toMatchObject({
+      layerId: document.layers[0]!.id,
+      layout: { key: 'layout' }
+    });
 
     state.coordinator.sync(document);
     await flush();
@@ -112,7 +116,9 @@ describe('TextLayerRenderCoordinator', () => {
   it('invalidates queued work when text becomes hidden', async () => {
     const state = harness();
     let resolveLayout!: (value: unknown) => void;
-    state.client.realizeTextDetailed.mockImplementationOnce(() => new Promise((resolve) => {
+    let signal: AbortSignal | undefined;
+    state.client.realizeTextDetailed.mockImplementationOnce((...args: unknown[]) => new Promise((resolve) => {
+      signal = args[1] as AbortSignal | undefined;
       resolveLayout = resolve;
     }) as never);
     const document = createImageDocument('Text', 32, 24, 'source');
@@ -122,6 +128,7 @@ describe('TextLayerRenderCoordinator', () => {
     state.coordinator.sync(document);
     await flush();
     state.coordinator.sync({ ...document, layers: [{ ...layer, visible: false }] });
+    expect(signal?.aborted).toBe(true);
     resolveLayout({
       layout: { key: 'stale', glyphRuns: [] },
       metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
@@ -130,6 +137,7 @@ describe('TextLayerRenderCoordinator', () => {
 
     expect(state.renderer.prepareTightSource).not.toHaveBeenCalled();
     expect(state.submit).not.toHaveBeenCalled();
+    expect(state.coordinator.editingLayout(layer.id)).toBeNull();
   });
 
   it('drops delayed work when the font port is detached', async () => {
@@ -150,6 +158,7 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.renderer.prepareTightSource).not.toHaveBeenCalled();
     expect(state.renderer.dispose).toHaveBeenCalled();
     expect(state.submit).not.toHaveBeenCalled();
+    expect(state.coordinator.editingLayout(document.layers[0]!.id)).toBeNull();
   });
 
   it('does not publish a candidate when queue submission fails', async () => {

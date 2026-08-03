@@ -1,6 +1,7 @@
 import {
   bumpTextLayerRevision,
   cloneTextLayerData,
+  type FlowTextSource,
   type FlowTextLayout,
   type ParagraphStyleRun,
   type PositionedTextRun,
@@ -145,7 +146,8 @@ export const setFlowTextContent = (
   layerId: LayerId,
   text: string,
   styleRuns: readonly TextStyleRun[],
-  paragraphRuns: readonly ParagraphStyleRun[]
+  paragraphRuns: readonly ParagraphStyleRun[],
+  insertionState?: Pick<FlowTextSource, 'insertionStyle' | 'insertionParagraph'>
 ) => updateTextLayer(document, layerId, (layer) => {
   if (layer.text.source.kind !== 'flow') return layer.text;
   const contentChanged = layer.text.source.text !== text;
@@ -166,12 +168,17 @@ export const setFlowTextContent = (
     paragraphSignature(layer.text.source.paragraphRuns, includeRanges),
     paragraphSignature(paragraphRuns, includeRanges)
   );
+  const insertionStateChanged = insertionState !== undefined && (
+    !sameValue(layer.text.source.insertionStyle, insertionState.insertionStyle)
+    || !sameValue(layer.text.source.insertionParagraph, insertionState.insertionParagraph)
+  );
   if (
     !contentChanged
     && !fontChanged
     && !inlineLayoutChanged
     && !paintChanged
     && !paragraphsChanged
+    && !insertionStateChanged
   ) return layer.text;
   return bumpRevisions({
     ...layer.text,
@@ -179,7 +186,13 @@ export const setFlowTextContent = (
       ...layer.text.source,
       text,
       styleRuns: structuredClone(styleRuns),
-      paragraphRuns: structuredClone(paragraphRuns)
+      paragraphRuns: structuredClone(paragraphRuns),
+      ...(insertionState === undefined ? {} : {
+        ...(insertionState.insertionStyle === undefined
+          ? {} : { insertionStyle: structuredClone(insertionState.insertionStyle) }),
+        ...(insertionState.insertionParagraph === undefined
+          ? {} : { insertionParagraph: structuredClone(insertionState.insertionParagraph) })
+      })
     }
   }, [
     ...(contentChanged ? ['content' as const] : []),
@@ -286,7 +299,9 @@ export const applyTextLayerDataMutation = (
   if (current.source.kind === 'flow' && next.source.kind === 'flow') {
     const contentOrRunsChanged = current.source.text !== next.source.text
       || !sameValue(current.source.styleRuns, next.source.styleRuns)
-      || !sameValue(current.source.paragraphRuns, next.source.paragraphRuns);
+      || !sameValue(current.source.paragraphRuns, next.source.paragraphRuns)
+      || !sameValue(current.source.insertionStyle, next.source.insertionStyle)
+      || !sameValue(current.source.insertionParagraph, next.source.insertionParagraph);
     const layoutChanged = !sameValue(current.source.layout, next.source.layout);
     if (
       (contentOrRunsChanged && layerIsLocked(layer, 'pixels'))
@@ -299,7 +314,8 @@ export const applyTextLayerDataMutation = (
         layerId,
         next.source.text,
         next.source.styleRuns,
-        next.source.paragraphRuns
+        next.source.paragraphRuns,
+        next.source
       );
     }
     return layoutChanged

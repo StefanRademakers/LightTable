@@ -1,0 +1,18 @@
+# Task 030 — Real text editing, IME, caret and selection
+
+Status: complete. Implements Slice 11 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+Started from: `62efb79`
+Owner: Codex `/root`
+
+## Verified outcome
+
+- Hidden accessible input bridge owns beforeinput, composition and clipboard input.
+- Grapheme-safe insertion, deletion, movement and selection edit flow text.
+- Caret, selection, baseline and insertion indicators render through the GPU overlay pass.
+- Overlay-only state never dirties or recomposites the document.
+- Editing lifecycle covers entry, keyboard routing, focus restoration and late-layout guards.
+- Typing and IME composition produce explicit predictable undo groups.
+- The 266-file / 1,286-test workspace suite, all typechecks, boundary check,
+  web build and packaged Electron verification pass.

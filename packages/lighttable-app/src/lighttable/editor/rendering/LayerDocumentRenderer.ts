@@ -76,6 +76,10 @@ export class LayerDocumentRenderer {
     this.runtime.textLayerCoordinator.configureFonts(port);
   }
 
+  textEditingLayout(layerId: LayerId) {
+    return this.runtime.textLayerCoordinator.editingLayout(layerId);
+  }
+
   pruneDetachedRuntimes(
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>

@@ -51,7 +51,8 @@ const setup = (initialDocument: ImageDocument) => {
     mergeSelectedRasterLayers: vi.fn(),
     requestFlattenGroup: vi.fn(),
     requestFlattenImage: vi.fn(),
-    editStyles: vi.fn()
+    editStyles: vi.fn(),
+    finishTextEditing: vi.fn()
   };
   const controller = createLayerPanelController(() => dependencies);
   return {
@@ -71,6 +72,22 @@ describe('createLayerPanelController', () => {
 
     expect(state.dependencies.duplicateActiveLayer).toHaveBeenCalledOnce();
     expect(state.dependencies.rasterizeActiveTextLayer).toHaveBeenCalledOnce();
+    expect(state.dependencies.finishTextEditing).toHaveBeenCalledOnce();
+  });
+
+  it('finishes text editing before destructive layer-tree commands', () => {
+    let document = createImageDocument('test', 100, 100, 'asset');
+    document = createRasterLayer(document, 'Disposable');
+    const state = setup(document);
+    const active = state.document().activeLayerId!;
+
+    state.controller.deleteSelection([active]);
+    state.controller.mergeDown();
+    state.controller.mergeSelected([active]);
+    state.controller.flattenGroup(active);
+    state.controller.flattenImage();
+
+    expect(state.dependencies.finishTextEditing).toHaveBeenCalledTimes(5);
   });
 
   it('selects an adjustment layer and projects its grade without document effects', () => {

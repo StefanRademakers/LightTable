@@ -273,8 +273,7 @@ const assertRunCoverage = (
 const assertFlowSource = (source: Record<string, unknown>, path: string): void => {
   const text = stringValue(source.text, `${path}.text`);
   if (text.length > MAX_TEXT_CODE_UNITS) fail(`${path}.text`, `exceeds the ${MAX_TEXT_CODE_UNITS} UTF-16 code-unit limit`);
-  const styleRuns = array(source.styleRuns, `${path}.styleRuns`);
-  assertRunCoverage(styleRuns, text, `${path}.styleRuns`, (run, runPath) => {
+  const assertStyle = (run: Record<string, unknown>, runPath: string) => {
     assertRequestedFont(run.requestedFont, `${runPath}.requestedFont`);
     if (finite(run.fontSize, `${runPath}.fontSize`) <= 0) fail(`${runPath}.fontSize`, 'must be positive');
     numberInRange(run.fontWeight, `${runPath}.fontWeight`, 1, 1000);
@@ -299,9 +298,8 @@ const assertFlowSource = (source: Record<string, unknown>, path: string): void =
     if (run.language !== undefined) boundedString(run.language, `${runPath}.language`, 128);
     if (run.scriptOverride !== undefined) boundedString(run.scriptOverride, `${runPath}.scriptOverride`, 32);
     if (run.directionOverride !== undefined) oneOf(run.directionOverride, `${runPath}.directionOverride`, ['ltr', 'rtl']);
-  });
-  const paragraphRuns = array(source.paragraphRuns, `${path}.paragraphRuns`);
-  assertRunCoverage(paragraphRuns, text, `${path}.paragraphRuns`, (run, runPath) => {
+  };
+  const assertParagraph = (run: Record<string, unknown>, runPath: string) => {
     oneOf(run.alignment, `${runPath}.alignment`, ['start', 'center', 'end', 'justify']);
     oneOf(run.direction, `${runPath}.direction`, ['auto', 'ltr', 'rtl']);
     const lineHeight = record(run.lineHeight, `${runPath}.lineHeight`);
@@ -309,7 +307,17 @@ const assertFlowSource = (source: Record<string, unknown>, path: string): void =
     if (kind !== 'normal' && finite(lineHeight.value, `${runPath}.lineHeight.value`) <= 0) fail(`${runPath}.lineHeight.value`, 'must be positive');
     for (const property of ['firstLineIndent', 'startIndent', 'endIndent', 'spaceBefore', 'spaceAfter'] as const) finite(run[property], `${runPath}.${property}`);
     oneOf(run.hyphenation, `${runPath}.hyphenation`, ['off', 'auto']);
-  });
+  };
+  const styleRuns = array(source.styleRuns, `${path}.styleRuns`);
+  assertRunCoverage(styleRuns, text, `${path}.styleRuns`, assertStyle);
+  const paragraphRuns = array(source.paragraphRuns, `${path}.paragraphRuns`);
+  assertRunCoverage(paragraphRuns, text, `${path}.paragraphRuns`, assertParagraph);
+  if (source.insertionStyle !== undefined) {
+    assertStyle(record(source.insertionStyle, `${path}.insertionStyle`), `${path}.insertionStyle`);
+  }
+  if (source.insertionParagraph !== undefined) {
+    assertParagraph(record(source.insertionParagraph, `${path}.insertionParagraph`), `${path}.insertionParagraph`);
+  }
   const layout = record(source.layout, `${path}.layout`);
   const mode = oneOf(layout.mode, `${path}.layout.mode`, ['point', 'paragraph', 'path']);
   if (mode === 'point') {

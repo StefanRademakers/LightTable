@@ -154,6 +154,9 @@ export interface FlowTextSource {
   readonly text: string;
   readonly styleRuns: readonly TextStyleRun[];
   readonly paragraphRuns: readonly ParagraphStyleRun[];
+  /** Authoring state retained while an empty flow has no coverable text range. */
+  readonly insertionStyle?: Omit<TextStyleRun, 'start' | 'end'>;
+  readonly insertionParagraph?: Omit<ParagraphStyleRun, 'start' | 'end'>;
   readonly layout: FlowTextLayout;
 }
 

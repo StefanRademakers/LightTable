@@ -68,7 +68,7 @@ interface ViewportInteractionOptions {
   onFocusPick: (normalizedPoint: { x: number; y: number }) => void;
   onFocusPickerEnd: () => void;
   onFill: (color: string) => void;
-  onPointTextCreate: (point: { x: number; y: number }) => void;
+  onPointTextCreate: (point: { x: number; y: number }, clickCount: number) => void;
   selection: SelectionSessionController;
   paint: PaintSessionController;
   warp: WarpSessionController;
@@ -446,7 +446,7 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent === 'text-create' && point) {
-        onPointTextCreate({ x: point.x, y: point.y });
+        onPointTextCreate({ x: point.x, y: point.y }, event.detail);
         event.preventDefault();
         return;
       }

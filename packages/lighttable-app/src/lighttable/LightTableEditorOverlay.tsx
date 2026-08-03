@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { TEXT_CONTRACT_FIXTURE_COUNT } from '@lighttable/text-core';
+import { buildTextEditingOverlay } from '@lighttable/text-rendering';
 import {
   DocumentCommandHistory
 } from './application/commands/documentCommandHistory';
@@ -108,12 +109,15 @@ import { sampleMedianDepth } from './analysis/depth/normalization';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import { PointTextCreationDialog } from './editor/ui/PointTextCreationDialog';
+import { TextInputBridge } from './editor/ui/TextInputBridge';
 import {
   PointTextCreationController,
   createPointTextDocument,
   defaultTextStyleForFamily,
   resolveTextToolFont
 } from './application/text/pointTextCreation';
+import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
+import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
 import { FontationsFontFaceParser } from './text/fonts/FontationsFontFaceParser';
@@ -164,7 +168,8 @@ import {
 } from './editor/document/documentTypes';
 import {
   findDocumentLayer,
-  findRasterLayer
+  findRasterLayer,
+  walkLayerTree
 } from './editor/document/layerTree';
 import {
   type FontAssetBlob,
@@ -434,6 +439,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pointTextCapabilityGenerationRef = useRef(0);
   const commitPointTextRef = useRef<() => boolean>(() => false);
   const cancelPointTextRef = useRef<() => boolean>(() => false);
+  const finishTextEditingRef = useRef<() => boolean>(() => false);
+  const selectLayerRef = useRef<(layerId: LayerId) => void>(() => undefined);
   const pointTextCreation = useSyncExternalStore(
     pointTextController.subscribe,
     pointTextController.getSnapshot,
@@ -448,6 +455,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   useEffect(() => () => {
     pointTextController.cancel();
+    textEditingControllerRef.current?.finish();
     standaloneFontRegistryRef.current?.dispose();
     standaloneFontRegistryRef.current = null;
   }, [pointTextController]);
@@ -457,6 +465,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     fontHydrationGenerationRef.current += 1;
     pointTextCapabilityGenerationRef.current += 1;
     pointTextController.cancel();
+    textEditingControllerRef.current?.reset();
     setTemporaryPanActive(false);
     setTemporaryEraseActive(false);
     brushPercentInputRef.current.clear();
@@ -653,6 +662,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const finishOpenHistoryTransactions = useCallback(() => {
     commitPointTextRef.current();
+    finishTextEditingRef.current();
     resetAdjustmentTransactionRef.current();
     resetDocumentTransactionRef.current();
   }, []);
@@ -679,6 +689,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pushDocumentHistory = documentMutationController.record;
   const beginDocumentTransaction = documentMutationController.begin;
   const endDocumentTransaction = documentMutationController.end;
+  const textEditingControllerRef = useRef<FlowTextEditingSessionController | null>(null);
+  textEditingControllerRef.current ??= new FlowTextEditingSessionController(() => ({
+    getDocument: () => imageDocumentRef.current,
+    applyDocument: applyDocumentSnapshot,
+    pushHistory: (entry) => pushHistoryEntry({
+      ...entry,
+      type: `text.${entry.group}`,
+      label: entry.group === 'composition' ? 'Compose text' : 'Edit text'
+    })
+  }));
+  const textEditingController = textEditingControllerRef.current;
+  const textEditing = useSyncExternalStore(
+    textEditingController.subscribe,
+    textEditingController.getSnapshot,
+    textEditingController.getSnapshot
+  );
+  finishTextEditingRef.current = () => textEditingController.finish();
 
   const selectionSessionController = useSelectionSessionController({
     getDocument: () => imageDocumentRef.current,
@@ -914,6 +941,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [textFontRegistry]);
 
   const beforeDocumentOpen = useCallback(() => {
+    finishTextEditingRef.current();
     fontHydrationGenerationRef.current += 1;
     if (!documentSession) {
       standaloneFontRegistryRef.current?.dispose();
@@ -1077,6 +1105,46 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     afterClose: afterDocumentClose
   });
 
+  const textEditingOverlay = useMemo(() => {
+    if (textEditing.status !== 'editing' || !textEditing.layerId) return null;
+    const presentation = engineRef.current?.textEditingLayout(textEditing.layerId);
+    if (!presentation) return null;
+    const composition = textEditing.compositionRange ? {
+      start: Math.min(textEditing.compositionRange.anchor, textEditing.compositionRange.focus),
+      end: Math.max(textEditing.compositionRange.anchor, textEditing.compositionRange.focus)
+    } : null;
+    return buildTextEditingOverlay({
+      layerId: textEditing.layerId,
+      layout: presentation.layout,
+      localToDocument: presentation.localToDocument,
+      anchor: textEditing.selection.anchor,
+      focus: textEditing.selection.focus,
+      caretAffinity: textEditing.caretAffinity,
+      composition
+    });
+  }, [
+    imageDocument,
+    textEditing,
+    textRenderPresentation.publicationRevision
+  ]);
+
+  useEffect(() => {
+    const renderer = engineRef.current;
+    if (!renderer || !active || !textEditingOverlay) {
+      renderer?.setTextEditingOverlay(null);
+      return undefined;
+    }
+    let caretVisible = true;
+    renderer.setTextEditingOverlay(textEditingOverlay, caretVisible);
+    const blink = window.setInterval(() => {
+      caretVisible = !caretVisible;
+      renderer.setTextEditingOverlay(textEditingOverlay, caretVisible);
+    }, 530);
+    return () => {
+      window.clearInterval(blink);
+      renderer.setTextEditingOverlay(null);
+    };
+  }, [active, textEditingOverlay]);
 
   useRendererPresentationSync({
     rendererRef: engineRef,
@@ -1146,9 +1214,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       transforming: transformActiveRef.current()
     }),
     commands: {
-      openFile: () => { void chooseLocalFile('automatic'); },
-      saveFile: () => { commitPointTextRef.current(); void handleSave(); },
-      quickExportPng: () => { commitPointTextRef.current(); void handleExportPng(); },
+      openFile: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
+      saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); void handleSave(); },
+      quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); void handleExportPng(); },
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       activateTool: (tool) => activateToolRef.current(tool),
@@ -1444,7 +1512,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     onFocusPickerEnd: () => setFocusPickerActive(false),
     onFill: fillActiveTarget,
-    onPointTextCreate: (point) => { void beginPointTextCreation(point); },
+    onPointTextCreate: (point) => {
+      const document = imageDocumentRef.current;
+      if (document) {
+        const candidates = walkLayerTree(document.layers)
+          .map(({ node }) => node)
+          .filter((node) => node.type === 'text' && node.text.source.kind === 'flow')
+          .reverse();
+        for (const layer of candidates) {
+          const layout = engineRef.current?.textEditingLayout(layer.id);
+          const hit = layout ? hitTestTextEditingLayout(layout, point) : null;
+          if (!hit) continue;
+          pointTextController.cancel();
+          selectLayerRef.current(layer.id);
+          textEditingController.begin(layer.id, hit.offset, hit.affinity);
+          return;
+        }
+      }
+      textEditingController.finish();
+      void beginPointTextCreation(point);
+    },
     selection: selectionSessionController,
     paint: paintSessionController,
     warp: warpSessionController,
@@ -1460,6 +1547,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     change: (current: ImageDocument) => ImageDocument,
     recordHistory = true
   ) => {
+    textEditingController.finish();
     documentMutationController.change(change, recordHistory);
   };
 
@@ -1576,9 +1664,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     requestFlattenImage: () => editorDialogs.requestFlatten({ kind: 'image' }),
     editStyles: openLayerStyleEditor,
     prepareActiveLayerChange: (layerId) => {
+      if (textEditingController.getSnapshot().layerId !== layerId) {
+        textEditingController.finish();
+      }
       vectorToolSessionController.prepareActiveLayerChange(layerId);
-    }
+    },
+    finishTextEditing: () => { textEditingController.finish(); }
   });
+  selectLayerRef.current = layerPanelController.select;
 
   const transformSession = useTransformSessionController({
     activeTool: editorSession.activeTool,
@@ -1627,6 +1720,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (requestedTool !== 'text-point') {
       pointTextCapabilityGenerationRef.current += 1;
       commitPointTextCreation();
+      textEditingController.finish();
     }
     if (
       editorSession.activeTool === 'warp'
@@ -1741,12 +1835,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       primaryShortcut: primaryShortcutLabel
     },
     file: {
-      newDocument: () => onRequestNewWorkspaceDocument?.(),
+      newDocument: () => { finishTextEditingRef.current(); onRequestNewWorkspaceDocument?.(); },
       // The application probe selects browser-native, wasm-vips, Photoshop or
       // layered-document import after reading the source signature.
-      open: () => void chooseLocalFile('automatic'),
-      save: () => { commitPointTextRef.current(); void handleSave(); },
-      exportPng: () => { commitPointTextRef.current(); void handleExportPng(); }
+      open: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
+      save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); void handleSave(); },
+      exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); void handleExportPng(); }
     },
     edit: {
       copySelectedContent,
@@ -1796,6 +1890,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       activeChannel={editorSession.activeChannel}
       isolatedMaskLayerId={isolatedMaskLayerId}
       controller={layerPanelController}
+      editingTextLayerId={textEditing.layerId}
+      onEditText={(layerId) => {
+        pointTextController.cancel();
+        activatePersistentTool('text-point');
+        textEditingController.begin(layerId);
+      }}
       onSelectionChange={handleLayerSelectionChange}
       onMaskIsolationChange={(layerId) => {
         setIsolatedMaskLayerId(layerId);
@@ -2035,6 +2135,53 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     transformState,
                     loading,
                     unavailable: Boolean(error && !metadata),
+                    inputBridge: textEditing.status === 'editing' ? (
+                      <TextInputBridge
+                        label={`Edit ${imageDocument && textEditing.layerId
+                          ? findDocumentLayer(imageDocument, textEditing.layerId)?.name ?? 'text layer'
+                          : 'text layer'}`}
+                        text={textEditingController.text()}
+                        selectionStart={Math.min(textEditing.selection.anchor, textEditing.selection.focus)}
+                        selectionEnd={Math.max(textEditing.selection.anchor, textEditing.selection.focus)}
+                        focusKey={textEditing.focusKey}
+                        selectedText={textEditingController.selectedText()}
+                        onEdit={(command) => {
+                          if (command.kind === 'insert') textEditingController.insert(command.text);
+                          else textEditingController.delete(command.direction, command.unit);
+                        }}
+                        onNavigate={(command, extend) => {
+                          if (command === 'select-all') {
+                            textEditingController.selectAll();
+                          } else if (command === 'backward' || command === 'forward') {
+                            textEditingController.navigate(command, { extend });
+                          } else if (command === 'word-backward' || command === 'word-forward') {
+                            textEditingController.navigate(
+                              command === 'word-backward' ? 'backward' : 'forward',
+                              { extend, unit: 'word' }
+                            );
+                          } else if (command === 'document-start') {
+                            textEditingController.moveToBoundary('start', extend);
+                          } else if (command === 'document-end') {
+                            textEditingController.moveToBoundary('end', extend);
+                          } else if (textEditing.layerId) {
+                            const layout = engineRef.current
+                              ?.textEditingLayout(textEditing.layerId)?.layout;
+                            if (layout) textEditingController.navigateLayout(layout, command, extend);
+                            else textEditingController.navigateLogicalLine(command, extend);
+                          }
+                        }}
+                        onCompositionStart={() => { textEditingController.compositionStart(); }}
+                        onCompositionUpdate={(text) => { textEditingController.compositionUpdate(text); }}
+                        onCompositionEnd={(text) => { textEditingController.compositionEnd(text); }}
+                        onPaste={(text) => { textEditingController.paste(text); }}
+                        onCut={() => { textEditingController.delete('backward'); }}
+                        onCheckpoint={() => { textEditingController.checkpoint(); }}
+                        onCommit={() => { textEditingController.finish(); }}
+                        onCancel={() => {
+                          if (!textEditingController.cancelComposition()) textEditingController.finish();
+                        }}
+                      />
+                    ) : null,
                     onWheel: viewportInteraction.onWheel,
                     onPointerDown: viewportInteraction.onPointerDown,
                     onPointerMove: viewportInteraction.onPointerMove,

@@ -101,7 +101,7 @@ lanes are:
 
 | Slice | Owner | Started from | Status/notes |
 |---|---|---|---|
-| — | — | — | No implementation slice claimed |
+| — | — | — | No active claim |
 
 Handoff requirements:
 
@@ -404,15 +404,15 @@ work in both hosts.
 
 #### Slice 11 — real editing, IME, caret and selection
 
-- [ ] Add a hidden focused input bridge for beforeinput, composition/IME,
+- [x] Add a hidden focused input bridge for beforeinput, composition/IME,
   clipboard and accessibility only.
-- [ ] Implement grapheme-safe insert/delete, word movement and selection.
-- [ ] Draw caret, selection, baseline and insertion indicators in the GPU
+- [x] Implement grapheme-safe insert/delete, word movement and selection.
+- [x] Draw caret, selection, baseline and insertion indicators in the GPU
   overlay pass.
-- [ ] Keep caret blink and selection changes out of document compositing.
-- [ ] Route Enter/Escape, arrows, Home/End, modifiers and focus restoration.
-- [ ] Coalesce typing history without losing composition boundaries.
-- [ ] Cancel and ignore late layouts on tool/layer/document changes.
+- [x] Keep caret blink and selection changes out of document compositing.
+- [x] Route Enter/Escape, arrows, Home/End, modifiers and focus restoration.
+- [x] Coalesce typing history without losing composition boundaries.
+- [x] Cancel and ignore late layouts on tool/layer/document changes.
 
 UI exposure: double-click a text layer or select Text and click it to edit;
 Layers row identifies the actively edited layer. Context menus and text fields
@@ -651,6 +651,33 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 — Slice 11 complete
+
+- Owner: Codex `/root`; renderer/input mapping and an independent lifecycle
+  blocker audit were delegated before final verification.
+- Editing: a hidden native textarea owns beforeinput, clipboard and IME while
+  canonical UTF-16 edits snap to grapheme boundaries. Arrow, word, logical and
+  realized-line navigation preserve bidi affinity and explicit selection.
+- GPU/UI: caret, selection, baseline, insertion and composition feedback use a
+  bounded renderer-neutral overlay and the existing WebGPU overlay pass. Blink
+  changes only viewport presentation and never dirties document compositing.
+- Lifecycle/history: typing, deletion, paste and composition have explicit undo
+  boundaries. Blur, open, save, export, tool/layer changes and document
+  replacement finalize safely; abort signals prevent late layout/raster work
+  from publishing into a stale session.
+- Contract: optional validated insertion style/paragraph metadata preserves
+  authoring intent while an empty flow has no coverable run range. Persisted
+  text schema remains version 1 because the fields are additive and optional.
+- Verification: generated WASM runtime and structural goldens; complete
+  266-file / 1,286-test workspace suite; all typechecks and architecture
+  boundary passed. Web production and packaged Electron builds passed.
+  Existing wasm-vips eval, chunk-size and Electron inlineDynamicImports
+  warnings are unchanged.
+- Manual UI: no attached browser/WebGPU surface was available for physical IME
+  interaction; native-event mapping, IME ordering, focus lifecycle, shader
+  reflection, GPU contracts and production host builds are automated.
+- Next safe slice: Slice 12, character properties and mixed style runs.
 
 ### 2026-08-03 — Slice 08 complete
 

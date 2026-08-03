@@ -136,6 +136,25 @@ describe('text document contracts', () => {
     expect(() => assertTextLayerData(layer)).not.toThrow();
   });
 
+  it('round-trips validated insertion styling for an empty authored flow', () => {
+    const populated = createDefaultFlowTextSource('x');
+    const { start: _styleStart, end: _styleEnd, ...insertionStyle } = populated.styleRuns[0];
+    const { start: _paragraphStart, end: _paragraphEnd, ...insertionParagraph } = populated.paragraphRuns[0];
+    const layer = {
+      ...createDefaultTextLayerData(),
+      source: {
+        ...createDefaultFlowTextSource(''),
+        insertionStyle: { ...insertionStyle, fontSize: 73 },
+        insertionParagraph
+      }
+    };
+    expect(parseTextLayerData(JSON.parse(JSON.stringify(layer)) as unknown)).toEqual(layer);
+    expect(() => assertTextLayerData({
+      ...layer,
+      source: { ...layer.source, insertionStyle: { ...layer.source.insertionStyle, fontSize: 0 } }
+    })).toThrow(/insertionStyle.fontSize/);
+  });
+
   it('rejects malformed schemas, optional enums, metadata and runtime handles', () => {
     expect(() => assertTextLayerData({ ...createDefaultTextLayerData(), schemaVersion: 2 })).toThrow(/schemaVersion/);
     const badLanguage = cloneTextLayerData(createDefaultTextLayerData()) as unknown as { source: { styleRuns: Array<Record<string, unknown>> } };

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { WgslReflect } from 'wgsl_reflect/wgsl_reflect.module.js';
 import { COVERAGE_ATLAS_WGSL } from './coverageShader';
 import { HB_GPU_DRAW_WGSL, HB_GPU_SOURCE_REVISION } from './hbGpuShader.generated';
+import {
+  TEXT_EDITING_OVERLAY_LINE_WGSL,
+  TEXT_EDITING_OVERLAY_QUAD_WGSL
+} from './textEditingOverlayShader';
 
 describe('text renderer bakeoff WGSL', () => {
   it('reflects the bounded R8 atlas entry points and bindings', () => {
@@ -19,5 +23,13 @@ describe('text renderer bakeoff WGSL', () => {
     expect(HB_GPU_DRAW_WGSL).toContain('@vertex fn lighttable_hb_gpu_vertex');
     expect(HB_GPU_DRAW_WGSL).toContain('@fragment fn lighttable_hb_gpu_fragment');
     expect(HB_GPU_DRAW_WGSL).toContain('@group(0) @binding(1) var<storage, read> hb_gpu_atlas');
+  });
+
+  it('reflects GPU-only text editing quad and screen-pixel line shaders', () => {
+    expect(() => new WgslReflect(TEXT_EDITING_OVERLAY_QUAD_WGSL)).not.toThrow();
+    expect(() => new WgslReflect(TEXT_EDITING_OVERLAY_LINE_WGSL)).not.toThrow();
+    expect(TEXT_EDITING_OVERLAY_QUAD_WGSL).toContain('@vertex fn quadVertex');
+    expect(TEXT_EDITING_OVERLAY_LINE_WGSL).toContain('@vertex fn lineVertex');
+    expect(TEXT_EDITING_OVERLAY_LINE_WGSL).toContain('line.style.x * 0.5');
   });
 });

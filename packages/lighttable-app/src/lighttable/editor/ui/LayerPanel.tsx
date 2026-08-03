@@ -73,6 +73,8 @@ interface LayerPanelProps {
   onStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => void;
   onClearStyles: (layerId: LayerId) => void;
   onSelectionChange?: (layerIds: LayerId[]) => void;
+  editingTextLayerId?: LayerId | null;
+  onEditText?: (layerId: LayerId) => void;
 }
 
 interface VisualLayerRow {
@@ -172,7 +174,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onLocalLensFxEnabled,
   onStyleEnabled,
   onClearStyles,
-  onSelectionChange
+  onSelectionChange,
+  editingTextLayerId = null,
+  onEditText
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
@@ -512,6 +516,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               'lighttable-layer',
               document.activeLayerId === layer.id ? 'lighttable-layer--active' : '',
               selectedLayerIds.has(layer.id) ? 'lighttable-layer--selected' : '',
+              editingTextLayerId === layer.id ? 'lighttable-layer--text-editing' : '',
               layer.clipping ? 'lighttable-layer--clipped' : '',
               draggedLayerId === layer.id ? 'lighttable-layer--dragging' : '',
               dropTarget?.layerId === layer.id ? `lighttable-layer--drop-${dropTarget.placement}` : ''
@@ -537,6 +542,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 return;
               }
               selectLayer(event, layer.id);
+            }}
+            onDoubleClick={(event) => {
+              if (layer.type !== 'text') return;
+              event.preventDefault();
+              event.stopPropagation();
+              if (layer.text.source.kind === 'flow') onEditText?.(layer.id);
             }}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -716,7 +727,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     : layer.type === 'group'
                       ? 'Group'
                       : layer.type === 'text'
-                        ? 'Text layer (diagnostic rendering)'
+                        ? layer.text.source.kind === 'flow' ? 'Editable flow text' : 'Positioned text'
                         : layer.type === 'vector' ? 'Vector layer' : 'Adjustment layer'
                 }
               >
@@ -830,8 +841,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <>
                   <span
                     className="lighttable-layer__text-status"
-                    title="Text is shown with the GPU diagnostic placeholder until its renderer is available"
+                    title={layer.text.source.kind === 'positioned'
+                      ? 'Positioned text preserves imported glyph placement; convert it before flow editing'
+                      : 'Editable flow text rendered by WebGPU'}
                   >{layer.text.source.kind === 'positioned' ? 'Positioned' : 'Flow'}</span>
+                  {editingTextLayerId === layer.id ? (
+                    <span className="lighttable-layer__text-status lighttable-layer__text-status--editing">
+                      Editing
+                    </span>
+                  ) : null}
                   {fontStatus && fontStatus.kind !== 'exact' ? (
                     <span
                       className={`lighttable-layer__text-status lighttable-layer__text-status--${fontStatus.kind}`}

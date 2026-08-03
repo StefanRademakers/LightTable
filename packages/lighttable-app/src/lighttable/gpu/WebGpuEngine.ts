@@ -93,6 +93,8 @@ import {
 } from '../editor/selection/selectionEditingOverlay';
 import { SelectionContourOverlayBackend } from '../editor/rendering/SelectionContourOverlayBackend';
 import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoordinator';
+import type { TextEditingOverlay } from '@lighttable/text-rendering';
+import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
 
 export class WebGpuEngine {
   private readonly canvas: HTMLCanvasElement;
@@ -213,6 +215,9 @@ export class WebGpuEngine {
   } | null = null;
   private transformEditingFrame: VectorSelectionFrame | null = null;
   private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
+  private textEditingOverlayBackend: TextEditingOverlayBackend | null = null;
+  private textEditingOverlay: TextEditingOverlay | null = null;
+  private textCaretVisible = true;
   private selectionContourOverlayBackend: SelectionContourOverlayBackend | null = null;
 
   static async create(
@@ -368,6 +373,7 @@ export class WebGpuEngine {
     if (!this.imageResources.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
     const previousDocument = this.imageDocument;
     const firstDocument = !previousDocument || previousDocument.id !== document.id;
+    if (firstDocument) this.textEditingOverlay = null;
     this.imageDocument = document;
     const warpDebugOwnerChanged = this.layerEffectRenderer?.setWarpDebugVisualization(
       this.warpDebugVisualization,
@@ -392,6 +398,10 @@ export class WebGpuEngine {
 
   configureTextFonts(port: TextFontRuntimePort | null) {
     this.documentRenderer?.configureTextFonts(port);
+  }
+
+  textEditingLayout(layerId: LayerId) {
+    return this.documentRenderer?.textEditingLayout(layerId) ?? null;
   }
 
   private initializeLayerStylesIfNeeded(document: ImageDocument) {
@@ -1168,6 +1178,17 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setTextEditingOverlay(overlay: TextEditingOverlay | null, caretVisible = true) {
+    if (
+      this.textEditingOverlay?.resourceKey === overlay?.resourceKey
+      && this.textCaretVisible === caretVisible
+    ) return;
+    this.textEditingOverlay = overlay;
+    this.textCaretVisible = caretVisible;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   setBrushCursorOverlay(cursor: {
     center: { x: number; y: number };
     diameter: number;
@@ -1626,6 +1647,7 @@ export class WebGpuEngine {
     );
     this.device.queue.submit([encoder.finish()]);
     void this.vectorEditingOverlayBackend?.notifySubmitted();
+    void this.textEditingOverlayBackend?.notifySubmitted();
     this.renderTelemetry.recordSubmittedFrame();
     void this.device.popErrorScope().then((validationError) => {
       if (!this.destroyed && validationError) {
@@ -1719,6 +1741,9 @@ export class WebGpuEngine {
     this.documentRenderer = null;
     this.vectorEditingOverlayBackend?.dispose();
     this.vectorEditingOverlayBackend = null;
+    this.textEditingOverlayBackend?.dispose();
+    this.textEditingOverlayBackend = null;
+    this.textEditingOverlay = null;
   }
 
   private encodeVectorEditingOverlays(
@@ -1756,6 +1781,7 @@ export class WebGpuEngine {
       && !selectionMask
       && !this.transformEditingFrame
       && !this.brushCursorOverlay
+      && !this.textEditingOverlay
     ) return;
     const uniforms = viewportRenderState.uniforms;
     const target: VectorEditingOverlayTarget = {
@@ -1832,9 +1858,19 @@ export class WebGpuEngine {
         BRUSH_CURSOR_THEME
       );
     }
+    if (this.textEditingOverlay) {
+      this.textEditingOverlayBackend ??= new TextEditingOverlayBackend(this.device);
+      this.textEditingOverlayBackend.encode(
+        encoder,
+        this.textEditingOverlay,
+        target,
+        this.textCaretVisible
+      );
+    }
   }
 
   private destroyImageResources() {
+    this.textEditingOverlay = null;
     this.documentRenderer?.destroyImageResources();
     this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();

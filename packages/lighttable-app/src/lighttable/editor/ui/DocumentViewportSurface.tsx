@@ -37,6 +37,7 @@ export interface DocumentViewportSurfaceProps {
   onContextMenu: React.MouseEventHandler<HTMLDivElement>;
   onTransformChange: (matrix: AffineMatrix) => void;
   onTransformProjectiveChange: (quad: TransformQuad) => void;
+  inputBridge?: React.ReactNode;
 }
 
 /**
@@ -69,7 +70,8 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onPointerLeave,
   onContextMenu,
   onTransformChange,
-  onTransformProjectiveChange
+  onTransformProjectiveChange,
+  inputBridge
 }) => {
   const effectiveTool = temporaryPanActive ? 'view' : activeTool;
   return (
@@ -85,6 +87,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
       onContextMenu={onContextMenu}
     >
       <canvas ref={canvasRef} className="lighttable-viewport__canvas" />
+      {inputBridge}
       {activeTool !== 'view' && (selection.length || selectionDraft) ? (
         <SelectionOverlay
           operations={selection}

@@ -64,6 +64,7 @@ export interface LayerPanelControllerDependencies {
   requestFlattenImage(): void;
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
   prepareActiveLayerChange?(layerId: LayerId): void;
+  finishTextEditing?(): void;
 }
 
 export interface LayerPanelController {
@@ -229,15 +230,36 @@ export const createLayerPanelController = (
       usePixelChannel((current) => groupLayers(current, layerIds)),
     ungroupSelection: (layerIds) =>
       usePixelChannel((current) => ungroupLayers(current, layerIds)),
-    deleteSelection: (layerIds) =>
-      usePixelChannel((current) => deleteLayers(current, layerIds)),
+    deleteSelection: (layerIds) => {
+      resolveDependencies().finishTextEditing?.();
+      usePixelChannel((current) => deleteLayers(current, layerIds));
+    },
     duplicateActive: () => { resolveDependencies().duplicateActiveLayer(); },
-    rasterizeActiveText: () => { resolveDependencies().rasterizeActiveTextLayer(); },
-    mergeDown: () => resolveDependencies().mergeActiveLayerDown(),
-    mergeSelected: (layerIds) =>
-      resolveDependencies().mergeSelectedRasterLayers(layerIds),
-    flattenGroup: (groupId) => resolveDependencies().requestFlattenGroup(groupId),
-    flattenImage: () => resolveDependencies().requestFlattenImage(),
+    rasterizeActiveText: () => {
+      const dependencies = resolveDependencies();
+      dependencies.finishTextEditing?.();
+      dependencies.rasterizeActiveTextLayer();
+    },
+    mergeDown: () => {
+      const dependencies = resolveDependencies();
+      dependencies.finishTextEditing?.();
+      dependencies.mergeActiveLayerDown();
+    },
+    mergeSelected: (layerIds) => {
+      const dependencies = resolveDependencies();
+      dependencies.finishTextEditing?.();
+      dependencies.mergeSelectedRasterLayers(layerIds);
+    },
+    flattenGroup: (groupId) => {
+      const dependencies = resolveDependencies();
+      dependencies.finishTextEditing?.();
+      dependencies.requestFlattenGroup(groupId);
+    },
+    flattenImage: () => {
+      const dependencies = resolveDependencies();
+      dependencies.finishTextEditing?.();
+      dependencies.requestFlattenImage();
+    },
     editStyles: (layerId, effectId) =>
       resolveDependencies().editStyles(layerId, effectId),
     setStyleStackEnabled: (layerId, enabled) =>

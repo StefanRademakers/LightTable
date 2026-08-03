@@ -63,6 +63,13 @@ interface VisibleTextEntry {
   readonly transform: AffineMatrix;
 }
 
+export interface TextLayerEditingLayout {
+  readonly layerId: LayerId;
+  readonly preparationKey: string;
+  readonly layout: RealizedTextLayout;
+  readonly localToDocument: AffineMatrix;
+}
+
 const visibleTextLayers = (
   document: ImageDocument,
   nodes = document.layers,
@@ -101,6 +108,8 @@ export class TextLayerRenderCoordinator {
   private readonly settledLayerKeys = new Map<LayerId, string>();
   private readonly expectedLayerKeys = new Map<LayerId, string>();
   private readonly retryCounts = new Map<string, number>();
+  private readonly editingLayouts = new Map<LayerId, TextLayerEditingLayout>();
+  private abortController: AbortController | null = null;
   private disposed = false;
 
   constructor(private readonly options: CoordinatorOptions) {}
@@ -132,6 +141,9 @@ export class TextLayerRenderCoordinator {
     for (const layerId of this.settledLayerKeys.keys()) {
       if (!retained.has(layerId)) this.settledLayerKeys.delete(layerId);
     }
+    for (const layerId of this.editingLayouts.keys()) {
+      if (!retained.has(layerId)) this.editingLayouts.delete(layerId);
+    }
     this.schedule();
   }
 
@@ -158,6 +170,10 @@ export class TextLayerRenderCoordinator {
     ));
   }
 
+  editingLayout(layerId: LayerId): TextLayerEditingLayout | null {
+    return this.editingLayouts.get(layerId) ?? null;
+  }
+
   async waitForSettledSource(layerId: LayerId) {
     if (!this.hasTextLayer(layerId)) return false;
     await this.work;
@@ -172,6 +188,8 @@ export class TextLayerRenderCoordinator {
     this.fontPort = null;
     this.document = null;
     this.pendingKey = '';
+    this.abortController?.abort();
+    this.abortController = null;
     const dependencies = this.dependencies;
     const sessionId = this.sessionId;
     const sessionGeneration = this.sessionGeneration;
@@ -182,6 +200,7 @@ export class TextLayerRenderCoordinator {
     this.settledLayerKeys.clear();
     this.expectedLayerKeys.clear();
     this.retryCounts.clear();
+    this.editingLayouts.clear();
     this.publishChanged();
     dependencies?.backend.dispose();
     if (dependencies && sessionId) {
@@ -193,9 +212,12 @@ export class TextLayerRenderCoordinator {
     if (this.disposed || !this.document || !this.fontPort) return;
     const layers = visibleTextLayers(this.document);
     if (layers.length === 0 || this.fontPort.assets.length === 0) {
+      this.abortController?.abort();
+      this.abortController = null;
       this.pendingKey = '';
       this.generation += 1;
       this.expectedLayerKeys.clear();
+      this.editingLayouts.clear();
       return;
     }
     const expected = new Map(layers.map(({ layer, transform }) => [
@@ -205,7 +227,10 @@ export class TextLayerRenderCoordinator {
     this.expectedLayerKeys.clear();
     expected.forEach((value, layerId) => this.expectedLayerKeys.set(layerId, value));
     for (const [layerId, settled] of this.settledLayerKeys) {
-      if (expected.get(layerId) !== settled) this.settledLayerKeys.delete(layerId);
+      if (expected.get(layerId) !== settled) {
+        this.settledLayerKeys.delete(layerId);
+        this.editingLayouts.delete(layerId);
+      }
     }
     const key = [
       this.document.id,
@@ -215,10 +240,13 @@ export class TextLayerRenderCoordinator {
       ))
     ].join('|');
     if (key === this.pendingKey) return;
+    this.abortController?.abort();
+    const abortController = new AbortController();
+    this.abortController = abortController;
     this.pendingKey = key;
     const generation = ++this.generation;
     this.work = this.work
-      .then(() => this.prepare(generation, key, layers))
+      .then(() => this.prepare(generation, key, layers, abortController.signal))
       .catch(() => {
         if (!this.current(generation, key)) return;
         this.pendingKey = '';
@@ -226,10 +254,18 @@ export class TextLayerRenderCoordinator {
         if (retries >= 1) return;
         this.retryCounts.set(key, retries + 1);
         void Promise.resolve().then(() => this.schedule());
+      })
+      .finally(() => {
+        if (this.abortController === abortController) this.abortController = null;
       });
   }
 
-  private async prepare(generation: number, key: string, layers: readonly VisibleTextEntry[]) {
+  private async prepare(
+    generation: number,
+    key: string,
+    layers: readonly VisibleTextEntry[],
+    signal: AbortSignal
+  ) {
     const port = this.fontPort;
     const document = this.document;
     if (!port || !document) return;
@@ -241,11 +277,13 @@ export class TextLayerRenderCoordinator {
       return;
     }
     this.dependencies = dependencies;
-    if (!await this.beginSession(dependencies, document.id, port, generation, key)) return;
+    if (!await this.beginSession(dependencies, document.id, port, generation, key, signal)) return;
     if (!this.current(generation, key)) return;
     for (const entry of layers) {
       if (!this.current(generation, key)) return;
-      await this.prepareLayer(dependencies, entry.layer, entry.transform, port.revision, generation, key);
+      await this.prepareLayer(
+        dependencies, entry.layer, entry.transform, port.revision, generation, key, signal
+      );
     }
     this.retryCounts.delete(key);
   }
@@ -255,7 +293,8 @@ export class TextLayerRenderCoordinator {
     documentId: string,
     port: TextFontRuntimePort,
     generation: number,
-    key: string
+    key: string,
+    signal: AbortSignal
   ) {
     const nextSessionKey = `${documentId}:${port.revision}`;
     if (this.sessionId && this.sessionKey === nextSessionKey) return true;
@@ -275,7 +314,7 @@ export class TextLayerRenderCoordinator {
           bytes,
           byteSource: 'transferred',
           transferOwnership: 'dedicated'
-        });
+        }, signal);
       }
     } catch (error) {
       await dependencies.client.releaseSession(candidateSessionId, candidateGeneration).catch(() => undefined);
@@ -308,7 +347,8 @@ export class TextLayerRenderCoordinator {
     transform: AffineMatrix,
     fontPortRevision: number,
     generation: number,
-    key: string
+    key: string,
+    signal: AbortSignal
   ) {
     const sourceScale = sourceScaleFor(transform);
     const options = { quality: 'final' as const, effectiveScale: sourceScale, maxGlyphCount: 100_000 };
@@ -330,7 +370,7 @@ export class TextLayerRenderCoordinator {
         layer: layer.text,
         localToDocument: IDENTITY_MATRIX_3,
         cacheKey: layoutCacheKey
-      });
+      }, signal);
       layout = report.layout;
       this.layoutCache.set(layoutCacheKey, layout);
     }
@@ -340,7 +380,8 @@ export class TextLayerRenderCoordinator {
       layout,
       sourceScale,
       generation,
-      key
+      key,
+      signal
     );
     if (!this.current(generation, key)) {
       prepared.release();
@@ -368,6 +409,7 @@ export class TextLayerRenderCoordinator {
         layer.id,
         this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
       );
+      this.publishEditingLayout(layer, layout, transform, fontPortRevision);
       this.publishChanged();
       this.options.requestRender();
       return;
@@ -379,6 +421,7 @@ export class TextLayerRenderCoordinator {
       throw error;
     }
     candidate.publish();
+    this.publishEditingLayout(layer, layout, transform, fontPortRevision);
     this.settledLayerKeys.set(
       layer.id,
       this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
@@ -393,7 +436,8 @@ export class TextLayerRenderCoordinator {
     layout: RealizedTextLayout,
     sourceScale: number,
     generation: number,
-    key: string
+    key: string,
+    signal: AbortSignal
   ): Promise<{ readonly draws: readonly CoverageAtlasDrawCommand[]; release(): void }> {
     const plan = planCoverageText(layout, [
       sourceScale, 0, 0,
@@ -424,7 +468,7 @@ export class TextLayerRenderCoordinator {
           syntheticItalic: raster.key.syntheticItalic,
           hinting: raster.key.hinting,
           renderMode: raster.key.renderMode
-          });
+          }, signal);
           if (!this.current(generation, key)) {
             releases.forEach((release) => release());
             return { draws: [], release: () => undefined };
@@ -460,13 +504,35 @@ export class TextLayerRenderCoordinator {
     return !this.disposed && generation === this.generation && key === this.pendingKey;
   }
 
+  private publishEditingLayout(
+    layer: TextLayer,
+    layout: RealizedTextLayout,
+    transform: AffineMatrix,
+    fontPortRevision: number
+  ) {
+    this.editingLayouts.set(layer.id, Object.freeze({
+      layerId: layer.id,
+      preparationKey: this.layerPreparationKey(
+        this.document!.id,
+        layer,
+        transform,
+        fontPortRevision
+      ),
+      layout,
+      localToDocument: Object.freeze({ ...transform })
+    }));
+  }
+
   private invalidateFontRuntime() {
+    this.abortController?.abort();
+    this.abortController = null;
     this.generation += 1;
     this.pendingKey = '';
     this.layoutCache.clear();
     this.settledLayerKeys.clear();
     this.expectedLayerKeys.clear();
     this.retryCounts.clear();
+    this.editingLayouts.clear();
     this.options.renderer.dispose();
     this.publishChanged();
     const dependencies = this.dependencies;

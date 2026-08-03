@@ -24,6 +24,8 @@ export interface LayersWorkspacePanelProps {
   onMaskIsolationChange: (layerId: LayerId | null) => void;
   controller: LayerPanelController;
   onSelectionChange?: (layerIds: LayerId[]) => void;
+  editingTextLayerId?: LayerId | null;
+  onEditText?: (layerId: LayerId) => void;
 }
 
 /**
@@ -40,7 +42,9 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   isolatedMaskLayerId,
   onMaskIsolationChange,
   controller,
-  onSelectionChange
+  onSelectionChange,
+  editingTextLayerId,
+  onEditText
 }) => {
   if (!document) {
     return (
@@ -96,6 +100,8 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onStyleEnabled={controller.setStyleEnabled}
         onClearStyles={controller.clearStyles}
         onSelectionChange={onSelectionChange}
+        editingTextLayerId={editingTextLayerId}
+        onEditText={onEditText}
       />
     </div>
   );
