@@ -20,6 +20,7 @@ import { identityAffineMatrix, multiplyMatrices } from '../../editor/geometry/af
 import type { AffineMatrix } from '../../editor/geometry/affine';
 import type { TextEngineClient } from '../wasm/TextEngineClient';
 import { TextLayerRenderer, textLayerSourceKey } from './TextLayerRenderer';
+import { TextLayoutCache } from './TextLayoutCache';
 
 export interface TextFontRuntimePort {
   readonly revision: number;
@@ -105,7 +106,7 @@ export class TextLayerRenderCoordinator {
   private pendingKey = '';
   private sessionKey = '';
   private work: Promise<void> = Promise.resolve();
-  private readonly layoutCache = new Map<string, RealizedTextLayout>();
+  private readonly layoutCache = new TextLayoutCache();
   private readonly settledLayerKeys = new Map<LayerId, string>();
   private readonly expectedLayerKeys = new Map<LayerId, string>();
   private readonly retryCounts = new Map<string, number>();
