@@ -15,3 +15,31 @@ Owner: Codex `/root`
 - Invalidate only affected paragraph/run layout and unrelated layers perform no work.
 - Expose Paragraph Text in the Text family, frequent controls in Tool Options and
   the complete supported group in contextual Properties.
+
+## Execution checklist
+
+- [x] Keep the lazy text coordinator alive across document resource resets
+  (`9a27092`); manually verified through font registration, shaping, coverage
+  and atlas/cached publication on the real WebGPU canvas.
+- [x] Drag- or click-create canonical paragraph frames with lazy font loading,
+  one history mutation and default 240 x 120 click geometry (`7d89332`).
+- [x] Draw paragraph frame edges in the existing GPU text-editing overlay and
+  include the layer transform in its geometry cache identity (`4674262`).
+- [x] Draw eight fixed-screen-pixel GPU resize handles using the existing
+  transform-cage visual language (`0139235`).
+- [x] Reopen existing and empty paragraph frames through realized frame hit
+  testing instead of creating a new layer on every click (`fd7b6a4`).
+- [x] Resize all eight frame handles under affine layer transforms, preview live
+  reflow, restore on cancel and commit one undo mutation (`3fa0e74`, `8aed295`).
+- [ ] Expose point/paragraph conversion in shared Tool Options and its context menu.
+- [ ] Expose working alignment and paragraph spacing/indent/leading controls
+  through existing controls; leave unsupported values absent or disabled.
+- [ ] Draw and test truthful clip/overflow-indicator behavior.
+- [ ] Prove paragraph-only cache invalidation and unrelated-layer zero work.
+- [ ] Run the Slice 14 phase gate, update the execution log and move this task
+  to `work/done` only after manual web/Electron smoke evidence is recorded.
+
+Latest automated gate: 242 app/workspace test files and 1,220 app tests passed;
+generated text WASM verified all 9 open faces; production web build and
+distribution boundary passed. Existing wasm-vips eval and chunk-size warnings
+are unchanged.
