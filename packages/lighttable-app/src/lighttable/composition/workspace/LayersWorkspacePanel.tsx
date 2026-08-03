@@ -14,10 +14,12 @@ import type {
   PaintChannel
 } from '../../editor/session/editorSession';
 import { LayerPanel } from '../../editor/ui/LayerPanel';
+import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 
 export interface LayersWorkspacePanelProps {
   document: ImageDocument | null;
   availableFonts: readonly DocumentFontAsset[];
+  textFontDiagnostics?: readonly TextFontDiagnostic[];
   thumbnails: ReadonlyMap<LayerId, LayerThumbnailSet>;
   activeChannel: PaintChannel;
   isolatedMaskLayerId: LayerId | null;
@@ -26,6 +28,7 @@ export interface LayersWorkspacePanelProps {
   onSelectionChange?: (layerIds: LayerId[]) => void;
   editingTextLayerId?: LayerId | null;
   onEditText?: (layerId: LayerId) => void;
+  onOpenFontReport?: (layerId: LayerId) => void;
 }
 
 /**
@@ -37,6 +40,7 @@ export interface LayersWorkspacePanelProps {
 export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   document,
   availableFonts,
+  textFontDiagnostics,
   thumbnails,
   activeChannel,
   isolatedMaskLayerId,
@@ -44,7 +48,8 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   controller,
   onSelectionChange,
   editingTextLayerId,
-  onEditText
+  onEditText,
+  onOpenFontReport
 }) => {
   if (!document) {
     return (
@@ -59,6 +64,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
       <LayerPanel
         document={document}
         availableFonts={availableFonts}
+        textFontDiagnostics={textFontDiagnostics}
         thumbnails={thumbnails}
         activeChannel={activeChannel}
         isolatedMaskLayerId={isolatedMaskLayerId}
@@ -102,6 +108,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onSelectionChange={onSelectionChange}
         editingTextLayerId={editingTextLayerId}
         onEditText={onEditText}
+        onOpenFontReport={onOpenFontReport}
       />
     </div>
   );

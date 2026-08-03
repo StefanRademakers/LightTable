@@ -82,4 +82,32 @@ describe('textLayerFontStatus', () => {
     expect(summarizeTextFontDiagnostics(diagnostics)).toBe('1 text layer has a missing font');
     expect(documentTextFontDiagnostics(document, [asset(['Inter'])])).toEqual([]);
   });
+
+  it('projects realized .notdef warnings into document compatibility diagnostics', () => {
+    const document = createTextLayer(
+      createImageDocument('Glyph status', 32, 24, 'source'),
+      createDefaultTextLayerData(),
+      'Symbols'
+    );
+    const diagnostics = documentTextFontDiagnostics(
+      document,
+      [asset(['Inter'])],
+      [],
+      () => ({
+        warnings: [{
+          code: 'missing-glyph',
+          message: 'The selected font emitted .notdef.',
+          runIndex: 0
+        }]
+      } as never)
+    );
+
+    expect(diagnostics).toEqual([expect.objectContaining({
+      issue: 'missing-glyph',
+      layerName: 'Symbols',
+      status: expect.objectContaining({ label: 'Missing glyph' })
+    })]);
+    expect(summarizeTextFontDiagnostics(diagnostics))
+      .toBe('1 text layer has missing glyphs');
+  });
 });

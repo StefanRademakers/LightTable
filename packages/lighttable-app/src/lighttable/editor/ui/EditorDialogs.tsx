@@ -4,11 +4,14 @@ import type { ReferenceDifferenceMetrics } from '../../application/rendering/ren
 import type { PhotoshopImportReport } from '../document/documentTypes';
 import { PsdImportReportDialog } from '../psd/PsdImportReportDialog';
 import type { EditorDialogController } from './useEditorDialogController';
+import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
   readonly photoshopReport: PhotoshopImportReport | null;
   readonly differenceMetrics: ReferenceDifferenceMetrics | null;
+  readonly textFontDiagnostics: readonly TextFontDiagnostic[];
+  readonly onResolveTextFont: (layerId: TextFontDiagnostic['layerId']) => void;
   readonly onFeather: (radius: number) => void;
   readonly onFlatten: () => void;
   readonly onError: (message: string) => void;
@@ -18,6 +21,8 @@ export const EditorDialogs = ({
   controller,
   photoshopReport,
   differenceMetrics,
+  textFontDiagnostics,
+  onResolveTextFont,
   onFeather,
   onFlatten,
   onError
@@ -62,6 +67,8 @@ export const EditorDialogs = ({
       open={controller.psdReportOpen}
       report={photoshopReport}
       metrics={differenceMetrics}
+      textFontDiagnostics={textFontDiagnostics}
+      onResolveTextFont={onResolveTextFont}
       onClose={controller.closePsdReport}
     />
   </>

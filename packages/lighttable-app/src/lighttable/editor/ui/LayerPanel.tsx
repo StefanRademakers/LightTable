@@ -23,12 +23,16 @@ import {
   adjustmentStackHasOwner,
   adjustmentStackOwnerIsEnabled
 } from '../../processing/adjustmentStack';
-import { textLayerFontStatus } from '../../text/fonts/textLayerFontStatus';
+import {
+  textLayerFontStatus,
+  type TextFontDiagnostic
+} from '../../text/fonts/textLayerFontStatus';
 import { DEFAULT_TEXT_SUBSTITUTION_FAMILIES } from '../../text/fonts/flowFontSelection';
 
 interface LayerPanelProps {
   document: ImageDocument;
   availableFonts: readonly DocumentFontAsset[];
+  textFontDiagnostics?: readonly TextFontDiagnostic[];
   thumbnails: ReadonlyMap<LayerId, LayerThumbnailSet>;
   activeChannel: PaintChannel;
   isolatedMaskLayerId: LayerId | null;
@@ -76,6 +80,7 @@ interface LayerPanelProps {
   onSelectionChange?: (layerIds: LayerId[]) => void;
   editingTextLayerId?: LayerId | null;
   onEditText?: (layerId: LayerId) => void;
+  onOpenFontReport?: (layerId: LayerId) => void;
 }
 
 interface VisualLayerRow {
@@ -135,6 +140,7 @@ const displayedThumbnailSize = (
 export const LayerPanel: React.FC<LayerPanelProps> = ({
   document,
   availableFonts,
+  textFontDiagnostics = [],
   thumbnails,
   activeChannel,
   isolatedMaskLayerId,
@@ -177,7 +183,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onClearStyles,
   onSelectionChange,
   editingTextLayerId = null,
-  onEditText
+  onEditText,
+  onOpenFontReport
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
@@ -506,7 +513,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           const clippingBase = siblingIndex > 0 ? siblings[siblingIndex - 1] : null;
           const canToggleClipping = layer.clipping || Boolean(clippingBase);
           const fontStatus = layer.type === 'text'
-            ? textLayerFontStatus(layer, availableFonts, DEFAULT_TEXT_SUBSTITUTION_FAMILIES)
+            ? textFontDiagnostics.find((entry) => (
+                entry.layerId === layer.id && entry.issue === 'missing-glyph'
+              ))?.status ?? textLayerFontStatus(
+                layer, availableFonts, DEFAULT_TEXT_SUBSTITUTION_FAMILIES
+              )
             : null;
           return (
           <React.Fragment key={layer.id}>
@@ -854,7 +865,25 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   {fontStatus && fontStatus.kind !== 'exact' ? (
                     <span
                       className={`lighttable-layer__text-status lighttable-layer__text-status--${fontStatus.kind}`}
-                      title={fontStatus.detail}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${fontStatus.label}. Open font compatibility report`}
+                      title={`${fontStatus.detail}. Open font compatibility report.`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onSelect(layer.id);
+                        onChannelChange('pixels');
+                        onOpenFontReport?.(layer.id);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onSelect(layer.id);
+                        onChannelChange('pixels');
+                        onOpenFontReport?.(layer.id);
+                      }}
                     >{fontStatus.label}</span>
                   ) : null}
                 </>

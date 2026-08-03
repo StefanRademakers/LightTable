@@ -3,6 +3,7 @@ import type {
   ImageDocument,
   TextLayer
 } from '../../editor/document/documentTypes';
+import type { RealizedTextLayout } from '@lighttable/text-core';
 import { walkLayerTree } from '../../editor/document/layerTree';
 import { resolveFontRequest, type FontResolution } from './DocumentFontRegistry';
 
@@ -77,6 +78,8 @@ export const textLayerFontStatus = (
 export interface TextFontDiagnostic {
   readonly layerId: TextLayer['id'];
   readonly layerName: string;
+  readonly editable: boolean;
+  readonly issue: 'font-missing' | 'font-substituted' | 'missing-glyph';
   readonly status: TextLayerFontStatus & { readonly kind: 'substituted' | 'missing' };
 }
 
@@ -84,11 +87,14 @@ export const summarizeTextFontDiagnostics = (
   diagnostics: readonly TextFontDiagnostic[]
 ) => {
   const missing = diagnostics.filter((entry) => entry.status.kind === 'missing').length;
-  const substituted = diagnostics.length - missing;
+  const missingGlyphs = diagnostics.filter((entry) => entry.issue === 'missing-glyph').length;
+  const missingFonts = missing - missingGlyphs;
+  const substituted = diagnostics.filter((entry) => entry.issue === 'font-substituted').length;
   return [
-    missing ? (missing === 1
+    missingFonts ? (missingFonts === 1
       ? '1 text layer has a missing font'
-      : `${missing} text layers have missing fonts`) : '',
+      : `${missingFonts} text layers have missing fonts`) : '',
+    missingGlyphs ? `${missingGlyphs} ${missingGlyphs === 1 ? 'text layer has' : 'text layers have'} missing glyphs` : '',
     substituted ? `${substituted} ${substituted === 1 ? 'uses' : 'use'} explicit font substitution` : ''
   ].filter(Boolean).join(' · ');
 };
@@ -96,13 +102,41 @@ export const summarizeTextFontDiagnostics = (
 export const documentTextFontDiagnostics = (
   document: ImageDocument,
   availableAssets: readonly DocumentFontAsset[],
-  substitutionFamilies: readonly string[] = []
+  substitutionFamilies: readonly string[] = [],
+  layoutFor?: (layerId: TextLayer['id']) => RealizedTextLayout | null
 ): TextFontDiagnostic[] => walkLayerTree(document.layers)
   .map((entry) => entry.node)
   .filter((node): node is TextLayer => node.type === 'text')
-  .map((node) => ({
-    layerId: node.id,
-    layerName: node.name,
-    status: textLayerFontStatus(node, availableAssets, substitutionFamilies)
-  }))
-  .filter((entry): entry is TextFontDiagnostic => entry.status.kind !== 'exact');
+  .flatMap((node): TextFontDiagnostic[] => {
+    const editable = node.text.source.kind === 'flow';
+    const status = textLayerFontStatus(node, availableAssets, substitutionFamilies);
+    const diagnostics: TextFontDiagnostic[] = [];
+    if (status.kind === 'missing' || status.kind === 'substituted') {
+      diagnostics.push({
+        layerId: node.id,
+        layerName: node.name,
+        editable,
+        issue: status.kind === 'missing' ? 'font-missing' : 'font-substituted',
+        status: { ...status, kind: status.kind }
+      });
+    }
+    const missingGlyphWarnings = layoutFor?.(node.id)?.warnings.filter(
+      (warning) => warning.code === 'missing-glyph'
+    ) ?? [];
+    if (missingGlyphWarnings.length > 0) {
+      diagnostics.push({
+        layerId: node.id,
+        layerName: node.name,
+        editable,
+        issue: 'missing-glyph',
+        status: {
+          kind: 'missing',
+          label: 'Missing glyph',
+          detail: missingGlyphWarnings.map((warning) => (
+            `${warning.message}${warning.runIndex === undefined ? '' : ` (run ${warning.runIndex + 1})`}`
+          )).join('; ')
+        }
+      });
+    }
+    return diagnostics;
+  });

@@ -33,9 +33,9 @@ Status: in progress
 
 ## Existing UI integration
 
-- [ ] Make existing Layers missing/substitution badges actionable using the
+- [x] Make existing Layers missing/substitution badges actionable using the
   established menu/dialog/control patterns; do not add private widgets/CSS.
-- [ ] Include missing glyph and substitution details in document/import
+- [x] Include missing glyph and substitution details in document/import
   compatibility reporting.
 
 ## Gates

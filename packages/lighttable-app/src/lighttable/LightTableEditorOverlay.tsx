@@ -612,10 +612,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ? documentTextFontDiagnostics(
           imageDocument,
           availableFontAssets,
-          DEFAULT_TEXT_SUBSTITUTION_FAMILIES
+          DEFAULT_TEXT_SUBSTITUTION_FAMILIES,
+          (layerId) => engineRef.current?.textEditingLayout(layerId)?.layout ?? null
         )
       : [],
-    [availableFontAssets, fontHydrationPending, imageDocument]
+    [
+      availableFontAssets,
+      fontHydrationPending,
+      imageDocument,
+      textRenderPresentation.publicationRevision
+    ]
   );
   const fontDiagnosticStatus = useMemo(
     () => summarizeTextFontDiagnostics(fontDiagnostics),
@@ -2183,6 +2189,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     <LayersWorkspacePanel
       document={imageDocument}
       availableFonts={availableFontAssets}
+      textFontDiagnostics={fontDiagnostics}
       thumbnails={layerThumbnails}
       activeChannel={editorSession.activeChannel}
       isolatedMaskLayerId={isolatedMaskLayerId}
@@ -2193,6 +2200,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         activatePersistentTool('text-point');
         textEditingController.begin(layerId);
       }}
+      onOpenFontReport={() => editorDialogs.openPsdReport()}
       onSelectionChange={handleLayerSelectionChange}
       onMaskIsolationChange={(layerId) => {
         setIsolatedMaskLayerId(layerId);
@@ -2557,6 +2565,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             controller: editorDialogs,
             photoshopReport: imageDocument?.photoshopImportReport ?? null,
             differenceMetrics: psdDifferenceMetrics,
+            textFontDiagnostics: fontDiagnostics,
+            onResolveTextFont: (layerId) => {
+              const layer = imageDocumentRef.current
+                ? findDocumentLayer(imageDocumentRef.current, layerId)
+                : null;
+              layerPanelController.select(layerId);
+              editorDialogs.closePsdReport();
+              if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
+              pointTextController.cancel();
+              activatePersistentTool('text-point');
+              textEditingController.begin(layerId);
+              workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
+            },
             onFeather: featherCurrentSelection,
             onFlatten: commitFlattenRequest,
             onError: setError
@@ -2760,7 +2781,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     error: Boolean(error),
                     meta: statusBar.meta,
                     metaTitle: statusBar.title,
-                    reportAvailable: statusBar.reportAvailable,
+                    reportAvailable: statusBar.reportAvailable || fontDiagnostics.length > 0,
                     onOpenReport: editorDialogs.openPsdReport
                   }}
                 />
