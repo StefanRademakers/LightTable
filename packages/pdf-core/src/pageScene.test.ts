@@ -44,6 +44,9 @@ const page: PdfPageDisplayList = {
     ] } },
     { kind: 'draw-image', imageResourceId: 'image:1', matrix: [4, 0, 0, 5, 3, 6], sourceObjectId: '5 0 R' },
     { kind: 'draw-text', runs: [glyphRun], sourceObjectId: '6 0 R' },
+    { kind: 'draw-path', paint: 'fill', fillRule: 'nonzero', sourceObjectId: '7 0 R', path: { commands: [
+      { kind: 'move', point: { x: 4, y: 4 } }, { kind: 'line', point: { x: 8, y: 8 } }
+    ] } },
     { kind: 'restore-state' },
     { kind: 'draw-path', paint: 'stroke', fillRule: 'nonzero', path: { commands: [
       { kind: 'move', point: { x: 0, y: 0 } }, { kind: 'line', point: { x: 1, y: 1 } }
@@ -56,8 +59,8 @@ describe('PDF page semantic import', () => {
   it('imports paths, images, clips and positioned glyphs with graphics-state snapshots', () => {
     const scene = importPdfPageScene(page);
 
-    expect(scene.items.map(item => item.kind)).toEqual(['path', 'image', 'positioned-text', 'path']);
-    const [path, image, text, restoredPath] = scene.items;
+    expect(scene.items.map(item => item.kind)).toEqual(['path', 'image', 'positioned-text', 'path', 'path']);
+    const [path, image, text, textClippedPath, restoredPath] = scene.items;
     expect(path.kind).toBe('path');
     if (path.kind !== 'path' || image.kind !== 'image' || text.kind !== 'positioned-text') return;
     expect(path.localToPage).toEqual([2, 0, 0, 2, 10, 20]);
@@ -72,6 +75,11 @@ describe('PDF page semantic import', () => {
     expect(image.localToPage).toEqual([8, 0, 0, 10, 16, 32]);
     expect(text.runs[0].renderingMode).toBe(6);
     expect(text.runs[0].glyphs[0]).toMatchObject({ sourceCode: [65], cid: 65, glyphId: 36 });
+    expect(text.paintState.clips).toHaveLength(1);
+    expect(textClippedPath.paintState.clips).toHaveLength(2);
+    expect(textClippedPath.paintState.clips[1]).toMatchObject({
+      kind: 'positioned-text', runs: [{ id: 'run:glyph', renderingMode: 6 }]
+    });
     expect(restoredPath.paintState.clips).toEqual([]);
     expect(restoredPath.paintState.blendMode).toBe('normal');
     expect(scene.preservedUnsupported).toEqual([

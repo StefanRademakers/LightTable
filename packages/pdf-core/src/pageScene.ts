@@ -21,11 +21,20 @@ export const multiplyPdfMatrices = (left: PdfMatrix, right: PdfMatrix): PdfMatri
   left[1] * right[4] + left[3] * right[5] + left[5]
 ];
 
-export interface PdfPageClip {
+export interface PdfPagePathClip {
+  readonly kind: 'path';
   readonly path: PdfPathData;
   readonly fillRule: 'nonzero' | 'evenodd';
   readonly localToPage: PdfMatrix;
 }
+
+export interface PdfPageTextClip {
+  readonly kind: 'positioned-text';
+  /** Only runs with PDF rendering modes 4-7 participate in this clip. */
+  readonly runs: readonly PdfPositionedTextRun[];
+}
+
+export type PdfPageClip = PdfPagePathClip | PdfPageTextClip;
 
 export interface PdfPagePaintSnapshot {
   readonly fillPaint: PdfPaint;
@@ -140,6 +149,7 @@ export const importPdfPageScene = (page: PdfPageDisplayList): PdfPageScene => {
       case 'set-alpha': state.fillAlpha = operation.fill; state.strokeAlpha = operation.stroke; break;
       case 'clip-path':
         state.clips = [...state.clips, {
+          kind: 'path',
           path: operation.path,
           fillRule: operation.fillRule,
           localToPage: state.transform
@@ -164,6 +174,12 @@ export const importPdfPageScene = (page: PdfPageDisplayList): PdfPageScene => {
           kind: 'positioned-text', runs: operation.runs,
           sourceObjectId: operation.sourceObjectId, paintState: snapshot(state)
         });
+        {
+          const clippingRuns = operation.runs.filter(run => run.renderingMode >= 4);
+          if (clippingRuns.length > 0) {
+            state.clips = [...state.clips, { kind: 'positioned-text', runs: clippingRuns }];
+          }
+        }
         break;
       case 'begin-transparency-group':
         state.transparencyGroups = [...state.transparencyGroups, operation.groupResourceId];

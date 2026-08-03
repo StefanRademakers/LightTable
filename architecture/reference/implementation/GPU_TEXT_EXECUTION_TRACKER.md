@@ -645,6 +645,11 @@ bounded guard pixels for seam-safe filters and antialiasing. UserUnit, scale
 and page rotation produce exact output dimensions; tile-count and duplicated
 render-pixel budgets are checked before large arrays or GPU resources exist.
 
+Slice 20 text-clip evidence: positioned runs using PDF text rendering modes
+4-7 become an immutable glyph clip only after their text object is emitted.
+Following scene items inherit that clip through the graphics-state snapshot;
+save/restore removes it exactly like a path clip, without reshaping glyphs.
+
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but
 flow editing is disabled until explicitly recovered.
