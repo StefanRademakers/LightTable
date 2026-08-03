@@ -140,6 +140,8 @@ describe('canonical text layer commands', () => {
       pathElementId: 'path-element',
       pathSubpathId: 'path-subpath',
       startOffset: 4,
+      endOffset: 96,
+      direction: 'reverse',
       side: 'left',
       upright: true
     });

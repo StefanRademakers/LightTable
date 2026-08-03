@@ -146,9 +146,13 @@ export interface PathTextLayout {
   /** Stable vector element identity; omitted only for legacy single-path layers. */
   readonly pathElementId?: string;
   /** Stable contour identity; omitted only for legacy single-subpath elements. */
-  readonly pathSubpathId?: string;
-  readonly startOffset: number;
-  readonly side: 'left' | 'right';
+    readonly pathSubpathId?: string;
+    readonly startOffset: number;
+    /** Optional traversal-space end handle; omitted means the full path length. */
+    readonly endOffset?: number;
+    /** Omitted legacy data traverses the canonical subpath forward. */
+    readonly direction?: 'forward' | 'reverse';
+    readonly side: 'left' | 'right';
   readonly upright: boolean;
 }
 

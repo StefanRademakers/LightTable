@@ -705,6 +705,20 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 17 traversal contract
+
+- Contract: path layouts can now persist an optional end handle and explicit
+  forward/reverse traversal. Legacy documents retain full-path, forward
+  defaults; malformed directions and non-finite offsets fail shared validation.
+- Ownership: alignment remains the existing paragraph/text alignment property,
+  rather than adding a second path-only alignment value. Existing `side` and
+  `upright` properties remain the single canonical orientation controls.
+- Persistence: the native layered-format and text-command fixtures retain the
+  new values. No PSD/PDF export semantics are claimed before reference parity.
+- UI/UX: still hidden in production. Later start/end handles bind these same
+  canonical offsets; the property surfaces must reuse the established numeric
+  and alignment controls instead of introducing path-text-specific widgets.
+
 ### 2026-08-03 - Slice 17 path metrics foundation
 
 - Geometry: exact referenced subpaths now realize into document-space

@@ -345,6 +345,10 @@ const assertFlowSource = (source: Record<string, unknown>, path: string): void =
       fail(`${path}.layout.pathSubpathId`, 'must not be empty');
     }
     finite(layout.startOffset, `${path}.layout.startOffset`);
+    if (layout.endOffset !== undefined) finite(layout.endOffset, `${path}.layout.endOffset`);
+    if (layout.direction !== undefined) {
+      oneOf(layout.direction, `${path}.layout.direction`, ['forward', 'reverse']);
+    }
     oneOf(layout.side, `${path}.layout.side`, ['left', 'right']);
     if (typeof layout.upright !== 'boolean') fail(`${path}.layout.upright`, 'expected a boolean');
   }

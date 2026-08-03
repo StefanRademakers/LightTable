@@ -112,6 +112,8 @@ describe('LightTable layered PNG format', () => {
           pathElementId: 'curve-a',
           pathSubpathId: 'contour-a',
           startOffset: 12,
+          endOffset: 420,
+          direction: 'reverse' as const,
           side: 'left' as const,
           upright: true
         },

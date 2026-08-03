@@ -178,6 +178,8 @@ describe('text document contracts', () => {
           pathElementId: 'curve-a',
           pathSubpathId: 'contour-a',
           startOffset: 12,
+          endOffset: 240,
+          direction: 'reverse' as const,
           side: 'left' as const,
           upright: true
         }
@@ -192,6 +194,14 @@ describe('text document contracts', () => {
       ...layer,
       source: { ...layer.source, layout: { ...layer.source.layout, pathSubpathId: '' } }
     })).toThrow(/pathSubpathId/);
+    expect(() => assertTextLayerData({
+      ...layer,
+      source: { ...layer.source, layout: { ...layer.source.layout, endOffset: Number.NaN } }
+    })).toThrow(/endOffset/);
+    expect(() => assertTextLayerData({
+      ...layer,
+      source: { ...layer.source, layout: { ...layer.source.layout, direction: 'sideways' } }
+    })).toThrow(/direction/);
   });
 
   it('bounds authored character and paragraph numbers in runs and insertion defaults', () => {
