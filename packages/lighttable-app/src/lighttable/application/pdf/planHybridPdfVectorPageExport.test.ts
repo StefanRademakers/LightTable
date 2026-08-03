@@ -52,4 +52,21 @@ describe('planHybridPdfVectorPageExport', () => {
       kind: 'flattened-only', reasons: expect.arrayContaining(['vector-effects-unsupported'])
     });
   });
+
+  it('accepts exact PDF blend modes for a single painted vector and rejects Photoshop-only modes', () => {
+    const supported = createImageDocument('Multiply', 100, 100, 'pixels');
+    const multiply = createVectorLayer([path()]);
+    multiply.blendMode = 'multiply';
+    multiply.opacity = 0.6;
+    supported.layers.push(multiply);
+    expect(planHybridPdfVectorPageExport(supported, false).kind).toBe('ready');
+
+    const unsupported = createImageDocument('Linear dodge', 100, 100, 'pixels');
+    const linearDodge = createVectorLayer([path()]);
+    linearDodge.blendMode = 'linear-dodge';
+    unsupported.layers.push(linearDodge);
+    expect(planHybridPdfVectorPageExport(unsupported, false)).toMatchObject({
+      kind: 'flattened-only', reasons: expect.arrayContaining(['vector-blend-mode-unsupported'])
+    });
+  });
 });

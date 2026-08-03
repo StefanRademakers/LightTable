@@ -61,4 +61,20 @@ describe('buildPdfNativeVectorPage', () => {
       nativeVectorLayerIds: new Set(['missing' as LayerId])
     })).toThrow('stale or non-vector layer id');
   });
+
+  it('emits a supported layer blend mode around its native path draws', () => {
+    const vector = createVectorLayer([createVectorLiveShape('rectangle', {
+      kind: 'rectangle', width: 50, height: 30,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    })]);
+    vector.blendMode = 'multiply';
+    const document = createImageDocument('Blend', 100, 100, 'pixels');
+    document.layers.push(vector);
+    const page = buildPdfNativeVectorPage({
+      document, nativeVectorLayerIds: new Set([vector.id])
+    });
+    expect(page.operations[0]).toEqual({ kind: 'save-state' });
+    expect(page.operations[1]).toEqual({ kind: 'set-blend-mode', blendMode: 'multiply' });
+    expect(page.operations.at(-1)).toEqual({ kind: 'restore-state' });
+  });
 });

@@ -1,11 +1,13 @@
 import type { VectorElement } from '@lighttable/vector-core';
 import type { ImageDocument, LayerId, LayerNode, VectorLayer } from '../../editor/document/documentTypes';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
+import { pdfLayerBlendMode } from './pdfLayerBlendMode';
 
 export type HybridPdfVectorPageExportReason =
   | 'no-native-vectors'
   | 'native-vectors-not-topmost'
   | 'vector-effects-unsupported'
+  | 'vector-blend-mode-unsupported'
   | 'vector-stroke-alignment-unsupported'
   | 'document-processing-active';
 
@@ -18,12 +20,14 @@ export interface PdfVisibleLeaf {
   readonly ancestorEffects: boolean;
 }
 
-const compositingEffects = (node: LayerNode) => node.clipping
-  || node.mask !== null
-  || node.blendMode !== 'normal'
-  || layerStyleStackIsActive(node.styleStack)
-  || (node.type === 'group' && (node.compositing === 'isolated'
-    || node.opacity !== 1 || node.fillOpacity !== 1));
+const ancestorCompositingEffects = (node: LayerNode) => node.type === 'group'
+  && (node.clipping
+    || node.mask !== null
+    || node.blendMode !== 'normal'
+    || layerStyleStackIsActive(node.styleStack)
+    || node.compositing === 'isolated'
+    || node.opacity !== 1
+    || node.fillOpacity !== 1);
 
 export const collectPdfVisibleLeaves = (
   nodes: readonly LayerNode[],
@@ -34,7 +38,7 @@ export const collectPdfVisibleLeaves = (
   for (const node of nodes) {
     const visible = ancestorsVisible && node.visible && node.opacity > 0;
     if (!visible) continue;
-    const effects = ancestorEffects || compositingEffects(node);
+    const effects = ancestorEffects || ancestorCompositingEffects(node);
     if (node.type === 'group') collectPdfVisibleLeaves(node.children, visible, effects, result);
     else result.push({ layer: node, ancestorEffects: effects });
   }
@@ -53,6 +57,13 @@ export const pdfVectorLayerNativeReason = (
   ancestorEffects: boolean
 ): HybridPdfVectorPageExportReason | null => {
   if (ancestorEffects) return 'vector-effects-unsupported';
+  if (layer.clipping || layer.mask !== null || layerStyleStackIsActive(layer.styleStack)) {
+    return 'vector-effects-unsupported';
+  }
+  if (!pdfLayerBlendMode(layer.blendMode)) return 'vector-blend-mode-unsupported';
+  const paintedElements = layer.elements.filter(pdfVectorElementHasVisiblePaint).length;
+  if ((layer.opacity !== 1 || layer.fillOpacity !== 1 || layer.blendMode !== 'normal')
+    && paintedElements !== 1) return 'vector-effects-unsupported';
   if (layer.elements.some(element => element.style.stroke
     && (element.style.stroke.alignment ?? 'center') !== 'center')) {
     return 'vector-stroke-alignment-unsupported';

@@ -15,6 +15,7 @@ import {
 } from '@lighttable/vector-core';
 import type { ImageDocument, LayerId, LayerNode, VectorLayer } from '../../editor/document/documentTypes';
 import { buildSceneTransformIndex, requireSceneTransform } from '../../editor/document/sceneTransformGraph';
+import { pdfLayerBlendMode } from './pdfLayerBlendMode';
 
 export interface PdfNativeVectorPageDependencies {
   readonly document: ImageDocument;
@@ -151,13 +152,21 @@ export const buildPdfNativeVectorLayerPage = ({
       documentToPage,
       requireSceneTransform(scene, layer.id).localToDocument
     );
+    const blendMode = pdfLayerBlendMode(layer.blendMode)
+      ?? fail(`layer ${layer.id} uses unsupported ${layer.blendMode} blend mode.`);
+    const elementDraws = layer.elements.flatMap(element => elementOperations(
+      layer,
+      element.type === 'path' ? element : realizeLiveShape(element),
+      layerToPage
+    ));
     return {
       layerId: layer.id,
-      operations: layer.elements.flatMap(element => elementOperations(
-        layer,
-        element.type === 'path' ? element : realizeLiveShape(element),
-        layerToPage
-      ))
+      operations: blendMode === 'normal' ? elementDraws : [
+        { kind: 'save-state' as const },
+        { kind: 'set-blend-mode' as const, blendMode },
+        ...elementDraws,
+        { kind: 'restore-state' as const }
+      ]
     };
   });
   const page: PdfPageDisplayList = {

@@ -861,6 +861,20 @@ reopened it through LightTable with zero page errors. Independent PDF.js
 inspection found one raster image, one native constructed path, 197 text-show
 operations and searchable Unicode across all five text layers.
 
+Native vector blend evidence: canonical single-painted-object vector layers
+now retain opacity/fill-opacity and every layer blend mode with an exact PDF
+blend-mode equivalent (Normal, Multiply, Screen, Overlay, Darken/Lighten,
+Color Dodge/Burn, Hard/Soft Light, Difference, Exclusion, Hue, Saturation,
+Color and Luminosity). The builder scopes `/BM` in a balanced per-layer graphics
+state while element alpha remains explicit. Photoshop-only modes and multi-
+element layers needing isolated offscreen compositing remain flattened-only.
+Packaged preview samples from the local upstream PDF.js corpus
+(`knockout_blend_multiply.pdf`, `nonisolated_blend_smask.pdf` and
+`transparent.pdf`) all reached the LightTable GPU frame with zero page errors;
+their visual output was inspected for knockout blending, soft-mask grouping and
+ordinary transparency. These preview cases validate PDF.js input coverage but
+do not widen native semantic import claims.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

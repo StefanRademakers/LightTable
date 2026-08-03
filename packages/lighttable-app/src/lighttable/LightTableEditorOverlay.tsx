@@ -289,6 +289,7 @@ const hybridPdfVectorReasonLabel: Record<HybridPdfVectorPageExportReason, string
   'no-native-vectors': 'no visible vector layer can be emitted natively',
   'native-vectors-not-topmost': 'non-vector content is above native vectors',
   'vector-effects-unsupported': 'a vector or ancestor uses unsupported masks, clipping, blend or effects',
+  'vector-blend-mode-unsupported': 'the vector layer blend mode has no exact PDF equivalent',
   'vector-stroke-alignment-unsupported': 'inside or outside vector strokes require outlining first',
   'document-processing-active': 'document-wide Grade or Lens Fx is active'
 };
