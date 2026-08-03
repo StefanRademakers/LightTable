@@ -94,6 +94,25 @@ export interface TextWorkerGlyphRasterResult {
   readonly pixels: Uint8Array;
 }
 
+export interface TextWorkerGlyphOutlineRequest extends TextWorkerMessageIdentity {
+  readonly kind: 'extract-glyph-outline';
+  readonly assetId: string;
+  readonly faceIndex: number;
+  readonly glyphId: number;
+  readonly fontSnapshotRevision: number;
+  readonly variationCoordinates: Readonly<Record<string, number>>;
+}
+
+export interface TextWorkerGlyphOutlineResult {
+  readonly unitsPerEm: number;
+  /** 0 move, 1 line, 2 quadratic, 3 cubic, 4 close. */
+  readonly verbs: Uint8Array;
+  /** Packed x/y font-unit coordinates; arity is determined by each verb. */
+  readonly coordinates: Float32Array;
+  /** Conservative control hull: minX, minY, maxX, maxY. */
+  readonly bounds: Float32Array;
+}
+
 /** Logical cancellation: clients reject immediately; synchronous shaping may finish and is ignored. */
 export interface TextWorkerCancelRequest extends TextWorkerMessageIdentity {
   readonly kind: 'cancel-text';
@@ -109,6 +128,7 @@ export type TextWorkerRequest =
   | TextWorkerFontRegistrationRequest
   | TextLayoutWorkerRequest
   | TextWorkerGlyphRasterRequest
+  | TextWorkerGlyphOutlineRequest
   | TextWorkerCancelRequest
   | TextWorkerReleaseSessionRequest;
 
@@ -117,6 +137,23 @@ interface TextWorkerResponseIdentity extends TextWorkerMessageIdentity {
 }
 
 export type TextLayoutWorkerResponse =
+  | TextWorkerResponseIdentity & {
+    readonly kind: 'glyph-outline-extracted';
+    readonly assetId: string;
+    readonly faceIndex: number;
+    readonly glyphId: number;
+    readonly fontSnapshotRevision: number;
+    readonly variationCoordinates: Readonly<Record<string, number>>;
+    readonly outline: TextWorkerGlyphOutlineResult;
+    readonly transferOwnership: 'dedicated';
+    readonly metrics: TextWorkerPerformanceMetrics;
+  }
+  | TextWorkerResponseIdentity & {
+    readonly kind: 'glyph-outline-extraction-failed';
+    readonly assetId: string;
+    readonly glyphId: number;
+    readonly error: TextLayoutError;
+  }
   | TextWorkerResponseIdentity & {
     readonly kind: 'glyph-rasterized';
     readonly assetId: string;
@@ -217,6 +254,16 @@ export const collectTextRequestTransferBuffers = (
 export const collectTextResponseTransferBuffers = (
   response: TextLayoutWorkerResponse
 ): readonly ArrayBuffer[] => {
+  if (response.kind === 'glyph-outline-extracted') {
+    if (response.transferOwnership !== 'dedicated') {
+      throw new TextTransferContractError('Glyph outline must declare dedicated transfer ownership.');
+    }
+    const buffers: ArrayBuffer[] = [];
+    appendDedicatedBuffer(buffers, response.outline.verbs, 'glyph outline verbs');
+    appendDedicatedBuffer(buffers, response.outline.coordinates, 'glyph outline coordinates');
+    appendDedicatedBuffer(buffers, response.outline.bounds, 'glyph outline bounds');
+    return buffers;
+  }
   if (response.kind === 'glyph-rasterized') {
     if (response.transferOwnership !== 'dedicated') {
       throw new TextTransferContractError('Glyph raster must declare dedicated transfer ownership.');

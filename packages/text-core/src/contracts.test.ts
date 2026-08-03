@@ -245,6 +245,51 @@ describe('text document contracts', () => {
     })).toThrow(/one R8 byte/);
   });
 
+  it('validates scale-independent glyph outline requests and dedicated tables', () => {
+    const identity = {
+      protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId: 9,
+      documentSessionId: 'document',
+      sessionGeneration: 1
+    } as const;
+    expect(() => assertTextWorkerRequest({
+      ...identity,
+      kind: 'extract-glyph-outline',
+      assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId,
+      faceIndex: 0,
+      glyphId: 36,
+      fontSnapshotRevision: 1,
+      variationCoordinates: { wght: 650 }
+    })).not.toThrow();
+    const response: TextLayoutWorkerResponse = {
+      ...identity,
+      kind: 'glyph-outline-extracted',
+      assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId,
+      faceIndex: 0,
+      glyphId: 36,
+      fontSnapshotRevision: 1,
+      variationCoordinates: { wght: 650 },
+      transferOwnership: 'dedicated',
+      outline: {
+        unitsPerEm: 1_000,
+        verbs: new Uint8Array([0, 1, 1, 4]),
+        coordinates: new Float32Array([0, 0, 10, 0, 10, 10]),
+        bounds: new Float32Array([0, 0, 10, 10])
+      },
+      metrics: { operationDurationMs: 1, wasmLinearMemoryBytes: 65_536 }
+    };
+    expect(() => assertTextLayoutWorkerResponse(response)).not.toThrow();
+    expect(collectTextResponseTransferBuffers(response)).toEqual([
+      response.outline.verbs.buffer,
+      response.outline.coordinates.buffer,
+      response.outline.bounds.buffer
+    ]);
+    expect(() => assertTextLayoutWorkerResponse({
+      ...response,
+      outline: { ...response.outline, verbs: new Uint8Array([0]) }
+    })).toThrow(/verb arity/);
+  });
+
   it('never permits run boundaries to split a surrogate pair', () => {
     const layer = createDefaultTextLayerData();
     const source = createDefaultFlowTextSource('A\u{1F600}B');

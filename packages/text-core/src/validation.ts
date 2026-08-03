@@ -610,11 +610,22 @@ const assertLayoutOptions = (value: unknown): void => {
   if (options.locale !== undefined) boundedString(options.locale, '$.options.locale', 128);
 };
 
+const assertVariationCoordinates = (value: unknown, path: string): void => {
+  const variations = record(value, path);
+  const entries = Object.entries(variations);
+  if (entries.length > 64) fail(path, 'must not exceed 64 variation axes');
+  for (const [tag, axisValue] of entries) {
+    if (!/^[\x20-\x7e]{4}$/.test(tag)) fail(`${path}.${tag}`, 'axis tags must contain four printable ASCII characters');
+    finite(axisValue, `${path}.${tag}`);
+  }
+};
+
 export function assertTextWorkerRequest(value: unknown): asserts value is TextWorkerRequest {
   const request = record(value, '$');
   assertWorkerIdentity(request);
   const kind = oneOf(request.kind, '$.kind', [
-    'register-font', 'realize-text', 'rasterize-glyph', 'cancel-text', 'release-session'
+    'register-font', 'realize-text', 'rasterize-glyph', 'extract-glyph-outline',
+    'cancel-text', 'release-session'
   ]);
   if (kind === 'register-font') {
     assertFontAsset(request.font, '$.font');
@@ -643,15 +654,19 @@ export function assertTextWorkerRequest(value: unknown): asserts value is TextWo
     integer(request.glyphId, '$.glyphId', 0, 0xffff);
     numberInRange(request.ppem, '$.ppem', 4, 256);
     integer(request.fontSnapshotRevision, '$.fontSnapshotRevision');
-    const variations = record(request.variationCoordinates, '$.variationCoordinates');
-    for (const [tag, axisValue] of Object.entries(variations)) {
-      if (!/^[\x20-\x7e]{4}$/.test(tag)) fail(`$.variationCoordinates.${tag}`, 'axis tags must contain four printable ASCII characters');
-      finite(axisValue, `$.variationCoordinates.${tag}`);
-    }
+    assertVariationCoordinates(request.variationCoordinates, '$.variationCoordinates');
     if (typeof request.syntheticBold !== 'boolean') fail('$.syntheticBold', 'expected boolean');
     if (typeof request.syntheticItalic !== 'boolean') fail('$.syntheticItalic', 'expected boolean');
     oneOf(request.hinting, '$.hinting', ['smooth']);
     oneOf(request.renderMode, '$.renderMode', ['alpha']);
+    return;
+  }
+  if (kind === 'extract-glyph-outline') {
+    if (!boundedString(request.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
+    integer(request.faceIndex, '$.faceIndex', 0, 0xffff_ffff);
+    integer(request.glyphId, '$.glyphId', 0, 0xffff);
+    integer(request.fontSnapshotRevision, '$.fontSnapshotRevision');
+    assertVariationCoordinates(request.variationCoordinates, '$.variationCoordinates');
     return;
   }
   if (kind === 'release-session') return;
@@ -714,6 +729,7 @@ export function assertTextLayoutWorkerResponse(value: unknown): asserts value is
   const kind = oneOf(response.kind, '$.kind', [
     'font-registered', 'font-registration-failed', 'text-realized',
     'text-layout-failed', 'glyph-rasterized', 'glyph-rasterization-failed',
+    'glyph-outline-extracted', 'glyph-outline-extraction-failed',
     'session-released', 'session-release-failed'
   ]);
   if (kind === 'font-registered') {
@@ -738,17 +754,51 @@ export function assertTextLayoutWorkerResponse(value: unknown): asserts value is
     assertTextLayoutError(response.error, '$.error');
     return;
   }
+  if (kind === 'glyph-outline-extraction-failed') {
+    if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
+    integer(response.glyphId, '$.glyphId', 0, 0xffff);
+    assertTextLayoutError(response.error, '$.error');
+    return;
+  }
+  if (kind === 'glyph-outline-extracted') {
+    if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
+    integer(response.faceIndex, '$.faceIndex', 0, 0xffff_ffff);
+    integer(response.glyphId, '$.glyphId', 0, 0xffff);
+    integer(response.fontSnapshotRevision, '$.fontSnapshotRevision');
+    assertVariationCoordinates(response.variationCoordinates, '$.variationCoordinates');
+    if (response.transferOwnership !== 'dedicated') fail('$.transferOwnership', 'expected dedicated');
+    assertPerformanceMetrics(response.metrics, '$.metrics');
+    const outline = record(response.outline, '$.outline');
+    integer(outline.unitsPerEm, '$.outline.unitsPerEm', 16, 0xffff);
+    if (!(outline.verbs instanceof Uint8Array)) fail('$.outline.verbs', 'expected Uint8Array');
+    if (!(outline.coordinates instanceof Float32Array)) fail('$.outline.coordinates', 'expected Float32Array');
+    if (!(outline.bounds instanceof Float32Array) || (outline.bounds as Float32Array).length !== 4) {
+      fail('$.outline.bounds', 'expected four Float32 values');
+    }
+    const verbs = outline.verbs as Uint8Array;
+    if (verbs.length > 32_768) fail('$.outline.verbs', 'exceeds the command limit');
+    const coordinates = outline.coordinates as Float32Array;
+    let expectedCoordinates = 0;
+    for (let index = 0; index < verbs.length; index += 1) {
+      expectedCoordinates += [2, 2, 4, 6, 0][integer(verbs[index], `$.outline.verbs[${index}]`, 0, 4)];
+    }
+    if (coordinates.length !== expectedCoordinates) fail('$.outline.coordinates', 'does not match verb arity');
+    coordinates.forEach((value, index) => finite(value, `$.outline.coordinates[${index}]`));
+    (outline.bounds as Float32Array).forEach((value, index) => finite(value, `$.outline.bounds[${index}]`));
+    try {
+      collectTextResponseTransferBuffers(response as unknown as TextLayoutWorkerResponse);
+    } catch (reason) {
+      fail('$.outline', reason instanceof Error ? reason.message : 'invalid transfer storage');
+    }
+    return;
+  }
   if (kind === 'glyph-rasterized') {
     if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
     integer(response.faceIndex, '$.faceIndex', 0, 0xffff_ffff);
     integer(response.glyphId, '$.glyphId', 0, 0xffff);
     numberInRange(response.ppem, '$.ppem', 4, 256);
     integer(response.fontSnapshotRevision, '$.fontSnapshotRevision');
-    const variations = record(response.variationCoordinates, '$.variationCoordinates');
-    for (const [tag, axisValue] of Object.entries(variations)) {
-      if (!/^[\x20-\x7e]{4}$/.test(tag)) fail(`$.variationCoordinates.${tag}`, 'axis tags must contain four printable ASCII characters');
-      finite(axisValue, `$.variationCoordinates.${tag}`);
-    }
+    assertVariationCoordinates(response.variationCoordinates, '$.variationCoordinates');
     if (typeof response.syntheticBold !== 'boolean') fail('$.syntheticBold', 'expected boolean');
     if (typeof response.syntheticItalic !== 'boolean') fail('$.syntheticItalic', 'expected boolean');
     oneOf(response.hinting, '$.hinting', ['smooth']);

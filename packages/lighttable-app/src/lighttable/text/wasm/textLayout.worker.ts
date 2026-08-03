@@ -2,6 +2,7 @@
 
 import initializeTextLayoutWasm, {
   drop_layout_session as dropLayoutSession,
+  extract_registered_glyph_outline as extractRegisteredGlyphOutline,
   inspect_font_json as inspectFontJson,
   rasterize_registered_glyph as rasterizeRegisteredGlyph,
   realize_flow_text as realizeFlowText,
@@ -79,7 +80,8 @@ const initialize = () => {
 
 self.onmessage = async ({ data }: MessageEvent<TextEngineWorkerRequest | TextWorkerRequest>) => {
   if (data.kind === 'register-font' || data.kind === 'realize-text' || data.kind === 'rasterize-glyph'
-    || data.kind === 'cancel-text' || data.kind === 'release-session') {
+    || data.kind === 'extract-glyph-outline' || data.kind === 'cancel-text'
+    || data.kind === 'release-session') {
     await handleLayoutRequest(data);
     return;
   }
@@ -150,6 +152,13 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
         sessionGeneration: data.sessionGeneration, assetId: data.assetId ?? 'unknown',
         glyphId: data.glyphId ?? 0, error: createTextLayoutError('malformed-input', message)
       } satisfies TextLayoutWorkerResponse);
+    } else if (data.kind === 'extract-glyph-outline') {
+      self.postMessage({
+        kind: 'glyph-outline-extraction-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId ?? 'unknown',
+        glyphId: data.glyphId ?? 0, error: createTextLayoutError('malformed-input', message)
+      } satisfies TextLayoutWorkerResponse);
     } else if (data.kind === 'register-font') {
       self.postMessage({
         kind: 'font-registration-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
@@ -202,6 +211,13 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
         sessionGeneration: data.sessionGeneration, assetId: data.assetId,
         glyphId: data.glyphId, error: createTextLayoutError('engine-unavailable', message)
       } satisfies TextLayoutWorkerResponse);
+    } else if (data.kind === 'extract-glyph-outline') {
+      self.postMessage({
+        kind: 'glyph-outline-extraction-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId,
+        glyphId: data.glyphId, error: createTextLayoutError('engine-unavailable', message)
+      } satisfies TextLayoutWorkerResponse);
     } else if (data.kind === 'register-font') {
       self.postMessage({
         kind: 'font-registration-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
@@ -213,16 +229,25 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
     return;
   }
   let state = layoutSessions.get(key);
-  if (!state && (data.kind === 'realize-text' || data.kind === 'rasterize-glyph')) {
+  if (!state && (data.kind === 'realize-text' || data.kind === 'rasterize-glyph'
+    || data.kind === 'extract-glyph-outline')) {
     if (data.kind === 'realize-text') {
       self.postMessage(layoutFailure(data, 'font-missing', 'Layout session has no registered fonts.'));
-    } else {
+    } else if (data.kind === 'rasterize-glyph') {
       self.postMessage({
         kind: 'glyph-rasterization-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
         requestId: data.requestId, documentSessionId: data.documentSessionId,
         sessionGeneration: data.sessionGeneration, assetId: data.assetId,
         glyphId: data.glyphId,
         error: createTextLayoutError('font-missing', 'Raster session has no registered fonts.')
+      } satisfies TextLayoutWorkerResponse);
+    } else {
+      self.postMessage({
+        kind: 'glyph-outline-extraction-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId,
+        glyphId: data.glyphId,
+        error: createTextLayoutError('font-missing', 'Outline session has no registered fonts.')
       } satisfies TextLayoutWorkerResponse);
     }
     return;
@@ -350,6 +375,62 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
         error: createTextLayoutError(
           reason instanceof UnsupportedLayoutError ? 'unsupported-feature'
             : /limit|ppem|dimension|command/i.test(message) ? 'resource-limit'
+            : /font|face|glyph/i.test(message) ? 'font-missing' : 'internal-error',
+          message
+        )
+      };
+    }
+    self.postMessage(response, { transfer: [...collectTextResponseTransferBuffers(response)] });
+    return;
+  }
+  if (data.kind === 'extract-glyph-outline') {
+    const operationStartedAt = performance.now();
+    let response: TextLayoutWorkerResponse;
+    try {
+      if (data.fontSnapshotRevision !== state.revision) throw new Error('Font snapshot revision is stale.');
+      const font = state.fonts.get(data.assetId);
+      if (!font || font.faceIndex !== data.faceIndex) throw new Error('Exact registered font face is unavailable.');
+      const variations = Object.entries(data.variationCoordinates)
+        .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+      const raw = extractRegisteredGlyphOutline(
+        key,
+        font.fingerprintSha256,
+        data.faceIndex,
+        data.glyphId,
+        variations.map(([tag]) => tag),
+        new Float32Array(variations.map(([, value]) => value))
+      );
+      try {
+        response = {
+          kind: 'glyph-outline-extracted', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+          requestId: data.requestId, documentSessionId: data.documentSessionId,
+          sessionGeneration: data.sessionGeneration, assetId: data.assetId,
+          faceIndex: data.faceIndex, glyphId: data.glyphId,
+          fontSnapshotRevision: data.fontSnapshotRevision,
+          variationCoordinates: data.variationCoordinates,
+          transferOwnership: 'dedicated',
+          outline: {
+            unitsPerEm: raw.units_per_em,
+            verbs: Uint8Array.from(raw.verbs()),
+            coordinates: Float32Array.from(raw.coordinates()),
+            bounds: Float32Array.from(raw.bounds())
+          },
+          metrics: {
+            operationDurationMs: performance.now() - operationStartedAt,
+            wasmLinearMemoryBytes: textEngineMemoryBytes()
+          }
+        };
+      } finally {
+        raw.free();
+      }
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Glyph outline extraction failed.';
+      response = {
+        kind: 'glyph-outline-extraction-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId, glyphId: data.glyphId,
+        error: createTextLayoutError(
+          /limit|command|axis/i.test(message) ? 'resource-limit'
             : /font|face|glyph/i.test(message) ? 'font-missing' : 'internal-error',
           message
         )

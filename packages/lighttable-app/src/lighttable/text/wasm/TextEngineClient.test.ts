@@ -99,6 +99,26 @@ class FakeWorker implements TextEngineWorkerPort {
     } } as MessageEvent);
   }
 
+  outlined(requestId: number, overrides: Partial<{
+    assetId: string; faceIndex: number; glyphId: number; fontSnapshotRevision: number
+  }> = {}) {
+    this.onmessage?.({ data: {
+      kind: 'glyph-outline-extracted', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId, documentSessionId: 'document', sessionGeneration: 1,
+      assetId: overrides.assetId ?? CONTRACT_FIXTURE_FONT_ASSET.assetId,
+      faceIndex: overrides.faceIndex ?? 0, glyphId: overrides.glyphId ?? 36,
+      fontSnapshotRevision: overrides.fontSnapshotRevision ?? 1,
+      variationCoordinates: {}, transferOwnership: 'dedicated',
+      outline: {
+        unitsPerEm: 1_000,
+        verbs: new Uint8Array([0, 1, 1, 4]),
+        coordinates: new Float32Array([0, 0, 10, 0, 10, 10]),
+        bounds: new Float32Array([0, 0, 10, 10])
+      },
+      metrics: { operationDurationMs: 0.5, wasmLinearMemoryBytes: 5_701_632 }
+    } } as MessageEvent);
+  }
+
   failed(requestId: number, message: string) {
     this.onmessage?.({ data: {
       kind: 'error',
@@ -479,6 +499,33 @@ describe('TextEngineClient', () => {
     });
     worker.rasterized(1, { glyphId: 37 });
     await expect(pending).rejects.toThrow('raster response identity is stale');
+  });
+
+  it('returns dedicated scale-independent outline tables and rejects stale identity', async () => {
+    const worker = new FakeWorker();
+    const client = new TextEngineClient(() => worker);
+    const pending = client.extractGlyphOutline({
+      kind: 'extract-glyph-outline', documentSessionId: 'document', sessionGeneration: 1,
+      assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
+      glyphId: 36, fontSnapshotRevision: 1, variationCoordinates: {}
+    });
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'extract-glyph-outline', glyphId: 36 }), []
+    );
+    worker.outlined(1);
+    await expect(pending).resolves.toMatchObject({
+      outline: { unitsPerEm: 1_000 },
+      responseTransferBytes: 44,
+      metrics: { operationDurationMs: 0.5 }
+    });
+
+    const stale = client.extractGlyphOutline({
+      kind: 'extract-glyph-outline', documentSessionId: 'document', sessionGeneration: 1,
+      assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
+      glyphId: 36, fontSnapshotRevision: 1, variationCoordinates: {}
+    });
+    worker.outlined(2, { glyphId: 37 });
+    await expect(stale).rejects.toThrow('outline response identity is stale');
   });
 
   it('does not let a disposed probe clear a new in-flight retry', async () => {

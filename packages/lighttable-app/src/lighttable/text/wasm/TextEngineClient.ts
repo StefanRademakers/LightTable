@@ -18,6 +18,8 @@ import {
   type TextWorkerFontRegistrationRequest,
   type TextWorkerGlyphRasterRequest,
   type TextWorkerGlyphRasterResult,
+  type TextWorkerGlyphOutlineRequest,
+  type TextWorkerGlyphOutlineResult,
   type TextWorkerPerformanceMetrics,
   type TextWorkerReleaseSessionRequest,
   type TextWorkerRequest
@@ -69,6 +71,10 @@ export interface TextRealizationReport extends TextEngineOperationReport {
 
 export interface TextGlyphRasterReport extends TextEngineOperationReport {
   readonly raster: TextWorkerGlyphRasterResult;
+}
+
+export interface TextGlyphOutlineReport extends TextEngineOperationReport {
+  readonly outline: TextWorkerGlyphOutlineResult;
 }
 
 export type TextEngineWorkerFactory = () => TextEngineWorkerPort;
@@ -296,6 +302,33 @@ export class TextEngineClient {
     });
   }
 
+  extractGlyphOutline(
+    input: Omit<TextWorkerGlyphOutlineRequest, 'requestId' | 'protocolVersion'>,
+    signal?: AbortSignal
+  ): Promise<TextGlyphOutlineReport> {
+    const startedAt = performance.now();
+    return this.requestLayout({
+      ...input,
+      kind: 'extract-glyph-outline',
+      protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId: ++this.requestId
+    }, signal).then((response) => {
+      if (response.kind === 'glyph-outline-extraction-failed') {
+        throw new TextLayoutRuntimeError(response.error);
+      }
+      if (response.kind !== 'glyph-outline-extracted') {
+        throw new Error(`Unexpected ${response.kind} response to glyph outline extraction.`);
+      }
+      return {
+        outline: response.outline,
+        metrics: response.metrics,
+        roundTripDurationMs: performance.now() - startedAt,
+        responseTransferBytes: collectTextResponseTransferBuffers(response)
+          .reduce((total, buffer) => total + buffer.byteLength, 0)
+      };
+    });
+  }
+
   releaseSession(documentSessionId: string, sessionGeneration: number): Promise<void> {
     const request: TextWorkerReleaseSessionRequest = {
       kind: 'release-session',
@@ -339,6 +372,7 @@ export class TextEngineClient {
       if (data.kind === 'font-registered' || data.kind === 'font-registration-failed'
         || data.kind === 'text-realized' || data.kind === 'text-layout-failed'
         || data.kind === 'glyph-rasterized' || data.kind === 'glyph-rasterization-failed'
+        || data.kind === 'glyph-outline-extracted' || data.kind === 'glyph-outline-extraction-failed'
         || data.kind === 'session-released' || data.kind === 'session-release-failed') {
         const pending = this.pendingLayouts.get(data.requestId);
         if (!pending) return;
@@ -367,6 +401,16 @@ export class TextEngineClient {
               || data.hinting !== pending.request.hinting
               || data.renderMode !== pending.request.renderMode)) {
             throw new Error('Glyph raster response identity is stale.');
+          }
+          if (pending.request.kind === 'extract-glyph-outline'
+            && data.kind === 'glyph-outline-extracted'
+            && (data.assetId !== pending.request.assetId
+              || data.faceIndex !== pending.request.faceIndex
+              || data.glyphId !== pending.request.glyphId
+              || data.fontSnapshotRevision !== pending.request.fontSnapshotRevision
+              || variationIdentity(data.variationCoordinates)
+                !== variationIdentity(pending.request.variationCoordinates))) {
+            throw new Error('Glyph outline response identity is stale.');
           }
           pending.resolve(data);
         } catch (reason) {
