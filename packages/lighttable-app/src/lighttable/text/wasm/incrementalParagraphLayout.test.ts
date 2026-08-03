@@ -12,8 +12,7 @@ describe('incremental paragraph layout identity', () => {
 
     expect(segments.map(({ start, end, text }) => ({ start, end, text }))).toEqual([
       { start: 0, end: 5, text: 'A😀\r\n' },
-      { start: 5, end: 7, text: 'B\u2028' },
-      { start: 7, end: 7, text: '' }
+      { start: 5, end: 7, text: 'B\u2028' }
     ]);
     expect(segments[0].textStyles[0]).toMatchObject({
       sourceRunIndex: 0,
@@ -23,7 +22,7 @@ describe('incremental paragraph layout identity', () => {
       sourceRunIndex: 0,
       run: { start: 0, end: 2 }
     });
-    expect(segments[2].textStyles).toEqual([]);
+    expect(segments).toHaveLength(2);
   });
 
   it('changes only the edited paragraph identity in a large flow', () => {

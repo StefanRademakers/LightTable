@@ -63,8 +63,9 @@ const localParagraphStyles = (
  * Splits a canonical flow into independently shapeable paragraph units.
  *
  * JavaScript string indexes are UTF-16 offsets, matching the text document
- * contract. CRLF remains one separator and a trailing separator deliberately
- * produces a final empty paragraph so editing/layout semantics stay truthful.
+ * contract. CRLF remains one separator. A trailing separator stays attached
+ * to the final non-empty fragment: Parley already emits its terminal empty
+ * line, so manufacturing another zero-length fragment would duplicate it.
  */
 export const segmentFlowParagraphs = (
   source: Pick<FlowTextSource, 'text' | 'styleRuns' | 'paragraphRuns'>
@@ -78,7 +79,9 @@ export const segmentFlowParagraphs = (
     ranges.push([start, end]);
     start = end;
   }
-  ranges.push([start, source.text.length]);
+  if (start < source.text.length || ranges.length === 0) {
+    ranges.push([start, source.text.length]);
+  }
 
   return ranges.map(([paragraphStart, paragraphEnd], index) => ({
     index,
@@ -94,8 +97,9 @@ const orderedRecord = <T>(record: Readonly<Record<string, T>>) => (
   Object.entries(record).sort(([left], [right]) => left.localeCompare(right))
 );
 
-const shapingStyleIdentity = ({ sourceRunIndex, run }: TextStyleSlice) => [
-  sourceRunIndex,
+const shapingStyleIdentity = ({ run }: TextStyleSlice) => [
+  // Global style indexes deliberately stay out of the key. The fragment
+  // stores local slots and maps those to the current flow during assembly.
   run.start,
   run.end,
   run.requestedFont.families,
@@ -125,8 +129,8 @@ const shapingStyleIdentity = ({ sourceRunIndex, run }: TextStyleSlice) => [
   run.syntheticItalic
 ];
 
-const paragraphStyleIdentity = ({ sourceRunIndex, run }: ParagraphStyleSlice) => [
-  sourceRunIndex,
+const paragraphStyleIdentity = ({ run }: ParagraphStyleSlice) => [
+  // Global paragraph-run indexes can shift when an earlier paragraph changes.
   run.start,
   run.end,
   run.alignment,
@@ -136,8 +140,7 @@ const paragraphStyleIdentity = ({ sourceRunIndex, run }: ParagraphStyleSlice) =>
   run.firstLineIndent,
   run.startIndent,
   run.endIndent,
-  run.spaceBefore,
-  run.spaceAfter,
+  // Paragraph spacing only translates cached fragments during assembly.
   run.hyphenation
 ];
 
