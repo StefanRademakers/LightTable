@@ -2,7 +2,7 @@
 
 Status: active execution and handoff plan
 
-Last reviewed: 2026-08-02
+Last reviewed: 2026-08-03
 
 Architecture source: [`../../research/LIGHTTABLE_GPU_TEXT_AND_DOCUMENT_TEXT_ARCHITECTURE.md`](../../research/LIGHTTABLE_GPU_TEXT_AND_DOCUMENT_TEXT_ARCHITECTURE.md)
 
@@ -189,6 +189,44 @@ The options bar holds frequent controls only: family, face, size, fill and,
 when complete, alignment plus edit commit/cancel. Contextual Properties owns
 tracking, leading, baseline, paragraph, OpenType/variation and compatibility
 details. Both surfaces dispatch the same commands.
+
+### Photoshop-parity UI/UX exposure gate
+
+Every text capability added for Photoshop parity must record its product
+surface in the same implementation slice. The review is required even when the
+correct decision is to expose nothing yet. Each review records:
+
+1. the canonical property and whether it is fully rendered, editable,
+   persisted and undoable;
+2. its frequent editing surface (Tool Options), detailed editing surface
+   (contextual Properties), canvas interaction, menu action, import report, or
+   an explicit preserved-only decision;
+3. the existing LightTable control, command and CSS family being reused;
+4. mixed-value, unavailable, missing-font and imported-approximation states;
+5. preview cadence and history coalescing for continuous controls;
+6. focused interaction coverage plus any physical UI verification still
+   required.
+
+No implementation may invent a text-only picker, dropdown, spinner, panel,
+overlay renderer or visual language when the app already owns that primitive.
+If the established UI cannot express a new semantic cleanly, keep it gated and
+discuss the interaction before marking imported text editable or enabling
+export.
+
+Current PSD text-property audit:
+
+| PSD/canonical semantic | Current surface | Exposure decision |
+|---|---|---|
+| Family and face | Tool Options and contextual Text Properties | Existing shared selects |
+| Size | Tool Options and contextual Text Properties | Existing mixed number/spinner control |
+| Fill | Tool Options and contextual Text Properties | Existing fill-colour widget |
+| Stroke colour and width | Tool Options and contextual Text Properties | Existing shape `Line` and `Weight` controls |
+| Tracking | Contextual Text Properties | Existing mixed number control |
+| Alignment | Tool Options and contextual Text Properties | Existing shared select |
+| Leading, indents and paragraph spacing | Contextual Text Properties | Existing mixed number controls |
+| Point/paragraph geometry and transform | Canvas plus established tool/session commands | Existing WebGPU overlay and transform interaction |
+| Faux styles, baseline shift, character scaling, kerning/ligature overrides, decorations and auto-hyphenation | Import compatibility report only | Preserved/preview-backed until rendering, commands and coherent shared UI are complete |
+| Warp, text on path and vertical writing | Import compatibility report only | Preserved/preview-backed; no premature controls |
 
 ## 7. Dependency sequence
 
@@ -537,7 +575,7 @@ or unrelated vector content.
 - [x] Preserve unsupported engine data and report it.
 - [x] Classify visual, semantic, structural and round-trip parity separately.
 - [x] Add missing-font/substitution and raster-fallback policy.
-- [ ] Audit every newly supported PSD text property against the existing Text
+- [x] Audit every newly supported PSD text property against the existing Text
   property UI; reuse shared controls or record and discuss the missing
   interaction before enabling editable import/export.
 - [ ] Compare editable result against Photoshop composite fixtures.
