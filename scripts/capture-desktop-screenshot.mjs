@@ -38,6 +38,9 @@ const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const strokeAlignment = argument('stroke-alignment', '');
 const mergeDown = argument('merge-down', '') === 'true';
 const createRectangle = argument('create-rectangle', '') === 'true';
+const createRasterLayerForPaint = argument('create-raster-layer', '') === 'true';
+const paintStroke = argument('paint-stroke', '') === 'true';
+const paintColor = argument('paint-color', '#ff0000');
 const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
 const exportFlattenedPdf = argument('pdf-export-flattened', '') === 'true';
 const exportNativePdf = argument('pdf-export-native', '') === 'true';
@@ -75,6 +78,7 @@ const diagnostics = {
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
+    createRasterLayerForPaint, paintStroke, paintColor,
     openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf,
     exportNativeVectorPdf, exportNativeMixedPdf
   },
@@ -138,6 +142,61 @@ try {
     return !status.includes('Preparing the text engine');
   }, undefined, { timeout: 15_000 }).catch(() => {});
   await window.waitForTimeout(750);
+
+  if (createRasterLayerForPaint || paintStroke) {
+    const layerCount = await window.locator('.lighttable-layer').count();
+    await window.getByRole('button', { name: 'New raster layer' }).click();
+    await window.waitForFunction((expected) =>
+      document.querySelectorAll('.lighttable-layer').length === expected,
+    layerCount + 1, { timeout: 15_000 });
+    const activeLayer = window.locator('.lighttable-layer--active');
+    await activeLayer.waitFor({ state: 'visible', timeout: 15_000 });
+    diagnostics.paint = {
+      layerName: await activeLayer.locator('.lighttable-layer__name').inputValue(),
+      thumbnailBefore: await activeLayer.locator('.lighttable-layer__thumbnail-preview')
+        .getAttribute('src').catch(() => null)
+    };
+
+    if (paintStroke) {
+      if (!/^#[\da-f]{6}$/i.test(paintColor)) {
+        throw new Error('--paint-color must be a six-digit hex colour.');
+      }
+      await window.getByRole('button', { name: 'Brush (B)' }).click();
+      await window.locator('input[type="color"][aria-label="Foreground color"]').fill(paintColor);
+      const viewport = window.locator('.lighttable-viewport');
+      const box = await viewport.boundingBox();
+      if (!box) throw new Error('The document viewport has no interactive bounds.');
+      const metadataText = await window.locator('.lighttable-toolbar__meta').textContent() ?? '';
+      const size = metadataText.match(/(\d+)\s*[x×]\s*(\d+)/i);
+      const zoom = metadataText.match(/(\d+(?:\.\d+)?)%/);
+      if (!size || !zoom) throw new Error(`Could not resolve document display geometry: ${metadataText}`);
+      const displayWidth = Number(size[1]) * Number(zoom[1]) / 100;
+      const displayHeight = Number(size[2]) * Number(zoom[1]) / 100;
+      const documentLeft = box.x + (box.width - displayWidth) / 2;
+      const documentTop = box.y + (box.height - displayHeight) / 2;
+      const startX = documentLeft + displayWidth * 0.2;
+      const startY = documentTop + displayHeight * 0.25;
+      await window.mouse.move(startX, startY);
+      await window.mouse.down();
+      await window.mouse.move(startX + displayWidth * 0.2, startY, { steps: 16 });
+      await window.mouse.up();
+      const thumbnail = activeLayer.locator('.lighttable-layer__thumbnail-preview');
+      await thumbnail.waitFor({ state: 'visible', timeout: 15_000 });
+      await window.waitForFunction(
+        ({ selector, before }) => document.querySelector(selector)?.getAttribute('src') !== before,
+        {
+          selector: '.lighttable-layer--active .lighttable-layer__thumbnail-preview',
+          before: diagnostics.paint.thumbnailBefore
+        },
+        { timeout: 10_000 }
+      ).catch(() => {});
+      diagnostics.paint.thumbnailAfter = await thumbnail.getAttribute('src');
+      diagnostics.paint.viewport = { displayWidth, displayHeight, startX, startY };
+      if (diagnostics.paint.thumbnailAfter === diagnostics.paint.thumbnailBefore) {
+        throw new Error('The raster-layer thumbnail did not change after the brush stroke.');
+      }
+    }
+  }
 
   if (createRectangle) {
     await window.getByRole('button', { name: 'Rectangle (U)' }).click();

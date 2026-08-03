@@ -1,0 +1,42 @@
+# Task 044 - PSD/PDF open, save and editable overlay audit
+
+Status: active
+
+## Verified current behavior
+
+- [x] PSD/PSB and PDF are accepted by the shared File > Open route.
+- [x] File > Save LightTable stores the editable canonical document rather than
+  pretending to round-trip the source interchange format.
+- [x] File > PDF Export Preflight exposes the currently supported flattened and
+  bounded hybrid PDF deliverables.
+- [x] A raster layer created above an imported PDF is active, editable and
+  paintable. Packaged Electron smoke on `D:\FormulierPersoneel.pdf` creates a
+  raster layer, paints a red GPU brush stroke, publishes a new pixel revision
+  and refreshes its layer thumbnail.
+
+## Open product work
+
+- [ ] Audit PSD import gaps against representative fixtures and expose the
+  structured compatibility report where users need it in the existing UI.
+- [ ] Decide and specify PSD/PSB export scope. Do not add a misleading Save PSD
+  command before round-trip preservation, unsupported-feature policy and tests
+  exist.
+- [ ] Audit PDF open UX for password handling, page selection, multipage files
+  and semantic import without presenting the current raster preview as editable
+  PDF structure.
+- [ ] Harden PDF export UX and validation for unsupported layer interleaving,
+  fonts, transparency and multiple pages.
+- [ ] Add explicit format-support access from the existing Open/Export UI once
+  the shared capability surface described in
+  `architecture/THIRD_PARTY_AND_FORMAT_SUPPORT.md` is implemented.
+- [ ] Add native save/reopen coverage after editing above imported PSD and PDF
+  sources, including paint history and preserved-source records.
+
+## Dependency and licensing rule
+
+Permissively licensed libraries may be integrated after license inventory and
+notice checks. Other open-source implementations may be used only as research
+for an independently designed implementation. Any shipped third-party code or
+asset must be recorded in the generated inventory and surfaced through the
+app's existing third-party notices UI.
+
