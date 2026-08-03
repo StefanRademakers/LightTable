@@ -39,6 +39,7 @@ export interface TextLayerRendererSnapshot {
   readonly readyLayerCount: number;
   readonly textureBytes: number;
   readonly mode: 'placeholder' | TextLayerSourceMode;
+  readonly rebuildingLayerCount: number;
 }
 
 export interface PreparedTextLayerSource<TTexture = GPUTexture> {
@@ -100,12 +101,11 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     return true;
   }
 
-  resolve(
+  private contractFor(
+    source: PublishedTextLayerSource<TTexture>,
     layer: TextLayer,
-    inheritedTransform: AffineMatrix = identityAffineMatrix()
-  ): LayerSourceRenderContract<TTexture> | null {
-    const source = this.sources.get(layer.id);
-    if (!source || (source.authoredKey ?? source.sourceKey) !== textLayerSourceKey(layer)) return null;
+    inheritedTransform: AffineMatrix
+  ): LayerSourceRenderContract<TTexture> {
     const localSourceToLayer = multiplyMatrices(
       translation(source.localBounds.x, source.localBounds.y),
       scale(1 / source.sourceScale)
@@ -123,6 +123,32 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
         localSourceToLayer
       )
     };
+  }
+
+  resolveExact(
+    layer: TextLayer,
+    inheritedTransform: AffineMatrix = identityAffineMatrix()
+  ): LayerSourceRenderContract<TTexture> | null {
+    const source = this.sources.get(layer.id);
+    if (!source || (source.authoredKey ?? source.sourceKey) !== textLayerSourceKey(layer)) return null;
+    return this.contractFor(source, layer, inheritedTransform);
+  }
+
+  /** Exact-only compatibility alias used by export/rasterization readiness. */
+  resolve(
+    layer: TextLayer,
+    inheritedTransform: AffineMatrix = identityAffineMatrix()
+  ) {
+    return this.resolveExact(layer, inheritedTransform);
+  }
+
+  /** Keeps the last valid same-layer pixels visible while an exact rebuild runs. */
+  resolvePresentation(
+    layer: TextLayer,
+    inheritedTransform: AffineMatrix = identityAffineMatrix()
+  ): LayerSourceRenderContract<TTexture> | null {
+    const source = this.sources.get(layer.id);
+    return source ? this.contractFor(source, layer, inheritedTransform) : null;
   }
 
   encodeTightSource(
@@ -219,7 +245,7 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
             settled = true;
             this.publish(publishedSource);
           }
-          return this.resolve(layer)!;
+          return this.resolveExact(layer)!;
         },
         discard: () => {
           if (settled) return;
@@ -248,6 +274,7 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     const transparent = this.transparentKeys.delete(layerId);
     if (!source && !transparent) return false;
     this.sources.delete(layerId);
+    this.currentLayers.delete(layerId);
     source?.destroy?.();
     this.revision += 1;
     return true;
@@ -261,20 +288,30 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     for (const layerId of this.transparentKeys.keys()) {
       if (!retained.has(layerId)) this.release(layerId);
     }
+    this.currentLayers.clear();
+    layers.forEach((layer) => this.currentLayers.set(layer.id, layer));
   }
 
   snapshot(): TextLayerRendererSnapshot {
     let textureBytes = 0;
+    let rebuildingLayerCount = 0;
     let mode: TextLayerRendererSnapshot['mode'] = 'placeholder';
     for (const source of this.sources.values()) {
       textureBytes += source.byteLength;
       mode = source.mode;
     }
+    for (const [layerId, source] of this.sources) {
+      const authored = this.currentLayers.get(layerId);
+      if (authored && (source.authoredKey ?? source.sourceKey) !== textLayerSourceKey(authored)) {
+        rebuildingLayerCount += 1;
+      }
+    }
     return Object.freeze({
       publicationRevision: this.revision,
       readyLayerCount: this.sources.size + this.transparentKeys.size,
       textureBytes,
-      mode: mode === 'placeholder' && this.transparentKeys.size > 0 ? 'cached' : mode
+      mode: mode === 'placeholder' && this.transparentKeys.size > 0 ? 'cached' : mode,
+      rebuildingLayerCount
     });
   }
 
@@ -287,7 +324,10 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     if (this.sources.size > 0 || this.transparentKeys.size > 0) this.revision += 1;
     this.sources.clear();
     this.transparentKeys.clear();
+    this.currentLayers.clear();
   }
+
+  private readonly currentLayers = new Map<TextLayer['id'], TextLayer>();
 
   private assertSource(source: PublishedTextLayerSource<TTexture>) {
     if (!source.sourceKey) throw new TypeError('Text source key must not be empty.');

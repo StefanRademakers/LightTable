@@ -5,6 +5,33 @@ import { translationMatrix } from '../../editor/geometry/affine';
 import { TextLayerRenderer, textLayerSourceKey, tightCoverageBounds } from './TextLayerRenderer';
 
 describe('TextLayerRenderer', () => {
+  it('keeps stale pixels for presentation while exact consumers wait for rebuild', () => {
+    const renderer = new TextLayerRenderer<object>();
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
+    renderer.sync([layer]);
+    renderer.publish({
+      layerId: layer.id,
+      texture: {},
+      width: 20,
+      height: 10,
+      localBounds: { x: 0, y: 0, width: 20, height: 10 },
+      sourceScale: 1,
+      sourceKey: 'ready',
+      authoredKey: textLayerSourceKey(layer),
+      mode: 'cached',
+      byteLength: 1600
+    });
+    const changed = {
+      ...layer,
+      text: { ...layer.text, revisions: { ...layer.text.revisions, content: 1 } }
+    };
+    renderer.sync([changed]);
+    expect(renderer.resolveExact(changed)).toBeNull();
+    expect(renderer.resolvePresentation(changed)).toMatchObject({ sourceKey: 'ready' });
+    expect(renderer.snapshot().rebuildingLayerCount).toBe(1);
+    renderer.sync([]);
+    expect(renderer.resolvePresentation(changed)).toBeNull();
+  });
   it('publishes only exact immutable sources and maps tight pixels into document space', () => {
     const renderer = new TextLayerRenderer<object>();
     const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');

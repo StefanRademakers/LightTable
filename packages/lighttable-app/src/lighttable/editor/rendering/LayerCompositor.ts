@@ -249,7 +249,7 @@ export class LayerCompositor {
 
       if (node.type === 'text') {
         if (this.options.texts?.isTransparent?.(node)) return [background, target];
-        const source = this.options.texts?.resolve(node, inheritedTransform) ?? null;
+        const source = this.options.texts?.resolvePresentation(node, inheritedTransform) ?? null;
         if (!source) {
           return renderVectorLayer(
             textPlaceholderVectorLayer(node),
