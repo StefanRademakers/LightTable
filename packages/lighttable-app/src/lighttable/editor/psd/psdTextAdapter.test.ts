@@ -22,8 +22,7 @@ describe('Photoshop text adapter', () => {
         font: { name: 'SourceSerif4-Regular' },
         fontSize: 36,
         fillColor: { r: 255, g: 128, b: 0 },
-        tracking: 25,
-        fauxItalic: true
+        tracking: 25
       },
       paragraphStyle: { justification: 'center' }
     }, 'psd-layer-1');
@@ -39,7 +38,7 @@ describe('Photoshop text adapter', () => {
       styleRuns: [{
         requestedFont: { families: ['SourceSerif4-Regular'] },
         fontSize: 36,
-        fontStyle: 'italic',
+        fontStyle: 'normal',
         tracking: 25,
         fill: { color: { r: 1, g: 128 / 255, b: 0 } }
       }],
@@ -53,7 +52,7 @@ describe('Photoshop text adapter', () => {
   it('maps a valid Photoshop box to an editable paragraph frame', () => {
     const result = importPsdText({
       text: 'Paragraph', shapeType: 'box', boxBounds: [10, 20, 210, 120],
-      style: { fontSize: 24 }, paragraphStyle: { autoHyphenate: true }
+      style: { fontSize: 24 }, paragraphStyle: { autoHyphenate: false }
     });
     expect(result.kind).toBe('editable-flow');
     if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
@@ -63,7 +62,7 @@ describe('Photoshop text adapter', () => {
       overflow: 'visible',
       writingMode: 'horizontal-tb'
     });
-    expect(result.text.source.paragraphRuns[0]?.hyphenation).toBe('auto');
+    expect(result.text.source.paragraphRuns[0]?.hyphenation).toBe('off');
   });
 
   it('imports a text descriptor after an actual PSD binary write/read round trip', () => {
@@ -119,7 +118,7 @@ describe('Photoshop text adapter', () => {
       kind: 'flow',
       text: 'PSD fixture',
       layout: { mode: 'point', origin: { x: 3, y: 5 } },
-      styleRuns: [{ requestedFont: { families: ['Inter'] }, fontSize: 27 }],
+      styleRuns: [{ requestedFont: { families: ['Inter'] }, fontSize: 27, kerning: 'metrics' }],
       paragraphRuns: [{ alignment: 'end' }]
     });
   });
@@ -129,7 +128,17 @@ describe('Photoshop text adapter', () => {
     [{ text: 'Path', textPath: { data: {} } }, 'path'],
     [{ text: 'Vertical', orientation: 'vertical' }, 'Vertical'],
     [{ text: 'Bad transform', transform: [1, 0, 0] }, 'transform'],
-    [{ text: 'Bad runs', styleRuns: [{ length: 2, style: {} }] }, 'run lengths']
+    [{ text: 'Bad runs', styleRuns: [{ length: 2, style: {} }] }, 'run lengths'],
+    [{ text: 'Faux', style: { fauxBold: true } }, 'faux'],
+    [{ text: 'Baseline', style: { baselineShift: 2 } }, 'baseline'],
+    [{ text: 'Scaled', style: { horizontalScale: 90 } }, 'scaling'],
+    [{ text: 'Kerning', style: { autoKerning: false } }, 'kerning'],
+    [{ text: 'Ligature', style: { ligatures: false } }, 'ligature'],
+    [{ text: 'Underline', style: { underline: true } }, 'decorations'],
+    [{
+      text: 'Hyphenation', shapeType: 'box', boxBounds: [0, 0, 100, 100],
+      paragraphStyle: { autoHyphenate: true }
+    }, 'hyphenation']
   ])('preserves unsupported descriptors without claiming editability', (descriptor, reason) => {
     const result = importPsdText(descriptor);
     expect(result).toMatchObject({ kind: 'preserved' });

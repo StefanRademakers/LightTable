@@ -110,7 +110,9 @@ const style = (
     },
     ...(stroke ? { stroke } : {}),
     tracking: clamp(finite(source.tracking) ? source.tracking : 0, -100_000, 100_000),
-    kerning: source.autoKerning === false || source.kerning === 0 ? 'none' : 'metrics',
+    // Photoshop serializes zero as the manual-pair value even while automatic
+    // kerning is enabled. Only the explicit autoKerning=false state disables it.
+    kerning: source.autoKerning === false ? 'none' : 'metrics',
     baselineShift: clamp(finite(source.baselineShift) ? source.baselineShift : 0, -100_000, 100_000),
     horizontalScale: clamp(finite(source.horizontalScale) && source.horizontalScale > 0 ? source.horizontalScale : 100, 0.01, 10_000),
     verticalScale: clamp(finite(source.verticalScale) && source.verticalScale > 0 ? source.verticalScale : 100, 0.01, 10_000),
@@ -172,6 +174,42 @@ const styleAt = (
   return { ...(source.style ?? {}), ...(run?.run.style ?? {}) };
 };
 
+const unsupportedEditableSemantics = (source: LayerTextData): string[] => {
+  const base = source.style ?? {};
+  const styles = source.styleRuns?.length
+    ? source.styleRuns.map((run) => ({ ...base, ...run.style }))
+    : [base];
+  const reasons: string[] = [];
+  if (styles.some((candidate) => candidate.fauxBold || candidate.fauxItalic)) {
+    reasons.push('Photoshop faux bold or italic requires text synthesis that is not editable yet.');
+  }
+  if (styles.some((candidate) => finite(candidate.baselineShift) && candidate.baselineShift !== 0)) {
+    reasons.push('Photoshop baseline shift is preserved until the editable layout path supports it.');
+  }
+  if (styles.some((candidate) => (finite(candidate.horizontalScale) && candidate.horizontalScale !== 100)
+    || (finite(candidate.verticalScale) && candidate.verticalScale !== 100))) {
+    reasons.push('Photoshop character scaling is preserved until the editable layout path supports it.');
+  }
+  if (styles.some((candidate) => candidate.autoKerning === false)) {
+    reasons.push('Disabled Photoshop kerning is preserved until the editable layout path supports it.');
+  }
+  if (styles.some((candidate) => candidate.ligatures === false || candidate.dLigatures === true)) {
+    reasons.push('Photoshop OpenType ligature overrides are preserved until editable feature controls are supported.');
+  }
+  if (styles.some((candidate) => candidate.underline || candidate.strikethrough)) {
+    reasons.push('Photoshop text decorations are preserved until they can be rendered and edited faithfully.');
+  }
+  if (source.shapeType === 'box') {
+    const paragraphs = source.paragraphStyleRuns?.length
+      ? source.paragraphStyleRuns.map((run) => ({ ...(source.paragraphStyle ?? {}), ...run.style }))
+      : [source.paragraphStyle ?? {}];
+    if (paragraphs.some((candidate) => candidate.autoHyphenate)) {
+      reasons.push('Photoshop automatic hyphenation is preserved until the editable paragraph layout supports it.');
+    }
+  }
+  return reasons;
+};
+
 export const importPsdText = (value: unknown, sourceObjectId?: string): PsdTextImportResult => {
   if (!value || typeof value !== 'object') {
     return { kind: 'preserved', reasons: ['The Photoshop text descriptor is missing or invalid.'] };
@@ -202,6 +240,8 @@ export const importPsdText = (value: unknown, sourceObjectId?: string): PsdTextI
   if (styleSpans === null || paragraphSpans === null) {
     return { kind: 'preserved', reasons: ['Photoshop text run lengths do not cover the text exactly.'] };
   }
+  const unsupportedReasons = unsupportedEditableSemantics(source);
+  if (unsupportedReasons.length) return { kind: 'preserved', reasons: unsupportedReasons };
 
   const reasons = [
     'Editable text semantics were imported; exact appearance depends on resolving the original Photoshop fonts.'

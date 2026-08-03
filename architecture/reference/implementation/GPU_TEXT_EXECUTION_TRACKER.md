@@ -666,6 +666,20 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 18 editable-semantics gate audit
+
+- Runtime truthfulness: the PSD adapter no longer marks faux styles, baseline
+  shift, character scaling, disabled kerning, ligature overrides, text
+  decorations or paragraph hyphenation editable while the production layout
+  path rejects or cannot faithfully render those semantics.
+- Preservation: affected descriptors remain preview-backed with a specific
+  compatibility reason; no unsupported setting is silently normalized away.
+- PSD default: a serialized zero manual kerning value retains metrics kerning
+  when Photoshop automatic kerning is enabled.
+- UI audit: font/face, size, fill, tracking, alignment, leading, indents and
+  paragraph spacing already use shared controls. Text stroke is renderable and
+  imported but lacks an editing surface; it is the next shared-control UI step.
+
 ### 2026-08-03 - Slice 18 serialized PSD text fixture
 
 - Interoperability: a test now writes a real PSD binary through `ag-psd`, reads
