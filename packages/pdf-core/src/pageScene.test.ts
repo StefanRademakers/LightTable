@@ -7,11 +7,12 @@ import {
 } from './index';
 
 const glyphRun: PdfPositionedTextRun = {
-  fontResourceId: 'font:1', fontSize: 18, textMatrix: [1, 0, 0, 1, 0, 0],
+  id: 'run:glyph', fontResourceId: 'font:1', semanticMappingResourceId: null,
+  fontSize: 18, textMatrix: [1, 0, 0, 1, 0, 0],
   characterSpacing: 0, wordSpacing: 0, horizontalScale: 100, rise: 0,
   renderingMode: 6,
   glyphs: [{
-    sourceCode: [65], cid: 65, glyphId: 36, unicode: 'A', unicodeConfidence: 'to-unicode',
+    sourceCode: [65], cid: 65, glyphId: 36,
     origin: { x: 12, y: 30 }, advance: { x: 10, y: 0 },
     glyphMatrix: [18, 0, 0, 18, 12, 30]
   }]

@@ -43,8 +43,6 @@ export interface PdfPositionedGlyph {
   readonly sourceCode: readonly number[];
   readonly cid?: number;
   readonly glyphId?: number;
-  readonly unicode?: string;
-  readonly unicodeConfidence?: 'to-unicode' | 'actual-text' | 'heuristic';
   readonly origin: PdfPoint;
   readonly advance: PdfPoint;
   /** Exact glyph-space to page-user-space mapping after PDF text-state evaluation. */
@@ -52,7 +50,10 @@ export interface PdfPositionedGlyph {
 }
 
 export interface PdfPositionedTextRun {
+  readonly id: string;
   readonly fontResourceId: string;
+  /** Semantic Unicode/ActualText is deliberately stored outside visual glyph data. */
+  readonly semanticMappingResourceId: string | null;
   readonly fontSize: number;
   readonly textMatrix: PdfMatrix;
   readonly characterSpacing: number;
@@ -61,8 +62,6 @@ export interface PdfPositionedTextRun {
   readonly rise: number;
   readonly renderingMode: PdfTextRenderingMode;
   readonly glyphs: readonly PdfPositionedGlyph[];
-  readonly extractedText?: string;
-  readonly logicalOrderConfidence?: number;
 }
 
 export type PdfDisplayOperation =
@@ -95,13 +94,37 @@ export interface PdfFontResource {
   readonly subtype: 'type1' | 'truetype' | 'type0-cid' | 'type3' | 'cff' | 'opentype' | 'unknown';
   readonly baseName: string | null;
   readonly subsetTag: string | null;
-  readonly embeddedAssetId: string | null;
-  readonly embeddedByteLength: number | null;
-  readonly fingerprintSha256: string | null;
+  readonly fontProgramResourceId: string | null;
   readonly encodingName: string | null;
   readonly toUnicode: 'present' | 'absent' | 'malformed';
   readonly authoring: 'exact-positioned-only' | 'recoverable' | 'outline-only' | 'visual-only';
   readonly embedding: 'embedded' | 'not-embedded' | 'restricted' | 'unknown';
+}
+
+export interface PdfFontProgramResource {
+  readonly id: string;
+  readonly assetId: string;
+  readonly byteLength: number;
+  readonly fingerprintSha256: string;
+  readonly format: 'type1' | 'cff' | 'truetype' | 'opentype' | 'type3-programs' | 'unknown';
+  /** Substitution bytes may render a preview but are never imported as authored bytes. */
+  readonly source: 'embedded' | 'substitution';
+}
+
+export interface PdfTextSemanticSpan {
+  readonly glyphStart: number;
+  readonly glyphEnd: number;
+  readonly unicode: string;
+  readonly provenance: 'to-unicode' | 'actual-text' | 'heuristic';
+  readonly confidence: number;
+}
+
+export interface PdfTextSemanticMappingResource {
+  readonly id: string;
+  readonly positionedRunId: string;
+  readonly spans: readonly PdfTextSemanticSpan[];
+  readonly extractedText: string;
+  readonly logicalOrderConfidence: number;
 }
 
 export interface PdfImageResource {
@@ -166,6 +189,8 @@ export interface PdfNormalizedDisplayList {
   readonly pages: readonly PdfPageDisplayList[];
   readonly resources: {
     readonly fonts: readonly PdfFontResource[];
+    readonly fontPrograms: readonly PdfFontProgramResource[];
+    readonly semanticMappings: readonly PdfTextSemanticMappingResource[];
     readonly images: readonly PdfImageResource[];
     readonly colorSpaces: readonly PdfColorSpaceResource[];
     readonly transparencyGroups: readonly PdfTransparencyGroupResource[];

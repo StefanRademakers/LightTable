@@ -600,7 +600,7 @@ be reproduced.
 - [x] Evaluate exact glyph IDs, matrices, font bytes and text render modes via
   PDFium and at least one reference path.
 - [x] Import one page with paths, images, clips and positioned text.
-- [ ] Preserve embedded subset fonts and semantic mappings separately.
+- [x] Preserve embedded subset fonts and semantic mappings separately.
 - [ ] Bound Type 3 glyph programs and malformed document resource use.
 - [ ] Detect PDF-compatible Illustrator input; preserve original source bytes.
 - [ ] Record native `.ai` data as preserved/unsupported, not round-trippable.
@@ -617,6 +617,13 @@ Each draw item snapshots active clip paths, transform, fill/stroke state, alpha,
 blend mode, soft mask and transparency-group membership. Its mixed one-page
 fixture proves save/restore isolation, transform composition and unsupported
 operator preservation without leaking renderer or engine state.
+
+Font/semantics evidence: positioned glyph runs now contain only visual source
+codes, CIDs, glyph IDs, positions and matrices. Embedded or substituted font
+programs live in separately fingerprinted asset resources, while ToUnicode,
+ActualText and heuristic mappings live in range-based semantic resources with
+explicit provenance and confidence. Validation rejects cross-kind references,
+detached mappings, out-of-range spans and embedded fonts without program bytes.
 
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but

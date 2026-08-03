@@ -15,6 +15,8 @@ export interface PdfDisplayListLimits {
   readonly maximumGlyphsPerRun: number;
   readonly maximumPathCommands: number;
   readonly maximumResourceCount: number;
+  readonly maximumSemanticSpans: number;
+  readonly maximumFontProgramBytes: number;
 }
 
 export const DEFAULT_PDF_DISPLAY_LIST_LIMITS: PdfDisplayListLimits = Object.freeze({
@@ -22,7 +24,9 @@ export const DEFAULT_PDF_DISPLAY_LIST_LIMITS: PdfDisplayListLimits = Object.free
   maximumOperationsPerPage: 2_000_000,
   maximumGlyphsPerRun: 1_000_000,
   maximumPathCommands: 5_000_000,
-  maximumResourceCount: 1_000_000
+  maximumResourceCount: 1_000_000,
+  maximumSemanticSpans: 5_000_000,
+  maximumFontProgramBytes: 512 * 1024 * 1024
 });
 
 const fail = (path: string, message: string): never => { throw new Error(`${path} ${message}`); };
@@ -101,6 +105,8 @@ export const validatePdfDisplayList = (
   if (value.pages.length > limits.maximumPages) fail('$.pages', 'exceeds the page limit.');
   const allResources = [
     ...value.resources.fonts,
+    ...value.resources.fontPrograms,
+    ...value.resources.semanticMappings,
     ...value.resources.images,
     ...value.resources.colorSpaces,
     ...value.resources.transparencyGroups,
@@ -114,19 +120,52 @@ export const validatePdfDisplayList = (
     if (resourceIds.has(resource.id)) fail('$.resources', `contains duplicate id ${resource.id}.`);
     resourceIds.add(resource.id);
   }
-  const requireResource = (id: string, path: string, kind: string) => {
-    if (!resourceIds.has(id)) fail(path, `references missing ${kind} resource ${id}.`);
+  const ids = <T extends { readonly id: string }>(resources: readonly T[]) => new Set(resources.map(resource => resource.id));
+  const fontIds = ids(value.resources.fonts);
+  const fontProgramIds = ids(value.resources.fontPrograms);
+  const semanticMappingIds = ids(value.resources.semanticMappings);
+  const imageIds = ids(value.resources.images);
+  const colorSpaceIds = ids(value.resources.colorSpaces);
+  const groupIds = ids(value.resources.transparencyGroups);
+  const softMaskIds = ids(value.resources.softMasks);
+  const requireResource = (set: ReadonlySet<string>, id: string, path: string, kind: string) => {
+    if (!set.has(id)) fail(path, `references missing ${kind} resource ${id}.`);
   };
   value.resources.fonts.forEach((font, index) => {
-    if (font.embeddedByteLength !== null) nonNegative(font.embeddedByteLength, `$.resources.fonts[${index}].embeddedByteLength`);
+    if (font.fontProgramResourceId !== null) {
+      requireResource(fontProgramIds, font.fontProgramResourceId, `$.resources.fonts[${index}].fontProgramResourceId`, 'font-program');
+    }
+    if (font.embedding === 'embedded' && font.fontProgramResourceId === null) {
+      fail(`$.resources.fonts[${index}].fontProgramResourceId`, 'is required for an embedded font.');
+    }
+  });
+  value.resources.fontPrograms.forEach((program, index) => {
+    const programPath = `$.resources.fontPrograms[${index}]`;
+    nonNegative(program.byteLength, `${programPath}.byteLength`);
+    if (program.byteLength > limits.maximumFontProgramBytes) fail(programPath, 'exceeds the font-program byte limit.');
+    if (!/^[a-f0-9]{64}$/i.test(program.fingerprintSha256)) fail(`${programPath}.fingerprintSha256`, 'must be a SHA-256 hex digest.');
+  });
+  const semanticMappingById = new Map(value.resources.semanticMappings.map(mapping => [mapping.id, mapping]));
+  value.resources.semanticMappings.forEach((mapping, index) => {
+    const mappingPath = `$.resources.semanticMappings[${index}]`;
+    if (mapping.spans.length > limits.maximumSemanticSpans) fail(mappingPath, 'exceeds the semantic-span limit.');
+    unit(mapping.logicalOrderConfidence, `${mappingPath}.logicalOrderConfidence`);
+    let previousEnd = 0;
+    mapping.spans.forEach((span, spanIndex) => {
+      const spanPath = `${mappingPath}.spans[${spanIndex}]`;
+      if (!Number.isInteger(span.glyphStart) || span.glyphStart < previousEnd) fail(`${spanPath}.glyphStart`, 'must be an ordered non-negative integer.');
+      if (!Number.isInteger(span.glyphEnd) || span.glyphEnd <= span.glyphStart) fail(`${spanPath}.glyphEnd`, 'must be greater than glyphStart.');
+      unit(span.confidence, `${spanPath}.confidence`);
+      previousEnd = span.glyphEnd;
+    });
   });
   value.resources.images.forEach((image, index) => {
     const imagePath = `$.resources.images[${index}]`;
     nonNegative(image.width, `${imagePath}.width`);
     nonNegative(image.height, `${imagePath}.height`);
     nonNegative(image.bitsPerComponent, `${imagePath}.bitsPerComponent`);
-    if (image.colorSpaceId !== null) requireResource(image.colorSpaceId, `${imagePath}.colorSpaceId`, 'color-space');
-    if (image.softMaskResourceId !== null) requireResource(image.softMaskResourceId, `${imagePath}.softMaskResourceId`, 'soft-mask');
+    if (image.colorSpaceId !== null) requireResource(colorSpaceIds, image.colorSpaceId, `${imagePath}.colorSpaceId`, 'color-space');
+    if (image.softMaskResourceId !== null) requireResource(softMaskIds, image.softMaskResourceId, `${imagePath}.softMaskResourceId`, 'soft-mask');
   });
   value.resources.colorSpaces.forEach((colorSpace, index) => {
     nonNegative(colorSpace.componentCount, `$.resources.colorSpaces[${index}].componentCount`);
@@ -134,13 +173,14 @@ export const validatePdfDisplayList = (
   value.resources.transparencyGroups.forEach((group, index) => {
     const groupPath = `$.resources.transparencyGroups[${index}]`;
     rect(group.bounds, `${groupPath}.bounds`);
-    if (group.colorSpaceId !== null) requireResource(group.colorSpaceId, `${groupPath}.colorSpaceId`, 'color-space');
+    if (group.colorSpaceId !== null) requireResource(colorSpaceIds, group.colorSpaceId, `${groupPath}.colorSpaceId`, 'color-space');
   });
   value.resources.softMasks.forEach((mask, index) => {
     const maskPath = `$.resources.softMasks[${index}]`;
-    requireResource(mask.groupResourceId, `${maskPath}.groupResourceId`, 'transparency-group');
+    requireResource(groupIds, mask.groupResourceId, `${maskPath}.groupResourceId`, 'transparency-group');
     mask.backdrop?.forEach((part, partIndex) => finite(part, `${maskPath}.backdrop[${partIndex}]`));
   });
+  const positionedRunIds = new Set<string>();
   value.pages.forEach((page, pageIndex) => {
     const pagePath = `$.pages[${pageIndex}]`;
     if (page.pageIndex !== pageIndex) fail(`${pagePath}.pageIndex`, 'must be contiguous and zero-based.');
@@ -153,16 +193,28 @@ export const validatePdfDisplayList = (
     page.operations.forEach((entry, index) => {
       const operationPath = `${pagePath}.operations[${index}]`;
       operation(entry, operationPath, limits);
-      if (entry.kind === 'draw-image') requireResource(entry.imageResourceId, `${operationPath}.imageResourceId`, 'image');
+      if (entry.kind === 'draw-image') requireResource(imageIds, entry.imageResourceId, `${operationPath}.imageResourceId`, 'image');
       else if (entry.kind === 'draw-text') entry.runs.forEach((run, runIndex) => {
-        requireResource(run.fontResourceId, `${operationPath}.runs[${runIndex}].fontResourceId`, 'font');
+        const runPath = `${operationPath}.runs[${runIndex}]`;
+        if (!run.id) fail(`${runPath}.id`, 'must not be empty.');
+        if (positionedRunIds.has(run.id)) fail(`${runPath}.id`, `duplicates positioned run ${run.id}.`);
+        positionedRunIds.add(run.id);
+        requireResource(fontIds, run.fontResourceId, `${runPath}.fontResourceId`, 'font');
+        if (run.semanticMappingResourceId !== null) {
+          requireResource(semanticMappingIds, run.semanticMappingResourceId, `${runPath}.semanticMappingResourceId`, 'semantic-mapping');
+          const mapping = semanticMappingById.get(run.semanticMappingResourceId)!;
+          if (mapping.positionedRunId !== run.id) fail(`${runPath}.semanticMappingResourceId`, 'does not target this positioned run.');
+          mapping.spans.forEach((span, spanIndex) => {
+            if (span.glyphEnd > run.glyphs.length) fail(`${runPath}.semanticMappingResourceId`, `span ${spanIndex} exceeds the glyph count.`);
+          });
+        }
       });
       else if (entry.kind === 'set-fill-paint' || entry.kind === 'set-stroke-paint') {
-        if (entry.paint.kind === 'resource') requireResource(entry.paint.colorSpaceId, `${operationPath}.paint.colorSpaceId`, 'color-space');
+        if (entry.paint.kind === 'resource') requireResource(colorSpaceIds, entry.paint.colorSpaceId, `${operationPath}.paint.colorSpaceId`, 'color-space');
       } else if (entry.kind === 'begin-transparency-group') {
-        requireResource(entry.groupResourceId, `${operationPath}.groupResourceId`, 'transparency-group');
+        requireResource(groupIds, entry.groupResourceId, `${operationPath}.groupResourceId`, 'transparency-group');
       } else if (entry.kind === 'apply-soft-mask' && entry.softMaskResourceId !== null) {
-        requireResource(entry.softMaskResourceId, `${operationPath}.softMaskResourceId`, 'soft-mask');
+        requireResource(softMaskIds, entry.softMaskResourceId, `${operationPath}.softMaskResourceId`, 'soft-mask');
       }
       if (entry.kind === 'save-state') stateDepth += 1;
       else if (entry.kind === 'restore-state' && --stateDepth < 0) fail(operationPath, 'restores an empty graphics-state stack.');
