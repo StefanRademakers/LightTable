@@ -30,7 +30,7 @@ export const hitTestTextEditingLayout = (
 ): TextEditingHit | null => {
   const point = inversePoint(target.localToDocument, documentPoint);
   if (!point) return null;
-  const bounds = target.layout.logicalBounds;
+  const bounds = target.layout.paragraphFrame?.bounds ?? target.layout.logicalBounds;
   if (
     point.x < bounds.x - tolerance || point.x > bounds.x + bounds.width + tolerance
     || point.y < bounds.y - tolerance || point.y > bounds.y + bounds.height + tolerance
@@ -42,5 +42,9 @@ export const hitTestTextEditingLayout = (
       nearest = { offset: stop.textOffset, affinity: stop.affinity, distance };
     }
   }
-  return nearest;
+  return nearest ?? (target.layout.paragraphFrame ? {
+    offset: 0,
+    affinity: 'downstream',
+    distance: Math.hypot(point.x - bounds.x, point.y - bounds.y)
+  } : null);
 };

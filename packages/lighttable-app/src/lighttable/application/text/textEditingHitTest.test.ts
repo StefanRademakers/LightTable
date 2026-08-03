@@ -32,4 +32,22 @@ describe('text editing hit test', () => {
       layout, localToDocument: { a: 0, b: 0, c: 0, d: 0, tx: 0, ty: 0 }
     }, { x: 0, y: 0 })).toBeNull();
   });
+
+  it('keeps an empty paragraph frame hittable before it has glyph geometry', () => {
+    const paragraph = {
+      ...layout,
+      caretStops: [],
+      logicalBounds: { x: 12, y: 18, width: 0, height: 0 },
+      paragraphFrame: {
+        bounds: { x: 10, y: 15, width: 140, height: 80 },
+        overflow: 'indicator' as const,
+        overflowed: false,
+        visibleLineCount: 0
+      }
+    };
+    expect(hitTestTextEditingLayout({
+      layout: paragraph,
+      localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 20, ty: 30 }
+    }, { x: 100, y: 80 })).toMatchObject({ offset: 0, affinity: 'downstream' });
+  });
 });

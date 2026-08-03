@@ -1556,6 +1556,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return resolveTextToolFont(textFontRegistry.availableAssets, editorSession.text);
   };
 
+  const beginExistingFlowTextEditing = (
+    point: { x: number; y: number },
+    mode: 'point' | 'paragraph' | 'any' = 'any'
+  ) => {
+    const document = imageDocumentRef.current;
+    if (!document) return false;
+    const candidates = walkLayerTree(document.layers)
+      .map(({ node }) => node)
+      .filter((node) => node.type === 'text'
+        && node.text.source.kind === 'flow'
+        && (mode === 'any' || node.text.source.layout.mode === mode))
+      .reverse();
+    for (const layer of candidates) {
+      const layout = engineRef.current?.textEditingLayout(layer.id);
+      const hit = layout ? hitTestTextEditingLayout(layout, point) : null;
+      if (!hit) continue;
+      pointTextController.cancel();
+      paragraphTextController.cancel();
+      selectLayerRef.current(layer.id);
+      textEditingController.begin(layer.id, hit.offset, hit.affinity);
+      return true;
+    }
+    return false;
+  };
+
   const beginPointTextCreation = async (origin: { x: number; y: number }) => {
     const document = imageDocumentRef.current;
     if (!document) return;
@@ -1630,6 +1655,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setGradeStatus('Text creation is unavailable until the WebGPU renderer is ready.');
       return false;
     }
+    if (beginExistingFlowTextEditing(origin, 'paragraph')) return false;
     pointTextController.cancel();
     textEditingController.finish();
     if (!paragraphTextController.begin(
@@ -1727,22 +1753,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onFocusPickerEnd: () => setFocusPickerActive(false),
     onFill: fillActiveTarget,
     onPointTextCreate: (point) => {
-      const document = imageDocumentRef.current;
-      if (document) {
-        const candidates = walkLayerTree(document.layers)
-          .map(({ node }) => node)
-          .filter((node) => node.type === 'text' && node.text.source.kind === 'flow')
-          .reverse();
-        for (const layer of candidates) {
-          const layout = engineRef.current?.textEditingLayout(layer.id);
-          const hit = layout ? hitTestTextEditingLayout(layout, point) : null;
-          if (!hit) continue;
-          pointTextController.cancel();
-          selectLayerRef.current(layer.id);
-          textEditingController.begin(layer.id, hit.offset, hit.affinity);
-          return;
-        }
-      }
+      if (beginExistingFlowTextEditing(point)) return;
       textEditingController.finish();
       void beginPointTextCreation(point);
     },
