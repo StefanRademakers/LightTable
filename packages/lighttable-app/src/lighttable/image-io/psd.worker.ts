@@ -284,7 +284,17 @@ const serializeLayers = async (
         ? summarizePixels(layer.imageData, psd.bitsPerChannel ?? 8)
         : null,
       pixels: layer.imageData
-        ? await imageDataBlob(layer.imageData, psd.bitsPerChannel ?? 8, psd.width, psd.height, left, top)
+        // Keep raster previews layer-local. Expanding every small Photoshop
+        // layer to a document-sized PNG here multiplied both PNG work and the
+        // retained RGBA16 GPU footprint by the layer count.
+        ? await imageDataBlob(
+            layer.imageData,
+            psd.bitsPerChannel ?? 8,
+            layer.imageData.width,
+            layer.imageData.height,
+            0,
+            0
+          )
         : needsSemanticPlaceholder ? await transparentFallback() : null,
       rasterFallback: layer.imageData
         ? 'layer-preview'

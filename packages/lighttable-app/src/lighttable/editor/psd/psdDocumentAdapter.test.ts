@@ -3,6 +3,7 @@ import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 import type { PsdDecodeSuccess, PsdLayerNodeDto } from '../../image-io/psdProtocol';
 import { importPsdDocument } from './psdDocumentAdapter';
 import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
+import { translationMatrix } from '../tools/transform/affine';
 
 const pixels = () => new Blob(['pixels'], { type: 'image/png' });
 
@@ -74,6 +75,25 @@ describe('importPsdDocument', () => {
 
     expect(result.document.assets.preservedSources).toEqual([]);
     expect(result.assets.some((asset) => 'sourceId' in asset)).toBe(false);
+  });
+
+  it('keeps raster previews layer-local and places them from Photoshop bounds', () => {
+    const result = importPsdDocument(decoded([raster('local', {
+      bounds: { left: 7, top: -3, right: 19, bottom: 5 },
+      pixelSummary: {
+        width: 12,
+        height: 8,
+        nonTransparentPixels: 64,
+        maximumAlpha: 1
+      }
+    })]), 'local.psd');
+
+    expect(result.document.layers[0]).toMatchObject({
+      type: 'raster',
+      width: 12,
+      height: 8,
+      transform: translationMatrix(7, -3)
+    });
   });
 
   it('registers embedded Photoshop patterns and resolves Layer Style references', () => {

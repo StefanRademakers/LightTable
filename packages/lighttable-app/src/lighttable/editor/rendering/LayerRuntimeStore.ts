@@ -3,6 +3,8 @@ import { walkLayerTree, walkRasterLayers } from '../document/layerTree';
 
 export interface RasterLayerRuntime {
   texture: GPUTexture;
+  width: number;
+  height: number;
   maskTexture: GPUTexture | null;
   maskId: string | null;
 }
@@ -13,7 +15,7 @@ interface NodeMaskRuntime {
 }
 
 export interface LayerRuntimeStoreOptions {
-  createRasterTexture: (label: string) => GPUTexture;
+  createRasterTexture: (label: string, width: number, height: number) => GPUTexture;
   createMaskTexture: (label: string) => GPUTexture;
 }
 
@@ -35,13 +37,29 @@ export class LayerRuntimeStore {
       const existing = this.rasterRuntimes.get(layer.id);
       if (!existing) {
         this.rasterRuntimes.set(layer.id, {
-          texture: this.options.createRasterTexture(`LightTable layer: ${layer.name}`),
+          texture: this.options.createRasterTexture(
+            `LightTable layer: ${layer.name}`,
+            layer.width,
+            layer.height
+          ),
+          width: layer.width,
+          height: layer.height,
           maskTexture: layer.mask
             ? this.options.createMaskTexture(`LightTable mask: ${layer.name}`)
             : null,
           maskId: layer.mask?.id ?? null
         });
       } else {
+        if (existing.width !== layer.width || existing.height !== layer.height) {
+          existing.texture.destroy();
+          existing.texture = this.options.createRasterTexture(
+            `LightTable layer: ${layer.name}`,
+            layer.width,
+            layer.height
+          );
+          existing.width = layer.width;
+          existing.height = layer.height;
+        }
         if (!layer.mask && existing.maskTexture) {
           existing.maskTexture.destroy();
           existing.maskTexture = null;
@@ -143,7 +161,13 @@ export class LayerRuntimeStore {
       layer.mask && nodeMask && nodeMask.maskId === layer.mask.id
     );
     const runtime: RasterLayerRuntime = {
-      texture: this.options.createRasterTexture(`LightTable layer: ${layer.name}`),
+      texture: this.options.createRasterTexture(
+        `LightTable layer: ${layer.name}`,
+        layer.width,
+        layer.height
+      ),
+      width: layer.width,
+      height: layer.height,
       maskTexture: adoptsNodeMask
         ? nodeMask!.texture
         : layer.mask
@@ -186,7 +210,7 @@ export class LayerRuntimeStore {
     const rgba16Bytes = Math.max(1, width) * Math.max(1, height) * 8;
     let bytes = 0;
     this.rasterRuntimes.forEach((runtime) => {
-      bytes += rgba16Bytes;
+      bytes += Math.max(1, runtime.width) * Math.max(1, runtime.height) * 8;
       if (runtime.maskTexture) bytes += rgba16Bytes;
     });
     return bytes + this.nodeMasks.size * rgba16Bytes;

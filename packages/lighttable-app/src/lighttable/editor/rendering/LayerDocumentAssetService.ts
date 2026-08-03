@@ -15,8 +15,17 @@ import type {
 export interface LayerDocumentAssetPorts {
   rasterTexture: (layerId: LayerId) => GPUTexture | null;
   maskTexture: (layerId: LayerId) => GPUTexture | null;
-  encodeTexture: (texture: GPUTexture, maskChannel: boolean) => Promise<Blob>;
-  decodeTexture: (blob: Blob, texture: GPUTexture, maskChannel: boolean) => Promise<void>;
+  encodeTexture: (
+    layerId: LayerId,
+    texture: GPUTexture,
+    maskChannel: boolean
+  ) => Promise<Blob>;
+  decodeTexture: (
+    layerId: LayerId,
+    blob: Blob,
+    texture: GPUTexture,
+    maskChannel: boolean
+  ) => Promise<void>;
   invalidateLayer: (layerId: LayerId) => void;
   patternSource: (patternId: DocumentAssetId) => Blob | null;
   loadPattern: (asset: PatternAssetBlob) => Promise<void>;
@@ -40,8 +49,10 @@ export class LayerDocumentAssetService {
       const maskTexture = layer.mask ? this.ports.maskTexture(layer.id) : null;
       assets.push({
         layerId: layer.id,
-        pixels: await this.ports.encodeTexture(texture, false),
-        mask: maskTexture ? await this.ports.encodeTexture(maskTexture, true) : null
+        pixels: await this.ports.encodeTexture(layer.id, texture, false),
+        mask: maskTexture
+          ? await this.ports.encodeTexture(layer.id, maskTexture, true)
+          : null
       });
     }
 
@@ -52,7 +63,7 @@ export class LayerDocumentAssetService {
       assets.push({
         layerId: node.id,
         pixels: new Blob(),
-        mask: await this.ports.encodeTexture(maskTexture, true)
+        mask: await this.ports.encodeTexture(node.id, maskTexture, true)
       });
     }
 
@@ -79,14 +90,14 @@ export class LayerDocumentAssetService {
         if (!texture) {
           throw new Error(`Layer ${asset.layerId} is not available while opening the document.`);
         }
-        await this.ports.decodeTexture(asset.pixels, texture, false);
+        await this.ports.decodeTexture(asset.layerId, asset.pixels, texture, false);
       }
       if (asset.mask) {
         const maskTexture = this.ports.maskTexture(asset.layerId);
         if (!maskTexture) {
           throw new Error(`Mask ${asset.layerId} is not available while opening the document.`);
         }
-        await this.ports.decodeTexture(asset.mask, maskTexture, true);
+        await this.ports.decodeTexture(asset.layerId, asset.mask, maskTexture, true);
       }
     }
   }

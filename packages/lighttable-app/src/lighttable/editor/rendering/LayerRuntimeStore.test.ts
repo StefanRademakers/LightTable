@@ -114,6 +114,26 @@ describe('LayerRuntimeStore', () => {
     expect(store.estimatedTextureBytes(10, 5)).toBe(10 * 5 * 8 * 2);
   });
 
+  it('allocates and estimates raster surfaces at layer-local dimensions', () => {
+    const allocations: Array<{ width: number; height: number }> = [];
+    const store = new LayerRuntimeStore({
+      createRasterTexture: (_label, width, height) => {
+        allocations.push({ width, height });
+        return texture();
+      },
+      createMaskTexture: texture
+    });
+    const document = createImageDocument('test', 100, 80, 'source');
+    const raster = document.layers[0] as RasterLayer;
+    raster.width = 12;
+    raster.height = 7;
+
+    store.sync(document.layers);
+
+    expect(allocations).toEqual([{ width: 12, height: 7 }]);
+    expect(store.estimatedTextureBytes(100, 80)).toBe(12 * 7 * 8);
+  });
+
   it('promotes a text node mask into raster ownership without destroying or copying it', () => {
     const masks: GPUTexture[] = [];
     const store = new LayerRuntimeStore({

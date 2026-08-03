@@ -30,7 +30,7 @@ const documentWith = () => {
 const createPorts = (): LayerDocumentAssetPorts => ({
   rasterTexture: vi.fn(() => texture),
   maskTexture: vi.fn(() => maskTexture),
-  encodeTexture: vi.fn(async (_texture, maskChannel) => maskChannel ? mask : pixels),
+  encodeTexture: vi.fn(async (_layerId, _texture, maskChannel) => maskChannel ? mask : pixels),
   decodeTexture: vi.fn(async () => undefined),
   invalidateLayer: vi.fn(),
   patternSource: vi.fn(() => pattern),
@@ -60,8 +60,8 @@ describe('LayerDocumentAssetService', () => {
       { layerId, pixels, mask },
       { patternId, source: pattern }
     ]);
-    expect(ports.encodeTexture).toHaveBeenNthCalledWith(1, texture, false);
-    expect(ports.encodeTexture).toHaveBeenNthCalledWith(2, maskTexture, true);
+    expect(ports.encodeTexture).toHaveBeenNthCalledWith(1, layerId, texture, false);
+    expect(ports.encodeTexture).toHaveBeenNthCalledWith(2, layerId, maskTexture, true);
   });
 
   it('routes persisted assets to their canonical GPU destinations', async () => {
@@ -77,8 +77,8 @@ describe('LayerDocumentAssetService', () => {
     await service.load(assets);
 
     expect(ports.invalidateLayer).toHaveBeenCalledOnce();
-    expect(ports.decodeTexture).toHaveBeenNthCalledWith(1, pixels, texture, false);
-    expect(ports.decodeTexture).toHaveBeenNthCalledWith(2, mask, maskTexture, true);
+    expect(ports.decodeTexture).toHaveBeenNthCalledWith(1, layerId, pixels, texture, false);
+    expect(ports.decodeTexture).toHaveBeenNthCalledWith(2, layerId, mask, maskTexture, true);
     expect(ports.loadPattern).toHaveBeenCalledWith({ patternId, source: pattern });
   });
 

@@ -1,0 +1,43 @@
+# Task 047 - PSD tight raster surfaces and load performance
+
+Status: in progress
+
+Photoshop raster previews must remain layer-local from worker serialization
+through retained GPU storage. Expanding every layer to the document canvas makes
+large layered PSDs need several gigabytes of VRAM, delays opening and produces
+uninformative layer thumbnails.
+
+## Baseline corpus
+
+Use all matching PSD/reference-image pairs below
+`D:\mediavibe\LightTableTestFiles\psd\templates\Save the Date Invitation PSD 6`.
+EHS-396 currently loads 42 layers at about 4.4 seconds ready time, roughly
+4.37 GB estimated GPU memory and 17.54% composite/reference difference.
+
+## Work
+
+- [x] Serialize PSD layer pixels at their native layer-local dimensions.
+- [x] Map Photoshop layer bounds to canonical source dimensions plus a
+  document-space transform, including negative/outside-canvas bounds.
+- [x] Allocate retained raster GPU textures at each layer's actual dimensions;
+  keep document-space masks document-sized until a separate mask-local contract
+  is implemented.
+- [x] Decode, encode and thumbnail using the runtime surface dimensions.
+- [x] Make the GPU memory estimate account for actual retained surface sizes.
+- [ ] Add an explicit promotion path from a tight imported surface to an
+  editable document-sized paint surface before pixel editing/operations that
+  require document-space storage.
+- [ ] Record per-stage PSD timing so parsing, serialization, decode/upload and
+  first composite can be distinguished.
+- [ ] Run the complete 10-pair corpus before and after; preserve or improve each
+  visual comparison while reducing time and memory.
+
+## Gates
+
+- [x] EHS-396 no longer allocates one 3000 x 4242 RGBA16 surface per raster
+  preview and its layer thumbnails show useful local content.
+- [ ] PSD placement, nested groups, clipping, masks and layer styles preserve
+  their current visual result.
+- [ ] Painting, fill, invert, transform, merge, save/reopen and export remain
+  correct for both tight imported layers and ordinary document-sized layers.
+- [ ] Web and packaged Electron builds remain green.

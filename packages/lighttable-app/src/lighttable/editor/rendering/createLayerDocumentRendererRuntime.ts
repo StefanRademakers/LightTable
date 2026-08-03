@@ -94,7 +94,8 @@ export const createLayerDocumentRendererRuntime = (
     exportLayer: pipelines.exportLayer
   });
   const layerResources = new LayerRuntimeStore({
-    createRasterTexture: (label) => textures.createColor(label),
+    createRasterTexture: (label, width, height) =>
+      textures.createColorSized(label, width, height),
     createMaskTexture: (label) => textures.createMask(label)
   });
   const patternAssets = new PatternAssetStore();
@@ -144,9 +145,12 @@ export const createLayerDocumentRendererRuntime = (
     layerSource: (layerId) => {
       const text = textLayerRenderer.thumbnailSource(layerId);
       if (text) return text;
-      const raster = layerResources.raster(layerId)?.texture;
-      const { width, height } = resources.dimensions();
-      return raster ? { texture: raster, width, height } : null;
+      const raster = layerResources.raster(layerId);
+      return raster ? {
+        texture: raster.texture,
+        width: raster.width,
+        height: raster.height
+      } : null;
     },
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
     encode: (source, maskChannel, width, height) =>
@@ -306,13 +310,17 @@ export const createLayerDocumentRendererRuntime = (
   const documentAssets = new LayerDocumentAssetService({
     rasterTexture: (layerId) => layerResources.raster(layerId)?.texture ?? null,
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
-    encodeTexture: (texture, maskChannel) => {
-      const { width, height } = resources.dimensions();
+    encodeTexture: (layerId, texture, maskChannel) => {
+      const { width, height } = maskChannel
+        ? resources.dimensions()
+        : layerResources.raster(layerId) ?? resources.dimensions();
       return textureCodec.encode(texture, maskChannel, width, height);
     },
-    decodeTexture: async (blob, texture, maskChannel) => {
+    decodeTexture: async (layerId, blob, texture, maskChannel) => {
       const generation = resources.generation();
-      const { width, height } = resources.dimensions();
+      const { width, height } = maskChannel
+        ? resources.dimensions()
+        : layerResources.raster(layerId) ?? resources.dimensions();
       await textureCodec.decode(
         blob,
         texture,

@@ -23,6 +23,7 @@ import {
   type VectorLayer
 } from '../document/documentTypes';
 import { identityAffineMatrix } from '../rendering/renderContract';
+import { translationMatrix } from '../tools/transform/affine';
 import { importPsdLayerStyles } from './layerStylePsdAdapter';
 import { importPsdVectorShape } from './psdVectorShapeAdapter';
 import { importPsdText } from './psdTextAdapter';
@@ -625,9 +626,12 @@ export const importPsdDocument = (
     const layer: RasterLayer = {
       ...common,
       type: 'raster',
+      transform: node.pixelSummary
+        ? translationMatrix(node.bounds.left, node.bounds.top)
+        : identityAffineMatrix(),
       pixelRevision: 0,
-      width: source.width,
-      height: source.height,
+      width: node.pixelSummary?.width ?? source.width,
+      height: node.pixelSummary?.height ?? source.height,
       offsetX: 0,
       offsetY: 0,
       pixelSource: { kind: 'runtime-raster', runtimeId: node.id },
