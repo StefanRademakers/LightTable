@@ -173,6 +173,23 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).toHaveBeenCalledOnce();
   });
 
+  it('does not let synchronous presentation bookkeeping suppress queued text preparation', async () => {
+    const state = harness();
+    const document = createImageDocument('Text', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.renderer.setVisibleLayerIds.mockImplementationOnce(() => {
+      throw new Error('presentation bookkeeping failed');
+    });
+    state.coordinator.configureFonts(state.port);
+
+    expect(() => state.coordinator.sync(document)).toThrow('presentation bookkeeping failed');
+    await flush();
+
+    expect(state.client.registerFontDetailed).toHaveBeenCalledOnce();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+    expect(state.publish).toHaveBeenCalledOnce();
+  });
+
   it('registers only exact fonts referenced by production text layers', async () => {
     const state = harness();
     const unused = {

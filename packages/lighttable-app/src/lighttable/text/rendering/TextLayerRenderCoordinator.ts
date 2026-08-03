@@ -276,7 +276,13 @@ export class TextLayerRenderCoordinator {
       'Document synchronized',
       `document=${document.id} textLayers=${allText.length} visible=${visibleEntries.length} fonts=${this.fontPort?.assets.length ?? 0} active=${this.active}`
     );
+    // Queue canonical preparation before bookkeeping below. The Promise chain
+    // starts in a microtask, so bookkeeping still completes first, while an
+    // unrelated retention/diagnostic failure can no longer suppress shaping.
+    this.schedule();
+    this.trace('Preparation dispatch returned', `document=${document.id}`);
     this.options.renderer.setVisibleLayerIds(new Set(visibleEntries.map(({ layer }) => layer.id)));
+    this.trace('Visible text set synchronized', `layers=${visibleEntries.length}`);
     for (const layerId of this.settledLayerKeys.keys()) {
       if (!retained.has(layerId)) this.settledLayerKeys.delete(layerId);
     }
@@ -297,6 +303,7 @@ export class TextLayerRenderCoordinator {
     for (const { layer } of visibleEntries) {
       this.inputLatency.syncSource(layer.id, textLayerSourceKey(layer));
     }
+    this.trace('Text input identities synchronized', `layers=${visibleEntries.length}`);
     for (const { layer, transform } of visibleEntries) {
       const editing = this.editingLayouts.get(layer.id);
       if (!editing || !this.interactingLayerScales.has(layer.id)) continue;
@@ -306,7 +313,7 @@ export class TextLayerRenderCoordinator {
         localToDocument: Object.freeze({ ...transform })
       }));
     }
-    this.schedule();
+    this.trace('Document text housekeeping complete', `document=${document.id}`);
   }
 
   snapshot(): TextRenderPresentationSnapshot {
@@ -437,6 +444,17 @@ export class TextLayerRenderCoordinator {
   }
 
   private schedule() {
+    try {
+      this.scheduleUnsafe();
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Text preparation scheduling failed.';
+      this.setPreparationStage('failed', null, message);
+      this.trace('Preparation scheduling failed', message);
+      this.options.onError?.(message);
+    }
+  }
+
+  private scheduleUnsafe() {
     if (this.disposed) return;
     if (!this.active) {
       this.setPreparationStage('suspended');
@@ -452,6 +470,7 @@ export class TextLayerRenderCoordinator {
     }
     const layers = visibleTextLayers(this.document);
     this.visibleTextLayerCount = layers.length;
+    this.trace('Schedule guard passed', `document=${this.document.id} layers=${layers.length} fonts=${this.fontPort.assets.length}`);
     if (layers.length === 0 || this.fontPort.assets.length === 0) {
       this.abortController?.abort();
       this.abortController = null;
@@ -481,6 +500,7 @@ export class TextLayerRenderCoordinator {
         this.document!.id, layer, transform, this.fontPort!.revision
       ))
     ].join('|');
+    this.trace('Preparation key built', `key=${key} pendingMatch=${key === this.pendingKey}`);
     if (key === this.pendingKey) return;
     this.abortController?.abort();
     const abortController = new AbortController();
