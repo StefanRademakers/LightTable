@@ -7,6 +7,7 @@ import {
 import {
   planCoverageText,
   projectCurrentTextPaint,
+  selectTextRealizationRoute,
   serializeCoverageAtlasGlyphKey
 } from '@lighttable/text-rendering';
 import type {
@@ -26,6 +27,9 @@ import { TextSourceCostModel } from './TextSourceCostModel';
 import { TextInputLatencyTracker } from './TextInputLatencyTracker';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 import { resolveFlowFontSelections } from '../fonts/flowFontSelection';
+import { TextGlyphOutlineRepository } from './TextGlyphOutlineRepository';
+import { TextOutlineVectorBackend } from './TextOutlineVectorBackend';
+import { prepareTextOutlineVectorDraws } from './prepareTextOutlineVectorDraws';
 
 export interface TextFontRuntimePort {
   readonly revision: number;
@@ -36,7 +40,7 @@ export interface TextFontRuntimePort {
 
 interface CoordinatorDependencies {
   readonly client: Pick<TextEngineClient,
-    'registerFontDetailed' | 'realizeTextDetailed' | 'rasterizeGlyph' | 'releaseSession'>;
+    'registerFontDetailed' | 'realizeTextDetailed' | 'rasterizeGlyph' | 'extractGlyphOutline' | 'releaseSession'>;
   readonly backend: CoverageAtlasBackend;
 }
 
@@ -47,6 +51,8 @@ interface CoordinatorOptions {
   readonly onChanged?: (snapshot: TextRenderPresentationSnapshot) => void;
   readonly onError?: (message: string) => void;
   readonly loadDependencies?: () => Promise<CoordinatorDependencies>;
+  readonly createOutlineRepository?: (client: CoordinatorDependencies['client']) => TextGlyphOutlineRepository;
+  readonly createOutlineBackend?: (device: GPUDevice) => TextOutlineVectorBackend;
 }
 
 const defaultDependencies = async (device: GPUDevice): Promise<CoordinatorDependencies> => {
@@ -124,6 +130,8 @@ export class TextLayerRenderCoordinator {
   private unsubscribeFonts: (() => void) | null = null;
   private document: ImageDocument | null = null;
   private dependencies: CoordinatorDependencies | null = null;
+  private outlineRepository: TextGlyphOutlineRepository | null = null;
+  private outlineBackend: TextOutlineVectorBackend | null = null;
   private generation = 0;
   private sessionGeneration = 0;
   private sessionId = '';
@@ -433,6 +441,10 @@ export class TextLayerRenderCoordinator {
     this.generation += 1;
     this.options.renderer.setCostObserver(null);
     this.options.renderer.dispose();
+    this.outlineRepository?.clear();
+    this.outlineRepository = null;
+    this.outlineBackend?.dispose();
+    this.outlineBackend = null;
     this.layoutCache.clear();
     this.settledLayerKeys.clear();
     this.expectedLayerKeys.clear();
@@ -706,9 +718,25 @@ export class TextLayerRenderCoordinator {
     this.publishChanged();
     this.options.requestRender();
     this.setPreparationStage('rasterizing', layer.id);
+    const paintedLayout = projectCurrentTextPaint(layout, layer.text.source);
+    const realization = selectTextRealizationRoute(paintedLayout, {
+      documentScale: sourceScale,
+      purpose: 'interactive'
+    });
+    if (realization.route === 'outline-vector') {
+      this.trace(
+        'Outline fidelity selected',
+        `layer=${layer.id} reason=${realization.reason} targetPpem=${realization.targetPpem.toFixed(2)}`
+      );
+      await this.prepareOutlineSource(
+        dependencies, layer, transform, fontPortRevision, paintedLayout,
+        sourceScale, generation, key, signal
+      );
+      return;
+    }
     const prepared = await this.prepareDraws(
       dependencies,
-      projectCurrentTextPaint(layout, layer.text.source),
+      paintedLayout,
       sourceScale,
       generation,
       key,
@@ -823,6 +851,103 @@ export class TextLayerRenderCoordinator {
     this.options.requestRender();
   }
 
+  private async prepareOutlineSource(
+    dependencies: CoordinatorDependencies,
+    layer: TextLayer,
+    transform: AffineMatrix,
+    fontPortRevision: number,
+    layout: RealizedTextLayout,
+    sourceScale: number,
+    generation: number,
+    key: string,
+    signal: AbortSignal
+  ) {
+    const repository = this.outlineRepository ??= this.options.createOutlineRepository?.(dependencies.client)
+      ?? new TextGlyphOutlineRepository(dependencies.client);
+    const prepared = await prepareTextOutlineVectorDraws(repository, layout, {
+      documentSessionId: this.sessionId,
+      sessionGeneration: this.sessionGeneration,
+      fontSnapshotRevision: this.sessionFontRevision,
+      sourceScale
+    }, signal);
+    if (!this.current(generation, key)) return;
+    this.trace(
+      'Glyph outlines ready',
+      `layer=${layer.id} draws=${prepared.draws.length} unique=${prepared.uniqueOutlineCount}`
+    );
+    if (prepared.draws.length === 0) {
+      this.options.renderer.markTransparent(layer);
+      this.finishLayerPreparation(layer, transform, fontPortRevision);
+      this.trace('Transparent outline text source published', `layer=${layer.id}`);
+      return;
+    }
+    const backend = this.outlineBackend ??= this.options.createOutlineBackend?.(this.options.device)
+      ?? new TextOutlineVectorBackend(
+        this.options.device,
+        { maximumTextureDimension: this.options.device.limits?.maxTextureDimension2D ?? 8_192 }
+      );
+    const encoder = this.options.device.createCommandEncoder({
+      label: `LightTable outline text source: ${layer.name}`
+    });
+    const surface = backend.encodeTight(encoder, prepared.draws);
+    if (!surface) {
+      this.options.renderer.markTransparent(layer);
+      this.finishLayerPreparation(layer, transform, fontPortRevision);
+      return;
+    }
+    this.setPreparationStage('publishing', layer.id);
+    try {
+      this.options.device.queue.submit([encoder.finish()]);
+      this.textCacheSubmissions += 1;
+    } catch (error) {
+      surface.dispose();
+      throw error;
+    }
+    try {
+      this.options.renderer.publish({
+        layerId: layer.id,
+        texture: surface.texture,
+        width: surface.width,
+        height: surface.height,
+        localBounds: {
+          x: surface.sourceBounds.x / sourceScale,
+          y: surface.sourceBounds.y / sourceScale,
+          width: surface.sourceBounds.width / sourceScale,
+          height: surface.sourceBounds.height / sourceScale
+        },
+        sourceScale,
+        sourceKey: `${layout.key}:${layer.text.revisions.paint}:${sourceScale}:outline-v1`,
+        authoredKey: textLayerSourceKey(layer),
+        mode: 'cached',
+        byteLength: surface.byteLength,
+        destroy: surface.dispose
+      });
+    } catch (error) {
+      surface.dispose();
+      throw error;
+    }
+    this.trace('Outline text source published', `layer=${layer.id} draws=${prepared.draws.length}`);
+    this.finishLayerPreparation(layer, transform, fontPortRevision);
+    void backend.notifySubmitted();
+  }
+
+  private finishLayerPreparation(
+    layer: TextLayer,
+    transform: AffineMatrix,
+    fontPortRevision: number
+  ) {
+    this.forcedCachedLayers.delete(layer.id);
+    this.settledLayerKeys.set(
+      layer.id,
+      this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
+    );
+    if (this.interactingLayerScales.has(layer.id)) {
+      this.interactivelyPreparedLayers.add(layer.id);
+    }
+    this.publishChanged();
+    this.options.requestRender();
+  }
+
   private async prepareDraws(
     dependencies: CoordinatorDependencies,
     layout: RealizedTextLayout,
@@ -925,6 +1050,7 @@ export class TextLayerRenderCoordinator {
     this.generation += 1;
     this.pendingKey = '';
     this.layoutCache.clear();
+    this.outlineRepository?.clear();
     this.settledLayerKeys.clear();
     this.expectedLayerKeys.clear();
     this.retryCounts.clear();

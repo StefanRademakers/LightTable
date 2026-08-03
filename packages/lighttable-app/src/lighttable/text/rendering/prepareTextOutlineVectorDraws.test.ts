@@ -106,4 +106,30 @@ describe('prepareTextOutlineVectorDraws', () => {
       ...identity, sourceScale: 0
     })).rejects.toThrow('source scale');
   });
+
+  it('carries paragraph clipping in source pixels and excludes fully hidden lines', async () => {
+    const paragraphRun = run({
+      glyphIds: new Uint32Array([42, 42, 42]), clusters: new Uint32Array([0, 1, 2]),
+      geometry: new Float32Array([10, 20, 50, 0, 70, 50, 50, 0, 70, 80, 50, 0])
+    });
+    const clippedLayout: RealizedTextLayout = {
+      ...layout(paragraphRun),
+      paragraphFrame: {
+        bounds: { x: 5, y: 10, width: 100, height: 40 },
+        overflow: 'clip', overflowed: true, firstOverflowTextOffset: 1
+      },
+      lines: [
+        { start: 0, end: 1, baseline: 20, ascent: 10, descent: 2, bounds: { x: 5, y: 10, width: 50, height: 12 } },
+        { start: 1, end: 2, baseline: 50, ascent: 10, descent: 2, bounds: { x: 5, y: 40, width: 50, height: 12 } }
+      ]
+    };
+    const prepared = await prepareTextOutlineVectorDraws({
+      resolve: vi.fn().mockResolvedValue({ outline: glyphOutline, source: 'worker' })
+    }, clippedLayout, identity);
+
+    // The crossing line remains and is cut geometrically; later fully-hidden
+    // lines never allocate outline work or GPU draws.
+    expect(prepared.draws).toHaveLength(2);
+    expect(prepared.draws[0]?.clip).toEqual({ x: 10, y: 20, width: 200, height: 80 });
+  });
 });

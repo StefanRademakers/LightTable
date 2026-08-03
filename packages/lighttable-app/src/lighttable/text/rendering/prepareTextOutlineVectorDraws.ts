@@ -32,6 +32,7 @@ export interface TextOutlineVectorDraw {
   readonly geometry: RealizedVectorGeometry;
   readonly runIndex: number;
   readonly glyphIndex: number;
+  readonly clip?: Readonly<{ x: number; y: number; width: number; height: number }>;
 }
 
 export interface PreparedTextOutlineVectorDraws {
@@ -144,13 +145,26 @@ export const prepareTextOutlineVectorDraws = async (
   if (!Number.isFinite(identity.sourceScale) || identity.sourceScale <= 0) {
     throw new TypeError('Text outline source scale must be finite and positive.');
   }
+  const clippedFrame = layout.paragraphFrame?.overflow !== 'visible'
+    ? layout.paragraphFrame : undefined;
+  const firstHiddenTextOffset = clippedFrame?.overflowed
+    ? layout.lines.find((line) => line.start === clippedFrame.firstOverflowTextOffset)?.end
+    : undefined;
+  const clip = clippedFrame ? Object.freeze({
+    x: clippedFrame.bounds.x * identity.sourceScale,
+    y: clippedFrame.bounds.y * identity.sourceScale,
+    width: clippedFrame.bounds.width * identity.sourceScale,
+    height: clippedFrame.bounds.height * identity.sourceScale
+  }) : undefined;
   const entries: GlyphEntry[] = layout.glyphRuns.flatMap((run, runIndex) => {
     if (run.font.syntheticBold || run.font.syntheticItalic) {
       throw new Error('Synthetic text styles require outline synthesis before vector rendering.');
     }
-    return [...run.glyphIds].map((glyphId, glyphIndex) => ({
-      run, runIndex, glyphIndex, glyphId, outlineId: outlineIdentity(run, glyphId)
-    }));
+    return [...run.glyphIds].flatMap((glyphId, glyphIndex) => (
+      firstHiddenTextOffset !== undefined && run.clusters[glyphIndex]! >= firstHiddenTextOffset
+        ? []
+        : [{ run, runIndex, glyphIndex, glyphId, outlineId: outlineIdentity(run, glyphId) }]
+    ));
   });
   const unique = new Map(entries.map((entry) => [entry.outlineId, entry]));
   const outlines = new Map<string, TextWorkerGlyphOutlineResult>();
@@ -205,7 +219,10 @@ export const prepareTextOutlineVectorDraws = async (
     const requestedTolerance = glyphScale > 0 ? DEFAULT_SOURCE_TOLERANCE / glyphScale : DEFAULT_SOURCE_TOLERANCE;
     const geometry = realizeVectorPath(base, requestedTolerance);
     return geometry.subpaths.some(({ points }) => points.length > 0)
-      ? [{ path: base, geometry, runIndex: entry.runIndex, glyphIndex: entry.glyphIndex }]
+      ? [{
+          path: base, geometry, runIndex: entry.runIndex, glyphIndex: entry.glyphIndex,
+          ...(clip ? { clip } : {})
+        }]
       : [];
   });
   return Object.freeze({ draws: Object.freeze(draws), uniqueOutlineCount: unique.size });

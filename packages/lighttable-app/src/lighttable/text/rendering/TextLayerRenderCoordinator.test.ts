@@ -65,6 +65,7 @@ const harness = () => {
     isTransparent: vi.fn(() => false),
     markTransparent: vi.fn(() => false),
     release: vi.fn(() => false),
+    publish: vi.fn(() => { tightSourcePublished = true; return true; }),
     thumbnailSource: vi.fn((_layerId?: unknown) => tightSourcePublished ? ({ texture: {} }) : null),
     setCostObserver: vi.fn((observer: ((sample: TextSourceCostSample) => void) | null) => {
       costObserver = observer;
@@ -92,6 +93,30 @@ const harness = () => {
     retireSubmittedResources: vi.fn(async () => undefined),
     dispose: vi.fn()
   };
+  const outlineRepository = {
+    resolve: vi.fn(async () => ({
+      source: 'worker',
+      outline: {
+        unitsPerEm: 1_000,
+        verbs: new Uint8Array([0, 1, 1, 4]),
+        coordinates: new Float32Array([0, 0, 500, 1_000, 1_000, 0]),
+        bounds: new Float32Array([0, 0, 1_000, 1_000])
+      }
+    })),
+    clear: vi.fn()
+  };
+  const outlineSurface = {
+    texture: {} as GPUTexture, width: 20, height: 20,
+    sourceBounds: { x: 0, y: 0, width: 20, height: 20 },
+    byteLength: 20 * 20 * 8,
+    dispose: vi.fn()
+  };
+  const outlineBackend = {
+    encodeTight: vi.fn(() => outlineSurface),
+    notifySubmitted: vi.fn(async () => undefined),
+    cacheMetrics: vi.fn(() => ({ entries: 1 })),
+    dispose: vi.fn()
+  };
   const submit = vi.fn();
   const onError = vi.fn();
   const coordinator = new TextLayerRenderCoordinator({
@@ -102,7 +127,9 @@ const harness = () => {
     renderer: renderer as never,
     requestRender: vi.fn(),
     onError,
-    loadDependencies: vi.fn(async () => ({ client, backend } as never))
+    loadDependencies: vi.fn(async () => ({ client, backend } as never)),
+    createOutlineRepository: vi.fn(() => outlineRepository as never),
+    createOutlineBackend: vi.fn(() => outlineBackend as never)
   });
   const port: TextFontRuntimePort = {
     revision: 1,
@@ -111,7 +138,8 @@ const harness = () => {
     subscribe: vi.fn(() => () => undefined)
   };
   return {
-    coordinator, renderer, client, backend, submit, port, publish, discard, onError,
+    coordinator, renderer, client, backend, outlineRepository, outlineBackend,
+    outlineSurface, submit, port, publish, discard, onError,
     observeCost: (sample: TextSourceCostSample) => costObserver?.(sample)
   };
 };
@@ -358,6 +386,51 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.renderer.prepareTightSource).toHaveBeenCalledOnce();
     expect(state.submit).toHaveBeenCalledOnce();
     expect(state.renderer.thumbnailSource(document.layers[0]!.id)).not.toBeNull();
+  });
+
+  it('routes stroked text through cached outline WebGPU geometry instead of coverage masks', async () => {
+    const state = harness();
+    state.client.realizeTextDetailed.mockResolvedValueOnce({
+      layout: {
+        schemaVersion: TEXT_LAYOUT_SCHEMA_VERSION,
+        key: 'stroke-layout',
+        glyphRuns: [{
+          font: CONTRACT_FIXTURE_FONT_INSTANCE, fontSize: 16,
+          fontResolution: { kind: 'positioned-exact', sourceRunIndex: 0 },
+          paint: { fill: { kind: 'solid', color: { colorSpace: 'srgb', r: 0, g: 0, b: 0, a: 1 } } },
+          renderingMode: 'fill', direction: 'ltr',
+          glyphIds: new Uint32Array([7]), clusters: new Uint32Array([0]),
+          geometry: new Float32Array([2, 12, 10, 0])
+        }],
+        lines: [], caretStops: [], selectionGeometry: [], clusterMap: [],
+        inkBounds: { x: 2, y: 0, width: 10, height: 16 },
+        logicalBounds: { x: 2, y: 0, width: 10, height: 16 }, warnings: []
+      }, metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
+    } as never);
+    let document = createImageDocument('Stroke text', 64, 48, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    document.layers = [layer];
+    if (layer.text.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+    document = setFlowTextRuns(document, layer.id, layer.text.source.styleRuns.map((style) => ({
+      ...style,
+      stroke: {
+        paint: { kind: 'solid' as const, color: { colorSpace: 'srgb' as const, r: 1, g: 0, b: 0, a: 1 } },
+        width: 1, cap: 'butt' as const, join: 'miter' as const, miterLimit: 4
+      }
+    })), layer.text.source.paragraphRuns);
+
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await state.coordinator.waitForSettledSource(layer.id);
+
+    expect(state.outlineRepository.resolve).toHaveBeenCalledOnce();
+    expect(state.outlineBackend.encodeTight).toHaveBeenCalledOnce();
+    expect(state.renderer.publish).toHaveBeenCalledWith(expect.objectContaining({
+      layerId: layer.id, sourceKey: expect.stringContaining('outline-v1'), mode: 'cached'
+    }));
+    expect(state.backend.lookupGlyph).not.toHaveBeenCalled();
+    expect(state.renderer.prepareAtlasSource).not.toHaveBeenCalled();
+    expect(state.submit).toHaveBeenCalledOnce();
   });
 
   it('reuses realized geometry but redraws a paint-only text update', async () => {
