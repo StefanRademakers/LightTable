@@ -383,6 +383,57 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.renderer.prepareTightSource.mock.calls[2]?.[1]).toMatchObject({ id: first.id });
   });
 
+  it('reuses resident glyph masks across a paragraph-only layout revision', async () => {
+    const state = harness();
+    state.client.realizeTextDetailed.mockResolvedValue({
+      layout: {
+        schemaVersion: TEXT_LAYOUT_SCHEMA_VERSION,
+        key: 'paragraph-layout',
+        glyphRuns: [{
+          font: CONTRACT_FIXTURE_FONT_INSTANCE, fontSize: 16,
+          fontResolution: { kind: 'positioned-exact', sourceRunIndex: 0 },
+          paint: { fill: { kind: 'solid', color: {
+            colorSpace: 'srgb', r: 0, g: 0, b: 0, a: 1
+          } } },
+          renderingMode: 'fill', direction: 'ltr',
+          glyphIds: new Uint32Array([7]), clusters: new Uint32Array([0]),
+          geometry: new Float32Array([2, 12, 10, 0])
+        }],
+        lines: [], caretStops: [], selectionGeometry: [], clusterMap: [],
+        inkBounds: { x: 2, y: 0, width: 10, height: 16 },
+        logicalBounds: { x: 2, y: 0, width: 10, height: 16 }, warnings: []
+      }, metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
+    } as never);
+    state.backend.lookupGlyph.mockReturnValue({
+      placement: {
+        serializedKey: 'glyph', pageId: 0, pageGeneration: 0, atlasGeneration: 0,
+        x: 0, y: 0, width: 10, height: 16, empty: false
+      }, bearingX: 0, bearingY: 12
+    });
+    const document = createImageDocument('Paragraph atlas reuse', 32, 24, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    document.layers = [layer];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    if (layer.text.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+
+    const changed = setFlowTextRuns(
+      document,
+      layer.id,
+      layer.text.source.styleRuns,
+      layer.text.source.paragraphRuns.map((run) => ({ ...run, alignment: 'center' }))
+    );
+    state.coordinator.sync(changed);
+    await flush();
+
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(2);
+    expect(state.backend.lookupGlyph).toHaveBeenCalledTimes(2);
+    expect(state.client.rasterizeGlyph).not.toHaveBeenCalled();
+    expect(state.backend.prepareGlyph).not.toHaveBeenCalled();
+    expect(state.renderer.prepareAtlasSource).toHaveBeenCalledTimes(2);
+  });
+
   it('freezes source scale during an interaction and rebuilds once at settle', async () => {
     const state = harness();
     const document = createImageDocument('Interactive transform', 32, 24, 'source');

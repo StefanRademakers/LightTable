@@ -36,8 +36,10 @@ Owner: Codex `/root`
   through existing controls; leave unsupported values absent or disabled.
 - [x] Draw and test truthful GPU clip/overflow-indicator behavior.
 - [x] Prove a paragraph-only revision reshapes, rebuilds and submits only its
-  owning layer while an exact settled sibling performs zero work.
-- [ ] Implement and prove paragraph/run-local reuse inside one large edited flow.
+  owning layer while an exact settled sibling performs zero work; resident
+  per-glyph R8 masks are reused with zero rasterization or upload work.
+- [ ] Implement affected-paragraph-only shaping inside one large edited flow;
+  the current layer-local layout revision still reshapes that complete flow.
 - [ ] Run the Slice 14 phase gate, update the execution log and move this task
   to `work/done` only after manual web/Electron smoke evidence is recorded.
 
