@@ -10,11 +10,15 @@ export type TextInputNavigationCommand =
   | 'line-up' | 'line-down' | 'select-all';
 
 export const textInputCommandFromBeforeInput = (
-  inputType: string,
-  data: string | null
+  inputType: string | null | undefined,
+  data: string | null | undefined
 ): TextInputEditCommand | null => {
+  // React/Electron can expose the legacy beforeinput payload with character
+  // data but without InputEvent.inputType. Active IME composition is filtered
+  // by the bridge before this fallback is reached.
+  if (!inputType && typeof data === 'string') return { kind: 'insert', text: data };
   if (inputType === 'insertText' || inputType === 'insertReplacementText') {
-    return data === null ? null : { kind: 'insert', text: data };
+    return typeof data === 'string' ? { kind: 'insert', text: data } : null;
   }
   if (inputType === 'insertLineBreak' || inputType === 'insertParagraph') {
     return { kind: 'insert', text: '\n' };
@@ -101,9 +105,12 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
       data-editor-native-tab-navigation="true"
       defaultValue={text}
       onBeforeInput={(event) => {
+        if (composingRef.current) return;
         const native = event.nativeEvent as InputEvent;
-        if (native.inputType.includes('Composition')) return;
-        const command = textInputCommandFromBeforeInput(native.inputType, native.data);
+        if (native.inputType?.includes('Composition')) return;
+        const syntheticData = (event as unknown as { readonly data?: string | null }).data;
+        const data = typeof native.data === 'string' ? native.data : syntheticData;
+        const command = textInputCommandFromBeforeInput(native.inputType, data);
         if (!command) return;
         event.preventDefault();
         onEdit(command);

@@ -13,6 +13,10 @@ describe('TextInputBridge', () => {
       .toEqual({ kind: 'delete', direction: 'backward', unit: 'grapheme' });
     expect(textInputCommandFromBeforeInput('deleteWordForward', null))
       .toEqual({ kind: 'delete', direction: 'forward', unit: 'word' });
+    expect(textInputCommandFromBeforeInput(undefined, undefined)).toBeNull();
+    expect(textInputCommandFromBeforeInput(undefined, 'x'))
+      .toEqual({ kind: 'insert', text: 'x' });
+    expect(textInputCommandFromBeforeInput('insertText', undefined)).toBeNull();
     expect(textInputCommandFromBeforeInput('insertCompositionText', '編')).toBeNull();
   });
 

@@ -1,6 +1,6 @@
 # Task 033 — Paragraph frames and layout controls
 
-Status: active. Implements Slice 14 from
+Status: complete. Implements Slice 14 from
 `architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
 
 Started from: `f006178`
@@ -41,7 +41,7 @@ Owner: Codex `/root`
 - [x] Shape only cache-missing paragraphs inside one edited flow, retain exact
   UTF-16/style provenance and assemble fresh transferable whole-flow tables
   from a 16 MiB worker-local LRU (`412631a`, `b65e05d`, `9e00cc0`).
-- [ ] Run the Slice 14 phase gate, update the execution log and move this task
+- [x] Run the Slice 14 phase gate, update the execution log and move this task
   to `work/done` only after manual web/Electron smoke evidence is recorded.
 
 Latest automated gate: 283 workspace test files / 1,404 tests passed; all
@@ -52,6 +52,7 @@ compares monolithic and incremental glyph, cluster, line, caret, selection,
 geometry and bounds tables across five paragraph fixtures. Existing wasm-vips
 eval, chunk-size and Electron inlineDynamicImports warnings are unchanged.
 
-Manual exit evidence still required: no browser surface was attached to this
-Codex session, so physical paragraph creation/edit/reflow and the Debug
-`paragraphHits`/`paragraphShapes` trace must be smoked before moving to done.
+Electron exit evidence: the packaged app drag-created a paragraph frame,
+entered and edited three paragraphs through the native input bridge, produced
+`paragraphHits=2 paragraphShapes=1`, resized without mutating authored text and
+retained one ready editable Flow layer with no page errors.

@@ -21,6 +21,8 @@
     "package:desktop:verify": "npm run ensure:text-wasm && npm run package -w @lighttable/desktop",
     "screenshot:desktop": "node scripts/capture-desktop-screenshot.mjs",
     "screenshot:desktop:build": "npm run package:desktop:verify && npm run screenshot:desktop --",
+    "smoke:desktop:paragraph": "node scripts/smoke-desktop-paragraph.mjs",
+    "smoke:desktop:paragraph:build": "npm run package:desktop:verify && npm run smoke:desktop:paragraph --",
     "make:desktop": "npm run ensure:text-wasm && npm run make -w @lighttable/desktop",
     "test": "npm run test:text-wasm && npm run test --workspaces --if-present",
     "typecheck": "npm run ensure:text-wasm && npm run typecheck --workspaces --if-present",

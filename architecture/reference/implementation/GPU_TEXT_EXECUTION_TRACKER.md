@@ -1055,7 +1055,7 @@ Append newest entries at the top. Keep entries factual and link the slice.
   Vertical writing stays deferred and its controls remain absent until that
   separate layout/editing path is complete.
 
-### 2026-08-03 — Slice 14 implementation complete; manual smoke pending
+### 2026-08-03 — Slice 14 complete
 
 - Owner: Codex `/root`; paragraph input/overlay and incremental-shaping audits
   were delegated before implementation.
@@ -1084,9 +1084,14 @@ Append newest entries at the top. Keep entries factual and link the slice.
 - Commits: `7d89332`, `4674262`, `0139235`, `fd7b6a4`, `3fa0e74`, `8aed295`,
   `1b34ae1`, `52f106c`, `c803fb4`, `46a1a94`, `66e74d9`, `412631a`, `b65e05d`,
   `9e00cc0`.
-- Remaining exit evidence: the browser-control surface returned no available
-  browser, so physical paragraph create/edit/reflow and Debug cache-trace smoke
-  must be recorded before task 033 moves from `work/todo` to `work/done`.
+- Electron smoke: the packaged app now drag-creates a paragraph frame, enters
+  three paragraphs through the native input bridge, edits one fragment,
+  observes `paragraphHits=2 paragraphShapes=1`, resizes the frame without text
+  mutation and retains one ready editable Flow layer with no page errors.
+- Input compatibility: Electron's legacy React `beforeinput` payload may expose
+  character data without `InputEvent.inputType`; the bridge now handles that
+  path without crashing or bypassing active IME composition.
+- Task 033 has satisfied its exit evidence and moved to `work/done`.
 
 ### 2026-08-03 — Slice 13 complete
 
@@ -1499,3 +1504,4 @@ Decisions stay open until their named slice supplies evidence.
 | Contextual Properties text sections | 12/14 | preserve `lighttable.inspector`; expose only functionally complete groups |
 | PDF semantic engine | 19 | normalized adapter boundary; PDFium must prove exact extraction |
 | Flow recovery from positioned text | 20 | explicit, confidence-scored, reversible command |
+| Automation command API and MCP adapter | cross-cutting | keep domain commands/queries typed and UI-independent; later expose capability discovery, validated transactions, undo boundaries and read-only inspection through host/API/MCP adapters instead of automating DOM state |
