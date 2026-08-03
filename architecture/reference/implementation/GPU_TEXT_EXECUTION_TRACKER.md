@@ -885,6 +885,17 @@ styles and non-normal group blending likewise still require a real PDF
 transparency-group Form XObject and remain flattened-only. Planner regressions
 cover both the accepted neutral case and the rejected Multiply child case.
 
+Transparency Form writer evidence: the normalized vector writer can now place
+an ordered, bounded operation sequence inside a real `/Subtype /Form` XObject
+whose `/Group` dictionary declares isolated PDF transparency. The Form owns its
+own ExtGState resources; group opacity and an exact PDF blend mode are scoped to
+the page-level `Do` operation. The shared serializer no longer assumes a page
+owns its graphics resources, allowing both page and Form streams to register
+alpha/blend state without name collisions. PDF-lib reopens and inspects the
+Form/Group dictionaries, while PDF.js reports a Form XObject operator and the
+expected blend state. This is the writer boundary only; product planners remain
+fail-closed until canonical group membership and z-order are wired explicitly.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

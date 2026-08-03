@@ -372,10 +372,12 @@ export const writeNativeTextPdfPage = async ({
     if (vectorOperations) {
       const serialized = serializePdfDisplayListOperations(
         document,
-        page,
         vectorOperations,
         `LTV${layerIndex + 1}GS`
       );
+      serialized.graphicsStates.forEach(({ name, dictionary }) => {
+        page.node.setExtGState(PDFName.of(name), context.obj(dictionary));
+      });
       pathCount += serialized.pathCount;
       page.node.addContentStream(context.register(context.flateStream(serialized.content)));
     }

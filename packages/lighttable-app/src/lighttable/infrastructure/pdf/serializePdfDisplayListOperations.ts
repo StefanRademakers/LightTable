@@ -4,13 +4,17 @@ import type {
   PdfPaint,
   PdfPathData
 } from '@lighttable/pdf-core';
-import type { PDFDocument, PDFPage } from 'pdf-lib';
+import type { PDFDocument } from 'pdf-lib';
 import { PDFName } from 'pdf-lib';
 
 export interface SerializedPdfDisplayListOperations {
   readonly content: string;
   readonly pathCount: number;
   readonly pathCommandCount: number;
+  readonly graphicsStates: readonly {
+    readonly name: string;
+    readonly dictionary: Readonly<Record<string, string | number | PDFName>>;
+  }[];
 }
 
 const MAXIMUM_PATH_COMMANDS = 2_000_000;
@@ -47,7 +51,7 @@ const path = (value: PdfPathData) => value.commands.map(command => {
   }
 }).join('\n');
 
-const blendModeName = (value: Exclude<PdfBlendMode, 'unsupported'>) => ({
+export const pdfBlendModeResourceName = (value: Exclude<PdfBlendMode, 'unsupported'>) => ({
   normal: 'Normal', multiply: 'Multiply', screen: 'Screen', overlay: 'Overlay',
   darken: 'Darken', lighten: 'Lighten', 'color-dodge': 'ColorDodge',
   'color-burn': 'ColorBurn', 'hard-light': 'HardLight', 'soft-light': 'SoftLight',
@@ -66,7 +70,6 @@ const pathPaintOperator = (
 /** Serializes an already validated resource-free operation sequence. */
 export const serializePdfDisplayListOperations = (
   document: PDFDocument,
-  page: PDFPage,
   operations: readonly PdfDisplayOperation[],
   graphicsStatePrefix = 'LTVGS'
 ): SerializedPdfDisplayListOperations => {
@@ -75,9 +78,13 @@ export const serializePdfDisplayListOperations = (
   let graphicsStateIndex = 0;
   let pathCount = 0;
   let pathCommandCount = 0;
-  const setGraphicsState = (dictionary: Record<string, unknown>) => {
+  const graphicsStates: Array<{
+    readonly name: string;
+    readonly dictionary: Readonly<Record<string, string | number | PDFName>>;
+  }> = [];
+  const setGraphicsState = (dictionary: Record<string, string | number | PDFName>) => {
     const name = `${graphicsStatePrefix}${++graphicsStateIndex}`;
-    page.node.setExtGState(PDFName.of(name), document.context.obj({ Type: 'ExtGState', ...dictionary }));
+    graphicsStates.push({ name, dictionary: { Type: 'ExtGState', ...dictionary } });
     content.push(`/${name} gs`);
   };
 
@@ -104,7 +111,7 @@ export const serializePdfDisplayListOperations = (
         if (operation.blendMode === 'unsupported') {
           fail(`cannot write blend mode ${operation.sourceName ?? 'unsupported'}.`);
         } else {
-          setGraphicsState({ BM: PDFName.of(blendModeName(operation.blendMode)) });
+          setGraphicsState({ BM: PDFName.of(pdfBlendModeResourceName(operation.blendMode)) });
         }
         break;
       case 'clip-path':
@@ -134,5 +141,5 @@ export const serializePdfDisplayListOperations = (
     if (pathCommandCount > MAXIMUM_PATH_COMMANDS) fail(`path command count exceeds ${MAXIMUM_PATH_COMMANDS}.`);
   }
   if (stateDepth !== 0) fail('graphics state saves are not balanced.');
-  return { content: content.join('\n'), pathCount, pathCommandCount };
+  return { content: content.join('\n'), pathCount, pathCommandCount, graphicsStates };
 };

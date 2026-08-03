@@ -1,5 +1,5 @@
 import type { PdfPageDisplayList } from '@lighttable/pdf-core';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { describe, expect, it } from 'vitest';
 import { writePdfDisplayListPage } from './writePdfDisplayListPage';
@@ -81,5 +81,40 @@ describe('writePdfDisplayListPage', () => {
       ...image,
       operations: [{ kind: 'save-state' }]
     } })).rejects.toThrow('leaves graphics state unbalanced');
+  });
+
+  it('writes isolated vector operations into a transparency Form XObject', async () => {
+    const result = await writePdfDisplayListPage({
+      page: fixture(),
+      transparencyGroups: [{
+        opacity: 0.65,
+        blendMode: 'screen',
+        operations: [
+          { kind: 'set-fill-paint', paint: { kind: 'device-rgb', r: 0, g: 0, b: 1 } },
+          { kind: 'set-alpha', fill: 0.8, stroke: 1 },
+          { kind: 'draw-path', path: rectangle(40, 40, 60, 60), paint: 'fill', fillRule: 'nonzero' }
+        ]
+      }]
+    });
+    expect(result).toMatchObject({ operationCount: 14, pathCount: 3 });
+
+    const reopened = await PDFDocument.load(await result.blob.arrayBuffer());
+    const page = reopened.getPages()[0]!;
+    const xObjects = page.node.Resources()!.lookup(PDFName.of('XObject'), PDFDict);
+    const form = reopened.context.lookup(xObjects.get(PDFName.of('LTGroup1'))) as PDFRawStream;
+    expect(form).toBeInstanceOf(PDFRawStream);
+    const group = form.dict.lookup(PDFName.of('Group'), PDFDict);
+    expect(group.get(PDFName.of('S'))?.toString()).toBe('/Transparency');
+    expect(group.get(PDFName.of('I'))?.toString()).toBe('true');
+
+    const task = pdfjs.getDocument({
+      data: new Uint8Array(await result.blob.arrayBuffer()),
+      isEvalSupported: false,
+      useWorkerFetch: false
+    });
+    const operators = await (await (await task.promise).getPage(1)).getOperatorList();
+    expect(operators.fnArray).toContain(pdfjs.OPS.paintFormXObjectBegin);
+    expect(JSON.stringify(operators.argsArray)).toContain('screen');
+    await task.destroy();
   });
 });

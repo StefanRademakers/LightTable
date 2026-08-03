@@ -1,12 +1,25 @@
-import type { PdfPageDisplayList } from '@lighttable/pdf-core';
+import type { PdfBlendMode, PdfDisplayOperation, PdfPageDisplayList } from '@lighttable/pdf-core';
 import { PDF_DISPLAY_LIST_SCHEMA_VERSION, validatePdfDisplayList } from '@lighttable/pdf-core';
-import { serializePdfDisplayListOperations } from './serializePdfDisplayListOperations';
+import {
+  pdfBlendModeResourceName,
+  serializePdfDisplayListOperations
+} from './serializePdfDisplayListOperations';
+
+export interface PdfTransparencyGroupContent {
+  readonly operations: readonly PdfDisplayOperation[];
+  readonly opacity: number;
+  readonly blendMode: Exclude<PdfBlendMode, 'unsupported'>;
+  readonly isolated?: boolean;
+  readonly knockout?: boolean;
+}
 
 export interface PdfDisplayListPageInput {
   readonly page: PdfPageDisplayList;
   readonly title?: string;
   /** GPU-rendered page content below the normalized native operation suffix. */
   readonly rasterUnderlayPng?: Blob;
+  /** Ordered isolated Form XObjects painted after the ordinary page suffix. */
+  readonly transparencyGroups?: readonly PdfTransparencyGroupContent[];
 }
 
 export interface PdfDisplayListPageResult {
@@ -30,7 +43,8 @@ const fail = (message: string): never => {
 export const writePdfDisplayListPage = async ({
   page: source,
   title,
-  rasterUnderlayPng
+  rasterUnderlayPng,
+  transparencyGroups = []
 }: PdfDisplayListPageInput): Promise<PdfDisplayListPageResult> => {
   const unsupported = source.operations.find(operation => [
     'draw-image', 'draw-form', 'draw-text', 'begin-transparency-group',
@@ -66,7 +80,11 @@ export const writePdfDisplayListPage = async ({
   if (!Number.isFinite(source.userUnit) || source.userUnit <= 0 || source.userUnit > 75_000) {
     fail('user unit must be finite, positive and no larger than 75000.');
   }
-  if (source.operations.length > MAXIMUM_OPERATIONS) {
+  const groupOperationCount = transparencyGroups.reduce(
+    (total, group) => total + group.operations.length,
+    0
+  );
+  if (source.operations.length + groupOperationCount > MAXIMUM_OPERATIONS) {
     fail(`operation count exceeds ${MAXIMUM_OPERATIONS}.`);
   }
 
@@ -96,13 +114,55 @@ export const writePdfDisplayListPage = async ({
     });
   }
 
-  const serialized = serializePdfDisplayListOperations(document, page, source.operations);
+  const serialized = serializePdfDisplayListOperations(document, source.operations);
+  serialized.graphicsStates.forEach(({ name, dictionary }) => {
+    page.node.setExtGState(PDFName.of(name), document.context.obj(dictionary));
+  });
   const contentRef = document.context.register(document.context.flateStream(serialized.content));
   page.node.addContentStream(contentRef);
+  let pathCount = serialized.pathCount;
+  transparencyGroups.forEach((group, index) => {
+    if (!Number.isFinite(group.opacity) || group.opacity < 0 || group.opacity > 1) {
+      fail(`transparency group ${index + 1} opacity must be between zero and one.`);
+    }
+    const groupContent = serializePdfDisplayListOperations(
+      document,
+      group.operations,
+      `LTG${index + 1}GS`
+    );
+    pathCount += groupContent.pathCount;
+    const extGState = document.context.obj({});
+    groupContent.graphicsStates.forEach(({ name, dictionary }) => {
+      extGState.set(PDFName.of(name), document.context.obj(dictionary));
+    });
+    const resources = document.context.obj({ ExtGState: extGState });
+    const box = source.mediaBox;
+    const form = document.context.flateStream(groupContent.content, {
+      Type: 'XObject', Subtype: 'Form', FormType: 1,
+      BBox: [box.x, box.y, box.x + box.width, box.y + box.height],
+      Resources: resources,
+      Group: {
+        S: 'Transparency',
+        I: group.isolated ?? true,
+        K: group.knockout ?? false
+      }
+    });
+    const formRef = document.context.register(form);
+    const formName = `LTGroup${index + 1}`;
+    page.node.setXObject(PDFName.of(formName), formRef);
+    const stateName = `LTGroupState${index + 1}`;
+    page.node.setExtGState(PDFName.of(stateName), document.context.obj({
+      Type: 'ExtGState', ca: group.opacity, CA: group.opacity,
+      BM: PDFName.of(pdfBlendModeResourceName(group.blendMode))
+    }));
+    page.node.addContentStream(document.context.register(document.context.flateStream(
+      `q\n/${stateName} gs\n/${formName} Do\nQ`
+    )));
+  });
   const bytes = await document.save({ addDefaultPage: false, useObjectStreams: true });
   return {
     blob: new Blob([Uint8Array.from(bytes).buffer], { type: 'application/pdf' }),
-    operationCount: source.operations.length,
-    pathCount: serialized.pathCount
+    operationCount: source.operations.length + groupOperationCount,
+    pathCount
   };
 };
