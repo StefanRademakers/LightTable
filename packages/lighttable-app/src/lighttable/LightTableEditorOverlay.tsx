@@ -1486,11 +1486,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const documentId = document.id;
     setGradeStatus('Preparing the text engine...');
     try {
-      const font = await registerBundledTextFont(textFontRegistry);
-      await Promise.all([
-        lightTableTextEngine.probe(),
-        textFontRegistry.parse(font.assetId)
-      ]);
+      await registerBundledTextFont(textFontRegistry);
+      await lightTableTextEngine.probe();
       if (
         generation !== pointTextCapabilityGenerationRef.current
         || imageDocumentRef.current?.id !== documentId
