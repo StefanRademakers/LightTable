@@ -27,6 +27,7 @@ export interface ToolOptionsProps {
   text: TextToolSettings;
   textFonts: readonly DocumentFontAsset[];
   textProperties?: TextPropertyPresentation | null;
+  textLayoutMode?: 'point' | 'paragraph' | null;
   selectedVectorStyle?: VectorToolStyleSettings | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
@@ -43,6 +44,7 @@ export interface ToolOptionsProps {
   onTextPropertyBegin?: () => void;
   onTextPropertyCommit?: () => void;
   onTextPropertyCancel?: () => void;
+  onTextLayoutModeChange?: (mode: 'point' | 'paragraph') => void;
   onSelectedVectorStyleChange?: (change: Partial<VectorToolStyleSettings>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
@@ -91,6 +93,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   text,
   textFonts,
   textProperties,
+  textLayoutMode,
   selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
@@ -107,6 +110,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onTextPropertyBegin,
   onTextPropertyCommit,
   onTextPropertyCancel,
+  onTextLayoutModeChange,
   onSelectedVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
@@ -229,6 +233,18 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {activeTool === 'text-point' || activeTool === 'text-paragraph' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
+          {textLayoutMode && onTextLayoutModeChange ? (
+            <SegmentedControl
+              className="lighttable-tool-options__text-layout-mode"
+              ariaLabel="Text layout mode"
+              value={textLayoutMode}
+              onChange={onTextLayoutModeChange}
+              options={[
+                { value: 'point', label: 'Point', title: 'Convert to point text' },
+                { value: 'paragraph', label: 'Paragraph', title: 'Convert to paragraph text' }
+              ]}
+            />
+          ) : null}
           <ToolOptionSelect
             label="Font"
             value={textProperties && textProperties.family.kind !== 'value' ? '' : presentedTextFamily}

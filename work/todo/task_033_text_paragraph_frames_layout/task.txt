@@ -31,7 +31,7 @@ Owner: Codex `/root`
   testing instead of creating a new layer on every click (`fd7b6a4`).
 - [x] Resize all eight frame handles under affine layer transforms, preview live
   reflow, restore on cancel and commit one undo mutation (`3fa0e74`, `8aed295`).
-- [ ] Expose point/paragraph conversion in shared Tool Options and its context menu.
+- [x] Expose point/paragraph conversion in shared Tool Options and its context menu.
 - [ ] Expose working alignment and paragraph spacing/indent/leading controls
   through existing controls; leave unsupported values absent or disabled.
 - [ ] Draw and test truthful clip/overflow-indicator behavior.

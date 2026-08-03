@@ -133,7 +133,11 @@ import {
   textFillPatchFromHex,
   textFontPatch
 } from './application/text/textPropertyPresentation';
-import { applyTextLayerDataMutation } from './editor/document/textLayerCommands';
+import {
+  applyTextLayerDataMutation,
+  convertParagraphTextToPoint,
+  convertPointTextToParagraph
+} from './editor/document/textLayerCommands';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
 import { FontationsFontFaceParser } from './text/fonts/FontationsFontFaceParser';
@@ -2271,6 +2275,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         advancedUnavailableReason:
           'Positioned imported text preserves exact glyph placement. Editable flow conversion is not available yet; preserve it or rasterize a copy.'
       } : null;
+  const textLayoutMode = activeFlowTextPropertySource?.layout.mode === 'point'
+    || activeFlowTextPropertySource?.layout.mode === 'paragraph'
+    ? activeFlowTextPropertySource.layout.mode
+    : null;
+  const changeTextLayoutMode = (mode: 'point' | 'paragraph') => {
+    const editing = textEditingController.getSnapshot();
+    const layerId = activeFlowTextPropertyLayer?.id;
+    if (!layerId || mode === textLayoutMode) return;
+    const restoreEditing = editing.status === 'editing' && editing.layerId === layerId;
+    const restoreOffset = restoreEditing ? editing.selection.focus : undefined;
+    if (restoreEditing) textEditingController.finish();
+    const before = imageDocumentRef.current;
+    if (!before) return;
+    const after = mode === 'paragraph'
+      ? convertPointTextToParagraph(before, layerId, { width: 240, height: 120 })
+      : convertParagraphTextToPoint(before, layerId);
+    if (after === before) return;
+    applyDocumentSnapshot(after);
+    pushDocumentHistory(before, after);
+    activatePersistentTool(mode === 'paragraph' ? 'text-paragraph' : 'text-point');
+    if (restoreEditing) textEditingController.begin(layerId, restoreOffset);
+  };
   const beginTextPropertyGesture = (): boolean => {
     if (textPropertyGestureRef.current) return false;
     const document = imageDocumentRef.current;
@@ -2376,6 +2402,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       text={editorSession.text}
       textFonts={selectableTextFonts}
       textProperties={textPropertyPresentation}
+      textLayoutMode={textLayoutMode}
       selectedVectorStyle={selectedVectorStyle}
       selectionPixelSnap={editorSession.selectionPixelSnap}
       selectionCombineMode={editorSession.selectionCombineMode}
@@ -2397,6 +2424,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onTextPropertyBegin={beginTextPropertyGesture}
       onTextPropertyCommit={commitTextPropertyGesture}
       onTextPropertyCancel={cancelTextPropertyGesture}
+      onTextLayoutModeChange={changeTextLayoutMode}
       onSelectedVectorStyleChange={updateSelectedVectorStyle}
       onWarpReset={() => {
         warpSessionController.clearActiveLayer();
@@ -2455,6 +2483,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             text: editorSession.text,
             textFonts: selectableTextFonts,
             textProperties: textPropertyPresentation,
+            textLayoutMode,
             selectedVectorStyle,
             selectionPixelSnap: editorSession.selectionPixelSnap,
             selectionCombineMode: editorSession.selectionCombineMode,
@@ -2476,6 +2505,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onTextPropertyBegin: beginTextPropertyGesture,
             onTextPropertyCommit: commitTextPropertyGesture,
             onTextPropertyCancel: cancelTextPropertyGesture,
+            onTextLayoutModeChange: changeTextLayoutMode,
             onSelectedVectorStyleChange: updateSelectedVectorStyle,
             onWarpReset: () => {
               warpSessionController.clearActiveLayer();

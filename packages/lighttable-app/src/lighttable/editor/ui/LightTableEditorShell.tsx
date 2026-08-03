@@ -23,6 +23,7 @@ export interface LightTableEditorShellProps {
   text: EditorSession['text'];
   textFonts: readonly import('../document/documentTypes').DocumentFontAsset[];
   textProperties?: TextPropertyPresentation | null;
+  textLayoutMode?: 'point' | 'paragraph' | null;
   selectedVectorStyle: EditorSession['vectorStyle'] | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: EditorSession['selectionCombineMode'];
@@ -39,6 +40,7 @@ export interface LightTableEditorShellProps {
   onTextPropertyBegin?: () => void;
   onTextPropertyCommit?: () => void;
   onTextPropertyCancel?: () => void;
+  onTextLayoutModeChange?: (mode: 'point' | 'paragraph') => void;
   onSelectedVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
@@ -82,6 +84,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   text,
   textFonts,
   textProperties,
+  textLayoutMode,
   selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
@@ -98,6 +101,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onTextPropertyBegin,
   onTextPropertyCommit,
   onTextPropertyCancel,
+  onTextLayoutModeChange,
   onSelectedVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
@@ -150,6 +154,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         text={text}
         textFonts={textFonts}
         textProperties={textProperties}
+        textLayoutMode={textLayoutMode}
         selectedVectorStyle={selectedVectorStyle}
         selectionPixelSnap={selectionPixelSnap}
         selectionCombineMode={selectionCombineMode}
@@ -166,6 +171,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onTextPropertyBegin={onTextPropertyBegin}
         onTextPropertyCommit={onTextPropertyCommit}
         onTextPropertyCancel={onTextPropertyCancel}
+        onTextLayoutModeChange={onTextLayoutModeChange}
         onSelectedVectorStyleChange={onSelectedVectorStyleChange}
         onWarpReset={onWarpReset}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}

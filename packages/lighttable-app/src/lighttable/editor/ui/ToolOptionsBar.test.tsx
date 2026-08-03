@@ -27,6 +27,7 @@ const renderOptions = (
       stretch: 100, italic: false, byteLength: 10
     }],
     textProperties,
+    textLayoutMode: textProperties ? 'point' : null,
     selectionPixelSnap: session.selectionPixelSnap,
     selectionCombineMode: session.selectionCombineMode,
     selectionRowHeight: rowHeight,
@@ -42,6 +43,7 @@ const renderOptions = (
     onTextPropertyBegin: vi.fn(),
     onTextPropertyCommit: vi.fn(),
     onTextPropertyCancel: vi.fn(),
+    onTextLayoutModeChange: vi.fn(),
     onWarpReset: vi.fn(),
     onSelectionPixelSnapChange: vi.fn(),
     onSelectionCombineModeChange: vi.fn(),
@@ -92,5 +94,7 @@ describe('point text tool options', () => {
     });
     expect(markup).toContain('placeholder="Mixed"');
     expect(markup).toContain('value="#ff0000"');
+    expect(markup).toContain('aria-label="Text layout mode"');
+    expect(markup).toContain('Convert to paragraph text');
   });
 });
