@@ -100,6 +100,7 @@ describe('loadDocumentSource', () => {
     expect(renderer.loadLayerAssets).not.toHaveBeenCalled();
     expect(result?.timings).toEqual({
       layeredProbeMs: 1,
+      sourceDecodeMs: 0,
       decodeAndUploadMs: 1,
       documentInitMs: 1
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layerPngReadbackLayout } from './LayerTextureCodec';
+import { layerPngReadbackLayout, rawRgba8UploadLayout } from './LayerTextureCodec';
 
 describe('layerPngReadbackLayout', () => {
   it('aligns rows for WebGPU copies without changing image dimensions', () => {
@@ -18,5 +18,21 @@ describe('layerPngReadbackLayout', () => {
       bytesPerRow: 256,
       byteLength: 256
     });
+  });
+});
+
+describe('rawRgba8UploadLayout', () => {
+  it('accepts exact layer-local RGBA8 payloads without PNG row padding', () => {
+    expect(rawRgba8UploadLayout(12 * 7 * 4, 12, 7)).toEqual({
+      bytesPerRow: 48,
+      rowsPerImage: 7
+    });
+  });
+
+  it('rejects truncated or dimensionless transient payloads', () => {
+    expect(() => rawRgba8UploadLayout(12 * 7 * 4 - 1, 12, 7))
+      .toThrow('does not match its layer-local dimensions');
+    expect(() => rawRgba8UploadLayout(0, 0, 7))
+      .toThrow('does not match its layer-local dimensions');
   });
 });

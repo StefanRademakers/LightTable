@@ -1185,6 +1185,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const getDocumentPublicationPorts = useCallback(() => ({
     mergeStartupTimings: (timings: LightTableStartupTimings) => {
       startupTelemetryRef.current.merge(timings);
+      // PSD/PDF source-stage timings arrive after the embedded preview's first
+      // frame. Publish the merged snapshot as well as retaining it, otherwise
+      // the toolbar only exposes the earlier WebGPU/download/first-frame slice.
+      setStartupTimings(startupTelemetryRef.current.snapshot());
     },
     publishDocument: (nextDocument: ImageDocument) => {
       imageDocumentRef.current = nextDocument;

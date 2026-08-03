@@ -27,6 +27,7 @@ const loadedSource = (
   preservedSourceAssets: [],
   timings: {
     layeredProbeMs: 1,
+    sourceDecodeMs: 0,
     decodeAndUploadMs: 2,
     documentInitMs: 3
   },

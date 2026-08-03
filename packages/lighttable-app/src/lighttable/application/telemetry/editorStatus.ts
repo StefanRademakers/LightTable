@@ -34,6 +34,13 @@ const photoshopStatus = (
     + `${source.inventory.masks} masks; ${source.inventory.layerStyles} styled layers; `
     + `${source.inventory.adjustments} adjustment layers; ${source.inventory.smartObjects} smart objects.`,
   compatibilitySummary ? `Semantic import support: ${compatibilitySummary}.` : '',
+  source.timings
+    ? `PSD worker: parse ${Math.round(source.timings.parseMs)} ms; layers `
+      + `${Math.round(source.timings.layerSerializationMs)} ms; preview `
+      + `${Math.round(source.timings.previewMs)} ms; patterns `
+      + `${Math.round(source.timings.patternSerializationMs)} ms; total `
+      + `${Math.round(source.timings.totalMs)} ms.`
+    : '',
   difference
     ? `Reference difference: ${difference.differingPixelPercentage.toFixed(3)}% above `
       + `${Math.round(difference.threshold * 255)}/255; mean RGB error `

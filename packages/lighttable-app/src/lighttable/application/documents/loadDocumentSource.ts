@@ -52,6 +52,7 @@ export interface DocumentSourceRenderer {
 
 export interface DocumentSourceLoadTimings {
   readonly layeredProbeMs: number;
+  readonly sourceDecodeMs: number;
   readonly decodeAndUploadMs: number;
   readonly documentInitMs: number;
 }
@@ -171,11 +172,16 @@ export const loadDocumentSource = async (
 
   let psdImport: PsdDecodeSuccess | null = null;
   let pdfPreview: PdfRasterPreview | null = null;
+  let sourceDecodeMs = 0;
   if (sourceProbe.codec === 'photoshop') {
+    const sourceDecodeStartedAt = dependencies.now();
     psdImport = await dependencies.decodePhotoshop(request.blob, request.signal);
+    sourceDecodeMs = dependencies.now() - sourceDecodeStartedAt;
   }
   if (sourceProbe.codec === 'pdf-raster') {
+    const sourceDecodeStartedAt = dependencies.now();
     pdfPreview = await dependencies.decodePdfPreview(request.blob, request.signal);
+    sourceDecodeMs = dependencies.now() - sourceDecodeStartedAt;
   }
   if (canceled(request)) return null;
 
@@ -289,6 +295,7 @@ export const loadDocumentSource = async (
       : layered?.preservedSourceAssets ?? [],
     timings: {
       layeredProbeMs,
+      sourceDecodeMs,
       decodeAndUploadMs,
       documentInitMs
     }

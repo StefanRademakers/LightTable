@@ -2,6 +2,7 @@ export interface LightTableStartupTimings {
   webGpuMs?: number;
   downloadMs?: number;
   layeredProbeMs?: number;
+  sourceDecodeMs?: number;
   decodeAndUploadMs?: number;
   documentInitMs?: number;
   firstFrameMs?: number;
@@ -14,6 +15,7 @@ const STARTUP_TIMING_LABELS: ReadonlyArray<
   ['webGpuMs', 'WebGPU'],
   ['downloadMs', 'download'],
   ['layeredProbeMs', 'document probe'],
+  ['sourceDecodeMs', 'source decode'],
   ['decodeAndUploadMs', 'decode/upload'],
   ['documentInitMs', 'layers'],
   ['firstFrameMs', 'first frame'],

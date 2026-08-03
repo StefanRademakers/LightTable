@@ -101,6 +101,7 @@ const diagnostics = {
   layers: [],
   status: '',
   metadata: '',
+  metadataTitle: '',
   debugPanel: '',
   runtime: null
 };
@@ -454,6 +455,7 @@ try {
   })));
   diagnostics.status = await window.locator('.lighttable-toolbar__status').textContent() ?? '';
   diagnostics.metadata = await window.locator('.lighttable-toolbar__meta').textContent() ?? '';
+  diagnostics.metadataTitle = await window.locator('.lighttable-toolbar__meta').getAttribute('title') ?? '';
   diagnostics.runtime = await window.evaluate(() => ({
     crossOriginIsolated: globalThis.crossOriginIsolated === true,
     webGpuAvailable: Boolean(navigator.gpu),

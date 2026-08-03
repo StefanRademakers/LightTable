@@ -43,6 +43,7 @@ const prepared = (): PreparedDocumentSource => {
       preservedSourceAssets: [],
       timings: {
         layeredProbeMs: 1,
+        sourceDecodeMs: 0,
         decodeAndUploadMs: 4,
         documentInitMs: 1
       }

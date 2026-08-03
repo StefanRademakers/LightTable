@@ -1,3 +1,5 @@
+export const PSD_RAW_RGBA8_MEDIA_TYPE = 'application/x-lighttable-psd-rgba8';
+
 export interface PsdFeatureInventory {
   layers: number;
   groups: number;
@@ -81,6 +83,13 @@ export interface PsdDecodeSuccess {
   layers: PsdLayerNodeDto[];
   patterns: PsdPatternDto[];
   warnings: string[];
+  timings?: {
+    parseMs: number;
+    layerSerializationMs: number;
+    previewMs: number;
+    patternSerializationMs: number;
+    totalMs: number;
+  };
 }
 
 export interface PsdDecodeFailure {

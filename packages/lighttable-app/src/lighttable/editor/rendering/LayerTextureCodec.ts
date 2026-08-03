@@ -1,4 +1,5 @@
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
+import { PSD_RAW_RGBA8_MEDIA_TYPE } from '../../image-io/psdProtocol';
 import { encodeRgba8Png, stripTextureRowPadding } from '../../gpu/gpuReadback';
 
 const EXPORT_SETTINGS_FLOATS = 4;
@@ -11,6 +12,22 @@ export const layerPngReadbackLayout = (width: number, height: number) => {
     bytesPerRow,
     byteLength: bytesPerRow * Math.max(1, height)
   };
+};
+
+export const rawRgba8UploadLayout = (
+  byteLength: number,
+  width: number,
+  height: number
+) => {
+  const expectedByteLength = width * height * 4;
+  if (
+    !Number.isInteger(width) || width <= 0
+    || !Number.isInteger(height) || height <= 0
+    || byteLength !== expectedByteLength
+  ) {
+    throw new Error('A PSD layer preview does not match its layer-local dimensions.');
+  }
+  return { bytesPerRow: width * 4, rowsPerImage: height };
 };
 
 export interface LayerTextureCodecPipelines {
@@ -41,14 +58,10 @@ export class LayerTextureCodec {
     height: number,
     isCurrent: () => boolean
   ) {
-    const decoded = await decodeNativeImage(blob);
-    const { bitmap } = decoded;
+    let decoded: Awaited<ReturnType<typeof decodeNativeImage>> | null = null;
     let encodedTexture: GPUTexture | null = null;
     try {
       if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
-      if (bitmap.width !== width || bitmap.height !== height) {
-        throw new Error('A saved layer does not match the LightTable document dimensions.');
-      }
       encodedTexture = this.device.createTexture({
         label: 'LightTable persisted layer source',
         size: [width, height],
@@ -56,11 +69,27 @@ export class LayerTextureCodec {
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST |
           GPUTextureUsage.RENDER_ATTACHMENT
       });
-      this.device.queue.copyExternalImageToTexture(
-        { source: bitmap },
-        { texture: encodedTexture },
-        [width, height]
-      );
+      if (blob.type === PSD_RAW_RGBA8_MEDIA_TYPE) {
+        const pixels = new Uint8Array(await blob.arrayBuffer());
+        const upload = rawRgba8UploadLayout(pixels.byteLength, width, height);
+        this.device.queue.writeTexture(
+          { texture: encodedTexture },
+          pixels,
+          upload,
+          [width, height]
+        );
+      } else {
+        decoded = await decodeNativeImage(blob);
+        const { bitmap } = decoded;
+        if (bitmap.width !== width || bitmap.height !== height) {
+          throw new Error('A saved layer does not match the LightTable document dimensions.');
+        }
+        this.device.queue.copyExternalImageToTexture(
+          { source: bitmap },
+          { texture: encodedTexture },
+          [width, height]
+        );
+      }
       const pipeline = maskChannel ? this.pipelines.maskDecode : this.pipelines.decode;
       const bindGroup = this.device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
@@ -83,7 +112,7 @@ export class LayerTextureCodec {
       await this.device.queue.onSubmittedWorkDone();
     } finally {
       encodedTexture?.destroy();
-      decoded.close();
+      decoded?.close();
     }
   }
 

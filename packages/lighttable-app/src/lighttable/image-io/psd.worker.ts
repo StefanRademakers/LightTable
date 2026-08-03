@@ -12,6 +12,7 @@ import type {
   PsdWorkerRequest,
   PsdWorkerResponse
 } from './psdProtocol';
+import { PSD_RAW_RGBA8_MEDIA_TYPE } from './psdProtocol';
 
 const publishProgress = (requestId: number, stage: PsdDecodeStage) => {
   self.postMessage({ kind: 'progress', requestId, stage } satisfies PsdWorkerResponse);
@@ -158,6 +159,14 @@ const imageDataBlob = async (
   return canvas.convertToBlob({ type: 'image/png' });
 };
 
+const layerImageDataBlob = (
+  data: NonNullable<Layer['imageData']>,
+  bitsPerChannel: number
+) => new Blob(
+  [psdCompositeToPreviewPixels(data.data, bitsPerChannel)],
+  { type: PSD_RAW_RGBA8_MEDIA_TYPE }
+);
+
 const transparentDocumentBlob = async (width: number, height: number) => {
   const canvas = new OffscreenCanvas(width, height);
   const context = canvas.getContext('2d');
@@ -255,8 +264,9 @@ const serializeLayers = async (
   for (const layer of layers ?? []) {
     const left = Math.trunc(layer.left ?? 0);
     const top = Math.trunc(layer.top ?? 0);
-    const right = Math.trunc(layer.right ?? left + (layer.imageData?.width ?? 0));
-    const bottom = Math.trunc(layer.bottom ?? top + (layer.imageData?.height ?? 0));
+    const imageData = layer.imageData;
+    const right = Math.trunc(layer.right ?? left + (imageData?.width ?? 0));
+    const bottom = Math.trunc(layer.bottom ?? top + (imageData?.height ?? 0));
     const id = `psd-layer-${layer.id ?? crypto.randomUUID()}`;
     // Photoshop writes a "real" mask channel for the rasterized result of
     // vector/combined masks. Prefer it when present; the ordinary user mask
@@ -265,7 +275,7 @@ const serializeLayers = async (
     const maskData = effectiveMask?.imageData;
     const kind = layerKind(layer);
     const needsSemanticPlaceholder = (
-      !layer.imageData
+      !imageData
       && kind !== 'group'
       && kind !== 'adjustment'
     );
@@ -280,23 +290,16 @@ const serializeLayers = async (
       clipping: Boolean(layer.clipping),
       transparencyProtected: Boolean(layer.transparencyProtected || layer.protected?.transparency),
       bounds: { left, top, right, bottom },
-      pixelSummary: layer.imageData
-        ? summarizePixels(layer.imageData, psd.bitsPerChannel ?? 8)
+      pixelSummary: imageData
+        ? summarizePixels(imageData, psd.bitsPerChannel ?? 8)
         : null,
-      pixels: layer.imageData
+      pixels: imageData
         // Keep raster previews layer-local. Expanding every small Photoshop
-        // layer to a document-sized PNG here multiplied both PNG work and the
-        // retained RGBA16 GPU footprint by the layer count.
-        ? await imageDataBlob(
-            layer.imageData,
-            psd.bitsPerChannel ?? 8,
-            layer.imageData.width,
-            layer.imageData.height,
-            0,
-            0
-          )
+        // layer to a document-sized intermediate here multiplied both transfer
+        // work and the retained RGBA16 GPU footprint by the layer count.
+        ? layerImageDataBlob(imageData, psd.bitsPerChannel ?? 8)
         : needsSemanticPlaceholder ? await transparentFallback() : null,
-      rasterFallback: layer.imageData
+      rasterFallback: imageData
         ? 'layer-preview'
         : needsSemanticPlaceholder ? 'transparent-placeholder' : null,
       mask: maskData ? {
@@ -340,11 +343,13 @@ const serializeLayers = async (
 self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
   let response: PsdWorkerResponse;
   try {
+    const totalStartedAt = performance.now();
     publishProgress(data.requestId, 'worker-received');
     initializeAgPsdCanvas();
     publishProgress(data.requestId, 'canvas-ready');
     const warnings: string[] = [];
     publishProgress(data.requestId, 'parsing');
+    const parseStartedAt = performance.now();
     const psd = readPsd(data.bytes, {
       useImageData: true,
       skipLayerImageData: false,
@@ -355,6 +360,7 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
       logMissingFeatures: true,
       log: (message) => warnings.push(String(message))
     });
+    const parseMs = performance.now() - parseStartedAt;
     try {
       recoverPsdGlobalTextPaths(psd);
     } catch (error) {
@@ -369,17 +375,23 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
     publishProgress(data.requestId, 'validated');
     let transparentFallback: Promise<Blob> | null = null;
     publishProgress(data.requestId, 'serializing-layers');
+    const layerSerializationStartedAt = performance.now();
     const layers = await serializeLayers(
       psd.children,
       psd,
       () => transparentFallback ??= transparentDocumentBlob(psd.width, psd.height)
     );
+    const layerSerializationMs = performance.now() - layerSerializationStartedAt;
     publishProgress(data.requestId, 'layers-ready');
     publishProgress(data.requestId, 'creating-preview');
+    const previewStartedAt = performance.now();
     const preview = await createPreview(psd);
+    const previewMs = performance.now() - previewStartedAt;
     publishProgress(data.requestId, 'preview-ready');
     publishProgress(data.requestId, 'serializing-patterns');
+    const patternSerializationStartedAt = performance.now();
     const patterns = await serializePatterns(psd.children);
+    const patternSerializationMs = performance.now() - patternSerializationStartedAt;
     publishProgress(data.requestId, 'complete');
     response = {
       kind: 'decoded-psd',
@@ -392,7 +404,14 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
       inventory,
       layers,
       patterns,
-      warnings
+      warnings,
+      timings: {
+        parseMs,
+        layerSerializationMs,
+        previewMs,
+        patternSerializationMs,
+        totalMs: performance.now() - totalStartedAt
+      }
     };
   } catch (reason) {
     response = {
