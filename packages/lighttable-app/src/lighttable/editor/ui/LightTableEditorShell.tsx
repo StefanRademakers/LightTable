@@ -8,6 +8,7 @@ import { EditorMenuBar } from './EditorMenuBar';
 import { EditorToolbar } from './EditorToolbar';
 import { ToolOptionsBar } from './ToolOptionsBar';
 import type { EditorScreenMode } from '../workspace/editorScreenMode';
+import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 
 export interface LightTableEditorShellProps {
   screenMode: EditorScreenMode;
@@ -21,6 +22,7 @@ export interface LightTableEditorShellProps {
   vectorStyle: EditorSession['vectorStyle'];
   text: EditorSession['text'];
   textFonts: readonly import('../document/documentTypes').DocumentFontAsset[];
+  textProperties?: TextPropertyPresentation | null;
   selectedVectorStyle: EditorSession['vectorStyle'] | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: EditorSession['selectionCombineMode'];
@@ -31,6 +33,12 @@ export interface LightTableEditorShellProps {
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onTextChange: (change: Partial<EditorSession['text']>) => void;
+  onTextFontAssetChange?: (assetId: string) => void;
+  onTextSizeChange?: (size: number) => void;
+  onTextFillChange?: (fill: string) => void;
+  onTextPropertyBegin?: () => void;
+  onTextPropertyCommit?: () => void;
+  onTextPropertyCancel?: () => void;
   onSelectedVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
@@ -73,6 +81,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   vectorStyle,
   text,
   textFonts,
+  textProperties,
   selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
@@ -83,6 +92,12 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
+  onTextFontAssetChange,
+  onTextSizeChange,
+  onTextFillChange,
+  onTextPropertyBegin,
+  onTextPropertyCommit,
+  onTextPropertyCancel,
   onSelectedVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
@@ -139,6 +154,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         vectorStyle={vectorStyle}
         text={text}
         textFonts={textFonts}
+        textProperties={textProperties}
         selectedVectorStyle={selectedVectorStyle}
         selectionPixelSnap={selectionPixelSnap}
         selectionCombineMode={selectionCombineMode}
@@ -149,6 +165,12 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onWarpChange={onWarpChange}
         onVectorStyleChange={onVectorStyleChange}
         onTextChange={onTextChange}
+        onTextFontAssetChange={onTextFontAssetChange}
+        onTextSizeChange={onTextSizeChange}
+        onTextFillChange={onTextFillChange}
+        onTextPropertyBegin={onTextPropertyBegin}
+        onTextPropertyCommit={onTextPropertyCommit}
+        onTextPropertyCancel={onTextPropertyCancel}
         onSelectedVectorStyleChange={onSelectedVectorStyleChange}
         onWarpReset={onWarpReset}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}

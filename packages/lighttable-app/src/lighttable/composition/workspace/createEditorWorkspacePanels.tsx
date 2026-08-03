@@ -1,9 +1,7 @@
 import React from 'react';
 import { ScopesPanel } from '../../ScopesPanel';
 import { DebugPanel } from '../../editor/ui/DebugPanel';
-import {
-  GradePanel
-} from '../../editor/panels/GradePanel';
+import { PropertiesPanel } from '../../editor/panels/PropertiesPanel';
 import {
   LensFxPanel
 } from '../../editor/panels/LensFxPanel';
@@ -19,7 +17,7 @@ export interface EditorWorkspacePanelBindings {
   debug: React.ComponentProps<typeof DebugPanel>;
   lensFxKey: string;
   lensFx: React.ComponentProps<typeof LensFxPanel>;
-  grade: React.ComponentProps<typeof GradePanel>;
+  grade: React.ComponentProps<typeof PropertiesPanel>;
 }
 
 /**
@@ -43,5 +41,5 @@ export const createEditorWorkspacePanels = ({
     channels,
     debug: <DebugPanel {...debug} />,
     lensFx: <LensFxPanel key={lensFxKey} {...lensFx} />,
-    grade: <GradePanel {...grade} />
+    grade: <PropertiesPanel {...grade} />
   });

@@ -423,13 +423,13 @@ manual tests; one editing session has predictable undo groups.
 
 #### Slice 12 — character properties and mixed style runs
 
-- [ ] Wire family, face, size, fill, faux bold/italic policy, tracking, leading,
+- [x] Wire family, face, size, fill, faux bold/italic policy, tracking, leading,
   baseline shift, OpenType features and variable axes.
-- [ ] Apply properties to selection, insertion style or complete layer using
+- [x] Apply properties to selection, insertion style or complete layer using
   explicit targeting rules.
-- [ ] Preserve mixed-value states in controls.
-- [ ] Avoid shaping/layout invalidation for paint-only changes.
-- [ ] Add numeric validation, keyboard increments and undo coalescing.
+- [x] Preserve mixed-value states in controls.
+- [x] Avoid shaping/layout invalidation for paint-only changes.
+- [x] Add numeric validation, keyboard increments and undo coalescing.
 
 UI exposure: compact frequent controls stay in Tool Options; advanced
 Character controls appear in the existing contextual Properties inspector only
@@ -651,6 +651,35 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 — Slice 12 complete
+
+- Owner: Codex `/root`; renderer and input lifecycle audits were delegated
+  before final verification.
+- Targeting/history: shared Tool Options and contextual Properties commands
+  explicitly target the active selection, insertion point or complete flow
+  layer. Gesture ownership is locked to one document/layer, previews coalesce
+  to one undo command and cancellation restores the exact prior snapshot.
+- Character model: family, exact face asset, size, solid sRGB fill and tracking
+  preserve truthful per-property mixed states. Empty flows retain insertion
+  defaults; run splitting is grapheme-safe and canonical run equality ignores
+  object-key insertion order.
+- Compatibility: positioned imported text remains immutable, and baseline,
+  leading, faux styles, OpenType and variable-axis controls are visibly gated
+  until both layout and rasterization honor them. Unsupported/P3/gradient fill
+  can be deliberately replaced with a solid sRGB fill instead of being hidden.
+- Rendering: paint revisions redraw cached glyph geometry without shaping.
+  Current source ranges split cached glyph views by cluster while sharing typed
+  array buffers; missing mappings fail closed. Tracking is 1/1000 em in UI,
+  contracts and regenerated Rust/WASM output.
+- Verification: 271 workspace test files / 1,314 tests, 11 Rust tests, WASM
+  runtime and structural goldens, all typechecks, Rust check/format, architecture
+  boundary, web production build and packaged Electron boundary passed.
+  Existing wasm-vips eval, chunk-size and Electron inlineDynamicImports warnings
+  are unchanged.
+- Manual UI: no attached browser/WebGPU surface was available; event lifecycle,
+  presentation, GPU contracts and both production hosts are covered automatically.
+- Next safe slice: Slice 13, settled source cache and interaction performance.
 
 ### 2026-08-03 — Slice 11 complete
 

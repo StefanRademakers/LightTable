@@ -118,6 +118,16 @@ import {
 } from './application/text/pointTextCreation';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
+import {
+  formatFlowTextSource,
+  type TextStylePatch
+} from './application/text/flowTextFormatting';
+import {
+  buildTextPropertyPresentation,
+  textFillPatchFromHex,
+  textFontPatch
+} from './application/text/textPropertyPresentation';
+import { applyTextLayerDataMutation } from './editor/document/textLayerCommands';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
 import { FontationsFontFaceParser } from './text/fonts/FontationsFontFaceParser';
@@ -440,6 +450,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const commitPointTextRef = useRef<() => boolean>(() => false);
   const cancelPointTextRef = useRef<() => boolean>(() => false);
   const finishTextEditingRef = useRef<() => boolean>(() => false);
+  const textPropertyGestureRef = useRef<
+    | { readonly kind: 'text'; readonly layerId: LayerId }
+    | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId; readonly before: ImageDocument }
+    | null
+  >(null);
   const selectLayerRef = useRef<(layerId: LayerId) => void>(() => undefined);
   const pointTextCreation = useSyncExternalStore(
     pointTextController.subscribe,
@@ -706,6 +721,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textEditingController.getSnapshot
   );
   finishTextEditingRef.current = () => textEditingController.finish();
+
+  useEffect(() => {
+    if (textEditing.status !== 'editing' || imageDocument?.activeLayerId === textEditing.layerId) return;
+    const gesture = textPropertyGestureRef.current;
+    if (gesture?.kind === 'text' && gesture.layerId === textEditing.layerId) {
+      textEditingController.endFormatting();
+      textPropertyGestureRef.current = null;
+    }
+    textEditingController.finish();
+  }, [imageDocument?.activeLayerId, textEditing.layerId, textEditing.status, textEditingController]);
 
   const selectionSessionController = useSelectionSessionController({
     getDocument: () => imageDocumentRef.current,
@@ -1968,6 +1993,122 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       };
     });
   };
+  const activeTextPropertyLayer = imageDocument
+    ? findDocumentLayer(imageDocument, imageDocument.activeLayerId)
+    : null;
+  const activeFlowTextPropertyLayer = activeTextPropertyLayer?.type === 'text'
+    && activeTextPropertyLayer.text.source.kind === 'flow'
+    ? activeTextPropertyLayer : null;
+  const activeFlowTextPropertySource = activeFlowTextPropertyLayer?.text.source.kind === 'flow'
+    ? activeFlowTextPropertyLayer.text.source : null;
+  const editingTargetsActiveLayer = textEditing.status === 'editing'
+    && textEditing.layerId === activeFlowTextPropertyLayer?.id;
+  const textFormatProjection = editingTargetsActiveLayer
+    ? textEditingController.formatProjection()
+    : null;
+  const projectedInsertionStyle = textFormatProjection?.target === 'insertion'
+    && textFormatProjection.style.kind === 'value'
+    ? { ...textFormatProjection.style.value, start: 0, end: 0 }
+    : undefined;
+  const textPropertyPresentation = activeFlowTextPropertyLayer && activeFlowTextPropertySource
+    ? buildTextPropertyPresentation(
+        activeFlowTextPropertySource,
+        editingTargetsActiveLayer
+          ? textEditing.selection : null,
+        availableFontAssets,
+        projectedInsertionStyle
+      )
+    : activeTextPropertyLayer?.type === 'text' ? {
+        target: 'layer' as const,
+        family: { kind: 'unavailable' as const },
+        face: { kind: 'unavailable' as const },
+        size: { kind: 'unavailable' as const },
+        fill: { kind: 'unavailable' as const },
+        tracking: { kind: 'unavailable' as const },
+        advancedUnavailableReason:
+          'Positioned imported text preserves exact glyph placement. Editable flow conversion is not available yet; preserve it or rasterize a copy.'
+      } : null;
+  const beginTextPropertyGesture = (): boolean => {
+    if (textPropertyGestureRef.current) return false;
+    const document = imageDocumentRef.current;
+    const layerId = document?.activeLayerId;
+    if (!document || !layerId || layerId !== activeFlowTextPropertyLayer?.id) return false;
+    const editing = textEditingController.getSnapshot();
+    if (editing.status === 'editing' && editing.layerId === layerId) {
+      if (!textEditingController.beginFormatting()) return false;
+      textPropertyGestureRef.current = { kind: 'text', layerId };
+      return true;
+    }
+    if (!beginDocumentTransaction()) return false;
+    textPropertyGestureRef.current = { kind: 'document', documentId: document.id, layerId, before: document };
+    return true;
+  };
+  const applyTextPropertyPatch = (patch: TextStylePatch) => {
+    const gesture = textPropertyGestureRef.current;
+    if (!gesture) return;
+    if (gesture.kind === 'text') {
+      const editing = textEditingController.getSnapshot();
+      if (editing.status !== 'editing' || editing.layerId !== gesture.layerId) return;
+      textEditingController.format(patch);
+      return;
+    }
+    if (imageDocumentRef.current?.id !== gesture.documentId) return;
+    const layerId = gesture.layerId;
+    documentMutationController.change((document) => {
+      const layer = findDocumentLayer(document, layerId);
+      if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
+      return applyTextLayerDataMutation(document, layerId, {
+        ...layer.text,
+        source: formatFlowTextSource(layer.text.source, null, patch)
+      });
+    });
+  };
+  const commitTextPropertyGesture = () => {
+    const gesture = textPropertyGestureRef.current;
+    if (!gesture) return;
+    if (gesture.kind === 'text') textEditingController.endFormatting();
+    else endDocumentTransaction();
+    textPropertyGestureRef.current = null;
+  };
+  const cancelTextPropertyGesture = () => {
+    const gesture = textPropertyGestureRef.current;
+    if (!gesture) return;
+    if (gesture.kind === 'text') {
+      textEditingController.cancelFormatting();
+    } else if (imageDocumentRef.current?.id === gesture.documentId) {
+      applyDocumentSnapshot(gesture.before);
+      resetDocumentTransactionRef.current();
+    }
+    textPropertyGestureRef.current = null;
+  };
+  const applyDiscreteTextProperty = (patch: TextStylePatch) => {
+    if (!beginTextPropertyGesture()) return;
+    applyTextPropertyPatch(patch);
+    commitTextPropertyGesture();
+  };
+  const applyTextFontAsset = (assetId: string) => {
+    const asset = availableFontAssets.find((font) => font.assetId === assetId);
+    if (asset) applyDiscreteTextProperty(textFontPatch(asset));
+  };
+  const applyTextFill = (fill: string) => {
+    if (!textPropertyPresentation) {
+      updateBrush({ color: fill });
+      return;
+    }
+    const patch = textFillPatchFromHex(fill);
+    if (patch) applyTextPropertyPatch(patch);
+  };
+  const textPropertiesPanel = textPropertyPresentation ? {
+    model: textPropertyPresentation,
+    fonts: availableFontAssets,
+    onFontAsset: applyTextFontAsset,
+    onSize: (size: number) => applyTextPropertyPatch({ fontSize: size }),
+    onFill: applyTextFill,
+    onTracking: (tracking: number) => applyTextPropertyPatch({ tracking }),
+    onBegin: beginTextPropertyGesture,
+    onCommit: commitTextPropertyGesture,
+    onCancel: cancelTextPropertyGesture
+  } : null;
   return (
     <LightTableEditorShell
       screenMode={screenMode}
@@ -1981,6 +2122,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       vectorStyle={editorSession.vectorStyle}
       text={editorSession.text}
       textFonts={availableFontAssets}
+      textProperties={textPropertyPresentation}
       selectedVectorStyle={selectedVectorStyle}
       selectionPixelSnap={editorSession.selectionPixelSnap}
       selectionCombineMode={editorSession.selectionCombineMode}
@@ -1996,6 +2138,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }));
       }}
       onTextChange={updateText}
+      onTextFontAssetChange={applyTextFontAsset}
+      onTextSizeChange={(fontSize) => applyTextPropertyPatch({ fontSize })}
+      onTextFillChange={applyTextFill}
+      onTextPropertyBegin={beginTextPropertyGesture}
+      onTextPropertyCommit={commitTextPropertyGesture}
+      onTextPropertyCancel={cancelTextPropertyGesture}
       onSelectedVectorStyleChange={updateSelectedVectorStyle}
       onWarpReset={() => {
         warpSessionController.clearActiveLayer();
@@ -2053,6 +2201,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             vectorStyle: editorSession.vectorStyle,
             text: editorSession.text,
             textFonts: availableFontAssets,
+            textProperties: textPropertyPresentation,
             selectedVectorStyle,
             selectionPixelSnap: editorSession.selectionPixelSnap,
             selectionCombineMode: editorSession.selectionCombineMode,
@@ -2068,6 +2217,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               }));
             },
             onTextChange: updateText,
+            onTextFontAssetChange: applyTextFontAsset,
+            onTextSizeChange: (fontSize) => applyTextPropertyPatch({ fontSize }),
+            onTextFillChange: applyTextFill,
+            onTextPropertyBegin: beginTextPropertyGesture,
+            onTextPropertyCommit: commitTextPropertyGesture,
+            onTextPropertyCancel: cancelTextPropertyGesture,
             onSelectedVectorStyleChange: updateSelectedVectorStyle,
             onWarpReset: () => {
               warpSessionController.clearActiveLayer();
@@ -2359,7 +2514,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 }
               },
               grade: {
-                model: {
+                text: textPropertiesPanel,
+                grade: {
+                  model: {
                   adjustmentStore: adjustmentPresentationStore,
                   metadata,
                   visibility: groupVisibility,
@@ -2369,7 +2526,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   colorMixerScopeContainerRef,
                   colorMixerHueCanvasRef
                 },
-                commands: {
+                  commands: {
                   resetAll,
                   toggleOriginal: () => {
                     setShowDifference(false);
@@ -2390,7 +2547,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetColorGradingZone,
                   resetColorGradingLuminance,
                   updateCurve,
-                  resetCurve
+                    resetCurve
+                  }
                 }
               }
             })}

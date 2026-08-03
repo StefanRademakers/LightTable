@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { cloneTextLayerData, createDefaultTextLayerData } from '@lighttable/text-core';
+import {
+  cloneTextLayerData,
+  createDefaultFlowTextSource,
+  createDefaultTextLayerData
+} from '@lighttable/text-core';
 import {
   createTextLayer,
   renameLayer,
@@ -9,8 +13,36 @@ import {
 } from '../../editor/document/documentCommands';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { documentRenderStatesEqual } from './documentRenderState';
+import { applyTextLayerDataMutation } from '../../editor/document/textLayerCommands';
+import { findDocumentLayer } from '../../editor/document/layerTree';
 
 describe('document render state', () => {
+  it('ignores insertion-only text metadata but observes paint revisions', () => {
+    const document = createTextLayer(
+      createImageDocument('Text state', 20, 20, 'source'),
+      createDefaultTextLayerData(), 'Text'
+    );
+    const id = document.activeLayerId!;
+    const layer = findDocumentLayer(document, id)!;
+    if (layer.type !== 'text' || layer.text.source.kind !== 'flow') throw new Error('Expected flow text.');
+    const populated = createDefaultFlowTextSource('x');
+    const { start: _start, end: _end, ...insertionStyle } = populated.styleRuns[0];
+    const insertionOnly = applyTextLayerDataMutation(document, id, {
+      ...layer.text,
+      source: { ...layer.text.source, insertionStyle: { ...insertionStyle, fontSize: 42 } }
+    });
+    expect(documentRenderStatesEqual(document, insertionOnly)).toBe(true);
+    const current = findDocumentLayer(insertionOnly, id)!;
+    if (current.type !== 'text' || current.text.source.kind !== 'flow') throw new Error('Expected flow text.');
+    const painted = applyTextLayerDataMutation(insertionOnly, id, {
+      ...current.text,
+      source: { ...current.text.source, styleRuns: current.text.source.styleRuns.map((run) => ({
+        ...run,
+        fill: { kind: 'solid', color: { colorSpace: 'srgb', r: 1, g: 0, b: 0, a: 1 } }
+      })) }
+    });
+    expect(documentRenderStatesEqual(insertionOnly, painted)).toBe(false);
+  });
   it('accepts repeated publications of the same immutable document', () => {
     const document = createImageDocument('Image', 64, 32, 'asset');
     expect(documentRenderStatesEqual(document, document)).toBe(true);

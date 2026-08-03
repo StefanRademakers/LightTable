@@ -184,7 +184,7 @@ const spliceRuns = <Run extends RangedRun>(
       result.push({ ...run, end: Math.min(run.end, start) });
     }
   }
-  const inherited = insertionRun(runs, start) ?? fallback;
+  const inherited = fallback ?? insertionRun(runs, start);
   if (insertedLength > 0 && inherited) {
     result.push({ ...inherited, start, end: start + insertedLength });
   }
@@ -226,8 +226,8 @@ export const replaceFlowTextSelection = (
     source.paragraphRuns, start, end, replacement.length, insertionParagraph
   );
   const focus = start + replacement.length;
-  const retainedStyle = insertionRun(source.styleRuns, start) ?? insertionStyle;
-  const retainedParagraph = insertionRun(source.paragraphRuns, start) ?? insertionParagraph;
+  const retainedStyle = insertionStyle ?? insertionRun(source.styleRuns, start);
+  const retainedParagraph = insertionParagraph ?? insertionRun(source.paragraphRuns, start);
   return {
     source: {
       ...source,

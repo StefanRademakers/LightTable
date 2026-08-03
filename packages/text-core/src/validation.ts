@@ -177,7 +177,7 @@ const assertFontInstance = (value: unknown, path: string): void => {
   const axes = record(candidate.variableAxes, `${path}.variableAxes`);
   for (const [tag, axisValue] of Object.entries(axes)) {
     if (!/^[\x20-\x7e]{4}$/.test(tag)) fail(`${path}.variableAxes.${tag}`, 'axis tags must contain four printable ASCII characters');
-    finite(axisValue, `${path}.variableAxes.${tag}`);
+    numberInRange(axisValue, `${path}.variableAxes.${tag}`, -1_000_000, 1_000_000);
   }
   if (typeof candidate.syntheticBold !== 'boolean') fail(`${path}.syntheticBold`, 'expected a boolean');
   if (typeof candidate.syntheticItalic !== 'boolean') fail(`${path}.syntheticItalic`, 'expected a boolean');
@@ -275,23 +275,26 @@ const assertFlowSource = (source: Record<string, unknown>, path: string): void =
   if (text.length > MAX_TEXT_CODE_UNITS) fail(`${path}.text`, `exceeds the ${MAX_TEXT_CODE_UNITS} UTF-16 code-unit limit`);
   const assertStyle = (run: Record<string, unknown>, runPath: string) => {
     assertRequestedFont(run.requestedFont, `${runPath}.requestedFont`);
-    if (finite(run.fontSize, `${runPath}.fontSize`) <= 0) fail(`${runPath}.fontSize`, 'must be positive');
+    numberInRange(run.fontSize, `${runPath}.fontSize`, 0.01, 100_000);
     numberInRange(run.fontWeight, `${runPath}.fontWeight`, 1, 1000);
     oneOf(run.fontStyle, `${runPath}.fontStyle`, ['normal', 'italic', 'oblique']);
-    if (finite(run.fontStretch, `${runPath}.fontStretch`) <= 0) fail(`${runPath}.fontStretch`, 'must be positive');
+    numberInRange(run.fontStretch, `${runPath}.fontStretch`, 0.01, 10_000);
     assertPaint(run.fill, `${runPath}.fill`);
     if (run.stroke !== undefined) assertTextStroke(run.stroke, `${runPath}.stroke`);
-    for (const property of ['tracking', 'baselineShift', 'horizontalScale', 'verticalScale'] as const) finite(run[property], `${runPath}.${property}`);
+    numberInRange(run.tracking, `${runPath}.tracking`, -100_000, 100_000);
+    numberInRange(run.baselineShift, `${runPath}.baselineShift`, -100_000, 100_000);
+    numberInRange(run.horizontalScale, `${runPath}.horizontalScale`, 0.01, 10_000);
+    numberInRange(run.verticalScale, `${runPath}.verticalScale`, 0.01, 10_000);
     oneOf(run.kerning, `${runPath}.kerning`, ['auto', 'metrics', 'optical', 'none']);
     const features = record(run.openTypeFeatures, `${runPath}.openTypeFeatures`);
     for (const [tag, setting] of Object.entries(features)) {
       if (!/^[\x20-\x7e]{4}$/.test(tag)) fail(`${runPath}.openTypeFeatures.${tag}`, 'feature tags must contain four printable ASCII characters');
-      if (typeof setting !== 'boolean') integer(setting, `${runPath}.openTypeFeatures.${tag}`);
+      if (typeof setting !== 'boolean') integer(setting, `${runPath}.openTypeFeatures.${tag}`, 0, 65_535);
     }
     const axes = record(run.variableAxes, `${runPath}.variableAxes`);
     for (const [tag, axisValue] of Object.entries(axes)) {
       if (!/^[\x20-\x7e]{4}$/.test(tag)) fail(`${runPath}.variableAxes.${tag}`, 'axis tags must contain four printable ASCII characters');
-      finite(axisValue, `${runPath}.variableAxes.${tag}`);
+      numberInRange(axisValue, `${runPath}.variableAxes.${tag}`, -1_000_000, 1_000_000);
     }
     if (typeof run.syntheticBold !== 'boolean') fail(`${runPath}.syntheticBold`, 'expected a boolean');
     if (typeof run.syntheticItalic !== 'boolean') fail(`${runPath}.syntheticItalic`, 'expected a boolean');
@@ -304,8 +307,10 @@ const assertFlowSource = (source: Record<string, unknown>, path: string): void =
     oneOf(run.direction, `${runPath}.direction`, ['auto', 'ltr', 'rtl']);
     const lineHeight = record(run.lineHeight, `${runPath}.lineHeight`);
     const kind = oneOf(lineHeight.kind, `${runPath}.lineHeight.kind`, ['normal', 'absolute', 'multiple']);
-    if (kind !== 'normal' && finite(lineHeight.value, `${runPath}.lineHeight.value`) <= 0) fail(`${runPath}.lineHeight.value`, 'must be positive');
-    for (const property of ['firstLineIndent', 'startIndent', 'endIndent', 'spaceBefore', 'spaceAfter'] as const) finite(run[property], `${runPath}.${property}`);
+    if (kind !== 'normal') numberInRange(lineHeight.value, `${runPath}.lineHeight.value`, 0.01, 100_000);
+    for (const property of ['firstLineIndent', 'startIndent', 'endIndent', 'spaceBefore', 'spaceAfter'] as const) {
+      numberInRange(run[property], `${runPath}.${property}`, -1_000_000, 1_000_000);
+    }
     oneOf(run.hyphenation, `${runPath}.hyphenation`, ['off', 'auto']);
   };
   const styleRuns = array(source.styleRuns, `${path}.styleRuns`);

@@ -15,6 +15,8 @@ import { isSelectionTool } from '../tools/toolCapabilities';
 import type { SelectionCombineMode } from '../selection/selectionTypes';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 import type { DocumentFontAsset } from '../document/documentTypes';
+import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
+import { MixedNumberInput } from './MixedNumberInput';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
@@ -23,6 +25,7 @@ export interface ToolOptionsProps {
   vectorStyle: VectorToolStyleSettings;
   text: TextToolSettings;
   textFonts: readonly DocumentFontAsset[];
+  textProperties?: TextPropertyPresentation | null;
   selectedVectorStyle?: VectorToolStyleSettings | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
@@ -33,6 +36,12 @@ export interface ToolOptionsProps {
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<VectorToolStyleSettings>) => void;
   onTextChange: (change: Partial<TextToolSettings>) => void;
+  onTextFontAssetChange?: (assetId: string) => void;
+  onTextSizeChange?: (size: number) => void;
+  onTextFillChange?: (fill: string) => void;
+  onTextPropertyBegin?: () => void;
+  onTextPropertyCommit?: () => void;
+  onTextPropertyCancel?: () => void;
   onSelectedVectorStyleChange?: (change: Partial<VectorToolStyleSettings>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
@@ -79,6 +88,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   vectorStyle,
   text,
   textFonts,
+  textProperties,
   selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
@@ -89,6 +99,12 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
+  onTextFontAssetChange,
+  onTextSizeChange,
+  onTextFillChange,
+  onTextPropertyBegin,
+  onTextPropertyCommit,
+  onTextPropertyCancel,
   onSelectedVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
@@ -105,6 +121,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   const changeVectorStyle = editsVectorSelection
     ? onSelectedVectorStyleChange ?? onVectorStyleChange
     : onVectorStyleChange;
+  const presentedTextFamily = textProperties?.family.kind === 'value'
+    ? textProperties.family.value : text.family;
 
   const releaseCompletedSelect = (event: React.ChangeEvent<HTMLDivElement>) => {
     const target = event.target;
@@ -212,9 +230,20 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           <label className="lighttable-tool-options__field">
             <span>Font</span>
             <select
-              value={text.family}
-              onChange={(event) => onTextChange({ family: event.currentTarget.value })}
+              value={textProperties && textProperties.family.kind !== 'value' ? '' : presentedTextFamily}
+              disabled={textProperties?.family.kind === 'unavailable'}
+              onChange={(event) => {
+                if (!textProperties || !onTextFontAssetChange) {
+                  onTextChange({ family: event.currentTarget.value }); return;
+                }
+                const family = event.currentTarget.value;
+                const matches = textFonts.filter((font) => font.familyNames.includes(family));
+                const asset = matches.find((font) => font.styleName === 'Regular') ?? matches[0];
+                if (asset) onTextFontAssetChange(asset.assetId);
+              }}
             >
+              {textProperties?.family.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
+              {textProperties?.family.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
               {[...new Set(textFonts.flatMap(({ familyNames }) => familyNames.slice(0, 1)))]
                 .map((family) => <option key={family} value={family}>{family}</option>)}
             </select>
@@ -222,16 +251,34 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           <label className="lighttable-tool-options__field">
             <span>Style</span>
             <select
-              value={text.style}
-              onChange={(event) => onTextChange({ style: event.currentTarget.value })}
+              value={textProperties?.face.kind === 'mixed' ? ''
+                : textProperties?.face.kind === 'unavailable' ? ''
+                  : textProperties?.face.kind === 'value' ? textProperties.face.value : text.style}
+              disabled={textProperties?.face.kind === 'unavailable'}
+              onChange={(event) => {
+                if (!textProperties || !onTextFontAssetChange) {
+                  onTextChange({ style: event.currentTarget.value }); return;
+                }
+                onTextFontAssetChange(event.currentTarget.value);
+              }}
             >
+              {textProperties?.face.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
+              {textProperties?.face.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
               {[...new Set(textFonts
-                .filter(({ familyNames }) => familyNames.includes(text.family))
-                .map(({ styleName }) => styleName))]
-                .map((style) => <option key={style} value={style}>{style}</option>)}
+                .filter(({ familyNames }) => familyNames.includes(presentedTextFamily))
+                .map(({ assetId }) => assetId))]
+                .map((assetId) => {
+                  const font = textFonts.find((entry) => entry.assetId === assetId)!;
+                  return <option key={assetId} value={assetId}>{font.styleName}</option>;
+                })}
             </select>
           </label>
-          <label className="lighttable-tool-options__weight-field">
+          {textProperties && onTextSizeChange && onTextPropertyBegin
+            && onTextPropertyCommit && onTextPropertyCancel ? (
+            <MixedNumberInput label="Size" value={textProperties.size} min={1} max={1296}
+              step={1} unit="px" onBegin={onTextPropertyBegin} onPreview={onTextSizeChange}
+              onCommit={onTextPropertyCommit} onCancel={onTextPropertyCancel} />
+          ) : <label className="lighttable-tool-options__weight-field">
             <span>Size</span>
             <input
               type="number"
@@ -244,7 +291,31 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               })}
             />
             <span>px</span>
-          </label>
+          </label>}
+          {onTextFillChange ? (
+            <label className="lighttable-tool-options__color-field">
+              <span>Fill</span>
+              <input
+                type="color"
+                value={textProperties?.fill.kind === 'value'
+                  ? textProperties.fill.value
+                  : textProperties ? '#000000' : brush.color}
+                onFocus={onTextPropertyBegin}
+                onChange={(event) => onTextFillChange(event.currentTarget.value)}
+                onBlur={onTextPropertyCommit}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    onTextPropertyCancel?.();
+                    event.currentTarget.blur();
+                  }
+                }}
+              />
+              {textProperties && textProperties.fill.kind !== 'value' ? (
+                <em>{textProperties.fill.kind === 'mixed' ? 'Mixed' : 'Non-solid / unsupported'}</em>
+              ) : null}
+            </label>
+          ) : null}
           <label className="lighttable-tool-options__field">
             <span>Antialias</span>
             <select value={text.antiAlias} disabled aria-label="Text antialias mode">

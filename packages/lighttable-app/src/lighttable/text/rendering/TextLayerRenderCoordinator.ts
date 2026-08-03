@@ -6,6 +6,7 @@ import {
 } from '@lighttable/text-core';
 import {
   planCoverageText,
+  projectCurrentTextPaint,
   serializeCoverageAtlasGlyphKey
 } from '@lighttable/text-rendering';
 import type {
@@ -377,7 +378,7 @@ export class TextLayerRenderCoordinator {
     if (!this.current(generation, key)) return;
     const prepared = await this.prepareDraws(
       dependencies,
-      layout,
+      projectCurrentTextPaint(layout, layer.text.source),
       sourceScale,
       generation,
       key,

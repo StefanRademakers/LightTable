@@ -6,6 +6,7 @@ import {
   type DocumentFontAsset
 } from '../../editor/document/documentTypes';
 import { TextLayerRenderCoordinator, type TextFontRuntimePort } from './TextLayerRenderCoordinator';
+import { setFlowTextContent } from '../../editor/document/textLayerCommands';
 
 const asset: DocumentFontAsset = {
   assetId: 'font-1',
@@ -111,6 +112,30 @@ describe('TextLayerRenderCoordinator', () => {
     await flush();
     expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
     expect(state.submit).toHaveBeenCalledOnce();
+  });
+
+  it('reuses realized geometry but redraws a paint-only text update', async () => {
+    const state = harness();
+    const document = createImageDocument('Text paint', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    const layer = document.layers[0]!;
+    if (layer.type !== 'text' || layer.text.source.kind !== 'flow') {
+      throw new Error('Expected flow text fixture.');
+    }
+    const source = layer.text.source;
+    const repainted = setFlowTextContent(document, layer.id, source.text, source.styleRuns.map((run) => ({
+      ...run,
+      fill: { kind: 'solid', color: { colorSpace: 'srgb', r: 1, g: 0, b: 0, a: 1 } }
+    })), source.paragraphRuns);
+    state.coordinator.sync(repainted);
+    await flush();
+
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+    expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(2);
+    expect(state.submit).toHaveBeenCalledTimes(2);
   });
 
   it('invalidates queued work when text becomes hidden', async () => {

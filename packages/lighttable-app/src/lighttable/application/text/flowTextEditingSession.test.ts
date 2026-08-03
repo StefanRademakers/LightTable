@@ -152,4 +152,49 @@ describe('flow text editing session', () => {
     state.controller.finish();
     expect(state.source()?.styleRuns[0]).toMatchObject({ fontSize: 73, fontWeight: 700 });
   });
+
+  it('coalesces a character property gesture and preserves mixed runs outside its range', () => {
+    const state = setup('abcd');
+    state.controller.begin(state.document.activeLayerId!, 1);
+    state.controller.setSelection({ anchor: 1, focus: 3 });
+    expect(state.controller.beginFormatting()).toBe(true);
+    expect(state.controller.format({ tracking: 10 })).toBe(true);
+    expect(state.controller.format({ tracking: 20 })).toBe(true);
+    expect(state.controller.endFormatting()).toBe(true);
+    expect(state.history.map(({ group }) => group)).toEqual(['format']);
+    expect(state.source()?.styleRuns.map(({ start, end, tracking }) => ({ start, end, tracking })))
+      .toEqual([
+        { start: 0, end: 1, tracking: 0 },
+        { start: 1, end: 3, tracking: 20 },
+        { start: 3, end: 4, tracking: 0 }
+      ]);
+  });
+
+  it('uses collapsed-caret formatting for subsequently inserted text', () => {
+    const state = setup('ab');
+    state.controller.begin(state.document.activeLayerId!, 1);
+    state.controller.beginFormatting();
+    state.controller.format({ fontSize: 42 });
+    state.controller.endFormatting();
+    state.controller.insert('X');
+    state.controller.finish();
+    expect(state.source()?.styleRuns.map(({ start, end, fontSize }) => ({ start, end, fontSize })))
+      .toEqual([
+        { start: 0, end: 1, fontSize: 16 },
+        { start: 1, end: 2, fontSize: 42 },
+        { start: 2, end: 3, fontSize: 16 }
+      ]);
+  });
+
+  it('restores the opening runs when a property gesture is cancelled', () => {
+    const state = setup('ab');
+    state.controller.begin(state.document.activeLayerId!);
+    state.controller.selectAll();
+    state.controller.beginFormatting();
+    state.controller.format({ fontSize: 99 });
+    expect(state.source()?.styleRuns[0].fontSize).toBe(99);
+    expect(state.controller.cancelFormatting()).toBe(true);
+    expect(state.source()?.styleRuns[0].fontSize).toBe(16);
+    expect(state.history).toHaveLength(0);
+  });
 });

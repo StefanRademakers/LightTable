@@ -155,6 +155,33 @@ describe('text document contracts', () => {
     })).toThrow(/insertionStyle.fontSize/);
   });
 
+  it('bounds authored character and paragraph numbers in runs and insertion defaults', () => {
+    const source = createDefaultFlowTextSource('x');
+    const layer = { ...createDefaultTextLayerData(), source };
+    const invalidStyle = (change: Record<string, unknown>) => ({
+      ...layer,
+      source: { ...source, styleRuns: [{ ...source.styleRuns[0], ...change }] }
+    });
+    expect(() => assertTextLayerData(invalidStyle({ fontStretch: Number.POSITIVE_INFINITY }))).toThrow(/fontStretch/);
+    expect(() => assertTextLayerData(invalidStyle({ fontStretch: 10_001 }))).toThrow(/fontStretch/);
+    expect(() => assertTextLayerData(invalidStyle({ variableAxes: { wght: 1_000_001 } }))).toThrow(/variableAxes.wght/);
+    expect(() => assertTextLayerData({
+      ...layer,
+      source: {
+        ...source,
+        paragraphRuns: [{ ...source.paragraphRuns[0], lineHeight: { kind: 'multiple', value: 100_001 } }]
+      }
+    })).toThrow(/lineHeight.value/);
+    const { start: _start, end: _end, ...insertionStyle } = source.styleRuns[0];
+    expect(() => assertTextLayerData({
+      ...createDefaultTextLayerData(),
+      source: {
+        ...createDefaultFlowTextSource(''),
+        insertionStyle: { ...insertionStyle, variableAxes: { wght: Number.NaN } }
+      }
+    })).toThrow(/insertionStyle.variableAxes.wght/);
+  });
+
   it('rejects malformed schemas, optional enums, metadata and runtime handles', () => {
     expect(() => assertTextLayerData({ ...createDefaultTextLayerData(), schemaVersion: 2 })).toThrow(/schemaVersion/);
     const badLanguage = cloneTextLayerData(createDefaultTextLayerData()) as unknown as { source: { styleRuns: Array<Record<string, unknown>> } };

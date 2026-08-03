@@ -61,6 +61,64 @@ describe('canonical text layer commands', () => {
     )).toBe(changed);
   });
 
+  it('isolates a subrange paint edit from font and layout revisions', () => {
+    const document = flowDocument();
+    const id = document.activeLayerId!;
+    const source = activeText(document).text.source;
+    if (source.kind !== 'flow') throw new Error('Expected flow text.');
+    const original = source.styleRuns[0];
+    const changed = setFlowTextContent(document, id, source.text, [
+      { ...original, start: 0, end: 2 },
+      { ...original, start: 2, end: source.text.length, fill: {
+        kind: 'solid', color: { colorSpace: 'srgb', r: 1, g: 0, b: 0, a: 1 }
+      } }
+    ], source.paragraphRuns);
+    expect(activeText(changed).text.revisions).toEqual({
+      content: 0, font: 0, layout: 0, paint: 1, path: 0, geometry: 0
+    });
+  });
+
+  it('replaces and clears persisted insertion state explicitly', () => {
+    const document = flowDocument();
+    const id = document.activeLayerId!;
+    const source = activeText(document).text.source;
+    if (source.kind !== 'flow') throw new Error('Expected flow text.');
+    const { start: _start, end: _end, ...insertionStyle } = source.styleRuns[0];
+    const seeded = setFlowTextContent(
+      document, id, source.text, source.styleRuns, source.paragraphRuns,
+      { insertionStyle: { ...insertionStyle, fontSize: 42 } }
+    );
+    expect(activeText(seeded).text.source).toMatchObject({
+      insertionStyle: { fontSize: 42 }
+    });
+    const seededSource = activeText(seeded).text.source;
+    if (seededSource.kind !== 'flow') throw new Error('Expected flow text.');
+    const cleared = setFlowTextContent(
+      seeded, id, seededSource.text, seededSource.styleRuns, seededSource.paragraphRuns, {}
+    );
+    expect('insertionStyle' in activeText(cleared).text.source).toBe(false);
+  });
+
+  it('does not revise content when feature and axis key order changes', () => {
+    const document = flowDocument();
+    const id = document.activeLayerId!;
+    const source = activeText(document).text.source;
+    if (source.kind !== 'flow') throw new Error('Expected flow text.');
+    const styled = setFlowTextContent(document, id, source.text, source.styleRuns.map((run) => ({
+      ...run,
+      openTypeFeatures: { liga: true, kern: false },
+      variableAxes: { wght: 400, wdth: 100 }
+    })), source.paragraphRuns);
+    const styledSource = activeText(styled).text.source;
+    if (styledSource.kind !== 'flow') throw new Error('Expected flow text.');
+    const reordered = setFlowTextContent(styled, id, styledSource.text, styledSource.styleRuns.map((run) => ({
+      ...run,
+      openTypeFeatures: { kern: false, liga: true },
+      variableAxes: { wdth: 100, wght: 400 }
+    })), styledSource.paragraphRuns);
+    expect(reordered).toBe(styled);
+  });
+
   it('tracks font, layout, path and common geometry revisions independently', () => {
     const document = flowDocument();
     const id = document.activeLayerId!;

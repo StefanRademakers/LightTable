@@ -21,6 +21,13 @@ import {
   snapTextOffset,
   type TextSelectionRange
 } from './flowTextEditing';
+import {
+  formatFlowTextSource,
+  projectFlowTextFormat,
+  type FlowTextFormatProjection,
+  type ParagraphStylePatch,
+  type TextStylePatch
+} from './flowTextFormatting';
 
 export interface FlowTextEditingSnapshot {
   readonly status: 'idle' | 'editing';
@@ -61,6 +68,10 @@ export class FlowTextEditingSessionController {
   private deleteSignature = '';
   private insertionStyle: TextStyleRun | undefined;
   private insertionParagraph: ParagraphStyleRun | undefined;
+  private formattingInsertionBefore: {
+    readonly style: TextStyleRun | undefined;
+    readonly paragraph: ParagraphStyleRun | undefined;
+  } | null = null;
   private focusSequence = 0;
   private readonly transaction = createTextEditTransactionController(
     () => this.dependencies()
@@ -304,6 +315,76 @@ export class FlowTextEditingSessionController {
     return this.currentSource(false)?.text ?? '';
   }
 
+  formatProjection(): FlowTextFormatProjection | null {
+    const source = this.currentSource(false);
+    return source
+      ? projectFlowTextFormat(
+          source,
+          this.snapshot.selection,
+          this.insertionStyle,
+          this.insertionParagraph
+        )
+      : null;
+  }
+
+  beginFormatting() {
+    this.commitOpenGroup();
+    if (!this.ensureGroup('format')) return false;
+    this.formattingInsertionBefore = {
+      style: this.insertionStyle,
+      paragraph: this.insertionParagraph
+    };
+    return true;
+  }
+
+  format(stylePatch: TextStylePatch, paragraphPatch: ParagraphStylePatch = {}) {
+    if (this.openGroup !== 'format' && !this.beginFormatting()) return false;
+    let nextInsertionStyle = this.insertionStyle;
+    let nextInsertionParagraph = this.insertionParagraph;
+    const changed = this.transaction.apply((data) => {
+      if (data.source.kind !== 'flow') return data;
+      const source = formatFlowTextSource(
+        data.source,
+        this.snapshot.selection,
+        stylePatch,
+        paragraphPatch,
+        this.insertionStyle,
+        this.insertionParagraph
+      );
+      if (source.insertionStyle) {
+        nextInsertionStyle = { ...source.insertionStyle, start: 0, end: 0 };
+      }
+      if (source.insertionParagraph) {
+        nextInsertionParagraph = { ...source.insertionParagraph, start: 0, end: 0 };
+      }
+      return { ...data, source };
+    });
+    if (changed) {
+      this.insertionStyle = nextInsertionStyle;
+      this.insertionParagraph = nextInsertionParagraph;
+      this.publish({ ...this.snapshot });
+    }
+    return changed;
+  }
+
+  endFormatting() {
+    if (this.openGroup !== 'format') return false;
+    const changed = this.commitOpenGroup();
+    this.formattingInsertionBefore = null;
+    return changed;
+  }
+
+  cancelFormatting() {
+    if (this.openGroup !== 'format') return false;
+    const cancelled = this.transaction.cancel();
+    this.openGroup = null;
+    this.insertionStyle = this.formattingInsertionBefore?.style;
+    this.insertionParagraph = this.formattingInsertionBefore?.paragraph;
+    this.formattingInsertionBefore = null;
+    this.publish({ ...this.snapshot });
+    return cancelled;
+  }
+
   checkpoint() {
     const wasComposing = this.openGroup === 'composition';
     const changed = this.commitOpenGroup();
@@ -320,6 +401,7 @@ export class FlowTextEditingSessionController {
     this.deleteSignature = '';
     this.insertionStyle = undefined;
     this.insertionParagraph = undefined;
+    this.formattingInsertionBefore = null;
     this.publish(IDLE_SNAPSHOT);
     return true;
   }
@@ -341,6 +423,7 @@ export class FlowTextEditingSessionController {
     this.deleteSignature = '';
     this.insertionStyle = undefined;
     this.insertionParagraph = undefined;
+    this.formattingInsertionBefore = null;
     this.publish(IDLE_SNAPSHOT);
   }
 
@@ -403,6 +486,7 @@ export class FlowTextEditingSessionController {
     this.openGroup = null;
     this.compositionText = '';
     this.deleteSignature = '';
+    this.formattingInsertionBefore = null;
     return changed;
   }
 

@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "sourceHash": "9ba1c29f826c647eca55074743f55778842b51ed2c83de732d72f96bec5a0b4e",
+  "sourceHash": "10e8eabff54867331a0f09e07848e93ce1cf871b94ce62e4dbc085fc3fba6f80",
   "wasmBindgenVersion": "0.2.126",
   "rustTarget": "wasm32-unknown-unknown",
   "outputs": {
     "text_layout_wasm.js": "c4aca15f1f1584e786c10e88f3868fb31eed9f1b062e3d11a77bdab4182e8275",
     "text_layout_wasm.d.ts": "9e4da3023b573120f54ded0880df94fdec9579e051dbcedf370b97e67ac0ee69",
-    "text_layout_wasm_bg.wasm": "43bc407e1860c6293bef48557caea1f1c4cde014294d53fc8dcda35ece67061f",
+    "text_layout_wasm_bg.wasm": "b66e7941df6f2839ca9226a589d19c05e99afd1d266be306a6f7188b73be17c5",
     "text_layout_wasm_bg.wasm.d.ts": "508ede6e8afb53311c4eea967f49f83a996b17279d15a3e8af2c71c60f4bce20"
   }
 }

@@ -275,7 +275,10 @@ pub(crate) fn realize_flow(
                 range.clone(),
             );
             builder.push(StyleProperty::FontStyle(style.font_style), range.clone());
-            builder.push(StyleProperty::LetterSpacing(style.tracking), range.clone());
+            builder.push(
+                StyleProperty::LetterSpacing(style.font_size * style.tracking / 1000.0),
+                range.clone(),
+            );
             builder.push(StyleProperty::Brush(style.source_run_index), range);
         }
         let mut layout = builder.build(&input.text);

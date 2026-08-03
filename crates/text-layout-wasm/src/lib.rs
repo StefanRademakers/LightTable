@@ -661,6 +661,55 @@ mod tests {
     }
 
     #[test]
+    fn interprets_tracking_as_one_thousandth_em_for_positive_and_negative_values() {
+        let session = "tracking-units";
+        layout::register_font(
+            session,
+            "anton",
+            include_bytes!("../../../test/fixtures/fonts/Anton-Regular.ttf"),
+        )
+        .unwrap();
+        let width = |tracking: f32| {
+            let packed: layout::PackedFlowLayout = layout::realize_flow(
+                session,
+                layout::FlowLayoutInput {
+                    key: format!("tracking-{tracking}"),
+                    text: "A".to_owned(),
+                    styles: vec![layout::FlowStyleInput {
+                        start: 0,
+                        end: 1,
+                        family: "Anton".to_owned(),
+                        font_size: 16.0,
+                        font_weight: 400.0,
+                        font_stretch: 100.0,
+                        font_style: parley::FontStyle::Normal,
+                        tracking,
+                        source_run_index: 0,
+                        expected_asset_id: "anton".to_owned(),
+                        expected_face_index: 0,
+                    }],
+                    max_width: None,
+                    origin_x: 0.0,
+                    origin_y: 0.0,
+                    max_glyph_count: 10,
+                },
+            )
+            .unwrap()
+            .into();
+            packed.bounds[6]
+        };
+        let normal = width(0.0);
+        let expanded = width(1000.0);
+        let tightened = width(-500.0);
+        assert!(
+            (expanded - normal - 16.0).abs() < 0.01,
+            "normal={normal} expanded={expanded}"
+        );
+        assert!(tightened < normal, "normal={normal} tightened={tightened}");
+        assert!(drop_layout_session(session));
+    }
+
+    #[test]
     fn rejects_unreported_variable_font_instances() {
         let session = "variable-instance";
         layout::register_font(

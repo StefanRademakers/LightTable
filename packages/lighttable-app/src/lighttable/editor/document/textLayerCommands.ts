@@ -19,12 +19,34 @@ import { findDocumentLayer, updateLayerNode } from './layerTree';
 import type { AffineMatrix } from '../geometry/affine';
 import { setLayerTransform } from './documentCommands';
 
+const canonicalValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, entry]) => [key, canonicalValue(entry)]));
+};
+
 const sameValue = (left: unknown, right: unknown) => (
-  left === right || JSON.stringify(left) === JSON.stringify(right)
+  left === right || JSON.stringify(canonicalValue(left)) === JSON.stringify(canonicalValue(right))
 );
 
-const flowFontSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => runs.map((run) => ({
-  ...(includeRanges ? { start: run.start, end: run.end } : {}),
+const normalizedRunSignature = <Run extends { readonly start: number; readonly end: number }>(
+  runs: readonly Run[],
+  includeRanges: boolean,
+  project: (run: Run) => unknown
+) => runs.reduce<Array<{ start: number; end: number; value: unknown }>>((result, run) => {
+  const value = project(run);
+  const previous = result.at(-1);
+  if (previous && previous.end === run.start && sameValue(previous.value, value)) {
+    previous.end = run.end;
+  } else {
+    result.push({ start: run.start, end: run.end, value });
+  }
+  return result;
+}, []).map(({ start, end, value }) => includeRanges ? { start, end, value } : value);
+
+const flowFontSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => normalizedRunSignature(runs, includeRanges, (run) => ({
   requestedFont: run.requestedFont,
   fontSize: run.fontSize,
   fontWeight: run.fontWeight,
@@ -40,22 +62,19 @@ const flowFontSignature = (runs: readonly TextStyleRun[], includeRanges: boolean
   syntheticItalic: run.syntheticItalic
 }));
 
-const flowLayoutSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => runs.map((run) => ({
-  ...(includeRanges ? { start: run.start, end: run.end } : {}),
+const flowLayoutSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => normalizedRunSignature(runs, includeRanges, (run) => ({
   tracking: run.tracking,
   baselineShift: run.baselineShift,
   horizontalScale: run.horizontalScale,
   verticalScale: run.verticalScale
 }));
 
-const flowPaintSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => runs.map((run) => ({
-  ...(includeRanges ? { start: run.start, end: run.end } : {}),
+const flowPaintSignature = (runs: readonly TextStyleRun[], includeRanges: boolean) => normalizedRunSignature(runs, includeRanges, (run) => ({
   fill: run.fill,
   stroke: run.stroke
 }));
 
-const paragraphSignature = (runs: readonly ParagraphStyleRun[], includeRanges: boolean) => runs.map((run) => ({
-  ...(includeRanges ? { start: run.start, end: run.end } : {}),
+const paragraphSignature = (runs: readonly ParagraphStyleRun[], includeRanges: boolean) => normalizedRunSignature(runs, includeRanges, (run) => ({
   alignment: run.alignment,
   direction: run.direction,
   lineHeight: run.lineHeight,
@@ -150,6 +169,11 @@ export const setFlowTextContent = (
   insertionState?: Pick<FlowTextSource, 'insertionStyle' | 'insertionParagraph'>
 ) => updateTextLayer(document, layerId, (layer) => {
   if (layer.text.source.kind !== 'flow') return layer.text;
+  const {
+    insertionStyle: _oldInsertionStyle,
+    insertionParagraph: _oldInsertionParagraph,
+    ...sourceWithoutInsertionState
+  } = layer.text.source;
   const contentChanged = layer.text.source.text !== text;
   const includeRanges = !contentChanged;
   const fontChanged = !sameValue(
@@ -183,7 +207,7 @@ export const setFlowTextContent = (
   return bumpRevisions({
     ...layer.text,
     source: {
-      ...layer.text.source,
+      ...(insertionState === undefined ? layer.text.source : sourceWithoutInsertionState),
       text,
       styleRuns: structuredClone(styleRuns),
       paragraphRuns: structuredClone(paragraphRuns),

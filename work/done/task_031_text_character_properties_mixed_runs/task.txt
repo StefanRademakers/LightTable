@@ -1,0 +1,17 @@
+# Task 031 — Character properties and mixed style runs
+
+Status: complete. Implements Slice 12 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+Started from: `7a107d9`
+Owner: Codex `/root`
+
+## Required outcome
+
+- Wire family, face, size, fill, faux style policy, tracking, leading,
+  baseline shift, OpenType features and variable axes.
+- Apply properties to selection, insertion style or whole layer with explicit targeting.
+- Preserve mixed values truthfully in shared Tool Options and contextual Properties.
+- Paint-only edits avoid shaping/layout invalidation.
+- Numeric validation, keyboard increments and property gesture undo are predictable.
+- Unsupported font features are disabled with a visible reason.

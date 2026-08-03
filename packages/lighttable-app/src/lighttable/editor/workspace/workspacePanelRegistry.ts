@@ -100,7 +100,7 @@ export const createDefaultLightTableWorkspacePanels = (
   {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
     contentKey: 'grade',
-    title: 'Grade',
+    title: 'Properties',
     content: content.grade,
     defaultPosition: {
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,

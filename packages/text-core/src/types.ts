@@ -98,6 +98,7 @@ export interface TextStyleRun {
   readonly fontStretch: number;
   readonly fill: TextPaint;
   readonly stroke?: TextStroke;
+  /** Photoshop/PDF-compatible tracking in 1/1000 em units. */
   readonly tracking: number;
   readonly kerning: 'auto' | 'metrics' | 'optical' | 'none';
   readonly baselineShift: number;

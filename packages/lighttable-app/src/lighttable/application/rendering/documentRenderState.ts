@@ -88,7 +88,15 @@ const layerRenderStatesEqual = (left: LayerNode, right: LayerNode): boolean => {
   }
 
   if (left.type === 'text' && right.type === 'text') {
-    return left.text === right.text
+    const leftRevisions = left.text.revisions;
+    const rightRevisions = right.text.revisions;
+    return left.text.source.kind === right.text.source.kind
+      && leftRevisions.content === rightRevisions.content
+      && leftRevisions.font === rightRevisions.font
+      && leftRevisions.layout === rightRevisions.layout
+      && leftRevisions.paint === rightRevisions.paint
+      && leftRevisions.path === rightRevisions.path
+      && leftRevisions.geometry === rightRevisions.geometry
       && masksEqual(left.mask, right.mask);
   }
 

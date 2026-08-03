@@ -41,6 +41,8 @@ describe('workspacePanelRegistry', () => {
       'lensFx',
       'debug'
     ]);
+    expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.grade)?.title)
+      .toBe('Properties');
     expect(
       panels
         .filter((panel) => panel.requiredForSavedLayout)

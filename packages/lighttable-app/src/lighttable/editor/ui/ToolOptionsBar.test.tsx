@@ -3,8 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { createEditorSession, type ToolId } from '../session/editorSession';
 import { ToolOptionsContent, type ToolOptionsProps } from './ToolOptionsBar';
+import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 
-const renderOptions = (activeTool: ToolId, rowHeight = 1, columnWidth = 1) => {
+const renderOptions = (
+  activeTool: ToolId,
+  rowHeight = 1,
+  columnWidth = 1,
+  textProperties?: TextPropertyPresentation
+) => {
   const session = createEditorSession();
   const props: ToolOptionsProps = {
     activeTool,
@@ -20,6 +26,7 @@ const renderOptions = (activeTool: ToolId, rowHeight = 1, columnWidth = 1) => {
       familyNames: ['Inter'], styleName: 'Regular', weight: 400,
       stretch: 100, italic: false, byteLength: 10
     }],
+    textProperties,
     selectionPixelSnap: session.selectionPixelSnap,
     selectionCombineMode: session.selectionCombineMode,
     selectionRowHeight: rowHeight,
@@ -29,6 +36,12 @@ const renderOptions = (activeTool: ToolId, rowHeight = 1, columnWidth = 1) => {
     onWarpChange: vi.fn(),
     onVectorStyleChange: vi.fn(),
     onTextChange: vi.fn(),
+    onTextFontAssetChange: vi.fn(),
+    onTextSizeChange: vi.fn(),
+    onTextFillChange: vi.fn(),
+    onTextPropertyBegin: vi.fn(),
+    onTextPropertyCommit: vi.fn(),
+    onTextPropertyCancel: vi.fn(),
     onWarpReset: vi.fn(),
     onSelectionPixelSnapChange: vi.fn(),
     onSelectionCombineModeChange: vi.fn(),
@@ -68,5 +81,16 @@ describe('point text tool options', () => {
     expect(markup).toContain('Smooth');
     expect(markup).toContain('aria-label="Text alignment"');
     expect(markup).toContain('Left');
+  });
+
+  it('shows selected-layer mixed values and fill through the shared controls', () => {
+    const markup = renderOptions('text-point', 1, 1, {
+      target: 'selection', family: { kind: 'value', value: 'Inter' },
+      face: { kind: 'value', value: 'inter' }, size: { kind: 'mixed' },
+      fill: { kind: 'value', value: '#ff0000' }, tracking: { kind: 'value', value: 0 },
+      advancedUnavailableReason: 'Unavailable'
+    });
+    expect(markup).toContain('placeholder="Mixed"');
+    expect(markup).toContain('value="#ff0000"');
   });
 });
