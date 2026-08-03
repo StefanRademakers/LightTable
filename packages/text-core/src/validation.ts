@@ -765,4 +765,18 @@ function assertPerformanceMetrics(value: unknown, path: string): void {
   const memory = integer(metrics.wasmLinearMemoryBytes, `${path}.wasmLinearMemoryBytes`);
   if (duration < 0) fail(`${path}.operationDurationMs`, 'must be non-negative');
   if (memory < 0) fail(`${path}.wasmLinearMemoryBytes`, 'must be non-negative');
+  if (metrics.paragraphCache !== undefined) {
+    const paragraph = record(metrics.paragraphCache, `${path}.paragraphCache`);
+    for (const field of [
+      'requestHitCount',
+      'requestShapeCount',
+      'retainedEntryCount',
+      'retainedByteLength',
+      'lifetimeEvictionCount'
+    ] as const) {
+      if (integer(paragraph[field], `${path}.paragraphCache.${field}`) < 0) {
+        fail(`${path}.paragraphCache.${field}`, 'must be non-negative');
+      }
+    }
+  }
 }

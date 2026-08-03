@@ -444,9 +444,26 @@ describe('realized layout and worker contracts', () => {
       cacheKey: request.cacheKey,
       layout: createRealizedFixture(request.cacheKey),
       transferOwnership: 'dedicated',
-      metrics: { operationDurationMs: 1.25, wasmLinearMemoryBytes: 65_536 }
+      metrics: {
+        operationDurationMs: 1.25,
+        wasmLinearMemoryBytes: 65_536,
+        paragraphCache: {
+          requestHitCount: 2,
+          requestShapeCount: 1,
+          retainedEntryCount: 3,
+          retainedByteLength: 4096,
+          lifetimeEvictionCount: 0
+        }
+      }
     };
     expect(() => assertTextLayoutWorkerResponse(response)).not.toThrow();
+    expect(() => assertTextLayoutWorkerResponse({
+      ...response,
+      metrics: {
+        ...response.metrics,
+        paragraphCache: { ...response.metrics.paragraphCache!, requestShapeCount: -1 }
+      }
+    })).toThrow(/requestShapeCount/);
     const transfers = collectTextResponseTransferBuffers(response);
     const clone = structuredCloneValue(response, { transfer: transfers });
     expect(transfers).toHaveLength(3);

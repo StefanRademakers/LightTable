@@ -60,12 +60,43 @@ describe('incremental paragraph layout identity', () => {
       ...source,
       paragraphRuns: source.paragraphRuns.map((run) => ({ ...run, startIndent: 12 }))
     })[0];
+    const respaced = segmentFlowParagraphs({
+      ...source,
+      paragraphRuns: source.paragraphRuns.map((run) => ({ ...run, spaceBefore: 12, spaceAfter: 8 }))
+    })[0];
 
     expect(createParagraphShapeCacheKey(recolored, 240, 1)).toBe(base);
     expect(createParagraphShapeCacheKey(resized, 240, 1)).not.toBe(base);
     expect(createParagraphShapeCacheKey(reindented, 240, 1)).not.toBe(base);
+    expect(createParagraphShapeCacheKey(respaced, 240, 1)).toBe(base);
     expect(createParagraphShapeCacheKey(segment, 320, 1)).not.toBe(base);
     expect(createParagraphShapeCacheKey(segment, 240, 2)).not.toBe(base);
+  });
+
+  it('does not stale an unchanged suffix when earlier global style indexes shift', () => {
+    const base = createDefaultFlowTextSource('AB\nCD');
+    const styled = {
+      ...base,
+      styleRuns: [
+        { ...base.styleRuns[0], end: 3 },
+        { ...base.styleRuns[0], start: 3 }
+      ]
+    };
+    const shifted = {
+      ...base,
+      styleRuns: [
+        { ...base.styleRuns[0], end: 1 },
+        { ...base.styleRuns[0], start: 1, end: 3 },
+        { ...base.styleRuns[0], start: 3 }
+      ]
+    };
+    const styledSuffix = segmentFlowParagraphs(styled)[1];
+    const shiftedSuffix = segmentFlowParagraphs(shifted)[1];
+
+    expect(styledSuffix.textStyles[0].sourceRunIndex).toBe(1);
+    expect(shiftedSuffix.textStyles[0].sourceRunIndex).toBe(2);
+    expect(createParagraphShapeCacheKey(styledSuffix, 240, 1))
+      .toBe(createParagraphShapeCacheKey(shiftedSuffix, 240, 1));
   });
 
   it('canonicalizes OpenType and variable-axis record order', () => {

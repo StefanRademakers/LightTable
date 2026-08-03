@@ -27,7 +27,22 @@ import {
   type TextEngineWorkerRequest,
   type TextEngineWorkerResponse
 } from './textEngineProtocol';
-import { resolveUniformParagraphLayout } from './uniformParagraphLayout';
+import {
+  resolveUniformParagraphLayout,
+  type UniformParagraphLayout
+} from './uniformParagraphLayout';
+import {
+  createParagraphShapeCacheKey,
+  segmentFlowParagraphs,
+  type FlowParagraphSegment
+} from './incrementalParagraphLayout';
+import { ParagraphFragmentCache } from './ParagraphFragmentCache';
+import {
+  assembleParagraphLayout,
+  estimatePackedParagraphBytes,
+  type PackedParagraphFragment,
+  type ParagraphFragmentPlacement
+} from './paragraphFragmentLayout';
 
 let initialization: Promise<{ engineVersion: string; loadDurationMs: number }> | null = null;
 const layoutSessions = new Map<string, {
@@ -35,6 +50,7 @@ const layoutSessions = new Map<string, {
   fingerprints: Set<string>;
   faceCounts: Map<string, number>;
   fonts: Map<string, FontAssetRef>;
+  paragraphs: ParagraphFragmentCache<PackedParagraphFragment>;
 }>();
 
 const sessionKey = (identity: { documentSessionId: string; sessionGeneration: number }) =>
@@ -157,6 +173,7 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
     return;
   }
   if (data.kind === 'release-session') {
+    layoutSessions.get(key)?.paragraphs.clear();
     layoutSessions.delete(key);
     dropLayoutSession(key);
     const response: TextLayoutWorkerResponse = {
@@ -224,7 +241,8 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
     revision: 0,
     fingerprints: new Set<string>(),
     faceCounts: new Map<string, number>(),
-    fonts: new Map<string, FontAssetRef>()
+    fonts: new Map<string, FontAssetRef>(),
+    paragraphs: new ParagraphFragmentCache(estimatePackedParagraphBytes)
   };
   if (!layoutSessions.has(key)) layoutSessions.set(key, state);
   if (data.kind === 'register-font') {
@@ -252,6 +270,7 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
       }
       state.fonts.set(data.font.assetId, structuredClone(data.font));
       state.revision = data.fontSnapshotRevision;
+      state.paragraphs.clear();
       const response: TextLayoutWorkerResponse = {
         kind: 'font-registered',
         protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
@@ -362,7 +381,11 @@ class UnsupportedLayoutError extends Error {}
 
 const realizeFlowRequest = (
   request: TextLayoutWorkerRequest,
-  state: { revision: number; fonts: Map<string, FontAssetRef> }
+  state: {
+    revision: number;
+    fonts: Map<string, FontAssetRef>;
+    paragraphs: ParagraphFragmentCache<PackedParagraphFragment>;
+  }
 ): TextLayoutWorkerResponse => {
   const operationStartedAt = performance.now();
   if (request.fontSnapshotRevision !== state.revision) {
@@ -387,6 +410,68 @@ const realizeFlowRequest = (
     if (!font) throw new UnsupportedLayoutError('Every Slice 06 flow run requires an exact registered preferred font.');
     return font;
   });
+  if (source.layout.mode === 'paragraph' && source.text.length > 0) {
+    const frameWidth = source.layout.frame.width;
+    const cacheBefore = state.paragraphs.metrics();
+    const placements = segmentFlowParagraphs(source).map((segment) => {
+      const paragraphResolution = resolveUniformParagraphLayout({
+        paragraphRuns: segment.paragraphStyles.map(({ run }) => run),
+        insertionParagraph: source.insertionParagraph
+      });
+      if (!paragraphResolution.supported) {
+        throw new UnsupportedLayoutError(paragraphResolution.message);
+      }
+      const cacheKey = createParagraphShapeCacheKey(
+        segment,
+        frameWidth,
+        request.fontSnapshotRevision
+      );
+      let fragment = state.paragraphs.get(cacheKey);
+      fragment ??= state.paragraphs.set(cacheKey, shapeParagraphFragment(
+        request,
+        segment,
+        selectedFonts,
+        paragraphResolution.value
+      ));
+      return {
+        segment,
+        fragment,
+        paragraph: paragraphResolution.value
+      } satisfies ParagraphFragmentPlacement;
+    });
+    const paragraphSource = source as typeof source & {
+      readonly layout: Extract<typeof source.layout, { readonly mode: 'paragraph' }>;
+    };
+    const layout = assembleParagraphLayout({
+      key: request.cacheKey,
+      source: paragraphSource,
+      selectedFonts,
+      placements,
+      maxGlyphCount: request.options.maxGlyphCount
+    });
+    const cacheAfter = state.paragraphs.metrics();
+    return {
+      kind: 'text-realized',
+      protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId: request.requestId,
+      documentSessionId: request.documentSessionId,
+      sessionGeneration: request.sessionGeneration,
+      cacheKey: request.cacheKey,
+      layout,
+      transferOwnership: 'dedicated',
+      metrics: {
+        operationDurationMs: performance.now() - operationStartedAt,
+        wasmLinearMemoryBytes: textEngineMemoryBytes(),
+        paragraphCache: {
+          requestHitCount: cacheAfter.hits - cacheBefore.hits,
+          requestShapeCount: cacheAfter.misses - cacheBefore.misses,
+          retainedEntryCount: cacheAfter.entries,
+          retainedByteLength: cacheAfter.byteLength,
+          lifetimeEvictionCount: cacheAfter.evictions
+        }
+      }
+    };
+  }
   const paragraphResolution = resolveUniformParagraphLayout(source);
   if (!paragraphResolution.supported) {
     throw new UnsupportedLayoutError(paragraphResolution.message);
@@ -530,6 +615,87 @@ const realizeFlowRequest = (
       wasmLinearMemoryBytes: textEngineMemoryBytes()
     }
   };
+};
+
+const shapeParagraphFragment = (
+  request: TextLayoutWorkerRequest,
+  segment: FlowParagraphSegment,
+  selectedFonts: readonly FontAssetRef[],
+  paragraph: UniformParagraphLayout
+): PackedParagraphFragment => {
+  const encoder = new TextEncoder();
+  const encodedFontStrings = segment.textStyles.flatMap(({ sourceRunIndex, run }) => {
+    const font = selectedFonts[sourceRunIndex];
+    if (!font) throw new Error('Paragraph font provenance is unavailable.');
+    return [
+      encoder.encode(run.requestedFont.families[0] ?? run.requestedFont.postScriptName ?? ''),
+      encoder.encode(font.fingerprintSha256)
+    ];
+  });
+  const fontStringBytes = new Uint8Array(encodedFontStrings.reduce((sum, bytes) => sum + bytes.byteLength, 0));
+  const fontStringRanges = new Uint32Array(segment.textStyles.length * 4);
+  let stringOffset = 0;
+  encodedFontStrings.forEach((bytes, index) => {
+    fontStringRanges[index * 2] = stringOffset;
+    fontStringBytes.set(bytes, stringOffset);
+    stringOffset += bytes.byteLength;
+    fontStringRanges[index * 2 + 1] = stringOffset;
+  });
+  const styleMeta = new Uint32Array(segment.textStyles.length * 5);
+  const styleMetrics = new Float32Array(segment.textStyles.length * 4);
+  segment.textStyles.forEach(({ sourceRunIndex, run }, localStyleSlot) => {
+    const font = selectedFonts[sourceRunIndex];
+    if (!font) throw new Error('Paragraph font provenance is unavailable.');
+    styleMeta.set([
+      run.start,
+      run.end,
+      localStyleSlot,
+      run.fontStyle === 'normal' ? 0 : run.fontStyle === 'italic' ? 1 : 2,
+      font.faceIndex
+    ], localStyleSlot * 5);
+    styleMetrics.set([run.fontSize, run.fontWeight, run.fontStretch, run.tracking], localStyleSlot * 4);
+  });
+  const raw = realizeFlowText(
+    sessionKey(request),
+    'paragraph-fragment',
+    segment.text,
+    request.layer.source.kind === 'flow' && request.layer.source.layout.mode === 'paragraph'
+      ? request.layer.source.layout.frame.width
+      : undefined,
+    paragraph.alignment,
+    paragraph.lineHeightKind,
+    paragraph.lineHeightValue,
+    paragraph.firstLineIndent,
+    paragraph.startIndent,
+    paragraph.endIndent,
+    0,
+    0,
+    0,
+    0,
+    request.options.maxGlyphCount,
+    styleMeta,
+    styleMetrics,
+    fontStringBytes,
+    fontStringRanges
+  );
+  try {
+    return Object.freeze({
+      runMeta: Uint32Array.from(raw.run_meta()),
+      glyphIds: Uint32Array.from(raw.glyph_ids()),
+      clusters: Uint32Array.from(raw.clusters()),
+      geometry: Float32Array.from(raw.geometry()),
+      lineMeta: Uint32Array.from(raw.line_meta()),
+      lineGeometry: Float32Array.from(raw.line_geometry()),
+      caretMeta: Uint32Array.from(raw.caret_meta()),
+      caretGeometry: Float32Array.from(raw.caret_geometry()),
+      selectionMeta: Uint32Array.from(raw.selection_meta()),
+      selectionGeometry: Float32Array.from(raw.selection_geometry()),
+      clusterMap: Uint32Array.from(raw.cluster_map()),
+      bounds: Float32Array.from(raw.bounds())
+    });
+  } finally {
+    raw.free();
+  }
 };
 
 const rectAt = (values: Float32Array, offset: number) => ({

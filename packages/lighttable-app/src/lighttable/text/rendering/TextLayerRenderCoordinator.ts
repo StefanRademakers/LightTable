@@ -683,7 +683,17 @@ export class TextLayerRenderCoordinator {
       this.shapingOperations += 1;
       this.latestShapingRoundTripMs = report.roundTripDurationMs;
       this.layoutCache.set(layoutCacheKey, layout);
-      this.trace('Text shaped', `layer=${layer.id} glyphRuns=${layout.glyphRuns.length} roundTripMs=${report.roundTripDurationMs.toFixed(2)}`);
+      const paragraphCache = report.metrics.paragraphCache;
+      this.trace('Text shaped', [
+        `layer=${layer.id}`,
+        `glyphRuns=${layout.glyphRuns.length}`,
+        `roundTripMs=${report.roundTripDurationMs.toFixed(2)}`,
+        ...(paragraphCache ? [
+          `paragraphHits=${paragraphCache.requestHitCount}`,
+          `paragraphShapes=${paragraphCache.requestShapeCount}`,
+          `paragraphCache=${paragraphCache.retainedEntryCount}/${paragraphCache.retainedByteLength}`
+        ] : [])
+      ].join(' '));
     }
     if (!this.current(generation, key)) return;
     this.publishEditingLayout(layer, layout, transform, fontPortRevision);

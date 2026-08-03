@@ -43,7 +43,7 @@ export class ParagraphFragmentCache<T> {
   }
 
   set(key: string, value: T): T {
-    const estimated = this.estimateBytes(value);
+    const estimated = this.estimateBytes(value) + key.length * 2 + 64;
     if (!Number.isSafeInteger(estimated) || estimated < 0) {
       throw new RangeError('Paragraph fragment size must be a non-negative safe integer.');
     }

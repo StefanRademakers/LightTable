@@ -19,6 +19,14 @@ export interface TextWorkerPerformanceMetrics {
   readonly operationDurationMs: number;
   /** Reserved WebAssembly linear memory after the operation, not process RSS. */
   readonly wasmLinearMemoryBytes: number;
+  /** Present for paragraph requests handled by the incremental fragment path. */
+  readonly paragraphCache?: {
+    readonly requestHitCount: number;
+    readonly requestShapeCount: number;
+    readonly retainedEntryCount: number;
+    readonly retainedByteLength: number;
+    readonly lifetimeEvictionCount: number;
+  };
 }
 
 interface TextWorkerMessageIdentity {

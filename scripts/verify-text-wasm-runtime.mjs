@@ -157,6 +157,44 @@ if (
   || paragraphLayout.geometry()[0] <= 20
 ) throw new Error('LightTable uniform paragraph-layout ABI returned invalid geometry.');
 paragraphLayout.free();
+const separatorLayout = (key, text) => bindings.realize_flow_text(
+  sessionKey, key, text, 220, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 100,
+  new Uint32Array([0, text.length, 0, 0, 0]),
+  new Float32Array([24, 400, 100, 0]),
+  new TextEncoder().encode('Antonanton'),
+  new Uint32Array([0, 5, 5, 10])
+);
+for (const [label, separator] of [
+  ['LF', '\n'], ['CR', '\r'], ['CRLF', '\r\n'], ['line separator', '\u2028'], ['paragraph separator', '\u2029']
+]) {
+  const fragmentText = `A${separator}`;
+  const fragment = separatorLayout(`separator-fragment-${label}`, fragmentText);
+  const fragmentLines = [...fragment.line_meta()];
+  const retainedFragmentLines = fragmentLines.slice(0, -2);
+  if (
+    fragmentLines.length < 4
+    || fragmentLines[0] !== 0
+    || fragmentLines.at(-2) !== fragmentText.length
+    || fragmentLines.at(-1) !== fragmentText.length
+  ) {
+    throw new Error(`Standalone ${label} paragraph lost its terminal empty-line contract: ${fragmentLines}.`);
+  }
+  fragment.free();
+
+  const completeText = `${fragmentText}B`;
+  const complete = separatorLayout(`separator-complete-${label}`, completeText);
+  const completeLines = [...complete.line_meta()];
+  if (
+    completeLines.length !== retainedFragmentLines.length + 2
+    || !retainedFragmentLines.every((value, index) => completeLines[index] === value)
+    || completeLines.at(-2) !== fragmentText.length
+    || completeLines.at(-1) !== completeText.length
+  ) {
+    throw new Error(`Complete ${label} flow does not match fragment assembly boundaries: ${completeLines}.`);
+  }
+  complete.free();
+}
 const glyphMask = bindings.rasterize_registered_glyph(sessionKey, 'anton', 0, 36, 24);
 const glyphPixels = glyphMask.pixels();
 if (
