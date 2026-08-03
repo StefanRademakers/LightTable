@@ -36,6 +36,7 @@ const renderPanel = (status: 'idle' | 'loading' | 'ready' | 'error', summary: st
       publicationRevision: 0, readyLayerCount: 0, textureBytes: 0, mode: 'placeholder',
       rebuildingLayerCount: 0, cacheBudgetBytes: 268435456, cacheEvictions: 0,
       atlasLayerCount: 0, cachedLayerCount: 0, atlasEncodes: 0,
+      sourceCacheHits: 0, sourceCacheMisses: 0,
       layoutCacheBytes: 0, layoutCacheBudgetBytes: 33554432,
       layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
       atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,

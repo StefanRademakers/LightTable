@@ -30,6 +30,8 @@ export interface TextRenderPresentationSnapshot {
   readonly atlasLayerCount: number;
   readonly cachedLayerCount: number;
   readonly atlasEncodes: number;
+  readonly sourceCacheHits: number;
+  readonly sourceCacheMisses: number;
   readonly layoutCacheBytes: number;
   readonly layoutCacheBudgetBytes: number;
   readonly layoutCacheHits: number;

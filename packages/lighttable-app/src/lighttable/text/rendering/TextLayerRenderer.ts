@@ -48,6 +48,8 @@ export interface TextLayerRendererSnapshot {
   readonly atlasLayerCount: number;
   readonly cachedLayerCount: number;
   readonly atlasEncodes: number;
+  readonly sourceCacheHits: number;
+  readonly sourceCacheMisses: number;
 }
 
 export interface PreparedTextLayerSource<TTexture = GPUTexture> {
@@ -100,6 +102,8 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
   private readonly touched = new Map<TextLayer['id'], number>();
   private visibleLayerIds = new Set<TextLayer['id']>();
   private atlasEncodes = 0;
+  private sourceCacheHits = 0;
+  private sourceCacheMisses = 0;
   private costObserver: ((sample: TextSourceCostSample) => void) | null = null;
 
   constructor(private readonly options?: TextLayerRendererOptions<TTexture>) {
@@ -306,6 +310,8 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     inheritedTransform: AffineMatrix = identityAffineMatrix()
   ): LayerSourceRenderContract<TTexture> | null {
     const source = this.sources.get(layer.id);
+    if (source) this.sourceCacheHits += 1;
+    else this.sourceCacheMisses += 1;
     return source ? this.contractFor(source, layer, inheritedTransform) : null;
   }
 
@@ -499,7 +505,9 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
       cacheEvictions: this.cacheEvictions,
       atlasLayerCount: this.atlasSources.size,
       cachedLayerCount: this.sources.size,
-      atlasEncodes: this.atlasEncodes
+      atlasEncodes: this.atlasEncodes,
+      sourceCacheHits: this.sourceCacheHits,
+      sourceCacheMisses: this.sourceCacheMisses
     });
   }
 

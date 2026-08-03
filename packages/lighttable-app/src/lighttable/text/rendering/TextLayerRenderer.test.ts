@@ -31,6 +31,7 @@ describe('TextLayerRenderer', () => {
     expect(renderer.snapshot().rebuildingLayerCount).toBe(1);
     renderer.sync([]);
     expect(renderer.resolvePresentation(changed)).toBeNull();
+    expect(renderer.snapshot()).toMatchObject({ sourceCacheHits: 1, sourceCacheMisses: 1 });
   });
   it('publishes a retained atlas plan and transforms it directly into the compositor target', () => {
     const renderer = new TextLayerRenderer<object>();

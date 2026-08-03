@@ -212,6 +212,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         <small>
           Text cache: {(textRenderTelemetry.textureBytes / 1048576).toFixed(1)} / {(textRenderTelemetry.cacheBudgetBytes / 1048576).toFixed(0)} MiB
           {' · '}{textRenderTelemetry.cacheEvictions} evictions
+          {' · '}{textRenderTelemetry.sourceCacheHits} hits / {textRenderTelemetry.sourceCacheMisses} misses
         </small>
         <small>
           Layout cache: {(textRenderTelemetry.layoutCacheBytes / 1048576).toFixed(1)} / {(textRenderTelemetry.layoutCacheBudgetBytes / 1048576).toFixed(0)} MiB
