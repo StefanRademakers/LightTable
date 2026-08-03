@@ -1124,6 +1124,14 @@
   box-shadow: 0 18px 60px rgb(0 0 0 / 48%);
 }
 
+.lighttable-psd-report--pdf {
+  grid-template-rows: auto auto auto auto minmax(180px, 1fr);
+}
+
+.lighttable-psd-report--pdf .lighttable-psd-report__metrics {
+  align-items: center;
+}
+
 .lighttable-psd-report__header {
   display: flex;
   align-items: flex-start;

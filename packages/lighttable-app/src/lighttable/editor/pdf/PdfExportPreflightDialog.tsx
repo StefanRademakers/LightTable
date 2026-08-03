@@ -111,7 +111,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
-        className="lighttable-psd-report"
+        className="lighttable-psd-report lighttable-psd-report--pdf"
         role="dialog"
         aria-modal="true"
         aria-label="PDF export preflight"
