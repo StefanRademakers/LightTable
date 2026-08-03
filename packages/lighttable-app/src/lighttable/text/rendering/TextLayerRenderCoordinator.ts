@@ -31,6 +31,7 @@ import { resolveFlowFontSelections } from '../fonts/flowFontSelection';
 import { TextGlyphOutlineRepository } from './TextGlyphOutlineRepository';
 import { TextOutlineVectorBackend } from './TextOutlineVectorBackend';
 import { prepareTextOutlineVectorDraws } from './prepareTextOutlineVectorDraws';
+import { resolvePathTextDependency } from '../../editor/document/pathTextDependency';
 
 export interface TextFontRuntimePort {
   readonly revision: number;
@@ -791,7 +792,7 @@ export class TextLayerRenderCoordinator {
       layerId: layer.id,
       revisions: layer.text.revisions,
       fontSnapshotRevision: this.sessionFontRevision,
-      pathDependencyRevision: 0,
+      pathDependencyRevision: this.pathDependencyRevision(layer),
       options
     };
     const layoutCacheKey = createTextLayoutCacheKey(identity);
@@ -1227,7 +1228,11 @@ export class TextLayerRenderCoordinator {
     transform: AffineMatrix,
     fontRevision: number
   ) {
-    return `${documentId}:${layer.id}:${textLayerSourceKey(layer)}:${fontRevision}:${this.sourceScaleForLayer(layer.id, transform)}`;
+    return `${documentId}:${layer.id}:${textLayerSourceKey(layer)}:${fontRevision}:${this.pathDependencyRevision(layer)}:${this.sourceScaleForLayer(layer.id, transform)}`;
+  }
+
+  private pathDependencyRevision(layer: TextLayer) {
+    return this.document ? resolvePathTextDependency(this.document, layer).revision : 0;
   }
 
   private sourceScaleForLayer(layerId: LayerId, transform: AffineMatrix) {

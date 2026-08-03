@@ -143,6 +143,8 @@ export interface ParagraphTextLayout {
 export interface PathTextLayout {
   readonly mode: 'path';
   readonly pathLayerId: string;
+  /** Stable vector element identity; omitted only for legacy single-path layers. */
+  readonly pathElementId?: string;
   readonly startOffset: number;
   readonly side: 'left' | 'right';
   readonly upright: boolean;

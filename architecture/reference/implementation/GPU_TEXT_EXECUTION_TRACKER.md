@@ -554,7 +554,7 @@ grid as raster and vector layers, without text-only smoothing or rerasterizing.
 
 #### Slice 17 — text on path
 
-- [ ] Add stable vector path references and missing-path behavior.
+- [x] Add stable vector path references and missing-path behavior.
 - [ ] Add arc-length cache, start/end offset, direction, side and alignment.
 - [ ] Keep glyphs rigid first; warped outlines are a later explicit mode.
 - [ ] Invalidate only path realization/layout on path edits.
@@ -703,6 +703,26 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 - Slice 17 stable path-text dependency
+
+- Contract: path text can identify both its vector layer and stable vector
+  element. The element ID is additive/backward-compatible; legacy layer-only
+  data resolves only when that layer contains exactly one canonical path.
+- Safety: dependency resolution reports missing layer, incompatible layer,
+  missing element and ambiguous legacy reference separately. It never chooses
+  the first sibling path silently and does not treat an unrealized live shape
+  as a canonical path.
+- Invalidation: the text preparation/cache key now includes a bounded revision
+  derived from the referenced layer transform and path geometry/transform.
+  Editing that path invalidates dependent text without invalidating unrelated
+  text layers.
+- Persistence: stable references round-trip through the native layered format;
+  empty element identities are rejected by the shared text contract.
+- UI/UX: Path Text remains hidden. The Text-family member, path handles and
+  offset controls stay gated until arc-length layout, editing and overlay
+  interaction are vertically complete. Missing-reference states are ready for
+  the established Layers badge/import-report surfaces at that point.
 
 ### 2026-08-03 - Export waits for canonical text sources
 

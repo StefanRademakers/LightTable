@@ -166,6 +166,29 @@ describe('text document contracts', () => {
     })).toThrow(/insertionStyle.fontSize/);
   });
 
+  it('round-trips stable path text references and validates optional element identities', () => {
+    const source = createDefaultFlowTextSource('Path');
+    const layer = {
+      ...createDefaultTextLayerData(),
+      source: {
+        ...source,
+        layout: {
+          mode: 'path' as const,
+          pathLayerId: 'vector-layer',
+          pathElementId: 'curve-a',
+          startOffset: 12,
+          side: 'left' as const,
+          upright: true
+        }
+      }
+    };
+    expect(parseTextLayerData(JSON.parse(JSON.stringify(layer)) as unknown)).toEqual(layer);
+    expect(() => assertTextLayerData({
+      ...layer,
+      source: { ...layer.source, layout: { ...layer.source.layout, pathElementId: '' } }
+    })).toThrow(/pathElementId/);
+  });
+
   it('bounds authored character and paragraph numbers in runs and insertion defaults', () => {
     const source = createDefaultFlowTextSource('x');
     const layer = { ...createDefaultTextLayerData(), source };

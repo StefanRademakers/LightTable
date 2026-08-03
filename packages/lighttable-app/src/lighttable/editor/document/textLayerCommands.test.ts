@@ -137,6 +137,7 @@ describe('canonical text layer commands', () => {
     const path = setFlowTextLayout(paragraph, id, {
       mode: 'path',
       pathLayerId: 'path-layer',
+      pathElementId: 'path-element',
       startOffset: 4,
       side: 'left',
       upright: true

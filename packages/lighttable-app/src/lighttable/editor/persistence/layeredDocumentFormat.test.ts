@@ -106,6 +106,14 @@ describe('LightTable layered PNG format', () => {
         ...baseFlowSource,
         text: complexText,
         styleRuns: complexRuns,
+        layout: {
+          mode: 'path' as const,
+          pathLayerId: 'vector-layer',
+          pathElementId: 'curve-a',
+          startOffset: 12,
+          side: 'left' as const,
+          upright: true
+        },
         paragraphRuns: baseFlowSource.paragraphRuns.map((run) => ({
           ...run, start: 0, end: complexText.length
         }))
