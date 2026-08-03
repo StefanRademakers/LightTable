@@ -25,12 +25,19 @@ export interface TextOverlayLine {
   readonly color: readonly [number, number, number, number];
 }
 
+export interface TextOverlayMarker {
+  readonly role: 'frame-handle';
+  readonly point: TextOverlayPoint;
+  readonly sizePx: number;
+}
+
 export interface TextEditingOverlay {
   readonly layerId: string;
   /** Excludes blink visibility so the GPU geometry remains reusable. */
   readonly resourceKey: string;
   readonly quads: readonly TextOverlayQuad[];
   readonly lines: readonly TextOverlayLine[];
+  readonly markers: readonly TextOverlayMarker[];
 }
 
 export interface BuildTextEditingOverlayOptions {
@@ -81,6 +88,23 @@ const frameLines = (
   }));
 };
 
+const midpoint = (first: TextOverlayPoint, second: TextOverlayPoint): TextOverlayPoint => ({
+  x: (first.x + second.x) * 0.5,
+  y: (first.y + second.y) * 0.5
+});
+
+const frameMarkers = (
+  frame: Rect,
+  localToDocument: TextEditingAffine
+): TextOverlayMarker[] => {
+  const [northWest, northEast, southEast, southWest] = transformRect(localToDocument, frame);
+  return [
+    northWest, midpoint(northWest, northEast), northEast,
+    midpoint(northEast, southEast), southEast, midpoint(southEast, southWest),
+    southWest, midpoint(southWest, northWest)
+  ].map((point) => ({ role: 'frame-handle' as const, point, sizePx: 10 }));
+};
+
 export const buildParagraphFrameOverlay = ({
   layerId,
   frame,
@@ -92,7 +116,8 @@ export const buildParagraphFrameOverlay = ({
     affineKey(localToDocument)
   ].join(':'),
   quads: Object.freeze([]),
-  lines: Object.freeze(frameLines(frame, localToDocument))
+  lines: Object.freeze(frameLines(frame, localToDocument)),
+  markers: Object.freeze(frameMarkers(frame, localToDocument))
 });
 
 const selectedGeometry = (
@@ -206,6 +231,7 @@ export const buildTextEditingOverlay = ({
       affineKey(localToDocument)
     ].join(':'),
     quads: Object.freeze(quads),
-    lines: Object.freeze(lines)
+    lines: Object.freeze(lines),
+    markers: Object.freeze(frame ? frameMarkers(frame, localToDocument) : [])
   });
 };

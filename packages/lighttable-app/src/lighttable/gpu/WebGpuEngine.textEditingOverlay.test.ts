@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { WebGpuEngine } from './WebGpuEngine';
 
 const overlay: TextEditingOverlay = {
-  layerId: 'text', resourceKey: 'text:layout:0:0', quads: [], lines: []
+  layerId: 'text', resourceKey: 'text:layout:0:0', quads: [], lines: [], markers: []
 };
 
 describe('WebGpuEngine text editing overlay presentation', () => {

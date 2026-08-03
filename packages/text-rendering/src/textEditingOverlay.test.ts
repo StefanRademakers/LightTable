@@ -102,6 +102,10 @@ describe('text editing overlay', () => {
       expect.objectContaining({ start: { x: 258, y: 128 }, end: { x: 18, y: 128 } }),
       expect.objectContaining({ start: { x: 18, y: 128 }, end: { x: 18, y: 32 } })
     ]);
+    expect(first.markers).toHaveLength(8);
+    expect(first.markers[0]).toEqual({
+      role: 'frame-handle', point: { x: 18, y: 32 }, sizePx: 10
+    });
     expect(moved.resourceKey).not.toBe(first.resourceKey);
   });
 });

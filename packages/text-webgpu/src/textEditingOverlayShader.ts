@@ -59,3 +59,48 @@ fn clip(point: vec2<f32>) -> vec4<f32> {
 }
 @fragment fn overlayFragment(input: Output) -> @location(0) vec4<f32> { return input.color; }
 `;
+
+export const TEXT_EDITING_OVERLAY_MARKER_WGSL = /* wgsl */`
+struct Settings {
+  matrix: vec4<f32>,
+  viewport: vec4<f32>,
+};
+struct Marker { point: vec2<f32>, sizePx: f32, padding: f32 };
+@group(0) @binding(0) var<uniform> settings: Settings;
+@group(0) @binding(1) var<storage, read> markers: array<Marker>;
+struct Output {
+  @builtin(position) position: vec4<f32>,
+  @location(0) local: vec2<f32>,
+};
+fn pixel(point: vec2<f32>) -> vec2<f32> {
+  return vec2<f32>(
+    settings.matrix.x * point.x + settings.matrix.z * point.y + settings.viewport.x,
+    settings.matrix.y * point.x + settings.matrix.w * point.y + settings.viewport.y
+  );
+}
+@vertex fn markerVertex(
+  @builtin(vertex_index) vertex: u32,
+  @builtin(instance_index) instance: u32
+) -> Output {
+  var corners = array<vec2<f32>, 6>(
+    vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0),
+    vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0)
+  );
+  let marker = markers[instance];
+  let local = corners[vertex];
+  let point = pixel(marker.point) + local * marker.sizePx * 0.5;
+  var output: Output;
+  output.position = vec4<f32>(
+    point.x / settings.viewport.z * 2.0 - 1.0,
+    1.0 - point.y / settings.viewport.w * 2.0,
+    0.0,
+    1.0
+  );
+  output.local = local;
+  return output;
+}
+@fragment fn markerFragment(input: Output) -> @location(0) vec4<f32> {
+  let border = max(abs(input.local.x), abs(input.local.y)) >= 0.64;
+  return select(vec4<f32>(0.08, 0.09, 0.11, 1.0), vec4<f32>(0.24, 0.66, 1.0, 1.0), border);
+}
+`;

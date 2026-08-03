@@ -1,11 +1,13 @@
 import type { TextEditingOverlay, TextEditingAffine } from '@lighttable/text-rendering';
 import {
   TEXT_EDITING_OVERLAY_LINE_WGSL,
+  TEXT_EDITING_OVERLAY_MARKER_WGSL,
   TEXT_EDITING_OVERLAY_QUAD_WGSL
 } from './textEditingOverlayShader';
 
 const SETTINGS_BYTES = 32;
 const GEOMETRY_BYTES = 48;
+const MARKER_BYTES = 16;
 
 export interface TextEditingOverlayTarget {
   readonly colorView: GPUTextureView;
@@ -19,12 +21,18 @@ interface CachedGeometry {
   readonly quads: GPUBuffer | null;
   readonly caret: GPUBuffer | null;
   readonly lines: GPUBuffer | null;
+  readonly markers: GPUBuffer | null;
   readonly quadCount: number;
   readonly caretCount: number;
   readonly lineCount: number;
+  readonly markerCount: number;
 }
 
-interface PipelineBundle { readonly quads: GPURenderPipeline; readonly lines: GPURenderPipeline }
+interface PipelineBundle {
+  readonly quads: GPURenderPipeline;
+  readonly lines: GPURenderPipeline;
+  readonly markers: GPURenderPipeline;
+}
 
 const createStorage = (device: GPUDevice, label: string, data: Float32Array<ArrayBuffer>) => {
   if (!data.byteLength) return null;
@@ -47,6 +55,10 @@ const lineData = (overlay: TextEditingOverlay, caret: boolean) => new Float32Arr
     line.widthPx, 0, 0, 0,
     ...line.color
   ])
+);
+
+const markerData = (overlay: TextEditingOverlay) => new Float32Array(
+  overlay.markers.flatMap(({ point, sizePx }) => [point.x, point.y, sizePx, 0])
 );
 
 /** GPU-only transient text selection/caret overlay; document textures are untouched. */
@@ -76,7 +88,8 @@ export class TextEditingOverlayBackend {
     if (this.disposed) throw new Error('Text editing overlay backend is disposed.');
     if (target.width <= 0 || target.height <= 0) return false;
     const geometry = this.prepare(overlay);
-    if (!geometry.quads && !geometry.lines && (!caretVisible || !geometry.caret)) return false;
+    if (!geometry.quads && !geometry.lines && !geometry.markers
+      && (!caretVisible || !geometry.caret)) return false;
     const bundle = this.pipelineBundle(target.format);
     const settings = this.createSettings(target);
     const pass = encoder.beginRenderPass({
@@ -85,6 +98,9 @@ export class TextEditingOverlayBackend {
     });
     if (geometry.quads) this.draw(pass, bundle.quads, settings, geometry.quads, geometry.quadCount);
     if (geometry.lines) this.draw(pass, bundle.lines, settings, geometry.lines, geometry.lineCount);
+    if (geometry.markers) {
+      this.draw(pass, bundle.markers, settings, geometry.markers, geometry.markerCount);
+    }
     if (caretVisible && geometry.caret) {
       this.draw(pass, bundle.lines, settings, geometry.caret, geometry.caretCount);
     }
@@ -118,13 +134,16 @@ export class TextEditingOverlayBackend {
     const quads = quadData(overlay);
     const caret = lineData(overlay, true);
     const lines = lineData(overlay, false);
+    const markers = markerData(overlay);
     const geometry = {
       quads: createStorage(this.device, `LightTable text overlay quads ${overlay.layerId}`, quads),
       caret: createStorage(this.device, `LightTable text overlay caret ${overlay.layerId}`, caret),
       lines: createStorage(this.device, `LightTable text overlay lines ${overlay.layerId}`, lines),
+      markers: createStorage(this.device, `LightTable text overlay markers ${overlay.layerId}`, markers),
       quadCount: quads.byteLength / GEOMETRY_BYTES,
       caretCount: caret.byteLength / GEOMETRY_BYTES,
-      lineCount: lines.byteLength / GEOMETRY_BYTES
+      lineCount: lines.byteLength / GEOMETRY_BYTES,
+      markerCount: markers.byteLength / MARKER_BYTES
     };
     this.cache.set(overlay.resourceKey, geometry);
     while (this.cache.size > this.maximumEntries) {
@@ -187,6 +206,9 @@ export class TextEditingOverlayBackend {
     const lineModule = this.device.createShaderModule({
       label: 'LightTable text editing line shader', code: TEXT_EDITING_OVERLAY_LINE_WGSL
     });
+    const markerModule = this.device.createShaderModule({
+      label: 'LightTable text editing marker shader', code: TEXT_EDITING_OVERLAY_MARKER_WGSL
+    });
     const bundle = {
       quads: this.device.createRenderPipeline({
         label: 'LightTable text editing quads', layout: pipelineLayout,
@@ -199,6 +221,12 @@ export class TextEditingOverlayBackend {
         vertex: { module: lineModule, entryPoint: 'lineVertex' },
         fragment: { module: lineModule, entryPoint: 'overlayFragment', targets: [target] },
         primitive: { topology: 'triangle-list' }
+      }),
+      markers: this.device.createRenderPipeline({
+        label: 'LightTable text editing markers', layout: pipelineLayout,
+        vertex: { module: markerModule, entryPoint: 'markerVertex' },
+        fragment: { module: markerModule, entryPoint: 'markerFragment', targets: [target] },
+        primitive: { topology: 'triangle-list' }
       })
     };
     this.pipelines.set(format, bundle);
@@ -207,5 +235,6 @@ export class TextEditingOverlayBackend {
 
   private destroyGeometry(geometry: CachedGeometry) {
     geometry.quads?.destroy(); geometry.caret?.destroy(); geometry.lines?.destroy();
+    geometry.markers?.destroy();
   }
 }

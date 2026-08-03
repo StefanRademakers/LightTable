@@ -31,7 +31,8 @@ const overlay: TextEditingOverlay = {
   lines: [
     { role: 'caret', start: { x: 10, y: 0 }, end: { x: 10, y: 10 }, widthPx: 1, color: [1, 1, 1, 1] },
     { role: 'baseline', start: { x: 0, y: 9 }, end: { x: 10, y: 9 }, widthPx: 1, color: [0, 0.5, 1, 1] }
-  ]
+  ],
+  markers: [{ role: 'frame-handle', point: { x: 10, y: 10 }, sizePx: 10 }]
 };
 
 describe('TextEditingOverlayBackend', () => {
@@ -50,7 +51,8 @@ describe('TextEditingOverlayBackend', () => {
     expect(buffers.filter(({ label }) => label.includes('overlay quads'))).toHaveLength(1);
     expect(buffers.filter(({ label }) => label.includes('overlay caret'))).toHaveLength(1);
     expect(buffers.filter(({ label }) => label.includes('overlay lines'))).toHaveLength(1);
-    expect(pass.draw).toHaveBeenCalledTimes(5);
+    expect(buffers.filter(({ label }) => label.includes('overlay markers'))).toHaveLength(1);
+    expect(pass.draw).toHaveBeenCalledTimes(7);
     expect(backend.cacheMetrics()).toEqual({ entries: 1 });
     await backend.notifySubmitted();
     expect(buffers.filter(({ label }) => label === 'LightTable text overlay settings')
