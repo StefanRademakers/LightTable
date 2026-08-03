@@ -774,6 +774,15 @@ Display-P3 paint and compositing state not yet represented by the writer
 so the existing preflight UI reports an explicit outline/raster fallback
 instead of promising a visually incorrect native-text export.
 
+PDF font-metrics evidence: a bounded, dependency-free SFNT reader now extracts
+the exact writer-required `head`, `hhea`, `maxp`, `hmtx` and optional `OS/2`/
+`post` fields from the already materialized font. It normalizes descriptor
+metrics and retained-glyph advances to PDF's 1000-unit convention, identifies
+TrueType versus CFF outlines, rejects malformed table ranges and out-of-range
+glyph IDs, and caps bytes/tables/glyphs. A real Anton font and the real
+retain-GID HarfBuzz subset both pass the parser, avoiding a second multi-MiB
+fontkit runtime in web and Electron.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 
