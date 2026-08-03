@@ -1,0 +1,42 @@
+# Task 046 - Desktop system fonts
+
+Status: todo
+
+Ondersteun systeemfonts in de desktopversie zonder de WebGPU/WASM-tekststack te
+omzeilen en zonder fonts eager in geheugen te laden.
+
+## Gewenst resultaat
+
+- [ ] Voeg een desktop `SystemFontProvider` toe achter de bestaande font
+  registry; maak geen tweede text-engine of CSS/DOM-renderroute.
+- [ ] Inventariseer bij startup alleen lichte metadata zoals family, face,
+  style, weight, bestandspad, TTC-index en variable-fontinformatie.
+- [ ] Lees en registreer fontbytes pas wanneer een font wordt gekozen of een
+  geopend document het nodig heeft.
+- [ ] Fingerprint geladen fonts en laat ze door de bestaande lazy WASM-runtime,
+  substitutions en byte-bounded caches lopen.
+- [ ] Ondersteun ten minste TTF, OTF, TTC en variable fonts op Windows,
+  inclusief systeem- en per-user-fontinstallaties.
+- [ ] Toon Bundled, Document en System fonts met de bestaande fontkeuze-UI en
+  bestaande controls/CSS.
+- [ ] Bewaar bij native save/reopen een stabiele fontreferentie en fingerprint;
+  sluit system-fontbytes niet stilzwijgend in.
+- [ ] Behoud bestaande missing-font/substitution-diagnostiek wanneer een font
+  verwijderd, gewijzigd of niet beschikbaar is.
+- [ ] Respecteer font-embeddingrechten, waaronder `OS/2.fsType`, bij PDF- en
+  toekomstige PSD-export; lokaal renderbaar betekent niet automatisch
+  exporteerbaar of insluitbaar.
+- [ ] Houd ongebruikte fontbytes, outlines en glyph-caches buiten het geheugen
+  of verwijderbaar onder de bestaande cachebudgetten.
+- [ ] Houd dezelfde providerinterface bruikbaar voor een latere macOS-, Linux-
+  en optionele web-local-fontimplementatie.
+
+## Gates
+
+- [ ] Font discovery blokkeert startup en raster-only documenten niet.
+- [ ] Een gekozen system font rendert via WASM + WebGPU in web-gedeelde code.
+- [ ] Point text, paragraph text, mixed runs en save/reopen zijn getest.
+- [ ] TTC, variable fonts, ontbrekende fonts en embeddingrestricties hebben
+  gerichte tests.
+- [ ] Web en Electron blijven buildable; de webversie vereist geen desktop-API.
+- [ ] Packaged Electron-smoke toont lazy loading en correcte geheugenrelease.
