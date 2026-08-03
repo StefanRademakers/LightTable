@@ -1443,6 +1443,26 @@ Append newest entries at the top. Keep entries factual and link the slice.
   enabled choices until their later implementation slices.
 - Next safe slice: Slice 11, real editing, IME, caret and selection.
 
+### 2026-08-03 â€” Exact PSD text desktop smoke automated
+
+- Import: canonical ag-psd unit character scales and default discretionary-
+  ligature flags no longer create unsupported layout overrides. PostScript
+  face names determine the requested weight/style, including Inter Medium and
+  SemiBold.
+- Fonts: Inter Medium joined the metadata-only product catalog and is fetched,
+  decoded and registered only when an opened document requests that exact
+  face.
+- Visual verification: `npm run screenshot:desktop:build -- --file
+  D:\\TextTest.psd` builds the Electron app, opens the real PSD in an isolated
+  test profile, waits for document/render readiness and writes a screenshot
+  plus JSON diagnostics under `tmp/screenshots/`.
+- Failure contract: the smoke fails on missing editable Flow layers, font
+  substitution/unavailability or text-renderer bypass, while still retaining
+  the screenshot and Debug-panel diagnostics. Its Electron process tree is
+  closed after success or failure.
+- Evidence: the exact file produced 3 editable Flow layers, 3 lazily loaded
+  exact faces, 3 ready cached text sources, no page errors and visible GPU text.
+
 ## 12. Open decision register
 
 Decisions stay open until their named slice supplies evidence.

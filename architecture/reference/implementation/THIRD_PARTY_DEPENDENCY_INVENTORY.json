@@ -15,7 +15,7 @@
     ]
   },
   "summary": {
-    "npmPackages": 614,
+    "npmPackages": 615,
     "npmRuntimePackages": 91,
     "cargoPackages": 80,
     "unknownLicenses": 0
@@ -3834,6 +3834,14 @@
       "version": "1.3.6",
       "license": "MIT",
       "role": "transitive-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "playwright-core",
+      "version": "1.62.1",
+      "license": "Apache-2.0",
+      "role": "direct-development",
       "optional": false
     },
     {

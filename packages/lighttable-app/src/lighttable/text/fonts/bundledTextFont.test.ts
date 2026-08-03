@@ -22,7 +22,7 @@ describe('registerBundledTextFont', () => {
 
     expect([...new Set(BUNDLED_TEXT_FONT_CATALOG.flatMap(({ familyNames }) => familyNames))])
       .toEqual(['Inter', 'Source Serif 4', 'JetBrains Mono', 'Noto Sans']);
-    expect(BUNDLED_TEXT_FONT_CATALOG).toHaveLength(9);
+    expect(BUNDLED_TEXT_FONT_CATALOG).toHaveLength(10);
     expect(fetch).not.toHaveBeenCalled();
   });
 

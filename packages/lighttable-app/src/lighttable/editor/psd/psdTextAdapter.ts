@@ -49,6 +49,19 @@ const familyNameFromPostScript = (postScriptName: string) => {
   return postScriptName;
 };
 
+const fontWeightFromPostScript = (postScriptName: string | undefined) => {
+  const normalized = postScriptName?.toLowerCase() ?? '';
+  if (/thin/.test(normalized)) return 100;
+  if (/(?:extra|ultra)[-_ ]?light/.test(normalized)) return 200;
+  if (/light/.test(normalized)) return 300;
+  if (/medium/.test(normalized)) return 500;
+  if (/(?:semi|demi)[-_ ]?bold/.test(normalized)) return 600;
+  if (/(?:extra|ultra)[-_ ]?bold/.test(normalized)) return 800;
+  if (/(?:black|heavy)/.test(normalized)) return 900;
+  if (/bold/.test(normalized)) return 700;
+  return 400;
+};
+
 const affine = (value: unknown): AffineMatrix | null => {
   if (value === undefined) return { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
   if (!Array.isArray(value) || value.length !== 6 || !value.every(finite)) return null;
@@ -118,8 +131,9 @@ const style = (
       ...(source.font?.name ? { postScriptName: source.font.name } : {})
     },
     fontSize: clamp(finite(source.fontSize) && source.fontSize > 0 ? source.fontSize : 16, 0.01, 100_000),
-    fontWeight: source.fauxBold ? 700 : 400,
-    fontStyle: source.fauxItalic ? 'italic' : 'normal',
+    fontWeight: source.fauxBold ? 700 : fontWeightFromPostScript(source.font?.name),
+    fontStyle: source.fauxItalic || /(?:italic|oblique)/i.test(source.font?.name ?? '')
+      ? 'italic' : 'normal',
     fontStretch: 100,
     ...(source.fillFlag === false ? {} : { fill: { kind: 'solid' as const, color: fill } }),
     ...(stroke ? { stroke } : {}),
@@ -132,7 +146,7 @@ const style = (
     verticalScale: clamp(characterScalePercent(source.verticalScale), 0.01, 10_000),
     openTypeFeatures: {
       ...(source.ligatures === false ? { liga: false } : {}),
-      ...(source.dLigatures !== undefined ? { dlig: source.dLigatures } : {})
+      ...(source.dLigatures === true ? { dlig: true } : {})
     },
     variableAxes: {},
     syntheticBold: Boolean(source.fauxBold),

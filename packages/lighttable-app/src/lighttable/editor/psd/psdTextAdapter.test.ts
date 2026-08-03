@@ -68,14 +68,28 @@ describe('Photoshop text adapter', () => {
   it('normalizes ag-psd unit character scaling to canonical 100 percent', () => {
     const result = importPsdText({
       text: 'Photoshop text',
-      style: { horizontalScale: 1, verticalScale: 1, fontSize: 50 }
+      style: { horizontalScale: 1, verticalScale: 1, fontSize: 50, dLigatures: false }
     });
     expect(result.kind).toBe('editable-flow');
     if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
     expect(result.text.source.styleRuns[0]).toMatchObject({
       horizontalScale: 100,
-      verticalScale: 100
+      verticalScale: 100,
+      openTypeFeatures: {}
     });
+  });
+
+  it.each([
+    ['Inter-Medium', 500],
+    ['Inter-SemiBold', 600],
+    ['SourceSerif4-Bold', 700]
+  ])('derives the exact selection weight from %s', (postScriptName, weight) => {
+    const result = importPsdText({
+      text: 'Weighted', style: { font: { name: postScriptName }, fontSize: 50 }
+    });
+    expect(result.kind).toBe('editable-flow');
+    if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
+    expect(result.text.source.styleRuns[0]?.fontWeight).toBe(weight);
   });
 
   it('imports Photoshop fillFlag=false as semantic no-fill instead of transparent black', () => {

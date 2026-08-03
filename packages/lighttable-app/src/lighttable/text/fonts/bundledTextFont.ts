@@ -1,4 +1,5 @@
 import interRegularUrl from '@fontsource/inter/files/inter-latin-400-normal.woff2?url';
+import interMediumUrl from '@fontsource/inter/files/inter-latin-500-normal.woff2?url';
 import interSemiBoldUrl from '@fontsource/inter/files/inter-latin-600-normal.woff2?url';
 import sourceSerifRegularUrl from '@fontsource/source-serif-4/files/source-serif-4-latin-400-normal.woff2?url';
 import sourceSerifItalicUrl from '@fontsource/source-serif-4/files/source-serif-4-latin-400-italic.woff2?url';
@@ -52,6 +53,7 @@ const definition = (
 
 const definitions: readonly BundledFontDefinition[] = [
   definition(interRegularUrl, BUNDLED_TEXT_FONT_ASSET_ID, 'Inter', 'Regular', 'Inter-Regular', 400, 23_664, '8909904ab6c872eb994093482a88a28eca2cd95912d7b6fecd72103b0dc07edc'),
+  definition(interMediumUrl, 'lighttable-inter-latin-medium', 'Inter', 'Medium', 'Inter-Medium', 500, 24_272, 'f3779f1efccc4bdcdf9c0a02ab95bf6bd092ed09c48c08cedc725889edd1d19f'),
   definition(interSemiBoldUrl, 'lighttable-inter-latin-semibold', 'Inter', 'SemiBold', 'Inter-SemiBold', 600, 24_452, 'f9a06e79cd3a2a20951c0f0e28f66dd0e6d3fda73911d640a2125c8fcb78f21a'),
   definition(sourceSerifRegularUrl, 'lighttable-source-serif-4-latin-regular', 'Source Serif 4', 'Regular', 'SourceSerif4-Regular', 400, 20_088, '02194deb92d3975dd30e11a3824a1f1db32b48c93654e60560cb81ce8e7b5f95'),
   definition(sourceSerifItalicUrl, 'lighttable-source-serif-4-latin-italic', 'Source Serif 4', 'Italic', 'SourceSerif4-It', 400, 20_092, '882b7c150c29f29d4f8daae6b8dcae8662aac7f28ca34b34615305154136ecfd', true),

@@ -19,6 +19,8 @@
     "build:web": "npm run ensure:text-wasm && npm run build -w @lighttable/web",
     "package:desktop": "npm run ensure:text-wasm && npm run package -w @lighttable/desktop",
     "package:desktop:verify": "npm run ensure:text-wasm && npm run package -w @lighttable/desktop",
+    "screenshot:desktop": "node scripts/capture-desktop-screenshot.mjs",
+    "screenshot:desktop:build": "npm run package:desktop:verify && npm run screenshot:desktop --",
     "make:desktop": "npm run ensure:text-wasm && npm run make -w @lighttable/desktop",
     "test": "npm run test:text-wasm && npm run test --workspaces --if-present",
     "typecheck": "npm run ensure:text-wasm && npm run typecheck --workspaces --if-present",
@@ -26,5 +28,8 @@
     "generate:third-party": "node scripts/generate-third-party-inventory.mjs",
     "verify:third-party": "node scripts/generate-third-party-inventory.mjs --check",
     "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.62.1"
   }
 }

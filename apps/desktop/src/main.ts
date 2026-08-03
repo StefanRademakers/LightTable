@@ -31,6 +31,9 @@ let mainWindow: BrowserWindow | null = null;
 let rendererOrigin = '';
 let packagedRendererServer: Server | null = null;
 
+const automationUserData = process.env.LIGHTTABLE_AUTOMATION_USER_DATA;
+if (automationUserData) app.setPath('userData', path.resolve(automationUserData));
+
 const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
@@ -272,6 +275,8 @@ void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:open-file', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const automationFile = process.env.LIGHTTABLE_AUTOMATION_OPEN_FILE;
+    if (automationFile) return readDesktopFilePayload(path.resolve(automationFile));
     const options: Electron.OpenDialogOptions = {
       title: 'Open in LightTable',
       properties: ['openFile'],
