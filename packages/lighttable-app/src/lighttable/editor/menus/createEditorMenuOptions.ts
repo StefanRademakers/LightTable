@@ -22,6 +22,7 @@ export interface EditorMenuState {
   hasDocument: boolean;
   hasMetadata: boolean;
   hasSourceKey: boolean;
+  hasCompatibilityReport: boolean;
   copiedGradeName: string | null;
   hasSelection: boolean;
   selectionClipboardAvailable: boolean;
@@ -48,6 +49,7 @@ export interface EditorMenuCommands {
   save: () => void;
   exportPng: () => void;
   pdfExportPreflight: () => void;
+  openCompatibilityReport: () => void;
   copySelectedContent: () => void;
   copyMergedContent: () => void;
   pasteSelectedContent: () => void;
@@ -137,6 +139,12 @@ export const createEditorMenuOptions = (
         separatorBefore: true,
         onClick: commands.pdfExportPreflight,
         disabled: !state.hasDocument || state.saving
+      },
+      {
+        value: 'document-compatibility-report',
+        label: 'Document Compatibility Report...',
+        onClick: commands.openCompatibilityReport,
+        disabled: !state.hasCompatibilityReport || state.saving
       }
     ];
   }

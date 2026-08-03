@@ -22,6 +22,7 @@ export interface EditorMenuControllerOptions {
     save(): void;
     exportPng(): void;
     pdfExportPreflight(): void;
+    openCompatibilityReport(): void;
   };
   readonly edit: {
     copySelectedContent(): void;
@@ -105,6 +106,7 @@ export const createEditorMenuController = ({
       save: file.save,
       exportPng: file.exportPng,
       pdfExportPreflight: file.pdfExportPreflight,
+      openCompatibilityReport: file.openCompatibilityReport,
       copySelectedContent: edit.copySelectedContent,
       copyMergedContent: edit.copyMergedContent,
       pasteSelectedContent: edit.pasteSelectedContent,

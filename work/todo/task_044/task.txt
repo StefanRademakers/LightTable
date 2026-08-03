@@ -16,8 +16,11 @@ Status: active
 
 ## Open product work
 
-- [ ] Audit PSD import gaps against representative fixtures and expose the
-  structured compatibility report where users need it in the existing UI.
+- [x] Expose the existing structured document/PSD compatibility report through
+  File > Document Compatibility Report, capability-gated and using the shared
+  dialog/control/CSS system.
+- [ ] Continue auditing PSD import gaps against representative fixtures and
+  record structural, editable, visual and round-trip parity separately.
 - [ ] Decide and specify PSD/PSB export scope. Do not add a misleading Save PSD
   command before round-trip preservation, unsupported-feature policy and tests
   exist.

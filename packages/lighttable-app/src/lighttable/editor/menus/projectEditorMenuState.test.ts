@@ -14,6 +14,7 @@ const baseInput = () => ({
   saving: false,
   hasMetadata: true,
   hasSourceKey: true,
+  hasCompatibilityReport: false,
   copiedGradeName: null,
   hasSelection: false,
   selectionClipboardAvailable: false,

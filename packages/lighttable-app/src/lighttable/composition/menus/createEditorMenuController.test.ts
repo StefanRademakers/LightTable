@@ -23,6 +23,7 @@ describe('createEditorMenuController', () => {
         saving: false,
         hasMetadata: true,
         hasSourceKey: true,
+        hasCompatibilityReport: false,
         copiedGradeName: null,
         hasSelection: false,
         selectionClipboardAvailable: false,
@@ -40,7 +41,8 @@ describe('createEditorMenuController', () => {
         open: vi.fn(),
         save: vi.fn(),
         exportPng: vi.fn(),
-        pdfExportPreflight: vi.fn()
+        pdfExportPreflight: vi.fn(),
+        openCompatibilityReport: vi.fn()
       },
       edit: {
         copySelectedContent: vi.fn(),
@@ -109,6 +111,7 @@ describe('createEditorMenuController', () => {
         saving: false,
         hasMetadata: true,
         hasSourceKey: true,
+        hasCompatibilityReport: false,
         copiedGradeName: null,
         hasSelection: false,
         selectionClipboardAvailable: false,
@@ -121,7 +124,8 @@ describe('createEditorMenuController', () => {
       labels: { primaryShortcut: (key) => `Ctrl+${key}` },
       file: {
         newDocument: vi.fn(), open: vi.fn(), save: vi.fn(), exportPng: vi.fn(),
-        pdfExportPreflight: vi.fn()
+        pdfExportPreflight: vi.fn(),
+        openCompatibilityReport: vi.fn()
       },
       edit: {
         copySelectedContent: vi.fn(), copyMergedContent: vi.fn(),

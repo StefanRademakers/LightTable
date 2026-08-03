@@ -2346,6 +2346,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       saving,
       hasMetadata: Boolean(metadata),
       hasSourceKey: Boolean(effectiveSourceFileKey),
+      hasCompatibilityReport: Boolean(
+        imageDocument?.photoshopImportReport || fontDiagnostics.length > 0
+      ),
       copiedGradeName: copiedGrade?.name ?? null,
       hasSelection: editorSession.selection.length > 0,
       selectionClipboardAvailable,
@@ -2365,6 +2368,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       open: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
+      openCompatibilityReport: editorDialogs.openPsdReport,
       pdfExportPreflight: () => {
         finishTextEditingRef.current();
         commitPointTextRef.current();

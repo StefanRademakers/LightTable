@@ -13,6 +13,7 @@ export interface EditorMenuProjectionInput {
   readonly saving: boolean;
   readonly hasMetadata: boolean;
   readonly hasSourceKey: boolean;
+  readonly hasCompatibilityReport: boolean;
   readonly copiedGradeName: string | null;
   readonly hasSelection: boolean;
   readonly selectionClipboardAvailable: boolean;
@@ -33,6 +34,7 @@ export const projectEditorMenuState = ({
   saving,
   hasMetadata,
   hasSourceKey,
+  hasCompatibilityReport,
   copiedGradeName,
   hasSelection,
   selectionClipboardAvailable,
@@ -63,6 +65,7 @@ export const projectEditorMenuState = ({
     hasDocument: Boolean(document),
     hasMetadata,
     hasSourceKey,
+    hasCompatibilityReport,
     copiedGradeName,
     hasSelection,
     selectionClipboardAvailable,

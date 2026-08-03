@@ -45,6 +45,7 @@ const saveLightTableArgument = argument('save-lighttable', '');
 const saveLightTableFile = saveLightTableArgument ? path.resolve(saveLightTableArgument) : null;
 const expectLayer = argument('expect-layer', '');
 const expectNonemptyLayer = argument('expect-nonempty-layer', '');
+const openCompatibilityReport = argument('open-compatibility-report', '') === 'true';
 const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
 const exportFlattenedPdf = argument('pdf-export-flattened', '') === 'true';
 const exportNativePdf = argument('pdf-export-native', '') === 'true';
@@ -84,7 +85,7 @@ const diagnostics = {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
     createRasterLayerForPaint, paintStroke, paintColor,
-    saveLightTableFile, expectLayer, expectNonemptyLayer,
+    saveLightTableFile, expectLayer, expectNonemptyLayer, openCompatibilityReport,
     openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf,
     exportNativeVectorPdf, exportNativeMixedPdf
   },
@@ -292,6 +293,21 @@ try {
     await window.waitForTimeout(500);
   }
 
+  if (openCompatibilityReport) {
+    await window.getByRole('button', { name: 'File', exact: true }).click();
+    const option = window.getByRole('button', {
+      name: 'Document Compatibility Report...',
+      exact: true
+    });
+    if (await option.isDisabled()) {
+      throw new Error('The document compatibility report menu action is disabled.');
+    }
+    await option.click();
+    await window.getByRole('dialog', {
+      name: /(?:Document compatibility|Photoshop import) report/i
+    }).waitFor({ state: 'visible', timeout: 15_000 });
+  }
+
   if (openPdfPreflight) {
     await window.getByRole('button', { name: 'File', exact: true }).click();
     await window.getByText('PDF Export Preflight...', { exact: true }).click();
@@ -414,7 +430,7 @@ try {
     documentTitle: document.querySelector('.lighttable-document-tab--active')?.textContent?.trim() ?? ''
   }));
   const debugTab = window.getByRole('tab', { name: 'Debug' });
-  if (!openPdfPreflight && await debugTab.count()) {
+  if (!openPdfPreflight && !openCompatibilityReport && await debugTab.count()) {
     await debugTab.click();
     diagnostics.debugPanel = await window.getByRole('region', { name: 'LightTable debug log' })
       .textContent() ?? '';

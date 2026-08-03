@@ -10,6 +10,7 @@ const state = (change: Partial<EditorMenuState> = {}): EditorMenuState => ({
   hasDocument: true,
   hasMetadata: true,
   hasSourceKey: true,
+  hasCompatibilityReport: false,
   copiedGradeName: null,
   hasSelection: false,
   selectionClipboardAvailable: false,
@@ -67,9 +68,28 @@ describe('createEditorMenuOptions', () => {
       { label: 'Open', shortcut: 'Ctrl+O' },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
       { label: 'Quick Export PNG', shortcut: 'Ctrl+Shift+S' },
-      { label: 'PDF Export Preflight...', shortcut: undefined }
+      { label: 'PDF Export Preflight...', shortcut: undefined },
+      { label: 'Document Compatibility Report...', shortcut: undefined }
     ]);
     expect(options.every((option) => option.disabled)).toBe(true);
+  });
+
+  it('exposes the existing compatibility report only when one is available', () => {
+    const menuCommands = commands();
+    const unavailable = createEditorMenuOptions('file', state(), labels, menuCommands);
+    const available = createEditorMenuOptions(
+      'file',
+      state({ hasCompatibilityReport: true }),
+      labels,
+      menuCommands
+    );
+
+    expect(unavailable.find(({ value }) => value === 'document-compatibility-report')?.disabled)
+      .toBe(true);
+    const report = available.find(({ value }) => value === 'document-compatibility-report');
+    expect(report?.disabled).toBe(false);
+    report?.onClick?.();
+    expect(menuCommands.openCompatibilityReport).toHaveBeenCalledOnce();
   });
 
   it('derives selection availability without reading editor state', () => {
