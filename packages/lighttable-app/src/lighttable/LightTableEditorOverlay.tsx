@@ -2689,7 +2689,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                           if (command === 'select-all') {
                             textEditingController.selectAll();
                           } else if (command === 'backward' || command === 'forward') {
-                            textEditingController.navigate(command, { extend });
+                            const layout = textEditing.layerId
+                              ? engineRef.current?.textEditingLayout(textEditing.layerId)?.layout
+                              : null;
+                            if (layout) {
+                              textEditingController.navigateLayoutHorizontal(layout, command, extend);
+                            } else {
+                              textEditingController.navigate(command, { extend });
+                            }
                           } else if (command === 'word-backward' || command === 'word-forward') {
                             textEditingController.navigate(
                               command === 'word-backward' ? 'backward' : 'forward',

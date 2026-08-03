@@ -6,6 +6,7 @@ import {
   moveTextOffset,
   moveTextSelection,
   moveTextSelectionInLayout,
+  moveTextSelectionHorizontallyInLayout,
   replaceFlowTextSelection,
   snapTextOffset
 } from './flowTextEditing';
@@ -109,5 +110,39 @@ describe('flow text editing', () => {
       .toEqual({ anchor: 4, focus: 4 });
     expect(moveTextSelectionInLayout(layout, { anchor: 4, focus: 4 }, 'line-up', true).selection)
       .toEqual({ anchor: 4, focus: 1 });
+  });
+
+  it('moves horizontally through mixed-direction visual caret order', () => {
+    const layout = {
+      schemaVersion: 2 as const, key: 'bidi', glyphRuns: [], selectionGeometry: [], clusterMap: [], warnings: [],
+      inkBounds: { x: 0, y: 0, width: 80, height: 10 },
+      logicalBounds: { x: 0, y: 0, width: 80, height: 10 },
+      lines: [{ start: 0, end: 7, baseline: 8, ascent: 8, descent: 2, bounds: { x: 0, y: 0, width: 80, height: 10 } }],
+      caretStops: [
+        { textOffset: 0, x: 0, y: 8, height: 8, affinity: 'downstream' as const },
+        { textOffset: 1, x: 10, y: 8, height: 8, affinity: 'downstream' as const },
+        { textOffset: 2, x: 20, y: 8, height: 8, affinity: 'downstream' as const },
+        { textOffset: 3, x: 30, y: 8, height: 8, affinity: 'downstream' as const },
+        { textOffset: 7, x: 40, y: 8, height: 8, affinity: 'upstream' as const },
+        { textOffset: 6, x: 50, y: 8, height: 8, affinity: 'upstream' as const },
+        { textOffset: 5, x: 60, y: 8, height: 8, affinity: 'upstream' as const },
+        { textOffset: 4, x: 70, y: 8, height: 8, affinity: 'upstream' as const }
+      ]
+    };
+    expect(moveTextSelectionHorizontallyInLayout(
+      layout, { anchor: 7, focus: 7 }, 'forward', false, 'upstream'
+    ).selection).toEqual({ anchor: 6, focus: 6 });
+    expect(moveTextSelectionHorizontallyInLayout(
+      layout, { anchor: 6, focus: 6 }, 'backward', false, 'upstream'
+    ).selection).toEqual({ anchor: 7, focus: 7 });
+    expect(moveTextSelectionHorizontallyInLayout(
+      layout, { anchor: 6, focus: 6 }, 'forward', true, 'upstream'
+    ).selection).toEqual({ anchor: 6, focus: 5 });
+    expect(moveTextSelectionInLayout(
+      layout, { anchor: 6, focus: 6 }, 'line-start', false, 'upstream'
+    ).selection).toEqual({ anchor: 0, focus: 0 });
+    expect(moveTextSelectionInLayout(
+      layout, { anchor: 6, focus: 6 }, 'line-end', false, 'upstream'
+    ).selection).toEqual({ anchor: 4, focus: 4 });
   });
 });

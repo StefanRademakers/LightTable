@@ -15,6 +15,7 @@ import {
 import {
   deleteFlowTextSelection,
   moveTextSelection,
+  moveTextSelectionHorizontallyInLayout,
   moveTextSelectionInLayout,
   orderedTextSelection,
   replaceFlowTextSelection,
@@ -188,6 +189,28 @@ export class FlowTextEditingSessionController {
       compositionRange: null,
       caretAffinity: result.affinity,
       preferredCaretX: result.preferredX
+    });
+    return true;
+  }
+
+  navigateLayoutHorizontal(
+    layout: RealizedTextLayout,
+    direction: 'backward' | 'forward',
+    extend = false
+  ) {
+    const source = this.currentSource();
+    if (!source) return false;
+    this.commitOpenGroup();
+    const result = moveTextSelectionHorizontallyInLayout(
+      layout, this.snapshot.selection, direction, extend, this.snapshot.caretAffinity
+    );
+    this.captureInsertionStyle(source, result.selection.focus);
+    this.publish({
+      ...this.snapshot,
+      selection: result.selection,
+      compositionRange: null,
+      caretAffinity: result.affinity,
+      preferredCaretX: null
     });
     return true;
   }

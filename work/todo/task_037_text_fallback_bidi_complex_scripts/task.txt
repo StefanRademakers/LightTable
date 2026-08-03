@@ -15,7 +15,7 @@ Status: in progress
 
 ## Bidi and complex-script editing
 
-- [ ] Move left/right by realized visual caret order while preserving logical
+- [x] Move left/right by realized visual caret order while preserving logical
   text storage, selection anchors and grapheme boundaries.
 - [ ] Verify mixed LTR/RTL selection collapse, Shift extension, Home/End and
   vertical movement.

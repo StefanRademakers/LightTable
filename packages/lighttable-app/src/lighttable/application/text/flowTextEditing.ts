@@ -110,6 +110,63 @@ export const moveTextSelection = (
   return options.extend ? { anchor: normalized.anchor, focus } : { anchor: focus, focus };
 };
 
+const caretStopFor = (
+  layout: RealizedTextLayout,
+  offset: number,
+  affinity: 'upstream' | 'downstream'
+) => layout.caretStops.find((stop) => stop.textOffset === offset && stop.affinity === affinity)
+  ?? layout.caretStops.find((stop) => stop.textOffset === offset);
+
+const visualLineStops = (layout: RealizedTextLayout, offset: number) => {
+  const line = layout.lines.find((candidate) => offset >= candidate.start && offset <= candidate.end);
+  if (!line) return [];
+  return layout.caretStops
+    .filter((stop) => stop.textOffset >= line.start && stop.textOffset <= line.end)
+    .map((stop, order) => ({ stop, order }))
+    .sort((left, right) => left.stop.x - right.stop.x || left.order - right.order)
+    .map(({ stop }) => stop);
+};
+
+/** Moves through realized visual caret order while retaining logical offsets. */
+export const moveTextSelectionHorizontallyInLayout = (
+  layout: RealizedTextLayout,
+  selection: TextSelectionRange,
+  direction: 'backward' | 'forward',
+  extend = false,
+  affinity: 'upstream' | 'downstream' = 'downstream'
+) => {
+  if (!extend && selection.anchor !== selection.focus) {
+    const endpoints = [
+      caretStopFor(layout, selection.anchor, affinity),
+      caretStopFor(layout, selection.focus, affinity)
+    ].filter((stop): stop is NonNullable<typeof stop> => Boolean(stop));
+    if (endpoints.length > 0) {
+      const target = [...endpoints].sort((left, right) => (
+        left.y - right.y || left.x - right.x
+      ))[direction === 'backward' ? 0 : endpoints.length - 1]!;
+      return {
+        selection: { anchor: target.textOffset, focus: target.textOffset },
+        affinity: target.affinity
+      };
+    }
+  }
+  const current = caretStopFor(layout, selection.focus, affinity);
+  if (!current) return { selection, affinity };
+  const stops = visualLineStops(layout, selection.focus);
+  const index = stops.indexOf(current);
+  if (index < 0) return { selection, affinity };
+  const target = stops[Math.max(0, Math.min(
+    stops.length - 1,
+    index + (direction === 'backward' ? -1 : 1)
+  ))] ?? current;
+  return {
+    selection: extend
+      ? { anchor: selection.anchor, focus: target.textOffset }
+      : { anchor: target.textOffset, focus: target.textOffset },
+    affinity: target.affinity
+  };
+};
+
 export const moveTextSelectionInLayout = (
   layout: RealizedTextLayout,
   selection: TextSelectionRange,
@@ -129,9 +186,9 @@ export const moveTextSelectionInLayout = (
   let targetOffset: number;
   let targetAffinity = affinity;
   if (command === 'line-start' || command === 'line-end') {
-    const line = layout.lines[lineIndex]!;
-    targetOffset = command === 'line-start' ? line.start : line.end;
-    const stop = layout.caretStops.find((candidate) => candidate.textOffset === targetOffset);
+    const stops = visualLineStops(layout, selection.focus);
+    const stop = stops[command === 'line-start' ? 0 : stops.length - 1];
+    targetOffset = stop?.textOffset ?? selection.focus;
     targetAffinity = stop?.affinity ?? affinity;
   } else {
     const targetLineIndex = command === 'line-up'
