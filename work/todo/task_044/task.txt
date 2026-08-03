@@ -33,7 +33,9 @@ Status: active
   packaged Electron paints, saves through Ctrl+S, starts a fresh process,
   reopens the native document and verifies the paint layer has visible pixels.
   Focused persistence tests cover preserved-source records.
-- [ ] Add the equivalent native save/reopen smoke after editing an imported PSD.
+- [x] Add the equivalent native save/reopen smoke after editing an imported
+  PSD. `D:\shapes.psd` retains four editable vector layers plus the painted
+  raster layer across a fresh packaged Electron process.
 
 ## Dependency and licensing rule
 
