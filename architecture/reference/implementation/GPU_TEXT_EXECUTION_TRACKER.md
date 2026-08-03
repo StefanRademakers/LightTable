@@ -1506,6 +1506,29 @@ Append newest entries at the top. Keep entries factual and link the slice.
   packaged Electron screenshot of `D:\TextTest.psd` shows one continuous
   character orientation around the curve with zero page errors.
 
+### 2026-08-03 — Point-text transforms now pivot on the authored baseline
+
+- Contract: point-text `origin` is the first-baseline insertion point, matching
+  Photoshop TySh and PDF text matrices. Parley's top-origin line result is
+  normalized once in the layout worker across glyph, line, caret, selection
+  and bounds tables before any layer affine is applied.
+- PSD evidence: the red minus-90-degree layer in `D:\TextTest.psd` moved from
+  screen x=1216 to the measured x=1174..1215 range. That matches the retained
+  Photoshop composite projection; its angle and imported affine were already
+  correct, while the old line-top offset had been rotated into screen X.
+- Regression evidence: packed-table unit tests cover the common baseline delta
+  and no-op cases. The exact-file packaged smoke still reports five editable
+  Flow layers, one native path companion and zero page errors; path text keeps
+  its projected outline source.
+- Persistence: the layered document serializer stores the semantic flow source
+  and layer affine verbatim and excludes realized geometry, so the baseline
+  contract is not baked into a cache. Future PSD and PDF/AI exporters must have
+  explicit baseline-origin round-trip fixtures before they can claim editable
+  text parity.
+- Follow-up: point-to-paragraph conversion currently maps the baseline origin
+  directly to a frame top-left. Visual-preserving conversion needs realized
+  first-baseline metrics; do not hide that difference in the serialized model.
+
 ### 2026-08-03 — Direct mouse selection and rotated PSD text evidence
 
 - Editing: the existing pointer gesture controller is now covered end to end

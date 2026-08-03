@@ -130,6 +130,7 @@ export interface ParagraphStyleRun {
 
 export interface PointTextLayout {
   readonly mode: 'point';
+  /** Local first-baseline insertion point, matching PSD/PDF text matrices. */
   readonly origin: Vec2;
   readonly writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr';
 }

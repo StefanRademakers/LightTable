@@ -38,6 +38,7 @@ import {
   segmentFlowParagraphs,
   type FlowParagraphSegment
 } from './incrementalParagraphLayout';
+import { alignPackedPointTextBaseline } from './pointTextBaseline';
 import { ParagraphFragmentCache } from './ParagraphFragmentCache';
 import {
   assembleParagraphLayout,
@@ -614,6 +615,15 @@ const realizeFlowRequest = (
   const packedSelectionGeometry = raw.selection_geometry();
   const packedClusterMap = raw.cluster_map();
   const bounds = raw.bounds();
+  if (source.layout.mode === 'point') {
+    alignPackedPointTextBaseline({
+      glyphGeometry: geometry,
+      lineGeometry,
+      caretGeometry,
+      selectionGeometry: packedSelectionGeometry,
+      bounds
+    }, source.layout.origin.y);
+  }
   const glyphRuns: RealizedTextLayout['glyphRuns'] = Array.from(
     { length: runMeta.length / 5 }, (_, index) => {
       const sourceRunIndex = runMeta[index * 5];
