@@ -1,6 +1,6 @@
 # Task 038 - Text fidelity renderer and text-to-path
 
-Status: in progress. Implements Slice 16 from
+Status: complete. Implements Slice 16 from
 `architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
 
 ## Production outline route
@@ -34,4 +34,8 @@ Status: in progress. Implements Slice 16 from
 - [x] Focused cache, renderer, command and persistence tests pass.
 - [x] Full workspace tests and typechecks pass for the completed renderer work.
 - [x] Production web and packaged Electron builds pass for the completed renderer work.
-- [ ] Physical high-zoom and save/reopen smoke is recorded.
+- [x] Physical packaged-Electron high-zoom and save/reopen smoke is recorded:
+  `D:\TextTest.psd` retains five editable flow-text layers and one native
+  vector/path layer across a fresh process; cursor-focused zoom reaches 1035%
+  and visibly preserves document pixels rather than rerasterizing smooth
+  viewport vectors.

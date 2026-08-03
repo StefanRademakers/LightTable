@@ -1281,6 +1281,18 @@ Append newest entries at the top. Keep entries factual and link the slice.
   the existing Type/Layers conversion command remains the only destructive
   user action and retains the original TextLayer through undo.
 
+### 2026-08-03 - Slice 16 physical fidelity gate complete
+
+- Packaged Electron opens the current `D:\TextTest.psd` as five editable
+  flow-text layers plus one native path/vector layer, saves through Ctrl+S and
+  reopens the canonical document in a fresh process without substitutions or
+  page errors.
+- The cursor-centred production zoom route reaches 1035% over rendered text.
+  The captured viewport shows the exact authored document pixels, confirming
+  that viewport zoom does not select a smoother text-only rerasterization path.
+- The reopened point-text layer retains visible thumbnail pixels and the same
+  editable/native layer counts. Task 038 is complete.
+
 ### 2026-08-03 - Slice 18 shared text-stroke UI
 
 - UI: editable flow text exposes imported/renderable stroke through `Line` and

@@ -46,6 +46,9 @@ const saveLightTableFile = saveLightTableArgument ? path.resolve(saveLightTableA
 const expectLayer = argument('expect-layer', '');
 const expectNonemptyLayer = argument('expect-nonempty-layer', '');
 const openCompatibilityReport = argument('open-compatibility-report', '') === 'true';
+const targetZoomPercent = Number.parseFloat(argument('zoom-percent', 'NaN'));
+const zoomFocusX = Number.parseFloat(argument('zoom-focus-x', 'NaN'));
+const zoomFocusY = Number.parseFloat(argument('zoom-focus-y', 'NaN'));
 const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
 const exportFlattenedPdf = argument('pdf-export-flattened', '') === 'true';
 const exportNativePdf = argument('pdf-export-native', '') === 'true';
@@ -86,6 +89,7 @@ const diagnostics = {
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
     createRasterLayerForPaint, paintStroke, paintColor,
     saveLightTableFile, expectLayer, expectNonemptyLayer, openCompatibilityReport,
+    targetZoomPercent, zoomFocusX, zoomFocusY,
     openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf,
     exportNativeVectorPdf, exportNativeMixedPdf
   },
@@ -151,6 +155,31 @@ try {
     return !status.includes('Preparing the text engine');
   }, undefined, { timeout: 15_000 }).catch(() => {});
   await window.waitForTimeout(750);
+
+  if (Number.isFinite(targetZoomPercent)) {
+    const focusZoom = Number.isFinite(zoomFocusX) && Number.isFinite(zoomFocusY);
+    if (focusZoom) {
+      const box = await window.locator('.lighttable-viewport').boundingBox();
+      if (!box) throw new Error('The document viewport has no zoom bounds.');
+      await window.mouse.move(
+        box.x + box.width * Math.max(0, Math.min(1, zoomFocusX)),
+        box.y + box.height * Math.max(0, Math.min(1, zoomFocusY))
+      );
+    }
+    let currentZoom = 0;
+    for (let attempt = 0; attempt < 32; attempt += 1) {
+      const metadataText = await window.locator('.lighttable-toolbar__meta').textContent() ?? '';
+      currentZoom = Number(metadataText.match(/(\d+(?:\.\d+)?)%/)?.[1] ?? 0);
+      if (currentZoom >= targetZoomPercent) break;
+      if (focusZoom) await window.mouse.wheel(0, -240);
+      else await window.keyboard.press('Control+Equal');
+      await window.waitForTimeout(30);
+    }
+    diagnostics.zoomPercent = currentZoom;
+    if (currentZoom < targetZoomPercent) {
+      throw new Error(`Could not reach requested zoom ${targetZoomPercent}% (reached ${currentZoom}%).`);
+    }
+  }
 
   if (createRasterLayerForPaint || paintStroke) {
     const layerCount = await window.locator('.lighttable-layer').count();

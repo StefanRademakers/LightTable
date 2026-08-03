@@ -43,4 +43,8 @@ Status: in progress
 - [x] Focused unit, worker and real-WASM tests pass.
 - [x] `npm test`, `npm run typecheck`, `npm run build:web` and
   `npm run package:desktop:verify` pass.
-- [ ] Web and Electron manual corpus/save-reopen smoke is recorded.
+- [x] Packaged Electron import/save/reopen smoke is recorded with five editable
+  flow-text layers, one path/vector layer, no substitutions and no page errors.
+- [ ] Physical web corpus smoke remains open. The 2026-08-03 browser session
+  exposed no controllable browser backend, so this gate is deliberately not
+  claimed from unit or build evidence.
