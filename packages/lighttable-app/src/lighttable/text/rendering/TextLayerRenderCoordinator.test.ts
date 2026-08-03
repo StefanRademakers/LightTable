@@ -45,10 +45,10 @@ const harness = () => {
   let tightSourcePublished = false;
   const publish = vi.fn(() => ({}));
   const discard = vi.fn();
-  const prepareTightSource = vi.fn(() => ({
+  const prepareTightSource = vi.fn((_layout?: unknown, _layer?: unknown) => ({
     publish: () => { tightSourcePublished = true; return publish(); }, discard
   }));
-  const prepareAtlasSource = vi.fn(() => ({
+  const prepareAtlasSource = vi.fn((_layout?: unknown, _layer?: unknown) => ({
     publish: () => { tightSourcePublished = false; return publish(); }, discard
   }));
   const renderer = {
@@ -74,7 +74,7 @@ const harness = () => {
   };
   const client = {
     registerFontDetailed: vi.fn(async () => ({ metrics: {} })),
-    realizeTextDetailed: vi.fn(async () => ({
+    realizeTextDetailed: vi.fn(async (_request?: unknown) => ({
       layout: { key: 'layout', glyphRuns: [] },
       metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
     })),
