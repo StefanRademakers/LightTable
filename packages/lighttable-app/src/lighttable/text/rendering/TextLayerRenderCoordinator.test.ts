@@ -433,6 +433,48 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).toHaveBeenCalledOnce();
   });
 
+  it('resolves normal atlas text into uniquely identified layer-local conversion paths on demand', async () => {
+    const state = harness();
+    state.client.realizeTextDetailed.mockResolvedValueOnce({
+      layout: {
+        schemaVersion: TEXT_LAYOUT_SCHEMA_VERSION,
+        key: 'convert-layout',
+        glyphRuns: [{
+          font: CONTRACT_FIXTURE_FONT_INSTANCE, fontSize: 20,
+          fontResolution: { kind: 'positioned-exact', sourceRunIndex: 0 },
+          paint: { fill: { kind: 'solid', color: { colorSpace: 'srgb', r: 0, g: 0, b: 0, a: 1 } } },
+          renderingMode: 'fill', direction: 'ltr',
+          glyphIds: new Uint32Array([7, 7]), clusters: new Uint32Array([0, 1]),
+          geometry: new Float32Array([2, 18, 10, 0, 14, 18, 10, 0])
+        }],
+        lines: [], caretStops: [], selectionGeometry: [], clusterMap: [],
+        inkBounds: { x: 2, y: -2, width: 22, height: 20 },
+        logicalBounds: { x: 2, y: -2, width: 22, height: 20 }, warnings: []
+      }, metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
+    } as never);
+    state.backend.lookupGlyph.mockReturnValue({
+      placement: {
+        serializedKey: 'glyph', pageId: 0, pageGeneration: 0, atlasGeneration: 0,
+        x: 0, y: 0, width: 10, height: 20, empty: false
+      }, bearingX: 0, bearingY: 18
+    });
+    const document = createImageDocument('Convert text', 64, 48, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    document.layers = [layer];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+
+    const paths = await state.coordinator.vectorPathsForLayer(layer.id);
+
+    expect(paths).toHaveLength(2);
+    expect(new Set(paths?.map(({ id }) => id)).size).toBe(2);
+    expect(paths?.[0]?.transform).toMatchObject({ a: 0.02, d: -0.02, tx: 2, ty: 18 });
+    expect(paths?.[1]?.transform).toMatchObject({ tx: 14, ty: 18 });
+    expect(paths?.[0]?.subpaths[0]?.id).not.toBe(paths?.[1]?.subpaths[0]?.id);
+    expect(state.outlineRepository.resolve).toHaveBeenCalledOnce();
+  });
+
   it('reuses realized geometry but redraws a paint-only text update', async () => {
     const state = harness();
     const document = createImageDocument('Text paint', 32, 24, 'source');

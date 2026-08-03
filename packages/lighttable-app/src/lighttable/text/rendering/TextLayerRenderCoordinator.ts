@@ -16,9 +16,10 @@ import type {
   PreparedCoverageGlyph
 } from '@lighttable/text-webgpu';
 import type { DocumentFontAsset, ImageDocument, LayerId, TextLayer } from '../../editor/document/documentTypes';
-import { walkLayerTree } from '../../editor/document/layerTree';
+import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
 import { identityAffineMatrix, multiplyMatrices } from '../../editor/geometry/affine';
 import type { AffineMatrix } from '../../editor/geometry/affine';
+import type { VectorPath } from '@lighttable/vector-core';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
 import type { TextEngineClient } from '../wasm/TextEngineClient';
 import { TextLayerRenderer, textLayerSourceKey, tightCoverageBounds } from './TextLayerRenderer';
@@ -381,6 +382,60 @@ export class TextLayerRenderCoordinator {
 
   editingLayout(layerId: LayerId): TextLayerEditingLayout | null {
     return this.editingLayouts.get(layerId) ?? null;
+  }
+
+  /** Resolves editable layer-local glyph paths without changing the document. */
+  async vectorPathsForLayer(layerId: LayerId, signal?: AbortSignal): Promise<readonly VectorPath[] | null> {
+    if (this.disposed || !this.hasTextLayer(layerId)) return null;
+    await this.work;
+    if (signal?.aborted) throw new DOMException('Text conversion was cancelled.', 'AbortError');
+    const document = this.document;
+    const dependencies = this.dependencies;
+    const editing = this.editingLayouts.get(layerId);
+    const layer = document && walkLayerTree(document.layers)
+      .map(({ node }) => node)
+      .find((node): node is TextLayer => node.id === layerId && node.type === 'text');
+    if (!document || !dependencies || !editing || !layer) return null;
+    const sourceIdentity = textLayerSourceKey(layer);
+    const sessionGeneration = this.sessionGeneration;
+    const repository = this.outlineRepository ??= this.options.createOutlineRepository?.(dependencies.client)
+      ?? new TextGlyphOutlineRepository(dependencies.client);
+    const prepared = await prepareTextOutlineVectorDraws(
+      repository,
+      projectCurrentTextPaint(editing.layout, layer.text.source),
+      {
+        documentSessionId: this.sessionId,
+        sessionGeneration,
+        fontSnapshotRevision: this.sessionFontRevision,
+        sourceScale: 1
+      },
+      signal
+    );
+    const currentNode = this.document && findDocumentLayer(this.document, layerId);
+    const current = currentNode?.type === 'text' ? currentNode : null;
+    if (this.document !== document
+      || this.sessionGeneration !== sessionGeneration
+      || !current
+      || textLayerSourceKey(current) !== sourceIdentity) return null;
+    return Object.freeze(prepared.draws.map(({ path }, index) => {
+      const id = `${layerId}:glyph:${index}`;
+      return {
+        ...path,
+        id,
+        name: `Glyph ${index + 1}`,
+        subpaths: path.subpaths.map((subpath, subpathIndex) => ({
+          ...subpath,
+          id: `${id}:contour:${subpathIndex}`,
+          anchors: subpath.anchors.map((anchor, anchorIndex) => ({
+            ...anchor,
+            id: `${id}:contour:${subpathIndex}:anchor:${anchorIndex}`,
+            position: { ...anchor.position },
+            handleIn: anchor.handleIn ? { ...anchor.handleIn } : null,
+            handleOut: anchor.handleOut ? { ...anchor.handleOut } : null
+          }))
+        }))
+      };
+    }));
   }
 
   async waitForSettledSource(layerId: LayerId) {
