@@ -537,13 +537,13 @@ cluster corruption.
 
 #### Slice 16 — fidelity renderer and text-to-path
 
-- [ ] Productionize the selected `hb-gpu` or alternate outline route.
-- [ ] Cache/reuse repeated glyph blobs or outline geometry.
+- [x] Productionize the selected `hb-gpu` or alternate outline route.
+- [x] Cache/reuse repeated glyph blobs or outline geometry.
 - [ ] Select realization quality from document/output resolution and transform
   needs without making viewport zoom a content invalidation or quality switch.
 - [ ] Support fill/stroke and export-quality rendering.
-- [ ] Add irreversible Convert to Shape/Path as one explicit undoable command.
-- [ ] Preserve the original TextLayer through undo; do not mutate it in place.
+- [x] Add irreversible Convert to Shape/Path as one explicit undoable command.
+- [x] Preserve the original TextLayer through undo; do not mutate it in place.
 
 UI exposure: Layers/context and Type menus expose Convert to Shape with a clear
 editability warning. Renderer switching remains automatic and diagnostic-only.
@@ -703,6 +703,22 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 - Slice 16/21 outline lifecycle hardening
+
+- Lifecycle: clearing the scale-independent glyph-outline repository now
+  aborts its owned worker requests and removes their sharing entries. A late
+  worker result cannot repopulate a cache after document replacement, device
+  reset or coordinator disposal.
+- Sharing: cancelling one consumer still leaves useful shared work alive;
+  only the repository ownership boundary cancels the underlying request.
+- Tracker audit: the production WebGPU outline route, byte-bounded repeated
+  outline cache and atomic Convert to Shape command were already delivered in
+  `6853e3d`, `e55b1ce` and `0e34a35`. Output-scale/export integration remains
+  unchecked until the final-output render path selects it end to end.
+- UI/UX: no new surface. Fidelity selection and cache lifecycle are automatic;
+  the existing Type/Layers conversion command remains the only destructive
+  user action and retains the original TextLayer through undo.
 
 ### 2026-08-03 - Slice 18 shared text-stroke UI
 

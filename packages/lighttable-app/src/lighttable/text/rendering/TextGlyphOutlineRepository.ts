@@ -21,6 +21,11 @@ export interface TextGlyphOutlineResolution {
   readonly source: 'cache' | 'worker' | 'shared-worker';
 }
 
+interface PendingOutline {
+  readonly promise: Promise<TextWorkerGlyphOutlineResult>;
+  readonly controller: AbortController;
+}
+
 const aborted = () => new DOMException('Glyph outline request was cancelled.', 'AbortError');
 
 const waitFor = async <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
@@ -35,7 +40,7 @@ const waitFor = async <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T>
 
 /** Shares immutable outline work across layers without coupling it to viewport state. */
 export class TextGlyphOutlineRepository {
-  private readonly pending = new Map<string, Promise<TextWorkerGlyphOutlineResult>>();
+  private readonly pending = new Map<string, PendingOutline>();
 
   constructor(
     private readonly client: Pick<TextEngineClient, 'extractGlyphOutline'>,
@@ -58,9 +63,10 @@ export class TextGlyphOutlineRepository {
     const serialized = serializeGlyphOutlineKey(key);
     const existing = this.pending.get(serialized);
     if (existing) {
-      return { outline: await waitFor(existing, signal), source: 'shared-worker' };
+      return { outline: await waitFor(existing.promise, signal), source: 'shared-worker' };
     }
-    const pending = this.client.extractGlyphOutline({
+    const controller = new AbortController();
+    const promise = this.client.extractGlyphOutline({
       kind: 'extract-glyph-outline',
       documentSessionId: request.documentSessionId,
       sessionGeneration: request.sessionGeneration,
@@ -69,15 +75,21 @@ export class TextGlyphOutlineRepository {
       glyphId: request.glyphId,
       fontSnapshotRevision: request.fontSnapshotRevision,
       variationCoordinates: request.variationCoordinates
-    }).then(({ outline }) => this.cache.set(key, outline));
+    }, controller.signal).then(({ outline }) => {
+      if (controller.signal.aborted) throw aborted();
+      return this.cache.set(key, outline);
+    });
+    const pending = { promise, controller };
     this.pending.set(serialized, pending);
-    void pending.finally(() => {
+    void promise.finally(() => {
       if (this.pending.get(serialized) === pending) this.pending.delete(serialized);
     }).catch(() => undefined);
-    return { outline: await waitFor(pending, signal), source: 'worker' };
+    return { outline: await waitFor(promise, signal), source: 'worker' };
   }
 
   clear() {
+    for (const pending of this.pending.values()) pending.controller.abort();
+    this.pending.clear();
     this.cache.clear();
   }
 }

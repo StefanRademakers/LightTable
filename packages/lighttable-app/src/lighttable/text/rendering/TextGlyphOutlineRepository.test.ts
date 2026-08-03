@@ -60,4 +60,31 @@ describe('TextGlyphOutlineRepository', () => {
     await expect(repository.resolve(request())).resolves.toMatchObject({ source: 'worker' });
     expect(extractGlyphOutline).toHaveBeenCalledTimes(2);
   });
+
+  it('cancels cleared work and prevents late results from repopulating the cache', async () => {
+    const completions: Array<(value: { outline: ReturnType<typeof outline> }) => void> = [];
+    const signals: AbortSignal[] = [];
+    const extractGlyphOutline = vi.fn((_request, signal?: AbortSignal) => {
+      if (signal) signals.push(signal);
+      return new Promise<{ outline: ReturnType<typeof outline> }>((resolve) => {
+        completions.push(resolve);
+      });
+    });
+    const repository = new TextGlyphOutlineRepository({ extractGlyphOutline } as never);
+
+    const stale = repository.resolve(request());
+    repository.clear();
+    expect(signals[0]?.aborted).toBe(true);
+    expect(repository.cache.metrics().entries).toBe(0);
+
+    const current = repository.resolve(request());
+    expect(extractGlyphOutline).toHaveBeenCalledTimes(2);
+    completions[0]!({ outline: outline() });
+    await expect(stale).rejects.toMatchObject({ name: 'AbortError' });
+    expect(repository.cache.metrics().entries).toBe(0);
+
+    completions[1]!({ outline: outline() });
+    await expect(current).resolves.toMatchObject({ source: 'worker' });
+    expect(repository.cache.metrics().entries).toBe(1);
+  });
 });
