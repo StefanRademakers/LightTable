@@ -328,7 +328,7 @@ export const createVectorLayer = (
   mask: null
 });
 
-/** Fixture/internal construction only until the production Text tool slice. */
+/** Constructs the canonical native text node used by imports and authoring tools. */
 export const createTextLayerNode = (
   text: TextLayerData,
   name = 'Text'

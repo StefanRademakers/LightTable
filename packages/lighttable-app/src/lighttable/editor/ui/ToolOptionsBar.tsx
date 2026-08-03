@@ -5,6 +5,7 @@ import { SegmentedControl } from '../../../ui/SegmentedControl';
 import type {
   BrushSettings,
   EditorSession,
+  TextToolSettings,
   ToolId,
   VectorToolStyleSettings
 } from '../session/editorSession';
@@ -13,12 +14,15 @@ import { toolDefinition } from '../tools/toolRegistry';
 import { isSelectionTool } from '../tools/toolCapabilities';
 import type { SelectionCombineMode } from '../selection/selectionTypes';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
+import type { DocumentFontAsset } from '../document/documentTypes';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
   brush: BrushSettings;
   warp: EditorSession['warp'];
   vectorStyle: VectorToolStyleSettings;
+  text: TextToolSettings;
+  textFonts: readonly DocumentFontAsset[];
   selectedVectorStyle?: VectorToolStyleSettings | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
@@ -28,6 +32,7 @@ export interface ToolOptionsProps {
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<VectorToolStyleSettings>) => void;
+  onTextChange: (change: Partial<TextToolSettings>) => void;
   onSelectedVectorStyleChange?: (change: Partial<VectorToolStyleSettings>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
@@ -61,7 +66,8 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'shape-rectangle': 'Rectangle',
   'shape-ellipse': 'Ellipse',
   'shape-triangle': 'Triangle',
-  'shape-line': 'Line'
+  'shape-line': 'Line',
+  'text-point': 'Point text'
 };
 
 export const ToolOptionsContent: React.FC<ToolOptionsProps & {
@@ -71,6 +77,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   brush,
   warp,
   vectorStyle,
+  text,
+  textFonts,
   selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
@@ -80,6 +88,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onBrushChange,
   onWarpChange,
   onVectorStyleChange,
+  onTextChange,
   onSelectedVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
@@ -197,6 +206,62 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={onWarpChange}
           onReset={onWarpReset}
         />
+      ) : null}
+      {activeTool === 'text-point' ? (
+        <div className="lighttable-tool-options__text" aria-label="Text settings">
+          <label className="lighttable-tool-options__field">
+            <span>Font</span>
+            <select
+              value={text.family}
+              onChange={(event) => onTextChange({ family: event.currentTarget.value })}
+            >
+              {[...new Set(textFonts.flatMap(({ familyNames }) => familyNames.slice(0, 1)))]
+                .map((family) => <option key={family} value={family}>{family}</option>)}
+            </select>
+          </label>
+          <label className="lighttable-tool-options__field">
+            <span>Style</span>
+            <select
+              value={text.style}
+              onChange={(event) => onTextChange({ style: event.currentTarget.value })}
+            >
+              {[...new Set(textFonts
+                .filter(({ familyNames }) => familyNames.includes(text.family))
+                .map(({ styleName }) => styleName))]
+                .map((style) => <option key={style} value={style}>{style}</option>)}
+            </select>
+          </label>
+          <label className="lighttable-tool-options__weight-field">
+            <span>Size</span>
+            <input
+              type="number"
+              min={1}
+              max={1296}
+              step={1}
+              value={text.size}
+              onChange={(event) => onTextChange({
+                size: Math.max(1, Math.min(1296, Number(event.currentTarget.value) || 1))
+              })}
+            />
+            <span>px</span>
+          </label>
+          <label className="lighttable-tool-options__field">
+            <span>Antialias</span>
+            <select value={text.antiAlias} disabled aria-label="Text antialias mode">
+              <option value="smooth">Smooth</option>
+            </select>
+          </label>
+          <label className="lighttable-tool-options__field">
+            <span>Align</span>
+            <select
+              value={text.alignment}
+              disabled
+              aria-label="Text alignment"
+            >
+              <option value="start">Left</option>
+            </select>
+          </label>
+        </div>
       ) : null}
       {activeTool === 'vector-pen' || activeTool.startsWith('shape-') || editsVectorSelection ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Vector style">

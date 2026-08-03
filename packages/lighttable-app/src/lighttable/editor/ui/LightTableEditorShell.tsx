@@ -19,6 +19,8 @@ export interface LightTableEditorShellProps {
   brush: EditorSession['brush'];
   warp: EditorSession['warp'];
   vectorStyle: EditorSession['vectorStyle'];
+  text: EditorSession['text'];
+  textFonts: readonly import('../document/documentTypes').DocumentFontAsset[];
   selectedVectorStyle: EditorSession['vectorStyle'] | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: EditorSession['selectionCombineMode'];
@@ -28,6 +30,7 @@ export interface LightTableEditorShellProps {
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
+  onTextChange: (change: Partial<EditorSession['text']>) => void;
   onSelectedVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
@@ -68,6 +71,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   brush,
   warp,
   vectorStyle,
+  text,
+  textFonts,
   selectedVectorStyle,
   selectionPixelSnap,
   selectionCombineMode,
@@ -77,6 +82,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onBrushChange,
   onWarpChange,
   onVectorStyleChange,
+  onTextChange,
   onSelectedVectorStyleChange,
   onWarpReset,
   onSelectionPixelSnapChange,
@@ -131,6 +137,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         brush={brush}
         warp={warp}
         vectorStyle={vectorStyle}
+        text={text}
+        textFonts={textFonts}
         selectedVectorStyle={selectedVectorStyle}
         selectionPixelSnap={selectionPixelSnap}
         selectionCombineMode={selectionCombineMode}
@@ -140,6 +148,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onBrushChange={onBrushChange}
         onWarpChange={onWarpChange}
         onVectorStyleChange={onVectorStyleChange}
+        onTextChange={onTextChange}
         onSelectedVectorStyleChange={onSelectedVectorStyleChange}
         onWarpReset={onWarpReset}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}

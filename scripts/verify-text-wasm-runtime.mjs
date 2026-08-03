@@ -35,6 +35,19 @@ if (
   || inspection.glyphCount < 100
   || inspection.unitsPerEm < 16
 ) throw new Error('LightTable text WASM returned invalid font inspection metadata.');
+const bundledInter = await readFile(join(
+  repoRoot,
+  'node_modules',
+  '@fontsource',
+  'inter',
+  'files',
+  'inter-latin-400-normal.woff2'
+));
+const bundledInspection = JSON.parse(bindings.inspect_font_json(bundledInter, 0));
+if (
+  bundledInspection.outline !== 'truetype'
+  || bundledInspection.glyphCount < 100
+) throw new Error('Production bundled Inter WOFF2 did not decode to a valid SFNT face.');
 let rejectedMalformed = false;
 try {
   bindings.inspect_font_json(new Uint8Array([0, 1, 0, 0]), 0);
@@ -44,6 +57,31 @@ try {
 if (!rejectedMalformed) throw new Error('LightTable text WASM accepted a malformed font.');
 const sessionKey = 'node-runtime:1';
 bindings.register_layout_font(sessionKey, 'anton', fixture);
+bindings.register_layout_font(sessionKey, 'lighttable-inter-latin-regular', bundledInter);
+const bundledStrings = new TextEncoder().encode('Interlighttable-inter-latin-regular');
+const bundledLayout = bindings.realize_flow_text(
+  sessionKey, 'runtime-bundled-inter', 'Text', 400, 0, 0, 100,
+  new Uint32Array([0, 4, 0, 0, 0]),
+  new Float32Array([16, 400, 100, 0]),
+  bundledStrings,
+  new Uint32Array([0, 5, 5, bundledStrings.length])
+);
+const bundledGlyphs = bundledLayout.glyph_ids();
+if (!bundledGlyphs.length || bundledLayout.bounds()[0] === bundledLayout.bounds()[4]) {
+  throw new Error('Production bundled Inter WOFF2 did not shape through Parley.');
+}
+const bundledMask = bindings.rasterize_registered_glyph(
+  sessionKey,
+  'lighttable-inter-latin-regular',
+  0,
+  bundledGlyphs[0],
+  16
+);
+if (!bundledMask.pixels().some((coverage) => coverage > 0)) {
+  throw new Error('Production bundled Inter WOFF2 did not rasterize through Skrifa.');
+}
+bundledMask.free();
+bundledLayout.free();
 const layoutStartedAt = performance.now();
 const layout = bindings.realize_flow_text(
   sessionKey, 'runtime-latin', 'office A😀', 400, 0.25, 0.5, 100,

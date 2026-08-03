@@ -312,7 +312,7 @@ export const createVectorLayer = (
   );
 };
 
-/** Inserts canonical text for fixtures/import adapters; no production tool calls this yet. */
+/** Inserts a canonical native text layer beside the active layer. */
 export const createTextLayer = (
   document: ImageDocument,
   text: TextLayerData,

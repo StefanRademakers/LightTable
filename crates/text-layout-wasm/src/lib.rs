@@ -4,6 +4,8 @@ use skrifa::{
     MetadataProvider,
     instance::{LocationRef, Size},
 };
+use std::borrow::Cow;
+use std::io::Cursor;
 use wasm_bindgen::prelude::*;
 
 mod glyph_raster;
@@ -21,6 +23,31 @@ struct FontInspection {
     bitmap_only: bool,
 }
 
+const MAX_FONT_BYTES: usize = 64 * 1024 * 1024;
+
+fn decoded_font_bytes(data: &[u8]) -> Result<Cow<'_, [u8]>, String> {
+    if data.len() > MAX_FONT_BYTES {
+        return Err("font exceeds the 64 MiB inspection limit".to_owned());
+    }
+    if data.starts_with(b"wOF2") {
+        if data.len() < 20 {
+            return Err("truncated WOFF2 header".to_owned());
+        }
+        let declared_sfnt_size =
+            u32::from_be_bytes(data[16..20].try_into().expect("bounded WOFF2 size field")) as usize;
+        if declared_sfnt_size > MAX_FONT_BYTES {
+            return Err("decoded font exceeds the 64 MiB inspection limit".to_owned());
+        }
+        let decoded = woff2_patched::decode::convert_woff2_to_ttf(&mut Cursor::new(data))
+            .map_err(|error| format!("invalid WOFF2 font: {error:?}"))?;
+        if decoded.len() > MAX_FONT_BYTES {
+            return Err("decoded font exceeds the 64 MiB inspection limit".to_owned());
+        }
+        return Ok(Cow::Owned(decoded));
+    }
+    Ok(Cow::Borrowed(data))
+}
+
 fn embedding(fs_type: u16) -> (&'static str, bool, bool) {
     let level = if fs_type & 0x0002 != 0 {
         "restricted"
@@ -35,9 +62,11 @@ fn embedding(fs_type: u16) -> (&'static str, bool, bool) {
 }
 
 fn inspect_font(data: &[u8], face_index: u32) -> Result<FontInspection, String> {
-    if data.len() > 64 * 1024 * 1024 {
-        return Err("font exceeds the 64 MiB inspection limit".to_owned());
-    }
+    let decoded = decoded_font_bytes(data)?;
+    inspect_sfnt_font(&decoded, face_index)
+}
+
+fn inspect_sfnt_font(data: &[u8], face_index: u32) -> Result<FontInspection, String> {
     let font = FontRef::from_index(data, face_index)
         .map_err(|error| format!("invalid OpenType font or face index: {error}"))?;
     let maxp_glyph_count = font
@@ -104,8 +133,9 @@ pub fn register_layout_font(
     asset_id: &str,
     data: &[u8],
 ) -> Result<u32, JsValue> {
-    inspect_font(data, 0).map_err(|error| JsValue::from_str(&error))?;
-    layout::register_font(session_key, asset_id, data)
+    let decoded = decoded_font_bytes(data).map_err(|error| JsValue::from_str(&error))?;
+    inspect_sfnt_font(&decoded, 0).map_err(|error| JsValue::from_str(&error))?;
+    layout::register_font(session_key, asset_id, &decoded)
         .map(|count| count as u32)
         .map_err(|error| JsValue::from_str(&error))
 }

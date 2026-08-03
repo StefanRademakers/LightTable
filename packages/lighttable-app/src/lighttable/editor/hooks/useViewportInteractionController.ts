@@ -68,6 +68,7 @@ interface ViewportInteractionOptions {
   onFocusPick: (normalizedPoint: { x: number; y: number }) => void;
   onFocusPickerEnd: () => void;
   onFill: (color: string) => void;
+  onPointTextCreate: (point: { x: number; y: number }) => void;
   selection: SelectionSessionController;
   paint: PaintSessionController;
   warp: WarpSessionController;
@@ -114,6 +115,7 @@ export const useViewportInteractionController = ({
   onFocusPick,
   onFocusPickerEnd,
   onFill,
+  onPointTextCreate,
   selection,
   paint,
   warp,
@@ -440,6 +442,11 @@ export const useViewportInteractionController = ({
       }
       if (intent === 'fill') {
         onFill(editorSession.brush.color);
+        event.preventDefault();
+        return;
+      }
+      if (intent === 'text-create' && point) {
+        onPointTextCreate({ x: point.x, y: point.y });
         event.preventDefault();
         return;
       }

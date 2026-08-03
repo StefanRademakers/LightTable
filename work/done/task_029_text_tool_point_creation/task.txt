@@ -1,0 +1,15 @@
+# Task 029 — Text tool shell and point-text creation
+
+Status: complete. Implements Slice 10 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+## Delivered outcome
+
+- Added a grouped Text toolbar slot with `T` activation and remembered point-text mode.
+- Routed canvas clicks into a disposable, accessible point-text creation session.
+- Commit/cancel creates exactly one canonical layer/history transaction.
+- Uses foreground color, 16 px default and exact OFL Inter document-font metadata.
+- Gates creation on the existing WebGPU renderer plus Rust/WASM/font capability.
+- Exposes shared family, style, size, truthful antialias and alignment controls.
+- Covers toolbar, shortcut, pointer ownership, nested transforms, undo/redo,
+  save/reopen, real production WOFF2 shaping/rasterization and accessibility.

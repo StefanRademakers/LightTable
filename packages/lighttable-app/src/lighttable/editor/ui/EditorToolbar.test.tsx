@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { EditorToolbar } from './EditorToolbar';
 
-const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle') => renderToStaticMarkup(
+const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 'text-point') => renderToStaticMarkup(
   <EditorToolbar
     activeTool={activeTool}
     foregroundColor="#000000"
@@ -40,5 +40,12 @@ describe('EditorToolbar', () => {
     const activeMarkup = renderToolbar('shape-triangle');
     expect(activeMarkup).toContain('aria-label="Triangle"');
     expect(activeMarkup).not.toContain('aria-label="Rectangle (U)"');
+  });
+
+  it('exposes point text as an accessible grouped toolbar slot', () => {
+    const markup = renderToolbar('text-point');
+    expect(markup).toContain('aria-label="Point text (T)"');
+    expect(markup).toContain('aria-label="Show text tools"');
+    expect(markup).toContain('aria-pressed="true"');
   });
 });

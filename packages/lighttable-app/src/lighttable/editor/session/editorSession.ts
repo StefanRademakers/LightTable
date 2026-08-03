@@ -16,6 +16,7 @@ export type ToolId =
   | 'fill'
   | 'brush'
   | 'erase'
+  | 'text-point'
   | VectorEditorToolId
   | SelectionToolId;
 export type PaintChannel = 'pixels' | 'mask';
@@ -165,6 +166,14 @@ export interface VectorToolStyleSettings {
   strokeWidth: number;
 }
 
+export interface TextToolSettings {
+  family: string;
+  style: string;
+  size: number;
+  antiAlias: 'smooth';
+  alignment: 'start';
+}
+
 export interface EditorSession {
   activeTool: ToolId;
   pointerId: number | null;
@@ -177,6 +186,7 @@ export interface EditorSession {
   selectionColumnWidth: number;
   brush: BrushSettings;
   vectorStyle: VectorToolStyleSettings;
+  text: TextToolSettings;
   warp: WarpToolSettings;
 }
 
@@ -203,6 +213,13 @@ export const createEditorSession = (): EditorSession => ({
     fillColor: '#000000',
     strokeColor: '#ffffff',
     strokeWidth: 3
+  },
+  text: {
+    family: 'Inter',
+    style: 'Regular',
+    size: 16,
+    antiAlias: 'smooth',
+    alignment: 'start'
   },
   warp: {
     mode: 'push',

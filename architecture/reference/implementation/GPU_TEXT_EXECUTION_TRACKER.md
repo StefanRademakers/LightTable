@@ -386,14 +386,14 @@ create, edit, undo and reopen.
 
 #### Slice 10 — Text tool shell and point-text creation
 
-- [ ] Add a grouped Text toolbar slot with `T` activation and remembered mode.
-- [ ] Add point text as the first enabled family member.
-- [ ] Route canvas click to a disposable creation session.
-- [ ] Show commit/cancel behavior and create exactly one layer transaction.
-- [ ] Choose foreground color and deterministic default font/size.
-- [ ] Prevent creation when WASM/WebGPU capability is unavailable and explain
+- [x] Add a grouped Text toolbar slot with `T` activation and remembered mode.
+- [x] Add point text as the first enabled family member.
+- [x] Route canvas click to a disposable creation session.
+- [x] Show commit/cancel behavior and create exactly one layer transaction.
+- [x] Choose foreground color and deterministic default font/size.
+- [x] Prevent creation when WASM/WebGPU capability is unavailable and explain
   why without disabling ordinary editing.
-- [ ] Add toolbar, shortcut, pointer-router and accessibility tests.
+- [x] Add toolbar, shortcut, pointer-router and accessibility tests.
 
 UI exposure: production Text tool appears. Options bar shows font family,
 style, size, antialias mode and alignment using shared controls. Right-click
@@ -890,6 +890,32 @@ Append newest entries at the top. Keep entries factual and link the slice.
   because no browser surface is attached; deterministic GPU contracts and
   submission-lifetime tests cover the automated boundary.
 - Next safe slice: Slice 10, Text tool shell and point-text creation.
+
+### 2026-08-03 — Slice 10 complete
+
+- Owner: Codex `/root`; UI/runtime seam research and an independent read-only
+  blocker audit were delegated before final verification.
+- Tool/UI: the grouped Text slot activates with `T`; point text is its first
+  mode. The options bar and cursor-local tool menu share family, style, size,
+  truthful Smooth antialias and Left alignment controls. The disposable entry
+  dialog owns Enter/Escape, trapped Tab navigation and focus restoration.
+- Creation: an in-document click is projected through the existing pointer
+  router, rebased into a transformed parent group and committed as one native
+  text layer/history command. Foreground sRGB, exact preferred font asset,
+  16 px default and local-zero layout origin remain canonical across undo,
+  redo and layered save/reopen.
+- Capability/fonts: creation requires the existing ready WebGPU renderer,
+  the lazy Rust/WASM probe and a parsed exact face. OFL Inter is registered
+  lazily as a document font; standalone registries reset per document and late
+  hydration cannot cross document generations. WOFF2 is decoded at the shared
+  bounded Rust boundary, so web and Electron use the same source bytes.
+- Verification: production Inter WOFF2 passed generated-WASM inspection,
+  Parley shaping and Skrifa rasterization. The complete workspace passed 259
+  test files / 1,256 tests, all typechecks, Rust formatting/checks, architecture
+  boundary verification, web production build and packaged Electron boundary.
+- Current backend limit: Smooth antialias and Left alignment remain the only
+  enabled choices until their later implementation slices.
+- Next safe slice: Slice 11, real editing, IME, caret and selection.
 
 ## 12. Open decision register
 

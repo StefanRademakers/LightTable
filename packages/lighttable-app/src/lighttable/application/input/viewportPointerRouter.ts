@@ -9,6 +9,7 @@ export type ViewportPointerDownIntent =
   | 'temporary-pan'
   | 'selection'
   | 'fill'
+  | 'text-create'
   | 'warp'
   | 'view'
   | 'paint'
@@ -74,6 +75,14 @@ export const resolveViewportPointerDownIntent = (
 
   if (context.activeTool === 'fill' && !context.focusPickerActive) {
     return context.primaryButton && context.hasDocumentPoint ? 'fill' : 'ignore';
+  }
+
+  if (context.activeTool === 'text-point' && !context.focusPickerActive) {
+    return context.primaryButton
+      && context.hasDocument
+      && context.hasDocumentPoint
+      ? 'text-create'
+      : 'ignore';
   }
 
   if (isWarpTool(context.activeTool) && !context.focusPickerActive) {

@@ -4,6 +4,7 @@ import type { ToolId } from '../session/editorSession';
 import {
   SELECTION_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
+  TEXT_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
   type ToolDefinition
 } from '../tools/toolRegistry';
@@ -133,6 +134,9 @@ const familyFor = (tool: ToolDefinition) => {
   }
   if (tool.id.startsWith('shape-')) {
     return { definitions: SHAPE_TOOL_DEFINITIONS, label: 'Shape tools' };
+  }
+  if (tool.role === 'text') {
+    return { definitions: TEXT_TOOL_DEFINITIONS, label: 'Text tools' };
   }
   return null;
 };

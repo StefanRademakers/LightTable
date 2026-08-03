@@ -8,6 +8,7 @@ export type ToolRole =
   | 'selection'
   | 'fill'
   | 'paint'
+  | 'text'
   | 'vector';
 
 export interface ToolDefinition {
@@ -167,6 +168,14 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'vector'
   },
   {
+    id: 'text-point',
+    label: 'Point text',
+    shortcutLabel: 'T',
+    shortcutKey: 't',
+    iconName: 'tool_text.png',
+    role: 'text'
+  },
+  {
     id: 'fill',
     label: 'Fill',
     shortcutLabel: 'G',
@@ -216,6 +225,10 @@ export const SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
 export const SHAPE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   TOOL_DEFINITIONS.filter(({ id }) => id.startsWith('shape-'));
 
+/** Text authoring modes share one slot; paragraph and path modes follow later. */
+export const TEXT_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  TOOL_DEFINITIONS.filter(({ role }) => role === 'text');
+
 /**
  * Photoshop-style tool families. The ordering is user-facing: repeatedly
  * pressing the family key walks forward, while Shift walks backward once a
@@ -236,6 +249,10 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
       'vector-delete-anchor',
       'vector-convert-anchor'
     ]
+  },
+  {
+    key: 't',
+    tools: ['text-point']
   },
   {
     key: 'u',

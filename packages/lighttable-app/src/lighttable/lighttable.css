@@ -186,10 +186,61 @@
   font: inherit;
 }
 
-.lighttable-tool-options__vector-style {
+.lighttable-tool-options__vector-style,
+.lighttable-tool-options__text {
   display: inline-flex;
   align-items: center;
   gap: 14px;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__text {
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.lighttable-point-text {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 42%);
+}
+
+.lighttable-point-text form {
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-lg);
+  background: var(--lt-surface-panel);
+  box-shadow: var(--lt-shadow-dialog);
+}
+
+.lighttable-point-text label {
+  display: grid;
+  gap: 7px;
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-label);
+}
+
+.lighttable-point-text input {
+  width: 100%;
+  height: 32px;
+  padding: 4px 9px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  background: var(--lt-surface-control);
+  color: var(--lt-text-primary);
+  font: inherit;
+}
+
+.lighttable-point-text form > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .lighttable-tool-options__color-field,
