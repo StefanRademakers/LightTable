@@ -1,6 +1,7 @@
-import type { VectorPath, VectorSubpath } from '@lighttable/vector-core';
+import type { AffineMatrix, VectorPath, VectorSubpath } from '@lighttable/vector-core';
 import type { ImageDocument, LayerId, TextLayer, VectorLayer } from './documentTypes';
 import { findDocumentLayer } from './layerTree';
+import { buildSceneTransformIndex, requireSceneTransform } from './sceneTransformGraph';
 
 export type PathTextDependencyResolution =
   | { readonly kind: 'not-path-text'; readonly revision: 0 }
@@ -14,6 +15,7 @@ export type PathTextDependencyResolution =
     readonly kind: 'resolved';
     readonly revision: number;
     readonly layer: VectorLayer;
+    readonly layerToDocument: AffineMatrix;
     readonly path: VectorPath;
     readonly subpath: VectorSubpath;
   };
@@ -29,12 +31,13 @@ const hashDependency = (values: readonly (string | number)[]) => {
 
 const dependencyRevision = (
   layer: VectorLayer,
+  layerToDocument: AffineMatrix,
   path: VectorPath,
   subpath: VectorSubpath
 ) => hashDependency([
   layer.id,
-  layer.transform.a, layer.transform.b, layer.transform.c,
-  layer.transform.d, layer.transform.tx, layer.transform.ty,
+  layerToDocument.a, layerToDocument.b, layerToDocument.c,
+  layerToDocument.d, layerToDocument.tx, layerToDocument.ty,
   path.id, subpath.id, path.geometryRevision, path.transformRevision,
   path.transform.a, path.transform.b, path.transform.c,
   path.transform.d, path.transform.tx, path.transform.ty
@@ -94,8 +97,12 @@ export const resolvePathTextDependency = (
     }
     subpath = path.subpaths[0]!;
   }
+  const layerToDocument = requireSceneTransform(
+    buildSceneTransformIndex(document),
+    target.id
+  ).localToDocument;
   return {
-    kind: 'resolved', revision: dependencyRevision(target, path, subpath),
-    layer: target, path, subpath
+    kind: 'resolved', revision: dependencyRevision(target, layerToDocument, path, subpath),
+    layer: target, layerToDocument, path, subpath
   };
 };

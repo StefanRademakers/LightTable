@@ -3,6 +3,7 @@ import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { describe, expect, it } from 'vitest';
 import {
   createImageDocument,
+  createGroupLayer,
   createTextLayerNode,
   createVectorLayer,
   type TextLayer,
@@ -37,7 +38,8 @@ describe('path text dependency', () => {
     const { document, vector, text } = fixture('path-a', 'curve-a');
     const opening = resolvePathTextDependency(document, text);
     expect(opening).toMatchObject({
-      kind: 'resolved', path: { id: 'path-a' }, subpath: { id: 'curve-a' }
+      kind: 'resolved', path: { id: 'path-a' }, subpath: { id: 'curve-a' },
+      layerToDocument: { a: 1, d: 1, tx: 0, ty: 0 }
     });
 
     const changedPath = {
@@ -52,6 +54,27 @@ describe('path text dependency', () => {
     document.layers = [changedLayer, text];
     const changed = resolvePathTextDependency(document, text);
     expect(changed).toMatchObject({ kind: 'resolved' });
+    expect(changed.revision).not.toBe(opening.revision);
+  });
+
+  it('resolves ancestor transforms and invalidates when a containing group moves', () => {
+    const { document, vector, text } = fixture('path-a', 'curve-a');
+    vector.transform = { ...vector.transform, tx: 3, ty: 5 };
+    const group = createGroupLayer('Nested paths');
+    group.transform = { ...group.transform, a: 2, d: 3, tx: 7, ty: 11 };
+    group.children = [vector];
+    document.layers = [group, text];
+    const opening = resolvePathTextDependency(document, text);
+    expect(opening).toMatchObject({
+      kind: 'resolved',
+      layerToDocument: { a: 2, d: 3, tx: 13, ty: 26 }
+    });
+    group.transform = { ...group.transform, tx: 9 };
+    const changed = resolvePathTextDependency(document, text);
+    expect(changed).toMatchObject({
+      kind: 'resolved',
+      layerToDocument: { a: 2, d: 3, tx: 15, ty: 26 }
+    });
     expect(changed.revision).not.toBe(opening.revision);
   });
 

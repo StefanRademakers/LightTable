@@ -705,6 +705,18 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 17 hierarchical path dependency
+
+- Correctness: resolved path dependencies now include the vector layer's full
+  scene-graph transform, not only its local transform. Path text can therefore
+  follow contours inside arbitrarily nested transformed groups.
+- Invalidation: moving, scaling or rotating any ancestor changes only the
+  dependent path-layout revision; canonical text and unrelated vector content
+  remain untouched.
+- UI/UX: no new surface. This closes a hidden correctness prerequisite for
+  eventual path handles and prevents those overlays from disagreeing with the
+  rendered contour in grouped documents.
+
 ### 2026-08-03 - Slice 17 traversal contract
 
 - Contract: path layouts can now persist an optional end handle and explicit
