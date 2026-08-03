@@ -1,4 +1,10 @@
 import type { BlendMode } from '../document/blendModes';
+import type {
+  DisplaySrgbColor,
+  GradientAsset,
+  GradientColorStop,
+  GradientOpacityStop
+} from '@lighttable/paint-core';
 
 export type LayerStyleId = string & { readonly __brand: 'LayerStyleId' };
 
@@ -14,13 +20,7 @@ export type LayerStyleKind =
   | 'satin'
   | 'stroke';
 
-export interface LayerStyleColor {
-  /** Unpremultiplied display-sRGB channel. The renderer decodes it to linear. */
-  r: number;
-  g: number;
-  b: number;
-  a: number;
-}
+export type LayerStyleColor = DisplaySrgbColor;
 
 export interface LayerStyleContourPoint {
   position: number;
@@ -31,30 +31,9 @@ export interface LayerStyleContour {
   points: LayerStyleContourPoint[];
 }
 
-export interface LayerStyleGradientStop {
-  id: string;
-  position: number;
-  midpoint: number;
-  color: LayerStyleColor;
-}
-
-export interface LayerStyleOpacityStop {
-  id: string;
-  position: number;
-  midpoint: number;
-  opacity: number;
-}
-
-export interface LayerStyleGradient {
-  id: string;
-  name: string;
-  type: 'solid' | 'noise';
-  smoothness: number;
-  colorStops: LayerStyleGradientStop[];
-  opacityStops: LayerStyleOpacityStop[];
-  roughness: number;
-  seed: number;
-}
+export type LayerStyleGradientStop = GradientColorStop;
+export type LayerStyleOpacityStop = GradientOpacityStop;
+export type LayerStyleGradient = GradientAsset;
 
 export interface LayerStylePatternReference {
   id: string;

@@ -31,7 +31,7 @@ explicitly out of scope and will be handled as a separate parity task.
 - [x] Treat Photoshop's empty text-path descriptor as a placeholder, preserve
   the raster preview for missing fonts, and promote supported text to editable
   native text.
-- [ ] Introduce the shared gradient asset/paint-instance model and bridge the
+- [x] Introduce the shared gradient asset/paint-instance model and bridge the
   existing Layer Style gradient editor to it.
 - [ ] Render and edit gradient fills on vector shapes and text.
 - [ ] Import Photoshop solid/gradient shapes into the shared vector model,

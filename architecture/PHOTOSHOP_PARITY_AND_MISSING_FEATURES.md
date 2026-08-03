@@ -248,6 +248,12 @@ space and color domain. A Gradient Fill Layer owns a paint instance over an
 explicit document/layer extent; it is not an Adjustment Layer and not a Layer
 Style.
 
+**Implementation baseline:** `@lighttable/paint-core` now owns the reusable
+gradient asset and the coordinate-space/transform-bearing paint instance. The
+existing Layer Style gradient editor edits that shared asset through a typed
+bridge. Vector, text and fill-layer rendering remain the next consumers; they
+must not introduce parallel gradient schemas.
+
 **Priority:** P1 core authoring parity.
 
 ### PSD-P2-001 - Smart Object source package

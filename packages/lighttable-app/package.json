@@ -20,6 +20,7 @@
     "@fontsource/source-serif-4": "5.2.8",
     "@huggingface/transformers": "^3.8.1",
     "@lighttable/pdf-core": "0.0.1",
+    "@lighttable/paint-core": "0.0.1",
     "@lighttable/text-core": "0.0.1",
     "@lighttable/text-rendering": "0.0.1",
     "@lighttable/text-webgpu": "0.0.1",
