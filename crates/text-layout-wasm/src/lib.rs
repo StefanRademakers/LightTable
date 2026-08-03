@@ -254,6 +254,11 @@ pub fn realize_flow_text(
     alignment: u32,
     line_height_kind: u32,
     line_height_value: f32,
+    first_line_indent: f32,
+    start_indent: f32,
+    end_indent: f32,
+    space_before: f32,
+    space_after: f32,
     origin_x: f32,
     origin_y: f32,
     max_glyph_count: u32,
@@ -347,6 +352,11 @@ pub fn realize_flow_text(
             max_width,
             alignment,
             line_height,
+            first_line_indent,
+            start_indent,
+            end_indent,
+            space_before,
+            space_after,
             origin_x,
             origin_y,
             max_glyph_count: max_glyph_count as usize,
@@ -414,6 +424,11 @@ mod tests {
                     max_width: Some(320.0),
                     alignment: parley::Alignment::Start,
                     line_height: None,
+                    first_line_indent: 0.0,
+                    start_indent: 0.0,
+                    end_indent: 0.0,
+                    space_before: 0.0,
+                    space_after: 0.0,
                     origin_x: 0.25,
                     origin_y: 0.5,
                     max_glyph_count: 1_000,
@@ -494,6 +509,11 @@ mod tests {
             0,
             0,
             0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
             5.0,
             7.0,
             100,
@@ -524,6 +544,11 @@ mod tests {
             Some(90.0),
             0,
             0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
             0.0,
             12.0,
             18.0,
@@ -560,6 +585,11 @@ mod tests {
                 alignment,
                 line_height_kind,
                 line_height_value,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
                 10.0,
                 20.0,
                 1_000,
@@ -597,6 +627,56 @@ mod tests {
         assert!(baseline_gap(&absolute) > baseline_gap(&normal));
         assert!(baseline_gap(&multiple) > baseline_gap(&normal));
         assert!((baseline_gap(&absolute) - 60.0).abs() < 0.01);
+        assert!(drop_layout_session(session));
+    }
+
+    #[test]
+    fn applies_uniform_paragraph_indents_and_spacing() {
+        let session = "paragraph-indents-spacing";
+        let bytes = include_bytes!("../../../test/fixtures/fonts/Anton-Regular.ttf");
+        assert_eq!(register_layout_font(session, "anton", bytes).unwrap(), 1);
+        let realize = |key: &str, alignment, first_line, start, end, before, after| {
+            realize_flow_text(
+                session,
+                key,
+                "A\nB",
+                Some(220.0),
+                alignment,
+                0,
+                0.0,
+                first_line,
+                start,
+                end,
+                before,
+                after,
+                10.0,
+                20.0,
+                100,
+                &[0, 3, 0, 0, 0],
+                &[24.0, 400.0, 100.0, 0.0],
+                b"Antonanton",
+                &[0, 5, 5, 10],
+            )
+            .unwrap()
+        };
+
+        let base = realize("paragraph-box-base", 0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let styled = realize("paragraph-box-styled", 0, 5.0, 10.0, 0.0, 7.0, 11.0);
+        let base_geometry = base.geometry();
+        let styled_geometry = styled.geometry();
+        assert_eq!(base_geometry.len(), styled_geometry.len());
+        assert!((styled_geometry[0] - base_geometry[0] - 15.0).abs() < 0.01);
+        assert!((styled_geometry[4] - base_geometry[4] - 15.0).abs() < 0.01);
+
+        let base_lines = base.line_geometry();
+        let styled_lines = styled.line_geometry();
+        assert!((styled_lines[0] - base_lines[0] - 7.0).abs() < 0.01);
+        assert!((styled_lines[7] - base_lines[7] - 25.0).abs() < 0.01);
+        assert!((styled.bounds()[7] - base.bounds()[7] - 36.0).abs() < 0.01);
+
+        let end_aligned = realize("paragraph-end-base", 2, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let end_indented = realize("paragraph-end-indent", 2, 0.0, 0.0, 20.0, 0.0, 0.0);
+        assert!((end_indented.geometry()[0] - end_aligned.geometry()[0] + 20.0).abs() < 0.01);
         assert!(drop_layout_session(session));
     }
 
@@ -699,6 +779,11 @@ mod tests {
             0.0,
             0.0,
             0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
             100,
             &[0, 4, 0, 0, 0, 4, 8, 1, 0, 0],
             &[20.0, 400.0, 100.0, 0.0, 20.0, 400.0, 100.0, 0.0],
@@ -773,6 +858,11 @@ mod tests {
                     max_width: None,
                     alignment: parley::Alignment::Start,
                     line_height: None,
+                    first_line_indent: 0.0,
+                    start_indent: 0.0,
+                    end_indent: 0.0,
+                    space_before: 0.0,
+                    space_after: 0.0,
                     origin_x: 0.0,
                     origin_y: 0.0,
                     max_glyph_count: 10,
@@ -821,6 +911,11 @@ mod tests {
                     max_width: None,
                     alignment: parley::Alignment::Start,
                     line_height: None,
+                    first_line_indent: 0.0,
+                    start_indent: 0.0,
+                    end_indent: 0.0,
+                    space_before: 0.0,
+                    space_after: 0.0,
                     origin_x: 0.0,
                     origin_y: 0.0,
                     max_glyph_count: 10,
@@ -871,6 +966,11 @@ mod tests {
                 max_width: None,
                 alignment: parley::Alignment::Start,
                 line_height: None,
+                first_line_indent: 0.0,
+                start_indent: 0.0,
+                end_indent: 0.0,
+                space_before: 0.0,
+                space_after: 0.0,
                 origin_x: 0.0,
                 origin_y: 0.0,
                 max_glyph_count: 10,

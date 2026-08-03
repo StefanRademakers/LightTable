@@ -4,7 +4,7 @@ use fontique::Blob;
 use icu_segmenter::GraphemeClusterSegmenter;
 use parley::{
     Alignment, AlignmentOptions, FontContext, FontFamily, FontStyle, FontWeight, FontWidth,
-    LayoutContext, LineHeight, StyleProperty,
+    IndentOptions, LayoutContext, LineHeight, StyleProperty,
 };
 use skrifa::{
     FontRef, MetadataProvider,
@@ -40,6 +40,11 @@ pub(crate) struct FlowLayoutInput {
     pub(crate) max_width: Option<f32>,
     pub(crate) alignment: Alignment,
     pub(crate) line_height: Option<LineHeight>,
+    pub(crate) first_line_indent: f32,
+    pub(crate) start_indent: f32,
+    pub(crate) end_indent: f32,
+    pub(crate) space_before: f32,
+    pub(crate) space_after: f32,
     pub(crate) origin_x: f32,
     pub(crate) origin_y: f32,
     pub(crate) max_glyph_count: usize,
@@ -156,6 +161,34 @@ fn byte_to_utf16_fast(boundaries: &[(usize, usize)], offset: usize) -> Result<us
         .ok()
         .map(|index| boundaries[index].1)
         .ok_or_else(|| "layout offset is not a Unicode scalar boundary".to_owned())
+}
+
+fn paragraph_starts(text: &str) -> Vec<usize> {
+    let mut starts = vec![0];
+    let mut characters = text.char_indices().peekable();
+    while let Some((offset, character)) = characters.next() {
+        let next = offset + character.len_utf8();
+        match character {
+            '\r' => {
+                let paragraph_start = if characters.peek().is_some_and(|(_, next)| *next == '\n') {
+                    let (line_feed, _) = characters.next().expect("peeked line feed must exist");
+                    line_feed + 1
+                } else {
+                    next
+                };
+                starts.push(paragraph_start);
+            }
+            '\n' | '\u{2028}' | '\u{2029}' => starts.push(next),
+            _ => {}
+        }
+    }
+    starts
+}
+
+fn paragraph_index(starts: &[usize], byte_offset: usize) -> usize {
+    starts
+        .partition_point(|start| *start <= byte_offset)
+        .saturating_sub(1)
 }
 
 pub(crate) fn register_font(
@@ -287,7 +320,19 @@ pub(crate) fn realize_flow(
             builder.push(StyleProperty::Brush(style.source_run_index), range);
         }
         let mut layout = builder.build(&input.text);
-        layout.break_all_lines(input.max_width);
+        if input.first_line_indent != 0.0 {
+            layout.set_text_indent(
+                input.first_line_indent,
+                IndentOptions {
+                    each_line: true,
+                    hanging: false,
+                },
+            );
+        }
+        let content_width = input
+            .max_width
+            .map(|width| width - input.start_indent - input.end_indent);
+        layout.break_all_lines(content_width);
         layout.align(input.alignment, AlignmentOptions::default());
         project_layout(&input, &layout, &session.registered_assets)
     })
@@ -336,11 +381,22 @@ fn validate_input(input: &FlowLayoutInput) -> Result<(), String> {
     }
     if !input.origin_x.is_finite()
         || !input.origin_y.is_finite()
+        || !input.first_line_indent.is_finite()
+        || !input.start_indent.is_finite()
+        || !input.end_indent.is_finite()
+        || !input.space_before.is_finite()
+        || !input.space_after.is_finite()
         || input
             .max_width
             .is_some_and(|width| !width.is_finite() || width <= 0.0)
     {
         return Err("layout geometry must be finite and positive".to_owned());
+    }
+    if input
+        .max_width
+        .is_some_and(|width| width - input.start_indent - input.end_indent <= 0.0)
+    {
+        return Err("paragraph indents leave no positive layout width".to_owned());
     }
     Ok(())
 }
@@ -351,11 +407,14 @@ fn project_layout(
     registered_assets: &HashMap<String, RegisteredAsset>,
 ) -> Result<FlowLayoutOutput, String> {
     let utf16_boundaries = utf16_boundaries(&input.text);
+    let paragraph_starts = paragraph_starts(&input.text);
+    let content_origin_x = input.origin_x + input.start_indent;
+    let paragraph_spacing = input.space_before + input.space_after;
     let logical_bounds = OutputRect {
-        x: input.origin_x,
+        x: content_origin_x,
         y: input.origin_y,
         width: layout.width(),
-        height: layout.height(),
+        height: (layout.height() + paragraph_starts.len() as f32 * paragraph_spacing).max(0.0),
     };
     let mut output = FlowLayoutOutput {
         key: input.key.clone(),
@@ -377,20 +436,22 @@ fn project_layout(
     for line in layout.lines() {
         let metrics = line.metrics();
         let line_range = line.text_range();
+        let paragraph = paragraph_index(&paragraph_starts, line_range.start) as f32;
+        let vertical_offset = input.space_before + paragraph * paragraph_spacing;
         output.lines.push(OutputLine {
             start: byte_to_utf16_fast(&utf16_boundaries, line_range.start)?,
             end: byte_to_utf16_fast(&utf16_boundaries, line_range.end)?,
-            baseline: input.origin_y + metrics.baseline,
+            baseline: input.origin_y + metrics.baseline + vertical_offset,
             ascent: metrics.ascent,
             descent: metrics.descent,
             bounds: OutputRect {
-                x: input.origin_x + metrics.inline_min_coord,
-                y: input.origin_y + metrics.block_min_coord,
+                x: content_origin_x + metrics.inline_min_coord,
+                y: input.origin_y + metrics.block_min_coord + vertical_offset,
                 width: metrics.inline_max_coord - metrics.inline_min_coord,
                 height: metrics.block_max_coord - metrics.block_min_coord,
             },
         });
-        let mut run_x = input.origin_x + metrics.inline_min_coord + metrics.offset;
+        let mut run_x = content_origin_x + metrics.inline_min_coord + metrics.offset;
         for run in line.runs() {
             if run.normalized_coords().iter().any(|coord| *coord != 0) || run.synthesis().any() {
                 return Err(
@@ -435,8 +496,10 @@ fn project_layout(
                     {
                         let x_min = cluster_x + glyph.x + bounds.x_min;
                         let x_max = cluster_x + glyph.x + bounds.x_max;
-                        let y_min = input.origin_y + metrics.baseline + glyph.y - bounds.y_max;
-                        let y_max = input.origin_y + metrics.baseline + glyph.y - bounds.y_min;
+                        let y_min = input.origin_y + metrics.baseline + glyph.y + vertical_offset
+                            - bounds.y_max;
+                        let y_max = input.origin_y + metrics.baseline + glyph.y + vertical_offset
+                            - bounds.y_min;
                         ink_extents = Some(match ink_extents {
                             Some((left, top, right, bottom)) => (
                                 left.min(x_min),
@@ -450,14 +513,14 @@ fn project_layout(
                     glyph_ids.push(glyph.id);
                     geometry.extend_from_slice(&[
                         cluster_x + glyph.x,
-                        input.origin_y + metrics.baseline + glyph.y,
+                        input.origin_y + metrics.baseline + glyph.y + vertical_offset,
                         glyph.advance,
                         0.0,
                     ]);
                 }
                 let bounds = OutputRect {
                     x: cluster_x,
-                    y: input.origin_y + metrics.block_min_coord,
+                    y: input.origin_y + metrics.block_min_coord + vertical_offset,
                     width: cluster.advance(),
                     height: metrics.line_height,
                 };

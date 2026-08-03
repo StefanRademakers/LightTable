@@ -60,7 +60,8 @@ bindings.register_layout_font(sessionKey, 'anton', fixture);
 bindings.register_layout_font(sessionKey, 'lighttable-inter-latin-regular', bundledInter);
 const bundledStrings = new TextEncoder().encode('Interlighttable-inter-latin-regular');
 const bundledLayout = bindings.realize_flow_text(
-  sessionKey, 'runtime-bundled-inter', 'Text', 400, 0, 0, 0, 0, 0, 100,
+  sessionKey, 'runtime-bundled-inter', 'Text', 400, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 100,
   new Uint32Array([0, 4, 0, 0, 0]),
   new Float32Array([16, 400, 100, 0]),
   bundledStrings,
@@ -84,7 +85,8 @@ bundledMask.free();
 bundledLayout.free();
 const layoutStartedAt = performance.now();
 const layout = bindings.realize_flow_text(
-  sessionKey, 'runtime-latin', 'office A😀', 400, 0, 0, 0, 0.25, 0.5, 100,
+  sessionKey, 'runtime-latin', 'office A😀', 400, 0, 0, 0,
+  0, 0, 0, 0, 0, 0.25, 0.5, 100,
   new Uint32Array([0, 10, 0, 0, 0]),
   new Float32Array([24, 400, 100, 0]),
   new TextEncoder().encode('Antonanton'),
@@ -104,7 +106,8 @@ if (
 ) throw new Error('LightTable Parley WASM returned invalid realized layout data.');
 layout.free();
 const paragraphLayout = bindings.realize_flow_text(
-  sessionKey, 'runtime-paragraph-style', 'A\nB', 220, 1, 1, 60, 10, 20, 100,
+  sessionKey, 'runtime-paragraph-style', 'A\nB', 220, 1, 1, 60,
+  5, 10, 20, 7, 11, 10, 20, 100,
   new Uint32Array([0, 3, 0, 0, 0]),
   new Float32Array([24, 400, 100, 0]),
   new TextEncoder().encode('Antonanton'),
@@ -113,9 +116,11 @@ const paragraphLayout = bindings.realize_flow_text(
 const paragraphLines = paragraphLayout.line_geometry();
 if (
   paragraphLayout.line_meta().length !== 4
-  || paragraphLines[7] - paragraphLines[0] !== 60
-  || paragraphLayout.geometry()[0] <= 10
-) throw new Error('LightTable paragraph alignment/leading ABI returned invalid geometry.');
+  || paragraphLines[7] - paragraphLines[0] !== 78
+  || paragraphLayout.bounds()[4] !== 20
+  || paragraphLayout.bounds()[7] !== 156
+  || paragraphLayout.geometry()[0] <= 20
+) throw new Error('LightTable uniform paragraph-layout ABI returned invalid geometry.');
 paragraphLayout.free();
 const glyphMask = bindings.rasterize_registered_glyph(sessionKey, 'anton', 0, 36, 24);
 const glyphPixels = glyphMask.pixels();
@@ -132,16 +137,16 @@ try { bindings.rasterize_registered_glyph(sessionKey, 'anton', 0, 36, 2); } catc
 if (!rejectedRasterLimit) throw new Error('LightTable glyph raster accepted an invalid ppem.');
 for (const [label, invoke] of [
   ['malformed packed stride', () => bindings.realize_flow_text(
-    sessionKey, 'bad-stride', 'A', 100, 0, 0, 0, 0, 0, 10,
+    sessionKey, 'bad-stride', 'A', 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10,
     new Uint32Array([0, 1]), new Float32Array(), new Uint8Array(), new Uint32Array()
   )],
   ['invalid family UTF-8', () => bindings.realize_flow_text(
-    sessionKey, 'bad-utf8', 'A', 100, 0, 0, 0, 0, 0, 10,
+    sessionKey, 'bad-utf8', 'A', 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10,
     new Uint32Array([0, 1, 0, 0, 0]), new Float32Array([12, 400, 100, 0]),
     new Uint8Array([255, 97]), new Uint32Array([0, 1, 1, 2])
   )],
   ['invalid glyph limit', () => bindings.realize_flow_text(
-    sessionKey, 'bad-limit', 'A', 100, 0, 0, 0, 0, 0, 0,
+    sessionKey, 'bad-limit', 'A', 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     new Uint32Array([0, 1, 0, 0, 0]), new Float32Array([12, 400, 100, 0]),
     new TextEncoder().encode('Antonanton'), new Uint32Array([0, 5, 5, 10])
   )]
@@ -176,7 +181,8 @@ for (const [id, fileName, family, text] of corpus) {
   bindings.register_layout_font(corpusSession, id, bytes);
   const strings = new TextEncoder().encode(family + id);
   const result = bindings.realize_flow_text(
-    corpusSession, id, text, 320, 0, 0, 0, 0.25, 0.5, 1000,
+    corpusSession, id, text, 320, 0, 0, 0,
+    0, 0, 0, 0, 0, 0.25, 0.5, 1000,
     new Uint32Array([0, text.length, 0, 0, 0]),
     new Float32Array([24, 400, 100, 0]),
     strings,
