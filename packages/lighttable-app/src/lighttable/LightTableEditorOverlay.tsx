@@ -56,7 +56,7 @@ import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPref
 import { buildPdfNativeTextPage } from './application/pdf/buildPdfNativeTextPage';
 import {
   buildPdfNativeVectorLayerPage,
-  buildPdfNativeVectorPage
+  buildPdfNativeVectorExportPage
 } from './application/pdf/buildPdfNativeVectorPage';
 import {
   pdfDocumentProcessingActive,
@@ -2466,9 +2466,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             if (currentDocument.id !== document.id || currentDocument.revision !== document.revision) {
               throw new Error('The document changed after PDF preflight. Open preflight again.');
             }
-            const nativePage = buildPdfNativeVectorPage({
+            const nativeExport = buildPdfNativeVectorExportPage({
               document: currentDocument,
               nativeVectorLayerIds: vectorPlan.nativeVectorLayerIds,
+              transparencyGroups: vectorPlan.transparencyGroups,
               pixelsPerInch: 300
             });
             const rasterUnderlayPng = await renderer.exportPng({
@@ -2478,9 +2479,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               './infrastructure/pdf/writePdfDisplayListPage'
             );
             const result = await writePdfDisplayListPage({
-              page: nativePage,
+              page: nativeExport.page,
               title: currentDocument.name,
-              rasterUnderlayPng
+              rasterUnderlayPng,
+              transparencyGroups: nativeExport.transparencyGroups
             });
             downloadEditorFile(new File(
               [result.blob],

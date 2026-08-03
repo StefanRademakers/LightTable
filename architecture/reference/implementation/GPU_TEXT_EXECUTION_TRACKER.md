@@ -875,15 +875,12 @@ their visual output was inspected for knockout blending, soft-mask grouping and
 ordinary transparency. These preview cases validate PDF.js input coverage but
 do not widen native semantic import claims.
 
-Neutral group evidence: nested pass-through groups and isolated groups whose
-envelope is mathematically neutral (Normal, 100% opacity/fill, no mask or
-effects) now preserve their complete scene-transform chain while their vector
-children remain native. Normal source-over is associative, so removing only
-that neutral envelope does not change pixels. Isolation remains a hard export
-boundary when any child uses a backdrop-dependent blend; group opacity, masks,
-styles and non-normal group blending likewise still require a real PDF
-transparency-group Form XObject and remain flattened-only. Planner regressions
-cover both the accepted neutral case and the rejected Multiply child case.
+Neutral group evidence: nested pass-through groups preserve their complete
+scene-transform chain while their vector children remain native. An explicitly
+isolated group is retained as an isolation boundary even when its current
+Normal/100% settings would make flattening algebraically equivalent; this keeps
+the writer topology stable when opacity or child blends change. Masks, styles,
+clipping and unsupported blend modes remain flattened-only.
 
 Transparency Form writer evidence: the normalized vector writer can now place
 an ordered, bounded operation sequence inside a real `/Subtype /Form` XObject
@@ -893,8 +890,23 @@ the page-level `Do` operation. The shared serializer no longer assumes a page
 owns its graphics resources, allowing both page and Form streams to register
 alpha/blend state without name collisions. PDF-lib reopens and inspects the
 Form/Group dictionaries, while PDF.js reports a Form XObject operator and the
-expected blend state. This is the writer boundary only; product planners remain
-fail-closed until canonical group membership and z-order are wired explicitly.
+expected blend state. Product use remains gated by the explicit canonical
+group-membership and z-order planner described below.
+
+Product transparency-group evidence: the native-vector planner now recognizes
+one exact first product topology: a visible top-level group whose complete
+visible subtree consists of supported vector layers and neutral nested pass-
+through groups. It records the canonical child layer IDs, group opacity and
+exact PDF blend mode as one export unit. The builder removes those child draws
+from ordinary page operations, preserves their bottom-to-top order and emits
+them once inside the isolated Form; the GPU underlay transaction excludes the
+same canonical leaf IDs. Backdrop-dependent child blends are therefore scoped
+to the group's transparent backdrop instead of the page underlay. Unit and
+PDF.js integration tests prove two child paths remain inside one Form XObject.
+The packaged `D:\shapes.psd` regression still exports four ordinary native
+paths plus one raster underlay (zero Forms, zero page errors), demonstrating
+that ungrouped shape output is unchanged. Nested non-neutral groups, raster or
+text children, masks, clipping and layer styles remain explicitly gated.
 
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.

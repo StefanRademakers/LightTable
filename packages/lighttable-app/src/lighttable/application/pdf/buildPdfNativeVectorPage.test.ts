@@ -1,9 +1,17 @@
 import { createAnchor, createSubpath, createVectorLiveShape, createVectorPath } from '@lighttable/vector-core';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { describe, expect, it } from 'vitest';
-import { createImageDocument, createVectorLayer, type LayerId } from '../../editor/document/documentTypes';
+import {
+  createGroupLayer,
+  createImageDocument,
+  createVectorLayer,
+  type LayerId
+} from '../../editor/document/documentTypes';
 import { writePdfDisplayListPage } from '../../infrastructure/pdf/writePdfDisplayListPage';
-import { buildPdfNativeVectorPage } from './buildPdfNativeVectorPage';
+import {
+  buildPdfNativeVectorExportPage,
+  buildPdfNativeVectorPage
+} from './buildPdfNativeVectorPage';
 
 describe('buildPdfNativeVectorPage', () => {
   it('preserves canonical curves, compound paint, live shapes and document-to-PDF geometry', async () => {
@@ -76,5 +84,47 @@ describe('buildPdfNativeVectorPage', () => {
     expect(page.operations[0]).toEqual({ kind: 'save-state' });
     expect(page.operations[1]).toEqual({ kind: 'set-blend-mode', blendMode: 'multiply' });
     expect(page.operations.at(-1)).toEqual({ kind: 'restore-state' });
+  });
+
+  it('keeps isolated group children in one reopenable transparency Form', async () => {
+    const first = createVectorLayer([createVectorLiveShape('ellipse', {
+      kind: 'ellipse', width: 30, height: 20
+    })]);
+    const second = createVectorLayer([createVectorLiveShape('ellipse-2', {
+      kind: 'ellipse', width: 20, height: 20
+    })]);
+    const group = createGroupLayer();
+    group.children.push(first, second);
+    group.compositing = 'isolated';
+    group.opacity = 0.5;
+    const document = createImageDocument('Group', 100, 100, 'pixels');
+    document.layers.push(group);
+    const output = buildPdfNativeVectorExportPage({
+      document,
+      nativeVectorLayerIds: new Set([first.id, second.id]),
+      transparencyGroups: [{
+        groupId: group.id,
+        nativeVectorLayerIds: [first.id, second.id],
+        opacity: 0.5,
+        blendMode: 'normal'
+      }]
+    });
+    expect(output.page.operations).toEqual([]);
+    expect(output.layers).toEqual([]);
+    expect(output.transparencyGroups).toHaveLength(1);
+    expect(output.transparencyGroups[0]?.operations.filter(operation => operation.kind === 'draw-path')).toHaveLength(2);
+    const written = await writePdfDisplayListPage({
+      page: output.page,
+      transparencyGroups: output.transparencyGroups
+    });
+    const task = pdfjs.getDocument({
+      data: new Uint8Array(await written.blob.arrayBuffer()),
+      isEvalSupported: false,
+      useWorkerFetch: false
+    });
+    const operators = await (await (await task.promise).getPage(1)).getOperatorList();
+    expect(operators.fnArray).toContain(pdfjs.OPS.paintFormXObjectBegin);
+    expect(operators.fnArray.filter(value => value === pdfjs.OPS.constructPath)).toHaveLength(2);
+    await task.destroy();
   });
 });

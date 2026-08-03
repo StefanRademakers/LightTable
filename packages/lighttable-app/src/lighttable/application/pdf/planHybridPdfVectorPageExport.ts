@@ -1,5 +1,12 @@
+import type { PdfBlendMode } from '@lighttable/pdf-core';
 import type { VectorElement } from '@lighttable/vector-core';
-import type { ImageDocument, LayerId, LayerNode, VectorLayer } from '../../editor/document/documentTypes';
+import type {
+  GroupLayer,
+  ImageDocument,
+  LayerId,
+  LayerNode,
+  VectorLayer
+} from '../../editor/document/documentTypes';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
 import { pdfLayerBlendMode } from './pdfLayerBlendMode';
 
@@ -12,13 +19,24 @@ export type HybridPdfVectorPageExportReason =
   | 'document-processing-active';
 
 export type HybridPdfVectorPageExportPlan =
-  | { readonly kind: 'ready'; readonly nativeVectorLayerIds: ReadonlySet<LayerId> }
+  | {
+    readonly kind: 'ready';
+    readonly nativeVectorLayerIds: ReadonlySet<LayerId>;
+    readonly transparencyGroups: readonly PdfNativeVectorTransparencyGroupPlan[];
+  }
   | { readonly kind: 'flattened-only'; readonly reasons: readonly HybridPdfVectorPageExportReason[] };
 
 export interface PdfVisibleLeaf {
   readonly layer: Exclude<LayerNode, { type: 'group' }>;
   readonly ancestorEffects: boolean;
   readonly ancestorIsolation: boolean;
+}
+
+export interface PdfNativeVectorTransparencyGroupPlan {
+  readonly groupId: LayerId;
+  readonly nativeVectorLayerIds: readonly LayerId[];
+  readonly opacity: number;
+  readonly blendMode: Exclude<PdfBlendMode, 'unsupported'>;
 }
 
 const ancestorCompositingEffects = (node: LayerNode) => node.type === 'group'
@@ -76,6 +94,45 @@ export const pdfVectorLayerNativeReason = (
   return null;
 };
 
+const groupVectorLayers = (
+  nodes: readonly LayerNode[],
+  result: VectorLayer[] = []
+): VectorLayer[] | null => {
+  for (const node of nodes) {
+    if (!node.visible || node.opacity <= 0) continue;
+    if (node.type === 'group') {
+      const neutral = node.compositing === 'pass-through'
+        && !node.clipping && node.mask === null
+        && node.opacity === 1 && node.fillOpacity === 1 && node.blendMode === 'normal'
+        && !layerStyleStackIsActive(node.styleStack);
+      if (!neutral || !groupVectorLayers(node.children, result)) return null;
+    } else if (node.type === 'vector') {
+      if (!node.elements.some(pdfVectorElementHasVisiblePaint)
+        || pdfVectorLayerNativeReason(node, false, false)) return null;
+      result.push(node);
+    } else return null;
+  }
+  return result;
+};
+
+const transparencyGroupPlan = (
+  group: GroupLayer
+): PdfNativeVectorTransparencyGroupPlan | null => {
+  const blendMode = pdfLayerBlendMode(group.blendMode);
+  const requiresEnvelope = group.compositing === 'isolated'
+    || group.opacity !== 1 || group.blendMode !== 'normal';
+  if (!requiresEnvelope || !blendMode || group.clipping || group.mask !== null
+    || group.fillOpacity !== 1 || layerStyleStackIsActive(group.styleStack)) return null;
+  const layers = groupVectorLayers(group.children);
+  if (!layers?.length) return null;
+  return {
+    groupId: group.id,
+    nativeVectorLayerIds: layers.map(layer => layer.id),
+    opacity: group.opacity,
+    blendMode
+  };
+};
+
 /** Authorizes one raster underlay followed by a native vector-layer suffix. */
 export const planHybridPdfVectorPageExport = (
   document: ImageDocument,
@@ -85,8 +142,18 @@ export const planHybridPdfVectorPageExport = (
   if (documentProcessingActive) reasons.add('document-processing-active');
   const leaves = collectPdfVisibleLeaves(document.layers);
   const native = new Set<LayerId>();
+  const transparencyGroups = document.layers.flatMap(node => {
+    if (node.type !== 'group' || !node.visible || node.opacity <= 0) return [];
+    const group = transparencyGroupPlan(node);
+    return group ? [group] : [];
+  });
+  const grouped = new Set(transparencyGroups.flatMap(group => group.nativeVectorLayerIds));
   leaves.forEach(({ layer, ancestorEffects, ancestorIsolation }) => {
     if (layer.type !== 'vector' || !layer.elements.some(pdfVectorElementHasVisiblePaint)) return;
+    if (grouped.has(layer.id)) {
+      native.add(layer.id);
+      return;
+    }
     const reason = pdfVectorLayerNativeReason(layer, ancestorEffects, ancestorIsolation);
     if (reason) reasons.add(reason);
     else native.add(layer.id);
@@ -98,5 +165,5 @@ export const planHybridPdfVectorPageExport = (
   }
   return reasons.size > 0
     ? { kind: 'flattened-only', reasons: [...reasons] }
-    : { kind: 'ready', nativeVectorLayerIds: native };
+    : { kind: 'ready', nativeVectorLayerIds: native, transparencyGroups };
 };

@@ -16,6 +16,7 @@ import {
 import type { ImageDocument, LayerId, LayerNode, VectorLayer } from '../../editor/document/documentTypes';
 import { buildSceneTransformIndex, requireSceneTransform } from '../../editor/document/sceneTransformGraph';
 import { pdfLayerBlendMode } from './pdfLayerBlendMode';
+import type { PdfNativeVectorTransparencyGroupPlan } from './planHybridPdfVectorPageExport';
 
 export interface PdfNativeVectorPageDependencies {
   readonly document: ImageDocument;
@@ -31,6 +32,17 @@ export interface PdfNativeVectorLayerOperations {
 export interface PdfNativeVectorLayerPage {
   readonly page: PdfPageDisplayList;
   readonly layers: readonly PdfNativeVectorLayerOperations[];
+}
+
+export interface PdfNativeVectorTransparencyGroupContent {
+  readonly groupId: LayerId;
+  readonly operations: readonly PdfDisplayOperation[];
+  readonly opacity: number;
+  readonly blendMode: PdfNativeVectorTransparencyGroupPlan['blendMode'];
+}
+
+export interface PdfNativeVectorExportPage extends PdfNativeVectorLayerPage {
+  readonly transparencyGroups: readonly PdfNativeVectorTransparencyGroupContent[];
 }
 
 const DEFAULT_PIXELS_PER_INCH = 300;
@@ -184,3 +196,32 @@ export const buildPdfNativeVectorLayerPage = ({
 export const buildPdfNativeVectorPage = (
   dependencies: PdfNativeVectorPageDependencies
 ): PdfPageDisplayList => buildPdfNativeVectorLayerPage(dependencies).page;
+
+/** Partitions selected vector layers into ordinary page content and isolated groups. */
+export const buildPdfNativeVectorExportPage = (
+  dependencies: PdfNativeVectorPageDependencies & {
+    readonly transparencyGroups: readonly PdfNativeVectorTransparencyGroupPlan[];
+  }
+): PdfNativeVectorExportPage => {
+  const built = buildPdfNativeVectorLayerPage(dependencies);
+  const groupedIds = new Set<LayerId>();
+  dependencies.transparencyGroups.forEach(group => group.nativeVectorLayerIds.forEach(id => {
+    if (!dependencies.nativeVectorLayerIds.has(id)) fail(`group ${group.groupId} contains an unselected layer.`);
+    if (groupedIds.has(id)) fail(`layer ${id} belongs to multiple transparency groups.`);
+    groupedIds.add(id);
+  }));
+  const transparencyGroups = dependencies.transparencyGroups.map(group => ({
+    groupId: group.groupId,
+    operations: built.layers
+      .filter(layer => group.nativeVectorLayerIds.includes(layer.layerId))
+      .flatMap(layer => layer.operations),
+    opacity: group.opacity,
+    blendMode: group.blendMode
+  }));
+  const layers = built.layers.filter(layer => !groupedIds.has(layer.layerId));
+  return {
+    page: { ...built.page, operations: layers.flatMap(layer => layer.operations) },
+    layers,
+    transparencyGroups
+  };
+};

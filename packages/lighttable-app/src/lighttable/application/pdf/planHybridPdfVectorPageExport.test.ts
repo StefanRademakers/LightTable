@@ -45,7 +45,7 @@ describe('planHybridPdfVectorPageExport', () => {
 
     const grouped = createImageDocument('Grouped', 100, 100, 'pixels');
     const group = createGroupLayer();
-    group.opacity = 0.5;
+    group.clipping = true;
     group.children.push(createVectorLayer([path()]));
     grouped.layers.push(group);
     expect(planHybridPdfVectorPageExport(grouped, false)).toMatchObject({
@@ -70,7 +70,7 @@ describe('planHybridPdfVectorPageExport', () => {
     });
   });
 
-  it('accepts neutral isolated groups but blocks backdrop blends inside them', () => {
+  it('plans both neutral and backdrop-blended isolated groups as transparency units', () => {
     const neutral = createImageDocument('Neutral isolated group', 100, 100, 'pixels');
     const neutralGroup = createGroupLayer();
     neutralGroup.compositing = 'isolated';
@@ -88,8 +88,32 @@ describe('planHybridPdfVectorPageExport', () => {
     multiply.blendMode = 'multiply';
     isolated.children.push(multiply);
     backdrop.layers.push(isolated);
-    expect(planHybridPdfVectorPageExport(backdrop, false)).toMatchObject({
-      kind: 'flattened-only', reasons: expect.arrayContaining(['vector-effects-unsupported'])
-    });
+    const blended = planHybridPdfVectorPageExport(backdrop, false);
+    expect(blended.kind).toBe('ready');
+    if (blended.kind === 'ready') {
+      expect(blended.transparencyGroups[0]?.nativeVectorLayerIds).toEqual([multiply.id]);
+    }
+  });
+
+  it('plans a non-neutral top-level vector group as one transparency unit', () => {
+    const document = createImageDocument('Transparent group', 100, 100, 'pixels');
+    const group = createGroupLayer();
+    group.compositing = 'isolated';
+    group.opacity = 0.45;
+    group.blendMode = 'screen';
+    const bottom = createVectorLayer([path()]);
+    const top = createVectorLayer([path()]);
+    group.children.push(bottom, top);
+    document.layers.push(group);
+    const plan = planHybridPdfVectorPageExport(document, false);
+    expect(plan.kind).toBe('ready');
+    if (plan.kind !== 'ready') return;
+    expect([...plan.nativeVectorLayerIds]).toEqual([bottom.id, top.id]);
+    expect(plan.transparencyGroups).toEqual([{
+      groupId: group.id,
+      nativeVectorLayerIds: [bottom.id, top.id],
+      opacity: 0.45,
+      blendMode: 'screen'
+    }]);
   });
 });
