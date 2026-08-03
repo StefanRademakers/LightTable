@@ -7,8 +7,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createImageDocument,
   createTextLayerNode,
+  createVectorLayer,
   type DocumentFontAsset
 } from '../../editor/document/documentTypes';
+import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { TextLayerRenderCoordinator, type TextFontRuntimePort } from './TextLayerRenderCoordinator';
 import type { TextSourceCostSample } from './TextSourceCostModel';
 import {
@@ -161,6 +163,121 @@ describe('TextLayerRenderCoordinator', () => {
 
     expect(state.client.registerFontDetailed).not.toHaveBeenCalled();
     expect(state.submit).not.toHaveBeenCalled();
+  });
+
+  it('shapes once and reprojects rigid glyphs when a referenced path changes', async () => {
+    const state = harness();
+    state.client.realizeTextDetailed.mockResolvedValue({
+      layout: {
+        schemaVersion: TEXT_LAYOUT_SCHEMA_VERSION,
+        key: 'path-shaped',
+        glyphRuns: [{
+          font: CONTRACT_FIXTURE_FONT_INSTANCE, fontSize: 20,
+          fontResolution: { kind: 'positioned-exact', sourceRunIndex: 0 },
+          paint: { fill: { kind: 'solid', color: { colorSpace: 'srgb', r: 0, g: 0, b: 0, a: 1 } } },
+          renderingMode: 'fill', direction: 'ltr',
+          glyphIds: new Uint32Array([7]), clusters: new Uint32Array([0]),
+          geometry: new Float32Array([0, 0, 10, 0])
+        }],
+        lines: [{
+          start: 0, end: 1, baseline: 0, ascent: 16, descent: 4,
+          bounds: { x: 0, y: -16, width: 10, height: 20 }
+        }],
+        caretStops: [
+          { textOffset: 0, x: 0, y: -16, height: 20, affinity: 'downstream' },
+          { textOffset: 1, x: 10, y: -16, height: 20, affinity: 'upstream' }
+        ],
+        selectionGeometry: [{
+          start: 0, end: 1, bounds: { x: 0, y: -16, width: 10, height: 20 }
+        }],
+        clusterMap: [],
+        inkBounds: { x: 0, y: -16, width: 10, height: 20 },
+        logicalBounds: { x: 0, y: -16, width: 10, height: 20 }, warnings: []
+      }, metrics: {}, roundTripDurationMs: 1, responseTransferBytes: 0
+    } as never);
+    const path = createVectorPath('path', 'Path', [createSubpath('contour', [
+      createAnchor('start', { x: 0, y: 0 }),
+      createAnchor('end', { x: 100, y: 0 })
+    ])]);
+    const vector = createVectorLayer([path], 'Path');
+    vector.transform = { ...vector.transform, tx: 20 };
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Path text');
+    if (text.text.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+    text.text = {
+      ...text.text,
+      source: {
+        ...text.text.source,
+        layout: {
+          mode: 'path', pathLayerId: vector.id, pathElementId: 'path',
+          pathSubpathId: 'contour', startOffset: 10, endOffset: 90,
+          side: 'left', upright: true
+        }
+      }
+    };
+    const document = createImageDocument('Path text', 240, 120, 'source');
+    document.layers = [vector, text];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await state.coordinator.waitForSettledSource(text.id);
+
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathDependencyRevision: 0,
+        layer: expect.objectContaining({
+          source: expect.objectContaining({
+            layout: { mode: 'point', origin: { x: 0, y: 0 }, writingMode: 'horizontal-tb' }
+          })
+        })
+      }),
+      expect.any(AbortSignal)
+    );
+    const first = state.coordinator.editingLayout(text.id);
+    expect(first?.path?.table.length).toBe(100);
+    expect(first?.layout.glyphRuns[0]?.transforms).toEqual(new Float32Array([
+      1, 0, 30, 0, 1, 0, 0, 0, 1
+    ]));
+    expect(state.renderer.publish).toHaveBeenCalledWith(expect.objectContaining({
+      layerId: text.id, mode: 'cached', sourceKey: expect.stringContaining(':path:')
+    }));
+
+    const canonicalPath = vector.elements[0];
+    if (canonicalPath?.type !== 'path') throw new Error('Expected path fixture.');
+    canonicalPath.subpaths[0]!.anchors[1]!.position.x = 200;
+    canonicalPath.geometryRevision += 1;
+    state.coordinator.sync(document);
+    await state.coordinator.waitForSettledSource(text.id);
+
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+    expect(state.coordinator.editingLayout(text.id)?.path?.table.length).toBe(200);
+    expect(state.outlineBackend.encodeTight).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails unresolved path text before worker shaping instead of drawing a linear fallback', async () => {
+    const state = harness();
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Broken path text');
+    if (text.text.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+    text.text = {
+      ...text.text,
+      source: {
+        ...text.text.source,
+        layout: {
+          mode: 'path', pathLayerId: 'deleted-path', pathElementId: 'path',
+          pathSubpathId: 'contour', startOffset: 0,
+          side: 'left', upright: true
+        }
+      }
+    };
+    const document = createImageDocument('Broken path text', 120, 80, 'source');
+    document.layers = [text];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    await flush();
+
+    expect(state.client.realizeTextDetailed).not.toHaveBeenCalled();
+    expect(state.renderer.prepareAtlasSource).not.toHaveBeenCalled();
+    expect(state.renderer.publish).not.toHaveBeenCalled();
+    expect(state.onError).toHaveBeenCalledWith(expect.stringContaining('missing-layer'));
   });
 
   it('does no worker or GPU work while suspended and resumes the latest document', async () => {

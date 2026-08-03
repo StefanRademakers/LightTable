@@ -556,9 +556,9 @@ grid as raster and vector layers, without text-only smoothing or rerasterizing.
 
 - [x] Add stable vector path references and missing-path behavior.
 - [x] Add a byte-bounded, document-space arc-length cache.
-- [ ] Apply start/end offset, direction, side and alignment to glyph layout.
-- [ ] Keep glyphs rigid first; warped outlines are a later explicit mode.
-- [ ] Invalidate only path realization/layout on path edits.
+- [x] Apply start/end offset, direction, side and alignment to glyph layout.
+- [x] Keep glyphs rigid first; warped outlines are a later explicit mode.
+- [x] Invalidate only path realization/layout on path edits.
 - [ ] Add reference-safe duplication, grouping, deletion and persistence.
 
 UI exposure: Text family enables Path Text when a compatible path is selected;
@@ -704,6 +704,26 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 - Slice 17 end-to-end path realization
+
+- Pipeline: the coordinator shapes path text as a neutral horizontal flow in
+  the existing worker, resolves the exact vector contour in the scene graph,
+  realizes its byte-bounded metric in text-layer-local space, and projects the
+  shaped glyphs before publishing artwork and editing layout.
+- GPU: per-glyph transforms select the existing scale-independent outline
+  WebGPU route automatically. Fill/stroke, tight caching, compositing,
+  conversion and final-output export continue through the shared text/vector
+  render stack; no path-specific canvas renderer exists.
+- Invalidation: external path geometry/ancestor-transform changes rebuild only
+  the arc metric, projection and GPU source. The worker shaping cache key is
+  path-independent, verified by an edit/reprojection test with one shaping
+  request across two path realizations.
+- Failure: missing, ambiguous and singular path dependencies fail before
+  shaping and never publish a misleading linear text fallback.
+- UI/UX: the editing runtime selects the retained path overlay when path
+  presentation metadata is available. Creation, hit-testing and handle drag
+  commands remain gated; the production Path Text tool is still hidden.
 
 ### 2026-08-03 - Slice 17 retained GPU path-editing overlay
 

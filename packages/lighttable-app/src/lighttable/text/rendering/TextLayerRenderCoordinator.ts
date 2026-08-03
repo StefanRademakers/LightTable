@@ -1,7 +1,7 @@
 import {
   IDENTITY_MATRIX_3,
   createTextLayoutCacheKey,
-  type FontAssetRef,
+  type FontAssetRef, type PathTextLayout,
   type RealizedTextLayout
 } from '@lighttable/text-core';
 import {
@@ -17,7 +17,7 @@ import type {
 } from '@lighttable/text-webgpu';
 import type { DocumentFontAsset, ImageDocument, LayerId, TextLayer } from '../../editor/document/documentTypes';
 import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
-import { identityAffineMatrix, multiplyMatrices } from '../../editor/geometry/affine';
+import { identityAffineMatrix, invertMatrix, multiplyMatrices } from '../../editor/geometry/affine';
 import type { AffineMatrix } from '../../editor/geometry/affine';
 import type { VectorPath } from '@lighttable/vector-core';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
@@ -32,6 +32,15 @@ import { TextGlyphOutlineRepository } from './TextGlyphOutlineRepository';
 import { TextOutlineVectorBackend } from './TextOutlineVectorBackend';
 import { prepareTextOutlineVectorDraws } from './prepareTextOutlineVectorDraws';
 import { resolvePathTextDependency } from '../../editor/document/pathTextDependency';
+import {
+  PathArcLengthCache,
+  type PathArcLengthTable,
+  type PathTextAlignment
+} from '@lighttable/vector-rendering';
+import {
+  projectRigidGlyphRunsToPath,
+  type RigidPathGlyphProjection
+} from './rigidPathGlyphProjection';
 
 export interface TextFontRuntimePort {
   readonly revision: number;
@@ -101,7 +110,45 @@ export interface TextLayerEditingLayout {
   readonly preparationKey: string;
   readonly layout: RealizedTextLayout;
   readonly localToDocument: AffineMatrix;
+  readonly path?: Readonly<{
+    pathLayout: PathTextLayout;
+    table: PathArcLengthTable;
+    projection: RigidPathGlyphProjection;
+  }>;
 }
+
+const PATH_METRIC_CACHE_BYTES = 16 * 1024 * 1024;
+
+const pathAlignment = (
+  source: Extract<TextLayer['text']['source'], { kind: 'flow' }>
+): PathTextAlignment => {
+  const alignment = (source.paragraphRuns[0] ?? source.insertionParagraph)?.alignment;
+  return alignment === 'center' ? 'center' : alignment === 'end' ? 'end' : 'start';
+};
+
+const pathShapingData = (layer: TextLayer) => {
+  const source = layer.text.source;
+  if (source.kind !== 'flow' || source.layout.mode !== 'path') return layer.text;
+  return {
+    ...layer.text,
+    source: {
+      ...source,
+      layout: {
+        mode: 'point' as const,
+        origin: { x: 0, y: 0 },
+        writingMode: 'horizontal-tb' as const
+      }
+    }
+  };
+};
+
+const maximumAffineScale = (matrix: AffineMatrix) => {
+  const sum = matrix.a ** 2 + matrix.b ** 2 + matrix.c ** 2 + matrix.d ** 2;
+  const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+  return Math.sqrt(Math.max(0,
+    (sum + Math.sqrt(Math.max(0, sum ** 2 - 4 * determinant ** 2))) / 2
+  ));
+};
 
 const visibleTextLayers = (
   document: ImageDocument,
@@ -141,6 +188,8 @@ export class TextLayerRenderCoordinator {
   private sessionKey = '';
   private work: Promise<void> = Promise.resolve();
   private readonly layoutCache = new TextLayoutCache();
+  private readonly pathMetricCache = new PathArcLengthCache(PATH_METRIC_CACHE_BYTES);
+  private pathMetricDocumentId: string | null = null;
   private readonly settledLayerKeys = new Map<LayerId, string>();
   private readonly expectedLayerKeys = new Map<LayerId, string>();
   private readonly retryCounts = new Map<string, number>();
@@ -264,6 +313,10 @@ export class TextLayerRenderCoordinator {
 
   sync(document: ImageDocument) {
     if (this.disposed) return;
+    if (this.pathMetricDocumentId !== document.id) {
+      this.pathMetricCache.clear();
+      this.pathMetricDocumentId = document.id;
+    }
     this.document = document;
     const allText = walkLayerTree(document.layers)
       .map(({ node }) => node)
@@ -562,6 +615,8 @@ export class TextLayerRenderCoordinator {
     this.outlineBackend?.dispose();
     this.outlineBackend = null;
     this.layoutCache.clear();
+    this.pathMetricCache.clear();
+    this.pathMetricDocumentId = null;
     this.settledLayerKeys.clear();
     this.expectedLayerKeys.clear();
     this.retryCounts.clear();
@@ -786,13 +841,23 @@ export class TextLayerRenderCoordinator {
   ) {
     const sourceScale = this.sourceScaleForLayer(layer.id, transform);
     const options = { quality: 'final' as const, effectiveScale: sourceScale, maxGlyphCount: 100_000 };
+    const source = layer.text.source;
+    const authoredPathLayout = source.kind === 'flow' && source.layout.mode === 'path'
+      ? source.layout : null;
+    const pathDependency = authoredPathLayout && this.document
+      ? resolvePathTextDependency(this.document, layer) : null;
+    if (authoredPathLayout && pathDependency?.kind !== 'resolved') {
+      throw new Error(`Path text ${layer.name} cannot resolve its contour (${pathDependency?.kind ?? 'missing-document'}).`);
+    }
+    const shapingData = pathShapingData(layer);
     const identity = {
       documentSessionId: this.sessionId,
       sessionGeneration: this.sessionGeneration,
       layerId: layer.id,
-      revisions: layer.text.revisions,
+      revisions: shapingData.revisions,
       fontSnapshotRevision: this.sessionFontRevision,
-      pathDependencyRevision: this.pathDependencyRevision(layer),
+      // Vector edits invalidate only the cheap projection below, never shaping.
+      pathDependencyRevision: 0,
       options
     };
     const layoutCacheKey = createTextLayoutCacheKey(identity);
@@ -810,7 +875,7 @@ export class TextLayerRenderCoordinator {
       const report = await dependencies.client.realizeTextDetailed({
         kind: 'realize-text',
         ...identity,
-        layer: layer.text,
+        layer: shapingData,
         flowFontSelections: flowFontSelections.selections,
         localToDocument: IDENTITY_MATRIX_3,
         cacheKey: layoutCacheKey
@@ -833,11 +898,56 @@ export class TextLayerRenderCoordinator {
       ].join(' '));
     }
     if (!this.current(generation, key)) return;
-    this.publishEditingLayout(layer, layout, transform, fontPortRevision);
+    let realizedLayout = layout;
+    let pathEditing: TextLayerEditingLayout['path'];
+    if (authoredPathLayout && source.kind === 'flow' && pathDependency?.kind === 'resolved') {
+      const documentToText = invertMatrix(transform);
+      if (!documentToText) {
+        throw new Error(`Path text ${layer.name} has a singular layer transform.`);
+      }
+      const pathLayerToText = multiplyMatrices(documentToText, pathDependency.layerToDocument);
+      const pathToDocument = multiplyMatrices(pathDependency.layerToDocument, pathDependency.path.transform);
+      const documentScale = maximumAffineScale(pathToDocument);
+      if (!(documentScale > 0) || !Number.isFinite(documentScale)) {
+        throw new Error(`Path text ${layer.name} references a singular contour transform.`);
+      }
+      const table = this.pathMetricCache.realize(
+        pathDependency.path,
+        pathDependency.subpath.id,
+        pathLayerToText,
+        0.25 / documentScale
+      );
+      const projection = projectRigidGlyphRunsToPath(
+        layout,
+        authoredPathLayout,
+        table,
+        pathAlignment(source)
+      );
+      realizedLayout = Object.freeze({
+        ...layout,
+        key: [
+          layout.key, 'path', pathDependency.revision, table.key,
+          projection.range.start, projection.range.end, projection.range.origin,
+          projection.range.direction, authoredPathLayout.side,
+          authoredPathLayout.upright ? 1 : 0
+        ].join(':'),
+        glyphRuns: projection.glyphRuns
+      });
+      pathEditing = Object.freeze({
+        pathLayout: authoredPathLayout,
+        table,
+        projection
+      });
+      this.trace(
+        'Path text projected',
+        `layer=${layer.id} length=${table.length.toFixed(2)} glyphRuns=${realizedLayout.glyphRuns.length}`
+      );
+    }
+    this.publishEditingLayout(layer, realizedLayout, transform, fontPortRevision, pathEditing);
     this.publishChanged();
     this.options.requestRender();
     this.setPreparationStage('rasterizing', layer.id);
-    const paintedLayout = projectCurrentTextPaint(layout, layer.text.source);
+    const paintedLayout = projectCurrentTextPaint(realizedLayout, layer.text.source);
     const finalOutput = this.forcedOutlineLayers.has(layer.id);
     const realization = selectTextRealizationRoute(paintedLayout, {
       documentScale: sourceScale,
@@ -897,7 +1007,7 @@ export class TextLayerRenderCoordinator {
           dependencies.backend,
           prepared.draws,
           sourceScale,
-          `${layout.key}:${layer.text.revisions.paint}:${sourceScale}`,
+          `${realizedLayout.key}:${layer.text.revisions.paint}:${sourceScale}`,
           prepared.release
         );
         if (!this.current(generation, key)) {
@@ -930,7 +1040,7 @@ export class TextLayerRenderCoordinator {
         dependencies.backend,
         prepared.draws,
         sourceScale,
-        `${layout.key}:${layer.text.revisions.paint}:${sourceScale}`
+        `${realizedLayout.key}:${layer.text.revisions.paint}:${sourceScale}`
       );
     } finally {
       prepared.release();
@@ -1155,7 +1265,8 @@ export class TextLayerRenderCoordinator {
     layer: TextLayer,
     layout: RealizedTextLayout,
     transform: AffineMatrix,
-    fontPortRevision: number
+    fontPortRevision: number,
+    path?: TextLayerEditingLayout['path']
   ) {
     this.editingLayouts.set(layer.id, Object.freeze({
       layerId: layer.id,
@@ -1166,7 +1277,8 @@ export class TextLayerRenderCoordinator {
         fontPortRevision
       ),
       layout,
-      localToDocument: Object.freeze({ ...transform })
+      localToDocument: Object.freeze({ ...transform }),
+      ...(path ? { path } : {})
     }));
   }
 
@@ -1228,7 +1340,11 @@ export class TextLayerRenderCoordinator {
     transform: AffineMatrix,
     fontRevision: number
   ) {
-    return `${documentId}:${layer.id}:${textLayerSourceKey(layer)}:${fontRevision}:${this.pathDependencyRevision(layer)}:${this.sourceScaleForLayer(layer.id, transform)}`;
+    const pathTransform = layer.text.source.kind === 'flow'
+      && layer.text.source.layout.mode === 'path'
+      ? `:${transform.a},${transform.b},${transform.c},${transform.d},${transform.tx},${transform.ty}`
+      : '';
+    return `${documentId}:${layer.id}:${textLayerSourceKey(layer)}:${fontRevision}:${this.pathDependencyRevision(layer)}:${this.sourceScaleForLayer(layer.id, transform)}${pathTransform}`;
   }
 
   private pathDependencyRevision(layer: TextLayer) {

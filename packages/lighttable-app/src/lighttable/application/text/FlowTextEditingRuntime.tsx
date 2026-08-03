@@ -3,18 +3,15 @@ import {
   buildTextEditingOverlay,
   type TextEditingOverlay
 } from '@lighttable/text-rendering';
-import type { RealizedTextLayout } from '@lighttable/text-core';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import type { AffineMatrix } from '../../editor/geometry/affine';
 import { TextInputBridge } from '../../editor/ui/TextInputBridge';
 import type { FlowTextEditingSessionController } from './flowTextEditingSession';
+import { buildPathTextEditingOverlay } from '../../text/rendering/pathTextEditingOverlay';
+import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
 
 export interface FlowTextEditingRuntimeRenderer {
-  textEditingLayout(layerId: LayerId): {
-    readonly layout: RealizedTextLayout;
-    readonly localToDocument: AffineMatrix;
-  } | null;
+  textEditingLayout(layerId: LayerId): TextLayerEditingLayout | null;
   setTextEditingOverlay(overlay: TextEditingOverlay | null, caretVisible?: boolean): void;
   beginTextInput(layerId: LayerId, startedAt?: number): boolean;
 }
@@ -61,6 +58,20 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
       start: Math.min(editing.compositionRange.anchor, editing.compositionRange.focus),
       end: Math.max(editing.compositionRange.anchor, editing.compositionRange.focus)
     } : null;
+    if (presentation.path) {
+      return buildPathTextEditingOverlay({
+        layerId: editing.layerId,
+        layout: presentation.layout,
+        pathLayout: presentation.path.pathLayout,
+        table: presentation.path.table,
+        projection: presentation.path.projection,
+        localToDocument: presentation.localToDocument,
+        anchor: editing.selection.anchor,
+        focus: editing.selection.focus,
+        caretAffinity: editing.caretAffinity,
+        composition
+      });
+    }
     return buildTextEditingOverlay({
       layerId: editing.layerId,
       layout: presentation.layout,
