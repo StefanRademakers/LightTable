@@ -56,6 +56,45 @@ describe('production coverage atlas WebGPU backend', () => {
     expect(backend.metrics()).toMatchObject({ pages: 1, entries: 1, hits: 2, misses: 1, uploads: 1, drawBatches: 1 });
   });
 
+  it('keeps a warm 10k-glyph frame to one batch with no atlas churn', async () => {
+    const { device, encoder, pass } = harness();
+    const backend = new CoverageAtlasBackend(device, 64, 1);
+    const glyph = backend.prepareGlyph(key(1), raster());
+    const draws = Array.from({ length: 10_000 }, (_, index) => ({
+      glyph,
+      x: index % 100,
+      y: Math.floor(index / 100),
+      color: [1, 1, 1, 1] as const
+    }));
+    const target = {
+      view: {} as GPUTextureView,
+      format: 'rgba16float' as const,
+      width: 1024,
+      height: 1024
+    };
+
+    expect(backend.encode(encoder, target, draws)).toBe(1);
+    await backend.retireSubmittedResources();
+    const warm = backend.metrics();
+    expect(backend.encode(encoder, target, draws)).toBe(1);
+    await backend.retireSubmittedResources();
+
+    expect(pass.draw).toHaveBeenNthCalledWith(1, 6, 10_000);
+    expect(pass.draw).toHaveBeenNthCalledWith(2, 6, 10_000);
+    expect(device.queue.writeTexture).toHaveBeenCalledOnce();
+    expect(backend.metrics()).toMatchObject({
+      pages: warm.pages,
+      entries: warm.entries,
+      misses: warm.misses,
+      uploads: warm.uploads,
+      drawBatches: warm.drawBatches + 1,
+      pinnedPages: 0
+    });
+    for (const result of vi.mocked(device.createBuffer).mock.results) {
+      expect(result.value.destroy).toHaveBeenCalledOnce();
+    }
+  });
+
   it('rejects stale page generations and defers evicted texture destruction', async () => {
     const { device, encoder } = harness();
     const backend = new CoverageAtlasBackend(device, 64, 1);
