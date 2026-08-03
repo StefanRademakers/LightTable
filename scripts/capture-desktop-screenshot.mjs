@@ -38,6 +38,7 @@ const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const strokeAlignment = argument('stroke-alignment', '');
 const mergeDown = argument('merge-down', '') === 'true';
 const openPdfPreflight = argument('pdf-preflight', '') === 'true';
+const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -63,7 +64,7 @@ const diagnostics = {
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown,
-    openPdfPreflight
+    openPdfPreflight, validatePdfFonts
   },
   outputFile,
   executablePath,
@@ -203,6 +204,12 @@ try {
     await window.getByRole('dialog', { name: 'PDF export preflight' }).waitFor({
       state: 'visible', timeout: 15_000
     });
+    if (validatePdfFonts) {
+      await window.getByRole('button', { name: 'Validate font resources' }).click();
+      await window.getByRole('status').filter({ hasText: /font resources? ready/i }).waitFor({
+        state: 'visible', timeout: 30_000
+      });
+    }
     await window.waitForTimeout(250);
   }
 

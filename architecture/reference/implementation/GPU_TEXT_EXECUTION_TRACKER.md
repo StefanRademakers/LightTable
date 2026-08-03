@@ -724,17 +724,30 @@ block reasons. No font writer is claimed by this planner.
 Open-source evidence: the locally pinned HarfBuzz reference at commit
 `c31bd6797a0e55c2b176a7be3a181f36814ec6aa` exposes the required
 `hb_subset_or_fail` path, retain-GID policy, CFF/CFF2 support and variation-axis
-pinning. The future writer must call that implementation through a bounded
-native/WASM adapter; this preflight records the exact inputs without loading
-the subsetter during ordinary editing.
+pinning. The production adapter now calls pinned `harfbuzzjs` 1.5.0's standalone
+subset WASM through that ABI with the source-face/input order verified against
+a real Anton SFNT. It retains glyph IDs and `.notdef`, pins requested variation
+axes, bounds input/output/glyph counts and reuses one WASM heap per export
+transaction. The 613-kB module remains an emitted lazy asset and is neither
+fetched nor instantiated during ordinary editing.
+
+Web-font materialization evidence: pinned `woff-lib` 0.0.3 lazily decodes WOFF
+and WOFF2 sources to SFNT through CSP-safe tree-shaken entrypoints before
+HarfBuzz. Real bundled Inter WOFF and WOFF2 fixtures both decode successfully.
+Materialization deduplicates source reads, respects the planner's embedding
+decision and face index, returns immutable resources, and caps each font and
+total output. General `unsafe-eval` remains forbidden; packaged Electron grants
+only CSP `wasm-unsafe-eval` for the bounded lazy WebAssembly instantiation.
 
 Preflight UI evidence: File > PDF Export Preflight uses the existing menu,
 compatibility-report dialog, status badges and ActionButton components. It
 shows font/layer decisions and explicitly says PDF writing is not enabled.
 The packaged desktop automation opened the dialog on `D:\TextTest.psd` and
 reported five searchable text layers, three planned subsets and zero blocked
-resources with no page errors. No new dropdown, color, spinner or CSS control
-system was added.
+resources with no page errors. Its explicit **Validate font resources** action
+then materialized three real Inter retain-GID subsets (20 KiB total) in the
+packaged application. It reuses the same compatibility report, badges and
+ActionButton; no new dropdown, color, spinner or CSS control system was added.
 
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.

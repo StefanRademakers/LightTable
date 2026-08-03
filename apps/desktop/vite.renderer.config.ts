@@ -35,7 +35,10 @@ export default defineConfig({
       ),
       '@lighttable/vector-webgpu': fileURLToPath(
         new URL('../../packages/vector-webgpu/src/index.ts', import.meta.url)
-      )
+      ),
+      '@lighttable/harfbuzz-subset-wasm?url': `${fileURLToPath(
+        new URL('../../node_modules/harfbuzzjs/dist/harfbuzz-subset.wasm', import.meta.url)
+      )}?url`
     },
     dedupe: ['react', 'react-dom']
   },
@@ -74,7 +77,10 @@ export default defineConfig({
         // Keep the packaged application's strict CSP, but allow that generated
         // bootstrap and the HMR websocket while running `npm run dev:desktop`.
         return html
-          .replace("script-src 'self';", "script-src 'self' 'unsafe-inline';")
+          .replace(
+            "script-src 'self' 'wasm-unsafe-eval';",
+            "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline';"
+          )
           .replace("connect-src 'self' blob:;", "connect-src 'self' blob: ws: wss:;");
       }
     }

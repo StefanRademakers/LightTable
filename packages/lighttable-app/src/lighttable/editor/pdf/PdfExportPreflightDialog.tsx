@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   PdfExportFontDisposition,
@@ -21,6 +21,10 @@ export const pdfExportSupportForDisposition = (
 export interface PdfExportPreflightRequest {
   readonly plan: PdfTextExportPlan;
   readonly fontLabels: Readonly<Record<string, string>>;
+  readonly validateFonts?: () => Promise<{
+    readonly embeddedFontCount: number;
+    readonly totalEmbeddedBytes: number;
+  }>;
 }
 
 interface PdfExportPreflightDialogProps {
@@ -32,13 +36,47 @@ interface PdfExportPreflightDialogProps {
 const reasons = (messages: readonly { readonly message: string }[]) =>
   messages.map(({ message }) => message).join(' ');
 
+export const formatPdfFontBytes = (byteLength: number) => byteLength < 1024
+  ? `${byteLength} B`
+  : `${(byteLength / 1024).toFixed(byteLength < 10 * 1024 ? 1 : 0)} KiB`;
+
 export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> = ({
   open,
   request,
   onClose
 }) => {
+  const generationRef = useRef(0);
+  const [validation, setValidation] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'running' }
+    | { readonly kind: 'ready'; readonly message: string }
+    | { readonly kind: 'error'; readonly message: string }
+  >({ kind: 'idle' });
+  useEffect(() => {
+    generationRef.current += 1;
+    setValidation({ kind: 'idle' });
+  }, [request]);
   if (!open || !request) return null;
   const { plan, fontLabels } = request;
+  const validateFonts = async () => {
+    if (!request.validateFonts || validation.kind === 'running') return;
+    const generation = ++generationRef.current;
+    setValidation({ kind: 'running' });
+    try {
+      const result = await request.validateFonts();
+      if (generation !== generationRef.current) return;
+      setValidation({
+        kind: 'ready',
+        message: `${result.embeddedFontCount} font resource${result.embeddedFontCount === 1 ? '' : 's'} ready · ${formatPdfFontBytes(result.totalEmbeddedBytes)}`
+      });
+    } catch (error) {
+      if (generation !== generationRef.current) return;
+      setValidation({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Font validation failed.'
+      });
+    }
+  };
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
@@ -63,6 +101,19 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
           <span>{plan.summary.raster} rasterized</span>
           <span>{plan.summary.blocked} blocked</span>
         </div>
+        {request.validateFonts ? (
+          <div className="lighttable-psd-report__metrics">
+            <ActionButton
+              disabled={validation.kind === 'running'}
+              onClick={() => { void validateFonts(); }}
+            >
+              {validation.kind === 'running' ? 'Validating fonts…' : 'Validate font resources'}
+            </ActionButton>
+            {validation.kind !== 'idle' && validation.kind !== 'running' ? (
+              <span role="status">{validation.message}</span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="lighttable-psd-report__entries">
           {plan.fonts.map((font) => (
             <article className="lighttable-psd-report__entry" key={font.instanceId}>

@@ -2334,7 +2334,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           fontLabels: Object.fromEntries(fonts.map((font) => [
             font.assetId,
             `${font.familyNames[0] ?? font.postScriptName ?? font.assetId} ${font.styleName}`.trim()
-          ]))
+          ])),
+          validateFonts: async () => {
+            const { materializePdfFontsWithHarfBuzz } = await import(
+              './infrastructure/pdf/materializePdfFontsWithHarfBuzz'
+            );
+            const resources = await materializePdfFontsWithHarfBuzz(plan, {
+              fonts,
+              loadFontBytes: (assetId) => textFontRegistry.bytes(assetId)
+            });
+            return {
+              embeddedFontCount: resources.embedded.length,
+              totalEmbeddedBytes: resources.totalEmbeddedBytes
+            };
+          }
         });
       }
     },

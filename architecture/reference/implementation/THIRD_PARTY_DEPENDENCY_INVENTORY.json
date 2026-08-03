@@ -15,8 +15,8 @@
     ]
   },
   "summary": {
-    "npmPackages": 629,
-    "npmRuntimePackages": 105,
+    "npmPackages": 632,
+    "npmRuntimePackages": 108,
     "cargoPackages": 80,
     "unknownLicenses": 0
   },
@@ -1750,6 +1750,14 @@
     },
     {
       "ecosystem": "npm",
+      "name": "brotli-lib",
+      "version": "0.0.7",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
       "name": "browserslist",
       "version": "4.28.7",
       "license": "MIT",
@@ -2754,6 +2762,14 @@
       "version": "1.0.9",
       "license": "ISC",
       "role": "transitive-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "harfbuzzjs",
+      "version": "1.5.0",
+      "license": "MIT",
+      "role": "direct-runtime",
       "optional": false
     },
     {
@@ -4954,6 +4970,14 @@
       "version": "2.3.0",
       "license": "MIT",
       "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "woff-lib",
+      "version": "0.0.3",
+      "license": "MIT",
+      "role": "direct-runtime",
       "optional": false
     },
     {

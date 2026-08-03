@@ -36,7 +36,10 @@ export default defineConfig({
       ),
       '@lighttable/vector-webgpu': fileURLToPath(
         new URL('../../packages/vector-webgpu/src/index.ts', import.meta.url)
-      )
+      ),
+      '@lighttable/harfbuzz-subset-wasm?url': `${fileURLToPath(
+        new URL('../../node_modules/harfbuzzjs/dist/harfbuzz-subset.wasm', import.meta.url)
+      )}?url`
     },
     dedupe: ['react', 'react-dom']
   },
