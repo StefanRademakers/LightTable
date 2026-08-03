@@ -824,6 +824,21 @@ annotations and load recovery all reached the editor's WebGPU frame with zero
 page errors. Password, XFA and intentionally malformed fixtures remain separate
 negative-test classes because their expected product UX is not ordinary success.
 
+The reusable `smoke:pdf-corpus` command now audits an arbitrary local PDF
+directory without copying its fixtures into the repository. It loads a bounded
+first page with the same pinned PDF.js package resources for standard fonts,
+packed CMaps and JBIG2/JPX WASM, then records text and display-list statistics
+for paths, images, Forms, clips, shadings and graphics states. File size,
+concurrency, per-phase timeouts and PDF.js cleanup are bounded; password prompts
+are reported separately from decoder failures. A deterministic sample spread
+across all 974 files in the local upstream corpus produced 198 ordinary passes,
+zero unexpected failures and two correctly classified password-protected files.
+Twelve targeted packaged-desktop previews additionally covered CID/TrueType,
+Type3 and pattern text, clipping and tiling, alpha, soft masks, isolated and
+non-isolated transparency groups, AcroForm appearance and rotation. All twelve
+reached the real WebGPU editor in 2.5-3.0 seconds with zero page errors and were
+visually inspected from captured screenshots.
+
 Native-vector writer evidence: the first normalized display-list writer subset
 serializes bounded MediaBox/CropBox/rotation, save/restore, affine transforms,
 DeviceGray/RGB/CMYK paints, cubic paths, nonzero/even-odd clips, center strokes,
