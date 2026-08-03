@@ -31,7 +31,7 @@ Status: in progress. Implements Slice 16 from
 
 ## Gates
 
-- [ ] Focused cache, renderer, command and persistence tests pass.
+- [x] Focused cache, renderer, command and persistence tests pass.
 - [x] Full workspace tests and typechecks pass for the completed renderer work.
 - [x] Production web and packaged Electron builds pass for the completed renderer work.
 - [ ] Physical high-zoom and save/reopen smoke is recorded.

@@ -25,6 +25,7 @@ import {
   createRasterLayer,
   createTextLayer,
   moveLayerIntoGroup,
+  replaceTextLayerWithVectorPaths,
   setLayerClipping,
   setLayerFillOpacity,
   setLayerLock,
@@ -752,6 +753,53 @@ describe('LightTable layered PNG format', () => {
       .toBe('live-shape');
     expect(parsedVector?.type === 'vector' ? parsedVector.antiAlias : null).toBe(false);
     expect(parsed?.assets.map((asset) => asset.layerId)).toEqual([source.layers[0].id]);
+  });
+
+  it('reopens converted text as editable glyph paths without restoring text semantics', async () => {
+    const source = createImageDocument('Converted title', 2, 2, 'source');
+    const withText = createTextLayer(
+      source,
+      createDefaultTextLayerData(),
+      'Editable title'
+    );
+    const textLayerId = withText.activeLayerId!;
+    const glyph = createVectorPath('glyph-title-a', 'A', [
+      createSubpath('glyph-title-a-outer', [
+        createAnchor('glyph-title-a-1', { x: 0.1, y: 1.8 }),
+        createAnchor('glyph-title-a-2', { x: 1, y: 0.1 }),
+        createAnchor('glyph-title-a-3', { x: 1.9, y: 1.8 })
+      ], true)
+    ]);
+    glyph.style.fill = { type: 'solid', color: [0.85, 0.2, 0.4, 1] };
+    glyph.style.stroke = {
+      paint: { type: 'solid', color: [0.1, 0.05, 0.08, 1] },
+      width: 0.08,
+      cap: 'round',
+      join: 'round',
+      miterLimit: 4,
+      dash: [],
+      dashOffset: 0
+    };
+    const converted = replaceTextLayerWithVectorPaths(withText, textLayerId, [glyph]);
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      converted,
+      defaultStack(),
+      [{
+        layerId: source.layers[0].id,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }],
+      'converted-title.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const reopened = parsed ? findDocumentLayer(parsed.document, textLayerId) : null;
+
+    expect(reopened?.type).toBe('vector');
+    expect(reopened?.type === 'vector' ? reopened.elements : null).toEqual([glyph]);
+    expect(reopened && 'text' in reopened).toBe(false);
+    expect(parsed?.document.activeLayerId).toBe(textLayerId);
   });
 
   it('round-trips fill opacity, clipping and structured locks', async () => {
