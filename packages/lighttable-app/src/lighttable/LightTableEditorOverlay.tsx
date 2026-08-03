@@ -133,7 +133,8 @@ import {
 import {
   buildTextPropertyPresentation,
   textFillPatchFromHex,
-  textFontPatch
+  textFontPatch,
+  textStrokePatch
 } from './application/text/textPropertyPresentation';
 import {
   applyTextLayerDataMutation,
@@ -499,8 +500,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId; readonly before: ImageDocument }
     | null
   >(null);
-  const pendingTextFillRef = useRef<string | null>(null);
-  const textFillPreviewFrameRef = useRef<number | null>(null);
+  const pendingTextPaintPatchRef = useRef<TextStylePatch | null>(null);
+  const textPaintPreviewFrameRef = useRef<number | null>(null);
   const selectLayerRef = useRef<(layerId: LayerId) => void>(() => undefined);
   const pointTextCreation = useSyncExternalStore(
     pointTextController.subscribe,
@@ -2372,6 +2373,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         face: { kind: 'unavailable' as const },
         size: { kind: 'unavailable' as const },
         fill: { kind: 'unavailable' as const },
+        strokeColor: { kind: 'unavailable' as const },
+        strokeWidth: { kind: 'unavailable' as const },
         tracking: { kind: 'unavailable' as const },
         alignment: { kind: 'unavailable' as const },
         lineHeight: { kind: 'unavailable' as const },
@@ -2445,25 +2448,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       });
     });
   };
-  const cancelPendingTextFillPreview = () => {
-    pendingTextFillRef.current = null;
-    if (textFillPreviewFrameRef.current === null) return;
-    window.cancelAnimationFrame(textFillPreviewFrameRef.current);
-    textFillPreviewFrameRef.current = null;
+  const cancelPendingTextPaintPreview = () => {
+    pendingTextPaintPatchRef.current = null;
+    if (textPaintPreviewFrameRef.current === null) return;
+    window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
+    textPaintPreviewFrameRef.current = null;
   };
-  const flushPendingTextFillPreview = () => {
-    const fill = pendingTextFillRef.current;
-    pendingTextFillRef.current = null;
-    if (textFillPreviewFrameRef.current !== null) {
-      window.cancelAnimationFrame(textFillPreviewFrameRef.current);
-      textFillPreviewFrameRef.current = null;
+  const flushPendingTextPaintPreview = () => {
+    const patch = pendingTextPaintPatchRef.current;
+    pendingTextPaintPatchRef.current = null;
+    if (textPaintPreviewFrameRef.current !== null) {
+      window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
+      textPaintPreviewFrameRef.current = null;
     }
-    if (!fill) return;
-    const patch = textFillPatchFromHex(fill);
     if (patch) applyTextPropertyPatch(patch);
   };
+  const queueTextPaintPreview = (patch: TextStylePatch) => {
+    pendingTextPaintPatchRef.current = patch;
+    if (textPaintPreviewFrameRef.current !== null) return;
+    textPaintPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      textPaintPreviewFrameRef.current = null;
+      flushPendingTextPaintPreview();
+    });
+  };
   const commitTextPropertyGesture = () => {
-    flushPendingTextFillPreview();
+    flushPendingTextPaintPreview();
     const gesture = textPropertyGestureRef.current;
     if (!gesture) return;
     if (gesture.kind === 'text') textEditingController.endFormatting();
@@ -2471,7 +2480,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textPropertyGestureRef.current = null;
   };
   const cancelTextPropertyGesture = () => {
-    cancelPendingTextFillPreview();
+    cancelPendingTextPaintPreview();
     const gesture = textPropertyGestureRef.current;
     if (!gesture) return;
     if (gesture.kind === 'text') {
@@ -2509,18 +2518,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     // Native colour pickers can emit far more input events than the compositor
     // can present. Coalesce them to one canonical paint update per frame while
     // retaining the final value on gesture commit.
-    pendingTextFillRef.current = fill;
-    if (textFillPreviewFrameRef.current !== null) return;
-    textFillPreviewFrameRef.current = window.requestAnimationFrame(() => {
-      textFillPreviewFrameRef.current = null;
-      flushPendingTextFillPreview();
-    });
+    const patch = textFillPatchFromHex(fill);
+    if (patch) queueTextPaintPreview(patch);
+  };
+  const applyTextStrokeColor = (stroke: string) => {
+    const width = textPropertyPresentation?.strokeWidth.kind === 'value'
+      && textPropertyPresentation.strokeWidth.value > 0
+      ? textPropertyPresentation.strokeWidth.value : 1;
+    const patch = textStrokePatch(stroke, width);
+    if (patch) queueTextPaintPreview(patch);
+  };
+  const applyTextStrokeWidth = (width: number) => {
+    const stroke = textPropertyPresentation?.strokeColor.kind === 'value'
+      ? textPropertyPresentation.strokeColor.value : '#000000';
+    const patch = textStrokePatch(stroke, width);
+    if (patch) applyTextPropertyPatch(patch);
   };
   useEffect(() => () => {
-    pendingTextFillRef.current = null;
-    if (textFillPreviewFrameRef.current !== null) {
-      window.cancelAnimationFrame(textFillPreviewFrameRef.current);
-      textFillPreviewFrameRef.current = null;
+    pendingTextPaintPatchRef.current = null;
+    if (textPaintPreviewFrameRef.current !== null) {
+      window.cancelAnimationFrame(textPaintPreviewFrameRef.current);
+      textPaintPreviewFrameRef.current = null;
     }
   }, []);
   const textPropertiesPanel = textPropertyPresentation ? {
@@ -2529,6 +2547,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onFontAsset: applyTextFontAsset,
     onSize: (size: number) => applyTextPropertyPatch({ fontSize: size }),
     onFill: applyTextFill,
+    onStrokeColor: applyTextStrokeColor,
+    onStrokeWidth: applyTextStrokeWidth,
     onTracking: (tracking: number) => applyTextPropertyPatch({ tracking }),
     onParagraph: (patch: ParagraphStylePatch) => applyTextPropertyPatch({}, patch),
     onBegin: beginTextPropertyGesture,
@@ -2573,6 +2593,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onTextFontAssetChange={applyTextFontAsset}
       onTextSizeChange={(fontSize) => applyTextPropertyPatch({ fontSize })}
       onTextFillChange={applyTextFill}
+      onTextStrokeColorChange={applyTextStrokeColor}
+      onTextStrokeWidthChange={applyTextStrokeWidth}
       onTextAlignmentChange={(alignment) => applyDiscreteTextParagraph({ alignment })}
       onTextPropertyBegin={beginTextPropertyGesture}
       onTextPropertyCommit={commitTextPropertyGesture}
@@ -2669,6 +2691,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onTextFontAssetChange: applyTextFontAsset,
             onTextSizeChange: (fontSize) => applyTextPropertyPatch({ fontSize }),
             onTextFillChange: applyTextFill,
+            onTextStrokeColorChange: applyTextStrokeColor,
+            onTextStrokeWidthChange: applyTextStrokeWidth,
             onTextAlignmentChange: (alignment) => applyDiscreteTextParagraph({ alignment }),
             onTextPropertyBegin: beginTextPropertyGesture,
             onTextPropertyCommit: commitTextPropertyGesture,

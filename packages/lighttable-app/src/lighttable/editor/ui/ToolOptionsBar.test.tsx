@@ -40,6 +40,8 @@ const renderOptions = (
     onTextFontAssetChange: vi.fn(),
     onTextSizeChange: vi.fn(),
     onTextFillChange: vi.fn(),
+    onTextStrokeColorChange: vi.fn(),
+    onTextStrokeWidthChange: vi.fn(),
     onTextAlignmentChange: vi.fn(),
     onTextPropertyBegin: vi.fn(),
     onTextPropertyCommit: vi.fn(),
@@ -91,6 +93,8 @@ describe('point text tool options', () => {
       target: 'selection', family: { kind: 'value', value: 'Inter' },
       face: { kind: 'value', value: 'inter' }, size: { kind: 'mixed' },
       fill: { kind: 'value', value: '#ff0000' }, tracking: { kind: 'value', value: 0 },
+      strokeColor: { kind: 'value', value: '#00ff00' },
+      strokeWidth: { kind: 'value', value: 3 },
       alignment: { kind: 'value', value: 'center' },
       lineHeight: { kind: 'value', value: { kind: 'normal' } },
       firstLineIndent: { kind: 'value', value: 0 }, startIndent: { kind: 'value', value: 0 },
@@ -100,6 +104,9 @@ describe('point text tool options', () => {
     });
     expect(markup).toContain('placeholder="Mixed"');
     expect(markup).toContain('value="#ff0000"');
+    expect(markup).toContain('aria-label="Text line"');
+    expect(markup).toContain('value="#00ff00"');
+    expect(markup).toContain('value="3"');
     expect(markup).toContain('aria-label="Text layout mode"');
     expect(markup).toContain('Convert to paragraph text');
     expect(markup).toContain('<option value="center" selected="">Center</option>');

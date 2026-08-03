@@ -11,6 +11,8 @@ export interface TextPropertiesPanelProps {
   readonly onFontAsset: (assetId: string) => void;
   readonly onSize: (size: number) => void;
   readonly onFill: (fill: string) => void;
+  readonly onStrokeColor: (stroke: string) => void;
+  readonly onStrokeWidth: (width: number) => void;
   readonly onTracking: (tracking: number) => void;
   readonly onParagraph: (patch: ParagraphStylePatch) => void;
   readonly onBegin: () => void;
@@ -21,7 +23,8 @@ export interface TextPropertiesPanelProps {
 const mixedOption = <option value="" disabled>Mixed</option>;
 
 export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
-  model, fonts, onFontAsset, onSize, onFill, onTracking, onParagraph,
+  model, fonts, onFontAsset, onSize, onFill, onStrokeColor, onStrokeWidth,
+  onTracking, onParagraph,
   onBegin, onCommit, onCancel
 }) => {
   const family = model.family.kind === 'value' ? model.family.value : '';
@@ -92,6 +95,21 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
                   ? <em>{model.fill.kind === 'mixed' ? 'Mixed' : 'Non-solid / unsupported'}</em>
                   : null}
               />
+              <ToolOptionColor
+                label="Line"
+                value={model.strokeColor.kind === 'value' ? model.strokeColor.value : '#000000'}
+                ariaLabel="Text line"
+                onFocus={onBegin}
+                onChange={onStrokeColor}
+                onBlur={onCommit}
+                onCancel={onCancel}
+                status={model.strokeColor.kind !== 'value'
+                  ? <em>{model.strokeColor.kind === 'mixed' ? 'Mixed' : 'Non-solid / unsupported'}</em>
+                  : null}
+              />
+              <MixedNumberInput label="Weight" value={model.strokeWidth} min={0}
+                max={100000} step={0.5} unit="px" onBegin={onBegin}
+                onPreview={onStrokeWidth} onCommit={onCommit} onCancel={onCancel} />
               <MixedNumberInput label="Tracking" value={model.tracking} min={-1000}
                 max={1000} step={1} unit="1/1000 em" onBegin={onBegin}
                 onPreview={onTracking} onCommit={onCommit} onCancel={onCancel} />

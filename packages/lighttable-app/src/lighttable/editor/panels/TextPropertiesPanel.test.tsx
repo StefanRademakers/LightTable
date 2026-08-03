@@ -10,6 +10,8 @@ describe('contextual text properties', () => {
         target: 'selection',
         family: { kind: 'mixed' }, face: { kind: 'mixed' },
         size: { kind: 'mixed' }, fill: { kind: 'mixed' },
+        strokeColor: { kind: 'value', value: '#ffffff' },
+        strokeWidth: { kind: 'value', value: 2 },
         tracking: { kind: 'value', value: 0 },
         alignment: { kind: 'value', value: 'justify' },
         lineHeight: { kind: 'value', value: { kind: 'absolute', value: 24 } },
@@ -20,6 +22,7 @@ describe('contextual text properties', () => {
       }}
       fonts={[]}
       onFontAsset={vi.fn()} onSize={vi.fn()} onFill={vi.fn()} onTracking={vi.fn()}
+      onStrokeColor={vi.fn()} onStrokeWidth={vi.fn()}
       onParagraph={vi.fn()}
       onBegin={vi.fn()} onCommit={vi.fn()} onCancel={vi.fn()}
     />);
@@ -27,6 +30,8 @@ describe('contextual text properties', () => {
     expect(markup).toContain('Selection');
     expect(markup).toContain('Mixed');
     expect(markup).toContain('aria-label="Text fill"');
+    expect(markup).toContain('aria-label="Text line"');
+    expect(markup).toContain('<span>Weight</span>');
     expect(markup).toContain('lighttable-tool-options__field');
     expect(markup).toContain('lighttable-tool-options__weight-field');
     expect(markup).toContain('lighttable-tool-options__color-field');

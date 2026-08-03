@@ -41,6 +41,8 @@ export interface ToolOptionsProps {
   onTextFontAssetChange?: (assetId: string) => void;
   onTextSizeChange?: (size: number) => void;
   onTextFillChange?: (fill: string) => void;
+  onTextStrokeColorChange?: (stroke: string) => void;
+  onTextStrokeWidthChange?: (width: number) => void;
   onTextAlignmentChange?: (alignment: TextToolSettings['alignment']) => void;
   onTextPropertyBegin?: () => void;
   onTextPropertyCommit?: () => void;
@@ -108,6 +110,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onTextFontAssetChange,
   onTextSizeChange,
   onTextFillChange,
+  onTextStrokeColorChange,
+  onTextStrokeWidthChange,
   onTextAlignmentChange,
   onTextPropertyBegin,
   onTextPropertyCommit,
@@ -319,6 +323,28 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 <em>{textProperties.fill.kind === 'mixed' ? 'Mixed' : 'Non-solid / unsupported'}</em>
               ) : null}
             />
+          ) : null}
+          {textProperties && onTextStrokeColorChange ? (
+            <ToolOptionColor
+              label="Line"
+              value={textProperties.strokeColor.kind === 'value'
+                ? textProperties.strokeColor.value : '#000000'}
+              ariaLabel="Text line"
+              onFocus={onTextPropertyBegin}
+              onChange={onTextStrokeColorChange}
+              onBlur={onTextPropertyCommit}
+              onCancel={onTextPropertyCancel}
+              status={textProperties.strokeColor.kind !== 'value' ? (
+                <em>{textProperties.strokeColor.kind === 'mixed' ? 'Mixed' : 'Non-solid / unsupported'}</em>
+              ) : null}
+            />
+          ) : null}
+          {textProperties && onTextStrokeWidthChange && onTextPropertyBegin
+            && onTextPropertyCommit && onTextPropertyCancel ? (
+            <MixedNumberInput label="Weight" value={textProperties.strokeWidth} min={0}
+              max={100000} step={0.5} unit="px" onBegin={onTextPropertyBegin}
+              onPreview={onTextStrokeWidthChange} onCommit={onTextPropertyCommit}
+              onCancel={onTextPropertyCancel} />
           ) : null}
           <label className="lighttable-tool-options__field">
             <span>Antialias</span>

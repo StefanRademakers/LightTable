@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildTextPropertyPresentation,
   solidTextPaintHex,
-  textFillPatchFromHex
+  textFillPatchFromHex,
+  textStrokePatch
 } from './textPropertyPresentation';
 
 describe('text property presentation', () => {
@@ -20,6 +21,8 @@ describe('text property presentation', () => {
     expect(presentation.tracking.kind).toBe('mixed');
     expect(presentation.size).toEqual({ kind: 'value', value: 16 });
     expect(presentation.fill).toEqual({ kind: 'value', value: '#000000' });
+    expect(presentation.strokeColor).toEqual({ kind: 'value', value: '#000000' });
+    expect(presentation.strokeWidth).toEqual({ kind: 'value', value: 0 });
     expect(presentation.alignment).toEqual({ kind: 'value', value: 'start' });
     expect(presentation.lineHeight).toEqual({ kind: 'value', value: { kind: 'normal' } });
   });
@@ -55,6 +58,14 @@ describe('text property presentation', () => {
       fill: { kind: 'solid', color: { r: 1, b: 0, a: 1 } }
     });
     expect(textFillPatchFromHex('#fff')).toBeNull();
+  });
+
+  it('builds and disables a solid text stroke through the canonical style patch', () => {
+    expect(textStrokePatch('#123456', 2.5)).toMatchObject({
+      stroke: { paint: { kind: 'solid' }, width: 2.5, cap: 'butt', join: 'miter' }
+    });
+    expect(textStrokePatch('#123456', 0)).toEqual({ stroke: undefined });
+    expect(textStrokePatch('#fff', 1)).toBeNull();
   });
 
   it('only exposes editable CSS color values for sRGB solid paint', () => {

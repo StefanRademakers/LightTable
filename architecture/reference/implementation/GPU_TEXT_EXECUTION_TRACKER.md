@@ -666,6 +666,20 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 18 shared text-stroke UI
+
+- UI: editable flow text exposes imported/renderable stroke through `Line` and
+  `Weight` in both the existing Tool Options row and contextual Text panel.
+  These reuse the same shared colour and number controls as vector shapes; no
+  panel type, picker, dropdown or CSS family was introduced.
+- Editing: colour and width apply to the active layer, insertion point or text
+  selection through the existing formatting transaction. A zero-pixel weight
+  removes the canonical stroke.
+- Performance: fill and stroke colour previews share one animation-frame
+  coalescer, retaining the final value without creating an input/render queue.
+- Verification: property projection/patch and both established UI surfaces are
+  covered; complete tests, typechecks, web build and packaged Electron pass.
+
 ### 2026-08-03 - Slice 18 editable-semantics gate audit
 
 - Runtime truthfulness: the PSD adapter no longer marks faux styles, baseline

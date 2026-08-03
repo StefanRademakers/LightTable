@@ -15,6 +15,8 @@ export interface TextPropertyPresentation {
   readonly face: MixedValue<string>;
   readonly size: MixedValue<number>;
   readonly fill: MixedValue<string>;
+  readonly strokeColor: MixedValue<string>;
+  readonly strokeWidth: MixedValue<number>;
   readonly tracking: MixedValue<number>;
   readonly alignment: MixedValue<ParagraphStyleRun['alignment']>;
   readonly lineHeight: MixedValue<ParagraphStyleRun['lineHeight']>;
@@ -43,16 +45,30 @@ export const solidTextPaintHex = (paint: TextStyleRun['fill']) => paint.kind ===
   ? `#${byteHex(paint.color.r)}${byteHex(paint.color.g)}${byteHex(paint.color.b)}`
   : null;
 
-export const textFillPatchFromHex = (value: string): TextStylePatch | null => {
+const solidPaintFromHex = (value: string): TextStyleRun['fill'] | null => {
   const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(value);
   if (!match) return null;
-  return { fill: { kind: 'solid', color: {
+  return { kind: 'solid', color: {
     colorSpace: 'srgb',
     r: Number.parseInt(match[1]!, 16) / 255,
     g: Number.parseInt(match[2]!, 16) / 255,
     b: Number.parseInt(match[3]!, 16) / 255,
     a: 1
-  } } };
+  } };
+};
+
+export const textFillPatchFromHex = (value: string): TextStylePatch | null => {
+  const fill = solidPaintFromHex(value);
+  return fill ? { fill } : null;
+};
+
+export const textStrokePatch = (value: string, width: number): TextStylePatch | null => {
+  if (!Number.isFinite(width) || width < 0 || width > 100_000) return null;
+  if (width === 0) return { stroke: undefined };
+  const paint = solidPaintFromHex(value);
+  return paint ? { stroke: {
+    paint, width, cap: 'butt', join: 'miter', miterLimit: 4
+  } } : null;
 };
 
 const faceKey = (asset: Pick<DocumentFontAsset, 'fingerprintSha256' | 'faceIndex'>) => (
@@ -105,6 +121,13 @@ export const buildTextPropertyPresentation = (
     fill: mapValue(
       projectFlowTextStyleProperty(source, selection, 'fill', insertionStyle),
       solidTextPaintHex
+    ),
+    strokeColor: mapValue(
+      projectFlowTextStyleProperty(source, selection, 'stroke', insertionStyle),
+      (stroke) => stroke ? solidTextPaintHex(stroke.paint) : '#000000'
+    ),
+    strokeWidth: projectFlowTextStyleValue(
+      source, selection, (style) => style.stroke?.width ?? 0, insertionStyle
     ),
     tracking: projectFlowTextStyleProperty(source, selection, 'tracking', insertionStyle),
     alignment: projectFlowTextParagraphProperty(source, selection, 'alignment', insertionParagraph),
