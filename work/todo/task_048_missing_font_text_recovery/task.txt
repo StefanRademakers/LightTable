@@ -1,0 +1,49 @@
+# Task 048 - Missing-font text recovery
+
+Status: todo
+
+Native LightTable, PSD, PDF and AI text with unavailable fonts must remain
+semantically recoverable. A retained bounded raster preview provides visual
+fidelity until the user chooses a replacement; it must not become the only
+representation of the layer.
+
+## Desired behavior
+
+- [ ] Preserve supported text semantics, runs, layout, transform, path and the
+  original raster preview when one or more referenced fonts are unavailable.
+- [ ] Give the canonical text-layer contract an optional derived preview-cache
+  asset reference plus source/font fingerprints; adapters must map into this
+  shared contract instead of inventing format-specific fallback layers.
+- [ ] Persist that bounded preview, cache version and fingerprints in the native
+  LightTable format so the same behavior survives save/reopen on another
+  machine without the original font.
+- [ ] Invalidate/rebuild the preview when authoritative text, layout, transform,
+  rendering version or resolved font fingerprints change; keep it reusable and
+  evictable while nothing relevant changed.
+- [ ] Render the retained preview while unresolved and show the existing
+  missing/substituted-font status on the text layer.
+- [ ] On the first edit attempt, use existing dialog/components/CSS to offer
+  `Cancel`, `Replace` and `Manage` instead of silently rasterizing or failing.
+- [ ] `Replace` chooses an available bundled/document/system font, realizes the
+  preserved text through the normal WASM + WebGPU text pipeline and leaves the
+  layer fully editable.
+- [ ] `Manage` opens a document-wide missing-font view with per-font replacement
+  and replace-all controls.
+- [ ] Keep the retained source preview as a non-authoritative fidelity reference
+  after replacement; do not composite it once native text is authoritative.
+- [ ] Record the replacement as one undoable document command and preserve it
+  through LightTable save/reopen and future PSD/PDF export.
+
+## Gates
+
+- [ ] The EHS template corpus exposes unavailable Photoshop fonts as text layers
+  with a preview rather than raster-only layers where semantics are supported.
+- [ ] A native LightTable file created with a temporarily available font reopens
+  visually from its cached preview when that font is absent, then becomes native
+  editable text after Replace without losing its runs/layout/path.
+- [ ] Cancel changes nothing; Replace produces editable text; Manage can resolve
+  repeated missing fonts across the document.
+- [ ] Mixed available/missing runs, paragraph text, point text, rotations and
+  text-on-path have focused tests.
+- [ ] Web remains functional with bundled/document fonts; desktop system fonts
+  integrate through Task 046 without a second rendering path.
