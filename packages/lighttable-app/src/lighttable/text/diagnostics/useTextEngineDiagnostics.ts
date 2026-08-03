@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { lightTableTextEngine, TextLayoutRuntimeError } from '../wasm/TextEngineClient';
 import { runTypographyCorpus, type TypographyCorpusReport } from './runTypographyCorpus';
+import type { TextRendererBakeoffReport } from './runTextRendererBakeoff';
 
 export interface TextEngineDiagnosticState {
   readonly status: 'idle' | 'loading' | 'ready' | 'error';
@@ -9,6 +10,9 @@ export interface TextEngineDiagnosticState {
   readonly lastLayoutError: string | null;
   readonly report: TypographyCorpusReport | null;
   readonly corpusAvailable: boolean;
+  readonly rendererStatus: 'idle' | 'loading' | 'ready' | 'error';
+  readonly rendererPhase: string | null;
+  readonly rendererReport: TextRendererBakeoffReport | null;
 }
 
 type AppendDiagnostic = (
@@ -24,7 +28,10 @@ const initialState: TextEngineDiagnosticState = {
   phase: null,
   lastLayoutError: null,
   report: null,
-  corpusAvailable: import.meta.env.DEV
+  corpusAvailable: import.meta.env.DEV,
+  rendererStatus: 'idle',
+  rendererPhase: null,
+  rendererReport: null
 };
 const reportDetails = (report: TypographyCorpusReport) => [
   `Cold roundtrip: ${report.coldRoundTripMs.toFixed(2)} ms`,
@@ -42,9 +49,13 @@ const reportDetails = (report: TypographyCorpusReport) => [
 
 export const useTextEngineDiagnostics = (append: AppendDiagnostic) => {
   const [state, setState] = useState<TextEngineDiagnosticState>(initialState);
-  const abortRef = useRef<AbortController | null>(null);
+  const corpusAbortRef = useRef<AbortController | null>(null);
+  const rendererAbortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => {
+    corpusAbortRef.current?.abort();
+    rendererAbortRef.current?.abort();
+  }, []);
 
   const probe = useCallback(() => {
     setState((current) => ({ ...current, status: 'loading', phase: 'Loading text WASM', summary: 'Loading Rust/WASM text engine...' }));
@@ -60,9 +71,9 @@ export const useTextEngineDiagnostics = (append: AppendDiagnostic) => {
   }, [append]);
 
   const runCorpus = useCallback(() => {
-    abortRef.current?.abort();
+    corpusAbortRef.current?.abort();
     const abort = new AbortController();
-    abortRef.current = abort;
+    corpusAbortRef.current = abort;
     setState((current) => ({
       ...current, status: 'loading', phase: 'Loading corpus fixtures',
       summary: 'Running the fixed typography corpus...', lastLayoutError: null
@@ -74,10 +85,13 @@ export const useTextEngineDiagnostics = (append: AppendDiagnostic) => {
       return runTypographyCorpus(
         lightTableTextEngine,
         bytes,
-        (phase) => setState((current) => ({ ...current, phase })),
+        (phase) => {
+          if (corpusAbortRef.current === abort) setState((current) => ({ ...current, phase }));
+        },
         abort.signal
       );
     })().then((report) => {
+      if (corpusAbortRef.current !== abort) return;
       const failed = report.cases.filter((entry) => !entry.passed);
       const summary = `${report.cases.length - failed.length} passed · ${failed.length} failed · warm p95 ${report.warmCorpusP95Ms.toFixed(1)} ms.`;
       const details = reportDetails(report);
@@ -87,7 +101,11 @@ export const useTextEngineDiagnostics = (append: AppendDiagnostic) => {
       }));
       append(failed.length ? 'error' : 'info', 'Typography corpus', summary, details);
     }).catch((reason: unknown) => {
-      if (abort.signal.aborted) return;
+      if (corpusAbortRef.current !== abort) return;
+      if (abort.signal.aborted) {
+        setState((current) => ({ ...current, status: 'idle', phase: null, summary: 'Typography corpus canceled.' }));
+        return;
+      }
       const message = reason instanceof Error ? reason.message : 'Typography corpus failed.';
       const lastLayoutError = reason instanceof TextLayoutRuntimeError
         ? `${reason.layoutError.code}: ${reason.layoutError.message}`
@@ -96,8 +114,69 @@ export const useTextEngineDiagnostics = (append: AppendDiagnostic) => {
         ...current, status: 'error', phase: null, summary: message, lastLayoutError
       }));
       append('error', 'Typography corpus', message);
+    }).finally(() => {
+      if (corpusAbortRef.current === abort) corpusAbortRef.current = null;
     });
   }, [append]);
 
-  return { state, probe, runCorpus };
+  const runRendererBakeoff = useCallback(() => {
+    rendererAbortRef.current?.abort();
+    const abort = new AbortController();
+    rendererAbortRef.current = abort;
+    setState((current) => ({
+      ...current, rendererStatus: 'loading', rendererPhase: 'Loading fixed renderer fixtures',
+      summary: 'Running the bounded GPU text renderer bakeoff...'
+    }));
+    void (async () => {
+      if (!import.meta.env.DEV) throw new Error('Renderer bakeoff fixtures are development-only.');
+      const [{ loadRendererBakeoffFixtures }, { runTextRendererBakeoff }] = await Promise.all([
+        import('./rendererBakeoffFixtures.dev'), import('./runTextRendererBakeoff')
+      ]);
+      const run = runTextRendererBakeoff(
+        await loadRendererBakeoffFixtures(),
+        (rendererPhase) => {
+          if (rendererAbortRef.current === abort) setState((current) => ({ ...current, rendererPhase }));
+        },
+        abort.signal
+      );
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          run,
+          new Promise<never>((_resolve, reject) => {
+            timeout = setTimeout(() => {
+              abort.abort();
+              reject(new Error('GPU text renderer bakeoff exceeded the 180 second diagnostic limit.'));
+            }, 180_000);
+          })
+        ]);
+      } finally {
+        if (timeout !== undefined) clearTimeout(timeout);
+      }
+    })().then((rendererReport) => {
+      if (rendererAbortRef.current !== abort) return;
+      const summary = `Coverage ${rendererReport.decision.coverageAtlas}; hb-gpu ${rendererReport.decision.hbGpu}.`;
+      setState((current) => ({
+        ...current, rendererStatus: 'ready', rendererPhase: null, rendererReport, summary
+      }));
+      append('info', 'GPU text renderer bakeoff', summary, JSON.stringify(rendererReport, null, 2));
+    }).catch((reason: unknown) => {
+      if (rendererAbortRef.current !== abort) return;
+      if (abort.signal.aborted && !(reason instanceof Error && /exceeded the 180 second/.test(reason.message))) {
+        setState((current) => ({
+          ...current, rendererStatus: 'idle', rendererPhase: null, summary: 'GPU renderer bakeoff canceled.'
+        }));
+        return;
+      }
+      const message = reason instanceof Error ? reason.message : 'GPU text renderer bakeoff failed.';
+      setState((current) => ({
+        ...current, rendererStatus: 'error', rendererPhase: null, summary: message
+      }));
+      append('error', 'GPU text renderer bakeoff', message);
+    }).finally(() => {
+      if (rendererAbortRef.current === abort) rendererAbortRef.current = null;
+    });
+  }, [append]);
+
+  return { state, probe, runCorpus, runRendererBakeoff };
 };

@@ -331,16 +331,16 @@ Devanagari, Thai, CJK, combining marks and emoji samples.
 
 #### Slice 07 — renderer bakeoff and decision record
 
-- [ ] Implement a bounded R8 hinted coverage-atlas prototype.
-- [ ] Integrate a minimal `hb-gpu` WGSL prototype using the same fixture runs.
-- [ ] Compare quality at small text, normal zoom, extreme zoom and transforms.
-- [ ] Compare cold preparation, warm frame cost, VRAM, uploads and draw batches.
-- [ ] Test Intel, AMD, NVIDIA and integrated Mac WebGPU where available.
-- [ ] Fuzz/limit pathological glyph outlines and record shader failures.
-- [ ] Decide the production fidelity route and update the architecture record.
+- [x] Implement a bounded R8 hinted coverage-atlas prototype.
+- [x] Integrate a minimal `hb-gpu` WGSL prototype using the same fixture runs.
+- [x] Compare quality at small text, normal zoom, extreme zoom and transforms.
+- [x] Compare cold preparation, warm frame cost, VRAM, uploads and draw batches.
+- [x] Test Intel, AMD, NVIDIA and integrated Mac WebGPU where available.
+- [x] Fuzz/limit pathological glyph outlines and record shader failures.
+- [x] Decide the production fidelity route and update the architecture record.
 
-UI exposure: Debug-only renderer selector and side-by-side/reference captures;
-never a user preference.
+UI exposure: Debug-only report selector with side-by-side metrics and reference
+capture hashes; never a user preference.
 
 Exit gate: coverage atlas remains the live path unless measurements justify a
 different choice; the fidelity route has a recorded GO/CONDITIONAL GO/NO-GO.
@@ -651,6 +651,28 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 — Slice 07 complete
+
+- Owner: Codex `/root`; independent read-only blocker audit by
+  `/root/slice07_bakeoff_map`.
+- Runtime: protocol 3 adds exact hinted R8 glyph rasterization with owned
+  transfers, exact response identity and deterministic WASM disposal.
+- Prototypes: bounded R8 atlas upload/instanced draw and pinned HarfBuzz hb-gpu
+  widened-storage draw run offscreen without touching the document compositor.
+- Safety: dimensions, bytes, glyph counts, blob bands, offsets, curve loops,
+  mutable storage, shader compilation, pipeline layout and WebGPU validation
+  errors are gated before/around submission.
+- UI/metrics: a development-only Debug action covers small, normal, extreme
+  zoom and transformed cases and emits timing, upload, VRAM, batch, alpha-error
+  and capture-hash JSON. No user preference or product renderer changed.
+- Decision: coverage atlas GO/default; hb-gpu CONDITIONAL GO for future
+  extreme-zoom fidelity; hb-gpu-only and MSDF NO-GO for now. See
+  `GPU_TEXT_RENDERER_BAKEOFF.md`.
+- Hardware: NVIDIA and Intel devices were physically present, but no automated
+  browser WebGPU surface was available; AMD/Mac were unavailable. The report
+  therefore records no cross-vendor runtime passes.
+- Next safe slice: Slice 08, production coverage atlas.
 
 ### 2026-08-03 — Slice 06 complete
 

@@ -6,6 +6,7 @@ use skrifa::{
 };
 use wasm_bindgen::prelude::*;
 
+mod glyph_raster;
 mod layout;
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -113,6 +114,54 @@ pub fn register_layout_font(
 /// typed arrays and avoid JSON/string copies across the WASM boundary.
 #[wasm_bindgen]
 pub struct PackedFlowLayout(layout::PackedFlowLayout);
+
+/// Bounded hinted R8 mask used only by the renderer bakeoff.
+#[wasm_bindgen]
+pub struct PackedGlyphCoverage(glyph_raster::GlyphCoverageMask);
+
+#[wasm_bindgen]
+impl PackedGlyphCoverage {
+    #[wasm_bindgen(getter)]
+    pub fn width(&self) -> u32 {
+        self.0.width
+    }
+    #[wasm_bindgen(getter)]
+    pub fn height(&self) -> u32 {
+        self.0.height
+    }
+    #[wasm_bindgen(getter)]
+    pub fn bearing_x(&self) -> i32 {
+        self.0.bearing_x
+    }
+    #[wasm_bindgen(getter)]
+    pub fn bearing_y(&self) -> i32 {
+        self.0.bearing_y
+    }
+    #[wasm_bindgen(getter)]
+    pub fn command_count(&self) -> u32 {
+        self.0.command_count as u32
+    }
+    pub fn pixels(&self) -> Vec<u8> {
+        self.0.pixels.clone()
+    }
+}
+
+/// Rasterizes one exact registered face/glyph using Skrifa embedded hinting
+/// and an allocation-bounded R8 coverage mask.
+#[wasm_bindgen]
+pub fn rasterize_registered_glyph(
+    session_key: &str,
+    asset_id: &str,
+    face_index: u32,
+    glyph_id: u32,
+    ppem: f32,
+) -> Result<PackedGlyphCoverage, JsValue> {
+    let blob = layout::registered_font(session_key, asset_id, face_index)
+        .map_err(|error| JsValue::from_str(&error))?;
+    glyph_raster::rasterize(blob.data(), face_index, glyph_id, ppem)
+        .map(PackedGlyphCoverage)
+        .map_err(|error| JsValue::from_str(&error))
+}
 
 #[wasm_bindgen]
 impl PackedFlowLayout {
@@ -619,6 +668,26 @@ mod tests {
             Err(error) => error,
         };
         assert!(error.contains("unsupported font instance"), "{error}");
+        assert!(drop_layout_session(session));
+    }
+
+    #[test]
+    fn rasterizes_a_bounded_hinted_r8_glyph_mask() {
+        let session = "coverage-mask";
+        layout::register_font(
+            session,
+            "anton",
+            include_bytes!("../../../test/fixtures/fonts/Anton-Regular.ttf"),
+        )
+        .unwrap();
+        let blob = layout::registered_font(session, "anton", 0).unwrap();
+        let mask = glyph_raster::rasterize(blob.data(), 0, 36, 24.0).unwrap();
+        assert!(mask.width > 0 && mask.height > 0);
+        assert_eq!(mask.pixels.len(), (mask.width * mask.height) as usize);
+        assert!(mask.pixels.iter().any(|coverage| *coverage > 0));
+        assert!(mask.command_count > 0);
+        assert!(glyph_raster::rasterize(blob.data(), 0, 36, 2.0).is_err());
+        assert!(glyph_raster::rasterize(blob.data(), 0, u32::MAX, 24.0).is_err());
         assert!(drop_layout_session(session));
     }
 }

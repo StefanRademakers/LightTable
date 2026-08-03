@@ -26,6 +26,7 @@ struct SessionEngine {
 struct RegisteredAsset {
     face_count: usize,
     blob_id: u64,
+    blob: Blob<u8>,
 }
 
 thread_local! {
@@ -178,7 +179,7 @@ pub(crate) fn register_font(
         let registered = session
             .fonts
             .collection
-            .register_fonts(blob, None)
+            .register_fonts(blob.clone(), None)
             .iter()
             .map(|(_, faces)| faces.len())
             .sum();
@@ -190,9 +191,30 @@ pub(crate) fn register_font(
             RegisteredAsset {
                 face_count: registered,
                 blob_id,
+                blob,
             },
         );
         Ok(registered)
+    })
+}
+
+pub(crate) fn registered_font(
+    session_key: &str,
+    asset_id: &str,
+    face_index: u32,
+) -> Result<Blob<u8>, String> {
+    SESSIONS.with_borrow(|sessions| {
+        let session = sessions
+            .get(session_key)
+            .ok_or_else(|| "layout session has no registered fonts".to_owned())?;
+        let asset = session
+            .registered_assets
+            .get(asset_id)
+            .ok_or_else(|| "font asset is not registered in the layout session".to_owned())?;
+        if face_index as usize >= asset.face_count {
+            return Err("font face index is outside the registered collection".to_owned());
+        }
+        Ok(asset.blob.clone())
     })
 }
 

@@ -16,6 +16,8 @@ import {
   type TextLayoutWorkerRequest,
   type TextLayoutWorkerResponse,
   type TextWorkerFontRegistrationRequest,
+  type TextWorkerGlyphRasterRequest,
+  type TextWorkerGlyphRasterResult,
   type TextWorkerPerformanceMetrics,
   type TextWorkerReleaseSessionRequest,
   type TextWorkerRequest
@@ -61,6 +63,10 @@ export interface TextEngineOperationReport {
 
 export interface TextRealizationReport extends TextEngineOperationReport {
   readonly layout: RealizedTextLayout;
+}
+
+export interface TextGlyphRasterReport extends TextEngineOperationReport {
+  readonly raster: TextWorkerGlyphRasterResult;
 }
 
 export type TextEngineWorkerFactory = () => TextEngineWorkerPort;
@@ -206,6 +212,32 @@ export class TextEngineClient {
     });
   }
 
+  rasterizeGlyph(
+    input: Omit<TextWorkerGlyphRasterRequest, 'requestId' | 'protocolVersion'>,
+    signal?: AbortSignal
+  ): Promise<TextGlyphRasterReport> {
+    const startedAt = performance.now();
+    return this.requestLayout({
+      ...input,
+      kind: 'rasterize-glyph',
+      protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId: ++this.requestId
+    }, signal).then((response) => {
+      if (response.kind === 'glyph-rasterization-failed') {
+        throw new TextLayoutRuntimeError(response.error);
+      }
+      if (response.kind !== 'glyph-rasterized') {
+        throw new Error(`Unexpected ${response.kind} response to glyph rasterization.`);
+      }
+      return {
+        raster: response.raster,
+        metrics: response.metrics,
+        roundTripDurationMs: performance.now() - startedAt,
+        responseTransferBytes: response.raster.pixels.byteLength
+      };
+    });
+  }
+
   releaseSession(documentSessionId: string, sessionGeneration: number): Promise<void> {
     const request: TextWorkerReleaseSessionRequest = {
       kind: 'release-session',
@@ -236,6 +268,7 @@ export class TextEngineClient {
     worker.onmessage = ({ data }) => {
       if (data.kind === 'font-registered' || data.kind === 'font-registration-failed'
         || data.kind === 'text-realized' || data.kind === 'text-layout-failed'
+        || data.kind === 'glyph-rasterized' || data.kind === 'glyph-rasterization-failed'
         || data.kind === 'session-released' || data.kind === 'session-release-failed') {
         const pending = this.pendingLayouts.get(data.requestId);
         if (!pending) return;
@@ -250,6 +283,14 @@ export class TextEngineClient {
           if ('cacheKey' in pending.request && pending.request.kind === 'realize-text'
             && data.cacheKey !== pending.request.cacheKey) {
             throw new Error('Text layout response cache identity is stale.');
+          }
+          if (pending.request.kind === 'rasterize-glyph' && data.kind === 'glyph-rasterized'
+            && (data.assetId !== pending.request.assetId
+              || data.faceIndex !== pending.request.faceIndex
+              || data.glyphId !== pending.request.glyphId
+              || data.ppem !== pending.request.ppem
+              || data.fontSnapshotRevision !== pending.request.fontSnapshotRevision)) {
+            throw new Error('Glyph raster response identity is stale.');
           }
           pending.resolve(data);
         } catch (reason) {

@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_packedflowlayout_free: (a: number, b: number) => void;
+export const __wbg_packedglyphcoverage_free: (a: number, b: number) => void;
 export const drop_layout_session: (a: number, b: number) => number;
 export const inspect_font_json: (a: number, b: number, c: number) => [number, number, number, number];
 export const packedflowlayout_bounds: (a: number) => [number, number];
@@ -18,6 +19,13 @@ export const packedflowlayout_line_meta: (a: number) => [number, number];
 export const packedflowlayout_run_meta: (a: number) => [number, number];
 export const packedflowlayout_selection_geometry: (a: number) => [number, number];
 export const packedflowlayout_selection_meta: (a: number) => [number, number];
+export const packedglyphcoverage_bearing_x: (a: number) => number;
+export const packedglyphcoverage_bearing_y: (a: number) => number;
+export const packedglyphcoverage_command_count: (a: number) => number;
+export const packedglyphcoverage_height: (a: number) => number;
+export const packedglyphcoverage_pixels: (a: number) => [number, number];
+export const packedglyphcoverage_width: (a: number) => number;
+export const rasterize_registered_glyph: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
 export const realize_flow_text: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number];
 export const register_layout_font: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
 export const text_engine_version: () => [number, number];

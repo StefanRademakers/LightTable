@@ -157,6 +157,73 @@ export class PackedFlowLayout {
 if (Symbol.dispose) PackedFlowLayout.prototype[Symbol.dispose] = PackedFlowLayout.prototype.free;
 
 /**
+ * Bounded hinted R8 mask used only by the renderer bakeoff.
+ */
+export class PackedGlyphCoverage {
+    static __wrap(ptr) {
+        const obj = Object.create(PackedGlyphCoverage.prototype);
+        obj.__wbg_ptr = ptr;
+        PackedGlyphCoverageFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        PackedGlyphCoverageFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_packedglyphcoverage_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get bearing_x() {
+        const ret = wasm.packedglyphcoverage_bearing_x(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get bearing_y() {
+        const ret = wasm.packedglyphcoverage_bearing_y(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get command_count() {
+        const ret = wasm.packedglyphcoverage_command_count(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get height() {
+        const ret = wasm.packedglyphcoverage_height(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    pixels() {
+        const ret = wasm.packedglyphcoverage_pixels(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get width() {
+        const ret = wasm.packedglyphcoverage_width(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) PackedGlyphCoverage.prototype[Symbol.dispose] = PackedGlyphCoverage.prototype.free;
+
+/**
  * Releases all parsed fonts and scratch allocations for one generation.
  * @param {string} session_key
  * @returns {boolean}
@@ -193,6 +260,28 @@ export function inspect_font_json(data, face_index) {
     } finally {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
+}
+
+/**
+ * Rasterizes one exact registered face/glyph using Skrifa embedded hinting
+ * and an allocation-bounded R8 coverage mask.
+ * @param {string} session_key
+ * @param {string} asset_id
+ * @param {number} face_index
+ * @param {number} glyph_id
+ * @param {number} ppem
+ * @returns {PackedGlyphCoverage}
+ */
+export function rasterize_registered_glyph(session_key, asset_id, face_index, glyph_id, ppem) {
+    const ptr0 = passStringToWasm0(session_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(asset_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.rasterize_registered_glyph(ptr0, len0, ptr1, len1, face_index, glyph_id, ppem);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return PackedGlyphCoverage.__wrap(ret[0]);
 }
 
 /**
@@ -315,6 +404,9 @@ function __wbg_get_imports() {
 const PackedFlowLayoutFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_packedflowlayout_free(ptr, 1));
+const PackedGlyphCoverageFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_packedglyphcoverage_free(ptr, 1));
 
 function getArrayF32FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
@@ -324,6 +416,11 @@ function getArrayF32FromWasm0(ptr, len) {
 function getArrayU32FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
+function getArrayU8FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
 }
 
 let cachedFloat32ArrayMemory0 = null;

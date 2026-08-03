@@ -4,6 +4,7 @@ import {
   type LightTableDebugMessage
 } from '../debug/debugLog';
 import type { TypographyCorpusReport } from '../../text/diagnostics/runTypographyCorpus';
+import type { TextRendererBakeoffReport } from '../../text/diagnostics/runTextRendererBakeoff';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];
@@ -24,6 +25,10 @@ interface DebugPanelProps {
   lastTextLayoutError: string | null;
   onProbeTextEngine: () => void;
   onRunTextCorpus: () => void;
+  textRendererStatus: 'idle' | 'loading' | 'ready' | 'error';
+  textRendererPhase: string | null;
+  textRendererReport: TextRendererBakeoffReport | null;
+  onRunTextRendererBakeoff: () => void;
 }
 
 const formatTimestamp = (timestamp: number) => new Date(timestamp).toLocaleTimeString(
@@ -49,9 +54,14 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   textContractFixtureCount,
   lastTextLayoutError,
   onProbeTextEngine,
-  onRunTextCorpus
+  onRunTextCorpus,
+  textRendererStatus,
+  textRendererPhase,
+  textRendererReport,
+  onRunTextRendererBakeoff
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [rendererView, setRendererView] = useState<'coverage-atlas' | 'hb-gpu' | 'side-by-side'>('side-by-side');
   const summary = useMemo(() => ({
     warnings: messages.filter((entry) => entry.severity === 'warning').length,
     errors: messages.filter((entry) => entry.severity === 'error').length
@@ -154,7 +164,45 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           >
             Run typography corpus
           </button>
+          <button
+            type="button"
+            onClick={onRunTextRendererBakeoff}
+            disabled={textRendererStatus === 'loading' || !textCorpusAvailable}
+            title={textCorpusAvailable ? undefined : 'Renderer fixtures are development-only.'}
+          >
+            {textRendererStatus === 'loading' ? 'Running renderer bakeoff...' : 'Run renderer bakeoff'}
+          </button>
         </div>
+        {textRendererPhase ? <small role="status">Renderer: {textRendererPhase}</small> : null}
+        {textRendererReport ? (
+          <details>
+            <summary>GPU renderer bakeoff report</summary>
+            <label>
+              Renderer view
+              <select
+                value={rendererView}
+                onChange={(event) => setRendererView(event.currentTarget.value as typeof rendererView)}
+              >
+                <option value="coverage-atlas">Coverage atlas</option>
+                <option value="hb-gpu">hb-gpu</option>
+                <option value="side-by-side">Side by side</option>
+              </select>
+            </label>
+            <dl>
+              <dt>Coverage atlas</dt><dd>{textRendererReport.decision.coverageAtlas}</dd>
+              <dt>hb-gpu</dt><dd>{textRendererReport.decision.hbGpu}</dd>
+              <dt>Production default</dt><dd>{textRendererReport.decision.productionDefault}</dd>
+              <dt>Adapter</dt><dd>{textRendererReport.adapter}</dd>
+              <dt>Scenarios</dt><dd>{textRendererReport.measurements.length}</dd>
+            </dl>
+            <pre>{JSON.stringify({
+              ...textRendererReport,
+              measurements: rendererView === 'side-by-side'
+                ? textRendererReport.measurements
+                : textRendererReport.measurements.filter((entry) => entry.candidate === rendererView)
+            }, null, 2)}</pre>
+          </details>
+        ) : null}
       </fieldset>
       <header className="lighttable-debug-panel__toolbar">
         <span className="lighttable-debug-panel__summary">

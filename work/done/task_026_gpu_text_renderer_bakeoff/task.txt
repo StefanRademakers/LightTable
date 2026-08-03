@@ -1,0 +1,24 @@
+# Task 026 — GPU text renderer bakeoff
+
+Status: complete. Implements Slice 07 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+## Delivered outcome
+
+- Bounded hinted R8 glyph raster ABI, atlas packer and offscreen WebGPU draw.
+- Pinned, fixed-corpus HarfBuzz hb-gpu encoder data, validated widened storage
+  and offscreen WGSL draw using the exact upstream vertex ABI.
+- Development-only Debug runner for small, normal, extreme zoom and transformed
+  scenarios with preparation/frame/upload/VRAM/batch/quality/capture metrics.
+- GO decision for coverage atlas, CONDITIONAL GO for hb-gpu extreme-zoom
+  research, and NO-GO for hb-gpu-only/MSDF routes.
+- Production boundary rejects corpus fonts and renderer fixture bundles.
+
+## Verification
+
+- 10 Rust tests and text-WASM runtime/structural goldens.
+- 250 workspace test files / 1,196 tests.
+- Workspace boundary and all typechecks.
+- Web build and packaged Electron distribution verification.
+- Cross-device runtime captures remain explicitly unavailable; the committed
+  Debug runner is the reproducible evidence seam for supported hardware.

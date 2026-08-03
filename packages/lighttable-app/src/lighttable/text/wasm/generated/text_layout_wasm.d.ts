@@ -26,6 +26,21 @@ export class PackedFlowLayout {
 }
 
 /**
+ * Bounded hinted R8 mask used only by the renderer bakeoff.
+ */
+export class PackedGlyphCoverage {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    pixels(): Uint8Array;
+    readonly bearing_x: number;
+    readonly bearing_y: number;
+    readonly command_count: number;
+    readonly height: number;
+    readonly width: number;
+}
+
+/**
  * Releases all parsed fonts and scratch allocations for one generation.
  */
 export function drop_layout_session(session_key: string): boolean;
@@ -34,6 +49,12 @@ export function drop_layout_session(session_key: string): boolean;
  * Memory-safe OpenType metadata inspection for the browser/Electron worker.
  */
 export function inspect_font_json(data: Uint8Array, face_index: number): string;
+
+/**
+ * Rasterizes one exact registered face/glyph using Skrifa embedded hinting
+ * and an allocation-bounded R8 coverage mask.
+ */
+export function rasterize_registered_glyph(session_key: string, asset_id: string, face_index: number, glyph_id: number, ppem: number): PackedGlyphCoverage;
 
 /**
  * Shapes one validated flow-text request through the persistent Parley stack.
@@ -67,6 +88,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_packedflowlayout_free: (a: number, b: number) => void;
+    readonly __wbg_packedglyphcoverage_free: (a: number, b: number) => void;
     readonly drop_layout_session: (a: number, b: number) => number;
     readonly inspect_font_json: (a: number, b: number, c: number) => [number, number, number, number];
     readonly packedflowlayout_bounds: (a: number) => [number, number];
@@ -83,6 +105,13 @@ export interface InitOutput {
     readonly packedflowlayout_run_meta: (a: number) => [number, number];
     readonly packedflowlayout_selection_geometry: (a: number) => [number, number];
     readonly packedflowlayout_selection_meta: (a: number) => [number, number];
+    readonly packedglyphcoverage_bearing_x: (a: number) => number;
+    readonly packedglyphcoverage_bearing_y: (a: number) => number;
+    readonly packedglyphcoverage_command_count: (a: number) => number;
+    readonly packedglyphcoverage_height: (a: number) => number;
+    readonly packedglyphcoverage_pixels: (a: number) => [number, number];
+    readonly packedglyphcoverage_width: (a: number) => number;
+    readonly rasterize_registered_glyph: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly realize_flow_text: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number];
     readonly register_layout_font: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly text_engine_version: () => [number, number];

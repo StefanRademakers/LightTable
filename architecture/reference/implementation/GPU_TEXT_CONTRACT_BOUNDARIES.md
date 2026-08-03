@@ -1,6 +1,6 @@
 # GPU text contract boundaries
 
-Status: document/layout schema 1 and worker protocol 2 (Slice 06 migration).
+Status: document/layout schema 1 and worker protocol 3 (Slice 07 migration).
 
 ## Ownership
 
@@ -100,6 +100,12 @@ request/session/generation identity. Because Parley shaping is synchronous, it
 is not described as cooperative interruption; hard cancellation terminates and
 restarts the worker. Session release destroys the exact generation's Rust font
 and layout state.
+
+Worker protocol 3 adds bounded `rasterize-glyph`. It references an exact
+registered asset, collection face, glyph, ppem and font-snapshot revision. The
+client validates that complete identity on the response. The worker returns a
+dedicated transferable R8 mask and frees the temporary WASM allocation after
+copying it.
 
 Realized glyph arrays and `clusterMap` are emitted in logical cluster order,
 including RTL and mixed-bidi text, while geometry retains visual positions.

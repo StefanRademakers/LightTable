@@ -1908,7 +1908,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 textContractFixtureCount: TEXT_CONTRACT_FIXTURE_COUNT,
                 lastTextLayoutError: textEngineDiagnostic.state.lastLayoutError,
                 onProbeTextEngine: textEngineDiagnostic.probe,
-                onRunTextCorpus: textEngineDiagnostic.runCorpus
+                onRunTextCorpus: textEngineDiagnostic.runCorpus,
+                textRendererStatus: textEngineDiagnostic.state.rendererStatus,
+                textRendererPhase: textEngineDiagnostic.state.rendererPhase,
+                textRendererReport: textEngineDiagnostic.state.rendererReport,
+                onRunTextRendererBakeoff: textEngineDiagnostic.runRendererBakeoff
               },
               lensFxKey: sourceIdentity || sourceName,
               lensFx: {

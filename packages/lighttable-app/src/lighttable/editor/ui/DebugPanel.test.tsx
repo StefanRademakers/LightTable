@@ -23,6 +23,10 @@ const renderPanel = (status: 'idle' | 'loading' | 'ready' | 'error', summary: st
     lastTextLayoutError={null}
     onProbeTextEngine={vi.fn()}
     onRunTextCorpus={vi.fn()}
+    textRendererStatus="idle"
+    textRendererPhase={null}
+    textRendererReport={null}
+    onRunTextRendererBakeoff={vi.fn()}
   />);
 
 describe('DebugPanel text engine diagnostic', () => {
@@ -32,6 +36,7 @@ describe('DebugPanel text engine diagnostic', () => {
     expect(markup).toContain('Not loaded.');
     expect(markup).toContain('Probe text engine');
     expect(markup).toContain('Run typography corpus');
+    expect(markup).toContain('Run renderer bakeoff');
     expect(markup).toContain('Contract fixtures: 2');
     expect(markup).toContain('Last layout error: None.');
   });

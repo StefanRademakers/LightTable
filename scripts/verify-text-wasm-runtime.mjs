@@ -65,6 +65,19 @@ if (
   || bounds[0] === bounds[4]
 ) throw new Error('LightTable Parley WASM returned invalid realized layout data.');
 layout.free();
+const glyphMask = bindings.rasterize_registered_glyph(sessionKey, 'anton', 0, 36, 24);
+const glyphPixels = glyphMask.pixels();
+if (
+  glyphMask.width < 1 || glyphMask.height < 1
+  || glyphMask.width > 256 || glyphMask.height > 256
+  || glyphPixels.length !== glyphMask.width * glyphMask.height
+  || !glyphPixels.some((coverage) => coverage > 0)
+  || glyphMask.command_count < 1
+) throw new Error('LightTable hinted glyph raster returned invalid R8 data.');
+glyphMask.free();
+let rejectedRasterLimit = false;
+try { bindings.rasterize_registered_glyph(sessionKey, 'anton', 0, 36, 2); } catch { rejectedRasterLimit = true; }
+if (!rejectedRasterLimit) throw new Error('LightTable glyph raster accepted an invalid ppem.');
 for (const [label, invoke] of [
   ['malformed packed stride', () => bindings.realize_flow_text(
     sessionKey, 'bad-stride', 'A', 100, 0, 0, 10,

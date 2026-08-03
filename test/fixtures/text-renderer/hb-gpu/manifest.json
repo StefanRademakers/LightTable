@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "harfbuzzRevision": "c31bd6797a0e55c2b176a7be3a181f36814ec6aa",
+  "sourceFormat": "RGBA16I (8 bytes/texel)",
+  "gpuFormat": "vec4<i32> storage (16 bytes/texel)",
+  "fixtures": [
+    {
+      "id": "anton",
+      "fileName": "Anton-Regular.ttf",
+      "glyphIds": [
+        4,
+        40,
+        47,
+        487,
+        592,
+        677,
+        780,
+        902,
+        938,
+        1176,
+        1181,
+        1325
+      ],
+      "bundleFile": "anton.lt-hbgpu",
+      "bundleBytes": 25628,
+      "bundleSha256": "4afd739f23e27f898050ff43738d4cfede5d97a354cafe9056f48cc21ad2a692"
+    },
+    {
+      "id": "source-serif",
+      "fileName": "SourceSerif4-Regular.otf",
+      "glyphIds": [
+        55
+      ],
+      "bundleFile": "source-serif.lt-hbgpu",
+      "bundleBytes": 3260,
+      "bundleSha256": "d9411b7341c959d2571ff55af9b1b47c99888883812e77ba88901f03233ea269"
+    },
+    {
+      "id": "arabic",
+      "fileName": "NotoKufiArabic-Slice06.otf",
+      "glyphIds": [
+        3,
+        6,
+        11,
+        13,
+        19,
+        20
+      ],
+      "bundleFile": "arabic.lt-hbgpu",
+      "bundleBytes": 11188,
+      "bundleSha256": "3eb814244eaf383d709f98f07ab49fd4d69d33b06d4efa21177a0b7d02df969b"
+    },
+    {
+      "id": "hebrew",
+      "fileName": "NotoSansHebrew-Slice06.ttf",
+      "glyphIds": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "bundleFile": "hebrew.lt-hbgpu",
+      "bundleBytes": 7092,
+      "bundleSha256": "eae3b979115b9c2f3a917b7ddae296ecb16f66ce12f4ed84ba40243f23c82524"
+    },
+    {
+      "id": "devanagari",
+      "fileName": "NotoSansDevanagari-Slice06.ttf",
+      "glyphIds": [
+        2,
+        3,
+        4,
+        6,
+        11
+      ],
+      "bundleFile": "devanagari.lt-hbgpu",
+      "bundleBytes": 11972,
+      "bundleSha256": "9ca645acc25efd2d013414700c35a62791c53326bc007703f0fe838200103526"
+    },
+    {
+      "id": "thai",
+      "fileName": "NotoSansThai-Slice06.ttf",
+      "glyphIds": [
+        2,
+        3,
+        4,
+        5,
+        7,
+        8
+      ],
+      "bundleFile": "thai.lt-hbgpu",
+      "bundleBytes": 15484,
+      "bundleSha256": "2aaf1029b4ae52c79c207b7b3ccbc9ce8b565e5b58ce16ffff39a08f489d1568"
+    },
+    {
+      "id": "cjk",
+      "fileName": "NotoSansCJKjp-Slice06.otf",
+      "glyphIds": [
+        3,
+        4,
+        6,
+        7,
+        9
+      ],
+      "bundleFile": "cjk.lt-hbgpu",
+      "bundleBytes": 18420,
+      "bundleSha256": "3708a670c20bdc4f4cb9cd69772dc810bee114957c9579772af1ce67884cfdeb"
+    },
+    {
+      "id": "emoji",
+      "fileName": "NotoEmoji-Slice06.ttf",
+      "glyphIds": [
+        1
+      ],
+      "bundleFile": "emoji.lt-hbgpu",
+      "bundleBytes": 7036,
+      "bundleSha256": "bd9f08d3bbb5bf295ebe82f4c82fffeba21369551432fe8f66a7b936ce0b4e46"
+    }
+  ]
+}

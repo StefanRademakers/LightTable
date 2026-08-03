@@ -23,6 +23,9 @@ const sourceRoots = [
   path.join(repositoryRoot, 'apps', 'web', 'src'),
   path.join(repositoryRoot, 'apps', 'desktop', 'src'),
   path.join(repositoryRoot, 'packages', 'lighttable-app', 'src'),
+  path.join(repositoryRoot, 'packages', 'text-core', 'src'),
+  path.join(repositoryRoot, 'packages', 'text-rendering', 'src'),
+  path.join(repositoryRoot, 'packages', 'text-webgpu', 'src'),
   path.join(repositoryRoot, 'packages', 'vector-core', 'src'),
   path.join(repositoryRoot, 'packages', 'vector-rendering', 'src'),
   path.join(repositoryRoot, 'packages', 'vector-webgpu', 'src')
@@ -32,6 +35,7 @@ const failures = [];
 const textWorkerPattern = /^textLayout\.worker-[A-Za-z0-9_-]+\.js$/;
 const textWasmPattern = /^text_layout_wasm_bg-[A-Za-z0-9_-]+\.wasm$/;
 const textCorpusFixturePattern = /(?:Slice06|Anton-Regular|SourceSerif4-Regular)/i;
+const textRendererBakeoffFixturePattern = /(?:\.lt-hbgpu$|text-renderer[\\/]+hb-gpu|hb-gpu[\\/]+manifest)/i;
 
 function hasWorkSegment(value) {
   return value.split(/[\\/]+/).some((segment) => segment.toLowerCase() === 'work');
@@ -75,6 +79,9 @@ for (const artifactRoot of artifactRoots) {
     if (textCorpusFixturePattern.test(relativePath)) {
       failures.push(`distribution contains a test-only typography corpus font: ${filePath}`);
     }
+    if (textRendererBakeoffFixturePattern.test(relativePath)) {
+      failures.push(`distribution contains a test-only text renderer fixture: ${filePath}`);
+    }
     if (path.basename(filePath).toLowerCase() !== 'app.asar') return;
     asarCount += 1;
     const packagedPaths = listPackage(filePath);
@@ -84,6 +91,9 @@ for (const artifactRoot of artifactRoots) {
       }
       if (textCorpusFixturePattern.test(packagedPath)) {
         failures.push(`Electron ASAR contains a test-only typography corpus font: ${filePath}:${packagedPath}`);
+      }
+      if (textRendererBakeoffFixturePattern.test(packagedPath)) {
+        failures.push(`Electron ASAR contains a test-only text renderer fixture: ${filePath}:${packagedPath}`);
       }
     }
     const packagedNames = packagedPaths.map((packagedPath) => path.basename(packagedPath));

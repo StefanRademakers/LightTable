@@ -73,6 +73,24 @@ class FakeWorker implements TextEngineWorkerPort {
       requestId, documentSessionId: 'document', sessionGeneration: 1
     } } as MessageEvent);
   }
+
+  rasterized(requestId: number, overrides: Partial<{
+    assetId: string; faceIndex: number; glyphId: number; ppem: number; fontSnapshotRevision: number
+  }> = {}) {
+    this.onmessage?.({ data: {
+      kind: 'glyph-rasterized', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId, documentSessionId: 'document', sessionGeneration: 1,
+      assetId: overrides.assetId ?? CONTRACT_FIXTURE_FONT_ASSET.assetId,
+      faceIndex: overrides.faceIndex ?? 0, glyphId: overrides.glyphId ?? 36,
+      ppem: overrides.ppem ?? 24, fontSnapshotRevision: overrides.fontSnapshotRevision ?? 1,
+      transferOwnership: 'dedicated',
+      raster: {
+        width: 2, height: 2, bearingX: 0, bearingY: 2, commandCount: 4,
+        pixels: new Uint8Array([0, 100, 200, 255])
+      },
+      metrics: { operationDurationMs: 0.75, wasmLinearMemoryBytes: 5_701_632 }
+    } } as MessageEvent);
+  }
 }
 
 const realizedLayout = (key: string): RealizedTextLayout => ({
@@ -294,6 +312,37 @@ describe('TextEngineClient', () => {
     expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ kind: 'release-session' }), []);
     worker.released(1);
     await expect(pending).resolves.toBeUndefined();
+  });
+
+  it('returns a dedicated bounded glyph raster and performance metrics', async () => {
+    const worker = new FakeWorker();
+    const client = new TextEngineClient(() => worker);
+    const pending = client.rasterizeGlyph({
+      kind: 'rasterize-glyph', documentSessionId: 'document', sessionGeneration: 1,
+      assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
+      glyphId: 36, ppem: 24, fontSnapshotRevision: 1
+    });
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'rasterize-glyph', glyphId: 36, ppem: 24 }), []
+    );
+    worker.rasterized(1);
+    await expect(pending).resolves.toMatchObject({
+      raster: { width: 2, height: 2, commandCount: 4 },
+      responseTransferBytes: 4,
+      metrics: { operationDurationMs: 0.75 }
+    });
+  });
+
+  it('rejects a glyph raster whose exact font or raster identity is stale', async () => {
+    const worker = new FakeWorker();
+    const client = new TextEngineClient(() => worker);
+    const pending = client.rasterizeGlyph({
+      kind: 'rasterize-glyph', documentSessionId: 'document', sessionGeneration: 1,
+      assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
+      glyphId: 36, ppem: 24, fontSnapshotRevision: 1
+    });
+    worker.rasterized(1, { glyphId: 37 });
+    await expect(pending).rejects.toThrow('raster response identity is stale');
   });
 
   it('does not let a disposed probe clear a new in-flight retry', async () => {

@@ -3,6 +3,7 @@
 import initializeTextLayoutWasm, {
   drop_layout_session as dropLayoutSession,
   inspect_font_json as inspectFontJson,
+  rasterize_registered_glyph as rasterizeRegisteredGlyph,
   realize_flow_text as realizeFlowText,
   register_layout_font as registerLayoutFont,
   text_engine_memory_bytes as textEngineMemoryBytes,
@@ -58,7 +59,7 @@ const initialize = () => {
 };
 
 self.onmessage = async ({ data }: MessageEvent<TextEngineWorkerRequest | TextWorkerRequest>) => {
-  if (data.kind === 'register-font' || data.kind === 'realize-text'
+  if (data.kind === 'register-font' || data.kind === 'realize-text' || data.kind === 'rasterize-glyph'
     || data.kind === 'cancel-text' || data.kind === 'release-session') {
     await handleLayoutRequest(data);
     return;
@@ -123,6 +124,13 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
     const message = reason instanceof Error ? reason.message : 'Invalid text worker request.';
     if (data.kind === 'realize-text') {
       self.postMessage(layoutFailure(data, 'malformed-input', message));
+    } else if (data.kind === 'rasterize-glyph') {
+      self.postMessage({
+        kind: 'glyph-rasterization-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId ?? 'unknown',
+        glyphId: data.glyphId ?? 0, error: createTextLayoutError('malformed-input', message)
+      } satisfies TextLayoutWorkerResponse);
     } else if (data.kind === 'register-font') {
       self.postMessage({
         kind: 'font-registration-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
@@ -167,6 +175,13 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
     if (data.kind === 'realize-text') {
       self.postMessage(layoutFailure(data, 'engine-unavailable',
         message));
+    } else if (data.kind === 'rasterize-glyph') {
+      self.postMessage({
+        kind: 'glyph-rasterization-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId,
+        glyphId: data.glyphId, error: createTextLayoutError('engine-unavailable', message)
+      } satisfies TextLayoutWorkerResponse);
     } else if (data.kind === 'register-font') {
       self.postMessage({
         kind: 'font-registration-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
@@ -178,8 +193,18 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
     return;
   }
   let state = layoutSessions.get(key);
-  if (!state && data.kind === 'realize-text') {
-    self.postMessage(layoutFailure(data, 'font-missing', 'Layout session has no registered fonts.'));
+  if (!state && (data.kind === 'realize-text' || data.kind === 'rasterize-glyph')) {
+    if (data.kind === 'realize-text') {
+      self.postMessage(layoutFailure(data, 'font-missing', 'Layout session has no registered fonts.'));
+    } else {
+      self.postMessage({
+        kind: 'glyph-rasterization-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId,
+        glyphId: data.glyphId,
+        error: createTextLayoutError('font-missing', 'Raster session has no registered fonts.')
+      } satisfies TextLayoutWorkerResponse);
+    }
     return;
   }
   if (!state && layoutSessions.size >= 16) {
@@ -254,6 +279,54 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
       };
       self.postMessage(response);
     }
+    return;
+  }
+  if (data.kind === 'rasterize-glyph') {
+    const operationStartedAt = performance.now();
+    let response: TextLayoutWorkerResponse;
+    try {
+      if (data.fontSnapshotRevision !== state.revision) throw new Error('Font snapshot revision is stale.');
+      const font = state.fonts.get(data.assetId);
+      if (!font || font.faceIndex !== data.faceIndex) throw new Error('Exact registered font face is unavailable.');
+      const raw = rasterizeRegisteredGlyph(
+        key, font.fingerprintSha256, data.faceIndex, data.glyphId, data.ppem
+      );
+      try {
+        const pixels = Uint8Array.from(raw.pixels());
+        response = {
+        kind: 'glyph-rasterized', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId,
+        faceIndex: data.faceIndex, glyphId: data.glyphId, ppem: data.ppem,
+        fontSnapshotRevision: data.fontSnapshotRevision,
+        transferOwnership: 'dedicated',
+        raster: {
+          width: raw.width, height: raw.height,
+          bearingX: raw.bearing_x, bearingY: raw.bearing_y,
+          commandCount: raw.command_count, pixels
+        },
+        metrics: {
+          operationDurationMs: performance.now() - operationStartedAt,
+          wasmLinearMemoryBytes: textEngineMemoryBytes()
+        }
+        };
+      } finally {
+        raw.free();
+      }
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Glyph rasterization failed.';
+      response = {
+        kind: 'glyph-rasterization-failed', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+        requestId: data.requestId, documentSessionId: data.documentSessionId,
+        sessionGeneration: data.sessionGeneration, assetId: data.assetId, glyphId: data.glyphId,
+        error: createTextLayoutError(
+          /limit|ppem|dimension|command/i.test(message) ? 'resource-limit'
+            : /font|face|glyph/i.test(message) ? 'font-missing' : 'internal-error',
+          message
+        )
+      };
+    }
+    self.postMessage(response, { transfer: [...collectTextResponseTransferBuffers(response)] });
     return;
   }
   let response: TextLayoutWorkerResponse;

@@ -49,6 +49,24 @@ export interface TextLayoutWorkerRequest extends TextWorkerMessageIdentity {
   readonly options: TextLayoutOptions;
 }
 
+export interface TextWorkerGlyphRasterRequest extends TextWorkerMessageIdentity {
+  readonly kind: 'rasterize-glyph';
+  readonly assetId: string;
+  readonly faceIndex: number;
+  readonly glyphId: number;
+  readonly ppem: number;
+  readonly fontSnapshotRevision: number;
+}
+
+export interface TextWorkerGlyphRasterResult {
+  readonly width: number;
+  readonly height: number;
+  readonly bearingX: number;
+  readonly bearingY: number;
+  readonly commandCount: number;
+  readonly pixels: Uint8Array;
+}
+
 /** Logical cancellation: clients reject immediately; synchronous shaping may finish and is ignored. */
 export interface TextWorkerCancelRequest extends TextWorkerMessageIdentity {
   readonly kind: 'cancel-text';
@@ -63,6 +81,7 @@ export interface TextWorkerReleaseSessionRequest extends TextWorkerMessageIdenti
 export type TextWorkerRequest =
   | TextWorkerFontRegistrationRequest
   | TextLayoutWorkerRequest
+  | TextWorkerGlyphRasterRequest
   | TextWorkerCancelRequest
   | TextWorkerReleaseSessionRequest;
 
@@ -71,6 +90,23 @@ interface TextWorkerResponseIdentity extends TextWorkerMessageIdentity {
 }
 
 export type TextLayoutWorkerResponse =
+  | TextWorkerResponseIdentity & {
+    readonly kind: 'glyph-rasterized';
+    readonly assetId: string;
+    readonly faceIndex: number;
+    readonly glyphId: number;
+    readonly ppem: number;
+    readonly fontSnapshotRevision: number;
+    readonly raster: TextWorkerGlyphRasterResult;
+    readonly transferOwnership: 'dedicated';
+    readonly metrics: TextWorkerPerformanceMetrics;
+  }
+  | TextWorkerResponseIdentity & {
+    readonly kind: 'glyph-rasterization-failed';
+    readonly assetId: string;
+    readonly glyphId: number;
+    readonly error: TextLayoutError;
+  }
   | TextWorkerResponseIdentity & {
     readonly kind: 'font-registered';
     readonly assetId: string;
@@ -149,6 +185,14 @@ export const collectTextRequestTransferBuffers = (
 export const collectTextResponseTransferBuffers = (
   response: TextLayoutWorkerResponse
 ): readonly ArrayBuffer[] => {
+  if (response.kind === 'glyph-rasterized') {
+    if (response.transferOwnership !== 'dedicated') {
+      throw new TextTransferContractError('Glyph raster must declare dedicated transfer ownership.');
+    }
+    const buffers: ArrayBuffer[] = [];
+    appendDedicatedBuffer(buffers, response.raster.pixels, 'glyph raster pixels');
+    return buffers;
+  }
   if (response.kind !== 'text-realized') return [];
   if (response.transferOwnership !== 'dedicated') {
     throw new TextTransferContractError('Realized tables must declare dedicated transfer ownership.');

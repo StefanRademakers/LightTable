@@ -564,7 +564,7 @@ export function assertTextWorkerRequest(value: unknown): asserts value is TextWo
   const request = record(value, '$');
   assertWorkerIdentity(request);
   const kind = oneOf(request.kind, '$.kind', [
-    'register-font', 'realize-text', 'cancel-text', 'release-session'
+    'register-font', 'realize-text', 'rasterize-glyph', 'cancel-text', 'release-session'
   ]);
   if (kind === 'register-font') {
     assertFontAsset(request.font, '$.font');
@@ -585,6 +585,14 @@ export function assertTextWorkerRequest(value: unknown): asserts value is TextWo
   }
   if (kind === 'cancel-text') {
     integer(request.targetRequestId, '$.targetRequestId');
+    return;
+  }
+  if (kind === 'rasterize-glyph') {
+    if (!boundedString(request.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
+    integer(request.faceIndex, '$.faceIndex', 0, 0xffff_ffff);
+    integer(request.glyphId, '$.glyphId', 0, 0xffff);
+    numberInRange(request.ppem, '$.ppem', 4, 256);
+    integer(request.fontSnapshotRevision, '$.fontSnapshotRevision');
     return;
   }
   if (kind === 'release-session') return;
@@ -617,7 +625,8 @@ export function assertTextLayoutWorkerResponse(value: unknown): asserts value is
   assertWorkerIdentity(response);
   const kind = oneOf(response.kind, '$.kind', [
     'font-registered', 'font-registration-failed', 'text-realized',
-    'text-layout-failed', 'session-released', 'session-release-failed'
+    'text-layout-failed', 'glyph-rasterized', 'glyph-rasterization-failed',
+    'session-released', 'session-release-failed'
   ]);
   if (kind === 'font-registered') {
     if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
@@ -633,6 +642,37 @@ export function assertTextLayoutWorkerResponse(value: unknown): asserts value is
   if (kind === 'font-registration-failed') {
     if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
     assertTextLayoutError(response.error, '$.error');
+    return;
+  }
+  if (kind === 'glyph-rasterization-failed') {
+    if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
+    integer(response.glyphId, '$.glyphId', 0, 0xffff);
+    assertTextLayoutError(response.error, '$.error');
+    return;
+  }
+  if (kind === 'glyph-rasterized') {
+    if (!boundedString(response.assetId, '$.assetId')) fail('$.assetId', 'must not be empty');
+    integer(response.faceIndex, '$.faceIndex', 0, 0xffff_ffff);
+    integer(response.glyphId, '$.glyphId', 0, 0xffff);
+    numberInRange(response.ppem, '$.ppem', 4, 256);
+    integer(response.fontSnapshotRevision, '$.fontSnapshotRevision');
+    if (response.transferOwnership !== 'dedicated') fail('$.transferOwnership', 'expected dedicated');
+    assertPerformanceMetrics(response.metrics, '$.metrics');
+    const raster = record(response.raster, '$.raster');
+    const width = integer(raster.width, '$.raster.width', 0, 256);
+    const height = integer(raster.height, '$.raster.height', 0, 256);
+    integer(raster.bearingX, '$.raster.bearingX', -0x8000_0000, 0x7fff_ffff);
+    integer(raster.bearingY, '$.raster.bearingY', -0x8000_0000, 0x7fff_ffff);
+    integer(raster.commandCount, '$.raster.commandCount', 0, 32_768);
+    if (!(raster.pixels instanceof Uint8Array)) fail('$.raster.pixels', 'expected Uint8Array');
+    if ((raster.pixels as Uint8Array).byteLength !== width * height) {
+      fail('$.raster.pixels', 'must contain one R8 byte per pixel');
+    }
+    try {
+      collectTextResponseTransferBuffers(response as unknown as TextLayoutWorkerResponse);
+    } catch (reason) {
+      fail('$.raster.pixels', reason instanceof Error ? reason.message : 'invalid transfer storage');
+    }
     return;
   }
   if (!boundedString(response.cacheKey, '$.cacheKey', 4096)) fail('$.cacheKey', 'must not be empty');

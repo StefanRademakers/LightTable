@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 wasm-bindgen.workspace = true
 read-fonts.workspace = true
 skrifa.workspace = true
+zeno.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 parley.workspace = true

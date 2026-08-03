@@ -164,6 +164,27 @@ describe('text document contracts', () => {
     })).toThrow(/faceIndex/);
   });
 
+  it('validates and transfers bounded hinted glyph raster responses', () => {
+    const response: TextLayoutWorkerResponse = {
+      kind: 'glyph-rasterized', protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
+      requestId: 8, documentSessionId: 'document', sessionGeneration: 1,
+      assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
+      glyphId: 36, ppem: 24, fontSnapshotRevision: 1,
+      transferOwnership: 'dedicated',
+      raster: {
+        width: 2, height: 2, bearingX: 0, bearingY: 2,
+        commandCount: 4, pixels: new Uint8Array([0, 64, 128, 255])
+      },
+      metrics: { operationDurationMs: 1, wasmLinearMemoryBytes: 65_536 }
+    };
+    expect(() => assertTextLayoutWorkerResponse(response)).not.toThrow();
+    expect(collectTextResponseTransferBuffers(response)).toEqual([response.raster.pixels.buffer]);
+    expect(() => assertTextLayoutWorkerResponse({
+      ...response,
+      raster: { ...response.raster, width: 3 }
+    })).toThrow(/one R8 byte/);
+  });
+
   it('never permits run boundaries to split a surrogate pair', () => {
     const layer = createDefaultTextLayerData();
     const source = createDefaultFlowTextSource('A\u{1F600}B');
@@ -261,7 +282,7 @@ describe('realized layout and worker contracts', () => {
     const request = createLayoutRequest();
     expect(() => assertTextLayoutWorkerRequest(request)).not.toThrow();
     expect(() => assertTextLayoutWorkerRequest({ ...request, cacheKey: 'stale' })).toThrow(/cacheKey/);
-    expect(() => assertTextLayoutWorkerRequest({ ...request, protocolVersion: 3 })).toThrow(/protocolVersion/);
+    expect(() => assertTextLayoutWorkerRequest({ ...request, protocolVersion: 999 })).toThrow(/protocolVersion/);
   });
 
   it('moves only dedicated font registration storage', () => {

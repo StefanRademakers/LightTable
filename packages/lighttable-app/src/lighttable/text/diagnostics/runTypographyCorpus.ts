@@ -72,7 +72,7 @@ const assertLayout = (layout: RealizedTextLayout, direction?: 'ltr' | 'rtl') => 
   return glyphCount;
 };
 
-const realizeCase = async (
+export const realizeTypographyCorpusCase = async (
   client: TextEngineClient,
   documentSessionId: string,
   sessionGeneration: number,
@@ -139,7 +139,7 @@ export const runTypographyCorpus = async (
     for (const [index, corpusCase] of TYPOGRAPHY_CORPUS.entries()) {
       onProgress(`Layout ${index + 1}/${TYPOGRAPHY_CORPUS.length}: ${corpusCase.label}`);
       try {
-        const result = await realizeCase(client, documentSessionId, sessionGeneration, revision, corpusCase, signal);
+        const result = await realizeTypographyCorpusCase(client, documentSessionId, sessionGeneration, revision, corpusCase, signal);
         const glyphCount = assertLayout(result.layout, corpusCase.expectedDirection);
         wasmLinearMemoryBytes = Math.max(wasmLinearMemoryBytes, result.metrics.wasmLinearMemoryBytes);
         cases.push({
@@ -164,7 +164,7 @@ export const runTypographyCorpus = async (
         const resultIndex = cases.findIndex((entry) => entry.id === corpusCase.id);
         if (!cases[resultIndex]?.passed) continue;
         try {
-          const result = await realizeCase(client, documentSessionId, sessionGeneration, revision, corpusCase, signal);
+          const result = await realizeTypographyCorpusCase(client, documentSessionId, sessionGeneration, revision, corpusCase, signal);
           assertLayout(result.layout, corpusCase.expectedDirection);
           wasmLinearMemoryBytes = Math.max(wasmLinearMemoryBytes, result.metrics.wasmLinearMemoryBytes);
         } catch (reason) {
