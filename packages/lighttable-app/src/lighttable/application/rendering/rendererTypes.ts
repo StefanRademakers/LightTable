@@ -24,6 +24,23 @@ export interface TextRenderPresentationSnapshot {
   readonly readyLayerCount: number;
   readonly textureBytes: number;
   readonly mode: 'placeholder' | 'atlas' | 'cached';
+  readonly rebuildingLayerCount: number;
+  readonly cacheBudgetBytes: number;
+  readonly cacheEvictions: number;
+  readonly atlasLayerCount: number;
+  readonly cachedLayerCount: number;
+  readonly atlasEncodes: number;
+  readonly layoutCacheBytes: number;
+  readonly layoutCacheBudgetBytes: number;
+  readonly layoutCacheHits: number;
+  readonly layoutCacheMisses: number;
+  readonly layoutCacheEvictions: number;
+  readonly atlasBytes: number;
+  readonly atlasHits: number;
+  readonly atlasMisses: number;
+  readonly atlasEvictions: number;
+  readonly sourceDecisionMeasurements: number;
+  readonly lastSourceDecision: string | null;
 }
 
 export interface DocumentRendererCallbacks {

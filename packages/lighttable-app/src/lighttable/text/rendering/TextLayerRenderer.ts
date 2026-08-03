@@ -43,6 +43,9 @@ export interface TextLayerRendererSnapshot {
   readonly rebuildingLayerCount: number;
   readonly cacheBudgetBytes: number;
   readonly cacheEvictions: number;
+  readonly atlasLayerCount: number;
+  readonly cachedLayerCount: number;
+  readonly atlasEncodes: number;
 }
 
 export interface PreparedTextLayerSource<TTexture = GPUTexture> {
@@ -94,6 +97,7 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
   private cacheEvictions = 0;
   private readonly touched = new Map<TextLayer['id'], number>();
   private visibleLayerIds = new Set<TextLayer['id']>();
+  private atlasEncodes = 0;
 
   constructor(private readonly options?: TextLayerRendererOptions<TTexture>) {
     const budget = options?.maximumCacheBytes ?? 256 * 1024 * 1024;
@@ -213,6 +217,7 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
       height: target.height,
       loadOp: 'load'
     }, draws);
+    this.atlasEncodes += 1;
     this.touched.set(layer.id, ++this.clock);
     return true;
   }
@@ -470,7 +475,10 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
       mode: mode === 'placeholder' && this.transparentKeys.size > 0 ? 'cached' : mode,
       rebuildingLayerCount,
       cacheBudgetBytes: this.options?.maximumCacheBytes ?? 256 * 1024 * 1024,
-      cacheEvictions: this.cacheEvictions
+      cacheEvictions: this.cacheEvictions,
+      atlasLayerCount: this.atlasSources.size,
+      cachedLayerCount: this.sources.size,
+      atlasEncodes: this.atlasEncodes
     });
   }
 

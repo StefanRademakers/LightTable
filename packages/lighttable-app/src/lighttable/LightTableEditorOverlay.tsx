@@ -438,7 +438,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publicationRevision: 0,
     readyLayerCount: 0,
     textureBytes: 0,
-    mode: 'placeholder'
+    mode: 'placeholder', rebuildingLayerCount: 0,
+    cacheBudgetBytes: 256 * 1024 * 1024, cacheEvictions: 0,
+    atlasLayerCount: 0, cachedLayerCount: 0, atlasEncodes: 0,
+    layoutCacheBytes: 0, layoutCacheBudgetBytes: 32 * 1024 * 1024,
+    layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
+    atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
+    sourceDecisionMeasurements: 0, lastSourceDecision: null
   });
   const [accessoryWidthConstraintsEnabled, setAccessoryWidthConstraintsEnabled] = useState(true);
   const [editorResizeObserversEnabled, setEditorResizeObserversEnabled] = useState(true);
@@ -1038,7 +1044,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             publicationRevision: 0,
             readyLayerCount: 0,
             textureBytes: 0,
-            mode: 'placeholder'
+            mode: 'placeholder', rebuildingLayerCount: 0,
+            cacheBudgetBytes: 256 * 1024 * 1024, cacheEvictions: 0,
+            atlasLayerCount: 0, cachedLayerCount: 0, atlasEncodes: 0,
+            layoutCacheBytes: 0, layoutCacheBudgetBytes: 32 * 1024 * 1024,
+            layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
+            atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
+            sourceDecisionMeasurements: 0, lastSourceDecision: null
           });
           setPsdImportInfo(null);
           setPsdDifferenceMetrics(null);
@@ -2458,6 +2470,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 developmentTextFixtureError: developmentTextFixture.error,
                 textSourceMode: textRenderPresentation.mode,
                 readyTextSourceCount: textRenderPresentation.readyLayerCount,
+                textRenderTelemetry: textRenderPresentation,
                 onDevelopmentTextFixtureChange: changeDevelopmentTextFixture
               },
               lensFxKey: sourceIdentity || sourceName,

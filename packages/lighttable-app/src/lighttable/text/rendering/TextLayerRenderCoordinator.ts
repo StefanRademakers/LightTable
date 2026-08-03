@@ -23,6 +23,7 @@ import type { TextEngineClient } from '../wasm/TextEngineClient';
 import { TextLayerRenderer, textLayerSourceKey, tightCoverageBounds } from './TextLayerRenderer';
 import { TextLayoutCache } from './TextLayoutCache';
 import { TextSourceCostModel } from './TextSourceCostModel';
+import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 
 export interface TextFontRuntimePort {
   readonly revision: number;
@@ -41,7 +42,7 @@ interface CoordinatorOptions {
   readonly device: GPUDevice;
   readonly renderer: TextLayerRenderer;
   readonly requestRender: () => void;
-  readonly onChanged?: (snapshot: ReturnType<TextLayerRenderer['snapshot']>) => void;
+  readonly onChanged?: (snapshot: TextRenderPresentationSnapshot) => void;
   readonly loadDependencies?: () => Promise<CoordinatorDependencies>;
 }
 
@@ -168,8 +169,26 @@ export class TextLayerRenderCoordinator {
     this.schedule();
   }
 
-  snapshot() {
-    return this.options.renderer.snapshot();
+  snapshot(): TextRenderPresentationSnapshot {
+    const source = this.options.renderer.snapshot();
+    const layouts = this.layoutCache.metrics();
+    const atlas = this.dependencies?.backend.metrics();
+    const cost = this.sourceCostModel.snapshot();
+    return Object.freeze({
+      ...source,
+      layoutCacheBytes: layouts.byteLength,
+      layoutCacheBudgetBytes: layouts.budgetBytes,
+      layoutCacheHits: layouts.hits,
+      layoutCacheMisses: layouts.misses,
+      layoutCacheEvictions: layouts.evictions,
+      atlasBytes: atlas?.allocatedBytes ?? 0,
+      atlasHits: atlas?.hits ?? 0,
+      atlasMisses: atlas?.misses ?? 0,
+      atlasEvictions: atlas?.evictions ?? 0,
+      sourceDecisionMeasurements: cost.measurementCount,
+      lastSourceDecision: cost.lastDecision
+        ? `${cost.lastDecision.mode}:${cost.lastDecision.reason}` : null
+    });
   }
 
   estimatedTextureBytes() {
@@ -628,7 +647,7 @@ export class TextLayerRenderCoordinator {
   }
 
   private publishChanged() {
-    this.options.onChanged?.(this.options.renderer.snapshot());
+    this.options.onChanged?.(this.snapshot());
   }
 
   private layerPreparationKey(

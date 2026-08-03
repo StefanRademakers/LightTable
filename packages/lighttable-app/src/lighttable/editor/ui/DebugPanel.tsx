@@ -5,6 +5,7 @@ import {
 } from '../debug/debugLog';
 import type { TypographyCorpusReport } from '../../text/diagnostics/runTypographyCorpus';
 import type { TextRendererBakeoffReport } from '../../text/diagnostics/runTextRendererBakeoff';
+import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];
@@ -34,6 +35,7 @@ interface DebugPanelProps {
   developmentTextFixtureError: string | null;
   textSourceMode: 'placeholder' | 'atlas' | 'cached';
   readyTextSourceCount: number;
+  textRenderTelemetry: TextRenderPresentationSnapshot;
   onDevelopmentTextFixtureChange: (enabled: boolean) => void;
 }
 
@@ -70,6 +72,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   developmentTextFixtureError,
   textSourceMode,
   readyTextSourceCount,
+  textRenderTelemetry,
   onDevelopmentTextFixtureChange
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -201,6 +204,24 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         </small>
         <small>
           Text source: {textSourceMode} · {readyTextSourceCount} ready layer{readyTextSourceCount === 1 ? '' : 's'}
+        </small>
+        <small>
+          Modes: {textRenderTelemetry.atlasLayerCount} atlas / {textRenderTelemetry.cachedLayerCount} cached
+          {' · '}{textRenderTelemetry.rebuildingLayerCount} rebuilding
+        </small>
+        <small>
+          Text cache: {(textRenderTelemetry.textureBytes / 1048576).toFixed(1)} / {(textRenderTelemetry.cacheBudgetBytes / 1048576).toFixed(0)} MiB
+          {' · '}{textRenderTelemetry.cacheEvictions} evictions
+        </small>
+        <small>
+          Layout cache: {(textRenderTelemetry.layoutCacheBytes / 1048576).toFixed(1)} / {(textRenderTelemetry.layoutCacheBudgetBytes / 1048576).toFixed(0)} MiB
+          {' · '}{textRenderTelemetry.layoutCacheHits} hits / {textRenderTelemetry.layoutCacheMisses} misses
+        </small>
+        <small>
+          Atlas: {(textRenderTelemetry.atlasBytes / 1048576).toFixed(1)} MiB
+          {' · '}{textRenderTelemetry.atlasHits} hits / {textRenderTelemetry.atlasMisses} misses
+          {' · '}{textRenderTelemetry.atlasEncodes} direct encodes
+          {textRenderTelemetry.lastSourceDecision ? ` · ${textRenderTelemetry.lastSourceDecision}` : ''}
         </small>
         {textRendererReport ? (
           <details>
