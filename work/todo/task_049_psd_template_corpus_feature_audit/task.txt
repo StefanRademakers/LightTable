@@ -1,0 +1,51 @@
+# Task 049 - PSD template corpus feature audit
+
+Status: in progress
+
+Inventory all ten matching PSD/reference-image pairs below
+`D:\mediavibe\LightTableTestFiles\psd\templates\Save the Date Invitation PSD 6`
+before implementing more PSD features. Compare Photoshop and LightTable at
+document, group and layer level so recurring architectural gaps can be
+separated from fixture-specific defects.
+
+## Audit contract
+
+- [ ] Record every source document's canvas, color mode, bit depth, layer count,
+  nesting and source/reference paths.
+- [ ] Record layer type, local bounds, document transform, visibility, clipping,
+  masks, blend mode, opacity, fill opacity, styles, adjustment descriptors,
+  text/font state, vector data and smart-object data where present.
+- [ ] Capture a Photoshop reference and LightTable result for every document.
+- [ ] For suspect layers, capture both a solo render and an in-context render;
+  isolation alone is insufficient for clipping, adjustment and group blending.
+- [ ] Index parser-preserved, raster-fallback, partially mapped and unsupported
+  features without changing rendering during the audit.
+- [ ] Group recurring gaps into candidate implementation tasks and rank them by
+  affected documents, visual impact and architectural dependency.
+- [ ] Review the completed feature matrix before implementing candidates.
+
+## Canonical/native-format requirements to verify
+
+- [ ] Layer-local raster/vector bounds may exceed or sit outside the document
+  canvas; clipping happens during document composition, not during storage.
+- [ ] Native save/reopen preserves local bounds, transforms, masks, groups,
+  clipping, style semantics and retained source previews without expanding all
+  layers to the document dimensions.
+- [ ] Supported features remain semantic and editable in the native format.
+- [ ] Unsupported features retain source metadata and a bounded visual preview;
+  edits must not silently discard source semantics.
+- [ ] Layer-tree thumbnails use consistent square cells with contained aspect
+  ratios, while row sizing remains independent of source layer dimensions.
+
+## Feature implementation policy
+
+The audit itself is read-only. Each approved feature or independent defect is
+implemented with focused tests and a separate commit. Avoid template-specific
+special cases and do not mark cached pixels as semantic support.
+
+## Gates
+
+- [ ] All ten PSDs open in both applications and have an audit record.
+- [ ] Failures and unavailable comparisons are explicit; corpus averages do not
+  hide severe per-document differences.
+- [ ] The resulting priority proposal is reviewed before feature work starts.
