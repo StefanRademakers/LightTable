@@ -1678,6 +1678,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     strokeEnabled: editorSession.vectorStyle.strokeEnabled,
     strokeColor: editorSession.vectorStyle.strokeColor,
     strokeWidth: editorSession.vectorStyle.strokeWidth,
+    strokeAlignment: editorSession.vectorStyle.strokeAlignment,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection: (vectorSelection) => {

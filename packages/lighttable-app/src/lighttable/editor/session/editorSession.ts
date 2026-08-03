@@ -168,6 +168,7 @@ export interface VectorToolStyleSettings {
   strokeEnabled: boolean;
   strokeColor: string;
   strokeWidth: number;
+  strokeAlignment: 'inside' | 'center' | 'outside';
 }
 
 export interface TextToolSettings {
@@ -219,7 +220,8 @@ export const createEditorSession = (): EditorSession => ({
     fillColor: '#000000',
     strokeEnabled: true,
     strokeColor: '#ffffff',
-    strokeWidth: 3
+    strokeWidth: 3,
+    strokeAlignment: 'center'
   },
   text: {
     family: 'Inter',

@@ -29,6 +29,8 @@ export interface SolidPaint {
 export interface VectorStroke {
   paint: SolidPaint;
   width: number;
+  /** Center is the PDF/default stroke model; inside/outside apply to closed contours. */
+  alignment?: 'inside' | 'center' | 'outside';
   cap: 'butt' | 'round' | 'square';
   join: 'miter' | 'round' | 'bevel';
   miterLimit: number;

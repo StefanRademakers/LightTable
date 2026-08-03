@@ -34,7 +34,8 @@ export const vectorElementStyleSettings = (
   fillColor: linearRgbaToCssHex(element.style.fill?.color ?? [0, 0, 0, 1]),
   strokeEnabled: element.style.stroke !== null,
   strokeColor: linearRgbaToCssHex(element.style.stroke?.paint.color ?? [1, 1, 1, 1]),
-  strokeWidth: element.style.stroke?.width ?? 3
+  strokeWidth: element.style.stroke?.width ?? 3,
+  strokeAlignment: element.style.stroke?.alignment ?? 'center'
 });
 
 export const patchVectorStyle = (
@@ -56,6 +57,7 @@ export const patchVectorStyle = (
         : cssHexToLinearRgba(change.strokeColor)
     },
     width: change.strokeWidth ?? style.stroke?.width ?? 3,
+    alignment: change.strokeAlignment ?? style.stroke?.alignment ?? 'center',
     cap: style.stroke?.cap ?? 'round',
     join: style.stroke?.join ?? 'round',
     miterLimit: style.stroke?.miterLimit ?? 4,

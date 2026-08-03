@@ -76,6 +76,12 @@ const parseStroke = (value: unknown, location: string): VectorStroke => {
   if (value.join !== 'miter' && value.join !== 'round' && value.join !== 'bevel') {
     throw new Error(`${location}.join is invalid.`);
   }
+  if (value.alignment !== undefined
+    && value.alignment !== 'inside'
+    && value.alignment !== 'center'
+    && value.alignment !== 'outside') {
+    throw new Error(`${location}.alignment is invalid.`);
+  }
   if (!Array.isArray(value.dash)) throw new Error(`${location}.dash must be an array.`);
   const width = finiteNumber(value.width, `${location}.width`);
   const miterLimit = finiteNumber(value.miterLimit, `${location}.miterLimit`);
@@ -86,6 +92,7 @@ const parseStroke = (value: unknown, location: string): VectorStroke => {
   return {
     paint: parseSolidPaint(value.paint, `${location}.paint`),
     width,
+    alignment: value.alignment ?? 'center',
     cap: value.cap,
     join: value.join,
     miterLimit,

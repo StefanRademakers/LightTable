@@ -130,7 +130,6 @@ const vectorStroke = (
   fillPaint: SolidPaint | null
 ): { stroke: VectorStroke | null; opacity: number } | null => {
   if (!descriptor?.strokeEnabled) return { stroke: null, opacity: 1 };
-  if (descriptor.lineAlignment && descriptor.lineAlignment !== 'center') return null;
   const paint = solidPaint(descriptor.content);
   const width = unitPixels(descriptor.lineWidth, descriptor.resolution ?? 72);
   const dashOffset = unitPixels(descriptor.lineDashOffset, descriptor.resolution ?? 72);
@@ -149,6 +148,7 @@ const vectorStroke = (
     stroke: {
       paint,
       width: Math.max(0, width),
+      alignment: descriptor.lineAlignment ?? 'center',
       cap: descriptor.lineCapType ?? 'butt',
       join: descriptor.lineJoinType ?? 'miter',
       miterLimit: Math.max(1, descriptor.miterLimit ?? 4),

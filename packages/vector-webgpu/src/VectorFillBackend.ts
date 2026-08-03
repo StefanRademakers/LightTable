@@ -63,6 +63,7 @@ const premultiplied = (paint: SolidPaint, opacity: number) => {
 
 const strokeGeometryIdentity = (stroke: NonNullable<VectorPath['style']['stroke']>) => JSON.stringify([
   stroke.width,
+  stroke.alignment ?? 'center',
   stroke.cap,
   stroke.join,
   stroke.miterLimit,

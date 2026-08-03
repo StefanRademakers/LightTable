@@ -403,6 +403,16 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           <ToolOptionNumber label="Weight" min={0.1} max={1000} step={0.5}
             value={presentedVectorStyle.strokeWidth} unit="px"
             onChange={(value) => changeVectorStyle({ strokeWidth: Math.max(0.1, value || 0.1) })} />
+          <ToolOptionSelect label="Align" value={presentedVectorStyle.strokeAlignment}
+            disabled={!presentedVectorStyle.strokeEnabled}
+            aria-label="Stroke alignment"
+            onChange={(event) => changeVectorStyle({
+              strokeAlignment: event.currentTarget.value as VectorToolStyleSettings['strokeAlignment']
+            })}>
+            <option value="inside">Inside</option>
+            <option value="center">Center</option>
+            <option value="outside">Outside</option>
+          </ToolOptionSelect>
         </div>
       ) : null}
       {activeTool === 'brush' || activeTool === 'erase' ? (

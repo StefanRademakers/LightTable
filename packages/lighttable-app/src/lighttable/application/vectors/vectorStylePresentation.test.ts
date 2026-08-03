@@ -22,6 +22,7 @@ describe('vector style presentation', () => {
     element.style.stroke = {
       paint: { type: 'solid', color: cssHexToLinearRgba('#ffffff') },
       width: 3,
+      alignment: 'outside',
       cap: 'square',
       join: 'bevel',
       miterLimit: 7,
@@ -34,7 +35,8 @@ describe('vector style presentation', () => {
       fillColor: '#000000',
       strokeEnabled: true,
       strokeColor: '#ffffff',
-      strokeWidth: 3
+      strokeWidth: 3,
+      strokeAlignment: 'outside'
     });
     const style = patchVectorStyle(element.style, {
       fillColor: '#ff0000',
@@ -43,6 +45,7 @@ describe('vector style presentation', () => {
     expect(linearRgbaToCssHex(style.fill?.color ?? [])).toBe('#ff0000');
     expect(style.stroke).toMatchObject({
       width: 8,
+      alignment: 'outside',
       cap: 'square',
       join: 'bevel',
       miterLimit: 7,

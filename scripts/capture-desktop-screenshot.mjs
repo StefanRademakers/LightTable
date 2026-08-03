@@ -33,6 +33,7 @@ const dragX = Number.parseFloat(argument('drag-x', '0'));
 const dragY = Number.parseFloat(argument('drag-y', '0'));
 const enableFill = argument('enable-fill', '');
 const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
+const strokeAlignment = argument('stroke-alignment', '');
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -57,7 +58,7 @@ const diagnostics = {
   expectedVectorLayers,
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
-    enableFill, strokeWidth
+    enableFill, strokeWidth, strokeAlignment
   },
   outputFile,
   executablePath,
@@ -157,6 +158,9 @@ try {
       const input = window.getByRole('spinbutton', { name: 'Weight' });
       await input.fill(String(strokeWidth));
       await input.blur();
+    }
+    if (['inside', 'center', 'outside'].includes(strokeAlignment)) {
+      await window.getByRole('combobox', { name: 'Stroke alignment' }).selectOption(strokeAlignment);
     }
     await window.waitForTimeout(500);
   }

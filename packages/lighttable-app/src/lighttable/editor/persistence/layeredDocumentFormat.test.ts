@@ -849,6 +849,7 @@ describe('LightTable layered PNG format', () => {
     glyph.style.stroke = {
       paint: { type: 'solid', color: [0.1, 0.05, 0.08, 1] },
       width: 0.08,
+      alignment: 'center',
       cap: 'round',
       join: 'round',
       miterLimit: 4,

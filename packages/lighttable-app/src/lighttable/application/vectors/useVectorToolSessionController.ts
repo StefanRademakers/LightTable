@@ -3,7 +3,8 @@ import type { VectorStyle } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type {
   ToolId,
-  VectorEditorSelection
+  VectorEditorSelection,
+  VectorToolStyleSettings
 } from '../../editor/session/editorSession';
 import {
   isVectorEditorTool,
@@ -21,6 +22,7 @@ export interface VectorToolSessionHookOptions {
   readonly strokeColor: string;
   readonly strokeEnabled: boolean;
   readonly strokeWidth: number;
+  readonly strokeAlignment: VectorToolStyleSettings['strokeAlignment'];
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
@@ -43,6 +45,7 @@ export const useVectorToolSessionController = ({
   strokeColor,
   strokeEnabled,
   strokeWidth,
+  strokeAlignment,
   applyDocumentSnapshot,
   pushDocumentHistory,
   publishSelection
@@ -56,6 +59,7 @@ export const useVectorToolSessionController = ({
     strokeColor,
     strokeEnabled,
     strokeWidth,
+    strokeAlignment,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection
@@ -69,6 +73,7 @@ export const useVectorToolSessionController = ({
     strokeColor,
     strokeEnabled,
     strokeWidth,
+    strokeAlignment,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection
@@ -93,14 +98,16 @@ export const useVectorToolSessionController = ({
         fill: portsRef.current.fillEnabled
           ? { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) } : null,
         stroke: portsRef.current.strokeEnabled
-          ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth) : null,
+          ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth,
+            portsRef.current.strokeAlignment) : null,
         opacity: 1
       }),
       liveShapeStyle: (): VectorStyle => ({
         fill: portsRef.current.fillEnabled
           ? { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) } : null,
         stroke: portsRef.current.strokeEnabled
-          ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth) : null,
+          ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth,
+            portsRef.current.strokeAlignment) : null,
         opacity: 1
       })
     });
@@ -138,9 +145,14 @@ export const useVectorToolSessionController = ({
   return controllerRef.current;
 };
 
-const createStroke = (color: string, width: number): NonNullable<VectorStyle['stroke']> => ({
+const createStroke = (
+  color: string,
+  width: number,
+  alignment: VectorToolStyleSettings['strokeAlignment']
+): NonNullable<VectorStyle['stroke']> => ({
   paint: { type: 'solid', color: cssHexToLinearRgba(color) },
   width: Math.max(0.1, width),
+  alignment,
   cap: 'round',
   join: 'round',
   miterLimit: 4,

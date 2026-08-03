@@ -13,6 +13,7 @@ describe('parseVectorPath', () => {
     source.style.stroke = {
       paint: { type: 'solid', color: [0.1, 0.2, 0.3, 1] },
       width: 4,
+      alignment: 'center',
       cap: 'round',
       join: 'miter',
       miterLimit: 4,

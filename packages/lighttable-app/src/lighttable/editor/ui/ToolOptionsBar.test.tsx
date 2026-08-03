@@ -65,7 +65,8 @@ describe('vector style tool options', () => {
   it('shows an imported selected shape style across the existing vector tool family', () => {
     const selected = {
       fillEnabled: true, fillColor: '#123456',
-      strokeEnabled: true, strokeColor: '#abcdef', strokeWidth: 7
+      strokeEnabled: true, strokeColor: '#abcdef', strokeWidth: 7,
+      strokeAlignment: 'outside' as const
     };
     for (const tool of ['shape-rectangle', 'vector-select', 'vector-direct-select'] as const) {
       const markup = renderOptions(tool, 1, 1, undefined, selected);
@@ -86,7 +87,8 @@ describe('vector style tool options', () => {
   it('uses the shared checkbox control for imported no-fill and no-stroke states', () => {
     const markup = renderOptions('vector-select', 1, 1, undefined, {
       fillEnabled: false, fillColor: '#000000',
-      strokeEnabled: false, strokeColor: '#ffffff', strokeWidth: 3
+      strokeEnabled: false, strokeColor: '#ffffff', strokeWidth: 3,
+      strokeAlignment: 'center'
     });
 
     expect(markup).toContain('type="checkbox"');
@@ -94,6 +96,19 @@ describe('vector style tool options', () => {
     expect(markup).toContain('aria-label="Line: enabled"');
     expect(markup).not.toContain('paint-toggle');
     expect(markup).not.toContain('>\/</button>');
+  });
+
+  it('surfaces native inside, center and outside stroke alignment', () => {
+    const markup = renderOptions('vector-select', 1, 1, undefined, {
+      fillEnabled: true, fillColor: '#000000',
+      strokeEnabled: true, strokeColor: '#ffffff', strokeWidth: 12,
+      strokeAlignment: 'inside'
+    });
+
+    expect(markup).toContain('aria-label="Stroke alignment"');
+    expect(markup).toContain('<option value="inside" selected="">Inside</option>');
+    expect(markup).toContain('<option value="center">Center</option>');
+    expect(markup).toContain('<option value="outside">Outside</option>');
   });
 });
 

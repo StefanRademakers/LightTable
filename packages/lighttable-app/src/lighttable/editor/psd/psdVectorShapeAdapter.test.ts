@@ -87,6 +87,26 @@ describe('importPsdVectorShape', () => {
     });
   });
 
+  it.each(['inside', 'center', 'outside'] as const)(
+    'imports Photoshop %s stroke alignment as native vector semantics',
+    (lineAlignment) => {
+      const result = importPsdVectorShape({
+        ...source([path()]),
+        vectorStroke: {
+          strokeEnabled: true,
+          fillEnabled: false,
+          lineWidth: { units: 'Pixels', value: 10 },
+          lineAlignment,
+          content: { type: 'color', color: { r: 255, g: 0, b: 0 } }
+        }
+      });
+
+      expect(result.status).toBe('native');
+      if (result.status !== 'native') throw new Error(result.reason);
+      expect(result.elements[0]?.style.stroke?.alignment).toBe(lineAlignment);
+    }
+  );
+
   it('scopes editable identities to the Photoshop source layer', () => {
     const first = importPsdVectorShape({ ...source([path()]), sourceObjectId: 'layer-a' });
     const second = importPsdVectorShape({ ...source([path()]), sourceObjectId: 'layer-b' });
