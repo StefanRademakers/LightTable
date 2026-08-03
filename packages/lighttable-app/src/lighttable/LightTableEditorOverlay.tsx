@@ -551,14 +551,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   useEffect(() => {
     let activeRegistration = true;
-    if (editorSession.activeTool !== 'text-point') return undefined;
-    void registerBundledTextFont(textFontRegistry).catch((reason: unknown) => {
-      if (activeRegistration) setError(
-        reason instanceof Error ? reason.message : 'The bundled text font could not be loaded.'
-      );
+    if (!thumbnailDocumentReadyId && editorSession.activeTool !== 'text-point') return undefined;
+    void Promise.all([
+      registerBundledTextFont(textFontRegistry),
+      lightTableTextEngine.probe()
+    ]).catch((reason: unknown) => {
+      if (activeRegistration && editorSession.activeTool === 'text-point') {
+        setError(reason instanceof Error
+          ? reason.message
+          : 'The bundled text engine could not be prepared.');
+      }
     });
     return () => { activeRegistration = false; };
-  }, [editorSession.activeTool, textFontRegistry]);
+  }, [editorSession.activeTool, textFontRegistry, thumbnailDocumentReadyId]);
   const availableFontAssets = useMemo(
     () => textFontRegistry.availableAssets,
     [textFontRegistry, fontAvailabilityRevision]

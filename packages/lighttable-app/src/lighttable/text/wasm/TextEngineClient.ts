@@ -72,7 +72,7 @@ export interface TextGlyphRasterReport extends TextEngineOperationReport {
 export type TextEngineWorkerFactory = () => TextEngineWorkerPort;
 
 const createBrowserWorker = (): TextEngineWorkerPort => new Worker(
-  new URL('./textLayout.bootstrap.worker.ts', import.meta.url),
+  new URL('./textLayout.worker.ts', import.meta.url),
   { type: 'module', name: 'LightTable text layout' }
 );
 
@@ -281,6 +281,17 @@ export class TextEngineClient {
     if (this.worker) return this.worker;
     const worker = this.workerFactory();
     worker.onmessage = ({ data }) => {
+      if (data.kind === 'error') {
+        const reason = new Error(data.message);
+        const pendingLayout = this.pendingLayouts.get(data.requestId);
+        if (pendingLayout) {
+          this.pendingLayouts.delete(data.requestId);
+          pendingLayout.detachAbort?.();
+          pendingLayout.reject(reason);
+          this.resetWorker(reason);
+          return;
+        }
+      }
       if (data.kind === 'font-registered' || data.kind === 'font-registration-failed'
         || data.kind === 'text-realized' || data.kind === 'text-layout-failed'
         || data.kind === 'glyph-rasterized' || data.kind === 'glyph-rasterization-failed'

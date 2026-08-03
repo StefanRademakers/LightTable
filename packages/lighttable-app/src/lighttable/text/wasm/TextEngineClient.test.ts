@@ -97,6 +97,15 @@ class FakeWorker implements TextEngineWorkerPort {
       metrics: { operationDurationMs: 0.75, wasmLinearMemoryBytes: 5_701_632 }
     } } as MessageEvent);
   }
+
+  failed(requestId: number, message: string) {
+    this.onmessage?.({ data: {
+      kind: 'error',
+      protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
+      requestId,
+      message
+    } } as MessageEvent);
+  }
 }
 
 const realizedLayout = (key: string): RealizedTextLayout => ({
@@ -306,6 +315,25 @@ describe('TextEngineClient', () => {
     const retry = client.realizeText(retryRequest);
     worker.realized(2, retryRequest.cacheKey);
     await expect(retry).resolves.toMatchObject({ key: retryRequest.cacheKey });
+  });
+
+  it('rejects a layout when module bootstrap reports a generic worker error', async () => {
+    const firstWorker = new FakeWorker();
+    const secondWorker = new FakeWorker();
+    const factory = vi.fn()
+      .mockReturnValueOnce(firstWorker)
+      .mockReturnValueOnce(secondWorker);
+    const client = new TextEngineClient(factory);
+
+    const failed = client.realizeText(layoutRequest());
+    firstWorker.failed(1, 'SyntaxError: text worker module could not load');
+    await expect(failed).rejects.toThrow('text worker module could not load');
+    expect(firstWorker.terminate).toHaveBeenCalledOnce();
+
+    const request = layoutRequest();
+    const retried = client.realizeText(request);
+    secondWorker.realized(2, request.cacheKey);
+    await expect(retried).resolves.toMatchObject({ key: request.cacheKey });
   });
 
   it('returns worker metrics and rejects a wrong cache identity without resetting the worker', async () => {
