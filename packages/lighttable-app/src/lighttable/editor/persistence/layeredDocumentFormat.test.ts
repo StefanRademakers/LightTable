@@ -75,8 +75,40 @@ const rewriteManifest = async (
 
 describe('LightTable layered PNG format', () => {
   it('round-trips flow and positioned text, masks, nesting and compatible future fields', async () => {
+    const baseFlow = createDefaultTextLayerData();
+    if (baseFlow.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+    const baseFlowSource = baseFlow.source;
+    const complexSegments = [
+      ['Arabic \u0645\u0631\u062d\u0628\u0627 | ', 'Noto Kufi Arabic'],
+      ['Hebrew \u05e9\u05dc\u05d5\u05dd | ', 'Noto Sans Hebrew'],
+      ['Devanagari \u0928\u092e\u0938\u094d\u0924\u0947 | ', 'Noto Sans Devanagari'],
+      ['Thai \u0e20\u0e32\u0e29\u0e32\u0e44\u0e17\u0e22 | ', 'Noto Sans Thai'],
+      ['CJK \u65e5\u672c\u8a9e\u4e2d\u6587 | ', 'Noto Sans CJK JP'],
+      ['Emoji \ud83d\ude00 | ', 'Noto Emoji'],
+      ['Combining A\u0301', 'Source Serif 4']
+    ] as const;
+    const complexText = complexSegments.map(([text]) => text).join('');
+    let runStart = 0;
+    const complexRuns = complexSegments.map(([text, family]) => {
+      const run = {
+        ...baseFlowSource.styleRuns[0]!,
+        start: runStart,
+        end: runStart + text.length,
+        requestedFont: { families: [family] }
+      };
+      runStart = run.end;
+      return run;
+    });
     const flowFixture = {
-      ...createDefaultTextLayerData(),
+      ...baseFlow,
+      source: {
+        ...baseFlowSource,
+        text: complexText,
+        styleRuns: complexRuns,
+        paragraphRuns: baseFlowSource.paragraphRuns.map((run) => ({
+          ...run, start: 0, end: complexText.length
+        }))
+      },
       futureTextMetadata: { producer: 'future-compatible' }
     } as TextLayerData;
     const withFlow = createTextLayer(

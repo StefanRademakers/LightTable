@@ -17,11 +17,11 @@ Status: in progress
 
 - [x] Move left/right by realized visual caret order while preserving logical
   text storage, selection anchors and grapheme boundaries.
-- [ ] Verify mixed LTR/RTL selection collapse, Shift extension, Home/End and
+- [x] Verify mixed LTR/RTL selection collapse, Shift extension, Home/End and
   vertical movement.
-- [ ] Verify Arabic, Hebrew, Devanagari, Thai, CJK, emoji and combining text in
+- [x] Verify Arabic, Hebrew, Devanagari, Thai, CJK, emoji and combining text in
   the real WASM corpus and through save/reopen.
-- [ ] Defer vertical writing controls until horizontal complex scripts pass.
+- [x] Defer vertical writing controls until horizontal complex scripts pass.
 
 ## Continuous paint performance
 
