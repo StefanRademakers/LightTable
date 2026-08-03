@@ -476,6 +476,38 @@ mod tests {
     }
 
     #[test]
+    fn wraps_default_paragraph_text_to_a_narrow_width() {
+        let session = "paragraph-wrap";
+        let bytes = include_bytes!("../../../test/fixtures/fonts/Anton-Regular.ttf");
+        assert_eq!(register_layout_font(session, "anton", bytes).unwrap(), 1);
+        let text = "A narrow paragraph frame wraps this sentence over several lines.";
+        let output = realize_flow_text(
+            session,
+            "paragraph-wrap-golden",
+            text,
+            Some(90.0),
+            12.0,
+            18.0,
+            1_000,
+            &[0, text.encode_utf16().count() as u32, 0, 0, 0],
+            &[24.0, 400.0, 100.0, 0.0],
+            b"Antonanton",
+            &[0, 5, 5, 10],
+        )
+        .unwrap();
+
+        let lines = output.line_meta();
+        assert!(
+            lines.len() >= 4,
+            "expected at least two packed line records: {lines:?}"
+        );
+        assert_eq!(lines.len() % 2, 0);
+        assert_eq!(output.bounds()[4], 12.0);
+        assert_eq!(output.bounds()[5], 18.0);
+        assert!(drop_layout_session(session));
+    }
+
+    #[test]
     fn shapes_the_complex_script_corpus_with_exact_font_provenance() {
         let fixtures: &[(&str, &str, &[u8], &str, &str)] = &[
             (

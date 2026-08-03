@@ -8,6 +8,8 @@ import { createTextLayer, setLayerLock } from './documentCommands';
 import { createImageDocument } from './documentTypes';
 import { findDocumentLayer } from './layerTree';
 import {
+  convertParagraphTextToPoint,
+  convertPointTextToParagraph,
   setFlowTextContent,
   setFlowTextLayout,
   setFlowTextRuns,
@@ -152,6 +154,69 @@ describe('canonical text layer commands', () => {
     });
     expect(text.geometryRevision).toBe(1);
     expect(text.transform).toEqual(translationMatrix(7, -3));
+  });
+
+  it('converts point and paragraph geometry without changing authored text or layer transform', () => {
+    const document = flowDocument();
+    const id = document.activeLayerId!;
+    const anchored = setFlowTextLayout(document, id, {
+      mode: 'point',
+      origin: { x: 8, y: 11 },
+      writingMode: 'horizontal-tb'
+    });
+    const positioned = setTextLayerTransform(anchored, id, translationMatrix(37, 19));
+    const before = activeText(positioned);
+    if (before.text.source.kind !== 'flow' || before.text.source.layout.mode !== 'point') {
+      throw new Error('Expected point text.');
+    }
+    const authored = {
+      text: before.text.source.text,
+      styleRuns: before.text.source.styleRuns,
+      paragraphRuns: before.text.source.paragraphRuns
+    };
+
+    const paragraph = convertPointTextToParagraph(positioned, id, {
+      width: 144,
+      height: 72
+    });
+    const paragraphLayer = activeText(paragraph);
+    expect(paragraphLayer.transform).toEqual(before.transform);
+    expect(paragraphLayer.text.source).toMatchObject({
+      ...authored,
+      layout: {
+        mode: 'paragraph',
+        frame: { x: 8, y: 11, width: 144, height: 72 },
+        overflow: 'indicator',
+        writingMode: 'horizontal-tb'
+      }
+    });
+    expect(paragraphLayer.text.revisions).toMatchObject({ layout: 2, geometry: 2 });
+    expect(paragraphLayer.geometryRevision).toBe(before.geometryRevision);
+
+    const point = convertParagraphTextToPoint(paragraph, id);
+    const pointLayer = activeText(point);
+    expect(pointLayer.transform).toEqual(before.transform);
+    expect(pointLayer.text.source).toMatchObject({
+      ...authored,
+      layout: {
+        mode: 'point',
+        origin: { x: 8, y: 11 },
+        writingMode: 'horizontal-tb'
+      }
+    });
+    expect(pointLayer.text.revisions).toMatchObject({ layout: 3, geometry: 3 });
+  });
+
+  it('rejects unusable conversion frames and respects position locks', () => {
+    const document = flowDocument();
+    const id = document.activeLayerId!;
+    expect(() => convertPointTextToParagraph(document, id, { width: 0, height: 20 }))
+      .toThrow(/finite positive/);
+    expect(() => convertPointTextToParagraph(document, id, { width: 20, height: Infinity }))
+      .toThrow(/finite positive/);
+    const locked = setLayerLock(document, id, 'position', true);
+    expect(convertPointTextToParagraph(locked, id, { width: 120, height: 80 }))
+      .toBe(locked);
   });
 
   it('invalidates layout but not font or paint for paragraph-only run changes', () => {

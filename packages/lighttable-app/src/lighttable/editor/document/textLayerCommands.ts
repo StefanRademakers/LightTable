@@ -286,6 +286,73 @@ export const setFlowTextLayout = (
   }, domains);
 }, 'position');
 
+export interface ParagraphFrameConversionOptions {
+  readonly width: number;
+  readonly height: number;
+  readonly overflow?: 'visible' | 'clip' | 'indicator';
+}
+
+const assertParagraphFrameSize = (
+  options: ParagraphFrameConversionOptions
+) => {
+  if (
+    !Number.isFinite(options.width)
+    || !Number.isFinite(options.height)
+    || options.width <= 0
+    || options.height <= 0
+  ) {
+    throw new RangeError('Paragraph frame width and height must be finite positive values.');
+  }
+};
+
+/**
+ * Converts authored point text to a local paragraph frame without touching the
+ * common layer transform. The point origin becomes the frame's top-left anchor,
+ * so conversion is stable for nested and transformed text layers.
+ */
+export const convertPointTextToParagraph = (
+  document: ImageDocument,
+  layerId: LayerId,
+  options: ParagraphFrameConversionOptions
+): ImageDocument => {
+  const layer = findDocumentLayer(document, layerId);
+  if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
+  const layout = layer.text.source.layout;
+  if (layout.mode !== 'point') return document;
+  assertParagraphFrameSize(options);
+  return setFlowTextLayout(document, layerId, {
+    mode: 'paragraph',
+    frame: {
+      x: layout.origin.x,
+      y: layout.origin.y,
+      width: options.width,
+      height: options.height
+    },
+    overflow: options.overflow ?? 'indicator',
+    writingMode: layout.writingMode
+  });
+};
+
+/**
+ * Converts a paragraph frame back to point text at the same local anchor.
+ * Authored text and explicit line breaks remain untouched; only layout mode
+ * changes and the common layer transform stays authoritative for placement.
+ */
+export const convertParagraphTextToPoint = (
+  document: ImageDocument,
+  layerId: LayerId
+): ImageDocument => {
+  const layer = findDocumentLayer(document, layerId);
+  if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
+  const layout = layer.text.source.layout;
+  if (layout.mode !== 'paragraph') return document;
+  return setFlowTextLayout(document, layerId, {
+    mode: 'point',
+    origin: { x: layout.frame.x, y: layout.frame.y },
+    writingMode: layout.writingMode
+  });
+};
+
 export const setTextLayerTransform = (
   document: ImageDocument,
   layerId: LayerId,
