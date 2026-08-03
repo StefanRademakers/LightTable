@@ -195,4 +195,36 @@ describe('VectorFillBackend', () => {
     expect(encoder.beginRenderPass).toHaveBeenCalledTimes(1);
     backend.dispose();
   });
+
+  it('does not alias stroke meshes with different widths at the same path revision', () => {
+    const { device, encoder, buffers } = fixture();
+    const backend = new VectorFillBackend(device as unknown as GPUDevice);
+    const source = pathFixture();
+    const stroked = (width: number) => ({
+      ...source,
+      style: {
+        ...source.style,
+        fill: null,
+        stroke: {
+          paint: { type: 'solid' as const, color: [1, 1, 1, 1] as const },
+          width, cap: 'butt' as const, join: 'miter' as const,
+          miterLimit: 4, dash: [], dashOffset: 0
+        }
+      }
+    });
+    const target = {
+      colorView: {} as GPUTextureView, resolveView: null,
+      stencilView: {} as GPUTextureView, format: 'rgba16float' as GPUTextureFormat,
+      sampleCount: 1, origin: { x: 0, y: 0 }, width: 200, height: 200
+    };
+    const narrow = stroked(1);
+    const wide = stroked(8);
+
+    backend.encodeStroke(encoder as unknown as GPUCommandEncoder, narrow, realizeVectorPath(narrow, 0.25), target);
+    backend.encodeStroke(encoder as unknown as GPUCommandEncoder, wide, realizeVectorPath(wide, 0.25), target);
+
+    expect(buffers.filter(({ label }) => label.startsWith('LightTable vector geometry stroke:')))
+      .toHaveLength(2);
+    backend.dispose();
+  });
 });

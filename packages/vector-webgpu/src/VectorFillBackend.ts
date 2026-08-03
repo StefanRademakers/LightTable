@@ -60,6 +60,15 @@ const premultiplied = (paint: SolidPaint, opacity: number) => {
   ] as const;
 };
 
+const strokeGeometryIdentity = (stroke: NonNullable<VectorPath['style']['stroke']>) => JSON.stringify([
+  stroke.width,
+  stroke.cap,
+  stroke.join,
+  stroke.miterLimit,
+  stroke.dash,
+  stroke.dashOffset
+]);
+
 export class VectorFillBackend {
   private readonly geometry: RevisionedResourceCache<CachedVertexBuffer>;
   private readonly pipelines = new Map<string, PipelineBundle>();
@@ -164,7 +173,10 @@ export class VectorFillBackend {
     if (!stroke || path.style.opacity <= 0 || target.width <= 0 || target.height <= 0) return false;
     const mesh = buildStrokeTriangleGeometry(realized, stroke);
     if (!mesh.vertices.length) return false;
-    const key = `stroke:${serializeVectorGeometryKey(realized.key)}:${path.styleRevision}`;
+    // Text can reuse one glyph path across runs with different authored stroke
+    // widths while keeping geometryRevision/styleRevision at zero. Include the
+    // actual mesh-affecting stroke contract so that reuse remains exact.
+    const key = `stroke:${serializeVectorGeometryKey(realized.key)}:${strokeGeometryIdentity(stroke)}`;
     const resource = this.prepareVertices(key, mesh.vertices);
     const bundle = this.pipelineBundle(target.format, target.sampleCount);
     return this.encodeGeometry(

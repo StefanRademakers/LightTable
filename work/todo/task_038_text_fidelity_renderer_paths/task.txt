@@ -13,12 +13,13 @@ Status: in progress. Implements Slice 16 from
   boundary with strict identity and dedicated-buffer validation.
 - [x] Deduplicate concurrent outline requests and retain owned results in a
   byte-bounded LRU keyed independently from font size, transforms and zoom.
-- [ ] Replace the fixture-only hb-gpu path with a bounded runtime encoder.
-- [ ] Integrate a device-independent, byte-bounded glyph-blob cache.
-- [ ] Reuse GPU storage across repeated glyphs and submissions.
+- [x] Replace the fixture-only hb-gpu path with the selected bounded alternate
+  outline runtime encoder.
+- [x] Integrate a device-independent, byte-bounded glyph-outline cache.
+- [x] Reuse GPU storage across repeated glyphs and submissions.
 - [x] Keep viewport zoom out of content identity and quality invalidation.
-- [ ] Preserve exact document pixels at extreme viewport zoom.
-- [ ] Support native text fill and stroke through the fidelity route.
+- [x] Preserve exact document pixels at extreme viewport zoom.
+- [x] Support native solid text fill and stroke through the fidelity route.
 
 ## Convert to shape/path
 
@@ -31,6 +32,6 @@ Status: in progress. Implements Slice 16 from
 ## Gates
 
 - [ ] Focused cache, renderer, command and persistence tests pass.
-- [ ] Full workspace tests and typechecks pass.
-- [ ] Production web and packaged Electron builds pass.
+- [x] Full workspace tests and typechecks pass for the completed renderer work.
+- [x] Production web and packaged Electron builds pass for the completed renderer work.
 - [ ] Physical high-zoom and save/reopen smoke is recorded.
