@@ -32,6 +32,35 @@ describe('TextLayerRenderer', () => {
     renderer.sync([]);
     expect(renderer.resolvePresentation(changed)).toBeNull();
   });
+  it('publishes a retained atlas plan and transforms it directly into the compositor target', () => {
+    const renderer = new TextLayerRenderer<object>();
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Direct');
+    layer.transform = translationMatrix(10, 20);
+    renderer.sync([layer]);
+    const encode = vi.fn();
+    const release = vi.fn();
+    renderer.prepareAtlasSource(layer, { encode }, [{
+      glyph: { placement: { empty: false } } as never,
+      x: 4, y: 6, color: [1, 1, 1, 1], transform: [1, 0, 0, 1]
+    }], 2, 'direct-source', release).publish();
+    const texture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    expect(renderer.hasExactSource(layer)).toBe(true);
+    expect(renderer.snapshot()).toMatchObject({ mode: 'atlas', textureBytes: 0 });
+    expect(renderer.encodeAtlasPresentation(
+      {} as GPUCommandEncoder,
+      layer,
+      translationMatrix(1, 2),
+      { texture, width: 320, height: 200 }
+    )).toBe(true);
+    expect(encode).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ width: 320, height: 200, loadOp: 'load' }),
+      [expect.objectContaining({ x: 13, y: 25, transform: [0.5, 0, 0, 0.5] })]
+    );
+    expect(release).not.toHaveBeenCalled();
+    renderer.release(layer.id);
+    expect(release).toHaveBeenCalledOnce();
+  });
   it('publishes only exact immutable sources and maps tight pixels into document space', () => {
     const renderer = new TextLayerRenderer<object>();
     const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');

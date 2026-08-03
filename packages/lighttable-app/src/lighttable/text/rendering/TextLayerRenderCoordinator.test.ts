@@ -1,4 +1,8 @@
-import { createDefaultTextLayerData } from '@lighttable/text-core';
+import {
+  CONTRACT_FIXTURE_FONT_INSTANCE,
+  TEXT_LAYOUT_SCHEMA_VERSION,
+  createDefaultTextLayerData
+} from '@lighttable/text-core';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createImageDocument,
@@ -35,16 +39,23 @@ const harness = () => {
   const publish = vi.fn(() => ({}));
   const discard = vi.fn();
   const prepareTightSource = vi.fn(() => ({ publish, discard }));
+  const prepareAtlasSource = vi.fn(() => ({ publish, discard }));
   const renderer = {
     sync: vi.fn(),
     setVisibleLayerIds: vi.fn(),
-    snapshot: vi.fn(() => ({ publicationRevision: 0 })),
+    snapshot: vi.fn(() => ({
+      publicationRevision: 0,
+      textureBytes: 0,
+      cacheBudgetBytes: 256 * 1024 * 1024
+    })),
     dispose: vi.fn(),
     resolve: vi.fn(() => ({})),
+    hasExactSource: vi.fn(() => true),
     isTransparent: vi.fn(() => false),
     markTransparent: vi.fn(() => false),
     release: vi.fn(() => false),
     thumbnailSource: vi.fn(() => null),
+    prepareAtlasSource,
     prepareTightSource
   };
   const client = {
@@ -60,6 +71,7 @@ const harness = () => {
     lookupGlyph: vi.fn(),
     prepareGlyph: vi.fn(),
     encode: vi.fn(),
+    retainGlyphs: vi.fn(() => vi.fn()),
     retireSubmittedResources: vi.fn(async () => undefined),
     dispose: vi.fn()
   };
@@ -133,6 +145,42 @@ describe('TextLayerRenderCoordinator', () => {
     await flush();
     expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
     expect(state.submit).toHaveBeenCalledOnce();
+  });
+
+  it('publishes small eligible text as a retained direct atlas plan without a private submit', async () => {
+    const state = harness();
+    state.client.realizeTextDetailed.mockResolvedValueOnce({
+      layout: {
+        schemaVersion: TEXT_LAYOUT_SCHEMA_VERSION,
+        key: 'direct-layout',
+        glyphRuns: [{
+          font: CONTRACT_FIXTURE_FONT_INSTANCE, fontSize: 16,
+          fontResolution: { kind: 'positioned-exact', sourceRunIndex: 0 },
+          paint: { fill: { kind: 'solid', color: { colorSpace: 'srgb', r: 0, g: 0, b: 0, a: 1 } } },
+          renderingMode: 'fill', direction: 'ltr',
+          glyphIds: new Uint32Array([7]), clusters: new Uint32Array([0]),
+          geometry: new Float32Array([2, 12, 10, 0])
+        }],
+        lines: [], caretStops: [], selectionGeometry: [], clusterMap: [],
+        inkBounds: { x: 2, y: 0, width: 10, height: 16 },
+        logicalBounds: { x: 2, y: 0, width: 10, height: 16 }, warnings: []
+      }, metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
+    } as never);
+    state.backend.lookupGlyph.mockReturnValue({
+      placement: {
+        serializedKey: 'glyph', pageId: 0, pageGeneration: 0, atlasGeneration: 0,
+        x: 0, y: 0, width: 10, height: 16, empty: false
+      }, bearingX: 0, bearingY: 12
+    });
+    const document = createImageDocument('Direct text', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    expect(state.renderer.prepareAtlasSource).toHaveBeenCalledOnce();
+    expect(state.renderer.prepareTightSource).not.toHaveBeenCalled();
+    expect(state.submit).not.toHaveBeenCalled();
+    expect(state.publish).toHaveBeenCalledOnce();
   });
 
   it('reuses realized geometry but redraws a paint-only text update', async () => {

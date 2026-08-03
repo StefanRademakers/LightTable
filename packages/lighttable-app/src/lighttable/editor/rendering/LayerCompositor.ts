@@ -249,6 +249,20 @@ export class LayerCompositor {
 
       if (node.type === 'text') {
         if (this.options.texts?.isTransparent?.(node)) return [background, target];
+        const directEligible = node.opacity === 1
+          && node.fillOpacity === 1
+          && node.blendMode === 'normal'
+          && !node.clipping
+          && !node.mask?.enabled
+          && !layerStyleStackIsActive(node.styleStack);
+        if (directEligible && this.options.texts?.encodeAtlasPresentation?.(
+          encoder,
+          node,
+          inheritedTransform,
+          { texture: background, width, height }
+        )) {
+          return [background, target];
+        }
         const source = this.options.texts?.resolvePresentation(node, inheritedTransform) ?? null;
         if (!source) {
           return renderVectorLayer(

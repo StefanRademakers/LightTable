@@ -18,9 +18,11 @@ import type { DocumentFontAsset, ImageDocument, LayerId, TextLayer } from '../..
 import { walkLayerTree } from '../../editor/document/layerTree';
 import { identityAffineMatrix, multiplyMatrices } from '../../editor/geometry/affine';
 import type { AffineMatrix } from '../../editor/geometry/affine';
+import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
 import type { TextEngineClient } from '../wasm/TextEngineClient';
-import { TextLayerRenderer, textLayerSourceKey } from './TextLayerRenderer';
+import { TextLayerRenderer, textLayerSourceKey, tightCoverageBounds } from './TextLayerRenderer';
 import { TextLayoutCache } from './TextLayoutCache';
+import { TextSourceCostModel } from './TextSourceCostModel';
 
 export interface TextFontRuntimePort {
   readonly revision: number;
@@ -111,6 +113,7 @@ export class TextLayerRenderCoordinator {
   private readonly expectedLayerKeys = new Map<LayerId, string>();
   private readonly retryCounts = new Map<string, number>();
   private readonly editingLayouts = new Map<LayerId, TextLayerEditingLayout>();
+  private readonly sourceCostModel = new TextSourceCostModel();
   private abortController: AbortController | null = null;
   private disposed = false;
   private active = true;
@@ -179,7 +182,7 @@ export class TextLayerRenderCoordinator {
     const expected = this.expectedLayerKeys.get(layer.id);
     return Boolean(expected)
       && this.settledLayerKeys.get(layer.id) === expected
-      && (Boolean(this.options.renderer.resolve(layer)) || this.options.renderer.isTransparent(layer));
+      && (this.options.renderer.hasExactSource(layer) || this.options.renderer.isTransparent(layer));
   }
 
   hasTextLayer(layerId: LayerId) {
@@ -195,7 +198,14 @@ export class TextLayerRenderCoordinator {
   async waitForSettledSource(layerId: LayerId) {
     if (!this.hasTextLayer(layerId)) return false;
     await this.work;
-    return Boolean(this.options.renderer.thumbnailSource(layerId));
+    const layer = this.document && walkLayerTree(this.document.layers)
+      .map(({ node }) => node)
+      .find((node): node is TextLayer => node.id === layerId && node.type === 'text');
+    return Boolean(layer && this.options.renderer.hasExactSource(layer));
+  }
+
+  retireSubmittedResources() {
+    void this.dependencies?.backend.retireSubmittedResources();
   }
 
   dispose() {
@@ -303,7 +313,7 @@ export class TextLayerRenderCoordinator {
         document.id, entry.layer, entry.transform, port.revision
       );
       if (this.settledLayerKeys.get(entry.layer.id) === expected
-        && (this.options.renderer.resolve(entry.layer)
+        && (this.options.renderer.hasExactSource(entry.layer)
           || this.options.renderer.isTransparent(entry.layer))) {
         continue;
       }
@@ -416,6 +426,47 @@ export class TextLayerRenderCoordinator {
     if (!this.current(generation, key)) {
       prepared.release();
       return;
+    }
+    if (prepared.draws.length > 0) {
+      const bounds = tightCoverageBounds(prepared.draws, 2)!;
+      const pixelCount = Math.ceil(bounds.width) * Math.ceil(bounds.height);
+      const snapshot = this.options.renderer.snapshot();
+      const directEligible = layer.opacity === 1
+        && layer.fillOpacity === 1
+        && layer.blendMode === 'normal'
+        && !layer.clipping
+        && !layer.mask?.enabled
+        && !layerStyleStackIsActive(layer.styleStack);
+      const decision = this.sourceCostModel.decide({
+        glyphCount: prepared.draws.length,
+        pixelCount,
+        byteLength: pixelCount * 8,
+        expectedRecompositions: 8,
+        availableCacheBytes: Math.max(0, snapshot.cacheBudgetBytes - snapshot.textureBytes),
+        directEligible
+      });
+      if (decision.mode === 'atlas') {
+        const candidate = this.options.renderer.prepareAtlasSource(
+          layer,
+          dependencies.backend,
+          prepared.draws,
+          sourceScale,
+          `${layout.key}:${layer.text.revisions.paint}:${sourceScale}`,
+          prepared.release
+        );
+        if (!this.current(generation, key)) {
+          candidate.discard();
+          return;
+        }
+        candidate.publish();
+        this.settledLayerKeys.set(
+          layer.id,
+          this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
+        );
+        this.publishChanged();
+        this.options.requestRender();
+        return;
+      }
     }
     const encoder = this.options.device.createCommandEncoder({
       label: `LightTable tight text source: ${layer.name}`

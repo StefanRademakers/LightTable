@@ -51,6 +51,21 @@ export interface PreparedTextLayerSource<TTexture = GPUTexture> {
   discard(): void;
 }
 
+interface PublishedAtlasTextSource {
+  readonly layerId: TextLayer['id'];
+  readonly backend: Pick<CoverageAtlasBackend, 'encode'>;
+  readonly draws: readonly CoverageAtlasDrawCommand[];
+  readonly sourceScale: number;
+  readonly sourceKey: string;
+  readonly authoredKey: string;
+  readonly destroy: () => void;
+}
+
+export interface PreparedAtlasTextSource {
+  publish(): void;
+  discard(): void;
+}
+
 const translation = (x: number, y: number): AffineMatrix => ({
   ...identityAffineMatrix(),
   tx: x,
@@ -72,6 +87,7 @@ const scale = (value: number): AffineMatrix => ({
  */
 export class TextLayerRenderer<TTexture = GPUTexture> {
   private readonly sources = new Map<TextLayer['id'], PublishedTextLayerSource<TTexture>>();
+  private readonly atlasSources = new Map<TextLayer['id'], PublishedAtlasTextSource>();
   private readonly transparentKeys = new Map<TextLayer['id'], string>();
   private revision = 0;
   private clock = 0;
@@ -110,11 +126,101 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
       this.release(victim.layerId);
     }
     this.sources.set(source.layerId, Object.freeze({ ...source }));
+    const previousAtlas = this.atlasSources.get(source.layerId);
+    this.atlasSources.delete(source.layerId);
+    previousAtlas?.destroy();
     this.touched.set(source.layerId, ++this.clock);
     this.transparentKeys.delete(source.layerId);
     if (previous?.texture !== source.texture) previous?.destroy?.();
     this.revision += 1;
     return true;
+  }
+
+  prepareAtlasSource(
+    layer: TextLayer,
+    backend: Pick<CoverageAtlasBackend, 'encode'>,
+    draws: readonly CoverageAtlasDrawCommand[],
+    sourceScale: number,
+    sourceKey: string,
+    release: () => void
+  ): PreparedAtlasTextSource {
+    if (!sourceKey || !Number.isFinite(sourceScale) || sourceScale <= 0) {
+      release();
+      throw new TypeError('Atlas text source identity and scale must be valid.');
+    }
+    const source = Object.freeze({
+      layerId: layer.id,
+      backend,
+      draws: Object.freeze([...draws]),
+      sourceScale,
+      sourceKey,
+      authoredKey: textLayerSourceKey(layer),
+      destroy: release
+    });
+    let settled = false;
+    return {
+      publish: () => {
+        if (settled) return;
+        settled = true;
+        const previous = this.atlasSources.get(layer.id);
+        const cached = this.sources.get(layer.id);
+        this.atlasSources.set(layer.id, source);
+        this.sources.delete(layer.id);
+        cached?.destroy?.();
+        previous?.destroy();
+        this.transparentKeys.delete(layer.id);
+        this.touched.set(layer.id, ++this.clock);
+        this.revision += 1;
+      },
+      discard: () => {
+        if (settled) return;
+        settled = true;
+        release();
+      }
+    };
+  }
+
+  encodeAtlasPresentation(
+    encoder: GPUCommandEncoder,
+    layer: TextLayer,
+    inheritedTransform: AffineMatrix,
+    target: { readonly texture: GPUTexture; readonly width: number; readonly height: number }
+  ) {
+    const source = this.atlasSources.get(layer.id);
+    if (!source) return false;
+    const combined = multiplyMatrices(inheritedTransform, layer.transform);
+    const inverseScale = 1 / source.sourceScale;
+    const draws = source.draws.map((draw) => {
+      const basis = draw.transform ?? [1, 0, 0, 1];
+      const x = draw.x * inverseScale;
+      const y = draw.y * inverseScale;
+      return {
+        ...draw,
+        x: combined.a * x + combined.c * y + combined.tx,
+        y: combined.b * x + combined.d * y + combined.ty,
+        transform: [
+          (combined.a * basis[0] + combined.c * basis[1]) * inverseScale,
+          (combined.b * basis[0] + combined.d * basis[1]) * inverseScale,
+          (combined.a * basis[2] + combined.c * basis[3]) * inverseScale,
+          (combined.b * basis[2] + combined.d * basis[3]) * inverseScale
+        ] as const
+      };
+    });
+    source.backend.encode(encoder, {
+      view: target.texture.createView(),
+      format: 'rgba16float',
+      width: target.width,
+      height: target.height,
+      loadOp: 'load'
+    }, draws);
+    this.touched.set(layer.id, ++this.clock);
+    return true;
+  }
+
+  hasExactSource(layer: TextLayer) {
+    const atlas = this.atlasSources.get(layer.id);
+    return Boolean(this.resolveExact(layer))
+      || Boolean(atlas && atlas.authoredKey === textLayerSourceKey(layer));
   }
 
   isTransparent(layer: TextLayer) {
@@ -304,11 +410,14 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
 
   release(layerId: TextLayer['id']) {
     const source = this.sources.get(layerId);
+    const atlas = this.atlasSources.get(layerId);
     const transparent = this.transparentKeys.delete(layerId);
-    if (!source && !transparent) return false;
+    if (!source && !atlas && !transparent) return false;
     this.sources.delete(layerId);
+    this.atlasSources.delete(layerId);
     this.touched.delete(layerId);
     source?.destroy?.();
+    atlas?.destroy();
     this.revision += 1;
     return true;
   }
@@ -316,6 +425,9 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
   sync(layers: readonly TextLayer[]) {
     const retained = new Set(layers.map((layer) => layer.id));
     for (const layerId of this.sources.keys()) {
+      if (!retained.has(layerId)) this.release(layerId);
+    }
+    for (const layerId of this.atlasSources.keys()) {
       if (!retained.has(layerId)) this.release(layerId);
     }
     for (const layerId of this.transparentKeys.keys()) {
@@ -338,15 +450,22 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
       textureBytes += source.byteLength;
       mode = source.mode;
     }
+    if (this.atlasSources.size > 0) mode = this.sources.size > 0 ? mode : 'atlas';
     for (const [layerId, source] of this.sources) {
       const authored = this.currentLayers.get(layerId);
       if (authored && (source.authoredKey ?? source.sourceKey) !== textLayerSourceKey(authored)) {
         rebuildingLayerCount += 1;
       }
     }
+    for (const [layerId, source] of this.atlasSources) {
+      const authored = this.currentLayers.get(layerId);
+      if (authored && source.authoredKey !== textLayerSourceKey(authored)) {
+        rebuildingLayerCount += 1;
+      }
+    }
     return Object.freeze({
       publicationRevision: this.revision,
-      readyLayerCount: this.sources.size + this.transparentKeys.size,
+      readyLayerCount: this.sources.size + this.atlasSources.size + this.transparentKeys.size,
       textureBytes,
       mode: mode === 'placeholder' && this.transparentKeys.size > 0 ? 'cached' : mode,
       rebuildingLayerCount,
@@ -361,8 +480,10 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
 
   dispose() {
     for (const source of this.sources.values()) source.destroy?.();
+    for (const source of this.atlasSources.values()) source.destroy();
     if (this.sources.size > 0 || this.transparentKeys.size > 0) this.revision += 1;
     this.sources.clear();
+    this.atlasSources.clear();
     this.transparentKeys.clear();
     this.currentLayers.clear();
     this.touched.clear();

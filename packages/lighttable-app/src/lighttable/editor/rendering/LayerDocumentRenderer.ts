@@ -164,6 +164,7 @@ export class LayerDocumentRenderer {
     this.runtime.renderResources.releaseAfterSubmit();
     void this.runtime.vectorLayerRenderer.notifySubmitted();
     this.runtime.developmentTextFixture.retireSubmittedResources();
+    this.runtime.textLayerCoordinator.retireSubmittedResources();
   }
 
   duplicateLayer(sourceId: LayerId, destinationId: LayerId) {
