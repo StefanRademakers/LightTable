@@ -54,13 +54,13 @@ export const planHybridPdfNativePageExport = ({
   const nativeTextLayerIds = new Set<LayerId>();
   const nativeVectorLayerIds = new Set<LayerId>();
   let hasUnsupportedVector = false;
-  leaves.forEach(({ layer, ancestorEffects }) => {
+  leaves.forEach(({ layer, ancestorEffects, ancestorIsolation }) => {
     if (layer.type === 'text' && textPlanIds.has(layer.id)) {
       nativeTextLayerIds.add(layer.id);
       return;
     }
     if (layer.type !== 'vector' || !layer.elements.some(pdfVectorElementHasVisiblePaint)) return;
-    if (pdfVectorLayerNativeReason(layer, ancestorEffects)) hasUnsupportedVector = true;
+    if (pdfVectorLayerNativeReason(layer, ancestorEffects, ancestorIsolation)) hasUnsupportedVector = true;
     else nativeVectorLayerIds.add(layer.id);
   });
 

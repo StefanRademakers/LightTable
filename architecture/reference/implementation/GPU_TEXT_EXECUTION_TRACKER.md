@@ -875,6 +875,16 @@ their visual output was inspected for knockout blending, soft-mask grouping and
 ordinary transparency. These preview cases validate PDF.js input coverage but
 do not widen native semantic import claims.
 
+Neutral group evidence: nested pass-through groups and isolated groups whose
+envelope is mathematically neutral (Normal, 100% opacity/fill, no mask or
+effects) now preserve their complete scene-transform chain while their vector
+children remain native. Normal source-over is associative, so removing only
+that neutral envelope does not change pixels. Isolation remains a hard export
+boundary when any child uses a backdrop-dependent blend; group opacity, masks,
+styles and non-normal group blending likewise still require a real PDF
+transparency-group Form XObject and remain flattened-only. Planner regressions
+cover both the accepted neutral case and the rejected Multiply child case.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

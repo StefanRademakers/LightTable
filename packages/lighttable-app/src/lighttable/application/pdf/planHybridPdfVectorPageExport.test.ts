@@ -69,4 +69,27 @@ describe('planHybridPdfVectorPageExport', () => {
       kind: 'flattened-only', reasons: expect.arrayContaining(['vector-blend-mode-unsupported'])
     });
   });
+
+  it('accepts neutral isolated groups but blocks backdrop blends inside them', () => {
+    const neutral = createImageDocument('Neutral isolated group', 100, 100, 'pixels');
+    const neutralGroup = createGroupLayer();
+    neutralGroup.compositing = 'isolated';
+    const child = createVectorLayer([path()]);
+    neutralGroup.children.push(child);
+    neutral.layers.push(neutralGroup);
+    const ready = planHybridPdfVectorPageExport(neutral, false);
+    expect(ready.kind).toBe('ready');
+    if (ready.kind === 'ready') expect([...ready.nativeVectorLayerIds]).toEqual([child.id]);
+
+    const backdrop = createImageDocument('Backdrop blend', 100, 100, 'pixels');
+    const isolated = createGroupLayer();
+    isolated.compositing = 'isolated';
+    const multiply = createVectorLayer([path()]);
+    multiply.blendMode = 'multiply';
+    isolated.children.push(multiply);
+    backdrop.layers.push(isolated);
+    expect(planHybridPdfVectorPageExport(backdrop, false)).toMatchObject({
+      kind: 'flattened-only', reasons: expect.arrayContaining(['vector-effects-unsupported'])
+    });
+  });
 });
