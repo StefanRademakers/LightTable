@@ -387,19 +387,21 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           {activeTool !== 'shape-line' ? (
             <ToolOptionColor label="Fill" value={presentedVectorStyle.fillColor}
               enabled={presentedVectorStyle.fillEnabled}
+              allowChangeWhenOff
               onEnabledChange={(fillEnabled) => changeVectorStyle({
                 fillEnabled,
                 ...(fillEnabled ? { fillColor: presentedVectorStyle.fillColor } : {})
               })}
-              onChange={(fillColor) => changeVectorStyle({ fillColor })} />
+              onChange={(fillColor) => changeVectorStyle({ fillEnabled: true, fillColor })} />
           ) : null}
           <ToolOptionColor label="Line" value={presentedVectorStyle.strokeColor}
             enabled={presentedVectorStyle.strokeEnabled}
+            allowChangeWhenOff
             onEnabledChange={(strokeEnabled) => changeVectorStyle({
               strokeEnabled,
               ...(strokeEnabled ? { strokeColor: presentedVectorStyle.strokeColor } : {})
             })}
-            onChange={(strokeColor) => changeVectorStyle({ strokeColor })} />
+            onChange={(strokeColor) => changeVectorStyle({ strokeEnabled: true, strokeColor })} />
           <ToolOptionNumber label="Weight" min={0.1} max={1000} step={0.5}
             value={presentedVectorStyle.strokeWidth} unit="px"
             onChange={(value) => changeVectorStyle({ strokeWidth: Math.max(0.1, value || 0.1) })} />

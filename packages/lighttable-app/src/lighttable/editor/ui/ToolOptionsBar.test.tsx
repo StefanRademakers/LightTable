@@ -96,6 +96,8 @@ describe('vector style tool options', () => {
     expect(markup).toContain('aria-label="Line: enabled"');
     expect(markup).not.toContain('paint-toggle');
     expect(markup).not.toContain('>\/</button>');
+    expect(markup).not.toContain('type="color" value="#000000" disabled=""');
+    expect(markup).not.toContain('type="color" value="#ffffff" disabled=""');
   });
 
   it('surfaces native inside, center and outside stroke alignment', () => {

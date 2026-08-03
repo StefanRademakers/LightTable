@@ -32,6 +32,8 @@ const nudgeY = Number.parseInt(argument('nudge-y', '0'), 10);
 const dragX = Number.parseFloat(argument('drag-x', '0'));
 const dragY = Number.parseFloat(argument('drag-y', '0'));
 const enableFill = argument('enable-fill', '');
+const fillColor = argument('fill-color', '');
+const strokeColor = argument('stroke-color', '');
 const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const strokeAlignment = argument('stroke-alignment', '');
 const outputFile = path.resolve(argument(
@@ -58,7 +60,7 @@ const diagnostics = {
   expectedVectorLayers,
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
-    enableFill, strokeWidth, strokeAlignment
+    enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment
   },
   outputFile,
   executablePath,
@@ -153,6 +155,20 @@ try {
       const checkbox = window.getByRole('checkbox', { name: 'Fill: enabled' });
       if (enableFill === 'true') await checkbox.check();
       else await checkbox.uncheck();
+    }
+    if (/^#[\da-f]{6}$/i.test(fillColor)) {
+      await window.locator('input[type="color"][aria-label="Fill"]').fill(fillColor);
+      await window.getByRole('checkbox', { name: 'Fill: enabled' }).waitFor({ state: 'visible' });
+      if (!await window.getByRole('checkbox', { name: 'Fill: enabled' }).isChecked()) {
+        throw new Error('Choosing a fill color did not enable shape fill.');
+      }
+    }
+    if (/^#[\da-f]{6}$/i.test(strokeColor)) {
+      await window.locator('input[type="color"][aria-label="Line"]').fill(strokeColor);
+      await window.getByRole('checkbox', { name: 'Line: enabled' }).waitFor({ state: 'visible' });
+      if (!await window.getByRole('checkbox', { name: 'Line: enabled' }).isChecked()) {
+        throw new Error('Choosing a stroke color did not enable shape stroke.');
+      }
     }
     if (Number.isFinite(strokeWidth)) {
       const input = window.getByRole('spinbutton', { name: 'Weight' });
