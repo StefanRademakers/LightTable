@@ -1,0 +1,19 @@
+# Task 039 - PSD import through native text and vector tooling
+
+Status: complete for import. PSD semantic export remains a separate gated
+Slice 18 tracker item.
+
+- [x] Map safely supported PSD point and paragraph text into editable flow
+  text with mixed runs, transforms, fill/no-fill, stroke and font provenance.
+- [x] Recover supported path text and preserve its canonical path dependency.
+- [x] Import supported PSD shape semantics without duplicating neighboring
+  shape identities.
+- [x] Prefer verified editable semantics over the composite bitmap and retain
+  unsupported engine data as preserved/reportable source data.
+- [x] Report semantic, visual, structural and round-trip parity separately.
+- [x] Gate unsupported or substituted content instead of claiming editability.
+- [x] Compare `D:\TextTest.psd` and `D:\shapes.psd` in packaged Electron
+  product smokes.
+
+Evidence includes commits `921c9078`, `c547c3a4`, `18a17b30`, `8074477b`,
+`1bdcdee0`, `5e6ee45f` and `bcc0dddb`.

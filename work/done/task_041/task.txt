@@ -1,0 +1,12 @@
+# Task 041 - Retain pointer gestures beyond document edges
+
+Status: complete
+
+- [x] Retain active paint, erase and warp gestures after the pointer leaves the
+  document canvas.
+- [x] Continue converting viewport coordinates to document space.
+- [x] Clip authored paint/warp effects to document bounds.
+- [x] Flush the exact final gesture when pointer-up occurs outside the canvas.
+- [x] Cover pointer routing, coordinates and paint-session behavior with tests.
+
+Evidence: commit `4be68d6c` (`fix(input): retain paint and warp beyond canvas edges`).

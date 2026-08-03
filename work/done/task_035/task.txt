@@ -1,0 +1,13 @@
+# Task 035 - Warp defaults
+
+Status: complete
+
+- [x] Initial brush size: 500 px.
+- [x] Strength: 100%.
+- [x] Hardness: 50%.
+- [x] Flow: 100%.
+- [x] Spacing: 4%.
+- [x] Keep the existing Tool Options resets aligned with those defaults.
+- [x] Cover the session defaults with a regression test.
+
+Evidence: commit `2c967d87` (`fix(warp): update initial brush defaults`).

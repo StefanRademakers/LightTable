@@ -1,0 +1,10 @@
+# Task 034 - Strip selection flyout order
+
+Status: complete
+
+- [x] Keep rectangular, elliptical, free and polygonal selection first.
+- [x] Place horizontal and vertical strip selections at the bottom of the
+  existing selection-tool flyout.
+- [x] Lock the user-facing order with a registry test.
+
+Evidence: commit `055960d5` (`fix(toolbar): move strip selections to flyout end`).

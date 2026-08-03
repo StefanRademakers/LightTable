@@ -1,0 +1,14 @@
+# Task 040 - Third-party licenses and format support inventory
+
+Status: complete
+
+- [x] Add a generated, exhaustive inventory from npm and Cargo lockfiles.
+- [x] Record direct runtime libraries, versions, licenses and product roles.
+- [x] Document the implemented format matrix and relevant specifications.
+- [x] Distinguish open, editable, preserved, export and research claims.
+- [x] Add generation and stale-inventory verification commands.
+- [x] Record how the same source can later feed About and Format Support UI.
+
+Evidence: commit `feed450e` (`docs(legal): inventory dependencies and format support`),
+`architecture/THIRD_PARTY_AND_FORMAT_SUPPORT.md` and
+`architecture/reference/implementation/THIRD_PARTY_DEPENDENCY_INVENTORY.json`.
