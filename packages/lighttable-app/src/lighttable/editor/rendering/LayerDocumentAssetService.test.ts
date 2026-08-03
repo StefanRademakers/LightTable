@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 import type {
   DocumentAssetId,
   LayerId,
   RasterLayer
 } from '../document/documentTypes';
-import { createImageDocument } from '../document/documentTypes';
+import {
+  createImageDocument,
+  createTextLayerNode,
+  semanticLayerDependencyKey
+} from '../document/documentTypes';
 import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import { LayerDocumentAssetService, type LayerDocumentAssetPorts } from './LayerDocumentAssetService';
 
@@ -29,6 +34,7 @@ const documentWith = () => {
 
 const createPorts = (): LayerDocumentAssetPorts => ({
   rasterTexture: vi.fn(() => texture),
+  derivedPreviewTexture: vi.fn(() => null),
   maskTexture: vi.fn(() => maskTexture),
   encodeTexture: vi.fn(async (_layerId, _texture, maskChannel) => maskChannel ? mask : pixels),
   decodeTexture: vi.fn(async () => undefined),
@@ -80,6 +86,33 @@ describe('LayerDocumentAssetService', () => {
     expect(ports.decodeTexture).toHaveBeenNthCalledWith(1, layerId, pixels, texture, false);
     expect(ports.decodeTexture).toHaveBeenNthCalledWith(2, layerId, mask, maskTexture, true);
     expect(ports.loadPattern).toHaveBeenCalledWith({ patternId, source: pattern });
+  });
+
+  it('exports and loads semantic preview pixels through their derived GPU destination', async () => {
+    const previewTexture = { label: 'preview' } as GPUTexture;
+    const ports = createPorts();
+    ports.rasterTexture = vi.fn(() => null);
+    ports.derivedPreviewTexture = vi.fn(() => previewTexture);
+    const service = new LayerDocumentAssetService(ports);
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Cached text');
+    text.derivedPreview = {
+      width: 16,
+      height: 9,
+      transform: text.transform,
+      dependencyKey: semanticLayerDependencyKey(text)!,
+      source: 'photoshop-layer-preview'
+    };
+    const document = { ...documentWith(), layers: [text], activeLayerId: text.id };
+
+    const assets = await service.export(document);
+    await service.load(assets);
+
+    expect(assets).toEqual([
+      { layerId: text.id, pixels, mask: null },
+      { patternId, source: pattern }
+    ]);
+    expect(ports.encodeTexture).toHaveBeenCalledWith(text.id, previewTexture, false);
+    expect(ports.decodeTexture).toHaveBeenCalledWith(text.id, pixels, previewTexture, false);
   });
 
   it('fails before silently dropping unavailable raster pixels', async () => {

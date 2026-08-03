@@ -106,6 +106,21 @@ describe('Photoshop text adapter', () => {
     expect(result.text.source.styleRuns[0]?.fontWeight).toBe(weight);
   });
 
+  it('ignores Photoshop empty text-path placeholders on ordinary editable text', () => {
+    const result = importPsdText({
+      text: 'Ordinary point text',
+      shapeType: 'point',
+      pointBase: [12, 34],
+      textPath: { data: { textRange: [-1, -1], pathData: { spacing: -1 } } }
+    });
+
+    expect(result).toMatchObject({
+      kind: 'editable-flow',
+      path: null,
+      text: { source: { layout: { mode: 'point', origin: { x: 12, y: 34 } } } }
+    });
+  });
+
   it('imports Photoshop fillFlag=false as semantic no-fill instead of transparent black', () => {
     const result = importPsdText({ text: 'Outline', style: {
       fillFlag: false,
@@ -240,7 +255,6 @@ describe('Photoshop text adapter', () => {
     [{ text: 'Faux', style: { fauxBold: true } }, 'faux'],
     [{ text: 'Baseline', style: { baselineShift: 2 } }, 'baseline'],
     [{ text: 'Scaled', style: { horizontalScale: 90 } }, 'scaling'],
-    [{ text: 'Kerning', style: { autoKerning: false } }, 'kerning'],
     [{ text: 'Ligature', style: { ligatures: false } }, 'ligature'],
     [{ text: 'Underline', style: { underline: true } }, 'decorations'],
     [{
@@ -251,5 +265,14 @@ describe('Photoshop text adapter', () => {
     const result = importPsdText(descriptor);
     expect(result).toMatchObject({ kind: 'preserved' });
     expect(result.reasons.join(' ')).toContain(reason);
+  });
+
+  it('keeps disabled Photoshop kerning editable through an explicit metrics approximation', () => {
+    const result = importPsdText({ text: 'Kerning', style: { autoKerning: false } });
+    expect(result).toMatchObject({
+      kind: 'editable-flow',
+      text: { source: { styleRuns: [{ kerning: 'metrics' }] } }
+    });
+    expect(result.reasons.join(' ')).toContain('approximated with metrics kerning');
   });
 });

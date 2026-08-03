@@ -10,6 +10,7 @@ import type { BlendMode } from '../document/blendModes';
 import { BLEND_MODES } from '../document/blendModes';
 import {
   createDefaultLayerLocks,
+  semanticLayerDependencyKey,
   type DocumentAssetId,
   type DocumentId,
   type ImageDocument,
@@ -538,7 +539,7 @@ export const importPsdDocument = (
       const reason = textImport.reasons.join(' ');
       const previewBacked = node.rasterFallback !== 'transparent-placeholder' && Boolean(node.pixels);
       if (textImport.kind === 'editable-flow') {
-        const layer: TextLayer = {
+        let layer: TextLayer = {
           ...common,
           type: 'text',
           transform: textImport.transform,
@@ -553,7 +554,21 @@ export const importPsdDocument = (
             dirtyBounds: null
           } : null
         };
-        if (node.mask) {
+        if (previewBacked && node.pixels && node.pixelSummary) {
+          const dependencyKey = semanticLayerDependencyKey(layer);
+          if (!dependencyKey) throw new Error(`Text layer ${node.name} has no semantic dependency key.`);
+          layer = {
+            ...layer,
+            derivedPreview: {
+              width: node.pixelSummary.width,
+              height: node.pixelSummary.height,
+              transform: translationMatrix(node.bounds.left, node.bounds.top),
+              dependencyKey,
+              source: 'photoshop-layer-preview'
+            }
+          };
+          assets.push({ layerId: id, pixels: node.pixels, mask: node.mask?.pixels ?? null });
+        } else if (node.mask) {
           assets.push({ layerId: id, pixels: new Blob(), mask: node.mask.pixels });
         }
         compatibility.push({

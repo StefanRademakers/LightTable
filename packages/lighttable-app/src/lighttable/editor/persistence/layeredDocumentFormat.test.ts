@@ -15,6 +15,7 @@ import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adju
 import {
   createImageDocument,
   createVectorLayer,
+  semanticLayerDependencyKey,
   type DocumentFontAsset,
   type DocumentAssetId
 } from '../document/documentTypes';
@@ -217,7 +218,7 @@ describe('LightTable layered PNG format', () => {
       }],
       'versions.png'
     );
-    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 5; });
+    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 6; });
     const futureText = await rewriteManifest(file, (manifest) => {
       const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
       const text = layers.find((layer) => layer.type === 'text')!.text as Record<string, unknown>;
@@ -263,6 +264,42 @@ describe('LightTable layered PNG format', () => {
     expect(parsed?.document.layers).toHaveLength(1);
     expect(parsed?.document.layers[0]?.type).toBe('text');
     expect(parsed?.assets).toEqual([]);
+  });
+
+  it('round-trips a bounded semantic preview beside authoritative editable text', async () => {
+    const withText = createTextLayer(
+      createImageDocument('Cached text', 200, 100, 'source'),
+      createDefaultTextLayerData(),
+      'Imported headline'
+    );
+    const text = findDocumentLayer(withText, withText.activeLayerId);
+    if (text?.type !== 'text') throw new Error('Expected text fixture.');
+    const dependencyKey = semanticLayerDependencyKey(text)!;
+    const cachedText = {
+      ...text,
+      derivedPreview: {
+        width: 80,
+        height: 24,
+        transform: translationMatrix(-12, 43),
+        dependencyKey,
+        source: 'photoshop-layer-preview' as const
+      }
+    };
+    const document = { ...withText, layers: [cachedText] };
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{ layerId: cachedText.id, pixels: new Blob([OVERLAY_PNG]), mask: null }],
+      'cached-text.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const reopened = parsed && findDocumentLayer(parsed.document, cachedText.id);
+
+    expect(reopened?.derivedPreview).toEqual(cachedText.derivedPreview);
+    expect(parsed?.assets).toHaveLength(1);
+    expect(new Uint8Array(await parsed!.assets[0].pixels.arrayBuffer())).toEqual(OVERLAY_PNG);
   });
 
   it('round-trips a point-text baseline origin and rotated affine verbatim', async () => {
@@ -576,7 +613,7 @@ describe('LightTable layered PNG format', () => {
     const parsed = await parseLayeredDocumentFile(file);
     const parsedLayer = parsed && findRasterLayer(parsed.document, sourceLayer.id);
 
-    expect(await readManifest(file)).toMatchObject({ version: 4 });
+    expect(await readManifest(file)).toMatchObject({ version: 5 });
     expect(parsedLayer).toMatchObject({
       width: 900,
       height: 48,

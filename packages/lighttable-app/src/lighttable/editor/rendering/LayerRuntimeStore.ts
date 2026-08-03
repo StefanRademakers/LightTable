@@ -14,6 +14,12 @@ interface NodeMaskRuntime {
   maskId: string;
 }
 
+export interface DerivedPreviewRuntime {
+  texture: GPUTexture;
+  width: number;
+  height: number;
+}
+
 export interface LayerRuntimeStoreOptions {
   createRasterTexture: (label: string, width: number, height: number) => GPUTexture;
   createMaskTexture: (label: string) => GPUTexture;
@@ -28,6 +34,7 @@ export interface LayerRuntimeStoreOptions {
  */
 export class LayerRuntimeStore {
   private readonly rasterRuntimes = new Map<LayerId, RasterLayerRuntime>();
+  private readonly derivedPreviews = new Map<LayerId, DerivedPreviewRuntime>();
   private readonly nodeMasks = new Map<LayerId, NodeMaskRuntime>();
 
   constructor(private readonly options: LayerRuntimeStoreOptions) {}
@@ -77,6 +84,23 @@ export class LayerRuntimeStore {
       }
     });
 
+    walkLayerTree(nodes).forEach(({ node }) => {
+      const preview = node.derivedPreview;
+      if (!preview) return;
+      const existing = this.derivedPreviews.get(node.id);
+      if (existing?.width === preview.width && existing.height === preview.height) return;
+      existing?.texture.destroy();
+      this.derivedPreviews.set(node.id, {
+        texture: this.options.createRasterTexture(
+          `LightTable derived preview: ${node.name}`,
+          preview.width,
+          preview.height
+        ),
+        width: preview.width,
+        height: preview.height
+      });
+    });
+
     const attachedNodeMasks = new Set<LayerId>();
     walkLayerTree(nodes).forEach(({ node }) => {
       if (node.type === 'raster') return;
@@ -121,6 +145,10 @@ export class LayerRuntimeStore {
 
   raster(layerId: LayerId) {
     return this.rasterRuntimes.get(layerId) ?? null;
+  }
+
+  derivedPreview(layerId: LayerId) {
+    return this.derivedPreviews.get(layerId) ?? null;
   }
 
   hasRaster(layerId: LayerId) {
@@ -203,6 +231,12 @@ export class LayerRuntimeStore {
       runtime.texture.destroy();
       this.nodeMasks.delete(id);
     });
+    this.derivedPreviews.forEach((runtime, id) => {
+      if (keepMaskLayerIds.has(id)) return;
+      runtime.texture.destroy();
+      this.derivedPreviews.delete(id);
+      if (!removedLayerIds.includes(id)) removedLayerIds.push(id);
+    });
     return removedLayerIds;
   }
 
@@ -213,6 +247,9 @@ export class LayerRuntimeStore {
       bytes += Math.max(1, runtime.width) * Math.max(1, runtime.height) * 8;
       if (runtime.maskTexture) bytes += rgba16Bytes;
     });
+    this.derivedPreviews.forEach((runtime) => {
+      bytes += Math.max(1, runtime.width) * Math.max(1, runtime.height) * 8;
+    });
     return bytes + this.nodeMasks.size * rgba16Bytes;
   }
 
@@ -222,6 +259,8 @@ export class LayerRuntimeStore {
       runtime.maskTexture?.destroy();
     });
     this.rasterRuntimes.clear();
+    this.derivedPreviews.forEach((runtime) => runtime.texture.destroy());
+    this.derivedPreviews.clear();
     this.nodeMasks.forEach((runtime) => runtime.texture.destroy());
     this.nodeMasks.clear();
   }

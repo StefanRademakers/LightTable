@@ -48,6 +48,22 @@ export interface LayerLocks {
 }
 
 /**
+ * Bounded, derived pixels retained beside an authoritative semantic layer.
+ *
+ * The preview is never editing authority. It may be presented only while its
+ * dependency key still matches the current semantic payload; any authoritative
+ * edit makes the renderer fall through to the native text/vector path.
+ */
+export interface DerivedLayerPreview {
+  width: number;
+  height: number;
+  /** Maps preview-local pixels into the layer's parent/document space. */
+  transform: AffineMatrix;
+  dependencyKey: string;
+  source: 'photoshop-layer-preview' | 'imported-semantic-preview';
+}
+
+/**
  * Source semantics retained for PSD verification and future native editing.
  * LightTable rendering never reads this bag directly; import adapters map
  * supported properties onto canonical fields and preserve the rest here.
@@ -124,6 +140,8 @@ export interface CommonLayer {
   geometryRevision: number;
   createdAt: number;
   modifiedAt: number;
+  /** Optional fidelity cache for semantic content that is not yet exact. */
+  derivedPreview?: DerivedLayerPreview | null;
   /** Present only for nodes imported from Photoshop documents. */
   photoshop?: PhotoshopLayerMetadata | null;
 }
@@ -195,6 +213,27 @@ export const vectorPathElements = (layer: VectorLayer): VectorPath[] =>
   layer.elements.filter((element): element is VectorPath => element.type === 'path');
 
 export type LayerNode = RasterLayer | GroupLayer | AdjustmentLayer | VectorLayer | TextLayer;
+
+export const semanticLayerDependencyKey = (layer: LayerNode): string | null => {
+  if (layer.type === 'text') {
+    const revisions = layer.text.revisions;
+    return `text:${revisions.content}:${revisions.font}:${revisions.layout}:${revisions.paint}:${revisions.path}:${revisions.geometry}`;
+  }
+  if (layer.type === 'vector') {
+    return `vector:${layer.elements.map((element) => [
+      element.id,
+      element.geometryRevision,
+      element.transformRevision,
+      element.styleRevision
+    ].join(':')).join('|')}`;
+  }
+  return null;
+};
+
+export const layerDerivedPreviewIsCurrent = (layer: LayerNode) => Boolean(
+  layer.derivedPreview
+  && semanticLayerDependencyKey(layer) === layer.derivedPreview.dependencyKey
+);
 
 export const layerSupportsPixelEditing = (
   layer: LayerNode

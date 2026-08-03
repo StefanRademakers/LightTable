@@ -311,18 +311,23 @@ export const createLayerDocumentRendererRuntime = (
   });
   const documentAssets = new LayerDocumentAssetService({
     rasterTexture: (layerId) => layerResources.raster(layerId)?.texture ?? null,
+    derivedPreviewTexture: (layerId) => layerResources.derivedPreview(layerId)?.texture ?? null,
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
     encodeTexture: (layerId, texture, maskChannel) => {
       const { width, height } = maskChannel
         ? resources.dimensions()
-        : layerResources.raster(layerId) ?? resources.dimensions();
+        : layerResources.raster(layerId)
+          ?? layerResources.derivedPreview(layerId)
+          ?? resources.dimensions();
       return textureCodec.encode(texture, maskChannel, width, height);
     },
     decodeTexture: async (layerId, blob, texture, maskChannel) => {
       const generation = resources.generation();
       const { width, height } = maskChannel
         ? resources.dimensions()
-        : layerResources.raster(layerId) ?? resources.dimensions();
+        : layerResources.raster(layerId)
+          ?? layerResources.derivedPreview(layerId)
+          ?? resources.dimensions();
       await textureCodec.decode(
         blob,
         texture,

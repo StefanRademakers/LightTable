@@ -5,6 +5,7 @@ import {
   createImageDocument,
   createVectorLayer,
   createTextLayerNode,
+  semanticLayerDependencyKey,
   type RasterLayer
 } from '../document/documentTypes';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
@@ -132,6 +133,36 @@ describe('LayerRuntimeStore', () => {
 
     expect(allocations).toEqual([{ width: 12, height: 7 }]);
     expect(store.estimatedTextureBytes(100, 80)).toBe(12 * 7 * 8);
+  });
+
+  it('retains bounded semantic previews until the explicit history prune boundary', () => {
+    const allocations: Array<{ width: number; height: number; texture: GPUTexture }> = [];
+    const store = new LayerRuntimeStore({
+      createRasterTexture: (_label, width, height) => {
+        const result = texture();
+        allocations.push({ width, height, texture: result });
+        return result;
+      },
+      createMaskTexture: texture
+    });
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Cached text');
+    text.derivedPreview = {
+      width: 12,
+      height: 7,
+      transform: text.transform,
+      dependencyKey: semanticLayerDependencyKey(text)!,
+      source: 'photoshop-layer-preview'
+    };
+
+    store.sync([text]);
+    store.sync([]);
+
+    expect(allocations).toMatchObject([{ width: 12, height: 7 }]);
+    expect(store.derivedPreview(text.id)?.texture).toBe(allocations[0].texture);
+    expect(allocations[0].texture.destroy).not.toHaveBeenCalled();
+    expect(store.estimatedTextureBytes(100, 80)).toBe(12 * 7 * 8);
+    expect(store.pruneDetached(new Set(), new Set())).toEqual([text.id]);
+    expect(allocations[0].texture.destroy).toHaveBeenCalledOnce();
   });
 
   it('promotes a text node mask into raster ownership without destroying or copying it', () => {

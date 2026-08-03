@@ -3,7 +3,9 @@ import {
   type ImageDocument,
   type LayerId,
   type RasterMask,
-  type VectorLayer
+  type VectorLayer,
+  type TextLayer,
+  layerDerivedPreviewIsCurrent
 } from '../document/documentTypes';
 import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
 import { invertMatrix, multiplyMatrices } from '../tools/transform/affine';
@@ -240,6 +242,12 @@ export class LayerCompositor {
           { r: 0, g: 0, b: 0, a: 0 }
         );
         return [target, background];
+      }
+
+      if ((node.type === 'text' || node.type === 'vector')
+        && layerDerivedPreviewIsCurrent(node)
+        && layerResources.derivedPreview(node.id)) {
+        return renderDerivedPreview(node, background, target, clippingTexture, inheritedTransform);
       }
 
       if (node.type === 'vector') {
@@ -482,6 +490,72 @@ export class LayerCompositor {
         mask: styled ? null : layer.mask,
         clippingTexture
       });
+      return [target, background];
+    };
+
+    const renderDerivedPreview = (
+      layer: VectorLayer | TextLayer,
+      background: GPUTexture,
+      target: GPUTexture,
+      clippingTexture: GPUTexture | null,
+      inheritedTransform: AffineMatrix
+    ): [GPUTexture, GPUTexture] => {
+      const preview = layer.derivedPreview;
+      const runtime = layerResources.derivedPreview(layer.id);
+      if (!preview || !runtime) return [background, target];
+      const sourceToDocument = multiplyMatrices(inheritedTransform, preview.transform);
+      const inverse = invertMatrix(sourceToDocument);
+      if (!inverse) return [background, target];
+      const dimensions = { width: runtime.width, height: runtime.height };
+      const maskTexture = this.options.maskTextureFor(layer.id);
+      if (layerStyleStackIsActive(layer.styleStack)) {
+        const styled = layerStyles.encode(
+          encoder,
+          layer,
+          runtime.texture,
+          maskTexture,
+          inverse,
+          dimensions,
+          null
+        );
+        if (styled) {
+          compositeTexture(background, styled, target, {
+            label: `LightTable derived-preview style settings: ${layer.name}`,
+            opacity: layer.opacity,
+            blendMode: layer.blendMode,
+            clippingTexture
+          });
+          return [target, background];
+        }
+      }
+      const settingsBuffer = this.createCompositeSettingsBuffer(
+        `LightTable derived-preview settings: ${layer.name}`,
+        layer.opacity * layer.fillOpacity,
+        Boolean(layer.mask?.enabled && maskTexture),
+        blendModeGpuValue(layer.blendMode),
+        Boolean(clippingTexture),
+        inverse,
+        dimensions,
+        layer.mask
+      );
+      const bindGroup = this.options.device.createBindGroup({
+        layout: this.options.compositePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: background.createView() },
+          { binding: 1, resource: runtime.texture.createView() },
+          { binding: 2, resource: this.options.sampler },
+          { binding: 3, resource: { buffer: settingsBuffer } },
+          { binding: 4, resource: (maskTexture ?? runtime.texture).createView() },
+          { binding: 5, resource: (clippingTexture ?? runtime.texture).createView() }
+        ]
+      });
+      this.options.drawFullscreen(
+        encoder,
+        this.options.compositePipeline,
+        bindGroup,
+        target.createView(),
+        { r: 0, g: 0, b: 0, a: 0 }
+      );
       return [target, background];
     };
 

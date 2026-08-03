@@ -24,6 +24,7 @@ const expectedVectorLayers = Number.parseInt(argument(
   'expect-vector-layers',
   /^TextTest\.psd$/i.test(sourceName) ? '1' : '0'
 ), 10);
+const allowSubstitutedText = argument('allow-substituted-text', '') === 'true';
 const selectLayer = argument('select-layer', '');
 const canvasClickX = Number.parseFloat(argument('canvas-click-x', 'NaN'));
 const canvasClickY = Number.parseFloat(argument('canvas-click-y', 'NaN'));
@@ -498,10 +499,12 @@ try {
       `Expected ${expectedVectorLayers} editable vector layers, found ${vectorLayers.length}.`
     );
   }
-  if (incompatible.length > 0) {
+  if (!allowSubstitutedText && incompatible.length > 0) {
     throw new Error(`Imported text is not exact: ${JSON.stringify(incompatible)}.`);
   }
-  if (expectedFlowLayers > 0 && /text-renderer is unavailable/i.test(diagnostics.status)) {
+  if (!allowSubstitutedText
+      && expectedFlowLayers > 0
+      && /text-renderer is unavailable/i.test(diagnostics.status)) {
     throw new Error(diagnostics.status);
   }
   if (expectLayer && !diagnostics.layers.some(({ name }) => name === expectLayer)) {

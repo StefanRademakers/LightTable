@@ -55,9 +55,9 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 
 | Feature | Detect | Preserve | Display | Render | Edit/Create | Export | Verify | Current truth |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Partial | Native manifest v4 preserves tight bounds and offsets; merge/export and complete corpus gates remain. |
+| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Partial | Native manifest v5 preserves the v4 tight bounds and offsets; merge/export and complete corpus gates remain. |
 | Groups and nesting | Yes | Yes | Yes | Yes | Yes | No | Partial | 33 pass-through groups occur in nine corpus files; exact contextual parity is not fully signed off. |
-| Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v4 save/reopen is verified on painted EHS-396 content. |
+| Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v5 save/reopen retains the v4 tight-raster contract and is verified on painted EHS-396 content. |
 | Opacity | Yes | Yes | Yes | Yes | Yes | No | Partial | Nineteen partial-opacity layers occur in seven documents. |
 | Fill opacity | Yes | Yes | Yes | Yes | Yes | No | Weak | Canonical property exists, but this corpus contains only one non-default instance. |
 | Blend modes | Yes | Yes | Yes | Partial | Yes | No | Partial | Screen, Multiply, Soft Light and Hard Light occur; contextual mask/group fixtures remain. |
@@ -69,7 +69,7 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 | Dormant style descriptors | Yes | Yes | Correctly hidden | N/A | Style editor | No | Yes UI | Dormant descriptors remain stored but no longer clutter the compact Layers tree. |
 | Solid vector shapes | Yes | Partial | Partial | Partial | **Partial** | No | Failed authoring parity | Some simple shapes map natively, but observed imported shapes still fall back or expose incomplete editable properties. |
 | Vector strokes | Yes | Yes | Preview/Partial | Partial | Partial | No | Failed | Six strokes expose incomplete alignment, paint, join/cap and opacity semantics. |
-| PSD text descriptors | Yes | Yes descriptor | Preview | **No in corpus** | No in corpus | No | Failed editable parity | All 81 corpus text layers render as retained layer-local previews; none became editable text. |
+| PSD text descriptors | Yes | Yes descriptor | Preview or native | **Yes where supported** | Partial | No | Partial | Ordinary point/paragraph descriptors now become semantic text with a bounded v5 preview; missing-font Replace/Manage UX and a fresh whole-corpus count remain. |
 | Native LightTable text | N/A | Yes | Yes | Yes | Yes | PDF partial | Separate fixtures | The text engine works independently; PSD realization/font recovery is the gap. |
 | Missing fonts | Yes | Partial | Preview | No | No | No | Failed | Twenty-eight source font families occur; replacement/recovery is Task 048 and system discovery is Task 046. |
 | Smart Objects | Yes | **Partial descriptor** | Preview | No | No | No | Failed semantic parity | Fifty-seven previews display; embedded/linked object payloads are skipped and cannot be reopened. |
@@ -103,8 +103,12 @@ completely broken adjustment-heavy document.
 Visual fallback currently makes the importer look more complete than the
 editor actually is. For the three most basic Photoshop authoring families:
 
-- **Text:** all 81 corpus text layers are visible only through raster previews;
-  none are editable text in the measured LightTable runs.
+- **Text:** the original audit found all 81 corpus text layers preview-only.
+  The follow-up importer now recognizes Photoshop's empty text-path placeholder
+  and promotes supported point/paragraph descriptors to semantic text while
+  retaining the exact bounded preview. EHS-396 physically verifies eight such
+  layers across native save/reopen; the corpus must be re-audited after the
+  missing-font interaction is complete.
 - **Shapes:** the canonical vector engine can edit native paths and some simple
   PSD shapes map into it, but imported shape coverage is inconsistent and
   stroke/fill properties frequently remain preview-backed or incomplete.
@@ -121,7 +125,7 @@ special editing controls attached to raster previews.
 
 ## Missing-feature register
 
-### PSD-P0-001 - Native tight raster bounds (resolved in native v4)
+### PSD-P0-001 - Native tight raster bounds (resolved in native v4, retained by v5)
 
 **Evidence:** 63 off-canvas layers, 13 layers larger than the canvas and the
 originally failed EHS-396 native save/reopen.
@@ -136,19 +140,23 @@ negative-origin, oversized, merge and export matrix under Task 047.
 
 **Owner:** Task 047. **Priority:** P0.
 
-### PSD-P0-002 - Shared retained-preview contract
+### PSD-P0-002 - Shared retained-preview contract (resolved for text/vector)
 
 **Evidence:** 81 text layers, 31 vectors and 57 smart objects depend partly or
 fully on layer-local previews.
 
-**Gap:** Preview-backed semantics are implemented through feature-specific
-fallback paths. There is no shared contract for semantic source, derived
-preview asset, source/render fingerprints, invalidation, recovery or explicit
-bake.
+**Original gap:** Preview-backed semantics were implemented through
+feature-specific fallback paths without a shared contract for semantic source,
+derived preview assets, invalidation or explicit bake.
 
-**Required decision:** Introduce one canonical retained-preview contract used
-by text, vector and smart containers. Cached pixels remain derived display
-data, never the claim of semantic support.
+**Resolution:** Native manifest v5 introduces one bounded semantic derived-preview
+contract for text and vectors. A semantic dependency key decides whether the
+preview remains current; authoritative edits automatically fall through to the
+native renderer. Runtime allocation is bounded, counted and explicitly pruned,
+and save/reopen retains the preview without making it editing authority.
+
+**Required follow-up:** Extend the same cache policy to future smart containers.
+Cached pixels remain derived display data, never the claim of semantic support.
 
 **Related work:** Task 048 starts with text. **Priority:** P0.
 

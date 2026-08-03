@@ -14,6 +14,7 @@ import type {
 
 export interface LayerDocumentAssetPorts {
   rasterTexture: (layerId: LayerId) => GPUTexture | null;
+  derivedPreviewTexture: (layerId: LayerId) => GPUTexture | null;
   maskTexture: (layerId: LayerId) => GPUTexture | null;
   encodeTexture: (
     layerId: LayerId,
@@ -62,8 +63,19 @@ export class LayerDocumentAssetService {
       if (!maskTexture) throw new Error(`Mask ${node.name} is not available for saving.`);
       assets.push({
         layerId: node.id,
-        pixels: new Blob(),
+        pixels: node.derivedPreview
+          ? await this.encodeDerivedPreview(node.id, node.name)
+          : new Blob(),
         mask: await this.ports.encodeTexture(node.id, maskTexture, true)
+      });
+    }
+
+    for (const { node } of walkLayerTree(document.layers)) {
+      if (node.type === 'raster' || node.mask || !node.derivedPreview) continue;
+      assets.push({
+        layerId: node.id,
+        pixels: await this.encodeDerivedPreview(node.id, node.name),
+        mask: null
       });
     }
 
@@ -86,7 +98,8 @@ export class LayerDocumentAssetService {
 
       this.ports.invalidateLayer(asset.layerId);
       if (asset.pixels.size > 0) {
-        const texture = this.ports.rasterTexture(asset.layerId);
+        const texture = this.ports.rasterTexture(asset.layerId)
+          ?? this.ports.derivedPreviewTexture(asset.layerId);
         if (!texture) {
           throw new Error(`Layer ${asset.layerId} is not available while opening the document.`);
         }
@@ -100,5 +113,11 @@ export class LayerDocumentAssetService {
         await this.ports.decodeTexture(asset.layerId, asset.mask, maskTexture, true);
       }
     }
+  }
+
+  private async encodeDerivedPreview(layerId: LayerId, name: string) {
+    const texture = this.ports.derivedPreviewTexture(layerId);
+    if (!texture) throw new Error(`Derived preview ${name} is not available for saving.`);
+    return this.ports.encodeTexture(layerId, texture, false);
   }
 }

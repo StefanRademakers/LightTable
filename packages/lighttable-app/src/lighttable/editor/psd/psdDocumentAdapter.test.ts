@@ -386,6 +386,13 @@ describe('importPsdDocument', () => {
     })]), 'preview-text.psd');
     expect(result.document.layers[0]).toMatchObject({
       type: 'text',
+      derivedPreview: {
+        width: 32,
+        height: 24,
+        transform: translationMatrix(0, 0),
+        dependencyKey: 'text:0:0:0:0:0:0',
+        source: 'photoshop-layer-preview'
+      },
       text: {
         source: {
           kind: 'flow',
@@ -397,7 +404,7 @@ describe('importPsdDocument', () => {
         }
       }
     });
-    expect(result.assets).toHaveLength(0);
+    expect(result.assets).toEqual([{ layerId: 'preview-text', pixels: expect.any(Blob), mask: null }]);
     expect(result.compatibility).toContainEqual(expect.objectContaining({
       feature: 'text', support: 'approximate',
       layerId: 'preview-text', editable: true,

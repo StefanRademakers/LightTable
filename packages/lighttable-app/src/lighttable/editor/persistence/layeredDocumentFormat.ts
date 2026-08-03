@@ -3,6 +3,7 @@ import type {
   DocumentId,
   DocumentAssetId,
   DocumentFontAsset,
+  DerivedLayerPreview,
   ImageDocument,
   LayerId,
   LayerLocks,
@@ -59,6 +60,7 @@ interface CommonLayerManifestEntry {
   styleStack: LayerStyleStack;
   geometryRevision: number;
   transform: AffineMatrix;
+  derivedPreview: (DerivedLayerPreview & { asset: BinaryAssetReference }) | null;
   photoshop?: PhotoshopLayerMetadata | null;
 }
 
@@ -108,7 +110,7 @@ type LayerManifestEntry =
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
-  version: 4;
+  version: 5;
   previewLength: number;
   document: {
     id: string;
@@ -225,6 +227,22 @@ export const buildLayeredDocumentFile = (
   let offset = preview.size;
   const binaryParts: Blob[] = [];
   const serializeLayer = (layer: LayerNode): LayerManifestEntry => {
+    const layerAsset = assetsByLayer.get(layer.id);
+    let derivedPreview: CommonLayerManifestEntry['derivedPreview'] = null;
+    if (layer.derivedPreview) {
+      if (layer.type !== 'text' && layer.type !== 'vector') {
+        throw new Error(`Layer ${layer.name} cannot own a semantic derived preview.`);
+      }
+      if (!layerAsset?.pixels.size) {
+        throw new Error(`Derived preview pixels are missing for ${layer.name}.`);
+      }
+      derivedPreview = {
+        ...structuredClone(layer.derivedPreview),
+        asset: { offset, length: layerAsset.pixels.size }
+      };
+      binaryParts.push(layerAsset.pixels);
+      offset += layerAsset.pixels.size;
+    }
     const common: CommonLayerManifestEntry = {
       id: layer.id,
       name: layer.name,
@@ -237,6 +255,7 @@ export const buildLayeredDocumentFile = (
       styleStack: cloneLayerStyleStack(layer.styleStack),
       geometryRevision: layer.geometryRevision,
       transform: layer.transform,
+      derivedPreview,
       photoshop: layer.photoshop ? structuredClone(layer.photoshop) : null
     };
     if (layer.type === 'group') {
@@ -394,7 +413,7 @@ export const buildLayeredDocumentFile = (
   });
   const manifest: LayeredDocumentManifest = {
     format: 'lighttable-layered-png',
-    version: 4,
+    version: 5,
     previewLength: preview.size,
     document: {
       id: document.id,
@@ -629,12 +648,12 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   if (
     !isRecord(raw)
     || raw.format !== 'lighttable-layered-png'
-    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4)
+    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4 && raw.version !== 5)
     || !isRecord(raw.document)
   ) {
     throw new Error('This LightTable document format is not supported.');
   }
-  const manifestVersion = raw.version as 1 | 2 | 3 | 4;
+  const manifestVersion = raw.version as 1 | 2 | 3 | 4 | 5;
   const source = raw.document;
   const width = source.width;
   const height = source.height;
@@ -672,6 +691,38 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       throw new Error(`Layer ${path} in the LightTable document is invalid.`);
     }
     const id = entry.id as LayerId;
+    const parseDerivedPreview = (): { value: DerivedLayerPreview | null; blob: Blob | null } => {
+      if (manifestVersion < 5 || entry.derivedPreview === null || entry.derivedPreview === undefined) {
+        return { value: null, blob: null };
+      }
+      const preview = entry.derivedPreview;
+      if (
+        !isRecord(preview)
+        || !Number.isInteger(preview.width)
+        || Number(preview.width) <= 0
+        || !Number.isInteger(preview.height)
+        || Number(preview.height) <= 0
+        || typeof preview.dependencyKey !== 'string'
+        || preview.dependencyKey.length === 0
+        || (preview.source !== 'photoshop-layer-preview' && preview.source !== 'imported-semantic-preview')
+        || !validAssetReference(preview.asset, Number(previewLength), manifestStart)
+      ) throw new Error(`Derived preview ${path} in the LightTable document is invalid.`);
+      const reference = preview.asset;
+      return {
+        value: {
+          width: Number(preview.width),
+          height: Number(preview.height),
+          transform: parseLayerTransform(preview.transform),
+          dependencyKey: preview.dependencyKey,
+          source: preview.source
+        },
+        blob: blob.slice(reference.offset, reference.offset + reference.length, 'image/png')
+      };
+    };
+    const parsedPreview = parseDerivedPreview();
+    if (parsedPreview.value && entry.type !== 'text' && entry.type !== 'vector') {
+      throw new Error(`Derived preview ${path} must belong to a semantic text or vector layer.`);
+    }
     const common = {
       id,
       name: entry.name,
@@ -689,6 +740,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       createdAt: now,
       modifiedAt: now,
       transform: parseLayerTransform(entry.transform),
+      derivedPreview: parsedPreview.value,
       photoshop: isRecord(entry.photoshop)
         ? structuredClone(entry.photoshop) as unknown as PhotoshopLayerMetadata
         : null
@@ -729,8 +781,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         || (entry.compositing !== 'pass-through' && entry.compositing !== 'isolated')
       ) throw new Error(`Group ${path} in the LightTable document is invalid.`);
       const parsedMask = parseMask();
-      if (parsedMask.blob) {
-        assets.push({ layerId: id, pixels: new Blob(), mask: parsedMask.blob });
+      if (parsedMask.blob || parsedPreview.blob) {
+        assets.push({ layerId: id, pixels: parsedPreview.blob ?? new Blob(), mask: parsedMask.blob });
       }
       return {
         ...common,
@@ -743,8 +795,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
 
     if (entry.type === 'adjustment') {
       const parsedMask = parseMask();
-      if (parsedMask.blob) {
-        assets.push({ layerId: id, pixels: new Blob(), mask: parsedMask.blob });
+      if (parsedMask.blob || parsedPreview.blob) {
+        assets.push({ layerId: id, pixels: parsedPreview.blob ?? new Blob(), mask: parsedMask.blob });
       }
       return {
         ...common,
@@ -762,8 +814,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         throw new Error(`Vector layer ${path} has an invalid anti-alias setting.`);
       }
       const parsedMask = parseMask();
-      if (parsedMask.blob) {
-        assets.push({ layerId: id, pixels: new Blob(), mask: parsedMask.blob });
+      if (parsedMask.blob || parsedPreview.blob) {
+        assets.push({ layerId: id, pixels: parsedPreview.blob ?? new Blob(), mask: parsedMask.blob });
       }
       return {
         ...common,
@@ -777,8 +829,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
 
     if (entry.type === 'text') {
       const parsedMask = parseMask();
-      if (parsedMask.blob) {
-        assets.push({ layerId: id, pixels: new Blob(), mask: parsedMask.blob });
+      if (parsedMask.blob || parsedPreview.blob) {
+        assets.push({ layerId: id, pixels: parsedPreview.blob ?? new Blob(), mask: parsedMask.blob });
       }
       let text: TextLayerData;
       try {

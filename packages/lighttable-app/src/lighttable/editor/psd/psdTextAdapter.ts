@@ -98,6 +98,18 @@ interface PsdTextPathDescriptor {
   };
 }
 
+const isEmptyTextPathPlaceholder = (value: unknown) => {
+  if (!value || typeof value !== 'object') return false;
+  const descriptor = value as PsdTextPathDescriptor;
+  const points = descriptor.bezierCurve?.controlPoints;
+  const range = descriptor.data?.textRange;
+  // Photoshop commonly writes a [-1, -1] textPath placeholder on ordinary
+  // point/paragraph text. It is metadata absence, not malformed path text.
+  return (!Array.isArray(points) || points.length === 0)
+    && Array.isArray(range) && range.length === 2
+    && range[0] === -1 && range[1] === -1;
+};
+
 const importTextPath = (
   value: unknown,
   target: PsdTextPathTarget
@@ -225,6 +237,9 @@ const style = (
   if (source.kerning !== undefined && source.kerning !== 0) {
     reasons.push('Explicit Photoshop kerning values are preserved but currently use metrics kerning.');
   }
+  if (source.autoKerning === false) {
+    reasons.push('Disabled Photoshop kerning is approximated with metrics kerning after the retained preview is edited.');
+  }
   if (source.underline || source.strikethrough) {
     reasons.push('Photoshop underline and strikethrough flags are preserved but not rendered yet.');
   }
@@ -246,7 +261,7 @@ const style = (
     tracking: clamp(finite(source.tracking) ? source.tracking : 0, -100_000, 100_000),
     // Photoshop serializes zero as the manual-pair value even while automatic
     // kerning is enabled. Only the explicit autoKerning=false state disables it.
-    kerning: source.autoKerning === false ? 'none' : 'metrics',
+    kerning: 'metrics',
     baselineShift: clamp(finite(source.baselineShift) ? source.baselineShift : 0, -100_000, 100_000),
     horizontalScale: clamp(characterScalePercent(source.horizontalScale), 0.01, 10_000),
     verticalScale: clamp(characterScalePercent(source.verticalScale), 0.01, 10_000),
@@ -324,9 +339,6 @@ const unsupportedEditableSemantics = (source: LayerTextData): string[] => {
     || characterScalePercent(candidate.verticalScale) !== 100)) {
     reasons.push('Photoshop character scaling is preserved until the editable layout path supports it.');
   }
-  if (styles.some((candidate) => candidate.autoKerning === false)) {
-    reasons.push('Disabled Photoshop kerning is preserved until the editable layout path supports it.');
-  }
   if (styles.some((candidate) => candidate.ligatures === false || candidate.dLigatures === true)) {
     reasons.push('Photoshop OpenType ligature overrides are preserved until editable feature controls are supported.');
   }
@@ -359,10 +371,12 @@ export const importPsdText = (
   if (source.warp?.style && source.warp.style !== 'none') {
     return { kind: 'preserved', reasons: ['Warped Photoshop text remains preview-backed until warp semantics are implemented.'] };
   }
-  const importedPath = source.textPath && pathTarget
+  const authoredTextPath = Boolean(source.textPath)
+    && !isEmptyTextPathPlaceholder(source.textPath);
+  const importedPath = authoredTextPath && pathTarget
     ? importTextPath(source.textPath, pathTarget)
     : null;
-  if (source.textPath && !importedPath) {
+  if (authoredTextPath && !importedPath) {
     return { kind: 'preserved', reasons: ['Photoshop text on a path remains preview-backed until path binding is implemented.'] };
   }
   if (source.orientation === 'vertical') {
