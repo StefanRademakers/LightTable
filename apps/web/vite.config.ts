@@ -19,6 +19,15 @@ export default defineConfig({
       '@lighttable/app': fileURLToPath(
         new URL('../../packages/lighttable-app/src/index.ts', import.meta.url)
       ),
+      '@lighttable/text-core': fileURLToPath(
+        new URL('../../packages/text-core/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/text-rendering': fileURLToPath(
+        new URL('../../packages/text-rendering/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/text-webgpu': fileURLToPath(
+        new URL('../../packages/text-webgpu/src/index.ts', import.meta.url)
+      ),
       '@lighttable/vector-core': fileURLToPath(
         new URL('../../packages/vector-core/src/index.ts', import.meta.url)
       ),
@@ -34,6 +43,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: [
       '@lighttable/app',
+      '@lighttable/text-core',
+      '@lighttable/text-rendering',
+      '@lighttable/text-webgpu',
       '@lighttable/vector-core',
       '@lighttable/vector-rendering',
       '@lighttable/vector-webgpu'

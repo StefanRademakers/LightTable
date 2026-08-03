@@ -386,12 +386,23 @@ const realizeFlowRequest = (
     if (!font) throw new UnsupportedLayoutError('Every Slice 06 flow run requires an exact registered preferred font.');
     return font;
   });
+  const paragraphStyle = source.paragraphRuns[0] ?? source.insertionParagraph;
   for (const paragraph of source.paragraphRuns) {
-    if (paragraph.alignment !== 'start' || paragraph.direction !== 'auto'
-      || paragraph.lineHeight.kind !== 'normal' || paragraph.firstLineIndent !== 0
+    if (paragraph.direction !== 'auto' || paragraph.firstLineIndent !== 0
       || paragraph.startIndent !== 0 || paragraph.endIndent !== 0 || paragraph.spaceBefore !== 0
       || paragraph.spaceAfter !== 0 || paragraph.hyphenation !== 'off') {
-      throw new UnsupportedLayoutError('Non-default paragraph formatting requires the paragraph layout slice.');
+      throw new UnsupportedLayoutError('Direction, indents, spacing and hyphenation require a later paragraph layout adapter.');
+    }
+    if (paragraphStyle && (
+      paragraph.alignment !== paragraphStyle.alignment
+      || paragraph.lineHeight.kind !== paragraphStyle.lineHeight.kind
+      || (
+        paragraph.lineHeight.kind !== 'normal'
+        && paragraphStyle.lineHeight.kind !== 'normal'
+        && paragraph.lineHeight.value !== paragraphStyle.lineHeight.value
+      )
+    )) {
+      throw new UnsupportedLayoutError('Mixed paragraph alignment and leading require segmented paragraph layout.');
     }
   }
   const encoder = new TextEncoder();
@@ -421,6 +432,12 @@ const realizeFlowRequest = (
   const raw = realizeFlowText(
     sessionKey(request), request.cacheKey, source.text,
     source.layout.mode === 'paragraph' ? source.layout.frame.width : undefined,
+    paragraphStyle?.alignment === 'center' ? 1
+      : paragraphStyle?.alignment === 'end' ? 2
+        : paragraphStyle?.alignment === 'justify' ? 3 : 0,
+    paragraphStyle?.lineHeight.kind === 'absolute' ? 1
+      : paragraphStyle?.lineHeight.kind === 'multiple' ? 2 : 0,
+    paragraphStyle?.lineHeight.kind === 'normal' || !paragraphStyle ? 0 : paragraphStyle.lineHeight.value,
     source.layout.mode === 'paragraph' ? source.layout.frame.x : source.layout.origin.x,
     source.layout.mode === 'paragraph' ? source.layout.frame.y : source.layout.origin.y,
     request.options.maxGlyphCount, styleMeta, styleMetrics, fontStringBytes, fontStringRanges

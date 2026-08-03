@@ -251,6 +251,9 @@ pub fn realize_flow_text(
     key: &str,
     text: &str,
     max_width: Option<f32>,
+    alignment: u32,
+    line_height_kind: u32,
+    line_height_value: f32,
     origin_x: f32,
     origin_y: f32,
     max_glyph_count: u32,
@@ -267,6 +270,32 @@ pub fn realize_flow_text(
             "packed style arrays have inconsistent strides",
         ));
     }
+    let alignment = match alignment {
+        0 => parley::Alignment::Start,
+        1 => parley::Alignment::Center,
+        2 => parley::Alignment::End,
+        3 => parley::Alignment::Justify,
+        _ => return Err(JsValue::from_str("packed paragraph alignment is invalid")),
+    };
+    let line_height = match line_height_kind {
+        0 => None,
+        1 if line_height_value.is_finite() && line_height_value > 0.0 => {
+            Some(parley::LineHeight::Absolute(line_height_value))
+        }
+        2 if line_height_value.is_finite() && line_height_value > 0.0 => {
+            Some(parley::LineHeight::FontSizeRelative(line_height_value))
+        }
+        1 | 2 => {
+            return Err(JsValue::from_str(
+                "paragraph line height must be finite and positive",
+            ));
+        }
+        _ => {
+            return Err(JsValue::from_str(
+                "packed paragraph line-height kind is invalid",
+            ));
+        }
+    };
     let mut styles = Vec::with_capacity(style_meta.len() / 5);
     for index in 0..style_meta.len() / 5 {
         let meta = &style_meta[index * 5..index * 5 + 5];
@@ -316,6 +345,8 @@ pub fn realize_flow_text(
             text: text.to_owned(),
             styles,
             max_width,
+            alignment,
+            line_height,
             origin_x,
             origin_y,
             max_glyph_count: max_glyph_count as usize,
@@ -381,6 +412,8 @@ mod tests {
                         expected_face_index: 0,
                     }],
                     max_width: Some(320.0),
+                    alignment: parley::Alignment::Start,
+                    line_height: None,
                     origin_x: 0.25,
                     origin_y: 0.5,
                     max_glyph_count: 1_000,
@@ -458,6 +491,9 @@ mod tests {
             "golden-latin",
             "office A😀",
             Some(400.0),
+            0,
+            0,
+            0.0,
             5.0,
             7.0,
             100,
@@ -486,6 +522,9 @@ mod tests {
             "paragraph-wrap-golden",
             text,
             Some(90.0),
+            0,
+            0,
+            0.0,
             12.0,
             18.0,
             1_000,
@@ -504,6 +543,60 @@ mod tests {
         assert_eq!(lines.len() % 2, 0);
         assert_eq!(output.bounds()[4], 12.0);
         assert_eq!(output.bounds()[5], 18.0);
+        assert!(drop_layout_session(session));
+    }
+
+    #[test]
+    fn applies_uniform_paragraph_alignment_and_leading() {
+        let session = "paragraph-style";
+        let bytes = include_bytes!("../../../test/fixtures/fonts/Anton-Regular.ttf");
+        assert_eq!(register_layout_font(session, "anton", bytes).unwrap(), 1);
+        let realize = |key: &str, text: &str, alignment, line_height_kind, line_height_value| {
+            realize_flow_text(
+                session,
+                key,
+                text,
+                Some(220.0),
+                alignment,
+                line_height_kind,
+                line_height_value,
+                10.0,
+                20.0,
+                1_000,
+                &[0, text.encode_utf16().count() as u32, 0, 0, 0],
+                &[24.0, 400.0, 100.0, 0.0],
+                b"Antonanton",
+                &[0, 5, 5, 10],
+            )
+            .unwrap()
+        };
+
+        let start = realize("align-start", "Short", 0, 0, 0.0);
+        let center = realize("align-center", "Short", 1, 0, 0.0);
+        let end = realize("align-end", "Short", 2, 0, 0.0);
+        let start_x = start.geometry()[0];
+        let center_x = center.geometry()[0];
+        let end_x = end.geometry()[0];
+        assert!(
+            start_x < center_x && center_x < end_x,
+            "{start_x}, {center_x}, {end_x}"
+        );
+        let wrapped = "one two three four five six seven eight";
+        let wrapped_start = realize("wrapped-start", wrapped, 0, 0, 0.0);
+        let justified = realize("align-justify", wrapped, 3, 0, 0.0);
+        assert!(justified.line_meta().len() >= 4);
+        assert_ne!(justified.geometry(), wrapped_start.geometry());
+
+        let normal = realize("leading-normal", "A\nB", 0, 0, 0.0);
+        let absolute = realize("leading-absolute", "A\nB", 0, 1, 60.0);
+        let multiple = realize("leading-multiple", "A\nB", 0, 2, 2.0);
+        let baseline_gap = |layout: &PackedFlowLayout| {
+            let geometry = layout.line_geometry();
+            geometry[7] - geometry[0]
+        };
+        assert!(baseline_gap(&absolute) > baseline_gap(&normal));
+        assert!(baseline_gap(&multiple) > baseline_gap(&normal));
+        assert!((baseline_gap(&absolute) - 60.0).abs() < 0.01);
         assert!(drop_layout_session(session));
     }
 
@@ -601,6 +694,9 @@ mod tests {
             session,
             "ABC שלום",
             Some(200.0),
+            0,
+            0,
+            0.0,
             0.0,
             0.0,
             100,
@@ -675,6 +771,8 @@ mod tests {
                         },
                     ],
                     max_width: None,
+                    alignment: parley::Alignment::Start,
+                    line_height: None,
                     origin_x: 0.0,
                     origin_y: 0.0,
                     max_glyph_count: 10,
@@ -721,6 +819,8 @@ mod tests {
                         expected_face_index: 0,
                     }],
                     max_width: None,
+                    alignment: parley::Alignment::Start,
+                    line_height: None,
                     origin_x: 0.0,
                     origin_y: 0.0,
                     max_glyph_count: 10,
@@ -769,6 +869,8 @@ mod tests {
                     expected_face_index: 0,
                 }],
                 max_width: None,
+                alignment: parley::Alignment::Start,
+                line_height: None,
                 origin_x: 0.0,
                 origin_y: 0.0,
                 max_glyph_count: 10,

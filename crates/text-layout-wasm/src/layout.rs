@@ -4,7 +4,7 @@ use fontique::Blob;
 use icu_segmenter::GraphemeClusterSegmenter;
 use parley::{
     Alignment, AlignmentOptions, FontContext, FontFamily, FontStyle, FontWeight, FontWidth,
-    LayoutContext, StyleProperty,
+    LayoutContext, LineHeight, StyleProperty,
 };
 use skrifa::{
     FontRef, MetadataProvider,
@@ -38,6 +38,8 @@ pub(crate) struct FlowLayoutInput {
     pub(crate) text: String,
     pub(crate) styles: Vec<FlowStyleInput>,
     pub(crate) max_width: Option<f32>,
+    pub(crate) alignment: Alignment,
+    pub(crate) line_height: Option<LineHeight>,
     pub(crate) origin_x: f32,
     pub(crate) origin_y: f32,
     pub(crate) max_glyph_count: usize,
@@ -254,6 +256,9 @@ pub(crate) fn realize_flow(
                 .layout
                 .ranged_builder(&mut session.fonts, &input.text, 1.0, false);
         builder.push_default(StyleProperty::FontSize(16.0));
+        if let Some(line_height) = input.line_height {
+            builder.push_default(StyleProperty::LineHeight(line_height));
+        }
         let boundaries = utf16_boundaries(&input.text);
         for style in &input.styles {
             let start = utf16_to_byte_fast(&boundaries, style.start)
@@ -283,7 +288,7 @@ pub(crate) fn realize_flow(
         }
         let mut layout = builder.build(&input.text);
         layout.break_all_lines(input.max_width);
-        layout.align(Alignment::Start, AlignmentOptions::default());
+        layout.align(input.alignment, AlignmentOptions::default());
         project_layout(&input, &layout, &session.registered_assets)
     })
 }

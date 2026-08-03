@@ -32,7 +32,7 @@ for (const [id, fileName, family, text] of fixtures) {
   const strings = new TextEncoder().encode(family + id);
   const familyBytes = new TextEncoder().encode(family).byteLength;
   const result = wasm.realize_flow_text(
-    session, id, text, 1024, 0, 0, 4096,
+    session, id, text, 1024, 0, 0, 0, 0, 0, 4096,
     new Uint32Array([0, text.length, 0, 0, 0]),
     new Float32Array([24, 400, 100, 0]),
     strings,

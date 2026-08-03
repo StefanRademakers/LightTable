@@ -293,6 +293,9 @@ export function rasterize_registered_glyph(session_key, asset_id, face_index, gl
  * @param {string} key
  * @param {string} text
  * @param {number | null | undefined} max_width
+ * @param {number} alignment
+ * @param {number} line_height_kind
+ * @param {number} line_height_value
  * @param {number} origin_x
  * @param {number} origin_y
  * @param {number} max_glyph_count
@@ -302,7 +305,7 @@ export function rasterize_registered_glyph(session_key, asset_id, face_index, gl
  * @param {Uint32Array} string_ranges
  * @returns {PackedFlowLayout}
  */
-export function realize_flow_text(session_key, key, text, max_width, origin_x, origin_y, max_glyph_count, style_meta, style_metrics, font_strings_utf8, string_ranges) {
+export function realize_flow_text(session_key, key, text, max_width, alignment, line_height_kind, line_height_value, origin_x, origin_y, max_glyph_count, style_meta, style_metrics, font_strings_utf8, string_ranges) {
     const ptr0 = passStringToWasm0(session_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -317,7 +320,7 @@ export function realize_flow_text(session_key, key, text, max_width, origin_x, o
     const len5 = WASM_VECTOR_LEN;
     const ptr6 = passArray32ToWasm0(string_ranges, wasm.__wbindgen_malloc);
     const len6 = WASM_VECTOR_LEN;
-    const ret = wasm.realize_flow_text(ptr0, len0, ptr1, len1, ptr2, len2, isLikeNone(max_width) ? Number.MAX_SAFE_INTEGER : Math.fround(max_width), origin_x, origin_y, max_glyph_count, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6);
+    const ret = wasm.realize_flow_text(ptr0, len0, ptr1, len1, ptr2, len2, isLikeNone(max_width) ? Number.MAX_SAFE_INTEGER : Math.fround(max_width), alignment, line_height_kind, line_height_value, origin_x, origin_y, max_glyph_count, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }

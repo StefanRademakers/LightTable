@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TextEngineClient, type TextEngineWorkerPort } from './TextEngineClient';
+import {
+  TextEngineClient,
+  describeTextWorkerError,
+  type TextEngineWorkerPort
+} from './TextEngineClient';
 import { TEXT_ENGINE_PROTOCOL_VERSION } from './textEngineProtocol';
 import {
   CONTRACT_FIXTURE_FONT_ASSET,
@@ -195,6 +199,18 @@ describe('TextEngineClient', () => {
     secondWorker.ready(2);
     await expect(retried).resolves.toMatchObject({ engineVersion: '0.1.0' });
     expect(factory).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves module-worker error causes and source locations', () => {
+    expect(describeTextWorkerError({
+      message: '',
+      error: new TypeError('Missing WASM export'),
+      filename: 'textLayout.worker.js',
+      lineno: 42,
+      colno: 7
+    } as ErrorEvent).message).toBe(
+      'TypeError: Missing WASM export at textLayout.worker.js:42:7'
+    );
   });
 
   it('transfers font bytes to the persistent worker and returns inspected metadata', async () => {

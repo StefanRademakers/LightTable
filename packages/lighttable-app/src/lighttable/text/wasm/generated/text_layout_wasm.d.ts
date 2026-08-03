@@ -62,7 +62,7 @@ export function rasterize_registered_glyph(session_key: string, asset_id: string
  * f32 = size/weight/stretch/tracking. String ranges address paired family and
  * expected font-asset identities in one UTF-8 byte table.
  */
-export function realize_flow_text(session_key: string, key: string, text: string, max_width: number | null | undefined, origin_x: number, origin_y: number, max_glyph_count: number, style_meta: Uint32Array, style_metrics: Float32Array, font_strings_utf8: Uint8Array, string_ranges: Uint32Array): PackedFlowLayout;
+export function realize_flow_text(session_key: string, key: string, text: string, max_width: number | null | undefined, alignment: number, line_height_kind: number, line_height_value: number, origin_x: number, origin_y: number, max_glyph_count: number, style_meta: Uint32Array, style_metrics: Float32Array, font_strings_utf8: Uint8Array, string_ranges: Uint32Array): PackedFlowLayout;
 
 /**
  * Registers immutable font bytes in one document-generation layout context.
@@ -112,7 +112,7 @@ export interface InitOutput {
     readonly packedglyphcoverage_pixels: (a: number) => [number, number];
     readonly packedglyphcoverage_width: (a: number) => number;
     readonly rasterize_registered_glyph: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly realize_flow_text: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number];
+    readonly realize_flow_text: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number) => [number, number, number];
     readonly register_layout_font: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly text_engine_version: () => [number, number];
     readonly text_engine_memory_bytes: () => number;

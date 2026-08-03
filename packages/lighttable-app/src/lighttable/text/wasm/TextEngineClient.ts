@@ -72,13 +72,24 @@ export interface TextGlyphRasterReport extends TextEngineOperationReport {
 export type TextEngineWorkerFactory = () => TextEngineWorkerPort;
 
 const createBrowserWorker = (): TextEngineWorkerPort => new Worker(
-  new URL('./textLayout.worker.ts', import.meta.url),
+  new URL('./textLayout.bootstrap.worker.ts', import.meta.url),
   { type: 'module', name: 'LightTable text layout' }
 );
 
 const variationIdentity = (value: Readonly<Record<string, number>>) => JSON.stringify(
   Object.entries(value).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
 );
+
+export const describeTextWorkerError = (event: ErrorEvent): Error => {
+  const cause = event.error instanceof Error
+    ? `${event.error.name}: ${event.error.message}`
+    : event.message?.trim();
+  const location = event.filename
+    ? `${event.filename}${event.lineno ? `:${event.lineno}${event.colno ? `:${event.colno}` : ''}` : ''}`
+    : '';
+  const detail = [cause, location].filter(Boolean).join(' at ');
+  return new Error(detail || 'The text engine worker failed.');
+};
 
 /**
  * Lazy application-scoped bridge to the Rust/WASM text engine.
@@ -340,7 +351,7 @@ export class TextEngineClient {
       }
     };
     worker.onerror = (event) => {
-      this.resetWorker(new Error(event.message || 'The text engine worker failed.'));
+      this.resetWorker(describeTextWorkerError(event));
     };
     worker.onmessageerror = () => {
       this.resetWorker(new Error('The text engine worker returned an unreadable response.'));
