@@ -537,11 +537,17 @@ or unrelated vector content.
 - [x] Preserve unsupported engine data and report it.
 - [x] Classify visual, semantic, structural and round-trip parity separately.
 - [x] Add missing-font/substitution and raster-fallback policy.
+- [ ] Audit every newly supported PSD text property against the existing Text
+  property UI; reuse shared controls or record and discuss the missing
+  interaction before enabling editable import/export.
 - [ ] Compare editable result against Photoshop composite fixtures.
 - [ ] Export supported text semantics back to PSD only when verified.
 
 UI exposure: import report links to affected Layers rows. Badges distinguish
 editable, substituted, preserved-only and rasterized text.
+New PSD semantics must reuse the established Text property bar, shared spinners,
+fill/stroke widgets and panel system. A capability with no coherent UI/UX
+surface remains preserved or gated until that interaction is designed.
 
 Exit gate: no PSD text becomes silently “editable” when its appearance cannot
 be reproduced.
@@ -659,6 +665,19 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 - Slice 18 serialized PSD text fixture
+
+- Interoperability: a test now writes a real PSD binary through `ag-psd`, reads
+  its text descriptor back through the production parser and validates the
+  resulting point text, affine transform, font request, size, paragraph
+  alignment and canonical LightTable text contract.
+- Scope: this is structural parser/serializer evidence, not Photoshop visual
+  parity. The editable-result comparison remains open until an Adobe-generated
+  composite fixture is available; PSD export remains gated behind that proof.
+- UI/UX: Slice 18 now explicitly audits every newly supported PSD property
+  against the established Text property bar and panel controls. Unsupported
+  interactions stay preserved/gated and are discussed before new UI is added.
 
 ### 2026-08-03 - Slice 18 PSD semantic text foundation
 

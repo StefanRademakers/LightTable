@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { readPsd, writePsd, type Psd } from 'ag-psd';
 import { assertTextLayerData } from '@lighttable/text-core';
 import { importPsdText } from './psdTextAdapter';
+
+const transparentPixels = (width: number, height: number) => ({
+  width,
+  height,
+  data: new Uint8ClampedArray(width * height * 4)
+});
 
 describe('Photoshop text adapter', () => {
   it('maps horizontal point text, transform and character styling into editable flow text', () => {
@@ -57,6 +64,64 @@ describe('Photoshop text adapter', () => {
       writingMode: 'horizontal-tb'
     });
     expect(result.text.source.paragraphRuns[0]?.hyphenation).toBe('auto');
+  });
+
+  it('imports a text descriptor after an actual PSD binary write/read round trip', () => {
+    const psd: Psd = {
+      width: 64,
+      height: 64,
+      imageData: transparentPixels(64, 64),
+      children: [{
+        name: 'Editable text',
+        left: 0,
+        top: 0,
+        right: 64,
+        bottom: 64,
+        imageData: transparentPixels(64, 64),
+        text: {
+          text: 'PSD fixture',
+          transform: [1, 0.125, -0.25, 1, 7, 11],
+          orientation: 'horizontal',
+          shapeType: 'point',
+          pointBase: [3, 5],
+          style: {
+            font: { name: 'Inter' },
+            fontSize: 27,
+            fillColor: { r: 12, g: 34, b: 56 }
+          },
+          paragraphStyle: { justification: 'right' }
+        }
+      }]
+    };
+
+    const bytes = writePsd(psd);
+    const parsed = readPsd(bytes, {
+      skipLayerImageData: true,
+      skipCompositeImageData: true,
+      skipThumbnail: true
+    });
+    const descriptor = parsed.children?.[0]?.text;
+
+    expect(bytes.byteLength).toBeGreaterThan(0);
+    expect(descriptor).toMatchObject({
+      text: 'PSD fixture',
+      transform: [1, 0.125, -0.25, 1, 7, 11],
+      shapeType: 'point',
+      pointBase: [3, 5]
+    });
+
+    const result = importPsdText(descriptor, 'serialized-psd-text');
+    expect(result.kind).toBe('editable-flow');
+    if (result.kind !== 'editable-flow') return;
+    expect(() => assertTextLayerData(result.text)).not.toThrow();
+    expect(result.transform).toEqual({ a: 1, b: 0.125, c: -0.25, d: 1, tx: 7, ty: 11 });
+    expect(result.text.source).toMatchObject({
+      kind: 'flow',
+      text: 'PSD fixture',
+      layout: { mode: 'point', origin: { x: 3, y: 5 } },
+      styleRuns: [{ requestedFont: { families: ['Inter'] }, fontSize: 27 }],
+      paragraphRuns: [{ alignment: 'end' }]
+    });
   });
 
   it.each([
