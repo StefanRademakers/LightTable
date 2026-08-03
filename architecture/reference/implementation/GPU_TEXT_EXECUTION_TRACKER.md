@@ -660,6 +660,30 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 15 deterministic run fallback in progress
+
+- Owner: Codex `/root`; tracked in task 037.
+- Contract/runtime: worker protocol v5 carries one validated font selection per
+  flow style run. The selection names the exact registered face and family and
+  retains the original request plus exact/substituted provenance; point and
+  incremental paragraph results publish the same provenance and explicit
+  `font-substituted` warnings.
+- Policy: resolution remains deterministic by preferred fingerprint/face,
+  PostScript name, family/style score and an ordered explicit Noto Sans/Inter
+  substitution list. Faces outside that policy are never silently selected.
+- Laziness: bundled Inter fallback bytes are fetched only when visible flow
+  text remains unresolved after document-font hydration. Raster-only, hidden
+  text and already-resolved documents allocate and fetch nothing.
+- Registration: a session registers only faces selected by visible text runs;
+  substitution does not load the complete catalog.
+- Verification so far: real generated-WASM runtime and structural script
+  goldens; 60 focused tests; complete 247-file / 1,246-test app suite and full
+  workspace suite; all typechecks; web production build and packaged Electron
+  distribution boundary. Existing third-party build warnings are unchanged.
+- Remaining Slice 15 work: glyph-level fallback, visual bidi navigation,
+  horizontal complex-script editing/save-reopen, actionable report UI and
+  deferred vertical writing.
+
 ### 2026-08-03 — Slice 14 implementation complete; manual smoke pending
 
 - Owner: Codex `/root`; paragraph input/overlay and incremental-shaping audits

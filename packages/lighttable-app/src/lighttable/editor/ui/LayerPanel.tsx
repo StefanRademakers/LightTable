@@ -24,6 +24,7 @@ import {
   adjustmentStackOwnerIsEnabled
 } from '../../processing/adjustmentStack';
 import { textLayerFontStatus } from '../../text/fonts/textLayerFontStatus';
+import { DEFAULT_TEXT_SUBSTITUTION_FAMILIES } from '../../text/fonts/flowFontSelection';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -505,7 +506,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           const clippingBase = siblingIndex > 0 ? siblings[siblingIndex - 1] : null;
           const canToggleClipping = layer.clipping || Boolean(clippingBase);
           const fontStatus = layer.type === 'text'
-            ? textLayerFontStatus(layer, availableFonts)
+            ? textLayerFontStatus(layer, availableFonts, DEFAULT_TEXT_SUBSTITUTION_FAMILIES)
             : null;
           return (
           <React.Fragment key={layer.id}>

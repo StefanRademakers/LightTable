@@ -1,0 +1,38 @@
+# Task 037 - Text fallback, bidi and complex scripts
+
+Status: in progress
+
+## Deterministic fallback and provenance
+
+- [x] Build an explicit per-source-run font selection plan from the document
+  font snapshot; never let the worker silently choose an unreported face.
+- [x] Carry exact/substituted provenance through point and incremental
+  paragraph realization and emit a layout warning for every substituted run.
+- [x] Lazily materialize the bundled fallback only when a visible document
+  actually contains unresolved flow text.
+- [x] Keep font registration limited to faces selected by the plan.
+- [x] Verify missing, exact and substituted paths with worker/coordinator tests.
+
+## Bidi and complex-script editing
+
+- [ ] Move left/right by realized visual caret order while preserving logical
+  text storage, selection anchors and grapheme boundaries.
+- [ ] Verify mixed LTR/RTL selection collapse, Shift extension, Home/End and
+  vertical movement.
+- [ ] Verify Arabic, Hebrew, Devanagari, Thai, CJK, emoji and combining text in
+  the real WASM corpus and through save/reopen.
+- [ ] Defer vertical writing controls until horizontal complex scripts pass.
+
+## Existing UI integration
+
+- [ ] Make existing Layers missing/substitution badges actionable using the
+  established menu/dialog/control patterns; do not add private widgets/CSS.
+- [ ] Include missing glyph and substitution details in document/import
+  compatibility reporting.
+
+## Gates
+
+- [x] Focused unit, worker and real-WASM tests pass.
+- [ ] `npm test`, `npm run typecheck`, `npm run build:web` and
+  `npm run package:desktop:verify` pass.
+- [ ] Web and Electron manual corpus/save-reopen smoke is recorded.

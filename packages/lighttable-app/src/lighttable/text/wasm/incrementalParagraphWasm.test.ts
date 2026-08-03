@@ -141,7 +141,15 @@ describe('incremental paragraph WASM differential', () => {
       return { segment, fragment, paragraph };
     });
     const incremental = assembleParagraphLayout({
-      key: 'incremental', source, selectedFonts: [asset], placements, maxGlyphCount: 10_000
+      key: 'incremental', source, selectedFonts: [{
+        sourceRunIndex: 0,
+        font: asset,
+        familyName: source.styleRuns[0]!.requestedFont.families[0]!,
+        resolution: {
+          kind: 'flow-exact', sourceRunIndex: 0,
+          requested: source.styleRuns[0]!.requestedFont
+        }
+      }], placements, maxGlyphCount: 10_000
     });
     const flattenedGlyphIds = incremental.glyphRuns.flatMap((run) => [...run.glyphIds]);
     const flattenedClusters = incremental.glyphRuns.flatMap((run) => [...run.clusters]);

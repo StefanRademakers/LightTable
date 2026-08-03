@@ -105,6 +105,17 @@ const createLayoutRequest = (): TextLayoutWorkerRequest => {
     sessionGeneration: identity.sessionGeneration,
     layerId: identity.layerId,
     layer,
+    flowFontSelections: [{
+      sourceRunIndex: 0,
+      font: CONTRACT_FIXTURE_FONT_ASSET,
+      familyName: 'Inter',
+      resolution: {
+        kind: 'flow-exact', sourceRunIndex: 0,
+        requested: layer.source.kind === 'flow'
+          ? layer.source.styleRuns[0]!.requestedFont
+          : { families: ['Inter'] }
+      }
+    }],
     localToDocument: IDENTITY_MATRIX_3,
     fontSnapshotRevision: identity.fontSnapshotRevision,
     pathDependencyRevision: identity.pathDependencyRevision,
@@ -377,6 +388,14 @@ describe('realized layout and worker contracts', () => {
   it('validates session/generation/cache identity before layout work starts', () => {
     const request = createLayoutRequest();
     expect(() => assertTextLayoutWorkerRequest(request)).not.toThrow();
+    expect(() => assertTextLayoutWorkerRequest({
+      ...request,
+      flowFontSelections: []
+    })).toThrow(/one entry per flow style run/);
+    expect(() => assertTextLayoutWorkerRequest({
+      ...request,
+      flowFontSelections: [{ ...request.flowFontSelections[0], sourceRunIndex: 1 }]
+    })).toThrow(/style-run index/);
     expect(() => assertTextLayoutWorkerRequest({ ...request, cacheKey: 'stale' })).toThrow(/cacheKey/);
     expect(() => assertTextLayoutWorkerRequest({ ...request, protocolVersion: 999 })).toThrow(/protocolVersion/);
   });

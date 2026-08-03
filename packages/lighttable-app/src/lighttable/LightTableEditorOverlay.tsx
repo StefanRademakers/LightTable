@@ -144,9 +144,14 @@ import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
 import { FontationsFontFaceParser } from './text/fonts/FontationsFontFaceParser';
 import {
   BUNDLED_TEXT_FONT_CATALOG,
+  registerBundledTextFont,
   registerBundledTextFontByAssetId,
   registerBundledTextFontForSettings
 } from './text/fonts/bundledTextFont';
+import {
+  DEFAULT_TEXT_SUBSTITUTION_FAMILIES,
+  documentNeedsFlowFontFallback
+} from './text/fonts/flowFontSelection';
 import { bindRendererTextFontRuntime } from './composition/documents/bindRendererTextFontRuntime';
 import {
   LightTableDockWorkspace,
@@ -602,7 +607,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ), [rendererLifecycle, textFontRuntimePort]);
   const fontDiagnostics = useMemo(
     () => imageDocument && !fontHydrationPending
-      ? documentTextFontDiagnostics(imageDocument, availableFontAssets)
+      ? documentTextFontDiagnostics(
+          imageDocument,
+          availableFontAssets,
+          DEFAULT_TEXT_SUBSTITUTION_FAMILIES
+        )
       : [],
     [availableFontAssets, fontHydrationPending, imageDocument]
   );
@@ -694,6 +703,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   }, [appendDebugMessage]);
   const reportedFontDiagnosticsRef = useRef('');
+  useEffect(() => {
+    if (!imageDocument || fontHydrationPending) return;
+    if (!documentNeedsFlowFontFallback(imageDocument, availableFontAssets)) return;
+    let cancelled = false;
+    void registerBundledTextFont(textFontRegistry).catch((reason: unknown) => {
+      if (cancelled) return;
+      appendDebugMessage(
+        'error',
+        'Text fonts',
+        reason instanceof Error ? reason.message : 'The bundled fallback font could not be loaded.'
+      );
+    });
+    return () => { cancelled = true; };
+  }, [
+    appendDebugMessage,
+    availableFontAssets,
+    fontDiagnostics,
+    fontHydrationPending,
+    imageDocument,
+    textFontRegistry
+  ]);
   useEffect(() => {
     const signature = `${imageDocument?.id ?? 'no-document'}:${JSON.stringify(fontDiagnostics)}`;
     if (signature === reportedFontDiagnosticsRef.current) return;

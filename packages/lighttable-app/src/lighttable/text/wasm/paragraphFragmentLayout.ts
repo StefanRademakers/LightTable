@@ -2,9 +2,9 @@ import {
   TEXT_LAYOUT_SCHEMA_VERSION,
   realizeParagraphFrame,
   type FlowTextSource,
-  type FontAssetRef,
   type RealizedTextLayout,
-  type Rect
+  type Rect,
+  type TextWorkerFlowFontSelection
 } from '@lighttable/text-core';
 import type { FlowParagraphSegment } from './incrementalParagraphLayout';
 import type { UniformParagraphLayout } from './uniformParagraphLayout';
@@ -96,7 +96,7 @@ const retainedContentHeight = (
 export interface AssembleParagraphLayoutInput {
   readonly key: string;
   readonly source: FlowTextSource & { readonly layout: Extract<FlowTextSource['layout'], { readonly mode: 'paragraph' }> };
-  readonly selectedFonts: readonly FontAssetRef[];
+  readonly selectedFonts: readonly TextWorkerFlowFontSelection[];
   readonly placements: readonly ParagraphFragmentPlacement[];
   readonly maxGlyphCount: number;
 }
@@ -144,8 +144,8 @@ export const assembleParagraphLayout = ({
       if (!styleSlice) throw new Error('Cached paragraph refers to an invalid local style slot.');
       const sourceRunIndex = styleSlice.sourceRunIndex;
       const style = source.styleRuns[sourceRunIndex];
-      const font = selectedFonts[sourceRunIndex];
-      if (!style || !font) throw new Error('Cached paragraph style provenance is unavailable.');
+      const fontSelection = selectedFonts[sourceRunIndex];
+      if (!style || !fontSelection) throw new Error('Cached paragraph style provenance is unavailable.');
       if (fragment.runMeta[meta + 2] !== 1) {
         throw new Error('Parley selected a fallback font; exact paragraph provenance is required.');
       }
@@ -161,13 +161,13 @@ export const assembleParagraphLayout = ({
       const glyphIds = fragment.glyphIds.slice(start, end);
       glyphRuns.push({
         font: {
-          font,
+          font: fontSelection.font,
           variableAxes: style.variableAxes,
           syntheticBold: style.syntheticBold,
           syntheticItalic: style.syntheticItalic
         },
         fontSize: style.fontSize,
-        fontResolution: { kind: 'flow-exact', sourceRunIndex, requested: style.requestedFont },
+        fontResolution: fontSelection.resolution,
         paint: { fill: style.fill, ...(style.stroke ? { stroke: style.stroke } : {}) },
         renderingMode: style.stroke ? 'fill-stroke' : 'fill',
         direction: fragment.runMeta[meta + 1] === 1 ? 'rtl' : 'ltr',
@@ -180,6 +180,13 @@ export const assembleParagraphLayout = ({
         warnings.push({
           code: 'missing-glyph',
           message: 'The selected font emitted .notdef.',
+          runIndex: glyphRuns.length - 1
+        });
+      }
+      if (fontSelection.resolution.kind === 'flow-substituted') {
+        warnings.push({
+          code: 'font-substituted',
+          message: 'The requested font was explicitly substituted.',
           runIndex: glyphRuns.length - 1
         });
       }

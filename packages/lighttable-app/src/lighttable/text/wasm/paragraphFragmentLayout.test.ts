@@ -10,6 +10,17 @@ import {
   type PackedParagraphFragment
 } from './paragraphFragmentLayout';
 
+const fontSelection = (source: FlowTextSource, sourceRunIndex: number) => ({
+  sourceRunIndex,
+  font: CONTRACT_FIXTURE_FONT_ASSET,
+  familyName: source.styleRuns[sourceRunIndex]!.requestedFont.families[0]!,
+  resolution: {
+    kind: 'flow-exact' as const,
+    sourceRunIndex,
+    requested: source.styleRuns[sourceRunIndex]!.requestedFont
+  }
+});
+
 const fragment = (
   textLength: number,
   glyphId: number,
@@ -67,7 +78,7 @@ describe('paragraph fragment assembly', () => {
     const layout = assembleParagraphLayout({
       key: 'whole-layout',
       source,
-      selectedFonts: [CONTRACT_FIXTURE_FONT_ASSET, CONTRACT_FIXTURE_FONT_ASSET],
+      selectedFonts: [fontSelection(source, 0), fontSelection(source, 1)],
       placements: [
         {
           segment: segments[0], fragment: first,
@@ -121,7 +132,7 @@ describe('paragraph fragment assembly', () => {
     const layout = assembleParagraphLayout({
       key: 'trailing-line',
       source,
-      selectedFonts: [CONTRACT_FIXTURE_FONT_ASSET],
+      selectedFonts: [fontSelection(source, 0)],
       placements: [{
         segment: segmentFlowParagraphs(source)[0],
         fragment: fragment(2, 11, true),
@@ -135,13 +146,53 @@ describe('paragraph fragment assembly', () => {
     expect(layout.paragraphFrame).toMatchObject({ overflowed: true, firstOverflowTextOffset: 2 });
   });
 
+  it('publishes explicit substitution provenance and a layout warning', () => {
+    const base = createDefaultFlowTextSource('A');
+    const source = {
+      ...base,
+      layout: {
+        mode: 'paragraph' as const,
+        frame: { x: 0, y: 0, width: 100, height: 100 },
+        overflow: 'indicator' as const,
+        writingMode: 'horizontal-tb' as const
+      }
+    };
+    const exact = fontSelection(source, 0);
+    const layout = assembleParagraphLayout({
+      key: 'substituted',
+      source,
+      selectedFonts: [{
+        ...exact,
+        resolution: {
+          kind: 'flow-substituted', sourceRunIndex: 0,
+          requested: source.styleRuns[0]!.requestedFont,
+          reason: 'asset-missing'
+        }
+      }],
+      placements: [{
+        segment: segmentFlowParagraphs(source)[0],
+        fragment: fragment(1, 11),
+        paragraph: { alignment: 0, lineHeightKind: 0, lineHeightValue: 0,
+          firstLineIndent: 0, startIndent: 0, endIndent: 0, spaceBefore: 0, spaceAfter: 0 }
+      }],
+      maxGlyphCount: 10
+    });
+
+    expect(layout.glyphRuns[0]!.fontResolution).toMatchObject({
+      kind: 'flow-substituted', reason: 'asset-missing'
+    });
+    expect(layout.warnings).toContainEqual(expect.objectContaining({
+      code: 'font-substituted', runIndex: 0
+    }));
+  });
+
   it('enforces the whole-flow glyph limit even when fragments are already cached', () => {
     const source = paragraphSource();
     const segments = segmentFlowParagraphs(source);
     expect(() => assembleParagraphLayout({
       key: 'limited',
       source,
-      selectedFonts: [CONTRACT_FIXTURE_FONT_ASSET, CONTRACT_FIXTURE_FONT_ASSET],
+      selectedFonts: [fontSelection(source, 0), fontSelection(source, 1)],
       placements: segments.map((segment, index) => ({
         segment,
         fragment: fragment(segment.text.length, index + 1, index === 0),

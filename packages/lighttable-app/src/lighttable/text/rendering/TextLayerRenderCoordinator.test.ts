@@ -21,12 +21,12 @@ const asset: DocumentFontAsset = {
   assetId: 'font-1',
   fingerprintSha256: 'a'.repeat(64),
   faceIndex: 0,
-  postScriptName: 'Fixture-Regular',
+  postScriptName: 'Inter-Regular',
   source: 'document',
   container: 'sfnt',
   outline: 'truetype',
   embedding: { level: 'installable', noSubsetting: false, bitmapOnly: false },
-  familyNames: ['Fixture'],
+  familyNames: ['Inter'],
   styleName: 'Regular',
   weight: 400,
   stretch: 100,
@@ -272,6 +272,50 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.client.registerFontDetailed).toHaveBeenCalledOnce();
     expect(state.client.registerFontDetailed).toHaveBeenCalledWith(
       expect.objectContaining({ font: asset }), expect.any(AbortSignal)
+    );
+  });
+
+  it('registers an explicit substitute and sends original per-run provenance to layout', async () => {
+    const state = harness();
+    const text = createDefaultTextLayerData();
+    if (text.source.kind !== 'flow') throw new Error('Expected flow text.');
+    const requested = {
+      families: ['Unavailable Family'],
+      postScriptName: 'UnavailableFamily-Regular',
+      preferredAsset: {
+        ...asset,
+        assetId: 'missing-font',
+        fingerprintSha256: 'c'.repeat(64),
+        postScriptName: 'UnavailableFamily-Regular'
+      }
+    };
+    const document = createImageDocument('Substituted font', 32, 24, 'source');
+    document.layers = [createTextLayerNode({
+      ...text,
+      source: {
+        ...text.source,
+        styleRuns: text.source.styleRuns.map((run) => ({ ...run, requestedFont: requested }))
+      }
+    }, 'Text')];
+
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+
+    expect(state.client.registerFontDetailed).toHaveBeenCalledOnce();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flowFontSelections: [expect.objectContaining({
+          font: expect.objectContaining({ assetId: asset.assetId }),
+          familyName: 'Inter',
+          resolution: expect.objectContaining({
+            kind: 'flow-substituted',
+            reason: 'asset-missing',
+            requested
+          })
+        })]
+      }),
+      expect.any(AbortSignal)
     );
   });
 

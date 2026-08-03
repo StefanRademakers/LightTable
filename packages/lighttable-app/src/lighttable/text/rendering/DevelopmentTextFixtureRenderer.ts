@@ -233,6 +233,15 @@ export class DevelopmentTextFixtureRenderer {
       const realization = await dependencies.client.realizeTextDetailed({
         kind: 'realize-text', documentSessionId, sessionGeneration,
         layerId: identity.layerId, layer, localToDocument: IDENTITY_MATRIX_3,
+        flowFontSelections: [{
+          sourceRunIndex: 0,
+          font: asset.font,
+          familyName: asset.family,
+          resolution: {
+            kind: 'flow-exact', sourceRunIndex: 0,
+            requested: layer.source.styleRuns[0]!.requestedFont
+          }
+        }],
         fontSnapshotRevision, pathDependencyRevision: 0,
         cacheKey: createTextLayoutCacheKey(identity), options
       }, signal);

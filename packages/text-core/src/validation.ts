@@ -657,6 +657,35 @@ export function assertTextWorkerRequest(value: unknown): asserts value is TextWo
   if (kind === 'release-session') return;
   if (!boundedString(request.layerId, '$.layerId')) fail('$.layerId', 'must not be empty');
   assertTextLayerData(request.layer);
+  const flowFontSelections = array(request.flowFontSelections, '$.flowFontSelections', 16_384);
+  if ((request.layer as TextLayerData).source.kind === 'flow') {
+    const styleRuns = (request.layer as TextLayerData).source.kind === 'flow'
+      ? (request.layer as TextLayerData & { source: { kind: 'flow'; styleRuns: readonly unknown[] } }).source.styleRuns
+      : [];
+    if (flowFontSelections.length !== styleRuns.length) {
+      fail('$.flowFontSelections', 'requires one entry per flow style run');
+    }
+  } else if (flowFontSelections.length !== 0) {
+    fail('$.flowFontSelections', 'must be empty for positioned text');
+  }
+  flowFontSelections.forEach((entry, index) => {
+    const path = `$.flowFontSelections[${index}]`;
+    const selection = record(entry, path);
+    integer(selection.sourceRunIndex, `${path}.sourceRunIndex`, 0, 16_383);
+    if (selection.sourceRunIndex !== index) fail(`${path}.sourceRunIndex`, 'must match its style-run index');
+    assertFontAsset(selection.font, `${path}.font`);
+    if (!boundedString(selection.familyName, `${path}.familyName`, 256)) {
+      fail(`${path}.familyName`, 'must not be empty');
+    }
+    assertFontResolution(selection.resolution, `${path}.resolution`);
+    const resolution = record(selection.resolution, `${path}.resolution`);
+    if (resolution.sourceRunIndex !== index) {
+      fail(`${path}.resolution.sourceRunIndex`, 'must match its style-run index');
+    }
+    if (resolution.kind !== 'flow-exact' && resolution.kind !== 'flow-substituted') {
+      fail(`${path}.resolution.kind`, 'expected flow font provenance');
+    }
+  });
   assertMatrix(request.localToDocument, '$.localToDocument');
   integer(request.fontSnapshotRevision, '$.fontSnapshotRevision');
   integer(request.pathDependencyRevision, '$.pathDependencyRevision');

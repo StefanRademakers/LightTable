@@ -1,11 +1,23 @@
 import {
   TEXT_WORKER_PROTOCOL_VERSION,
   type FontAssetRef,
+  type FontResolutionProvenance,
   type Matrix3,
   type RealizedTextLayout,
   type TextLayerData,
   type TextLayoutError
 } from './types';
+
+export interface TextWorkerFlowFontSelection {
+  readonly sourceRunIndex: number;
+  readonly font: FontAssetRef;
+  /** Family name deliberately passed to the shaper for this resolved face. */
+  readonly familyName: string;
+  readonly resolution: Extract<
+    FontResolutionProvenance,
+    { readonly kind: 'flow-exact' | 'flow-substituted' }
+  >;
+}
 
 export interface TextLayoutOptions {
   readonly quality: 'interactive' | 'final';
@@ -50,6 +62,8 @@ export interface TextLayoutWorkerRequest extends TextWorkerMessageIdentity {
   readonly kind: 'realize-text';
   readonly layerId: string;
   readonly layer: TextLayerData;
+  /** Empty for positioned text; one deterministic entry per flow style run. */
+  readonly flowFontSelections: readonly TextWorkerFlowFontSelection[];
   readonly localToDocument: Matrix3;
   readonly fontSnapshotRevision: number;
   readonly pathDependencyRevision: number;

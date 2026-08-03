@@ -14,6 +14,7 @@ import {
   createDefaultFlowTextSource,
   createDefaultTextLayerData,
   createTextLayoutCacheKey,
+  type TextLayoutWorkerRequest,
   type RealizedTextLayout
 } from '@lighttable/text-core';
 
@@ -125,7 +126,7 @@ const realizedLayout = (key: string): RealizedTextLayout => ({
   logicalBounds: { x: 0, y: 0, width: 8, height: 10 }, warnings: []
 });
 
-const layoutRequest = () => {
+const layoutRequest = (): Omit<TextLayoutWorkerRequest, 'protocolVersion' | 'requestId'> => {
   const source = createDefaultFlowTextSource('A');
   const layer = {
     ...createDefaultTextLayerData(),
@@ -152,6 +153,15 @@ const layoutRequest = () => {
     sessionGeneration: identity.sessionGeneration,
     layerId: identity.layerId,
     layer,
+    flowFontSelections: [{
+      sourceRunIndex: 0,
+      font: CONTRACT_FIXTURE_FONT_ASSET,
+      familyName: 'Inter',
+      resolution: {
+        kind: 'flow-exact', sourceRunIndex: 0,
+        requested: layer.source.styleRuns[0]!.requestedFont
+      }
+    }],
     localToDocument: IDENTITY_MATRIX_3,
     fontSnapshotRevision: identity.fontSnapshotRevision,
     pathDependencyRevision: identity.pathDependencyRevision,

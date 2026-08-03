@@ -101,6 +101,14 @@ export const realizeTypographyCorpusCase = async (
   return client.realizeTextDetailed({
     kind: 'realize-text', documentSessionId, sessionGeneration,
     layerId: identity.layerId, layer, localToDocument: IDENTITY_MATRIX_3,
+    flowFontSelections: styleRuns.map((run, sourceRunIndex) => ({
+      sourceRunIndex,
+      font: run.requestedFont.preferredAsset!,
+      familyName: run.requestedFont.families[0]!,
+      resolution: {
+        kind: 'flow-exact', sourceRunIndex, requested: run.requestedFont
+      }
+    })),
     fontSnapshotRevision, pathDependencyRevision: 0,
     cacheKey: createTextLayoutCacheKey(identity), options
   }, signal);

@@ -20,6 +20,7 @@ import {
   type RealizedTextLayout,
   type TextLayoutWorkerRequest,
   type TextLayoutWorkerResponse,
+  type TextWorkerFlowFontSelection,
   type TextWorkerRequest
 } from '@lighttable/text-core';
 import {
@@ -398,17 +399,21 @@ const realizeFlowRequest = (
   if (source.layout.mode === 'path' || source.layout.writingMode !== 'horizontal-tb') {
     throw new UnsupportedLayoutError('Path and vertical text require a later layout adapter.');
   }
-  const selectedFonts = source.styleRuns.map((run) => {
+  const selectedFonts = source.styleRuns.map((run, sourceRunIndex) => {
     if (run.directionOverride || run.scriptOverride || run.kerning === 'optical' || run.kerning === 'none'
       || run.horizontalScale !== 100 || run.verticalScale !== 100 || run.baselineShift !== 0
       || Object.keys(run.openTypeFeatures).length > 0 || Object.keys(run.variableAxes).length > 0
       || run.syntheticBold || run.syntheticItalic) {
       throw new UnsupportedLayoutError('Overrides, optical/disabled kerning, baseline or geometric scaling, variations, synthesis and OpenType feature changes are not supported yet.');
     }
-    const preferred = run.requestedFont.preferredAsset;
-    const font = preferred ? state.fonts.get(preferred.assetId) : undefined;
-    if (!font) throw new UnsupportedLayoutError('Every Slice 06 flow run requires an exact registered preferred font.');
-    return font;
+    const selection = request.flowFontSelections[sourceRunIndex];
+    const font = selection ? state.fonts.get(selection.font.assetId) : undefined;
+    if (!selection || !font
+      || font.fingerprintSha256 !== selection.font.fingerprintSha256
+      || font.faceIndex !== selection.font.faceIndex) {
+      throw new UnsupportedLayoutError('Every flow run requires its explicitly selected registered font face.');
+    }
+    return selection;
   });
   if (source.layout.mode === 'paragraph' && source.text.length > 0) {
     const frameWidth = source.layout.frame.width;
@@ -479,8 +484,8 @@ const realizeFlowRequest = (
   const paragraphStyle = paragraphResolution.value;
   const encoder = new TextEncoder();
   const encodedFontStrings = source.styleRuns.flatMap((run, index) => [
-    encoder.encode(run.requestedFont.families[0] ?? run.requestedFont.postScriptName ?? ''),
-    encoder.encode(selectedFonts[index].fingerprintSha256)
+    encoder.encode(selectedFonts[index].familyName),
+    encoder.encode(selectedFonts[index].font.fingerprintSha256)
   ]);
   const fontStringBytes = new Uint8Array(encodedFontStrings.reduce((sum, bytes) => sum + bytes.byteLength, 0));
   const fontStringRanges = new Uint32Array(source.styleRuns.length * 4);
@@ -497,7 +502,7 @@ const realizeFlowRequest = (
     styleMeta.set([
       run.start, run.end, sourceRunIndex,
       run.fontStyle === 'normal' ? 0 : run.fontStyle === 'italic' ? 1 : 2,
-      selectedFonts[sourceRunIndex].faceIndex
+      selectedFonts[sourceRunIndex].font.faceIndex
     ], sourceRunIndex * 5);
     styleMetrics.set([run.fontSize, run.fontWeight, run.fontStretch, run.tracking], sourceRunIndex * 4);
   });
@@ -544,17 +549,13 @@ const realizeFlowRequest = (
       }
       return {
         font: {
-          font: selectedFonts[sourceRunIndex],
+          font: selectedFonts[sourceRunIndex].font,
           variableAxes: style.variableAxes,
           syntheticBold: style.syntheticBold,
           syntheticItalic: style.syntheticItalic
         },
         fontSize: style.fontSize,
-        fontResolution: {
-          kind: 'flow-exact',
-          sourceRunIndex,
-          requested: style.requestedFont
-        },
+        fontResolution: selectedFonts[sourceRunIndex].resolution,
         paint: { fill: style.fill, ...(style.stroke ? { stroke: style.stroke } : {}) },
         renderingMode: style.stroke ? 'fill-stroke' : 'fill',
         direction: runMeta[index * 5 + 1] === 1 ? 'rtl' : 'ltr',
@@ -596,9 +597,14 @@ const realizeFlowRequest = (
     ...(source.layout.mode === 'paragraph'
       ? { paragraphFrame: realizeParagraphFrame(source.layout, lines) }
       : {}),
-    warnings: glyphRuns.flatMap((run, runIndex) => run.glyphIds.includes(0)
-      ? [{ code: 'missing-glyph' as const, message: 'The selected font emitted .notdef.', runIndex }]
-      : [])
+    warnings: glyphRuns.flatMap((run, runIndex) => [
+      ...(run.fontResolution.kind === 'flow-substituted'
+        ? [{ code: 'font-substituted' as const, message: 'The requested font was explicitly substituted.', runIndex }]
+        : []),
+      ...(run.glyphIds.includes(0)
+        ? [{ code: 'missing-glyph' as const, message: 'The selected font emitted .notdef.', runIndex }]
+        : [])
+    ])
   };
   raw.free();
   return {
@@ -620,7 +626,7 @@ const realizeFlowRequest = (
 const shapeParagraphFragment = (
   request: TextLayoutWorkerRequest,
   segment: FlowParagraphSegment,
-  selectedFonts: readonly FontAssetRef[],
+  selectedFonts: readonly TextWorkerFlowFontSelection[],
   paragraph: UniformParagraphLayout
 ): PackedParagraphFragment => {
   const encoder = new TextEncoder();
@@ -628,8 +634,8 @@ const shapeParagraphFragment = (
     const font = selectedFonts[sourceRunIndex];
     if (!font) throw new Error('Paragraph font provenance is unavailable.');
     return [
-      encoder.encode(run.requestedFont.families[0] ?? run.requestedFont.postScriptName ?? ''),
-      encoder.encode(font.fingerprintSha256)
+      encoder.encode(font.familyName),
+      encoder.encode(font.font.fingerprintSha256)
     ];
   });
   const fontStringBytes = new Uint8Array(encodedFontStrings.reduce((sum, bytes) => sum + bytes.byteLength, 0));
@@ -651,7 +657,7 @@ const shapeParagraphFragment = (
       run.end,
       localStyleSlot,
       run.fontStyle === 'normal' ? 0 : run.fontStyle === 'italic' ? 1 : 2,
-      font.faceIndex
+      font.font.faceIndex
     ], localStyleSlot * 5);
     styleMetrics.set([run.fontSize, run.fontWeight, run.fontStretch, run.tracking], localStyleSlot * 4);
   });

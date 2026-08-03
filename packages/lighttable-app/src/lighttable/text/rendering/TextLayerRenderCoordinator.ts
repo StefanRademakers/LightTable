@@ -25,6 +25,7 @@ import { TextLayoutCache } from './TextLayoutCache';
 import { TextSourceCostModel } from './TextSourceCostModel';
 import { TextInputLatencyTracker } from './TextInputLatencyTracker';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
+import { resolveFlowFontSelections } from '../fonts/flowFontSelection';
 
 export interface TextFontRuntimePort {
   readonly revision: number;
@@ -81,21 +82,10 @@ const referencedFontAssets = (
       source.runs.forEach((run) => assetIds.add(run.font.font.assetId));
       continue;
     }
-    source.styleRuns.forEach((run) => {
-      if (run.requestedFont.preferredAsset) {
-        assetIds.add(run.requestedFont.preferredAsset.assetId);
-      }
-    });
-    if (source.insertionStyle?.requestedFont.preferredAsset) {
-      assetIds.add(source.insertionStyle.requestedFont.preferredAsset.assetId);
-    }
+    resolveFlowFontSelections(source, available).selections
+      .forEach(({ font }) => assetIds.add(font.assetId));
   }
-  // Legacy/contract flow sources without exact font identity keep the previous
-  // catalog behavior. Authored and imported production layers always carry an
-  // exact preferred asset and therefore pay only for fonts they actually use.
-  return assetIds.size === 0
-    ? available
-    : available.filter(({ assetId }) => assetIds.has(assetId));
+  return available.filter(({ assetId }) => assetIds.has(assetId));
 };
 
 export interface TextLayerEditingLayout {
@@ -668,6 +658,14 @@ export class TextLayerRenderCoordinator {
       options
     };
     const layoutCacheKey = createTextLayoutCacheKey(identity);
+    const flowFontSelections = layer.text.source.kind === 'flow'
+      ? resolveFlowFontSelections(layer.text.source, this.fontPort?.assets ?? [])
+      : { selections: [], missingSourceRunIndices: [] };
+    if (flowFontSelections.missingSourceRunIndices.length > 0) {
+      throw new Error(
+        `Text layer ${layer.name} has unresolved font runs: ${flowFontSelections.missingSourceRunIndices.join(', ')}.`
+      );
+    }
     this.setPreparationStage('shaping', layer.id);
     let layout = this.layoutCache.get(layoutCacheKey);
     if (!layout) {
@@ -675,6 +673,7 @@ export class TextLayerRenderCoordinator {
         kind: 'realize-text',
         ...identity,
         layer: layer.text,
+        flowFontSelections: flowFontSelections.selections,
         localToDocument: IDENTITY_MATRIX_3,
         cacheKey: layoutCacheKey
       }, signal);
