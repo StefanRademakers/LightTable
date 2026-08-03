@@ -41,10 +41,14 @@ export interface PdfNativeVectorLayerPage {
 
 export interface PdfNativeVectorTransparencyGroupContent {
   readonly groupId: LayerId;
-  readonly operations: readonly PdfDisplayOperation[];
+  readonly items: readonly PdfNativeVectorTransparencyGroupItemContent[];
   readonly opacity: number;
   readonly blendMode: PdfNativeVectorTransparencyGroupPlan['blendMode'];
 }
+
+export type PdfNativeVectorTransparencyGroupItemContent =
+  | { readonly kind: 'operations'; readonly operations: readonly PdfDisplayOperation[] }
+  | { readonly kind: 'group'; readonly group: PdfNativeVectorTransparencyGroupContent };
 
 export interface PdfNativeVectorExportPage extends PdfNativeVectorLayerPage {
   readonly transparencyGroups: readonly PdfNativeVectorTransparencyGroupContent[];
@@ -258,14 +262,22 @@ export const buildPdfNativeVectorExportPage = (
     if (groupedIds.has(id)) fail(`layer ${id} belongs to multiple transparency groups.`);
     groupedIds.add(id);
   }));
-  const transparencyGroups = dependencies.transparencyGroups.map(group => ({
+  const layersById = new Map(clippedLayers.map(layer => [layer.layerId, layer]));
+  const buildGroup = (
+    group: PdfNativeVectorTransparencyGroupPlan
+  ): PdfNativeVectorTransparencyGroupContent => ({
     groupId: group.groupId,
-    operations: clippedLayers
-      .filter(layer => group.nativeVectorLayerIds.includes(layer.layerId))
-      .flatMap(layer => layer.operations),
+    items: group.items.map(item => item.kind === 'layer'
+      ? {
+        kind: 'operations' as const,
+        operations: layersById.get(item.layerId)?.operations
+          ?? fail(`group ${group.groupId} contains stale layer ${item.layerId}.`)
+      }
+      : { kind: 'group' as const, group: buildGroup(item.group) }),
     opacity: group.opacity,
     blendMode: group.blendMode
-  }));
+  });
+  const transparencyGroups = dependencies.transparencyGroups.map(buildGroup);
   const layers = clippedLayers.filter(layer => !groupedIds.has(layer.layerId));
   return {
     page: { ...built.page, operations: layers.flatMap(layer => layer.operations) },

@@ -113,7 +113,11 @@ describe('planHybridPdfVectorPageExport', () => {
       groupId: group.id,
       nativeVectorLayerIds: [bottom.id, top.id],
       opacity: 0.45,
-      blendMode: 'screen'
+      blendMode: 'screen',
+      items: [
+        { kind: 'layer', layerId: bottom.id },
+        { kind: 'layer', layerId: top.id }
+      ]
     }]);
   });
 
@@ -148,6 +152,36 @@ describe('planHybridPdfVectorPageExport', () => {
     unsupported.layers.push(unsupportedBase, unsupportedClip);
     expect(planHybridPdfVectorPageExport(unsupported, false)).toMatchObject({
       kind: 'flattened-only', reasons: expect.arrayContaining(['vector-clipping-unsupported'])
+    });
+  });
+
+  it('preserves nested non-neutral vector groups in canonical item order', () => {
+    const document = createImageDocument('Nested groups', 100, 100, 'pixels');
+    const outer = createGroupLayer();
+    outer.compositing = 'isolated';
+    outer.opacity = 0.8;
+    const before = createVectorLayer([path()]);
+    const inner = createGroupLayer();
+    inner.compositing = 'isolated';
+    inner.opacity = 0.5;
+    inner.blendMode = 'multiply';
+    const inside = createVectorLayer([path()]);
+    inner.children.push(inside);
+    const after = createVectorLayer([path()]);
+    outer.children.push(before, inner, after);
+    document.layers.push(outer);
+    const plan = planHybridPdfVectorPageExport(document, false);
+    expect(plan.kind).toBe('ready');
+    if (plan.kind !== 'ready') return;
+    const group = plan.transparencyGroups[0]!;
+    expect(group.nativeVectorLayerIds).toEqual([before.id, inside.id, after.id]);
+    expect(group.items.map(item => item.kind)).toEqual(['layer', 'group', 'layer']);
+    const nested = group.items[1];
+    expect(nested?.kind === 'group' ? nested.group : null).toMatchObject({
+      groupId: inner.id,
+      nativeVectorLayerIds: [inside.id],
+      opacity: 0.5,
+      blendMode: 'multiply'
     });
   });
 });

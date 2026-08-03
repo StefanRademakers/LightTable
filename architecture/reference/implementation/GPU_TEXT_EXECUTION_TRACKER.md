@@ -921,6 +921,21 @@ clip operator. Stroke-derived alpha, raster masks, feather/density, translucent
 bases, singular transforms and clipping inside transparency groups remain
 flattened-only until soft-mask/group support represents them exactly.
 
+Recursive group evidence: transparency Form content is now an ordered tree of
+ordinary operation runs and child groups rather than a flat path array. Each
+nested group becomes its own isolated Form XObject with local XObject and
+ExtGState resource dictionaries; opacity and blend apply at the parent `Do`
+site. The canonical planner recursively preserves visible vector children,
+neutral pass-through nesting and non-neutral isolated/opacity/blend groups in
+the original bottom-to-top item order. The builder maps that tree to already
+transformed canonical layer operations without duplicating leaf IDs in page
+content or the GPU underlay. PDF.js reopens the end-to-end nested fixture with
+two Form boundaries and two native paths, including an inner Multiply group.
+Depth is bounded to 16 and operation count remains under the existing page-wide
+250,000-operation budget before PDF resources are allocated. Raster/text group
+children, masks, styles, clipping within groups and unsupported blend modes
+continue to fail closed.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

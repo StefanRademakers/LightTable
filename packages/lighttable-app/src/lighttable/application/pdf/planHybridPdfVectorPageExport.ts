@@ -43,7 +43,12 @@ export interface PdfNativeVectorTransparencyGroupPlan {
   readonly nativeVectorLayerIds: readonly LayerId[];
   readonly opacity: number;
   readonly blendMode: Exclude<PdfBlendMode, 'unsupported'>;
+  readonly items: readonly PdfNativeVectorGroupItemPlan[];
 }
+
+export type PdfNativeVectorGroupItemPlan =
+  | { readonly kind: 'layer'; readonly layerId: LayerId }
+  | { readonly kind: 'group'; readonly group: PdfNativeVectorTransparencyGroupPlan };
 
 export interface PdfNativeVectorClippingPairPlan {
   readonly baseLayerId: LayerId;
@@ -120,22 +125,35 @@ export const pdfVectorOpaqueClipBasePath = (layer: VectorLayer): VectorPath | nu
     : null;
 };
 
-const groupVectorLayers = (
-  nodes: readonly LayerNode[],
-  result: VectorLayer[] = []
-): VectorLayer[] | null => {
+const groupItems = (
+  nodes: readonly LayerNode[]
+): PdfNativeVectorGroupItemPlan[] | null => {
+  const result: PdfNativeVectorGroupItemPlan[] = [];
   for (const node of nodes) {
     if (!node.visible || node.opacity <= 0) continue;
     if (node.type === 'group') {
-      const neutral = node.compositing === 'pass-through'
-        && !node.clipping && node.mask === null
-        && node.opacity === 1 && node.fillOpacity === 1 && node.blendMode === 'normal'
-        && !layerStyleStackIsActive(node.styleStack);
-      if (!neutral || !groupVectorLayers(node.children, result)) return null;
+      const blendMode = pdfLayerBlendMode(node.blendMode);
+      if (!blendMode || node.clipping || node.mask !== null || node.fillOpacity !== 1
+        || layerStyleStackIsActive(node.styleStack)) return null;
+      const children = groupItems(node.children);
+      if (!children?.length) return null;
+      const requiresEnvelope = node.compositing === 'isolated'
+        || node.opacity !== 1 || node.blendMode !== 'normal';
+      if (requiresEnvelope) {
+        result.push({ kind: 'group', group: {
+          groupId: node.id,
+          nativeVectorLayerIds: children.flatMap(item => item.kind === 'layer'
+            ? [item.layerId]
+            : item.group.nativeVectorLayerIds),
+          opacity: node.opacity,
+          blendMode,
+          items: children
+        } });
+      } else result.push(...children);
     } else if (node.type === 'vector') {
       if (!node.elements.some(pdfVectorElementHasVisiblePaint)
         || pdfVectorLayerNativeReason(node, false, false)) return null;
-      result.push(node);
+      result.push({ kind: 'layer', layerId: node.id });
     } else return null;
   }
   return result;
@@ -149,13 +167,17 @@ const transparencyGroupPlan = (
     || group.opacity !== 1 || group.blendMode !== 'normal';
   if (!requiresEnvelope || !blendMode || group.clipping || group.mask !== null
     || group.fillOpacity !== 1 || layerStyleStackIsActive(group.styleStack)) return null;
-  const layers = groupVectorLayers(group.children);
-  if (!layers?.length) return null;
+  const items = groupItems(group.children);
+  if (!items?.length) return null;
+  const nativeVectorLayerIds = items.flatMap(item => item.kind === 'layer'
+    ? [item.layerId]
+    : item.group.nativeVectorLayerIds);
   return {
     groupId: group.id,
-    nativeVectorLayerIds: layers.map(layer => layer.id),
+    nativeVectorLayerIds,
     opacity: group.opacity,
-    blendMode
+    blendMode,
+    items
   };
 };
 

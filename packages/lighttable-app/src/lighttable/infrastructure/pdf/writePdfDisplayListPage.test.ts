@@ -2,7 +2,10 @@ import type { PdfPageDisplayList } from '@lighttable/pdf-core';
 import { PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { describe, expect, it } from 'vitest';
-import { writePdfDisplayListPage } from './writePdfDisplayListPage';
+import {
+  writePdfDisplayListPage,
+  type PdfTransparencyGroupContent
+} from './writePdfDisplayListPage';
 
 const onePixelPng = () => new Blob([Uint8Array.from(atob(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgQIAH8u1VwAAAABJRU5ErkJggg=='
@@ -116,5 +119,56 @@ describe('writePdfDisplayListPage', () => {
     expect(operators.fnArray).toContain(pdfjs.OPS.paintFormXObjectBegin);
     expect(JSON.stringify(operators.argsArray)).toContain('screen');
     await task.destroy();
+  });
+
+  it('preserves ordered nested transparency Forms and their local resources', async () => {
+    const draw = (color: readonly [number, number, number], x: number) => [
+      { kind: 'set-fill-paint' as const, paint: {
+        kind: 'device-rgb' as const, r: color[0], g: color[1], b: color[2]
+      } },
+      { kind: 'set-alpha' as const, fill: 0.7, stroke: 1 },
+      { kind: 'draw-path' as const, path: rectangle(x, 30, 40, 40), paint: 'fill' as const, fillRule: 'nonzero' as const }
+    ];
+    const result = await writePdfDisplayListPage({
+      page: fixture(),
+      transparencyGroups: [{
+        opacity: 0.8,
+        blendMode: 'normal',
+        items: [
+          { kind: 'operations', operations: draw([1, 0, 0], 20) },
+          { kind: 'group', group: {
+            opacity: 0.5,
+            blendMode: 'multiply',
+            operations: draw([0, 0, 1], 50)
+          } }
+        ]
+      }]
+    });
+    expect(result).toMatchObject({ operationCount: 17, pathCount: 4 });
+    const task = pdfjs.getDocument({
+      data: new Uint8Array(await result.blob.arrayBuffer()),
+      isEvalSupported: false,
+      useWorkerFetch: false
+    });
+    const operators = await (await (await task.promise).getPage(1)).getOperatorList();
+    expect(operators.fnArray.filter(value => value === pdfjs.OPS.paintFormXObjectBegin)).toHaveLength(2);
+    expect(JSON.stringify(operators.argsArray)).toContain('multiply');
+    await task.destroy();
+  });
+
+  it('bounds recursive transparency group depth before writing resources', async () => {
+    let nested: PdfTransparencyGroupContent = {
+      opacity: 1, blendMode: 'normal', operations: []
+    };
+    for (let depth = 0; depth < 17; depth += 1) {
+      nested = {
+        opacity: 1,
+        blendMode: 'normal',
+        items: [{ kind: 'group', group: nested }]
+      };
+    }
+    await expect(writePdfDisplayListPage({
+      page: fixture(), transparencyGroups: [nested]
+    })).rejects.toThrow('transparency group depth exceeds 16');
   });
 });

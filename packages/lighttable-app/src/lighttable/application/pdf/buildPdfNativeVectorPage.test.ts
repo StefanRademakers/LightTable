@@ -94,7 +94,12 @@ describe('buildPdfNativeVectorPage', () => {
       kind: 'ellipse', width: 20, height: 20
     })]);
     const group = createGroupLayer();
-    group.children.push(first, second);
+    const inner = createGroupLayer();
+    inner.children.push(second);
+    inner.compositing = 'isolated';
+    inner.opacity = 0.7;
+    inner.blendMode = 'multiply';
+    group.children.push(first, inner);
     group.compositing = 'isolated';
     group.opacity = 0.5;
     const document = createImageDocument('Group', 100, 100, 'pixels');
@@ -106,13 +111,23 @@ describe('buildPdfNativeVectorPage', () => {
         groupId: group.id,
         nativeVectorLayerIds: [first.id, second.id],
         opacity: 0.5,
-        blendMode: 'normal'
+        blendMode: 'normal',
+        items: [
+          { kind: 'layer', layerId: first.id },
+          { kind: 'group', group: {
+            groupId: inner.id,
+            nativeVectorLayerIds: [second.id],
+            opacity: 0.7,
+            blendMode: 'multiply',
+            items: [{ kind: 'layer', layerId: second.id }]
+          } }
+        ]
       }]
     });
     expect(output.page.operations).toEqual([]);
     expect(output.layers).toEqual([]);
     expect(output.transparencyGroups).toHaveLength(1);
-    expect(output.transparencyGroups[0]?.operations.filter(operation => operation.kind === 'draw-path')).toHaveLength(2);
+    expect(output.transparencyGroups[0]?.items).toHaveLength(2);
     const written = await writePdfDisplayListPage({
       page: output.page,
       transparencyGroups: output.transparencyGroups
@@ -123,7 +138,7 @@ describe('buildPdfNativeVectorPage', () => {
       useWorkerFetch: false
     });
     const operators = await (await (await task.promise).getPage(1)).getOperatorList();
-    expect(operators.fnArray).toContain(pdfjs.OPS.paintFormXObjectBegin);
+    expect(operators.fnArray.filter(value => value === pdfjs.OPS.paintFormXObjectBegin)).toHaveLength(2);
     expect(operators.fnArray.filter(value => value === pdfjs.OPS.constructPath)).toHaveLength(2);
     await task.destroy();
   });

@@ -1,4 +1,5 @@
 import type { PdfBlendMode, PdfDisplayOperation, PdfPageDisplayList } from '@lighttable/pdf-core';
+import type { PDFRef } from 'pdf-lib';
 import { PDF_DISPLAY_LIST_SCHEMA_VERSION, validatePdfDisplayList } from '@lighttable/pdf-core';
 import {
   pdfBlendModeResourceName,
@@ -6,12 +7,17 @@ import {
 } from './serializePdfDisplayListOperations';
 
 export interface PdfTransparencyGroupContent {
-  readonly operations: readonly PdfDisplayOperation[];
+  readonly operations?: readonly PdfDisplayOperation[];
+  readonly items?: readonly PdfTransparencyGroupItem[];
   readonly opacity: number;
   readonly blendMode: Exclude<PdfBlendMode, 'unsupported'>;
   readonly isolated?: boolean;
   readonly knockout?: boolean;
 }
+
+export type PdfTransparencyGroupItem =
+  | { readonly kind: 'operations'; readonly operations: readonly PdfDisplayOperation[] }
+  | { readonly kind: 'group'; readonly group: PdfTransparencyGroupContent };
 
 export interface PdfDisplayListPageInput {
   readonly page: PdfPageDisplayList;
@@ -30,6 +36,7 @@ export interface PdfDisplayListPageResult {
 
 const MAXIMUM_PAGE_POINTS = 14_400;
 const MAXIMUM_OPERATIONS = 250_000;
+const MAXIMUM_TRANSPARENCY_GROUP_DEPTH = 16;
 
 const fail = (message: string): never => {
   throw new Error(`PDF display-list writer ${message}`);
@@ -80,9 +87,22 @@ export const writePdfDisplayListPage = async ({
   if (!Number.isFinite(source.userUnit) || source.userUnit <= 0 || source.userUnit > 75_000) {
     fail('user unit must be finite, positive and no larger than 75000.');
   }
+  const groupItems = (group: PdfTransparencyGroupContent): readonly PdfTransparencyGroupItem[] => {
+    if (group.operations && group.items) fail('transparency group cannot contain both operations and items.');
+    return group.items ?? [{ kind: 'operations', operations: group.operations ?? [] }];
+  };
+  const countGroupOperations = (group: PdfTransparencyGroupContent, depth = 1): number => {
+    if (depth > MAXIMUM_TRANSPARENCY_GROUP_DEPTH) {
+      fail(`transparency group depth exceeds ${MAXIMUM_TRANSPARENCY_GROUP_DEPTH}.`);
+    }
+    return groupItems(group).reduce((total, item) => total + (
+      item.kind === 'operations'
+        ? item.operations.length
+        : countGroupOperations(item.group, depth + 1)
+    ), 0);
+  };
   const groupOperationCount = transparencyGroups.reduce(
-    (total, group) => total + group.operations.length,
-    0
+    (total, group) => total + countGroupOperations(group), 0
   );
   if (source.operations.length + groupOperationCount > MAXIMUM_OPERATIONS) {
     fail(`operation count exceeds ${MAXIMUM_OPERATIONS}.`);
@@ -121,23 +141,48 @@ export const writePdfDisplayListPage = async ({
   const contentRef = document.context.register(document.context.flateStream(serialized.content));
   page.node.addContentStream(contentRef);
   let pathCount = serialized.pathCount;
-  transparencyGroups.forEach((group, index) => {
-    if (!Number.isFinite(group.opacity) || group.opacity < 0 || group.opacity > 1) {
-      fail(`transparency group ${index + 1} opacity must be between zero and one.`);
+  const box = source.mediaBox;
+  const buildTransparencyGroup = (
+    group: PdfTransparencyGroupContent,
+    prefix: string,
+    depth: number
+  ): { readonly ref: PDFRef; readonly pathCount: number } => {
+    if (depth > MAXIMUM_TRANSPARENCY_GROUP_DEPTH) {
+      fail(`transparency group depth exceeds ${MAXIMUM_TRANSPARENCY_GROUP_DEPTH}.`);
     }
-    const groupContent = serializePdfDisplayListOperations(
-      document,
-      group.operations,
-      `LTG${index + 1}GS`
-    );
-    pathCount += groupContent.pathCount;
+    if (!Number.isFinite(group.opacity) || group.opacity < 0 || group.opacity > 1) {
+      fail(`transparency group ${prefix} opacity must be between zero and one.`);
+    }
     const extGState = document.context.obj({});
-    groupContent.graphicsStates.forEach(({ name, dictionary }) => {
-      extGState.set(PDFName.of(name), document.context.obj(dictionary));
+    const xObjects = document.context.obj({});
+    const content: string[] = [];
+    let localPathCount = 0;
+    groupItems(group).forEach((item, itemIndex) => {
+      const itemPrefix = `${prefix}_${itemIndex + 1}`;
+      if (item.kind === 'operations') {
+        const serialized = serializePdfDisplayListOperations(
+          document, item.operations, `${itemPrefix}GS`
+        );
+        localPathCount += serialized.pathCount;
+        serialized.graphicsStates.forEach(({ name, dictionary }) => {
+          extGState.set(PDFName.of(name), document.context.obj(dictionary));
+        });
+        content.push(serialized.content);
+        return;
+      }
+      const child = buildTransparencyGroup(item.group, itemPrefix, depth + 1);
+      localPathCount += child.pathCount;
+      const childName = `${itemPrefix}Form`;
+      const stateName = `${itemPrefix}State`;
+      xObjects.set(PDFName.of(childName), child.ref);
+      extGState.set(PDFName.of(stateName), document.context.obj({
+        Type: 'ExtGState', ca: item.group.opacity, CA: item.group.opacity,
+        BM: PDFName.of(pdfBlendModeResourceName(item.group.blendMode))
+      }));
+      content.push(`q\n/${stateName} gs\n/${childName} Do\nQ`);
     });
-    const resources = document.context.obj({ ExtGState: extGState });
-    const box = source.mediaBox;
-    const form = document.context.flateStream(groupContent.content, {
+    const resources = document.context.obj({ ExtGState: extGState, XObject: xObjects });
+    const form = document.context.flateStream(content.join('\n'), {
       Type: 'XObject', Subtype: 'Form', FormType: 1,
       BBox: [box.x, box.y, box.x + box.width, box.y + box.height],
       Resources: resources,
@@ -147,9 +192,13 @@ export const writePdfDisplayListPage = async ({
         K: group.knockout ?? false
       }
     });
-    const formRef = document.context.register(form);
+    return { ref: document.context.register(form), pathCount: localPathCount };
+  };
+  transparencyGroups.forEach((group, index) => {
+    const built = buildTransparencyGroup(group, `LTG${index + 1}`, 1);
+    pathCount += built.pathCount;
     const formName = `LTGroup${index + 1}`;
-    page.node.setXObject(PDFName.of(formName), formRef);
+    page.node.setXObject(PDFName.of(formName), built.ref);
     const stateName = `LTGroupState${index + 1}`;
     page.node.setExtGState(PDFName.of(stateName), document.context.obj({
       Type: 'ExtGState', ca: group.opacity, CA: group.opacity,
