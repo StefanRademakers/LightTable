@@ -117,6 +117,7 @@ export class TextLayerRenderCoordinator {
   private readonly editingLayouts = new Map<LayerId, TextLayerEditingLayout>();
   private readonly interactingLayerScales = new Map<LayerId, number>();
   private readonly interactivelyPreparedLayers = new Set<LayerId>();
+  private readonly forcedCachedLayers = new Set<LayerId>();
   private readonly sourceCostModel = new TextSourceCostModel();
   private readonly inputLatency = new TextInputLatencyTracker();
   private abortController: AbortController | null = null;
@@ -232,6 +233,9 @@ export class TextLayerRenderCoordinator {
     for (const layerId of this.interactivelyPreparedLayers) {
       if (!retained.has(layerId)) this.interactivelyPreparedLayers.delete(layerId);
     }
+    for (const layerId of this.forcedCachedLayers) {
+      if (!retained.has(layerId)) this.forcedCachedLayers.delete(layerId);
+    }
     const visibleLayerIds = new Set(visibleEntries.map(({ layer }) => layer.id));
     this.inputLatency.retainLayers(visibleLayerIds);
     for (const { layer } of visibleEntries) {
@@ -310,9 +314,22 @@ export class TextLayerRenderCoordinator {
   async waitForSettledSource(layerId: LayerId) {
     if (!this.hasTextLayer(layerId)) return false;
     await this.work;
-    const layer = this.document && walkLayerTree(this.document.layers)
+    let layer = this.document && walkLayerTree(this.document.layers)
       .map(({ node }) => node)
       .find((node): node is TextLayer => node.id === layerId && node.type === 'text');
+    if (layer
+      && this.options.renderer.hasExactSource(layer)
+      && !this.options.renderer.thumbnailSource(layerId)
+      && !this.options.renderer.isTransparent(layer)) {
+      this.forcedCachedLayers.add(layerId);
+      this.settledLayerKeys.delete(layerId);
+      this.pendingKey = '';
+      this.schedule();
+      await this.work;
+      layer = this.document && walkLayerTree(this.document.layers)
+        .map(({ node }) => node)
+        .find((node): node is TextLayer => node.id === layerId && node.type === 'text');
+    }
     return Boolean(layer && this.options.renderer.hasExactSource(layer));
   }
 
@@ -344,6 +361,7 @@ export class TextLayerRenderCoordinator {
     this.editingLayouts.clear();
     this.interactingLayerScales.clear();
     this.interactivelyPreparedLayers.clear();
+    this.forcedCachedLayers.clear();
     this.inputLatency.reset();
     this.publishChanged();
     dependencies?.backend.dispose();
@@ -555,9 +573,11 @@ export class TextLayerRenderCoordinator {
         && !layer.clipping
         && !layer.mask?.enabled
         && !layerStyleStackIsActive(layer.styleStack);
-      const mode = this.interactingLayerScales.has(layer.id) && directEligible
-        ? 'atlas'
-        : this.sourceCostModel.decide({
+      const mode = this.forcedCachedLayers.has(layer.id)
+        ? 'cached'
+        : this.interactingLayerScales.has(layer.id) && directEligible
+          ? 'atlas'
+          : this.sourceCostModel.decide({
           glyphCount: prepared.draws.length,
           pixelCount,
           byteLength: pixelCount * 8,
@@ -609,6 +629,7 @@ export class TextLayerRenderCoordinator {
     }
     if (!candidate) {
       this.options.renderer.markTransparent(layer);
+      this.forcedCachedLayers.delete(layer.id);
       this.settledLayerKeys.set(
         layer.id,
         this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
@@ -628,6 +649,7 @@ export class TextLayerRenderCoordinator {
       throw error;
     }
     candidate.publish();
+    this.forcedCachedLayers.delete(layer.id);
     this.settledLayerKeys.set(
       layer.id,
       this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)

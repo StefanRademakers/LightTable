@@ -38,10 +38,15 @@ const flush = async () => {
 
 const harness = () => {
   let costObserver: ((sample: TextSourceCostSample) => void) | null = null;
+  let tightSourcePublished = false;
   const publish = vi.fn(() => ({}));
   const discard = vi.fn();
-  const prepareTightSource = vi.fn(() => ({ publish, discard }));
-  const prepareAtlasSource = vi.fn(() => ({ publish, discard }));
+  const prepareTightSource = vi.fn(() => ({
+    publish: () => { tightSourcePublished = true; return publish(); }, discard
+  }));
+  const prepareAtlasSource = vi.fn(() => ({
+    publish: () => { tightSourcePublished = false; return publish(); }, discard
+  }));
   const renderer = {
     sync: vi.fn(),
     setVisibleLayerIds: vi.fn(),
@@ -56,7 +61,7 @@ const harness = () => {
     isTransparent: vi.fn(() => false),
     markTransparent: vi.fn(() => false),
     release: vi.fn(() => false),
-    thumbnailSource: vi.fn(() => null),
+    thumbnailSource: vi.fn((_layerId?: unknown) => tightSourcePublished ? ({ texture: {} }) : null),
     setCostObserver: vi.fn((observer: ((sample: TextSourceCostSample) => void) | null) => {
       costObserver = observer;
     }),
@@ -200,6 +205,11 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.renderer.prepareTightSource).not.toHaveBeenCalled();
     expect(state.submit).not.toHaveBeenCalled();
     expect(state.publish).toHaveBeenCalledOnce();
+
+    await state.coordinator.waitForSettledSource(document.layers[0]!.id);
+    expect(state.renderer.prepareTightSource).toHaveBeenCalledOnce();
+    expect(state.submit).toHaveBeenCalledOnce();
+    expect(state.renderer.thumbnailSource(document.layers[0]!.id)).not.toBeNull();
   });
 
   it('reuses realized geometry but redraws a paint-only text update', async () => {
@@ -403,6 +413,28 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.renderer.dispose).toHaveBeenCalled();
     expect(state.submit).not.toHaveBeenCalled();
     expect(state.coordinator.editingLayout(document.layers[0]!.id)).toBeNull();
+  });
+
+  it('releases every document-local text owner on device-loss disposal', async () => {
+    const state = harness();
+    const document = createImageDocument('Device loss', 32, 24, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    document.layers = [layer];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    state.coordinator.setLayerInteraction(layer.id, true);
+    state.coordinator.beginTextInput(layer.id, 10);
+    const disposeCalls = state.renderer.dispose.mock.calls.length;
+
+    state.coordinator.dispose();
+    await flush();
+    expect(state.renderer.dispose).toHaveBeenCalledTimes(disposeCalls + 1);
+    expect(state.renderer.setCostObserver).toHaveBeenLastCalledWith(null);
+    expect(state.backend.dispose).toHaveBeenCalledOnce();
+    expect(state.client.releaseSession).toHaveBeenCalled();
+    expect(state.coordinator.snapshot().pendingTextInputs).toBe(0);
+    expect(state.coordinator.setLayerInteraction(layer.id, false)).toBe(false);
   });
 
   it('does not publish a candidate when queue submission fails', async () => {
