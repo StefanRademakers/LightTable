@@ -42,7 +42,7 @@ describe('uniform paragraph WASM adapter', () => {
     });
   });
 
-  it('keeps direction and hyphenation gated for runs and empty-flow insertion state', () => {
+  it('gates explicit direction but permits retained auto-hyphenation as an unhyphenated approximation', () => {
     expect(resolveUniformParagraphLayout({
       paragraphRuns: [paragraph({ direction: 'rtl' })]
     }).supported).toBe(false);
@@ -51,6 +51,6 @@ describe('uniform paragraph WASM adapter', () => {
     expect(resolveUniformParagraphLayout({
       paragraphRuns: [],
       insertionParagraph
-    }).supported).toBe(false);
+    }).supported).toBe(true);
   });
 });

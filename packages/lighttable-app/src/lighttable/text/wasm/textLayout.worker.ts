@@ -444,7 +444,11 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
   try {
     response = realizeFlowRequest(data, state);
   } catch (reason) {
-    const message = reason instanceof Error ? reason.message : 'Text layout failed.';
+    const message = reason instanceof Error
+      ? reason.message
+      : typeof reason === 'string'
+        ? reason
+        : 'Text layout failed.';
     response = layoutFailure(
       data,
       reason instanceof UnsupportedLayoutError ? 'unsupported-feature'

@@ -8,6 +8,7 @@ import {
   createImageDocument,
   createTextLayerNode,
   createVectorLayer,
+  semanticLayerDependencyKey,
   type DocumentFontAsset
 } from '../../editor/document/documentTypes';
 import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
@@ -278,6 +279,45 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.renderer.prepareAtlasSource).not.toHaveBeenCalled();
     expect(state.renderer.publish).not.toHaveBeenCalled();
     expect(state.onError).toHaveBeenCalledWith(expect.stringContaining('missing-layer'));
+  });
+
+  it('isolates an unsupported imported layer behind its current derived preview', async () => {
+    const state = harness();
+    const broken = createTextLayerNode(createDefaultTextLayerData(), 'Preview-backed path');
+    if (broken.text.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+    broken.text = {
+      ...broken.text,
+      source: {
+        ...broken.text.source,
+        layout: {
+          mode: 'path', pathLayerId: 'deleted-path', pathElementId: 'path',
+          pathSubpathId: 'contour', startOffset: 0,
+          side: 'left', upright: true
+        }
+      }
+    };
+    broken.derivedPreview = {
+      width: 32,
+      height: 16,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      dependencyKey: semanticLayerDependencyKey(broken)!,
+      source: 'photoshop-layer-preview'
+    };
+    const healthy = createTextLayerNode(createDefaultTextLayerData(), 'Healthy text');
+    const document = createImageDocument('Isolated fallback', 120, 80, 'source');
+    document.layers = [broken, healthy];
+
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    await flush();
+
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+    expect(state.onError).not.toHaveBeenCalled();
+    expect(state.coordinator.snapshot()).toMatchObject({
+      preparationStage: 'idle',
+      lastPreparationError: expect.stringContaining('retained its derived preview')
+    });
   });
 
   it('does no worker or GPU work while suspended and resumes the latest document', async () => {

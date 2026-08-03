@@ -15,7 +15,13 @@ import type {
   CoverageAtlasDrawCommand,
   PreparedCoverageGlyph
 } from '@lighttable/text-webgpu';
-import type { DocumentFontAsset, ImageDocument, LayerId, TextLayer } from '../../editor/document/documentTypes';
+import {
+  layerDerivedPreviewIsCurrent,
+  type DocumentFontAsset,
+  type ImageDocument,
+  type LayerId,
+  type TextLayer
+} from '../../editor/document/documentTypes';
 import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
 import { identityAffineMatrix, invertMatrix, multiplyMatrices } from '../../editor/geometry/affine';
 import type { AffineMatrix } from '../../editor/geometry/affine';
@@ -751,6 +757,7 @@ export class TextLayerRenderCoordinator {
       dependencies, document.id, layers, port, generation, key, signal
     )) return;
     if (!this.current(generation, key)) return;
+    const retainedFallbackErrors: string[] = [];
     for (const entry of layers) {
       if (!this.current(generation, key)) return;
       const expected = this.layerPreparationKey(
@@ -761,12 +768,25 @@ export class TextLayerRenderCoordinator {
           || this.options.renderer.isTransparent(entry.layer))) {
         continue;
       }
-      await this.prepareLayer(
-        dependencies, entry.layer, entry.transform, port.revision, generation, key, signal
-      );
+      try {
+        await this.prepareLayer(
+          dependencies, entry.layer, entry.transform, port.revision, generation, key, signal
+        );
+      } catch (reason) {
+        const message = reason instanceof Error ? reason.message : String(reason);
+        if (layerDerivedPreviewIsCurrent(entry.layer)) {
+          const contextual = `Text layer ${entry.layer.name} (${entry.layer.id}) retained its derived preview: ${message}`;
+          retainedFallbackErrors.push(contextual);
+          this.trace('Text layer retained derived preview', contextual);
+          continue;
+        }
+        throw reason instanceof Error ? reason : new Error(message);
+      }
     }
     this.retryCounts.delete(key);
-    if (this.current(generation, key)) this.setPreparationStage('idle');
+    if (this.current(generation, key)) {
+      this.setPreparationStage('idle', null, retainedFallbackErrors[0] ?? null);
+    }
   }
 
   private async beginSession(

@@ -47,12 +47,16 @@ export const resolveUniformParagraphLayout = (
       spaceAfter: 0
     } };
   }
-  if (paragraph.direction !== 'auto' || paragraph.hyphenation !== 'off') {
+  if (paragraph.direction !== 'auto') {
     return {
       supported: false,
-      message: 'Direction and hyphenation require a later paragraph layout adapter.'
+      message: 'Explicit paragraph direction requires a later paragraph layout adapter.'
     };
   }
+  // The canonical source retains automatic hyphenation. Until the segmented
+  // paragraph adapter can insert language-specific breaks, rendering the same
+  // text without discretionary hyphens is a safe visual approximation; it
+  // must not take down every text layer in the document coordinator.
   if (source.paragraphRuns.some((candidate) => !sameSupportedFormatting(candidate, paragraph))) {
     return {
       supported: false,
