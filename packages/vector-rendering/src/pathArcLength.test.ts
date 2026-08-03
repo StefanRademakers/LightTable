@@ -7,6 +7,7 @@ import {
 } from '@lighttable/vector-core';
 import {
   PathArcLengthCache,
+  nearestPathArcLength,
   realizePathArcLength,
   resolvePathTextRange,
   samplePathArcLength
@@ -61,6 +62,21 @@ describe('path arc-length realization', () => {
     expect(table.length).toBeGreaterThan(Math.sqrt(200));
     expect(table.length).toBeLessThan(20);
     expect(table.points.length).toBeGreaterThan(4);
+  });
+
+  it('finds the nearest retained arc offset for hit-testing and handle drags', () => {
+    const horizontal = realizePathArcLength(line(), 'contour', identityAffineMatrix(), 0.25);
+    expect(nearestPathArcLength(horizontal, { x: 7, y: 4 })).toEqual({
+      point: { x: 7, y: 0 }, offset: 7, distance: 4
+    });
+    expect(nearestPathArcLength(horizontal, { x: 40, y: 3 })).toEqual({
+      point: { x: 10, y: 0 }, offset: 10, distance: Math.hypot(30, 3)
+    });
+    const closed = realizePathArcLength(line(true), 'contour', identityAffineMatrix(), 0.25);
+    const closing = nearestPathArcLength(closed, { x: 4, y: 5 });
+    expect(closing.point.x).toBeCloseTo(4.5);
+    expect(closing.point.y).toBeCloseTo(4.5);
+    expect(closing.offset).toBeGreaterThan(20);
   });
 
   it('keeps degenerate paths finite', () => {

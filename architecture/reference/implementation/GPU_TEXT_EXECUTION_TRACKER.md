@@ -705,6 +705,22 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 17 path-aware editing hit testing
+
+- Interaction: existing text selection/caret gestures now resolve the nearest
+  rotated caret along the realized contour, including reverse traversal and
+  transformed text layers. Path text no longer falls back to rectangular
+  logical-bounds hit testing.
+- Performance: path segments use a retained spatial index and immutable path
+  projections receive a traversal-sorted caret index. Pointer movement performs
+  a bounded spatial query plus binary search instead of rescanning flattened
+  paths or caret arrays; no raw pointer state enters React.
+- UI/UX: this enables direct canvas entry and selection on existing path text
+  through the established Text interaction. The Path Text creation member and
+  property controls remain hidden until start/end/direction handles, safe
+  references and undoable commands are complete. No new UI component or DOM,
+  CSS or SVG overlay was introduced.
+
 ### 2026-08-03 - Slice 17 end-to-end path realization
 
 - Pipeline: the coordinator shapes path text as a neutral horizontal flow in

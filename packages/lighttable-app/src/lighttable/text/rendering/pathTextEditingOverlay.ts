@@ -101,7 +101,7 @@ const caretFor = (
   return offset - before.textOffset <= after.textOffset - offset ? before : after;
 };
 
-const localPoint = (
+export const pathTextLocalPoint = (
   x: number,
   y: number,
   pathLayout: PathTextLayout,
@@ -123,10 +123,10 @@ const pathRect = (
   projection: RigidPathGlyphProjection,
   localToDocument: TextEditingAffine
 ) => [
-  localPoint(bounds.x, bounds.y, pathLayout, table, projection),
-  localPoint(bounds.x + bounds.width, bounds.y, pathLayout, table, projection),
-  localPoint(bounds.x + bounds.width, bounds.y + bounds.height, pathLayout, table, projection),
-  localPoint(bounds.x, bounds.y + bounds.height, pathLayout, table, projection)
+  pathTextLocalPoint(bounds.x, bounds.y, pathLayout, table, projection),
+  pathTextLocalPoint(bounds.x + bounds.width, bounds.y, pathLayout, table, projection),
+  pathTextLocalPoint(bounds.x + bounds.width, bounds.y + bounds.height, pathLayout, table, projection),
+  pathTextLocalPoint(bounds.x, bounds.y + bounds.height, pathLayout, table, projection)
 ].map((point) => transformPoint(localToDocument, point)) as [
   TextOverlayPoint, TextOverlayPoint, TextOverlayPoint, TextOverlayPoint
 ];
@@ -176,9 +176,9 @@ export const buildPathTextEditingOverlay = ({
       color: [0.16, 0.48, 0.94, 0.34]
     }));
   const caretStart = transformPoint(localToDocument,
-    localPoint(caret.x, caret.y, pathLayout, table, projection));
+    pathTextLocalPoint(caret.x, caret.y, pathLayout, table, projection));
   const caretEnd = transformPoint(localToDocument,
-    localPoint(caret.x, caret.y + caret.height, pathLayout, table, projection));
+    pathTextLocalPoint(caret.x, caret.y + caret.height, pathLayout, table, projection));
   const staticLines = baselineLines(table, localToDocument);
   const lines: TextOverlayLine[] = [];
   lines.push({
@@ -188,9 +188,9 @@ export const buildPathTextEditingOverlay = ({
   lines.push({
     role: 'insertion',
     start: transformPoint(localToDocument,
-      localPoint(caret.x - 2, caret.y + caret.height + 1, pathLayout, table, projection)),
+      pathTextLocalPoint(caret.x - 2, caret.y + caret.height + 1, pathLayout, table, projection)),
     end: transformPoint(localToDocument,
-      localPoint(caret.x + 2, caret.y + caret.height + 1, pathLayout, table, projection)),
+      pathTextLocalPoint(caret.x + 2, caret.y + caret.height + 1, pathLayout, table, projection)),
     widthPx: 1,
     color: [0.24, 0.66, 1, 0.95]
   });

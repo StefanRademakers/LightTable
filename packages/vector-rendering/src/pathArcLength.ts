@@ -34,6 +34,13 @@ export interface PathArcLengthSample {
   readonly distance: number;
 }
 
+export interface NearestPathArcLengthPoint {
+  readonly point: Vec2;
+  /** Geometric forward distance from the canonical subpath start. */
+  readonly offset: number;
+  readonly distance: number;
+}
+
 export interface PathTextRangeOptions {
   readonly startOffset: number;
   readonly endOffset?: number;
@@ -194,6 +201,166 @@ export const samplePathArcLength = (
     },
     distance: traversalDistance
   };
+};
+
+interface ArcSegment {
+  readonly start: Vec2;
+  readonly end: Vec2;
+  readonly startOffset: number;
+  readonly length: number;
+}
+
+interface ArcSpatialIndex {
+  readonly cellSize: number;
+  readonly cells: ReadonlyMap<string, readonly number[]>;
+  readonly segments: readonly ArcSegment[];
+  readonly minimumCellX: number;
+  readonly maximumCellX: number;
+  readonly minimumCellY: number;
+  readonly maximumCellY: number;
+}
+
+const arcSpatialIndexes = new WeakMap<PathArcLengthTable, ArcSpatialIndex>();
+const arcCellKey = (x: number, y: number) => `${x}:${y}`;
+
+const arcSpatialIndex = (table: PathArcLengthTable): ArcSpatialIndex => {
+  const cached = arcSpatialIndexes.get(table);
+  if (cached) return cached;
+  const segments: ArcSegment[] = [];
+  let minimumX = Number.POSITIVE_INFINITY;
+  let maximumX = Number.NEGATIVE_INFINITY;
+  let minimumY = Number.POSITIVE_INFINITY;
+  let maximumY = Number.NEGATIVE_INFINITY;
+  for (let index = 1; index < table.cumulativeLengths.length; index += 1) {
+    const start = pointAt(table.points, index - 1);
+    const end = pointAt(table.points, index);
+    const length = table.cumulativeLengths[index]! - table.cumulativeLengths[index - 1]!;
+    if (!(length > 0)) continue;
+    segments.push({ start, end, startOffset: table.cumulativeLengths[index - 1]!, length });
+    minimumX = Math.min(minimumX, start.x, end.x);
+    maximumX = Math.max(maximumX, start.x, end.x);
+    minimumY = Math.min(minimumY, start.y, end.y);
+    maximumY = Math.max(maximumY, start.y, end.y);
+  }
+  const diagonal = Number.isFinite(minimumX)
+    ? Math.hypot(maximumX - minimumX, maximumY - minimumY) : 0;
+  const cellSize = Math.max(8, diagonal / 128 || 8);
+  const cells = new Map<string, number[]>();
+  segments.forEach((segment, segmentIndex) => {
+    const left = Math.floor(Math.min(segment.start.x, segment.end.x) / cellSize);
+    const right = Math.floor(Math.max(segment.start.x, segment.end.x) / cellSize);
+    const top = Math.floor(Math.min(segment.start.y, segment.end.y) / cellSize);
+    const bottom = Math.floor(Math.max(segment.start.y, segment.end.y) / cellSize);
+    for (let y = top; y <= bottom; y += 1) {
+      for (let x = left; x <= right; x += 1) {
+        const key = arcCellKey(x, y);
+        const cell = cells.get(key) ?? [];
+        cell.push(segmentIndex);
+        cells.set(key, cell);
+      }
+    }
+  });
+  const created = {
+    cellSize,
+    cells,
+    segments,
+    minimumCellX: Number.isFinite(minimumX) ? Math.floor(minimumX / cellSize) : 0,
+    maximumCellX: Number.isFinite(maximumX) ? Math.floor(maximumX / cellSize) : 0,
+    minimumCellY: Number.isFinite(minimumY) ? Math.floor(minimumY / cellSize) : 0,
+    maximumCellY: Number.isFinite(maximumY) ? Math.floor(maximumY / cellSize) : 0
+  };
+  arcSpatialIndexes.set(table, created);
+  return created;
+};
+
+const nearestOnSegment = (segment: ArcSegment, point: Vec2): NearestPathArcLengthPoint => {
+  const dx = segment.end.x - segment.start.x;
+  const dy = segment.end.y - segment.start.y;
+  const amount = Math.min(1, Math.max(0,
+    ((point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy)
+      / (segment.length * segment.length)
+  ));
+  const nearest = {
+    x: segment.start.x + dx * amount,
+    y: segment.start.y + dy * amount
+  };
+  return {
+    point: nearest,
+    offset: segment.startOffset + segment.length * amount,
+    distance: Math.hypot(point.x - nearest.x, point.y - nearest.y)
+  };
+};
+
+/** Retained spatial lookup shared by path-text hit-testing and handle drags. */
+export const nearestPathArcLength = (
+  table: PathArcLengthTable,
+  point: Vec2
+): NearestPathArcLengthPoint => {
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    throw new RangeError('Path hit-test point must be finite.');
+  }
+  const index = arcSpatialIndex(table);
+  if (index.segments.length === 0) {
+    const only = table.points.length >= 2 ? pointAt(table.points, 0) : { x: 0, y: 0 };
+    return { point: only, offset: 0, distance: Math.hypot(point.x - only.x, point.y - only.y) };
+  }
+  const rawX = Math.floor(point.x / index.cellSize);
+  const rawY = Math.floor(point.y / index.cellSize);
+  const centerX = Math.min(index.maximumCellX, Math.max(index.minimumCellX, rawX));
+  const centerY = Math.min(index.maximumCellY, Math.max(index.minimumCellY, rawY));
+  const maximumRadius = Math.max(
+    centerX - index.minimumCellX,
+    index.maximumCellX - centerX,
+    centerY - index.minimumCellY,
+    index.maximumCellY - centerY
+  );
+  const inspected = new Set<number>();
+  const nearestState: { value: NearestPathArcLengthPoint | null } = { value: null };
+  const inspect = (x: number, y: number) => {
+    for (const segmentIndex of index.cells.get(arcCellKey(x, y)) ?? []) {
+      if (inspected.has(segmentIndex)) continue;
+      inspected.add(segmentIndex);
+      const candidate = nearestOnSegment(index.segments[segmentIndex]!, point);
+      if (!nearestState.value || candidate.distance < nearestState.value.distance) {
+        nearestState.value = candidate;
+      }
+    }
+  };
+  for (let radius = 0; radius <= maximumRadius; radius += 1) {
+    if (radius === 0) inspect(centerX, centerY);
+    else {
+      for (let x = centerX - radius; x <= centerX + radius; x += 1) {
+        inspect(x, centerY - radius);
+        inspect(x, centerY + radius);
+      }
+      for (let y = centerY - radius + 1; y < centerY + radius; y += 1) {
+        inspect(centerX - radius, y);
+        inspect(centerX + radius, y);
+      }
+    }
+    if (nearestState.value) {
+      const left = (centerX - radius) * index.cellSize;
+      const right = (centerX + radius + 1) * index.cellSize;
+      const top = (centerY - radius) * index.cellSize;
+      const bottom = (centerY + radius + 1) * index.cellSize;
+      const distanceToOutside = Math.min(
+        point.x - left, right - point.x, point.y - top, bottom - point.y
+      );
+      if (distanceToOutside >= 0 && nearestState.value.distance <= distanceToOutside) {
+        return nearestState.value;
+      }
+    }
+  }
+  // Bounding-cell clamping keeps the ring bounded. A sparse diagonal can leave
+  // cells unvisited, so inspect any remaining segments once as a correctness fallback.
+  index.segments.forEach((segment, segmentIndex) => {
+    if (inspected.has(segmentIndex)) return;
+    const candidate = nearestOnSegment(segment, point);
+    if (!nearestState.value || candidate.distance < nearestState.value.distance) {
+      nearestState.value = candidate;
+    }
+  });
+  return nearestState.value!;
 };
 
 export const resolvePathTextRange = (
