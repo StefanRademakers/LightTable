@@ -23,6 +23,8 @@
     "test": "npm run test:text-wasm && npm run test --workspaces --if-present",
     "typecheck": "npm run ensure:text-wasm && npm run typecheck --workspaces --if-present",
     "verify:boundary": "node scripts/verify-boundary.mjs",
+    "generate:third-party": "node scripts/generate-third-party-inventory.mjs",
+    "verify:third-party": "node scripts/generate-third-party-inventory.mjs --check",
     "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
   }
 }
