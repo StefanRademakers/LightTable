@@ -32,6 +32,7 @@ interface TextLayerRendererOptions<TTexture> {
   readonly retireTexture: (texture: TTexture) => void;
   readonly maximumTextureDimension: number;
   readonly maximumSourceBytes?: number;
+  readonly maximumCacheBytes?: number;
 }
 
 export interface TextLayerRendererSnapshot {
@@ -40,6 +41,8 @@ export interface TextLayerRendererSnapshot {
   readonly textureBytes: number;
   readonly mode: 'placeholder' | TextLayerSourceMode;
   readonly rebuildingLayerCount: number;
+  readonly cacheBudgetBytes: number;
+  readonly cacheEvictions: number;
 }
 
 export interface PreparedTextLayerSource<TTexture = GPUTexture> {
@@ -71,14 +74,43 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
   private readonly sources = new Map<TextLayer['id'], PublishedTextLayerSource<TTexture>>();
   private readonly transparentKeys = new Map<TextLayer['id'], string>();
   private revision = 0;
+  private clock = 0;
+  private cacheEvictions = 0;
+  private readonly touched = new Map<TextLayer['id'], number>();
+  private visibleLayerIds = new Set<TextLayer['id']>();
 
-  constructor(private readonly options?: TextLayerRendererOptions<TTexture>) {}
+  constructor(private readonly options?: TextLayerRendererOptions<TTexture>) {
+    const budget = options?.maximumCacheBytes ?? 256 * 1024 * 1024;
+    if (!Number.isSafeInteger(budget) || budget < 0) {
+      throw new RangeError('Text source cache budget must be a non-negative safe integer.');
+    }
+  }
 
   publish(source: PublishedTextLayerSource<TTexture>) {
     this.assertSource(source);
     const previous = this.sources.get(source.layerId);
     if (previous === source) return false;
+    const budget = this.options?.maximumCacheBytes ?? 256 * 1024 * 1024;
+    if (source.byteLength > budget) {
+      throw new RangeError('Text source exceeds the document cache byte budget.');
+    }
+    let retainedBytes = this.sourceBytes() - (previous?.byteLength ?? 0);
+    while (retainedBytes + source.byteLength > budget) {
+      const victim = [...this.sources.values()]
+        .filter((candidate) => candidate.layerId !== source.layerId)
+        .sort((left, right) => {
+          const leftVisible = this.visibleLayerIds.has(left.layerId) ? 1 : 0;
+          const rightVisible = this.visibleLayerIds.has(right.layerId) ? 1 : 0;
+          return leftVisible - rightVisible
+            || (this.touched.get(left.layerId) ?? 0) - (this.touched.get(right.layerId) ?? 0);
+        })[0];
+      if (!victim) throw new RangeError('Text source cache has no evictable capacity.');
+      retainedBytes -= victim.byteLength;
+      this.cacheEvictions += 1;
+      this.release(victim.layerId);
+    }
     this.sources.set(source.layerId, Object.freeze({ ...source }));
+    this.touched.set(source.layerId, ++this.clock);
     this.transparentKeys.delete(source.layerId);
     if (previous?.texture !== source.texture) previous?.destroy?.();
     this.revision += 1;
@@ -106,6 +138,7 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     layer: TextLayer,
     inheritedTransform: AffineMatrix
   ): LayerSourceRenderContract<TTexture> {
+    this.touched.set(source.layerId, ++this.clock);
     const localSourceToLayer = multiplyMatrices(
       translation(source.localBounds.x, source.localBounds.y),
       scale(1 / source.sourceScale)
@@ -274,7 +307,7 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     const transparent = this.transparentKeys.delete(layerId);
     if (!source && !transparent) return false;
     this.sources.delete(layerId);
-    this.currentLayers.delete(layerId);
+    this.touched.delete(layerId);
     source?.destroy?.();
     this.revision += 1;
     return true;
@@ -290,6 +323,11 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     }
     this.currentLayers.clear();
     layers.forEach((layer) => this.currentLayers.set(layer.id, layer));
+    this.visibleLayerIds = new Set(layers.filter((layer) => layer.visible && layer.opacity > 0).map((layer) => layer.id));
+  }
+
+  setVisibleLayerIds(layerIds: ReadonlySet<TextLayer['id']>) {
+    this.visibleLayerIds = new Set(layerIds);
   }
 
   snapshot(): TextLayerRendererSnapshot {
@@ -311,7 +349,9 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
       readyLayerCount: this.sources.size + this.transparentKeys.size,
       textureBytes,
       mode: mode === 'placeholder' && this.transparentKeys.size > 0 ? 'cached' : mode,
-      rebuildingLayerCount
+      rebuildingLayerCount,
+      cacheBudgetBytes: this.options?.maximumCacheBytes ?? 256 * 1024 * 1024,
+      cacheEvictions: this.cacheEvictions
     });
   }
 
@@ -325,9 +365,17 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     this.sources.clear();
     this.transparentKeys.clear();
     this.currentLayers.clear();
+    this.touched.clear();
+    this.visibleLayerIds.clear();
   }
 
   private readonly currentLayers = new Map<TextLayer['id'], TextLayer>();
+
+  private sourceBytes() {
+    let bytes = 0;
+    for (const source of this.sources.values()) bytes += source.byteLength;
+    return bytes;
+  }
 
   private assertSource(source: PublishedTextLayerSource<TTexture>) {
     if (!source.sourceKey) throw new TypeError('Text source key must not be empty.');

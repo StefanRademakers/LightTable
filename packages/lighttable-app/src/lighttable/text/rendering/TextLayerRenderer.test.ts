@@ -103,6 +103,35 @@ describe('TextLayerRenderer', () => {
     expect(renderer.estimatedTextureBytes()).toBe(0);
   });
 
+  it('evicts hidden sources before recently used visible sources within its document budget', () => {
+    const renderer = new TextLayerRenderer<object>({
+      createTexture: vi.fn(), createView: vi.fn(), retireTexture: vi.fn(),
+      maximumTextureDimension: 4096, maximumCacheBytes: 256
+    });
+    const hidden = createTextLayerNode(createDefaultTextLayerData(), 'Hidden');
+    const visible = createTextLayerNode(createDefaultTextLayerData(), 'Visible');
+    const incoming = createTextLayerNode(createDefaultTextLayerData(), 'Incoming');
+    const destroyHidden = vi.fn();
+    const source = (layer: typeof hidden, destroy: () => void) => ({
+      layerId: layer.id, texture: {}, width: 4, height: 4,
+      localBounds: { x: 0, y: 0, width: 4, height: 4 }, sourceScale: 1,
+      sourceKey: textLayerSourceKey(layer), mode: 'cached' as const,
+      byteLength: 128, destroy
+    });
+    renderer.sync([hidden, visible, incoming]);
+    renderer.setVisibleLayerIds(new Set([visible.id, incoming.id]));
+    renderer.publish(source(hidden, destroyHidden));
+    renderer.publish(source(visible, vi.fn()));
+    expect(renderer.resolvePresentation(visible)).not.toBeNull();
+    renderer.publish(source(incoming, vi.fn()));
+    expect(destroyHidden).toHaveBeenCalledOnce();
+    expect(renderer.resolvePresentation(hidden)).toBeNull();
+    expect(renderer.resolvePresentation(visible)).not.toBeNull();
+    expect(renderer.snapshot()).toMatchObject({
+      textureBytes: 256, cacheBudgetBytes: 256, cacheEvictions: 1
+    });
+  });
+
   it('validates tight texture resource contracts', () => {
     const renderer = new TextLayerRenderer<object>();
     const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');

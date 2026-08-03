@@ -154,6 +154,7 @@ export class TextLayerRenderCoordinator {
       this.publishChanged();
     }
     const retained = new Set(allText.map((layer) => layer.id));
+    this.options.renderer.setVisibleLayerIds(new Set(visibleTextLayers(document).map(({ layer }) => layer.id)));
     for (const layerId of this.settledLayerKeys.keys()) {
       if (!retained.has(layerId)) this.settledLayerKeys.delete(layerId);
     }

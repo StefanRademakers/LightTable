@@ -37,6 +37,7 @@ const harness = () => {
   const prepareTightSource = vi.fn(() => ({ publish, discard }));
   const renderer = {
     sync: vi.fn(),
+    setVisibleLayerIds: vi.fn(),
     snapshot: vi.fn(() => ({ publicationRevision: 0 })),
     dispose: vi.fn(),
     resolve: vi.fn(() => ({})),
