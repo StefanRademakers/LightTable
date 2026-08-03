@@ -230,6 +230,13 @@ gradient/pattern paint, stroke alignment, joins/caps and transforms into that
 model. Unsupported paint remains descriptor + preview, with an explicit
 recovery/bake boundary.
 
+**Implementation baseline:** supported PSD path geometry now remains a native
+vector layer even when its gradient/pattern or stroke paint is not yet native.
+Manifest v5 retains the bounded Photoshop preview under the semantic dependency
+key; the first authoritative style edit invalidates that preview. `D:\shapes.psd`
+also physically verifies solid fill, no-fill, stroke color/width/alignment and
+native save/reopen across four editable vector layers.
+
 **Priority:** P1 core authoring parity.
 
 ### PSD-P1-005 - Gradient and fill-layer model

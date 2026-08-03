@@ -490,8 +490,9 @@ export const importPsdDocument = (
         vectorMask: node.preserved.vectorMask,
         vectorStroke: node.preserved.vectorStroke
       });
-      if (vectorImport.status === 'native') {
-        const layer: VectorLayer = {
+      if (vectorImport.status === 'native'
+        || (vectorImport.status === 'preview-backed' && node.pixels && node.pixelSummary)) {
+        let layer: VectorLayer = {
           ...common,
           type: 'vector',
           antiAlias: true,
@@ -506,14 +507,36 @@ export const importPsdDocument = (
             dirtyBounds: null
           } : null
         };
-        if (node.mask) {
+        if (vectorImport.status === 'preview-backed' && node.pixels && node.pixelSummary) {
+          const dependencyKey = semanticLayerDependencyKey(layer);
+          if (!dependencyKey) throw new Error(`Vector layer ${node.name} has no semantic dependency key.`);
+          layer = {
+            ...layer,
+            derivedPreview: {
+              width: node.pixelSummary.width,
+              height: node.pixelSummary.height,
+              transform: translationMatrix(node.bounds.left, node.bounds.top),
+              dependencyKey,
+              source: 'photoshop-layer-preview'
+            }
+          };
+          assets.push({ layerId: id, pixels: node.pixels, mask: node.mask?.pixels ?? null });
+        } else if (node.mask) {
           assets.push({ layerId: id, pixels: new Blob(), mask: node.mask.pixels });
         }
         compatibility.push({
           path,
           feature: 'node',
-          support: 'native',
-          reason: vectorImport.reason
+          support: vectorImport.status === 'native' ? 'native' : 'approximate',
+          reason: vectorImport.reason,
+          layerId: id,
+          editable: true,
+          parity: vectorImport.status === 'native' ? undefined : {
+            visual: 'raster-preview',
+            semantic: 'editable',
+            structural: 'native',
+            roundTrip: 'preserved'
+          }
         });
         return layer;
       }

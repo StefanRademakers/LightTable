@@ -118,7 +118,7 @@ describe('importPsdVectorShape', () => {
     expect(first.elements[0]?.id).not.toBe(second.elements[0]?.id);
   });
 
-  it('routes unsupported Photoshop boolean and gradient semantics to fallback', () => {
+  it('keeps unsupported Photoshop paint preview-backed while boolean geometry fails closed', () => {
     const subtract = path();
     subtract.operation = 'subtract';
     expect(importPsdVectorShape(source([subtract]))).toMatchObject({
@@ -128,9 +128,17 @@ describe('importPsdVectorShape', () => {
     expect(importPsdVectorShape({
       ...source([path()]),
       vectorFill: { type: 'solid', gradient: {} }
-    })).toMatchObject({
-      status: 'unsupported',
-      reason: expect.stringContaining('Gradient')
+    })).toMatchObject({ status: 'preview-backed', elements: expect.any(Array) });
+  });
+
+  it('keeps authored no-fill/no-stroke geometry as an invisible editable vector', () => {
+    const result = importPsdVectorShape({
+      ...source([path()]),
+      vectorFill: null,
+      vectorStroke: { fillEnabled: false, strokeEnabled: false }
     });
+    expect(result.status).toBe('native');
+    if (result.status !== 'native') throw new Error(result.reason);
+    expect(result.elements[0]?.style).toMatchObject({ fill: null, stroke: null });
   });
 });

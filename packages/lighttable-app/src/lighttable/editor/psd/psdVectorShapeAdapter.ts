@@ -40,7 +40,7 @@ export interface PsdVectorShapeSource {
 }
 
 export interface PsdVectorShapeImportSuccess {
-  status: 'native';
+  status: 'native' | 'preview-backed';
   elements: VectorElement[];
   reason: string;
 }
@@ -211,22 +211,9 @@ export const importPsdVectorShape = (
     : null;
   const fillEnabled = strokeDescriptor?.fillEnabled !== false;
   const fill = fillEnabled ? solidPaint(source.vectorFill) : null;
-  if (fillEnabled && source.vectorFill && !fill) {
-    return {
-      status: 'unsupported',
-      reason: 'Gradient and pattern Photoshop shape fills are preserved through the raster preview.'
-    };
-  }
+  const unsupportedFill = Boolean(fillEnabled && source.vectorFill && !fill);
   const mappedStroke = vectorStroke(strokeDescriptor, fill);
-  if (!mappedStroke) {
-    return {
-      status: 'unsupported',
-      reason: 'The Photoshop stroke uses alignment, paint or opacity semantics not native yet.'
-    };
-  }
-  if (!fill && !mappedStroke.stroke) {
-    return { status: 'unsupported', reason: 'The Photoshop vector shape has no visible fill or stroke.' };
-  }
+  const unsupportedStroke = mappedStroke === null;
 
   const elements: VectorElement[] = [];
   const idPrefix = source.sourceObjectId?.trim() || 'psd-shape';
@@ -257,8 +244,8 @@ export const importPsdVectorShape = (
     );
     const style: VectorStyle = {
       fill: open ? null : fill,
-      stroke: mappedStroke.stroke,
-      opacity: mappedStroke.opacity
+      stroke: mappedStroke?.stroke ?? null,
+      opacity: mappedStroke?.opacity ?? 1
     };
     path.fillRule = fillRule;
     path.style = style;
@@ -268,8 +255,10 @@ export const importPsdVectorShape = (
     return { status: 'unsupported', reason: 'The Photoshop vector shape contains no drawable paths.' };
   }
   return {
-    status: 'native',
+    status: unsupportedFill || unsupportedStroke ? 'preview-backed' : 'native',
     elements,
-    reason: 'Solid Photoshop Bézier shape paths are mapped to editable LightTable vector paths.'
+    reason: unsupportedFill || unsupportedStroke
+      ? `${unsupportedFill ? 'Gradient or pattern fill' : ''}${unsupportedFill && unsupportedStroke ? ' and ' : ''}${unsupportedStroke ? 'stroke paint/opacity' : ''} remains preview-backed while the Photoshop paths stay editable.`
+      : 'Photoshop Bézier shape paths and fill/stroke state are mapped to editable LightTable vectors.'
   };
 };

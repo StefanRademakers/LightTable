@@ -262,7 +262,7 @@ describe('importPsdDocument', () => {
       path: 'layers[0]',
       feature: 'node',
       support: 'native',
-      reason: expect.stringContaining('editable LightTable vector paths')
+      reason: expect.stringContaining('editable LightTable vectors')
     }));
   });
 
@@ -295,6 +295,40 @@ describe('importPsdDocument', () => {
       path: 'layers[0]',
       support: 'raster-preview',
       reason: expect.stringContaining('Subtract')
+    }));
+  });
+
+  it('retains editable vector geometry beside a derived preview for unsupported paint', () => {
+    const result = importPsdDocument(decoded([raster('gradient-shape', {
+      kind: 'vector',
+      preserved: {
+        text: null,
+        placedLayer: null,
+        vectorFill: { type: 'solid', gradient: { name: 'Source gradient' } },
+        vectorMask: { paths: [{
+          open: false, operation: 'combine', fillRule: 'non-zero',
+          knots: [
+            { linked: false, points: [1, 1, 1, 1, 1, 1] },
+            { linked: false, points: [20, 1, 20, 1, 20, 1] },
+            { linked: false, points: [20, 20, 20, 20, 20, 20] }
+          ]
+        }] },
+        vectorStroke: null,
+        realMask: null
+      }
+    })]), 'gradient-shape.psd');
+
+    expect(result.document.layers[0]).toMatchObject({
+      type: 'vector',
+      elements: [expect.objectContaining({
+        type: 'path', style: expect.objectContaining({ fill: null })
+      })],
+      derivedPreview: expect.objectContaining({ source: 'photoshop-layer-preview' })
+    });
+    expect(result.assets).toEqual([expect.objectContaining({ layerId: result.document.layers[0]?.id })]);
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      path: 'layers[0]', support: 'approximate', editable: true,
+      parity: expect.objectContaining({ visual: 'raster-preview', semantic: 'editable' })
     }));
   });
 
