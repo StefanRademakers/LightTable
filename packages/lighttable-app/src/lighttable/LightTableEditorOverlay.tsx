@@ -51,6 +51,7 @@ import { useAutoAlignController } from './application/tools/autoAlign/useAutoAli
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
+import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
@@ -806,6 +807,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pushDocumentHistory = documentMutationController.record;
   const beginDocumentTransaction = documentMutationController.begin;
   const endDocumentTransaction = documentMutationController.end;
+  const textToShapeControllerRef = useRef<TextToShapeCommandController | null>(null);
+  textToShapeControllerRef.current ??= new TextToShapeCommandController(() => ({
+    getDocument: () => imageDocumentRef.current,
+    applyDocument: applyDocumentSnapshot,
+    pushDocumentHistory,
+    resolveVectorPaths: (layerId, signal) => (
+      engineRef.current?.vectorPathsForTextLayer(layerId, signal) ?? Promise.resolve(null)
+    )
+  }));
+  const textToShapeController = textToShapeControllerRef.current;
   const textEditingControllerRef = useRef<FlowTextEditingSessionController | null>(null);
   textEditingControllerRef.current ??= new FlowTextEditingSessionController(() => ({
     getDocument: () => imageDocumentRef.current,
@@ -835,6 +846,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textEditingController.getSnapshot
   );
   finishTextEditingRef.current = () => textEditingController.finish();
+
+  useEffect(() => () => {
+    textToShapeController.cancel();
+  }, [textToShapeController]);
 
   useEffect(() => () => {
     paragraphFrameResizeController.cancel();
@@ -2161,6 +2176,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       panel: layerPanelController,
       duplicate: duplicateActiveLayer,
       rasterizeText: rasterizeActiveTextLayer,
+      convertTextToShape: () => {
+        const layerId = imageDocumentRef.current?.activeLayerId;
+        if (layerId) requestTextToShape(layerId);
+      },
       layerViaCopy,
       rename: focusActiveLayerName,
       invertColors: invertActiveLayerColors,
@@ -2201,6 +2220,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         textEditingController.begin(layerId);
       }}
       onOpenFontReport={() => editorDialogs.openPsdReport()}
+      onConvertTextToShape={requestTextToShape}
       onSelectionChange={handleLayerSelectionChange}
       onMaskIsolationChange={(layerId) => {
         setIsolatedMaskLayerId(layerId);
@@ -2251,6 +2271,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       brush: { ...current.brush, ...change }
     }));
   };
+
+  function requestTextToShape(layerId: LayerId) {
+    const layer = imageDocumentRef.current
+      ? findDocumentLayer(imageDocumentRef.current, layerId)
+      : null;
+    if (layer?.type !== 'text' || layer.locks.all || layer.locks.pixels) return;
+    textEditingController.finish();
+    pointTextController.cancel();
+    paragraphTextController.cancel();
+    editorDialogs.requestTextToShape({ layerId });
+  }
+
+  function commitTextToShape(layerId: LayerId) {
+    setGradeStatus('Converting text to editable shapes...');
+    void textToShapeController.convert(layerId).then((converted) => {
+      setGradeStatus(converted ? 'Text converted to editable shapes.' : null);
+    }).catch((reason) => {
+      if (reason instanceof DOMException && reason.name === 'AbortError') {
+        setGradeStatus(null);
+        return;
+      }
+      setGradeStatus(null);
+      setError(reason instanceof Error ? reason.message : 'Text could not be converted to shapes.');
+    });
+  }
   const updateWarp = (change: Partial<EditorSession['warp']>) => {
     setEditorSession((current) => ({
       ...current,
@@ -2580,6 +2625,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onFeather: featherCurrentSelection,
             onFlatten: commitFlattenRequest,
+            onConvertTextToShape: commitTextToShape,
             onError: setError
           }}
           toolOptions={toolOptionsMenu ? {

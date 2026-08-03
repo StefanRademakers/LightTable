@@ -5,22 +5,29 @@ export type FlattenRequest =
   | { readonly kind: 'group'; readonly groupId: LayerId }
   | { readonly kind: 'image' };
 
+export interface TextToShapeRequest {
+  readonly layerId: LayerId;
+}
+
 export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
   const [flattenRequest, setFlattenRequest] =
     useState<FlattenRequest | null>(null);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
+  const [textToShapeRequest, setTextToShapeRequest] = useState<TextToShapeRequest | null>(null);
 
   const reset = useCallback(() => {
     setFeatherOpen(false);
     setFlattenRequest(null);
     setPsdReportOpen(false);
+    setTextToShapeRequest(null);
   }, []);
 
   return {
     featherOpen,
     flattenRequest,
     psdReportOpen,
+    textToShapeRequest,
     openFeather: useCallback(() => setFeatherOpen(true), []),
     closeFeather: useCallback(() => setFeatherOpen(false), []),
     requestFlatten: useCallback(
@@ -28,6 +35,11 @@ export const useEditorDialogController = () => {
       []
     ),
     closeFlatten: useCallback(() => setFlattenRequest(null), []),
+    requestTextToShape: useCallback(
+      (request: TextToShapeRequest) => setTextToShapeRequest(request),
+      []
+    ),
+    closeTextToShape: useCallback(() => setTextToShapeRequest(null), []),
     openPsdReport: useCallback(() => setPsdReportOpen(true), []),
     closePsdReport: useCallback(() => setPsdReportOpen(false), []),
     reset

@@ -1,7 +1,7 @@
 import { ConfirmDialog } from '../../../ui/ConfirmDialog';
 import { TextInputDialog } from '../../../ui/TextInputDialog';
 import type { ReferenceDifferenceMetrics } from '../../application/rendering/rendererTypes';
-import type { PhotoshopImportReport } from '../document/documentTypes';
+import type { LayerId, PhotoshopImportReport } from '../document/documentTypes';
 import { PsdImportReportDialog } from '../psd/PsdImportReportDialog';
 import type { EditorDialogController } from './useEditorDialogController';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
@@ -14,6 +14,7 @@ export interface EditorDialogsProps {
   readonly onResolveTextFont: (layerId: TextFontDiagnostic['layerId']) => void;
   readonly onFeather: (radius: number) => void;
   readonly onFlatten: () => void;
+  readonly onConvertTextToShape: (layerId: LayerId) => void;
   readonly onError: (message: string) => void;
 }
 
@@ -25,6 +26,7 @@ export const EditorDialogs = ({
   onResolveTextFont,
   onFeather,
   onFlatten,
+  onConvertTextToShape,
   onError
 }: EditorDialogsProps) => (
   <>
@@ -62,6 +64,20 @@ export const EditorDialogs = ({
       danger
       onCancel={controller.closeFlatten}
       onConfirm={onFlatten}
+    />
+    <ConfirmDialog
+      open={Boolean(controller.textToShapeRequest)}
+      title="Convert text to shape?"
+      description="Each glyph will become an editable vector path. Text content, font and paragraph editing will no longer be available. This can be undone while the document remains open."
+      confirmLabel="Convert"
+      danger
+      onCancel={controller.closeTextToShape}
+      onConfirm={() => {
+        const request = controller.textToShapeRequest;
+        if (!request) return;
+        controller.closeTextToShape();
+        onConvertTextToShape(request.layerId);
+      }}
     />
     <PsdImportReportDialog
       open={controller.psdReportOpen}

@@ -1,7 +1,7 @@
 import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import type { BlendMode } from '../document/blendModes';
 
-export type EditorMenuId = 'file' | 'edit' | 'select' | 'layer' | 'view';
+export type EditorMenuId = 'file' | 'edit' | 'select' | 'layer' | 'type' | 'view';
 
 export interface EditorMenuLayerState {
   type: 'raster' | 'group' | 'adjustment' | 'vector' | 'text';
@@ -59,6 +59,7 @@ export interface EditorMenuCommands {
   createRasterLayer: () => void;
   duplicateLayer: () => void;
   rasterizeText: () => void;
+  convertTextToShape: () => void;
   layerViaCopy: () => void;
   renameLayer: () => void;
   invertLayerColors: () => void;
@@ -227,6 +228,11 @@ export const createEditorMenuOptions = (
         disabled: !layer || (layer.type !== 'raster' && layer.type !== 'text')
       },
       ...(layer?.type === 'text' ? [{
+        value: 'convert-text-to-shape',
+        label: 'Convert to Shape...',
+        onClick: commands.convertTextToShape,
+        disabled: layer.locked
+      }, {
         value: 'rasterize-text',
         label: 'Rasterize Type',
         onClick: commands.rasterizeText
@@ -373,6 +379,15 @@ export const createEditorMenuOptions = (
         disabled: !layer?.canDelete
       }
     ];
+  }
+
+  if (menu === 'type') {
+    return [{
+      value: 'convert-text-to-shape',
+      label: 'Convert to Shape...',
+      onClick: commands.convertTextToShape,
+      disabled: !layer || layer.type !== 'text' || layer.locked
+    }];
   }
 
   return [

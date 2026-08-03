@@ -127,11 +127,46 @@ describe('createEditorMenuOptions', () => {
 
     expect(options.find((option) => option.value === 'duplicate-layer')?.disabled).toBe(false);
     expect(options.find((option) => option.value === 'rename-layer')?.disabled).toBe(false);
+    expect(options.find((option) => option.value === 'convert-text-to-shape'))
+      .toMatchObject({ label: 'Convert to Shape...', disabled: false });
     expect(options.find((option) => option.value === 'rasterize-text')?.label).toBe('Rasterize Type');
     expect(options.find((option) => option.value === 'edit-layer-pixels')?.disabled).toBe(true);
     expect(options.find((option) => option.value === 'delete-layer')?.disabled).toBe(true);
     options.find((option) => option.value === 'rasterize-text')?.onClick?.();
     expect(menuCommands.rasterizeText).toHaveBeenCalledOnce();
+    options.find((option) => option.value === 'convert-text-to-shape')?.onClick?.();
+    expect(menuCommands.convertTextToShape).toHaveBeenCalledOnce();
+  });
+
+  it('exposes convert to shape in the Type menu only for unlocked text', () => {
+    const menuCommands = commands();
+    const textLayer = { ...state().layer!, type: 'text' as const };
+
+    const available = createEditorMenuOptions(
+      'type',
+      state({ layer: textLayer }),
+      labels,
+      menuCommands
+    );
+    expect(available).toHaveLength(1);
+    expect(available[0]).toMatchObject({
+      value: 'convert-text-to-shape',
+      label: 'Convert to Shape...',
+      disabled: false
+    });
+    available[0].onClick?.();
+    expect(menuCommands.convertTextToShape).toHaveBeenCalledOnce();
+
+    const locked = createEditorMenuOptions(
+      'type',
+      state({ layer: { ...textLayer, locked: true } }),
+      labels,
+      commands()
+    );
+    expect(locked[0].disabled).toBe(true);
+
+    const raster = createEditorMenuOptions('type', state(), labels, commands());
+    expect(raster[0].disabled).toBe(true);
   });
 
   it('keeps view state mutually represented in its labels', () => {

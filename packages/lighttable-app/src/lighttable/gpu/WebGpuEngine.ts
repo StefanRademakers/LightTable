@@ -857,6 +857,11 @@ export class WebGpuEngine {
     return changed;
   }
 
+  vectorPathsForTextLayer(layerId: LayerId, signal?: AbortSignal) {
+    return this.documentRenderer?.vectorPathsForTextLayer(layerId, signal)
+      ?? Promise.resolve(null);
+  }
+
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo') {
     const changed = direction === 'undo' ? edit.undo() : edit.redo();
     if (changed) this.markDocumentDirty();

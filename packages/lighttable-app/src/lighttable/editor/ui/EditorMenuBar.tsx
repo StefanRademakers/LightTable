@@ -25,6 +25,7 @@ const MENU_ITEMS: ReadonlyArray<{
   { id: 'edit', label: 'Edit' },
   { id: 'select', label: 'Select' },
   { id: 'layer', label: 'Layer' },
+  { id: 'type', label: 'Type' },
   { id: 'view', label: 'View' }
 ];
 

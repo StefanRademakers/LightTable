@@ -57,6 +57,7 @@ describe('createEditorMenuController', () => {
         panel,
         duplicate: vi.fn(),
         rasterizeText: vi.fn(),
+        convertTextToShape: vi.fn(),
         layerViaCopy: vi.fn(),
         rename: vi.fn(),
         invertColors: vi.fn(),
@@ -90,5 +91,59 @@ describe('createEditorMenuController', () => {
       [document.activeLayerId],
       false
     );
+  });
+
+  it('forwards the Type menu conversion command through the controller', () => {
+    const document = createImageDocument('Menu', 64, 64, 'background');
+    const activeLayer = document.layers[0];
+    Object.assign(activeLayer, {
+      type: 'text',
+      text: {},
+      mask: null
+    });
+    const convertTextToShape = vi.fn();
+    const controller = createEditorMenuController({
+      projection: {
+        document,
+        saving: false,
+        hasMetadata: true,
+        hasSourceKey: true,
+        copiedGradeName: null,
+        hasSelection: false,
+        selectionClipboardAvailable: false,
+        activeChannel: 'pixels',
+        autoAlignPreview: false,
+        zoomMode: 'fit',
+        showOriginal: false,
+        showDifference: false
+      },
+      labels: { primaryShortcut: (key) => `Ctrl+${key}` },
+      file: {
+        newDocument: vi.fn(), open: vi.fn(), save: vi.fn(), exportPng: vi.fn()
+      },
+      edit: {
+        copySelectedContent: vi.fn(), copyMergedContent: vi.fn(),
+        pasteSelectedContent: vi.fn(), pasteGrade: vi.fn(), copyGrade: vi.fn()
+      },
+      selection: { selectAll: vi.fn(), clear: vi.fn(), invert: vi.fn() },
+      layers: {
+        panel: {} as LayerPanelController,
+        duplicate: vi.fn(), rasterizeText: vi.fn(), convertTextToShape,
+        layerViaCopy: vi.fn(), rename: vi.fn(), invertColors: vi.fn(), mergeDown: vi.fn()
+      },
+      autoAlign: { begin: vi.fn(), apply: vi.fn(), cancel: vi.fn() },
+      dialogs: {} as EditorDialogController,
+      viewport: {
+        setZoomMode: vi.fn(), setView: vi.fn(),
+        setShowOriginal: vi.fn(), setShowDifference: vi.fn()
+      },
+      workspace: {
+        showDebugPanel: vi.fn(), toggleScreenMode: vi.fn(), resetLayout: vi.fn()
+      }
+    });
+
+    findOption(controller.optionsFor('type'), 'convert-text-to-shape')?.onClick?.();
+
+    expect(convertTextToShape).toHaveBeenCalledOnce();
   });
 });

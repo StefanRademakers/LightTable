@@ -210,6 +210,10 @@ export class LayerDocumentRenderer {
     );
   }
 
+  vectorPathsForTextLayer(layerId: LayerId, signal?: AbortSignal) {
+    return this.runtime.textLayerCoordinator.vectorPathsForLayer(layerId, signal);
+  }
+
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {
     await this.runtime.documentAssets.load(assets);
   }

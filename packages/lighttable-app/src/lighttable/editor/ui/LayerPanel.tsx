@@ -67,6 +67,7 @@ interface LayerPanelProps {
   onDelete: (layerIds: LayerId[]) => void;
   onDuplicate: () => void;
   onRasterizeText: () => void;
+  onConvertTextToShape: (layerId: LayerId) => void;
   onMergeDown: () => void;
   onMergeSelected: (layerIds: LayerId[]) => void;
   onFlattenGroup: (groupId: LayerId) => void;
@@ -171,6 +172,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onDelete,
   onDuplicate,
   onRasterizeText,
+  onConvertTextToShape,
   onMergeDown,
   onMergeSelected,
   onFlattenGroup,
@@ -320,6 +322,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       }
     },
     ...(activeLayer?.type === 'text' ? [{
+      value: 'convert-text-to-shape',
+      label: 'Convert to Shape...',
+      disabled: activeLayer.locks.all || activeLayer.locks.pixels,
+      onClick: () => onConvertTextToShape(activeLayer.id)
+    }, {
       value: 'rasterize-text',
       label: 'Rasterize Type',
       onClick: onRasterizeText
