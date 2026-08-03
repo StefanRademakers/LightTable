@@ -225,11 +225,11 @@ export const createEditorSession = (): EditorSession => ({
   warp: {
     mode: 'push',
     debugView: 'result',
-    diameterPx: 200,
-    strength: 0.35,
-    hardness: 0.75,
-    flow: 0.5,
-    spacing: 0.1,
+    diameterPx: 500,
+    strength: 1,
+    hardness: 0.5,
+    flow: 1,
+    spacing: 0.04,
     pressureSize: true,
     pressureStrength: true
   }

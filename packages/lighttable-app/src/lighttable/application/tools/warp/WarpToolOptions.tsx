@@ -49,9 +49,9 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       value={warp.diameterPx}
       min={1}
       max={2000}
-      resetValue={200}
+      resetValue={500}
       format={(value) => `${Math.round(value)} px`}
-      onReset={() => onChange({ diameterPx: 200 })}
+      onReset={() => onChange({ diameterPx: 500 })}
       onChange={(diameterPx) => onChange({ diameterPx })}
     />
     <AdjustmentSlider
@@ -59,9 +59,9 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       value={warp.strength * 100}
       min={1}
       max={200}
-      resetValue={35}
+      resetValue={100}
       format={(value) => `${Math.round(value)}%`}
-      onReset={() => onChange({ strength: 0.35 })}
+      onReset={() => onChange({ strength: 1 })}
       onChange={(value) => onChange({ strength: value / 100 })}
     />
     <AdjustmentSlider
@@ -69,9 +69,9 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       value={warp.hardness * 100}
       min={0}
       max={100}
-      resetValue={75}
+      resetValue={50}
       format={(value) => `${Math.round(value)}%`}
-      onReset={() => onChange({ hardness: 0.75 })}
+      onReset={() => onChange({ hardness: 0.5 })}
       onChange={(value) => onChange({ hardness: value / 100 })}
     />
     <AdjustmentSlider
@@ -79,9 +79,9 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       value={warp.flow * 100}
       min={1}
       max={100}
-      resetValue={50}
+      resetValue={100}
       format={(value) => `${Math.round(value)}%`}
-      onReset={() => onChange({ flow: 0.5 })}
+      onReset={() => onChange({ flow: 1 })}
       onChange={(value) => onChange({ flow: value / 100 })}
     />
     <AdjustmentSlider
@@ -89,9 +89,9 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       value={warp.spacing * 100}
       min={1}
       max={100}
-      resetValue={10}
+      resetValue={4}
       format={(value) => `${Math.round(value)}%`}
-      onReset={() => onChange({ spacing: 0.1 })}
+      onReset={() => onChange({ spacing: 0.04 })}
       onChange={(value) => onChange({ spacing: value / 100 })}
     />
     <label className="lighttable-tool-options__toggle">
