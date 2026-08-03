@@ -18,6 +18,11 @@ describe('PDF raster preview planning', () => {
     expect(plan.width * plan.height).toBeLessThanOrEqual(64 * 1024 * 1024);
   });
 
+  it('does not add a phantom pixel when reopening an exact 300-ppi export', () => {
+    const plan = planPdfRasterSize(1001 * 72 / 300, 598 * 72 / 300);
+    expect(plan).toMatchObject({ width: 1001, height: 598 });
+  });
+
   it('rejects invalid page geometry before allocating a canvas', () => {
     expect(() => planPdfRasterSize(0, 100)).toThrow('page width');
     expect(() => planPdfRasterSize(100, Number.NaN)).toThrow('page height');

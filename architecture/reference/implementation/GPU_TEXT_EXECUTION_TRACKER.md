@@ -703,8 +703,8 @@ presentation and reference comparison is logged.
 - [x] Support forms, transparency groups, soft masks, text clipping and page
   tiling required by the fixture corpus.
 - [x] Add optional, confidence-scored positioned-to-flow recovery.
-- [ ] Export true PDF text objects when font embedding and semantics allow.
-- [ ] Subset/embed fonts or use an explicit outline fallback.
+- [x] Export true PDF text objects when font embedding and semantics allow.
+- [x] Subset/embed fonts or use an explicit outline fallback.
 - [ ] Preserve groups, clips, transforms, blend and supported transparency.
 - [ ] Produce Illustrator-openable PDF without claiming native AI editability.
 
@@ -823,6 +823,27 @@ and text rendering, AcroForm appearance, annotations, optional content, rotated
 annotations and load recovery all reached the editor's WebGPU frame with zero
 page errors. Password, XFA and intentionally malformed fixtures remain separate
 negative-test classes because their expected product UX is not ordinary success.
+
+Native-vector writer evidence: the first normalized display-list writer subset
+serializes bounded MediaBox/CropBox/rotation, save/restore, affine transforms,
+DeviceGray/RGB/CMYK paints, cubic paths, nonzero/even-odd clips, center strokes,
+caps, joins, miter, dashes, alpha and supported PDF blend modes. Images can be
+supplied only as the bounded GPU raster underlay; forms, text, soft masks,
+transparency groups, resource color spaces and preserved unsupported operators
+fail closed. Both pdf-lib and PDF.js independently reopen the writer fixture.
+
+The product preflight now uses that boundary for a compatible topmost vector
+suffix. Canonical editable paths and disposable live-shape realizations retain
+their layer/path transforms and are mapped once from document Y-down pixels to
+PDF Y-up points. Packaged automation exported `D:\shapes.psd` as a 3,382-byte
+page with one raster underlay and four native path draws. LightTable reopened
+it with zero page errors and exact 1001 x 598 dimensions; the source and reopen
+screenshots match for triangle, ellipse, star and line fill/stroke geometry.
+The raster preview planner now snaps floating-point products infinitesimally
+close to integers, removing the previous phantom 1002nd edge pixel. Inside or
+outside strokes, ancestor effects/masks/clipping, document-wide processing and
+non-vector content above the suffix continue to report flattened-only instead
+of changing z-order or appearance.
 
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.

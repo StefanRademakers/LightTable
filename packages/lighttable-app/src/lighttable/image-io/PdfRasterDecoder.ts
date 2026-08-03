@@ -25,6 +25,13 @@ const positiveFinite = (value: number, name: string) => {
   }
 };
 
+const rasterEdge = (value: number) => {
+  const nearestInteger = Math.round(value);
+  return Math.max(1, Math.abs(value - nearestInteger) <= 1e-7
+    ? nearestInteger
+    : Math.ceil(value));
+};
+
 /**
  * Chooses one bounded page raster while retaining 300 ppi whenever possible.
  * Semantic PDF import will use the tiled page contract instead of this preview.
@@ -45,8 +52,11 @@ export const planPdfRasterSize = (
   const pixelBudgetScale = Math.sqrt(maximumPixels / (widthPoints * heightPoints));
   const edgeScale = Math.min(maximumEdge / widthPoints, maximumEdge / heightPoints);
   const scalePixelsPerPoint = Math.min(targetScale, pixelBudgetScale, edgeScale);
-  const width = Math.max(1, Math.ceil(widthPoints * scalePixelsPerPoint));
-  const height = Math.max(1, Math.ceil(heightPoints * scalePixelsPerPoint));
+  // PDF point dimensions often originate from an exact pixel count divided by
+  // the target PPI. Avoid adding a phantom edge pixel when the inverse product
+  // lands infinitesimally above that integer through floating-point arithmetic.
+  const width = rasterEdge(widthPoints * scalePixelsPerPoint);
+  const height = rasterEdge(heightPoints * scalePixelsPerPoint);
   return { scalePixelsPerPoint, width, height };
 };
 

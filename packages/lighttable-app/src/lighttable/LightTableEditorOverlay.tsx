@@ -54,11 +54,16 @@ import { TextToShapeCommandController } from './application/text/TextToShapeComm
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPreflight';
 import { buildPdfNativeTextPage } from './application/pdf/buildPdfNativeTextPage';
+import { buildPdfNativeVectorPage } from './application/pdf/buildPdfNativeVectorPage';
 import {
   pdfDocumentProcessingActive,
   planHybridPdfPageExport,
   type HybridPdfPageExportReason
 } from './application/pdf/planHybridPdfPageExport';
+import {
+  planHybridPdfVectorPageExport,
+  type HybridPdfVectorPageExportReason
+} from './application/pdf/planHybridPdfVectorPageExport';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
@@ -271,6 +276,13 @@ const hybridPdfReasonLabel: Record<HybridPdfPageExportReason, string> = {
   'no-native-text': 'no text layer can be emitted natively',
   'stale-native-layer': 'the document changed after preflight',
   'native-text-not-topmost': 'non-text content is above native text',
+  'document-processing-active': 'document-wide Grade or Lens Fx is active'
+};
+const hybridPdfVectorReasonLabel: Record<HybridPdfVectorPageExportReason, string> = {
+  'no-native-vectors': 'no visible vector layer can be emitted natively',
+  'native-vectors-not-topmost': 'non-vector content is above native vectors',
+  'vector-effects-unsupported': 'a vector or ancestor uses unsupported masks, clipping, blend or effects',
+  'vector-stroke-alignment-unsupported': 'inside or outside vector strokes require outlining first',
   'document-processing-active': 'document-wide Grade or Lens Fx is active'
 };
 const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
@@ -2355,13 +2367,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           textPlan: plan,
           documentProcessingActive: pdfDocumentProcessingActive(documentAdjustmentsRef.current)
         });
+        const vectorPlan = planHybridPdfVectorPageExport(
+          document,
+          pdfDocumentProcessingActive(documentAdjustmentsRef.current)
+        );
         editorDialogs.openPdfExportPreflight({
           plan,
           fontLabels: Object.fromEntries(fonts.map((font) => [
             font.assetId,
             `${font.familyNames[0] ?? font.postScriptName ?? font.assetId} ${font.styleName}`.trim()
           ])),
-          validateFonts: async () => {
+          validateFonts: plan.fonts.length > 0 ? async () => {
             const { materializePdfFontsWithHarfBuzz } = await import(
               './infrastructure/pdf/materializePdfFontsWithHarfBuzz'
             );
@@ -2373,7 +2389,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               embeddedFontCount: resources.embedded.length,
               totalEmbeddedBytes: resources.totalEmbeddedBytes
             };
-          },
+          } : undefined,
           exportNativeTextPage: hybridPlan.kind === 'ready' ? async () => {
             const currentDocument = imageDocumentRef.current;
             const renderer = engineRef.current;
@@ -2416,8 +2432,48 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               searchableLayerCount: plan.layers.filter(layer => layer.disposition === 'text').length
             };
           } : undefined,
-          nativeTextUnavailableReason: hybridPlan.kind === 'flattened-only'
+          nativeTextUnavailableReason: plan.layers.length > 0 && hybridPlan.kind === 'flattened-only'
             ? hybridPlan.reasons.map(reason => hybridPdfReasonLabel[reason]).join('; ')
+            : undefined,
+          nativeVectorLayerCount: vectorPlan.kind === 'ready'
+            ? vectorPlan.nativeVectorLayerIds.size
+            : 0,
+          exportNativeVectorPage: vectorPlan.kind === 'ready' ? async () => {
+            const currentDocument = imageDocumentRef.current;
+            const renderer = engineRef.current;
+            if (!currentDocument || !renderer) throw new Error('LightTable is not ready yet.');
+            if (currentDocument.id !== document.id || currentDocument.revision !== document.revision) {
+              throw new Error('The document changed after PDF preflight. Open preflight again.');
+            }
+            const nativePage = buildPdfNativeVectorPage({
+              document: currentDocument,
+              nativeVectorLayerIds: vectorPlan.nativeVectorLayerIds,
+              pixelsPerInch: 300
+            });
+            const rasterUnderlayPng = await renderer.exportPng({
+              excludedLayerIds: [...vectorPlan.nativeVectorLayerIds]
+            });
+            const { writePdfDisplayListPage } = await import(
+              './infrastructure/pdf/writePdfDisplayListPage'
+            );
+            const result = await writePdfDisplayListPage({
+              page: nativePage,
+              title: currentDocument.name,
+              rasterUnderlayPng
+            });
+            downloadEditorFile(new File(
+              [result.blob],
+              `${fileNameBase.replace(/\.pdf$/i, '')}-vectors.pdf`,
+              { type: 'application/pdf' }
+            ));
+            return {
+              byteLength: result.blob.size,
+              vectorLayerCount: vectorPlan.nativeVectorLayerIds.size
+            };
+          } : undefined,
+          nativeVectorUnavailableReason: vectorPlan.kind === 'flattened-only'
+            && !vectorPlan.reasons.includes('no-native-vectors')
+            ? vectorPlan.reasons.map(reason => hybridPdfVectorReasonLabel[reason]).join('; ')
             : undefined,
           exportFlattenedPage: async () => {
             const currentDocument = imageDocumentRef.current;

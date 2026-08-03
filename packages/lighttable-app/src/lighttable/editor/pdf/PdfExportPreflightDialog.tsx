@@ -33,6 +33,12 @@ export interface PdfExportPreflightRequest {
     readonly searchableLayerCount: number;
   }>;
   readonly nativeTextUnavailableReason?: string;
+  readonly nativeVectorLayerCount?: number;
+  readonly exportNativeVectorPage?: () => Promise<{
+    readonly byteLength: number;
+    readonly vectorLayerCount: number;
+  }>;
+  readonly nativeVectorUnavailableReason?: string;
 }
 
 interface PdfExportPreflightDialogProps {
@@ -56,6 +62,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
   const generationRef = useRef(0);
   const pageExportGenerationRef = useRef(0);
   const nativeExportGenerationRef = useRef(0);
+  const vectorExportGenerationRef = useRef(0);
   const [validation, setValidation] = useState<
     | { readonly kind: 'idle' }
     | { readonly kind: 'running' }
@@ -74,13 +81,21 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
     | { readonly kind: 'ready'; readonly message: string }
     | { readonly kind: 'error'; readonly message: string }
   >({ kind: 'idle' });
+  const [vectorExport, setVectorExport] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'running' }
+    | { readonly kind: 'ready'; readonly message: string }
+    | { readonly kind: 'error'; readonly message: string }
+  >({ kind: 'idle' });
   useEffect(() => {
     generationRef.current += 1;
     pageExportGenerationRef.current += 1;
     nativeExportGenerationRef.current += 1;
+    vectorExportGenerationRef.current += 1;
     setValidation({ kind: 'idle' });
     setPageExport({ kind: 'idle' });
     setNativeExport({ kind: 'idle' });
+    setVectorExport({ kind: 'idle' });
   }, [request]);
   if (!open || !request) return null;
   const { plan, fontLabels } = request;
@@ -141,6 +156,25 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     }
   };
+  const exportNativeVectorPage = async () => {
+    if (!request.exportNativeVectorPage || vectorExport.kind === 'running') return;
+    const generation = ++vectorExportGenerationRef.current;
+    setVectorExport({ kind: 'running' });
+    try {
+      const result = await request.exportNativeVectorPage();
+      if (generation !== vectorExportGenerationRef.current) return;
+      setVectorExport({
+        kind: 'ready',
+        message: `Native vector PDF ready - ${result.vectorLayerCount} vector layer${result.vectorLayerCount === 1 ? '' : 's'} - ${formatPdfFontBytes(result.byteLength)}`
+      });
+    } catch (error) {
+      if (generation !== vectorExportGenerationRef.current) return;
+      setVectorExport({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Native vector PDF export failed.'
+      });
+    }
+  };
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
@@ -153,7 +187,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         <header className="lighttable-psd-report__header">
           <div>
             <h2>PDF export preflight</h2>
-            <p>Text and font planning. Export a flattened page, or native searchable text when the page stack is compatible.</p>
+            <p>Export a flattened page, native searchable text or native vectors when the page stack is compatible.</p>
           </div>
           <ActionButton onClick={onClose}>Close</ActionButton>
         </header>
@@ -208,6 +242,23 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
             <span>Native text export unavailable · {request.nativeTextUnavailableReason}</span>
           </div>
         ) : null}
+        {request.exportNativeVectorPage ? (
+          <div className="lighttable-psd-report__metrics">
+            <ActionButton
+              disabled={vectorExport.kind === 'running'}
+              onClick={() => { void exportNativeVectorPage(); }}
+            >
+              {vectorExport.kind === 'running' ? 'Exporting native vectors...' : 'Export native vectors PDF...'}
+            </ActionButton>
+            {vectorExport.kind !== 'idle' && vectorExport.kind !== 'running' ? (
+              <span role="status">{vectorExport.message}</span>
+            ) : null}
+          </div>
+        ) : request.nativeVectorUnavailableReason ? (
+          <div className="lighttable-psd-report__metrics">
+            <span>Native vector export unavailable - {request.nativeVectorUnavailableReason}</span>
+          </div>
+        ) : null}
         <div className="lighttable-psd-report__entries">
           {plan.fonts.map((font) => (
             <article className="lighttable-psd-report__entry" key={font.instanceId}>
@@ -235,7 +286,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
           ))}
           {plan.fonts.length === 0 && plan.layers.length === 0 ? (
             <p className="lighttable-psd-report__empty">
-              This document has no visible text layers. Vector, raster and group PDF writing are not part of this preflight yet.
+              This document has no visible text layers. {request.nativeVectorLayerCount ?? 0} vector layer{request.nativeVectorLayerCount === 1 ? '' : 's'} can be emitted natively when the stack is compatible.
             </p>
           ) : null}
         </div>

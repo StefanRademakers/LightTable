@@ -40,8 +40,9 @@ const mergeDown = argument('merge-down', '') === 'true';
 const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
 const exportFlattenedPdf = argument('pdf-export-flattened', '') === 'true';
 const exportNativePdf = argument('pdf-export-native', '') === 'true';
+const exportNativeVectorPdf = argument('pdf-export-vectors', '') === 'true';
 const openPdfPreflight = argument('pdf-preflight', '') === 'true'
-  || validatePdfFonts || exportFlattenedPdf || exportNativePdf;
+  || validatePdfFonts || exportFlattenedPdf || exportNativePdf || exportNativeVectorPdf;
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -71,7 +72,7 @@ const diagnostics = {
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown,
-    openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf
+    openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf, exportNativeVectorPdf
   },
   outputFile,
   executablePath,
@@ -241,7 +242,7 @@ try {
         byteLength: exported.size
       };
     }
-    if (exportNativePdf) {
+  if (exportNativePdf) {
       await mkdir(path.dirname(exportedPdfFile), { recursive: true });
       await electronApp.evaluate(({ session }, savePath) => {
         session.defaultSession.once('will-download', (_event, item) => {
@@ -266,6 +267,28 @@ try {
       };
     }
     await window.waitForTimeout(250);
+  }
+  if (exportNativeVectorPdf) {
+    await mkdir(path.dirname(exportedPdfFile), { recursive: true });
+    await electronApp.evaluate(({ session }, savePath) => {
+      session.defaultSession.once('will-download', (_event, item) => {
+        item.setSavePath(savePath);
+      });
+    }, exportedPdfFile);
+    await window.getByRole('button', { name: 'Export native vectors PDF...' }).click();
+    await window.getByRole('status').filter({ hasText: /Native vector PDF ready/i }).waitFor({
+      state: 'visible', timeout: 30_000
+    });
+    const deadline = Date.now() + 30_000;
+    let exported;
+    while (!exported && Date.now() < deadline) {
+      exported = await stat(exportedPdfFile).catch(() => undefined);
+      if (!exported) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (!exported) throw new Error('The native vector PDF download was not written by Electron.');
+    diagnostics.exportedPdf = {
+      kind: 'native-vectors', path: exportedPdfFile, byteLength: exported.size
+    };
   }
 
   diagnostics.layers = await window.locator('.lighttable-layer').evaluateAll((rows) => rows.map((row) => ({
