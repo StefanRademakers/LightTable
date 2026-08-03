@@ -14,6 +14,16 @@ Use all matching PSD/reference-image pairs below
 EHS-396 currently loads 42 layers at about 4.4 seconds ready time, roughly
 4.37 GB estimated GPU memory and 17.54% composite/reference difference.
 
+## Latest verified run (2026-08-03)
+
+All ten packaged-Electron opens completed without page errors after the tight
+surface change. Ready time ranged from 1.48 to 2.77 seconds and estimated GPU
+memory from 704 MB to 2.98 GB. EHS-396 retained exactly 17.54% reference
+difference while improving from about 4.39 to 2.33 seconds and 4.37 to 1.09 GB.
+Large existing fidelity gaps in EHS-395 (95.24%) and EHS-404 (99.29%) are
+visible reconstruction/unsupported-adjustment work, not load failures; they
+must not be hidden by corpus averages.
+
 ## Work
 
 - [x] Serialize PSD layer pixels at their native layer-local dimensions.

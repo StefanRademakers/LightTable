@@ -100,6 +100,7 @@ const diagnostics = {
   pageErrors: [],
   layers: [],
   status: '',
+  metadata: '',
   debugPanel: '',
   runtime: null
 };
@@ -452,6 +453,7 @@ try {
       .filter(Boolean)
   })));
   diagnostics.status = await window.locator('.lighttable-toolbar__status').textContent() ?? '';
+  diagnostics.metadata = await window.locator('.lighttable-toolbar__meta').textContent() ?? '';
   diagnostics.runtime = await window.evaluate(() => ({
     crossOriginIsolated: globalThis.crossOriginIsolated === true,
     webGpuAvailable: Boolean(navigator.gpu),
@@ -472,12 +474,12 @@ try {
   const incompatible = diagnostics.layers.filter(({ statuses }) => statuses.some((status) =>
     /substituted|unavailable|raster/i.test(status)
   ));
-  if (flowLayers.length !== expectedFlowLayers) {
+  if (Number.isFinite(expectedFlowLayers) && flowLayers.length !== expectedFlowLayers) {
     throw new Error(
       `Expected ${expectedFlowLayers} editable flow-text layers, found ${flowLayers.length}.`
     );
   }
-  if (vectorLayers.length !== expectedVectorLayers) {
+  if (Number.isFinite(expectedVectorLayers) && vectorLayers.length !== expectedVectorLayers) {
     throw new Error(
       `Expected ${expectedVectorLayers} editable vector layers, found ${vectorLayers.length}.`
     );
