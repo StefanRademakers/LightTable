@@ -11,7 +11,11 @@ import {
 } from '../../editor/document/documentTypes';
 import { TextLayerRenderCoordinator, type TextFontRuntimePort } from './TextLayerRenderCoordinator';
 import type { TextSourceCostSample } from './TextSourceCostModel';
-import { setFlowTextContent, setTextLayerTransform } from '../../editor/document/textLayerCommands';
+import {
+  setFlowTextContent,
+  setFlowTextRuns,
+  setTextLayerTransform
+} from '../../editor/document/textLayerCommands';
 
 const asset: DocumentFontAsset = {
   assetId: 'font-1',
@@ -336,7 +340,7 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).toHaveBeenCalledTimes(2);
   });
 
-  it('skips exact settled siblings when one visible text layer changes', async () => {
+  it('reflows only the paragraph-edited layer and gives settled siblings zero work', async () => {
     const state = harness();
     const document = createImageDocument('Text siblings', 32, 24, 'source');
     document.layers = [
@@ -353,17 +357,30 @@ describe('TextLayerRenderCoordinator', () => {
     if (first.type !== 'text' || first.text.source.kind !== 'flow') {
       throw new Error('Expected flow text fixture.');
     }
-    const changed = setFlowTextContent(
+    const changed = setFlowTextRuns(
       document,
       first.id,
-      first.text.source.text,
-      first.text.source.styleRuns.map((run) => ({ ...run, tracking: run.tracking + 1 })),
-      first.text.source.paragraphRuns
+      first.text.source.styleRuns,
+      first.text.source.paragraphRuns.map((run) => ({
+        ...run, lineHeight: { kind: 'multiple' as const, value: 1.4 }
+      }))
     );
+    const changedFirst = changed.layers[0]!;
+    if (changedFirst.type !== 'text') throw new Error('Expected changed text fixture.');
+    expect(changedFirst.text.revisions).toEqual({
+      ...first.text.revisions,
+      layout: first.text.revisions.layout + 1
+    });
     state.coordinator.sync(changed);
     await flush();
     expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(3);
     expect(state.renderer.prepareTightSource).toHaveBeenCalledTimes(3);
+    expect(state.submit).toHaveBeenCalledTimes(3);
+    expect(state.client.realizeTextDetailed.mock.calls[2]?.[0]).toMatchObject({
+      layerId: first.id,
+      revisions: { layout: first.text.revisions.layout + 1 }
+    });
+    expect(state.renderer.prepareTightSource.mock.calls[2]?.[1]).toMatchObject({ id: first.id });
   });
 
   it('freezes source scale during an interaction and rebuilds once at settle', async () => {
