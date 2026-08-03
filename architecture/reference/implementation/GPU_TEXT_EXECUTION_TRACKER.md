@@ -596,7 +596,7 @@ be reproduced.
 
 #### Slice 19 — PDF and PDF-compatible AI import spike
 
-- [ ] Freeze a normalized page display-list contract independent of PDF engine.
+- [x] Freeze a normalized page display-list contract independent of PDF engine.
 - [ ] Evaluate exact glyph IDs, matrices, font bytes and text render modes via
   PDFium and at least one reference path.
 - [ ] Import one page with paths, images, clips and positioned text.
@@ -604,6 +604,12 @@ be reproduced.
 - [ ] Bound Type 3 glyph programs and malformed document resource use.
 - [ ] Detect PDF-compatible Illustrator input; preserve original source bytes.
 - [ ] Record native `.ai` data as preserved/unsupported, not round-trippable.
+
+Contract evidence: `@lighttable/pdf-core` owns a versioned, JSON-transportable
+page display list for paths, clips, images, exact positioned glyphs, all PDF text
+render modes, color spaces, transparency groups and soft masks. Its validator
+enforces finite geometry, balanced stacks, resource integrity and parser-output
+limits without browser, renderer or PDF-engine dependencies.
 
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but

@@ -4,6 +4,7 @@ import process from 'node:process';
 
 const roots = [
   'packages/text-core/src',
+  'packages/pdf-core/src',
   'packages/vector-core/src',
   'packages/vector-rendering/src',
   'packages/vector-webgpu/src',
@@ -96,6 +97,30 @@ function verifyTextCoreBoundary(relativePath, source) {
   }
 }
 
+function verifyPdfCoreBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/pdf-core/src/')) return;
+  const forbiddenPdfDependencies = [
+    'react', 'react-dom', 'document.', 'window.', 'navigator.',
+    '@lighttable/app', '@lighttable/vector-core', '@lighttable/vector-rendering',
+    '@lighttable/vector-webgpu'
+  ];
+  for (const token of forbiddenPdfDependencies) {
+    if (source.includes(token)) failures.push(`${relativePath}: pdf-core must not depend on ${token}`);
+  }
+  for (const match of source.matchAll(/\bGPU[A-Z][A-Za-z0-9_]*/g)) {
+    failures.push(`${relativePath}: pdf-core must not reference WebGPU handle ${match[0]}`);
+  }
+  const importPattern = /from\s+['"]([^'"]+)['"]/g;
+  for (const match of source.matchAll(importPattern)) {
+    const moduleSpecifier = match[1];
+    const isTestDependency = normalizedPath.endsWith('.test.ts') && moduleSpecifier === 'vitest';
+    if (!moduleSpecifier.startsWith('.') && !isTestDependency) {
+      failures.push(`${relativePath}: pdf-core production imports must stay package-relative (${moduleSpecifier})`);
+    }
+  }
+}
+
 function verifyVectorRenderingBoundary(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
   if (!normalizedPath.startsWith('packages/vector-rendering/src/')) return;
@@ -136,6 +161,7 @@ async function scan(relativeDirectory) {
     const source = await readFile(relativePath, 'utf8');
     verifyRendererFacadeImports(relativePath, source);
     verifyTextCoreBoundary(relativePath, source);
+    verifyPdfCoreBoundary(relativePath, source);
     verifyVectorCoreBoundary(relativePath, source);
     verifyVectorRenderingBoundary(relativePath, source);
     verifyVectorWebGpuBoundary(relativePath, source);
