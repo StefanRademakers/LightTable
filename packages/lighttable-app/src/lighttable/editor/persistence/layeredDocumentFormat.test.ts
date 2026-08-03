@@ -265,6 +265,49 @@ describe('LightTable layered PNG format', () => {
     expect(parsed?.assets).toEqual([]);
   });
 
+  it('round-trips a point-text baseline origin and rotated affine verbatim', async () => {
+    const text = createDefaultTextLayerData();
+    if (text.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+    const baselineText: TextLayerData = {
+      ...text,
+      source: {
+        ...text.source,
+        layout: {
+          mode: 'point',
+          origin: { x: 12.5, y: -8.25 },
+          writingMode: 'horizontal-tb'
+        }
+      }
+    };
+    const inserted = createTextLayer(
+      createImageDocument('Baseline point text', 2, 2, 'source'),
+      baselineText,
+      'Rotated point text'
+    );
+    const layerId = inserted.activeLayerId!;
+    const transformed = setLayerTransform(inserted, layerId, {
+      a: 0, b: -1.5, c: 1.5, d: 0, tx: 1851.5, ty: 732.25
+    });
+    const layer = findDocumentLayer(transformed, layerId);
+    if (layer?.type !== 'text') throw new Error('Expected text layer.');
+    const document = { ...transformed, layers: [layer] };
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [],
+      'baseline-point-text.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const reopened = findDocumentLayer(parsed!.document, layerId);
+    expect(reopened?.type === 'text' ? reopened.text.source : null).toEqual(baselineText.source);
+    expect(reopened?.transform).toEqual({
+      a: 0, b: -1.5, c: 1.5, d: 0, tx: 1851.5, ty: 732.25
+    });
+    expect(parsed?.assets).toEqual([]);
+  });
+
   it('persists shared font bytes once per fingerprint and validates them on open', async () => {
     const document = createImageDocument('Fonts', 2, 2, 'source');
     const bytes = new Uint8Array([0, 1, 0, 0, 70, 79, 78, 84]);

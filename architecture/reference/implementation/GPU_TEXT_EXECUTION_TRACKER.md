@@ -1537,9 +1537,10 @@ Append newest entries at the top. Keep entries factual and link the slice.
   its projected outline source.
 - Persistence: the layered document serializer stores the semantic flow source
   and layer affine verbatim and excludes realized geometry, so the baseline
-  contract is not baked into a cache. Future PSD and PDF/AI exporters must have
-  explicit baseline-origin round-trip fixtures before they can claim editable
-  text parity.
+  contract is not baked into a cache. A native round-trip fixture now preserves
+  a fractional baseline origin and a minus-90-degree affine verbatim with no
+  raster asset. Future PSD and PDF/AI exporters must have equivalent explicit
+  baseline-origin fixtures before they can claim editable text parity.
 - Follow-up: point-to-paragraph conversion currently maps the baseline origin
   directly to a frame top-left. Visual-preserving conversion needs realized
   first-baseline metrics; do not hide that difference in the serialized model.
