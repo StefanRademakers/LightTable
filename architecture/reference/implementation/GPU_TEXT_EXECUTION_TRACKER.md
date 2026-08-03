@@ -908,6 +908,19 @@ paths plus one raster underlay (zero Forms, zero page errors), demonstrating
 that ungrouped shape output is unchanged. Nested non-neutral groups, raster or
 text children, masks, clipping and layer styles remain explicitly gated.
 
+Native vector clipping evidence: a Photoshop-style clipped vector layer can
+now remain native when its nearest unclipped base is exactly one fully opaque,
+fill-only vector path with Normal compositing and no mask/effects. The planner
+records canonical base/clipped layer pairs, including multiple clipped siblings
+sharing the same base. The builder scopes the clipped layer in balanced PDF
+graphics state, installs the transformed base silhouette with `W`/`W*`, restores
+the page CTM through the exact affine inverse and then emits the clipped layer's
+own transforms and draws. PDF.js reopens the integration fixture with three
+constructed paths (base, clip silhouette and clipped content) and an explicit
+clip operator. Stroke-derived alpha, raster masks, feather/density, translucent
+bases, singular transforms and clipping inside transparency groups remain
+flattened-only until soft-mask/group support represents them exactly.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

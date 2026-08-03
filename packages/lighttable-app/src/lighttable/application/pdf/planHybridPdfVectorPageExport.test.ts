@@ -116,4 +116,38 @@ describe('planHybridPdfVectorPageExport', () => {
       blendMode: 'screen'
     }]);
   });
+
+  it('plans vector clipping only against one opaque fill-only base path', () => {
+    const document = createImageDocument('Clipped vectors', 100, 100, 'pixels');
+    const basePath = path();
+    basePath.style.fill = { type: 'solid', color: [0, 0, 0, 1] };
+    basePath.style.stroke = null;
+    const clippedPath = path();
+    clippedPath.style.fill = { type: 'solid', color: [1, 0, 0, 1] };
+    const base = createVectorLayer([basePath]);
+    const clipped = createVectorLayer([clippedPath]);
+    clipped.clipping = true;
+    document.layers.push(base, clipped);
+    const plan = planHybridPdfVectorPageExport(document, false);
+    expect(plan.kind).toBe('ready');
+    if (plan.kind === 'ready') {
+      expect(plan.clippingPairs).toEqual([{
+        baseLayerId: base.id, clippedLayerId: clipped.id
+      }]);
+    }
+
+    basePath.style.stroke = {
+      paint: { type: 'solid', color: [0, 0, 0, 1] }, width: 2,
+      alignment: 'center', cap: 'butt', join: 'miter', miterLimit: 10,
+      dash: [], dashOffset: 0
+    };
+    const unsupportedBase = createVectorLayer([basePath]);
+    const unsupportedClip = createVectorLayer([clippedPath]);
+    unsupportedClip.clipping = true;
+    const unsupported = createImageDocument('Unsupported clip', 100, 100, 'pixels');
+    unsupported.layers.push(unsupportedBase, unsupportedClip);
+    expect(planHybridPdfVectorPageExport(unsupported, false)).toMatchObject({
+      kind: 'flattened-only', reasons: expect.arrayContaining(['vector-clipping-unsupported'])
+    });
+  });
 });

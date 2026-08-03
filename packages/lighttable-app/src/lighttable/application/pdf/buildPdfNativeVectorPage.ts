@@ -7,6 +7,7 @@ import type {
 } from '@lighttable/pdf-core';
 import {
   multiplyMatrices,
+  invertMatrix,
   realizeLiveShape,
   type AffineMatrix,
   type SolidPaint,
@@ -16,7 +17,11 @@ import {
 import type { ImageDocument, LayerId, LayerNode, VectorLayer } from '../../editor/document/documentTypes';
 import { buildSceneTransformIndex, requireSceneTransform } from '../../editor/document/sceneTransformGraph';
 import { pdfLayerBlendMode } from './pdfLayerBlendMode';
-import type { PdfNativeVectorTransparencyGroupPlan } from './planHybridPdfVectorPageExport';
+import {
+  pdfVectorOpaqueClipBasePath,
+  type PdfNativeVectorClippingPairPlan,
+  type PdfNativeVectorTransparencyGroupPlan
+} from './planHybridPdfVectorPageExport';
 
 export interface PdfNativeVectorPageDependencies {
   readonly document: ImageDocument;
@@ -201,9 +206,52 @@ export const buildPdfNativeVectorPage = (
 export const buildPdfNativeVectorExportPage = (
   dependencies: PdfNativeVectorPageDependencies & {
     readonly transparencyGroups: readonly PdfNativeVectorTransparencyGroupPlan[];
+    readonly clippingPairs?: readonly PdfNativeVectorClippingPairPlan[];
   }
 ): PdfNativeVectorExportPage => {
   const built = buildPdfNativeVectorLayerPage(dependencies);
+  const layerNodes = new Map(selectedLayers(
+    dependencies.document.layers,
+    dependencies.nativeVectorLayerIds
+  ).map(layer => [layer.id, layer]));
+  const scale = 72 / (dependencies.pixelsPerInch ?? DEFAULT_PIXELS_PER_INCH);
+  const documentToPage: AffineMatrix = {
+    a: scale, b: 0, c: 0, d: -scale, tx: 0,
+    ty: dependencies.document.height * scale
+  };
+  const scene = buildSceneTransformIndex(dependencies.document);
+  const clippingByLayer = new Map((dependencies.clippingPairs ?? []).map(pair => [
+    pair.clippedLayerId,
+    pair
+  ]));
+  const clippedLayers = built.layers.map(layer => {
+    const pair = clippingByLayer.get(layer.layerId);
+    if (!pair) return layer;
+    const base = layerNodes.get(pair.baseLayerId)
+      ?? fail(`clipping base ${pair.baseLayerId} is stale or unselected.`);
+    const clipPath = pdfVectorOpaqueClipBasePath(base)
+      ?? fail(`clipping base ${pair.baseLayerId} is no longer an opaque fill-only path.`);
+    const clipMatrix = multiplyMatrices(
+      multiplyMatrices(
+        documentToPage,
+        requireSceneTransform(scene, base.id).localToDocument
+      ),
+      clipPath.transform
+    );
+    const inverse = invertMatrix(clipMatrix)
+      ?? fail(`clipping base ${pair.baseLayerId} has a singular transform.`);
+    return {
+      ...layer,
+      operations: [
+        { kind: 'save-state' as const },
+        { kind: 'concat-transform' as const, matrix: pdfMatrix(clipMatrix) },
+        { kind: 'clip-path' as const, path: pathData(clipPath), fillRule: clipPath.fillRule },
+        { kind: 'concat-transform' as const, matrix: pdfMatrix(inverse) },
+        ...layer.operations,
+        { kind: 'restore-state' as const }
+      ]
+    };
+  });
   const groupedIds = new Set<LayerId>();
   dependencies.transparencyGroups.forEach(group => group.nativeVectorLayerIds.forEach(id => {
     if (!dependencies.nativeVectorLayerIds.has(id)) fail(`group ${group.groupId} contains an unselected layer.`);
@@ -212,13 +260,13 @@ export const buildPdfNativeVectorExportPage = (
   }));
   const transparencyGroups = dependencies.transparencyGroups.map(group => ({
     groupId: group.groupId,
-    operations: built.layers
+    operations: clippedLayers
       .filter(layer => group.nativeVectorLayerIds.includes(layer.layerId))
       .flatMap(layer => layer.operations),
     opacity: group.opacity,
     blendMode: group.blendMode
   }));
-  const layers = built.layers.filter(layer => !groupedIds.has(layer.layerId));
+  const layers = clippedLayers.filter(layer => !groupedIds.has(layer.layerId));
   return {
     page: { ...built.page, operations: layers.flatMap(layer => layer.operations) },
     layers,

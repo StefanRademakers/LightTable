@@ -291,6 +291,7 @@ const hybridPdfVectorReasonLabel: Record<HybridPdfVectorPageExportReason, string
   'vector-effects-unsupported': 'a vector or ancestor uses unsupported masks, clipping, blend or effects',
   'vector-blend-mode-unsupported': 'the vector layer blend mode has no exact PDF equivalent',
   'vector-stroke-alignment-unsupported': 'inside or outside vector strokes require outlining first',
+  'vector-clipping-unsupported': 'vector clipping requires one opaque fill-only vector base',
   'document-processing-active': 'document-wide Grade or Lens Fx is active'
 };
 const hybridPdfNativeReasonLabel: Record<HybridPdfNativePageExportReason, string> = {
@@ -2470,6 +2471,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               document: currentDocument,
               nativeVectorLayerIds: vectorPlan.nativeVectorLayerIds,
               transparencyGroups: vectorPlan.transparencyGroups,
+              clippingPairs: vectorPlan.clippingPairs,
               pixelsPerInch: 300
             });
             const rasterUnderlayPng = await renderer.exportPng({

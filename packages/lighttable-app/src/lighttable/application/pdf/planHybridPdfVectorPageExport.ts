@@ -1,5 +1,9 @@
 import type { PdfBlendMode } from '@lighttable/pdf-core';
-import type { VectorElement } from '@lighttable/vector-core';
+import {
+  realizeLiveShape,
+  type VectorElement,
+  type VectorPath
+} from '@lighttable/vector-core';
 import type {
   GroupLayer,
   ImageDocument,
@@ -16,6 +20,7 @@ export type HybridPdfVectorPageExportReason =
   | 'vector-effects-unsupported'
   | 'vector-blend-mode-unsupported'
   | 'vector-stroke-alignment-unsupported'
+  | 'vector-clipping-unsupported'
   | 'document-processing-active';
 
 export type HybridPdfVectorPageExportPlan =
@@ -23,6 +28,7 @@ export type HybridPdfVectorPageExportPlan =
     readonly kind: 'ready';
     readonly nativeVectorLayerIds: ReadonlySet<LayerId>;
     readonly transparencyGroups: readonly PdfNativeVectorTransparencyGroupPlan[];
+    readonly clippingPairs: readonly PdfNativeVectorClippingPairPlan[];
   }
   | { readonly kind: 'flattened-only'; readonly reasons: readonly HybridPdfVectorPageExportReason[] };
 
@@ -37,6 +43,11 @@ export interface PdfNativeVectorTransparencyGroupPlan {
   readonly nativeVectorLayerIds: readonly LayerId[];
   readonly opacity: number;
   readonly blendMode: Exclude<PdfBlendMode, 'unsupported'>;
+}
+
+export interface PdfNativeVectorClippingPairPlan {
+  readonly baseLayerId: LayerId;
+  readonly clippedLayerId: LayerId;
 }
 
 const ancestorCompositingEffects = (node: LayerNode) => node.type === 'group'
@@ -76,10 +87,12 @@ export const pdfVectorElementHasVisiblePaint = (element: VectorElement) => (
 export const pdfVectorLayerNativeReason = (
   layer: VectorLayer,
   ancestorEffects: boolean,
-  ancestorIsolation = false
+  ancestorIsolation = false,
+  allowClipping = false
 ): HybridPdfVectorPageExportReason | null => {
   if (ancestorEffects) return 'vector-effects-unsupported';
-  if (layer.clipping || layer.mask !== null || layerStyleStackIsActive(layer.styleStack)) {
+  if ((!allowClipping && layer.clipping)
+    || layer.mask !== null || layerStyleStackIsActive(layer.styleStack)) {
     return 'vector-effects-unsupported';
   }
   if (!pdfLayerBlendMode(layer.blendMode)) return 'vector-blend-mode-unsupported';
@@ -92,6 +105,19 @@ export const pdfVectorLayerNativeReason = (
     return 'vector-stroke-alignment-unsupported';
   }
   return null;
+};
+
+export const pdfVectorOpaqueClipBasePath = (layer: VectorLayer): VectorPath | null => {
+  if (layer.clipping || layer.mask !== null || layer.opacity !== 1 || layer.fillOpacity !== 1
+    || layer.blendMode !== 'normal' || layerStyleStackIsActive(layer.styleStack)
+    || layer.elements.length !== 1) return null;
+  const element = layer.elements[0]!;
+  const path = element.type === 'path' ? element : realizeLiveShape(element);
+  return path.style.opacity === 1
+    && path.style.fill?.color[3] === 1
+    && path.style.stroke === null
+    ? path
+    : null;
 };
 
 const groupVectorLayers = (
@@ -148,13 +174,28 @@ export const planHybridPdfVectorPageExport = (
     return group ? [group] : [];
   });
   const grouped = new Set(transparencyGroups.flatMap(group => group.nativeVectorLayerIds));
+  const clippingPairs: PdfNativeVectorClippingPairPlan[] = [];
+  const supportedClippedIds = new Set<LayerId>();
+  leaves.forEach(({ layer, ancestorEffects, ancestorIsolation }, index) => {
+    if (layer.type !== 'vector' || !layer.clipping || grouped.has(layer.id)) return;
+    let baseIndex = index - 1;
+    while (baseIndex >= 0 && leaves[baseIndex]!.layer.clipping) baseIndex -= 1;
+    const base = baseIndex >= 0 ? leaves[baseIndex]!.layer : null;
+    if (base?.type === 'vector' && pdfVectorOpaqueClipBasePath(base)
+      && !pdfVectorLayerNativeReason(layer, ancestorEffects, ancestorIsolation, true)) {
+      clippingPairs.push({ baseLayerId: base.id, clippedLayerId: layer.id });
+      supportedClippedIds.add(layer.id);
+    } else reasons.add('vector-clipping-unsupported');
+  });
   leaves.forEach(({ layer, ancestorEffects, ancestorIsolation }) => {
     if (layer.type !== 'vector' || !layer.elements.some(pdfVectorElementHasVisiblePaint)) return;
     if (grouped.has(layer.id)) {
       native.add(layer.id);
       return;
     }
-    const reason = pdfVectorLayerNativeReason(layer, ancestorEffects, ancestorIsolation);
+    const reason = pdfVectorLayerNativeReason(
+      layer, ancestorEffects, ancestorIsolation, supportedClippedIds.has(layer.id)
+    );
     if (reason) reasons.add(reason);
     else native.add(layer.id);
   });
@@ -165,5 +206,5 @@ export const planHybridPdfVectorPageExport = (
   }
   return reasons.size > 0
     ? { kind: 'flattened-only', reasons: [...reasons] }
-    : { kind: 'ready', nativeVectorLayerIds: native, transparencyGroups };
+    : { kind: 'ready', nativeVectorLayerIds: native, transparencyGroups, clippingPairs };
 };

@@ -127,4 +127,41 @@ describe('buildPdfNativeVectorPage', () => {
     expect(operators.fnArray.filter(value => value === pdfjs.OPS.constructPath)).toHaveLength(2);
     await task.destroy();
   });
+
+  it('scopes a clipped vector layer to its opaque base path', async () => {
+    const square = (id: string, size: number) => {
+      const value = createVectorPath(id, id, [createSubpath(`${id}-outline`, [
+        createAnchor(`${id}-a`, { x: 10, y: 10 }),
+        createAnchor(`${id}-b`, { x: 10 + size, y: 10 }),
+        createAnchor(`${id}-c`, { x: 10 + size, y: 10 + size }),
+        createAnchor(`${id}-d`, { x: 10, y: 10 + size })
+      ], true)]);
+      value.style.fill = { type: 'solid', color: [0, 0, 0, 1] };
+      value.style.stroke = null;
+      return value;
+    };
+    const base = createVectorLayer([square('base', 40)]);
+    const clipped = createVectorLayer([square('clipped', 80)]);
+    clipped.clipping = true;
+    const document = createImageDocument('Clipped', 100, 100, 'pixels');
+    document.layers.push(base, clipped);
+    const output = buildPdfNativeVectorExportPage({
+      document,
+      nativeVectorLayerIds: new Set([base.id, clipped.id]),
+      transparencyGroups: [],
+      clippingPairs: [{ baseLayerId: base.id, clippedLayerId: clipped.id }]
+    });
+    const clippedOperations = output.layers.find(layer => layer.layerId === clipped.id)?.operations;
+    expect(clippedOperations?.some(operation => operation.kind === 'clip-path')).toBe(true);
+    const written = await writePdfDisplayListPage({ page: output.page });
+    const task = pdfjs.getDocument({
+      data: new Uint8Array(await written.blob.arrayBuffer()),
+      isEvalSupported: false,
+      useWorkerFetch: false
+    });
+    const operators = await (await (await task.promise).getPage(1)).getOperatorList();
+    expect(operators.fnArray).toContain(pdfjs.OPS.clip);
+    expect(operators.fnArray.filter(value => value === pdfjs.OPS.constructPath)).toHaveLength(3);
+    await task.destroy();
+  });
 });
