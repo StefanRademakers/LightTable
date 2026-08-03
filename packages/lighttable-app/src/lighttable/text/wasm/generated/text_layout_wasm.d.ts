@@ -41,9 +41,28 @@ export class PackedGlyphCoverage {
 }
 
 /**
+ * Scale-independent, allocation-bounded outline in original font units.
+ */
+export class PackedGlyphOutline {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    bounds(): Float32Array;
+    coordinates(): Float32Array;
+    verbs(): Uint8Array;
+    readonly units_per_em: number;
+}
+
+/**
  * Releases all parsed fonts and scratch allocations for one generation.
  */
 export function drop_layout_session(session_key: string): boolean;
+
+/**
+ * Extracts one exact registered face/glyph without hinting or viewport-scale
+ * input. Variation coordinates are user-space OpenType axis values.
+ */
+export function extract_registered_glyph_outline(session_key: string, asset_id: string, face_index: number, glyph_id: number, variation_tags: string[], variation_values: Float32Array): PackedGlyphOutline;
 
 /**
  * Memory-safe OpenType metadata inspection for the browser/Electron worker.
@@ -89,7 +108,9 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_packedflowlayout_free: (a: number, b: number) => void;
     readonly __wbg_packedglyphcoverage_free: (a: number, b: number) => void;
+    readonly __wbg_packedglyphoutline_free: (a: number, b: number) => void;
     readonly drop_layout_session: (a: number, b: number) => number;
+    readonly extract_registered_glyph_outline: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
     readonly inspect_font_json: (a: number, b: number, c: number) => [number, number, number, number];
     readonly packedflowlayout_bounds: (a: number) => [number, number];
     readonly packedflowlayout_caret_geometry: (a: number) => [number, number];
@@ -111,14 +132,19 @@ export interface InitOutput {
     readonly packedglyphcoverage_height: (a: number) => number;
     readonly packedglyphcoverage_pixels: (a: number) => [number, number];
     readonly packedglyphcoverage_width: (a: number) => number;
+    readonly packedglyphoutline_bounds: (a: number) => [number, number];
+    readonly packedglyphoutline_coordinates: (a: number) => [number, number];
+    readonly packedglyphoutline_units_per_em: (a: number) => number;
+    readonly packedglyphoutline_verbs: (a: number) => [number, number];
     readonly rasterize_registered_glyph: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly realize_flow_text: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number) => [number, number, number];
     readonly register_layout_font: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly text_engine_version: () => [number, number];
     readonly text_engine_memory_bytes: () => number;
-    readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __externref_table_alloc: () => number;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;

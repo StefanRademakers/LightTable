@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::io::Cursor;
 use wasm_bindgen::prelude::*;
 
+mod glyph_outline;
 mod glyph_raster;
 mod layout;
 
@@ -149,6 +150,27 @@ pub struct PackedFlowLayout(layout::PackedFlowLayout);
 #[wasm_bindgen]
 pub struct PackedGlyphCoverage(glyph_raster::GlyphCoverageMask);
 
+/// Scale-independent, allocation-bounded outline in original font units.
+#[wasm_bindgen]
+pub struct PackedGlyphOutline(glyph_outline::GlyphOutline);
+
+#[wasm_bindgen]
+impl PackedGlyphOutline {
+    #[wasm_bindgen(getter)]
+    pub fn units_per_em(&self) -> u32 {
+        self.0.units_per_em as u32
+    }
+    pub fn verbs(&self) -> Vec<u8> {
+        self.0.verbs.clone()
+    }
+    pub fn coordinates(&self) -> Vec<f32> {
+        self.0.coordinates.clone()
+    }
+    pub fn bounds(&self) -> Vec<f32> {
+        self.0.bounds.to_vec()
+    }
+}
+
 #[wasm_bindgen]
 impl PackedGlyphCoverage {
     #[wasm_bindgen(getter)]
@@ -190,6 +212,31 @@ pub fn rasterize_registered_glyph(
         .map_err(|error| JsValue::from_str(&error))?;
     glyph_raster::rasterize(blob.data(), face_index, glyph_id, ppem)
         .map(PackedGlyphCoverage)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
+/// Extracts one exact registered face/glyph without hinting or viewport-scale
+/// input. Variation coordinates are user-space OpenType axis values.
+#[wasm_bindgen]
+pub fn extract_registered_glyph_outline(
+    session_key: &str,
+    asset_id: &str,
+    face_index: u32,
+    glyph_id: u32,
+    variation_tags: Vec<String>,
+    variation_values: Vec<f32>,
+) -> Result<PackedGlyphOutline, JsValue> {
+    if variation_tags.len() != variation_values.len() {
+        return Err(JsValue::from_str("variation tag/value lengths differ"));
+    }
+    let variations = variation_tags
+        .into_iter()
+        .zip(variation_values)
+        .collect::<Vec<_>>();
+    let blob = layout::registered_font(session_key, asset_id, face_index)
+        .map_err(|error| JsValue::from_str(&error))?;
+    glyph_outline::extract(blob.data(), face_index, glyph_id, &variations)
+        .map(PackedGlyphOutline)
         .map_err(|error| JsValue::from_str(&error))
 }
 
@@ -1002,5 +1049,36 @@ mod tests {
         assert!(glyph_raster::rasterize(blob.data(), 0, 36, 2.0).is_err());
         assert!(glyph_raster::rasterize(blob.data(), 0, u32::MAX, 24.0).is_err());
         assert!(drop_layout_session(session));
+    }
+
+    #[test]
+    fn extracts_a_scale_independent_bounded_glyph_outline() {
+        let session = "glyph-outline";
+        layout::register_font(
+            session,
+            "anton",
+            include_bytes!("../../../test/fixtures/fonts/Anton-Regular.ttf"),
+        )
+        .unwrap();
+        let blob = layout::registered_font(session, "anton", 0).unwrap();
+        let outline = glyph_outline::extract(blob.data(), 0, 36, &[]).unwrap();
+        assert_eq!(outline.units_per_em, 2048);
+        assert!(!outline.verbs.is_empty());
+        assert!(!outline.coordinates.is_empty());
+        assert!(outline.coordinates.iter().all(|value| value.is_finite()));
+        assert!(outline.bounds[0] < outline.bounds[2]);
+        assert!(outline.bounds[1] < outline.bounds[3]);
+        assert!(glyph_outline::extract(blob.data(), 0, u32::MAX, &[]).is_err());
+        assert!(drop_layout_session(session));
+    }
+
+    #[test]
+    fn applies_and_validates_variable_outline_locations() {
+        let bytes = include_bytes!("../../../test/fixtures/fonts/RobotoFlex-Variable.ttf");
+        let regular = glyph_outline::extract(bytes, 0, 36, &[("wght".to_owned(), 400.0)]).unwrap();
+        let bold = glyph_outline::extract(bytes, 0, 36, &[("wght".to_owned(), 800.0)]).unwrap();
+        assert_ne!(regular.coordinates, bold.coordinates);
+        assert!(glyph_outline::extract(bytes, 0, 36, &[("bad".to_owned(), 1.0)]).is_err());
+        assert!(glyph_outline::extract(bytes, 0, 36, &[("wght".to_owned(), f32::NAN)]).is_err());
     }
 }

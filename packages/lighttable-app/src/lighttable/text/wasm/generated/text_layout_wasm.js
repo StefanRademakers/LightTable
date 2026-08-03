@@ -224,6 +224,63 @@ export class PackedGlyphCoverage {
 if (Symbol.dispose) PackedGlyphCoverage.prototype[Symbol.dispose] = PackedGlyphCoverage.prototype.free;
 
 /**
+ * Scale-independent, allocation-bounded outline in original font units.
+ */
+export class PackedGlyphOutline {
+    static __wrap(ptr) {
+        const obj = Object.create(PackedGlyphOutline.prototype);
+        obj.__wbg_ptr = ptr;
+        PackedGlyphOutlineFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        PackedGlyphOutlineFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_packedglyphoutline_free(ptr, 0);
+    }
+    /**
+     * @returns {Float32Array}
+     */
+    bounds() {
+        const ret = wasm.packedglyphoutline_bounds(this.__wbg_ptr);
+        var v1 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @returns {Float32Array}
+     */
+    coordinates() {
+        const ret = wasm.packedglyphoutline_coordinates(this.__wbg_ptr);
+        var v1 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @returns {number}
+     */
+    get units_per_em() {
+        const ret = wasm.packedglyphoutline_units_per_em(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    verbs() {
+        const ret = wasm.packedglyphoutline_verbs(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+}
+if (Symbol.dispose) PackedGlyphOutline.prototype[Symbol.dispose] = PackedGlyphOutline.prototype.free;
+
+/**
  * Releases all parsed fonts and scratch allocations for one generation.
  * @param {string} session_key
  * @returns {boolean}
@@ -233,6 +290,33 @@ export function drop_layout_session(session_key) {
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.drop_layout_session(ptr0, len0);
     return ret !== 0;
+}
+
+/**
+ * Extracts one exact registered face/glyph without hinting or viewport-scale
+ * input. Variation coordinates are user-space OpenType axis values.
+ * @param {string} session_key
+ * @param {string} asset_id
+ * @param {number} face_index
+ * @param {number} glyph_id
+ * @param {string[]} variation_tags
+ * @param {Float32Array} variation_values
+ * @returns {PackedGlyphOutline}
+ */
+export function extract_registered_glyph_outline(session_key, asset_id, face_index, glyph_id, variation_tags, variation_values) {
+    const ptr0 = passStringToWasm0(session_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(asset_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArrayJsValueToWasm0(variation_tags, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArrayF32ToWasm0(variation_values, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.extract_registered_glyph_outline(ptr0, len0, ptr1, len1, face_index, glyph_id, ptr2, len2, ptr3, len3);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return PackedGlyphOutline.__wrap(ret[0]);
 }
 
 /**
@@ -385,6 +469,14 @@ export function text_engine_version() {
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
+        __wbg___wbindgen_string_get_b0ca35b86a603356: function(arg0, arg1) {
+            const obj = arg1;
+            const ret = typeof(obj) === 'string' ? obj : undefined;
+            var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        },
         __wbg___wbindgen_throw_344f42d3211c4765: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
@@ -415,6 +507,15 @@ const PackedFlowLayoutFinalization = (typeof FinalizationRegistry === 'undefined
 const PackedGlyphCoverageFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_packedglyphcoverage_free(ptr, 1));
+const PackedGlyphOutlineFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_packedglyphoutline_free(ptr, 1));
+
+function addToExternrefTable0(obj) {
+    const idx = wasm.__externref_table_alloc();
+    wasm.__wbindgen_externrefs.set(idx, obj);
+    return idx;
+}
 
 function getArrayF32FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
@@ -429,6 +530,14 @@ function getArrayU32FromWasm0(ptr, len) {
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
+}
+
+let cachedDataViewMemory0 = null;
+function getDataViewMemory0() {
+    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
+        cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
+    }
+    return cachedDataViewMemory0;
 }
 
 let cachedFloat32ArrayMemory0 = null;
@@ -481,6 +590,16 @@ function passArrayF32ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 4, 4) >>> 0;
     getFloat32ArrayMemory0().set(arg, ptr / 4);
     WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function passArrayJsValueToWasm0(array, malloc) {
+    const ptr = malloc(array.length * 4, 4) >>> 0;
+    for (let i = 0; i < array.length; i++) {
+        const add = addToExternrefTable0(array[i]);
+        getDataViewMemory0().setUint32(ptr + 4 * i, add, true);
+    }
+    WASM_VECTOR_LEN = array.length;
     return ptr;
 }
 
@@ -561,6 +680,7 @@ function __wbg_finalize_init(instance, module) {
     wasmInstance = instance;
     wasm = instance.exports;
     wasmModule = module;
+    cachedDataViewMemory0 = null;
     cachedFloat32ArrayMemory0 = null;
     cachedUint32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;

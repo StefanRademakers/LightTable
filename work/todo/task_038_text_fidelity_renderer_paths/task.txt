@@ -7,6 +7,8 @@ Status: in progress. Implements Slice 16 from
 
 - [x] Add a deterministic, byte-bounded, submission-pinnable glyph-blob cache
   shared by future web and Electron runtime encoders.
+- [x] Expose bounded, scale-independent TrueType/CFF/CFF2 outline commands and
+  variable-font locations from the existing lazy Rust/WASM font runtime.
 - [ ] Replace the fixture-only hb-gpu path with a bounded runtime encoder.
 - [ ] Integrate a device-independent, byte-bounded glyph-blob cache.
 - [ ] Reuse GPU storage across repeated glyphs and submissions.

@@ -205,6 +205,36 @@ if (
   || glyphMask.command_count < 1
 ) throw new Error('LightTable hinted glyph raster returned invalid R8 data.');
 glyphMask.free();
+const glyphOutline = bindings.extract_registered_glyph_outline(
+  sessionKey, 'anton', 0, 36, [], new Float32Array()
+);
+const outlineVerbs = glyphOutline.verbs();
+const outlineCoordinates = glyphOutline.coordinates();
+const outlineBounds = glyphOutline.bounds();
+const expectedCoordinateCount = [...outlineVerbs].reduce((count, verb) => (
+  count + ([2, 2, 4, 6, 0][verb] ?? Number.NaN)
+), 0);
+if (
+  glyphOutline.units_per_em !== inspection.unitsPerEm
+  || !outlineVerbs.length
+  || outlineCoordinates.length !== expectedCoordinateCount
+  || outlineBounds.length !== 4
+  || ![...outlineCoordinates, ...outlineBounds].every(Number.isFinite)
+  || outlineBounds[0] >= outlineBounds[2]
+  || outlineBounds[1] >= outlineBounds[3]
+) throw new Error('LightTable scale-independent glyph outline ABI returned invalid geometry.');
+glyphOutline.free();
+let rejectedOutlineVariationStride = false;
+try {
+  bindings.extract_registered_glyph_outline(
+    sessionKey, 'anton', 0, 36, ['wght'], new Float32Array()
+  );
+} catch {
+  rejectedOutlineVariationStride = true;
+}
+if (!rejectedOutlineVariationStride) {
+  throw new Error('LightTable glyph outline ABI accepted mismatched variation arrays.');
+}
 let rejectedRasterLimit = false;
 try { bindings.rasterize_registered_glyph(sessionKey, 'anton', 0, 36, 2); } catch { rejectedRasterLimit = true; }
 if (!rejectedRasterLimit) throw new Error('LightTable glyph raster accepted an invalid ppem.');
