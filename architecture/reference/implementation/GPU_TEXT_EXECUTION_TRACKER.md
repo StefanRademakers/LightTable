@@ -1490,6 +1490,22 @@ Append newest entries at the top. Keep entries factual and link the slice.
   Selection drag moves Star alone while triangle, ellipse and line remain
   unchanged and no duplicate geometry remains.
 
+### 2026-08-03 — Photoshop path-text orientation and authored range
+
+- Root cause: recovered Photoshop cubic control points and traversal were
+  correct (`reversed=false` in `D:\TextTest.psd`). The import adapter forced
+  `upright=true`, causing a per-glyph 180-degree tangent and baseline-normal
+  flip whenever the contour crossed plus or minus 90 degrees.
+- Semantics: imported Photoshop path text now retains continuous glyph
+  orientation (`upright=false`) and keeps the authored left-side baseline.
+  Native LightTable path text can still opt into upright normalization.
+- Range: Photoshop's segment-index plus cubic-parameter `textRange` is mapped
+  once at import to LightTable's arc-length start/end handles. The exact
+  fixture's `[0.84742, 4]` range no longer starts at the path origin.
+- Evidence: focused PSD/path projection tests pass, the app typechecks, and a
+  packaged Electron screenshot of `D:\TextTest.psd` shows one continuous
+  character orientation around the curve with zero page errors.
+
 ## 12. Open decision register
 
 Decisions stay open until their named slice supplies evidence.

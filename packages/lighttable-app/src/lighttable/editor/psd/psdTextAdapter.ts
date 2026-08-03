@@ -101,13 +101,20 @@ interface PsdTextPathDescriptor {
 const importTextPath = (
   value: unknown,
   target: PsdTextPathTarget
-): { path: VectorPath; startOffset: number; direction: 'forward' | 'reverse' } | null => {
+): {
+  path: VectorPath;
+  startOffset: number;
+  endOffset: number;
+  direction: 'forward' | 'reverse';
+} | null => {
   if (!value || typeof value !== 'object') return null;
   const descriptor = value as PsdTextPathDescriptor;
   const controlPoints = descriptor.bezierCurve?.controlPoints;
   const matrix = affine(descriptor.data?.frameMatrix);
+  const textRange = descriptor.data?.textRange;
   if (!Array.isArray(controlPoints) || controlPoints.length < 8
-    || controlPoints.length % 8 !== 0 || !controlPoints.every(finite) || !matrix) return null;
+    || controlPoints.length % 8 !== 0 || !controlPoints.every(finite) || !matrix
+    || !Array.isArray(textRange) || textRange.length !== 2 || !textRange.every(finite)) return null;
   const point = (offset: number) => transformPoint(matrix, {
     x: controlPoints[offset]!, y: controlPoints[offset + 1]!
   });
@@ -129,12 +136,47 @@ const importTextPath = (
     [createSubpath(target.subpathId, anchors, false)]
   );
   path.style = { fill: null, stroke: null, opacity: 1 };
-  // Photoshop's textRange is a Bezier-parameter range rather than an arc
-  // length. The current file starts close to the canonical path origin; retain
-  // the exact descriptor for round-trip and use the full native traversal now.
+
+  // Photoshop stores the authored range as segment index + cubic parameter,
+  // while LightTable's editable path handles use arc length. Measure the same
+  // transformed cubic geometry at import time so the first glyph does not
+  // incorrectly jump to the path origin.
+  const arcLengthAt = (parameter: number) => {
+    const segmentCount = controlPoints.length / 8;
+    const bounded = clamp(parameter, 0, segmentCount);
+    const completeSegments = Math.floor(bounded);
+    const partial = bounded - completeSegments;
+    let length = 0;
+    const samplesPerSegment = 64;
+    for (let segment = 0; segment < segmentCount; segment += 1) {
+      const endT = segment < completeSegments ? 1 : segment === completeSegments ? partial : 0;
+      if (endT <= 0) break;
+      const offset = segment * 8;
+      const p0 = point(offset);
+      const p1 = point(offset + 2);
+      const p2 = point(offset + 4);
+      const p3 = point(offset + 6);
+      let previous = p0;
+      const sampleCount = Math.max(1, Math.ceil(samplesPerSegment * endT));
+      for (let sample = 1; sample <= sampleCount; sample += 1) {
+        const t = endT * sample / sampleCount;
+        const inverse = 1 - t;
+        const current = {
+          x: inverse ** 3 * p0.x + 3 * inverse ** 2 * t * p1.x
+            + 3 * inverse * t ** 2 * p2.x + t ** 3 * p3.x,
+          y: inverse ** 3 * p0.y + 3 * inverse ** 2 * t * p1.y
+            + 3 * inverse * t ** 2 * p2.y + t ** 3 * p3.y
+        };
+        length += Math.hypot(current.x - previous.x, current.y - previous.y);
+        previous = current;
+      }
+    }
+    return length;
+  };
   return {
     path,
-    startOffset: 0,
+    startOffset: arcLengthAt(textRange[0]),
+    endOffset: arcLengthAt(textRange[1]),
     direction: descriptor.data?.pathData?.reversed === true ? 'reverse' : 'forward'
   };
 };
@@ -369,9 +411,14 @@ export const importPsdText = (
       pathElementId: pathTarget.elementId,
       pathSubpathId: pathTarget.subpathId,
       startOffset: importedPath.startOffset,
+      endOffset: importedPath.endOffset,
       direction: importedPath.direction,
       side: 'left' as const,
-      upright: true
+      // Photoshop keeps glyph orientation continuous along the authored
+      // contour. Per-glyph upright normalization flips both the tangent and
+      // baseline normal at +/-90 degrees and visibly puts characters on the
+      // wrong side of looping paths.
+      upright: false
     }
     : source.shapeType === 'box'
     && Array.isArray(boxBounds)

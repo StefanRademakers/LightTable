@@ -125,13 +125,38 @@ describe('Photoshop text adapter', () => {
     if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
     expect(result.text.source.layout).toMatchObject({
       mode: 'path', pathLayerId: 'path-layer', pathElementId: 'path-element',
-      pathSubpathId: 'path-subpath', startOffset: 0, direction: 'forward'
+      pathSubpathId: 'path-subpath', startOffset: 0, direction: 'forward',
+      side: 'left', upright: false
     });
+    expect(result.text.source.layout.mode === 'path'
+      ? result.text.source.layout.endOffset : 0).toBeGreaterThan(30);
     expect(result.path?.subpaths[0]?.anchors).toMatchObject([
       { position: { x: 0, y: 0 }, handleOut: { x: 10, y: 0 } },
       { position: { x: 30, y: 20 }, handleIn: { x: 20, y: 10 } }
     ]);
     expect(result.path?.style).toEqual({ fill: null, stroke: null, opacity: 1 });
+  });
+
+  it('maps Photoshop cubic parameters to editable path arc-length handles', () => {
+    const result = importPsdText({
+      text: 'Partial path',
+      textPath: {
+        bezierCurve: { controlPoints: [0, 0, 10, 0, 20, 0, 30, 0] },
+        data: {
+          frameMatrix: [1, 0, 0, 1, 0, 0],
+          textRange: [0.5, 1],
+          pathData: { reversed: false }
+        }
+      }
+    }, 'text-layer', {
+      layerId: 'path-layer', elementId: 'path-element', subpathId: 'path-subpath'
+    });
+
+    expect(result.kind).toBe('editable-flow');
+    if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
+    expect(result.text.source.layout).toMatchObject({
+      mode: 'path', startOffset: 15, endOffset: 30, upright: false
+    });
   });
 
   it('imports a text descriptor after an actual PSD binary write/read round trip', () => {
