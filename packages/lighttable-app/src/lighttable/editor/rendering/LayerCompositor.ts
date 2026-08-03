@@ -82,7 +82,8 @@ export class LayerCompositor {
     encoder: GPUCommandEncoder,
     document: ImageDocument,
     encodeAdjustment?: EncodeAdjustment,
-    includeDevelopmentTextFixture = false
+    includeDevelopmentTextFixture = false,
+    excludedLayerIds: ReadonlySet<LayerId> = new Set()
   ): GPUTexture {
     const {
       layerResources,
@@ -100,7 +101,10 @@ export class LayerCompositor {
       (layerId) => Boolean(this.options.maskTextureFor(layerId))
     );
     const visibleLayers = analysis.visibleRasterLayers.filter(
-      (layer) => layer.visible && layer.opacity > 0
+      (layer) => layer.visible && layer.opacity > 0 && !excludedLayerIds.has(layer.id)
+    );
+    const visibleLeafNodes = analysis.visibleLeafNodes.filter(
+      layer => !excludedLayerIds.has(layer.id)
     );
     if (!analysis.activeLayerStyles) {
       layerStyles.releaseTargets();
@@ -108,7 +112,7 @@ export class LayerCompositor {
     }
     if (
       visibleLayers.length === 1
-      && analysis.visibleLeafNodes.length === 1
+      && visibleLeafNodes.length === 1
       && document.layers.length === 1
       && !(includeDevelopmentTextFixture && this.options.developmentTextFixture?.hasReadyPlan)
     ) {
@@ -188,6 +192,7 @@ export class LayerCompositor {
       inheritedTransform: AffineMatrix = identityAffineMatrix()
     ): [GPUTexture, GPUTexture] => {
       const { node } = entry;
+      if (excludedLayerIds.has(node.id)) return [background, target];
       if (!node.visible || node.opacity <= 0) return [background, target];
       if (node.type === 'group') {
         return renderGroup(entry, background, target, clippingTexture, inheritedTransform);

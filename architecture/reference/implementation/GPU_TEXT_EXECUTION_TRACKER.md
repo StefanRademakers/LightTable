@@ -805,6 +805,25 @@ text streams, and reopens with the image present and Unicode text searchable.
 General z-order interleaving remains assigned to the normalized display-list
 writer rather than being approximated by lifting arbitrary text to the top.
 
+Product export evidence: the existing PDF preflight now exposes the compatible
+hybrid path with the established dialog and `ActionButton` controls. Its
+transaction asks the WebGPU compositor for a scratch-target underlay with only
+the selected native text layer IDs excluded; it does not mutate the document or
+overwrite the live final texture. The packaged desktop automation exported
+`D:\TextTest.psd` as a 30,139-byte PDF with five searchable native text layers,
+three lazy font subsets and the raster background. PDF.js extracted all text,
+including positioned path text, and LightTable reopened the generated page at
+1921 x 1278 with zero page errors and no duplicated bitmap text. The flattened
+button remains available for incompatible stacks and the planner continues to
+fail closed on unsupported z-order or document-wide processing.
+
+Import regression evidence also samples the local upstream PDF.js corpus rather
+than only LightTable-authored files. Eight packaged-desktop cases covering plain
+and text rendering, AcroForm appearance, annotations, optional content, rotated
+annotations and load recovery all reached the editor's WebGPU frame with zero
+page errors. Password, XFA and intentionally malformed fixtures remain separate
+negative-test classes because their expected product UX is not ordinary success.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 

@@ -150,13 +150,15 @@ export class LayerDocumentRenderer {
     encoder: GPUCommandEncoder,
     document: ImageDocument,
     encodeAdjustment?: EncodeAdjustment,
-    includeDevelopmentTextFixture = false
+    includeDevelopmentTextFixture = false,
+    excludedLayerIds: ReadonlySet<LayerId> = new Set()
   ): GPUTexture {
     return this.runtime.compositor.encode(
       encoder,
       document,
       encodeAdjustment,
-      includeDevelopmentTextFixture
+      includeDevelopmentTextFixture,
+      excludedLayerIds
     );
   }
 

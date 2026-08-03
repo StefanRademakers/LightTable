@@ -96,6 +96,10 @@ import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoord
 import type { TextEditingOverlay } from '@lighttable/text-rendering';
 import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
 
+export interface WebGpuPngExportOptions {
+  readonly excludedLayerIds?: readonly LayerId[];
+}
+
 export class WebGpuEngine {
   private readonly canvas: HTMLCanvasElement;
   private readonly device: GPUDevice;
@@ -1722,7 +1726,7 @@ export class WebGpuEngine {
     pass.end();
   }
 
-  async exportPng() {
+  async exportPng(options: WebGpuPngExportOptions = {}) {
     if (!this.metadata || !this.imageResources.finalTexture) throw new Error('No processed image is available for export.');
     if (this.documentRenderer && !await this.documentRenderer.waitForTextSourcesForExport()) {
       throw new Error('Text sources changed or could not be prepared for export.');
@@ -1730,6 +1734,11 @@ export class WebGpuEngine {
     this.settleInteractiveRenderQuality();
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
+
+    const excludedLayerIds = new Set(options.excludedLayerIds ?? []);
+    if (excludedLayerIds.size > 0) {
+      return this.exportPngWithLayerExclusions(excludedLayerIds);
+    }
 
     const pixels = await readRgba8Texture(
       this.device,
@@ -1739,6 +1748,97 @@ export class WebGpuEngine {
       'LightTable PNG export readback'
     );
     return encodeRgba8Png(pixels, this.metadata.width, this.metadata.height);
+  }
+
+  private async exportPngWithLayerExclusions(excludedLayerIds: ReadonlySet<LayerId>) {
+    const metadata = this.metadata;
+    const document = this.imageDocument;
+    const renderer = this.documentRenderer;
+    const effects = this.effectRuntime;
+    const core = this.coreResources;
+    if (!metadata || !document || !renderer || !effects || !core
+      || !this.outputPipeline || !this.displayResolvePipeline) {
+      throw new Error('The GPU export pipeline is not ready yet.');
+    }
+
+    const displayTexture = this.device.createTexture({
+      label: 'LightTable isolated PDF underlay display texture',
+      size: [metadata.width, metadata.height],
+      format: 'rgba16float',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+    });
+    const finalTexture = this.device.createTexture({
+      label: 'LightTable isolated PDF underlay result',
+      size: [metadata.width, metadata.height],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+        | GPUTextureUsage.COPY_SRC
+    });
+
+    let errorScopePending = false;
+    try {
+      this.device.pushErrorScope('validation');
+      errorScopePending = true;
+      const encoder = this.device.createCommandEncoder({
+        label: 'LightTable isolated PDF underlay export'
+      });
+      const composite = renderer.encodeComposite(
+        encoder,
+        document,
+        (layerEncoder, source, layer) =>
+          this.encodeLayerProcessing(layerEncoder, source, layer),
+        false,
+        excludedLayerIds
+      );
+      const geometry = effects.encodeSourceGeometry(encoder, composite);
+      const spatial = effects.encodeLinearSpatial(encoder, geometry, { visualizeDepth: false });
+      const outputBindGroup = this.device.createBindGroup({
+        layout: this.outputPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: spatial.createView() },
+          { binding: 1, resource: { buffer: core.outputSettingsBuffer } }
+        ]
+      });
+      this.drawFullscreenPass(
+        encoder,
+        this.outputPipeline,
+        outputBindGroup,
+        displayTexture.createView()
+      );
+      const displayPost = effects.encodeDisplayPost(encoder, displayTexture, false);
+      const displayResolveBindGroup = this.device.createBindGroup({
+        layout: this.displayResolvePipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: displayPost.createView() }]
+      });
+      this.drawFullscreenPass(
+        encoder,
+        this.displayResolvePipeline,
+        displayResolveBindGroup,
+        finalTexture.createView()
+      );
+      this.device.queue.submit([encoder.finish()]);
+      const validationError = await this.device.popErrorScope();
+      errorScopePending = false;
+      if (validationError) {
+        throw new Error(`PDF underlay export failed: ${validationError.message}`);
+      }
+      await this.device.queue.onSubmittedWorkDone();
+      const pixels = await readRgba8Texture(
+        this.device,
+        finalTexture,
+        metadata.width,
+        metadata.height,
+        'LightTable isolated PDF underlay readback'
+      );
+      return encodeRgba8Png(pixels, metadata.width, metadata.height);
+    } finally {
+      if (errorScopePending) await this.device.popErrorScope().catch(() => null);
+      displayTexture.destroy();
+      finalTexture.destroy();
+      // The isolated pass borrows compositor/effect scratch targets. Rebuild
+      // the live document graph before any later presentation or export.
+      this.markDocumentDirty();
+    }
   }
 
   destroy() {

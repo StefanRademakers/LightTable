@@ -28,6 +28,11 @@ export interface PdfExportPreflightRequest {
   readonly exportFlattenedPage?: () => Promise<{
     readonly byteLength: number;
   }>;
+  readonly exportNativeTextPage?: () => Promise<{
+    readonly byteLength: number;
+    readonly searchableLayerCount: number;
+  }>;
+  readonly nativeTextUnavailableReason?: string;
 }
 
 interface PdfExportPreflightDialogProps {
@@ -50,6 +55,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
 }) => {
   const generationRef = useRef(0);
   const pageExportGenerationRef = useRef(0);
+  const nativeExportGenerationRef = useRef(0);
   const [validation, setValidation] = useState<
     | { readonly kind: 'idle' }
     | { readonly kind: 'running' }
@@ -62,11 +68,19 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
     | { readonly kind: 'ready'; readonly message: string }
     | { readonly kind: 'error'; readonly message: string }
   >({ kind: 'idle' });
+  const [nativeExport, setNativeExport] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'running' }
+    | { readonly kind: 'ready'; readonly message: string }
+    | { readonly kind: 'error'; readonly message: string }
+  >({ kind: 'idle' });
   useEffect(() => {
     generationRef.current += 1;
     pageExportGenerationRef.current += 1;
+    nativeExportGenerationRef.current += 1;
     setValidation({ kind: 'idle' });
     setPageExport({ kind: 'idle' });
+    setNativeExport({ kind: 'idle' });
   }, [request]);
   if (!open || !request) return null;
   const { plan, fontLabels } = request;
@@ -108,6 +122,25 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
       });
     }
   };
+  const exportNativeTextPage = async () => {
+    if (!request.exportNativeTextPage || nativeExport.kind === 'running') return;
+    const generation = ++nativeExportGenerationRef.current;
+    setNativeExport({ kind: 'running' });
+    try {
+      const result = await request.exportNativeTextPage();
+      if (generation !== nativeExportGenerationRef.current) return;
+      setNativeExport({
+        kind: 'ready',
+        message: `Native PDF ready · ${result.searchableLayerCount} searchable layer${result.searchableLayerCount === 1 ? '' : 's'} · ${formatPdfFontBytes(result.byteLength)}`
+      });
+    } catch (error) {
+      if (generation !== nativeExportGenerationRef.current) return;
+      setNativeExport({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Native PDF export failed.'
+      });
+    }
+  };
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
@@ -120,7 +153,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
         <header className="lighttable-psd-report__header">
           <div>
             <h2>PDF export preflight</h2>
-            <p>Text and font planning. Flattened one-page PDF export is available; native text writing is not enabled yet.</p>
+            <p>Text and font planning. Export a flattened page, or native searchable text when the page stack is compatible.</p>
           </div>
           <ActionButton onClick={onClose}>Close</ActionButton>
         </header>
@@ -156,6 +189,23 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
             {pageExport.kind !== 'idle' && pageExport.kind !== 'running' ? (
               <span role="status">{pageExport.message}</span>
             ) : null}
+          </div>
+        ) : null}
+        {request.exportNativeTextPage ? (
+          <div className="lighttable-psd-report__metrics">
+            <ActionButton
+              disabled={nativeExport.kind === 'running'}
+              onClick={() => { void exportNativeTextPage(); }}
+            >
+              {nativeExport.kind === 'running' ? 'Exporting native PDF…' : 'Export native text PDF…'}
+            </ActionButton>
+            {nativeExport.kind !== 'idle' && nativeExport.kind !== 'running' ? (
+              <span role="status">{nativeExport.message}</span>
+            ) : null}
+          </div>
+        ) : request.nativeTextUnavailableReason ? (
+          <div className="lighttable-psd-report__metrics">
+            <span>Native text export unavailable · {request.nativeTextUnavailableReason}</span>
           </div>
         ) : null}
         <div className="lighttable-psd-report__entries">

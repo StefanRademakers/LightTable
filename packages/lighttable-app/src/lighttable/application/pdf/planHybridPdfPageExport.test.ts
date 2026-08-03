@@ -3,7 +3,11 @@ import type { PdfTextExportPlan } from '@lighttable/pdf-core';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createRasterLayer, createTextLayer } from '../../editor/document/documentCommands';
 import { createImageDocument, type ImageDocument } from '../../editor/document/documentTypes';
-import { planHybridPdfPageExport } from './planHybridPdfPageExport';
+import { createDefaultAdjustments } from '../../types';
+import {
+  pdfDocumentProcessingActive,
+  planHybridPdfPageExport
+} from './planHybridPdfPageExport';
 
 const withText = (): ImageDocument => createTextLayer(
   createImageDocument('Hybrid PDF', 320, 200, 'asset'),
@@ -22,6 +26,12 @@ const textPlan = (document: ImageDocument, canExport = true): PdfTextExportPlan 
 });
 
 describe('hybrid PDF page export planning', () => {
+  it('detects document processing without treating defaults as active', () => {
+    const defaults = createDefaultAdjustments();
+    expect(pdfDocumentProcessingActive(defaults)).toBe(false);
+    expect(pdfDocumentProcessingActive({ ...defaults, contrast: 15 })).toBe(true);
+  });
+
   it('allows a native text suffix over a raster underlay', () => {
     const document = withText();
     const result = planHybridPdfPageExport({

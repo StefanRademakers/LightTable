@@ -170,6 +170,18 @@ describe('LayerCompositor', () => {
       compositeA,
       { width: 64, height: 32 }
     );
+
+    encodeVector.mockClear();
+    encodeDevelopmentText.mockClear();
+    compositor.encode(
+      { export: true } as unknown as GPUCommandEncoder,
+      document,
+      undefined,
+      false,
+      new Set([textLayer.id])
+    );
+    expect(encodeVector).not.toHaveBeenCalled();
+    expect(encodeDevelopmentText).not.toHaveBeenCalled();
   });
 
   it('composites an exact tight text source with inherited transform instead of the placeholder', () => {

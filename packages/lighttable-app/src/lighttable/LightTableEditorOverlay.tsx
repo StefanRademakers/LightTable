@@ -53,6 +53,12 @@ import { useLayerPanelController } from './application/layers/useLayerPanelContr
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPreflight';
+import { buildPdfNativeTextPage } from './application/pdf/buildPdfNativeTextPage';
+import {
+  pdfDocumentProcessingActive,
+  planHybridPdfPageExport,
+  type HybridPdfPageExportReason
+} from './application/pdf/planHybridPdfPageExport';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
@@ -259,6 +265,13 @@ const downloadEditorFile = (file: File): void => {
   anchor.download = file.name;
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+const hybridPdfReasonLabel: Record<HybridPdfPageExportReason, string> = {
+  'text-plan-blocked': 'the text preflight is blocked',
+  'no-native-text': 'no text layer can be emitted natively',
+  'stale-native-layer': 'the document changed after preflight',
+  'native-text-not-topmost': 'non-text content is above native text',
+  'document-processing-active': 'document-wide Grade or Lens Fx is active'
 };
 const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
   if (!document?.activeLayerId) return false;
@@ -2337,6 +2350,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           fontBytesAvailable: new Set(fonts.map((font) => font.assetId)),
           realizedLayout: (layerId) => engineRef.current?.textEditingLayout(layerId)?.layout ?? null
         });
+        const hybridPlan = planHybridPdfPageExport({
+          document,
+          textPlan: plan,
+          documentProcessingActive: pdfDocumentProcessingActive(documentAdjustmentsRef.current)
+        });
         editorDialogs.openPdfExportPreflight({
           plan,
           fontLabels: Object.fromEntries(fonts.map((font) => [
@@ -2356,6 +2374,51 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               totalEmbeddedBytes: resources.totalEmbeddedBytes
             };
           },
+          exportNativeTextPage: hybridPlan.kind === 'ready' ? async () => {
+            const currentDocument = imageDocumentRef.current;
+            const renderer = engineRef.current;
+            if (!currentDocument || !renderer) throw new Error('LightTable is not ready yet.');
+            if (currentDocument.id !== document.id || currentDocument.revision !== document.revision) {
+              throw new Error('The document changed after PDF preflight. Open preflight again.');
+            }
+            const { materializePdfFontsWithHarfBuzz } = await import(
+              './infrastructure/pdf/materializePdfFontsWithHarfBuzz'
+            );
+            const resources = await materializePdfFontsWithHarfBuzz(plan, {
+              fonts,
+              loadFontBytes: (assetId) => textFontRegistry.bytes(assetId)
+            });
+            const nativePage = buildPdfNativeTextPage({
+              document: currentDocument,
+              plan,
+              realizedLayout: (layerId) => renderer.textEditingLayout(layerId)?.layout ?? null,
+              pixelsPerInch: 300
+            });
+            const rasterUnderlayPng = await renderer.exportPng({
+              excludedLayerIds: [...hybridPlan.nativeTextLayerIds]
+            });
+            const { writeNativeTextPdfPage } = await import(
+              './infrastructure/pdf/writeNativeTextPdfPage'
+            );
+            const result = await writeNativeTextPdfPage({
+              page: nativePage,
+              fonts: resources.embedded,
+              title: currentDocument.name,
+              rasterUnderlayPng
+            });
+            downloadEditorFile(new File(
+              [result.blob],
+              `${fileNameBase.replace(/\.pdf$/i, '')}-native.pdf`,
+              { type: 'application/pdf' }
+            ));
+            return {
+              byteLength: result.blob.size,
+              searchableLayerCount: plan.layers.filter(layer => layer.disposition === 'text').length
+            };
+          } : undefined,
+          nativeTextUnavailableReason: hybridPlan.kind === 'flattened-only'
+            ? hybridPlan.reasons.map(reason => hybridPdfReasonLabel[reason]).join('; ')
+            : undefined,
           exportFlattenedPage: async () => {
             const currentDocument = imageDocumentRef.current;
             const renderer = engineRef.current;

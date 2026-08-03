@@ -1,5 +1,7 @@
 import type { PdfTextExportPlan } from '@lighttable/pdf-core';
 import type { ImageDocument, LayerId, LayerNode } from '../../editor/document/documentTypes';
+import { adjustmentStackOwnerHasAuthoredSettings } from '../../processing/adjustmentStack';
+import type { BasicAdjustments } from '../../types';
 
 export type HybridPdfPageExportReason =
   | 'text-plan-blocked'
@@ -24,6 +26,12 @@ export interface HybridPdfPageExportInput {
   /** Native overlay text cannot reproduce a document-wide grade or Lens Fx yet. */
   readonly documentProcessingActive: boolean;
 }
+
+export const pdfDocumentProcessingActive = (adjustments: BasicAdjustments) => (
+  adjustmentStackOwnerHasAuthoredSettings(adjustments, 'geometry')
+  || adjustmentStackOwnerHasAuthoredSettings(adjustments, 'grade')
+  || adjustmentStackOwnerHasAuthoredSettings(adjustments, 'lens-fx')
+);
 
 const visibleLeaves = (
   nodes: readonly LayerNode[],

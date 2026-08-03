@@ -39,8 +39,9 @@ const strokeAlignment = argument('stroke-alignment', '');
 const mergeDown = argument('merge-down', '') === 'true';
 const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
 const exportFlattenedPdf = argument('pdf-export-flattened', '') === 'true';
+const exportNativePdf = argument('pdf-export-native', '') === 'true';
 const openPdfPreflight = argument('pdf-preflight', '') === 'true'
-  || validatePdfFonts || exportFlattenedPdf;
+  || validatePdfFonts || exportFlattenedPdf || exportNativePdf;
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -70,7 +71,7 @@ const diagnostics = {
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown,
-    openPdfPreflight, validatePdfFonts, exportFlattenedPdf
+    openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf
   },
   outputFile,
   executablePath,
@@ -235,6 +236,31 @@ try {
       }
       if (!exported) throw new Error('The flattened PDF download was not written by Electron.');
       diagnostics.exportedPdf = {
+        kind: 'flattened',
+        path: exportedPdfFile,
+        byteLength: exported.size
+      };
+    }
+    if (exportNativePdf) {
+      await mkdir(path.dirname(exportedPdfFile), { recursive: true });
+      await electronApp.evaluate(({ session }, savePath) => {
+        session.defaultSession.once('will-download', (_event, item) => {
+          item.setSavePath(savePath);
+        });
+      }, exportedPdfFile);
+      await window.getByRole('button', { name: /Export native text PDF/i }).click();
+      await window.getByRole('status').filter({ hasText: /Native PDF ready/i }).waitFor({
+        state: 'visible', timeout: 60_000
+      });
+      const deadline = Date.now() + 30_000;
+      let exported;
+      while (!exported && Date.now() < deadline) {
+        exported = await stat(exportedPdfFile).catch(() => undefined);
+        if (!exported) await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (!exported) throw new Error('The native PDF download was not written by Electron.');
+      diagnostics.exportedPdf = {
+        kind: 'native-text',
         path: exportedPdfFile,
         byteLength: exported.size
       };
