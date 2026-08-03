@@ -465,6 +465,7 @@ const parsePhotoshopImportReport = (value: unknown): PhotoshopImportReport | nul
         && entry.feature !== 'mask'
         && entry.feature !== 'layer-style'
         && entry.feature !== 'adjustment'
+        && entry.feature !== 'text'
       )
       || (
         entry.support !== 'native'

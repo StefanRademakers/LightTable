@@ -131,7 +131,19 @@ describe('LightTable layered PNG format', () => {
     const positionedId = withPositioned.activeLayerId!;
     const withGroup = createGroupLayer(withPositioned, 'Imported objects');
     const groupId = withGroup.activeLayerId!;
-    const document = moveLayerIntoGroup(withGroup, positionedId, groupId);
+    const grouped = moveLayerIntoGroup(withGroup, positionedId, groupId);
+    const document = {
+      ...grouped,
+      photoshopImportReport: {
+        warnings: ['Original Photoshop font is not embedded.'],
+        compatibility: [{
+          path: 'layers[1]',
+          feature: 'text' as const,
+          support: 'approximate' as const,
+          reason: 'Editable text uses a resolved substitute font.'
+        }]
+      }
+    };
 
     const file = buildLayeredDocumentFile(
       new Blob([PREVIEW_PNG], { type: 'image/png' }),
@@ -158,6 +170,7 @@ describe('LightTable layered PNG format', () => {
       .toHaveProperty('futureTextMetadata.producer', 'future-compatible');
     expect(flow?.mask).not.toBeNull();
     expect(positioned?.type === 'text' ? positioned.text : null).toEqual(positionedFixture);
+    expect(parsed?.document.photoshopImportReport).toEqual(document.photoshopImportReport);
     expect(findDocumentLayer(parsed!.document, positionedId)?.id).toBe(positionedId);
     expect(await parsed!.assets.find(({ layerId }) => layerId === flowId)?.mask?.arrayBuffer())
       .toEqual(OVERLAY_PNG.buffer);

@@ -533,10 +533,10 @@ or unrelated vector content.
 
 #### Slice 18 — PSD semantic text
 
-- [ ] Map supported PSD text descriptors into flow text, runs and transforms.
-- [ ] Preserve unsupported engine data and report it.
+- [x] Map supported PSD text descriptors into flow text, runs and transforms.
+- [x] Preserve unsupported engine data and report it.
 - [ ] Classify visual, semantic, structural and round-trip parity separately.
-- [ ] Add missing-font/substitution and raster-fallback policy.
+- [x] Add missing-font/substitution and raster-fallback policy.
 - [ ] Compare editable result against Photoshop composite fixtures.
 - [ ] Export supported text semantics back to PSD only when verified.
 
@@ -659,6 +659,24 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 - Slice 18 PSD semantic text foundation
+
+- Owner: Codex `/root`; sourced from task 039 and the Phase 6 tracker.
+- Import: validated horizontal Photoshop point and box descriptors map to
+  canonical editable flow text, character/paragraph runs and affine layer
+  transforms. PSD carriage-return offsets remain stable as line feeds.
+- Fidelity policy: a real Photoshop layer-local preview remains authoritative
+  until its requested fonts can be resolved. Only a missing/transparent preview
+  is replaced by native editable text, explicitly reported as approximate.
+- Preservation: the complete ag-psd text descriptor remains in Photoshop layer
+  metadata. Warp, text-on-path, vertical text, invalid run coverage and unsafe
+  contract values stay preview-backed/preserved with explicit reasons.
+- Fonts: requested Photoshop family/PostScript names enter the existing lazy
+  resolver and missing/substituted font diagnostics; importing does not load or
+  retain any font bytes by itself.
+- Verification: adapter, integration, persistence and compatibility tests plus
+  app typecheck pass. Photoshop composite fixtures and PSD export remain open.
 
 ### 2026-08-03 - Slice 15 horizontal implementation complete; manual smoke pending
 

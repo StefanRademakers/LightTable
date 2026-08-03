@@ -278,12 +278,15 @@ describe('importPsdDocument', () => {
     }));
   });
 
-  it('keeps semantic nodes in the tree when Photoshop has no local raster preview', () => {
+  it('imports supported Photoshop text without a usable preview as editable flow text', () => {
     const result = importPsdDocument(decoded([raster('text', {
       kind: 'text',
       rasterFallback: 'transparent-placeholder',
       preserved: {
-        text: { text: 'Editable later' },
+        text: {
+          text: 'Editable now', shapeType: 'box', boxBounds: [2, 3, 30, 20],
+          style: { font: { name: 'Inter' }, fontSize: 18 }
+        },
         placedLayer: null,
         vectorFill: null,
         vectorMask: null,
@@ -293,11 +296,36 @@ describe('importPsdDocument', () => {
     })]), 'text.psd');
     expect(result.document.layers).toHaveLength(1);
     expect(result.document.layers[0]).toMatchObject({
-      type: 'raster',
-      photoshop: { sourceKind: 'text' }
+      type: 'text',
+      photoshop: { sourceKind: 'text' },
+      text: {
+        source: {
+          kind: 'flow', text: 'Editable now',
+          layout: { mode: 'paragraph', frame: { x: 2, y: 3, width: 28, height: 17 } }
+        },
+        interchange: { format: 'psd', sourceObjectId: 'text' }
+      }
     });
-    expect(result.warnings.join('\n')).toContain('structurally preserved');
-    expect(result.warnings.join('\n')).toContain('currently transparent');
+    expect(result.assets).toHaveLength(0);
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      feature: 'text', support: 'approximate'
+    }));
+    expect(result.warnings.join('\n')).toContain('exact appearance depends');
+  });
+
+  it('keeps the Photoshop raster preview authoritative when native text may differ', () => {
+    const result = importPsdDocument(decoded([raster('preview-text', {
+      kind: 'text',
+      preserved: {
+        text: { text: 'Preview first', style: { font: { name: 'Unknown Font' } } },
+        placedLayer: null, vectorFill: null, vectorMask: null, vectorStroke: null, realMask: null
+      }
+    })]), 'preview-text.psd');
+    expect(result.document.layers[0]).toMatchObject({ type: 'raster' });
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      feature: 'text', support: 'raster-preview',
+      reason: expect.stringContaining('remains authoritative')
+    }));
   });
 
   it('creates ordered native adjustment nodes for Photoshop settings already expressible by LightTable', () => {

@@ -19,11 +19,13 @@ import {
   type PhotoshopImportCompatibilityEntry,
   type PhotoshopImportSupport,
   type RasterLayer,
+  type TextLayer,
   type VectorLayer
 } from '../document/documentTypes';
 import { identityAffineMatrix } from '../rendering/renderContract';
 import { importPsdLayerStyles } from './layerStylePsdAdapter';
 import { importPsdVectorShape } from './psdVectorShapeAdapter';
+import { importPsdText } from './psdTextAdapter';
 import type { PsdDecodeSuccess, PsdLayerNodeDto } from '../../image-io/psdProtocol';
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
@@ -516,6 +518,48 @@ export const importPsdDocument = (
         reason: node.pixels
           ? `${vectorImport.reason} Photoshop's layer-local raster preview remains visible.`
           : vectorImport.reason
+      });
+    }
+    if (node.kind === 'text') {
+      const textImport = importPsdText(node.preserved.text, node.id);
+      const reason = textImport.reasons.join(' ');
+      const previewBacked = node.rasterFallback !== 'transparent-placeholder' && Boolean(node.pixels);
+      if (textImport.kind === 'editable-flow' && !previewBacked) {
+        const layer: TextLayer = {
+          ...common,
+          type: 'text',
+          transform: textImport.transform,
+          text: textImport.text,
+          mask: node.mask ? {
+            id: node.mask.id,
+            enabled: node.mask.enabled,
+            density: node.mask.density,
+            feather: node.mask.feather,
+            revision: 0,
+            pixelRevision: 0,
+            dirtyBounds: null
+          } : null
+        };
+        if (node.mask) {
+          assets.push({ layerId: id, pixels: new Blob(), mask: node.mask.pixels });
+        }
+        compatibility.push({ path, feature: 'text', support: 'approximate', reason });
+        compatibility.push({
+          path,
+          feature: 'node',
+          support: 'approximate',
+          reason: 'Photoshop text without a usable raster preview is mapped to native editable flow text.'
+        });
+        warnings.push(`${path}: ${reason}`);
+        return layer;
+      }
+      compatibility.push({
+        path,
+        feature: 'text',
+        support: previewBacked ? 'raster-preview' : 'preserved',
+        reason: previewBacked && textImport.kind === 'editable-flow'
+          ? `${reason} Photoshop's layer-local raster preview remains authoritative until the source font is resolved.`
+          : reason
       });
     }
     if (!node.pixels) {

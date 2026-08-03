@@ -82,7 +82,7 @@ export type PhotoshopImportSupport =
 
 export interface PhotoshopImportCompatibilityEntry {
   path: string;
-  feature: 'node' | 'blend-mode' | 'mask' | 'layer-style' | 'adjustment';
+  feature: 'node' | 'blend-mode' | 'mask' | 'layer-style' | 'adjustment' | 'text';
   support: PhotoshopImportSupport;
   reason: string;
 }
