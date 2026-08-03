@@ -312,6 +312,37 @@ export const createVectorLayer = (
   );
 };
 
+/**
+ * Replaces one text node with canonical paths at the exact same tree address.
+ * The application history layer retains the untouched opening document so an
+ * undo restores the complete editable TextLayer rather than reconstructing it.
+ */
+export const replaceTextLayerWithVectorPaths = (
+  document: ImageDocument,
+  layerId: LayerId,
+  paths: readonly VectorPath[]
+): ImageDocument => {
+  const layer = findLayerNode(document.layers, layerId)?.node;
+  if (layer?.type !== 'text' || layerIsLocked(layer, 'pixels') || paths.length === 0) {
+    return document;
+  }
+  const elements = validatedVectorElements(paths);
+  const { text: _discardedTextAuthority, ...common } = layer;
+  const replacement: VectorLayer = {
+    ...common,
+    type: 'vector',
+    antiAlias: true,
+    elements,
+    revision: layer.revision + 1,
+    geometryRevision: layer.geometryRevision + 1,
+    modifiedAt: Date.now()
+  };
+  return updateDocument(
+    document,
+    updateLayerNode(document.layers, layerId, () => replacement)
+  );
+};
+
 /** Inserts a canonical native text layer beside the active layer. */
 export const createTextLayer = (
   document: ImageDocument,

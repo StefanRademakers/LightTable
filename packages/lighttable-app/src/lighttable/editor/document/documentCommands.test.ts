@@ -8,12 +8,14 @@ import {
   createAdjustmentLayer,
   createGroupLayer,
   createRasterLayer,
+  createTextLayer,
   createVectorLayer,
   convertVectorLiveShapeToPath,
   appendVectorElement,
   replaceVectorLayerElements,
   appendVectorPath,
   replaceVectorPath,
+  replaceTextLayerWithVectorPaths,
   deleteVectorPaths,
   deleteLayers,
   deleteLayer,
@@ -58,8 +60,56 @@ import {
   siblingLayers
 } from './layerTree';
 import { addLayerStyle } from '../styles/layerStyleCommands';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 
 describe('LightTable document commands', () => {
+  it('replaces text with cloned paths without mutating the editable source snapshot', () => {
+    const opening = createTextLayer(
+      createImageDocument('Convert text', 200, 100, 'asset'),
+      createDefaultTextLayerData(),
+      'Editable title'
+    );
+    const layerId = opening.activeLayerId!;
+    const transformed = setLayerTransform(opening, layerId, {
+      a: 2, b: 0.25, c: 0, d: 2, tx: 30, ty: 12
+    });
+    const sourceText = findDocumentLayer(transformed, layerId);
+    if (sourceText?.type !== 'text') throw new Error('Expected text layer fixture.');
+    const path = createVectorPath('glyph-a', 'A', [createSubpath('contour', [
+      createAnchor('a', { x: 0, y: 0 }),
+      createAnchor('b', { x: 10, y: 20 }),
+      createAnchor('c', { x: 20, y: 0 })
+    ], true)]);
+
+    const converted = replaceTextLayerWithVectorPaths(transformed, layerId, [path]);
+    const vector = findDocumentLayer(converted, layerId);
+
+    expect(vector?.type).toBe('vector');
+    if (vector?.type !== 'vector') throw new Error('Expected converted vector layer.');
+    expect(vector.id).toBe(sourceText.id);
+    expect(vector.name).toBe(sourceText.name);
+    expect(vector.transform).toEqual(sourceText.transform);
+    expect(vector.styleStack).toBe(sourceText.styleStack);
+    expect(vector.mask).toBe(sourceText.mask);
+    expect(vector.elements).toHaveLength(1);
+    expect(vector.elements[0]).toEqual(path);
+    expect(vector.elements[0]).not.toBe(path);
+    expect(converted.activeLayerId).toBe(layerId);
+    expect(findDocumentLayer(transformed, layerId)).toBe(sourceText);
+    expect(sourceText.text.source.kind).toBe('flow');
+  });
+
+  it('refuses text conversion for locked and empty path sources', () => {
+    const withText = createTextLayer(
+      createImageDocument('Locked text', 100, 50, 'asset'),
+      createDefaultTextLayerData()
+    );
+    const layerId = withText.activeLayerId!;
+    expect(replaceTextLayerWithVectorPaths(withText, layerId, [])).toBe(withText);
+    const locked = setLayerLock(withText, layerId, 'pixels', true);
+    expect(replaceTextLayerWithVectorPaths(locked, layerId, [createVectorPath('glyph')])).toBe(locked);
+  });
+
   it('owns native vector paths through immutable document commands', () => {
     const source = createImageDocument('Vectors', 100, 50, 'asset');
     const first = createVectorPath('triangle', 'Triangle', [
