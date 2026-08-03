@@ -23,6 +23,14 @@ Status: in progress
   the real WASM corpus and through save/reopen.
 - [ ] Defer vertical writing controls until horizontal complex scripts pass.
 
+## Continuous paint performance
+
+- [x] Coalesce native text-colour preview events to at most one canonical
+  document paint update per animation frame and always flush the final value.
+- [x] Drop superseded text preparation generations before they can enter the
+  worker/GPU path, so colour dragging cannot build a serialized render backlog.
+- [x] Cover burst supersession with a coordinator regression test.
+
 ## Existing UI integration
 
 - [ ] Make existing Layers missing/substitution badges actionable using the
@@ -33,6 +41,6 @@ Status: in progress
 ## Gates
 
 - [x] Focused unit, worker and real-WASM tests pass.
-- [ ] `npm test`, `npm run typecheck`, `npm run build:web` and
+- [x] `npm test`, `npm run typecheck`, `npm run build:web` and
   `npm run package:desktop:verify` pass.
 - [ ] Web and Electron manual corpus/save-reopen smoke is recorded.

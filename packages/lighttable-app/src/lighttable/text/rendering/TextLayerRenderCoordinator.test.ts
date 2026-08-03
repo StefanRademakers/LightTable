@@ -384,6 +384,61 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).toHaveBeenCalledTimes(2);
   });
 
+  it('drops superseded paint preparations instead of building a render backlog', async () => {
+    const state = harness();
+    let releaseFirst!: (value: {
+      layout: { key: string; glyphRuns: never[] };
+      metrics: Record<string, never>;
+      roundTripDurationMs: number;
+      responseTransferBytes: number;
+    }) => void;
+    state.client.realizeTextDetailed.mockImplementationOnce(() => new Promise((resolve) => {
+      releaseFirst = resolve;
+    }));
+    const document = createImageDocument('Text paint burst', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    const layer = document.layers[0]!;
+    if (layer.type !== 'text' || layer.text.source.kind !== 'flow') {
+      throw new Error('Expected flow text fixture.');
+    }
+    const repaint = (input: typeof document, red: number, blue: number) => {
+      const current = input.layers[0]!;
+      if (current.type !== 'text' || current.text.source.kind !== 'flow') {
+        throw new Error('Expected flow text fixture.');
+      }
+      return setFlowTextContent(
+        input,
+        current.id,
+        current.text.source.text,
+        current.text.source.styleRuns.map((run) => ({
+          ...run,
+          fill: { kind: 'solid' as const, color: { colorSpace: 'srgb' as const, r: red, g: 0, b: blue, a: 1 } }
+        })),
+        current.text.source.paragraphRuns
+      );
+    };
+
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+
+    const intermediate = repaint(document, 1, 0);
+    const latest = repaint(intermediate, 0, 1);
+    state.coordinator.sync(intermediate);
+    state.coordinator.sync(latest);
+    releaseFirst({
+      layout: { key: 'superseded-layout', glyphRuns: [] },
+      metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
+    });
+    await state.coordinator.waitForSettledSource(layer.id);
+
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(2);
+    expect(state.client.realizeTextDetailed.mock.calls[1]?.[0]).toMatchObject({
+      revisions: { paint: 2 }
+    });
+  });
+
   it('reflows only the paragraph-edited layer and gives settled siblings zero work', async () => {
     const state = harness();
     const document = createImageDocument('Text siblings', 32, 24, 'source');

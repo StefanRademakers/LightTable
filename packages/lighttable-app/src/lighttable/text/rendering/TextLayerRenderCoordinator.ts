@@ -516,7 +516,14 @@ export class TextLayerRenderCoordinator {
     this.setPreparationStage('loading-runtime');
     this.trace('Preparation scheduled', `generation=${generation} document=${this.document.id} layers=${layers.length} fontRevision=${this.fontPort.revision}`);
     this.work = this.work
-      .then(() => this.prepare(generation, key, layers, abortController.signal))
+      .then(() => {
+        // Continuous property gestures can publish several canonical snapshots
+        // before the preceding GPU preparation yields. Never let those obsolete
+        // snapshots turn into a serialized render backlog: only the newest
+        // generation is allowed to enter the worker/GPU preparation path.
+        if (abortController.signal.aborted || !this.current(generation, key)) return;
+        return this.prepare(generation, key, layers, abortController.signal);
+      })
       .catch((reason: unknown) => {
         if (!this.current(generation, key)) return;
         const message = reason instanceof Error ? reason.message : 'Text source preparation failed.';

@@ -496,6 +496,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId; readonly before: ImageDocument }
     | null
   >(null);
+  const pendingTextFillRef = useRef<string | null>(null);
+  const textFillPreviewFrameRef = useRef<number | null>(null);
   const selectLayerRef = useRef<(layerId: LayerId) => void>(() => undefined);
   const pointTextCreation = useSyncExternalStore(
     pointTextController.subscribe,
@@ -2378,7 +2380,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       });
     });
   };
+  const cancelPendingTextFillPreview = () => {
+    pendingTextFillRef.current = null;
+    if (textFillPreviewFrameRef.current === null) return;
+    window.cancelAnimationFrame(textFillPreviewFrameRef.current);
+    textFillPreviewFrameRef.current = null;
+  };
+  const flushPendingTextFillPreview = () => {
+    const fill = pendingTextFillRef.current;
+    pendingTextFillRef.current = null;
+    if (textFillPreviewFrameRef.current !== null) {
+      window.cancelAnimationFrame(textFillPreviewFrameRef.current);
+      textFillPreviewFrameRef.current = null;
+    }
+    if (!fill) return;
+    const patch = textFillPatchFromHex(fill);
+    if (patch) applyTextPropertyPatch(patch);
+  };
   const commitTextPropertyGesture = () => {
+    flushPendingTextFillPreview();
     const gesture = textPropertyGestureRef.current;
     if (!gesture) return;
     if (gesture.kind === 'text') textEditingController.endFormatting();
@@ -2386,6 +2406,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textPropertyGestureRef.current = null;
   };
   const cancelTextPropertyGesture = () => {
+    cancelPendingTextFillPreview();
     const gesture = textPropertyGestureRef.current;
     if (!gesture) return;
     if (gesture.kind === 'text') {
@@ -2420,9 +2441,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       updateBrush({ color: fill });
       return;
     }
-    const patch = textFillPatchFromHex(fill);
-    if (patch) applyTextPropertyPatch(patch);
+    // Native colour pickers can emit far more input events than the compositor
+    // can present. Coalesce them to one canonical paint update per frame while
+    // retaining the final value on gesture commit.
+    pendingTextFillRef.current = fill;
+    if (textFillPreviewFrameRef.current !== null) return;
+    textFillPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      textFillPreviewFrameRef.current = null;
+      flushPendingTextFillPreview();
+    });
   };
+  useEffect(() => () => {
+    pendingTextFillRef.current = null;
+    if (textFillPreviewFrameRef.current !== null) {
+      window.cancelAnimationFrame(textFillPreviewFrameRef.current);
+      textFillPreviewFrameRef.current = null;
+    }
+  }, []);
   const textPropertiesPanel = textPropertyPresentation ? {
     model: textPropertyPresentation,
     fonts: availableFontAssets,
