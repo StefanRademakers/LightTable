@@ -50,4 +50,27 @@ describe('text editing hit test', () => {
       localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 20, ty: 30 }
     }, { x: 100, y: 80 })).toMatchObject({ offset: 0, affinity: 'downstream' });
   });
+
+  it('reuses its caret spatial index instead of rescanning the paragraph', () => {
+    let iterationAllowed = true;
+    const caretStops = new Proxy(layout.caretStops, {
+      get(target, property, receiver) {
+        if ((property === Symbol.iterator || property === 'forEach' || property === 'find')
+          && !iterationAllowed) {
+          throw new Error('caret collection rescanned');
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    const indexedLayout = { ...layout, key: 'indexed', caretStops };
+    const target = {
+      layout: indexedLayout,
+      localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+    };
+    expect(hitTestTextEditingLayout(target, { x: 1, y: 10 })?.offset).toBe(0);
+    iterationAllowed = false;
+    expect(hitTestTextEditingLayout(target, { x: 17, y: 10 })).toMatchObject({
+      offset: 1, affinity: 'downstream'
+    });
+  });
 });
