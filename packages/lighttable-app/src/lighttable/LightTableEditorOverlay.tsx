@@ -136,6 +136,7 @@ import {
 } from './application/text/flowTextFormatting';
 import {
   buildTextPropertyPresentation,
+  textFillEnabledPatch,
   textFillPatchFromHex,
   textFontPatch,
   textStrokePatch
@@ -150,7 +151,7 @@ import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
 import { FontationsFontFaceParser } from './text/fonts/FontationsFontFaceParser';
 import {
   BUNDLED_TEXT_FONT_CATALOG,
-  registerBundledTextFont,
+  registerBundledTextFontsForDocument,
   registerBundledTextFontByAssetId,
   registerBundledTextFontForSettings
 } from './text/fonts/bundledTextFont';
@@ -726,7 +727,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!imageDocument || fontHydrationPending) return;
     if (!documentNeedsFlowFontFallback(imageDocument, availableFontAssets)) return;
     let cancelled = false;
-    void registerBundledTextFont(textFontRegistry).catch((reason: unknown) => {
+    void registerBundledTextFontsForDocument(textFontRegistry, imageDocument).catch((reason: unknown) => {
       if (cancelled) return;
       appendDebugMessage(
         'error',
@@ -1615,7 +1616,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selection: editorSession.vectorSelection,
     activeTool: editorSession.activeTool,
     foregroundColor: editorSession.brush.color,
+    fillEnabled: editorSession.vectorStyle.fillEnabled,
     fillColor: editorSession.vectorStyle.fillColor,
+    strokeEnabled: editorSession.vectorStyle.strokeEnabled,
     strokeColor: editorSession.vectorStyle.strokeColor,
     strokeWidth: editorSession.vectorStyle.strokeWidth,
     applyDocumentSnapshot,
@@ -2440,6 +2443,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         family: { kind: 'unavailable' as const },
         face: { kind: 'unavailable' as const },
         size: { kind: 'unavailable' as const },
+        fillEnabled: { kind: 'unavailable' as const },
         fill: { kind: 'unavailable' as const },
         strokeColor: { kind: 'unavailable' as const },
         strokeWidth: { kind: 'unavailable' as const },
@@ -2589,6 +2593,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const patch = textFillPatchFromHex(fill);
     if (patch) queueTextPaintPreview(patch);
   };
+  const applyTextFillEnabled = (enabled: boolean) => {
+    if (!textPropertyPresentation) {
+      updateText({ fillEnabled: enabled });
+      return;
+    }
+    const fallback = textPropertyPresentation.fill.kind === 'value'
+      ? textPropertyPresentation.fill.value : editorSession.brush.color;
+    applyDiscreteTextProperty(textFillEnabledPatch(enabled, fallback));
+  };
   const applyTextStrokeColor = (stroke: string) => {
     const width = textPropertyPresentation?.strokeWidth.kind === 'value'
       && textPropertyPresentation.strokeWidth.value > 0
@@ -2615,6 +2628,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onFontAsset: applyTextFontAsset,
     onSize: (size: number) => applyTextPropertyPatch({ fontSize: size }),
     onFill: applyTextFill,
+    onFillEnabled: applyTextFillEnabled,
     onStrokeColor: applyTextStrokeColor,
     onStrokeWidth: applyTextStrokeWidth,
     onTracking: (tracking: number) => applyTextPropertyPatch({ tracking }),
@@ -2661,6 +2675,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onTextFontAssetChange={applyTextFontAsset}
       onTextSizeChange={(fontSize) => applyTextPropertyPatch({ fontSize })}
       onTextFillChange={applyTextFill}
+      onTextFillEnabledChange={applyTextFillEnabled}
       onTextStrokeColorChange={applyTextStrokeColor}
       onTextStrokeWidthChange={applyTextStrokeWidth}
       onTextAlignmentChange={(alignment) => applyDiscreteTextParagraph({ alignment })}
@@ -2759,6 +2774,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onTextFontAssetChange: applyTextFontAsset,
             onTextSizeChange: (fontSize) => applyTextPropertyPatch({ fontSize }),
             onTextFillChange: applyTextFill,
+            onTextFillEnabledChange: applyTextFillEnabled,
             onTextStrokeColorChange: applyTextStrokeColor,
             onTextStrokeWidthChange: applyTextStrokeWidth,
             onTextAlignmentChange: (alignment) => applyDiscreteTextParagraph({ alignment }),

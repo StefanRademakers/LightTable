@@ -9,10 +9,12 @@ const flowPaint = (source: Extract<TextSource, { kind: 'flow' }>, index: number)
   const run = source.styleRuns[index];
   if (!run) return null;
   const paint: TextRunPaint = {
-    fill: run.fill,
+    ...(run.fill ? { fill: run.fill } : {}),
     ...(run.stroke ? { stroke: run.stroke } : {})
   };
-  const renderingMode: TextRenderingMode = run.stroke ? 'fill-stroke' : 'fill';
+  const renderingMode: TextRenderingMode = run.fill
+    ? run.stroke ? 'fill-stroke' : 'fill'
+    : run.stroke ? 'stroke' : 'invisible';
   return { paint, renderingMode };
 };
 

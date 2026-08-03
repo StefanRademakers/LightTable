@@ -96,7 +96,8 @@ export interface TextStyleRun {
   readonly fontWeight: number;
   readonly fontStyle: 'normal' | 'italic' | 'oblique';
   readonly fontStretch: number;
-  readonly fill: TextPaint;
+  /** Omitted means semantic no-fill; stroke-only and invisible text remain editable. */
+  readonly fill?: TextPaint;
   readonly stroke?: TextStroke;
   /** Photoshop/PDF-compatible tracking in 1/1000 em units. */
   readonly tracking: number;

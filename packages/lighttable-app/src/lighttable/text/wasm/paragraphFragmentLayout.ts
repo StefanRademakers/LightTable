@@ -168,7 +168,7 @@ export const assembleParagraphLayout = ({
         },
         fontSize: style.fontSize,
         fontResolution: fontSelection.resolution,
-        paint: { fill: style.fill, ...(style.stroke ? { stroke: style.stroke } : {}) },
+        paint: { ...(style.fill ? { fill: style.fill } : {}), ...(style.stroke ? { stroke: style.stroke } : {}) },
         renderingMode: style.stroke ? 'fill-stroke' : 'fill',
         direction: fragment.runMeta[meta + 1] === 1 ? 'rtl' : 'ltr',
         ...(style.language ? { language: style.language } : {}),

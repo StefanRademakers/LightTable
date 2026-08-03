@@ -705,6 +705,23 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - PSD scale boundary and semantic no-fill
+
+- Real-file regression: `D:\TextTest.psd` was decoded locally and all three
+  ordinary Photoshop text descriptors were verified through the production
+  text adapter. `ag-psd` exposes Photoshop's normal 100% character scale as
+  `1` for this file; the previous percent-only check misclassified every layer
+  as unsupported scaling and therefore kept all three raster-preview backed.
+  The PSD boundary now accepts both unit (`1`) and percent (`100`) encodings.
+- Paint contract: flow-text fill is now optional, matching the existing
+  positioned-text paint contract. No-fill therefore stays semantic through
+  validation, worker realization and current-paint projection; stroke-only and
+  invisible editable text select the correct rendering mode without reshaping.
+- Shared UI: the established Fill/Line color control now exposes paint on/off.
+  Native vector paths/live shapes bind it to their existing nullable fill and
+  stroke model; text binds it to semantic no-fill. PSD `fillFlag=false` maps to
+  no-fill instead of transparent black. No second color-picker family exists.
+
 ### 2026-08-03 - Slice 17 production Path Text authoring
 
 - Tooling: Path Text is the third member of the existing Text toolbar family;

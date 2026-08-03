@@ -41,6 +41,7 @@ export interface ToolOptionsProps {
   onTextFontAssetChange?: (assetId: string) => void;
   onTextSizeChange?: (size: number) => void;
   onTextFillChange?: (fill: string) => void;
+  onTextFillEnabledChange?: (enabled: boolean) => void;
   onTextStrokeColorChange?: (stroke: string) => void;
   onTextStrokeWidthChange?: (width: number) => void;
   onTextAlignmentChange?: (alignment: TextToolSettings['alignment']) => void;
@@ -111,6 +112,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onTextFontAssetChange,
   onTextSizeChange,
   onTextFillChange,
+  onTextFillEnabledChange,
   onTextStrokeColorChange,
   onTextStrokeWidthChange,
   onTextAlignmentChange,
@@ -319,6 +321,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 ? textProperties.fill.value
                 : textProperties ? '#000000' : brush.color}
               onFocus={onTextPropertyBegin}
+              enabled={textProperties?.fillEnabled.kind === 'value'
+                ? textProperties.fillEnabled.value : text.fillEnabled}
+              onEnabledChange={onTextFillEnabledChange}
               onChange={onTextFillChange}
               onBlur={onTextPropertyCommit}
               onCancel={onTextPropertyCancel}
@@ -381,9 +386,13 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         <div className="lighttable-tool-options__vector-style" aria-label="Vector style">
           {activeTool !== 'shape-line' ? (
             <ToolOptionColor label="Fill" value={presentedVectorStyle.fillColor}
+              enabled={presentedVectorStyle.fillEnabled}
+              onEnabledChange={(fillEnabled) => changeVectorStyle({ fillEnabled })}
               onChange={(fillColor) => changeVectorStyle({ fillColor })} />
           ) : null}
           <ToolOptionColor label="Line" value={presentedVectorStyle.strokeColor}
+            enabled={presentedVectorStyle.strokeEnabled}
+            onEnabledChange={(strokeEnabled) => changeVectorStyle({ strokeEnabled })}
             onChange={(strokeColor) => changeVectorStyle({ strokeColor })} />
           <ToolOptionNumber label="Weight" min={0.1} max={1000} step={0.5}
             value={presentedVectorStyle.strokeWidth} unit="px"

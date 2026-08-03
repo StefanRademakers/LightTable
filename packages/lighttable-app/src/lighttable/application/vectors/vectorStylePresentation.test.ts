@@ -30,7 +30,9 @@ describe('vector style presentation', () => {
     };
 
     expect(vectorElementStyleSettings(element)).toEqual({
+      fillEnabled: true,
       fillColor: '#000000',
+      strokeEnabled: true,
       strokeColor: '#ffffff',
       strokeWidth: 3
     });
@@ -47,5 +49,27 @@ describe('vector style presentation', () => {
       dash: [2, 4],
       dashOffset: 1
     });
+  });
+
+  it('round-trips explicit no-fill and no-stroke states without losing remembered colors', () => {
+    const element = createVectorLiveShape('shape', { kind: 'ellipse', width: 20, height: 10 });
+    const withoutPaint = patchVectorStyle(element.style, {
+      fillEnabled: false,
+      strokeEnabled: false
+    });
+    expect(withoutPaint.fill).toBeNull();
+    expect(withoutPaint.stroke).toBeNull();
+    expect(vectorElementStyleSettings({ ...element, style: withoutPaint })).toMatchObject({
+      fillEnabled: false,
+      strokeEnabled: false
+    });
+    const restored = patchVectorStyle(withoutPaint, {
+      fillEnabled: true,
+      fillColor: '#336699',
+      strokeEnabled: true,
+      strokeColor: '#ffffff'
+    });
+    expect(linearRgbaToCssHex(restored.fill?.color ?? [])).toBe('#336699');
+    expect(linearRgbaToCssHex(restored.stroke?.paint.color ?? [])).toBe('#ffffff');
   });
 });

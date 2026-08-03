@@ -14,6 +14,7 @@ export interface TextPropertyPresentation {
   readonly family: MixedValue<string>;
   readonly face: MixedValue<string>;
   readonly size: MixedValue<number>;
+  readonly fillEnabled: MixedValue<boolean>;
   readonly fill: MixedValue<string>;
   readonly strokeColor: MixedValue<string>;
   readonly strokeWidth: MixedValue<number>;
@@ -40,7 +41,7 @@ const mapValue = <Input, Output>(
 const byteHex = (value: number) => Math.round(Math.max(0, Math.min(1, value)) * 255)
   .toString(16).padStart(2, '0');
 
-export const solidTextPaintHex = (paint: TextStyleRun['fill']) => paint.kind === 'solid'
+export const solidTextPaintHex = (paint: TextStyleRun['fill']) => paint?.kind === 'solid'
   && paint.color.colorSpace === 'srgb'
   ? `#${byteHex(paint.color.r)}${byteHex(paint.color.g)}${byteHex(paint.color.b)}`
   : null;
@@ -61,6 +62,13 @@ export const textFillPatchFromHex = (value: string): TextStylePatch | null => {
   const fill = solidPaintFromHex(value);
   return fill ? { fill } : null;
 };
+
+export const textFillEnabledPatch = (
+  enabled: boolean,
+  fallbackColor = '#000000'
+): TextStylePatch => enabled
+  ? textFillPatchFromHex(fallbackColor) ?? {}
+  : { fill: undefined };
 
 export const textStrokePatch = (value: string, width: number): TextStylePatch | null => {
   if (!Number.isFinite(width) || width < 0 || width > 100_000) return null;
@@ -118,9 +126,12 @@ export const buildTextPropertyPresentation = (
       insertionStyle
     ), (key) => fonts.find((font) => faceKey(font) === key)?.assetId ?? null),
     size: projectFlowTextStyleProperty(source, selection, 'fontSize', insertionStyle),
+    fillEnabled: projectFlowTextStyleValue(
+      source, selection, (style) => style.fill !== undefined, insertionStyle
+    ),
     fill: mapValue(
       projectFlowTextStyleProperty(source, selection, 'fill', insertionStyle),
-      solidTextPaintHex
+      (paint) => paint ? solidTextPaintHex(paint) : '#000000'
     ),
     strokeColor: mapValue(
       projectFlowTextStyleProperty(source, selection, 'stroke', insertionStyle),

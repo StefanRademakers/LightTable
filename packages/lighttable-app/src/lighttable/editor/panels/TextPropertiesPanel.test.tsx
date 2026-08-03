@@ -9,7 +9,7 @@ describe('contextual text properties', () => {
       model={{
         target: 'selection',
         family: { kind: 'mixed' }, face: { kind: 'mixed' },
-        size: { kind: 'mixed' }, fill: { kind: 'mixed' },
+        size: { kind: 'mixed' }, fillEnabled: { kind: 'mixed' }, fill: { kind: 'mixed' },
         strokeColor: { kind: 'value', value: '#ffffff' },
         strokeWidth: { kind: 'value', value: 2 },
         tracking: { kind: 'value', value: 0 },
@@ -21,7 +21,8 @@ describe('contextual text properties', () => {
         advancedUnavailableReason: 'Engine support is unavailable.'
       }}
       fonts={[]}
-      onFontAsset={vi.fn()} onSize={vi.fn()} onFill={vi.fn()} onTracking={vi.fn()}
+      onFontAsset={vi.fn()} onSize={vi.fn()} onFill={vi.fn()} onFillEnabled={vi.fn()}
+      onTracking={vi.fn()}
       onStrokeColor={vi.fn()} onStrokeWidth={vi.fn()}
       onParagraph={vi.fn()}
       onBegin={vi.fn()} onCommit={vi.fn()} onCancel={vi.fn()}

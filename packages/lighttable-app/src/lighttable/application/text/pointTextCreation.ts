@@ -324,7 +324,9 @@ const createAuthoredFlowTextData = (
         fontWeight: font.weight,
         fontStyle: font.italic ? 'italic' as const : 'normal' as const,
         fontStretch: font.stretch,
-        fill: { kind: 'solid' as const, color: colorFromHex(foregroundColor) }
+        ...(settings.fillEnabled !== false
+          ? { fill: { kind: 'solid' as const, color: colorFromHex(foregroundColor) } }
+          : {})
       })),
       paragraphRuns: source.paragraphRuns.map((run) => ({
         ...run,

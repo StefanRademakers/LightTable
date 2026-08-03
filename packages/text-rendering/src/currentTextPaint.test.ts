@@ -59,4 +59,31 @@ describe('current text paint projection', () => {
     expect(projected.glyphRuns[1].geometry.buffer).toBe(geometry.buffer);
     expect(projected.glyphRuns[0].glyphIds.buffer).toBe(glyphIds.buffer);
   });
+
+  it('projects semantic no-fill as stroke-only or invisible without reshaping', () => {
+    const source = createDefaultFlowTextSource('x');
+    const geometry = new Float32Array([0, 0, 10, 0]);
+    const layout = { key: 'layout', glyphRuns: [{
+      fontResolution: { kind: 'flow-exact', sourceRunIndex: 0 },
+      paint: { fill: source.styleRuns[0].fill }, renderingMode: 'fill',
+      glyphIds: new Uint32Array([1]), clusters: new Uint32Array([0]), geometry
+    }] } as unknown as RealizedTextLayout;
+    const { fill: _fill, ...withoutFill } = source.styleRuns[0];
+    const stroke = {
+      paint: source.styleRuns[0].fill!, width: 2,
+      cap: 'butt' as const, join: 'miter' as const, miterLimit: 4
+    };
+    const stroked = projectCurrentTextPaint(layout, {
+      ...source, styleRuns: [{ ...withoutFill, stroke }]
+    });
+    expect(stroked.glyphRuns[0]).toMatchObject({
+      renderingMode: 'stroke', paint: { stroke }
+    });
+    expect(stroked.glyphRuns[0].paint.fill).toBeUndefined();
+    expect(stroked.glyphRuns[0].geometry.buffer).toBe(geometry.buffer);
+    const invisible = projectCurrentTextPaint(layout, {
+      ...source, styleRuns: [withoutFill]
+    });
+    expect(invisible.glyphRuns[0]).toMatchObject({ renderingMode: 'invisible', paint: {} });
+  });
 });

@@ -36,7 +36,7 @@ describe('Photoshop text adapter', () => {
       text: 'Hello',
       layout: { mode: 'point', origin: { x: 12, y: 18 } },
       styleRuns: [{
-        requestedFont: { families: ['SourceSerif4-Regular'] },
+        requestedFont: { families: ['Source Serif 4'] },
         fontSize: 36,
         fontStyle: 'normal',
         tracking: 25,
@@ -63,6 +63,32 @@ describe('Photoshop text adapter', () => {
       writingMode: 'horizontal-tb'
     });
     expect(result.text.source.paragraphRuns[0]?.hyphenation).toBe('off');
+  });
+
+  it('normalizes ag-psd unit character scaling to canonical 100 percent', () => {
+    const result = importPsdText({
+      text: 'Photoshop text',
+      style: { horizontalScale: 1, verticalScale: 1, fontSize: 50 }
+    });
+    expect(result.kind).toBe('editable-flow');
+    if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
+    expect(result.text.source.styleRuns[0]).toMatchObject({
+      horizontalScale: 100,
+      verticalScale: 100
+    });
+  });
+
+  it('imports Photoshop fillFlag=false as semantic no-fill instead of transparent black', () => {
+    const result = importPsdText({ text: 'Outline', style: {
+      fillFlag: false,
+      strokeFlag: true,
+      outlineWidth: 2,
+      strokeColor: { r: 255, g: 0, b: 0 }
+    } });
+    expect(result.kind).toBe('editable-flow');
+    if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
+    expect(result.text.source.styleRuns[0]?.fill).toBeUndefined();
+    expect(result.text.source.styleRuns[0]?.stroke).toMatchObject({ width: 2 });
   });
 
   it('imports a text descriptor after an actual PSD binary write/read round trip', () => {

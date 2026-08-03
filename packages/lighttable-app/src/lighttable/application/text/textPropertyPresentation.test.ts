@@ -4,6 +4,7 @@ import {
   buildTextPropertyPresentation,
   solidTextPaintHex,
   textFillPatchFromHex,
+  textFillEnabledPatch,
   textStrokePatch
 } from './textPropertyPresentation';
 
@@ -58,6 +59,19 @@ describe('text property presentation', () => {
       fill: { kind: 'solid', color: { r: 1, b: 0, a: 1 } }
     });
     expect(textFillPatchFromHex('#fff')).toBeNull();
+  });
+
+  it('projects and patches semantic no-fill independently from the color', () => {
+    const source = createDefaultFlowTextSource('x');
+    const { fill: _fill, ...withoutFill } = source.styleRuns[0];
+    const presentation = buildTextPropertyPresentation({
+      ...source, styleRuns: [withoutFill]
+    }, null, []);
+    expect(presentation.fillEnabled).toEqual({ kind: 'value', value: false });
+    expect(textFillEnabledPatch(false)).toEqual({ fill: undefined });
+    expect(textFillEnabledPatch(true, '#336699')).toMatchObject({
+      fill: { kind: 'solid', color: { r: 0.2, g: 0.4, b: 0.6 } }
+    });
   });
 
   it('builds and disables a solid text stroke through the canonical style patch', () => {

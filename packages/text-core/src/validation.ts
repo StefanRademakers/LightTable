@@ -279,7 +279,7 @@ const assertFlowSource = (source: Record<string, unknown>, path: string): void =
     numberInRange(run.fontWeight, `${runPath}.fontWeight`, 1, 1000);
     oneOf(run.fontStyle, `${runPath}.fontStyle`, ['normal', 'italic', 'oblique']);
     numberInRange(run.fontStretch, `${runPath}.fontStretch`, 0.01, 10_000);
-    assertPaint(run.fill, `${runPath}.fill`);
+    if (run.fill !== undefined) assertPaint(run.fill, `${runPath}.fill`);
     if (run.stroke !== undefined) assertTextStroke(run.stroke, `${runPath}.stroke`);
     numberInRange(run.tracking, `${runPath}.tracking`, -100_000, 100_000);
     numberInRange(run.baselineShift, `${runPath}.baselineShift`, -100_000, 100_000);

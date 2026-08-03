@@ -11,6 +11,7 @@ export interface TextPropertiesPanelProps {
   readonly onFontAsset: (assetId: string) => void;
   readonly onSize: (size: number) => void;
   readonly onFill: (fill: string) => void;
+  readonly onFillEnabled: (enabled: boolean) => void;
   readonly onStrokeColor: (stroke: string) => void;
   readonly onStrokeWidth: (width: number) => void;
   readonly onTracking: (tracking: number) => void;
@@ -23,7 +24,7 @@ export interface TextPropertiesPanelProps {
 const mixedOption = <option value="" disabled>Mixed</option>;
 
 export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
-  model, fonts, onFontAsset, onSize, onFill, onStrokeColor, onStrokeWidth,
+  model, fonts, onFontAsset, onSize, onFill, onFillEnabled, onStrokeColor, onStrokeWidth,
   onTracking, onParagraph,
   onBegin, onCommit, onCancel
 }) => {
@@ -87,6 +88,8 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
                 label="Fill"
                 value={model.fill.kind === 'value' ? model.fill.value : '#000000'}
                 ariaLabel="Text fill"
+                enabled={model.fillEnabled.kind === 'value' && model.fillEnabled.value}
+                onEnabledChange={onFillEnabled}
                 onFocus={onBegin}
                 onChange={onFill}
                 onBlur={onCommit}

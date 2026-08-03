@@ -637,7 +637,7 @@ const realizeFlowRequest = (
         },
         fontSize: style.fontSize,
         fontResolution: selectedFonts[sourceRunIndex].resolution,
-        paint: { fill: style.fill, ...(style.stroke ? { stroke: style.stroke } : {}) },
+        paint: { ...(style.fill ? { fill: style.fill } : {}), ...(style.stroke ? { stroke: style.stroke } : {}) },
         renderingMode: style.stroke ? 'fill-stroke' : 'fill',
         direction: runMeta[index * 5 + 1] === 1 ? 'rtl' : 'ltr',
         ...(style.language ? { language: style.language } : {}),

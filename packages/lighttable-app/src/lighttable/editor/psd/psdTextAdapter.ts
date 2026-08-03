@@ -33,6 +33,22 @@ const finite = (value: unknown): value is number =>
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.max(minimum, Math.min(maximum, value));
 
+// ag-psd reads Photoshop's canonical 100% character scale as 1 for files
+// written by current Photoshop, while older/synthetic descriptors may expose
+// the percentage value directly. Normalize both representations at the PSD
+// boundary so ordinary text is not misclassified as unsupported 1% scaling.
+const characterScalePercent = (value: unknown) => finite(value)
+  ? (Math.abs(value) <= 10 ? value * 100 : value)
+  : 100;
+
+const familyNameFromPostScript = (postScriptName: string) => {
+  if (postScriptName.startsWith('Inter-')) return 'Inter';
+  if (postScriptName.startsWith('SourceSerif4-')) return 'Source Serif 4';
+  if (postScriptName.startsWith('JetBrainsMono-')) return 'JetBrains Mono';
+  if (postScriptName.startsWith('NotoSans-')) return 'Noto Sans';
+  return postScriptName;
+};
+
 const affine = (value: unknown): AffineMatrix | null => {
   if (value === undefined) return { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
   if (!Array.isArray(value) || value.length !== 6 || !value.every(finite)) return null;
@@ -97,25 +113,23 @@ const style = (
     start,
     end,
     requestedFont: {
-      families: source.font?.name ? [source.font.name] : ['Inter', 'sans-serif'],
+      families: source.font?.name
+        ? [familyNameFromPostScript(source.font.name)] : ['Inter', 'sans-serif'],
       ...(source.font?.name ? { postScriptName: source.font.name } : {})
     },
     fontSize: clamp(finite(source.fontSize) && source.fontSize > 0 ? source.fontSize : 16, 0.01, 100_000),
     fontWeight: source.fauxBold ? 700 : 400,
     fontStyle: source.fauxItalic ? 'italic' : 'normal',
     fontStretch: 100,
-    fill: {
-      kind: 'solid',
-      color: source.fillFlag === false ? { ...fill, a: 0 } : fill
-    },
+    ...(source.fillFlag === false ? {} : { fill: { kind: 'solid' as const, color: fill } }),
     ...(stroke ? { stroke } : {}),
     tracking: clamp(finite(source.tracking) ? source.tracking : 0, -100_000, 100_000),
     // Photoshop serializes zero as the manual-pair value even while automatic
     // kerning is enabled. Only the explicit autoKerning=false state disables it.
     kerning: source.autoKerning === false ? 'none' : 'metrics',
     baselineShift: clamp(finite(source.baselineShift) ? source.baselineShift : 0, -100_000, 100_000),
-    horizontalScale: clamp(finite(source.horizontalScale) && source.horizontalScale > 0 ? source.horizontalScale : 100, 0.01, 10_000),
-    verticalScale: clamp(finite(source.verticalScale) && source.verticalScale > 0 ? source.verticalScale : 100, 0.01, 10_000),
+    horizontalScale: clamp(characterScalePercent(source.horizontalScale), 0.01, 10_000),
+    verticalScale: clamp(characterScalePercent(source.verticalScale), 0.01, 10_000),
     openTypeFeatures: {
       ...(source.ligatures === false ? { liga: false } : {}),
       ...(source.dLigatures !== undefined ? { dlig: source.dLigatures } : {})
@@ -186,8 +200,8 @@ const unsupportedEditableSemantics = (source: LayerTextData): string[] => {
   if (styles.some((candidate) => finite(candidate.baselineShift) && candidate.baselineShift !== 0)) {
     reasons.push('Photoshop baseline shift is preserved until the editable layout path supports it.');
   }
-  if (styles.some((candidate) => (finite(candidate.horizontalScale) && candidate.horizontalScale !== 100)
-    || (finite(candidate.verticalScale) && candidate.verticalScale !== 100))) {
+  if (styles.some((candidate) => characterScalePercent(candidate.horizontalScale) !== 100
+    || characterScalePercent(candidate.verticalScale) !== 100)) {
     reasons.push('Photoshop character scaling is preserved until the editable layout path supports it.');
   }
   if (styles.some((candidate) => candidate.autoKerning === false)) {

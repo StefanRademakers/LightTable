@@ -22,6 +22,8 @@ export interface ToolOptionColorProps {
   readonly value: string;
   readonly status?: React.ReactNode;
   readonly ariaLabel?: string;
+  readonly enabled?: boolean;
+  readonly onEnabledChange?: (enabled: boolean) => void;
   readonly onChange: (value: string) => void;
   readonly onFocus?: () => void;
   readonly onBlur?: () => void;
@@ -33,16 +35,31 @@ export const ToolOptionColor: React.FC<ToolOptionColorProps> = ({
   value,
   status,
   ariaLabel = label,
+  enabled = true,
+  onEnabledChange,
   onChange,
   onFocus,
   onBlur,
   onCancel
 }) => (
-  <label className="lighttable-tool-options__color-field">
+  <div className="lighttable-tool-options__color-field">
     <span>{label}</span>
+    {onEnabledChange ? (
+      <button
+        type="button"
+        className={enabled
+          ? 'lighttable-tool-options__paint-toggle lighttable-tool-options__paint-toggle--enabled'
+          : 'lighttable-tool-options__paint-toggle'}
+        aria-label={`${ariaLabel}: ${enabled ? 'disable paint' : 'enable paint'}`}
+        aria-pressed={enabled}
+        title={enabled ? `Disable ${label.toLowerCase()}` : `Enable ${label.toLowerCase()}`}
+        onClick={() => onEnabledChange(!enabled)}
+      >{enabled ? 'On' : '/'}</button>
+    ) : null}
     <input
       type="color"
       value={value}
+      disabled={!enabled}
       aria-label={ariaLabel}
       onFocus={onFocus}
       onChange={(event) => onChange(event.currentTarget.value)}
@@ -55,7 +72,7 @@ export const ToolOptionColor: React.FC<ToolOptionColorProps> = ({
       }}
     />
     {status}
-  </label>
+  </div>
 );
 
 export interface ToolOptionNumberProps

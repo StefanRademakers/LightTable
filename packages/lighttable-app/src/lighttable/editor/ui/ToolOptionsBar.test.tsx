@@ -63,7 +63,10 @@ const renderOptions = (
 
 describe('vector style tool options', () => {
   it('shows an imported selected shape style across the existing vector tool family', () => {
-    const selected = { fillColor: '#123456', strokeColor: '#abcdef', strokeWidth: 7 };
+    const selected = {
+      fillEnabled: true, fillColor: '#123456',
+      strokeEnabled: true, strokeColor: '#abcdef', strokeWidth: 7
+    };
     for (const tool of ['shape-rectangle', 'vector-select', 'vector-direct-select'] as const) {
       const markup = renderOptions(tool, 1, 1, undefined, selected);
       expect(markup).toContain('aria-label="Vector style"');
@@ -115,6 +118,7 @@ describe('point text tool options', () => {
     const markup = renderOptions('text-point', 1, 1, {
       target: 'selection', family: { kind: 'value', value: 'Inter' },
       face: { kind: 'value', value: 'inter' }, size: { kind: 'mixed' },
+      fillEnabled: { kind: 'value', value: true },
       fill: { kind: 'value', value: '#ff0000' }, tracking: { kind: 'value', value: 0 },
       strokeColor: { kind: 'value', value: '#00ff00' },
       strokeWidth: { kind: 'value', value: 3 },

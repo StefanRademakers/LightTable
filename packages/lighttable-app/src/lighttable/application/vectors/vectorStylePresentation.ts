@@ -30,7 +30,9 @@ export const cssHexToLinearRgba = (color: string): [number, number, number, numb
 export const vectorElementStyleSettings = (
   element: VectorElement
 ): VectorToolStyleSettings => ({
+  fillEnabled: element.style.fill !== null,
   fillColor: linearRgbaToCssHex(element.style.fill?.color ?? [0, 0, 0, 1]),
+  strokeEnabled: element.style.stroke !== null,
   strokeColor: linearRgbaToCssHex(element.style.stroke?.paint.color ?? [1, 1, 1, 1]),
   strokeWidth: element.style.stroke?.width ?? 3
 });
@@ -40,10 +42,13 @@ export const patchVectorStyle = (
   change: Partial<VectorToolStyleSettings>
 ): VectorStyle => ({
   ...style,
-  fill: change.fillColor === undefined
-    ? style.fill
-    : { type: 'solid', color: cssHexToLinearRgba(change.fillColor) },
-  stroke: {
+  fill: change.fillEnabled === false ? null
+    : change.fillColor !== undefined
+      ? { type: 'solid', color: cssHexToLinearRgba(change.fillColor) }
+      : change.fillEnabled === true && !style.fill
+        ? { type: 'solid', color: [0, 0, 0, 1] }
+        : style.fill,
+  stroke: change.strokeEnabled === false ? null : {
     paint: {
       type: 'solid',
       color: change.strokeColor === undefined

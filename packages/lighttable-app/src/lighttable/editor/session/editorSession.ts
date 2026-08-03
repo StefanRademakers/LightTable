@@ -163,7 +163,9 @@ export interface BrushSettings {
 
 /** Authoring style used by native vector shape and Pen tools. */
 export interface VectorToolStyleSettings {
+  fillEnabled: boolean;
   fillColor: string;
+  strokeEnabled: boolean;
   strokeColor: string;
   strokeWidth: number;
 }
@@ -174,6 +176,7 @@ export interface TextToolSettings {
   size: number;
   antiAlias: 'smooth';
   alignment: 'start' | 'center' | 'end' | 'justify';
+  fillEnabled: boolean;
 }
 
 export interface EditorSession {
@@ -212,7 +215,9 @@ export const createEditorSession = (): EditorSession => ({
     backgroundColor: '#ffffff'
   },
   vectorStyle: {
+    fillEnabled: true,
     fillColor: '#000000',
+    strokeEnabled: true,
     strokeColor: '#ffffff',
     strokeWidth: 3
   },
@@ -221,7 +226,8 @@ export const createEditorSession = (): EditorSession => ({
     style: 'Regular',
     size: 250,
     antiAlias: 'smooth',
-    alignment: 'start'
+    alignment: 'start',
+    fillEnabled: true
   },
   warp: {
     mode: 'push',

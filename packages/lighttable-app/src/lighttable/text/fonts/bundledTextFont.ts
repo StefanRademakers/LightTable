@@ -8,7 +8,7 @@ import jetBrainsMonoBoldUrl from '@fontsource/jetbrains-mono/files/jetbrains-mon
 import notoSansRegularUrl from '@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff2?url';
 import notoSansBoldUrl from '@fontsource/noto-sans/files/noto-sans-latin-700-normal.woff2?url';
 import type { TextToolSettings } from '../../editor/session/editorSession';
-import type { DocumentFontAsset } from '../../editor/document/documentTypes';
+import type { DocumentFontAsset, ImageDocument, LayerNode } from '../../editor/document/documentTypes';
 import type { DocumentFontRegistry } from './DocumentFontRegistry';
 
 export const BUNDLED_TEXT_FONT_FAMILY = 'Inter';
@@ -114,3 +114,28 @@ export const registerBundledTextFontForSettings = (
 export const registerBundledTextFont = (
   registry: DocumentFontRegistry
 ): Promise<DocumentFontAsset> => registerDefinition(registry, definitions[0]!);
+
+const requestedPostScriptNames = (nodes: readonly LayerNode[], result: Set<string>) => {
+  nodes.forEach((node) => {
+    if (node.type === 'group') requestedPostScriptNames(node.children, result);
+    else if (node.type === 'text' && node.text.source.kind === 'flow') {
+      node.text.source.styleRuns.forEach(({ requestedFont }) => {
+        if (requestedFont.postScriptName) result.add(requestedFont.postScriptName);
+      });
+    }
+  });
+};
+
+/** Lazily loads only bundled faces explicitly requested by an opened document, plus one fallback. */
+export const registerBundledTextFontsForDocument = async (
+  registry: DocumentFontRegistry,
+  document: ImageDocument
+) => {
+  const requested = new Set<string>();
+  requestedPostScriptNames(document.layers, requested);
+  const exact = definitions.filter(({ asset }) => asset.postScriptName
+    && requested.has(asset.postScriptName));
+  const selected = exact.some(({ asset }) => asset.assetId === BUNDLED_TEXT_FONT_ASSET_ID)
+    ? exact : [definitions[0]!, ...exact];
+  return Promise.all(selected.map((font) => registerDefinition(registry, font)));
+};

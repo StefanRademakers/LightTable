@@ -17,7 +17,9 @@ export interface VectorToolSessionHookOptions {
   readonly activeTool: ToolId;
   readonly foregroundColor: string;
   readonly fillColor: string;
+  readonly fillEnabled: boolean;
   readonly strokeColor: string;
+  readonly strokeEnabled: boolean;
   readonly strokeWidth: number;
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
@@ -37,7 +39,9 @@ export const useVectorToolSessionController = ({
   activeTool,
   foregroundColor,
   fillColor,
+  fillEnabled,
   strokeColor,
+  strokeEnabled,
   strokeWidth,
   applyDocumentSnapshot,
   pushDocumentHistory,
@@ -48,7 +52,9 @@ export const useVectorToolSessionController = ({
     selection,
     foregroundColor,
     fillColor,
+    fillEnabled,
     strokeColor,
+    strokeEnabled,
     strokeWidth,
     applyDocumentSnapshot,
     pushDocumentHistory,
@@ -59,7 +65,9 @@ export const useVectorToolSessionController = ({
     selection,
     foregroundColor,
     fillColor,
+    fillEnabled,
     strokeColor,
+    strokeEnabled,
     strokeWidth,
     applyDocumentSnapshot,
     pushDocumentHistory,
@@ -82,13 +90,17 @@ export const useVectorToolSessionController = ({
       }
     }, {
       penStyle: (): VectorStyle => ({
-        fill: { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) },
-        stroke: createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth),
+        fill: portsRef.current.fillEnabled
+          ? { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) } : null,
+        stroke: portsRef.current.strokeEnabled
+          ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth) : null,
         opacity: 1
       }),
       liveShapeStyle: (): VectorStyle => ({
-        fill: { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) },
-        stroke: createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth),
+        fill: portsRef.current.fillEnabled
+          ? { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) } : null,
+        stroke: portsRef.current.strokeEnabled
+          ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth) : null,
         opacity: 1
       })
     });
