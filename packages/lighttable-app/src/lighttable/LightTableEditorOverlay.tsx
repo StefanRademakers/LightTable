@@ -136,6 +136,7 @@ import {
   registerBundledTextFontByAssetId,
   registerBundledTextFontForSettings
 } from './text/fonts/bundledTextFont';
+import { bindRendererTextFontRuntime } from './composition/documents/bindRendererTextFontRuntime';
 import {
   LightTableDockWorkspace,
   type LightTableDockWorkspaceHandle
@@ -568,6 +569,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     bytes: (assetId: string) => textFontRegistry.bytes(assetId),
     subscribe: (listener: () => void) => textFontRegistry.subscribeAvailability(listener)
   }), [textFontRegistry]);
+  useEffect(() => bindRendererTextFontRuntime(
+    rendererLifecycle,
+    () => engineRef.current,
+    textFontRuntimePort
+  ), [rendererLifecycle, textFontRuntimePort]);
   const fontDiagnostics = useMemo(
     () => imageDocument && !fontHydrationPending
       ? documentTextFontDiagnostics(imageDocument, availableFontAssets)
