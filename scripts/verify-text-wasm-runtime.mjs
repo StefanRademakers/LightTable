@@ -83,6 +83,41 @@ if (!bundledMask.pixels().some((coverage) => coverage > 0)) {
 }
 bundledMask.free();
 bundledLayout.free();
+const openFontPalette = [
+  ['lighttable-inter-latin-semibold', 'Inter', 'inter/files/inter-latin-600-normal.woff2', 600],
+  ['lighttable-source-serif-4-latin-regular', 'Source Serif 4', 'source-serif-4/files/source-serif-4-latin-400-normal.woff2', 400],
+  ['lighttable-source-serif-4-latin-italic', 'Source Serif 4', 'source-serif-4/files/source-serif-4-latin-400-italic.woff2', 400],
+  ['lighttable-source-serif-4-latin-bold', 'Source Serif 4', 'source-serif-4/files/source-serif-4-latin-700-normal.woff2', 700],
+  ['lighttable-jetbrains-mono-latin-regular', 'JetBrains Mono', 'jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2', 400],
+  ['lighttable-jetbrains-mono-latin-bold', 'JetBrains Mono', 'jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2', 700],
+  ['lighttable-noto-sans-latin-regular', 'Noto Sans', 'noto-sans/files/noto-sans-latin-400-normal.woff2', 400],
+  ['lighttable-noto-sans-latin-bold', 'Noto Sans', 'noto-sans/files/noto-sans-latin-700-normal.woff2', 700]
+];
+const paletteSession = 'node-open-font-palette:1';
+for (const [assetId, family, relativePath, weight] of openFontPalette) {
+  const bytes = await readFile(join(repoRoot, 'node_modules', '@fontsource', relativePath));
+  bindings.register_layout_font(paletteSession, assetId, bytes);
+  const strings = new TextEncoder().encode(family + assetId);
+  const result = bindings.realize_flow_text(
+    paletteSession, `runtime-${assetId}`, 'LightTable', 400, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 100,
+    new Uint32Array([0, 10, 0, 0, 0]),
+    new Float32Array([18, weight, 100, 0]),
+    strings,
+    new Uint32Array([0, family.length, family.length, strings.length])
+  );
+  const glyphs = result.glyph_ids();
+  if (!glyphs.length) throw new Error(`${family} ${weight} did not shape through Parley.`);
+  const mask = bindings.rasterize_registered_glyph(paletteSession, assetId, 0, glyphs[0], 18);
+  if (!mask.pixels().some((coverage) => coverage > 0)) {
+    throw new Error(`${family} ${weight} did not rasterize through Skrifa.`);
+  }
+  mask.free();
+  result.free();
+}
+if (!bindings.drop_layout_session(paletteSession)) {
+  throw new Error('LightTable did not release its open-font palette test session.');
+}
 const layoutStartedAt = performance.now();
 const layout = bindings.realize_flow_text(
   sessionKey, 'runtime-latin', 'office A😀', 400, 0, 0, 0,
@@ -210,7 +245,7 @@ if (!bindings.drop_layout_session(corpusSession)) {
 }
 console.log(
   `LightTable text WASM runtime passed: v${version}, ${inspection.glyphCount} fixture glyphs, `
-  + `${glyphIds.length} shaped glyphs in ${layoutDurationMs.toFixed(2)} ms, `
+  + `${glyphIds.length} shaped glyphs in ${layoutDurationMs.toFixed(2)} ms, 9 open faces, `
   + `${bindings.text_engine_memory_bytes()} bytes WASM memory.`
 );
 console.log(`LightTable typography structural goldens: ${corpusHashes.join(', ')}`);

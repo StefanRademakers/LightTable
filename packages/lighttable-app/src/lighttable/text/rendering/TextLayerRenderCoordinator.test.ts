@@ -173,6 +173,48 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).toHaveBeenCalledOnce();
   });
 
+  it('registers only exact fonts referenced by production text layers', async () => {
+    const state = harness();
+    const unused = {
+      ...asset,
+      assetId: 'font-unused',
+      fingerprintSha256: 'b'.repeat(64),
+      familyNames: ['Unused']
+    };
+    const port = {
+      ...state.port,
+      assets: [asset, unused],
+      bytes: vi.fn(async (assetId: string) => new Uint8Array(
+        assetId === asset.assetId ? [1, 2, 3, 4] : [5, 6, 7, 8]
+      ))
+    } satisfies TextFontRuntimePort;
+    const text = createDefaultTextLayerData();
+    const source = text.source.kind === 'flow' ? text.source : null;
+    if (!source) throw new Error('Expected the default flow source.');
+    const document = createImageDocument('Referenced font', 32, 24, 'source');
+    document.layers = [createTextLayerNode({
+      ...text,
+      source: {
+        ...source,
+        styleRuns: source.styleRuns.map((run) => ({
+          ...run,
+          requestedFont: { ...run.requestedFont, preferredAsset: asset }
+        }))
+      }
+    }, 'Text')];
+
+    state.coordinator.configureFonts(port);
+    state.coordinator.sync(document);
+    await flush();
+
+    expect(port.bytes).toHaveBeenCalledOnce();
+    expect(port.bytes).toHaveBeenCalledWith(asset.assetId);
+    expect(state.client.registerFontDetailed).toHaveBeenCalledOnce();
+    expect(state.client.registerFontDetailed).toHaveBeenCalledWith(
+      expect.objectContaining({ font: asset }), expect.any(AbortSignal)
+    );
+  });
+
   it('publishes small eligible text as a retained direct atlas plan without a private submit', async () => {
     const state = harness();
     state.client.realizeTextDetailed.mockResolvedValueOnce({

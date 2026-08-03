@@ -131,7 +131,11 @@ import { applyTextLayerDataMutation } from './editor/document/textLayerCommands'
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
 import { FontationsFontFaceParser } from './text/fonts/FontationsFontFaceParser';
-import { registerBundledTextFont } from './text/fonts/bundledTextFont';
+import {
+  BUNDLED_TEXT_FONT_CATALOG,
+  registerBundledTextFontByAssetId,
+  registerBundledTextFontForSettings
+} from './text/fonts/bundledTextFont';
 import {
   LightTableDockWorkspace,
   type LightTableDockWorkspaceHandle
@@ -553,6 +557,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     () => textFontRegistry.availableAssets,
     [textFontRegistry, fontAvailabilityRevision]
   );
+  const selectableTextFonts = useMemo(() => {
+    const fonts = new Map(BUNDLED_TEXT_FONT_CATALOG.map((asset) => [asset.assetId, asset]));
+    availableFontAssets.forEach((asset) => fonts.set(asset.assetId, asset));
+    return [...fonts.values()];
+  }, [availableFontAssets]);
   const textFontRuntimePort = useMemo(() => ({
     get revision() { return textFontRegistry.availabilityRevision; },
     get assets() { return textFontRegistry.availableAssets; },
@@ -590,10 +599,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => {
     let activeRegistration = true;
     if (!thumbnailDocumentReadyId && editorSession.activeTool !== 'text-point') return undefined;
-    void Promise.all([
-      registerBundledTextFont(textFontRegistry),
-      textEngineDiagnostic.probe()
-    ]).catch((reason: unknown) => {
+    void textEngineDiagnostic.probe().catch((reason: unknown) => {
       if (activeRegistration && editorSession.activeTool === 'text-point') {
         setError(reason instanceof Error
           ? reason.message
@@ -1486,7 +1492,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const documentId = document.id;
     setGradeStatus('Preparing the text engine...');
     try {
-      await registerBundledTextFont(textFontRegistry);
+      await registerBundledTextFontForSettings(textFontRegistry, editorSession.text);
       await lightTableTextEngine.probe();
       if (
         generation !== pointTextCapabilityGenerationRef.current
@@ -1502,6 +1508,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setError(reason instanceof Error
         ? `Text creation is unavailable: ${reason.message}`
         : 'Text creation is unavailable because the text engine failed to load.');
+    } finally {
+      if (generation === pointTextCapabilityGenerationRef.current) {
+        setGradeStatus(null);
+      }
     }
   };
 
@@ -2013,7 +2023,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (!change.family || change.family === current.text.family) {
         return { ...current, text: { ...current.text, ...change } };
       }
-      const style = defaultTextStyleForFamily(availableFontAssets, change.family);
+      const style = defaultTextStyleForFamily(selectableTextFonts, change.family);
       return {
         ...current,
         text: {
@@ -2126,8 +2136,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commitTextPropertyGesture();
   };
   const applyTextFontAsset = (assetId: string) => {
-    const asset = availableFontAssets.find((font) => font.assetId === assetId);
-    if (asset) applyDiscreteTextProperty(textFontPatch(asset));
+    void (async () => {
+      const bundled = await registerBundledTextFontByAssetId(textFontRegistry, assetId);
+      const asset = bundled ?? textFontRegistry.availableAssets.find((font) => font.assetId === assetId);
+      if (asset) applyDiscreteTextProperty(textFontPatch(asset));
+    })().catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : 'The selected font could not be loaded.');
+    });
   };
   const applyTextFill = (fill: string) => {
     if (!textPropertyPresentation) {
@@ -2165,7 +2180,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       warp={editorSession.warp}
       vectorStyle={editorSession.vectorStyle}
       text={editorSession.text}
-      textFonts={availableFontAssets}
+      textFonts={selectableTextFonts}
       textProperties={textPropertyPresentation}
       selectedVectorStyle={selectedVectorStyle}
       selectionPixelSnap={editorSession.selectionPixelSnap}
@@ -2244,7 +2259,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             warp: editorSession.warp,
             vectorStyle: editorSession.vectorStyle,
             text: editorSession.text,
-            textFonts: availableFontAssets,
+            textFonts: selectableTextFonts,
             textProperties: textPropertyPresentation,
             selectedVectorStyle,
             selectionPixelSnap: editorSession.selectionPixelSnap,

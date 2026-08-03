@@ -70,6 +70,34 @@ interface VisibleTextEntry {
   readonly transform: AffineMatrix;
 }
 
+const referencedFontAssets = (
+  layers: readonly VisibleTextEntry[],
+  available: readonly DocumentFontAsset[]
+) => {
+  const assetIds = new Set<string>();
+  for (const { layer } of layers) {
+    const source = layer.text.source;
+    if (source.kind === 'positioned') {
+      source.runs.forEach((run) => assetIds.add(run.font.font.assetId));
+      continue;
+    }
+    source.styleRuns.forEach((run) => {
+      if (run.requestedFont.preferredAsset) {
+        assetIds.add(run.requestedFont.preferredAsset.assetId);
+      }
+    });
+    if (source.insertionStyle?.requestedFont.preferredAsset) {
+      assetIds.add(source.insertionStyle.requestedFont.preferredAsset.assetId);
+    }
+  }
+  // Legacy/contract flow sources without exact font identity keep the previous
+  // catalog behavior. Authored and imported production layers always carry an
+  // exact preferred asset and therefore pay only for fonts they actually use.
+  return assetIds.size === 0
+    ? available
+    : available.filter(({ assetId }) => assetIds.has(assetId));
+};
+
 export interface TextLayerEditingLayout {
   readonly layerId: LayerId;
   readonly preparationKey: string;
@@ -456,7 +484,9 @@ export class TextLayerRenderCoordinator {
       return;
     }
     this.dependencies = dependencies;
-    if (!await this.beginSession(dependencies, document.id, port, generation, key, signal)) return;
+    if (!await this.beginSession(
+      dependencies, document.id, layers, port, generation, key, signal
+    )) return;
     if (!this.current(generation, key)) return;
     for (const entry of layers) {
       if (!this.current(generation, key)) return;
@@ -478,18 +508,22 @@ export class TextLayerRenderCoordinator {
   private async beginSession(
     dependencies: CoordinatorDependencies,
     documentId: string,
+    layers: readonly VisibleTextEntry[],
     port: TextFontRuntimePort,
     generation: number,
     key: string,
     signal: AbortSignal
   ) {
-    const nextSessionKey = `${documentId}:${port.revision}`;
+    const sessionAssets = referencedFontAssets(layers, port.assets);
+    const nextSessionKey = `${documentId}:${sessionAssets.map((asset) =>
+      `${asset.assetId}:${asset.faceIndex}:${asset.fingerprintSha256}`
+    ).join('|')}`;
     if (this.sessionId && this.sessionKey === nextSessionKey) return true;
     const candidateSessionId = `document-text-${documentId}-${++sessionSequence}`;
     const candidateGeneration = sessionSequence;
     let snapshotRevision = 0;
     try {
-      for (const asset of port.assets) {
+      for (const asset of sessionAssets) {
         const bytes = await port.bytes(asset.assetId);
         if (!bytes) continue;
         await dependencies.client.registerFontDetailed({
