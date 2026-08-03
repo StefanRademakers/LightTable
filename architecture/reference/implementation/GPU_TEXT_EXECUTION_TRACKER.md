@@ -705,6 +705,23 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 17 undoable path-text handles
+
+- Interaction: the existing GPU start/end/direction markers now share one
+  geometry authority with their pointer hit targets. Start/end drags project
+  through the retained arc-length spatial index, including reverse traversal;
+  the direction marker toggles traversal as one explicit command.
+- History/performance: raw pointer moves remain in a non-React controller.
+  Any number of previews derive from the immutable opening document, pointer-up
+  records one history entry and cancellation restores that exact snapshot.
+- Routing: point and paragraph text now share the same captured text-gesture
+  port. This also fixes point-text selection drags losing pointer capture while
+  keeping caret/selection updates out of document compositing.
+- UI/UX: existing path text can expose and manipulate the GPU handles through
+  the established Text canvas interaction. Production Path Text creation and
+  path-specific properties remain gated on reference-safe document commands;
+  no new controls, CSS, SVG or DOM overlay were added.
+
 ### 2026-08-03 - Slice 18 PSD semantic text takes editing priority
 
 - Import policy: a valid supported Photoshop text descriptor now always creates

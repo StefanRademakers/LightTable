@@ -12,6 +12,10 @@ import {
   rigidPathPlacementAt,
   type RigidPathGlyphProjection
 } from './rigidPathGlyphProjection';
+import {
+  pathTextHandlePresentation,
+  transformPathTextPoint
+} from './pathTextHandles';
 
 export interface BuildPathTextEditingOverlayOptions {
   readonly layerId: string;
@@ -203,21 +207,10 @@ export const buildPathTextEditingOverlay = ({
       });
     }
   }
-  const startPlacement = rigidPathPlacementAt(
-    table, projection.range.start, projection.range.direction, pathLayout
-  );
-  const endPlacement = rigidPathPlacementAt(
-    table, projection.range.end, projection.range.direction, pathLayout
-  );
-  const directionPlacement = rigidPathPlacementAt(
-    table,
-    Math.min(projection.range.end, projection.range.start + Math.max(12, Math.min(32, table.length * 0.1))),
-    projection.range.direction,
-    pathLayout
-  );
-  const startPoint = transformPoint(localToDocument, startPlacement.point);
-  const endPoint = transformPoint(localToDocument, endPlacement.point);
-  const directionPoint = transformPoint(localToDocument, directionPlacement.point);
+  const handles = pathTextHandlePresentation(pathLayout, table, projection);
+  const startPoint = transformPathTextPoint(localToDocument, handles.start);
+  const endPoint = transformPathTextPoint(localToDocument, handles.end);
+  const directionPoint = transformPathTextPoint(localToDocument, handles.direction);
   staticLines.push({
     role: 'path-direction', start: startPoint, end: directionPoint, widthPx: 1.5,
     color: [0.24, 0.66, 1, 0.95]

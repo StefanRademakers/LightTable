@@ -70,8 +70,9 @@ interface ViewportInteractionOptions {
   onFocusPickerEnd: () => void;
   onFill: (color: string) => void;
   onPointTextCreate: (point: { x: number; y: number }, clickCount: number) => void;
-  paragraphText: {
-    begin(pointerId: number, point: { x: number; y: number }): boolean;
+  textGesture: {
+    beginPoint(pointerId: number, point: { x: number; y: number }): boolean;
+    beginParagraph(pointerId: number, point: { x: number; y: number }): boolean;
     owns(pointerId: number): boolean;
     move(pointerId: number, point: { x: number; y: number }): boolean;
     finish(pointerId: number, point: { x: number; y: number }): boolean;
@@ -124,7 +125,7 @@ export const useViewportInteractionController = ({
   onFocusPickerEnd,
   onFill,
   onPointTextCreate,
-  paragraphText,
+  textGesture,
   selection,
   paint,
   warp,
@@ -460,13 +461,17 @@ export const useViewportInteractionController = ({
       }
       if (intent === 'text-create' && point) {
         if (activeTool === 'text-paragraph') {
-          if (paragraphText.begin(event.pointerId, point)) {
+          if (textGesture.beginParagraph(event.pointerId, point)) {
             event.currentTarget.setPointerCapture(event.pointerId);
           }
           event.preventDefault();
           return;
         }
-        onPointTextCreate({ x: point.x, y: point.y }, event.detail);
+        if (textGesture.beginPoint(event.pointerId, point)) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } else {
+          onPointTextCreate({ x: point.x, y: point.y }, event.detail);
+        }
         event.preventDefault();
         return;
       }
@@ -529,8 +534,8 @@ export const useViewportInteractionController = ({
       const bounds = event.currentTarget.getBoundingClientRect();
       updateBrushCursor(event, bounds);
       const point = documentPoint(event, bounds);
-      if (paragraphText.owns(event.pointerId)) {
-        if (point && paragraphText.move(event.pointerId, point)) event.preventDefault();
+      if (textGesture.owns(event.pointerId)) {
+        if (point && textGesture.move(event.pointerId, point)) event.preventDefault();
         return;
       }
       if (point && vector.ownsPointer(event.pointerId)) {
@@ -582,10 +587,10 @@ export const useViewportInteractionController = ({
       }
     },
     onPointerUp: (event) => {
-      if (paragraphText.owns(event.pointerId)) {
+      if (textGesture.owns(event.pointerId)) {
         const point = documentPoint(event);
-        if (point) paragraphText.finish(event.pointerId, point);
-        else paragraphText.cancel(event.pointerId);
+        if (point) textGesture.finish(event.pointerId, point);
+        else textGesture.cancel(event.pointerId);
         event.preventDefault();
         return;
       }
@@ -619,8 +624,8 @@ export const useViewportInteractionController = ({
       endPan(event);
     },
     onPointerCancel: (event) => {
-      if (paragraphText.owns(event.pointerId)) {
-        paragraphText.cancel(event.pointerId);
+      if (textGesture.owns(event.pointerId)) {
+        textGesture.cancel(event.pointerId);
         return;
       }
       vector.pointerCancel(event.pointerId);

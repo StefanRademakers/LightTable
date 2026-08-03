@@ -124,6 +124,7 @@ import {
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
+import { PathTextHandleController } from './application/text/PathTextHandleController';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import {
   formatFlowTextSource,
@@ -858,6 +859,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     recordHistory: pushDocumentHistory
   }));
   const paragraphFrameResizeController = paragraphFrameResizeControllerRef.current;
+  const pathTextHandleControllerRef = useRef<PathTextHandleController | null>(null);
+  pathTextHandleControllerRef.current ??= new PathTextHandleController(() => ({
+    getDocument: () => imageDocumentRef.current,
+    getEditingLayerId: () => {
+      const snapshot = textEditingController.getSnapshot();
+      return snapshot.status === 'editing' ? snapshot.layerId : null;
+    },
+    getRealization: (layerId) => {
+      const editingLayout = engineRef.current?.textEditingLayout(layerId);
+      return editingLayout?.path ? {
+        table: editingLayout.path.table,
+        projection: editingLayout.path.projection,
+        localToDocument: editingLayout.localToDocument
+      } : null;
+    },
+    applyDocument: applyDocumentSnapshot,
+    recordHistory: pushDocumentHistory
+  }));
+  const pathTextHandleController = pathTextHandleControllerRef.current;
   const textEditing = useSyncExternalStore(
     textEditingController.subscribeShell,
     textEditingController.getShellSnapshot,
@@ -880,6 +900,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => () => {
     paragraphFrameResizeController.cancel();
   }, [paragraphFrameResizeController]);
+
+  useEffect(() => () => {
+    pathTextHandleController.cancel();
+  }, [pathTextHandleController]);
 
   useEffect(() => {
     if (textEditing.status !== 'editing' || imageDocument?.activeLayerId === textEditing.layerId) return;
@@ -1850,22 +1874,33 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       textEditingController.finish();
       void beginPointTextCreation(point);
     },
-    paragraphText: {
-      begin: beginParagraphTextCreation,
+    textGesture: {
+      beginPoint: (pointerId, point) => pathTextHandleController.begin(
+        pointerId, point, 8 / Math.max(activeScale, 1e-6)
+      ) || beginExistingFlowTextEditing(point, 'any', pointerId),
+      beginParagraph: (pointerId, point) => pathTextHandleController.begin(
+        pointerId, point, 8 / Math.max(activeScale, 1e-6)
+      ) || beginParagraphTextCreation(pointerId, point),
       owns: (pointerId) => textSelectionGestureController.owns(pointerId)
+        || pathTextHandleController.owns(pointerId)
         || paragraphFrameResizeController.owns(pointerId)
         || paragraphTextController.owns(pointerId),
       move: (pointerId, point) => textSelectionGestureController.owns(pointerId)
         ? textSelectionGestureController.move(pointerId, point)
-        : paragraphFrameResizeController.owns(pointerId)
-          ? paragraphFrameResizeController.move(pointerId, point)
-          : paragraphTextController.move(pointerId, point),
+        : pathTextHandleController.owns(pointerId)
+          ? pathTextHandleController.move(pointerId, point)
+          : paragraphFrameResizeController.owns(pointerId)
+            ? paragraphFrameResizeController.move(pointerId, point)
+            : paragraphTextController.move(pointerId, point),
       finish: (pointerId, point) => textSelectionGestureController.owns(pointerId)
         ? textSelectionGestureController.finish(pointerId, point)
-        : paragraphFrameResizeController.owns(pointerId)
-          ? paragraphFrameResizeController.finish(pointerId, point)
-          : finishParagraphTextCreation(pointerId, point),
+        : pathTextHandleController.owns(pointerId)
+          ? pathTextHandleController.finish(pointerId, point)
+          : paragraphFrameResizeController.owns(pointerId)
+            ? paragraphFrameResizeController.finish(pointerId, point)
+            : finishParagraphTextCreation(pointerId, point),
       cancel: (pointerId) => textSelectionGestureController.cancel(pointerId)
+        || pathTextHandleController.cancel(pointerId)
         || paragraphFrameResizeController.cancel(pointerId)
         || (paragraphTextController.owns(pointerId) ? paragraphTextController.cancel() : false)
     },
