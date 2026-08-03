@@ -29,6 +29,7 @@ export interface EditorDocumentOpenRequestOptions<
   ) => Promise<void>;
   readonly rendererSlot: EditorDocumentRendererSlot<Renderer>;
   readonly lifecycleBridge: DocumentRendererLifecycleBridge<Renderer>;
+  readonly configureRenderer?: (renderer: Renderer) => void;
 }
 
 /**
@@ -46,6 +47,7 @@ export const createEditorDocumentOpenRequest = <
   loadSource: options.resolveSource,
   hydrate: options.hydrate,
   onRendererReady: (renderer, elapsedMs) => {
+    options.configureRenderer?.(renderer);
     options.rendererSlot.set(renderer);
     options.lifecycleBridge.onRendererReady(renderer, elapsedMs);
   },

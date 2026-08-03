@@ -5,6 +5,7 @@ out-verify/
 out-*/
 artifacts/
 .vite/
+.electron-dev-session/
 coverage/
 .test-data/
 .referenceCode/

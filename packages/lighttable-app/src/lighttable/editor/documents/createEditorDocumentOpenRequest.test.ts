@@ -73,4 +73,35 @@ describe('createEditorDocumentOpenRequest', () => {
     expect(current).toBe(replacement);
     expect(lifecycleBridge.onRendererDiscarded).toHaveBeenCalledWith(stale);
   });
+
+  it('configures every replacement renderer before publishing it', () => {
+    let current: ReturnType<typeof createRenderer> | null = null;
+    const configured: string[] = [];
+    const lifecycleBridge = {
+      callbacks: {}, onRendererReady: vi.fn(), onRendererDiscarded: vi.fn(),
+      onSourceReady: vi.fn(), onFailed: vi.fn(), onSettled: vi.fn()
+    };
+    const request = createEditorDocumentOpenRequest({
+      createRenderer: async () => createRenderer('created'),
+      resolveSource: async () => new Blob(), hydrate: async () => undefined,
+      rendererSlot: {
+        get: () => current,
+        set: (renderer) => { current = renderer; }
+      },
+      configureRenderer: (renderer) => {
+        expect(current).toBeNull();
+        configured.push(renderer.name);
+      },
+      lifecycleBridge
+    });
+    const first = createRenderer('first');
+    const replacement = createRenderer('replacement');
+
+    request.onRendererReady?.(first, 1, 1);
+    current = null;
+    request.onRendererReady?.(replacement, 2, 2);
+
+    expect(configured).toEqual(['first', 'replacement']);
+    expect(current).toBe(replacement);
+  });
 });

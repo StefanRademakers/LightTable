@@ -549,21 +549,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textPresentationRevision: textRenderPresentation.publicationRevision,
     getRenderer: () => engineRef.current
   });
-  useEffect(() => {
-    let activeRegistration = true;
-    if (!thumbnailDocumentReadyId && editorSession.activeTool !== 'text-point') return undefined;
-    void Promise.all([
-      registerBundledTextFont(textFontRegistry),
-      lightTableTextEngine.probe()
-    ]).catch((reason: unknown) => {
-      if (activeRegistration && editorSession.activeTool === 'text-point') {
-        setError(reason instanceof Error
-          ? reason.message
-          : 'The bundled text engine could not be prepared.');
-      }
-    });
-    return () => { activeRegistration = false; };
-  }, [editorSession.activeTool, textFontRegistry, thumbnailDocumentReadyId]);
   const availableFontAssets = useMemo(
     () => textFontRegistry.availableAssets,
     [textFontRegistry, fontAvailabilityRevision]
@@ -580,12 +565,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       : [],
     [availableFontAssets, fontHydrationPending, imageDocument]
   );
-  useEffect(() => {
-    const renderer = engineRef.current;
-    if (!renderer) return;
-    renderer.configureTextFonts(textFontRuntimePort);
-    return () => renderer.configureTextFonts(null);
-  }, [fontAvailabilityRevision, imageDocument?.id, textFontRuntimePort, thumbnailDocumentReadyId]);
   const fontDiagnosticStatus = useMemo(
     () => summarizeTextFontDiagnostics(fontDiagnostics),
     [fontDiagnostics]
@@ -608,6 +587,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onDocumentError
   });
   const textEngineDiagnostic = useTextEngineDiagnostics(appendDebugMessage);
+  useEffect(() => {
+    let activeRegistration = true;
+    if (!thumbnailDocumentReadyId && editorSession.activeTool !== 'text-point') return undefined;
+    void Promise.all([
+      registerBundledTextFont(textFontRegistry),
+      textEngineDiagnostic.probe()
+    ]).catch((reason: unknown) => {
+      if (activeRegistration && editorSession.activeTool === 'text-point') {
+        setError(reason instanceof Error
+          ? reason.message
+          : 'The bundled text engine could not be prepared.');
+      }
+    });
+    return () => { activeRegistration = false; };
+  }, [editorSession.activeTool, textEngineDiagnostic.probe, textFontRegistry, thumbnailDocumentReadyId]);
   const [developmentTextFixture, setDevelopmentTextFixture] = useState<{
     enabled: boolean;
     status: 'off' | 'preparing' | 'ready' | 'error';
@@ -1121,6 +1115,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     generation: documentOpenGeneration,
     tasks: taskRegistry,
     rendererLifecycle,
+    textFontRuntimePort,
     canvases: {
       viewport: canvasRef,
       hueDistribution: hueDistributionCanvasRef,

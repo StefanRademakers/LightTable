@@ -23,12 +23,14 @@ import type {
 } from './resolveEditorDocumentCanvases';
 import { useEditorDocumentOpenRequestFactory } from './useEditorDocumentOpenRequestFactory';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
+import type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 
 export interface EditorDocumentLifecycleControllerOptions {
   readonly enabled: boolean;
   readonly generation: object;
   readonly tasks: DocumentTaskRegistry;
   readonly rendererLifecycle: DocumentRendererLifecycle;
+  readonly textFontRuntimePort: TextFontRuntimePort;
   readonly canvases: EditorDocumentScopeCanvasRefs;
   readonly rendererRef: RefObject<DocumentRendererPort | null>;
   readonly telemetryRef: RefObject<DocumentStartupTelemetry>;
@@ -87,6 +89,7 @@ export const useEditorDocumentLifecycleController = ({
   generation,
   tasks,
   rendererLifecycle,
+  textFontRuntimePort,
   canvases,
   rendererRef,
   telemetryRef,
@@ -150,6 +153,7 @@ export const useEditorDocumentLifecycleController = ({
     canvases,
     rendererRef,
     rendererLifecycle,
+    textFontRuntimePort,
     telemetryRef,
     source: {
       inlineSource: source.inlineSource,

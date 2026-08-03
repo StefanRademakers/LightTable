@@ -210,6 +210,33 @@ describe('TextEngineClient', () => {
     expect(factory).toHaveBeenCalledTimes(2);
   });
 
+  it('times out an unresponsive startup and retries with a fresh worker', async () => {
+    vi.useFakeTimers();
+    try {
+      const firstWorker = new FakeWorker();
+      const secondWorker = new FakeWorker();
+      const factory = vi.fn()
+        .mockReturnValueOnce(firstWorker)
+        .mockReturnValueOnce(secondWorker);
+      const client = new TextEngineClient(factory, 25);
+
+      const stalled = client.probe();
+      const stalledExpectation = expect(stalled).rejects.toThrow(
+        'did not respond within 25 milliseconds'
+      );
+      await vi.advanceTimersByTimeAsync(25);
+      await stalledExpectation;
+      expect(firstWorker.terminate).toHaveBeenCalledOnce();
+
+      const retry = client.probe();
+      secondWorker.ready(2);
+      await expect(retry).resolves.toMatchObject({ engineVersion: '0.1.0' });
+      expect(factory).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('preserves module-worker error causes and source locations', () => {
     expect(describeTextWorkerError({
       message: '',

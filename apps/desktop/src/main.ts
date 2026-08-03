@@ -35,6 +35,13 @@ const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
 
+if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+  // Keep Chromium's development-only HTTP/code cache separate from userData.
+  // run_clean can remove stale transformed worker modules without touching
+  // recent files or any other user-owned application state.
+  app.setPath('sessionData', path.join(app.getAppPath(), '.electron-dev-session'));
+}
+
 const recentFileId = (filePath: string): string => createHash('sha256')
   .update(path.resolve(filePath).toLowerCase())
   .digest('hex')

@@ -94,6 +94,18 @@ const applyWorkspacePanelConstraints = (
   });
 };
 
+const synchronizeWorkspacePanelTitles = (
+  api: DockviewApi,
+  panels: LightTableWorkspacePanelRegistration[]
+) => {
+  panels.forEach((panel) => {
+    const restoredPanel = api.getPanel(panel.id);
+    if (restoredPanel?.api.title !== panel.title) {
+      restoredPanel?.api.setTitle(panel.title);
+    }
+  });
+};
+
 const addRegisteredPanel = (
   api: DockviewApi,
   panel: LightTableWorkspacePanelRegistration
@@ -199,6 +211,9 @@ const restoreLayout = (
     panels.forEach((panel) => {
       if (!api.getPanel(panel.id)) addRegisteredPanel(api, panel);
     });
+    // Serialized Dockview layouts include titles. Product-owned labels remain
+    // authoritative when an older saved layout is restored.
+    synchronizeWorkspacePanelTitles(api, panels);
     applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
     return true;
   } catch {
@@ -478,6 +493,7 @@ export const LightTableDockWorkspace = forwardRef<
     const api = apiRef.current;
     if (!api) return;
     applyWorkspacePanelConstraints(api, panelsRef.current, accessoryWidthConstraintsEnabled);
+    synchronizeWorkspacePanelTitles(api, panelsRef.current);
     const documentHost = api.getPanel(DOCUMENT_HOST_PANEL_ID);
     if (documentHost) {
       documentHost.group.header.hidden = true;

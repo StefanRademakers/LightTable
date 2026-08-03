@@ -59,14 +59,16 @@ export const useTextEngineDiagnostics = (append: AppendDiagnostic) => {
 
   const probe = useCallback(() => {
     setState((current) => ({ ...current, status: 'loading', phase: 'Loading text WASM', summary: 'Loading Rust/WASM text engine...' }));
-    void lightTableTextEngine.probe().then((capability) => {
+    return lightTableTextEngine.probe().then((capability) => {
       const summary = `Ready: v${capability.engineVersion} in ${capability.loadDurationMs.toFixed(1)} ms.`;
       setState((current) => ({ ...current, status: 'ready', phase: null, summary }));
       append('info', 'Text engine', summary);
+      return capability;
     }).catch((reason: unknown) => {
       const message = reason instanceof Error ? reason.message : 'The text engine capability probe failed.';
       setState((current) => ({ ...current, status: 'error', phase: null, summary: message }));
       append('error', 'Text engine', message);
+      return null;
     });
   }, [append]);
 

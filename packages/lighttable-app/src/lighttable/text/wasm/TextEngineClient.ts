@@ -71,6 +71,12 @@ export interface TextGlyphRasterReport extends TextEngineOperationReport {
 
 export type TextEngineWorkerFactory = () => TextEngineWorkerPort;
 
+export const TEXT_ENGINE_STARTUP_TIMEOUT_MS = 10_000;
+
+const startupTimeoutLabel = (milliseconds: number) => milliseconds >= 1_000
+  ? `${Math.round(milliseconds / 1_000)} seconds`
+  : `${milliseconds} milliseconds`;
+
 const createBrowserWorker = (): TextEngineWorkerPort => new Worker(
   new URL('./textLayout.worker.ts', import.meta.url),
   { type: 'module', name: 'LightTable text layout' }
@@ -106,7 +112,10 @@ export class TextEngineClient {
   private capability: TextEngineCapability | null = null;
   private inFlight: Promise<TextEngineCapability> | null = null;
 
-  constructor(private readonly workerFactory: TextEngineWorkerFactory = createBrowserWorker) {}
+  constructor(
+    private readonly workerFactory: TextEngineWorkerFactory = createBrowserWorker,
+    private readonly startupTimeoutMs = TEXT_ENGINE_STARTUP_TIMEOUT_MS
+  ) {}
 
   probe(): Promise<TextEngineCapability> {
     if (this.capability) return Promise.resolve(this.capability);
@@ -126,14 +135,33 @@ export class TextEngineClient {
       protocolVersion: TEXT_ENGINE_PROTOCOL_VERSION,
       requestId
     };
-    let trackedPromise: Promise<TextEngineCapability>;
-    trackedPromise = new Promise<TextEngineCapability>((resolve, reject) => {
+    const responsePromise = new Promise<TextEngineCapability>((resolve, reject) => {
       this.pending.set(requestId, { resolve, reject });
-      worker.postMessage(request);
-    }).then((capability) => {
+      try {
+        worker.postMessage(request);
+      } catch (reason) {
+        this.pending.delete(requestId);
+        reject(reason instanceof Error
+          ? reason
+          : new Error('The text engine probe could not be posted.'));
+      }
+    });
+    let startupTimer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      startupTimer = setTimeout(() => {
+        const reason = new Error(
+          `The text engine worker did not respond within ${startupTimeoutLabel(this.startupTimeoutMs)}.`
+        );
+        this.resetWorker(reason);
+        reject(reason);
+      }, this.startupTimeoutMs);
+    });
+    let trackedPromise: Promise<TextEngineCapability>;
+    trackedPromise = Promise.race([responsePromise, timeoutPromise]).then((capability) => {
       this.capability = capability;
       return capability;
     }).finally(() => {
+      if (startupTimer !== undefined) clearTimeout(startupTimer);
       if (this.inFlight === trackedPromise) this.inFlight = null;
     });
     this.inFlight = trackedPromise;

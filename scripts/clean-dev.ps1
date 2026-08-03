@@ -167,6 +167,7 @@ Stop-LightTableDevelopmentProcesses
 # source files, documents and user data are intentionally left untouched.
 $generatedPaths = @(
     'apps\desktop\.vite',
+    'apps\desktop\.electron-dev-session',
     'node_modules\.vite',
     'apps\desktop\node_modules\.vite',
     'apps\web\node_modules\.vite',

@@ -32,11 +32,13 @@ import {
   resolveEditorDocumentCanvases,
   type EditorDocumentScopeCanvasRefs
 } from './resolveEditorDocumentCanvases';
+import type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 
 export interface EditorDocumentOpenRequestFactoryOptions {
   readonly canvases: EditorDocumentScopeCanvasRefs;
   readonly rendererRef: RefObject<DocumentRendererPort | null>;
   readonly rendererLifecycle: DocumentRendererLifecycle;
+  readonly textFontRuntimePort: TextFontRuntimePort;
   readonly telemetryRef: RefObject<DocumentStartupTelemetry>;
   readonly source: {
     readonly inlineSource: Blob | null;
@@ -76,6 +78,7 @@ export const useEditorDocumentOpenRequestFactory = ({
   canvases,
   rendererRef,
   rendererLifecycle,
+  textFontRuntimePort,
   telemetryRef,
   source,
   getScopeOptions,
@@ -131,6 +134,7 @@ export const useEditorDocumentOpenRequestFactory = ({
         rendererRef.current = renderer;
       }
     },
+    configureRenderer: (renderer) => renderer.configureTextFonts(textFontRuntimePort),
     lifecycleBridge
   });
 }, [
@@ -148,6 +152,7 @@ export const useEditorDocumentOpenRequestFactory = ({
   publishTimings,
   rendererLifecycle,
   rendererRef,
+  textFontRuntimePort,
   source,
   telemetryRef
 ]);
