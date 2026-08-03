@@ -1,0 +1,15 @@
+# Task 036 - Mouse drag text selection
+
+Status: complete
+
+- [x] Start a selection gesture from a caret hit while point, paragraph or
+  path text is actively editable.
+- [x] Keep the original anchor stable and update only the focus during drag.
+- [x] Coalesce high-frequency pointer movement to one transient selection
+  publication per animation frame.
+- [x] Publish the exact final range on pointer-up and drop cancelled gestures.
+- [x] Render selection feedback through the existing WebGPU text overlay,
+  without document recomposition or React shell updates per pointer event.
+- [x] Verify the real Electron viewport route: a mouse drag over paragraph
+  text produces a non-empty contiguous character range (latest run: `Par`,
+  offsets 0..3), with no page errors.

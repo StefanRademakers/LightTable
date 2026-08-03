@@ -49,6 +49,20 @@ describe('Photoshop text adapter', () => {
     });
   });
 
+  it('preserves a Photoshop 90-degree point-text affine without raster fallback', () => {
+    const result = importPsdText({
+      text: '90 degrees rotation',
+      transform: [0, -1.5, 1.5, 0, 1851.5, 732.25]
+    });
+
+    expect(result.kind).toBe('editable-flow');
+    if (result.kind !== 'editable-flow') return;
+    expect(result.transform).toEqual({
+      a: 0, b: -1.5, c: 1.5, d: 0, tx: 1851.5, ty: 732.25
+    });
+    expect(result.text.source.kind).toBe('flow');
+  });
+
   it('maps a valid Photoshop box to an editable paragraph frame', () => {
     const result = importPsdText({
       text: 'Paragraph', shapeType: 'box', boxBounds: [10, 20, 210, 120],

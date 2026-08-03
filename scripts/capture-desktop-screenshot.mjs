@@ -18,7 +18,7 @@ const sourceFile = path.resolve(argument('file', 'D:\\TextTest.psd'));
 const sourceName = path.basename(sourceFile);
 const expectedFlowLayers = Number.parseInt(argument(
   'expect-flow-layers',
-  /^TextTest\.psd$/i.test(sourceName) ? '3' : '0'
+  /^TextTest\.psd$/i.test(sourceName) ? '5' : '0'
 ), 10);
 const expectedVectorLayers = Number.parseInt(argument(
   'expect-vector-layers',
@@ -189,6 +189,9 @@ try {
   }
   if (expectedFlowLayers > 0 && /text-renderer is unavailable/i.test(diagnostics.status)) {
     throw new Error(diagnostics.status);
+  }
+  if (diagnostics.pageErrors.length > 0) {
+    throw new Error(`Desktop screenshot reported page errors: ${diagnostics.pageErrors.join('\n')}`);
   }
 } catch (error) {
   failure = error;

@@ -42,6 +42,7 @@ const diagnostics = {
   status: '',
   layers: [],
   paragraphTraces: [],
+  dragSelection: null,
   debugPanel: '',
   runtime: null,
   geometry: null,
@@ -127,6 +128,31 @@ try {
     return bridge instanceof HTMLTextAreaElement && bridge.value === expected;
   }, diagnostics.finalText, { timeout: 30_000 });
 
+  // Exercise the real viewport pointer route. Selection geometry remains in
+  // the WebGPU overlay; the hidden input is only the semantic assertion port.
+  const dragStart = {
+    x: start.x + 40 * scale,
+    y: start.y + 100 * scale
+  };
+  const dragEnd = {
+    x: start.x + 400 * scale,
+    y: start.y + 100 * scale
+  };
+  await window.mouse.move(dragStart.x, dragStart.y);
+  await window.mouse.down();
+  await window.mouse.move(dragEnd.x, dragEnd.y, { steps: 24 });
+  await window.mouse.up();
+  await window.waitForFunction(() => {
+    const bridge = document.querySelector('.lighttable-text-input-bridge');
+    return bridge instanceof HTMLTextAreaElement
+      && bridge.selectionStart !== bridge.selectionEnd;
+  }, undefined, { timeout: 30_000 });
+  diagnostics.dragSelection = await input.evaluate((bridge) => ({
+    start: bridge.selectionStart,
+    end: bridge.selectionEnd,
+    text: bridge.value.slice(bridge.selectionStart, bridge.selectionEnd)
+  }));
+
   await window.waitForTimeout(750);
   await window.getByRole('tab', { name: 'Debug', exact: true }).click();
   const debugPanel = window.getByRole('region', { name: 'LightTable debug log' });
@@ -173,6 +199,9 @@ try {
   }
   if (diagnostics.layers.filter(({ statuses }) => statuses.includes('Flow')).length !== 1) {
     throw new Error('Expected exactly one editable Flow paragraph layer.');
+  }
+  if (!diagnostics.dragSelection || diagnostics.dragSelection.start === diagnostics.dragSelection.end) {
+    throw new Error('Viewport mouse drag did not produce a text selection.');
   }
   if (diagnostics.pageErrors.length > 0) {
     throw new Error(`Paragraph smoke reported page errors: ${diagnostics.pageErrors.join('\n')}`);

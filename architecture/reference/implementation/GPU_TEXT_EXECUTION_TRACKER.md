@@ -1506,6 +1506,23 @@ Append newest entries at the top. Keep entries factual and link the slice.
   packaged Electron screenshot of `D:\TextTest.psd` shows one continuous
   character orientation around the curve with zero page errors.
 
+### 2026-08-03 — Direct mouse selection and rotated PSD text evidence
+
+- Editing: the existing pointer gesture controller is now covered end to end
+  in packaged Electron. Dragging across paragraph characters produced a
+  non-empty contiguous range (latest run: `Par`, logical offsets 0..3);
+  pointer previews remain requestAnimationFrame-
+  coalesced and feed the WebGPU selection overlay without document mutation.
+- PSD fixture: the current `D:\TextTest.psd` contains five editable text
+  layers, including minus-45-degree and minus-90-degree point text plus path
+  text. The standard exact-file smoke expects all five Flow layers and one
+  native path companion; the packaged render preserves the affine rotations
+  without raster fallback or double-applying path rotation.
+- Follow-up surfaced: changing the Text tool size programmatically immediately
+  before paragraph creation exposed a `Maximum update depth` error in one
+  automation route. It is not classified as a selection failure and remains a
+  dedicated UI state-synchronization regression to isolate.
+
 ## 12. Open decision register
 
 Decisions stay open until their named slice supplies evidence.
