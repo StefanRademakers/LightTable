@@ -705,6 +705,21 @@ state with every performance result.
 
 Append newest entries at the top. Keep entries factual and link the slice.
 
+### 2026-08-03 - Slice 17 rigid glyph projection foundation
+
+- Layout: already-shaped horizontal glyph origins can now be projected onto a
+  path metric with start/end range, shared text alignment, forward/reverse
+  traversal, side and upright behavior. Each glyph receives an affine rotation
+  and translation; its outline is never warped.
+- Rendering boundary: the projection emits the existing per-glyph transform
+  contract used by the scale-independent outline renderer. It owns no React,
+  GPU resource or document state and is not wired into production yet.
+- Editing/UI gap surfaced: path text needs rotated carets, curved selection
+  geometry and start/end/direction handles in the existing WebGPU overlay pass.
+  The current rectangle-oriented editing overlay cannot represent those
+  honestly, so the Path Text tool stays hidden until that shared overlay
+  contract is extended and both artwork and editing consume one layout.
+
 ### 2026-08-03 - Slice 17 hierarchical path dependency
 
 - Correctness: resolved path dependencies now include the vector layer's full
