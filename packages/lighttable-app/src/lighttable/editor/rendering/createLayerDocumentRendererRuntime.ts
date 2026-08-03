@@ -78,7 +78,8 @@ export const createLayerDocumentRendererRuntime = (
   device: GPUDevice,
   sampler: GPUSampler,
   onDevelopmentTextFixtureChanged: (snapshot: DevelopmentTextFixtureSnapshot) => void = () => undefined,
-  onTextRenderPresentation: (snapshot: TextRenderPresentationSnapshot) => void = () => undefined
+  onTextRenderPresentation: (snapshot: TextRenderPresentationSnapshot) => void = () => undefined,
+  onTextRenderError: (message: string) => void = () => undefined
 ): LayerDocumentRendererRuntime => {
   const pipelines = documentPipelinesFor(device);
   const resources = new DocumentResourceState();
@@ -127,7 +128,8 @@ export const createLayerDocumentRendererRuntime = (
     device,
     renderer: textLayerRenderer,
     requestRender: () => onDevelopmentTextFixtureChanged(developmentTextFixture.snapshot),
-    onChanged: onTextRenderPresentation
+    onChanged: onTextRenderPresentation,
+    onError: onTextRenderError
   });
   const renderResources = new RenderResourceCoordinator({
     layerStyles: layerStyleRenderer,

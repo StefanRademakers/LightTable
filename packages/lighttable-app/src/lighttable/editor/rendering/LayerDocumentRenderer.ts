@@ -40,13 +40,15 @@ export class LayerDocumentRenderer {
     device: GPUDevice,
     sampler: GPUSampler,
     onDevelopmentTextFixtureChanged?: Parameters<typeof createLayerDocumentRendererRuntime>[2],
-    onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void
+    onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void,
+    onTextRenderError?: (message: string) => void
   ) {
     this.runtime = createLayerDocumentRendererRuntime(
       device,
       sampler,
       onDevelopmentTextFixtureChanged,
-      onTextRenderPresentation
+      onTextRenderPresentation,
+      onTextRenderError
     );
   }
 

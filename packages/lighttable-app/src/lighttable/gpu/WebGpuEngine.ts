@@ -312,7 +312,8 @@ export class WebGpuEngine {
       () => {
         if (!this.destroyed && this.imageDocument) this.markDocumentDirty();
       },
-      (snapshot) => this.callbacks.onTextRenderPresentation?.(snapshot)
+      (snapshot) => this.callbacks.onTextRenderPresentation?.(snapshot),
+      (message) => this.callbacks.onFeatureError?.('text-renderer', message)
     );
     this.effectRuntime = DocumentEffectRuntime.create(
       this.device,

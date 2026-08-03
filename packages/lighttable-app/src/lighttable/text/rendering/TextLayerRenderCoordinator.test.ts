@@ -89,6 +89,7 @@ const harness = () => {
     dispose: vi.fn()
   };
   const submit = vi.fn();
+  const onError = vi.fn();
   const coordinator = new TextLayerRenderCoordinator({
     device: {
       createCommandEncoder: vi.fn(() => ({ finish: vi.fn(() => ({})) })),
@@ -96,6 +97,7 @@ const harness = () => {
     } as unknown as GPUDevice,
     renderer: renderer as never,
     requestRender: vi.fn(),
+    onError,
     loadDependencies: vi.fn(async () => ({ client, backend } as never))
   });
   const port: TextFontRuntimePort = {
@@ -105,7 +107,7 @@ const harness = () => {
     subscribe: vi.fn(() => () => undefined)
   };
   return {
-    coordinator, renderer, client, backend, submit, port, publish, discard,
+    coordinator, renderer, client, backend, submit, port, publish, discard, onError,
     observeCost: (sample: TextSourceCostSample) => costObserver?.(sample)
   };
 };
@@ -448,6 +450,7 @@ describe('TextLayerRenderCoordinator', () => {
 
     expect(state.discard).toHaveBeenCalledTimes(2);
     expect(state.publish).not.toHaveBeenCalled();
+    expect(state.onError).toHaveBeenCalledWith('device lost');
   });
 
   it('releases a failed candidate font session and permits an exact retry', async () => {

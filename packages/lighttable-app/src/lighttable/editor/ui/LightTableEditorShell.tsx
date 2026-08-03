@@ -123,11 +123,6 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   <div
     className={`modal-backdrop lighttable-backdrop${active ? '' : ' lighttable-backdrop--inactive'}`}
     aria-hidden={!active}
-    onClick={(event) => {
-      // Portalled menus still bubble through this React tree. Only a direct
-      // backdrop click is a close request.
-      if (event.target === event.currentTarget && !saving) onClose();
-    }}
   >
     <div
       className={`modal lighttable${screenMode === 'canvas-only' ? ' lighttable--canvas-only' : ''}`}

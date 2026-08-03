@@ -44,6 +44,7 @@ interface CoordinatorOptions {
   readonly renderer: TextLayerRenderer;
   readonly requestRender: () => void;
   readonly onChanged?: (snapshot: TextRenderPresentationSnapshot) => void;
+  readonly onError?: (message: string) => void;
   readonly loadDependencies?: () => Promise<CoordinatorDependencies>;
 }
 
@@ -409,8 +410,11 @@ export class TextLayerRenderCoordinator {
     const generation = ++this.generation;
     this.work = this.work
       .then(() => this.prepare(generation, key, layers, abortController.signal))
-      .catch(() => {
+      .catch((reason: unknown) => {
         if (!this.current(generation, key)) return;
+        this.options.onError?.(
+          reason instanceof Error ? reason.message : 'Text source preparation failed.'
+        );
         this.pendingKey = '';
         const retries = this.retryCounts.get(key) ?? 0;
         if (retries >= 1) return;
