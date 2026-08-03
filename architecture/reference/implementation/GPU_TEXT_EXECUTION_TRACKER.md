@@ -597,7 +597,7 @@ be reproduced.
 #### Slice 19 — PDF and PDF-compatible AI import spike
 
 - [x] Freeze a normalized page display-list contract independent of PDF engine.
-- [ ] Evaluate exact glyph IDs, matrices, font bytes and text render modes via
+- [x] Evaluate exact glyph IDs, matrices, font bytes and text render modes via
   PDFium and at least one reference path.
 - [ ] Import one page with paths, images, clips and positioned text.
 - [ ] Preserve embedded subset fonts and semantic mappings separately.
@@ -1596,6 +1596,6 @@ Decisions stay open until their named slice supplies evidence.
 | Coverage atlas bucket policy | 08 | hinted scale buckets with measured eviction |
 | Direct versus settled cache threshold | 13 | runtime cost model, not a user setting |
 | Contextual Properties text sections | 12/14 | preserve `lighttable.inspector`; expose only functionally complete groups |
-| PDF semantic engine | 19 | normalized adapter boundary; PDFium must prove exact extraction |
+| PDF semantic engine | 19 | decided: pinned PDFium plus a bulk exact-glyph adapter; MuPDF is a non-shipping AGPL/commercial fixture oracle |
 | Flow recovery from positioned text | 20 | explicit, confidence-scored, reversible command |
 | Automation command API and MCP adapter | cross-cutting | keep domain commands/queries typed and UI-independent; later expose capability discovery, validated transactions, undo boundaries and read-only inspection through host/API/MCP adapters instead of automating DOM state |
