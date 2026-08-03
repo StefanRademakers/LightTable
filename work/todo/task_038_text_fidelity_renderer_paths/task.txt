@@ -22,7 +22,7 @@ Status: in progress. Implements Slice 16 from
 
 ## Convert to shape/path
 
-- [ ] Convert realized glyph outlines into canonical vector geometry.
+- [x] Convert realized glyph outlines into canonical vector geometry.
 - [ ] Commit conversion as one explicit undoable document command.
 - [ ] Preserve the original TextLayer through undo without in-place mutation.
 - [ ] Expose the command through existing Layers/context and Type menus with an
