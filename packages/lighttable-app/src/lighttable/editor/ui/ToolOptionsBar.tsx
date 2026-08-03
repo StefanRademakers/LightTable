@@ -41,6 +41,7 @@ export interface ToolOptionsProps {
   onTextFontAssetChange?: (assetId: string) => void;
   onTextSizeChange?: (size: number) => void;
   onTextFillChange?: (fill: string) => void;
+  onTextAlignmentChange?: (alignment: TextToolSettings['alignment']) => void;
   onTextPropertyBegin?: () => void;
   onTextPropertyCommit?: () => void;
   onTextPropertyCancel?: () => void;
@@ -107,6 +108,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onTextFontAssetChange,
   onTextSizeChange,
   onTextFillChange,
+  onTextAlignmentChange,
   onTextPropertyBegin,
   onTextPropertyCommit,
   onTextPropertyCancel,
@@ -324,16 +326,26 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               <option value="smooth">Smooth</option>
             </select>
           </label>
-          <label className="lighttable-tool-options__field">
-            <span>Align</span>
-            <select
-              value={text.alignment}
-              disabled
-              aria-label="Text alignment"
-            >
-              <option value="start">Left</option>
-            </select>
-          </label>
+          <ToolOptionSelect
+            label="Align"
+            value={textProperties?.alignment.kind === 'value'
+              ? textProperties.alignment.value
+              : textProperties ? '' : text.alignment}
+            disabled={textProperties?.alignment.kind === 'unavailable'}
+            aria-label="Text alignment"
+            onChange={(event) => {
+              const alignment = event.currentTarget.value as TextToolSettings['alignment'];
+              if (textProperties && onTextAlignmentChange) onTextAlignmentChange(alignment);
+              else onTextChange({ alignment });
+            }}
+          >
+            {textProperties?.alignment.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
+            {textProperties?.alignment.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
+            <option value="start">Left</option>
+            <option value="center">Center</option>
+            <option value="end">Right</option>
+            <option value="justify">Justify</option>
+          </ToolOptionSelect>
         </div>
       ) : null}
       {activeTool === 'vector-pen' || activeTool.startsWith('shape-') || editsVectorSelection ? (

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
+import type { ParagraphStylePatch } from '../../application/text/flowTextFormatting';
 import { MixedNumberInput } from '../ui/MixedNumberInput';
 import { ToolOptionColor, ToolOptionSelect } from '../ui/ToolOptionControls';
 
@@ -11,6 +12,7 @@ export interface TextPropertiesPanelProps {
   readonly onSize: (size: number) => void;
   readonly onFill: (fill: string) => void;
   readonly onTracking: (tracking: number) => void;
+  readonly onParagraph: (patch: ParagraphStylePatch) => void;
   readonly onBegin: () => void;
   readonly onCommit: () => void;
   readonly onCancel: () => void;
@@ -19,7 +21,8 @@ export interface TextPropertiesPanelProps {
 const mixedOption = <option value="" disabled>Mixed</option>;
 
 export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
-  model, fonts, onFontAsset, onSize, onFill, onTracking, onBegin, onCommit, onCancel
+  model, fonts, onFontAsset, onSize, onFill, onTracking, onParagraph,
+  onBegin, onCommit, onCancel
 }) => {
   const family = model.family.kind === 'value' ? model.family.value : '';
   const faces = fonts.filter((font) => font.familyNames.includes(family));
@@ -29,6 +32,17 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
     const asset = candidates.find((font) => font.styleName === 'Regular') ?? candidates[0];
     if (asset) onFontAsset(asset.assetId);
   };
+  const applyParagraphDiscrete = (patch: ParagraphStylePatch) => {
+    onBegin();
+    onParagraph(patch);
+    onCommit();
+  };
+  const lineHeightKind = model.lineHeight.kind === 'value' ? model.lineHeight.value.kind : '';
+  const lineHeightValue = model.lineHeight.kind !== 'value'
+    ? model.lineHeight
+    : model.lineHeight.value.kind === 'normal'
+      ? { kind: 'unavailable' as const }
+      : { kind: 'value' as const, value: model.lineHeight.value.value };
   return (
     <aside className="lighttable-panel" aria-label="Text properties">
       <section className="lighttable-group lighttable-master-group">
@@ -81,6 +95,66 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
               <MixedNumberInput label="Tracking" value={model.tracking} min={-1000}
                 max={1000} step={1} unit="1/1000 em" onBegin={onBegin}
                 onPreview={onTracking} onCommit={onCommit} onCancel={onCancel} />
+            </div>
+          </div>
+        </section>
+        <section className="lighttable-group">
+          <div className="lighttable-group__header">
+            <div className="lighttable-master-group__label"><strong>Paragraph</strong></div>
+          </div>
+          <div className="lighttable-group__controls lighttable-tool-options__content lighttable-tool-options__content--vertical">
+            <div className="lighttable-tool-options__text">
+              <ToolOptionSelect label="Align"
+                value={model.alignment.kind === 'value' ? model.alignment.value : ''}
+                disabled={model.alignment.kind === 'unavailable'}
+                onChange={(event) => applyParagraphDiscrete({
+                  alignment: event.currentTarget.value as 'start' | 'center' | 'end' | 'justify'
+                })}>
+                {model.alignment.kind === 'mixed' ? mixedOption : null}
+                <option value="start">Left</option><option value="center">Center</option>
+                <option value="end">Right</option><option value="justify">Justify</option>
+              </ToolOptionSelect>
+              <ToolOptionSelect label="Leading" value={lineHeightKind}
+                disabled={model.lineHeight.kind === 'unavailable'}
+                onChange={(event) => {
+                  const kind = event.currentTarget.value;
+                  applyParagraphDiscrete({ lineHeight: kind === 'normal'
+                    ? { kind: 'normal' }
+                    : kind === 'multiple' ? { kind: 'multiple', value: 1.2 }
+                      : { kind: 'absolute', value: model.size.kind === 'value'
+                        ? Math.round(model.size.value * 1.2 * 10) / 10 : 19.2 } });
+                }}>
+                {model.lineHeight.kind === 'mixed' ? mixedOption : null}
+                <option value="normal">Auto</option>
+                <option value="absolute">Fixed</option>
+                <option value="multiple">Multiple</option>
+              </ToolOptionSelect>
+              <MixedNumberInput label="Leading value" value={lineHeightValue} min={0.01}
+                max={100000} step={lineHeightKind === 'multiple' ? 0.1 : 1}
+                unit={lineHeightKind === 'multiple' ? '×' : 'px'}
+                onBegin={onBegin} onPreview={(value) => onParagraph({ lineHeight: {
+                  kind: lineHeightKind === 'multiple' ? 'multiple' : 'absolute', value
+                } })} onCommit={onCommit} onCancel={onCancel} />
+              <MixedNumberInput label="First line" value={model.firstLineIndent}
+                min={-100000} max={100000} step={1} unit="px" onBegin={onBegin}
+                onPreview={(firstLineIndent) => onParagraph({ firstLineIndent })}
+                onCommit={onCommit} onCancel={onCancel} />
+              <MixedNumberInput label="Left indent" value={model.startIndent}
+                min={-100000} max={100000} step={1} unit="px" onBegin={onBegin}
+                onPreview={(startIndent) => onParagraph({ startIndent })}
+                onCommit={onCommit} onCancel={onCancel} />
+              <MixedNumberInput label="Right indent" value={model.endIndent}
+                min={-100000} max={100000} step={1} unit="px" onBegin={onBegin}
+                onPreview={(endIndent) => onParagraph({ endIndent })}
+                onCommit={onCommit} onCancel={onCancel} />
+              <MixedNumberInput label="Space before" value={model.spaceBefore}
+                min={0} max={100000} step={1} unit="px" onBegin={onBegin}
+                onPreview={(spaceBefore) => onParagraph({ spaceBefore })}
+                onCommit={onCommit} onCancel={onCancel} />
+              <MixedNumberInput label="Space after" value={model.spaceAfter}
+                min={0} max={100000} step={1} unit="px" onBegin={onBegin}
+                onPreview={(spaceAfter) => onParagraph({ spaceAfter })}
+                onCommit={onCommit} onCancel={onCancel} />
             </div>
           </div>
         </section>

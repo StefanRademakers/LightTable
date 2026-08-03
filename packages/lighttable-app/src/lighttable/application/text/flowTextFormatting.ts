@@ -118,14 +118,12 @@ export const projectFlowTextFormat = (
           ? withoutRange(caretRun(source.styleRuns, ordered!.start)!) : undefined)]
         .filter((value): value is TextStyleProperties => value !== undefined)
     : selectedRuns(source.styleRuns, selection).map(withoutRange);
-  const paragraphs = insertion
-    ? [insertionParagraph
+  const paragraphs = source.paragraphRuns.length
+    ? source.paragraphRuns.map(withoutRange)
+    : [insertionParagraph
       ? withoutRange(insertionParagraph)
-      : source.insertionParagraph
-        ?? (caretRun(source.paragraphRuns, ordered!.start)
-          ? withoutRange(caretRun(source.paragraphRuns, ordered!.start)!) : undefined)]
-        .filter((value): value is ParagraphStyleProperties => value !== undefined)
-    : selectedRuns(source.paragraphRuns, selection).map(withoutRange);
+      : source.insertionParagraph]
+        .filter((value): value is ParagraphStyleProperties => value !== undefined);
   return {
     style: mixed(styles),
     paragraph: mixed(paragraphs),
@@ -169,32 +167,19 @@ export const projectFlowTextStyleValue = <Value>(
 
 export const projectFlowTextParagraphProperty = <Key extends keyof ParagraphStyleProperties>(
   source: FlowTextSource,
-  selection: TextSelectionRange | null,
+  _selection: TextSelectionRange | null,
   property: Key,
   insertionParagraph?: ParagraphStyleRun
 ): MixedValue<ParagraphStyleProperties[Key]> => {
-  selection = selection ? normalizeTextSelection(source.text, selection) : null;
-  const ordered = selection ? orderedTextSelection(selection) : null;
-  if (ordered && ordered.start === ordered.end) {
-    const paragraph = insertionParagraph
-      ? withoutRange(insertionParagraph)
-      : source.insertionParagraph
-        ?? (caretRun(source.paragraphRuns, ordered.start)
-          ? withoutRange(caretRun(source.paragraphRuns, ordered.start)!) : undefined);
-    return paragraph
-      ? { kind: 'value', value: paragraph[property] }
-      : { kind: 'unavailable' };
-  }
-  if (!selection && source.paragraphRuns.length === 0 && source.insertionParagraph) {
-    return { kind: 'value', value: source.insertionParagraph[property] };
-  }
-  if (!selection && source.paragraphRuns.length === 0) {
+  if (source.paragraphRuns.length === 0) {
+    const paragraph = insertionParagraph ?? source.insertionParagraph;
+    if (paragraph) return { kind: 'value', value: paragraph[property] };
     return {
       kind: 'value',
       value: createDefaultFlowTextSource('x').paragraphRuns[0][property]
     };
   }
-  return mixed(selectedRuns(source.paragraphRuns, selection).map((run) => run[property]));
+  return mixed(source.paragraphRuns.map((run) => run[property]));
 };
 
 export const formatFlowTextSource = (
@@ -220,6 +205,7 @@ export const formatFlowTextSource = (
           ? withoutRange(caretRun(source.paragraphRuns, ordered.start)!) : undefined);
     return {
       ...source,
+      paragraphRuns: patchRuns(source.paragraphRuns, null, paragraphPatch),
       ...(styleSeed ? { insertionStyle: { ...styleSeed, ...stylePatch } } : {}),
       ...(paragraphSeed ? { insertionParagraph: { ...paragraphSeed, ...paragraphPatch } } : {})
     };
@@ -232,7 +218,7 @@ export const formatFlowTextSource = (
   return {
     ...source,
     styleRuns: patchRuns(source.styleRuns, selection, stylePatch),
-    paragraphRuns: patchRuns(source.paragraphRuns, selection, paragraphPatch),
+    paragraphRuns: patchRuns(source.paragraphRuns, null, paragraphPatch),
     ...(!selection && source.styleRuns.length === 0 && emptyStyleSeed
       ? { insertionStyle: { ...emptyStyleSeed, ...stylePatch } } : {}),
     ...(!selection && source.paragraphRuns.length === 0 && emptyParagraphSeed

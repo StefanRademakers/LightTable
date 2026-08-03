@@ -1,8 +1,9 @@
-import type { FlowTextSource, TextStyleRun } from '@lighttable/text-core';
+import type { FlowTextSource, ParagraphStyleRun, TextStyleRun } from '@lighttable/text-core';
 import type { DocumentFontAsset } from '../../editor/document/documentTypes';
 import type { TextSelectionRange } from './flowTextEditing';
 import {
   projectFlowTextStyleProperty,
+  projectFlowTextParagraphProperty,
   projectFlowTextStyleValue,
   type MixedValue,
   type TextStylePatch
@@ -15,6 +16,13 @@ export interface TextPropertyPresentation {
   readonly size: MixedValue<number>;
   readonly fill: MixedValue<string>;
   readonly tracking: MixedValue<number>;
+  readonly alignment: MixedValue<ParagraphStyleRun['alignment']>;
+  readonly lineHeight: MixedValue<ParagraphStyleRun['lineHeight']>;
+  readonly firstLineIndent: MixedValue<number>;
+  readonly startIndent: MixedValue<number>;
+  readonly endIndent: MixedValue<number>;
+  readonly spaceBefore: MixedValue<number>;
+  readonly spaceAfter: MixedValue<number>;
   readonly advancedUnavailableReason: string;
 }
 
@@ -77,7 +85,8 @@ export const buildTextPropertyPresentation = (
   source: FlowTextSource,
   selection: TextSelectionRange | null,
   fonts: readonly DocumentFontAsset[],
-  insertionStyle?: TextStyleRun
+  insertionStyle?: TextStyleRun,
+  insertionParagraph?: ParagraphStyleRun
 ): TextPropertyPresentation => {
   return {
     target: !selection ? 'layer' : selection.anchor === selection.focus ? 'insertion' : 'selection',
@@ -98,7 +107,14 @@ export const buildTextPropertyPresentation = (
       solidTextPaintHex
     ),
     tracking: projectFlowTextStyleProperty(source, selection, 'tracking', insertionStyle),
+    alignment: projectFlowTextParagraphProperty(source, selection, 'alignment', insertionParagraph),
+    lineHeight: projectFlowTextParagraphProperty(source, selection, 'lineHeight', insertionParagraph),
+    firstLineIndent: projectFlowTextParagraphProperty(source, selection, 'firstLineIndent', insertionParagraph),
+    startIndent: projectFlowTextParagraphProperty(source, selection, 'startIndent', insertionParagraph),
+    endIndent: projectFlowTextParagraphProperty(source, selection, 'endIndent', insertionParagraph),
+    spaceBefore: projectFlowTextParagraphProperty(source, selection, 'spaceBefore', insertionParagraph),
+    spaceAfter: projectFlowTextParagraphProperty(source, selection, 'spaceAfter', insertionParagraph),
     advancedUnavailableReason:
-      'Baseline shift, leading, faux styles, OpenType features and variable axes remain disabled until layout and glyph rasterization support the same setting.'
+      'Baseline shift, faux styles, OpenType features and variable axes remain disabled until layout and glyph rasterization support the same setting.'
   };
 };

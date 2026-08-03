@@ -40,6 +40,7 @@ const renderOptions = (
     onTextFontAssetChange: vi.fn(),
     onTextSizeChange: vi.fn(),
     onTextFillChange: vi.fn(),
+    onTextAlignmentChange: vi.fn(),
     onTextPropertyBegin: vi.fn(),
     onTextPropertyCommit: vi.fn(),
     onTextPropertyCancel: vi.fn(),
@@ -90,11 +91,17 @@ describe('point text tool options', () => {
       target: 'selection', family: { kind: 'value', value: 'Inter' },
       face: { kind: 'value', value: 'inter' }, size: { kind: 'mixed' },
       fill: { kind: 'value', value: '#ff0000' }, tracking: { kind: 'value', value: 0 },
+      alignment: { kind: 'value', value: 'center' },
+      lineHeight: { kind: 'value', value: { kind: 'normal' } },
+      firstLineIndent: { kind: 'value', value: 0 }, startIndent: { kind: 'value', value: 0 },
+      endIndent: { kind: 'value', value: 0 }, spaceBefore: { kind: 'value', value: 0 },
+      spaceAfter: { kind: 'value', value: 0 },
       advancedUnavailableReason: 'Unavailable'
     });
     expect(markup).toContain('placeholder="Mixed"');
     expect(markup).toContain('value="#ff0000"');
     expect(markup).toContain('aria-label="Text layout mode"');
     expect(markup).toContain('Convert to paragraph text');
+    expect(markup).toContain('<option value="center" selected="">Center</option>');
   });
 });

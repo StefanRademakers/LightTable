@@ -20,6 +20,21 @@ describe('text property presentation', () => {
     expect(presentation.tracking.kind).toBe('mixed');
     expect(presentation.size).toEqual({ kind: 'value', value: 16 });
     expect(presentation.fill).toEqual({ kind: 'value', value: '#000000' });
+    expect(presentation.alignment).toEqual({ kind: 'value', value: 'start' });
+    expect(presentation.lineHeight).toEqual({ kind: 'value', value: { kind: 'normal' } });
+  });
+
+  it('projects paragraph properties independently across a selection', () => {
+    const source = createDefaultFlowTextSource('one\ntwo');
+    const paragraphRuns = [
+      { ...source.paragraphRuns[0], start: 0, end: 4 },
+      { ...source.paragraphRuns[0], start: 4, end: 7, alignment: 'end' as const }
+    ];
+    const presentation = buildTextPropertyPresentation(
+      { ...source, paragraphRuns }, { anchor: 0, focus: 7 }, []
+    );
+    expect(presentation.alignment).toEqual({ kind: 'mixed' });
+    expect(presentation.spaceAfter).toEqual({ kind: 'value', value: 0 });
   });
 
   it('parses a bounded solid fill without accepting partial color text', () => {

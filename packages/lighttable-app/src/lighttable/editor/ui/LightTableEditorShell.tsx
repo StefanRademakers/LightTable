@@ -37,6 +37,7 @@ export interface LightTableEditorShellProps {
   onTextFontAssetChange?: (assetId: string) => void;
   onTextSizeChange?: (size: number) => void;
   onTextFillChange?: (fill: string) => void;
+  onTextAlignmentChange?: (alignment: EditorSession['text']['alignment']) => void;
   onTextPropertyBegin?: () => void;
   onTextPropertyCommit?: () => void;
   onTextPropertyCancel?: () => void;
@@ -98,6 +99,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onTextFontAssetChange,
   onTextSizeChange,
   onTextFillChange,
+  onTextAlignmentChange,
   onTextPropertyBegin,
   onTextPropertyCommit,
   onTextPropertyCancel,
@@ -168,6 +170,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onTextFontAssetChange={onTextFontAssetChange}
         onTextSizeChange={onTextSizeChange}
         onTextFillChange={onTextFillChange}
+        onTextAlignmentChange={onTextAlignmentChange}
         onTextPropertyBegin={onTextPropertyBegin}
         onTextPropertyCommit={onTextPropertyCommit}
         onTextPropertyCancel={onTextPropertyCancel}

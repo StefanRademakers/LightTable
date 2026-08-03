@@ -126,6 +126,7 @@ import { ParagraphFrameResizeController } from './application/text/ParagraphFram
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import {
   formatFlowTextSource,
+  type ParagraphStylePatch,
   type TextStylePatch
 } from './application/text/flowTextFormatting';
 import {
@@ -2257,13 +2258,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     && textFormatProjection.style.kind === 'value'
     ? { ...textFormatProjection.style.value, start: 0, end: 0 }
     : undefined;
+  const projectedInsertionParagraph = textFormatProjection?.target === 'insertion'
+    && textFormatProjection.paragraph.kind === 'value'
+    ? { ...textFormatProjection.paragraph.value, start: 0, end: 0 }
+    : undefined;
   const textPropertyPresentation = activeFlowTextPropertyLayer && activeFlowTextPropertySource
     ? buildTextPropertyPresentation(
         activeFlowTextPropertySource,
         editingTargetsActiveLayer
           ? textEditing.selection : null,
         availableFontAssets,
-        projectedInsertionStyle
+        projectedInsertionStyle,
+        projectedInsertionParagraph
       )
     : activeTextPropertyLayer?.type === 'text' ? {
         target: 'layer' as const,
@@ -2272,6 +2278,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         size: { kind: 'unavailable' as const },
         fill: { kind: 'unavailable' as const },
         tracking: { kind: 'unavailable' as const },
+        alignment: { kind: 'unavailable' as const },
+        lineHeight: { kind: 'unavailable' as const },
+        firstLineIndent: { kind: 'unavailable' as const },
+        startIndent: { kind: 'unavailable' as const },
+        endIndent: { kind: 'unavailable' as const },
+        spaceBefore: { kind: 'unavailable' as const },
+        spaceAfter: { kind: 'unavailable' as const },
         advancedUnavailableReason:
           'Positioned imported text preserves exact glyph placement. Editable flow conversion is not available yet; preserve it or rasterize a copy.'
       } : null;
@@ -2312,13 +2325,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textPropertyGestureRef.current = { kind: 'document', documentId: document.id, layerId, before: document };
     return true;
   };
-  const applyTextPropertyPatch = (patch: TextStylePatch) => {
+  const applyTextPropertyPatch = (
+    patch: TextStylePatch,
+    paragraphPatch: ParagraphStylePatch = {}
+  ) => {
     const gesture = textPropertyGestureRef.current;
     if (!gesture) return;
     if (gesture.kind === 'text') {
       const editing = textEditingController.getSnapshot();
       if (editing.status !== 'editing' || editing.layerId !== gesture.layerId) return;
-      textEditingController.format(patch);
+      textEditingController.format(patch, paragraphPatch);
       return;
     }
     if (imageDocumentRef.current?.id !== gesture.documentId) return;
@@ -2328,7 +2344,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
       return applyTextLayerDataMutation(document, layerId, {
         ...layer.text,
-        source: formatFlowTextSource(layer.text.source, null, patch)
+        source: formatFlowTextSource(layer.text.source, null, patch, paragraphPatch)
       });
     });
   };
@@ -2355,6 +2371,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyTextPropertyPatch(patch);
     commitTextPropertyGesture();
   };
+  const applyDiscreteTextParagraph = (patch: ParagraphStylePatch) => {
+    if (!beginTextPropertyGesture()) return;
+    applyTextPropertyPatch({}, patch);
+    commitTextPropertyGesture();
+  };
   const applyTextFontAsset = (assetId: string) => {
     void (async () => {
       const bundled = await registerBundledTextFontByAssetId(textFontRegistry, assetId);
@@ -2379,6 +2400,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onSize: (size: number) => applyTextPropertyPatch({ fontSize: size }),
     onFill: applyTextFill,
     onTracking: (tracking: number) => applyTextPropertyPatch({ tracking }),
+    onParagraph: (patch: ParagraphStylePatch) => applyTextPropertyPatch({}, patch),
     onBegin: beginTextPropertyGesture,
     onCommit: commitTextPropertyGesture,
     onCancel: cancelTextPropertyGesture
@@ -2421,6 +2443,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onTextFontAssetChange={applyTextFontAsset}
       onTextSizeChange={(fontSize) => applyTextPropertyPatch({ fontSize })}
       onTextFillChange={applyTextFill}
+      onTextAlignmentChange={(alignment) => applyDiscreteTextParagraph({ alignment })}
       onTextPropertyBegin={beginTextPropertyGesture}
       onTextPropertyCommit={commitTextPropertyGesture}
       onTextPropertyCancel={cancelTextPropertyGesture}
@@ -2502,6 +2525,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onTextFontAssetChange: applyTextFontAsset,
             onTextSizeChange: (fontSize) => applyTextPropertyPatch({ fontSize }),
             onTextFillChange: applyTextFill,
+            onTextAlignmentChange: (alignment) => applyDiscreteTextParagraph({ alignment }),
             onTextPropertyBegin: beginTextPropertyGesture,
             onTextPropertyCommit: commitTextPropertyGesture,
             onTextPropertyCancel: cancelTextPropertyGesture,

@@ -172,7 +172,7 @@ export interface TextToolSettings {
   style: string;
   size: number;
   antiAlias: 'smooth';
-  alignment: 'start';
+  alignment: 'start' | 'center' | 'end' | 'justify';
 }
 
 export interface EditorSession {

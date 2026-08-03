@@ -32,14 +32,14 @@ Owner: Codex `/root`
 - [x] Resize all eight frame handles under affine layer transforms, preview live
   reflow, restore on cancel and commit one undo mutation (`3fa0e74`, `8aed295`).
 - [x] Expose point/paragraph conversion in shared Tool Options and its context menu.
-- [ ] Expose working alignment and paragraph spacing/indent/leading controls
+- [x] Expose working alignment and paragraph spacing/indent/leading controls
   through existing controls; leave unsupported values absent or disabled.
 - [ ] Draw and test truthful clip/overflow-indicator behavior.
 - [ ] Prove paragraph-only cache invalidation and unrelated-layer zero work.
 - [ ] Run the Slice 14 phase gate, update the execution log and move this task
   to `work/done` only after manual web/Electron smoke evidence is recorded.
 
-Latest automated gate: 242 app/workspace test files and 1,220 app tests passed;
+Latest automated gate: 242 app/workspace test files and 1,223 app tests passed;
 generated text WASM verified all 9 open faces; production web build and
 distribution boundary passed. Existing wasm-vips eval and chunk-size warnings
 are unchanged.

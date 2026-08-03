@@ -67,6 +67,29 @@ describe('flow text character formatting', () => {
     expect(projectFlowTextFormat(formatted, { anchor: 1, focus: 1 }).target).toBe('insertion');
   });
 
+  it('applies caret paragraph formatting to the visible flow', () => {
+    const source = createDefaultFlowTextSource('first\nsecond');
+    const formatted = formatFlowTextSource(
+      source, { anchor: 2, focus: 2 }, {}, { alignment: 'center' }
+    );
+    expect(formatted.paragraphRuns.map(({ start, end, alignment }) => ({ start, end, alignment })))
+      .toEqual([
+        { start: 0, end: 12, alignment: 'center' }
+      ]);
+    expect(formatted.insertionParagraph?.alignment).toBe('center');
+  });
+
+  it('keeps the currently supported whole-flow paragraph subset uniform', () => {
+    const source = createDefaultFlowTextSource('one\ntwo\nthree');
+    const formatted = formatFlowTextSource(
+      source, { anchor: 2, focus: 6 }, {}, { spaceAfter: 8 }
+    );
+    expect(formatted.paragraphRuns.map(({ start, end, spaceAfter }) => ({ start, end, spaceAfter })))
+      .toEqual([
+        { start: 0, end: 13, spaceAfter: 8 }
+      ]);
+  });
+
   it('formats a complete layer when no edit selection is supplied', () => {
     const source = createDefaultFlowTextSource('abc');
     const formatted = formatFlowTextSource(source, null, { fontWeight: 700 }, {
