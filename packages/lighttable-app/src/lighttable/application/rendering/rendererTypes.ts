@@ -43,6 +43,15 @@ export interface TextRenderPresentationSnapshot {
   readonly atlasEvictions: number;
   readonly sourceDecisionMeasurements: number;
   readonly lastSourceDecision: string | null;
+  readonly coordinatorActive: boolean;
+  readonly configuredFontCount: number;
+  readonly visibleTextLayerCount: number;
+  readonly preparationStage: 'idle' | 'suspended' | 'waiting-document' | 'waiting-font-port' | 'waiting-fonts' | 'loading-runtime' | 'registering-fonts' | 'shaping' | 'rasterizing' | 'publishing' | 'failed';
+  readonly preparationLayerId: string | null;
+  readonly lastPreparationError: string | null;
+  readonly traceRevision: number;
+  readonly traceMessage: string | null;
+  readonly traceDetails: string | null;
   readonly shapingOperations: number;
   readonly latestShapingRoundTripMs: number;
   readonly rasterizedGlyphs: number;

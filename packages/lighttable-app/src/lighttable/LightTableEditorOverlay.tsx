@@ -451,6 +451,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
     atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
     sourceDecisionMeasurements: 0, lastSourceDecision: null,
+    coordinatorActive: true, configuredFontCount: 0, visibleTextLayerCount: 0,
+    preparationStage: 'waiting-document', preparationLayerId: null, lastPreparationError: null,
+    traceRevision: 0, traceMessage: null, traceDetails: null,
     shapingOperations: 0, latestShapingRoundTripMs: 0,
     rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0,
     textInputLatencySamples: 0, pendingTextInputs: 0, supersededTextInputs: 0,
@@ -602,6 +605,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onDocumentError
   });
   const textEngineDiagnostic = useTextEngineDiagnostics(appendDebugMessage);
+  const textRenderTraceSignatureRef = useRef('');
+  const publishTextRenderPresentation = useCallback((snapshot: TextRenderPresentationSnapshot) => {
+    setTextRenderPresentation(snapshot);
+    if (!snapshot.traceMessage) return;
+    const signature = `${snapshot.traceRevision}:${snapshot.traceMessage}:${snapshot.traceDetails ?? ''}`;
+    if (textRenderTraceSignatureRef.current === signature) return;
+    textRenderTraceSignatureRef.current = signature;
+    appendDebugMessage(
+      snapshot.preparationStage === 'failed' ? 'error' : 'info',
+      'GPU text pipeline',
+      snapshot.traceMessage,
+      snapshot.traceDetails ?? undefined
+    );
+  }, [appendDebugMessage]);
   useEffect(() => {
     let activeRegistration = true;
     if (!thumbnailDocumentReadyId && editorSession.activeTool !== 'text-point') return undefined;
@@ -1069,6 +1086,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             layoutCacheHits: 0, layoutCacheMisses: 0, layoutCacheEvictions: 0,
             atlasBytes: 0, atlasHits: 0, atlasMisses: 0, atlasEvictions: 0,
             sourceDecisionMeasurements: 0, lastSourceDecision: null,
+            coordinatorActive: true, configuredFontCount: 0, visibleTextLayerCount: 0,
+            preparationStage: 'waiting-document', preparationLayerId: null, lastPreparationError: null,
+            traceRevision: 0, traceMessage: null, traceDetails: null,
             shapingOperations: 0, latestShapingRoundTripMs: 0,
             rasterizedGlyphs: 0, latestRasterRoundTripMs: 0, textCacheSubmissions: 0,
             textInputLatencySamples: 0, pendingTextInputs: 0, supersededTextInputs: 0,
@@ -1152,7 +1172,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getScopeOptions: getDocumentOpenScopeOptions,
     publishHistogram: setHistogram,
     publishGpuMemory: setGpuMemoryBytes,
-    publishTextRenderPresentation: setTextRenderPresentation,
+    publishTextRenderPresentation,
     publishError: setError,
     publishScopeError: setScopeError,
     publishFeatureError: (featureId, message) => {

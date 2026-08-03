@@ -158,6 +158,13 @@ export class TextLayerRenderCoordinator {
   private rasterizedGlyphs = 0;
   private latestRasterRoundTripMs = 0;
   private textCacheSubmissions = 0;
+  private visibleTextLayerCount = 0;
+  private preparationStage: TextRenderPresentationSnapshot['preparationStage'] = 'waiting-document';
+  private preparationLayerId: LayerId | null = null;
+  private lastPreparationError: string | null = null;
+  private traceRevision = 0;
+  private traceMessage: string | null = null;
+  private traceDetails: string | null = null;
 
   constructor(private readonly options: CoordinatorOptions) {
     options.renderer.setCostObserver((sample) => this.sourceCostModel.observe(sample));
@@ -166,6 +173,7 @@ export class TextLayerRenderCoordinator {
   setActive(active: boolean) {
     if (this.disposed || this.active === active) return false;
     this.active = active;
+    this.setPreparationStage(active ? 'idle' : 'suspended');
     if (!active) {
       this.abortController?.abort();
       this.abortController = null;
@@ -235,6 +243,7 @@ export class TextLayerRenderCoordinator {
     this.unsubscribeFonts?.();
     this.fontPort = port;
     this.configuredFontRevision = revision;
+    this.trace('Font runtime configured', `revision=${revision} faces=${port?.assets.length ?? 0}`);
     this.unsubscribeFonts = port?.subscribe(() => {
       if (this.fontPort !== port) return;
       const nextRevision = port.revision;
@@ -246,6 +255,7 @@ export class TextLayerRenderCoordinator {
       this.invalidateFontRuntime();
       this.schedule();
     }) ?? null;
+    this.publishChanged();
     this.schedule();
   }
 
@@ -261,6 +271,11 @@ export class TextLayerRenderCoordinator {
     }
     const retained = new Set(allText.map((layer) => layer.id));
     const visibleEntries = visibleTextLayers(document);
+    this.visibleTextLayerCount = visibleEntries.length;
+    this.trace(
+      'Document synchronized',
+      `document=${document.id} textLayers=${allText.length} visible=${visibleEntries.length} fonts=${this.fontPort?.assets.length ?? 0} active=${this.active}`
+    );
     this.options.renderer.setVisibleLayerIds(new Set(visibleEntries.map(({ layer }) => layer.id)));
     for (const layerId of this.settledLayerKeys.keys()) {
       if (!retained.has(layerId)) this.settledLayerKeys.delete(layerId);
@@ -314,6 +329,15 @@ export class TextLayerRenderCoordinator {
       sourceDecisionMeasurements: cost.measurementCount,
       lastSourceDecision: cost.lastDecision
         ? `${cost.lastDecision.mode}:${cost.lastDecision.reason}` : null,
+      coordinatorActive: this.active,
+      configuredFontCount: this.fontPort?.assets.length ?? 0,
+      visibleTextLayerCount: this.visibleTextLayerCount,
+      preparationStage: this.preparationStage,
+      preparationLayerId: this.preparationLayerId,
+      lastPreparationError: this.lastPreparationError,
+      traceRevision: this.traceRevision,
+      traceMessage: this.traceMessage,
+      traceDetails: this.traceDetails,
       shapingOperations: this.shapingOperations,
       latestShapingRoundTripMs: this.latestShapingRoundTripMs,
       rasterizedGlyphs: this.rasterizedGlyphs,
@@ -413,8 +437,21 @@ export class TextLayerRenderCoordinator {
   }
 
   private schedule() {
-    if (this.disposed || !this.active || !this.document || !this.fontPort) return;
+    if (this.disposed) return;
+    if (!this.active) {
+      this.setPreparationStage('suspended');
+      return;
+    }
+    if (!this.document) {
+      this.setPreparationStage('waiting-document');
+      return;
+    }
+    if (!this.fontPort) {
+      this.setPreparationStage('waiting-font-port');
+      return;
+    }
     const layers = visibleTextLayers(this.document);
+    this.visibleTextLayerCount = layers.length;
     if (layers.length === 0 || this.fontPort.assets.length === 0) {
       this.abortController?.abort();
       this.abortController = null;
@@ -422,6 +459,7 @@ export class TextLayerRenderCoordinator {
       this.generation += 1;
       this.expectedLayerKeys.clear();
       this.editingLayouts.clear();
+      this.setPreparationStage(layers.length === 0 ? 'idle' : 'waiting-fonts');
       return;
     }
     const expected = new Map(layers.map(({ layer, transform }) => [
@@ -449,12 +487,16 @@ export class TextLayerRenderCoordinator {
     this.abortController = abortController;
     this.pendingKey = key;
     const generation = ++this.generation;
+    this.setPreparationStage('loading-runtime');
+    this.trace('Preparation scheduled', `generation=${generation} document=${this.document.id} layers=${layers.length} fontRevision=${this.fontPort.revision}`);
     this.work = this.work
       .then(() => this.prepare(generation, key, layers, abortController.signal))
       .catch((reason: unknown) => {
         if (!this.current(generation, key)) return;
+        const message = reason instanceof Error ? reason.message : 'Text source preparation failed.';
+        this.setPreparationStage('failed', null, message);
         this.options.onError?.(
-          reason instanceof Error ? reason.message : 'Text source preparation failed.'
+          message
         );
         this.pendingKey = '';
         const retries = this.retryCounts.get(key) ?? 0;
@@ -484,6 +526,8 @@ export class TextLayerRenderCoordinator {
       return;
     }
     this.dependencies = dependencies;
+    this.trace('Runtime dependencies ready', `generation=${generation}`);
+    this.setPreparationStage('registering-fonts');
     if (!await this.beginSession(
       dependencies, document.id, layers, port, generation, key, signal
     )) return;
@@ -503,6 +547,7 @@ export class TextLayerRenderCoordinator {
       );
     }
     this.retryCounts.delete(key);
+    if (this.current(generation, key)) this.setPreparationStage('idle');
   }
 
   private async beginSession(
@@ -522,9 +567,11 @@ export class TextLayerRenderCoordinator {
     const candidateSessionId = `document-text-${documentId}-${++sessionSequence}`;
     const candidateGeneration = sessionSequence;
     let snapshotRevision = 0;
+    this.trace('Font session starting', `session=${candidateSessionId} faces=${sessionAssets.length}`);
     try {
       for (const asset of sessionAssets) {
         const bytes = await port.bytes(asset.assetId);
+        this.trace('Font bytes resolved', `asset=${asset.assetId} bytes=${bytes?.byteLength ?? 0}`);
         if (!bytes) continue;
         await dependencies.client.registerFontDetailed({
           kind: 'register-font',
@@ -536,6 +583,7 @@ export class TextLayerRenderCoordinator {
           byteSource: 'transferred',
           transferOwnership: 'dedicated'
         }, signal);
+        this.trace('Font registered', `asset=${asset.assetId} snapshotRevision=${snapshotRevision}`);
       }
     } catch (error) {
       await dependencies.client.releaseSession(candidateSessionId, candidateGeneration).catch(() => undefined);
@@ -557,6 +605,7 @@ export class TextLayerRenderCoordinator {
     this.sessionKey = nextSessionKey;
     this.layoutCache.clear();
     this.sessionFontRevision = snapshotRevision;
+    this.trace('Font session published', `session=${candidateSessionId} revision=${snapshotRevision}`);
     return true;
   }
 
@@ -583,6 +632,7 @@ export class TextLayerRenderCoordinator {
       options
     };
     const layoutCacheKey = createTextLayoutCacheKey(identity);
+    this.setPreparationStage('shaping', layer.id);
     let layout = this.layoutCache.get(layoutCacheKey);
     if (!layout) {
       const report = await dependencies.client.realizeTextDetailed({
@@ -597,11 +647,13 @@ export class TextLayerRenderCoordinator {
       this.shapingOperations += 1;
       this.latestShapingRoundTripMs = report.roundTripDurationMs;
       this.layoutCache.set(layoutCacheKey, layout);
+      this.trace('Text shaped', `layer=${layer.id} glyphRuns=${layout.glyphRuns.length} roundTripMs=${report.roundTripDurationMs.toFixed(2)}`);
     }
     if (!this.current(generation, key)) return;
     this.publishEditingLayout(layer, layout, transform, fontPortRevision);
     this.publishChanged();
     this.options.requestRender();
+    this.setPreparationStage('rasterizing', layer.id);
     const prepared = await this.prepareDraws(
       dependencies,
       projectCurrentTextPaint(layout, layer.text.source),
@@ -610,6 +662,7 @@ export class TextLayerRenderCoordinator {
       key,
       signal
     );
+    this.trace('Glyph coverage ready', `layer=${layer.id} draws=${prepared.draws.length}`);
     if (!this.current(generation, key)) {
       prepared.release();
       return;
@@ -637,6 +690,7 @@ export class TextLayerRenderCoordinator {
           directEligible
         }).mode;
       if (mode === 'atlas') {
+        this.setPreparationStage('publishing', layer.id);
         const candidate = this.options.renderer.prepareAtlasSource(
           layer,
           dependencies.backend,
@@ -650,6 +704,7 @@ export class TextLayerRenderCoordinator {
           return;
         }
         candidate.publish();
+        this.trace('Atlas source published', `layer=${layer.id} draws=${prepared.draws.length}`);
         this.settledLayerKeys.set(
           layer.id,
           this.layerPreparationKey(this.document!.id, layer, transform, fontPortRevision)
@@ -666,6 +721,7 @@ export class TextLayerRenderCoordinator {
       label: `LightTable tight text source: ${layer.name}`
     });
     let candidate;
+    this.setPreparationStage('publishing', layer.id);
     try {
       candidate = this.options.renderer.prepareTightSource(
         encoder,
@@ -680,6 +736,7 @@ export class TextLayerRenderCoordinator {
     }
     if (!candidate) {
       this.options.renderer.markTransparent(layer);
+      this.trace('Transparent text source published', `layer=${layer.id}`);
       this.forcedCachedLayers.delete(layer.id);
       this.settledLayerKeys.set(
         layer.id,
@@ -700,6 +757,7 @@ export class TextLayerRenderCoordinator {
       throw error;
     }
     candidate.publish();
+    this.trace('Cached text source published', `layer=${layer.id}`);
     this.forcedCachedLayers.delete(layer.id);
     this.settledLayerKeys.set(
       layer.id,
@@ -834,6 +892,29 @@ export class TextLayerRenderCoordinator {
 
   private publishChanged() {
     this.options.onChanged?.(this.snapshot());
+  }
+
+  private trace(message: string, details: string | null = null) {
+    this.traceRevision += 1;
+    this.traceMessage = message;
+    this.traceDetails = details;
+    this.publishChanged();
+  }
+
+  private setPreparationStage(
+    stage: TextRenderPresentationSnapshot['preparationStage'],
+    layerId: LayerId | null = null,
+    error: string | null = null
+  ) {
+    if (
+      this.preparationStage === stage
+      && this.preparationLayerId === layerId
+      && this.lastPreparationError === error
+    ) return;
+    this.preparationStage = stage;
+    this.preparationLayerId = layerId;
+    this.lastPreparationError = error;
+    this.publishChanged();
   }
 
   private layerPreparationKey(

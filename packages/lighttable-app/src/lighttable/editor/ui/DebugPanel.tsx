@@ -205,6 +205,26 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         <small>
           Text source: {textSourceMode} · {readyTextSourceCount} ready layer{readyTextSourceCount === 1 ? '' : 's'}
         </small>
+        <small role="status">
+          Coordinator: {textRenderTelemetry.coordinatorActive ? 'active' : 'suspended'}
+          {' · '}{textRenderTelemetry.visibleTextLayerCount} visible text layer{textRenderTelemetry.visibleTextLayerCount === 1 ? '' : 's'}
+          {' · '}{textRenderTelemetry.configuredFontCount} font face{textRenderTelemetry.configuredFontCount === 1 ? '' : 's'}
+          {' · '}{textRenderTelemetry.preparationStage}
+          {textRenderTelemetry.preparationLayerId ? ` (${textRenderTelemetry.preparationLayerId})` : ''}
+        </small>
+        {textRenderTelemetry.lastPreparationError ? (
+          <small role="alert">Text preparation error: {textRenderTelemetry.lastPreparationError}</small>
+        ) : null}
+        <small role="status">
+          Coordinator: {textRenderTelemetry.coordinatorActive ? 'active' : 'suspended'}
+          {' · '}{textRenderTelemetry.visibleTextLayerCount} visible text layer{textRenderTelemetry.visibleTextLayerCount === 1 ? '' : 's'}
+          {' · '}{textRenderTelemetry.configuredFontCount} font face{textRenderTelemetry.configuredFontCount === 1 ? '' : 's'}
+          {' · '}{textRenderTelemetry.preparationStage}
+          {textRenderTelemetry.preparationLayerId ? ` (${textRenderTelemetry.preparationLayerId})` : ''}
+        </small>
+        {textRenderTelemetry.lastPreparationError ? (
+          <small role="alert">Text preparation error: {textRenderTelemetry.lastPreparationError}</small>
+        ) : null}
         <small>
           Modes: {textRenderTelemetry.atlasLayerCount} atlas / {textRenderTelemetry.cachedLayerCount} cached
           {' · '}{textRenderTelemetry.rebuildingLayerCount} rebuilding
