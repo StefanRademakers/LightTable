@@ -9,6 +9,7 @@ describe('workspacePanelRegistry', () => {
     const content = {
       scopes: 'scopes',
       grade: 'grade',
+      text: 'text',
       lensFx: 'lensFx',
       layers: 'layers',
       channels: 'channels',
@@ -23,6 +24,7 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
     ]);
     expect(panels.map((panel) => panel.content)).toEqual([
@@ -31,6 +33,7 @@ describe('workspacePanelRegistry', () => {
       content.scopes,
       content.grade,
       content.lensFx,
+      content.text,
       content.debug
     ]);
     expect(panels.map((panel) => panel.contentKey)).toEqual([
@@ -39,10 +42,11 @@ describe('workspacePanelRegistry', () => {
       'scopes',
       'grade',
       'lensFx',
+      'text',
       'debug'
     ]);
     expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.grade)?.title)
-      .toBe('Properties');
+      .toBe('Grade');
     expect(
       panels
         .filter((panel) => panel.requiredForSavedLayout)
@@ -52,7 +56,8 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.channels,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.text
     ]);
   });
 
@@ -60,6 +65,7 @@ describe('workspacePanelRegistry', () => {
     const panels = createDefaultLightTableWorkspacePanels({
       scopes: null,
       grade: null,
+      text: null,
       lensFx: null,
       layers: null,
       channels: null,
@@ -78,10 +84,11 @@ describe('workspacePanelRegistry', () => {
     });
   });
 
-  it('groups Lens Fx and Debug with Grade while keeping Grade active by default', () => {
+  it('groups Lens Fx, Text and Debug with Grade while keeping Grade active by default', () => {
     const panels = createDefaultLightTableWorkspacePanels({
       scopes: null,
       grade: null,
+      text: null,
       lensFx: null,
       layers: null,
       channels: null,
@@ -89,6 +96,9 @@ describe('workspacePanelRegistry', () => {
     });
     const debugPanel = panels.find(
       (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
+    );
+    const textPanel = panels.find(
+      (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.text
     );
 
     expect(debugPanel).toMatchObject({
@@ -99,12 +109,22 @@ describe('workspacePanelRegistry', () => {
       }
     });
     expect(debugPanel?.requiredForSavedLayout).toBeUndefined();
+    expect(textPanel).toMatchObject({
+      title: 'Text',
+      initiallyInactive: true,
+      requiredForSavedLayout: true,
+      defaultPosition: {
+        referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+        direction: 'within'
+      }
+    });
   });
 
   it('starts Layers as a compact floating panel over the document', () => {
     const panels = createDefaultLightTableWorkspacePanels({
       scopes: null,
       grade: null,
+      text: null,
       lensFx: null,
       layers: null,
       channels: null,

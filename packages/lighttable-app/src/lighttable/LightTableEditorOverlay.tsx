@@ -2151,6 +2151,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onCommit: commitTextPropertyGesture,
     onCancel: cancelTextPropertyGesture
   } : null;
+  useEffect(() => {
+    if (activeFlowTextPropertyLayer?.id) {
+      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
+    }
+  }, [activeFlowTextPropertyLayer?.id]);
   return (
     <LightTableEditorShell
       screenMode={screenMode}
@@ -2567,9 +2572,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 }
               },
               grade: {
-                text: textPropertiesPanel,
-                grade: {
-                  model: {
+                model: {
                   adjustmentStore: adjustmentPresentationStore,
                   metadata,
                   visibility: groupVisibility,
@@ -2602,8 +2605,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   updateCurve,
                     resetCurve
                   }
-                }
-              }
+                },
+              text: textPropertiesPanel
             })}
           />
     </LightTableEditorShell>

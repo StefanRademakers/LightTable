@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TextPropertiesPanel } from './TextPropertiesPanel';
 
 describe('contextual text properties', () => {
-  it('shows truthful targeting, mixed fields and disabled advanced capabilities', () => {
+  it('uses the established panel and tool-option controls for mixed text properties', () => {
     const markup = renderToStaticMarkup(<TextPropertiesPanel
       model={{
         target: 'selection',
@@ -21,7 +21,10 @@ describe('contextual text properties', () => {
     expect(markup).toContain('Selection');
     expect(markup).toContain('Mixed');
     expect(markup).toContain('aria-label="Text fill"');
-    expect(markup).toContain('Variable axes');
-    expect(markup).toContain('Engine support is unavailable.');
+    expect(markup).toContain('lighttable-tool-options__field');
+    expect(markup).toContain('lighttable-tool-options__weight-field');
+    expect(markup).toContain('lighttable-tool-options__color-field');
+    expect(markup).not.toContain('lighttable-lens-blur__select-row');
+    expect(markup).not.toContain('Advanced');
   });
 });

@@ -4,6 +4,7 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   documentHost: 'lighttable.document-host',
   scopes: 'lighttable.scopes',
   grade: 'lighttable.inspector',
+  text: 'lighttable.text-properties',
   lensFx: 'lighttable.lens-fx',
   layers: 'lighttable.layers',
   channels: 'lighttable.channels',
@@ -39,6 +40,7 @@ export interface LightTableWorkspacePanelRegistration {
 export interface DefaultLightTableWorkspacePanelContent {
   scopes: ReactNode;
   grade: ReactNode;
+  text: ReactNode;
   lensFx: ReactNode;
   layers: ReactNode;
   channels: ReactNode;
@@ -100,7 +102,7 @@ export const createDefaultLightTableWorkspacePanels = (
   {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
     contentKey: 'grade',
-    title: 'Properties',
+    title: 'Grade',
     content: content.grade,
     defaultPosition: {
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
@@ -114,6 +116,18 @@ export const createDefaultLightTableWorkspacePanels = (
     contentKey: 'lensFx',
     title: 'Lens Fx',
     content: content.lensFx,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
+    contentKey: 'text',
+    title: 'Text',
+    content: content.text,
     defaultPosition: {
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       direction: 'within'

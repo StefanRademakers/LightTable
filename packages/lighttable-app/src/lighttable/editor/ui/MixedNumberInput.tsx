@@ -58,7 +58,7 @@ export const MixedNumberInput: React.FC<MixedNumberInputProps> = ({
     onCommit();
   };
   return (
-    <label className="lighttable-text-property__number">
+    <label className="lighttable-tool-options__weight-field">
       <span>{label}</span>
       <input
         type="number" min={min} max={max} step={step}

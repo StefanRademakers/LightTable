@@ -1,7 +1,8 @@
 import React from 'react';
 import { ScopesPanel } from '../../ScopesPanel';
 import { DebugPanel } from '../../editor/ui/DebugPanel';
-import { PropertiesPanel } from '../../editor/panels/PropertiesPanel';
+import { GradePanel } from '../../editor/panels/GradePanel';
+import { TextPropertiesPanel } from '../../editor/panels/TextPropertiesPanel';
 import {
   LensFxPanel
 } from '../../editor/panels/LensFxPanel';
@@ -17,7 +18,8 @@ export interface EditorWorkspacePanelBindings {
   debug: React.ComponentProps<typeof DebugPanel>;
   lensFxKey: string;
   lensFx: React.ComponentProps<typeof LensFxPanel>;
-  grade: React.ComponentProps<typeof PropertiesPanel>;
+  grade: React.ComponentProps<typeof GradePanel>;
+  text: React.ComponentProps<typeof TextPropertiesPanel> | null;
 }
 
 /**
@@ -33,7 +35,8 @@ export const createEditorWorkspacePanels = ({
   debug,
   lensFxKey,
   lensFx,
-  grade
+  grade,
+  text
 }: EditorWorkspacePanelBindings): LightTableWorkspacePanelRegistration[] =>
   createDefaultLightTableWorkspacePanels({
     scopes: <ScopesPanel {...scopes} />,
@@ -41,5 +44,8 @@ export const createEditorWorkspacePanels = ({
     channels,
     debug: <DebugPanel {...debug} />,
     lensFx: <LensFxPanel key={lensFxKey} {...lensFx} />,
-    grade: <PropertiesPanel {...grade} />
+    grade: <GradePanel {...grade} />,
+    text: text
+      ? <TextPropertiesPanel {...text} />
+      : <aside className="lighttable-panel" aria-label="Text properties" />
   });

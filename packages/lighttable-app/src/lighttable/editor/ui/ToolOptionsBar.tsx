@@ -17,6 +17,7 @@ import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 import { MixedNumberInput } from './MixedNumberInput';
+import { ToolOptionColor, ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
@@ -227,94 +228,78 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {activeTool === 'text-point' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
-          <label className="lighttable-tool-options__field">
-            <span>Font</span>
-            <select
-              value={textProperties && textProperties.family.kind !== 'value' ? '' : presentedTextFamily}
-              disabled={textProperties?.family.kind === 'unavailable'}
-              onChange={(event) => {
-                if (!textProperties || !onTextFontAssetChange) {
-                  onTextChange({ family: event.currentTarget.value }); return;
-                }
-                const family = event.currentTarget.value;
-                const matches = textFonts.filter((font) => font.familyNames.includes(family));
-                const asset = matches.find((font) => font.styleName === 'Regular') ?? matches[0];
-                if (asset) onTextFontAssetChange(asset.assetId);
-              }}
-            >
-              {textProperties?.family.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
-              {textProperties?.family.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
-              {[...new Set(textFonts.flatMap(({ familyNames }) => familyNames.slice(0, 1)))]
-                .map((family) => <option key={family} value={family}>{family}</option>)}
-            </select>
-          </label>
-          <label className="lighttable-tool-options__field">
-            <span>Style</span>
-            <select
-              value={textProperties?.face.kind === 'mixed' ? ''
-                : textProperties?.face.kind === 'unavailable' ? ''
-                  : textProperties?.face.kind === 'value' ? textProperties.face.value : text.style}
-              disabled={textProperties?.face.kind === 'unavailable'}
-              onChange={(event) => {
-                if (!textProperties || !onTextFontAssetChange) {
-                  onTextChange({ style: event.currentTarget.value }); return;
-                }
-                onTextFontAssetChange(event.currentTarget.value);
-              }}
-            >
-              {textProperties?.face.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
-              {textProperties?.face.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
-              {[...new Set(textFonts
-                .filter(({ familyNames }) => familyNames.includes(presentedTextFamily))
-                .map(({ assetId }) => assetId))]
-                .map((assetId) => {
-                  const font = textFonts.find((entry) => entry.assetId === assetId)!;
-                  return <option key={assetId} value={assetId}>{font.styleName}</option>;
-                })}
-            </select>
-          </label>
+          <ToolOptionSelect
+            label="Font"
+            value={textProperties && textProperties.family.kind !== 'value' ? '' : presentedTextFamily}
+            disabled={textProperties?.family.kind === 'unavailable'}
+            onChange={(event) => {
+              if (!textProperties || !onTextFontAssetChange) {
+                onTextChange({ family: event.currentTarget.value }); return;
+              }
+              const family = event.currentTarget.value;
+              const matches = textFonts.filter((font) => font.familyNames.includes(family));
+              const asset = matches.find((font) => font.styleName === 'Regular') ?? matches[0];
+              if (asset) onTextFontAssetChange(asset.assetId);
+            }}
+          >
+            {textProperties?.family.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
+            {textProperties?.family.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
+            {[...new Set(textFonts.flatMap(({ familyNames }) => familyNames.slice(0, 1)))]
+              .map((family) => <option key={family} value={family}>{family}</option>)}
+          </ToolOptionSelect>
+          <ToolOptionSelect
+            label="Style"
+            value={textProperties?.face.kind === 'mixed' ? ''
+              : textProperties?.face.kind === 'unavailable' ? ''
+                : textProperties?.face.kind === 'value' ? textProperties.face.value : text.style}
+            disabled={textProperties?.face.kind === 'unavailable'}
+            onChange={(event) => {
+              if (!textProperties || !onTextFontAssetChange) {
+                onTextChange({ style: event.currentTarget.value }); return;
+              }
+              onTextFontAssetChange(event.currentTarget.value);
+            }}
+          >
+            {textProperties?.face.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
+            {textProperties?.face.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
+            {[...new Set(textFonts
+              .filter(({ familyNames }) => familyNames.includes(presentedTextFamily))
+              .map(({ assetId }) => assetId))]
+              .map((assetId) => {
+                const font = textFonts.find((entry) => entry.assetId === assetId)!;
+                return <option key={assetId} value={assetId}>{font.styleName}</option>;
+              })}
+          </ToolOptionSelect>
           {textProperties && onTextSizeChange && onTextPropertyBegin
             && onTextPropertyCommit && onTextPropertyCancel ? (
             <MixedNumberInput label="Size" value={textProperties.size} min={1} max={1296}
               step={1} unit="px" onBegin={onTextPropertyBegin} onPreview={onTextSizeChange}
               onCommit={onTextPropertyCommit} onCancel={onTextPropertyCancel} />
-          ) : <label className="lighttable-tool-options__weight-field">
-            <span>Size</span>
-            <input
-              type="number"
-              min={1}
-              max={1296}
-              step={1}
-              value={text.size}
-              onChange={(event) => onTextChange({
-                size: Math.max(1, Math.min(1296, Number(event.currentTarget.value) || 1))
-              })}
-            />
-            <span>px</span>
-          </label>}
+          ) : <ToolOptionNumber
+            label="Size"
+            min={1}
+            max={1296}
+            step={1}
+            value={text.size}
+            onChange={(value) => onTextChange({
+              size: Math.max(1, Math.min(1296, value || 1))
+            })}
+            unit="px"
+          />}
           {onTextFillChange ? (
-            <label className="lighttable-tool-options__color-field">
-              <span>Fill</span>
-              <input
-                type="color"
-                value={textProperties?.fill.kind === 'value'
-                  ? textProperties.fill.value
-                  : textProperties ? '#000000' : brush.color}
-                onFocus={onTextPropertyBegin}
-                onChange={(event) => onTextFillChange(event.currentTarget.value)}
-                onBlur={onTextPropertyCommit}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault();
-                    onTextPropertyCancel?.();
-                    event.currentTarget.blur();
-                  }
-                }}
-              />
-              {textProperties && textProperties.fill.kind !== 'value' ? (
+            <ToolOptionColor
+              label="Fill"
+              value={textProperties?.fill.kind === 'value'
+                ? textProperties.fill.value
+                : textProperties ? '#000000' : brush.color}
+              onFocus={onTextPropertyBegin}
+              onChange={onTextFillChange}
+              onBlur={onTextPropertyCommit}
+              onCancel={onTextPropertyCancel}
+              status={textProperties && textProperties.fill.kind !== 'value' ? (
                 <em>{textProperties.fill.kind === 'mixed' ? 'Mixed' : 'Non-solid / unsupported'}</em>
               ) : null}
-            </label>
+            />
           ) : null}
           <label className="lighttable-tool-options__field">
             <span>Antialias</span>
@@ -337,37 +322,14 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       {activeTool === 'vector-pen' || activeTool.startsWith('shape-') || editsVectorSelection ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Vector style">
           {activeTool !== 'shape-line' ? (
-            <label className="lighttable-tool-options__color-field">
-              <span>Fill</span>
-              <input
-                type="color"
-                value={presentedVectorStyle.fillColor}
-                onChange={(event) => changeVectorStyle({ fillColor: event.currentTarget.value })}
-              />
-            </label>
+            <ToolOptionColor label="Fill" value={presentedVectorStyle.fillColor}
+              onChange={(fillColor) => changeVectorStyle({ fillColor })} />
           ) : null}
-          <label className="lighttable-tool-options__color-field">
-            <span>Line</span>
-            <input
-              type="color"
-              value={presentedVectorStyle.strokeColor}
-              onChange={(event) => changeVectorStyle({ strokeColor: event.currentTarget.value })}
-            />
-          </label>
-          <label className="lighttable-tool-options__weight-field">
-            <span>Weight</span>
-            <input
-              type="number"
-              min={0.1}
-              max={1000}
-              step={0.5}
-              value={presentedVectorStyle.strokeWidth}
-              onChange={(event) => changeVectorStyle({
-                strokeWidth: Math.max(0.1, Number(event.currentTarget.value) || 0.1)
-              })}
-            />
-            <span>px</span>
-          </label>
+          <ToolOptionColor label="Line" value={presentedVectorStyle.strokeColor}
+            onChange={(strokeColor) => changeVectorStyle({ strokeColor })} />
+          <ToolOptionNumber label="Weight" min={0.1} max={1000} step={0.5}
+            value={presentedVectorStyle.strokeWidth} unit="px"
+            onChange={(value) => changeVectorStyle({ strokeWidth: Math.max(0.1, value || 0.1) })} />
         </div>
       ) : null}
       {activeTool === 'brush' || activeTool === 'erase' ? (
