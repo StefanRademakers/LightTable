@@ -2,9 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   importPdfPageScene,
   multiplyPdfMatrices,
+  type PdfFormResource,
   type PdfPageDisplayList,
   type PdfPositionedTextRun
 } from './index';
+
+const form: PdfFormResource = {
+  id: 'form:badge', sourceObjectId: '20 0 R', matrix: [1, 0, 0, 1, 5, 7],
+  bounds: { x: 0, y: 0, width: 40, height: 20 },
+  transparencyGroupResourceId: 'group:form',
+  operations: [{ kind: 'draw-path', paint: 'fill', fillRule: 'nonzero', path: { commands: [] } }]
+};
 
 const glyphRun: PdfPositionedTextRun = {
   id: 'run:glyph', fontResourceId: 'font:1', semanticMappingResourceId: null,
@@ -43,6 +51,7 @@ const page: PdfPageDisplayList = {
       { kind: 'move', point: { x: 1, y: 2 } }, { kind: 'line', point: { x: 5, y: 8 } }
     ] } },
     { kind: 'draw-image', imageResourceId: 'image:1', matrix: [4, 0, 0, 5, 3, 6], sourceObjectId: '5 0 R' },
+    { kind: 'draw-form', formResourceId: 'form:badge', sourceObjectId: '20 0 R' },
     { kind: 'draw-text', runs: [glyphRun], sourceObjectId: '6 0 R' },
     { kind: 'draw-path', paint: 'fill', fillRule: 'nonzero', sourceObjectId: '7 0 R', path: { commands: [
       { kind: 'move', point: { x: 4, y: 4 } }, { kind: 'line', point: { x: 8, y: 8 } }
@@ -57,10 +66,10 @@ const page: PdfPageDisplayList = {
 
 describe('PDF page semantic import', () => {
   it('imports paths, images, clips and positioned glyphs with graphics-state snapshots', () => {
-    const scene = importPdfPageScene(page);
+    const scene = importPdfPageScene(page, [form]);
 
-    expect(scene.items.map(item => item.kind)).toEqual(['path', 'image', 'positioned-text', 'path', 'path']);
-    const [path, image, text, textClippedPath, restoredPath] = scene.items;
+    expect(scene.items.map(item => item.kind)).toEqual(['path', 'image', 'form', 'positioned-text', 'path', 'path']);
+    const [path, image, formItem, text, textClippedPath, restoredPath] = scene.items;
     expect(path.kind).toBe('path');
     if (path.kind !== 'path' || image.kind !== 'image' || text.kind !== 'positioned-text') return;
     expect(path.localToPage).toEqual([2, 0, 0, 2, 10, 20]);
@@ -73,6 +82,10 @@ describe('PDF page semantic import', () => {
     expect(path.paintState.clips).toHaveLength(1);
     expect(path.paintState.clips[0]).toMatchObject({ fillRule: 'evenodd', localToPage: [2, 0, 0, 2, 10, 20] });
     expect(image.localToPage).toEqual([8, 0, 0, 10, 16, 32]);
+    expect(formItem).toMatchObject({
+      kind: 'form', formResourceId: 'form:badge', localToPage: [2, 0, 0, 2, 20, 34],
+      transparencyGroupResourceId: 'group:form'
+    });
     expect(text.runs[0].renderingMode).toBe(6);
     expect(text.runs[0].glyphs[0]).toMatchObject({ sourceCode: [65], cid: 65, glyphId: 36 });
     expect(text.paintState.clips).toHaveLength(1);

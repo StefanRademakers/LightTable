@@ -25,6 +25,9 @@ export interface PdfDisplayListLimits {
   readonly maximumType3GlyphPrograms: number;
   readonly maximumType3OperationsPerGlyph: number;
   readonly maximumType3NestingDepth: number;
+  readonly maximumForms: number;
+  readonly maximumFormOperations: number;
+  readonly maximumFormNestingDepth: number;
 }
 
 export const DEFAULT_PDF_DISPLAY_LIST_LIMITS: PdfDisplayListLimits = Object.freeze({
@@ -42,7 +45,10 @@ export const DEFAULT_PDF_DISPLAY_LIST_LIMITS: PdfDisplayListLimits = Object.free
   maximumTotalFontProgramBytes: 1024 * 1024 * 1024,
   maximumType3GlyphPrograms: 65_536,
   maximumType3OperationsPerGlyph: 100_000,
-  maximumType3NestingDepth: 16
+  maximumType3NestingDepth: 16,
+  maximumForms: 100_000,
+  maximumFormOperations: 2_000_000,
+  maximumFormNestingDepth: 64
 });
 
 interface PdfValidationBudget {
@@ -136,6 +142,7 @@ export const validatePdfDisplayList = (
     ...value.resources.fontPrograms,
     ...value.resources.semanticMappings,
     ...value.resources.type3GlyphPrograms,
+    ...value.resources.forms,
     ...value.resources.images,
     ...value.resources.colorSpaces,
     ...value.resources.transparencyGroups,
@@ -161,6 +168,7 @@ export const validatePdfDisplayList = (
   const fontProgramIds = ids(value.resources.fontPrograms);
   const semanticMappingIds = ids(value.resources.semanticMappings);
   const type3GlyphProgramIds = ids(value.resources.type3GlyphPrograms);
+  const formIds = ids(value.resources.forms);
   const imageIds = ids(value.resources.images);
   const colorSpaceIds = ids(value.resources.colorSpaces);
   const groupIds = ids(value.resources.transparencyGroups);
@@ -240,6 +248,7 @@ export const validatePdfDisplayList = (
   const positionedRunIds = new Set<string>();
   const validateOperationResources = (entry: PdfDisplayOperation, operationPath: string) => {
     if (entry.kind === 'draw-image') requireResource(imageIds, entry.imageResourceId, `${operationPath}.imageResourceId`, 'image');
+    else if (entry.kind === 'draw-form') requireResource(formIds, entry.formResourceId, `${operationPath}.formResourceId`, 'form');
     else if (entry.kind === 'draw-text') entry.runs.forEach((run, runIndex) => {
       const runPath = `${operationPath}.runs[${runIndex}]`;
       if (!run.id) fail(`${runPath}.id`, 'must not be empty.');
@@ -312,29 +321,57 @@ export const validatePdfDisplayList = (
     programs.push(program);
     type3ProgramsByFont.set(program.fontResourceId, programs);
   });
+  if (value.resources.forms.length > limits.maximumForms) {
+    fail('$.resources.forms', 'exceeds the form-resource limit.');
+  }
+  value.resources.forms.forEach((form, index) => {
+    const formPath = `$.resources.forms[${index}]`;
+    matrix(form.matrix, `${formPath}.matrix`);
+    rect(form.bounds, `${formPath}.bounds`);
+    if (form.transparencyGroupResourceId !== null) {
+      requireResource(groupIds, form.transparencyGroupResourceId,
+        `${formPath}.transparencyGroupResourceId`, 'transparency-group');
+    }
+    validateOperationSequence(form.operations, `${formPath}.operations`, limits.maximumFormOperations);
+  });
+  const formById = new Map(value.resources.forms.map(form => [form.id, form]));
   const type3ProgramById = new Map(value.resources.type3GlyphPrograms.map(program => [program.id, program]));
-  const type3DepthByProgram = new Map<string, number>();
-  const type3Depth = (programId: string, active: ReadonlySet<string>): number => {
-    if (active.has(programId)) fail('$.resources.type3GlyphPrograms', `contains recursive Type 3 program ${programId}.`);
-    const cached = type3DepthByProgram.get(programId);
+  const operationDependencies = (operations: readonly PdfDisplayOperation[]) => operations.flatMap(entry => {
+    if (entry.kind === 'draw-form') return [`form:${entry.formResourceId}`];
+    if (entry.kind !== 'draw-text') return [];
+    return entry.runs.flatMap(run => (type3ProgramsByFont.get(run.fontResourceId) ?? [])
+      .filter(candidate => run.glyphs.some(glyph => glyph.glyphId !== undefined
+        ? glyph.glyphId === candidate.glyphId
+        : glyph.sourceCode.length === candidate.sourceCode.length
+          && glyph.sourceCode.every((byte, index) => byte === candidate.sourceCode[index])))
+      .map(candidate => `type3:${candidate.id}`));
+  });
+  const resourceDepthMemo = new Map<string, number>();
+  const resourceDepth = (key: string, active: ReadonlySet<string>): number => {
+    if (active.has(key)) {
+      const [kind, id] = key.split(':', 2);
+      fail(kind === 'form' ? '$.resources.forms' : '$.resources.type3GlyphPrograms',
+        kind === 'form' ? `contains recursive form ${id}.` : `contains recursive Type 3 program ${id}.`);
+    }
+    const cached = resourceDepthMemo.get(key);
     if (cached !== undefined) return cached;
-    const program = type3ProgramById.get(programId)!;
-    const nextActive = new Set(active); nextActive.add(programId);
-    const nestedProgramIds = program.operations.flatMap(entry => entry.kind === 'draw-text'
-      ? entry.runs.flatMap(run => (type3ProgramsByFont.get(run.fontResourceId) ?? [])
-        .filter(candidate => run.glyphs.some(glyph => glyph.glyphId !== undefined
-          ? glyph.glyphId === candidate.glyphId
-          : glyph.sourceCode.length === candidate.sourceCode.length
-            && glyph.sourceCode.every((byte, index) => byte === candidate.sourceCode[index])))
-        .map(candidate => candidate.id))
-      : []);
-    const depth = 1 + nestedProgramIds
-      .reduce((maximum, nestedProgramId) => Math.max(maximum, type3Depth(nestedProgramId, nextActive)), 0);
-    type3DepthByProgram.set(programId, depth);
+    const separator = key.indexOf(':');
+    const kind = key.slice(0, separator);
+    const id = key.slice(separator + 1);
+    const operations = kind === 'form' ? formById.get(id)!.operations : type3ProgramById.get(id)!.operations;
+    const nextActive = new Set(active); nextActive.add(key);
+    const depth = 1 + operationDependencies(operations).reduce((maximum, nestedKey) =>
+      Math.max(maximum, resourceDepth(nestedKey, nextActive)), 0);
+    resourceDepthMemo.set(key, depth);
     return depth;
   };
+  value.resources.forms.forEach(form => {
+    if (resourceDepth(`form:${form.id}`, new Set()) > limits.maximumFormNestingDepth) {
+      fail('$.resources.forms', 'exceeds the form nesting limit.');
+    }
+  });
   value.resources.type3GlyphPrograms.forEach(program => {
-    if (type3Depth(program.id, new Set()) > limits.maximumType3NestingDepth) {
+    if (resourceDepth(`type3:${program.id}`, new Set()) > limits.maximumType3NestingDepth) {
       fail('$.resources.type3GlyphPrograms', 'exceeds the Type 3 nesting limit.');
     }
   });

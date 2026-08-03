@@ -37,6 +37,7 @@ const fixture = (): PdfNormalizedDisplayList => ({
       spans: [{ glyphStart: 0, glyphEnd: 1, unicode: 'A', provenance: 'to-unicode', confidence: 1 }]
     }],
     type3GlyphPrograms: [],
+    forms: [],
     images: [{
       id: 'image:hero', sourceObjectId: '14 0 R', assetId: 'asset:image', width: 32,
       height: 16, bitsPerComponent: 8, colorSpaceId: 'color:rgb', softMaskResourceId: 'mask:alpha'
@@ -269,5 +270,40 @@ describe('normalized PDF display-list contract', () => {
     expect(() => validatePdfDisplayList(value, { maximumTotalGlyphs: 7 })).toThrow('document glyph budget');
     expect(() => validatePdfDisplayList(value, { maximumTotalImagePixels: 511 })).toThrow('document image-pixel budget');
     expect(() => validatePdfDisplayList(value, { maximumTotalFontProgramBytes: 8191 })).toThrow('font-program byte budget');
+  });
+
+  it('validates reusable forms and rejects recursive or over-budget form graphs', () => {
+    const value = transportClone(fixture());
+    (value.resources.forms as Array<PdfNormalizedDisplayList['resources']['forms'][number]>).push({
+      id: 'form:a', sourceObjectId: '40 0 R', matrix: identity,
+      bounds: { x: 0, y: 0, width: 20, height: 10 },
+      transparencyGroupResourceId: 'group:mask',
+      operations: [{ kind: 'draw-path', paint: 'fill', fillRule: 'nonzero', path: { commands: [] } }]
+    });
+    (value.pages[0].operations as Array<PdfNormalizedDisplayList['pages'][number]['operations'][number]>)
+      .splice(-1, 0, { kind: 'draw-form', formResourceId: 'form:a', sourceObjectId: '40 0 R' });
+    expect(validatePdfDisplayList(value)).toBe(value);
+    expect(() => validatePdfDisplayList(value, { maximumFormOperations: 0 })).toThrow('operation limit');
+
+    const recursive = transportClone(value);
+    (recursive.resources.forms[0].operations as Array<PdfNormalizedDisplayList['pages'][number]['operations'][number]>)
+      .push({ kind: 'draw-form', formResourceId: 'form:a' });
+    expect(() => validatePdfDisplayList(recursive)).toThrow('recursive form');
+  });
+
+  it('rejects recursion crossing a Form XObject and a Type 3 glyph program', () => {
+    const value = transportClone(fixture());
+    addType3Font(value, 'font:type3-cross', 'type3:glyph-cross');
+    (value.resources.type3GlyphPrograms as Array<PdfNormalizedDisplayList['resources']['type3GlyphPrograms'][number]>).push({
+      id: 'type3:glyph-cross', sourceObjectId: '50 0 R', fontResourceId: 'font:type3-cross',
+      glyphId: 65, sourceCode: [65], advance: { x: 1, y: 0 }, bounds: null,
+      operations: [{ kind: 'draw-form', formResourceId: 'form:cross' }]
+    });
+    (value.resources.forms as Array<PdfNormalizedDisplayList['resources']['forms'][number]>).push({
+      id: 'form:cross', sourceObjectId: '51 0 R', matrix: identity,
+      bounds: { x: 0, y: 0, width: 1, height: 1 }, transparencyGroupResourceId: null,
+      operations: [type3TextOperation('run:form-type3-cross', 'font:type3-cross')]
+    });
+    expect(() => validatePdfDisplayList(value)).toThrow('recursive form');
   });
 });

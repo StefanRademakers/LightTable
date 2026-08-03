@@ -650,6 +650,12 @@ Slice 20 text-clip evidence: positioned runs using PDF text rendering modes
 Following scene items inherit that clip through the graphics-state snapshot;
 save/restore removes it exactly like a path clip, without reshaping glyphs.
 
+Slice 20 form evidence: Form XObjects are reusable bounded resources with an
+exact matrix, bounds, optional transparency-group identity and their own
+validated display list. Page scenes reference them without parser-time
+duplication. A unified resource graph rejects direct and mixed Form/Type 3
+cycles and enforces separate nesting/operation limits before replay.
+
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but
 flow editing is disabled until explicitly recovered.
@@ -659,7 +665,7 @@ presentation and reference comparison is logged.
 
 #### Slice 20 — PDF production and export
 
-- [ ] Support forms, transparency groups, soft masks, text clipping and page
+- [x] Support forms, transparency groups, soft masks, text clipping and page
   tiling required by the fixture corpus.
 - [ ] Add optional, confidence-scored positioned-to-flow recovery.
 - [ ] Export true PDF text objects when font embedding and semantics allow.

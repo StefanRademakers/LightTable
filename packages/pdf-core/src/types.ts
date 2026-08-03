@@ -80,6 +80,7 @@ export type PdfDisplayOperation =
     readonly sourceObjectId?: PdfObjectId;
   }
   | { readonly kind: 'draw-image'; readonly imageResourceId: string; readonly matrix: PdfMatrix; readonly sourceObjectId?: PdfObjectId }
+  | { readonly kind: 'draw-form'; readonly formResourceId: string; readonly sourceObjectId?: PdfObjectId }
   | { readonly kind: 'draw-text'; readonly runs: readonly PdfPositionedTextRun[]; readonly sourceObjectId?: PdfObjectId }
   | { readonly kind: 'begin-transparency-group'; readonly groupResourceId: string; readonly matrix: PdfMatrix }
   | { readonly kind: 'end-transparency-group'; readonly groupResourceId: string }
@@ -137,6 +138,15 @@ export interface PdfType3GlyphProgramResource {
   readonly advance: PdfPoint;
   readonly bounds: PdfRect | null;
   /** Sandboxed glyph-local PDF operations; never interpreted during validation. */
+  readonly operations: readonly PdfDisplayOperation[];
+}
+
+export interface PdfFormResource {
+  readonly id: string;
+  readonly sourceObjectId: PdfObjectId;
+  readonly matrix: PdfMatrix;
+  readonly bounds: PdfRect;
+  readonly transparencyGroupResourceId: string | null;
   readonly operations: readonly PdfDisplayOperation[];
 }
 
@@ -208,6 +218,7 @@ export interface PdfNormalizedDisplayList {
     readonly fontPrograms: readonly PdfFontProgramResource[];
     readonly semanticMappings: readonly PdfTextSemanticMappingResource[];
     readonly type3GlyphPrograms: readonly PdfType3GlyphProgramResource[];
+    readonly forms: readonly PdfFormResource[];
     readonly images: readonly PdfImageResource[];
     readonly colorSpaces: readonly PdfColorSpaceResource[];
     readonly transparencyGroups: readonly PdfTransparencyGroupResource[];

@@ -2,6 +2,7 @@ import type {
   PdfBlendMode,
   PdfDisplayOperation,
   PdfMatrix,
+  PdfFormResource,
   PdfPageDisplayList,
   PdfPaint,
   PdfPathData,
@@ -60,6 +61,13 @@ export type PdfPageSceneItem =
     readonly paint: 'fill' | 'stroke' | 'fill-stroke';
     readonly fillRule: 'nonzero' | 'evenodd';
     readonly localToPage: PdfMatrix;
+  })
+  | (PdfPageSceneItemBase & {
+    readonly kind: 'form';
+    readonly formResourceId: string;
+    readonly bounds: PdfFormResource['bounds'];
+    readonly localToPage: PdfMatrix;
+    readonly transparencyGroupResourceId: string | null;
   })
   | (PdfPageSceneItemBase & {
     readonly kind: 'image';
@@ -129,11 +137,15 @@ const snapshot = (state: GraphicsState): PdfPagePaintSnapshot => ({
 });
 
 /** Replays validated PDF operations into immutable, renderer-neutral page items. */
-export const importPdfPageScene = (page: PdfPageDisplayList): PdfPageScene => {
+export const importPdfPageScene = (
+  page: PdfPageDisplayList,
+  forms: readonly PdfFormResource[] = []
+): PdfPageScene => {
   let state = defaultState();
   const stack: GraphicsState[] = [];
   const items: PdfPageSceneItem[] = [];
   const preservedUnsupported: Extract<PdfDisplayOperation, { kind: 'preserved-unsupported' }>[] = [];
+  const formById = new Map(forms.map(form => [form.id, form]));
 
   for (const operation of page.operations) {
     switch (operation.kind) {
@@ -169,6 +181,17 @@ export const importPdfPageScene = (page: PdfPageDisplayList): PdfPageScene => {
           sourceObjectId: operation.sourceObjectId, paintState: snapshot(state)
         });
         break;
+      case 'draw-form': {
+        const form = formById.get(operation.formResourceId);
+        if (!form) throw new Error(`PDF page references missing form resource ${operation.formResourceId}.`);
+        items.push({
+          kind: 'form', formResourceId: form.id, bounds: form.bounds,
+          localToPage: multiplyPdfMatrices(state.transform, form.matrix),
+          transparencyGroupResourceId: form.transparencyGroupResourceId,
+          sourceObjectId: operation.sourceObjectId, paintState: snapshot(state)
+        });
+        break;
+      }
       case 'draw-text':
         items.push({
           kind: 'positioned-text', runs: operation.runs,
