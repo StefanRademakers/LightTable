@@ -5,6 +5,7 @@ import type { LayerId, PhotoshopImportReport } from '../document/documentTypes';
 import { PsdImportReportDialog } from '../psd/PsdImportReportDialog';
 import type { EditorDialogController } from './useEditorDialogController';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
+import { PdfExportPreflightDialog } from '../pdf/PdfExportPreflightDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -86,6 +87,11 @@ export const EditorDialogs = ({
       textFontDiagnostics={textFontDiagnostics}
       onResolveTextFont={onResolveTextFont}
       onClose={controller.closePsdReport}
+    />
+    <PdfExportPreflightDialog
+      open={Boolean(controller.pdfExportPreflightRequest)}
+      request={controller.pdfExportPreflightRequest}
+      onClose={controller.closePdfExportPreflight}
     />
   </>
 );

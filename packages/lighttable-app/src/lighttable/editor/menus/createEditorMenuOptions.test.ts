@@ -66,7 +66,8 @@ describe('createEditorMenuOptions', () => {
       { label: 'New', shortcut: 'Ctrl+N' },
       { label: 'Open', shortcut: 'Ctrl+O' },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
-      { label: 'Quick Export PNG', shortcut: 'Ctrl+Shift+S' }
+      { label: 'Quick Export PNG', shortcut: 'Ctrl+Shift+S' },
+      { label: 'PDF Export Preflight...', shortcut: undefined }
     ]);
     expect(options.every((option) => option.disabled)).toBe(true);
   });

@@ -47,6 +47,7 @@ export interface EditorMenuCommands {
   open: () => void;
   save: () => void;
   exportPng: () => void;
+  pdfExportPreflight: () => void;
   copySelectedContent: () => void;
   copyMergedContent: () => void;
   pasteSelectedContent: () => void;
@@ -129,6 +130,13 @@ export const createEditorMenuOptions = (
         shortcut: labels.primaryShortcut('S', true),
         onClick: commands.exportPng,
         disabled: !state.hasMetadata || state.saving
+      },
+      {
+        value: 'pdf-export-preflight',
+        label: 'PDF Export Preflight...',
+        separatorBefore: true,
+        onClick: commands.pdfExportPreflight,
+        disabled: !state.hasDocument || state.saving
       }
     ];
   }

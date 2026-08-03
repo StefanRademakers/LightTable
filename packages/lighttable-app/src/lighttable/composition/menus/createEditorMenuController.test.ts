@@ -39,7 +39,8 @@ describe('createEditorMenuController', () => {
         newDocument: vi.fn(),
         open: vi.fn(),
         save: vi.fn(),
-        exportPng: vi.fn()
+        exportPng: vi.fn(),
+        pdfExportPreflight: vi.fn()
       },
       edit: {
         copySelectedContent: vi.fn(),
@@ -119,7 +120,8 @@ describe('createEditorMenuController', () => {
       },
       labels: { primaryShortcut: (key) => `Ctrl+${key}` },
       file: {
-        newDocument: vi.fn(), open: vi.fn(), save: vi.fn(), exportPng: vi.fn()
+        newDocument: vi.fn(), open: vi.fn(), save: vi.fn(), exportPng: vi.fn(),
+        pdfExportPreflight: vi.fn()
       },
       edit: {
         copySelectedContent: vi.fn(), copyMergedContent: vi.fn(),

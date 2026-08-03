@@ -37,6 +37,7 @@ const strokeColor = argument('stroke-color', '');
 const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const strokeAlignment = argument('stroke-alignment', '');
 const mergeDown = argument('merge-down', '') === 'true';
+const openPdfPreflight = argument('pdf-preflight', '') === 'true';
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -61,7 +62,8 @@ const diagnostics = {
   expectedVectorLayers,
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
-    enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown
+    enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown,
+    openPdfPreflight
   },
   outputFile,
   executablePath,
@@ -195,6 +197,15 @@ try {
     await window.waitForTimeout(500);
   }
 
+  if (openPdfPreflight) {
+    await window.getByRole('button', { name: 'File', exact: true }).click();
+    await window.getByText('PDF Export Preflight...', { exact: true }).click();
+    await window.getByRole('dialog', { name: 'PDF export preflight' }).waitFor({
+      state: 'visible', timeout: 15_000
+    });
+    await window.waitForTimeout(250);
+  }
+
   diagnostics.layers = await window.locator('.lighttable-layer').evaluateAll((rows) => rows.map((row) => ({
     name: row.querySelector('.lighttable-layer__name')?.value ?? '',
     type: row.querySelector('.lighttable-layer__thumbnail')?.getAttribute('title') ?? '',
@@ -210,7 +221,7 @@ try {
     documentTitle: document.querySelector('.lighttable-document-tab--active')?.textContent?.trim() ?? ''
   }));
   const debugTab = window.getByRole('tab', { name: 'Debug' });
-  if (await debugTab.count()) {
+  if (!openPdfPreflight && await debugTab.count()) {
     await debugTab.click();
     diagnostics.debugPanel = await window.getByRole('region', { name: 'LightTable debug log' })
       .textContent() ?? '';

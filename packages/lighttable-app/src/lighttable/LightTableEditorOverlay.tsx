@@ -52,6 +52,7 @@ import { useLayerDocumentCommands } from './application/layers/useLayerDocumentC
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
+import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPreflight';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
@@ -2314,7 +2315,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       // layered-document import after reading the source signature.
       open: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
-      exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); }
+      exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
+      pdfExportPreflight: () => {
+        finishTextEditingRef.current();
+        commitPointTextRef.current();
+        commitParagraphTextRef.current();
+        const document = imageDocumentRef.current;
+        if (!document) return;
+        const fonts = textFontRegistry.availableAssets;
+        const plan = buildPdfTextExportPreflight({
+          document,
+          availableFonts: fonts,
+          fontBytesAvailable: new Set(fonts.map((font) => font.assetId)),
+          realizedLayout: (layerId) => engineRef.current?.textEditingLayout(layerId)?.layout ?? null
+        });
+        editorDialogs.openPdfExportPreflight({
+          plan,
+          fontLabels: Object.fromEntries(fonts.map((font) => [
+            font.assetId,
+            `${font.familyNames[0] ?? font.postScriptName ?? font.assetId} ${font.styleName}`.trim()
+          ]))
+        });
+      }
     },
     edit: {
       copySelectedContent,

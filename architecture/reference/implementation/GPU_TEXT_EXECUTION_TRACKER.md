@@ -711,6 +711,31 @@ presentation and reference comparison is logged.
 UI exposure: Export dialog reports fonts as embedded, subset, outlined or
 blocked before writing. Recovery is an explicit command with preview/undo.
 
+Text-export planning evidence: `@lighttable/pdf-core` now owns a bounded,
+writer-neutral preflight over exact realized glyph runs, logical Unicode spans,
+font embedding rights and actual font bytes. It assigns each font instance to
+HarfBuzz subset, preserved imported subset, full embed, outline, raster or
+blocked; each run receives a local encoding/CMap plan plus `ActualText` where
+one-to-one Unicode mapping is insufficient. Restricted/unknown embedding,
+bitmap/SVG fonts, missing semantics, synthetic styles, unsupported paint,
+projective/vertical geometry and layer/group effects have explicit fallback or
+block reasons. No font writer is claimed by this planner.
+
+Open-source evidence: the locally pinned HarfBuzz reference at commit
+`c31bd6797a0e55c2b176a7be3a181f36814ec6aa` exposes the required
+`hb_subset_or_fail` path, retain-GID policy, CFF/CFF2 support and variation-axis
+pinning. The future writer must call that implementation through a bounded
+native/WASM adapter; this preflight records the exact inputs without loading
+the subsetter during ordinary editing.
+
+Preflight UI evidence: File > PDF Export Preflight uses the existing menu,
+compatibility-report dialog, status badges and ActionButton components. It
+shows font/layer decisions and explicitly says PDF writing is not enabled.
+The packaged desktop automation opened the dialog on `D:\TextTest.psd` and
+reported five searchable text layers, three planned subsets and zero blocked
+resources with no page errors. No new dropdown, color, spinner or CSS control
+system was added.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 
