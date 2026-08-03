@@ -41,6 +41,10 @@ const createRectangle = argument('create-rectangle', '') === 'true';
 const createRasterLayerForPaint = argument('create-raster-layer', '') === 'true';
 const paintStroke = argument('paint-stroke', '') === 'true';
 const paintColor = argument('paint-color', '#ff0000');
+const saveLightTableArgument = argument('save-lighttable', '');
+const saveLightTableFile = saveLightTableArgument ? path.resolve(saveLightTableArgument) : null;
+const expectLayer = argument('expect-layer', '');
+const expectNonemptyLayer = argument('expect-nonempty-layer', '');
 const validatePdfFonts = argument('pdf-validate-fonts', '') === 'true';
 const exportFlattenedPdf = argument('pdf-export-flattened', '') === 'true';
 const exportNativePdf = argument('pdf-export-native', '') === 'true';
@@ -68,7 +72,8 @@ await Promise.all([access(sourceFile), access(executablePath)]).catch((error) =>
 });
 await Promise.all([
   mkdir(path.dirname(outputFile), { recursive: true }),
-  mkdir(userDataPath, { recursive: true })
+  mkdir(userDataPath, { recursive: true }),
+  ...(saveLightTableFile ? [mkdir(path.dirname(saveLightTableFile), { recursive: true })] : [])
 ]);
 
 const diagnostics = {
@@ -79,6 +84,7 @@ const diagnostics = {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
     createRasterLayerForPaint, paintStroke, paintColor,
+    saveLightTableFile, expectLayer, expectNonemptyLayer,
     openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf,
     exportNativeVectorPdf, exportNativeMixedPdf
   },
@@ -98,6 +104,7 @@ delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 let electronApp;
 let window;
 let failure;
+let screenshotCaptured = false;
 try {
   electronApp = await electron.launch({
     executablePath,
@@ -106,7 +113,8 @@ try {
     env: {
       ...launchEnvironment,
       LIGHTTABLE_AUTOMATION_OPEN_FILE: sourceFile,
-      LIGHTTABLE_AUTOMATION_USER_DATA: userDataPath
+      LIGHTTABLE_AUTOMATION_USER_DATA: userDataPath,
+      ...(saveLightTableFile ? { LIGHTTABLE_AUTOMATION_SAVE_FILE: saveLightTableFile } : {})
     },
     timeout: 30_000
   });
@@ -435,14 +443,55 @@ try {
   if (expectedFlowLayers > 0 && /text-renderer is unavailable/i.test(diagnostics.status)) {
     throw new Error(diagnostics.status);
   }
+  if (expectLayer && !diagnostics.layers.some(({ name }) => name === expectLayer)) {
+    throw new Error(`Expected layer "${expectLayer}" was not found.`);
+  }
+  if (expectNonemptyLayer) {
+    const escapedLayerName = expectNonemptyLayer.replaceAll('"', '\\"');
+    const row = window.locator('.lighttable-layer').filter({
+      has: window.locator(`.lighttable-layer__name[value="${escapedLayerName}"]`)
+    });
+    const source = await row.locator('.lighttable-layer__thumbnail-preview').getAttribute('src');
+    if (!source) throw new Error(`Layer "${expectNonemptyLayer}" has no pixel thumbnail.`);
+    const hasVisiblePixels = await window.evaluate(async (url) => {
+      const bitmap = await createImageBitmap(await (await fetch(url)).blob());
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const context = canvas.getContext('2d');
+      if (!context) return false;
+      context.drawImage(bitmap, 0, 0);
+      const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      bitmap.close();
+      for (let index = 3; index < pixels.length; index += 4) {
+        if (pixels[index] > 0) return true;
+      }
+      return false;
+    }, source);
+    diagnostics.nonemptyLayer = { name: expectNonemptyLayer, hasVisiblePixels };
+    if (!hasVisiblePixels) {
+      throw new Error(`Layer "${expectNonemptyLayer}" contains no visible pixels.`);
+    }
+  }
   if (diagnostics.pageErrors.length > 0) {
     throw new Error(`Desktop screenshot reported page errors: ${diagnostics.pageErrors.join('\n')}`);
+  }
+  if (saveLightTableFile) {
+    await window.screenshot({ path: outputFile });
+    screenshotCaptured = true;
+    await window.keyboard.press('Control+s');
+    const deadline = Date.now() + 30_000;
+    let saved;
+    while (!saved && Date.now() < deadline) {
+      saved = await stat(saveLightTableFile).catch(() => undefined);
+      if (!saved) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (!saved) throw new Error('The native LightTable save was not written by Electron.');
+    diagnostics.savedLightTable = { path: saveLightTableFile, byteLength: saved.size };
   }
 } catch (error) {
   failure = error;
   diagnostics.failure = error instanceof Error ? (error.stack ?? error.message) : String(error);
 } finally {
-  if (window && !window.isClosed()) {
+  if (!screenshotCaptured && window && !window.isClosed()) {
     await window.screenshot({ path: outputFile }).catch((error) => {
       diagnostics.screenshotError = String(error);
     });

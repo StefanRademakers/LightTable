@@ -359,9 +359,12 @@ void app.whenReady().then(async () => {
       title: 'Save from LightTable',
       defaultPath: payload.suggestedName
     };
-    const result = mainWindow
-      ? await dialog.showSaveDialog(mainWindow, options)
-      : await dialog.showSaveDialog(options);
+    const automationSaveFile = process.env.LIGHTTABLE_AUTOMATION_SAVE_FILE;
+    const result = automationSaveFile
+      ? { canceled: false, filePath: path.resolve(automationSaveFile) }
+      : mainWindow
+        ? await dialog.showSaveDialog(mainWindow, options)
+        : await dialog.showSaveDialog(options);
     if (result.canceled || !result.filePath) return false;
     await writeFile(result.filePath, payload.bytes);
     return true;

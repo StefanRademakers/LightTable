@@ -29,8 +29,11 @@ Status: active
 - [ ] Add explicit format-support access from the existing Open/Export UI once
   the shared capability surface described in
   `architecture/THIRD_PARTY_AND_FORMAT_SUPPORT.md` is implemented.
-- [ ] Add native save/reopen coverage after editing above imported PSD and PDF
-  sources, including paint history and preserved-source records.
+- [x] Add native save/reopen coverage after editing above an imported PDF:
+  packaged Electron paints, saves through Ctrl+S, starts a fresh process,
+  reopens the native document and verifies the paint layer has visible pixels.
+  Focused persistence tests cover preserved-source records.
+- [ ] Add the equivalent native save/reopen smoke after editing an imported PSD.
 
 ## Dependency and licensing rule
 
