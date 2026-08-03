@@ -36,6 +36,12 @@ type DocumentCompatibilityEntry = Omit<PhotoshopImportCompatibilityEntry, 'featu
   readonly editable?: boolean;
 };
 
+export const formatCompatibilityParity = (
+  parity: PhotoshopImportCompatibilityEntry['parity']
+) => parity
+  ? `Visual: ${parity.visual} · Semantic: ${parity.semantic} · Structural: ${parity.structural} · Round-trip: ${parity.roundTrip}`
+  : null;
+
 export const buildDocumentCompatibilityEntries = (
   report: PhotoshopImportReport | null,
   textFontDiagnostics: readonly TextFontDiagnostic[]
@@ -116,6 +122,9 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
               <div>
                 <strong>{entry.path}</strong>
                 <small>{entry.feature}</small>
+                {formatCompatibilityParity(entry.parity) ? (
+                  <small>{formatCompatibilityParity(entry.parity)}</small>
+                ) : null}
                 <p>{entry.reason}</p>
                 {entry.layerId && onResolveTextFont ? (
                   <ActionButton onClick={() => onResolveTextFont(entry.layerId!)}>

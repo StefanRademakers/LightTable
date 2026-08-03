@@ -308,7 +308,11 @@ describe('importPsdDocument', () => {
     });
     expect(result.assets).toHaveLength(0);
     expect(result.compatibility).toContainEqual(expect.objectContaining({
-      feature: 'text', support: 'approximate'
+      feature: 'text', support: 'approximate', layerId: 'text', editable: true,
+      parity: {
+        visual: 'approximate', semantic: 'editable',
+        structural: 'native', roundTrip: 'unsupported'
+      }
     }));
     expect(result.warnings.join('\n')).toContain('exact appearance depends');
   });
@@ -324,6 +328,11 @@ describe('importPsdDocument', () => {
     expect(result.document.layers[0]).toMatchObject({ type: 'raster' });
     expect(result.compatibility).toContainEqual(expect.objectContaining({
       feature: 'text', support: 'raster-preview',
+      layerId: 'preview-text', editable: false,
+      parity: {
+        visual: 'raster-preview', semantic: 'preserved',
+        structural: 'preserved', roundTrip: 'preserved'
+      },
       reason: expect.stringContaining('remains authoritative')
     }));
   });

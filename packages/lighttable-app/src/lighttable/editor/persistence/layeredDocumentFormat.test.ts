@@ -140,7 +140,15 @@ describe('LightTable layered PNG format', () => {
           path: 'layers[1]',
           feature: 'text' as const,
           support: 'approximate' as const,
-          reason: 'Editable text uses a resolved substitute font.'
+          reason: 'Editable text uses a resolved substitute font.',
+          layerId: positionedId,
+          editable: true,
+          parity: {
+            visual: 'approximate' as const,
+            semantic: 'editable' as const,
+            structural: 'native' as const,
+            roundTrip: 'unsupported' as const
+          }
         }]
       }
     };

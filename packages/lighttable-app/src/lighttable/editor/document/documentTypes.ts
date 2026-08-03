@@ -80,11 +80,23 @@ export type PhotoshopImportSupport =
   | 'raster-preview'
   | 'placeholder';
 
+export interface PhotoshopImportParity {
+  visual: 'exact' | 'approximate' | 'raster-preview' | 'missing' | 'unverified';
+  semantic: 'editable' | 'approximate' | 'preserved' | 'unsupported';
+  structural: 'native' | 'preserved' | 'unsupported';
+  roundTrip: 'verified' | 'preserved' | 'unsupported' | 'unverified';
+}
+
 export interface PhotoshopImportCompatibilityEntry {
   path: string;
   feature: 'node' | 'blend-mode' | 'mask' | 'layer-style' | 'adjustment' | 'text';
   support: PhotoshopImportSupport;
   reason: string;
+  /** Independent fidelity axes; optional for legacy LightTable documents. */
+  parity?: PhotoshopImportParity;
+  /** Native layer target used by the existing compatibility-report actions. */
+  layerId?: LayerId;
+  editable?: boolean;
 }
 
 export interface PhotoshopImportReport {

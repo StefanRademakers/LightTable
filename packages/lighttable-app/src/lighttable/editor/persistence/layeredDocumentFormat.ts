@@ -478,11 +478,36 @@ const parsePhotoshopImportReport = (value: unknown): PhotoshopImportReport | nul
     ) {
       throw new Error(`The LightTable Photoshop compatibility entry ${index + 1} is invalid.`);
     }
+    let parity: PhotoshopImportReport['compatibility'][number]['parity'];
+    if (entry.parity !== undefined) {
+      if (!isRecord(entry.parity)
+        || !['exact', 'approximate', 'raster-preview', 'missing', 'unverified'].includes(String(entry.parity.visual))
+        || !['editable', 'approximate', 'preserved', 'unsupported'].includes(String(entry.parity.semantic))
+        || !['native', 'preserved', 'unsupported'].includes(String(entry.parity.structural))
+        || !['verified', 'preserved', 'unsupported', 'unverified'].includes(String(entry.parity.roundTrip))) {
+        throw new Error(`The LightTable Photoshop compatibility parity ${index + 1} is invalid.`);
+      }
+      parity = {
+        visual: entry.parity.visual as NonNullable<typeof parity>['visual'],
+        semantic: entry.parity.semantic as NonNullable<typeof parity>['semantic'],
+        structural: entry.parity.structural as NonNullable<typeof parity>['structural'],
+        roundTrip: entry.parity.roundTrip as NonNullable<typeof parity>['roundTrip']
+      };
+    }
+    if (entry.layerId !== undefined && typeof entry.layerId !== 'string') {
+      throw new Error(`The LightTable Photoshop compatibility layer target ${index + 1} is invalid.`);
+    }
+    if (entry.editable !== undefined && typeof entry.editable !== 'boolean') {
+      throw new Error(`The LightTable Photoshop compatibility editability ${index + 1} is invalid.`);
+    }
     return {
       path: entry.path,
       feature: entry.feature as PhotoshopImportReport['compatibility'][number]['feature'],
       support: entry.support as PhotoshopImportReport['compatibility'][number]['support'],
-      reason: entry.reason
+      reason: entry.reason,
+      ...(parity ? { parity } : {}),
+      ...(entry.layerId !== undefined ? { layerId: entry.layerId as LayerId } : {}),
+      ...(entry.editable !== undefined ? { editable: entry.editable } : {})
     };
   });
   return { warnings: [...value.warnings], compatibility };

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
-import { buildDocumentCompatibilityEntries } from './PsdImportReportDialog';
+import {
+  buildDocumentCompatibilityEntries,
+  formatCompatibilityParity
+} from './PsdImportReportDialog';
 
 const diagnostic = (
   kind: 'missing' | 'substituted',
@@ -46,5 +49,17 @@ describe('document compatibility report projection', () => {
     };
     expect(buildDocumentCompatibilityEntries(imported, [diagnostic('missing')]))
       .toHaveLength(2);
+  });
+
+  it('presents independent Photoshop parity axes without inventing a second status', () => {
+    expect(formatCompatibilityParity({
+      visual: 'raster-preview',
+      semantic: 'preserved',
+      structural: 'preserved',
+      roundTrip: 'unsupported'
+    })).toBe(
+      'Visual: raster-preview · Semantic: preserved · Structural: preserved · Round-trip: unsupported'
+    );
+    expect(formatCompatibilityParity(undefined)).toBeNull();
   });
 });

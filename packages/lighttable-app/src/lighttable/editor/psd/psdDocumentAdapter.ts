@@ -543,7 +543,20 @@ export const importPsdDocument = (
         if (node.mask) {
           assets.push({ layerId: id, pixels: new Blob(), mask: node.mask.pixels });
         }
-        compatibility.push({ path, feature: 'text', support: 'approximate', reason });
+        compatibility.push({
+          path,
+          feature: 'text',
+          support: 'approximate',
+          reason,
+          layerId: id,
+          editable: true,
+          parity: {
+            visual: 'approximate',
+            semantic: 'editable',
+            structural: 'native',
+            roundTrip: 'unsupported'
+          }
+        });
         compatibility.push({
           path,
           feature: 'node',
@@ -557,6 +570,14 @@ export const importPsdDocument = (
         path,
         feature: 'text',
         support: previewBacked ? 'raster-preview' : 'preserved',
+        layerId: id,
+        editable: false,
+        parity: {
+          visual: previewBacked ? 'raster-preview' : 'missing',
+          semantic: 'preserved',
+          structural: 'preserved',
+          roundTrip: 'preserved'
+        },
         reason: previewBacked && textImport.kind === 'editable-flow'
           ? `${reason} Photoshop's layer-local raster preview remains authoritative until the source font is resolved.`
           : reason

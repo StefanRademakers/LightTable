@@ -535,7 +535,7 @@ or unrelated vector content.
 
 - [x] Map supported PSD text descriptors into flow text, runs and transforms.
 - [x] Preserve unsupported engine data and report it.
-- [ ] Classify visual, semantic, structural and round-trip parity separately.
+- [x] Classify visual, semantic, structural and round-trip parity separately.
 - [x] Add missing-font/substitution and raster-fallback policy.
 - [ ] Compare editable result against Photoshop composite fixtures.
 - [ ] Export supported text semantics back to PSD only when verified.
@@ -675,6 +675,10 @@ Append newest entries at the top. Keep entries factual and link the slice.
 - Fonts: requested Photoshop family/PostScript names enter the existing lazy
   resolver and missing/substituted font diagnostics; importing does not load or
   retain any font bytes by itself.
+- Reporting: text compatibility entries persist independent visual, semantic,
+  structural and round-trip parity axes plus their layer target. The existing
+  compatibility report displays those axes and reuses its established layer/font
+  recovery action instead of introducing another panel or control family.
 - Verification: adapter, integration, persistence and compatibility tests plus
   app typecheck pass. Photoshop composite fixtures and PSD export remain open.
 
