@@ -26,7 +26,10 @@ const fixture = () => {
     createBindGroupLayout: vi.fn(() => ({ id: 'layout' })),
     createPipelineLayout: vi.fn(() => ({ id: 'pipeline-layout' })),
     createShaderModule: vi.fn(() => ({ id: 'shader' })),
-    createRenderPipeline: vi.fn(() => ({ id: 'pipeline' })),
+    createRenderPipeline: vi.fn((descriptor: GPURenderPipelineDescriptor) => ({
+      id: 'pipeline',
+      label: descriptor.label
+    })),
     createBindGroup: vi.fn(() => ({ id: 'bind-group' })),
     createTexture: vi.fn((descriptor: GPUTextureDescriptor) => {
       const view = {} as GPUTextureView;
@@ -105,7 +108,7 @@ describe('VectorFillBackend', () => {
 
     expect(backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, realized, target)).toBe(true);
     expect(backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, realized, target)).toBe(true);
-    expect(device.createRenderPipeline).toHaveBeenCalledTimes(3);
+    expect(device.createRenderPipeline).toHaveBeenCalledTimes(4);
     expect(device.createRenderPipeline).toHaveBeenNthCalledWith(1, expect.objectContaining({
       fragment: expect.objectContaining({
         entryPoint: 'stencilFragment',
@@ -157,7 +160,15 @@ describe('VectorFillBackend', () => {
 
     expect(backend.encodeStroke(encoder as unknown as GPUCommandEncoder, path, realized, target)).toBe(true);
     expect(backend.encodeStroke(encoder as unknown as GPUCommandEncoder, path, realized, target)).toBe(true);
-    expect(device.createRenderPipeline).toHaveBeenCalledTimes(3);
+    expect(device.createRenderPipeline).toHaveBeenCalledTimes(4);
+    expect(pass.setPipeline).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      id: 'pipeline',
+      label: 'LightTable vector stroke union stencil'
+    }));
+    const strokeUnionDescriptor = device.createRenderPipeline.mock.calls[2]?.[0] as GPURenderPipelineDescriptor;
+    expect(strokeUnionDescriptor.label).toBe('LightTable vector stroke union stencil');
+    expect(strokeUnionDescriptor.depthStencil?.stencilFront?.passOp).toBe('increment-clamp');
+    expect(strokeUnionDescriptor.depthStencil?.stencilBack?.passOp).toBe('increment-clamp');
     expect(buffers.filter(({ label }) => label.includes('stroke:p:0'))).toHaveLength(1);
     expect(pass.draw).toHaveBeenCalledTimes(4);
     expect(backend.cacheMetrics()).toMatchObject({ entries: 1, hits: 1, misses: 1 });

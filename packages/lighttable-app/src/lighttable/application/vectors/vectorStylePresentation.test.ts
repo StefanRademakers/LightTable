@@ -72,4 +72,22 @@ describe('vector style presentation', () => {
     expect(linearRgbaToCssHex(restored.fill?.color ?? [])).toBe('#336699');
     expect(linearRgbaToCssHex(restored.stroke?.paint.color ?? [])).toBe('#ffffff');
   });
+
+  it('creates real paint when an imported no-fill or no-stroke style is enabled', () => {
+    const element = createVectorLiveShape('shape', { kind: 'ellipse', width: 20, height: 10 });
+    const importedWithoutPaint = { ...element.style, fill: null, stroke: null };
+
+    const enabled = patchVectorStyle(importedWithoutPaint, {
+      fillEnabled: true,
+      strokeEnabled: true
+    });
+
+    expect(enabled.fill).toEqual({ type: 'solid', color: [0, 0, 0, 1] });
+    expect(enabled.stroke).toMatchObject({
+      paint: { type: 'solid', color: [1, 1, 1, 1] },
+      width: 3,
+      cap: 'round',
+      join: 'round'
+    });
+  });
 });

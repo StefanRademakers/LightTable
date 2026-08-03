@@ -31,6 +31,8 @@ const nudgeX = Number.parseInt(argument('nudge-x', '0'), 10);
 const nudgeY = Number.parseInt(argument('nudge-y', '0'), 10);
 const dragX = Number.parseFloat(argument('drag-x', '0'));
 const dragY = Number.parseFloat(argument('drag-y', '0'));
+const enableFill = argument('enable-fill', '');
+const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
@@ -53,7 +55,10 @@ const diagnostics = {
   sourceFile,
   expectedFlowLayers,
   expectedVectorLayers,
-  interaction: { selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY },
+  interaction: {
+    selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
+    enableFill, strokeWidth
+  },
   outputFile,
   executablePath,
   capturedAt: new Date().toISOString(),
@@ -143,6 +148,16 @@ try {
     const verticalKey = nudgeY < 0 ? 'ArrowUp' : 'ArrowDown';
     for (let index = 0; index < Math.abs(nudgeX); index += 1) await window.keyboard.press(horizontalKey);
     for (let index = 0; index < Math.abs(nudgeY); index += 1) await window.keyboard.press(verticalKey);
+    if (enableFill === 'true' || enableFill === 'false') {
+      const checkbox = window.getByRole('checkbox', { name: 'Fill: enabled' });
+      if (enableFill === 'true') await checkbox.check();
+      else await checkbox.uncheck();
+    }
+    if (Number.isFinite(strokeWidth)) {
+      const input = window.getByRole('spinbutton', { name: 'Weight' });
+      await input.fill(String(strokeWidth));
+      await input.blur();
+    }
     await window.waitForTimeout(500);
   }
 

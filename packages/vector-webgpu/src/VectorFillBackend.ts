@@ -20,6 +20,7 @@ interface CachedVertexBuffer {
 interface PipelineBundle {
   nonzero: GPURenderPipeline;
   evenodd: GPURenderPipeline;
+  union: GPURenderPipeline;
   cover: GPURenderPipeline;
 }
 
@@ -187,7 +188,7 @@ export class VectorFillBackend {
       path.style.opacity,
       target,
       bundle,
-      'nonzero'
+      'union'
     );
   }
 
@@ -199,7 +200,7 @@ export class VectorFillBackend {
     opacity: number,
     target: VectorFillTarget,
     bundle: PipelineBundle,
-    fillRule: VectorPath['fillRule']
+    fillRule: VectorPath['fillRule'] | 'union'
   ) {
     const scissor = target.clip ? {
       x: Math.max(0, Math.floor(target.clip.x - target.origin.x)),
@@ -252,7 +253,9 @@ export class VectorFillBackend {
       );
     }
     pass.setBindGroup(0, bindGroup);
-    pass.setPipeline(fillRule === 'evenodd' ? bundle.evenodd : bundle.nonzero);
+    pass.setPipeline(fillRule === 'union'
+      ? bundle.union
+      : fillRule === 'evenodd' ? bundle.evenodd : bundle.nonzero);
     pass.setVertexBuffer(0, resource.buffer);
     pass.draw(resource.vertexCount);
     pass.setPipeline(bundle.cover);
@@ -367,6 +370,15 @@ export class VectorFillBackend {
         'LightTable vector evenodd stencil',
         { compare: 'always', passOp: 'invert' },
         { compare: 'always', passOp: 'invert' }
+      ),
+      // Stroke geometry is authored as a union of consistently covered
+      // triangles. A saturating, orientation-independent stencil prevents
+      // very wide curves from wrapping the 8-bit counter back to zero where
+      // hundreds of flattened segments overlap near the inner radius.
+      union: stencilPipeline(
+        'LightTable vector stroke union stencil',
+        { compare: 'always', passOp: 'increment-clamp' },
+        { compare: 'always', passOp: 'increment-clamp' }
       ),
       cover: this.device.createRenderPipeline({
         label: 'LightTable vector cover',

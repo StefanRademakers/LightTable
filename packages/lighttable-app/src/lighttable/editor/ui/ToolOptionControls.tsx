@@ -45,16 +45,17 @@ export const ToolOptionColor: React.FC<ToolOptionColorProps> = ({
   <div className="lighttable-tool-options__color-field">
     <span>{label}</span>
     {onEnabledChange ? (
-      <button
-        type="button"
-        className={enabled
-          ? 'lighttable-tool-options__paint-toggle lighttable-tool-options__paint-toggle--enabled'
-          : 'lighttable-tool-options__paint-toggle'}
-        aria-label={`${ariaLabel}: ${enabled ? 'disable paint' : 'enable paint'}`}
-        aria-pressed={enabled}
+      <label
+        className="lighttable-tool-options__toggle"
         title={enabled ? `Disable ${label.toLowerCase()}` : `Enable ${label.toLowerCase()}`}
-        onClick={() => onEnabledChange(!enabled)}
-      >{enabled ? 'On' : '/'}</button>
+      >
+        <input
+          type="checkbox"
+          checked={enabled}
+          aria-label={`${ariaLabel}: enabled`}
+          onChange={(event) => onEnabledChange(event.currentTarget.checked)}
+        />
+      </label>
     ) : null}
     <input
       type="color"

@@ -82,6 +82,19 @@ describe('vector style tool options', () => {
     expect(markup).toContain(`value="${defaults.fillColor}"`);
     expect(markup).toContain(`value="${defaults.strokeColor}"`);
   });
+
+  it('uses the shared checkbox control for imported no-fill and no-stroke states', () => {
+    const markup = renderOptions('vector-select', 1, 1, undefined, {
+      fillEnabled: false, fillColor: '#000000',
+      strokeEnabled: false, strokeColor: '#ffffff', strokeWidth: 3
+    });
+
+    expect(markup).toContain('type="checkbox"');
+    expect(markup).toContain('aria-label="Fill: enabled"');
+    expect(markup).toContain('aria-label="Line: enabled"');
+    expect(markup).not.toContain('paint-toggle');
+    expect(markup).not.toContain('>\/</button>');
+  });
 });
 
 describe('selection strip tool options', () => {
