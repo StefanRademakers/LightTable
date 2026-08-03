@@ -8,6 +8,9 @@ struct CoverageInstance {
   basis: vec4f,
   uvRect: vec4f,
   color: vec4f,
+  clip01: vec4f,
+  clip23: vec4f,
+  clipMeta: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> settings: CoverageSettings;
@@ -19,6 +22,10 @@ struct CoverageVertexOutput {
   @builtin(position) position: vec4f,
   @location(0) uv: vec2f,
   @location(1) @interpolate(flat) color: vec4f,
+  @location(2) pixel: vec2f,
+  @location(3) @interpolate(flat) clip01: vec4f,
+  @location(4) @interpolate(flat) clip23: vec4f,
+  @location(5) @interpolate(flat) clipMeta: vec4f,
 };
 
 @vertex fn coverageVertex(
@@ -39,10 +46,27 @@ struct CoverageVertexOutput {
   output.position = vec4f(clip, 0.0, 1.0);
   output.uv = (instance.uvRect.xy + corner * instance.uvRect.zw) / settings.viewportAtlas.zw;
   output.color = instance.color;
+  output.pixel = pixel;
+  output.clip01 = instance.clip01;
+  output.clip23 = instance.clip23;
+  output.clipMeta = instance.clipMeta;
   return output;
 }
 
 @fragment fn coverageFragment(input: CoverageVertexOutput) -> @location(0) vec4f {
+  if (input.clipMeta.x > 0.5) {
+    let p0 = input.clip01.xy;
+    let u = input.clip01.zw - p0;
+    let v = input.clip23.zw - p0;
+    let relative = input.pixel - p0;
+    let determinant = u.x * v.y - u.y * v.x;
+    if (abs(determinant) < 0.000001) { discard; }
+    let frame = vec2f(
+      (relative.x * v.y - relative.y * v.x) / determinant,
+      (u.x * relative.y - u.y * relative.x) / determinant
+    );
+    if (frame.x < 0.0 || frame.x > 1.0 || frame.y < 0.0 || frame.y > 1.0) { discard; }
+  }
   let coverage = textureSample(coverageAtlas, coverageSampler, input.uv).r;
   return input.color * coverage;
 }

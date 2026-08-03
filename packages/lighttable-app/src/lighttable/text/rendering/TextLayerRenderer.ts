@@ -85,6 +85,13 @@ const scale = (value: number): AffineMatrix => ({
   d: value
 });
 
+const mapClip = (
+  clip: CoverageAtlasDrawCommand['clip'],
+  map: (x: number, y: number) => readonly [number, number]
+): CoverageAtlasDrawCommand['clip'] => clip ? Object.freeze(clip.flatMap((value, index) => (
+  index % 2 === 0 ? map(value, clip[index + 1]!) : []
+)) as unknown as [number, number, number, number, number, number, number, number]) : undefined;
+
 /**
  * Document-scoped owner for immutable, tight text textures.
  *
@@ -218,7 +225,15 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
           (combined.b * basis[0] + combined.d * basis[1]) * inverseScale,
           (combined.a * basis[2] + combined.c * basis[3]) * inverseScale,
           (combined.b * basis[2] + combined.d * basis[3]) * inverseScale
-        ] as const
+        ] as const,
+        ...(draw.clip ? { clip: mapClip(draw.clip, (clipX, clipY) => {
+          const localX = clipX * inverseScale;
+          const localY = clipY * inverseScale;
+          return [
+            combined.a * localX + combined.c * localY + combined.tx,
+            combined.b * localX + combined.d * localY + combined.ty
+          ];
+        }) } : {})
       };
     });
     const startedAt = this.now();
@@ -357,7 +372,8 @@ export class TextLayerRenderer<TTexture = GPUTexture> {
     const shifted = draws.map((draw) => ({
       ...draw,
       x: draw.x - bounds.x,
-      y: draw.y - bounds.y
+      y: draw.y - bounds.y,
+      ...(draw.clip ? { clip: mapClip(draw.clip, (x, y) => [x - bounds.x, y - bounds.y]) } : {})
     }));
     try {
       const startedAt = this.now();
@@ -601,13 +617,28 @@ export const tightCoverageBounds = (
     }
   }
   if (!Number.isFinite(left)) return null;
-  const x = Math.floor(left - fringe);
-  const y = Math.floor(top - fringe);
+  const clip = draws.find((draw) => draw.clip)?.clip;
+  if (clip) {
+    const clipXs = [clip[0], clip[2], clip[4], clip[6]];
+    const clipYs = [clip[1], clip[3], clip[5], clip[7]];
+    left = Math.max(left - fringe, Math.min(...clipXs));
+    top = Math.max(top - fringe, Math.min(...clipYs));
+    right = Math.min(right + fringe, Math.max(...clipXs));
+    bottom = Math.min(bottom + fringe, Math.max(...clipYs));
+    if (right <= left || bottom <= top) return null;
+  } else {
+    left -= fringe;
+    top -= fringe;
+    right += fringe;
+    bottom += fringe;
+  }
+  const x = Math.floor(left);
+  const y = Math.floor(top);
   return Object.freeze({
     x,
     y,
-    width: Math.ceil(right + fringe) - x,
-    height: Math.ceil(bottom + fringe) - y
+    width: Math.ceil(right) - x,
+    height: Math.ceil(bottom) - y
   });
 };
 

@@ -8,7 +8,7 @@ import {
 } from '@lighttable/text-rendering';
 import { COVERAGE_ATLAS_WGSL } from './coverageShader';
 
-const INSTANCE_FLOATS = 16;
+const INSTANCE_FLOATS = 28;
 const SETTINGS_BYTES = 16;
 
 export interface CoverageGlyphRaster {
@@ -32,6 +32,7 @@ export interface CoverageAtlasDrawCommand {
   /** Premultiplied linear RGBA in the document working space. */
   readonly color: readonly [number, number, number, number];
   readonly transform?: readonly [number, number, number, number];
+  readonly clip?: readonly [number, number, number, number, number, number, number, number];
 }
 
 export interface CoverageAtlasRenderTarget {
@@ -164,7 +165,9 @@ export class CoverageAtlasBackend {
       }
       if (draw.glyph.placement.empty) continue;
       const [red, green, blue, alpha] = draw.color;
-      assertFinite([draw.x, draw.y, ...draw.color, ...(draw.transform ?? [])], 'Coverage draw values must be finite.');
+      assertFinite([
+        draw.x, draw.y, ...draw.color, ...(draw.transform ?? []), ...(draw.clip ?? [])
+      ], 'Coverage draw values must be finite.');
       if ([red, green, blue, alpha].some((value) => value < 0 || value > 1)
         || red > alpha || green > alpha || blue > alpha) {
         throw new TypeError('Coverage color must be premultiplied linear RGBA.');
@@ -199,7 +202,9 @@ export class CoverageAtlasBackend {
             placement.width, placement.height,
             ...basis,
             placement.x, placement.y, placement.width, placement.height,
-            ...draw.color
+            ...draw.color,
+            ...(draw.clip ?? [0, 0, 0, 0, 0, 0, 0, 0]),
+            draw.clip ? 1 : 0, 0, 0, 0
           ], index * INSTANCE_FLOATS);
         });
         const settings = new Float32Array([

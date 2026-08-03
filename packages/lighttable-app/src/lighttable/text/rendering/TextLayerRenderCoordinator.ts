@@ -861,7 +861,8 @@ export class TextLayerRenderCoordinator {
         x: draw.x,
         y: draw.y,
         transform: draw.transform,
-        color: draw.color
+        color: draw.color,
+        ...(draw.clip ? { clip: draw.clip } : {})
       }));
       let released = false;
       return {

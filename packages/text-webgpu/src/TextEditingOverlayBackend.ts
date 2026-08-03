@@ -58,7 +58,9 @@ const lineData = (overlay: TextEditingOverlay, caret: boolean) => new Float32Arr
 );
 
 const markerData = (overlay: TextEditingOverlay) => new Float32Array(
-  overlay.markers.flatMap(({ point, sizePx }) => [point.x, point.y, sizePx, 0])
+  overlay.markers.flatMap(({ role, point, sizePx }) => [
+    point.x, point.y, sizePx, role === 'overflow-indicator' ? 1 : 0
+  ])
 );
 
 /** GPU-only transient text selection/caret overlay; document textures are untouched. */

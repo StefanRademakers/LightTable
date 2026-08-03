@@ -49,7 +49,7 @@ describe('text editing overlay', () => {
     } as const;
     const overlay = buildTextEditingOverlay(options);
     expect(overlay.lines.filter(({ role }) => role === 'composition')).toHaveLength(2);
-    expect(overlay.resourceKey).toBe('text:layout:7:2:2:downstream:0-2:1:-:1,0,0,1,0,0');
+    expect(overlay.resourceKey).toBe('text:layout:7:2:2:downstream:0-2:1:-:fits:1,0,0,1,0,0');
   });
 
   it('honors affinity when one bidi boundary has multiple physical stops', () => {
@@ -107,5 +107,27 @@ describe('text editing overlay', () => {
       role: 'frame-handle', point: { x: 18, y: 32 }, sizePx: 10
     });
     expect(moved.resourceKey).not.toBe(first.resourceKey);
+  });
+
+  it('adds a fixed-size GPU marker only for truthful indicator overflow', () => {
+    const overflowed = {
+      ...layout,
+      paragraphFrame: {
+        bounds: { x: 4, y: 6, width: 120, height: 48 },
+        overflow: 'indicator' as const,
+        overflowed: true,
+        firstOverflowTextOffset: 2
+      }
+    };
+    const overlay = buildTextEditingOverlay({
+      layerId: 'paragraph', layout: overflowed, anchor: 0, focus: 0,
+      frame: overflowed.paragraphFrame.bounds,
+      localToDocument: { a: 2, b: 0, c: 0, d: 2, tx: 10, ty: 20 }
+    });
+    expect(overlay.markers).toHaveLength(9);
+    expect(overlay.markers.at(-1)).toEqual({
+      role: 'overflow-indicator', point: { x: 258, y: 128 }, sizePx: 12
+    });
+    expect(overlay.resourceKey).toContain(':overflow:');
   });
 });

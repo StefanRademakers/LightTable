@@ -65,12 +65,13 @@ struct Settings {
   matrix: vec4<f32>,
   viewport: vec4<f32>,
 };
-struct Marker { point: vec2<f32>, sizePx: f32, padding: f32 };
+struct Marker { point: vec2<f32>, sizePx: f32, kind: f32 };
 @group(0) @binding(0) var<uniform> settings: Settings;
 @group(0) @binding(1) var<storage, read> markers: array<Marker>;
 struct Output {
   @builtin(position) position: vec4<f32>,
   @location(0) local: vec2<f32>,
+  @location(1) @interpolate(flat) kind: f32,
 };
 fn pixel(point: vec2<f32>) -> vec2<f32> {
   return vec2<f32>(
@@ -88,7 +89,8 @@ fn pixel(point: vec2<f32>) -> vec2<f32> {
   );
   let marker = markers[instance];
   let local = corners[vertex];
-  let point = pixel(marker.point) + local * marker.sizePx * 0.5;
+  let overflowOffset = select(vec2<f32>(0.0), vec2<f32>(7.0), marker.kind > 0.5);
+  let point = pixel(marker.point) + overflowOffset + local * marker.sizePx * 0.5;
   var output: Output;
   output.position = vec4<f32>(
     point.x / settings.viewport.z * 2.0 - 1.0,
@@ -97,10 +99,18 @@ fn pixel(point: vec2<f32>) -> vec2<f32> {
     1.0
   );
   output.local = local;
+  output.kind = marker.kind;
   return output;
 }
 @fragment fn markerFragment(input: Output) -> @location(0) vec4<f32> {
   let border = max(abs(input.local.x), abs(input.local.y)) >= 0.64;
-  return select(vec4<f32>(0.08, 0.09, 0.11, 1.0), vec4<f32>(0.24, 0.66, 1.0, 1.0), border);
+  let plus = input.kind > 0.5
+    && (abs(input.local.x) <= 0.14 || abs(input.local.y) <= 0.14)
+    && max(abs(input.local.x), abs(input.local.y)) <= 0.5;
+  return select(
+    vec4<f32>(0.08, 0.09, 0.11, 1.0),
+    vec4<f32>(0.24, 0.66, 1.0, 1.0),
+    border || plus
+  );
 }
 `;

@@ -20,6 +20,8 @@ export interface CoverageGlyphDrawPlan {
   readonly y: number;
   readonly transform: readonly [number, number, number, number];
   readonly color: readonly [number, number, number, number];
+  /** Target-space paragraph clip parallelogram in clockwise frame order. */
+  readonly clip?: readonly [number, number, number, number, number, number, number, number];
 }
 
 export interface CoverageRenderPlan {
@@ -84,6 +86,22 @@ export const planCoverageText = (
     throw new UnsupportedCoverageTextError('Text transform must have a finite positive scale.');
   }
   const visualGroups: VisualClusterGroup[] = [];
+  const clippedFrame = layout.paragraphFrame
+    && layout.paragraphFrame.overflow !== 'visible'
+    ? layout.paragraphFrame : undefined;
+  const firstHiddenTextOffset = clippedFrame?.overflowed
+    ? layout.lines.find((line) => line.start === clippedFrame.firstOverflowTextOffset)?.end
+    : undefined;
+  const clip = clippedFrame ? Object.freeze((() => {
+    const frame = clippedFrame.bounds;
+    const point = (x: number, y: number) => [a * x + c * y + tx, b * x + d * y + ty] as const;
+    return [
+      ...point(frame.x, frame.y),
+      ...point(frame.x + frame.width, frame.y),
+      ...point(frame.x + frame.width, frame.y + frame.height),
+      ...point(frame.x, frame.y + frame.height)
+    ] as const;
+  })()) : undefined;
   let sequence = 0;
   for (const run of layout.glyphRuns) {
     if (run.renderingMode !== 'fill' || !run.paint.fill || run.paint.stroke) {
@@ -114,6 +132,7 @@ export const planCoverageText = (
       const x = run.geometry[glyphIndex * 4];
       const y = run.geometry[glyphIndex * 4 + 1];
       const cluster = run.clusters[glyphIndex];
+      if (firstHiddenTextOffset !== undefined && cluster >= firstHiddenTextOffset) continue;
       if (!activeGroup || activeGroup.cluster !== cluster) {
         activeGroup = { cluster, sequence: sequence++, x, y, glyphs: [] };
         visualGroups.push(activeGroup);
@@ -140,7 +159,8 @@ export const planCoverageText = (
         y: b * x + d * y + ty,
         transform: Object.freeze([a * residual, b * residual, c * residual, d * residual]) as
           readonly [number, number, number, number],
-        color
+        color,
+        ...(clip ? { clip } : {})
       }));
     }
   }

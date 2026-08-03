@@ -34,12 +34,12 @@ Owner: Codex `/root`
 - [x] Expose point/paragraph conversion in shared Tool Options and its context menu.
 - [x] Expose working alignment and paragraph spacing/indent/leading controls
   through existing controls; leave unsupported values absent or disabled.
-- [ ] Draw and test truthful clip/overflow-indicator behavior.
+- [x] Draw and test truthful GPU clip/overflow-indicator behavior.
 - [ ] Prove paragraph-only cache invalidation and unrelated-layer zero work.
 - [ ] Run the Slice 14 phase gate, update the execution log and move this task
   to `work/done` only after manual web/Electron smoke evidence is recorded.
 
-Latest automated gate: 242 app/workspace test files and 1,223 app tests passed;
+Latest automated gate: 242 app/workspace test files and 1,224 app tests passed;
 generated text WASM verified all 9 open faces; production web build and
 distribution boundary passed. Existing wasm-vips eval and chunk-size warnings
 are unchanged.

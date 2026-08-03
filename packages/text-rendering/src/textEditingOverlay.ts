@@ -26,7 +26,7 @@ export interface TextOverlayLine {
 }
 
 export interface TextOverlayMarker {
-  readonly role: 'frame-handle';
+  readonly role: 'frame-handle' | 'overflow-indicator';
   readonly point: TextOverlayPoint;
   readonly sizePx: number;
 }
@@ -104,6 +104,15 @@ const frameMarkers = (
     southWest, midpoint(southWest, northWest)
   ].map((point) => ({ role: 'frame-handle' as const, point, sizePx: 10 }));
 };
+
+const overflowMarker = (
+  frame: Rect,
+  localToDocument: TextEditingAffine
+): TextOverlayMarker => ({
+  role: 'overflow-indicator',
+  point: transformPoint(localToDocument, frame.x + frame.width, frame.y + frame.height),
+  sizePx: 12
+});
 
 export const buildParagraphFrameOverlay = ({
   layerId,
@@ -221,6 +230,11 @@ export const buildTextEditingOverlay = ({
       });
     }
   }
+  const showOverflowIndicator = Boolean(
+    frame
+    && layout.paragraphFrame?.overflow === 'indicator'
+    && layout.paragraphFrame.overflowed
+  );
   return Object.freeze({
     layerId,
     resourceKey: [
@@ -228,10 +242,16 @@ export const buildTextEditingOverlay = ({
       composition ? `${composition.start}-${composition.end}` : '-',
       showBaseline ? 1 : 0,
       frame ? `${frame.x},${frame.y},${frame.width},${frame.height}` : '-',
+      showOverflowIndicator ? 'overflow' : 'fits',
       affineKey(localToDocument)
     ].join(':'),
     quads: Object.freeze(quads),
     lines: Object.freeze(lines),
-    markers: Object.freeze(frame ? frameMarkers(frame, localToDocument) : [])
+    markers: Object.freeze(frame
+      ? [
+          ...frameMarkers(frame, localToDocument),
+          ...(showOverflowIndicator ? [overflowMarker(frame, localToDocument)] : [])
+        ]
+      : [])
   });
 };

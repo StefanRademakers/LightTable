@@ -44,7 +44,8 @@ describe('TextLayerRenderer', () => {
     const release = vi.fn();
     renderer.prepareAtlasSource(layer, { encode }, [{
       glyph: { placement: { empty: false } } as never,
-      x: 4, y: 6, color: [1, 1, 1, 1], transform: [1, 0, 0, 1]
+      x: 4, y: 6, color: [1, 1, 1, 1], transform: [1, 0, 0, 1],
+      clip: [0, 0, 20, 0, 20, 10, 0, 10]
     }], 2, 'direct-source', release).publish();
     const texture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
     expect(renderer.hasExactSource(layer)).toBe(true);
@@ -58,7 +59,10 @@ describe('TextLayerRenderer', () => {
     expect(encode).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ width: 320, height: 200, loadOp: 'load' }),
-      [expect.objectContaining({ x: 13, y: 25, transform: [0.5, 0, 0, 0.5] })]
+      [expect.objectContaining({
+        x: 13, y: 25, transform: [0.5, 0, 0, 0.5],
+        clip: [11, 22, 21, 22, 21, 27, 11, 27]
+      })]
     );
     expect(observeCost).toHaveBeenCalledWith(expect.objectContaining({
       phase: 'atlas-composite', glyphCount: 1, pixelCount: 320 * 200
@@ -246,5 +250,17 @@ describe('TextLayerRenderer', () => {
       phase: 'cached-composite', durationMs: 0.25, glyphCount: 1, pixelCount: 14 * 24
     });
     expect(retireTexture).not.toHaveBeenCalled();
+  });
+
+  it('bounds cached sources to their hard paragraph clip', () => {
+    const draw = {
+      glyph: {
+        placement: { width: 100, height: 100, empty: false } as never,
+        bearingX: 0, bearingY: 0
+      },
+      x: 0, y: 0, color: [1, 1, 1, 1] as const,
+      clip: [10, 20, 50, 20, 50, 60, 10, 60] as const
+    };
+    expect(tightCoverageBounds([draw], 2)).toEqual({ x: 10, y: 20, width: 40, height: 40 });
   });
 });

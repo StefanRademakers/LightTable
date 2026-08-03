@@ -55,6 +55,63 @@ describe('coverage text render planning', () => {
       .glyphs.map(({ raster }) => raster.glyphId)).toEqual([8, 9, 7]);
   });
 
+  it.each(['clip', 'indicator'] as const)('attaches a transformed GPU clip for a %s paragraph frame', (overflow) => {
+    const candidate = layout();
+    const clipped: RealizedTextLayout = {
+      ...candidate,
+      paragraphFrame: {
+        bounds: { x: 0, y: 0, width: 20, height: 10 },
+        overflow, overflowed: true, firstOverflowTextOffset: 1
+      }
+    };
+    const planned = planCoverageText(clipped, [2, 0, 10, 0, 3, 20, 0, 0, 1], 1);
+    expect(planned.glyphs.map(({ raster }) => raster.glyphId)).toEqual([7, 8]);
+    expect(planned.glyphs[0]?.clip).toEqual([10, 20, 50, 20, 50, 50, 10, 50]);
+  });
+
+  it('keeps overflowing glyphs for a visible paragraph frame', () => {
+    const candidate = layout();
+    const visible: RealizedTextLayout = {
+      ...candidate,
+      paragraphFrame: {
+        bounds: { x: 0, y: 0, width: 20, height: 10 },
+        overflow: 'visible', overflowed: true, firstOverflowTextOffset: 1
+      }
+    };
+    expect(planCoverageText(visible, [1, 0, 0, 0, 1, 0, 0, 0, 1], 1).glyphs)
+      .toHaveLength(2);
+    expect(planCoverageText(visible, [1, 0, 0, 0, 1, 0, 0, 0, 1], 1).glyphs[0]?.clip)
+      .toBeUndefined();
+  });
+
+  it('does not rasterize complete lines after the first clipped line', () => {
+    const candidate = layout();
+    const run = candidate.glyphRuns[0];
+    const clipped: RealizedTextLayout = {
+      ...candidate,
+      glyphRuns: [{
+        ...run,
+        glyphIds: new Uint32Array([7, 8, 9]),
+        clusters: new Uint32Array([0, 1, 2]),
+        geometry: new Float32Array([2, 3, 10, 0, 12, 13, 9, 0, 12, 23, 9, 0])
+      }],
+      lines: [
+        { start: 0, end: 1, baseline: 4, ascent: 4, descent: 1,
+          bounds: { x: 0, y: 0, width: 10, height: 5 } },
+        { start: 1, end: 2, baseline: 14, ascent: 4, descent: 1,
+          bounds: { x: 0, y: 10, width: 10, height: 5 } },
+        { start: 2, end: 3, baseline: 24, ascent: 4, descent: 1,
+          bounds: { x: 0, y: 20, width: 10, height: 5 } }
+      ],
+      paragraphFrame: {
+        bounds: { x: 0, y: 0, width: 20, height: 12 },
+        overflow: 'clip', overflowed: true, firstOverflowTextOffset: 1
+      }
+    };
+    expect(planCoverageText(clipped, [1, 0, 0, 0, 1, 0, 0, 0, 1], 1)
+      .glyphs.map(({ raster }) => raster.glyphId)).toEqual([7, 8]);
+  });
+
   it('fails explicitly instead of silently flattening unsupported paint', () => {
     const candidate = layout();
     const run = candidate.glyphRuns[0];
