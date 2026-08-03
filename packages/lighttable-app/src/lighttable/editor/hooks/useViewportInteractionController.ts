@@ -73,7 +73,7 @@ interface ViewportInteractionOptions {
     begin(pointerId: number, point: { x: number; y: number }): boolean;
     owns(pointerId: number): boolean;
     move(pointerId: number, point: { x: number; y: number }): boolean;
-    finish(pointerId: number): boolean;
+    finish(pointerId: number, point: { x: number; y: number }): boolean;
     cancel(pointerId: number): boolean;
   };
   selection: SelectionSessionController;
@@ -578,7 +578,9 @@ export const useViewportInteractionController = ({
     },
     onPointerUp: (event) => {
       if (paragraphText.owns(event.pointerId)) {
-        paragraphText.finish(event.pointerId);
+        const point = documentPoint(event);
+        if (point) paragraphText.finish(event.pointerId, point);
+        else paragraphText.cancel(event.pointerId);
         event.preventDefault();
         return;
       }

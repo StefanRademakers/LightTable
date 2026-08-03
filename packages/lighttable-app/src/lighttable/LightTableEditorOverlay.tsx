@@ -122,6 +122,7 @@ import {
   resolveTextToolFont
 } from './application/text/pointTextCreation';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
+import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import {
   formatFlowTextSource,
@@ -773,12 +774,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     })
   }));
   const textEditingController = textEditingControllerRef.current;
+  const paragraphFrameResizeControllerRef = useRef<ParagraphFrameResizeController | null>(null);
+  paragraphFrameResizeControllerRef.current ??= new ParagraphFrameResizeController(() => ({
+    getDocument: () => imageDocumentRef.current,
+    getEditingLayerId: () => {
+      const snapshot = textEditingController.getSnapshot();
+      return snapshot.status === 'editing' ? snapshot.layerId : null;
+    },
+    getLocalToDocument: (layerId) => engineRef.current?.textEditingLayout(layerId)?.localToDocument ?? null,
+    applyDocument: applyDocumentSnapshot,
+    recordHistory: pushDocumentHistory
+  }));
+  const paragraphFrameResizeController = paragraphFrameResizeControllerRef.current;
   const textEditing = useSyncExternalStore(
     textEditingController.subscribe,
     textEditingController.getSnapshot,
     textEditingController.getSnapshot
   );
   finishTextEditingRef.current = () => textEditingController.finish();
+
+  useEffect(() => () => {
+    paragraphFrameResizeController.cancel();
+  }, [paragraphFrameResizeController]);
 
   useEffect(() => {
     if (textEditing.status !== 'editing' || imageDocument?.activeLayerId === textEditing.layerId) return;
@@ -1655,6 +1672,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setGradeStatus('Text creation is unavailable until the WebGPU renderer is ready.');
       return false;
     }
+    if (paragraphFrameResizeController.begin(
+      pointerId,
+      origin,
+      8 / Math.max(activeScale, 1e-6)
+    )) return true;
     if (beginExistingFlowTextEditing(origin, 'paragraph')) return false;
     pointTextController.cancel();
     textEditingController.finish();
@@ -1759,12 +1781,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     paragraphText: {
       begin: beginParagraphTextCreation,
-      owns: (pointerId) => paragraphTextController.owns(pointerId),
-      move: (pointerId, point) => paragraphTextController.move(pointerId, point),
-      finish: (pointerId) => paragraphTextController.finish(pointerId),
-      cancel: (pointerId) => paragraphTextController.owns(pointerId)
-        ? paragraphTextController.cancel()
-        : false
+      owns: (pointerId) => paragraphFrameResizeController.owns(pointerId)
+        || paragraphTextController.owns(pointerId),
+      move: (pointerId, point) => paragraphFrameResizeController.owns(pointerId)
+        ? paragraphFrameResizeController.move(pointerId, point)
+        : paragraphTextController.move(pointerId, point),
+      finish: (pointerId, point) => paragraphFrameResizeController.owns(pointerId)
+        ? paragraphFrameResizeController.finish(pointerId, point)
+        : (paragraphTextController.move(pointerId, point), paragraphTextController.finish(pointerId)),
+      cancel: (pointerId) => paragraphFrameResizeController.cancel(pointerId)
+        || (paragraphTextController.owns(pointerId) ? paragraphTextController.cancel() : false)
     },
     selection: selectionSessionController,
     paint: paintSessionController,
