@@ -599,7 +599,7 @@ be reproduced.
 - [x] Freeze a normalized page display-list contract independent of PDF engine.
 - [x] Evaluate exact glyph IDs, matrices, font bytes and text render modes via
   PDFium and at least one reference path.
-- [ ] Import one page with paths, images, clips and positioned text.
+- [x] Import one page with paths, images, clips and positioned text.
 - [ ] Preserve embedded subset fonts and semantic mappings separately.
 - [ ] Bound Type 3 glyph programs and malformed document resource use.
 - [ ] Detect PDF-compatible Illustrator input; preserve original source bytes.
@@ -610,6 +610,13 @@ page display list for paths, clips, images, exact positioned glyphs, all PDF tex
 render modes, color spaces, transparency groups and soft masks. Its validator
 enforces finite geometry, balanced stacks, resource integrity and parser-output
 limits without browser, renderer or PDF-engine dependencies.
+
+Page-import evidence: the pure `importPdfPageScene()` replay owns the PDF
+graphics-state stack and emits immutable path, image and positioned-text items.
+Each draw item snapshots active clip paths, transform, fill/stroke state, alpha,
+blend mode, soft mask and transparency-group membership. Its mixed one-page
+fixture proves save/restore isolation, transform composition and unsupported
+operator preservation without leaking renderer or engine state.
 
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but
