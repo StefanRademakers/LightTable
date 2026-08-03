@@ -559,7 +559,7 @@ grid as raster and vector layers, without text-only smoothing or rerasterizing.
 - [x] Apply start/end offset, direction, side and alignment to glyph layout.
 - [x] Keep glyphs rigid first; warped outlines are a later explicit mode.
 - [x] Invalidate only path realization/layout on path edits.
-- [ ] Add reference-safe duplication, grouping, deletion and persistence.
+- [x] Add reference-safe duplication, grouping, deletion and persistence.
 
 UI exposure: Text family enables Path Text when a compatible path is selected;
 canvas overlays expose start/end handles and direction. Options bind to the
@@ -704,6 +704,24 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 - Slice 17 path-reference command safety
+
+- Duplication: duplicating path text deliberately keeps its exact original
+  vector layer/element/subpath reference. Duplicating the vector creates fresh
+  layer, element, contour and anchor identities, so it cannot steal or collide
+  with the existing text dependency; semantic vector duplication requests no
+  raster-preview pixels.
+- Structure/deletion: reparenting paths through transformed groups preserves
+  stable IDs and world-space resolution. Deleting the referenced vector/group
+  leaves canonical text intact and produces the explicit `missing-layer`
+  dependency state instead of selecting a sibling or flattening silently.
+- Persistence: exact layer/element/subpath references survive native
+  save/reopen and resolve to the same canonical contour. These behaviors are
+  now command, application-port and layered-format regressions.
+- UI/UX: ordinary Duplicate/Group/Delete commands retain their established
+  placement and history behavior. Missing-path feedback still needs its
+  existing Layers badge/import-report exposure when Path Text is enabled.
 
 ### 2026-08-03 - Slice 17 undoable path-text handles
 

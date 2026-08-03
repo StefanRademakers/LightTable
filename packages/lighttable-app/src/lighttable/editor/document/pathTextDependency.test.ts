@@ -1,6 +1,12 @@
 import { createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { describe, expect, it } from 'vitest';
+import { createDefaultAdjustments } from '../../types';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import {
+  buildLayeredDocumentFile,
+  parseLayeredDocumentFile
+} from '../persistence/layeredDocumentFormat';
 import {
   createImageDocument,
   createGroupLayer,
@@ -10,6 +16,13 @@ import {
   type VectorLayer
 } from './documentTypes';
 import { resolvePathTextDependency } from './pathTextDependency';
+import { findDocumentLayer } from './layerTree';
+import {
+  createGroupLayer as createGroupLayerCommand,
+  deleteLayer,
+  duplicateLayer,
+  moveLayerIntoGroup
+} from './documentCommands';
 
 const fixture = (pathElementId?: string, pathSubpathId?: string) => {
   const path = createVectorPath('path-a', 'Curve', [createSubpath('curve-a')]);
@@ -122,6 +135,66 @@ describe('path text dependency', () => {
     const exact = fixture('path-a', 'missing-curve');
     expect(resolvePathTextDependency(exact.document, exact.text)).toMatchObject({
       kind: 'missing-subpath', subpathId: 'missing-curve'
+    });
+  });
+
+  it('keeps text duplication bound to the exact original path', () => {
+    const { document, vector, text } = fixture('path-a', 'curve-a');
+    const duplicated = duplicateLayer(document, text.id);
+    const clone = findDocumentLayer(duplicated, duplicated.activeLayerId);
+    expect(clone?.type).toBe('text');
+    if (clone?.type !== 'text') throw new Error('Expected duplicated text.');
+    expect(resolvePathTextDependency(duplicated, clone)).toMatchObject({
+      kind: 'resolved', layer: { id: vector.id }, path: { id: 'path-a' },
+      subpath: { id: 'curve-a' }
+    });
+  });
+
+  it('duplicates vector identity without stealing existing path-text references', () => {
+    const { document, vector, text } = fixture('path-a', 'curve-a');
+    const duplicated = duplicateLayer(document, vector.id);
+    const clone = findDocumentLayer(duplicated, duplicated.activeLayerId);
+    expect(clone?.type).toBe('vector');
+    if (clone?.type !== 'vector') throw new Error('Expected duplicated vector.');
+    expect(clone.id).not.toBe(vector.id);
+    expect(clone.elements[0]?.id).not.toBe('path-a');
+    expect(clone.elements[0]?.type === 'path' ? clone.elements[0].subpaths[0]?.id : null)
+      .not.toBe('curve-a');
+    expect(resolvePathTextDependency(duplicated, text)).toMatchObject({
+      kind: 'resolved', layer: { id: vector.id }, path: { id: 'path-a' }
+    });
+  });
+
+  it('preserves stable references while grouping and reports deletion explicitly', () => {
+    const { document, vector, text } = fixture('path-a', 'curve-a');
+    const withGroup = createGroupLayerCommand(document, 'Paths');
+    const groupId = withGroup.activeLayerId!;
+    const grouped = moveLayerIntoGroup(withGroup, vector.id, groupId);
+    expect(resolvePathTextDependency(grouped, text)).toMatchObject({
+      kind: 'resolved', layer: { id: vector.id }, path: { id: 'path-a' }
+    });
+    const deleted = deleteLayer(grouped, groupId);
+    expect(resolvePathTextDependency(deleted, text)).toEqual({
+      kind: 'missing-layer', revision: 0, layerId: vector.id
+    });
+  });
+
+  it('round-trips exact path references through the native layered format', async () => {
+    const { document, text } = fixture('path-a', 'curve-a');
+    const file = buildLayeredDocumentFile(
+      new Blob([new Uint8Array([0])], { type: 'image/png' }),
+      document,
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      [],
+      'path-text.png'
+    );
+    const parsed = await parseLayeredDocumentFile(file);
+    expect(parsed).not.toBeNull();
+    const reopened = parsed && findDocumentLayer(parsed.document, text.id);
+    expect(reopened?.type).toBe('text');
+    if (reopened?.type !== 'text' || !parsed) throw new Error('Expected reopened path text.');
+    expect(resolvePathTextDependency(parsed.document, reopened)).toMatchObject({
+      kind: 'resolved', path: { id: 'path-a' }, subpath: { id: 'curve-a' }
     });
   });
 });

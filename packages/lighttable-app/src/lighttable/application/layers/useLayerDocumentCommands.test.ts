@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
+import { createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { createRasterLayer, createTextLayer, setLayerLocked } from '../../editor/document/documentCommands';
 import {
   createImageDocument,
+  createVectorLayer,
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
@@ -230,6 +232,21 @@ describe('useLayerDocumentCommands', () => {
     expect(state.commands.duplicateActiveLayer()).toBe(true);
 
     expect(state.document().layers.at(-1)?.type).toBe('text');
+    expect(state.renderer.duplicateLayerPixels).not.toHaveBeenCalled();
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+  });
+
+  it('duplicates canonical vector shapes without requesting raster preview pixels', () => {
+    const document = createImageDocument('Vector', 32, 24, 'asset');
+    const vector = createVectorLayer([
+      createVectorPath('path', 'PSD path', [createSubpath('contour')])
+    ], 'PSD Shape');
+    document.layers = [vector];
+    document.activeLayerId = vector.id;
+    const state = setup(document);
+
+    expect(state.commands.duplicateActiveLayer()).toBe(true);
+    expect(state.document().layers.at(-1)?.type).toBe('vector');
     expect(state.renderer.duplicateLayerPixels).not.toHaveBeenCalled();
     expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
   });

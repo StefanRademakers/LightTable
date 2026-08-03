@@ -778,11 +778,13 @@ export const markLayerMaskPixelsChanged = (document: ImageDocument, layerId: Lay
 
 export const duplicateLayer = (document: ImageDocument, layerId: LayerId): ImageDocument => {
   const entry = findLayerNode(document.layers, layerId);
-  if (!entry || (entry.node.type !== 'raster' && entry.node.type !== 'text')) return document;
+  if (!entry || (entry.node.type !== 'raster'
+    && entry.node.type !== 'text'
+    && entry.node.type !== 'vector')) return document;
   const now = Date.now();
   const source = entry.node;
   const id = createLayerId();
-  const duplicate: RasterLayer | TextLayer = source.type === 'raster'
+  const duplicate: RasterLayer | TextLayer | VectorLayer = source.type === 'raster'
     ? {
         ...source,
         id,
@@ -796,7 +798,7 @@ export const duplicateLayer = (document: ImageDocument, layerId: LayerId): Image
         styleStack: duplicateLayerStyleStack(source.styleStack),
         mask: source.mask ? { ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0 } : null
       }
-    : {
+    : source.type === 'text' ? {
         ...source,
         id,
         name: `${source.name} copy`,
@@ -807,6 +809,31 @@ export const duplicateLayer = (document: ImageDocument, layerId: LayerId): Image
         text: cloneTextLayerData(source.text),
         styleStack: duplicateLayerStyleStack(source.styleStack),
         mask: source.mask ? { ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0 } : null
+      } : {
+        ...source,
+        id,
+        name: `${source.name} copy`,
+        createdAt: now,
+        modifiedAt: now,
+        revision: 0,
+        geometryRevision: 0,
+        elements: source.elements.map((element) => {
+          const cloned = cloneVectorElement(element);
+          cloned.id = `vector-${crypto.randomUUID()}`;
+          if (cloned.type === 'path') {
+            cloned.subpaths.forEach((subpath) => {
+              subpath.id = `subpath-${crypto.randomUUID()}`;
+              subpath.anchors.forEach((anchor) => {
+                anchor.id = `anchor-${crypto.randomUUID()}`;
+              });
+            });
+          }
+          return cloned;
+        }),
+        styleStack: duplicateLayerStyleStack(source.styleStack),
+        mask: source.mask ? {
+          ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0
+        } : null
       };
   const layers = insertLayerNode(
     document.layers,
