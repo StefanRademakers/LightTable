@@ -34,6 +34,15 @@ describe('LightTable supported image formats', () => {
     expect(imagePickerFormatNames('preserve-precision')).toBe('PNG, TIFF, JPEG, WebP');
   });
 
+  it('advertises PDF on automatic open and drop paths only', () => {
+    const pdf = new Blob([], { type: 'application/pdf' });
+    expect(isSupportedImageFile(pdf, 'FormulierPersoneel.pdf', 'fast')).toBe(true);
+    expect(imagePickerAccept('fast')).toContain('application/pdf');
+    expect(imagePickerAccept('fast')).toContain('.pdf');
+    expect(imagePickerFormatNames('fast')).toContain('PDF');
+    expect(isSupportedImageFile(pdf, 'FormulierPersoneel.pdf', 'preserve-precision')).toBe(false);
+  });
+
   it('uses extensions only when the browser does not provide a useful MIME type', () => {
     expect(isSupportedImageFile(new Blob(), 'scan.TIFF', 'preserve-precision')).toBe(true);
     expect(isSupportedImageFile(new Blob([], { type: 'application/octet-stream' }), 'scan.tif', 'preserve-precision')).toBe(true);

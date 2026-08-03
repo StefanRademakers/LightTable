@@ -680,6 +680,17 @@ This fixture covers image-resource placement, high-resolution page rendering
 and source preservation; it deliberately does not count as text-recovery or
 interactive-form evidence.
 
+Production preview evidence: the normal web/Electron open route now recognizes
+`%PDF-` bytes and lazy-loads pinned PDF.js 5.4.624 only for PDF input. Page one
+is rasterized at a target 300 ppi with a 64-Mpx/16,384-edge allocation bound,
+then enters the existing GPU raster document pipeline; the source bytes are
+attached as an immutable `pdf-document` asset for native-save preservation.
+The packaged-desktop Playwright run opened `D:\FormulierPersoneel.pdf` as a
+2457 x 3483 raster layer in 723 ms first-frame time (71 ms decode/upload), with
+zero page errors. The screenshot was visually inspected. This is explicitly a
+preview milestone, not evidence of semantic PDF parsing, multipage UX or
+editable forms/text.
+
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but
 flow editing is disabled until explicitly recovered.

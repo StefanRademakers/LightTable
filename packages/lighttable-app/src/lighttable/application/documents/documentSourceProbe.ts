@@ -12,6 +12,7 @@ export type DocumentSourceFormat =
   | 'tiff'
   | 'psd'
   | 'psb'
+  | 'pdf'
   | 'unknown';
 
 export type DocumentSourceCodec =
@@ -19,6 +20,7 @@ export type DocumentSourceCodec =
   | 'browser-native'
   | 'wasm-vips'
   | 'photoshop'
+  | 'pdf-raster'
   | 'unsupported';
 
 export type DocumentOpenMode =
@@ -148,6 +150,15 @@ export const probeDocumentSource = async (
         ).getUint16(22, false)
       };
     }
+  }
+
+  if (asciiAt(header, 0, 5) === '%PDF-') {
+    return {
+      format: 'pdf',
+      codec: 'pdf-raster',
+      decodeMode: 'fast',
+      bitDepth: null
+    };
   }
 
   return {

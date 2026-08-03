@@ -6,6 +6,7 @@ import {
 } from '../../processing/adjustmentStack';
 import {
   createImageDocument,
+  type DocumentAssetId,
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import { setRasterLayerAdjustmentStack } from '../../editor/document/documentCommands';
@@ -23,6 +24,7 @@ import {
   type PsdImportCompatibilityEntry
 } from '../../editor/psd/psdDocumentAdapter';
 import type { PsdDecodeSuccess } from '../../image-io/psdProtocol';
+import type { PdfRasterPreview } from '../../image-io/PdfRasterDecoder';
 import {
   createDefaultAdjustments,
   type BasicAdjustments,
@@ -71,6 +73,7 @@ interface DocumentSourceLoaderDependencies {
   parseLayered(blob: Blob): Promise<ParsedLayeredDocument | null>;
   probe(blob: Blob, requestedMode: DocumentOpenMode): Promise<DocumentSourceProbe>;
   decodePhotoshop(blob: Blob, signal?: AbortSignal): Promise<PsdDecodeSuccess>;
+  decodePdfPreview(blob: Blob, signal?: AbortSignal): Promise<PdfRasterPreview>;
   importPhotoshop(decoded: PsdDecodeSuccess, name: string): PsdDocumentImport;
   now(): number;
 }
@@ -86,6 +89,10 @@ const defaultDependencies: DocumentSourceLoaderDependencies = {
     } finally {
       decoder.destroy();
     }
+  },
+  decodePdfPreview: async (blob, signal) => {
+    const { decodePdfRasterPreview } = await import('../../image-io/PdfRasterDecoder');
+    return decodePdfRasterPreview(blob, signal);
   },
   importPhotoshop: importPsdDocument,
   now: () => performance.now()
@@ -150,7 +157,7 @@ export const loadDocumentSource = async (
   if (sourceProbe.codec === 'unsupported') {
     throw new Error(
       'This file signature is not supported. LightTable currently opens '
-      + 'layered LightTable documents, PSD/PSB, PNG, JPEG, WebP, and TIFF.'
+      + 'layered LightTable documents, PSD/PSB, PDF, PNG, JPEG, WebP, and TIFF.'
     );
   }
   const layered = sourceProbe.codec === 'lighttable'
@@ -163,12 +170,16 @@ export const loadDocumentSource = async (
   if (canceled(request)) return null;
 
   let psdImport: PsdDecodeSuccess | null = null;
+  let pdfPreview: PdfRasterPreview | null = null;
   if (sourceProbe.codec === 'photoshop') {
     psdImport = await dependencies.decodePhotoshop(request.blob, request.signal);
   }
+  if (sourceProbe.codec === 'pdf-raster') {
+    pdfPreview = await dependencies.decodePdfPreview(request.blob, request.signal);
+  }
   if (canceled(request)) return null;
 
-  const imageBlob = psdImport?.preview ?? layered?.preview ?? request.blob;
+  const imageBlob = psdImport?.preview ?? pdfPreview?.preview ?? layered?.preview ?? request.blob;
   const semanticPsd = psdImport
     ? dependencies.importPhotoshop(psdImport, request.name)
     : null;
@@ -189,7 +200,17 @@ export const loadDocumentSource = async (
         sourceFormat: 'PSD',
         sourceInterpretation: psdImport.colorMode
       }
-    : loadedMetadata;
+    : pdfPreview
+      ? {
+          ...loadedMetadata,
+          decoder: 'pdfjs',
+          sourceBitDepth: 8,
+          sourceFormat: 'PDF',
+          sourceInterpretation:
+            `Page ${pdfPreview.pageNumber} of ${pdfPreview.pageCount} at `
+            + `${Math.round(pdfPreview.scalePixelsPerPoint * 72)} ppi preview`
+        }
+      : loadedMetadata;
   const decodeAndUploadMs = dependencies.now() - decodeStartedAt;
   if (canceled(request)) return null;
 
@@ -208,6 +229,26 @@ export const loadDocumentSource = async (
       normalizedColorSpace: 'linear-srgb'
     }
   );
+  let pdfSourceId: DocumentAssetId | null = null;
+  if (pdfPreview) {
+    pdfSourceId = `pdf-source-${crypto.randomUUID()}` as DocumentAssetId;
+    document = {
+      ...document,
+      assets: {
+        ...document.assets,
+        preservedSources: [
+          ...document.assets.preservedSources,
+          {
+            id: pdfSourceId,
+            kind: 'pdf-document',
+            name: request.name,
+            mediaType: 'application/pdf',
+            byteLength: request.blob.size
+          }
+        ]
+      }
+    };
+  }
   if (!layered && !semanticPsd) {
     const initialRasterGrade = createInitialRasterGrade(request.initialAdjustments);
     const background = findDocumentLayer(document, document.activeLayerId);
@@ -243,7 +284,9 @@ export const loadDocumentSource = async (
       ?? document.photoshopImportReport?.compatibility
       ?? [],
     fontAssets: layered?.fontAssets ?? [],
-    preservedSourceAssets: layered?.preservedSourceAssets ?? [],
+    preservedSourceAssets: pdfSourceId
+      ? [{ sourceId: pdfSourceId, source: request.blob }]
+      : layered?.preservedSourceAssets ?? [],
     timings: {
       layeredProbeMs,
       decodeAndUploadMs,

@@ -15,8 +15,8 @@
     ]
   },
   "summary": {
-    "npmPackages": 615,
-    "npmRuntimePackages": 91,
+    "npmPackages": 629,
+    "npmRuntimePackages": 105,
     "cargoPackages": 80,
     "unknownLicenses": 0
   },
@@ -779,6 +779,102 @@
       "license": "Apache-2.0",
       "role": "transitive-development",
       "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-android-arm64",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-darwin-arm64",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-darwin-x64",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-linux-arm-gnueabihf",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-linux-arm64-gnu",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-linux-arm64-musl",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-linux-riscv64-gnu",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-linux-x64-gnu",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-linux-x64-musl",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-win32-arm64-msvc",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/canvas-win32-x64-msvc",
+      "version": "0.1.100",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
     },
     {
       "ecosystem": "npm",
@@ -3494,6 +3590,14 @@
     },
     {
       "ecosystem": "npm",
+      "name": "node-readable-to-web-readable-stream",
+      "version": "0.4.2",
+      "license": "MIT",
+      "role": "transitive-runtime",
+      "optional": true
+    },
+    {
+      "ecosystem": "npm",
       "name": "node-releases",
       "version": "2.0.51",
       "license": "MIT",
@@ -3778,6 +3882,14 @@
       "version": "2.0.3",
       "license": "MIT",
       "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "pdfjs-dist",
+      "version": "5.4.624",
+      "license": "Apache-2.0",
+      "role": "direct-runtime",
       "optional": false
     },
     {

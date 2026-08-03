@@ -30,7 +30,7 @@ export interface LightTableImageMetadata {
   width: number;
   height: number;
   contentType: string;
-  decoder?: 'browser' | 'wasm-vips' | 'ag-psd';
+  decoder?: 'browser' | 'wasm-vips' | 'ag-psd' | 'pdfjs';
   sourceBitDepth?: number;
   sourceFormat?: string;
   sourceInterpretation?: string;

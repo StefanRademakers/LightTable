@@ -426,6 +426,7 @@ const parseImportProvenance = (value: unknown): NormalizedImportProvenance | nul
       value.decoder !== 'browser'
       && value.decoder !== 'wasm-vips'
       && value.decoder !== 'ag-psd'
+      && value.decoder !== 'pdfjs'
     )
     || (value.sourceBitDepth !== null && typeof value.sourceBitDepth !== 'number')
     || (value.sourceFormat !== null && typeof value.sourceFormat !== 'string')

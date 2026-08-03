@@ -32,7 +32,7 @@ export type RasterPixelSource =
   | { kind: 'runtime-raster'; runtimeId: string };
 
 export interface NormalizedImportProvenance {
-  decoder: 'browser' | 'wasm-vips' | 'ag-psd';
+  decoder: 'browser' | 'wasm-vips' | 'ag-psd' | 'pdfjs';
   sourceBitDepth: number | null;
   sourceFormat: string | null;
   sourceInterpretation: string | null;

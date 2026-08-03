@@ -135,6 +135,47 @@ describe('loadDocumentSource', () => {
     expect(renderer.setDocument).not.toHaveBeenCalled();
   });
 
+  it('opens a PDF page preview and preserves the original source bytes', async () => {
+    const renderer = createRenderer();
+    const source = new Blob([new TextEncoder().encode('%PDF-1.4\nsource')], {
+      type: 'application/pdf'
+    });
+    const preview = new Blob(['png preview'], { type: 'image/png' });
+    const result = await loadDocumentSource({
+      renderer,
+      blob: source,
+      name: 'FormulierPersoneel.pdf',
+      cacheKey: 'source:pdf',
+      decodeMode: 'automatic',
+      initialAdjustments: createDefaultAdjustments(),
+      dependencies: {
+        probe: async () => ({
+          format: 'pdf', codec: 'pdf-raster', decodeMode: 'fast', bitDepth: null
+        }),
+        decodePdfPreview: async () => ({
+          preview, pageCount: 1, pageNumber: 1, width: 2457, height: 3484,
+          scalePixelsPerPoint: 300 / 72
+        }),
+        now: () => 0
+      }
+    });
+
+    expect(renderer.loadImage).toHaveBeenCalledWith(preview, 'FormulierPersoneel.pdf', {
+      decodeMode: 'fast', signal: undefined
+    });
+    expect(result?.metadata).toMatchObject({
+      decoder: 'pdfjs', sourceFormat: 'PDF',
+      sourceInterpretation: 'Page 1 of 1 at 300 ppi preview'
+    });
+    expect(result?.document.assets.preservedSources).toEqual([
+      expect.objectContaining({
+        kind: 'pdf-document', name: 'FormulierPersoneel.pdf', byteLength: source.size
+      })
+    ]);
+    expect(result?.preservedSourceAssets).toHaveLength(1);
+    expect(result?.preservedSourceAssets[0]?.source).toBe(source);
+  });
+
   it('rejects unsupported signatures before allocating renderer image state', async () => {
     const renderer = createRenderer();
     await expect(loadDocumentSource({

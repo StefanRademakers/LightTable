@@ -16,7 +16,7 @@ npm run generate:third-party
 npm run verify:third-party
 ```
 
-The current snapshot contains 614 npm package/version entries, 80 Cargo crates
+The current snapshot contains 629 npm package/version entries, 80 Cargo crates
 and no unknown license fields. Multiple versions are deliberately separate.
 The inventory separates direct/transitive and runtime/development roles so a
 future About > Licenses view can filter the same data without maintaining a
@@ -34,6 +34,7 @@ compiled into `wasm-vips`. Any `UNKNOWN` inventory entry blocks a release.
 | React / React DOM | 19.2.8 | MIT | Shared web and Electron UI |
 | Dockview React | 7.0.4 | MIT | Docked workspace panels |
 | ag-psd | 31.0.2 | MIT | Lazy PSD/PSB parser and structural serializer tests |
+| PDF.js (`pdfjs-dist`) | 5.4.624 | Apache-2.0 | Lazy first-page PDF raster preview for web and Electron; not the semantic importer |
 | wasm-vips wrapper | 0.0.18 | MIT | Lazy precision image decoder |
 | libvips codec bundle inside wasm-vips | package notice set | LGPLv3 and mixed permissive licenses | PNG/TIFF/JPEG/WebP precision decode; use upstream `THIRD-PARTY-NOTICES.md` for the complete bundled list |
 | Transformers.js | 3.8.1 | Apache-2.0 | Lazy depth-estimation worker |
@@ -87,7 +88,7 @@ runtime and Chromium notices are part of the packaged desktop release review.
 | TIFF 6.0 and BigTIFF signatures | Yes through lazy wasm-vips | Precision still-raster import | No TIFF export | Multi-page TIFF, arbitrary private tags and metadata round-trip are not product features |
 | Adobe PSD v1 (`8BPS`, version 1) | Yes through lazy worker | Progressive semantic import with separate structural, editable, visual and round-trip parity; unsupported data is reported/preview-backed | No PSD export | Requires an embedded composite; 8/16/32-bit preview conversion; max 30,000 px per side, 400 Mpx, 10,000 layers, depth 128 and 1 GiB decoded budget |
 | Adobe PSB v2 (`8BPS`, version 2) | Recognized and routed to the PSD worker | Same adapter target, but representative PSB fixture validation remains incomplete | No PSB export | LightTable intentionally keeps the 30,000 px safety limit, below the 300,000 px PSB format maximum |
-| PDF 1.7 / ISO 32000-1 and PDF 2.0 / ISO 32000-2:2020 | No | Canonical positioned-text and rendering-mode contracts exist only as architecture foundations | No | PDF import/export is a future gated adapter; do not advertise support |
+| PDF 1.7 / ISO 32000-1 and PDF 2.0 / ISO 32000-2:2020 | Yes; first page through lazy PDF.js preview | Imported as one 300-ppi raster layer while the original PDF remains an immutable preserved source; canonical positioned-text and display-list contracts are not connected to production parsing yet | Native LightTable save preserves the source; no PDF export | Password handling, page selection, multipage documents and semantic objects remain gated for the PDFium adapter; the preview must not be presented as editable PDF structure |
 | Adobe Illustrator `.ai` | No | No AI parser. A future PDF-compatible AI path may reuse a verified PDF display-list adapter, but native Illustrator-private data needs separate preservation rules | No | Do not equate “PDF-compatible AI file” with implemented AI support |
 | SVG, EPS, RAW/NEF, HEIF/AVIF/JXL | No product open route | None | No | Some transitive codecs may exist inside wasm-vips; that does not make them supported LightTable formats |
 
@@ -106,9 +107,9 @@ runtime and Chromium notices are part of the packaged desktop release review.
 - PSD/PSB: [Adobe Photoshop File Formats Specification](https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/).
   PSD is version 1 and PSB version 2; LightTable support is the tested subset in
   the matrix, not the complete Adobe feature set.
-- PDF target: ISO 32000-1 (PDF 1.7) and ISO 32000-2:2020 (PDF 2.0). These are
-  design references only until the normalized display-list and fixture gates
-  pass.
+- PDF: ISO 32000-1 (PDF 1.7) and ISO 32000-2:2020 (PDF 2.0). Current product
+  support is the bounded first-page raster preview in the matrix; exact object
+  import and PDF export remain separately gated.
 
 ## Future UI exposure
 

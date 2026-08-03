@@ -57,6 +57,17 @@ describe('probeDocumentSource', () => {
     });
   });
 
+  it('routes PDF bytes to the lazy page raster adapter', async () => {
+    await expect(probeDocumentSource(
+      new Blob([new TextEncoder().encode('%PDF-1.4\n')])
+    )).resolves.toMatchObject({
+      format: 'pdf',
+      codec: 'pdf-raster',
+      decodeMode: 'fast',
+      bitDepth: null
+    });
+  });
+
   it('recognizes a layered LightTable document from its footer', async () => {
     const footer = new Uint8Array(12);
     footer.set(new TextEncoder().encode('LTBLDOC1'));

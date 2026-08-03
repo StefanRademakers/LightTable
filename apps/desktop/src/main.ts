@@ -24,7 +24,7 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 const IMAGE_EXTENSIONS = [
-  'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'psd', 'psb'
+  'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'psd', 'psb', 'pdf'
 ];
 
 let mainWindow: BrowserWindow | null = null;
@@ -119,6 +119,7 @@ const CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.map': 'application/json; charset=utf-8',
   '.png': 'image/png',
