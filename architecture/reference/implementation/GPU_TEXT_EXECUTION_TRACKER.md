@@ -41,13 +41,19 @@ discardable caches. They are never serialized as the editable source of truth.
 - Parley + Fontique + HarfRust + Skrifa + ICU4X is the initial layout stack.
 - The first production live renderer is a hinted single-channel coverage
   atlas with instanced WebGPU quads.
-- `hb-gpu` is evaluated as the scale-independent/high-zoom renderer before a
-  custom direct-outline renderer is built.
+- `hb-gpu` is evaluated as a scale-independent glyph realization backend
+  before a custom direct-outline renderer is built. It renders into the
+  document-space source/export target; viewport zoom never selects a sharper
+  text-only presentation path.
 - MSDF is not a phase-one dependency. It is reconsidered only with benchmark
   evidence.
 - Text caches use the smallest relevant revisions and explicit byte budgets.
 - Inactive text is never semantically flattened. Optional rasterization is a
   tight or tiled, evictable GPU source cache.
+- Text follows the same document-pixel presentation contract as every other
+  layer. At settled zoom >= 4x the viewport keeps nearest-neighbor sampling so
+  authored document pixels remain visible. Zoom does not rerasterize text at
+  viewport resolution or replace the document composite with smooth vectors.
 - PDF positioned glyphs are not reshaped by default.
 - PDF-compatible Illustrator files may be imported through their PDF
   representation. Native Illustrator round-trip is not claimed.
@@ -495,7 +501,8 @@ cluster corruption.
 
 - [ ] Productionize the selected `hb-gpu` or alternate outline route.
 - [ ] Cache/reuse repeated glyph blobs or outline geometry.
-- [ ] Switch quality by measured scale/transform needs without visible jumps.
+- [ ] Select realization quality from document/output resolution and transform
+  needs without making viewport zoom a content invalidation or quality switch.
 - [ ] Support fill/stroke and export-quality rendering.
 - [ ] Add irreversible Convert to Shape/Path as one explicit undoable command.
 - [ ] Preserve the original TextLayer through undo; do not mutate it in place.
@@ -503,8 +510,9 @@ cluster corruption.
 UI exposure: Layers/context and Type menus expose Convert to Shape with a clear
 editability warning. Renderer switching remains automatic and diagnostic-only.
 
-Exit gate: extreme zoom and transformed text remain crisp; atlas/fidelity
-comparison stays within agreed reference tolerances.
+Exit gate: transformed/exported text meets the agreed reference tolerances;
+at extreme viewport zoom text exposes the same nearest-sampled document pixel
+grid as raster and vector layers, without text-only smoothing or rerasterizing.
 
 #### Slice 17 — text on path
 
