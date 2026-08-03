@@ -79,6 +79,17 @@ describe('flow text character formatting', () => {
     expect(formatted.insertionParagraph?.alignment).toBe('center');
   });
 
+  it('projects only the paragraph under a collapsed caret', () => {
+    const source = createDefaultFlowTextSource('one\ntwo');
+    const paragraphRuns = [
+      { ...source.paragraphRuns[0], start: 0, end: 4, alignment: 'start' as const },
+      { ...source.paragraphRuns[0], start: 4, end: 7, alignment: 'end' as const }
+    ];
+    expect(projectFlowTextFormat(
+      { ...source, paragraphRuns }, { anchor: 5, focus: 5 }
+    ).paragraph).toMatchObject({ kind: 'value', value: { alignment: 'end' } });
+  });
+
   it('keeps the currently supported whole-flow paragraph subset uniform', () => {
     const source = createDefaultFlowTextSource('one\ntwo\nthree');
     const formatted = formatFlowTextSource(

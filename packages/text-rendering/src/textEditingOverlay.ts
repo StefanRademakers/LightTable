@@ -133,17 +133,71 @@ const selectedGeometry = (
   layout: RealizedTextLayout,
   start: number,
   end: number
-) => layout.selectionGeometry.filter((entry) => entry.end > start && entry.start < end);
+) => {
+  if (start >= end || layout.selectionGeometry.length === 0) return [];
+  let low = 0;
+  let high = layout.selectionGeometry.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (layout.selectionGeometry[middle]!.end <= start) low = middle + 1;
+    else high = middle;
+  }
+  const selected: RealizedTextLayout['selectionGeometry'][number][] = [];
+  for (let index = low; index < layout.selectionGeometry.length; index += 1) {
+    const entry = layout.selectionGeometry[index]!;
+    if (entry.start >= end) break;
+    if (entry.end > start) selected.push(entry);
+  }
+  return selected;
+};
+
+interface LayoutOverlayIndex {
+  readonly carets: ReadonlyMap<string, RealizedTextLayout['caretStops'][number]>;
+  readonly firstCaretByOffset: ReadonlyMap<number, RealizedTextLayout['caretStops'][number]>;
+  readonly sortedCarets: readonly RealizedTextLayout['caretStops'][number][];
+}
+
+const overlayIndexes = new WeakMap<RealizedTextLayout, LayoutOverlayIndex>();
+
+const overlayIndex = (layout: RealizedTextLayout): LayoutOverlayIndex => {
+  const existing = overlayIndexes.get(layout);
+  if (existing) return existing;
+  const carets = new Map<string, RealizedTextLayout['caretStops'][number]>();
+  const firstCaretByOffset = new Map<number, RealizedTextLayout['caretStops'][number]>();
+  for (const stop of layout.caretStops) {
+    carets.set(`${stop.textOffset}:${stop.affinity}`, stop);
+    if (!firstCaretByOffset.has(stop.textOffset)) firstCaretByOffset.set(stop.textOffset, stop);
+  }
+  const index = {
+    carets,
+    firstCaretByOffset,
+    sortedCarets: [...firstCaretByOffset.values()].sort((left, right) => left.textOffset - right.textOffset)
+  };
+  overlayIndexes.set(layout, index);
+  return index;
+};
 
 const caretFor = (
   layout: RealizedTextLayout,
   offset: number,
   affinity: 'upstream' | 'downstream'
-) => layout.caretStops.find((stop) => stop.textOffset === offset && stop.affinity === affinity)
-  ?? layout.caretStops.find((stop) => stop.textOffset === offset)
-  ?? [...layout.caretStops].sort((left, right) => (
-    Math.abs(left.textOffset - offset) - Math.abs(right.textOffset - offset)
-  ))[0];
+) => {
+  const index = overlayIndex(layout);
+  const exact = index.carets.get(`${offset}:${affinity}`) ?? index.firstCaretByOffset.get(offset);
+  if (exact || index.sortedCarets.length === 0) return exact;
+  let low = 0;
+  let high = index.sortedCarets.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (index.sortedCarets[middle]!.textOffset < offset) low = middle + 1;
+    else high = middle;
+  }
+  const after = index.sortedCarets[low];
+  const before = low > 0 ? index.sortedCarets[low - 1] : undefined;
+  if (!before) return after;
+  if (!after) return before;
+  return offset - before.textOffset <= after.textOffset - offset ? before : after;
+};
 
 export const buildTextEditingOverlay = ({
   layerId,

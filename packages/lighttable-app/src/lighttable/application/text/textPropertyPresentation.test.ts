@@ -37,6 +37,19 @@ describe('text property presentation', () => {
     expect(presentation.spaceAfter).toEqual({ kind: 'value', value: 0 });
   });
 
+  it('reads collapsed-caret paragraph properties without mixing the full flow', () => {
+    const source = createDefaultFlowTextSource('one\ntwo');
+    const paragraphRuns = [
+      { ...source.paragraphRuns[0], start: 0, end: 4 },
+      { ...source.paragraphRuns[0], start: 4, end: 7, alignment: 'end' as const, spaceAfter: 9 }
+    ];
+    const presentation = buildTextPropertyPresentation(
+      { ...source, paragraphRuns }, { anchor: 5, focus: 5 }, []
+    );
+    expect(presentation.alignment).toEqual({ kind: 'value', value: 'end' });
+    expect(presentation.spaceAfter).toEqual({ kind: 'value', value: 9 });
+  });
+
   it('parses a bounded solid fill without accepting partial color text', () => {
     expect(textFillPatchFromHex('#ff8000')).toMatchObject({
       fill: { kind: 'solid', color: { r: 1, b: 0, a: 1 } }

@@ -43,11 +43,24 @@ const withoutRange = <Run extends RangedRun>(run: Run): Omit<Run, 'start' | 'end
   return properties;
 };
 
-const caretRun = <Run extends RangedRun>(runs: readonly Run[], offset: number) => (
-  runs.find((run) => run.start <= offset && offset < run.end)
-  ?? [...runs].reverse().find((run) => run.end <= offset)
-  ?? runs.find((run) => run.start >= offset)
-);
+const caretRun = <Run extends RangedRun>(runs: readonly Run[], offset: number): Run | undefined => {
+  let low = 0;
+  let high = runs.length - 1;
+  let preceding: Run | undefined;
+  while (low <= high) {
+    const middle = (low + high) >>> 1;
+    const run = runs[middle]!;
+    if (offset < run.start) {
+      high = middle - 1;
+    } else if (offset >= run.end) {
+      preceding = run;
+      low = middle + 1;
+    } else {
+      return run;
+    }
+  }
+  return preceding ?? runs[low];
+};
 
 const selectedRuns = <Run extends RangedRun>(
   runs: readonly Run[],
@@ -118,12 +131,14 @@ export const projectFlowTextFormat = (
           ? withoutRange(caretRun(source.styleRuns, ordered!.start)!) : undefined)]
         .filter((value): value is TextStyleProperties => value !== undefined)
     : selectedRuns(source.styleRuns, selection).map(withoutRange);
-  const paragraphs = source.paragraphRuns.length
-    ? source.paragraphRuns.map(withoutRange)
-    : [insertionParagraph
+  const paragraphs = insertion
+    ? [insertionParagraph
       ? withoutRange(insertionParagraph)
-      : source.insertionParagraph]
-        .filter((value): value is ParagraphStyleProperties => value !== undefined);
+      : source.insertionParagraph
+        ?? (caretRun(source.paragraphRuns, ordered!.start)
+          ? withoutRange(caretRun(source.paragraphRuns, ordered!.start)!) : undefined)]
+        .filter((value): value is ParagraphStyleProperties => value !== undefined)
+    : selectedRuns(source.paragraphRuns, selection).map(withoutRange);
   return {
     style: mixed(styles),
     paragraph: mixed(paragraphs),
@@ -167,10 +182,21 @@ export const projectFlowTextStyleValue = <Value>(
 
 export const projectFlowTextParagraphProperty = <Key extends keyof ParagraphStyleProperties>(
   source: FlowTextSource,
-  _selection: TextSelectionRange | null,
+  selection: TextSelectionRange | null,
   property: Key,
   insertionParagraph?: ParagraphStyleRun
 ): MixedValue<ParagraphStyleProperties[Key]> => {
+  selection = selection ? normalizeTextSelection(source.text, selection) : null;
+  const ordered = selection ? orderedTextSelection(selection) : null;
+  if (ordered && ordered.start === ordered.end) {
+    const paragraph = insertionParagraph
+      ?? (source.insertionParagraph
+        ? { ...source.insertionParagraph, start: 0, end: 0 }
+        : caretRun(source.paragraphRuns, ordered.start));
+    return paragraph
+      ? { kind: 'value', value: paragraph[property] }
+      : { kind: 'unavailable' };
+  }
   if (source.paragraphRuns.length === 0) {
     const paragraph = insertionParagraph ?? source.insertionParagraph;
     if (paragraph) return { kind: 'value', value: paragraph[property] };
@@ -179,7 +205,7 @@ export const projectFlowTextParagraphProperty = <Key extends keyof ParagraphStyl
       value: createDefaultFlowTextSource('x').paragraphRuns[0][property]
     };
   }
-  return mixed(source.paragraphRuns.map((run) => run[property]));
+  return mixed(selectedRuns(source.paragraphRuns, selection).map((run) => run[property]));
 };
 
 export const formatFlowTextSource = (

@@ -84,6 +84,23 @@ describe('text editing overlay', () => {
     });
   });
 
+  it('does not traverse selection geometry for a collapsed caret', () => {
+    const selectionGeometry = new Proxy(layout.selectionGeometry, {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator || property === 'filter') {
+          throw new Error('collapsed caret traversed selection geometry');
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    const overlay = buildTextEditingOverlay({
+      layerId: 'text', layout: { ...layout, selectionGeometry }, anchor: 1, focus: 1,
+      localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+    });
+    expect(overlay.quads).toHaveLength(0);
+    expect(overlay.lines[0]?.start.x).toBe(9);
+  });
+
   it('adds a transformed paragraph frame and transform-sensitive cache key', () => {
     const first = buildTextEditingOverlay({
       layerId: 'paragraph', layout, anchor: 0, focus: 0,
