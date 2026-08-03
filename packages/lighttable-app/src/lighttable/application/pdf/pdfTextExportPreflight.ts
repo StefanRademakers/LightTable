@@ -44,7 +44,8 @@ const paintNeedsOutlines = (paint: TextPaint | undefined) => Boolean(
   paint && (paint.kind === 'linear-gradient' || paint.color.colorSpace !== 'srgb')
 );
 const paintSupport = (paint: TextRunPaint): PdfExportTextRunInput['paintSupport'] => (
-  paintNeedsOutlines(paint.fill) || paintNeedsOutlines(paint.stroke?.paint)
+  paint.stroke !== undefined
+  || paintNeedsOutlines(paint.fill)
     ? 'outline-required'
     : 'pdf-text'
 );

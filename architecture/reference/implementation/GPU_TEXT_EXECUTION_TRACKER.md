@@ -783,6 +783,18 @@ glyph IDs, and caps bytes/tables/glyphs. A real Anton font and the real
 retain-GID HarfBuzz subset both pass the parser, avoiding a second multi-MiB
 fontkit runtime in web and Electron.
 
+Native Type0 writer evidence: the lazy `pdf-lib` boundary now writes retained-
+GID TrueType subsets as embedded `FontFile2` streams behind Type0/CIDFontType2
+objects. Each run receives its own encoding CMap, binary CID-to-GID map, exact
+1000-unit widths and ToUnicode map; multi-glyph semantic clusters retain
+`ActualText` plus a reader-compatible Unicode fallback. Glyphs are emitted from
+their frozen matrices without reshaping, and compatible adjacent glyphs use a
+positioned `TJ` array so exact placement does not introduce false extraction
+spaces. PDF.js reopens the real Anton subset fixtures as searchable Unicode.
+CFF and stroked text still fail closed to the preflight fallback path, and the
+product export remains flattened until native text can be composed with the
+page's raster/vector/group content without duplication.
+
 Exit gate: exported fixtures reopen in LightTable and Illustrator-compatible
 PDF consumers with recorded visual/editability results.
 
