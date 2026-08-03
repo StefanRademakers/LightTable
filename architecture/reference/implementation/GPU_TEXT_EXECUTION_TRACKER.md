@@ -656,6 +656,30 @@ validated display list. Page scenes reference them without parser-time
 duplication. A unified resource graph rejects direct and mixed Form/Type 3
 cycles and enforces separate nesting/operation limits before replay.
 
+Slice 20 flow-recovery evidence: `analyzePositionedTextRecovery()` is a pure,
+deterministic query that scores Unicode coverage, logical order, fonts and
+recoverable matrix geometry without mutating or reshaping the exact source.
+Text clipping, incomplete semantics, singular/skewed matrices, inconsistent
+run orientation, vertical advances and per-glyph transforms block conversion;
+uniform rotation/reflection, no-fill/stroke paints and exact preferred document
+font assets survive in the preview. The typed recovery command recomputes that
+analysis against the current snapshot, crosses the source-kind boundary only
+explicitly and records one document-history entry whose undo restores the
+untouched positioned glyphs. The existing Text panel components show confidence,
+preview text/style count and concrete warnings before enabling recovery; no new
+panel, color, select or number-control system was introduced.
+
+Real PDF fixture evidence: `D:\FormulierPersoneel.pdf` (SHA-256
+`a192caef67408512ad35c503adb6f64f741f029d04bc5096bbfe3616cde1e823`) is one
+unrotated 589.68 x 835.92 point page. Independent object inspection finds no
+fonts, text objects, annotations or AcroForm fields: the page is exactly one
+2457 x 3484, 8-bit DeviceRGB JPEG XObject placed by `q cm Do Q`. An independent
+PyMuPDF render was visually inspected. The bounded tile planner now carries
+that real crop-box as a 600-dpi regression (4914 x 6966 pixels, four tiles).
+This fixture covers image-resource placement, high-resolution page rendering
+and source preservation; it deliberately does not count as text-recovery or
+interactive-form evidence.
+
 UI exposure: Open/import progress and report show page count, font status and
 editability classification. Positioned text is selectable as a text layer but
 flow editing is disabled until explicitly recovered.
@@ -667,7 +691,7 @@ presentation and reference comparison is logged.
 
 - [x] Support forms, transparency groups, soft masks, text clipping and page
   tiling required by the fixture corpus.
-- [ ] Add optional, confidence-scored positioned-to-flow recovery.
+- [x] Add optional, confidence-scored positioned-to-flow recovery.
 - [ ] Export true PDF text objects when font embedding and semantics allow.
 - [ ] Subset/embed fonts or use an explicit outline fallback.
 - [ ] Preserve groups, clips, transforms, blend and supported transparency.

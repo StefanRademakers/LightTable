@@ -1,4 +1,5 @@
 import {
+  analyzePositionedTextRecovery,
   bumpTextLayerRevision,
   cloneTextLayerData,
   type FlowTextSource,
@@ -16,7 +17,11 @@ import {
   type TextLayer
 } from './documentTypes';
 import { findDocumentLayer, updateLayerNode } from './layerTree';
-import type { AffineMatrix } from '../geometry/affine';
+import {
+  isIdentityAffineMatrix,
+  multiplyMatrices,
+  type AffineMatrix
+} from '../geometry/affine';
 import { setLayerTransform } from './documentCommands';
 
 const canonicalValue = (value: unknown): unknown => {
@@ -152,6 +157,56 @@ export const replaceTextLayerData = (
   layerId: LayerId,
   data: TextLayerData
 ) => updateTextLayer(document, layerId, () => data);
+
+const affineFromTextMatrix = (matrix: readonly number[]): AffineMatrix => ({
+  a: matrix[0]!, b: matrix[3]!, c: matrix[1]!, d: matrix[4]!,
+  tx: matrix[2]!, ty: matrix[5]!
+});
+
+/**
+ * Explicit source-kind conversion seam for imported positioned text.
+ *
+ * Analysis is recomputed from the current immutable source so callers cannot
+ * apply a stale or forged preview. Application history retains the untouched
+ * positioned layer as the undo snapshot; ordinary typing transactions remain
+ * unable to cross the source-kind boundary.
+ */
+export const recoverPositionedTextAsFlow = (
+  document: ImageDocument,
+  layerId: LayerId
+): ImageDocument => {
+  const current = findDocumentLayer(document, layerId);
+  if (
+    current?.type !== 'text'
+    || current.text.source.kind !== 'positioned'
+    || layerIsLocked(current, 'pixels')
+  ) return document;
+  const analysis = analyzePositionedTextRecovery(current.text.source);
+  if (!analysis.preview || analysis.status === 'blocked') return document;
+  const transformDelta = affineFromTextMatrix(analysis.preview.layerTransformDelta);
+  if (!isIdentityAffineMatrix(transformDelta) && layerIsLocked(current, 'position')) return document;
+  const nextText = cloneTextLayerData(bumpRevisions({
+    ...current.text,
+    source: analysis.preview.source
+  }, ['content', 'font', 'layout', 'paint', 'geometry']));
+  const transform = multiplyMatrices(current.transform, transformDelta);
+  const now = Date.now();
+  return {
+    ...document,
+    layers: updateLayerNode(document.layers, layerId, layer => layer.type === 'text'
+      ? {
+        ...layer,
+        text: nextText,
+        transform,
+        revision: layer.revision + 1,
+        geometryRevision: layer.geometryRevision + 1,
+        modifiedAt: now
+      }
+      : layer),
+    revision: document.revision + 1,
+    modifiedAt: now
+  };
+};
 
 /**
  * Replaces one complete authored text input group.

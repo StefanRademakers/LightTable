@@ -36,6 +36,28 @@ describe('PDF page tile planning', () => {
     expect(plan.tiles[0]?.contentPageBounds).toEqual({ x: 10, y: 20, width: 4096, height: 4096 });
   });
 
+  it('plans the real FormulierPersoneel A4 page at bounded 600 dpi', () => {
+    // D:\FormulierPersoneel.pdf
+    // SHA-256 a192caef67408512ad35c503adb6f64f741f029d04bc5096bbfe3616cde1e823
+    // The source page is 589.68 x 835.92 pt and contains one 2457 x 3484 JPEG XObject.
+    const plan = planPdfPageTiles({
+      pageIndex: 0,
+      cropBox: { x: 0, y: 0, width: 589.68, height: 835.92 },
+      rotation: 0,
+      userUnit: 1
+    }, 600 / 72);
+
+    expect(plan.unrotatedPixelSize).toEqual({ width: 4914, height: 6966 });
+    expect(plan.tiles).toHaveLength(4);
+    expect(plan.tiles.map(tile => tile.contentPixels)).toEqual([
+      { x: 0, y: 0, width: 4096, height: 4096 },
+      { x: 4096, y: 0, width: 818, height: 4096 },
+      { x: 0, y: 4096, width: 4096, height: 2870 },
+      { x: 4096, y: 4096, width: 818, height: 2870 }
+    ]);
+    expect(plan.renderedPixelCount).toBeGreaterThan(4914 * 6966);
+  });
+
   it('returns no raster work for an empty crop box', () => {
     expect(planPdfPageTiles({ ...page, cropBox: { x: 0, y: 0, width: 0, height: 4 } }, 1).tiles)
       .toEqual([]);

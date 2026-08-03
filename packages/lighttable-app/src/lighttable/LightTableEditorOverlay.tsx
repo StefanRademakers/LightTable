@@ -51,6 +51,7 @@ import { useLayerStyleEditorController } from './application/styles/useLayerStyl
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
+import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
@@ -845,6 +846,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     )
   }));
   const textToShapeController = textToShapeControllerRef.current;
+  const positionedTextRecoveryControllerRef = useRef<PositionedTextRecoveryCommandController | null>(null);
+  positionedTextRecoveryControllerRef.current ??= new PositionedTextRecoveryCommandController(() => ({
+    getDocument: () => imageDocumentRef.current,
+    applyDocument: applyDocumentSnapshot,
+    pushDocumentHistory
+  }));
+  const positionedTextRecoveryController = positionedTextRecoveryControllerRef.current;
   const pendingTextDocumentRef = useRef<ImageDocument | null>(null);
   const textDocumentPublicationFrameRef = useRef<number | null>(null);
   const applyTextEditingDocument = (document: ImageDocument) => {
@@ -2516,6 +2524,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         advancedUnavailableReason:
           'Positioned imported text preserves exact glyph placement. Editable flow conversion is not available yet; preserve it or rasterize a copy.'
       } : null;
+  const positionedTextRecovery = activeTextPropertyLayer?.type === 'text'
+    && activeTextPropertyLayer.text.source.kind === 'positioned'
+    ? positionedTextRecoveryController.analyze(activeTextPropertyLayer.id)
+    : null;
   const textLayoutMode = activeFlowTextPropertySource?.layout.mode === 'point'
     || activeFlowTextPropertySource?.layout.mode === 'paragraph'
     ? activeFlowTextPropertySource.layout.mode
@@ -2699,13 +2711,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onParagraph: (patch: ParagraphStylePatch) => applyTextPropertyPatch({}, patch),
     onBegin: beginTextPropertyGesture,
     onCommit: commitTextPropertyGesture,
-    onCancel: cancelTextPropertyGesture
+    onCancel: cancelTextPropertyGesture,
+    ...(positionedTextRecovery ? {
+      recovery: {
+        analysis: positionedTextRecovery,
+        onRecover: () => {
+          const layerId = activeTextPropertyLayer?.id;
+          if (!layerId) return;
+          textEditingController.finish();
+          const recovered = positionedTextRecoveryController.recover(layerId);
+          setGradeStatus(recovered
+            ? 'Imported text recovered as editable flow text. Undo restores exact positioned glyphs.'
+            : 'Imported text could not be recovered.');
+        }
+      }
+    } : {})
   } : null;
   useEffect(() => {
-    if (activeFlowTextPropertyLayer?.id) {
+    if (activeTextPropertyLayer?.type === 'text') {
       workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
     }
-  }, [activeFlowTextPropertyLayer?.id]);
+  }, [activeTextPropertyLayer?.id, activeTextPropertyLayer?.type]);
   return (
     <LightTableEditorShell
       screenMode={screenMode}

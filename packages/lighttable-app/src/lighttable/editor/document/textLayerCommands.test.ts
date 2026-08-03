@@ -10,13 +10,14 @@ import { findDocumentLayer } from './layerTree';
 import {
   convertParagraphTextToPoint,
   convertPointTextToParagraph,
+  recoverPositionedTextAsFlow,
   setFlowTextContent,
   setFlowTextLayout,
   setFlowTextRuns,
   setPositionedTextRuns,
   setTextLayerTransform
 } from './textLayerCommands';
-import { translationMatrix } from '../geometry/affine';
+import { multiplyMatrices, rotationMatrix, translationMatrix } from '../geometry/affine';
 
 const flowDocument = () => createTextLayer(
   createImageDocument('Text commands', 320, 200, 'background'),
@@ -291,6 +292,75 @@ describe('canonical text layer commands', () => {
       paint: 0,
       geometry: 1
     });
+  });
+
+  it('recovers positioned text atomically and composes its rotation after the common transform', () => {
+    const data = createPositionedTextFixture();
+    if (data.source.kind !== 'positioned') throw new Error('Expected positioned text.');
+    const positionedData = {
+      ...data,
+      source: {
+        ...data.source,
+        editability: 'recoverable' as const,
+        runs: data.source.runs.map(run => ({
+          ...run,
+          textMatrix: [0, -24, 40, 24, 0, 50, 0, 0, 1] as const,
+          glyphs: run.glyphs.map(glyph => ({ ...glyph, advanceX: 0.6 }))
+        }))
+      }
+    };
+    const document = createTextLayer(
+      createImageDocument('Recovery', 320, 200, 'background'),
+      positionedData,
+      'PDF text'
+    );
+    const id = document.activeLayerId!;
+    const placed = setTextLayerTransform(document, id, translationMatrix(30, 10));
+    const changed = recoverPositionedTextAsFlow(placed, id);
+    const recovered = activeText(changed);
+
+    expect(recovered.text.source).toMatchObject({
+      kind: 'flow', text: 'A',
+      layout: { mode: 'point', origin: { x: 50, y: -40 } }
+    });
+    expect(recovered.transform).toEqual(multiplyMatrices(
+      translationMatrix(30, 10), rotationMatrix(Math.PI / 2)
+    ));
+    expect(recovered.text.revisions).toEqual({
+      content: 1, font: 1, layout: 1, paint: 1, path: 0, geometry: 1
+    });
+    expect(recovered.geometryRevision).toBe(activeText(placed).geometryRevision + 1);
+    expect(changed.revision).toBe(placed.revision + 1);
+    expect(recoverPositionedTextAsFlow(changed, id)).toBe(changed);
+  });
+
+  it('refuses blocked recovery and respects pixel and rotation position locks', () => {
+    const document = createTextLayer(
+      createImageDocument('Recovery locks', 320, 200, 'background'),
+      createPositionedTextFixture(),
+      'PDF text'
+    );
+    const id = document.activeLayerId!;
+    const pixelLocked = setLayerLock(document, id, 'pixels', true);
+    expect(recoverPositionedTextAsFlow(pixelLocked, id)).toBe(pixelLocked);
+
+    const layer = activeText(document);
+    if (layer.text.source.kind !== 'positioned') throw new Error('Expected positioned text.');
+    const rotated = setPositionedTextRuns(document, id, layer.text.source.runs.map(run => ({
+      ...run,
+      textMatrix: [0, -20, 0, 20, 0, 0, 0, 0, 1] as const
+    })));
+    const positionLocked = setLayerLock(rotated, id, 'position', true);
+    expect(recoverPositionedTextAsFlow(positionLocked, id)).toBe(positionLocked);
+
+    const outlineOnly = {
+      ...layer.text,
+      source: { ...layer.text.source, editability: 'outline-only' as const }
+    };
+    const blocked = createTextLayer(
+      createImageDocument('Blocked', 100, 100, 'asset'), outlineOnly, 'Outline text'
+    );
+    expect(recoverPositionedTextAsFlow(blocked, blocked.activeLayerId!)).toBe(blocked);
   });
 
   it('rejects invalid runs and respects pixel and position locks', () => {

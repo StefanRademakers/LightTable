@@ -1,4 +1,6 @@
 import React from 'react';
+import type { PositionedTextRecoveryAnalysis } from '@lighttable/text-core';
+import { ActionButton } from '../../../ui/ActionButton';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 import type { ParagraphStylePatch } from '../../application/text/flowTextFormatting';
@@ -19,6 +21,10 @@ export interface TextPropertiesPanelProps {
   readonly onBegin: () => void;
   readonly onCommit: () => void;
   readonly onCancel: () => void;
+  readonly recovery?: {
+    readonly analysis: PositionedTextRecoveryAnalysis;
+    readonly onRecover: () => void;
+  };
 }
 
 const mixedOption = <option value="" disabled>Mixed</option>;
@@ -26,8 +32,55 @@ const mixedOption = <option value="" disabled>Mixed</option>;
 export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
   model, fonts, onFontAsset, onSize, onFill, onFillEnabled, onStrokeColor, onStrokeWidth,
   onTracking, onParagraph,
-  onBegin, onCommit, onCancel
+  onBegin, onCommit, onCancel, recovery
 }) => {
+  if (recovery) {
+    const { analysis } = recovery;
+    const preview = analysis.preview?.source;
+    const messages = analysis.evidence.filter(entry => entry.severity !== 'support');
+    return (
+      <aside className="lighttable-panel" aria-label="Text properties">
+        <section className="lighttable-group lighttable-master-group">
+          <div className="lighttable-group__header">
+            <div className="lighttable-master-group__label"><strong>Imported text</strong></div>
+          </div>
+        </section>
+        <div className="lighttable-panel__controls">
+          <section className="lighttable-group">
+            <div className="lighttable-group__header">
+              <div className="lighttable-master-group__label"><strong>Recovery preview</strong></div>
+            </div>
+            <div className="lighttable-group__controls lighttable-tool-options__content lighttable-tool-options__content--vertical">
+              <div className="lighttable-tool-options__text">
+                <p>
+                  {analysis.status === 'recommended' ? 'Recommended' : analysis.status === 'available' ? 'Available' : 'Unavailable'}
+                  {' · '}{Math.round(analysis.confidence * 100)}% confidence
+                </p>
+                {preview ? (
+                  <p title={preview.text}>
+                    {preview.text.length > 80 ? `${preview.text.slice(0, 77)}…` : preview.text}
+                    <br />{preview.styleRuns.length} style run{preview.styleRuns.length === 1 ? '' : 's'}
+                    {' · '}{preview.layout.mode} text
+                  </p>
+                ) : null}
+                {messages.map((entry, index) => (
+                  <p key={`${entry.code}:${entry.runIndex ?? ''}:${entry.glyphIndex ?? ''}:${index}`}>
+                    {entry.severity === 'blocker' ? 'Blocked: ' : 'Note: '}{entry.message}
+                  </p>
+                ))}
+                <ActionButton
+                  onClick={recovery.onRecover}
+                  disabled={analysis.status === 'blocked' || !analysis.preview}
+                >
+                  Recover editable text
+                </ActionButton>
+              </div>
+            </div>
+          </section>
+        </div>
+      </aside>
+    );
+  }
   const family = model.family.kind === 'value' ? model.family.value : '';
   const faces = fonts.filter((font) => font.familyNames.includes(family));
   const selectedFace = model.face.kind === 'value' ? model.face.value : '';
