@@ -13,6 +13,10 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
 import {
+  createDesktopOpenDialogFilters,
+  desktopMediaTypeForFileName
+} from './desktopFileFormats';
+import {
   normalizeRecentFiles,
   RecentFileOperationQueue,
   RECENT_FILE_LIMIT,
@@ -22,10 +26,6 @@ import {
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
-
-const IMAGE_EXTENSIONS = [
-  'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'psd', 'psb', 'pdf'
-];
 
 let mainWindow: BrowserWindow | null = null;
 let rendererOrigin = '';
@@ -104,7 +104,7 @@ const forgetRecentFile = (id: string): Promise<void> =>
 
 const readDesktopFilePayload = async (filePath: string) => ({
   name: path.basename(filePath),
-  type: '',
+  type: desktopMediaTypeForFileName(filePath),
   bytes: new Uint8Array(await readFile(filePath))
 });
 
@@ -281,10 +281,10 @@ void app.whenReady().then(async () => {
     const options: Electron.OpenDialogOptions = {
       title: 'Open in LightTable',
       properties: ['openFile'],
-      filters: [
-        { name: 'Supported images and documents', extensions: [...IMAGE_EXTENSIONS, 'lighttable.png'] },
-        { name: 'All files', extensions: ['*'] }
-      ]
+      filters: createDesktopOpenDialogFilters().map((filter) => ({
+        name: filter.name,
+        extensions: [...filter.extensions]
+      }))
     };
     const result = mainWindow
       ? await dialog.showOpenDialog(mainWindow, options)
