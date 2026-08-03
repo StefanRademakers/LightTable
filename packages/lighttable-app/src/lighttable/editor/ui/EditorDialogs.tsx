@@ -1,18 +1,26 @@
 import { ConfirmDialog } from '../../../ui/ConfirmDialog';
 import { TextInputDialog } from '../../../ui/TextInputDialog';
 import type { ReferenceDifferenceMetrics } from '../../application/rendering/rendererTypes';
-import type { LayerId, PhotoshopImportReport } from '../document/documentTypes';
+import type { DocumentFontAsset, LayerId, PhotoshopImportReport } from '../document/documentTypes';
 import { PsdImportReportDialog } from '../psd/PsdImportReportDialog';
 import type { EditorDialogController } from './useEditorDialogController';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { PdfExportPreflightDialog } from '../pdf/PdfExportPreflightDialog';
+import { MissingFontRecoveryDialog } from './MissingFontRecoveryDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
   readonly photoshopReport: PhotoshopImportReport | null;
   readonly differenceMetrics: ReferenceDifferenceMetrics | null;
   readonly textFontDiagnostics: readonly TextFontDiagnostic[];
+  readonly replacementFonts: readonly DocumentFontAsset[];
   readonly onResolveTextFont: (layerId: TextFontDiagnostic['layerId']) => void;
+  readonly onReplaceTextFont: (
+    layerId: LayerId,
+    assetId: string,
+    offset?: number,
+    affinity?: 'upstream' | 'downstream'
+  ) => void;
   readonly onFeather: (radius: number) => void;
   readonly onFlatten: () => void;
   readonly onConvertTextToShape: (layerId: LayerId) => void;
@@ -24,7 +32,9 @@ export const EditorDialogs = ({
   photoshopReport,
   differenceMetrics,
   textFontDiagnostics,
+  replacementFonts,
   onResolveTextFont,
+  onReplaceTextFont,
   onFeather,
   onFlatten,
   onConvertTextToShape,
@@ -87,6 +97,24 @@ export const EditorDialogs = ({
       textFontDiagnostics={textFontDiagnostics}
       onResolveTextFont={onResolveTextFont}
       onClose={controller.closePsdReport}
+    />
+    <MissingFontRecoveryDialog
+      request={controller.missingFontRecoveryRequest}
+      diagnostic={controller.missingFontRecoveryRequest
+        ? textFontDiagnostics.find(({ layerId }) =>
+            layerId === controller.missingFontRecoveryRequest?.layerId) ?? null
+        : null}
+      fonts={replacementFonts}
+      onCancel={controller.closeMissingFontRecovery}
+      onManage={() => {
+        controller.closeMissingFontRecovery();
+        controller.openPsdReport();
+      }}
+      onReplace={(assetId) => {
+        const request = controller.missingFontRecoveryRequest;
+        if (!request) return;
+        onReplaceTextFont(request.layerId, assetId, request.offset, request.affinity);
+      }}
     />
     <PdfExportPreflightDialog
       open={Boolean(controller.pdfExportPreflightRequest)}

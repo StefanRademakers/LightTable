@@ -50,6 +50,8 @@ const saveLightTableFile = saveLightTableArgument ? path.resolve(saveLightTableA
 const expectLayer = argument('expect-layer', '');
 const expectNonemptyLayer = argument('expect-nonempty-layer', '');
 const openCompatibilityReport = argument('open-compatibility-report', '') === 'true';
+const editTextLayer = argument('edit-text-layer', '');
+const replacementFont = argument('replacement-font', '');
 const targetZoomPercent = Number.parseFloat(argument('zoom-percent', 'NaN'));
 const zoomFocusX = Number.parseFloat(argument('zoom-focus-x', 'NaN'));
 const zoomFocusY = Number.parseFloat(argument('zoom-focus-y', 'NaN'));
@@ -93,6 +95,7 @@ const diagnostics = {
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
     createRasterLayerForPaint, paintStroke, paintExistingLayer, paintColor, paintX, paintY,
     saveLightTableFile, expectLayer, expectNonemptyLayer, openCompatibilityReport,
+    editTextLayer, replacementFont,
     targetZoomPercent, zoomFocusX, zoomFocusY,
     openPdfPreflight, validatePdfFonts, exportFlattenedPdf, exportNativePdf,
     exportNativeVectorPdf, exportNativeMixedPdf
@@ -352,6 +355,36 @@ try {
     }).waitFor({ state: 'visible', timeout: 15_000 });
   }
 
+  if (editTextLayer) {
+    const escapedLayerName = editTextLayer.replaceAll('"', '\\"');
+    const row = window.locator('.lighttable-layer').filter({
+      has: window.locator(`.lighttable-layer__name[value="${escapedLayerName}"]`)
+    }).first();
+    // The name input reserves double-click for renaming. The thumbnail has no
+    // competing double-click action, so its native gesture bubbles to the row.
+    await row.locator('.lighttable-layer__thumbnail').first().dispatchEvent('dblclick');
+    const dialog = window.getByRole('dialog', { name: 'Replace missing text font' });
+    await dialog.waitFor({ state: 'visible', timeout: 15_000 });
+    const selector = dialog.getByRole('combobox', { name: 'Replacement font' });
+    if (replacementFont) {
+      const option = await selector.locator('option').evaluateAll((options, expected) =>
+        options.find(({ textContent }) => textContent?.includes(expected))?.value ?? '',
+      replacementFont);
+      if (!option) throw new Error(`Replacement font "${replacementFont}" is unavailable.`);
+      await selector.selectOption(option);
+    }
+    diagnostics.fontRecovery = {
+      layerName: editTextLayer,
+      selectedFont: await selector.locator('option:checked').textContent()
+    };
+    await dialog.getByRole('button', { name: 'Replace', exact: true }).click();
+    await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
+    await window.getByRole('textbox', { name: `Edit ${editTextLayer}` }).waitFor({
+      state: 'attached', timeout: 15_000
+    });
+    diagnostics.fontRecovery.editing = true;
+  }
+
   if (openPdfPreflight) {
     await window.getByRole('button', { name: 'File', exact: true }).click();
     await window.getByText('PDF Export Preflight...', { exact: true }).click();
@@ -541,6 +574,7 @@ try {
   if (saveLightTableFile) {
     await window.screenshot({ path: outputFile });
     screenshotCaptured = true;
+    if (editTextLayer) await window.keyboard.press('Escape');
     await window.keyboard.press('Control+s');
     const deadline = Date.now() + 30_000;
     let saved;

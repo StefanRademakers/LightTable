@@ -83,7 +83,8 @@ import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
 import { useTextEngineDiagnostics } from './text/diagnostics/useTextEngineDiagnostics';
 import {
   documentTextFontDiagnostics,
-  summarizeTextFontDiagnostics
+  summarizeTextFontDiagnostics,
+  textLayerFontStatus
 } from './text/fonts/textLayerFontStatus';
 import type {
   DocumentOpenMode
@@ -148,6 +149,7 @@ import { FlowTextEditingSessionController } from './application/text/flowTextEdi
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
 import { PathTextHandleController } from './application/text/PathTextHandleController';
+import { replaceMissingTextFont } from './application/text/replaceMissingTextFont';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import {
   formatFlowTextSource,
@@ -1766,6 +1768,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return resolveTextToolFont(textFontRegistry.availableAssets, editorSession.text);
   };
 
+  const requestExistingFlowTextEditing = (
+    layerId: LayerId,
+    offset?: number,
+    affinity: 'upstream' | 'downstream' = 'downstream'
+  ) => {
+    const document = imageDocumentRef.current;
+    const layer = document ? findDocumentLayer(document, layerId) : null;
+    const unresolved = layer?.type === 'text'
+      && textLayerFontStatus(
+        layer,
+        textFontRegistry.availableAssets,
+        DEFAULT_TEXT_SUBSTITUTION_FAMILIES
+      ).kind !== 'exact';
+    if (layer?.type === 'text'
+      && layer.text.source.kind === 'flow'
+      && unresolved) {
+      editorDialogs.requestMissingFontRecovery({ layerId, offset, affinity });
+      return false;
+    }
+    return textEditingController.begin(layerId, offset, affinity);
+  };
+
   const beginExistingFlowTextEditing = (
     point: { x: number; y: number },
     mode: 'point' | 'paragraph' | 'any' = 'any',
@@ -1786,8 +1810,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       pointTextController.cancel();
       paragraphTextController.cancel();
       selectLayerRef.current(layer.id);
-      textEditingController.begin(layer.id, hit.offset, hit.affinity);
-      if (pointerId !== undefined) {
+      const editingStarted = requestExistingFlowTextEditing(layer.id, hit.offset, hit.affinity);
+      if (editingStarted && pointerId !== undefined) {
         textSelectionGestureController.begin(pointerId, layer.id, hit.offset);
       }
       return true;
@@ -2653,7 +2677,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onEditText={(layerId) => {
         pointTextController.cancel();
         activatePersistentTool('text-point');
-        textEditingController.begin(layerId);
+        requestExistingFlowTextEditing(layerId);
       }}
       onOpenFontReport={() => editorDialogs.openPsdReport()}
       onConvertTextToShape={requestTextToShape}
@@ -3098,6 +3122,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             photoshopReport: imageDocument?.photoshopImportReport ?? null,
             differenceMetrics: psdDifferenceMetrics,
             textFontDiagnostics: fontDiagnostics,
+            replacementFonts: selectableTextFonts,
             onResolveTextFont: (layerId) => {
               const layer = imageDocumentRef.current
                 ? findDocumentLayer(imageDocumentRef.current, layerId)
@@ -3107,8 +3132,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
               pointTextController.cancel();
               activatePersistentTool('text-point');
-              textEditingController.begin(layerId);
+              requestExistingFlowTextEditing(layerId);
               workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
+            },
+            onReplaceTextFont: (layerId, assetId, offset, affinity) => {
+              void (async () => {
+                const bundled = await registerBundledTextFontByAssetId(textFontRegistry, assetId);
+                const asset = bundled
+                  ?? textFontRegistry.availableAssets.find((candidate) => candidate.assetId === assetId);
+                if (!asset) throw new Error('The selected replacement font is not available.');
+                const before = imageDocumentRef.current;
+                const layer = before ? findDocumentLayer(before, layerId) : null;
+                if (!before || layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
+                const after = replaceMissingTextFont(before, layerId, asset);
+                editorDialogs.closeMissingFontRecovery();
+                if (after !== before) {
+                  applyDocumentSnapshot(after);
+                  pushDocumentHistory(before, after);
+                }
+                layerPanelController.select(layerId);
+                activatePersistentTool('text-point');
+                textEditingController.begin(layerId, offset, affinity ?? 'downstream');
+                workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
+                setGradeStatus(`Replaced the unavailable font with ${asset.familyNames[0] ?? asset.styleName}.`);
+              })().catch((reason: unknown) => {
+                setError(reason instanceof Error ? reason.message : 'The replacement font could not be applied.');
+              });
             },
             onFeather: featherCurrentSelection,
             onFlatten: commitFlattenRequest,

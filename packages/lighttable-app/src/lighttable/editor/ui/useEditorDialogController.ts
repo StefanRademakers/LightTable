@@ -10,12 +10,20 @@ export interface TextToShapeRequest {
   readonly layerId: LayerId;
 }
 
+export interface MissingFontRecoveryRequest {
+  readonly layerId: LayerId;
+  readonly offset?: number;
+  readonly affinity?: 'upstream' | 'downstream';
+}
+
 export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
   const [flattenRequest, setFlattenRequest] =
     useState<FlattenRequest | null>(null);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
   const [textToShapeRequest, setTextToShapeRequest] = useState<TextToShapeRequest | null>(null);
+  const [missingFontRecoveryRequest, setMissingFontRecoveryRequest] =
+    useState<MissingFontRecoveryRequest | null>(null);
   const [pdfExportPreflightRequest, setPdfExportPreflightRequest] = useState<PdfExportPreflightRequest | null>(null);
 
   const reset = useCallback(() => {
@@ -23,6 +31,7 @@ export const useEditorDialogController = () => {
     setFlattenRequest(null);
     setPsdReportOpen(false);
     setTextToShapeRequest(null);
+    setMissingFontRecoveryRequest(null);
     setPdfExportPreflightRequest(null);
   }, []);
 
@@ -31,6 +40,7 @@ export const useEditorDialogController = () => {
     flattenRequest,
     psdReportOpen,
     textToShapeRequest,
+    missingFontRecoveryRequest,
     pdfExportPreflightRequest,
     openFeather: useCallback(() => setFeatherOpen(true), []),
     closeFeather: useCallback(() => setFeatherOpen(false), []),
@@ -44,6 +54,11 @@ export const useEditorDialogController = () => {
       []
     ),
     closeTextToShape: useCallback(() => setTextToShapeRequest(null), []),
+    requestMissingFontRecovery: useCallback(
+      (request: MissingFontRecoveryRequest) => setMissingFontRecoveryRequest(request),
+      []
+    ),
+    closeMissingFontRecovery: useCallback(() => setMissingFontRecoveryRequest(null), []),
     openPdfExportPreflight: useCallback(
       (request: PdfExportPreflightRequest) => setPdfExportPreflightRequest(request),
       []

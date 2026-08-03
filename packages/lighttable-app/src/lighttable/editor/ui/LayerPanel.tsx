@@ -707,6 +707,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   onMaskIsolationChange(null);
                   selectLayer(event, layer.id);
                 }}
+                onDoubleClick={(event) => {
+                  if (layer.type !== 'text' || layer.text.source.kind !== 'flow') return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onEditText?.(layer.id);
+                }}
                 title={
                   layer.type === 'raster'
                     ? 'Edit layer pixels'
