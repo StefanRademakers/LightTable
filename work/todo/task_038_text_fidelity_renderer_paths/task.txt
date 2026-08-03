@@ -1,0 +1,30 @@
+# Task 038 - Text fidelity renderer and text-to-path
+
+Status: in progress. Implements Slice 16 from
+`architecture/reference/implementation/GPU_TEXT_EXECUTION_TRACKER.md`.
+
+## Production outline route
+
+- [x] Add a deterministic, byte-bounded, submission-pinnable glyph-blob cache
+  shared by future web and Electron runtime encoders.
+- [ ] Replace the fixture-only hb-gpu path with a bounded runtime encoder.
+- [ ] Integrate a device-independent, byte-bounded glyph-blob cache.
+- [ ] Reuse GPU storage across repeated glyphs and submissions.
+- [ ] Keep viewport zoom out of content identity and quality invalidation.
+- [ ] Preserve exact document pixels at extreme viewport zoom.
+- [ ] Support native text fill and stroke through the fidelity route.
+
+## Convert to shape/path
+
+- [ ] Convert realized glyph outlines into canonical vector geometry.
+- [ ] Commit conversion as one explicit undoable document command.
+- [ ] Preserve the original TextLayer through undo without in-place mutation.
+- [ ] Expose the command through existing Layers/context and Type menus with an
+  editability warning; do not create new UI primitives or CSS.
+
+## Gates
+
+- [ ] Focused cache, renderer, command and persistence tests pass.
+- [ ] Full workspace tests and typechecks pass.
+- [ ] Production web and packaged Electron builds pass.
+- [ ] Physical high-zoom and save/reopen smoke is recorded.

@@ -6,3 +6,4 @@ export * from './textEditingOverlay';
 export * from './currentTextPaint';
 export * from './quality';
 export * from './hbGpuBundle';
+export * from './hbGpuGlyphBlobCache';

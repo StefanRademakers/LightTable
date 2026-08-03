@@ -25,7 +25,7 @@ export interface HbGpuFixtureBundle {
 const readI16 = (view: DataView, texel: number, component: number) =>
   view.getInt16(texel * TEXEL_BYTES + component * 2, true);
 
-const validateEncodedGlyph = (bytes: Uint8Array) => {
+export const validateHbGpuEncodedGlyph = (bytes: Uint8Array) => {
   if (bytes.byteLength < TEXEL_BYTES * 2 || bytes.byteLength % TEXEL_BYTES !== 0) {
     throw new TypeError('hb-gpu glyph blob must contain complete RGBA16I header texels.');
   }
@@ -90,7 +90,7 @@ export const parseHbGpuFixtureBundle = (input: Uint8Array): HbGpuFixtureBundle =
       throw new TypeError('Truncated or misaligned hb-gpu glyph blob.');
     }
     const bytes = input.subarray(cursor, cursor + length);
-    if (length > 0) validateEncodedGlyph(bytes);
+    if (length > 0) validateHbGpuEncodedGlyph(bytes);
     storageTexels += length / TEXEL_BYTES;
     if (storageTexels * 16 > TEXT_RENDERER_BAKEOFF_LIMITS.maximumHbGpuBytes) {
       throw new TextRendererResourceLimitError('hb-gpu storage buffer exceeds the bakeoff limit.');
@@ -151,7 +151,7 @@ export const copyValidatedHbGpuStorage = (bundle: HbGpuFixtureBundle) => {
           view.setInt16(texel * TEXEL_BYTES + component * 2, value, true);
         }
       }
-      validateEncodedGlyph(encoded);
+      validateHbGpuEncodedGlyph(encoded);
     }
     expectedOffset += glyph.storageTexels;
   }
