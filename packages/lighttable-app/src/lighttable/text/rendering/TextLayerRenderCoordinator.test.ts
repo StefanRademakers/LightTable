@@ -500,6 +500,62 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.renderer.dispose).toHaveBeenCalledTimes(2);
   });
 
+  it('reconciles a changed live font revision when its availability event was missed', async () => {
+    const state = harness();
+    let revision = 0;
+    let assets: readonly DocumentFontAsset[] = [];
+    const port: TextFontRuntimePort = {
+      get revision() { return revision; },
+      get assets() { return assets; },
+      bytes: vi.fn(async () => new Uint8Array([1, 2, 3, 4])),
+      subscribe: vi.fn(() => () => undefined)
+    };
+    const document = createImageDocument('Missed font publication', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.configureFonts(port);
+    state.coordinator.sync(document);
+    await flush();
+    expect(state.client.registerFontDetailed).not.toHaveBeenCalled();
+
+    revision = 1;
+    assets = [asset];
+    state.coordinator.configureFonts(port);
+    await flush();
+
+    expect(state.client.registerFontDetailed).toHaveBeenCalledOnce();
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledOnce();
+    expect(state.publish).toHaveBeenCalledOnce();
+  });
+
+  it('does not invalidate twice when React confirms an already delivered live revision', async () => {
+    const state = harness();
+    let revision = 1;
+    let notifyAvailability = () => undefined;
+    const port: TextFontRuntimePort = {
+      get revision() { return revision; },
+      get assets() { return [asset]; },
+      bytes: vi.fn(async () => new Uint8Array([1, 2, 3, 4])),
+      subscribe: vi.fn((listener) => {
+        notifyAvailability = listener;
+        return () => undefined;
+      })
+    };
+    const document = createImageDocument('Confirmed font publication', 32, 24, 'source');
+    document.layers = [createTextLayerNode(createDefaultTextLayerData(), 'Text')];
+    state.coordinator.configureFonts(port);
+    state.coordinator.sync(document);
+    await flush();
+
+    revision = 2;
+    notifyAvailability();
+    state.coordinator.configureFonts(port);
+    await flush();
+
+    expect(state.client.registerFontDetailed).toHaveBeenCalledTimes(2);
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(2);
+    expect(state.publish).toHaveBeenCalledTimes(2);
+  });
+
   it('rechecks ownership after asynchronously releasing a previous document session', async () => {
     const state = harness();
     const first = createImageDocument('First', 32, 24, 'source');

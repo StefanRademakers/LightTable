@@ -102,6 +102,7 @@ let sessionSequence = 0;
 /** Lazily turns canonical document text into immutable tight GPU sources. */
 export class TextLayerRenderCoordinator {
   private fontPort: TextFontRuntimePort | null = null;
+  private configuredFontRevision = 0;
   private unsubscribeFonts: (() => void) | null = null;
   private document: ImageDocument | null = null;
   private dependencies: CoordinatorDependencies | null = null;
@@ -197,12 +198,23 @@ export class TextLayerRenderCoordinator {
   }
 
   configureFonts(port: TextFontRuntimePort | null) {
-    if (this.fontPort === port) return;
+    const revision = port?.revision ?? 0;
+    if (this.fontPort === port && this.configuredFontRevision === revision) {
+      this.schedule();
+      return;
+    }
     this.invalidateFontRuntime();
     this.unsubscribeFonts?.();
     this.fontPort = port;
+    this.configuredFontRevision = revision;
     this.unsubscribeFonts = port?.subscribe(() => {
       if (this.fontPort !== port) return;
+      const nextRevision = port.revision;
+      if (this.configuredFontRevision === nextRevision) {
+        this.schedule();
+        return;
+      }
+      this.configuredFontRevision = nextRevision;
       this.invalidateFontRuntime();
       this.schedule();
     }) ?? null;
@@ -344,6 +356,7 @@ export class TextLayerRenderCoordinator {
     this.unsubscribeFonts?.();
     this.unsubscribeFonts = null;
     this.fontPort = null;
+    this.configuredFontRevision = 0;
     this.document = null;
     this.pendingKey = '';
     this.abortController?.abort();

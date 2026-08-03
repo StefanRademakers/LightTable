@@ -580,7 +580,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!renderer) return;
     renderer.configureTextFonts(textFontRuntimePort);
     return () => renderer.configureTextFonts(null);
-  }, [imageDocument?.id, textFontRuntimePort, thumbnailDocumentReadyId]);
+  }, [fontAvailabilityRevision, imageDocument?.id, textFontRuntimePort, thumbnailDocumentReadyId]);
   const fontDiagnosticStatus = useMemo(
     () => summarizeTextFontDiagnostics(fontDiagnostics),
     [fontDiagnostics]
