@@ -34,7 +34,7 @@ describe('TextSelectionGestureController', () => {
 
     [...state.frames.values()][0]!();
     expect(state.publishSelection).toHaveBeenCalledOnce();
-    expect(state.publishSelection).toHaveBeenCalledWith({ anchor: 2, focus: 9 });
+    expect(state.publishSelection).toHaveBeenCalledWith({ anchor: 2, focus: 9 }, true);
   });
 
   it('cancels pending preview work and publishes the exact pointer-up range', () => {
@@ -45,7 +45,7 @@ describe('TextSelectionGestureController', () => {
     expect(state.controller.finish(3, { x: 12, y: 0 })).toBe(true);
     expect(state.cancelFrame).toHaveBeenCalledOnce();
     expect(state.publishSelection).toHaveBeenCalledOnce();
-    expect(state.publishSelection).toHaveBeenCalledWith({ anchor: 4, focus: 12 });
+    expect(state.publishSelection).toHaveBeenCalledWith({ anchor: 4, focus: 12 }, false);
     expect(state.controller.owns(3)).toBe(false);
   });
 

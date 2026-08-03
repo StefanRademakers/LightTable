@@ -64,6 +64,9 @@ const flowSourceFor = (document: ImageDocument | null, layerId: LayerId | null) 
 export class FlowTextEditingSessionController {
   private snapshot: FlowTextEditingSnapshot = IDLE_SNAPSHOT;
   private readonly listeners = new Set<() => void>();
+  private shellSnapshot: FlowTextEditingSnapshot = IDLE_SNAPSHOT;
+  private shellSignature = 'idle';
+  private readonly shellListeners = new Set<() => void>();
   private openGroup: TextEditGroupKind | null = null;
   private compositionText = '';
   private deleteSignature = '';
@@ -81,9 +84,18 @@ export class FlowTextEditingSessionController {
   constructor(private readonly dependencies: () => FlowTextEditingDependencies) {}
 
   readonly getSnapshot = () => this.snapshot;
+  /**
+   * Coarse UI state. Ordinary caret/selection movement remains on the isolated
+   * input/GPU path unless it changes the effective property projection.
+   */
+  readonly getShellSnapshot = () => this.shellSnapshot;
   readonly subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  };
+  readonly subscribeShell = (listener: () => void) => {
+    this.shellListeners.add(listener);
+    return () => this.shellListeners.delete(listener);
   };
 
   begin(layerId: LayerId, offset?: number, caretAffinity: 'upstream' | 'downstream' = 'downstream') {
@@ -101,7 +113,7 @@ export class FlowTextEditingSessionController {
     return true;
   }
 
-  setSelection(selection: TextSelectionRange) {
+  setSelection(selection: TextSelectionRange, options: { readonly transient?: boolean } = {}) {
     const source = this.currentSource();
     if (!source) return false;
     this.commitOpenGroup();
@@ -111,7 +123,7 @@ export class FlowTextEditingSessionController {
     this.publish({
       ...this.snapshot, selection: { anchor, focus }, compositionRange: null,
       caretAffinity: 'downstream', preferredCaretX: null
-    });
+    }, !options.transient);
     return true;
   }
 
@@ -513,8 +525,23 @@ export class FlowTextEditingSessionController {
     return changed;
   }
 
-  private publish(snapshot: FlowTextEditingSnapshot) {
+  private publish(snapshot: FlowTextEditingSnapshot, notifyShell = true) {
     this.snapshot = Object.freeze(snapshot);
     for (const listener of this.listeners) listener();
+    if (!notifyShell) return;
+    const signature = snapshot.status === 'idle'
+      ? 'idle'
+      : JSON.stringify([
+        snapshot.status,
+        snapshot.documentId,
+        snapshot.layerId,
+        snapshot.focusKey,
+        this.formatProjection()
+      ]);
+    if (signature !== this.shellSignature) {
+      this.shellSignature = signature;
+      this.shellSnapshot = this.snapshot;
+      for (const listener of this.shellListeners) listener();
+    }
   }
 }

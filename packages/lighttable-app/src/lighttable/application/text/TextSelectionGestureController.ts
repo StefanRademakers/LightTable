@@ -8,7 +8,7 @@ export interface TextSelectionPoint {
 
 export interface TextSelectionGestureDependencies {
   focusAt(layerId: LayerId, point: TextSelectionPoint): number | null;
-  publishSelection(selection: TextSelectionRange): void;
+  publishSelection(selection: TextSelectionRange, transient: boolean): void;
   requestFrame(callback: () => void): number;
   cancelFrame(frame: number): void;
 }
@@ -53,7 +53,7 @@ export class TextSelectionGestureController {
       this.dependencies().publishSelection({
         anchor: current.anchor,
         focus: current.pendingFocus
-      });
+      }, true);
       current.pendingFocus = null;
     });
     return true;
@@ -67,7 +67,7 @@ export class TextSelectionGestureController {
       ?? active.anchor;
     this.cancelActiveFrame();
     this.active = null;
-    this.dependencies().publishSelection({ anchor: active.anchor, focus });
+    this.dependencies().publishSelection({ anchor: active.anchor, focus }, false);
     return true;
   }
 

@@ -38,6 +38,33 @@ const setup = (initial = 'Text') => {
 };
 
 describe('flow text editing session', () => {
+  it('keeps ordinary caret movement off the broad editor-shell subscription', () => {
+    const state = setup('abcd');
+    const id = state.document.activeLayerId!;
+    state.controller.begin(id, 0);
+    const fullUpdates: number[] = [];
+    const shellUpdates: number[] = [];
+    const unsubscribeFull = state.controller.subscribe(() => fullUpdates.push(1));
+    const unsubscribeShell = state.controller.subscribeShell(() => shellUpdates.push(1));
+    const shellBefore = state.controller.getShellSnapshot();
+
+    state.controller.navigate('forward');
+    state.controller.navigate('forward');
+
+    expect(fullUpdates).toHaveLength(2);
+    expect(shellUpdates).toHaveLength(0);
+    expect(state.controller.getShellSnapshot()).toBe(shellBefore);
+    expect(state.controller.getSnapshot().selection.focus).toBe(2);
+
+    state.controller.setSelection({ anchor: 0, focus: 2 }, { transient: true });
+    expect(shellUpdates).toHaveLength(0);
+    state.controller.setSelection({ anchor: 0, focus: 2 });
+    expect(shellUpdates).toHaveLength(1);
+    expect(state.controller.getShellSnapshot().selection).toEqual({ anchor: 0, focus: 2 });
+    unsubscribeFull();
+    unsubscribeShell();
+  });
+
   it('coalesces contiguous typing and commits on caret movement', () => {
     const state = setup('');
     const id = state.document.activeLayerId!;

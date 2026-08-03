@@ -1,0 +1,149 @@
+import React, { useEffect, useMemo, useSyncExternalStore } from 'react';
+import {
+  buildTextEditingOverlay,
+  type TextEditingOverlay
+} from '@lighttable/text-rendering';
+import type { RealizedTextLayout } from '@lighttable/text-core';
+import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
+import { findDocumentLayer } from '../../editor/document/layerTree';
+import type { AffineMatrix } from '../../editor/geometry/affine';
+import { TextInputBridge } from '../../editor/ui/TextInputBridge';
+import type { FlowTextEditingSessionController } from './flowTextEditingSession';
+
+export interface FlowTextEditingRuntimeRenderer {
+  textEditingLayout(layerId: LayerId): {
+    readonly layout: RealizedTextLayout;
+    readonly localToDocument: AffineMatrix;
+  } | null;
+  setTextEditingOverlay(overlay: TextEditingOverlay | null, caretVisible?: boolean): void;
+  beginTextInput(layerId: LayerId, startedAt?: number): boolean;
+}
+
+interface FlowTextEditingRuntimeProps {
+  readonly controller: FlowTextEditingSessionController;
+  readonly document: ImageDocument | null;
+  readonly renderer: FlowTextEditingRuntimeRenderer | null;
+  readonly active: boolean;
+  /** Rebuild overlay geometry only when the renderer publishes a fresh layout. */
+  readonly layoutPublicationRevision: number;
+}
+
+/**
+ * Isolated high-frequency text interaction island.
+ *
+ * Caret, selection, IME bridge and GPU overlay updates subscribe directly to
+ * the editing controller. They therefore do not re-render the editor shell.
+ */
+export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
+  controller,
+  document,
+  renderer,
+  active,
+  layoutPublicationRevision
+}) => {
+  const editing = useSyncExternalStore(
+    controller.subscribe,
+    controller.getSnapshot,
+    controller.getSnapshot
+  );
+  const presentation = editing.status === 'editing' && editing.layerId
+    ? renderer?.textEditingLayout(editing.layerId) ?? null
+    : null;
+  const overlay = useMemo(() => {
+    if (editing.status !== 'editing' || !editing.layerId || !presentation) return null;
+    const layer = document ? findDocumentLayer(document, editing.layerId) : null;
+    const frame = layer?.type === 'text'
+      && layer.text.source.kind === 'flow'
+      && layer.text.source.layout.mode === 'paragraph'
+      ? layer.text.source.layout.frame
+      : null;
+    const composition = editing.compositionRange ? {
+      start: Math.min(editing.compositionRange.anchor, editing.compositionRange.focus),
+      end: Math.max(editing.compositionRange.anchor, editing.compositionRange.focus)
+    } : null;
+    return buildTextEditingOverlay({
+      layerId: editing.layerId,
+      layout: presentation.layout,
+      localToDocument: presentation.localToDocument,
+      anchor: editing.selection.anchor,
+      focus: editing.selection.focus,
+      caretAffinity: editing.caretAffinity,
+      composition,
+      frame
+    });
+  }, [document, editing, layoutPublicationRevision, presentation]);
+
+  useEffect(() => () => renderer?.setTextEditingOverlay(null), [renderer]);
+  useEffect(() => {
+    if (!renderer || !active || !overlay) {
+      renderer?.setTextEditingOverlay(null);
+      return undefined;
+    }
+    let caretVisible = true;
+    renderer.setTextEditingOverlay(overlay, caretVisible);
+    const blink = window.setInterval(() => {
+      caretVisible = !caretVisible;
+      renderer.setTextEditingOverlay(overlay, caretVisible);
+    }, 530);
+    return () => { window.clearInterval(blink); };
+  }, [active, overlay, renderer]);
+
+  if (editing.status !== 'editing' || !editing.layerId) return null;
+  const layerId = editing.layerId;
+  const runMeasured = (mutation: () => boolean) => {
+    const startedAt = performance.now();
+    if (mutation()) renderer?.beginTextInput(layerId, startedAt);
+  };
+  return (
+    <TextInputBridge
+      label={`Edit ${document
+        ? findDocumentLayer(document, layerId)?.name ?? 'text layer'
+        : 'text layer'}`}
+      text={controller.text()}
+      selectionStart={Math.min(editing.selection.anchor, editing.selection.focus)}
+      selectionEnd={Math.max(editing.selection.anchor, editing.selection.focus)}
+      focusKey={editing.focusKey}
+      selectedText={controller.selectedText()}
+      onEdit={(command) => {
+        runMeasured(() => command.kind === 'insert'
+          ? controller.insert(command.text)
+          : controller.delete(command.direction, command.unit));
+      }}
+      onNavigate={(command, extend) => {
+        if (command === 'select-all') {
+          controller.selectAll();
+        } else if (command === 'backward' || command === 'forward') {
+          const layout = renderer?.textEditingLayout(layerId)?.layout;
+          if (layout) controller.navigateLayoutHorizontal(layout, command, extend);
+          else controller.navigate(command, { extend });
+        } else if (command === 'word-backward' || command === 'word-forward') {
+          controller.navigate(
+            command === 'word-backward' ? 'backward' : 'forward',
+            { extend, unit: 'word' }
+          );
+        } else if (command === 'document-start') {
+          controller.moveToBoundary('start', extend);
+        } else if (command === 'document-end') {
+          controller.moveToBoundary('end', extend);
+        } else {
+          const layout = renderer?.textEditingLayout(layerId)?.layout;
+          if (layout) controller.navigateLayout(layout, command, extend);
+          else controller.navigateLogicalLine(command, extend);
+        }
+      }}
+      onCompositionStart={() => { controller.compositionStart(); }}
+      onCompositionUpdate={(text) => { runMeasured(() => controller.compositionUpdate(text)); }}
+      onCompositionEnd={(text) => {
+        runMeasured(() => controller.compositionUpdate(text));
+        controller.compositionEnd(text);
+      }}
+      onPaste={(text) => { runMeasured(() => controller.paste(text)); }}
+      onCut={() => { runMeasured(() => controller.delete('backward')); }}
+      onCheckpoint={() => { controller.checkpoint(); }}
+      onCommit={() => { controller.finish(); }}
+      onCancel={() => {
+        if (!controller.cancelComposition()) controller.finish();
+      }}
+    />
+  );
+};
