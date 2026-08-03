@@ -555,7 +555,8 @@ grid as raster and vector layers, without text-only smoothing or rerasterizing.
 #### Slice 17 — text on path
 
 - [x] Add stable vector path references and missing-path behavior.
-- [ ] Add arc-length cache, start/end offset, direction, side and alignment.
+- [x] Add a byte-bounded, document-space arc-length cache.
+- [ ] Apply start/end offset, direction, side and alignment to glyph layout.
 - [ ] Keep glyphs rigid first; warped outlines are a later explicit mode.
 - [ ] Invalidate only path realization/layout on path edits.
 - [ ] Add reference-safe duplication, grouping, deletion and persistence.
@@ -703,6 +704,23 @@ state with every performance result.
 ## 11. Execution log
 
 Append newest entries at the top. Keep entries factual and link the slice.
+
+### 2026-08-03 - Slice 17 path metrics foundation
+
+- Geometry: exact referenced subpaths now realize into document-space
+  cumulative arc-length tables. Path and containing-layer transforms affect the
+  measured advance, while viewport pan/zoom never enter the cache identity.
+- Performance: derived metrics use quantized curve tolerances, binary-search
+  sampling and an explicit weighted LRU byte budget. Repeated text layers on the
+  same path can share the table without flattening curves per caret or glyph.
+- Semantics: the pure metric layer covers open/closed paths, forward/reverse
+  traversal, start/end ranges, alignment, overflow and degenerate contours.
+  These semantics are not yet applied to shaped glyph runs, so the integrated
+  layout bullet and Path Text tool remain open.
+- UI/UX: no production control was added. Once rigid glyph placement and GPU
+  handles work end to end, offsets use the existing numeric controls, alignment
+  uses the existing text alignment control family, and direction/side must be
+  reviewed against established toggle/select patterns before exposure.
 
 ### 2026-08-03 - Slice 17 stable path-text dependency
 
