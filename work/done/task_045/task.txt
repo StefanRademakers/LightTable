@@ -1,0 +1,16 @@
+# Task 045 - Product UI/UX inspiration and capability inventory
+
+Status: complete
+
+- [x] Inventory open LightTable product capabilities without changing product
+  code.
+- [x] Separate verified current strengths, partial implementations and targets.
+- [x] Review useful interaction patterns from official Photoshop, Pixelmator
+  Pro, GIMP and Krita documentation.
+- [x] Record missing capabilities and a P0/P1/P2/later priority map.
+- [x] Define UI exposure and decision filters that preserve LightTable's
+  existing design system and generic architecture.
+- [x] Link the result from the authoritative architecture reading order and
+  roadmap.
+
+Result: `architecture/PRODUCT_UX_INSPIRATION_AND_GAPS.md`.

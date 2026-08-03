@@ -49,6 +49,10 @@ milestone changes those boundaries; feature task details belong in
 
 ## Next architecture milestones
 
+The product-wide UI/UX capability inventory and decision filters are maintained
+in `PRODUCT_UX_INSPIRATION_AND_GAPS.md`; Photoshop-specific evidence remains in
+`PHOTOSHOP_PARITY_AND_MISSING_FEATURES.md`.
+
 1. Finish scene-transform authority adoption and tight bounds throughout paint,
    masks, transform, clipboard, merge and nested groups.
 2. Continue breaking the editor/GPU facades into typed, testable owners without
