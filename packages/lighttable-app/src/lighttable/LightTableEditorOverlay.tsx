@@ -1721,6 +1721,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       fitZoom,
       cancelOrClose: () => {
+        if (textEditingController.getSnapshot().status === 'editing') {
+          textEditingController.finish();
+          return;
+        }
         if (cancelParagraphTextRef.current()) return;
         if (cancelPointTextRef.current()) return;
         if (transformActiveRef.current()) {
