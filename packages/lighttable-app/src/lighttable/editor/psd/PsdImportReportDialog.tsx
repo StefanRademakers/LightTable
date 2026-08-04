@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { ActionButton } from '../../../ui/ActionButton';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
 import type {
+  DocumentFontAsset,
+  LayerId,
   PhotoshopImportCompatibilityEntry,
   PhotoshopImportReport,
   PhotoshopImportSupport
@@ -26,7 +28,13 @@ interface PsdImportReportDialogProps {
   report: PhotoshopImportReport | null;
   metrics: ReferenceDifferenceMetrics | null;
   textFontDiagnostics?: readonly TextFontDiagnostic[];
+  replacementFonts?: readonly DocumentFontAsset[];
   onResolveTextFont?(layerId: TextFontDiagnostic['layerId']): void;
+  onReplaceTextFonts?(
+    layerIds: readonly LayerId[],
+    assetId: string,
+    requestedFont: string
+  ): void;
   onClose(): void;
 }
 
@@ -34,6 +42,36 @@ type DocumentCompatibilityEntry = Omit<PhotoshopImportCompatibilityEntry, 'featu
   readonly feature: PhotoshopImportCompatibilityEntry['feature'] | 'text-font';
   readonly layerId?: TextFontDiagnostic['layerId'];
   readonly editable?: boolean;
+};
+
+export interface MissingFontDiagnosticGroup {
+  readonly requestedFont: string;
+  readonly layerIds: readonly LayerId[];
+  readonly layerNames: readonly string[];
+}
+
+export const groupMissingFontDiagnostics = (
+  diagnostics: readonly TextFontDiagnostic[]
+): MissingFontDiagnosticGroup[] => {
+  const groups = new Map<string, { layerIds: LayerId[]; layerNames: string[] }>();
+  diagnostics.forEach((diagnostic) => {
+    if (diagnostic.issue !== 'font-missing' || !diagnostic.editable) return;
+    const requestedFont = diagnostic.requestedFont ?? 'Unknown font';
+    const group = groups.get(requestedFont) ?? { layerIds: [], layerNames: [] };
+    if (!group.layerIds.includes(diagnostic.layerId)) {
+      group.layerIds.push(diagnostic.layerId);
+      group.layerNames.push(diagnostic.layerName);
+    }
+    groups.set(requestedFont, group);
+  });
+  return [...groups.entries()]
+    .map(([requestedFont, group]) => ({ requestedFont, ...group }))
+    .sort((left, right) => left.requestedFont.localeCompare(right.requestedFont));
+};
+
+const fontLabel = (font: DocumentFontAsset) => {
+  const family = font.familyNames[0] ?? font.postScriptName ?? 'Unknown';
+  return `${family} â€” ${font.styleName}`;
 };
 
 export const formatCompatibilityParity = (
@@ -62,7 +100,9 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
   report,
   metrics,
   textFontDiagnostics = [],
+  replacementFonts = [],
   onResolveTextFont,
+  onReplaceTextFonts,
   onClose
 }) => {
   const [filter, setFilter] = useState<ReportFilter>('all');
@@ -74,9 +114,24 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
     () => compatibility.filter((entry) => filter === 'all' || entry.support === filter),
     [compatibility, filter]
   );
+  const missingFontGroups = useMemo(
+    () => groupMissingFontDiagnostics(textFontDiagnostics),
+    [textFontDiagnostics]
+  );
+  const sortedReplacementFonts = useMemo(
+    () => [...replacementFonts].sort((left, right) =>
+      fontLabel(left).localeCompare(fontLabel(right))),
+    [replacementFonts]
+  );
+  const [fontReplacements, setFontReplacements] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (open) setFilter('all');
-  }, [open]);
+    if (!open) return;
+    setFilter('all');
+    const fallback = sortedReplacementFonts[0]?.assetId ?? '';
+    setFontReplacements(Object.fromEntries(
+      missingFontGroups.map(({ requestedFont }) => [requestedFont, fallback])
+    ));
+  }, [open, missingFontGroups, sortedReplacementFonts]);
   if (!open || (!report && textFontDiagnostics.length === 0)) return null;
   const documentReport = textFontDiagnostics.length > 0;
 
@@ -113,6 +168,42 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
           onChange={setFilter}
           ariaLabel="Photoshop import support filter"
         />
+        {missingFontGroups.length > 0 && onReplaceTextFonts ? (
+          <section className="lighttable-psd-report__font-manager" aria-label="Missing fonts">
+            <h3>Missing fonts</h3>
+            <p>Choose one replacement for every layer that requests the same unavailable font.</p>
+            {missingFontGroups.map((group) => (
+              <div className="lighttable-psd-report__font-row" key={group.requestedFont}>
+                <span>
+                  <strong>{group.requestedFont}</strong>
+                  <small>{group.layerIds.length} {group.layerIds.length === 1 ? 'layer' : 'layers'}</small>
+                </span>
+                <select
+                  aria-label={`Replacement for ${group.requestedFont}`}
+                  value={fontReplacements[group.requestedFont] ?? ''}
+                  onChange={(event) => setFontReplacements((current) => ({
+                    ...current,
+                    [group.requestedFont]: event.currentTarget.value
+                  }))}
+                >
+                  {sortedReplacementFonts.map((font) => (
+                    <option key={font.assetId} value={font.assetId}>{fontLabel(font)}</option>
+                  ))}
+                </select>
+                <ActionButton
+                  disabled={!fontReplacements[group.requestedFont]}
+                  onClick={() => onReplaceTextFonts(
+                    group.layerIds,
+                    fontReplacements[group.requestedFont]!,
+                    group.requestedFont
+                  )}
+                >
+                  Replace all
+                </ActionButton>
+              </div>
+            ))}
+          </section>
+        ) : null}
         <div className="lighttable-psd-report__entries">
           {entries.map((entry: DocumentCompatibilityEntry, index) => (
             <article className="lighttable-psd-report__entry" key={`${entry.path}-${entry.feature}-${index}`}>

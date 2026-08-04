@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import {
   buildDocumentCompatibilityEntries,
-  formatCompatibilityParity
+  formatCompatibilityParity,
+  groupMissingFontDiagnostics
 } from './PsdImportReportDialog';
 
 const diagnostic = (
@@ -13,6 +14,7 @@ const diagnostic = (
   layerName: `${kind} headline`,
   editable,
   issue: kind === 'missing' ? 'font-missing' : 'font-substituted',
+  requestedFont: 'Example-Regular',
   status: {
     kind,
     label: kind === 'missing' ? 'Missing font' : 'Substituted',
@@ -49,6 +51,20 @@ describe('document compatibility report projection', () => {
     };
     expect(buildDocumentCompatibilityEntries(imported, [diagnostic('missing')]))
       .toHaveLength(2);
+  });
+
+  it('groups editable missing-font layers for one atomic document replacement', () => {
+    const first = diagnostic('missing');
+    expect(groupMissingFontDiagnostics([
+      first,
+      { ...first, layerId: 'layer-second' as never, layerName: 'Second headline' },
+      { ...diagnostic('missing', false), layerId: 'positioned' as never },
+      diagnostic('substituted')
+    ])).toEqual([{
+      requestedFont: 'Example-Regular',
+      layerIds: ['layer-missing', 'layer-second'],
+      layerNames: ['missing headline', 'Second headline']
+    }]);
   });
 
   it('presents independent Photoshop parity axes without inventing a second status', () => {

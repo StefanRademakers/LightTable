@@ -5,8 +5,13 @@ import type {
 } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { applyTextLayerDataMutation } from '../../editor/document/textLayerCommands';
-import { formatFlowTextSource } from './flowTextFormatting';
 import { textFontPatch } from './textPropertyPresentation';
+
+const runRequestsFont = (
+  run: { readonly requestedFont: { readonly postScriptName?: string; readonly families: readonly string[] } },
+  requestedFont: string
+) => run.requestedFont.postScriptName === requestedFont
+  || run.requestedFont.families.includes(requestedFont);
 
 /**
  * Replaces every authored run of one editable flow-text layer.
@@ -18,17 +23,41 @@ import { textFontPatch } from './textPropertyPresentation';
 export const replaceMissingTextFont = (
   document: ImageDocument,
   layerId: LayerId,
-  asset: DocumentFontAsset
+  asset: DocumentFontAsset,
+  requestedFont?: string
 ): ImageDocument => {
   const layer = findDocumentLayer(document, layerId);
   if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return document;
+  const patch = textFontPatch(asset);
+  const replaceRun = <Run extends {
+    readonly requestedFont: {
+      readonly postScriptName?: string;
+      readonly families: readonly string[];
+    };
+  }>(run: Run): Run => (
+    !requestedFont || runRequestsFont(run, requestedFont)
+      ? { ...run, ...patch }
+      : run
+  ) as Run;
   return applyTextLayerDataMutation(document, layerId, {
     ...layer.text,
-    source: formatFlowTextSource(
-      layer.text.source,
-      null,
-      textFontPatch(asset),
-      {}
-    )
+    source: {
+      ...layer.text.source,
+      styleRuns: layer.text.source.styleRuns.map(replaceRun),
+      ...(layer.text.source.insertionStyle ? {
+        insertionStyle: replaceRun(layer.text.source.insertionStyle)
+      } : {})
+    }
   });
 };
+
+/** Replaces a document font across several editable layers as one snapshot. */
+export const replaceMissingTextFonts = (
+  document: ImageDocument,
+  layerIds: readonly LayerId[],
+  asset: DocumentFontAsset,
+  requestedFont?: string
+): ImageDocument => layerIds.reduce(
+  (current, layerId) => replaceMissingTextFont(current, layerId, asset, requestedFont),
+  document
+);

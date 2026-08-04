@@ -1171,6 +1171,37 @@
   margin: 12px 18px;
 }
 
+.lighttable-psd-report__font-manager {
+  margin: 0 18px 12px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--lt-radius-sm);
+}
+
+.lighttable-psd-report__font-manager h3,
+.lighttable-psd-report__font-manager p {
+  margin: 0 0 8px;
+}
+
+.lighttable-psd-report__font-manager p,
+.lighttable-psd-report__font-row small {
+  color: var(--text-secondary);
+  font-size: var(--lt-type-label);
+}
+
+.lighttable-psd-report__font-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.5fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.lighttable-psd-report__font-row strong,
+.lighttable-psd-report__font-row small {
+  display: block;
+}
+
 .lighttable-psd-report__entries {
   min-height: 0;
   overflow: auto;

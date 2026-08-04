@@ -8,7 +8,10 @@ import {
 } from '../../editor/document/documentTypes';
 import { createTextLayer } from '../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { replaceMissingTextFont } from './replaceMissingTextFont';
+import {
+  replaceMissingTextFont,
+  replaceMissingTextFonts
+} from './replaceMissingTextFont';
 
 const replacement: DocumentFontAsset = {
   assetId: 'replacement',
@@ -72,5 +75,56 @@ describe('replaceMissingTextFont', () => {
   it('leaves non-text targets unchanged', () => {
     const document = createImageDocument('No text', 32, 32, 'source');
     expect(replaceMissingTextFont(document, 'missing' as never, replacement)).toBe(document);
+  });
+
+  it('replaces one unavailable font across multiple editable layers in one snapshot', () => {
+    const first = createTextLayer(
+      createImageDocument('Font manager', 320, 200, 'source'),
+      createDefaultTextLayerData(),
+      'First'
+    );
+    const firstId = first.activeLayerId!;
+    const second = createTextLayer(first, createDefaultTextLayerData(), 'Second');
+    const secondId = second.activeLayerId!;
+
+    const replaced = replaceMissingTextFonts(second, [firstId, secondId], replacement);
+    [firstId, secondId].forEach((layerId) => {
+      const layer = findDocumentLayer(replaced, layerId)!;
+      expect(layer.type).toBe('text');
+      if (layer.type === 'text' && layer.text.source.kind === 'flow') {
+        expect(layer.text.source.styleRuns[0]?.requestedFont.preferredAsset?.assetId)
+          .toBe('replacement');
+      }
+    });
+  });
+
+  it('preserves available runs when replacing one requested font in mixed text', () => {
+    const text = createDefaultTextLayerData();
+    if (text.source.kind !== 'flow') throw new Error('Expected flow text.');
+    const run = text.source.styleRuns[0]!;
+    const mixed = {
+      ...text,
+      source: {
+        ...text.source,
+        styleRuns: [
+          { ...run, start: 0, end: 2, requestedFont: { families: ['Missing Face'] } },
+          { ...run, start: 2, end: 4, requestedFont: { families: ['Inter'] } }
+        ]
+      }
+    };
+    const document = createTextLayer(
+      createImageDocument('Mixed fonts', 320, 200, 'source'),
+      mixed,
+      'Mixed'
+    );
+    const layerId = document.activeLayerId!;
+    const replaced = replaceMissingTextFont(document, layerId, replacement, 'Missing Face');
+    const layer = findDocumentLayer(replaced, layerId)!;
+    if (layer.type !== 'text' || layer.text.source.kind !== 'flow') {
+      throw new Error('Expected flow text.');
+    }
+    expect(layer.text.source.styleRuns[0]?.requestedFont.preferredAsset?.assetId)
+      .toBe('replacement');
+    expect(layer.text.source.styleRuns[1]?.requestedFont).toEqual({ families: ['Inter'] });
   });
 });

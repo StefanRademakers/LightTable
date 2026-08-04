@@ -21,6 +21,11 @@ export interface EditorDialogsProps {
     offset?: number,
     affinity?: 'upstream' | 'downstream'
   ) => void;
+  readonly onReplaceTextFonts: (
+    layerIds: readonly LayerId[],
+    assetId: string,
+    requestedFont: string
+  ) => void;
   readonly onFeather: (radius: number) => void;
   readonly onFlatten: () => void;
   readonly onConvertTextToShape: (layerId: LayerId) => void;
@@ -35,6 +40,7 @@ export const EditorDialogs = ({
   replacementFonts,
   onResolveTextFont,
   onReplaceTextFont,
+  onReplaceTextFonts,
   onFeather,
   onFlatten,
   onConvertTextToShape,
@@ -95,7 +101,9 @@ export const EditorDialogs = ({
       report={photoshopReport}
       metrics={differenceMetrics}
       textFontDiagnostics={textFontDiagnostics}
+      replacementFonts={replacementFonts}
       onResolveTextFont={onResolveTextFont}
+      onReplaceTextFonts={onReplaceTextFonts}
       onClose={controller.closePsdReport}
     />
     <MissingFontRecoveryDialog

@@ -80,8 +80,33 @@ export interface TextFontDiagnostic {
   readonly layerName: string;
   readonly editable: boolean;
   readonly issue: 'font-missing' | 'font-substituted' | 'missing-glyph';
+  readonly requestedFont: string | null;
   readonly status: TextLayerFontStatus & { readonly kind: 'substituted' | 'missing' };
 }
+
+const requestedFontLabel = (
+  layer: TextLayer,
+  assets: readonly DocumentFontAsset[],
+  substitutionFamilies: readonly string[],
+  issueKind?: 'missing' | 'substituted'
+): string | null => {
+  if (layer.text.source.kind === 'flow') {
+    for (const run of layer.text.source.styleRuns) {
+      const resolution = resolveFontRequest(assets, run.requestedFont, {
+        weight: run.fontWeight,
+        stretch: run.fontStretch,
+        italic: run.fontStyle !== 'normal'
+      }, substitutionFamilies);
+      if (issueKind && resolution.kind !== issueKind) continue;
+      const label = run.requestedFont.postScriptName
+        ?? run.requestedFont.families.find(Boolean);
+      if (label) return label;
+    }
+    return null;
+  }
+  return layer.text.source.runs.find((run) => run.font.font.postScriptName)
+    ?.font.font.postScriptName ?? null;
+};
 
 export const summarizeTextFontDiagnostics = (
   diagnostics: readonly TextFontDiagnostic[]
@@ -117,6 +142,12 @@ export const documentTextFontDiagnostics = (
         layerName: node.name,
         editable,
         issue: status.kind === 'missing' ? 'font-missing' : 'font-substituted',
+        requestedFont: requestedFontLabel(
+          node,
+          availableAssets,
+          substitutionFamilies,
+          status.kind
+        ),
         status: { ...status, kind: status.kind }
       });
     }
@@ -129,6 +160,7 @@ export const documentTextFontDiagnostics = (
         layerName: node.name,
         editable,
         issue: 'missing-glyph',
+        requestedFont: requestedFontLabel(node, availableAssets, substitutionFamilies),
         status: {
           kind: 'missing',
           label: 'Missing glyph',

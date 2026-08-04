@@ -1,6 +1,6 @@
 # Task 048 - Missing-font text recovery
 
-Status: todo
+Status: in progress
 
 Native LightTable, PSD, PDF and AI text with unavailable fonts must remain
 semantically recoverable. A retained bounded raster preview provides visual
@@ -27,12 +27,14 @@ representation of the layer.
 - [x] `Replace` chooses an available bundled/document/system font, realizes the
   preserved text through the normal WASM + WebGPU text pipeline and leaves the
   layer fully editable.
-- [ ] `Manage` opens a document-wide missing-font view with per-font replacement
-  and replace-all controls.
+- [x] `Manage` opens the existing document compatibility dialog with missing
+  fonts grouped by requested face, an existing font selector and one Replace
+  all action for every affected editable layer.
 - [x] Keep the retained source preview as a non-authoritative fidelity reference
   after replacement; do not composite it once native text is authoritative.
-- [ ] Record the replacement as one undoable document command and preserve it
-  through LightTable save/reopen and future PSD/PDF export.
+- [x] Record a single-layer or document-wide replacement as one undoable
+  canonical document snapshot; the selected asset reference and fingerprint
+  use the existing native persistence and text-export paths.
 
 ## Gates
 
@@ -41,8 +43,9 @@ representation of the layer.
 - [ ] A native LightTable file created with a temporarily available font reopens
   visually from its cached preview when that font is absent, then becomes native
   editable text after Replace without losing its runs/layout/path.
-- [ ] Cancel changes nothing; Replace produces editable text; Manage can resolve
-  repeated missing fonts across the document.
+- [x] Cancel changes nothing; Replace produces editable text; Manage resolves
+  repeated missing fonts across the document without changing runs that use a
+  different available face.
 - [ ] Mixed available/missing runs, paragraph text, point text, rotations and
   text-on-path have focused tests.
 - [ ] Web remains functional with bundled/document fonts; desktop system fonts
