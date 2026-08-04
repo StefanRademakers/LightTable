@@ -224,6 +224,30 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('opens registered input artifacts through the explicit workspace host port', async () => {
+    const state = setup();
+    const openArtifact = vi.fn(async () => state.session.id);
+    const service = new LightTableCommandService(
+      state.workspace, state.ports, { openArtifact }
+    );
+    const artifact = service.registerInputArtifact(new File(
+      ['fixture'], 'fixture.psd', { type: 'image/vnd.adobe.photoshop' }
+    ));
+    const result = await service.execute({
+      protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+      requestId: 'open-artifact',
+      command: 'file.openArtifact',
+      parameters: { artifactId: artifact.id }
+    });
+    expect(result).toMatchObject({
+      status: 'completed', value: { documentId: state.session.id }
+    });
+    expect(openArtifact).toHaveBeenCalledWith(expect.objectContaining({ name: 'fixture.psd' }));
+    service.dispose();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('bounds document-coordinate gestures and commits through one owner', async () => {
     const state = setup();
     const started = await state.service.beginGesture({
