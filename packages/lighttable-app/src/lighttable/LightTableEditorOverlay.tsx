@@ -2294,6 +2294,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       createRasterLayer: layerPanelController.createRasterLayer,
       renameLayer: layerPanelController.rename,
       setLayerVisibility: layerPanelController.setVisibility,
+      setLayerFillOpacity: layerPanelController.setFillOpacity,
       setLayerStyleEnabled: layerPanelController.setStyleStackEnabled,
       setLayerEffectEnabled: layerPanelController.setStyleEnabled,
       undo: applyUndoEditor,

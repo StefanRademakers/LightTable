@@ -27,6 +27,7 @@ const setup = () => {
     createRasterLayer: vi.fn(),
     renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(),
+    setLayerFillOpacity: vi.fn(),
     setLayerStyleEnabled: vi.fn(),
     setLayerEffectEnabled: vi.fn(),
     undo: vi.fn(async () => true),
@@ -86,6 +87,7 @@ describe('LightTableCommandService registry', () => {
       createRasterLayer: vi.fn(),
       renameLayer: vi.fn(),
       setLayerVisibility: vi.fn(),
+      setLayerFillOpacity: vi.fn(),
       setLayerStyleEnabled: vi.fn(),
       setLayerEffectEnabled: vi.fn(),
       undo: vi.fn(async () => true),
@@ -184,6 +186,12 @@ describe('LightTableCommandService registry', () => {
     ))).toEqual(expect.objectContaining({ status: 'completed' }));
     expect(state.ports.setLayerStyleEnabled).toHaveBeenCalledWith(
       state.session.id, layerId, false
+    );
+    expect(await state.service.execute(request(
+      'layer.setFillOpacity', state.session.id, { layerId, opacity: 0.42 }
+    ))).toEqual(expect.objectContaining({ status: 'completed' }));
+    expect(state.ports.setLayerFillOpacity).toHaveBeenCalledWith(
+      state.session.id, layerId, 0.42
     );
     state.service.dispose();
     state.workspace.dispose();

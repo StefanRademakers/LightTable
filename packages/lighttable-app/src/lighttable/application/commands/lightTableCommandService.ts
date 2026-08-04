@@ -17,6 +17,7 @@ export type LightTableCommandId =
   | 'layer.createRaster'
   | 'layer.rename'
   | 'layer.setVisibility'
+  | 'layer.setFillOpacity'
   | 'layer.style.setEnabled'
   | 'layer.effect.setEnabled'
   | 'history.undo'
@@ -163,6 +164,7 @@ export interface LightTableCommandPorts {
     layerIds: readonly LayerId[],
     visible: boolean
   ): void | Promise<void>;
+  setLayerFillOpacity(documentId: DocumentSessionId, layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean): void | Promise<void>;
   setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
   undo(documentId: DocumentSessionId): boolean | Promise<boolean>;
@@ -174,6 +176,7 @@ export interface DocumentLightTableCommandPorts {
   createRasterLayer(): void | Promise<void>;
   renameLayer(layerId: LayerId, name: string): void | Promise<void>;
   setLayerVisibility(layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;
+  setLayerFillOpacity(layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(layerId: LayerId, enabled: boolean): void | Promise<void>;
   setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
   undo(): boolean | Promise<boolean>;
@@ -222,6 +225,10 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     visible: boolean
   ) {
     return this.resolve(documentId).setLayerVisibility(layerIds, visible);
+  }
+
+  setLayerFillOpacity(documentId: DocumentSessionId, layerId: LayerId, opacity: number) {
+    return this.resolve(documentId).setLayerFillOpacity(layerId, opacity);
   }
 
   setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean) {
@@ -405,6 +412,7 @@ export class LightTableCommandService {
         'Select an existing layer.'
       ),
       availability('layer.setVisibility', true, ''),
+      availability('layer.setFillOpacity', true, ''),
       availability('layer.style.setEnabled', true, ''),
       availability('layer.effect.setEnabled', true, ''),
       availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
@@ -540,6 +548,19 @@ export class LightTableCommandService {
         );
         return { value: { layerId, effectId, enabled: parameters.enabled } };
       }
+      case 'layer.setFillOpacity': {
+        if (!isRecord(parameters) || typeof parameters.layerId !== 'string'
+          || typeof parameters.opacity !== 'number' || !Number.isFinite(parameters.opacity)
+          || parameters.opacity < 0 || parameters.opacity > 1) {
+          return this.invalidParameters('Fill opacity requires layerId and an opacity from 0 to 1.');
+        }
+        const layerId = parameters.layerId as LayerId;
+        if (!findDocumentLayer(snapshot.document!, layerId)) {
+          return { code: 'command-unavailable', message: 'The target layer does not exist.' };
+        }
+        await this.ports.setLayerFillOpacity(request.documentId, layerId, parameters.opacity);
+        return { value: { layerId, opacity: parameters.opacity } };
+      }
       case 'history.undo':
       case 'history.redo': {
         if (!isRecord(parameters) || Object.keys(parameters).length > 0) {
@@ -607,6 +628,7 @@ export class LightTableCommandService {
       'layer.createRaster',
       'layer.rename',
       'layer.setVisibility',
+      'layer.setFillOpacity',
       'layer.style.setEnabled',
       'layer.effect.setEnabled',
       'history.undo',
