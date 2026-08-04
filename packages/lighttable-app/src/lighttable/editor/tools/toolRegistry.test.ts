@@ -121,6 +121,11 @@ describe('toolRegistry', () => {
     expect(toolDefinition('shape-line').shortcutKey).toBeUndefined();
   });
 
+  it('uses the dedicated Path Text artwork instead of the generic Type icon', () => {
+    expect(toolDefinition('text-path').iconName).toBe('tool_text_on_path.png');
+    expect(toolDefinition('text-path').iconName).not.toBe(toolDefinition('text-point').iconName);
+  });
+
   it('exposes stable capabilities and presentation metadata', () => {
     expect(toolDefinition('erase')).toMatchObject({
       role: 'paint',

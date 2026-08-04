@@ -184,7 +184,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     id: 'text-path',
     label: 'Path text',
-    iconName: 'tool_text.png',
+    iconName: 'tool_text_on_path.png',
     role: 'text'
   },
   {

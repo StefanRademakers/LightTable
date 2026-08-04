@@ -48,7 +48,15 @@ try {
   }
   await page.getByRole('button', { name: 'Show text tools' }).click();
   const family = page.getByRole('toolbar', { name: 'Text tools' });
-  await family.getByRole('button', { name: 'Type tool (T)', exact: true }).waitFor({ state: 'visible' });
+  const familyTypeButton = family.getByRole('button', { name: 'Type tool (T)', exact: true });
+  const pathTextButton = family.getByRole('button', { name: 'Path text', exact: true });
+  await familyTypeButton.waitFor({ state: 'visible' });
+  await pathTextButton.waitFor({ state: 'visible' });
+  const typeIcon = await familyTypeButton.locator('img').getAttribute('src');
+  const pathIcon = await pathTextButton.locator('img').getAttribute('src');
+  if (!typeIcon || !pathIcon || typeIcon === pathIcon) {
+    throw new Error('Path Text still uses the generic Type Tool icon.');
+  }
   if (await family.getByRole('button', { name: 'Paragraph text', exact: true }).count()) {
     throw new Error('Paragraph text is still exposed as a separate tool.');
   }
