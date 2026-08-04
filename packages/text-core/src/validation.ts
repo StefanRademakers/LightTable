@@ -422,6 +422,35 @@ export function assertTextLayerData(value: unknown): asserts value is TextLayerD
   const sourceKind = oneOf(source.kind, '$.source.kind', ['flow', 'positioned']);
   if (sourceKind === 'flow') assertFlowSource(source, '$.source');
   else assertPositionedSource(source, '$.source');
+  if (layer.warp !== undefined) {
+    const warp = record(layer.warp, '$.warp');
+    oneOf(warp.style, '$.warp.style', [
+      'arc', 'arc-lower', 'arc-upper', 'arch', 'bulge', 'shell-lower', 'shell-upper',
+      'flag', 'wave', 'fish', 'rise', 'fisheye', 'inflate', 'squeeze', 'twist',
+      'custom', 'cylinder'
+    ]);
+    for (const key of ['bend', 'horizontalDistortion', 'verticalDistortion'] as const) {
+      numberInRange(warp[key], `$.warp.${key}`, -1000, 1000);
+    }
+    oneOf(warp.orientation, '$.warp.orientation', ['horizontal', 'vertical']);
+    if (warp.bounds !== undefined) assertRect(warp.bounds, '$.warp.bounds');
+    if (warp.mesh !== undefined) {
+      const mesh = record(warp.mesh, '$.warp.mesh');
+      const rows = integer(mesh.rows, '$.warp.mesh.rows', 2);
+      const columns = integer(mesh.columns, '$.warp.mesh.columns', 2);
+      if (rows > 65 || columns > 65) fail('$.warp.mesh', 'must not exceed 65 rows or columns');
+      const points = array(mesh.points, '$.warp.mesh.points');
+      if (points.length !== rows * columns) fail('$.warp.mesh.points', 'must match rows x columns');
+      points.forEach((point, index) => {
+        const candidate = record(point, `$.warp.mesh.points[${index}]`);
+        finite(candidate.x, `$.warp.mesh.points[${index}].x`);
+        finite(candidate.y, `$.warp.mesh.points[${index}].y`);
+      });
+    }
+    if (warp.style === 'custom' && warp.mesh === undefined) {
+      fail('$.warp.mesh', 'is required for custom warp');
+    }
+  }
   if (layer.interchange !== undefined) {
     const interchange = record(layer.interchange, '$.interchange');
     oneOf(interchange.format, '$.interchange.format', ['pdf', 'ai', 'psd', 'svg']);

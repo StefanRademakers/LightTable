@@ -86,6 +86,26 @@ describe('prepareTextOutlineVectorDraws', () => {
     expect(prepared.draws[2]?.geometry.subpaths[0]?.closed).toBe(true);
   });
 
+  it('deforms editable outlines through the semantic warp before GPU realization', async () => {
+    const warpedLayout: RealizedTextLayout = {
+      ...layout(run({
+        glyphIds: new Uint32Array([42]), clusters: new Uint32Array([0]),
+        geometry: new Float32Array([10, 20, 50, 0])
+      })),
+      logicalBounds: { x: 10, y: -80, width: 100, height: 100 },
+      warp: {
+        style: 'arc', bend: 100, horizontalDistortion: 0, verticalDistortion: 0,
+        orientation: 'horizontal'
+      }
+    };
+    const prepared = await prepareTextOutlineVectorDraws({
+      resolve: vi.fn().mockResolvedValue({ outline: glyphOutline, source: 'worker' })
+    }, warpedLayout, identity);
+
+    expect(prepared.draws[0]?.path.transform).toEqual({ a: 2, b: 0, c: 0, d: 2, tx: 0, ty: 0 });
+    expect(prepared.draws[0]?.geometry.localBounds?.y).toBeLessThan(20);
+  });
+
   it('composes affine per-glyph transforms before document source scaling', async () => {
     const transformed = run({
       glyphIds: new Uint32Array([42]), clusters: new Uint32Array([0]),

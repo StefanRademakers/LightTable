@@ -7,6 +7,7 @@ import {
   type ParagraphStyleRun,
   type PositionedTextRun,
   type TextLayerData,
+  type TextWarp,
   type TextRevisionDomain,
   type TextStyleRun
 } from '@lighttable/text-core';
@@ -341,6 +342,16 @@ export const setFlowTextLayout = (
   }, domains);
 }, 'position');
 
+export const setTextWarp = (
+  document: ImageDocument,
+  layerId: LayerId,
+  warp: TextWarp | null
+) => updateTextLayer(document, layerId, (layer) => {
+  const next = warp ? structuredClone(warp) : undefined;
+  if (sameValue(layer.text.warp, next)) return layer.text;
+  return bumpRevisions({ ...layer.text, warp: next }, ['geometry']);
+}, 'position');
+
 export interface ParagraphFrameConversionOptions {
   readonly width: number;
   readonly height: number;
@@ -463,9 +474,10 @@ export const applyTextLayerDataMutation = (
       || !sameValue(current.source.insertionStyle, next.source.insertionStyle)
       || !sameValue(current.source.insertionParagraph, next.source.insertionParagraph);
     const layoutChanged = !sameValue(current.source.layout, next.source.layout);
+    const warpChanged = !sameValue(current.warp, next.warp);
     if (
       (contentOrRunsChanged && layerIsLocked(layer, 'pixels'))
-      || (layoutChanged && layerIsLocked(layer, 'position'))
+      || ((layoutChanged || warpChanged) && layerIsLocked(layer, 'position'))
     ) return document;
     let changed = document;
     if (contentOrRunsChanged) {
@@ -478,9 +490,8 @@ export const applyTextLayerDataMutation = (
         next.source
       );
     }
-    return layoutChanged
-      ? setFlowTextLayout(changed, layerId, next.source.layout)
-      : changed;
+    if (layoutChanged) changed = setFlowTextLayout(changed, layerId, next.source.layout);
+    return warpChanged ? setTextWarp(changed, layerId, next.warp ?? null) : changed;
   }
 
   if (current.source.kind === 'positioned' && next.source.kind === 'positioned') {

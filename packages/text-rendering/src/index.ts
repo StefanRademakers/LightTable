@@ -9,3 +9,4 @@ export * from './hbGpuBundle';
 export * from './hbGpuGlyphBlobCache';
 export * from './glyphOutlineCache';
 export * from './textRealizationPolicy';
+export * from './textWarp';

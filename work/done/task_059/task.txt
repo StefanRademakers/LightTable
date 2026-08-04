@@ -1,0 +1,30 @@
+UX Transforming Text
+
+There is no separate Transform Tool. Select the text layer, then use Free Transform.
+
+Free Transform hotkey: Ctrl + T
+
+Main transform properties
+Reference point â€” origin used for scaling and rotation.
+X / Y position â€” exact layer position.
+Width / Height â€” scale percentages.
+Link proportions â€” keeps width and height proportional.
+Rotation â€” enter an exact angle.
+Skew â€” slant horizontally or vertically.
+Interpolation â€” resampling method; mostly relevant after rasterizing.
+Warp â€” bend or distort the text using presets or a custom grid.
+Controls and shortcuts
+Scale: drag a corner handle.
+Scale proportionally: drag a corner; current Photoshop versions preserve proportions by default.
+Scale non-proportionally: hold Shift while dragging.
+Scale from the center: hold Alt.
+Rotate: move outside a corner and drag.
+Move while transforming: drag inside the transform box.
+Skew: hold Ctrl + Shift and drag a side handle.
+Distort freely: hold Ctrl and drag a corner.
+Perspective distortion: hold Ctrl + Alt + Shift and drag a corner.
+Warp: right-click inside the transform box and choose Warp.
+Confirm: Enter
+Cancel: Esc
+Repeat previous transform: Ctrl + Shift + T
+Repeat and duplicate: Ctrl + Alt + Shift + T

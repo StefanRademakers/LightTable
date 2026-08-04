@@ -1,4 +1,5 @@
 import type { RealizedTextLayout, Rect } from '@lighttable/text-core';
+import { warpTextPoint } from './textWarp';
 
 export interface TextEditingAffine {
   readonly a: number;
@@ -224,6 +225,18 @@ export const buildTextEditingOverlay = ({
   showBaseline = true,
   frame = null
 }: BuildTextEditingOverlayOptions): TextEditingOverlay => {
+  const projectPoint = (x: number, y: number) => {
+    const point = layout.warp
+      ? warpTextPoint({ x, y }, layout.warp, layout.logicalBounds)
+      : { x, y };
+    return transformPoint(localToDocument, point.x, point.y);
+  };
+  const projectRect = (bounds: Rect) => [
+    projectPoint(bounds.x, bounds.y),
+    projectPoint(bounds.x + bounds.width, bounds.y),
+    projectPoint(bounds.x + bounds.width, bounds.y + bounds.height),
+    projectPoint(bounds.x, bounds.y + bounds.height)
+  ] as const;
   const selectionStart = Math.min(anchor, focus);
   const selectionEnd = Math.max(anchor, focus);
   const caret = caretFor(layout, focus, caretAffinity) ?? {
@@ -236,7 +249,7 @@ export const buildTextEditingOverlay = ({
   const quads: TextOverlayQuad[] = selectedGeometry(layout, selectionStart, selectionEnd)
     .map(({ bounds }) => ({
       role: 'selection',
-      points: transformRect(localToDocument, bounds),
+      points: projectRect(bounds),
       color: [0.16, 0.48, 0.94, 0.34]
     }));
   const lines: TextOverlayLine[] = [];
@@ -244,21 +257,21 @@ export const buildTextEditingOverlay = ({
   if (frame) lines.push(...frameLines(frame, localToDocument));
   lines.push({
       role: 'caret',
-      start: transformPoint(localToDocument, caret.x, caret.y),
+      start: projectPoint(caret.x, caret.y),
       end: vertical
-        ? transformPoint(localToDocument, caret.x + caret.height, caret.y)
-        : transformPoint(localToDocument, caret.x, caret.y + caret.height),
+        ? projectPoint(caret.x + caret.height, caret.y)
+        : projectPoint(caret.x, caret.y + caret.height),
       widthPx: 1.5,
       color: [0.96, 0.98, 1, 1]
   });
   lines.push({
       role: 'insertion',
       start: vertical
-        ? transformPoint(localToDocument, caret.x + caret.height + 1, caret.y - 2)
-        : transformPoint(localToDocument, caret.x - 2, caret.y + caret.height + 1),
+        ? projectPoint(caret.x + caret.height + 1, caret.y - 2)
+        : projectPoint(caret.x - 2, caret.y + caret.height + 1),
       end: vertical
-        ? transformPoint(localToDocument, caret.x + caret.height + 1, caret.y + 2)
-        : transformPoint(localToDocument, caret.x + 2, caret.y + caret.height + 1),
+        ? projectPoint(caret.x + caret.height + 1, caret.y + 2)
+        : projectPoint(caret.x + 2, caret.y + caret.height + 1),
       widthPx: 1,
       color: [0.24, 0.66, 1, 0.95]
   });
@@ -268,11 +281,11 @@ export const buildTextEditingOverlay = ({
     lines.push({
       role: 'baseline',
       start: vertical
-        ? transformPoint(localToDocument, activeLine.baseline, activeLine.bounds.y)
-        : transformPoint(localToDocument, activeLine.bounds.x, activeLine.baseline),
+        ? projectPoint(activeLine.baseline, activeLine.bounds.y)
+        : projectPoint(activeLine.bounds.x, activeLine.baseline),
       end: vertical
-        ? transformPoint(localToDocument, activeLine.baseline, activeLine.bounds.y + activeLine.bounds.height)
-        : transformPoint(localToDocument, activeLine.bounds.x + activeLine.bounds.width, activeLine.baseline),
+        ? projectPoint(activeLine.baseline, activeLine.bounds.y + activeLine.bounds.height)
+        : projectPoint(activeLine.bounds.x + activeLine.bounds.width, activeLine.baseline),
       widthPx: 1,
       color: [0.24, 0.66, 1, 0.58]
     });
@@ -280,9 +293,8 @@ export const buildTextEditingOverlay = ({
   if (showBaseline && !activeLine) {
     lines.push({
       role: 'baseline',
-      start: transformPoint(localToDocument, caret.x, caret.y + caret.height),
-      end: transformPoint(
-        localToDocument,
+      start: projectPoint(caret.x, caret.y + caret.height),
+      end: projectPoint(
         caret.x + Math.max(12, caret.height * 0.75),
         caret.y + caret.height
       ),
@@ -295,11 +307,11 @@ export const buildTextEditingOverlay = ({
       lines.push({
         role: 'composition',
         start: vertical
-          ? transformPoint(localToDocument, bounds.x + bounds.width + 1, bounds.y)
-          : transformPoint(localToDocument, bounds.x, bounds.y + bounds.height + 1),
+          ? projectPoint(bounds.x + bounds.width + 1, bounds.y)
+          : projectPoint(bounds.x, bounds.y + bounds.height + 1),
         end: vertical
-          ? transformPoint(localToDocument, bounds.x + bounds.width + 1, bounds.y + bounds.height)
-          : transformPoint(localToDocument, bounds.x + bounds.width, bounds.y + bounds.height + 1),
+          ? projectPoint(bounds.x + bounds.width + 1, bounds.y + bounds.height)
+          : projectPoint(bounds.x + bounds.width, bounds.y + bounds.height + 1),
         widthPx: 1.5,
         color: [0.96, 0.98, 1, 0.94]
       });
@@ -318,6 +330,7 @@ export const buildTextEditingOverlay = ({
       showBaseline ? 1 : 0,
       frame ? `${frame.x},${frame.y},${frame.width},${frame.height}` : '-',
       showOverflowIndicator ? 'overflow' : 'fits',
+      layout.warp ? JSON.stringify(layout.warp) : 'no-warp',
       affineKey(localToDocument)
     ].join(':'),
     quads: Object.freeze(quads),

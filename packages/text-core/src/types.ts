@@ -226,10 +226,34 @@ export interface TextLayerRevisions {
   readonly geometry: number;
 }
 
+export type TextWarpStyle =
+  | 'arc' | 'arc-lower' | 'arc-upper' | 'arch' | 'bulge'
+  | 'shell-lower' | 'shell-upper' | 'flag' | 'wave' | 'fish' | 'rise'
+  | 'fisheye' | 'inflate' | 'squeeze' | 'twist' | 'custom' | 'cylinder';
+
+export interface TextWarpMesh {
+  readonly rows: number;
+  readonly columns: number;
+  /** Row-major layer-local control points. */
+  readonly points: readonly Vec2[];
+}
+
+/** Resolution-independent envelope retained across PSD/PDF/AI interchange. */
+export interface TextWarp {
+  readonly style: TextWarpStyle;
+  readonly bend: number;
+  readonly horizontalDistortion: number;
+  readonly verticalDistortion: number;
+  readonly orientation: 'horizontal' | 'vertical';
+  readonly bounds?: Rect;
+  readonly mesh?: TextWarpMesh;
+}
+
 export interface TextLayerData {
   readonly schemaVersion: typeof TEXT_DOCUMENT_SCHEMA_VERSION;
   readonly source: TextSource;
   readonly revisions: TextLayerRevisions;
+  readonly warp?: TextWarp;
   readonly interchange?: {
     readonly format: 'pdf' | 'ai' | 'psd' | 'svg';
     readonly sourceObjectId?: string;
@@ -334,6 +358,7 @@ export interface RealizedTextLayout {
   readonly clusterMap: readonly GlyphClusterMapEntry[];
   readonly inkBounds: Rect;
   readonly logicalBounds: Rect;
+  readonly warp?: TextWarp;
   /** Distance from the authored point/frame Y origin to the first baseline. */
   readonly firstBaselineOffset?: number;
   /** Present only when the authored source uses paragraph-frame layout. */

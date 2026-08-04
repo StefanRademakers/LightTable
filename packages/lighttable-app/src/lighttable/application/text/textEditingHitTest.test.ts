@@ -4,6 +4,7 @@ import { realizePathArcLength } from '@lighttable/vector-rendering';
 import { describe, expect, it } from 'vitest';
 import { projectRigidGlyphRunsToPath } from '../../text/rendering/rigidPathGlyphProjection';
 import { hitTestTextEditingLayout } from './textEditingHitTest';
+import { warpTextPoint } from '@lighttable/text-rendering';
 
 const layout = {
   schemaVersion: 2, key: 'layout', glyphRuns: [], lines: [], selectionGeometry: [], clusterMap: [], warnings: [],
@@ -60,6 +61,25 @@ describe('text editing hit test', () => {
     expect(hitTestTextEditingLayout({
       layout, localToDocument: { a: 0, b: 0, c: 0, d: 0, tx: 0, ty: 0 }
     }, { x: 0, y: 0 })).toBeNull();
+  });
+
+  it('inverts semantic text warp before choosing a caret', () => {
+    const warped = {
+      ...layout,
+      warp: {
+        style: 'arc' as const,
+        bend: 55,
+        horizontalDistortion: 100,
+        verticalDistortion: 0,
+        orientation: 'horizontal' as const,
+        bounds: layout.logicalBounds
+      }
+    };
+    const projected = warpTextPoint({ x: 10, y: 10 }, warped.warp, layout.logicalBounds);
+    expect(hitTestTextEditingLayout({
+      layout: warped,
+      localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+    }, projected)).toMatchObject({ offset: 1, affinity: 'upstream' });
   });
 
   it('keeps an empty paragraph frame hittable before it has glyph geometry', () => {

@@ -9,7 +9,8 @@ import type {
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import {
   GLYPH_OUTLINE_EXTRACTOR_VERSION,
-  serializeGlyphOutlineKey
+  serializeGlyphOutlineKey,
+  warpTextPoint
 } from '@lighttable/text-rendering';
 import {
   createAnchor,
@@ -17,6 +18,7 @@ import {
   createVectorPath,
   multiplyMatrices,
   scaleMatrix,
+  transformPoint,
   translationMatrix,
   type AffineMatrix,
   type VectorPath,
@@ -133,7 +135,12 @@ const vectorPaint = (paint: TextPaint | undefined, label: string, sourceScale: n
   } satisfies GradientPaintInstance;
 };
 
-const textStyle = (run: RealizedGlyphRun, unitsPerEm: number, sourceScale: number): VectorStyle => {
+const textStyle = (
+  run: RealizedGlyphRun,
+  unitsPerEm: number,
+  sourceScale: number,
+  geometrySpace: 'font' | 'layout' = 'font'
+): VectorStyle => {
   const drawsFill = run.renderingMode.includes('fill');
   const drawsStroke = run.renderingMode.includes('stroke');
   if (run.renderingMode.includes('clip') || run.renderingMode === 'clip') {
@@ -148,7 +155,7 @@ const textStyle = (run: RealizedGlyphRun, unitsPerEm: number, sourceScale: numbe
     stroke = {
       paint: paint!,
       // Vector stroke geometry lives in font units before the glyph transform.
-      width: source.width * unitsPerEm / run.fontSize,
+      width: geometrySpace === 'font' ? source.width * unitsPerEm / run.fontSize : source.width,
       cap: source.cap,
       join: source.join,
       miterLimit: source.miterLimit,
@@ -157,6 +164,35 @@ const textStyle = (run: RealizedGlyphRun, unitsPerEm: number, sourceScale: numbe
     };
   }
   return { fill, stroke, opacity: 1 };
+};
+
+const warpPath = (
+  path: VectorPath,
+  transform: AffineMatrix,
+  layout: RealizedTextLayout,
+  sourceScale: number
+) => {
+  if (!layout.warp) return false;
+  // A nonlinear envelope cannot be represented by transforming only the
+  // four control points of each source cubic. Flatten first at document
+  // quality, then warp every sample so large bends retain glyph fidelity.
+  const sourceTolerance = DEFAULT_SOURCE_TOLERANCE / Math.max(
+    sourceScale * maximumScale(transform), 1e-6
+  );
+  const flattened = realizeVectorPath(path, sourceTolerance);
+  const map = (point: { x: number; y: number }) => warpTextPoint(
+    transformPoint(transform, point),
+    layout.warp!,
+    layout.logicalBounds
+  );
+  path.subpaths = flattened.subpaths.map((subpath) => createSubpath(
+    subpath.id,
+    subpath.points.map((point, index) => createAnchor(`${subpath.id}:warp:${index}`, map(point))),
+    subpath.closed
+  ));
+  path.geometryRevision += 1;
+  path.transform = scaleMatrix(sourceScale, sourceScale);
+  return true;
 };
 
 const affineFromMatrix3 = (matrix: Float32Array, offset: number): AffineMatrix => {
@@ -177,7 +213,8 @@ const maximumScale = (matrix: AffineMatrix) => {
 const underlineDraw = (
   run: RealizedGlyphRun,
   runIndex: number,
-  sourceScale: number
+  sourceScale: number,
+  layout: RealizedTextLayout
 ): TextOutlineVectorDraw | null => {
   if (!run.underline || !run.paint.fill || run.glyphIds.length === 0) return null;
   const vertical = run.direction === 'ttb' || run.direction === 'btt';
@@ -208,6 +245,7 @@ const underlineDraw = (
     opacity: 1
   };
   path.transform = scaleMatrix(sourceScale, sourceScale);
+  warpPath(path, { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, layout, sourceScale);
   path.transformRevision = 1;
   const geometry = realizeVectorPath(path, DEFAULT_SOURCE_TOLERANCE / Math.max(sourceScale, 1e-6));
   return { path, geometry, runIndex, glyphIndex: -1 };
@@ -297,15 +335,18 @@ export const prepareTextOutlineVectorDraws = async (
         )
       );
     }
-    transform = multiplyMatrices(sourceTransform, transform);
     const base = glyphOutlineToVectorPath(glyphOutline, {
       id: `text-outline:${entry.outlineId}`,
       name: `Glyph ${entry.glyphId}`
     });
-    base.transform = transform;
+    const warped = warpPath(base, transform, layout, identity.sourceScale);
+    if (warped) base.id = `${base.id}:warped:${entry.runIndex}:${entry.glyphIndex}`;
+    if (!warped) base.transform = multiplyMatrices(sourceTransform, transform);
     base.transformRevision = 1;
-    base.style = textStyle(entry.run, glyphOutline.unitsPerEm, identity.sourceScale);
-    const glyphScale = maximumScale(transform);
+    base.style = textStyle(
+      entry.run, glyphOutline.unitsPerEm, identity.sourceScale, warped ? 'layout' : 'font'
+    );
+    const glyphScale = maximumScale(base.transform);
     const requestedTolerance = glyphScale > 0 ? DEFAULT_SOURCE_TOLERANCE / glyphScale : DEFAULT_SOURCE_TOLERANCE;
     const geometry = realizeVectorPath(base, requestedTolerance);
     return geometry.subpaths.some(({ points }) => points.length > 0)
@@ -316,7 +357,7 @@ export const prepareTextOutlineVectorDraws = async (
       : [];
   });
   const underlines = layout.glyphRuns.flatMap((run, runIndex) => {
-    const draw = underlineDraw(run, runIndex, identity.sourceScale);
+    const draw = underlineDraw(run, runIndex, identity.sourceScale, layout);
     return draw ? [draw] : [];
   });
   return Object.freeze({

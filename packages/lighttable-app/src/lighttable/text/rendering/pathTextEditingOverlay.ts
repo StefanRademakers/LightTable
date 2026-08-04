@@ -7,6 +7,7 @@ import type {
   TextOverlayPoint,
   TextOverlayQuad
 } from '@lighttable/text-rendering';
+import { warpTextPoint } from '@lighttable/text-rendering';
 import type { PathArcLengthTable } from '@lighttable/vector-rendering';
 import {
   rigidPathPlacementAt,
@@ -125,13 +126,13 @@ const pathRect = (
   pathLayout: PathTextLayout,
   table: PathArcLengthTable,
   projection: RigidPathGlyphProjection,
-  localToDocument: TextEditingAffine
+  projectPoint: (point: TextOverlayPoint) => TextOverlayPoint
 ) => [
   pathTextLocalPoint(bounds.x, bounds.y, pathLayout, table, projection),
   pathTextLocalPoint(bounds.x + bounds.width, bounds.y, pathLayout, table, projection),
   pathTextLocalPoint(bounds.x + bounds.width, bounds.y + bounds.height, pathLayout, table, projection),
   pathTextLocalPoint(bounds.x, bounds.y + bounds.height, pathLayout, table, projection)
-].map((point) => transformPoint(localToDocument, point)) as [
+].map(projectPoint) as [
   TextOverlayPoint, TextOverlayPoint, TextOverlayPoint, TextOverlayPoint
 ];
 
@@ -168,6 +169,12 @@ export const buildPathTextEditingOverlay = ({
   caretAffinity = 'downstream',
   composition = null
 }: BuildPathTextEditingOverlayOptions): TextEditingOverlay => {
+  const projectPoint = (point: TextOverlayPoint) => {
+    const warped = layout.warp
+      ? warpTextPoint(point, layout.warp, layout.logicalBounds)
+      : point;
+    return transformPoint(localToDocument, warped);
+  };
   const selectionStart = Math.min(anchor, focus);
   const selectionEnd = Math.max(anchor, focus);
   const caret = caretFor(layout, focus, caretAffinity) ?? {
@@ -176,13 +183,13 @@ export const buildPathTextEditingOverlay = ({
   const quads: TextOverlayQuad[] = selectedGeometry(layout, selectionStart, selectionEnd)
     .map(({ bounds }) => ({
       role: 'selection',
-      points: pathRect(bounds, pathLayout, table, projection, localToDocument),
+      points: pathRect(bounds, pathLayout, table, projection, projectPoint),
       color: [0.16, 0.48, 0.94, 0.34]
     }));
-  const caretStart = transformPoint(localToDocument,
-    pathTextLocalPoint(caret.x, caret.y, pathLayout, table, projection));
-  const caretEnd = transformPoint(localToDocument,
-    pathTextLocalPoint(caret.x, caret.y + caret.height, pathLayout, table, projection));
+  const caretStart = projectPoint(pathTextLocalPoint(caret.x, caret.y, pathLayout, table, projection));
+  const caretEnd = projectPoint(pathTextLocalPoint(
+    caret.x, caret.y + caret.height, pathLayout, table, projection
+  ));
   const staticLines = baselineLines(table, localToDocument);
   const lines: TextOverlayLine[] = [];
   lines.push({
@@ -191,16 +198,18 @@ export const buildPathTextEditingOverlay = ({
   });
   lines.push({
     role: 'insertion',
-    start: transformPoint(localToDocument,
-      pathTextLocalPoint(caret.x - 2, caret.y + caret.height + 1, pathLayout, table, projection)),
-    end: transformPoint(localToDocument,
-      pathTextLocalPoint(caret.x + 2, caret.y + caret.height + 1, pathLayout, table, projection)),
+    start: projectPoint(pathTextLocalPoint(
+      caret.x - 2, caret.y + caret.height + 1, pathLayout, table, projection
+    )),
+    end: projectPoint(pathTextLocalPoint(
+      caret.x + 2, caret.y + caret.height + 1, pathLayout, table, projection
+    )),
     widthPx: 1,
     color: [0.24, 0.66, 1, 0.95]
   });
   if (composition && composition.start !== composition.end) {
     for (const { bounds } of selectedGeometry(layout, composition.start, composition.end)) {
-      const points = pathRect(bounds, pathLayout, table, projection, localToDocument);
+      const points = pathRect(bounds, pathLayout, table, projection, projectPoint);
       lines.push({
         role: 'composition', start: points[3], end: points[2], widthPx: 1.5,
         color: [0.96, 0.98, 1, 0.94]
@@ -223,7 +232,8 @@ export const buildPathTextEditingOverlay = ({
   const staticKey = [
     layerId, layout.key, table.key, projection.range.start, projection.range.end,
     projection.range.origin, projection.range.direction, pathLayout.side,
-    pathLayout.upright ? 1 : 0, affineKey(localToDocument)
+    pathLayout.upright ? 1 : 0, layout.warp ? JSON.stringify(layout.warp) : 'no-warp',
+    affineKey(localToDocument)
   ].join(':');
   const selectionKey = `${staticKey}:selection:${selectionStart}-${selectionEnd}`;
   const caretKey = `${staticKey}:caret:${focus}:${caretAffinity}`;
@@ -236,6 +246,7 @@ export const buildPathTextEditingOverlay = ({
       projection.range.origin, projection.range.direction, pathLayout.side,
       pathLayout.upright ? 1 : 0, anchor, focus, caretAffinity,
       composition ? `${composition.start}-${composition.end}` : '-',
+      layout.warp ? JSON.stringify(layout.warp) : 'no-warp',
       affineKey(localToDocument)
     ].join(':'),
     quads: Object.freeze(quads),

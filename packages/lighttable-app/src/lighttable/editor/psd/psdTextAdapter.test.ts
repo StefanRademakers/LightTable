@@ -247,7 +247,6 @@ describe('Photoshop text adapter', () => {
   });
 
   it.each([
-    [{ text: 'Warp', warp: { style: 'arc' } }, 'Warped'],
     [{ text: 'Path', textPath: { data: {} } }, 'path'],
     [{ text: 'Bad transform', transform: [1, 0, 0] }, 'transform'],
     [{ text: 'Bad runs', styleRuns: [{ length: 2, style: {} }] }, 'run lengths'],
@@ -261,6 +260,24 @@ describe('Photoshop text adapter', () => {
     const result = importPsdText(descriptor);
     expect(result).toMatchObject({ kind: 'preserved' });
     expect(result.reasons.join(' ')).toContain(reason);
+  });
+
+  it('imports Photoshop warp parameters as an editable resolution-independent envelope', () => {
+    const result = importPsdText({ text: 'Warp', warp: {
+      style: 'arcUpper', value: 35, perspective: 12, perspectiveOther: -8,
+      rotate: 'vertical', bounds: {
+        left: { units: 'Pixels', value: 10 }, top: { units: 'Pixels', value: 20 },
+        right: { units: 'Pixels', value: 210 }, bottom: { units: 'Pixels', value: 120 }
+      }
+    } });
+    expect(result).toMatchObject({
+      kind: 'editable-flow',
+      text: { warp: {
+        style: 'arc-upper', bend: 35, horizontalDistortion: 12,
+        verticalDistortion: -8, orientation: 'vertical',
+        bounds: { x: 10, y: 20, width: 200, height: 100 }
+      } }
+    });
   });
 
   it('imports Photoshop baseline, scale, faux styles and underline as editable character data', () => {

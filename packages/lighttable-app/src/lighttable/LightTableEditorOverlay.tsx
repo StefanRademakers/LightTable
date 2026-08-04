@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint } from '@lighttable/text-core';
+import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import {
   buildParagraphFrameOverlay
 } from '@lighttable/text-rendering';
@@ -180,7 +180,8 @@ import {
   applyTextLayerDataMutation,
   convertParagraphTextToPoint,
   convertPointTextToParagraph,
-  setFlowTextLayout
+  setFlowTextLayout,
+  setTextWarp
 } from './editor/document/textLayerCommands';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
@@ -667,6 +668,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId; readonly before: ImageDocument }
     | null
   >(null);
+  const textWarpGestureRef = useRef<{
+    readonly documentId: ImageDocument['id'];
+    readonly layerId: LayerId;
+    readonly before: ImageDocument;
+  } | null>(null);
   const pendingTextPaintPatchRef = useRef<TextStylePatch | null>(null);
   const textPaintPreviewFrameRef = useRef<number | null>(null);
   const selectLayerRef = useRef<(layerId: LayerId) => void>(() => undefined);
@@ -3587,6 +3593,42 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushDocumentHistory(before, after);
     activatePersistentTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
   };
+  const applyTextWarp = (warp: TextWarp | null) => {
+    const before = imageDocumentRef.current;
+    const layerId = before?.activeLayerId;
+    if (!before || !layerId) return;
+    const layer = findDocumentLayer(before, layerId);
+    if (layer?.type !== 'text') return;
+    const after = setTextWarp(before, layerId, warp);
+    if (after === before) return;
+    applyDocumentSnapshot(after);
+    const gesture = textWarpGestureRef.current;
+    if (!gesture || gesture.documentId !== before.id || gesture.layerId !== layerId) {
+      pushDocumentHistory(before, after);
+    }
+  };
+  const beginTextWarpGesture = () => {
+    if (textWarpGestureRef.current) return;
+    const before = imageDocumentRef.current;
+    const layerId = before?.activeLayerId;
+    const layer = before && layerId ? findDocumentLayer(before, layerId) : null;
+    if (!before || !layerId || layer?.type !== 'text') return;
+    textWarpGestureRef.current = { documentId: before.id, layerId, before };
+  };
+  const commitTextWarpGesture = () => {
+    const gesture = textWarpGestureRef.current;
+    textWarpGestureRef.current = null;
+    const after = imageDocumentRef.current;
+    if (!gesture || !after || after.id !== gesture.documentId || after === gesture.before) return;
+    pushDocumentHistory(gesture.before, after);
+  };
+  const cancelTextWarpGesture = () => {
+    const gesture = textWarpGestureRef.current;
+    textWarpGestureRef.current = null;
+    if (gesture && imageDocumentRef.current?.id === gesture.documentId) {
+      applyDocumentSnapshot(gesture.before);
+    }
+  };
   useEffect(() => () => {
     pendingTextPaintPatchRef.current = null;
     if (textPaintPreviewFrameRef.current !== null) {
@@ -3657,6 +3699,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionColumnWidth={editorSession.selectionColumnWidth}
       zoomPercent={activeScale * 100}
       transformState={transformState}
+      textWarp={activeTextPropertyLayer?.type === 'text'
+        ? activeTextPropertyLayer.text.warp ?? null
+        : undefined}
       onBrushChange={updateBrush}
       onGradientChange={(change) => setEditorSession((current) => ({
         ...current,
@@ -3711,6 +3756,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onTransformChange={updateTransformMatrix}
       onTransformCommit={transformSession.commit}
       onTransformCancel={transformSession.cancel}
+      onTextWarpChange={applyTextWarp}
+      onTextWarpBegin={beginTextWarpGesture}
+      onTextWarpCommit={commitTextWarpGesture}
+      onTextWarpCancel={cancelTextWarpGesture}
       onToolChange={activatePersistentTool}
       onForegroundColorChange={(color) => updateBrush({ color })}
       onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}
@@ -3827,6 +3876,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             selectionRowHeight: editorSession.selectionRowHeight,
             selectionColumnWidth: editorSession.selectionColumnWidth,
             zoomPercent: activeScale * 100,
+            transformState,
+            textWarp: activeTextPropertyLayer?.type === 'text'
+              ? activeTextPropertyLayer.text.warp ?? null
+              : undefined,
             onBrushChange: updateBrush,
             onGradientChange: (change) => setEditorSession((current) => ({
               ...current,
@@ -3879,6 +3932,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,
+            onTransformChange: updateTransformMatrix,
+            onTransformCommit: transformSession.commit,
+            onTransformCancel: transformSession.cancel,
+            onTextWarpChange: applyTextWarp,
+            onTextWarpBegin: beginTextWarpGesture,
+            onTextWarpCommit: commitTextWarpGesture,
+            onTextWarpCancel: cancelTextWarpGesture,
             onToolChange: activatePersistentTool,
             onClose: () => setToolOptionsMenu(null)
           } : null}

@@ -9,7 +9,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { ToolOptionsBar } from './ToolOptionsBar';
 import type { EditorScreenMode } from '../workspace/editorScreenMode';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
-import type { TextPaint } from '@lighttable/text-core';
+import type { TextPaint, TextWarp } from '@lighttable/text-core';
 import type { AffineMatrix, TransformSessionState } from '../tools/transform/transformTypes';
 
 export interface LightTableEditorShellProps {
@@ -38,6 +38,7 @@ export interface LightTableEditorShellProps {
   selectionColumnWidth: number;
   zoomPercent: number;
   transformState?: TransformSessionState | null;
+  textWarp?: TextWarp | null;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
@@ -70,6 +71,10 @@ export interface LightTableEditorShellProps {
   onTransformChange?: (matrix: AffineMatrix) => void;
   onTransformCommit?: () => void;
   onTransformCancel?: () => void;
+  onTextWarpChange?: (warp: TextWarp | null) => void;
+  onTextWarpBegin?: () => void;
+  onTextWarpCommit?: () => void;
+  onTextWarpCancel?: () => void;
   onToolChange: (tool: ToolId) => void;
   onForegroundColorChange: (color: string) => void;
   onBackgroundColorChange: (color: string) => void;
@@ -118,6 +123,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectionColumnWidth,
   zoomPercent,
   transformState,
+  textWarp,
   onBrushChange,
   onGradientChange,
   onShapeChange,
@@ -150,6 +156,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onTransformChange,
   onTransformCommit,
   onTransformCancel,
+  onTextWarpChange,
+  onTextWarpBegin,
+  onTextWarpCommit,
+  onTextWarpCancel,
   onToolChange,
   onForegroundColorChange,
   onBackgroundColorChange,
@@ -207,6 +217,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectionColumnWidth={selectionColumnWidth}
         zoomPercent={zoomPercent}
         transformState={transformState}
+        textWarp={textWarp}
         onBrushChange={onBrushChange}
         onGradientChange={onGradientChange}
         onShapeChange={onShapeChange}
@@ -238,6 +249,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onZoomFit={onZoomFit}
         onTransformChange={onTransformChange}
         onTransformCommit={onTransformCommit}
+        onTextWarpChange={onTextWarpChange}
+        onTextWarpBegin={onTextWarpBegin}
+        onTextWarpCommit={onTextWarpCommit}
+        onTextWarpCancel={onTextWarpCancel}
         onTransformCancel={onTransformCancel}
       /> : null}
 

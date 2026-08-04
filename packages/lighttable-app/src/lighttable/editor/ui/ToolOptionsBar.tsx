@@ -21,7 +21,7 @@ import { MixedNumberInput } from './MixedNumberInput';
 import { ToolOptionColor, ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
 import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
-import type { TextPaint } from '@lighttable/text-core';
+import type { TextPaint, TextWarp, TextWarpStyle } from '@lighttable/text-core';
 import type { AffineMatrix, TransformSessionState } from '../tools/transform/transformTypes';
 import {
   aroundPoint,
@@ -53,6 +53,8 @@ export interface ToolOptionsProps {
   selectionColumnWidth: number;
   zoomPercent: number;
   transformState?: TransformSessionState | null;
+  /** Undefined for non-text transforms; null is editable text without a warp. */
+  textWarp?: TextWarp | null;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
@@ -85,6 +87,10 @@ export interface ToolOptionsProps {
   onTransformChange?: (matrix: AffineMatrix) => void;
   onTransformCommit?: () => void;
   onTransformCancel?: () => void;
+  onTextWarpChange?: (warp: TextWarp | null) => void;
+  onTextWarpBegin?: () => void;
+  onTextWarpCommit?: () => void;
+  onTextWarpCancel?: () => void;
 }
 
 const TOOL_LABELS: Record<ToolId, string> = {
@@ -155,16 +161,27 @@ const TransformToolOptions: React.FC<{
   onChange: (matrix: AffineMatrix) => void;
   onCommit?: () => void;
   onCancel?: () => void;
+  textWarp?: TextWarp | null;
+  onTextWarpChange?: (warp: TextWarp | null) => void;
+  onTextWarpBegin?: () => void;
+  onTextWarpCommit?: () => void;
+  onTextWarpCancel?: () => void;
 }> = ({
   state,
   proportionsLinked,
   onProportionsLinkedChange,
   onChange,
   onCommit,
-  onCancel
+  onCancel,
+  textWarp,
+  onTextWarpChange,
+  onTextWarpBegin,
+  onTextWarpCommit,
+  onTextWarpCancel
 }) => {
   const [referencePoint, setReferencePoint] = React.useState('center');
   const [skew, setSkew] = React.useState({ x: 0, y: 0 });
+  const [customWarpPoint, setCustomWarpPoint] = React.useState(0);
   const bounds = transformedBounds(state.matrix, state.sourceBounds);
   const referenceColumn = referencePoint.endsWith('left') ? 0
     : referencePoint.endsWith('right') ? 1 : 0.5;
@@ -201,6 +218,47 @@ const TransformToolOptions: React.FC<{
       : { a: 1, b: Math.tan(delta), c: 0, d: 1, tx: 0, ty: 0 };
     setSkew((current) => ({ ...current, [axis]: degrees }));
     onChange(multiplyMatrices(aroundPoint(shear, reference), state.matrix));
+  };
+  const setWarpStyle = (style: 'none' | TextWarpStyle) => {
+    if (!onTextWarpChange) return;
+    if (style === 'none') { onTextWarpChange(null); return; }
+    if (textWarp?.style === style) return;
+    const source = state.sourceContentBounds;
+    onTextWarpChange({
+      style, bend: textWarp?.bend ?? 0,
+      horizontalDistortion: textWarp?.horizontalDistortion ?? 0,
+      verticalDistortion: textWarp?.verticalDistortion ?? 0,
+      orientation: textWarp?.orientation ?? 'horizontal',
+      bounds: textWarp?.bounds ?? { ...source },
+      ...(style === 'custom' ? { mesh: textWarp?.mesh ?? {
+        rows: 2, columns: 2, points: [
+          { x: source.x, y: source.y }, { x: source.x + source.width, y: source.y },
+          { x: source.x, y: source.y + source.height },
+          { x: source.x + source.width, y: source.y + source.height }
+        ]
+      } } : {})
+    });
+  };
+  const patchWarp = (patch: Partial<TextWarp>) => {
+    if (textWarp && onTextWarpChange) onTextWarpChange({ ...textWarp, ...patch });
+  };
+  const patchCustomWarpPoint = (axis: 'x' | 'y', value: number) => {
+    if (textWarp?.style !== 'custom' || !textWarp.mesh) return;
+    const index = Math.max(0, Math.min(textWarp.mesh.points.length - 1, customWarpPoint));
+    const points = textWarp.mesh.points.map((point, pointIndex) => pointIndex === index
+      ? { ...point, [axis]: value }
+      : point);
+    patchWarp({ mesh: { ...textWarp.mesh, points } });
+  };
+  const warpNumberGesture = {
+    onFocus: onTextWarpBegin,
+    onBlur: onTextWarpCommit,
+    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onTextWarpCancel?.();
+      event.currentTarget.blur();
+    }
   };
   return (
     <div className="lighttable-tool-options__vector-style" aria-label="Free Transform properties">
@@ -243,6 +301,50 @@ const TransformToolOptions: React.FC<{
       <ToolOptionSelect label="Interpolation" value="automatic" aria-label="Transform interpolation" disabled={state.previewKind === 'semantic'}>
         <option value="automatic">Automatic</option>
       </ToolOptionSelect>
+      {textWarp !== undefined ? <>
+        <ToolOptionSelect label="Warp" value={textWarp?.style ?? 'none'} aria-label="Text warp preset"
+          onChange={(event) => setWarpStyle(event.currentTarget.value as 'none' | TextWarpStyle)}>
+          <option value="none">None</option>
+          {([
+            ['arc', 'Arc'], ['arc-lower', 'Arc Lower'], ['arc-upper', 'Arc Upper'], ['arch', 'Arch'],
+            ['bulge', 'Bulge'], ['shell-lower', 'Shell Lower'], ['shell-upper', 'Shell Upper'],
+            ['flag', 'Flag'], ['wave', 'Wave'], ['fish', 'Fish'], ['rise', 'Rise'],
+            ['fisheye', 'Fisheye'], ['inflate', 'Inflate'], ['squeeze', 'Squeeze'],
+            ['twist', 'Twist'], ['cylinder', 'Cylinder'], ['custom', 'Custom grid']
+          ] as const).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </ToolOptionSelect>
+        {textWarp ? <>
+          <ToolOptionNumber label="Bend" unit="%" min={-100} max={100} step={1}
+            {...warpNumberGesture} value={textWarp.bend} onChange={(bend) => patchWarp({ bend })} />
+          <ToolOptionNumber label="Warp H" unit="%" min={-100} max={100} step={1}
+            {...warpNumberGesture}
+            value={textWarp.horizontalDistortion}
+            onChange={(horizontalDistortion) => patchWarp({ horizontalDistortion })} />
+          <ToolOptionNumber label="Warp V" unit="%" min={-100} max={100} step={1}
+            {...warpNumberGesture}
+            value={textWarp.verticalDistortion}
+            onChange={(verticalDistortion) => patchWarp({ verticalDistortion })} />
+          <ToolOptionSelect label="Warp orientation" value={textWarp.orientation}
+            onChange={(event) => patchWarp({ orientation: event.currentTarget.value as 'horizontal' | 'vertical' })}>
+            <option value="horizontal">Horizontal</option><option value="vertical">Vertical</option>
+          </ToolOptionSelect>
+          {textWarp.style === 'custom' && textWarp.mesh ? <>
+            <ToolOptionNumber label="Grid point" min={1} max={textWarp.mesh.points.length} step={1}
+              value={Math.min(customWarpPoint, textWarp.mesh.points.length - 1) + 1}
+              onChange={(value) => setCustomWarpPoint(Math.max(0, Math.min(
+                textWarp.mesh!.points.length - 1, Math.round(value) - 1
+              )))} />
+            <ToolOptionNumber label="Point X" unit="px" step={0.1}
+              {...warpNumberGesture}
+              value={textWarp.mesh.points[Math.min(customWarpPoint, textWarp.mesh.points.length - 1)]?.x ?? 0}
+              onChange={(value) => patchCustomWarpPoint('x', value)} />
+            <ToolOptionNumber label="Point Y" unit="px" step={0.1}
+              {...warpNumberGesture}
+              value={textWarp.mesh.points[Math.min(customWarpPoint, textWarp.mesh.points.length - 1)]?.y ?? 0}
+              onChange={(value) => patchCustomWarpPoint('y', value)} />
+          </> : null}
+        </> : null}
+      </> : null}
       <button type="button" className="lighttable-tool-options__preset" onClick={onCommit}>Apply</button>
       <button type="button" className="lighttable-tool-options__preset" onClick={onCancel}>Cancel</button>
     </div>
@@ -272,6 +374,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectionColumnWidth,
   zoomPercent,
   transformState,
+  textWarp,
   onBrushChange,
   onGradientChange,
   onShapeChange,
@@ -304,6 +407,10 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onTransformChange,
   onTransformCommit,
   onTransformCancel,
+  onTextWarpChange,
+  onTextWarpBegin,
+  onTextWarpCommit,
+  onTextWarpCancel,
   orientation = 'horizontal'
 }) => {
   const activeToolDefinition = toolDefinition(activeTool);
@@ -382,6 +489,11 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={onTransformChange}
           onCommit={onTransformCommit}
           onCancel={onTransformCancel}
+          textWarp={textWarp}
+          onTextWarpChange={onTextWarpChange}
+          onTextWarpBegin={onTextWarpBegin}
+          onTextWarpCommit={onTextWarpCommit}
+          onTextWarpCancel={onTextWarpCancel}
         />
       ) : null}
       {activeTool === 'vector-pen' ? (

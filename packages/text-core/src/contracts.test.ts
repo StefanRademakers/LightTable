@@ -134,6 +134,33 @@ describe('text document contracts', () => {
     }
   });
 
+  it('round-trips semantic text warp data and rejects malformed custom meshes', () => {
+    const layer = {
+      ...createDefaultTextLayerData(),
+      warp: {
+        style: 'custom' as const,
+        bend: 0,
+        horizontalDistortion: 0,
+        verticalDistortion: 0,
+        orientation: 'horizontal' as const,
+        bounds: { x: 10, y: 20, width: 100, height: 50 },
+        mesh: {
+          rows: 2,
+          columns: 2,
+          points: [
+            { x: 10, y: 20 }, { x: 110, y: 15 },
+            { x: 10, y: 70 }, { x: 110, y: 75 }
+          ]
+        }
+      }
+    };
+    expect(parseTextLayerData(JSON.parse(JSON.stringify(layer)) as unknown)).toEqual(layer);
+    expect(() => assertTextLayerData({
+      ...layer,
+      warp: { ...layer.warp, mesh: { ...layer.warp.mesh, points: layer.warp.mesh.points.slice(1) } }
+    })).toThrow(/rows x columns/);
+  });
+
   it('clones without sharing authored run state', () => {
     const original = createDefaultTextLayerData();
     const clone = cloneTextLayerData(original);

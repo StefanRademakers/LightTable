@@ -2,7 +2,8 @@ import type {
   Color as PsdColor,
   LayerTextData,
   ParagraphStyle,
-  TextStyle
+  TextStyle,
+  Warp
 } from 'ag-psd';
 import {
   assertTextLayerData,
@@ -11,6 +12,8 @@ import {
   type ParagraphStyleRun,
   type RgbaColor,
   type TextLayerData,
+  type TextWarp,
+  type TextWarpStyle,
   type TextStyleRun
 } from '@lighttable/text-core';
 import {
@@ -37,6 +40,49 @@ export type PsdTextImportResult =
 
 const finite = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
+
+const warpStyle = (style: Warp['style']): TextWarpStyle | null => ({
+  arc: 'arc', arcLower: 'arc-lower', arcUpper: 'arc-upper', arch: 'arch', bulge: 'bulge',
+  shellLower: 'shell-lower', shellUpper: 'shell-upper', flag: 'flag', wave: 'wave',
+  fish: 'fish', rise: 'rise', fisheye: 'fisheye', inflate: 'inflate', squeeze: 'squeeze',
+  twist: 'twist', custom: 'custom', cylinder: 'cylinder'
+} as Partial<Record<NonNullable<Warp['style']>, TextWarpStyle>>)[style ?? 'none'] ?? null;
+
+const unitValue = (value: unknown) => value && typeof value === 'object'
+  && finite((value as { value?: unknown }).value)
+  ? (value as { value: number }).value : null;
+
+const normalizeWarp = (source: Warp | undefined): TextWarp | null => {
+  const style = warpStyle(source?.style);
+  if (!source || !style) return null;
+  const boundsValues = source.bounds ? [
+    unitValue(source.bounds.left), unitValue(source.bounds.top),
+    unitValue(source.bounds.right), unitValue(source.bounds.bottom)
+  ] : null;
+  const bounds = boundsValues?.every((value): value is number => value !== null)
+    && boundsValues[2]! > boundsValues[0]! && boundsValues[3]! > boundsValues[1]!
+    ? { x: boundsValues[0]!, y: boundsValues[1]!,
+      width: boundsValues[2]! - boundsValues[0]!, height: boundsValues[3]! - boundsValues[1]! }
+    : undefined;
+  const rows = source.deformNumRows;
+  const columns = source.deformNumCols;
+  const points = source.customEnvelopeWarp?.meshPoints;
+  const mesh = Number.isInteger(rows) && Number.isInteger(columns)
+    && rows! >= 2 && columns! >= 2 && rows! <= 65 && columns! <= 65
+    && points?.length === rows! * columns! && points.every((point) => finite(point.x) && finite(point.y))
+    ? { rows: rows!, columns: columns!, points: points.map(({ x, y }) => ({ x, y })) }
+    : undefined;
+  if (style === 'custom' && !mesh) return null;
+  return {
+    style,
+    bend: finite(source.value) ? source.value : finite(source.values?.[0]) ? source.values![0]! : 0,
+    horizontalDistortion: finite(source.perspective) ? source.perspective : 0,
+    verticalDistortion: finite(source.perspectiveOther) ? source.perspectiveOther : 0,
+    orientation: source.rotate === 'vertical' ? 'vertical' : 'horizontal',
+    ...(bounds ? { bounds } : {}),
+    ...(mesh ? { mesh } : {})
+  };
+};
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -359,8 +405,9 @@ export const importPsdText = (
   if (typeof source.text !== 'string') {
     return { kind: 'preserved', reasons: ['The Photoshop text descriptor has no valid text content.'] };
   }
-  if (source.warp?.style && source.warp.style !== 'none') {
-    return { kind: 'preserved', reasons: ['Warped Photoshop text remains preview-backed until warp semantics are implemented.'] };
+  const warp = normalizeWarp(source.warp);
+  if (source.warp?.style && source.warp.style !== 'none' && !warp) {
+    return { kind: 'preserved', reasons: ['The Photoshop custom text warp mesh is incomplete or invalid.'] };
   }
   const authoredTextPath = Boolean(source.textPath)
     && !isEmptyTextPathPlaceholder(source.textPath);
@@ -456,6 +503,7 @@ export const importPsdText = (
   const insertionParagraph = paragraphStyle(source.paragraphStyle ?? {}, source.style, 0, 1);
   const data: TextLayerData = {
     ...createDefaultTextLayerData(),
+    ...(warp ? { warp } : {}),
     source: {
       ...defaultFlow,
       text,
@@ -488,6 +536,7 @@ export const importPsdText = (
     };
   }
   if (importedPath) reasons.push('Photoshop path geometry is mapped to an editable native text path.');
+  if (warp) reasons.push('Photoshop text warp is mapped to an editable native vector envelope.');
   return {
     kind: 'editable-flow', text: data, transform,
     path: importedPath?.path ?? null,

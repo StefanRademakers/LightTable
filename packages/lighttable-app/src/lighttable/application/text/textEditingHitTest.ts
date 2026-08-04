@@ -3,6 +3,7 @@ import type { AffineMatrix } from '../../editor/geometry/affine';
 import { nearestPathArcLength, type PathArcLengthTable } from '@lighttable/vector-rendering';
 import type { RigidPathGlyphProjection } from '../../text/rendering/rigidPathGlyphProjection';
 import { pathTextLocalPoint } from '../../text/rendering/pathTextEditingOverlay';
+import { unwarpTextPoint } from '@lighttable/text-rendering';
 
 export interface TextEditingLayoutHitTarget {
   readonly layout: RealizedTextLayout;
@@ -210,12 +211,16 @@ export const hitTestTextEditingLayout = (
   documentPoint: { readonly x: number; readonly y: number },
   tolerance = 4
 ): TextEditingHit | null => {
-  const point = inversePoint(target.localToDocument, documentPoint);
+  const transformedPoint = inversePoint(target.localToDocument, documentPoint);
+  if (!transformedPoint) return null;
+  const point = target.layout.warp
+    ? unwarpTextPoint(transformedPoint, target.layout.warp, target.layout.logicalBounds)
+    : transformedPoint;
   if (!point) return null;
   if (target.path) {
     const nearest = nearestPathCaret(
       target as TextEditingLayoutHitTarget & { path: NonNullable<TextEditingLayoutHitTarget['path']> },
-      point
+      transformedPoint
     );
     return nearest && nearest.distance <= tolerance ? nearest : null;
   }

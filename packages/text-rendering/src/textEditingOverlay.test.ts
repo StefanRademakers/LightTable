@@ -49,7 +49,7 @@ describe('text editing overlay', () => {
     } as const;
     const overlay = buildTextEditingOverlay(options);
     expect(overlay.lines.filter(({ role }) => role === 'composition')).toHaveLength(2);
-    expect(overlay.resourceKey).toBe('text:layout:7:2:2:downstream:0-2:1:-:fits:1,0,0,1,0,0');
+    expect(overlay.resourceKey).toBe('text:layout:7:2:2:downstream:0-2:1:-:fits:no-warp:1,0,0,1,0,0');
   });
 
   it('honors affinity when one bidi boundary has multiple physical stops', () => {
@@ -63,6 +63,27 @@ describe('text editing overlay', () => {
       localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
     });
     expect(overlay.lines[0]?.start.x).toBe(17);
+  });
+
+  it('projects the caret and selection through the same semantic warp as glyph outlines', () => {
+    const warped = {
+      ...layout,
+      warp: {
+        style: 'arc' as const,
+        bend: 100,
+        horizontalDistortion: 0,
+        verticalDistortion: 0,
+        orientation: 'horizontal' as const,
+        bounds: layout.logicalBounds
+      }
+    };
+    const overlay = buildTextEditingOverlay({
+      layerId: 'text', layout: warped, anchor: 0, focus: 1,
+      localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+    });
+    expect(overlay.lines[0]!.start.y).toBeLessThan(2);
+    expect(overlay.quads[0]!.points[1]!.y).toBeLessThan(2);
+    expect(overlay.resourceKey).toContain('"style":"arc"');
   });
 
   it('keeps an empty flow layer editable with synthesized GPU indicators', () => {

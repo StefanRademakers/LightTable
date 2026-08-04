@@ -508,9 +508,12 @@ const realizeFlowRequest = (
   const layoutRequest = verticalLayout
     ? { ...request, layer: { ...request.layer, source } }
     : request;
-  const finalizeLayout = (layout: RealizedTextLayout) => verticalLayout
-    ? projectHorizontalLayoutToVertical(layout, verticalLayout)
-    : layout;
+  const finalizeLayout = (layout: RealizedTextLayout) => {
+    const projected = verticalLayout
+      ? projectHorizontalLayoutToVertical(layout, verticalLayout)
+      : layout;
+    return request.layer.warp ? { ...projected, warp: request.layer.warp } : projected;
+  };
   const selectedFonts = source.styleRuns.map((run, sourceRunIndex) => {
     if (run.directionOverride || run.scriptOverride || run.kerning === 'optical' || run.kerning === 'none'
       || Object.keys(run.openTypeFeatures).length > 0 || Object.keys(run.variableAxes).length > 0) {
