@@ -1,4 +1,4 @@
-import type { RasterLayer, Rect, TextLayer } from '../document/documentTypes';
+import type { RasterLayer, Rect, TextLayer, VectorLayer } from '../document/documentTypes';
 import type { AffineMatrix, LayerSourceRenderContract } from '../rendering/renderContract';
 import type { LayerStyleInstance, LayerStyleStack } from './layerStyleTypes';
 
@@ -30,6 +30,23 @@ export const layerStyleExpansion = (stack: LayerStyleStack) =>
         0
       )
     : 0;
+
+/** Integer GPU-copy bounds for one already conservative document-space extent. */
+export const layerStyleCacheBounds = (
+  bounds: Rect,
+  canvas: { width: number; height: number }
+): Rect => {
+  const left = Math.max(0, Math.floor(bounds.x));
+  const top = Math.max(0, Math.floor(bounds.y));
+  const right = Math.min(canvas.width, Math.ceil(bounds.x + bounds.width));
+  const bottom = Math.min(canvas.height, Math.ceil(bounds.y + bounds.height));
+  return {
+    x: left,
+    y: top,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top)
+  };
+};
 
 const transformedBounds = (
   width: number,
@@ -101,7 +118,7 @@ export const layerStyleCacheKey = (
 ].join(':');
 
 export const layerSourceStyleDocumentBounds = (
-  layer: RasterLayer | TextLayer,
+  layer: RasterLayer | TextLayer | VectorLayer,
   source: Pick<LayerSourceRenderContract, 'dimensions' | 'transform'>,
   canvas: { width: number; height: number }
 ): Rect => {

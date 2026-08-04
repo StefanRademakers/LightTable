@@ -2,9 +2,11 @@ import type {
   DocumentAssetId,
   GroupLayer,
   RasterLayer,
+  Rect,
   TextLayer,
   VectorLayer
 } from '../document/documentTypes';
+import { layerStyleCacheBounds } from '../styles/layerStyleRenderPlan';
 import {
   baseLayerStyleUniform,
   LAYER_STYLE_SETTINGS_BYTES,
@@ -28,6 +30,7 @@ interface LayerStyleRendererOptions {
   submittedResources: SubmittedResourceRetainer;
   dimensions: () => { width: number; height: number };
   createTexture: (label: string) => GPUTexture;
+  createTextureSized: (label: string, width: number, height: number) => GPUTexture;
   drawFullscreen: (
     encoder: GPUCommandEncoder,
     pipeline: GPURenderPipeline,
@@ -67,7 +70,8 @@ export class LayerStyleRenderer {
       options.fullscreenModule
     );
     this.textures = new LayerStyleTextureStore({
-      createTexture: options.createTexture
+      createTexture: options.createTexture,
+      createTextureSized: options.createTextureSized
     });
   }
 
@@ -114,6 +118,7 @@ export class LayerStyleRenderer {
     maskTexture: GPUTexture | null,
     inverse: AffineMatrix,
     sourceSize: { width: number; height: number },
+    styleBounds: Rect,
     cacheKey: string | null
   ) {
     const styleEffectPipeline = this.pipelineProvider.pipeline;
@@ -227,16 +232,17 @@ export class LayerStyleRenderer {
       );
       [current, target] = [target, current];
     });
-    if (!cacheKey) return current;
+    if (!cacheKey) return { texture: current, bounds: { x: 0, y: 0, width, height } };
+    const tightBounds = layerStyleCacheBounds(styleBounds, { width, height });
     this.textures.writeCache(
       encoder,
       layer.id,
       cacheKey,
       layer.name,
       current,
-      [width, height]
+      tightBounds
     );
-    return current;
+    return { texture: current, bounds: { x: 0, y: 0, width, height } };
   }
 
   destroy() {

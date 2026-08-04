@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayerStyle, createDefaultLayerStyleStack } from './layerStyleDefaults';
 import {
+  layerStyleCacheBounds,
   layerStyleCacheKey,
   layerStyleDocumentBounds,
   layerStyleExpansion,
@@ -16,6 +17,20 @@ const rasterLayer = (width: number, height: number) => {
 };
 
 describe('Layer Style render planning', () => {
+  it('rounds conservative style extents outward for lossless GPU copies', () => {
+    expect(layerStyleCacheBounds(
+      { x: 4.4, y: 5.8, width: 10.2, height: 20.1 },
+      { width: 100, height: 80 }
+    )).toEqual({ x: 4, y: 5, width: 11, height: 21 });
+  });
+
+  it('clips tight cache extents only at the document boundary', () => {
+    expect(layerStyleCacheBounds(
+      { x: -4.2, y: 72.4, width: 110.8, height: 20.2 },
+      { width: 100, height: 80 }
+    )).toEqual({ x: 0, y: 72, width: 100, height: 8 });
+  });
+
   it('keeps disabled and interior-only styles inside the source bounds', () => {
     const stack = createDefaultLayerStyleStack();
     stack.effects = [createDefaultLayerStyle('inner-shadow')];

@@ -9,11 +9,14 @@ const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2]);
 const sourceLayerId = Number(process.argv[3]);
 const runLabel = process.argv[4] ?? 'style-cache';
+const zoomPercent = process.argv[5] === undefined ? null : Number(process.argv[5]);
 if (!sourceFile || !Number.isInteger(sourceLayerId)) {
   throw new Error('Usage: audit-desktop-style-cache-lifecycle.mjs <file> <PSD source layer id> [label]');
 }
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'style-cache-lifecycle-audit');
 const reportPath = path.join(outputDirectory, `${runLabel}.json`);
+const hiddenScreenshotPath = path.join(outputDirectory, `${runLabel}-hidden.png`);
+const visibleScreenshotPath = path.join(outputDirectory, `${runLabel}-visible.png`);
 const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}-${runLabel}`);
 await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
@@ -53,6 +56,10 @@ try {
   if (!effects?.enabled || !effects.effects.some(({ enabled }) => enabled)) {
     throw new Error(`PSD layer ${sourceLayerId} has no enabled Layer Style.`);
   }
+  if (zoomPercent !== null) {
+    if (!Number.isFinite(zoomPercent) || zoomPercent <= 0) throw new Error('Zoom percent must be positive.');
+    await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: zoomPercent });
+  }
   await page.waitForTimeout(400);
   const canvas = page.locator('.lighttable-viewport__canvas');
   const settle = async () => {
@@ -78,7 +85,9 @@ try {
     }
     const hidden = await settle();
     hidden.wallMs = performance.now() - hideStartedAt;
-    hidden.screenshotHash = hash(await canvas.screenshot());
+    const hiddenScreenshot = await canvas.screenshot();
+    hidden.screenshotHash = hash(hiddenScreenshot);
+    if (cycle === 0) await writeFile(hiddenScreenshotPath, hiddenScreenshot);
 
     const showStartedAt = performance.now();
     await driver.execute(documentId, 'layer.setVisibility', { layerIds: [target.id], visible: true });
@@ -87,7 +96,9 @@ try {
     }
     const visible = await settle();
     visible.wallMs = performance.now() - showStartedAt;
-    visible.screenshotHash = hash(await canvas.screenshot());
+    const visibleScreenshot = await canvas.screenshot();
+    visible.screenshotHash = hash(visibleScreenshot);
+    if (cycle === 0) await writeFile(visibleScreenshotPath, visibleScreenshot);
     visibleReference ??= visible.screenshotHash;
     report.cycles.push({
       cycle: cycle + 1,

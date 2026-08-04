@@ -3,6 +3,7 @@ import {
   type ImageDocument,
   type LayerId,
   type RasterMask,
+  type Rect,
   type VectorLayer,
   type TextLayer,
   layerDerivedPreviewIsCurrent
@@ -166,16 +167,18 @@ export class LayerCompositor {
         maskTexture?: GPUTexture | null;
         mask?: RasterMask | null;
         clippingTexture?: GPUTexture | null;
+        sourceBounds?: Rect;
       }
     ) => {
+      const sourceBounds = settings.sourceBounds ?? { x: 0, y: 0, width, height };
       const settingsBuffer = this.createCompositeSettingsBuffer(
         settings.label,
         settings.opacity,
         Boolean(settings.mask?.enabled && settings.maskTexture),
         blendModeGpuValue(settings.blendMode),
         Boolean(settings.clippingTexture),
-        identityAffineMatrix(),
-        { width, height },
+        { a: 1, b: 0, c: 0, d: 1, tx: -sourceBounds.x, ty: -sourceBounds.y },
+        { width: sourceBounds.width, height: sourceBounds.height },
         settings.mask ?? null
       );
       const bindGroup = this.options.device.createBindGroup({
@@ -327,6 +330,7 @@ export class LayerCompositor {
             maskTexture,
             inverse,
             source.dimensions,
+            styleBounds,
             layerSourceStyleCacheKey(
               node,
               source,
@@ -334,11 +338,12 @@ export class LayerCompositor {
             )
           );
           if (styled) {
-            compositeTexture(background, styled, target, {
+            compositeTexture(background, styled.texture, target, {
               label: `LightTable styled text layer settings: ${node.name}`,
               opacity: node.opacity,
               blendMode: node.blendMode,
-              clippingTexture
+              clippingTexture,
+              sourceBounds: styled.bounds
             });
             return [target, background];
           }
@@ -433,14 +438,16 @@ export class LayerCompositor {
           runtime.maskTexture,
           inverse,
           renderContract.dimensions,
+          styleBounds,
           styleCacheKey
         );
         if (styled) {
-          compositeTexture(background, styled, target, {
+          compositeTexture(background, styled.texture, target, {
             label: `LightTable styled layer settings: ${layer.name}`,
             opacity: layer.opacity,
             blendMode: layer.blendMode,
-            clippingTexture
+            clippingTexture,
+            sourceBounds: styled.bounds
           });
           return [target, background];
         }
@@ -499,10 +506,11 @@ export class LayerCompositor {
             maskTexture,
             identityAffineMatrix(),
             { width, height },
+            { x: 0, y: 0, width, height },
             null
           )
         : null;
-      compositeTexture(background, styled ?? foreground, target, {
+      compositeTexture(background, styled?.texture ?? foreground, target, {
         label: `LightTable vector layer settings: ${layer.name}`,
         // LayerStyleRenderer already applies fillOpacity to the source while
         // retaining effects. Without styles the vector source still needs the
@@ -511,7 +519,8 @@ export class LayerCompositor {
         blendMode: layer.blendMode,
         maskTexture,
         mask: styled ? null : layer.mask,
-        clippingTexture
+        clippingTexture,
+        sourceBounds: styled?.bounds
       });
       return [target, background];
     };
@@ -541,6 +550,11 @@ export class LayerCompositor {
       const dimensions = { width: runtime.width, height: runtime.height };
       const maskTexture = this.options.maskTextureFor(layer.id);
       if (layerStyleStackIsActive(layer.styleStack)) {
+        const styleBounds = layerSourceStyleDocumentBounds(
+          layer,
+          { dimensions, transform: sourceToDocument },
+          { width, height }
+        );
         const styled = layerStyles.encode(
           encoder,
           layer,
@@ -548,14 +562,16 @@ export class LayerCompositor {
           maskTexture,
           inverse,
           dimensions,
+          styleBounds,
           null
         );
         if (styled) {
-          compositeTexture(background, styled, target, {
+          compositeTexture(background, styled.texture, target, {
             label: `LightTable derived-preview style settings: ${layer.name}`,
             opacity: layer.opacity,
             blendMode: layer.blendMode,
-            clippingTexture
+            clippingTexture,
+            sourceBounds: styled.bounds
           });
           return [target, background];
         }
@@ -667,16 +683,18 @@ export class LayerCompositor {
             maskTexture,
             identityAffineMatrix(),
             { width, height },
+            { x: 0, y: 0, width, height },
             null
           )
         : null;
-      compositeTexture(parentBackground, styledGroup ?? groupResult, parentTarget, {
+      compositeTexture(parentBackground, styledGroup?.texture ?? groupResult, parentTarget, {
         label: `LightTable group settings: ${group.name}`,
         opacity: group.opacity,
         blendMode: group.blendMode,
         maskTexture,
         mask: styledGroup ? null : group.mask,
-        clippingTexture
+        clippingTexture,
+        sourceBounds: styledGroup?.bounds
       });
       return [parentTarget, parentBackground];
     };

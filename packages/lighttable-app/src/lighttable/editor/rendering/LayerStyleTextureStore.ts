@@ -1,4 +1,4 @@
-import type { LayerId } from '../document/documentTypes';
+import type { LayerId, Rect } from '../document/documentTypes';
 
 export interface LayerStyleWorkTextures {
   shape: GPUTexture;
@@ -6,13 +6,15 @@ export interface LayerStyleWorkTextures {
   second: GPUTexture;
 }
 
-interface CachedStyleTexture {
+export interface CachedStyleTexture {
   key: string;
   texture: GPUTexture;
+  bounds: Rect;
 }
 
 export interface LayerStyleTextureStoreOptions {
   createTexture: (label: string) => GPUTexture;
+  createTextureSized: (label: string, width: number, height: number) => GPUTexture;
 }
 
 /**
@@ -38,7 +40,7 @@ export class LayerStyleTextureStore {
   cached(layerId: LayerId, key: string | null) {
     if (!key) return null;
     const cached = this.cache.get(layerId);
-    return cached?.key === key ? cached.texture : null;
+    return cached?.key === key ? cached : null;
   }
 
   writeCache(
@@ -47,19 +49,34 @@ export class LayerStyleTextureStore {
     key: string,
     layerName: string,
     source: GPUTexture,
-    size: GPUExtent3DStrict
+    bounds: Rect
   ) {
     let destination = this.cache.get(layerId);
-    if (!destination) {
+    if (
+      !destination
+      || destination.bounds.width !== bounds.width
+      || destination.bounds.height !== bounds.height
+    ) {
+      destination?.texture.destroy();
       destination = {
         key,
-        texture: this.options.createTexture(`LightTable cached Layer Style: ${layerName}`)
+        texture: this.options.createTextureSized(
+          `LightTable cached Layer Style: ${layerName}`,
+          bounds.width,
+          bounds.height
+        ),
+        bounds
       };
       this.cache.set(layerId, destination);
     } else {
       destination.key = key;
+      destination.bounds = bounds;
     }
-    encoder.copyTextureToTexture({ texture: source }, { texture: destination.texture }, size);
+    encoder.copyTextureToTexture(
+      { texture: source, origin: { x: bounds.x, y: bounds.y } },
+      { texture: destination.texture },
+      [bounds.width, bounds.height]
+    );
   }
 
   invalidate(layerId: LayerId) {
@@ -83,8 +100,12 @@ export class LayerStyleTextureStore {
   }
 
   estimatedTextureBytes(width: number, height: number) {
-    const bytesPerTexture = Math.max(1, width) * Math.max(1, height) * 8;
-    return (this.cache.size + (this.workTextures ? 3 : 0)) * bytesPerTexture;
+    const bytesPerWorkTexture = Math.max(1, width) * Math.max(1, height) * 8;
+    const cacheBytes = [...this.cache.values()].reduce(
+      (bytes, { bounds }) => bytes + bounds.width * bounds.height * 8,
+      0
+    );
+    return cacheBytes + (this.workTextures ? 3 * bytesPerWorkTexture : 0);
   }
 
   destroy() {

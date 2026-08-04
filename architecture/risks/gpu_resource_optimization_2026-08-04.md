@@ -107,6 +107,45 @@ repeatable audit stays available as `npm run audit:desktop:style-cache`; future
 memory-pressure or long-idle policies must beat the same fidelity and latency
 gate without adding general cache infrastructure prematurely.
 
+## Experiment 4 — tight persistent Layer Style caches
+
+Layer Style evaluation remains full-document RGBA16F and uses the existing
+three full-size work targets. Only the persistent, derived result cache is
+copied to conservative integer bounds around the styled source. Cache bounds
+are computed from the transformed source plus the existing maximum outer
+effect expansion, rounded outwards and clipped only at the document canvas.
+The compositor receives the cached texture together with its document-space
+bounds; document data, effect parameters and effect algorithms are unchanged.
+
+Production Electron A/B results:
+
+| Fixture | Full-document cache | Tight cache | Reduction | Baseline show median | Tight show median |
+|---|---:|---:|---:|---:|---:|
+| `EHS-395`, raster Color Overlay | 2812.2 MiB total | 2287.7 MiB total | 524.5 MiB | 260.8–263.1 ms | 259.7 ms |
+| `EHS-404`, raster Gradient Overlay | 2089.8 MiB total | 1999.3 MiB total | 90.5 MiB | 225.9 ms | 229.5 ms |
+
+Each lifecycle run used six hide/show cycles. Every restored image was stable
+within its run and no page, console, runtime or WebGPU error occurred. The
+complete Layer Style reference plan additionally exercised context, solo,
+bypass, stacked effects, fill opacity and 400% zoom. Enabled solo Color,
+Pattern, Gradient and Drop Shadow captures were pixel-exact against the
+full-document-cache build. Existing dormant PSD Drop Shadow and Outer Glow
+instances were also enabled on a raster fixture; their stacked captures
+preserved the complete outer halo and matched the baseline styled pixels.
+
+The 400% Gradient lifecycle capture was pixel-exact. The 400% Color lifecycle
+capture differed on 176 of 1,051,350 pixels (0.016740%), always by at most one
+8-bit channel step; the effect-only reference was pixel-exact and no shape,
+edge, crop or halo difference occurred. Context captures showed the same
+maximum-one-step background presentation noise in their bypass images. This
+is below visible output precision and is not a Layer Style fidelity change.
+
+Decision: retain tight persistent caches. They remove the largest measured
+repeated Layer Style allocation without changing canonical data, effect
+evaluation, settled visual output or warm interaction latency. The known
+Photoshop-fidelity gaps in individual Layer Style algorithms remain a separate
+quality task and must not be hidden by cache work.
+
 ## CPU-to-GPU transfer finding
 
 The four toggled effects do not upload image-sized CPU data when enabled. They
@@ -123,8 +162,7 @@ GPU-only effect path.
 
 ## Next experiments
 
-1. Instrument and compare Layer Style full-document caches against tight-bounds
-   caches and replay cost.
-2. Add resource lifetime telemetry before aliasing full-frame temporaries.
-3. Test inactive-document/hidden-layer eviction and restoration latency.
-4. Only then test cold CPU tile compression and checkpointed stroke replay.
+1. Add resource lifetime telemetry before aliasing full-frame temporaries.
+2. Test inactive-document eviction and restoration latency; immediate
+   hidden-layer eviction has already failed the latency gate.
+3. Only then test cold CPU tile compression and checkpointed stroke replay.

@@ -113,6 +113,7 @@ export const createLayerDocumentRendererRuntime = (
     submittedResources,
     dimensions: resources.dimensions,
     createTexture: (label) => textures.createColor(label),
+    createTextureSized: (label, width, height) => textures.createColorSized(label, width, height),
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
   });
