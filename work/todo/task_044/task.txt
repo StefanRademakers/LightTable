@@ -25,11 +25,12 @@ Status: active
   `architecture/PSD_PSB_EXPORT_SCOPE.md`: PSD v1 starts as a fail-closed Export
   with a mandatory composite and four-axis Photoshop reopen gates; PSB is a
   separate milestone. No misleading Save PSD command is exposed.
-- [ ] Audit PDF open UX for password handling, page selection, multipage files
-  and semantic import without presenting the current raster preview as editable
-  PDF structure.
-- [ ] Harden PDF export UX and validation for unsupported layer interleaving,
-  fonts, transparency and multiple pages.
+- [x] Audit PDF open UX for password handling, page selection, multipage files
+  and semantic import in `architecture/PDF_OPEN_AND_EXPORT_AUDIT.md`; current
+  page-1 raster/preserved-source behavior and every remaining limit are explicit.
+- [x] Harden PDF export UX and validation for unsupported layer interleaving,
+  fonts, transparency and multiple pages. Existing planners remain fail-closed,
+  and preflight now explicitly states that it writes one current-canvas page.
 - [x] Add File > Format Support using the existing dialog/button/select design
   system and one tested runtime capability registry aligned with the automatic
   Open route; PSD/PSB/AI export remain explicitly unavailable.

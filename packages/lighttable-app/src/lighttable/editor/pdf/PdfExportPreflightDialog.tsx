@@ -227,6 +227,12 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
           <ActionButton onClick={onClose}>Close</ActionButton>
         </header>
         <div className="lighttable-psd-report__metrics">
+          <span>
+            This export writes exactly one PDF page from the current LightTable canvas.
+            Other pages from an imported multipage PDF are not included.
+          </span>
+        </div>
+        <div className="lighttable-psd-report__metrics">
           <span>{plan.layers.length} text layer{plan.layers.length === 1 ? '' : 's'}</span>
           <span>{plan.summary.subset} subset</span>
           <span>{plan.summary['embed-existing'] + plan.summary['embed-full']} embedded</span>
