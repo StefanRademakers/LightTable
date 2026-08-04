@@ -33,6 +33,33 @@
   -webkit-user-select: none;
 }
 
+/*
+ * Chromium treats portal-mounted menus and dialogs as document text because
+ * they live outside `.lighttable`. Keep every application chrome surface
+ * desktop-like while preserving intentional editing/diagnostic selection.
+ */
+.lighttable-launcher,
+.lighttable-tool-options-menu-layout,
+.lighttable-tool-options__gradient-popover,
+.context-menu,
+.modal-backdrop {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lighttable-launcher input,
+.lighttable-launcher textarea,
+.lighttable-tool-options-menu-layout input,
+.lighttable-tool-options-menu-layout textarea,
+.lighttable-tool-options__gradient-popover input,
+.lighttable-tool-options__gradient-popover textarea,
+.modal-backdrop input,
+.modal-backdrop textarea,
+.modal-backdrop [contenteditable='true'] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .lighttable img {
   -webkit-user-drag: none;
 }
