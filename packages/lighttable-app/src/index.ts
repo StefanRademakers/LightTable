@@ -49,6 +49,7 @@ export {
   type LightTableCommandErrorCode,
   type LightTableCommandId,
   type LightTableCommandPorts,
+  type LightTableWorkspaceCommandPorts,
   type DocumentLightTableCommandPorts,
   type LightTableCommandRequest,
   type LightTableCommandResult,
@@ -57,6 +58,15 @@ export {
   type WorkspaceDocumentSummary,
   type WorkspaceQueryResult
 } from './lighttable/application/commands/lightTableCommandService';
+export {
+  AuthenticatedLightTableMcpAdapter,
+  LIGHTTABLE_MCP_PROTOCOL_VERSION,
+  type AuthenticatedLightTableMcpAdapterOptions,
+  type LightTableMcpActivityEntry,
+  type LightTableMcpMethod,
+  type LightTableMcpRequest,
+  type LightTableMcpResult
+} from './lighttable/application/commands/lightTableMcpAdapter';
 export {
   DocumentTaskRegistry,
   type DocumentTaskContext,
