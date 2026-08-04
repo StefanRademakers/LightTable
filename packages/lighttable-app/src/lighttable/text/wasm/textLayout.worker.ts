@@ -184,9 +184,15 @@ const handleLayoutRequest = async (data: TextWorkerRequest) => {
     return;
   }
   if (data.kind === 'release-session') {
-    layoutSessions.get(key)?.paragraphs.clear();
+    const state = layoutSessions.get(key);
+    state?.paragraphs.clear();
     layoutSessions.delete(key);
-    dropLayoutSession(key);
+    // Opening a PSD replaces the provisional image document before the lazy
+    // text runtime has necessarily initialized. Releasing that empty session
+    // must not call wasm-bindgen exports while its module instance is absent.
+    // A JS session can only exist after successful WASM font registration, so
+    // skipping the native drop here is exact rather than a leaked resource.
+    if (state) dropLayoutSession(key);
     const response: TextLayoutWorkerResponse = {
       kind: 'session-released',
       protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
