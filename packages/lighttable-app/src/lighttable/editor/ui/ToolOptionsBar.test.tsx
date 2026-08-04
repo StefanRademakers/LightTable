@@ -171,7 +171,7 @@ describe('selection strip tool options', () => {
 describe('point text tool options', () => {
   it('shows the exact shared text authoring controls with truthful capabilities', () => {
     const markup = renderOptions('text-point');
-    expect(markup).toContain('Point text');
+    expect(markup).toContain('Type tool');
     expect(markup).toContain('<span>Font</span>');
     expect(markup).toContain('Inter');
     expect(markup).toContain('<span>Style</span>');

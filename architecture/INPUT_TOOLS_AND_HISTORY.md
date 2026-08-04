@@ -81,6 +81,14 @@ both explicit controls and right-click/Delete removal. Application settings
 stay in the consuming property bar instead of being duplicated in the stop
 editor.
 
+Point and paragraph text are outcomes of one Type Tool, not separate toolbar
+modes. Pointer-down starts a single text-creation gesture: release within four
+screen pixels creates point text, while a larger drag creates a paragraph
+frame. The threshold is evaluated in screen space so zoom does not change the
+interaction. The legacy `text-paragraph` tool identifier remains readable for
+older sessions, but new UI and commands keep the Type Tool active when changing
+an existing layer between point and paragraph layout.
+
 ## Selection model
 
 Selections are document-space authoring state. Rectangle, ellipse, freehand and

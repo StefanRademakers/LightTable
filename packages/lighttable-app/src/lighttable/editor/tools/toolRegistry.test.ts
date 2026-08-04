@@ -39,9 +39,9 @@ describe('toolRegistry', () => {
       'vector-convert-anchor'
     ]);
   });
-  it('defines point, paragraph and path text as one toolbar family', () => {
+  it('keeps point/paragraph gesture-derived and exposes only Type and Path modes', () => {
     expect(TEXT_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
-      'text-point', 'text-paragraph', 'text-path'
+      'text-point', 'text-path'
     ]);
   });
   it('defines Gradient and Paint Bucket as one toolbar family', () => {
@@ -112,7 +112,7 @@ describe('toolRegistry', () => {
     expect(toolForShortcut('U', true)).toBe('shape-ellipse');
     expect(toolForShortcutCycle('t', 'view', false)).toBe('text-point');
     expect(toolForShortcutCycle('t', 'text-point', true)).toBe('text-path');
-    expect(toolForShortcutCycle('t', 'text-paragraph', false)).toBe('text-path');
+    expect(toolForShortcutCycle('t', 'text-paragraph', false)).toBe('text-point');
     expect(toolForShortcutCycle('t', 'text-path', false)).toBe('text-point');
   });
 

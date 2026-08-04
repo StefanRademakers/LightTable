@@ -507,7 +507,7 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent === 'text-create' && point) {
-        if (activeTool === 'text-paragraph') {
+        if (activeTool === 'text-point' || activeTool === 'text-paragraph') {
           if (textGesture.beginParagraph(event.pointerId, point)) {
             event.currentTarget.setPointerCapture(event.pointerId);
           }

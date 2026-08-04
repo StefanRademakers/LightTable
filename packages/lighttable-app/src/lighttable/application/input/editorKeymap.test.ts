@@ -235,7 +235,7 @@ describe('editor keymap', () => {
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 't', code: 'KeyT' }),
       context({ activeTool: 'text-paragraph' })
-    )).toEqual({ type: 'activate-tool', tool: 'text-path' });
+    )).toEqual({ type: 'activate-tool', tool: 'text-point' });
   });
 
   it('routes plain F to the workspace screen-mode command', () => {

@@ -151,7 +151,8 @@ import {
   defaultTextStyleForFamily,
   resolvePathTextCreationTarget,
   type PathTextCreationTarget,
-  resolveTextToolFont
+  resolveTextToolFont,
+  textCreationKind
 } from './application/text/pointTextCreation';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
@@ -2057,7 +2058,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       origin,
       8 / Math.max(activeScale, 1e-6)
     )) return true;
-    if (beginExistingFlowTextEditing(origin, 'paragraph', pointerId)) return true;
+    if (beginExistingFlowTextEditing(origin, 'any', pointerId)) return true;
     pointTextController.cancel();
     textEditingController.finish();
     paragraphCanvasCreationPendingRef.current = false;
@@ -2130,6 +2131,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     point: { x: number; y: number }
   ) => {
     paragraphTextController.move(pointerId, point);
+    const request = paragraphTextController.getSnapshot().request;
+    if (request && textCreationKind(request.start, request.end, activeScale) === 'point') {
+      const origin = request.start;
+      paragraphCanvasCreationPendingRef.current = false;
+      paragraphTextController.cancel();
+      void beginPointTextCreation(origin);
+      return true;
+    }
     if (!paragraphTextController.finish(pointerId)) return false;
     paragraphCanvasCreationPendingRef.current = true;
     if (selectedPointTextFont()) commitParagraphCanvasTextRef.current();
@@ -3184,7 +3193,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (after === before) return;
     applyDocumentSnapshot(after);
     pushDocumentHistory(before, after);
-    activatePersistentTool(mode === 'paragraph' ? 'text-paragraph' : 'text-point');
+    activatePersistentTool('text-point');
     if (restoreEditing) textEditingController.begin(layerId, restoreOffset);
   };
   const beginTextPropertyGesture = (): boolean => {

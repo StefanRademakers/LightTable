@@ -53,10 +53,11 @@ describe('EditorToolbar', () => {
     expect(activeMarkup).not.toContain('aria-label="Pen (P)"');
   });
 
-  it('exposes point text as an accessible grouped toolbar slot', () => {
+  it('exposes one Type Tool for click-created point and drag-created paragraph text', () => {
     const markup = renderToolbar('text-point');
-    expect(markup).toContain('aria-label="Point text (T)"');
+    expect(markup).toContain('aria-label="Type tool (T)"');
     expect(markup).toContain('aria-label="Show text tools"');
+    expect(markup).not.toContain('aria-label="Paragraph text"');
     expect(markup).toContain('aria-pressed="true"');
   });
 });

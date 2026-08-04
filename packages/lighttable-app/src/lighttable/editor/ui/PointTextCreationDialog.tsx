@@ -31,7 +31,7 @@ export const PointTextCreationDialog: React.FC<PointTextCreationDialogProps> = (
       className="lighttable-point-text"
       role="dialog"
       aria-modal="true"
-      aria-label="Create point text"
+      aria-label="Create text"
       data-editor-native-tab-navigation
       onKeyDown={(event) => {
         if (event.key !== 'Tab') return;

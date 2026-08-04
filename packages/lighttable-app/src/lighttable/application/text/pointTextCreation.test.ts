@@ -25,8 +25,18 @@ import {
   createPointTextDocument,
   defaultTextStyleForFamily,
   resolvePathTextCreationTarget,
-  resolveTextToolFont
+  resolveTextToolFont,
+  textCreationKind
 } from './pointTextCreation';
+
+describe('Type Tool gesture', () => {
+  it('uses a zoom-independent screen threshold for point versus paragraph text', () => {
+    expect(textCreationKind({ x: 10, y: 10 }, { x: 11, y: 10 }, 2)).toBe('point');
+    expect(textCreationKind({ x: 10, y: 10 }, { x: 13, y: 10 }, 2)).toBe('paragraph');
+    expect(textCreationKind({ x: 10, y: 10 }, { x: 16, y: 10 }, 0.5)).toBe('point');
+    expect(textCreationKind({ x: 10, y: 10 }, { x: 19, y: 10 }, 0.5)).toBe('paragraph');
+  });
+});
 
 const font: DocumentFontAsset = {
   assetId: 'inter',

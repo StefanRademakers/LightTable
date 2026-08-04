@@ -15,7 +15,7 @@ describe('PointTextCreationDialog', () => {
     );
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain('aria-modal="true"');
-    expect(markup).toContain('aria-label="Create point text"');
+    expect(markup).toContain('aria-label="Create text"');
     expect(markup).toContain('data-editor-native-tab-navigation="true"');
     expect(markup).toContain('<span>Text</span>');
     expect(markup).toContain('type="button">Cancel</button>');

@@ -169,7 +169,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     id: 'text-point',
-    label: 'Point text',
+    label: 'Type tool',
     shortcutLabel: 'T',
     shortcutKey: 't',
     iconName: 'tool_text.png',
@@ -252,9 +252,9 @@ export const PEN_TOOL_DEFINITIONS: readonly ToolDefinition[] =
     'vector-convert-anchor'
   ].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
-/** Text authoring modes share one remembered toolbar slot. */
+/** User-facing Type modes share one slot; point/paragraph is gesture-derived. */
 export const TEXT_TOOL_DEFINITIONS: readonly ToolDefinition[] =
-  TOOL_DEFINITIONS.filter(({ role }) => role === 'text');
+  ['text-point', 'text-path'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
 /** Gradient and Paint Bucket share Photoshop's G toolbar slot. */
 export const FILL_TOOL_DEFINITIONS: readonly ToolDefinition[] =
@@ -288,7 +288,7 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   },
   {
     key: 't',
-    tools: ['text-point', 'text-paragraph', 'text-path']
+    tools: ['text-point', 'text-path']
   },
   {
     key: 'u',

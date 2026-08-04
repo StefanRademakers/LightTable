@@ -91,7 +91,7 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'shape-ellipse': 'Ellipse',
   'shape-triangle': 'Triangle',
   'shape-line': 'Line',
-  'text-point': 'Point text',
+  'text-point': 'Type tool',
   'text-paragraph': 'Paragraph text',
   'text-path': 'Path text'
 };

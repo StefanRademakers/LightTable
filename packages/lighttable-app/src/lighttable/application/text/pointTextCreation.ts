@@ -134,6 +134,17 @@ export const defaultTextStyleForFamily = (
     || left.assetId.localeCompare(right.assetId)
   )[0]?.styleName ?? null;
 
+/** Resolve one Type Tool pointer gesture in screen-space, independent of zoom. */
+export const textCreationKind = (
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  documentScale: number,
+  dragThresholdPx = 4
+): 'point' | 'paragraph' => Math.hypot(end.x - start.x, end.y - start.y)
+  * Math.max(documentScale, 1e-6) < dragThresholdPx
+  ? 'point'
+  : 'paragraph';
+
 export class PointTextCreationController {
   private snapshot: PointTextCreationSnapshot = { status: 'idle', request: null };
   private readonly listeners = new Set<() => void>();
