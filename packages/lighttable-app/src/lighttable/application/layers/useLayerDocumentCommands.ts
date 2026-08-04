@@ -311,40 +311,29 @@ export const createLayerDocumentCommands = (
       return false;
     }
 
-    renderer.beginLayerPixelEdit(plan.destinationId);
-    if (!renderer.mergeLayers(current, plan.layerIds, plan.destinationId)) {
-      renderer.cancelPixelEdit();
+    const next = mergeDocumentLayers(current, plan.layerIds);
+    const destination = findRasterLayer(next, next.activeLayerId);
+    if (next === current || !destination || !renderer.prepareRasterDestination(destination)) {
+      dependenciesRef.current.setError('The full-canvas merge destination could not be allocated.');
+      return false;
+    }
+    if (!renderer.mergeLayers(current, plan.layerIds, destination.id)) {
+      renderer.releaseRasterDestination(destination.id);
       dependenciesRef.current.setError('The selected layers could not be merged on the GPU.');
       return false;
     }
-
-    const pixelEdit = renderer.finishPixelEdit();
-    if (!pixelEdit) {
-      renderer.cancelPixelEdit();
-      dependenciesRef.current.setError(
-        'The merged result could not create a recoverable undo step.'
-      );
-      return false;
-    }
-    const next = mergeDocumentLayers(current, plan.layerIds);
     dependenciesRef.current.applyDocumentSnapshot(next);
     dependenciesRef.current.pushHistoryEntry({
-      byteSize: pixelEdit.byteSize,
-      layerIds: plan.layerIds,
+      byteSize: current.width * current.height * 8,
+      layerIds: [...plan.layerIds, destination.id],
       undo: () => {
         dependenciesRef.current.applyDocumentSnapshot(current);
-        if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
-          throw new Error('Merge undo is no longer available.');
-        }
       },
       redo: () => {
-        if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
-          throw new Error('Merge redo is no longer available.');
-        }
         dependenciesRef.current.applyDocumentSnapshot(next);
-      },
-      dispose: pixelEdit.destroy
+      }
     });
+    renderer.commitRasterDestination(destination.id);
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setError(null);
     return true;
@@ -395,46 +384,35 @@ export const createLayerDocumentCommands = (
       return false;
     }
 
-    renderer.beginLayerPixelEdit(plan.destinationId);
-    const rendered = request.kind === 'group'
-      ? renderer.flattenGroup(current, request.groupId, plan.destinationId)
-      : renderer.flattenImage(current, plan.destinationId);
-    if (!rendered) {
-      renderer.cancelPixelEdit();
-      dependenciesRef.current.setError('The layer stack could not be flattened on the GPU.');
-      return false;
-    }
-
-    const pixelEdit = renderer.finishPixelEdit();
     const next = request.kind === 'group'
       ? flattenGroup(current, request.groupId)
       : flattenImage(current);
-    if (!pixelEdit || next === current) {
-      pixelEdit?.destroy();
-      dependenciesRef.current.setError(
-        'The flattened result could not create a recoverable undo step.'
-      );
+    const destination = findRasterLayer(next, next.activeLayerId);
+    if (next === current || !destination || !renderer.prepareRasterDestination(destination)) {
+      dependenciesRef.current.setError('The full-canvas flatten destination could not be allocated.');
+      return false;
+    }
+    const rendered = request.kind === 'group'
+      ? renderer.flattenGroup(current, request.groupId, destination.id)
+      : renderer.flattenImage(current, destination.id);
+    if (!rendered) {
+      renderer.releaseRasterDestination(destination.id);
+      dependenciesRef.current.setError('The layer stack could not be flattened on the GPU.');
       return false;
     }
 
     dependenciesRef.current.applyDocumentSnapshot(next);
     dependenciesRef.current.pushHistoryEntry({
-      byteSize: pixelEdit.byteSize,
-      layerIds: plan.layerIds,
+      byteSize: current.width * current.height * 8,
+      layerIds: [...plan.layerIds, destination.id],
       undo: () => {
         dependenciesRef.current.applyDocumentSnapshot(current);
-        if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
-          throw new Error('Flatten undo is no longer available.');
-        }
       },
       redo: () => {
-        if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
-          throw new Error('Flatten redo is no longer available.');
-        }
         dependenciesRef.current.applyDocumentSnapshot(next);
-      },
-      dispose: pixelEdit.destroy
+      }
     });
+    renderer.commitRasterDestination(destination.id);
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setError(null);
     dependenciesRef.current.setStatus(

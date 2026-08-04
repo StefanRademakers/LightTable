@@ -55,7 +55,7 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 
 | Feature | Detect | Preserve | Display | Render | Edit/Create | Export | Verify | Current truth |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Partial | Native manifest v5 preserves the v4 tight bounds and offsets; merge/export and complete corpus gates remain. |
+| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Yes native | Native manifest v5 preserves tight bounds and offsets. Merge/flatten use a separate full-canvas runtime and retain tight sources for undo/redo; the ten-file corpus and packaged EHS-396 bake smoke pass. |
 | Groups and nesting | Yes | Yes | Yes | Yes | Yes | No | Partial | 33 pass-through groups occur in nine corpus files; exact contextual parity is not fully signed off. |
 | Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v5 save/reopen retains the v4 tight-raster contract and is verified on painted EHS-396 content. |
 | Opacity | Yes | Yes | Yes | Yes | Yes | No | Partial | Nineteen partial-opacity layers occur in seven documents. |
@@ -135,8 +135,11 @@ and the document transform. Readers retain v1-v3 compatibility with their
 historic document-sized raster interpretation. A painted tight EHS-396 layer
 has been saved and reopened with its pixels and placement intact.
 
-**Remaining verification:** Complete the ordinary, translated,
-negative-origin, oversized, merge and export matrix under Task 047.
+**Verification:** Ordinary, translated, negative-origin and oversized surfaces
+retain their local contract. The packaged EHS-396 bake smoke merges two tight,
+translated sources into a new document-sized runtime, restores both originals
+on undo and restores the baked destination on redo without a page error. The
+ten-document corpus, web build, packaged desktop build and export tests pass.
 
 **Owner:** Task 047. **Priority:** P0.
 

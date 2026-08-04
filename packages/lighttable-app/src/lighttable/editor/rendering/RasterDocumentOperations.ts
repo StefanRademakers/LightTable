@@ -55,7 +55,9 @@ export class RasterDocumentOperations {
     const source = layerResources.raster(sourceId);
     const destination = layerResources.raster(destinationId);
     if (!source || !destination) return false;
-    const { width, height } = this.options.dimensions();
+    if (source.width !== destination.width || source.height !== destination.height) return false;
+    const { width, height } = source;
+    const documentDimensions = this.options.dimensions();
     const encoder = device.createCommandEncoder({
       label: 'LightTable duplicate raster layer'
     });
@@ -68,7 +70,7 @@ export class RasterDocumentOperations {
       encoder.copyTextureToTexture(
         { texture: source.maskTexture },
         { texture: destination.maskTexture },
-        [width, height]
+        [documentDimensions.width, documentDimensions.height]
       );
     }
     device.queue.submit([encoder.finish()]);
@@ -104,6 +106,7 @@ export class RasterDocumentOperations {
     if (!runtime) return false;
     const { device } = this.options;
     const { width, height } = this.options.dimensions();
+    if (destination.width !== width || destination.height !== height) return false;
     const encoder = device.createCommandEncoder({ label: 'LightTable rasterize text layer' });
     const renderedTexture = this.options.encodeComposite(encoder, {
       ...document,
@@ -155,6 +158,7 @@ export class RasterDocumentOperations {
       )
     ) return false;
     const { width, height } = this.options.dimensions();
+    if (destination.width !== width || destination.height !== height) return false;
     const encoder = device.createCommandEncoder({
       label: 'LightTable merge selected layers'
     });
@@ -191,6 +195,7 @@ export class RasterDocumentOperations {
       (layer) => !this.options.textSourceReady!(layer)
     )) return false;
     const { width, height } = this.options.dimensions();
+    if (destination.width !== width || destination.height !== height) return false;
     const encoder = device.createCommandEncoder({ label: 'LightTable flatten group' });
     const flattenedTexture = this.options.encodeComposite(
       encoder,
@@ -223,6 +228,7 @@ export class RasterDocumentOperations {
       (layer) => !this.options.textSourceReady!(layer)
     )) return false;
     const { width, height } = this.options.dimensions();
+    if (destination.width !== width || destination.height !== height) return false;
     const encoder = device.createCommandEncoder({ label: 'LightTable flatten image' });
     const flattenedTexture = this.options.encodeComposite(
       encoder,

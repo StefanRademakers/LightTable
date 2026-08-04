@@ -408,8 +408,9 @@ describe('LightTable document commands', () => {
     const merged = mergeLayerDown(withVector, withVector.activeLayerId!);
 
     expect(merged.layers).toHaveLength(1);
+    expect(merged.layers[0]?.id).not.toBe(base.layers[0]!.id);
     expect(merged.layers[0]).toMatchObject({
-      id: base.layers[0]!.id, type: 'raster', name: 'Shape', opacity: 1,
+      type: 'raster', name: 'Shape', opacity: 1,
       fillOpacity: 1, blendMode: 'normal', transform: translationMatrix(0, 0)
     });
   });
@@ -421,16 +422,16 @@ describe('LightTable document commands', () => {
     const [background, middleLayer, top] = document.layers;
 
     const merged = mergeLayers(document, [top.id, middleLayer.id]);
-    expect(merged.layers.map((layer) => layer.id)).toEqual([background.id, middleLayer.id]);
+    expect(merged.layers[0]?.id).toBe(background.id);
+    expect(merged.layers[1]?.id).not.toBe(middleLayer.id);
     expect(merged.layers[1]).toMatchObject({
-      id: middleLayer.id,
       name: 'Top',
       opacity: 1,
       fillOpacity: 1,
       blendMode: 'normal',
       mask: null
     });
-    expect(merged.activeLayerId).toBe(middleLayer.id);
+    expect(merged.activeLayerId).toBe(merged.layers[1]?.id);
 
     expect(mergeLayers(document, [background.id, top.id])).toBe(document);
     const grouped = createGroupLayer(document, 'Group');
@@ -526,8 +527,8 @@ describe('LightTable document commands', () => {
 
     const flattenedGroup = flattenGroup(grouped, groupId);
     expect(flattenedGroup.layers.map((layer) => layer.name)).toEqual(['Background', 'Retouch']);
+    expect(flattenedGroup.layers[1]?.id).not.toBe(paint.id);
     expect(flattenedGroup.layers[1]).toMatchObject({
-      id: paint.id,
       type: 'raster',
       transform: translationMatrix(0, 0),
       opacity: 1

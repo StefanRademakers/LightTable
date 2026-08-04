@@ -54,7 +54,11 @@ describe('LightTableCommandService queries', () => {
     expect(document.canvas).toEqual({ width: 80, height: 60 });
     expect(document.layerCount).toBe(2);
     expect(layers).toHaveLength(2);
-    expect(layers[0]).toEqual(expect.objectContaining({ depth: 0, hasMask: false }));
+    expect(layers[0]).toEqual(expect.objectContaining({
+      depth: 0,
+      hasMask: false,
+      rasterSurface: { width: 80, height: 60, offsetX: 0, offsetY: 0 }
+    }));
     state.service.dispose();
     state.workspace.dispose();
   });

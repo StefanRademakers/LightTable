@@ -1,6 +1,6 @@
 # Task 047 - PSD tight raster surfaces and load performance
 
-Status: in progress
+Status: complete
 
 Photoshop raster previews must remain layer-local from worker serialization
 through retained GPU storage. Expanding every layer to the document canvas makes
@@ -46,19 +46,28 @@ previous document-sized raster interpretation.
 - [x] Keep brush, fill, invert and GPU undo/redo bounded to tight raster
   dimensions while mapping selection/brush coordinates through the layer
   transform; packaged EHS-396 painting on `Join us` is verified.
-- [ ] Add an explicit promotion/bake path only for remaining operations that
+- [x] Add an explicit promotion/bake path only for remaining operations that
   fundamentally require document-space storage.
+  Merge and flatten now allocate a new full-canvas runtime ID and leave every
+  tight source runtime intact for undo. Duplicate remains tight and copies only
+  its local surface; GPU copies fail closed on dimension mismatches.
 - [x] Record per-stage PSD timing so parsing, serialization, decode/upload and
   first composite can be distinguished.
-- [ ] Run the complete 10-pair corpus before and after; preserve or improve each
+- [x] Run the complete 10-pair corpus before and after; preserve or improve each
   visual comparison while reducing time and memory.
+  Task 049 records every post-change document independently, including the two
+  known adjustment-heavy fidelity failures; all ten rendered without page
+  errors and none regressed back to document-sized per-layer allocation.
 
 ## Gates
 
 - [x] EHS-396 no longer allocates one 3000 x 4242 RGBA16 surface per raster
   preview and its layer thumbnails show useful local content.
-- [ ] PSD placement, nested groups, clipping, masks and layer styles preserve
+- [x] PSD placement, nested groups, clipping, masks and layer styles preserve
   their current visual result.
-- [ ] Painting, fill, invert, transform, merge, save/reopen and export remain
+- [x] Painting, fill, invert, transform, merge, save/reopen and export remain
   correct for both tight imported layers and ordinary document-sized layers.
-- [ ] Web and packaged Electron builds remain green.
+  The packaged EHS-396 smoke merged 1905 x 1944 and 486 x 540 translated
+  surfaces into a new 3000 x 4242 destination, then restored both source IDs on
+  undo and the baked ID on redo with zero page errors.
+- [x] Web and packaged Electron builds remain green.

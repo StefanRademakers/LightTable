@@ -375,7 +375,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
-  it('merges contiguous raster layers with recoverable pixel history', () => {
+  it('merges contiguous tight raster layers into a reversible full-canvas destination', () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));
     const layerIds = state.document().layers.map((layer) => layer.id);
@@ -383,13 +383,18 @@ describe('useLayerDocumentCommands', () => {
     expect(state.commands.mergeSelectedRasterLayers(layerIds)).toBe(true);
 
     expect(state.document().layers).toHaveLength(1);
+    const mergedId = state.document().layers[0]!.id;
+    expect(mergedId).not.toBe(layerIds[0]);
+    expect(state.document().layers[0]).toMatchObject({ width: 32, height: 24 });
+    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(
+      expect.objectContaining({ id: mergedId, width: 32, height: 24 })
+    );
     expect(state.historyEntries).toHaveLength(1);
     state.historyEntries[0].undo();
     expect(state.document().layers).toHaveLength(2);
-    expect(state.renderer.applyPixelHistory).toHaveBeenCalledWith(
-      expect.anything(),
-      'undo'
-    );
+    expect(state.renderer.applyPixelHistory).not.toHaveBeenCalled();
+    state.historyEntries[0].redo();
+    expect(state.document().layers[0]?.id).toBe(mergedId);
   });
 
   it('merges the active raster layer down and reports the completed command', () => {
@@ -403,6 +408,27 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
+  it('flattens into a new full-canvas runtime and restores source runtimes on undo', () => {
+    const first = createImageDocument('Test', 32, 24, 'asset');
+    const state = setup(createRasterLayer(first, 'Top'));
+    const sourceIds = state.document().layers.map(({ id }) => id);
+
+    expect(state.commands.flatten({ kind: 'image' })).toBe(true);
+
+    const destination = state.document().layers[0];
+    expect(destination).toMatchObject({ type: 'raster', width: 32, height: 24 });
+    expect(sourceIds).not.toContain(destination?.id);
+    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(destination);
+    expect(state.renderer.flattenImage).toHaveBeenCalledWith(
+      expect.anything(), destination?.id
+    );
+    expect(state.historyEntries).toHaveLength(1);
+    state.historyEntries[0].undo();
+    expect(state.document().layers.map(({ id }) => id)).toEqual(sourceIds);
+    state.historyEntries[0].redo();
+    expect(state.document().layers[0]?.id).toBe(destination?.id);
+  });
+
   it('bakes an active vector shape into the raster layer below with pixel history', () => {
     const document = createImageDocument('Vector merge', 32, 24, 'asset');
     const vector = createVectorLayer([
@@ -411,17 +437,18 @@ describe('useLayerDocumentCommands', () => {
     document.layers.push(vector);
     document.activeLayerId = vector.id;
     const state = setup(document);
-    const destinationId = document.layers[0]!.id;
+    const sourceDestinationId = document.layers[0]!.id;
 
     expect(state.commands.mergeActiveLayerDown()).toBe(true);
 
     expect(state.renderer.mergeLayers).toHaveBeenCalledWith(
-      expect.anything(), [destinationId, vector.id], destinationId
+      expect.anything(), [sourceDestinationId, vector.id], state.document().layers[0]!.id
     );
     expect(state.document().layers).toHaveLength(1);
     expect(state.document().layers[0]).toMatchObject({
-      id: destinationId, type: 'raster', name: 'Shape', blendMode: 'normal'
+      type: 'raster', name: 'Shape', blendMode: 'normal', width: 32, height: 24
     });
+    expect(state.document().layers[0]?.id).not.toBe(sourceDestinationId);
     expect(state.historyEntries).toHaveLength(1);
   });
 
@@ -430,17 +457,18 @@ describe('useLayerDocumentCommands', () => {
     expect(state.commands.createAdjustmentLayer()).toBe(true);
     expect(state.document().layers.at(-1)?.type).toBe('adjustment');
     const sourceIds = state.document().layers.map((layer) => layer.id);
-    const destinationId = sourceIds[0];
+    const sourceDestinationId = sourceIds[0];
 
     expect(state.commands.mergeActiveLayerDown()).toBe(true);
 
     expect(state.renderer.mergeLayers).toHaveBeenLastCalledWith(
       expect.anything(),
       sourceIds,
-      destinationId
+      state.document().layers[0]!.id
     );
     expect(state.document().layers).toHaveLength(1);
     expect(state.document().layers[0]?.type).toBe('raster');
+    expect(state.document().layers[0]?.id).not.toBe(sourceDestinationId);
     expect(state.historyEntries).toHaveLength(2);
   });
 

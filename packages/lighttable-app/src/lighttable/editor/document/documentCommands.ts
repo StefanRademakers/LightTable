@@ -910,29 +910,33 @@ const flattenedRaster = (
   document: ImageDocument,
   source: RasterLayer,
   name: string
-): RasterLayer => ({
-  ...source,
-  name,
-  visible: true,
-  opacity: 1,
-  fillOpacity: 1,
-  blendMode: 'normal',
-  clipping: false,
-  styleStack: createDefaultLayerStyleStack(),
-  adjustmentStack: null,
-  transform: identityAffineMatrix(),
-  mask: null,
-  width: document.width,
-  height: document.height,
-  offsetX: 0,
-  offsetY: 0,
-  pixelSource: { kind: 'runtime-raster', runtimeId: source.id },
-  geometryRevision: source.geometryRevision + 1,
-  pixelRevision: source.pixelRevision + 1,
-  revision: source.revision + 1,
-  modifiedAt: Date.now(),
-  dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
-});
+): RasterLayer => {
+  const id = createLayerId();
+  return {
+    ...source,
+    id,
+    name,
+    visible: true,
+    opacity: 1,
+    fillOpacity: 1,
+    blendMode: 'normal',
+    clipping: false,
+    styleStack: createDefaultLayerStyleStack(),
+    adjustmentStack: null,
+    transform: identityAffineMatrix(),
+    mask: null,
+    width: document.width,
+    height: document.height,
+    offsetX: 0,
+    offsetY: 0,
+    pixelSource: { kind: 'runtime-raster', runtimeId: id },
+    geometryRevision: source.geometryRevision + 1,
+    pixelRevision: source.pixelRevision + 1,
+    revision: source.revision + 1,
+    modifiedAt: Date.now(),
+    dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
+  };
+};
 
 export const flattenGroup = (
   document: ImageDocument,
@@ -1049,8 +1053,10 @@ export const mergeLayers = (
   const destination = findRasterLayer(document, plan.destinationId);
   if (!destination) return document;
   const now = Date.now();
+  const id = createLayerId();
   const merged: RasterLayer = {
     ...destination,
+    id,
     name: plan.name,
     opacity: 1,
     fillOpacity: 1,
@@ -1058,7 +1064,11 @@ export const mergeLayers = (
     clipping: false,
     styleStack: createDefaultLayerStyleStack(),
     adjustmentStack: null,
-    pixelSource: { kind: 'runtime-raster', runtimeId: destination.id },
+    width: document.width,
+    height: document.height,
+    offsetX: 0,
+    offsetY: 0,
+    pixelSource: { kind: 'runtime-raster', runtimeId: id },
     mask: null,
     transform: identityAffineMatrix(),
     geometryRevision: destination.geometryRevision + 1,

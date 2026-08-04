@@ -15,11 +15,15 @@ describe('RasterDocumentOperations', () => {
     const invalidateLayer = vi.fn();
     const source = {
       texture: texture('source'),
+      width: 320,
+      height: 180,
       maskTexture: texture('source mask'),
       maskId: 'mask-source'
     };
     const destination = {
       texture: texture('destination'),
+      width: 320,
+      height: 180,
       maskTexture: texture('destination mask'),
       maskId: 'mask-destination'
     };
@@ -46,7 +50,7 @@ describe('RasterDocumentOperations', () => {
       1,
       { texture: source.texture },
       { texture: destination.texture },
-      [1920, 1080]
+      [320, 180]
     );
     expect(submit).toHaveBeenCalledWith(['commands']);
     expect(invalidateLayer).toHaveBeenCalledWith('destination');
@@ -90,7 +94,13 @@ describe('RasterDocumentOperations', () => {
       } as unknown as GPUDevice,
       layerResources: {
         raster: (id: string) => id === destinationId
-          ? { texture: destinationTexture, maskTexture: null, maskId: null } : null
+          ? {
+              texture: destinationTexture,
+              width: 64,
+              height: 32,
+              maskTexture: null,
+              maskId: null
+            } : null
       } as never,
       dimensions: () => ({ width: 64, height: 32 }),
       encodeComposite,

@@ -122,6 +122,13 @@ export interface LayerQuerySummary {
   readonly clipping: boolean;
   readonly hasMask: boolean;
   readonly hasActiveEffects: boolean;
+  readonly transform: LayerNode['transform'];
+  readonly rasterSurface: {
+    readonly width: number;
+    readonly height: number;
+    readonly offsetX: number;
+    readonly offsetY: number;
+  } | null;
 }
 
 export interface CommandCapabilitySummary {
@@ -311,7 +318,14 @@ export class LightTableCommandService {
       blendMode: node.blendMode,
       clipping: node.clipping,
       hasMask: Boolean(node.mask),
-      hasActiveEffects: layerStyleStackIsActive(node.styleStack)
+      hasActiveEffects: layerStyleStackIsActive(node.styleStack),
+      transform: { ...node.transform },
+      rasterSurface: node.type === 'raster' ? {
+        width: node.width,
+        height: node.height,
+        offsetX: node.offsetX,
+        offsetY: node.offsetY
+      } : null
     }));
   }
 
