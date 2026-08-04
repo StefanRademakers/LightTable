@@ -8,7 +8,7 @@ const defaultCorpusRoot = 'D:\\mediavibe\\LightTableTestFiles\\psd\\templates\\S
 const defaultOutput = path.join(
   workspaceRoot,
   'work',
-  'todo',
+  'done',
   'task_049_psd_template_corpus_feature_audit',
   'corpus-inventory.json'
 );

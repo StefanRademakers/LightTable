@@ -1,5 +1,5 @@
 param(
-  [string]$Inventory = "work\todo\task_049_psd_template_corpus_feature_audit\corpus-inventory.json",
+  [string]$Inventory = "work\done\task_049_psd_template_corpus_feature_audit\corpus-inventory.json",
   [string]$OutputDirectory = "tmp\task-049\photoshop"
 )
 

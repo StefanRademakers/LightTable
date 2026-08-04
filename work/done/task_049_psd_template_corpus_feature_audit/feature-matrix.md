@@ -145,8 +145,13 @@ canonical contracts above have been reviewed.
 
 ## Audit limitations and remaining evidence
 
-- Produce solo and dependency-context captures for representative high-risk
-  adjustment, mask, style, vector-stroke, smart-object and off-canvas layers.
+- Seven representative high-risk adjustment, mask, style, vector-stroke,
+  smart-object and off-canvas layers now have repeatable Photoshop and
+  LightTable context/solo captures. Both manifests report seven successful
+  captures; the LightTable pass reports zero page errors. The isolated
+  EHS-396 `FRAME` case also preserves concrete evidence of the reported
+  composite-looking/foreign content inside a supposedly isolated layer, so
+  that defect is not hidden by a document-level comparison.
 - Re-run the LightTable compatibility-dialog capture after the packaged desktop
   automation startup regression is resolved; the existing diagnostic logs
   already contain the per-layer support summaries used here.

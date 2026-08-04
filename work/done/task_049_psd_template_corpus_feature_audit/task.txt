@@ -1,6 +1,6 @@
 # Task 049 - PSD template corpus feature audit
 
-Status: in progress
+Status: complete
 
 Inventory all ten matching PSD/reference-image pairs below
 `D:\mediavibe\LightTableTestFiles\psd\templates\Save the Date Invitation PSD 6`
@@ -21,8 +21,13 @@ document.
   masks, blend mode, opacity, fill opacity, styles, adjustment descriptors,
   text/font state, vector data and smart-object data where present.
 - [x] Capture a Photoshop reference and LightTable result for every document.
-- [ ] For suspect layers, capture both a solo render and an in-context render;
+- [x] For suspect layers, capture both a solo render and an in-context render;
   isolation alone is insufficient for clipping, adjustment and group blending.
+  Result: seven representative adjustment, style, vector-stroke, smart-object,
+  mask and off-canvas cases were captured in Photoshop and packaged
+  LightTable with zero capture failures or LightTable page errors. The scripts,
+  target plan and manifests make the pass repeatable; generated PNG evidence
+  remains under `tmp/task-049/suspect-references/`.
 - [x] Index parser-preserved, raster-fallback, partially mapped and unsupported
   features without changing rendering during the audit.
 - [x] Group recurring gaps into candidate implementation tasks and rank them by

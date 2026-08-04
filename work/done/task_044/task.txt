@@ -1,6 +1,6 @@
 # Task 044 - PSD/PDF open, save and editable overlay audit
 
-Status: active
+Status: complete
 
 ## Verified current behavior
 
@@ -19,8 +19,10 @@ Status: active
 - [x] Expose the existing structured document/PSD compatibility report through
   File > Document Compatibility Report, capability-gated and using the shared
   dialog/control/CSS system.
-- [ ] Continue auditing PSD import gaps against representative fixtures and
+- [x] Continue auditing PSD import gaps against representative fixtures and
   record structural, editable, visual and round-trip parity separately.
+  Task 049 now contains the ten-document inventory, prioritised feature matrix
+  and repeatable Photoshop/LightTable context plus solo reference captures.
 - [x] Decide and specify PSD/PSB export scope in
   `architecture/PSD_PSB_EXPORT_SCOPE.md`: PSD v1 starts as a fail-closed Export
   with a mandatory composite and four-axis Photoshop reopen gates; PSB is a

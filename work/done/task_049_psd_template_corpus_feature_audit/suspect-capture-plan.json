@@ -1,0 +1,9 @@
+[
+  { "document": "EHS-395", "address": "7.1", "name": "Gradient Map 1", "occurrence": 0, "lightTableOccurrence": 0, "cluster": "adjustment-scope" },
+  { "document": "EHS-395", "address": "4.4", "name": "Shape", "occurrence": 15, "lightTableOccurrence": 0, "cluster": "pattern-style-vector" },
+  { "document": "EHS-396", "address": "1.28", "name": "FRAME", "occurrence": 0, "lightTableOccurrence": 1, "cluster": "vector-stroke" },
+  { "document": "EHS-396", "address": "1.0", "name": "GOLDEN STROKE", "occurrence": 0, "lightTableOccurrence": 1, "cluster": "smart-object-off-canvas" },
+  { "document": "EHS-404", "address": "0.1", "name": "Background", "occurrence": 1, "lightTableOccurrence": 0, "cluster": "gradient-overlay" },
+  { "document": "EHS-406", "address": "0.1.2", "name": "FRAME", "occurrence": 0, "lightTableOccurrence": 1, "cluster": "mask-stroke-drop-shadow" },
+  { "document": "EHS-409", "address": "0.1.0", "name": "GOLD LINE", "occurrence": 0, "lightTableOccurrence": 0, "cluster": "off-canvas-blend" }
+]

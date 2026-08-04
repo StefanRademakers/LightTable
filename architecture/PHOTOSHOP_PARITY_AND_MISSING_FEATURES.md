@@ -41,9 +41,9 @@ The current real-world baseline is the ten-template Save the Date corpus below
 - All ten open to a rendered frame in packaged LightTable without a page error.
 - Reconstruction/reference difference ranges from 0.40% to 98.39%.
 - Detailed per-layer evidence:
-  [`corpus-inventory.json`](../work/todo/task_049_psd_template_corpus_feature_audit/corpus-inventory.json).
+  [`corpus-inventory.json`](../work/done/task_049_psd_template_corpus_feature_audit/corpus-inventory.json).
 - Analysis and prioritization:
-  [`feature-matrix.md`](../work/todo/task_049_psd_template_corpus_feature_audit/feature-matrix.md).
+  [`feature-matrix.md`](../work/done/task_049_psd_template_corpus_feature_audit/feature-matrix.md).
 
 The corpus is useful but not complete. It contains no clipping layers, text on
 path, warped text, gradient/pattern fill-layer types or Smart Filters. Those
