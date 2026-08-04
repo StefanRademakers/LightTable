@@ -117,6 +117,27 @@ describe('VectorDocumentController', () => {
     });
   });
 
+  it('releases a live-shape preview without writing vector history for pixel baking', () => {
+    const state = setup();
+    const opening = state.document;
+    const shape = createVectorLiveShape('pixel-shape', {
+      kind: 'ellipse', width: 40, height: 20
+    });
+    const placement = state.controller.beginElementCreation(shape, 'Pixels', {
+      alwaysCreateLayer: true
+    });
+    const transaction = state.controller.releaseElementCreation();
+
+    expect(transaction).toMatchObject({
+      beforeDocument: opening,
+      previewDocument: state.document,
+      layerId: placement?.layerId,
+      elementId: shape.id
+    });
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.commitElementCreation()).toBe(false);
+  });
+
   it('converts a live shape through the atomic application boundary', () => {
     const state = setup();
     const shape = createVectorLiveShape('shape', {

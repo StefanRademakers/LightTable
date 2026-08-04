@@ -36,7 +36,7 @@ export interface ToolOptionsProps {
   textLayoutMode?: 'point' | 'paragraph' | null;
   selectedVectorStyle?: VectorToolStyleSettings | null;
   selectedShape?: EditorSession['shape'] | null;
-  selectedShapeKind?: 'rectangle' | 'ellipse' | null;
+  selectedShapeKind?: 'rectangle' | 'ellipse' | 'line' | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
   selectionRowHeight: number;
@@ -189,7 +189,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   const changeShape = selectedShape && onSelectedShapeChange
     ? onSelectedShapeChange : onShapeChange;
   const shapeGeometryActive = activeTool === 'shape-rectangle'
-    || activeTool === 'shape-ellipse' || Boolean(selectedShapeKind);
+    || activeTool === 'shape-ellipse' || activeTool === 'shape-line' || Boolean(selectedShapeKind);
   const rectangleGeometryActive = selectedShapeKind
     ? selectedShapeKind === 'rectangle' : activeTool === 'shape-rectangle';
   const presentedGradient = presentedVectorStyle.fillPaint
@@ -381,6 +381,14 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {shapeGeometryActive ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Shape geometry">
+          <ToolOptionSelect label="Mode" value={shape.mode}
+            aria-label="Shape application mode"
+            onChange={(event) => onShapeChange({
+              mode: event.currentTarget.value as EditorSession['shape']['mode']
+            })}>
+            <option value="shape">Shape</option>
+            <option value="pixels">Pixels</option>
+          </ToolOptionSelect>
           <ToolOptionSelect label="Geometry" value={presentedShape.geometry}
             aria-label="Shape geometry mode"
             onChange={(event) => changeShape({
@@ -426,6 +434,45 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                         )) as [number, number, number, number] });
                   }} />
               ))}
+            </>
+          ) : null}
+          {(selectedShapeKind ? selectedShapeKind === 'line' : activeTool === 'shape-line') ? (
+            <>
+              <ToolOptionNumber label="Angle" unit="deg" min={-360} max={360} step={1}
+                value={presentedShape.lineRotationDegrees}
+                onChange={(lineRotationDegrees) => changeShape({ lineRotationDegrees })} />
+              <ToolOptionSelect label="Style" value={presentedShape.lineStyle}
+                aria-label="Line style"
+                onChange={(event) => changeShape({
+                  lineStyle: event.currentTarget.value as EditorSession['shape']['lineStyle']
+                })}>
+                <option value="solid">Solid</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+              </ToolOptionSelect>
+              <div className="lighttable-tool-options__line-ends" role="group" aria-label="Arrowheads">
+                <button type="button" aria-label="Start arrowhead"
+                  aria-pressed={presentedShape.lineStartArrow}
+                  onClick={() => changeShape({ lineStartArrow: !presentedShape.lineStartArrow })}>
+                  <img src={lightTableIcon('arrow-left.png')} alt="" aria-hidden />
+                </button>
+                <button type="button" aria-label="No arrowheads"
+                  aria-pressed={!presentedShape.lineStartArrow && !presentedShape.lineEndArrow}
+                  onClick={() => changeShape({ lineStartArrow: false, lineEndArrow: false })}>
+                  <img src={lightTableIcon('horizontal-line.png')} alt="" aria-hidden />
+                </button>
+                <button type="button" aria-label="End arrowhead"
+                  aria-pressed={presentedShape.lineEndArrow}
+                  onClick={() => changeShape({ lineEndArrow: !presentedShape.lineEndArrow })}>
+                  <img src={lightTableIcon('arrow-right.png')} alt="" aria-hidden />
+                </button>
+              </div>
+              <ToolOptionNumber label="Arrow W" unit="px" min={0} max={10000} step={1}
+                value={presentedShape.lineArrowWidth}
+                onChange={(lineArrowWidth) => changeShape({ lineArrowWidth: Math.max(0, lineArrowWidth) })} />
+              <ToolOptionNumber label="Arrow L" unit="px" min={0} max={10000} step={1}
+                value={presentedShape.lineArrowLength}
+                onChange={(lineArrowLength) => changeShape({ lineArrowLength: Math.max(0, lineArrowLength) })} />
             </>
           ) : null}
         </div>

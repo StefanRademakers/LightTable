@@ -79,6 +79,21 @@ describe('createLiveShapeFromDrag', () => {
     expect(shape.style.fill).toBeNull();
     expect(shape.style.stroke?.width).toBe(3);
   });
+
+  it('keeps independent parametric arrowheads on an editable line', () => {
+    const shape = createLiveShapeFromDrag(
+      'arrow-line', { x: 10, y: 10 }, { x: 110, y: 40 }, {
+        kind: 'line',
+        startArrow: { width: 12, length: 18, concavity: 0 },
+        endArrow: { width: 20, length: 28, concavity: 0.25 }
+      }, style
+    );
+    expect(shape.geometry).toMatchObject({
+      kind: 'line',
+      startArrow: { width: 12, length: 18, concavity: 0 },
+      endArrow: { width: 20, length: 28, concavity: 0.25 }
+    });
+  });
 });
 
 describe('resolveLiveShapeDrag', () => {

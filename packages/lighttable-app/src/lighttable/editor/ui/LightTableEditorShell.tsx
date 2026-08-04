@@ -29,7 +29,7 @@ export interface LightTableEditorShellProps {
   textLayoutMode?: 'point' | 'paragraph' | null;
   selectedVectorStyle: EditorSession['vectorStyle'] | null;
   selectedShape: EditorSession['shape'] | null;
-  selectedShapeKind: 'rectangle' | 'ellipse' | null;
+  selectedShapeKind: 'rectangle' | 'ellipse' | 'line' | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: EditorSession['selectionCombineMode'];
   selectionRowHeight: number;

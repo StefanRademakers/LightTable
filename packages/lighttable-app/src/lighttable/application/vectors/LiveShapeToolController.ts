@@ -13,6 +13,7 @@ import {
 } from '@lighttable/vector-core';
 import type { LayerId } from '../../editor/document/documentTypes';
 import { VectorDocumentController } from './VectorDocumentController';
+import type { VectorElementCreationTransaction } from './VectorDocumentController';
 
 export type LiveShapeToolPreset =
   | { kind: 'rectangle'; cornerRadii?: [number, number, number, number]; linkedCorners?: boolean }
@@ -47,6 +48,8 @@ export interface LiveShapeDragOptions {
   proportionalRatio?: number;
   /** Align authored geometry to document pixel boundaries. */
   snapToPixels?: boolean;
+  /** Create a temporary vector layer that the host will bake into a raster target. */
+  rasterize?: boolean;
 }
 
 export interface LiveShapeDragUpdateOptions extends LiveShapeDragOptions {
@@ -259,7 +262,8 @@ export class LiveShapeToolController {
       fromCenter: options.fromCenter ?? this.dragOptions.fromCenter,
       fixedSize: options.fixedSize ?? this.dragOptions.fixedSize,
       proportionalRatio: options.proportionalRatio ?? this.dragOptions.proportionalRatio,
-      snapToPixels: options.snapToPixels ?? this.dragOptions.snapToPixels
+      snapToPixels: options.snapToPixels ?? this.dragOptions.snapToPixels,
+      rasterize: options.rasterize ?? this.dragOptions.rasterize
     };
     const dx = position.x - this.start.x;
     const dy = position.y - this.start.y;
@@ -290,7 +294,9 @@ export class LiveShapeToolController {
     }
 
     if (!this.shape) {
-      const placement = this.documents.beginElementCreation(draft, this.layerName);
+      const placement = this.documents.beginElementCreation(draft, this.layerName, {
+        alwaysCreateLayer: Boolean(dragOptions.rasterize)
+      });
       if (!placement || placement.element.type !== 'live-shape') {
         this.reset();
         return false;
@@ -320,6 +326,21 @@ export class LiveShapeToolController {
     const committed = this.documents.commitElementCreation();
     this.reset();
     return committed;
+  }
+
+  pointerUpForRaster(
+    position: Vec2,
+    options: LiveShapeDragUpdateOptions = {}
+  ): VectorElementCreationTransaction | null {
+    if (!this.start) return null;
+    this.pointerMove(position, { ...options, rasterize: true });
+    if (!this.shape) {
+      this.reset();
+      return null;
+    }
+    const transaction = this.documents.releaseElementCreation();
+    this.reset();
+    return transaction;
   }
 
   cancel() {

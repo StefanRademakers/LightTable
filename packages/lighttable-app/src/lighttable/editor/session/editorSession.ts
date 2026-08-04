@@ -184,6 +184,12 @@ export interface ShapeToolSettings {
   snapToPixels: boolean;
   rectangleCornerRadii: [number, number, number, number];
   linkedCorners: boolean;
+  lineStyle: 'solid' | 'dashed' | 'dotted';
+  lineStartArrow: boolean;
+  lineEndArrow: boolean;
+  lineArrowWidth: number;
+  lineArrowLength: number;
+  lineRotationDegrees: number;
 }
 
 export interface TextToolSettings {
@@ -265,7 +271,13 @@ export const createEditorSession = (): EditorSession => ({
     fromCenter: false,
     snapToPixels: true,
     rectangleCornerRadii: [0, 0, 0, 0],
-    linkedCorners: true
+    linkedCorners: true,
+    lineStyle: 'solid',
+    lineStartArrow: false,
+    lineEndArrow: false,
+    lineArrowWidth: 18,
+    lineArrowLength: 24,
+    lineRotationDegrees: 0
   },
   text: {
     family: 'Inter',

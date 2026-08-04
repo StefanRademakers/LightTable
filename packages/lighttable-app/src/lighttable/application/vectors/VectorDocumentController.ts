@@ -75,6 +75,13 @@ interface ActiveElementCreation {
   beforeDocument: ImageDocument;
 }
 
+export interface VectorElementCreationTransaction {
+  readonly beforeDocument: ImageDocument;
+  readonly previewDocument: ImageDocument;
+  readonly layerId: LayerId;
+  readonly elementId: string;
+}
+
 export interface VectorPathCreationPlacement {
   layerId: LayerId;
   /** Path rebased for persistence in the selected vector layer. */
@@ -320,14 +327,28 @@ export class VectorDocumentController {
   }
 
   commitElementCreation() {
-    const active = this.activeCreation;
-    if (!active) return false;
-    this.activeCreation = null;
-    const dependencies = this.resolveDependencies();
-    const document = dependencies.getDocument();
-    if (document?.id !== active.documentId) return false;
-    dependencies.pushDocumentHistory(active.beforeDocument, document);
+    const transaction = this.releaseElementCreation();
+    if (!transaction) return false;
+    this.resolveDependencies().pushDocumentHistory(
+      transaction.beforeDocument,
+      transaction.previewDocument
+    );
     return true;
+  }
+
+  /** Releases a complete preview so a host can atomically bake it to pixels. */
+  releaseElementCreation(): VectorElementCreationTransaction | null {
+    const active = this.activeCreation;
+    if (!active) return null;
+    this.activeCreation = null;
+    const document = this.resolveDependencies().getDocument();
+    if (document?.id !== active.documentId) return null;
+    return {
+      beforeDocument: active.beforeDocument,
+      previewDocument: document,
+      layerId: active.layerId,
+      elementId: active.elementId
+    };
   }
 
   cancelElementCreation() {

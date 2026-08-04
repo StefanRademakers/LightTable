@@ -12,6 +12,7 @@ import {
   vectorToolActivation
 } from '../../editor/tools/vectorToolCatalog';
 import { VectorToolSessionController } from './VectorToolSessionController';
+import type { VectorElementCreationTransaction } from './VectorDocumentController';
 
 export interface VectorToolSessionHookOptions {
   readonly document: ImageDocument | null;
@@ -29,6 +30,7 @@ export interface VectorToolSessionHookOptions {
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
+  readonly rasterizeShape: (transaction: VectorElementCreationTransaction) => boolean;
 }
 
 /**
@@ -53,13 +55,16 @@ export const useVectorToolSessionController = ({
   strokeAlignment,
   applyDocumentSnapshot,
   pushDocumentHistory,
-  publishSelection
+  publishSelection,
+  rasterizeShape
 }: VectorToolSessionHookOptions): VectorToolSessionController => {
   const portsRef = useRef({
     document,
     selection,
     foregroundColor,
     gradient,
+    shape,
+    activeTool,
     fillColor,
     fillEnabled,
     strokeColor,
@@ -68,13 +73,16 @@ export const useVectorToolSessionController = ({
     strokeAlignment,
     applyDocumentSnapshot,
     pushDocumentHistory,
-    publishSelection
+    publishSelection,
+    rasterizeShape
   });
   portsRef.current = {
     document,
     selection,
     foregroundColor,
     gradient,
+    shape,
+    activeTool,
     fillColor,
     fillEnabled,
     strokeColor,
@@ -83,7 +91,8 @@ export const useVectorToolSessionController = ({
     strokeAlignment,
     applyDocumentSnapshot,
     pushDocumentHistory,
-    publishSelection
+    publishSelection,
+    rasterizeShape
   };
 
   const controllerRef = useRef<VectorToolSessionController | null>(null);
@@ -114,10 +123,13 @@ export const useVectorToolSessionController = ({
           ? { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) } : null,
         stroke: portsRef.current.strokeEnabled
           ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth,
-            portsRef.current.strokeAlignment) : null,
+            portsRef.current.strokeAlignment,
+            portsRef.current.activeTool === 'shape-line'
+              ? portsRef.current.shape.lineStyle : 'solid') : null,
         opacity: 1
       }),
-      gradientSettings: () => portsRef.current.gradient
+      gradientSettings: () => portsRef.current.gradient,
+      rasterizeShape: (transaction) => portsRef.current.rasterizeShape(transaction)
     });
   }
 
@@ -140,11 +152,22 @@ export const useVectorToolSessionController = ({
             cornerRadii: [...shape.rectangleCornerRadii],
             linkedCorners: shape.linkedCorners
           }
-        : activation.preset
+        : activation.preset.kind === 'line'
+          ? {
+              ...activation.preset,
+              startArrow: shape.lineStartArrow ? {
+                width: shape.lineArrowWidth, length: shape.lineArrowLength, concavity: 0
+              } : null,
+              endArrow: shape.lineEndArrow ? {
+                width: shape.lineArrowWidth, length: shape.lineArrowLength, concavity: 0
+              } : null
+            }
+          : activation.preset
     );
     controller.activate(activation.mode);
   }, [activeTool, document?.id, gradient.application, shape.linkedCorners,
-    shape.rectangleCornerRadii]);
+    shape.rectangleCornerRadii, shape.lineStartArrow, shape.lineEndArrow,
+    shape.lineArrowWidth, shape.lineArrowLength]);
 
   // Delay destruction by one microtask. React development StrictMode performs
   // a synthetic setup/cleanup/setup cycle; the generation guard prevents that
@@ -169,7 +192,8 @@ export const useVectorToolSessionController = ({
 const createStroke = (
   color: string,
   width: number,
-  alignment: VectorToolStyleSettings['strokeAlignment']
+  alignment: VectorToolStyleSettings['strokeAlignment'],
+  lineStyle: EditorSession['shape']['lineStyle'] = 'solid'
 ): NonNullable<VectorStyle['stroke']> => ({
   paint: { type: 'solid', color: cssHexToLinearRgba(color) },
   width: Math.max(0.1, width),
@@ -177,7 +201,7 @@ const createStroke = (
   cap: 'round',
   join: 'round',
   miterLimit: 4,
-  dash: [],
+  dash: lineStyle === 'dashed' ? [4, 3] : lineStyle === 'dotted' ? [1, 2] : [],
   dashOffset: 0
 });
 

@@ -1,0 +1,28 @@
+UX Line Tool
+
+Tool hotkey: U
+Press Shift + U to cycle through the Shape tools until Line Tool is selected.
+
+Main properties
+Mode — create a Shape, or Pixels.
+Stroke — line color.
+Stroke width — line thickness.
+Stroke style — solid, dashed, or dotted.
+Stroke alignment — inside, center, or outside the path.
+Weight
+Arrowheads — add an arrowhead at the start, end, or both ends. (we have icons, horizontal line, arrow-left, arrow-right)
+Width / Height — exact dimensions of the selected line shape.
+Rotation angle — exact line rotation.
+Controls and shortcuts
+Draw a line: click and drag.
+Constrain to 45° increments: hold Shift.
+Draw outward from the center: hold Alt.
+Draw from the center at constrained angles: hold Alt + Shift.
+Move while drawing: hold Spacebar.
+Select or edit the line path: A.
+Move the whole shape layer: V.
+Free Transform: Ctrl + T.
+Duplicate while moving: hold Alt.
+Undo: Ctrl + Z.
+
+macOS: replace Alt with Option and Ctrl with Cmd.

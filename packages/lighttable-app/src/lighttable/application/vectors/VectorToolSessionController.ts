@@ -27,6 +27,7 @@ import {
 } from './LiveShapeToolController';
 import {
   VectorDocumentController,
+  type VectorElementCreationTransaction,
   type VectorDocumentControllerDependencies
 } from './VectorDocumentController';
 import { VectorSelectionCommandController } from './VectorSelectionCommandController';
@@ -55,6 +56,7 @@ export interface VectorToolSessionOptions {
   gradientSettings?: () => GradientToolSettingsSnapshot;
   layerName?: string;
   pathName?: string;
+  rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean;
 }
 
 export interface VectorPointerDownOptions extends LiveShapeDragOptions {
@@ -67,6 +69,7 @@ interface CapturedPointer {
   readonly id: number;
   readonly mode: VectorToolMode;
   readonly documentId: ImageDocument['id'];
+  readonly rasterize?: boolean;
 }
 
 /**
@@ -91,11 +94,13 @@ export class VectorToolSessionController {
   private activeMode: VectorToolMode | null = null;
   private documentId: ImageDocument['id'] | null;
   private disposed = false;
+  private readonly rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean;
 
   constructor(
     private readonly dependencies: VectorToolSessionDependencies,
     options: VectorToolSessionOptions = {}
   ) {
+    this.rasterizeShape = options.rasterizeShape;
     this.documentId = dependencies.getDocument()?.id ?? null;
     this.documents = new VectorDocumentController(() => this.dependencies);
     this.directSelection = new DirectSelectionToolController(this.documents, dependencies);
@@ -213,7 +218,12 @@ export class VectorToolSessionController {
       if (!result.capture) return true;
     }
 
-    this.capturedPointer = { id: pointerId, mode: this.activeMode, documentId };
+    this.capturedPointer = {
+      id: pointerId,
+      mode: this.activeMode,
+      documentId,
+      rasterize: this.activeMode === 'live-shape' && options.rasterize
+    };
     return true;
   }
 
@@ -250,7 +260,17 @@ export class VectorToolSessionController {
     if (capture.mode === 'direct-selection') {
       return this.directSelection.pointerUp(documentPoint);
     }
-    if (capture.mode === 'live-shape') return this.liveShape.pointerUp(documentPoint, options);
+    if (capture.mode === 'live-shape') {
+      if (options.rasterize || capture.rasterize) {
+        const transaction = this.liveShape.pointerUpForRaster(documentPoint, options);
+        if (!transaction || !this.rasterizeShape?.(transaction)) {
+          if (transaction) this.dependencies.applyDocumentSnapshot(transaction.beforeDocument);
+          return false;
+        }
+        return true;
+      }
+      return this.liveShape.pointerUp(documentPoint, options);
+    }
     if (capture.mode === 'gradient') return this.gradient.pointerUp(
       documentPoint,
       options.preserveAspect

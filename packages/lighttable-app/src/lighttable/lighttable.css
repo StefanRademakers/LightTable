@@ -252,6 +252,33 @@
   width: 100%;
 }
 
+.lighttable-tool-options__line-ends {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lighttable-tool-options__line-ends button {
+  width: 29px;
+  height: 25px;
+  padding: 3px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  background: var(--lt-surface-control);
+}
+
+.lighttable-tool-options__line-ends button[aria-pressed='true'] {
+  border-color: var(--lt-accent);
+  background: var(--lt-accent-selected);
+}
+
+.lighttable-tool-options__line-ends img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .lighttable-point-text {
   position: fixed;
   inset: 0;

@@ -35,7 +35,13 @@ describe('LightTable editor session', () => {
       fromCenter: false,
       snapToPixels: true,
       rectangleCornerRadii: [0, 0, 0, 0],
-      linkedCorners: true
+      linkedCorners: true,
+      lineStyle: 'solid',
+      lineStartArrow: false,
+      lineEndArrow: false,
+      lineArrowWidth: 18,
+      lineArrowLength: 24,
+      lineRotationDegrees: 0
     });
   });
 

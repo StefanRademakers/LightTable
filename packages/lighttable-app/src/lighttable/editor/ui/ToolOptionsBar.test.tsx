@@ -83,6 +83,19 @@ describe('vector style tool options', () => {
     expect(ellipse).not.toContain('Link corners');
   });
 
+  it('surfaces exact line geometry, style and independent arrowhead controls', () => {
+    const markup = renderOptions('shape-line');
+    expect(markup).toContain('aria-label="Shape geometry"');
+    expect(markup).toContain('aria-label="Line style"');
+    expect(markup).toContain('aria-label="Arrowheads"');
+    expect(markup).toContain('aria-label="Start arrowhead"');
+    expect(markup).toContain('aria-label="No arrowheads"');
+    expect(markup).toContain('aria-label="End arrowhead"');
+    expect(markup).toContain('Angle');
+    expect(markup).toContain('Arrow W');
+    expect(markup).toContain('Arrow L');
+  });
+
   it('surfaces native Gradient Tool geometry and quality controls', () => {
     const markup = renderOptions('gradient');
     expect(markup).toContain('aria-label="Edit gradient"');

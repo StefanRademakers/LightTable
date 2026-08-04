@@ -52,6 +52,14 @@ try {
   await page.keyboard.press('Shift+u');
   await page.keyboard.press('d');
   await page.getByText('Line', { exact: true }).first().waitFor({ state: 'visible' });
+  await page.getByLabel('Line style').selectOption('dashed');
+  await page.getByRole('button', { name: 'End arrowhead' }).click();
+  if (await page.getByRole('button', { name: 'End arrowhead' }).getAttribute('aria-pressed') !== 'true') {
+    throw new Error('The end-arrowhead control did not become active.');
+  }
+  await page.getByText('Angle', { exact: true }).waitFor({ state: 'visible' });
+  await page.getByText('Arrow W', { exact: true }).waitFor({ state: 'visible' });
+  await page.getByText('Arrow L', { exact: true }).waitFor({ state: 'visible' });
 
   const viewport = page.locator('.lighttable-viewport');
   const bounds = await viewport.boundingBox();
@@ -101,6 +109,40 @@ try {
     const runtimeText = await page.locator('body').innerText();
     throw new Error(`Ctrl+Z did not undo the line command: ${JSON.stringify({ before, afterPathSelection, afterMove, undone, pageErrors, consoleErrors, runtimeText })}`);
   }
+
+  // Pixels mode must bake the same vector-quality preview into the selected
+  // raster layer as one command, without leaving a temporary Shape layer.
+  await driver.execute(documentId, 'layer.createRaster', {});
+  const pixelBaseline = await driver.queryDocument(documentId);
+  if (!pixelBaseline) throw new Error('The Pixels-mode raster baseline is unavailable.');
+  await page.keyboard.press('u');
+  await page.keyboard.press('Shift+u');
+  await page.keyboard.press('d');
+  await page.getByLabel('Shape application mode').selectOption('pixels');
+  await page.locator('input[type="color"][aria-label="Line"]').first().evaluate((input) => {
+    input.value = '#000000';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.mouse.move(start.x + 30, start.y + 140);
+  await page.mouse.down();
+  await page.mouse.move(firstEnd.x + 30, firstEnd.y + 140, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  const pixelResult = await driver.queryDocument(documentId);
+  if (!pixelResult
+    || pixelResult.layerCount !== pixelBaseline.layerCount
+    || pixelResult.history.undoDepth !== pixelBaseline.history.undoDepth + 1) {
+    throw new Error(`Pixels mode did not bake atomically: ${JSON.stringify({ pixelBaseline, pixelResult })}`);
+  }
+  await page.screenshot({ path: screenshotPath });
+  await page.keyboard.press('Control+z');
+  const pixelUndone = await driver.queryDocument(documentId);
+  if (!pixelUndone
+    || pixelUndone.layerCount !== pixelBaseline.layerCount
+    || pixelUndone.history.undoDepth !== pixelBaseline.history.undoDepth) {
+    throw new Error(`Pixels-mode undo was not atomic: ${JSON.stringify({ pixelBaseline, pixelUndone })}`);
+  }
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
 
   await writeFile(reportPath, `${JSON.stringify({
@@ -108,6 +150,7 @@ try {
     beforeLayerCount: before.layerCount,
     createdLayerId: layer.id,
     pageErrors,
+    pixelsModeLayerCount: pixelResult.layerCount,
     screenshotPath
   }, null, 2)}\n`);
   process.stdout.write(`Line Tool UX smoke passed. Report: ${reportPath}\n`);

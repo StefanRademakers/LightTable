@@ -226,6 +226,7 @@ import { useSelectionSessionController } from './application/tools/selection/use
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
+import type { VectorElementCreationTransaction } from './application/vectors/VectorDocumentController';
 import {
   patchVectorStyle,
   vectorElementStyleSettings
@@ -250,6 +251,7 @@ import {
 import {
   findDocumentLayer,
   findRasterLayer,
+  siblingLayers,
   walkLayerTree
 } from './editor/document/layerTree';
 import {
@@ -263,7 +265,10 @@ import type { PsdDecodeSuccess } from './image-io/psdProtocol';
 import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
-import { setLayerTransform } from './editor/document/documentCommands';
+import {
+  mergeLayers as mergeDocumentLayers,
+  setLayerTransform
+} from './editor/document/documentCommands';
 import {
   isPaintTool,
   isWarpTool,
@@ -482,6 +487,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
+  const rasterizeShapeRef = useRef<(
+    transaction: VectorElementCreationTransaction
+  ) => boolean>(() => false);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);
   const fillActiveTargetRef = useRef<(
@@ -1929,7 +1937,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushDocumentHistory,
     publishSelection: (vectorSelection) => {
       setEditorSession((current) => ({ ...current, vectorSelection }));
-    }
+    },
+    rasterizeShape: (transaction) => rasterizeShapeRef.current(transaction)
   });
   const selectedVectorStyle = useMemo(() => {
     const reference = editorSession.vectorSelection.elements[0];
@@ -1948,19 +1957,42 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ? layer.elements.find(({ id }) => id === reference.elementId)
       : null;
     if (element?.type !== 'live-shape'
-      || (element.geometry.kind !== 'rectangle' && element.geometry.kind !== 'ellipse')) return null;
+      || (element.geometry.kind !== 'rectangle'
+        && element.geometry.kind !== 'ellipse'
+        && element.geometry.kind !== 'line')) return null;
     const geometry = element.geometry;
+    const lineDelta = geometry.kind === 'line' ? {
+      x: geometry.end.x - geometry.start.x,
+      y: geometry.end.y - geometry.start.y
+    } : null;
+    const strokeDash = element.style.stroke?.dash ?? [];
     return {
       kind: geometry.kind,
       settings: {
         ...editorSession.shape,
-        width: geometry.width,
-        height: geometry.height,
+        width: geometry.kind === 'line' ? Math.abs(lineDelta!.x) : geometry.width,
+        height: geometry.kind === 'line' ? Math.abs(lineDelta!.y) : geometry.height,
         rectangleCornerRadii: geometry.kind === 'rectangle'
           ? [...geometry.cornerRadii] as [number, number, number, number]
           : editorSession.shape.rectangleCornerRadii,
         linkedCorners: geometry.kind === 'rectangle'
-          ? geometry.linkedCorners : editorSession.shape.linkedCorners
+          ? geometry.linkedCorners : editorSession.shape.linkedCorners,
+        lineStyle: geometry.kind === 'line'
+          ? strokeDash.length === 0 ? 'solid' : strokeDash[0]! <= 1 ? 'dotted' : 'dashed'
+          : editorSession.shape.lineStyle,
+        lineStartArrow: geometry.kind === 'line'
+          ? Boolean(geometry.startArrow) : editorSession.shape.lineStartArrow,
+        lineEndArrow: geometry.kind === 'line'
+          ? Boolean(geometry.endArrow) : editorSession.shape.lineEndArrow,
+        lineArrowWidth: geometry.kind === 'line'
+          ? geometry.startArrow?.width ?? geometry.endArrow?.width ?? editorSession.shape.lineArrowWidth
+          : editorSession.shape.lineArrowWidth,
+        lineArrowLength: geometry.kind === 'line'
+          ? geometry.startArrow?.length ?? geometry.endArrow?.length ?? editorSession.shape.lineArrowLength
+          : editorSession.shape.lineArrowLength,
+        lineRotationDegrees: geometry.kind === 'line'
+          ? Math.atan2(lineDelta!.y, lineDelta!.x) * 180 / Math.PI
+          : editorSession.shape.lineRotationDegrees
       }
     };
   }, [editorSession.shape, editorSession.vectorSelection.elements, imageDocument]);
@@ -1970,6 +2002,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   };
   const updateSelectedShapeGeometry = (change: Partial<EditorSession['shape']>) => {
+    if (change.lineStyle) {
+      vectorToolSessionController.editSelectedElementStyles((style) => style.stroke ? ({
+        ...style,
+        stroke: {
+          ...style.stroke,
+          dash: change.lineStyle === 'solid' ? [] : change.lineStyle === 'dotted' ? [1, 2] : [4, 3]
+        }
+      }) : style);
+      return;
+    }
     vectorToolSessionController.editSelectedLiveShapes((shape) => {
       if (shape.geometry.kind === 'rectangle') {
         shape.geometry = {
@@ -1985,6 +2027,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           ...shape.geometry,
           width: change.width ?? shape.geometry.width,
           height: change.height ?? shape.geometry.height
+        };
+      } else if (shape.geometry.kind === 'line') {
+        const geometry = shape.geometry;
+        const dx = geometry.end.x - geometry.start.x;
+        const dy = geometry.end.y - geometry.start.y;
+        const currentLength = Math.max(Math.hypot(dx, dy), 1e-6);
+        const angle = change.lineRotationDegrees !== undefined
+          ? change.lineRotationDegrees * Math.PI / 180 : Math.atan2(dy, dx);
+        const nextDx = change.lineRotationDegrees !== undefined
+          ? Math.cos(angle) * currentLength
+          : change.width !== undefined ? Math.sign(dx || 1) * change.width : dx;
+        const nextDy = change.lineRotationDegrees !== undefined
+          ? Math.sin(angle) * currentLength
+          : change.height !== undefined ? Math.sign(dy || 1) * change.height : dy;
+        const arrow = {
+          width: change.lineArrowWidth
+            ?? geometry.startArrow?.width ?? geometry.endArrow?.width ?? editorSession.shape.lineArrowWidth,
+          length: change.lineArrowLength
+            ?? geometry.startArrow?.length ?? geometry.endArrow?.length ?? editorSession.shape.lineArrowLength,
+          concavity: 0
+        };
+        shape.geometry = {
+          ...geometry,
+          end: { x: geometry.start.x + nextDx, y: geometry.start.y + nextDy },
+          startArrow: (change.lineStartArrow ?? Boolean(geometry.startArrow)) ? arrow : null,
+          endArrow: (change.lineEndArrow ?? Boolean(geometry.endArrow)) ? arrow : null
         };
       }
       return shape;
@@ -2378,6 +2446,46 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       publishAdjustmentPresentation(cloneAdjustments(next));
     }
   });
+  rasterizeShapeRef.current = (transaction) => {
+    const renderer = engineRef.current;
+    const siblings = siblingLayers(transaction.previewDocument, transaction.layerId);
+    const shapeIndex = siblings.findIndex(({ id }) => id === transaction.layerId);
+    const destinationSource = shapeIndex > 0 ? siblings[shapeIndex - 1] : null;
+    if (!renderer || destinationSource?.type !== 'raster') {
+      setError('Pixels mode requires an editable raster layer directly below the new shape.');
+      return false;
+    }
+    const layerIds = [destinationSource.id, transaction.layerId];
+    const next = mergeDocumentLayers(transaction.previewDocument, layerIds);
+    const destination = next.activeLayerId ? findRasterLayer(next, next.activeLayerId) : null;
+    if (next === transaction.previewDocument
+      || !destination
+      || !renderer.prepareRasterDestination(destination)) {
+      setError('The GPU raster target for this shape could not be allocated.');
+      return false;
+    }
+    if (!renderer.mergeLayers(
+      transaction.previewDocument,
+      layerIds,
+      destination.id
+    )) {
+      renderer.releaseRasterDestination(destination.id);
+      setError('The shape could not be baked into the active raster layer.');
+      return false;
+    }
+    applyDocumentSnapshot(next);
+    pushHistoryEntry({
+      byteSize: transaction.beforeDocument.width * transaction.beforeDocument.height * 8,
+      layerIds: [...layerIds, destination.id],
+      undo: () => applyDocumentSnapshot(transaction.beforeDocument),
+      redo: () => applyDocumentSnapshot(next)
+    });
+    renderer.commitRasterDestination(destination.id);
+    setEditorSession((session) => ({ ...session, activeChannel: 'pixels' }));
+    setError(null);
+    setGradeStatus('Shape applied to pixels');
+    return true;
+  };
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
   const rasterizeActiveTextLayer = layerDocumentCommands.rasterizeActiveTextLayer;
   const mergeSelectedRasterLayers = layerDocumentCommands.mergeSelectedRasterLayers;

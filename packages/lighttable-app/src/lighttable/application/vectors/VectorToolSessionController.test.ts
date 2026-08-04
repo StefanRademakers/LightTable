@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { VectorIdSource, VectorPath } from '@lighttable/vector-core';
 import {
   createAnchor,
@@ -15,6 +15,7 @@ import {
   type VectorEditorSelection
 } from '../../editor/session/editorSession';
 import { VectorToolSessionController } from './VectorToolSessionController';
+import type { VectorElementCreationTransaction } from './VectorDocumentController';
 
 const ids = (): VectorIdSource => {
   let value = 0;
@@ -27,7 +28,7 @@ const layerPaths = (layer: ReturnType<typeof findDocumentLayer>): VectorPath[] =
     : []
 );
 
-const setup = () => {
+const setup = (rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean) => {
   let document = createImageDocument('Vector tools', 200, 100, 'asset');
   let selection: VectorEditorSelection = createVectorEditorSelection();
   const history: Array<{ before: typeof document; after: typeof document }> = [];
@@ -37,7 +38,7 @@ const setup = () => {
     pushDocumentHistory: (before, after) => history.push({ before, after }),
     getSelection: () => selection,
     setSelection: (next) => { selection = next; }
-  }, { ids: ids() });
+  }, { ids: ids(), rasterizeShape });
   return {
     controller,
     history,
@@ -188,6 +189,28 @@ describe('VectorToolSessionController', () => {
       },
       transform: { tx: 40, ty: 30 }
     });
+  });
+
+  it('hands Pixels-mode live shapes to one deferred raster transaction', () => {
+    const rasterizeShape = vi.fn((_transaction: VectorElementCreationTransaction) => true);
+    const state = setup(rasterizeShape);
+    state.controller.activate('live-shape');
+
+    expect(state.controller.pointerDown(
+      12, { x: 10, y: 10 }, { hitRadius: 2, rasterize: true }
+    )).toBe(true);
+    state.controller.pointerMove(12, { x: 70, y: 50 }, { rasterize: true });
+    expect(state.controller.pointerUp(
+      12, { x: 70, y: 50 }, 1, { rasterize: true }
+    )).toBe(true);
+
+    expect(rasterizeShape).toHaveBeenCalledOnce();
+    expect(rasterizeShape.mock.calls[0]?.[0]).toMatchObject({
+      beforeDocument: { name: 'Vector tools' },
+      previewDocument: { activeLayerId: expect.any(String) },
+      elementId: 'live-shape-1'
+    });
+    expect(state.history).toHaveLength(0);
   });
 
   it('selects and translates a live shape without converting its geometry', () => {

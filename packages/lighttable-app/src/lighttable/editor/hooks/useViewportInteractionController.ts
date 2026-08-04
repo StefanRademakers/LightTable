@@ -449,7 +449,8 @@ export const useViewportInteractionController = ({
           proportionalRatio: editorSession.shape.geometry === 'proportional'
             ? editorSession.shape.width / Math.max(editorSession.shape.height, 1e-6)
             : undefined,
-          snapToPixels: editorSession.shape.snapToPixels
+          snapToPixels: editorSession.shape.snapToPixels,
+          rasterize: activeTool.startsWith('shape-') && editorSession.shape.mode === 'pixels'
         })) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();
@@ -654,6 +655,8 @@ export const useViewportInteractionController = ({
             ? editorSession.shape.width / Math.max(editorSession.shape.height, 1e-6)
             : undefined,
           snapToPixels: editorSession.shape.snapToPixels,
+          rasterize: (temporaryTools.activeTool ?? editorSession.activeTool).startsWith('shape-')
+            && editorSession.shape.mode === 'pixels',
           moveOrigin: temporaryTools.activeTool === 'view'
         })) event.preventDefault();
         return;
@@ -764,6 +767,8 @@ export const useViewportInteractionController = ({
             ? editorSession.shape.width / Math.max(editorSession.shape.height, 1e-6)
             : undefined,
           snapToPixels: editorSession.shape.snapToPixels,
+          rasterize: (temporaryTools.activeTool ?? editorSession.activeTool).startsWith('shape-')
+            && editorSession.shape.mode === 'pixels',
           moveOrigin: temporaryTools.activeTool === 'view'
         });
         else vector.pointerCancel(event.pointerId);
