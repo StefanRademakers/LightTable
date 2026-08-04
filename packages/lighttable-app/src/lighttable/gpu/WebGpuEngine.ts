@@ -1569,7 +1569,8 @@ export class WebGpuEngine {
       curveLutBytes: this.coreResources ? CURVE_LUT_SIZE * 16 : 0,
       adjustmentLayerBytes: this.adjustmentLayerResources.estimatedBytes(),
       layerDocumentBytes: this.documentRenderer?.estimatedTextureBytes() ?? 0,
-      effectBytes: this.effectRuntime?.estimatedTextureBytes() ?? 0
+      effectBytes: (this.effectRuntime?.estimatedTextureBytes() ?? 0)
+        + (this.layerEffectRenderer?.estimatedTextureBytes() ?? 0)
     }) + (this.vectorEditingOverlayBackend?.cacheMetrics().bytes ?? 0);
   }
 

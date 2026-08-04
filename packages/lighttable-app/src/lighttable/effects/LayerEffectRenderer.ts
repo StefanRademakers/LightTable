@@ -137,6 +137,13 @@ export class LayerEffectRenderer {
     }
   }
 
+  /** Includes every retained per-layer Lens Fx/geometry image resource. */
+  estimatedTextureBytes(): number {
+    let bytes = 0;
+    this.runtimes.forEach((runtime) => { bytes += runtime.estimatedTextureBytes(); });
+    return bytes;
+  }
+
   destroyImageResources(): void {
     this.runtimes.forEach((runtime) => runtime.destroyImageResources());
   }

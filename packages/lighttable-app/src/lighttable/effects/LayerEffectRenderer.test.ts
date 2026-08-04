@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createImageDocument, type RasterLayer } from '../editor/document/documentTypes';
 import type { AdjustmentStack } from '../processing/adjustmentStack';
 import { WARP_NODE_TYPE, createDefaultWarpNodeSettings } from './warp/warpTypes';
-import { layerNeedsEffectRuntime } from './LayerEffectRenderer';
+import { LayerEffectRenderer, layerNeedsEffectRuntime } from './LayerEffectRenderer';
 
 const layerWithStack = (stack: AdjustmentStack): RasterLayer => ({
   ...(createImageDocument('Effect owner', 32, 32, 'asset').layers[0] as RasterLayer),
@@ -32,5 +32,17 @@ describe('layerNeedsEffectRuntime', () => {
       revision: 0,
       modules: []
     }))).toBe(false);
+  });
+});
+
+describe('LayerEffectRenderer memory telemetry', () => {
+  it('reports zero before any per-owner runtime is realized', () => {
+    const renderer = new LayerEffectRenderer(
+      {} as GPUDevice,
+      {} as GPUSampler,
+      {} as GPUShaderModule
+    );
+
+    expect(renderer.estimatedTextureBytes()).toBe(0);
   });
 });

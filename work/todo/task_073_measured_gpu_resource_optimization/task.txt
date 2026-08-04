@@ -1,0 +1,43 @@
+# Task 073 — measured GPU resource optimization
+
+## Objective
+
+Reduce bounded GPU residency and avoid unnecessary CPU-to-GPU traffic without
+trading away image fidelity or direct-manipulation responsiveness.
+
+## Non-negotiable rules
+
+- Canonical effects remain semantic settings. Rendered textures are disposable
+  caches and may never become the only representation.
+- Establish a repeatable baseline before each optimization.
+- Change one ownership or transfer policy at a time.
+- Keep an optimization only when the same fixture improves or stays neutral on
+  cold/warm latency, GPU memory, long tasks and visual fidelity.
+- Do not add CPU readback or compression to an active gesture path.
+- Record bounded residency separately from unbounded growth.
+
+## Experiments
+
+- [ ] Effect targets: allocate on first visible encode, release on disable.
+- [ ] Optional effect pipelines and targets: verify true lazy realization.
+- [ ] Layer-style cache policy: compare full-document cache, tight bounds and
+      replay cost before choosing a representation.
+- [ ] Full-frame temporary aliasing: prove non-overlapping lifetimes first.
+- [ ] Inactive-document and hidden-layer eviction with deterministic restore.
+- [ ] Dirty-tile GPU history versus full-surface snapshots.
+- [ ] Cold CPU tile backing and lossless compression outside the hot path.
+- [ ] Checkpointed semantic paint journal with deterministic replay budget.
+- [ ] Semantic texture formats where channel requirements permit it.
+
+## Required evidence per accepted experiment
+
+- production Electron build and fixture identity;
+- before/after GPU bytes and resource-owner breakdown;
+- cold first-use and at least five warm-cycle timings;
+- CPU encode stages, submitted frames and long tasks;
+- CPU-to-GPU upload count/bytes where the changed path uploads image data;
+- pixel/reference comparison;
+- stable-tail heap, DOM, listeners and GPU memory;
+- focused regression tests plus the complete quality gate;
+- one cohesive commit.
+

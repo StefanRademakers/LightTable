@@ -25,6 +25,8 @@
     "stress:desktop:build": "npm run package:desktop:verify && npm run stress:desktop --",
     "audit:desktop:canvas": "node scripts/audit-desktop-canvas-interactions.mjs",
     "audit:desktop:canvas:build": "npm run package:desktop:verify && npm run audit:desktop:canvas --",
+    "audit:desktop:effects": "node scripts/audit-desktop-effect-lifecycle.mjs",
+    "audit:desktop:effects:build": "npm run package:desktop:verify && npm run audit:desktop:effects --",
     "smoke:desktop:commands": "node scripts/smoke-desktop-command-driver.mjs",
     "smoke:desktop:commands:build": "npm run package:desktop:verify && npm run smoke:desktop:commands --",
     "smoke:desktop:zoom": "node scripts/smoke-desktop-zoom.mjs",
