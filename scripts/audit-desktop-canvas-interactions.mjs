@@ -91,6 +91,16 @@ try {
       name,
       durationMs: performance.now() - startedAt,
       historyDelta: (after?.history.undoDepth ?? 0) - (before?.history.undoDepth ?? 0),
+      historyBytesBefore: before?.history.estimatedBytes ?? null,
+      historyBytesAfter: after?.history.estimatedBytes ?? null,
+      historyBytesDelta: before && after
+        ? after.history.estimatedBytes - before.history.estimatedBytes
+        : null,
+      estimatedGpuBytesBefore: before?.renderer.estimatedGpuBytes ?? null,
+      estimatedGpuBytesAfter: after?.renderer.estimatedGpuBytes ?? null,
+      estimatedGpuBytesDelta: before && after
+        ? after.renderer.estimatedGpuBytes - before.renderer.estimatedGpuBytes
+        : null,
       zoomBefore: before?.viewport.scale ?? null,
       zoomAfter: after?.viewport.scale ?? null
     });

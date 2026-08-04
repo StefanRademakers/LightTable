@@ -115,6 +115,7 @@ export interface DocumentQueryResult {
     readonly busy: boolean;
     readonly undoDepth: number;
     readonly redoDepth: number;
+    readonly estimatedBytes: number;
     readonly currentStateId: number;
   };
   readonly tasks: {
@@ -507,6 +508,7 @@ export class LightTableCommandService {
         busy: document.history.busy,
         undoDepth: document.history.undoDepth,
         redoDepth: document.history.redoDepth,
+        estimatedBytes: document.history.estimatedBytes,
         currentStateId: document.history.currentStateId
       },
       tasks: { activeCount: document.tasks.activeTaskIds.length },
