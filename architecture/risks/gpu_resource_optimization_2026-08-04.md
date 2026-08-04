@@ -185,3 +185,76 @@ GPU-only effect path.
 2. Test inactive-document eviction and restoration latency; immediate
    hidden-layer eviction has already failed the latency gate.
 3. Only then test cold CPU tile compression and checkpointed stroke replay.
+
+## Render-engine audit extension — 2026-08-05
+
+`npm run audit:desktop:render-engine -- --engine <compositor|vector|text>
+--file <fixture> --iterations <count>` now applies one production Electron
+protocol to all three engines. It records hide/show wall latency, renderer GPU
+estimates, GC-backed JS heap retention, long tasks and per-stage render encode
+telemetry. Every restored canvas capture must reproduce the first SHA-256 hash;
+page errors, console errors, a stopped document runtime, more than 5 MiB of
+retained heap, or a changed canvas hash fail the run. Text editing retains the
+additional `smoke:desktop:paragraph` gate for authored content, drag selection,
+layout-cache reuse and input-to-submit/input-to-GPU latency.
+
+The audit intentionally measures a real document interaction. Its two-frame
+settle interval adds a fixed floor to wall timings, so A/B comparisons use the
+same script, packaged builds, fixture, machine and iteration count. CPU encode
+telemetry is interpreted separately from end-to-end interaction latency.
+
+### Accepted: bounded vector realization cache
+
+The native vector renderer previously flattened every canonical cubic path on
+every document composite, even though the WebGPU vertex buffer already used a
+geometry-revision/tolerance key. A 32 MiB weighted CPU LRU now uses that same
+identity. Transform and paint revisions reuse flattened geometry; geometry
+revision changes miss the cache. Live-shape paint and transforms are refreshed
+on hits, and destroying the document renderer clears the cache.
+
+On vector-heavy `EHS-395` (14 vector layers), twelve composites changed total
+document-composite encode from 22.08 to 20.80 ms (-5.8%) and the maximum from
+2.61 to 1.94 ms. Median end-to-end hide/show remained neutral (161.35/155.76
+ms baseline; 159.15/157.01 ms candidate), renderer GPU bytes stayed exactly
+2,398,855,792, and baseline/candidate viewport PNGs were byte-identical. The
+small `shapes.psd` fixture remained within encode and wall-time noise, so no
+larger claim is made.
+
+### Accepted: keep text diagnostics off the input hot path
+
+`beginTextInput` no longer publishes a React-facing telemetry snapshot per
+keystroke. Latency bookkeeping is still published when its exact text source
+is submitted and reaches GPU completion. Detailed scheduler guards and
+housekeeping remain internal; font configuration, document synchronization,
+shaping, source publication, retained-preview fallback and failures keep their
+debug breadcrumbs.
+
+Five isolated candidate paragraph runs and four completed baseline runs were
+alternated on the same packaged builds. Median authored typing changed from
+1298.1 to 1210.8 ms, input-to-submit p95 from 38.4 to 28.6 ms, and input-to-GPU
+p95 from 66.9 to 44.9 ms. Individual runs remain noisy, so the latency gates
+stay in the repeatable smoke rather than becoming a one-number product claim.
+`TextTest.psd` visibility/composition stayed neutral, its renderer estimate
+remained 184,721,784 bytes, and the baseline/candidate canvas hash was exactly
+equal. Paragraph smoke user-data is now process-isolated so earlier editor
+sessions cannot pollute later runs.
+
+### Rejected: automatic vector cover scissors
+
+A candidate derived conservative transformed fill bounds and exact stroke-mesh
+bounds, then scissored otherwise full-target stencil/cover passes. Output was
+byte-identical, including the large-stroke `shapes.psd` fixture. It did not
+reduce CPU encode or end-to-end latency: `shapes.psd` average composite encode
+rose from 0.560 to 0.624 ms, while `EHS-395` show latency rose from 155.76 to
+186.33 ms. Full-attachment stencil clears likely remain dominant. The change
+was removed; a future tiled vector surface must profile clear cost explicitly.
+
+### Rejected: one composite uniform arena per frame
+
+A candidate replaced per-layer 32/80-byte uniform buffers with one
+256-byte-aligned frame arena and one queue upload. `EHS-395` remained
+byte-identical and retained the same renderer memory estimate, but average CPU
+encode remained 1.67–1.80 ms versus 1.72 ms baseline and median show latency
+repeatedly rose to 170–187 ms versus 158 ms. The arena and its complexity were
+removed. Fewer CPU-to-GPU API calls are not automatically faster on the current
+Windows WebGPU backend; production interaction latency remains the gate.
