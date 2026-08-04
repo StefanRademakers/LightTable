@@ -93,6 +93,20 @@ bounded undo residency while keeping the hot path and ownership model simple.
 The mask-brush wall-time difference on the small fixture is 11.1 ms and remains
 inside interaction-run noise; no speed-improvement claim is made.
 
+## Experiment 3 — immediate hidden Layer Style cache eviction
+
+The production Electron A/B audit toggled the cached raster style owner
+`EHS-395 / swirl` six times. The candidate released one full-document RGBA16
+cache (100,800,000 bytes, 96.1 MiB) whenever the layer was hidden, and every
+restored canvas hash matched the reference.
+
+The cost was reproducible: median show latency rose from 266.8 ms to 283.7 ms
+and 286.2 ms in two candidate runs (+16.9 to +19.4 ms). Immediate eviction is
+therefore rejected. The production ownership policy remains unchanged. The
+repeatable audit stays available as `npm run audit:desktop:style-cache`; future
+memory-pressure or long-idle policies must beat the same fidelity and latency
+gate without adding general cache infrastructure prematurely.
+
 ## CPU-to-GPU transfer finding
 
 The four toggled effects do not upload image-sized CPU data when enabled. They

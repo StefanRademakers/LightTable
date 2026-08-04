@@ -23,7 +23,9 @@ trading away image fidelity or direct-manipulation responsiveness.
 - [ ] Layer-style cache policy: compare full-document cache, tight bounds and
       replay cost before choosing a representation.
 - [ ] Full-frame temporary aliasing: prove non-overlapping lifetimes first.
-- [ ] Inactive-document and hidden-layer eviction with deterministic restore.
+- [x] Immediate hidden-layer cache eviction measured and rejected: it released
+      96.1 MiB on EHS-395 but reproducibly added 16.9–19.4 ms to restoration.
+- [ ] Inactive-document or memory-pressure eviction with deterministic restore.
 - [x] Dirty-tile GPU history versus full-surface snapshots.
 - [ ] Cold CPU tile backing and lossless compression outside the hot path.
 - [ ] Checkpointed semantic paint journal with deterministic replay budget.
