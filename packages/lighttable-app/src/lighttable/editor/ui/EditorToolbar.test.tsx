@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { EditorToolbar } from './EditorToolbar';
 
-const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 'text-point') => renderToStaticMarkup(
+const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 'text-point' | 'vector-add-anchor') => renderToStaticMarkup(
   <EditorToolbar
     activeTool={activeTool}
     foregroundColor="#000000"
@@ -40,6 +40,17 @@ describe('EditorToolbar', () => {
     const activeMarkup = renderToolbar('shape-triangle');
     expect(activeMarkup).toContain('aria-label="Triangle"');
     expect(activeMarkup).not.toContain('aria-label="Rectangle (U)"');
+  });
+
+  it('collapses pen modes and projects the active mode into their master slot', () => {
+    const defaultMarkup = renderToolbar('brush');
+    expect(defaultMarkup).toContain('aria-label="Pen (P)"');
+    expect(defaultMarkup).toContain('aria-label="Show pen tools"');
+    expect(defaultMarkup).not.toContain('aria-label="Add anchor point"');
+
+    const activeMarkup = renderToolbar('vector-add-anchor');
+    expect(activeMarkup).toContain('aria-label="Add anchor point"');
+    expect(activeMarkup).not.toContain('aria-label="Pen (P)"');
   });
 
   it('exposes point text as an accessible grouped toolbar slot', () => {

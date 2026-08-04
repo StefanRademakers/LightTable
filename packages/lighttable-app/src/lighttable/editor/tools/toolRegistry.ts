@@ -243,6 +243,15 @@ export const SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
 export const SHAPE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   TOOL_DEFINITIONS.filter(({ id }) => id.startsWith('shape-'));
 
+/** Pen authoring and anchor-editing modes share one remembered toolbar slot. */
+export const PEN_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  [
+    'vector-pen',
+    'vector-add-anchor',
+    'vector-delete-anchor',
+    'vector-convert-anchor'
+  ].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
+
 /** Text authoring modes share one remembered toolbar slot. */
 export const TEXT_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   TOOL_DEFINITIONS.filter(({ role }) => role === 'text');

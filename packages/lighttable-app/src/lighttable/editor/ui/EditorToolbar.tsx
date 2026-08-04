@@ -3,6 +3,7 @@ import { lightTableIcon } from '../../../assets/icons';
 import type { ToolId } from '../session/editorSession';
 import {
   FILL_TOOL_DEFINITIONS,
+  PEN_TOOL_DEFINITIONS,
   SELECTION_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
@@ -135,6 +136,12 @@ export const toolFamilyFor = (tool: ToolDefinition) => {
   }
   if (tool.id.startsWith('shape-')) {
     return { definitions: SHAPE_TOOL_DEFINITIONS, label: 'Shape tools' };
+  }
+  if (tool.id === 'vector-pen'
+    || tool.id === 'vector-add-anchor'
+    || tool.id === 'vector-delete-anchor'
+    || tool.id === 'vector-convert-anchor') {
+    return { definitions: PEN_TOOL_DEFINITIONS, label: 'Pen tools' };
   }
   if (tool.role === 'text') {
     return { definitions: TEXT_TOOL_DEFINITIONS, label: 'Text tools' };

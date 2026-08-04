@@ -3,6 +3,7 @@ import type { ToolId } from '../session/editorSession';
 import {
   SELECTION_TOOL_DEFINITIONS,
   FILL_TOOL_DEFINITIONS,
+  PEN_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
@@ -28,6 +29,14 @@ describe('toolRegistry', () => {
       'shape-ellipse',
       'shape-triangle',
       'shape-line'
+    ]);
+  });
+  it('defines pen and anchor editing as one toolbar family', () => {
+    expect(PEN_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
+      'vector-pen',
+      'vector-add-anchor',
+      'vector-delete-anchor',
+      'vector-convert-anchor'
     ]);
   });
   it('defines point, paragraph and path text as one toolbar family', () => {
