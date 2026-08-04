@@ -91,8 +91,9 @@ function verifyTextCoreBoundary(relativePath, source) {
   for (const match of source.matchAll(importPattern)) {
     const moduleSpecifier = match[1];
     const isTestDependency = normalizedPath.endsWith('.test.ts') && moduleSpecifier === 'vitest';
-    if (!moduleSpecifier.startsWith('.') && !isTestDependency) {
-      failures.push(`${relativePath}: text-core production imports must stay package-relative (${moduleSpecifier})`);
+    const isSharedPaintContract = moduleSpecifier === '@lighttable/paint-core';
+    if (!moduleSpecifier.startsWith('.') && !isTestDependency && !isSharedPaintContract) {
+      failures.push(`${relativePath}: text-core imports must stay package-relative or use the shared paint contract (${moduleSpecifier})`);
     }
   }
 }
