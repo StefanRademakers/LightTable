@@ -23,7 +23,7 @@ const sizeBeforeCreate = Number.isFinite(requestedSizeBeforeCreate)
   ? requestedSizeBeforeCreate
   : null;
 const maximumTypingMs = Number.parseFloat(argument('max-typing-ms', '10000'));
-const userDataPath = path.join(workspaceRoot, 'tmp', 'playwright-paragraph-user-data');
+const userDataPath = path.join(workspaceRoot, 'tmp', `playwright-paragraph-user-data-${process.pid}`);
 const documentSize = { width: 1000, height: 700 };
 const authoredText = [
   'Paragraph one proves wrapping and editable GPU text.',

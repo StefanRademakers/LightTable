@@ -124,6 +124,16 @@ export interface TextLayerEditingLayout {
 }
 
 const PATH_METRIC_CACHE_BYTES = 16 * 1024 * 1024;
+const PUBLISHED_TRACE_MESSAGES = new Set([
+  'Font runtime configured',
+  'Document synchronized',
+  'Text shaped',
+  'Atlas source published',
+  'Cached text source published',
+  'Outline text source published',
+  'Text layer retained derived preview',
+  'Preparation scheduling failed'
+]);
 
 const pathAlignment = (
   source: Extract<TextLayer['text']['source'], { kind: 'flow' }>
@@ -265,7 +275,9 @@ export class TextLayerRenderCoordinator {
   beginTextInput(layerId: LayerId, startedAt: number) {
     if (this.disposed) return false;
     this.inputLatency.begin(layerId, startedAt);
-    this.publishChanged();
+    // Latency bookkeeping is published when a corresponding frame is
+    // submitted/completed. Waking the React-facing diagnostic state for every
+    // keystroke needlessly invalidates the complete editor presentation.
     return true;
   }
 
@@ -1335,7 +1347,9 @@ export class TextLayerRenderCoordinator {
     this.traceRevision += 1;
     this.traceMessage = message;
     this.traceDetails = details;
-    this.publishChanged();
+    // Retain progress/publication breadcrumbs, while schedule guards and
+    // housekeeping stay internal. Counters remain available via snapshot().
+    if (PUBLISHED_TRACE_MESSAGES.has(message)) this.publishChanged();
   }
 
   private setPreparationStage(
