@@ -44,6 +44,7 @@ import type {
   ReferenceDifferenceMetrics
 } from '../application/rendering/rendererTypes';
 import { RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
+import { SelectionAntsAnimator } from '../application/rendering/SelectionAntsAnimator';
 import {
   RenderDirtyState,
   resolveAdjustmentInvalidationStage
@@ -127,6 +128,7 @@ export class WebGpuEngine {
   private displayPostTexture: GPUTexture | null = null;
   private selectionQueue: Promise<void> = Promise.resolve();
   private readonly renderScheduler: RenderInvalidationScheduler;
+  private readonly selectionAntsAnimator: SelectionAntsAnimator;
   private readonly renderDirty = new RenderDirtyState();
   private readonly renderTelemetry = new RenderTelemetry();
   private readonly imageResources = new DocumentImageGpuResources();
@@ -152,6 +154,10 @@ export class WebGpuEngine {
       this.adjustmentLayerResources
     );
     this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
+    this.selectionAntsAnimator = new SelectionAntsAnimator({
+      invalidateViewport: () => this.renderDirty.invalidate('viewport'),
+      requestRender: () => this.requestRender()
+    });
     this.viewportPresentation = new ViewportPresentationController(canvas, {
       writeViewport: (uniforms) => this.coreResources?.writeViewport(uniforms),
       invalidateViewport: () => this.renderDirty.invalidate('viewport'),
@@ -287,6 +293,7 @@ export class WebGpuEngine {
     if (this.destroyed || active === this.active) return;
     this.active = active;
     this.renderScheduler.setPaused(!active);
+    this.selectionAntsAnimator.setActive(active);
     this.documentRenderer?.setActive(active);
     if (active) {
       this.scopeRuntime.resize();
@@ -1290,6 +1297,9 @@ export class WebGpuEngine {
       points: draft.points.map((point) => ({ ...point }))
     } : null;
     this.selectionOverlayVisible = visible;
+    this.selectionAntsAnimator.setSelectionVisible(
+      visible && this.selectionOverlayOperations.length > 0
+    );
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -1992,6 +2002,7 @@ export class WebGpuEngine {
     this.unsubscribeDeviceLost();
     this.sourceLoader?.destroy();
     this.sourceLoader = null;
+    this.selectionAntsAnimator.dispose();
     this.renderScheduler.dispose();
     this.destroyImageResources();
     this.scopeRuntime.destroy();
@@ -2010,6 +2021,8 @@ export class WebGpuEngine {
     this.vectorEditingOverlayBackend = null;
     this.textEditingOverlayBackend?.dispose();
     this.textEditingOverlayBackend = null;
+    this.selectionContourOverlayBackend?.dispose();
+    this.selectionContourOverlayBackend = null;
     this.textEditingOverlay = null;
   }
 
@@ -2068,6 +2081,10 @@ export class WebGpuEngine {
         ty: uniforms[3]
       }
     };
+    const animatedSelectionTheme = {
+      ...SELECTION_OUTLINE_THEME,
+      dashOffsetPx: this.selectionAntsAnimator.phasePx
+    };
     this.vectorEditingOverlayBackend ??= new VectorEditingOverlayBackend(this.device);
     // Queries return topmost-first. Encode bottom-to-top so the topmost path's
     // handles remain the final visible editing affordance.
@@ -2112,7 +2129,7 @@ export class WebGpuEngine {
         encoder,
         buildSelectionEditingOverlay(selectionShape, 'committed'),
         target,
-        SELECTION_OUTLINE_THEME
+        animatedSelectionTheme
       );
     }
     if (selectionMask && this.coreResources) {
@@ -2125,7 +2142,8 @@ export class WebGpuEngine {
         canvasView,
         selectionMask,
         this.coreResources.sampler,
-        this.coreResources.viewBuffer
+        this.coreResources.viewBuffer,
+        this.selectionAntsAnimator.phasePx
       );
     }
     if (selectionDraft) {
@@ -2133,7 +2151,7 @@ export class WebGpuEngine {
         encoder,
         buildSelectionEditingOverlay(selectionDraft, 'draft'),
         target,
-        SELECTION_OUTLINE_THEME
+        animatedSelectionTheme
       );
     }
     if (this.zoomOverlayDraft) {

@@ -10,7 +10,7 @@ import {
   VECTOR_EDITING_OVERLAY_MARKER_WGSL
 } from './shaders';
 
-const SETTINGS_BYTES = 64;
+const SETTINGS_BYTES = 80;
 const CUBIC_BYTES = 48;
 const MARKER_BYTES = 16;
 const CURVE_SUBDIVISIONS = 24;
@@ -47,6 +47,8 @@ export interface VectorEditingOverlayTheme {
   /** Screen-pixel dash pattern. Zero keeps the stroke solid. */
   dashLengthPx?: number;
   gapLengthPx?: number;
+  /** Presentation-only dash phase; changing it never rebuilds geometry. */
+  dashOffsetPx?: number;
   /** Optional solid backing stroke, useful for selection visibility. */
   underlayColor?: readonly [number, number, number, number];
   underlayWidthPx?: number;
@@ -388,7 +390,8 @@ export class VectorEditingOverlayBackend {
       subdivisions,
       color,
       theme.dashLengthPx ?? 0,
-      theme.gapLengthPx ?? 0
+      theme.gapLengthPx ?? 0,
+      theme.dashOffsetPx ?? 0
     );
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, this.bindGroup(settings, buffer));
@@ -401,7 +404,8 @@ export class VectorEditingOverlayBackend {
     subdivisions: number,
     color: readonly [number, number, number, number],
     dashLength = 0,
-    gapLength = 0
+    gapLength = 0,
+    dashOffset = 0
   ) {
     const settings = this.device.createBuffer({
       label: 'LightTable vector overlay settings',
@@ -413,7 +417,8 @@ export class VectorEditingOverlayBackend {
       matrix.a, matrix.b, matrix.c, matrix.d,
       matrix.tx, matrix.ty, target.width, target.height,
       width, subdivisions, dashLength, gapLength,
-      ...color
+      ...color,
+      dashOffset, 0, 0, 0
     ]));
     this.pendingUniforms.push(settings);
     return settings;

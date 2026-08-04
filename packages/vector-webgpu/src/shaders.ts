@@ -105,6 +105,7 @@ struct OverlaySettings {
   translationViewport: vec4f,
   style: vec4f,
   color: vec4f,
+  dash: vec4f,
 };
 
 struct CubicData {
@@ -178,7 +179,7 @@ fn lineFragment(input: LineOutput) -> @location(0) vec4f {
   let gapLength = settings.style.w;
   if (dashLength > 0.0 && gapLength > 0.0) {
     let period = dashLength + gapLength;
-    if (fract(input.distancePx / period) * period >= dashLength) {
+    if (fract((input.distancePx + settings.dash.x) / period) * period >= dashLength) {
       discard;
     }
   }
@@ -192,6 +193,7 @@ struct OverlaySettings {
   translationViewport: vec4f,
   style: vec4f,
   color: vec4f,
+  dash: vec4f,
 };
 
 struct MarkerData {

@@ -139,6 +139,38 @@ describe('VectorEditingOverlayBackend', () => {
     backend.dispose();
   });
 
+  it('updates the dash phase through uniforms without rebuilding geometry', () => {
+    const { device, encoder, buffers } = fixture();
+    const backend = new VectorEditingOverlayBackend(device as unknown as GPUDevice);
+    const target = {
+      colorView: {} as GPUTextureView,
+      format: 'rgba16float' as GPUTextureFormat,
+      width: 100,
+      height: 100,
+      documentToViewport: identityMatrix()
+    };
+    const theme = {
+      pathColor: [1, 1, 1, 1] as const,
+      handleColor: [1, 1, 1, 1] as const,
+      pathWidthPx: 1,
+      handleWidthPx: 1,
+      dashLengthPx: 5,
+      gapLengthPx: 4,
+      dashOffsetPx: 8
+    };
+
+    backend.encode(encoder as unknown as GPUCommandEncoder, overlayFixture(), target, theme);
+
+    const settingsWrites = device.queue.writeBuffer.mock.calls.filter(
+      ([buffer]) => buffer.label === 'LightTable vector overlay settings'
+    );
+    expect(settingsWrites.some(([, , data]) => (
+      data instanceof Float32Array && data.length === 20 && data[16] === 8
+    ))).toBe(true);
+    expect(buffers.filter(({ label }) => label.includes('vector overlay curves'))).toHaveLength(1);
+    backend.dispose();
+  });
+
   it('caches a shared selection frame independently from viewport changes', () => {
     const { device, encoder, pass, buffers } = fixture();
     const backend = new VectorEditingOverlayBackend(device as unknown as GPUDevice);

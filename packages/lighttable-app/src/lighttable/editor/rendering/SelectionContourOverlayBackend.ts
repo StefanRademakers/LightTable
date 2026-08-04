@@ -15,9 +15,15 @@ struct VertexOutput {
   @location(0) uv: vec2f,
 }
 
+struct AntUniforms {
+  phasePx: f32,
+  padding: vec3f,
+}
+
 @group(0) @binding(0) var selectionMask: texture_2d<f32>;
 @group(0) @binding(1) var maskSampler: sampler;
 @group(0) @binding(2) var<uniform> view: ViewUniforms;
+@group(0) @binding(3) var<uniform> ants: AntUniforms;
 
 @vertex
 fn fullscreenVertex(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
@@ -81,7 +87,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   }
 
   // Screen-space marching ants stay one device pixel wide at every zoom.
-  let dash = ((u32(floor(viewportPixel.x + viewportPixel.y)) / 4u) & 1u) == 0u;
+  let dash = ((u32(floor(viewportPixel.x + viewportPixel.y + ants.phasePx)) / 4u) & 1u) == 0u;
   let lineColor = select(vec3f(0.07), vec3f(1.0), dash);
   let color = mix(vec3f(0.055), lineColor, line);
   return vec4f(color, max(underlay * 0.88, line * 0.98));
@@ -94,6 +100,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
  */
 export class SelectionContourOverlayBackend {
   private readonly pipeline: GPURenderPipeline;
+  private readonly antsBuffer: GPUBuffer;
 
   constructor(
     private readonly device: GPUDevice,
@@ -123,6 +130,11 @@ export class SelectionContourOverlayBackend {
       },
       primitive: { topology: 'triangle-list' }
     });
+    this.antsBuffer = device.createBuffer({
+      label: 'LightTable selection ants phase',
+      size: 4 * Float32Array.BYTES_PER_ELEMENT,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
   }
 
   encode(
@@ -130,15 +142,22 @@ export class SelectionContourOverlayBackend {
     target: GPUTextureView,
     mask: GPUTexture,
     sampler: GPUSampler,
-    viewBuffer: GPUBuffer
+    viewBuffer: GPUBuffer,
+    phasePx = 0
   ) {
+    this.device.queue.writeBuffer(
+      this.antsBuffer,
+      0,
+      new Float32Array([phasePx, 0, 0, 0])
+    );
     const bindGroup = this.device.createBindGroup({
       label: 'LightTable selection contour overlay bindings',
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: mask.createView() },
         { binding: 1, resource: sampler },
-        { binding: 2, resource: { buffer: viewBuffer } }
+        { binding: 2, resource: { buffer: viewBuffer } },
+        { binding: 3, resource: { buffer: this.antsBuffer } }
       ]
     });
     const pass = encoder.beginRenderPass({
@@ -153,6 +172,10 @@ export class SelectionContourOverlayBackend {
     pass.setBindGroup(0, bindGroup);
     pass.draw(3);
     pass.end();
+  }
+
+  dispose() {
+    this.antsBuffer.destroy();
   }
 }
 
