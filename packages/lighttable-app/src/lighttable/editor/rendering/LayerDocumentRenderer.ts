@@ -28,6 +28,8 @@ import type { LayerThumbnailBlob } from './LayerThumbnailService';
 import {
   createLayerDocumentRendererRuntime,
   type LayerDocumentRendererRuntime,
+  type RasterGradientBlendMode,
+  type RasterGradientPaint,
   type TextFontRuntimePort,
   type TextRenderPresentationSnapshot
 } from './createLayerDocumentRendererRuntime';
@@ -372,6 +374,26 @@ export class LayerDocumentRenderer {
       layerId,
       channel,
       color,
+      preserveTransparency,
+      transform
+    );
+  }
+
+  fillLayerGradient(
+    layerId: LayerId,
+    channel: PaintChannel,
+    paint: RasterGradientPaint,
+    opacity: number,
+    blendMode: RasterGradientBlendMode,
+    preserveTransparency: boolean,
+    transform: AffineMatrix = identityAffineMatrix()
+  ) {
+    return this.runtime.rasterPaint.fillGradient(
+      layerId,
+      channel,
+      paint,
+      opacity,
+      blendMode,
       preserveTransparency,
       transform
     );

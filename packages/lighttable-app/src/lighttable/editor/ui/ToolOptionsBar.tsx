@@ -263,6 +263,14 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {activeTool === 'gradient' ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Gradient settings">
+          <ToolOptionSelect label="Apply" value={gradient.application}
+            aria-label="Gradient application"
+            onChange={(event) => onGradientChange({
+              application: event.currentTarget.value as EditorSession['gradient']['application']
+            })}>
+            <option value="fill-layer">Fill layer</option>
+            <option value="pixels">Pixels</option>
+          </ToolOptionSelect>
           <button
             ref={gradientButtonRef}
             type="button"
@@ -349,7 +357,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <option value="classic">Classic</option>
             <option value="smooth">Smooth</option>
           </ToolOptionSelect>
-          <span className="lighttable-tool-options__status">Fill layer</span>
+          <span className="lighttable-tool-options__status">
+            {gradient.application === 'fill-layer' ? 'Editable fill layer' : 'Active raster target'}
+          </span>
         </div>
       ) : null}
       {activeTool === 'zoom' ? (

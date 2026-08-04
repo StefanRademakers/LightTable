@@ -10,6 +10,7 @@ const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dis
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'gradient-tool-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'gradient-tool.png');
+const pixelScreenshotPath = path.join(outputDirectory, 'gradient-tool-pixels.png');
 const reportPath = path.join(outputDirectory, 'gradient-tool.json');
 
 await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
@@ -123,6 +124,32 @@ try {
   if (!undone || undone.layerCount !== before.layerCount) {
     throw new Error('Ctrl+Z did not remove the Gradient Fill layer.');
   }
+
+  const backgroundLayer = page.locator('.lighttable-layer').filter({
+    has: page.locator('.lighttable-layer__name[value="Background"]')
+  }).first();
+  await backgroundLayer.click();
+  await page.getByRole('combobox', { name: 'Gradient application' }).selectOption('pixels');
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 6 });
+  await page.mouse.up();
+  await page.screenshot({ path: pixelScreenshotPath });
+  const pixelFilled = await driver.queryDocument(documentId);
+  if (!pixelFilled
+    || pixelFilled.layerCount !== before.layerCount
+    || pixelFilled.history.undoDepth !== before.history.undoDepth + 1) {
+    throw new Error(`Pixel-gradient drag did not create one reversible raster edit: ${JSON.stringify({
+      before,
+      pixelFilled,
+      body: await page.locator('body').innerText()
+    })}`);
+  }
+  await page.keyboard.press('Control+z');
+  const pixelUndone = await driver.queryDocument(documentId);
+  if (!pixelUndone || pixelUndone.history.undoDepth !== before.history.undoDepth) {
+    throw new Error('Ctrl+Z did not undo the pixel gradient.');
+  }
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
 
   await writeFile(reportPath, `${JSON.stringify({
@@ -131,6 +158,7 @@ try {
     bucketIconSource,
     createdLayerId: activeLayer.id,
     screenshotPath,
+    pixelScreenshotPath,
     pageErrors
   }, null, 2)}\n`);
   process.stdout.write(`Gradient Tool smoke passed. Report: ${reportPath}\n`);

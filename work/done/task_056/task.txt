@@ -1,0 +1,48 @@
+UX Paint Bucket / Fill Tool
+
+Tool hotkey: G
+Press Shift + G to cycle between Gradient Tool and Paint Bucket Tool.
+
+Fill with foreground color: Alt + Backspace
+Fill with background color: Ctrl + Backspace
+Open Fill dialog: Shift + F5
+Fill only opaque pixels: add Shift
+Foreground: Alt + Shift + Backspace
+Background: Ctrl + Shift + Backspace
+Sample a color temporarily: hold Alt
+Undo: Ctrl + Z
+
+
+Gradient Tool
+
+Tool hotkey: G
+Press Shift + G to cycle between the Gradient Tool and Paint Bucket Tool.
+
+Main properties
+Gradient preset/editor — Select an existing gradient or edit its color and opacity stops.
+Gradient type
+Linear — straight transition along the drag direction.
+Radial — spreads outward from the starting point.
+Angle — rotates colors around the starting point.
+Reflected — mirrored linear gradient on both sides.
+Diamond — diamond-shaped transition.
+Mode — blend mode used to combine the gradient with existing pixels.
+Opacity — overall strength of the gradient.
+Reverse — swaps the gradient direction.
+Dither — reduces visible color banding.
+Transparency — respects opacity stops contained in the gradient.
+Method — controls how colors are interpolated, such as Perceptual, Linear, or Classic, depending on the Photoshop version.
+Gradient mode — newer Photoshop versions can apply the result as a non-destructive Gradient Fill layer or as a classic pixel gradient.
+Controls and shortcuts
+Draw gradient: click and drag.
+Constrain angle to 45° increments: hold Shift.
+Reverse the direction manually: drag in the opposite direction.
+Temporarily sample a color: hold Alt.
+Undo: Ctrl + Z.
+Reset foreground/background colors: D.
+Swap foreground/background colors: X.
+
+The drag direction determines the gradient angle, while the drag length determines how gradually the colors transition.
+
+
+https://helpx.adobe.com/photoshop/desktop/adjust-color/color-effects-techniques/apply-gradient-fill.html?utm_source=chatgpt.com

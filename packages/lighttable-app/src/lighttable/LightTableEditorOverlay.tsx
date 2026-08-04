@@ -212,6 +212,10 @@ import {
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import { useFillCommandController } from './application/tools/fill/useFillCommandController';
 import {
+  RasterGradientCommandController,
+  type RasterGradientDependencies
+} from './application/tools/gradient/RasterGradientCommandController';
+import {
   browserImageClipboard,
   type LightTableImageClipboard
 } from '../platform/LightTableImageClipboard';
@@ -1860,6 +1864,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const fillActiveTarget = fillCommandController.fill;
   fillActiveTargetRef.current = fillActiveTarget;
 
+  const rasterGradientPortsRef = useRef<RasterGradientDependencies>({
+    getDocument: () => null,
+    getRenderer: () => null,
+    getChannel: () => 'pixels',
+    getSettings: createGradientToolSettings,
+    applyDocumentSnapshot: () => undefined,
+    pushHistoryEntry: () => undefined,
+    setStatus: () => undefined,
+    setError: () => undefined
+  });
+  rasterGradientPortsRef.current = {
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    getChannel: () => editorSession.activeChannel,
+    getSettings: () => gradientToolSettings,
+    applyDocumentSnapshot,
+    pushHistoryEntry,
+    setStatus: setGradeStatus,
+    setError
+  };
+  const rasterGradientControllerRef = useRef<RasterGradientCommandController | null>(null);
+  rasterGradientControllerRef.current ??= new RasterGradientCommandController(
+    () => rasterGradientPortsRef.current
+  );
+  const rasterGradientController = rasterGradientControllerRef.current;
+
   const paintSessionController = usePaintSessionController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
@@ -2260,6 +2290,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     paint: paintSessionController,
     warp: warpSessionController,
     vector: vectorToolSessionController,
+    rasterGradient: rasterGradientController,
     minScale: MIN_SCALE,
     maxScale: MAX_SCALE,
     onBrushCursorChange: (cursor) => {

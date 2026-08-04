@@ -1,3 +1,4 @@
+import type { GradientPaintInstance } from '@lighttable/paint-core';
 import type { BasicAdjustments, LightTableImageMetadata } from '../types';
 import { CURVE_LUT_SIZE } from '../curves';
 import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
@@ -20,6 +21,7 @@ import { findDocumentLayer, findRasterLayer, walkLayerTree } from '../editor/doc
 import { layerStyleStackIsActive } from '../editor/styles/layerStyleDefaults';
 import type { BrushDab } from '../editor/tools/brush/strokeBuilder';
 import type { PaintChannel } from '../editor/session/editorSession';
+import type { BlendMode } from '../editor/document/blendModes';
 import type {
   CompositeColorChannel,
   SelectionMode,
@@ -637,6 +639,32 @@ export class WebGpuEngine {
       channel === 'pixels' && layer?.type === 'raster'
         ? layer.transform
         : undefined
+    ) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
+  fillLayerGradient(
+    layerId: LayerId,
+    channel: PaintChannel,
+    paint: GradientPaintInstance,
+    opacity: number,
+    blendMode: BlendMode,
+    preserveTransparency: boolean
+  ) {
+    const layer = this.imageDocument
+      ? findDocumentLayer(this.imageDocument, layerId)
+      : null;
+    const changed = this.documentRenderer?.fillLayerGradient(
+      layerId,
+      channel,
+      paint,
+      opacity,
+      blendMode,
+      preserveTransparency,
+      channel === 'pixels' && layer?.type === 'raster'
+        ? layer.transform
+        : layer?.transform
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;

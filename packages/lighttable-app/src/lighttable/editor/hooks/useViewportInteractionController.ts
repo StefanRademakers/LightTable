@@ -46,6 +46,7 @@ import {
 } from '../tools/zoom/zoomLevels';
 import type { LightTableImageMetadata, LightTableViewState } from '../../types';
 import type { VectorToolSessionController } from '../../application/vectors/VectorToolSessionController';
+import type { RasterGradientCommandController } from '../../application/tools/gradient/RasterGradientCommandController';
 import { isVectorEditorTool } from '../tools/vectorToolCatalog';
 
 interface ViewportSize {
@@ -92,6 +93,7 @@ interface ViewportInteractionOptions {
   paint: PaintSessionController;
   warp: WarpSessionController;
   vector: VectorToolSessionController;
+  rasterGradient: RasterGradientCommandController;
   minScale: number;
   maxScale: number;
   onBrushCursorChange: (cursor: {
@@ -146,6 +148,7 @@ export const useViewportInteractionController = ({
   paint,
   warp,
   vector,
+  rasterGradient,
   minScale,
   maxScale,
   onBrushCursorChange,
@@ -414,6 +417,19 @@ export const useViewportInteractionController = ({
         ? 'vector-select'
         : effectiveTool;
       if (
+        activeTool === 'gradient'
+        && editorSession.gradient.application === 'pixels'
+        && point
+        && event.button === 0
+        && !temporaryPan
+      ) {
+        if (rasterGradient.begin(event.pointerId, point)) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }
+        return;
+      }
+      if (
         isVectorEditorTool(activeTool)
         && point
         && event.button === 0
@@ -616,6 +632,10 @@ export const useViewportInteractionController = ({
         if (point && textGesture.move(event.pointerId, point)) event.preventDefault();
         return;
       }
+      if (point && rasterGradient.owns(event.pointerId)) {
+        if (rasterGradient.move(event.pointerId, point)) event.preventDefault();
+        return;
+      }
       if (point && vector.ownsPointer(event.pointerId)) {
         if (vector.pointerMove(event.pointerId, point, {
           preserveAspect: event.shiftKey,
@@ -711,6 +731,13 @@ export const useViewportInteractionController = ({
         event.preventDefault();
         return;
       }
+      if (rasterGradient.owns(event.pointerId)) {
+        const point = documentPoint(event);
+        if (point) rasterGradient.finish(event.pointerId, point, event.shiftKey);
+        else rasterGradient.cancel(event.pointerId);
+        event.preventDefault();
+        return;
+      }
       if (vector.ownsPointer(event.pointerId)) {
         const point = documentPoint(event);
         if (point) vector.pointerUp(event.pointerId, point, event.detail, {
@@ -756,6 +783,7 @@ export const useViewportInteractionController = ({
         textGesture.cancel(event.pointerId);
         return;
       }
+      rasterGradient.cancel(event.pointerId);
       vector.pointerCancel(event.pointerId);
       selection.cancel(event.pointerId);
       warp.cancel(event.pointerId);

@@ -1282,3 +1282,82 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   return mix(source, filled, selection);
 }
 `;
+
+export const LAYER_FILL_GRADIENT_WGSL = /* wgsl */ `
+struct GradientFillSettings {
+  sourceToDocumentRow0: vec4f,
+  sourceToDocumentRow1: vec4f,
+  gradientInverseRow0: vec4f,
+  gradientInverseRow1: vec4f,
+  options: vec4f,
+  channel: vec4f,
+}
+
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var selectionTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> settings: GradientFillSettings;
+@group(0) @binding(3) var<storage, read> gradientLut: array<vec4f>;
+
+${LAYER_BLEND_FUNCTIONS_WGSL}
+
+fn noiseAt(pixel: vec2f) -> f32 {
+  return fract(sin(dot(pixel, vec2f(12.9898, 78.233))) * 43758.5453) - 0.5;
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let dimensions = vec2i(textureDimensions(sourceTexture));
+  let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
+  let source = textureLoad(sourceTexture, pixel, 0);
+  let documentPosition = vec2f(
+    dot(settings.sourceToDocumentRow0.xyz, vec3f(vec2f(pixel), 1.0)),
+    dot(settings.sourceToDocumentRow1.xyz, vec3f(vec2f(pixel), 1.0))
+  );
+  let selectionDimensions = vec2i(textureDimensions(selectionTexture));
+  let selectionInside = all(documentPosition >= vec2f(0.0))
+    && all(documentPosition < vec2f(selectionDimensions));
+  let selectionPixel = clamp(vec2i(documentPosition), vec2i(0), selectionDimensions - vec2i(1));
+  let selection = select(
+    0.0,
+    clamp(textureLoad(selectionTexture, selectionPixel, 0).r, 0.0, 1.0),
+    selectionInside
+  );
+  let point = vec2f(
+    dot(settings.gradientInverseRow0.xyz, vec3f(documentPosition, 1.0)),
+    dot(settings.gradientInverseRow1.xyz, vec3f(documentPosition, 1.0))
+  );
+  let shape = u32(settings.gradientInverseRow1.w + 0.5);
+  var position = point.x;
+  if (shape == 1u) { position = length(point); }
+  if (shape == 2u) { position = fract(atan2(point.y, point.x) / 6.28318530718 + 1.0); }
+  if (shape == 3u) { position = abs(point.x); }
+  if (shape == 4u) { position = abs(point.x) + abs(point.y); }
+  position = clamp(select(position, 1.0 - position, settings.options.x > 0.5), 0.0, 1.0);
+  let scaled = position * 255.0;
+  let lower = u32(floor(scaled));
+  let upper = min(255u, lower + 1u);
+  var gradient = mix(gradientLut[lower], gradientLut[upper], fract(scaled));
+  if (settings.options.z > 0.5) {
+    gradient = vec4f(
+      clamp(gradient.rgb + vec3f(noiseAt(documentPosition) / 255.0), vec3f(0.0), vec3f(1.0)),
+      gradient.a
+    );
+  }
+  let amount = clamp(gradient.a * settings.options.y * selection, 0.0, 1.0);
+  if (settings.channel.y > 0.5) {
+    let gray = dot(gradient.rgb, vec3f(0.2126, 0.7152, 0.0722));
+    return mix(source, vec4f(gray, gray, gray, 1.0), amount);
+  }
+  let sourceStraight = source.rgb / max(source.a, 1e-6);
+  let blended = blendColor(sourceStraight, gradient.rgb, i32(settings.options.w + 0.5));
+  if (settings.channel.x > 0.5) {
+    let straight = mix(sourceStraight, blended, amount);
+    return vec4f(straight * source.a, source.a);
+  }
+  let compositedGradient = mix(gradient.rgb, blended, source.a);
+  return vec4f(
+    compositedGradient * amount + source.rgb * (1.0 - amount),
+    amount + source.a * (1.0 - amount)
+  );
+}
+`;

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import type { LayerId } from '../document/documentTypes';
 import { RasterPaintService } from './RasterPaintService';
 
@@ -15,6 +16,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const createdTextures: GPUTexture[] = [];
   const pipelines = vi.fn(() => ({
     fillColor: { getBindGroupLayout: vi.fn(() => ({})) },
+    fillGradient: { getBindGroupLayout: vi.fn(() => ({})) },
     invertColors: { getBindGroupLayout: vi.fn(() => ({})) }
   }));
   const ensureSelectionTargets = vi.fn();
@@ -136,5 +138,32 @@ describe('RasterPaintService', () => {
       expect.anything(),
       [12, 7]
     );
+  });
+
+  it('encodes a gradient LUT and keeps the GPU copy bounded to the tight raster', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness(true, { width: 12, height: 7 });
+    const paint = {
+      ...createDefaultGradientPaint('pixel-gradient', 'document'),
+      transform: { a: 100, b: 0, c: 0, d: 100, tx: 4, ty: 5 }
+    };
+
+    expect(test.service.fillGradient(
+      layerId,
+      'pixels',
+      paint,
+      0.75,
+      'multiply',
+      false
+    )).toBe(true);
+
+    expect(test.createBuffer).toHaveBeenCalledTimes(2);
+    expect(test.drawFullscreen).toHaveBeenCalledOnce();
+    expect(test.copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: test.createdTextures[0] },
+      expect.anything(),
+      [12, 7]
+    );
+    expect(test.invalidateLayer).toHaveBeenCalledWith(layerId);
   });
 });

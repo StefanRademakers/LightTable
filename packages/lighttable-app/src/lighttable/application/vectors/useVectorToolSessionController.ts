@@ -122,6 +122,10 @@ export const useVectorToolSessionController = ({
   useEffect(() => {
     const controller = controllerRef.current;
     if (!controller) return;
+    if (activeTool === 'gradient' && gradient.application === 'pixels') {
+      controller.deactivate();
+      return;
+    }
     if (!isVectorEditorTool(activeTool)) {
       controller.deactivate();
       return;
@@ -129,7 +133,7 @@ export const useVectorToolSessionController = ({
     const activation = vectorToolActivation(activeTool);
     if (activation.preset) controller.setLiveShapePreset(activation.preset);
     controller.activate(activation.mode);
-  }, [activeTool, document?.id]);
+  }, [activeTool, document?.id, gradient.application]);
 
   // Delay destruction by one microtask. React development StrictMode performs
   // a synthetic setup/cleanup/setup cycle; the generation guard prevents that

@@ -18,6 +18,8 @@ import { LayerCompositor } from './LayerCompositor';
 import { TransformRasterizer } from './TransformRasterizer';
 import { PixelEditHistoryService } from './PixelEditHistoryService';
 import { RasterPaintService } from './RasterPaintService';
+export type RasterGradientPaint = Parameters<RasterPaintService['fillGradient']>[2];
+export type RasterGradientBlendMode = Parameters<RasterPaintService['fillGradient']>[4];
 import { PatternAssetLoader } from './PatternAssetLoader';
 import { LayerThumbnailService } from './LayerThumbnailService';
 import { ImportedLayerInitializer } from './ImportedLayerInitializer';

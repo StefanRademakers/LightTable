@@ -1,3 +1,5 @@
+import { sampleGradientAsset, type GradientPaintInstance } from '@lighttable/paint-core';
+import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
 import type { LayerId } from '../document/documentTypes';
 import type { PaintChannel } from '../session/editorSession';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
@@ -195,6 +197,94 @@ export class RasterPaintService {
     void this.options.device.queue.onSubmittedWorkDone().then(() => {
       result.destroy();
       settingsBuffer.destroy();
+    });
+    return true;
+  }
+
+  fillGradient(
+    layerId: LayerId,
+    channel: PaintChannel,
+    paint: GradientPaintInstance,
+    opacity: number,
+    blendMode: BlendMode,
+    preserveTransparency: boolean,
+    transform: AffineMatrix = identityAffineMatrix()
+  ) {
+    this.options.ensureSelectionTargets();
+    const runtime = this.options.layerResources.raster(layerId);
+    const target = channel === 'mask'
+      ? this.options.maskTextureFor(layerId)
+      : runtime?.texture;
+    const selection = this.options.selectionTextures.mask;
+    const gradientInverse = invertMatrix(paint.transform);
+    if (!target || !selection || !gradientInverse || paint.asset.type !== 'solid') return false;
+
+    const pipelines = this.options.pipelines();
+    const { width, height } = channel === 'pixels' && runtime
+      ? runtime
+      : this.options.dimensions();
+    const result = this.options.createTextureSized(
+      'LightTable gradient-filled layer',
+      width,
+      height
+    );
+    const settings = this.options.device.createBuffer({
+      label: 'LightTable gradient fill settings',
+      size: 96,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const shape = ({ linear: 0, radial: 1, angle: 2, reflected: 3, diamond: 4 } as const)[paint.shape];
+    this.options.device.queue.writeBuffer(settings, 0, new Float32Array([
+      transform.a, transform.c, transform.tx, 0,
+      transform.b, transform.d, transform.ty, 0,
+      gradientInverse.a, gradientInverse.c, gradientInverse.tx, 0,
+      gradientInverse.b, gradientInverse.d, gradientInverse.ty, shape,
+      paint.reverse ? 1 : 0, Math.min(1, Math.max(0, opacity)), paint.dither ? 1 : 0,
+      blendModeGpuValue(blendMode),
+      preserveTransparency ? 1 : 0, channel === 'mask' ? 1 : 0, 0, 0
+    ]));
+    const lutValues = new Float32Array(256 * 4);
+    const linear = (value: number) => value <= 0.04045
+      ? value / 12.92
+      : ((value + 0.055) / 1.055) ** 2.4;
+    for (let index = 0; index < 256; index += 1) {
+      const color = sampleGradientAsset(paint.asset, index / 255);
+      lutValues.set([linear(color.r), linear(color.g), linear(color.b), color.a], index * 4);
+    }
+    const lut = this.options.device.createBuffer({
+      label: `LightTable gradient fill LUT ${paint.asset.id}`,
+      size: lutValues.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    this.options.device.queue.writeBuffer(lut, 0, lutValues);
+    const pipeline = pipelines.fillGradient;
+    const bindGroup = this.options.device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: target.createView() },
+        { binding: 1, resource: selection.createView() },
+        { binding: 2, resource: { buffer: settings } },
+        { binding: 3, resource: { buffer: lut } }
+      ]
+    });
+    const encoder = this.options.device.createCommandEncoder({
+      label: 'LightTable fill layer gradient'
+    });
+    this.options.drawFullscreen(
+      encoder,
+      pipeline,
+      bindGroup,
+      result.createView(),
+      { r: 0, g: 0, b: 0, a: 0 }
+    );
+    encoder.copyTextureToTexture({ texture: result }, { texture: target }, [width, height]);
+    this.options.device.queue.submit([encoder.finish()]);
+    this.options.invalidateLayer(layerId);
+    this.options.releaseSubmittedResources();
+    void this.options.device.queue.onSubmittedWorkDone().then(() => {
+      result.destroy();
+      settings.destroy();
+      lut.destroy();
     });
     return true;
   }

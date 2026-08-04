@@ -3,6 +3,7 @@ import {
   BRUSH_DAB_WGSL,
   COLOR_CHANNEL_COPY_WGSL,
   LAYER_FILL_COLOR_WGSL,
+  LAYER_FILL_GRADIENT_WGSL,
   LAYER_INVERT_COLORS_WGSL,
   RED_CHANNEL_COPY_WGSL,
   SELECTION_COMBINE_WGSL,
@@ -22,6 +23,7 @@ export interface ToolPipelineBundle {
   brush: GPURenderPipeline;
   erase: GPURenderPipeline;
   fillColor: GPURenderPipeline;
+  fillGradient: GPURenderPipeline;
   invertColors: GPURenderPipeline;
   selectionShape: GPURenderPipeline;
   selectionCombine: GPURenderPipeline;
@@ -94,6 +96,7 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' }
     ),
     fillColor: fullscreenPipeline('LightTable fill layer color', LAYER_FILL_COLOR_WGSL),
+    fillGradient: fullscreenPipeline('LightTable fill layer gradient', LAYER_FILL_GRADIENT_WGSL),
     invertColors: fullscreenPipeline('LightTable invert layer colors', LAYER_INVERT_COLORS_WGSL),
     selectionShape: fullscreenPipeline('LightTable selection shape rasterizer', SELECTION_SHAPE_WGSL, 'r8unorm'),
     selectionCombine: fullscreenPipeline('LightTable selection boolean compositor', SELECTION_COMBINE_WGSL, 'r8unorm'),

@@ -189,7 +189,7 @@ export interface GradientToolSettings {
   opacity: number;
   blendMode: BlendMode;
   transparency: boolean;
-  application: 'fill-layer';
+  application: 'fill-layer' | 'pixels';
 }
 
 export const createGradientToolSettings = (): GradientToolSettings => ({
