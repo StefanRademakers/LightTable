@@ -1,5 +1,6 @@
 import type { AffineMatrix } from '../math/affine';
 import type { Vec2 } from '../math/vector';
+import type { GradientPaintInstance } from '@lighttable/paint-core';
 
 export type VectorId = string;
 export type FillRule = 'nonzero' | 'evenodd';
@@ -26,8 +27,10 @@ export interface SolidPaint {
   color: readonly [number, number, number, number];
 }
 
+export type VectorPaint = SolidPaint | GradientPaintInstance;
+
 export interface VectorStroke {
-  paint: SolidPaint;
+  paint: VectorPaint;
   width: number;
   /** Center is the PDF/default stroke model; inside/outside apply to closed contours. */
   alignment?: 'inside' | 'center' | 'outside';
@@ -39,7 +42,7 @@ export interface VectorStroke {
 }
 
 export interface VectorStyle {
-  fill: SolidPaint | null;
+  fill: VectorPaint | null;
   stroke: VectorStroke | null;
   opacity: number;
 }

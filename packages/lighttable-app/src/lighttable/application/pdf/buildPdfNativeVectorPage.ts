@@ -120,6 +120,11 @@ const elementOperations = (
   const fill = path.style.fill;
   const stroke = path.style.stroke;
   if (!fill && !stroke) return [];
+  if ((fill && 'kind' in fill) || (stroke && 'kind' in stroke.paint)) {
+    return fail(`layer ${layer.id} uses a gradient paint that requires PDF shading export.`);
+  }
+  const solidFill = fill as SolidPaint | null;
+  const solidStrokePaint = stroke?.paint as SolidPaint | undefined;
   if (stroke && (stroke.alignment ?? 'center') !== 'center') {
     return fail(`layer ${layer.id} uses unsupported ${stroke.alignment} stroke alignment.`);
   }
@@ -127,10 +132,10 @@ const elementOperations = (
     { kind: 'save-state' },
     { kind: 'concat-transform', matrix: pdfMatrix(multiplyMatrices(layerToPage, path.transform)) }
   ];
-  if (fill) operations.push({ kind: 'set-fill-paint', paint: pdfPaint(fill) });
+  if (solidFill) operations.push({ kind: 'set-fill-paint', paint: pdfPaint(solidFill) });
   if (stroke) {
     operations.push(
-      { kind: 'set-stroke-paint', paint: pdfPaint(stroke.paint) },
+      { kind: 'set-stroke-paint', paint: pdfPaint(solidStrokePaint!) },
       { kind: 'set-stroke-state', stroke: {
         width: stroke.width, cap: stroke.cap, join: stroke.join,
         miterLimit: stroke.miterLimit, dash: [...stroke.dash], dashPhase: stroke.dashOffset
@@ -139,8 +144,8 @@ const elementOperations = (
   }
   operations.push({
     kind: 'set-alpha',
-    fill: (fill?.color[3] ?? 1) * path.style.opacity * layer.opacity * layer.fillOpacity,
-    stroke: (stroke?.paint.color[3] ?? 1) * path.style.opacity * layer.opacity * layer.fillOpacity
+    fill: (solidFill?.color[3] ?? 1) * path.style.opacity * layer.opacity * layer.fillOpacity,
+    stroke: (solidStrokePaint?.color[3] ?? 1) * path.style.opacity * layer.opacity * layer.fillOpacity
   });
   operations.push({
     kind: 'draw-path', path: pathData(path), fillRule: path.fillRule,

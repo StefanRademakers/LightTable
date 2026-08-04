@@ -20,6 +20,7 @@ export type HybridPdfVectorPageExportReason =
   | 'vector-effects-unsupported'
   | 'vector-blend-mode-unsupported'
   | 'vector-stroke-alignment-unsupported'
+  | 'vector-gradient-unsupported'
   | 'vector-clipping-unsupported'
   | 'document-processing-active';
 
@@ -84,9 +85,9 @@ export const collectPdfVisibleLeaves = (
 
 export const pdfVectorElementHasVisiblePaint = (element: VectorElement) => (
   element.style.opacity > 0
-  && (Boolean(element.style.fill && element.style.fill.color[3] > 0)
+  && (Boolean(element.style.fill && ('kind' in element.style.fill || element.style.fill.color[3] > 0))
     || Boolean(element.style.stroke && element.style.stroke.width > 0
-      && element.style.stroke.paint.color[3] > 0))
+      && ('kind' in element.style.stroke.paint || element.style.stroke.paint.color[3] > 0)))
 );
 
 export const pdfVectorLayerNativeReason = (
@@ -96,6 +97,11 @@ export const pdfVectorLayerNativeReason = (
   allowClipping = false
 ): HybridPdfVectorPageExportReason | null => {
   if (ancestorEffects) return 'vector-effects-unsupported';
+  if (layer.elements.some(element =>
+    Boolean(element.style.fill && 'kind' in element.style.fill)
+    || Boolean(element.style.stroke && 'kind' in element.style.stroke.paint))) {
+    return 'vector-gradient-unsupported';
+  }
   if ((!allowClipping && layer.clipping)
     || layer.mask !== null || layerStyleStackIsActive(layer.styleStack)) {
     return 'vector-effects-unsupported';
@@ -119,7 +125,9 @@ export const pdfVectorOpaqueClipBasePath = (layer: VectorLayer): VectorPath | nu
   const element = layer.elements[0]!;
   const path = element.type === 'path' ? element : realizeLiveShape(element);
   return path.style.opacity === 1
-    && path.style.fill?.color[3] === 1
+    && path.style.fill !== null
+    && !('kind' in path.style.fill)
+    && path.style.fill.color[3] === 1
     && path.style.stroke === null
     ? path
     : null;

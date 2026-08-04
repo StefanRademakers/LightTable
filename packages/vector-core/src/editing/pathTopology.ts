@@ -1,4 +1,4 @@
-import { cloneVectorAnchor, cloneVectorSubpath } from '../model/clone';
+import { cloneVectorAnchor, cloneVectorStyle, cloneVectorSubpath } from '../model/clone';
 import { invertMatrix, multiplyMatrices, transformPoint } from '../math/affine';
 import type { AffineMatrix } from '../math/affine';
 import type { VectorAnchor, VectorPath, VectorSubpath } from '../model/types';
@@ -154,15 +154,7 @@ export const joinVectorPathEndpoints = (
   return {
     ...first,
     transform: { ...first.transform },
-    style: {
-      ...first.style,
-      fill: first.style.fill ? { ...first.style.fill, color: [...first.style.fill.color] } : null,
-      stroke: first.style.stroke ? {
-        ...first.style.stroke,
-        paint: { ...first.style.stroke.paint, color: [...first.style.stroke.paint.color] },
-        dash: [...first.style.stroke.dash]
-      } : null
-    },
+    style: cloneVectorStyle(first.style),
     subpaths: resultSubpaths,
     geometryRevision: first.geometryRevision + 1
   };

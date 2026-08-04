@@ -7,6 +7,12 @@ import type {
   VectorStyle,
   VectorSubpath
 } from './types';
+import { cloneGradientPaint } from '@lighttable/paint-core';
+
+const clonePaint = <T extends NonNullable<VectorStyle['fill']>>(paint: T): T => {
+  if ('kind' in paint) return cloneGradientPaint(paint) as T;
+  return { ...paint, color: [...paint.color] } as T;
+};
 
 export const cloneVectorAnchor = (anchor: VectorAnchor): VectorAnchor => ({
   ...anchor,
@@ -22,10 +28,10 @@ export const cloneVectorSubpath = (subpath: VectorSubpath): VectorSubpath => ({
 
 export const cloneVectorStyle = (style: VectorStyle): VectorStyle => ({
   ...style,
-  fill: style.fill ? { ...style.fill, color: [...style.fill.color] } : null,
+  fill: style.fill ? clonePaint(style.fill) : null,
   stroke: style.stroke ? {
     ...style.stroke,
-    paint: { ...style.stroke.paint, color: [...style.stroke.paint.color] },
+    paint: clonePaint(style.stroke.paint),
     dash: [...style.stroke.dash]
   } : null
 });

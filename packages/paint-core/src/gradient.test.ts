@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { cloneGradientAsset, gradientAssetIsValid, identityPaintTransform } from './gradient';
+import {
+  cloneGradientAsset,
+  cloneGradientPaint,
+  gradientAssetIsValid,
+  gradientPaintIsValid,
+  identityPaintTransform,
+  sampleGradientAsset
+} from './gradient';
 
 const asset = {
   id: 'gradient-1', name: 'Black, White', type: 'solid' as const, smoothness: 1,
@@ -30,5 +37,30 @@ describe('gradient paint contract', () => {
   it('rejects invalid normalized channels and positions', () => {
     expect(gradientAssetIsValid({ ...asset, smoothness: 2 })).toBe(false);
     expect(gradientAssetIsValid({ ...asset, opacityStops: [] })).toBe(false);
+  });
+
+  it('validates and deeply clones a positioned paint instance', () => {
+    const paint = {
+      kind: 'gradient' as const, asset, shape: 'linear' as const,
+      coordinateSpace: 'object-bounds' as const, transform: identityPaintTransform(),
+      reverse: false, dither: false, interpolation: 'perceptual' as const
+    };
+    expect(gradientPaintIsValid(paint)).toBe(true);
+    const clone = cloneGradientPaint(paint);
+    expect(clone).toEqual(paint);
+    expect(clone.asset).not.toBe(paint.asset);
+    expect(clone.transform).not.toBe(paint.transform);
+  });
+
+  it('samples independent color and opacity stops with midpoint semantics', () => {
+    const sampled = sampleGradientAsset({
+      ...asset,
+      colorStops: asset.colorStops.map((stop) => ({ ...stop, midpoint: 0.25 })),
+      opacityStops: [
+        { id: 'transparent', position: 0, midpoint: 0.5, opacity: 0 },
+        { id: 'opaque', position: 1, midpoint: 0.5, opacity: 1 }
+      ]
+    }, 0.25);
+    expect(sampled).toMatchObject({ r: 0.5, g: 0.5, b: 0.5, a: 0.25 });
   });
 });

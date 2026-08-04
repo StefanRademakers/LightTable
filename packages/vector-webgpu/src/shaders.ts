@@ -4,6 +4,9 @@ struct VectorSettings {
   transform: vec4f,
   translation: vec4f,
   color: vec4f,
+  gradientRow0: vec4f,
+  gradientRow1: vec4f,
+  gradientOptions: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> settings: VectorSettings;
@@ -37,22 +40,62 @@ struct VectorSettings {
   transform: vec4f,
   translation: vec4f,
   color: vec4f,
+  gradientRow0: vec4f,
+  gradientRow1: vec4f,
+  gradientOptions: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> settings: VectorSettings;
+@group(0) @binding(1) var<storage, read> gradientLut: array<vec4f>;
+
+struct CoverOutput {
+  @builtin(position) position: vec4f,
+  @location(0) documentPosition: vec2f,
+};
 
 @vertex
-fn coverVertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
+fn coverVertex(@builtin(vertex_index) index: u32) -> CoverOutput {
   var positions = array<vec2f, 6>(
     vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
     vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0)
   );
-  return vec4f(positions[index], 0.0, 1.0);
+  let clip = positions[index];
+  var output: CoverOutput;
+  output.position = vec4f(clip, 0.0, 1.0);
+  output.documentPosition = settings.tile.xy + vec2f(
+    (clip.x + 1.0) * 0.5 * settings.tile.z,
+    (1.0 - clip.y) * 0.5 * settings.tile.w
+  );
+  return output;
 }
 
 @fragment
-fn coverFragment() -> @location(0) vec4f {
-  return settings.color;
+fn coverFragment(input: CoverOutput) -> @location(0) vec4f {
+  if (settings.gradientOptions.x < 0.5) { return settings.color; }
+  let point = vec2f(
+    dot(settings.gradientRow0.xy, input.documentPosition) + settings.gradientRow0.z,
+    dot(settings.gradientRow1.xy, input.documentPosition) + settings.gradientRow1.z
+  );
+  let shape = u32(settings.gradientRow1.w + 0.5);
+  var position = point.x;
+  if (shape == 1u) { position = length(point); }
+  if (shape == 2u) { position = fract(atan2(point.y, point.x) / 6.28318530718 + 1.0); }
+  if (shape == 3u) { position = abs(point.x); }
+  if (shape == 4u) { position = abs(point.x) + abs(point.y); }
+  position = clamp(select(position, 1.0 - position, settings.gradientOptions.y > 0.5), 0.0, 1.0);
+  let scaled = position * 255.0;
+  let lower = u32(floor(scaled));
+  let upper = min(255u, lower + 1u);
+  var color = mix(gradientLut[lower], gradientLut[upper], fract(scaled));
+  if (settings.gradientOptions.w > 0.5) {
+    let noise = fract(sin(dot(input.documentPosition, vec2f(12.9898, 78.233))) * 43758.5453) - 0.5;
+    color = vec4f(
+      clamp(color.rgb + vec3f(noise / 255.0), vec3f(0.0), vec3f(1.0)),
+      color.a
+    );
+  }
+  let alpha = color.a * settings.gradientOptions.z;
+  return vec4f(color.rgb * alpha, alpha);
 }
 `;
 

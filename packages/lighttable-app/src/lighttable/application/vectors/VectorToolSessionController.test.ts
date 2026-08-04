@@ -341,7 +341,7 @@ describe('VectorToolSessionController', () => {
     const updated = findDocumentLayer(state.document, layer.id);
     if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
     expect(updated.elements.map(({ style, styleRevision }) => ({
-      fill: style.fill?.color,
+      fill: style.fill && !('kind' in style.fill) ? style.fill.color : null,
       width: style.stroke?.width,
       styleRevision
     }))).toEqual([

@@ -45,6 +45,34 @@ describe('parseVectorPath', () => {
     invalidOpacity.style.opacity = 2;
     expect(() => parseVectorPath(invalidOpacity)).toThrow('must be between 0 and 1');
   });
+
+  it('round-trips a shared gradient paint without sharing nested stop state', () => {
+    const source = createVectorPath('gradient-path', 'Gradient');
+    source.style.fill = {
+      kind: 'gradient',
+      asset: {
+        id: 'gradient', name: 'Black to white', type: 'solid', smoothness: 1,
+        colorStops: [
+          { id: 'black', position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0, a: 1 } },
+          { id: 'white', position: 1, midpoint: 0.5, color: { r: 1, g: 1, b: 1, a: 1 } }
+        ],
+        opacityStops: [
+          { id: 'a', position: 0, midpoint: 0.5, opacity: 1 },
+          { id: 'b', position: 1, midpoint: 0.5, opacity: 1 }
+        ],
+        roughness: 0, seed: 0
+      },
+      shape: 'linear', coordinateSpace: 'object-bounds',
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      reverse: false, dither: true, interpolation: 'perceptual'
+    };
+
+    const parsed = parseVectorPath(JSON.parse(JSON.stringify(source)));
+    expect(parsed).toEqual(source);
+    expect(parsed.style.fill).not.toBe(source.style.fill);
+    if (!parsed.style.fill || !('kind' in parsed.style.fill)) throw new Error('Expected gradient paint.');
+    expect(parsed.style.fill.asset.colorStops).not.toBe(source.style.fill.asset.colorStops);
+  });
 });
 
 describe('parseVectorLiveShape', () => {

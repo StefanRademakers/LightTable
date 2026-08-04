@@ -238,4 +238,53 @@ describe('VectorFillBackend', () => {
       .toHaveLength(2);
     backend.dispose();
   });
+
+  it('uploads and reuses a shared gradient LUT with object-bounds mapping', () => {
+    const { device, encoder, buffers } = fixture();
+    const backend = new VectorFillBackend(device as unknown as GPUDevice);
+    const source = pathFixture();
+    const path = {
+      ...source,
+      style: {
+        ...source.style,
+        fill: {
+          kind: 'gradient' as const,
+          asset: {
+            id: 'sunset', name: 'Sunset', type: 'solid' as const, smoothness: 1,
+            colorStops: [
+              { id: 'red', position: 0, midpoint: 0.5, color: { r: 1, g: 0, b: 0, a: 1 } },
+              { id: 'blue', position: 1, midpoint: 0.5, color: { r: 0, g: 0, b: 1, a: 1 } }
+            ],
+            opacityStops: [
+              { id: 'opaque-a', position: 0, midpoint: 0.5, opacity: 1 },
+              { id: 'opaque-b', position: 1, midpoint: 0.5, opacity: 1 }
+            ],
+            roughness: 0, seed: 0
+          },
+          shape: 'linear' as const, coordinateSpace: 'object-bounds' as const,
+          transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+          reverse: false, dither: true, interpolation: 'perceptual' as const
+        }
+      }
+    };
+    const target = {
+      colorView: {} as GPUTextureView, resolveView: null,
+      stencilView: {} as GPUTextureView, format: 'rgba16float' as GPUTextureFormat,
+      sampleCount: 1, origin: { x: 0, y: 0 }, width: 200, height: 200
+    };
+
+    const geometry = realizeVectorPath(path, 0.25);
+    expect(backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, geometry, target)).toBe(true);
+    expect(backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, geometry, target)).toBe(true);
+    expect(buffers.filter(({ label }) => label.includes('gradient LUT sunset'))).toHaveLength(1);
+    const writes = device.queue.writeBuffer.mock.calls
+      .map((call) => call[2])
+      .filter((value): value is Float32Array => value instanceof Float32Array);
+    expect(writes.some((value) => value.length === 256 * 4)).toBe(true);
+    const settings = writes.find((value) => value.length === 28);
+    expect(settings?.slice(16, 23)).toEqual(new Float32Array([
+      0.01, 0, 0, 0, 0, 0.01, 0
+    ]));
+    backend.dispose();
+  });
 });

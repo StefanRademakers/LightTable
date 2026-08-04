@@ -1,4 +1,5 @@
-import type { SolidPaint, VectorPath } from '@lighttable/vector-core';
+import { invertMatrix, multiplyMatrices, type VectorPaint, type VectorPath } from '@lighttable/vector-core';
+import { sampleGradientAsset, type GradientPaintInstance } from '@lighttable/paint-core';
 import {
   buildStrokeTriangleGeometry,
   RevisionedResourceCache,
@@ -9,7 +10,8 @@ import {
 import { buildStencilFanVertices } from './fanGeometry';
 import { VECTOR_COVER_WGSL, VECTOR_STENCIL_VERTEX_WGSL } from './shaders';
 
-const SETTINGS_BYTES = 64;
+const SETTINGS_BYTES = 112;
+const GRADIENT_LUT_SIZE = 256;
 
 interface CachedVertexBuffer {
   buffer: GPUBuffer;
@@ -51,7 +53,7 @@ export interface VectorFillSurface {
   dispose(): void;
 }
 
-const premultiplied = (paint: SolidPaint, opacity: number) => {
+const premultiplied = (paint: Extract<VectorPaint, { type: 'solid' }>, opacity: number) => {
   const alpha = Math.max(0, Math.min(1, paint.color[3] * opacity));
   return [
     paint.color[0] * alpha,
@@ -60,6 +62,15 @@ const premultiplied = (paint: SolidPaint, opacity: number) => {
     alpha
   ] as const;
 };
+
+const gradientShapeCode = (shape: GradientPaintInstance['shape']) =>
+  ({ linear: 0, radial: 1, angle: 2, reflected: 3, diamond: 4 })[shape];
+
+const gradientKey = (paint: GradientPaintInstance) => JSON.stringify(paint.asset);
+
+const srgbToLinear = (value: number) => value <= 0.04045
+  ? value / 12.92
+  : ((value + 0.055) / 1.055) ** 2.4;
 
 const strokeGeometryIdentity = (stroke: NonNullable<VectorPath['style']['stroke']>) => JSON.stringify([
   stroke.width,
@@ -75,6 +86,8 @@ export class VectorFillBackend {
   private readonly geometry: RevisionedResourceCache<CachedVertexBuffer>;
   private readonly pipelines = new Map<string, PipelineBundle>();
   private readonly settingsLayout: GPUBindGroupLayout;
+  private readonly solidLut: GPUBuffer;
+  private readonly gradientLuts = new Map<string, GPUBuffer>();
   private pendingUniforms: GPUBuffer[] = [];
   private disposed = false;
 
@@ -82,12 +95,25 @@ export class VectorFillBackend {
     this.geometry = new RevisionedResourceCache(cacheBudgetBytes, ({ buffer }) => buffer.destroy());
     this.settingsLayout = device.createBindGroupLayout({
       label: 'LightTable vector settings layout',
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-        buffer: { type: 'uniform', minBindingSize: SETTINGS_BYTES }
-      }]
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+          buffer: { type: 'uniform', minBindingSize: SETTINGS_BYTES }
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: 'read-only-storage', minBindingSize: 16 }
+        }
+      ]
     });
+    this.solidLut = device.createBuffer({
+      label: 'LightTable vector solid paint LUT',
+      size: 16,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    device.queue.writeBuffer(this.solidLut, 0, new Float32Array([1, 1, 1, 1]));
   }
 
   createSurface(
@@ -160,7 +186,8 @@ export class VectorFillBackend {
       path.style.opacity,
       target,
       bundle,
-      path.fillRule
+      path.fillRule,
+      realized.localBounds
     );
   }
 
@@ -189,7 +216,8 @@ export class VectorFillBackend {
       path.style.opacity,
       target,
       bundle,
-      'union'
+      'union',
+      realized.localBounds
     );
   }
 
@@ -197,11 +225,12 @@ export class VectorFillBackend {
     encoder: GPUCommandEncoder,
     resource: CachedVertexBuffer,
     path: VectorPath,
-    paint: SolidPaint,
+    paint: VectorPaint,
     opacity: number,
     target: VectorFillTarget,
     bundle: PipelineBundle,
-    fillRule: VectorPath['fillRule'] | 'union'
+    fillRule: VectorPath['fillRule'] | 'union',
+    localBounds: RealizedVectorGeometry['localBounds']
   ) {
     const scissor = target.clip ? {
       x: Math.max(0, Math.floor(target.clip.x - target.origin.x)),
@@ -215,17 +244,31 @@ export class VectorFillBackend {
       size: SETTINGS_BYTES,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
-    const color = premultiplied(paint, opacity);
+    const gradient: GradientPaintInstance | null = 'kind' in paint ? paint : null;
+    const color = 'kind' in paint ? [0, 0, 0, 0] as const : premultiplied(paint, opacity);
+    const gradientMapping = gradient ? this.gradientInverse(path, gradient, localBounds) : null;
+    if (gradient && (!gradientMapping || gradient.asset.type !== 'solid')) {
+      settings.destroy();
+      return false;
+    }
     this.device.queue.writeBuffer(settings, 0, new Float32Array([
       target.origin.x, target.origin.y, target.width, target.height,
       path.transform.a, path.transform.b, path.transform.c, path.transform.d,
       path.transform.tx, path.transform.ty, 0, 0,
-      ...color
+      ...color,
+      gradientMapping?.a ?? 1, gradientMapping?.c ?? 0, gradientMapping?.tx ?? 0, 0,
+      gradientMapping?.b ?? 0, gradientMapping?.d ?? 1, gradientMapping?.ty ?? 0,
+      gradient ? gradientShapeCode(gradient.shape) : 0,
+      gradient ? 1 : 0, gradient?.reverse ? 1 : 0, opacity, gradient?.dither ? 1 : 0
     ]));
+    const lut = gradient ? this.gradientLut(gradient) : this.solidLut;
     const bindGroup = this.device.createBindGroup({
       label: 'LightTable vector draw settings bind group',
       layout: this.settingsLayout,
-      entries: [{ binding: 0, resource: { buffer: settings } }]
+      entries: [
+        { binding: 0, resource: { buffer: settings } },
+        { binding: 1, resource: { buffer: lut } }
+      ]
     });
     const pass = encoder.beginRenderPass({
       label: 'LightTable vector stencil and cover',
@@ -292,7 +335,63 @@ export class VectorFillBackend {
     for (const buffer of this.pendingUniforms) buffer.destroy();
     this.pendingUniforms = [];
     this.geometry.clear();
+    this.solidLut.destroy();
+    for (const buffer of this.gradientLuts.values()) buffer.destroy();
+    this.gradientLuts.clear();
     this.pipelines.clear();
+  }
+
+  private gradientInverse(
+    path: VectorPath,
+    paint: GradientPaintInstance,
+    bounds: RealizedVectorGeometry['localBounds']
+  ) {
+    let mapping = paint.transform;
+    if (paint.coordinateSpace === 'object-bounds') {
+      if (!bounds || bounds.width <= 0 || bounds.height <= 0) return null;
+      mapping = multiplyMatrices(path.transform, multiplyMatrices({
+        a: bounds.width, b: 0, c: 0, d: bounds.height, tx: bounds.x, ty: bounds.y
+      }, paint.transform));
+    }
+    // Layer space is currently document-aligned for vector layers. Keeping it
+    // distinct in the contract lets group/layer transforms compose here later.
+    const inverse = invertMatrix(mapping);
+    if (!inverse) return null;
+    const zero = (value: number) => Object.is(value, -0) ? 0 : value;
+    return {
+      a: zero(inverse.a), b: zero(inverse.b), c: zero(inverse.c), d: zero(inverse.d),
+      tx: zero(inverse.tx), ty: zero(inverse.ty)
+    };
+  }
+
+  private gradientLut(paint: GradientPaintInstance) {
+    const key = gradientKey(paint);
+    const cached = this.gradientLuts.get(key);
+    if (cached) return cached;
+    const values = new Float32Array(GRADIENT_LUT_SIZE * 4);
+    for (let index = 0; index < GRADIENT_LUT_SIZE; index += 1) {
+      const color = sampleGradientAsset(paint.asset, index / (GRADIENT_LUT_SIZE - 1));
+      values.set([
+        srgbToLinear(color.r), srgbToLinear(color.g), srgbToLinear(color.b), color.a
+      ], index * 4);
+    }
+    const buffer = this.device.createBuffer({
+      label: `LightTable vector gradient LUT ${paint.asset.id}`,
+      size: values.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    this.device.queue.writeBuffer(buffer, 0, values);
+    // Gradient assets are immutable snapshots. Bound cache growth so rapid
+    // editor gestures cannot retain every intermediate stop arrangement.
+    if (this.gradientLuts.size >= 64) {
+      const oldest = this.gradientLuts.entries().next().value as [string, GPUBuffer] | undefined;
+      if (oldest) {
+        oldest[1].destroy();
+        this.gradientLuts.delete(oldest[0]);
+      }
+    }
+    this.gradientLuts.set(key, buffer);
+    return buffer;
   }
 
   private prepareFillGeometry(realized: RealizedVectorGeometry) {

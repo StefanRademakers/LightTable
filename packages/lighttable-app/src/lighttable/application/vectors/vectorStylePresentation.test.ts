@@ -42,7 +42,7 @@ describe('vector style presentation', () => {
       fillColor: '#ff0000',
       strokeWidth: 8
     });
-    expect(linearRgbaToCssHex(style.fill?.color ?? [])).toBe('#ff0000');
+    expect(style.fill && !('kind' in style.fill) ? linearRgbaToCssHex(style.fill.color) : null).toBe('#ff0000');
     expect(style.stroke).toMatchObject({
       width: 8,
       alignment: 'outside',
@@ -72,8 +72,9 @@ describe('vector style presentation', () => {
       strokeEnabled: true,
       strokeColor: '#ffffff'
     });
-    expect(linearRgbaToCssHex(restored.fill?.color ?? [])).toBe('#336699');
-    expect(linearRgbaToCssHex(restored.stroke?.paint.color ?? [])).toBe('#ffffff');
+    expect(restored.fill && !('kind' in restored.fill) ? linearRgbaToCssHex(restored.fill.color) : null).toBe('#336699');
+    expect(restored.stroke && !('kind' in restored.stroke.paint)
+      ? linearRgbaToCssHex(restored.stroke.paint.color) : null).toBe('#ffffff');
   });
 
   it('creates real paint when an imported no-fill or no-stroke style is enabled', () => {

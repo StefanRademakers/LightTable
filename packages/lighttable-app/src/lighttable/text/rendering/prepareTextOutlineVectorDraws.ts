@@ -6,6 +6,7 @@ import type {
   TextStroke,
   TextWorkerGlyphOutlineResult
 } from '@lighttable/text-core';
+import type { GradientPaintInstance } from '@lighttable/paint-core';
 import {
   GLYPH_OUTLINE_EXTRACTOR_VERSION,
   serializeGlyphOutlineKey
@@ -71,26 +72,64 @@ const colorToLinearSrgb = (color: RgbaColor): readonly [number, number, number, 
   ];
 };
 
-const solidPaint = (paint: TextPaint | undefined, label: string) => {
-  if (!paint) return null;
-  if (paint.kind !== 'solid') {
-    throw new Error(`${label} gradients require the vector gradient backend.`);
-  }
-  return { type: 'solid' as const, color: colorToLinearSrgb(paint.color) };
+const linearToSrgb = (value: number) => value <= 0.0031308
+  ? value * 12.92
+  : 1.055 * Math.max(0, value) ** (1 / 2.4) - 0.055;
+
+const colorToDisplaySrgb = (color: RgbaColor) => {
+  const linear = colorToLinearSrgb(color);
+  return {
+    r: Math.max(0, Math.min(1, linearToSrgb(linear[0]))),
+    g: Math.max(0, Math.min(1, linearToSrgb(linear[1]))),
+    b: Math.max(0, Math.min(1, linearToSrgb(linear[2]))),
+    a: color.a
+  };
 };
 
-const textStyle = (run: RealizedGlyphRun, unitsPerEm: number): VectorStyle => {
+const vectorPaint = (paint: TextPaint | undefined, label: string, sourceScale: number) => {
+  if (!paint) return null;
+  if (paint.kind === 'solid') return { type: 'solid' as const, color: colorToLinearSrgb(paint.color) };
+  if (paint.stops.length === 0) throw new Error(`${label} gradient requires at least one color stop.`);
+  const dx = (paint.end.x - paint.start.x) * sourceScale;
+  const dy = (paint.end.y - paint.start.y) * sourceScale;
+  if (Math.hypot(dx, dy) <= 1e-7) throw new Error(`${label} gradient endpoints must be distinct.`);
+  const id = `text-gradient:${JSON.stringify(paint)}`;
+  return {
+    kind: 'gradient' as const,
+    asset: {
+      id, name: label, type: 'solid' as const, smoothness: 1,
+      colorStops: paint.stops.map((stop, index) => ({
+        id: `${id}:color:${index}`, position: stop.offset, midpoint: 0.5,
+        color: { ...colorToDisplaySrgb(stop.color), a: 1 }
+      })),
+      opacityStops: paint.stops.map((stop, index) => ({
+        id: `${id}:opacity:${index}`, position: stop.offset, midpoint: 0.5,
+        opacity: stop.color.a
+      })),
+      roughness: 0, seed: 0
+    },
+    shape: 'linear' as const,
+    coordinateSpace: 'document' as const,
+    transform: {
+      a: dx, b: dy, c: dy === 0 ? 0 : -dy, d: dx,
+      tx: paint.start.x * sourceScale, ty: paint.start.y * sourceScale
+    },
+    reverse: false, dither: true, interpolation: 'perceptual' as const
+  } satisfies GradientPaintInstance;
+};
+
+const textStyle = (run: RealizedGlyphRun, unitsPerEm: number, sourceScale: number): VectorStyle => {
   const drawsFill = run.renderingMode.includes('fill');
   const drawsStroke = run.renderingMode.includes('stroke');
   if (run.renderingMode.includes('clip') || run.renderingMode === 'clip') {
     throw new Error('PDF clipping text requires the vector clip-stack backend.');
   }
-  const fill = drawsFill ? solidPaint(run.paint.fill, 'Text fill') : null;
+  const fill = drawsFill ? vectorPaint(run.paint.fill, 'Text fill', sourceScale) : null;
   let stroke: VectorStyle['stroke'] = null;
   if (drawsStroke) {
     const source: TextStroke | undefined = run.paint.stroke;
     if (!source) throw new Error('Stroke text requires authored stroke paint.');
-    const paint = solidPaint(source.paint, 'Text stroke');
+    const paint = vectorPaint(source.paint, 'Text stroke', sourceScale);
     stroke = {
       paint: paint!,
       // Vector stroke geometry lives in font units before the glyph transform.
@@ -214,7 +253,7 @@ export const prepareTextOutlineVectorDraws = async (
     });
     base.transform = transform;
     base.transformRevision = 1;
-    base.style = textStyle(entry.run, glyphOutline.unitsPerEm);
+    base.style = textStyle(entry.run, glyphOutline.unitsPerEm, identity.sourceScale);
     const glyphScale = maximumScale(transform);
     const requestedTolerance = glyphScale > 0 ? DEFAULT_SOURCE_TOLERANCE / glyphScale : DEFAULT_SOURCE_TOLERANCE;
     const geometry = realizeVectorPath(base, requestedTolerance);

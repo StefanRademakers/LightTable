@@ -9,8 +9,21 @@ const channelHex = (value: number) => Math.round(
   Math.max(0, Math.min(1, linearToSrgb(value))) * 255
 ).toString(16).padStart(2, '0');
 
+const srgbChannelHex = (value: number) => Math.round(
+  Math.max(0, Math.min(1, value)) * 255
+).toString(16).padStart(2, '0');
+
 export const linearRgbaToCssHex = (color: readonly number[]) =>
   `#${channelHex(color[0] ?? 0)}${channelHex(color[1] ?? 0)}${channelHex(color[2] ?? 0)}`;
+
+const paintCssColor = (paint: VectorStyle['fill'], fallback: string) => {
+  if (!paint) return fallback;
+  if (!('kind' in paint)) return linearRgbaToCssHex(paint.color);
+  const color = [...paint.asset.colorStops].sort((left, right) => left.position - right.position)[0]?.color;
+  return color
+    ? `#${srgbChannelHex(color.r)}${srgbChannelHex(color.g)}${srgbChannelHex(color.b)}`
+    : fallback;
+};
 
 const srgbToLinear = (value: number) => value <= 0.04045
   ? value / 12.92
@@ -31,9 +44,9 @@ export const vectorElementStyleSettings = (
   element: VectorElement
 ): VectorToolStyleSettings => ({
   fillEnabled: element.style.fill !== null,
-  fillColor: linearRgbaToCssHex(element.style.fill?.color ?? [0, 0, 0, 1]),
+  fillColor: paintCssColor(element.style.fill, '#000000'),
   strokeEnabled: element.style.stroke !== null,
-  strokeColor: linearRgbaToCssHex(element.style.stroke?.paint.color ?? [1, 1, 1, 1]),
+  strokeColor: paintCssColor(element.style.stroke?.paint ?? null, '#ffffff'),
   strokeWidth: element.style.stroke?.width ?? 3,
   strokeAlignment: element.style.stroke?.alignment ?? 'center'
 });
@@ -50,12 +63,9 @@ export const patchVectorStyle = (
         ? { type: 'solid', color: [0, 0, 0, 1] }
         : style.fill,
   stroke: change.strokeEnabled === false ? null : {
-    paint: {
-      type: 'solid',
-      color: change.strokeColor === undefined
-        ? style.stroke?.paint.color ?? [1, 1, 1, 1]
-        : cssHexToLinearRgba(change.strokeColor)
-    },
+    paint: change.strokeColor !== undefined
+      ? { type: 'solid', color: cssHexToLinearRgba(change.strokeColor) }
+      : style.stroke?.paint ?? { type: 'solid', color: [1, 1, 1, 1] },
     width: change.strokeWidth ?? style.stroke?.width ?? 3,
     alignment: change.strokeAlignment ?? style.stroke?.alignment ?? 'center',
     cap: style.stroke?.cap ?? 'round',

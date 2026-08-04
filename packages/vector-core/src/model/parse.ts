@@ -5,6 +5,7 @@ import type {
   FillRule,
   LiveShapeGeometry,
   SolidPaint,
+  VectorPaint,
   VectorAnchor,
   VectorElement,
   VectorLiveShape,
@@ -13,6 +14,7 @@ import type {
   VectorStyle,
   VectorSubpath
 } from './types';
+import { cloneGradientPaint, gradientPaintIsValid, type GradientPaintInstance } from '@lighttable/paint-core';
 import { validateVectorLiveShape, validateVectorPath } from './validation';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -68,6 +70,14 @@ const parseSolidPaint = (value: unknown, location: string): SolidPaint => {
   return { type: 'solid', color: [color[0], color[1], color[2], color[3]] };
 };
 
+const parsePaint = (value: unknown, location: string): VectorPaint => {
+  if (isRecord(value) && value.type === 'solid') return parseSolidPaint(value, location);
+  if (isRecord(value) && value.kind === 'gradient' && gradientPaintIsValid(value as unknown as GradientPaintInstance)) {
+    return cloneGradientPaint(value as unknown as GradientPaintInstance);
+  }
+  throw new Error(`${location} must be a supported vector paint.`);
+};
+
 const parseStroke = (value: unknown, location: string): VectorStroke => {
   if (!isRecord(value)) throw new Error(`${location} must be a stroke.`);
   if (value.cap !== 'butt' && value.cap !== 'round' && value.cap !== 'square') {
@@ -90,7 +100,7 @@ const parseStroke = (value: unknown, location: string): VectorStroke => {
     throw new Error(`${location} dimensions must not be negative.`);
   }
   return {
-    paint: parseSolidPaint(value.paint, `${location}.paint`),
+    paint: parsePaint(value.paint, `${location}.paint`),
     width,
     alignment: value.alignment ?? 'center',
     cap: value.cap,
@@ -106,7 +116,7 @@ const parseStyle = (value: unknown, location: string): VectorStyle => {
   const opacity = finiteNumber(value.opacity, `${location}.opacity`);
   if (opacity < 0 || opacity > 1) throw new Error(`${location}.opacity must be between 0 and 1.`);
   return {
-    fill: value.fill === null ? null : parseSolidPaint(value.fill, `${location}.fill`),
+    fill: value.fill === null ? null : parsePaint(value.fill, `${location}.fill`),
     stroke: value.stroke === null ? null : parseStroke(value.stroke, `${location}.stroke`),
     opacity
   };

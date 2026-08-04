@@ -48,7 +48,8 @@ describe('prepareTextOutlineVectorDraws', () => {
       a: 0.2, b: 0, c: 0, d: -0.2, tx: 20, ty: 40
     });
     expect(prepared.draws[1]?.path.transform.tx).toBe(140);
-    expect(prepared.draws[0]?.path.style.fill?.color[0]).toBeCloseTo(0.214041, 5);
+    const fill = prepared.draws[0]?.path.style.fill;
+    expect(fill && !('kind' in fill) ? fill.color[0] : null).toBeCloseTo(0.214041, 5);
   });
 
   it('maps native text stroke width into scale-independent font units', async () => {
@@ -69,7 +70,8 @@ describe('prepareTextOutlineVectorDraws', () => {
     expect(prepared.draws[0]?.path.style.stroke).toMatchObject({
       width: 20, cap: 'round', join: 'bevel'
     });
-    expect(prepared.draws[0]?.path.style.stroke?.paint.color[0]).toBeGreaterThan(1);
+    const strokePaint = prepared.draws[0]?.path.style.stroke?.paint;
+    expect(strokePaint && !('kind' in strokePaint) ? strokePaint.color[0] : null).toBeGreaterThan(1);
   });
 
   it('composes affine per-glyph transforms before document source scaling', async () => {
@@ -87,15 +89,23 @@ describe('prepareTextOutlineVectorDraws', () => {
     });
   });
 
-  it('rejects unsupported gradient and clipping semantics explicitly', async () => {
+  it('maps text gradients into the shared document-space paint contract and still rejects clipping', async () => {
     const repository = {
       resolve: vi.fn().mockResolvedValue({ outline: glyphOutline, source: 'worker' })
     };
-    await expect(prepareTextOutlineVectorDraws(repository, layout(run({
+    const prepared = await prepareTextOutlineVectorDraws(repository, layout(run({
       paint: { fill: {
-        kind: 'linear-gradient', start: { x: 0, y: 0 }, end: { x: 1, y: 0 }, stops: []
+        kind: 'linear-gradient', start: { x: 10, y: 20 }, end: { x: 110, y: 20 }, stops: [
+          { offset: 0, color: { colorSpace: 'srgb', r: 1, g: 0, b: 0, a: 1 } },
+          { offset: 1, color: { colorSpace: 'srgb', r: 0, g: 0, b: 1, a: 0.5 } }
+        ]
       } }
-    })), identity)).rejects.toThrow('gradient backend');
+    })), identity);
+    expect(prepared.draws[0]?.path.style.fill).toMatchObject({
+      kind: 'gradient', coordinateSpace: 'document',
+      transform: { a: 200, b: 0, c: 0, d: 200, tx: 20, ty: 40 },
+      asset: { colorStops: [{ position: 0 }, { position: 1 }], opacityStops: [{ opacity: 1 }, { opacity: 0.5 }] }
+    });
     await expect(prepareTextOutlineVectorDraws(repository, layout(run({
       renderingMode: 'fill-clip'
     })), identity)).rejects.toThrow('clip-stack');
