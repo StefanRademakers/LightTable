@@ -4,7 +4,8 @@ import { addLayerMask, createRasterLayer, createTextLayer } from '../document/do
 import { createImageDocument } from '../document/documentTypes';
 import {
   collectLayerThumbnailChannels,
-  layerThumbnailChannelsKey
+  layerThumbnailChannelsKey,
+  projectLayerThumbnails
 } from './useLayerThumbnailController';
 
 describe('collectLayerThumbnailChannels', () => {
@@ -120,5 +121,27 @@ describe('collectLayerThumbnailChannels', () => {
     expect(layerThumbnailChannelsKey(
       collectLayerThumbnailChannels(transformed)
     )).not.toBe(initialKey);
+  });
+
+  it('projects progressive cache batches without changing source aspect metadata', () => {
+    const document = createRasterLayer(
+      createImageDocument('Thumbnail projection', 64, 32, 'source'),
+      'Paint'
+    );
+    const channels = collectLayerThumbnailChannels(document);
+    const channel = channels.find(({ layerId }) => layerId === document.activeLayerId)!;
+    const cache = new Map([[channel.identity, {
+      revisionKey: channel.revisionKey,
+      url: 'blob:thumbnail',
+      width: 40,
+      height: 20
+    }]]);
+
+    expect(projectLayerThumbnails(channels, cache).get(channel.layerId)?.pixels).toEqual({
+      revisionKey: channel.revisionKey,
+      url: 'blob:thumbnail',
+      width: 40,
+      height: 20
+    });
   });
 });

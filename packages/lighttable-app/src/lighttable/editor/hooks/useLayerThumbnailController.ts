@@ -24,6 +24,8 @@ interface LayerThumbnailCacheEntry extends LayerThumbnailPreview {
   revisionKey: string;
 }
 
+const THUMBNAIL_PUBLICATION_BATCH_SIZE = 8;
+
 interface LayerThumbnailControllerOptions {
   document: ImageDocument | null;
   rendererReadyDocumentId: string | null;
@@ -76,6 +78,25 @@ export const layerThumbnailChannelsKey = (
   channels: readonly LayerThumbnailChannel[]
 ) => JSON.stringify(channels.map(({ identity, revisionKey }) => [identity, revisionKey]));
 
+export const projectLayerThumbnails = (
+  desired: readonly LayerThumbnailChannel[],
+  cache: ReadonlyMap<string, LayerThumbnailCacheEntry>
+): ReadonlyMap<LayerId, LayerThumbnailSet> => {
+  const projected = new Map<LayerId, LayerThumbnailSet>();
+  desired.forEach(({ identity, layerId, mask }) => {
+    const entry = cache.get(identity);
+    if (!entry) return;
+    const current = projected.get(layerId) ?? {};
+    projected.set(
+      layerId,
+      mask
+        ? { ...current, mask: entry }
+        : { ...current, pixels: entry }
+    );
+  });
+  return projected;
+};
+
 /**
  * Owns the disposable object-URL cache for one document's accessory layer UI.
  *
@@ -118,14 +139,19 @@ export const useLayerThumbnailController = ({
     let canceled = false;
 
     void (async () => {
-      const committedCache = cacheRef.current;
-      const nextCache = new Map<string, LayerThumbnailCacheEntry>();
-      const createdUrls: string[] = [];
+      const desiredIdentities = new Set(desired.map(({ identity }) => identity));
+      cacheRef.current.forEach((entry, identity) => {
+        if (desiredIdentities.has(identity)) return;
+        URL.revokeObjectURL(entry.url);
+        cacheRef.current.delete(identity);
+      });
+      setThumbnails(projectLayerThumbnails(desired, cacheRef.current));
+      let unpublished = 0;
 
-      for (const channel of desired) {
-        const existing = committedCache.get(channel.identity);
+      for (let index = 0; index < desired.length; index += 1) {
+        const channel = desired[index];
+        const existing = cacheRef.current.get(channel.identity);
         if (existing?.revisionKey === channel.revisionKey) {
-          nextCache.set(channel.identity, existing);
           continue;
         }
         try {
@@ -134,45 +160,32 @@ export const useLayerThumbnailController = ({
             channel.mask
           );
           if (!result) continue;
+          if (canceled) break;
           const entry: LayerThumbnailCacheEntry = {
             revisionKey: channel.revisionKey,
             url: URL.createObjectURL(result.blob),
             width: result.width,
             height: result.height
           };
-          createdUrls.push(entry.url);
-          nextCache.set(channel.identity, entry);
+          cacheRef.current.set(channel.identity, entry);
+          if (existing && existing.url !== entry.url) URL.revokeObjectURL(existing.url);
+          unpublished += 1;
         } catch (reason) {
           console.warn('LightTable layer thumbnail generation failed', reason);
         }
         if (canceled) break;
-      }
-
-      if (canceled) {
-        createdUrls.forEach((url) => URL.revokeObjectURL(url));
-        return;
-      }
-
-      committedCache.forEach((entry, identity) => {
-        if (nextCache.get(identity)?.url !== entry.url) {
-          URL.revokeObjectURL(entry.url);
+        const finalChannel = index === desired.length - 1;
+        if (unpublished >= THUMBNAIL_PUBLICATION_BATCH_SIZE || finalChannel) {
+          setThumbnails(projectLayerThumbnails(desired, cacheRef.current));
+          unpublished = 0;
+          if (!finalChannel) {
+            await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+          }
         }
-      });
-      cacheRef.current = nextCache;
-
-      const nextThumbnails = new Map<LayerId, LayerThumbnailSet>();
-      desired.forEach(({ identity, layerId, mask }) => {
-        const entry = nextCache.get(identity);
-        if (!entry) return;
-        const current = nextThumbnails.get(layerId) ?? {};
-        nextThumbnails.set(
-          layerId,
-          mask
-            ? { ...current, mask: entry }
-            : { ...current, pixels: entry }
-        );
-      });
-      setThumbnails(nextThumbnails);
+      }
+      if (!canceled && unpublished > 0) {
+        setThumbnails(projectLayerThumbnails(desired, cacheRef.current));
+      }
     })();
 
     return () => {

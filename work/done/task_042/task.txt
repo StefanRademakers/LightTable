@@ -1,0 +1,24 @@
+# Task 042 - Rendering performance audit
+
+Status: complete
+
+- [x] Audit content, correction, presentation, overlay, analysis, readback,
+  cache, resource-lifetime and React publication paths.
+- [x] Verify dirty scheduling, no-work behavior and quality-preserving cache
+  rules against the performance contract.
+- [x] Add a packaged multi-document stress and retained-memory gate.
+- [x] Fix unbudgeted detached raster-history GPU retention.
+- [x] Fix inactive Debug panel DOM growth from repeated informational samples.
+- [x] Publish large layer-stack thumbnails progressively in bounded batches
+  without changing aspect ratio, transform or output quality.
+- [x] Run focused tests, the complete app suite, typecheck, packaged build and
+  physical PSD/PDF stress gates.
+- [x] Record remaining measured opportunities without presenting targets as
+  current behavior.
+
+Durable result:
+`architecture/reference/implementation/RENDERING_PERFORMANCE_AUDIT_2026-08-04.md`.
+
+Task 051 contains the completed stress-gate evidence. Further performance
+features receive their own focused tasks and commits; this audit does not
+authorize quality reduction.

@@ -67,3 +67,7 @@ These are engineering goals, not claims that every device meets them today:
 Instrument first frame phases, GPU-owned texture estimates, stage cache hits,
 scope refreshes and interaction frame intervals. Optimize measured ownership,
 not isolated microbenchmarks.
+
+The completed 4 August 2026 implementation audit, measured packaged stress
+evidence and ranked follow-ups are recorded in
+`reference/implementation/RENDERING_PERFORMANCE_AUDIT_2026-08-04.md`.
