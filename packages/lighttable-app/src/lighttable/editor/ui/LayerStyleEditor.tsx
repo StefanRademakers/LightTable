@@ -18,12 +18,13 @@ import { LayerStyleContourEditor } from './LayerStyleContourEditor';
 import { LayerStyleGradientEditor } from './LayerStyleGradientEditor';
 
 interface LayerStyleEditorProps {
+  mode?: 'dialog' | 'panel';
   layerName: string;
   initialStack: LayerStyleStack;
   initialEffectId?: LayerStyleId;
   onPreview: (stack: LayerStyleStack) => void;
-  onCancel: () => void;
-  onCommit: () => void;
+  onCancel?: () => void;
+  onCommit?: () => void;
 }
 
 const STYLE_KINDS = Object.keys(layerStyleKindLabels) as LayerStyleKind[];
@@ -484,6 +485,7 @@ const EffectControls: React.FC<{
 };
 
 export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
+  mode = 'dialog',
   layerName,
   initialStack,
   initialEffectId,
@@ -492,15 +494,38 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   onCommit
 }) => {
   const [draft, setDraft] = React.useState(() => cloneLayerStyleStack(initialStack));
+  const publishedRevisionRef = React.useRef(initialStack.revision);
   const [selectedId, setSelectedId] = React.useState<LayerStyleId | null>(
     initialEffectId ?? initialStack.effects.at(-1)?.id ?? null
   );
   const [newKind, setNewKind] = React.useState<LayerStyleKind>('drop-shadow');
   const selected = draft.effects.find((effect) => effect.id === selectedId) ?? null;
 
+  React.useEffect(() => {
+    if (initialEffectId && draft.effects.some((effect) => effect.id === initialEffectId)) {
+      setSelectedId(initialEffectId);
+    }
+  // The requested row changes only when the Layers panel opens a specific
+  // effect. Draft edits must not force selection back to that row.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEffectId]);
+
+  React.useEffect(() => {
+    if (initialStack.revision === publishedRevisionRef.current) return;
+    publishedRevisionRef.current = initialStack.revision;
+    const next = cloneLayerStyleStack(initialStack);
+    setDraft(next);
+    setSelectedId((current) => (
+      current && next.effects.some((effect) => effect.id === current)
+        ? current
+        : next.effects.at(-1)?.id ?? null
+    ));
+  }, [initialStack]);
+
   const updateDraft = (updater: (current: LayerStyleStack) => LayerStyleStack) => {
     setDraft((current) => {
       const next = updater(current);
+      publishedRevisionRef.current = next.revision;
       onPreview(next);
       return next;
     });
@@ -553,13 +578,20 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   };
 
   return (
-    <div className="lighttable-style-editor" role="dialog" aria-modal="true" aria-label="Layer Style">
+    <div
+      className={`lighttable-style-editor${mode === 'panel' ? ' lighttable-style-editor--panel' : ''}`}
+      role={mode === 'dialog' ? 'dialog' : 'region'}
+      aria-modal={mode === 'dialog' ? true : undefined}
+      aria-label="Layer Style"
+    >
       <header>
         <div>
           <strong>Layer Style</strong>
           <span>{layerName}</span>
         </div>
-        <button type="button" onClick={onCancel} aria-label="Close Layer Style editor">×</button>
+        {mode === 'dialog' ? (
+          <button type="button" onClick={onCancel} aria-label="Close Layer Style editor">×</button>
+        ) : null}
       </header>
       <div className="lighttable-style-editor__body">
         <aside>
@@ -626,8 +658,12 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
               revision: current.revision + 1
             }))} />
         </div>
-        <button type="button" onClick={onCancel}>Cancel</button>
-        <button type="button" className="lighttable-style-editor__primary" onClick={onCommit}>OK</button>
+        {mode === 'dialog' ? (
+          <>
+            <button type="button" onClick={onCancel}>Cancel</button>
+            <button type="button" className="lighttable-style-editor__primary" onClick={onCommit}>OK</button>
+          </>
+        ) : null}
       </footer>
     </div>
   );

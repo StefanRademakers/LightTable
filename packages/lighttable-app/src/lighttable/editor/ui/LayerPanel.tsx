@@ -2,6 +2,7 @@ import React from 'react';
 import { ContextMenu, type ContextMenuOption } from '../../../ui/ContextMenu';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { layerSupportsLayerStyles } from '../document/documentTypes';
 import type {
   ImageDocument,
   DocumentFontAsset,
@@ -213,6 +214,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const layerCapabilities = queryLayerCommandCapabilities(document, selectedIds);
   const {
     activeLayer,
+    canEditActiveLayerStyles,
     canFlattenActiveGroup,
     canFlattenImage,
     canGroupSelection,
@@ -355,17 +357,17 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     {
       value: 'layer-style',
       label: 'Layer Style...',
-      disabled: activeLayer?.type !== 'raster',
+      disabled: !canEditActiveLayerStyles,
       onClick: () => {
-        if (activeLayer?.type === 'raster') onEditStyles(activeLayer.id);
+        if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
       }
     },
     {
       value: 'clear-layer-style',
       label: 'Clear Layer Style',
-      disabled: activeLayer?.type !== 'raster' || !activeLayer.styleStack.effects.length,
+      disabled: !canEditActiveLayerStyles || !activeLayer?.styleStack.effects.length,
       onClick: () => {
-        if (activeLayer?.type === 'raster') onClearStyles(activeLayer.id);
+        if (activeLayer && layerSupportsLayerStyles(activeLayer)) onClearStyles(activeLayer.id);
       }
     },
     ...(moreMenu.source === 'context'
@@ -987,10 +989,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           type="button"
           className="lighttable-layers__fx-button"
           onClick={() => {
-            if (activeLayer?.type === 'raster') onEditStyles(activeLayer.id);
+            if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
           }}
-          disabled={activeLayer?.type !== 'raster'}
-          title={activeLayer?.type === 'raster' ? 'Add layer style' : 'Layer Styles currently require a raster layer'}
+          disabled={!canEditActiveLayerStyles}
+          title={canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
           aria-label="Add layer style"
         >fx</button>
         <button

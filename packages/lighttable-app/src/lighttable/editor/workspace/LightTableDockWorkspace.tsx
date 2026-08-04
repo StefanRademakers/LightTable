@@ -28,7 +28,7 @@ const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 // Increment only when the intended fresh-workspace composition changes. A
 // versioned key prevents a structurally valid older layout from silently
 // overriding the new product default.
-const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v4';
+const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v5';
 const ACCESSORY_PANEL_MINIMUM_WIDTH = 250;
 const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
 const PANEL_TAB_BAR_HEIGHT = 34;

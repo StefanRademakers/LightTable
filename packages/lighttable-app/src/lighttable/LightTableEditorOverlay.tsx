@@ -56,6 +56,7 @@ import {
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
+import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
@@ -2597,7 +2598,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocumentSnapshot,
     pushDocumentHistory
   });
-  const openLayerStyleEditor = layerStyleEditor.open;
+  const openLayerStyleEditor = useCallback((layerId: LayerId, effectId?: LayerStyleId) => {
+    layerStyleEditor.open(layerId, effectId);
+    // Activating after React publishes the contextual request prevents the
+    // persistent Dockview renderer from restoring the previously active tab
+    // during the same event batch.
+    requestAnimationFrame(() => {
+      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.effects);
+    });
+  }, [layerStyleEditor.open]);
   const layerPanelController = useLayerPanelController({
     getDocument: () => imageDocumentRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
@@ -3800,8 +3809,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       overlays={(
         <>
           <EditorOverlayLayer
-          document={imageDocument}
-          layerStyles={layerStyleEditor}
           dialogs={{
             controller: editorDialogs,
             photoshopReport: imageDocument?.photoshopImportReport ?? null,
@@ -4245,6 +4252,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     resetCurve
                   }
                 },
+              effects: {
+                document: imageDocument,
+                controller: layerStyleEditor
+              },
               text: textPropertiesPanel
             })}
           />

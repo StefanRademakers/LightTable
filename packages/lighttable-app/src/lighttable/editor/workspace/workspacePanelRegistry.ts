@@ -4,6 +4,7 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   documentHost: 'lighttable.document-host',
   scopes: 'lighttable.scopes',
   grade: 'lighttable.inspector',
+  effects: 'lighttable.layer-effects',
   text: 'lighttable.text-properties',
   lensFx: 'lighttable.lens-fx',
   layers: 'lighttable.layers',
@@ -40,6 +41,7 @@ export interface LightTableWorkspacePanelRegistration {
 export interface DefaultLightTableWorkspacePanelContent {
   scopes: ReactNode;
   grade: ReactNode;
+  effects: ReactNode;
   text: ReactNode;
   lensFx: ReactNode;
   layers: ReactNode;
@@ -116,6 +118,18 @@ export const createDefaultLightTableWorkspacePanels = (
     contentKey: 'lensFx',
     title: 'Lens Fx',
     content: content.lensFx,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
+    contentKey: 'effects',
+    title: 'Effects',
+    content: content.effects,
     defaultPosition: {
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       direction: 'within'

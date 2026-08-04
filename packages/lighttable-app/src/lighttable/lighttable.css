@@ -2436,13 +2436,6 @@
   cursor: pointer;
 }
 
-.lighttable-style-editor-shield {
-  position: absolute;
-  z-index: 89;
-  inset: 42px 0 0;
-  background: transparent;
-}
-
 .lighttable-style-editor {
   position: absolute;
   z-index: 1;
@@ -2461,6 +2454,65 @@
   box-shadow: var(--lt-shadow-editor);
   user-select: none;
   -webkit-user-select: none;
+}
+
+.lighttable-layer-styles-panel {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lighttable-panel__empty {
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  color: var(--lt-text-subtle);
+  font-size: var(--lt-type-label);
+  text-align: center;
+}
+
+.lighttable-style-editor--panel {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  grid-template-rows: 42px minmax(0, 1fr) auto;
+}
+
+.lighttable-style-editor--panel .lighttable-style-editor__body {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.lighttable-style-editor--panel .lighttable-style-editor__body > aside {
+  flex: 0 0 auto;
+  border-right: 0;
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.lighttable-style-editor--panel .lighttable-style-editor__effect-list {
+  max-height: 154px;
+  flex: 0 1 auto;
+}
+
+.lighttable-style-editor--panel .lighttable-style-editor__body > main {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.lighttable-style-editor--panel > footer {
+  min-height: 48px;
+}
+
+.lighttable-style-editor--panel .lighttable-style-editor__scale {
+  width: 100%;
+  min-width: 0;
+  margin-right: 0;
 }
 
 .lighttable-style-editor > header {

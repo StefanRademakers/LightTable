@@ -6,6 +6,9 @@ import { TextPropertiesPanel } from '../../editor/panels/TextPropertiesPanel';
 import {
   LensFxPanel
 } from '../../editor/panels/LensFxPanel';
+import { LayerStylesPanel } from '../../editor/panels/LayerStylesPanel';
+import type { LayerStyleEditorController } from '../../application/styles/useLayerStyleEditorController';
+import type { ImageDocument } from '../../editor/document/documentTypes';
 import {
   createDefaultLightTableWorkspacePanels,
   type LightTableWorkspacePanelRegistration
@@ -19,6 +22,10 @@ export interface EditorWorkspacePanelBindings {
   lensFxKey: string;
   lensFx: React.ComponentProps<typeof LensFxPanel>;
   grade: React.ComponentProps<typeof GradePanel>;
+  effects: {
+    document: ImageDocument | null;
+    controller: LayerStyleEditorController;
+  };
   text: React.ComponentProps<typeof TextPropertiesPanel> | null;
 }
 
@@ -36,6 +43,7 @@ export const createEditorWorkspacePanels = ({
   lensFxKey,
   lensFx,
   grade,
+  effects,
   text
 }: EditorWorkspacePanelBindings): LightTableWorkspacePanelRegistration[] =>
   createDefaultLightTableWorkspacePanels({
@@ -45,6 +53,7 @@ export const createEditorWorkspacePanels = ({
     debug: <DebugPanel {...debug} />,
     lensFx: <LensFxPanel key={lensFxKey} {...lensFx} />,
     grade: <GradePanel {...grade} />,
+    effects: <LayerStylesPanel {...effects} />,
     text: text
       ? <TextPropertiesPanel {...text} />
       : <aside className="lighttable-panel" aria-label="Text properties" />

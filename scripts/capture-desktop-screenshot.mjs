@@ -26,6 +26,7 @@ const expectedVectorLayers = Number.parseInt(argument(
 ), 10);
 const allowSubstitutedText = argument('allow-substituted-text', '') === 'true';
 const selectLayer = argument('select-layer', '');
+const openLayerEffects = argument('open-layer-effects', '') === 'true';
 const canvasClickX = Number.parseFloat(argument('canvas-click-x', 'NaN'));
 const canvasClickY = Number.parseFloat(argument('canvas-click-y', 'NaN'));
 const nudgeX = Number.parseInt(argument('nudge-x', '0'), 10);
@@ -94,7 +95,7 @@ const diagnostics = {
   expectedFlowLayers,
   expectedVectorLayers,
   interaction: {
-    selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
+    selectLayer, openLayerEffects, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
     createGradientFill, openGradientEditor, dragGradientEnd,
     createRasterLayerForPaint, paintStroke, paintExistingLayer, paintColor, paintX, paintY,
@@ -377,6 +378,35 @@ try {
       }
     }
     await window.waitForTimeout(500);
+  }
+
+  if (openLayerEffects) {
+    await window.getByRole('button', { name: 'Add layer style' }).click();
+    const effectsTab = window.getByRole('tab', { name: 'Effects', exact: true });
+    await effectsTab.waitFor({ state: 'visible', timeout: 15_000 });
+    await window.waitForFunction(() => {
+      const tab = [...document.querySelectorAll('[role="tab"]')]
+        .find((candidate) => candidate.textContent?.trim() === 'Effects');
+      return tab?.getAttribute('aria-selected') === 'true'
+        || tab?.classList.contains('dv-active-tab');
+    }, undefined, { timeout: 15_000 });
+    await window.getByRole('region', { name: 'Layer Style' })
+      .waitFor({ state: 'visible', timeout: 15_000 });
+    diagnostics.layerEffectsPanel = await window.evaluate(() => {
+      const tab = [...document.querySelectorAll('[role="tab"]')]
+        .find((candidate) => candidate.textContent?.trim() === 'Effects');
+      const region = document.querySelector('[role="region"][aria-label="Layer Style"]');
+      const bounds = region?.getBoundingClientRect();
+      return {
+        tabClass: tab?.className ?? null,
+        tabSelected: tab?.getAttribute('aria-selected') ?? null,
+        regionDisplay: region ? getComputedStyle(region).display : null,
+        regionVisibility: region ? getComputedStyle(region).visibility : null,
+        regionBounds: bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null,
+        regionText: region?.textContent?.slice(0, 120) ?? null
+      };
+    });
+    await window.waitForTimeout(250);
   }
 
   if (openCompatibilityReport) {
