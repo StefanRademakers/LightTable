@@ -202,17 +202,17 @@ export const createEditorMenuOptions = (
         disabled: !state.hasMetadata || state.saving
       },
       {
-        value: 'paste-grade',
-        label: state.copiedGradeName ? `Paste grade: ${state.copiedGradeName}` : 'Paste grade',
-        separatorBefore: true,
-        onClick: commands.pasteGrade,
-        disabled: !state.hasMetadata || !state.copiedGradeName || state.saving
-      },
-      {
         value: 'copy-grade',
         label: 'Copy grade',
+        separatorBefore: true,
         onClick: commands.copyGrade,
         disabled: !state.hasMetadata || state.saving
+      },
+      {
+        value: 'paste-grade',
+        label: state.copiedGradeName ? `Paste grade: ${state.copiedGradeName}` : 'Paste grade',
+        onClick: commands.pasteGrade,
+        disabled: !state.hasMetadata || !state.copiedGradeName || state.saving
       }
     ];
   }

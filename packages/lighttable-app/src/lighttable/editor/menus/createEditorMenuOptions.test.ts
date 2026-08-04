@@ -132,6 +132,21 @@ describe('createEditorMenuOptions', () => {
       .toMatchObject({ label: 'Invert selection', shortcut: 'Ctrl+Shift+I' });
   });
 
+  it('keeps every copy command above its corresponding paste command', () => {
+    const options = createEditorMenuOptions(
+      'edit',
+      state({ copiedGradeName: 'Warm grade' }),
+      labels,
+      commands()
+    );
+    const values = options.map(({ value }) => value);
+
+    expect(values.indexOf('copy-selected-content')).toBeLessThan(values.indexOf('paste-selected-content'));
+    expect(values.indexOf('copy-merged-content')).toBeLessThan(values.indexOf('paste-selected-content'));
+    expect(values.indexOf('copy-grade')).toBeLessThan(values.indexOf('paste-grade'));
+    expect(options.find(({ value }) => value === 'copy-grade')?.separatorBefore).toBe(true);
+  });
+
   it('guards invalid layer operations and forwards valid blend commands', () => {
     const menuCommands = commands();
     const options = createEditorMenuOptions(
