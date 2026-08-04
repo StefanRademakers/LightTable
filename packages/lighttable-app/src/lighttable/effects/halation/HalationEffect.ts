@@ -77,7 +77,6 @@ export class HalationEffect implements LightTableGpuEffect<HalationSettings> {
     this.settings = cloneHalationSettings(settings);
     if (halationIsActive(this.settings)) {
       void this.pipelines.ensure();
-      this.ensureImageResources();
     }
     else this.destroyImageResources();
     this.writeSettings();
@@ -87,7 +86,6 @@ export class HalationEffect implements LightTableGpuEffect<HalationSettings> {
     this.destroyImageResources();
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    if (halationIsActive(this.settings)) this.ensureImageResources();
     this.writeSettings();
   }
 

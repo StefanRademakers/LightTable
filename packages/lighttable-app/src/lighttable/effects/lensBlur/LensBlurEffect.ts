@@ -110,7 +110,6 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     this.settings = cloneLensBlurSettings(settings);
     if (this.rawDepthTexture && (lensBlurIsActive(this.settings) || this.visualizeDepth)) {
       void this.pipelines.ensure();
-      this.ensureRenderTargets();
     }
     else this.destroyRenderTargets();
     this.writeSettings();
@@ -133,7 +132,6 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     this.visualizeDepth = visualize;
     if (this.rawDepthTexture && (lensBlurIsActive(this.settings) || visualize)) {
       void this.pipelines.ensure();
-      this.ensureRenderTargets();
     }
     else this.destroyRenderTargets();
   }
@@ -168,7 +166,6 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     );
     if (lensBlurIsActive(this.settings) || this.visualizeDepth) {
       void this.pipelines.ensure();
-      this.ensureRenderTargets();
     }
   }
 
@@ -180,9 +177,6 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     this.destroyRenderTargets();
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    if (this.rawDepthTexture && (lensBlurIsActive(this.settings) || this.visualizeDepth)) {
-      this.ensureRenderTargets();
-    }
     this.writeSettings();
   }
 
@@ -213,14 +207,15 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
   }
 
   encode(encoder: GPUCommandEncoder, input: GPUTexture) {
-    if ((!lensBlurIsActive(this.settings) && !this.visualizeDepth) || !this.rawDepthTexture || !this.refinedDepthTexture ||
-      !this.halfColorTexture || !this.halfDepthTexture || !this.foregroundTexture ||
-      !this.backgroundTexture || !this.outputTexture) return input;
+    if ((!lensBlurIsActive(this.settings) && !this.visualizeDepth) || !this.rawDepthTexture) return input;
     const pipelines = this.pipelines.resource;
     if (!pipelines) {
       void this.pipelines.ensure();
       return input;
     }
+    this.ensureRenderTargets();
+    if (!this.refinedDepthTexture || !this.halfColorTexture || !this.halfDepthTexture ||
+      !this.foregroundTexture || !this.backgroundTexture || !this.outputTexture) return input;
     this.writeSettings();
 
     const depthBindGroup = this.device.createBindGroup({

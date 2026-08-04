@@ -18,8 +18,8 @@ trading away image fidelity or direct-manipulation responsiveness.
 
 ## Experiments
 
-- [ ] Effect targets: allocate on first visible encode, release on disable.
-- [ ] Optional effect pipelines and targets: verify true lazy realization.
+- [x] Effect targets: allocate on first visible encode, release on disable.
+- [x] Optional effect pipelines and targets: verify true lazy realization.
 - [ ] Layer-style cache policy: compare full-document cache, tight bounds and
       replay cost before choosing a representation.
 - [ ] Full-frame temporary aliasing: prove non-overlapping lifetimes first.
@@ -40,4 +40,3 @@ trading away image fidelity or direct-manipulation responsiveness.
 - stable-tail heap, DOM, listeners and GPU memory;
 - focused regression tests plus the complete quality gate;
 - one cohesive commit.
-

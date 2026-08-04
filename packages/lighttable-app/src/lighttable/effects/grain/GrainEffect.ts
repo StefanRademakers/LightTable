@@ -83,7 +83,6 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
     this.settings = cloneGrainSettings(settings);
     if (grainIsActive(this.settings)) {
       void this.pipelines.ensure();
-      this.ensureImageResources();
     }
     else this.destroyImageResources();
     this.writeSettings();
@@ -93,7 +92,6 @@ export class GrainEffect implements LightTableGpuEffect<GrainSettings> {
     this.destroyImageResources();
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    if (grainIsActive(this.settings)) this.ensureImageResources();
     this.writeSettings();
   }
 

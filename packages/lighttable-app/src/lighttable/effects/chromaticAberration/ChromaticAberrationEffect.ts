@@ -61,7 +61,6 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
     this.settings = cloneChromaticAberrationSettings(settings);
     if (chromaticAberrationIsActive(this.settings)) {
       void this.pipeline.ensure();
-      this.ensureImageResources();
     }
     else this.destroyImageResources();
     this.writeSettings();
@@ -71,7 +70,6 @@ export class ChromaticAberrationEffect implements LightTableGpuEffect<ChromaticA
     this.destroyImageResources();
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    if (chromaticAberrationIsActive(this.settings)) this.ensureImageResources();
     this.writeSettings();
   }
 

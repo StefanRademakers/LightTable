@@ -61,7 +61,6 @@ export class LensDistortionEffect implements LightTableGpuEffect<LensDistortionS
     this.settings = cloneLensDistortionSettings(settings);
     if (lensDistortionIsActive(this.settings)) {
       void this.pipeline.ensure();
-      this.ensureImageResources();
     }
     else this.destroyImageResources();
     this.writeSettings();
@@ -71,7 +70,6 @@ export class LensDistortionEffect implements LightTableGpuEffect<LensDistortionS
     this.destroyImageResources();
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    if (lensDistortionIsActive(this.settings)) this.ensureImageResources();
     this.writeSettings();
   }
 
