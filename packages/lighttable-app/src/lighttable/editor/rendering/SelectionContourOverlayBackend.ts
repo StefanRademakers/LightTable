@@ -16,8 +16,7 @@ struct VertexOutput {
 }
 
 struct AntUniforms {
-  phasePx: f32,
-  padding: vec3f,
+  phasePadding: vec4f,
 }
 
 @group(0) @binding(0) var selectionMask: texture_2d<f32>;
@@ -87,7 +86,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   }
 
   // Screen-space marching ants stay one device pixel wide at every zoom.
-  let dash = ((u32(floor(viewportPixel.x + viewportPixel.y + ants.phasePx)) / 4u) & 1u) == 0u;
+  let dash = ((u32(floor(viewportPixel.x + viewportPixel.y + ants.phasePadding.x)) / 4u) & 1u) == 0u;
   let lineColor = select(vec3f(0.07), vec3f(1.0), dash);
   let color = mix(vec3f(0.055), lineColor, line);
   return vec4f(color, max(underlay * 0.88, line * 0.98));
