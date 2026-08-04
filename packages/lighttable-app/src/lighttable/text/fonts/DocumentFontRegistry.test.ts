@@ -159,6 +159,24 @@ describe('DocumentFontRegistry', () => {
     )).rejects.toThrow(/between 1 and 4/);
   });
 
+  it('does not count lazy system catalog references against the portable face limit', async () => {
+    const { registry } = setup({ systemProvider: { load: async () => null } });
+    registry.registerReferences(Array.from({ length: 300 }, (_, index): DocumentFontAsset => ({
+      ...registration(`system-${index}`, `System Family ${index}`, { source: 'system' }),
+      fingerprintSha256: index.toString(16).padStart(64, '0'),
+      byteLength: 1
+    })));
+
+    const bundled = await registry.registerBytes(
+      new Uint8Array([1, 2, 3]),
+      registration('bundled-default', 'Bundled Default', { source: 'bundled' })
+    );
+
+    expect(bundled.source).toBe('bundled');
+    expect(registry.assets).toHaveLength(301);
+    expect(registry.byteSize).toBe(3);
+  });
+
   it('keeps registration atomic when total byte limits reject a font', async () => {
     const { registry } = setup({ maxTotalBytes: 4 });
     await registry.registerBytes(new Uint8Array([1, 2, 3]), registration('kept', 'Kept'));

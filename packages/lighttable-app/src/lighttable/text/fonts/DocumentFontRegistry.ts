@@ -253,7 +253,9 @@ export class DocumentFontRegistry {
     }
     this.assertCompatibleFaceAlias(asset);
     const existing = this.assetsById.get(asset.assetId);
-    if (!existing && this.assetsById.size >= 256) {
+    const portableFaceCount = [...this.assetsById.values()]
+      .filter((candidate) => candidate.source !== 'system').length;
+    if (!existing && asset.source !== 'system' && portableFaceCount >= 256) {
       throw new Error('A document may contain at most 256 font faces.');
     }
     if (existing && (
