@@ -94,6 +94,14 @@ describe('editor keymap', () => {
     )).toBe('repeat-transform-duplicate');
   });
 
+  it('finishes an active Pen path with Enter', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Enter', code: 'Enter' }),
+      context({ activeTool: 'vector-pen' })
+    )).toBe('commit-active-operation');
+  });
+
   it('uses physical bracket codes for brush size on keyboard layouts that alter key', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

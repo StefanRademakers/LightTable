@@ -101,6 +101,28 @@ describe('VectorToolSessionController', () => {
     expect(layerPaths(layer)[0]?.subpaths[0]?.anchors).toHaveLength(2);
   });
 
+  it('finishes an active open Pen path when Ctrl-clicking away from vector geometry', () => {
+    const state = setup();
+    state.controller.activate('pen');
+    expect(state.controller.pointerDown(1, { x: 20, y: 20 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.pointerUp(1, { x: 20, y: 20 })).toBe(true);
+    expect(state.controller.pointerDown(2, { x: 60, y: 20 }, { hitRadius: 3 })).toBe(true);
+    expect(state.controller.pointerUp(2, { x: 60, y: 20 })).toBe(true);
+
+    expect(state.controller.pointerDown(3, { x: 150, y: 80 }, {
+      hitRadius: 3,
+      temporaryDirect: true
+    })).toBe(true);
+    expect(state.controller.ownsPointer(3)).toBe(false);
+    expect(state.history).toHaveLength(1);
+    const activeLayerId = state.document.activeLayerId;
+    if (!activeLayerId) throw new Error('Expected an active Pen layer.');
+    expect(layerPaths(findDocumentLayer(
+      state.document,
+      activeLayerId
+    ))[0]?.subpaths[0]?.anchors).toHaveLength(2);
+  });
+
   it('finishes an open Pen path before an external active-layer change', () => {
     const state = setup();
     state.controller.activate('pen');
@@ -563,6 +585,32 @@ describe('VectorToolSessionController', () => {
     expect(state.history).toHaveLength(2);
     updated = findDocumentLayer(state.document, layer.id);
     expect(layerPaths(updated)[0]?.subpaths[0]?.anchors.map(({ id }) => id) ?? [])
+      .toEqual(['first', 'second']);
+  });
+
+  it('auto-adds and deletes anchors while the base Pen tool is active', () => {
+    const state = setup();
+    const layer = createVectorLayer([createVectorPath('path', 'Path', [
+      createSubpath('subpath', [
+        createAnchor('first', { x: 20, y: 20 }),
+        createAnchor('second', { x: 80, y: 20 })
+      ])
+    ])]);
+    state.document.layers = [layer];
+    state.controller.activate('pen');
+
+    expect(state.controller.pointerDown(30, { x: 50, y: 20 }, {
+      hitRadius: 3, autoAddDelete: true
+    })).toBe(true);
+    expect(state.controller.ownsPointer(30)).toBe(false);
+    let updated = findDocumentLayer(state.document, layer.id);
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors).toHaveLength(3);
+
+    expect(state.controller.pointerDown(31, { x: 50, y: 20 }, {
+      hitRadius: 3, autoAddDelete: true
+    })).toBe(true);
+    updated = findDocumentLayer(state.document, layer.id);
+    expect(layerPaths(updated)[0]?.subpaths[0]?.anchors.map(({ id }) => id))
       .toEqual(['first', 'second']);
   });
 

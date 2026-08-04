@@ -37,6 +37,7 @@ export interface ToolOptionsProps {
   brush: BrushSettings;
   gradient: EditorSession['gradient'];
   shape: EditorSession['shape'];
+  pen: EditorSession['pen'];
   warp: EditorSession['warp'];
   vectorStyle: VectorToolStyleSettings;
   text: TextToolSettings;
@@ -55,6 +56,7 @@ export interface ToolOptionsProps {
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
+  onPenChange: (change: Partial<EditorSession['pen']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<VectorToolStyleSettings>) => void;
   onTextChange: (change: Partial<TextToolSettings>) => void;
@@ -252,6 +254,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   brush,
   gradient,
   shape,
+  pen,
   warp,
   vectorStyle,
   text,
@@ -270,6 +273,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onBrushChange,
   onGradientChange,
   onShapeChange,
+  onPenChange,
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
@@ -376,6 +380,20 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onCommit={onTransformCommit}
           onCancel={onTransformCancel}
         />
+      ) : null}
+      {activeTool === 'vector-pen' ? (
+        <div className="lighttable-tool-options__vector-style" aria-label="Pen settings">
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={pen.autoAddDelete}
+              onChange={(event) => onPenChange({ autoAddDelete: event.currentTarget.checked })} />
+            <span>Auto Add/Delete</span>
+          </label>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={pen.rubberBand}
+              onChange={(event) => onPenChange({ rubberBand: event.currentTarget.checked })} />
+            <span>Rubber Band</span>
+          </label>
+        </div>
       ) : null}
       {activeTool === 'select-rectangle' || activeTool === 'select-ellipse' ? (
         <label className="lighttable-tool-options__toggle">

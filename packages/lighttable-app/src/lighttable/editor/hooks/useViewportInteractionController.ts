@@ -101,6 +101,10 @@ interface ViewportInteractionOptions {
     diameter: number;
   } | null) => void;
   onZoomDraftChange: (draft: SelectionShape | null) => void;
+  onPenRubberBandChange: (band: {
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  } | null) => void;
 }
 
 export interface ViewportInteractionController {
@@ -152,7 +156,8 @@ export const useViewportInteractionController = ({
   minScale,
   maxScale,
   onBrushCursorChange,
-  onZoomDraftChange
+  onZoomDraftChange,
+  onPenRubberBandChange
 }: ViewportInteractionOptions): ViewportInteractionController => {
   const effectiveTool = temporaryTools.effectiveTool(editorSession.activeTool);
   const temporaryPan = temporaryTools.activeTool === 'view';
@@ -179,6 +184,8 @@ export const useViewportInteractionController = ({
   onBrushCursorChangeRef.current = onBrushCursorChange;
   const onZoomDraftChangeRef = useRef(onZoomDraftChange);
   onZoomDraftChangeRef.current = onZoomDraftChange;
+  const onPenRubberBandChangeRef = useRef(onPenRubberBandChange);
+  onPenRubberBandChangeRef.current = onPenRubberBandChange;
   const onColorPickRef = useRef(onColorPick);
   onColorPickRef.current = onColorPick;
   const panFrameRef = useRef<LatestFrameValueScheduler<{
@@ -267,6 +274,7 @@ export const useViewportInteractionController = ({
   const hideBrushCursor = () => {
     brushCursorCenterRef.current = null;
     onBrushCursorChangeRef.current(null);
+    onPenRubberBandChangeRef.current(null);
   };
 
   const updateBrushCursor = (
@@ -441,6 +449,9 @@ export const useViewportInteractionController = ({
           hitRadius: 12 / Math.max(activeScale, 0.0001),
           closeTolerance: 8 / Math.max(activeScale, 0.0001),
           additive: event.shiftKey,
+          autoAddDelete: editorSession.pen.autoAddDelete,
+          temporaryDirect: event.ctrlKey || event.metaKey,
+          temporaryConvert: event.altKey,
           preserveAspect: event.shiftKey,
           fromCenter: event.altKey || editorSession.shape.fromCenter,
           fixedSize: editorSession.shape.geometry === 'fixed'
@@ -645,6 +656,7 @@ export const useViewportInteractionController = ({
         return;
       }
       if (point && vector.ownsPointer(event.pointerId)) {
+        onPenRubberBandChangeRef.current(null);
         if (vector.pointerMove(event.pointerId, point, {
           preserveAspect: event.shiftKey,
           fromCenter: event.altKey || editorSession.shape.fromCenter,
@@ -660,6 +672,13 @@ export const useViewportInteractionController = ({
           moveOrigin: temporaryTools.activeTool === 'view'
         })) event.preventDefault();
         return;
+      }
+      if (effectiveTool === 'vector-pen') {
+        onPenRubberBandChangeRef.current(
+          point && editorSession.pen.rubberBand ? vector.penRubberBand(point) : null
+        );
+      } else {
+        onPenRubberBandChangeRef.current(null);
       }
       if (
         editorSession.activeTool === 'select-polygonal'

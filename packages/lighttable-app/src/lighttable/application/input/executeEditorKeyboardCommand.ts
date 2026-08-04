@@ -8,8 +8,10 @@ export interface EditorKeyboardCommandPorts {
   isTransformActive(): boolean;
   commitTransform(): void;
   repeatTransform(duplicate?: boolean): void;
+  commitActiveOperation(): void;
   activateTool(tool: ToolId): void;
   undo(): void;
+  undoPenAnchor(): boolean;
   redo(): void;
   beginTemporaryPan(): void;
   beginTemporaryZoom(direction: -1 | 1): void;
@@ -77,7 +79,7 @@ export const executeEditorKeyboardCommand = (
       ports.quickExportPng();
       return;
     case 'undo':
-      ports.undo();
+      if (!ports.undoPenAnchor()) ports.undo();
       return;
     case 'redo':
       ports.redo();
@@ -141,6 +143,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'repeat-transform-duplicate':
       ports.repeatTransform(true);
+      return;
+    case 'commit-active-operation':
+      ports.commitActiveOperation();
       return;
     case 'invert-active-target':
       ports.invertActiveTarget();

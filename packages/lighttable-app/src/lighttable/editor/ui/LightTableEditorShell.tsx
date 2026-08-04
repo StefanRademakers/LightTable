@@ -22,6 +22,7 @@ export interface LightTableEditorShellProps {
   brush: EditorSession['brush'];
   gradient: EditorSession['gradient'];
   shape: EditorSession['shape'];
+  pen: EditorSession['pen'];
   warp: EditorSession['warp'];
   vectorStyle: EditorSession['vectorStyle'];
   text: EditorSession['text'];
@@ -40,6 +41,7 @@ export interface LightTableEditorShellProps {
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
+  onPenChange: (change: Partial<EditorSession['pen']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onTextChange: (change: Partial<EditorSession['text']>) => void;
@@ -99,6 +101,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   brush,
   gradient,
   shape,
+  pen,
   warp,
   vectorStyle,
   text,
@@ -117,6 +120,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onBrushChange,
   onGradientChange,
   onShapeChange,
+  onPenChange,
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
@@ -185,6 +189,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         brush={brush}
         gradient={gradient}
         shape={shape}
+        pen={pen}
         warp={warp}
         vectorStyle={vectorStyle}
         text={text}
@@ -203,6 +208,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onBrushChange={onBrushChange}
         onGradientChange={onGradientChange}
         onShapeChange={onShapeChange}
+        onPenChange={onPenChange}
         onWarpChange={onWarpChange}
         onVectorStyleChange={onVectorStyleChange}
         onTextChange={onTextChange}

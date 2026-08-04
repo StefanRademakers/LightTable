@@ -63,6 +63,7 @@ export type EditorKeyboardCommand =
   | 'brush-hardness-increase'
   | 'open-brush-settings'
   | 'commit-transform'
+  | 'commit-active-operation'
   | 'activate-next-document'
   | 'activate-previous-document'
   | 'close-active-document'
@@ -311,8 +312,8 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     ),
     ...toolGroupBindings,
     ...toolBindings,
-    command('transform.commit', { key: 'enter' }, 'commit-transform', {
-      when: (context) => context.transforming
+    command('editor.commit-context', { key: 'enter' }, 'commit-active-operation', {
+      when: (context) => context.transforming || context.activeTool === 'vector-pen'
     }),
     command('editor.cancel-or-close', { key: 'escape' }, 'cancel-or-close', {
       when: (context) => !context.saving

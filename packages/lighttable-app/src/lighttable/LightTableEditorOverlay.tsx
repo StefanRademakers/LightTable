@@ -481,6 +481,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const resetTransformRef = useRef<() => void>(() => undefined);
   const transformActiveRef = useRef<() => boolean>(() => false);
   const repeatTransformRef = useRef<(duplicate?: boolean) => void>(() => undefined);
+  const finishPenPathRef = useRef<() => void>(() => undefined);
+  const cancelPenPathRef = useRef<() => boolean>(() => false);
+  const undoPenAnchorRef = useRef<() => boolean>(() => false);
   const activateToolRef = useRef<(tool: ToolId) => void>(() => undefined);
   const cancelAutoAlignRef = useRef<() => void>(() => undefined);
   const copySelectedContentRef = useRef<() => void>(() => undefined);
@@ -1694,8 +1697,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       repeatTransform: (duplicate) => repeatTransformRef.current(duplicate),
+      commitActiveOperation: () => {
+        if (transformActiveRef.current()) commitTransformRef.current();
+        else finishPenPathRef.current();
+      },
       activateTool: (tool) => activateToolRef.current(tool),
       undo: () => { void undoEditor(); },
+      undoPenAnchor: () => undoPenAnchorRef.current(),
       redo: () => { void redoEditor(); },
       beginTemporaryPan: () => {
         if (temporaryToolRef.current.begin('view')) setTemporaryPanActive(true);
@@ -1824,6 +1832,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           selectionSessionController.reset();
           return;
         }
+        if (cancelPenPathRef.current()) return;
         if (editorSession.selection.length) {
           selectionSessionController.clear();
           return;
@@ -1943,6 +1952,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     rasterizeShape: (transaction) => rasterizeShapeRef.current(transaction)
   });
+  finishPenPathRef.current = () => { vectorToolSessionController.finishPenPath(); };
+  cancelPenPathRef.current = () => vectorToolSessionController.cancelPenPath();
+  undoPenAnchorRef.current = () => vectorToolSessionController.undoPenAnchor();
   const selectedVectorStyle = useMemo(() => {
     const reference = editorSession.vectorSelection.elements[0];
     if (!reference || !imageDocument) return null;
@@ -2403,6 +2415,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     onZoomDraftChange: (draft) => {
       engineRef.current?.setZoomEditingOverlay(draft);
+    },
+    onPenRubberBandChange: (band) => {
+      engineRef.current?.setPenRubberBandOverlay(band);
     }
   });
 
@@ -3566,6 +3581,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       brush={editorSession.brush}
       gradient={gradientToolSettings}
       shape={editorSession.shape}
+      pen={editorSession.pen}
       warp={editorSession.warp}
       vectorStyle={editorSession.vectorStyle}
       text={editorSession.text}
@@ -3588,6 +3604,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }))}
       onShapeChange={(change) => setEditorSession((current) => ({
         ...current, shape: { ...current.shape, ...change }
+      }))}
+      onPenChange={(change) => setEditorSession((current) => ({
+        ...current, pen: { ...current.pen, ...change }
       }))}
       onWarpChange={updateWarp}
       onVectorStyleChange={(change) => {
@@ -3732,6 +3751,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             brush: editorSession.brush,
             gradient: gradientToolSettings,
             shape: editorSession.shape,
+            pen: editorSession.pen,
             warp: editorSession.warp,
             vectorStyle: editorSession.vectorStyle,
             text: editorSession.text,
@@ -3753,6 +3773,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             })),
             onShapeChange: (change) => setEditorSession((current) => ({
               ...current, shape: { ...current.shape, ...change }
+            })),
+            onPenChange: (change) => setEditorSession((current) => ({
+              ...current, pen: { ...current.pen, ...change }
             })),
             onWarpChange: updateWarp,
             onVectorStyleChange: (change) => {

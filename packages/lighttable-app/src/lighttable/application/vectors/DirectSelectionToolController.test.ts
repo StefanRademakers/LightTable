@@ -115,6 +115,37 @@ describe('DirectSelectionToolController', () => {
     expect(state.history).toHaveLength(1);
   });
 
+  it('breaks one smooth handle while preserving the opposite handle', () => {
+    const state = setup();
+    const path = createVectorPath('path', 'Path', [createSubpath('subpath', [
+      createAnchor('anchor', { x: 20, y: 20 }, {
+        mode: 'symmetric',
+        handleIn: { x: 10, y: 20 },
+        handleOut: { x: 30, y: 20 }
+      }),
+      createAnchor('end', { x: 60, y: 20 })
+    ])]);
+    const layer = createVectorLayer([path]);
+    state.document.layers = [layer];
+
+    expect(state.controller.pointerDown({ x: 30, y: 20 }, {
+      radius: 1,
+      breakHandle: true
+    })).toBe(true);
+    expect(state.controller.pointerUp({ x: 35, y: 30 })).toBe(true);
+
+    const edited = findDocumentLayer(state.document, layer.id);
+    if (edited?.type !== 'vector' || edited.elements[0]?.type !== 'path') {
+      throw new Error('Expected edited vector path.');
+    }
+    expect(edited.elements[0].subpaths[0]?.anchors[0]).toMatchObject({
+      mode: 'corner',
+      handleIn: { x: 10, y: 20 },
+      handleOut: { x: 35, y: 30 }
+    });
+    expect(state.history).toHaveLength(1);
+  });
+
   it('pulls a segment through the pointer while its anchors stay fixed', () => {
     const state = setup();
     const scene = transformedPath();

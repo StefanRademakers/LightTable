@@ -209,6 +209,11 @@ export interface GradientToolSettings {
   application: 'fill-layer' | 'pixels';
 }
 
+export interface PenToolSettings {
+  autoAddDelete: boolean;
+  rubberBand: boolean;
+}
+
 export const createGradientToolSettings = (): GradientToolSettings => ({
   paint: createDefaultGradientPaint('gradient-tool', 'document'),
   opacity: 1,
@@ -230,6 +235,7 @@ export interface EditorSession {
   brush: BrushSettings;
   gradient: GradientToolSettings;
   vectorStyle: VectorToolStyleSettings;
+  pen: PenToolSettings;
   shape: ShapeToolSettings;
   text: TextToolSettings;
   warp: WarpToolSettings;
@@ -263,6 +269,10 @@ export const createEditorSession = (): EditorSession => ({
     strokeWidth: 3,
     strokeAlignment: 'center',
     strokeStyle: 'solid'
+  },
+  pen: {
+    autoAddDelete: true,
+    rubberBand: true
   },
   shape: {
     mode: 'shape',

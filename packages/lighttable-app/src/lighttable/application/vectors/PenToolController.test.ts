@@ -36,6 +36,19 @@ const setup = () => {
 };
 
 describe('PenToolController', () => {
+  it('exposes a document-space rubber band without mutating the preview document', () => {
+    const state = setup();
+    state.controller.pointerDown({ x: 12, y: 18 });
+    state.controller.pointerUp({ x: 12, y: 18 });
+    const previewDocument = state.document;
+    expect(state.controller.rubberBand({ x: 90, y: 55 })).toEqual({
+      from: { x: 12, y: 18 },
+      to: { x: 90, y: 55 }
+    });
+    expect(state.document).toBe(previewDocument);
+    expect(state.history).toHaveLength(0);
+  });
+
   it('previews many anchors but commits the completed path once', () => {
     const state = setup();
     expect(state.controller.pointerDown({ x: 10, y: 10 })).toBe(true);
@@ -57,6 +70,32 @@ describe('PenToolController', () => {
       handleIn: { x: 2, y: 10 },
       handleOut: { x: 18, y: 10 }
     });
+  });
+
+  it('constrains dragged handles to 45-degree increments', () => {
+    const state = setup();
+    state.controller.pointerDown({ x: 20, y: 20 });
+    state.controller.pointerMove({ x: 42, y: 29 }, true);
+    state.controller.pointerUp({ x: 42, y: 29 }, true);
+    state.controller.pointerDown({ x: 80, y: 50 });
+    state.controller.pointerUp({ x: 80, y: 50 });
+    state.controller.finishOpen();
+    const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    const first = layer?.type === 'vector' && layer.elements[0]?.type === 'path'
+      ? layer.elements[0].subpaths[0]?.anchors[0] : null;
+    expect(first?.handleOut?.y).toBeCloseTo(20);
+    expect(first?.handleIn?.y).toBeCloseTo(20);
+  });
+
+  it('undoes the last provisional anchor without touching document history', () => {
+    const state = setup();
+    for (const point of [{ x: 10, y: 10 }, { x: 40, y: 20 }, { x: 80, y: 30 }]) {
+      state.controller.pointerDown(point);
+      state.controller.pointerUp(point);
+    }
+    expect(state.controller.undoLastAnchor()).toBe(true);
+    expect(state.controller.snapshot().path?.subpaths[0]?.anchors).toHaveLength(2);
+    expect(state.history).toHaveLength(0);
   });
 
   it('closes near the first anchor and records one history entry', () => {

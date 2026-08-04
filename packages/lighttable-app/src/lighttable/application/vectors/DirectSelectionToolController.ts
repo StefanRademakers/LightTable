@@ -3,6 +3,7 @@ import {
   moveAnchorHandle,
   moveAnchors,
   moveSegmentPoint,
+  setAnchorMode,
   transformPoint,
   type AnchorReference,
   type PathSelectionTarget,
@@ -33,6 +34,7 @@ export interface DirectSelectionToolDependencies {
 export interface DirectSelectionPointerOptions {
   radius: number;
   additive?: boolean;
+  breakHandle?: boolean;
 }
 
 interface ActiveAnchorGesture {
@@ -44,6 +46,7 @@ interface ActiveAnchorGesture {
   startLocal: Vec2;
   target: Extract<PathSelectionTarget, { kind: 'anchor' | 'handle-in' | 'handle-out' }>;
   anchors: AnchorReference[];
+  breakHandle: boolean;
 }
 
 interface ActiveMarqueeGesture {
@@ -223,7 +226,8 @@ export class DirectSelectionToolController {
       inverseDocumentTransform: inverse,
       startLocal,
       target,
-      anchors
+      anchors,
+      breakHandle: Boolean(options.breakHandle)
     };
     return true;
   }
@@ -283,12 +287,13 @@ export class DirectSelectionToolController {
       };
       return this.documents.previewPathMutation((path) => moveAnchors(path, gesture.anchors, delta));
     }
+    const reference = {
+      subpathId: gesture.target.subpathId,
+      anchorId: gesture.target.anchorId
+    };
     return this.documents.previewPathMutation((path) => moveAnchorHandle(
-      path,
-      {
-        subpathId: gesture.target.subpathId,
-        anchorId: gesture.target.anchorId
-      },
+      gesture.breakHandle ? setAnchorMode(path, reference, 'corner') : path,
+      reference,
       gesture.target.kind === 'handle-in' ? 'in' : 'out',
       local
     ));

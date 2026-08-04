@@ -80,7 +80,7 @@ import {
   VectorEditingOverlayBackend,
   type VectorEditingOverlayTarget
 } from '@lighttable/vector-webgpu';
-import type { VectorSelectionFrame } from '@lighttable/vector-rendering';
+import type { VectorEditingOverlay, VectorSelectionFrame } from '@lighttable/vector-rendering';
 import { buildVectorDocumentEditingSceneOverlay } from '../application/vectors/vectorEditingOverlay';
 import {
   cloneVectorEditorSelection,
@@ -220,6 +220,7 @@ export class WebGpuEngine {
     center: { x: number; y: number };
     diameter: number;
   } | null = null;
+  private penRubberBand: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
   private transformEditingFrame: VectorSelectionFrame | null = null;
   private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
   private textEditingOverlayBackend: TextEditingOverlayBackend | null = null;
@@ -1309,6 +1310,23 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setPenRubberBandOverlay(band: {
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  } | null) {
+    const current = this.penRubberBand;
+    if (current === null && band === null
+      || current && band
+        && current.from.x === band.from.x && current.from.y === band.from.y
+        && current.to.x === band.to.x && current.to.y === band.to.y) return;
+    this.penRubberBand = band ? {
+      from: { ...band.from },
+      to: { ...band.to }
+    } : null;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   async sampleDisplayColor(point: { x: number; y: number }) {
     const texture = this.imageResources.finalTexture;
     const metadata = this.metadata;
@@ -2003,6 +2021,7 @@ export class WebGpuEngine {
       && !selectionMask
       && !this.transformEditingFrame
       && !this.brushCursorOverlay
+      && !this.penRubberBand
       && !this.textEditingOverlay
     ) return;
     const uniforms = viewportRenderState.uniforms;
@@ -2028,6 +2047,22 @@ export class WebGpuEngine {
     }
     for (const overlay of overlayScene.gradientHandles) {
       this.vectorEditingOverlayBackend.encode(encoder, overlay, target);
+    }
+    if (this.penRubberBand) {
+      const rubberBand: VectorEditingOverlay = {
+        pathId: 'pen-rubber-band',
+        resourceKey: `pen-rubber-band:${this.penRubberBand.from.x}:${this.penRubberBand.from.y}:${this.penRubberBand.to.x}:${this.penRubberBand.to.y}`,
+        geometryRevision: 0,
+        transformRevision: 0,
+        cubics: [{
+          subpathId: 'pen-rubber-band', segmentIndex: 0,
+          p0: this.penRubberBand.from, p1: this.penRubberBand.from,
+          p2: this.penRubberBand.to, p3: this.penRubberBand.to
+        }],
+        anchors: [],
+        handles: []
+      };
+      this.vectorEditingOverlayBackend.encode(encoder, rubberBand, target);
     }
     if (overlayScene.selectionFrame) {
       this.vectorEditingOverlayBackend.encodeSelectionFrame(
@@ -2115,6 +2150,7 @@ export class WebGpuEngine {
     this.isolatedMaskNearestBindGroup = null;
     this.isolatedCompositeChannel = null;
     this.brushCursorOverlay = null;
+    this.penRubberBand = null;
     this.transformEditingFrame = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;

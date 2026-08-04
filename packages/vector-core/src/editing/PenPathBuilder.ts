@@ -2,7 +2,7 @@ import { createAnchor, createSubpath, createVectorPath } from '../model/factorie
 import { cloneVectorAnchor, cloneVectorPath, cloneVectorStyle } from '../model/clone';
 import type { VectorAnchor, VectorPath, VectorStyle } from '../model/types';
 import type { Vec2 } from '../math/vector';
-import { appendAnchor, closeSubpath, prependAnchor } from './pathMutations';
+import { appendAnchor, closeSubpath, deleteAnchors, prependAnchor } from './pathMutations';
 
 export interface VectorIdSource {
   next(kind: 'path' | 'subpath' | 'anchor' | 'live-shape'): string;
@@ -119,6 +119,17 @@ export class PenPathBuilder {
 
   anchorCount() {
     return this.path.subpaths.find(({ id }) => id === this.subpathId)?.anchors.length ?? 0;
+  }
+
+  undoLastAnchor() {
+    this.assertOpen();
+    const subpath = this.path.subpaths.find(({ id }) => id === this.subpathId);
+    const anchor = this.direction === 'append'
+      ? subpath?.anchors[subpath.anchors.length - 1]
+      : subpath?.anchors[0];
+    if (!anchor) return null;
+    this.path = deleteAnchors(this.path, [{ subpathId: this.subpathId, anchorId: anchor.id }]);
+    return this.snapshot();
   }
 
   activeSubpathId() {

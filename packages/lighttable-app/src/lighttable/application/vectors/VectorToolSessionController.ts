@@ -18,7 +18,7 @@ import {
   DirectSelectionToolController,
   type DirectSelectionPointerOptions
 } from './DirectSelectionToolController';
-import { PenToolController } from './PenToolController';
+import { PenToolController, type PenRubberBand } from './PenToolController';
 import {
   LiveShapeToolController,
   type LiveShapeDragOptions,
@@ -63,6 +63,9 @@ export interface VectorPointerDownOptions extends LiveShapeDragOptions {
   hitRadius: number;
   closeTolerance?: number;
   additive?: boolean;
+  autoAddDelete?: boolean;
+  temporaryDirect?: boolean;
+  temporaryConvert?: boolean;
 }
 
 interface CapturedPointer {
@@ -175,6 +178,37 @@ export class VectorToolSessionController {
     if (!documentId) return false;
 
     if (this.activeMode === 'pen') {
+      if (options.temporaryDirect) {
+        const document = this.dependencies.getDocument();
+        const hit = document ? hitTestVectorDocument(document, {
+          documentPoint,
+          radius: options.hitRadius,
+          includeFill: true,
+          includeHandles: true
+        }) : null;
+        if (this.pen.isActive() && !hit) return this.pen.finishOpen();
+        if (!this.directSelection.pointerDown(documentPoint, {
+          radius: options.hitRadius,
+          additive: options.additive,
+          breakHandle: options.temporaryConvert
+        })) return false;
+        this.capturedPointer = { id: pointerId, mode: 'direct-selection', documentId };
+        return true;
+      }
+      if (options.temporaryConvert) {
+        const converted = this.pointTools.pointerDown('convert-anchor', documentPoint, options.hitRadius);
+        if (!converted.handled) return false;
+        if (converted.capture) {
+          this.capturedPointer = { id: pointerId, mode: 'convert-anchor', documentId };
+        }
+        return true;
+      }
+      if (!this.pen.isActive() && options.autoAddDelete) {
+        const deleted = this.pointTools.pointerDown('delete-anchor', documentPoint, options.hitRadius);
+        if (deleted.handled) return true;
+        const added = this.pointTools.pointerDown('add-anchor', documentPoint, options.hitRadius);
+        if (added.handled) return true;
+      }
       if (!this.pen.isActive() && this.tryResumePenPath(documentPoint, options.hitRadius)) {
         return true;
       }
@@ -234,7 +268,7 @@ export class VectorToolSessionController {
   ) {
     const capture = this.validCapture(pointerId);
     if (!capture) return false;
-    if (capture.mode === 'pen') return this.pen.pointerMove(documentPoint);
+    if (capture.mode === 'pen') return this.pen.pointerMove(documentPoint, options.preserveAspect);
     if (capture.mode === 'element-selection') return this.elementSelection.pointerMove(documentPoint);
     if (capture.mode === 'direct-selection') return this.directSelection.pointerMove(documentPoint);
     if (capture.mode === 'live-shape') return this.liveShape.pointerMove(documentPoint, options);
@@ -276,7 +310,7 @@ export class VectorToolSessionController {
       options.preserveAspect
     );
     if (capture.mode !== 'pen') return this.pointTools.pointerUp(documentPoint);
-    const changed = this.pen.pointerUp(documentPoint);
+    const changed = this.pen.pointerUp(documentPoint, options.preserveAspect);
     if (clickCount >= 2) this.pen.finishOpen();
     return changed;
   }
@@ -300,10 +334,21 @@ export class VectorToolSessionController {
     return this.pen.finishOpen();
   }
 
+  penRubberBand(documentPoint: Vec2): PenRubberBand | null {
+    if (!this.assertAvailable() || this.activeMode !== 'pen' || this.capturedPointer) return null;
+    return this.pen.rubberBand(documentPoint);
+  }
+
   cancelPenPath() {
     if (!this.assertAvailable()) return false;
     this.capturedPointer = null;
     return this.pen.cancel();
+  }
+
+  undoPenAnchor() {
+    if (!this.assertAvailable() || this.activeMode !== 'pen') return false;
+    this.capturedPointer = null;
+    return this.pen.undoLastAnchor();
   }
 
   clearSelection() {

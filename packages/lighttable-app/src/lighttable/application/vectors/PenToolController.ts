@@ -38,6 +38,15 @@ interface AnchorGesture {
   position: Vec2;
 }
 
+const constrainDirection = (origin: Vec2, point: Vec2): Vec2 => {
+  const dx = point.x - origin.x;
+  const dy = point.y - origin.y;
+  const length = Math.hypot(dx, dy);
+  if (length <= 1e-9) return { ...point };
+  const angle = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  return { x: origin.x + Math.cos(angle) * length, y: origin.y + Math.sin(angle) * length };
+};
+
 export interface PenToolControllerOptions {
   ids?: VectorIdSource;
   style?: () => VectorStyle;
@@ -49,6 +58,11 @@ export interface PenToolSnapshot {
   layerId: LayerId | null;
   path: VectorPath | null;
   anchorGestureActive: boolean;
+}
+
+export interface PenRubberBand {
+  from: Vec2;
+  to: Vec2;
 }
 
 const uuidIds: VectorIdSource = {
@@ -91,18 +105,20 @@ export class PenToolController {
     return true;
   }
 
-  pointerMove(position: Vec2) {
+  pointerMove(position: Vec2, constrain = false) {
     if (!this.builder || !this.gesture) return false;
+    const local = transformPoint(this.documentToPath, position);
     return this.preview(this.builder.previewPlace(this.gesture.position, {
-      dragTo: transformPoint(this.documentToPath, position)
+      dragTo: constrain ? constrainDirection(this.gesture.position, local) : local
     }));
   }
 
-  pointerUp(position: Vec2) {
+  pointerUp(position: Vec2, constrain = false) {
     if (!this.builder || !this.gesture) return false;
     const start = this.gesture.position;
     this.gesture = null;
-    const local = transformPoint(this.documentToPath, position);
+    const rawLocal = transformPoint(this.documentToPath, position);
+    const local = constrain ? constrainDirection(start, rawLocal) : rawLocal;
     const dragTo = distanceSquared(start, local) > 0
       ? local
       : undefined;
@@ -162,6 +178,13 @@ export class PenToolController {
     return this.commit();
   }
 
+  undoLastAnchor() {
+    if (!this.builder || this.gesture) return false;
+    if (this.builder.anchorCount() <= 1) return this.cancel();
+    const path = this.builder.undoLastAnchor();
+    return path ? this.preview(path) : false;
+  }
+
   cancel() {
     if (!this.builder) return false;
     const transaction = this.transaction;
@@ -212,6 +235,20 @@ export class PenToolController {
       layerId: this.layerId,
       path: this.builder?.snapshot() ?? null,
       anchorGestureActive: Boolean(this.gesture)
+    };
+  }
+
+  rubberBand(position: Vec2): PenRubberBand | null {
+    if (!this.builder || this.gesture) return null;
+    const path = this.builder.snapshot();
+    const subpath = path.subpaths.find(({ id }) => id === this.builder!.activeSubpathId());
+    const anchor = this.builder.activeEndpoint() === 'append'
+      ? subpath?.anchors[subpath.anchors.length - 1]
+      : subpath?.anchors[0];
+    if (!anchor) return null;
+    return {
+      from: transformPoint(this.pathToDocument, anchor.position),
+      to: { ...position }
     };
   }
 

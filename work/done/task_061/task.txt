@@ -1,0 +1,34 @@
+Pen Tool
+Update the creation of a path to look like the bezier curve creation mode in the image...
+Also make sure the handles are enough size en points have a decent clickable area... and the line thickness is readable.
+
+Tool hotkey: P
+Press Shift + P to cycle through the Pen Tool variants.
+
+Main properties
+Mode — create a Shape, or sometimes Pixels, depending on the selected tool.
+Fill — fill color for closed shape paths.
+Stroke — outline color, width, style, and alignment.
+Auto Add/Delete — automatically add a point on a segment or delete an existing point.
+Rubber Band — previews the next path segment before placing it.
+Controls and shortcuts
+Create a straight point: click.
+Create a curved point: click and drag.
+Close a path: click the first anchor point.
+Leave a path open: Ctrl + click away from the path.
+Temporarily use Direct Selection: hold Ctrl.
+Temporarily convert a point: hold Alt.
+Break one Bézier handle: hold Alt and drag a handle.
+Add anchor point: hover over a segment and click.
+Delete anchor point: hover over a point and click.
+Move an anchor point: hold Ctrl and drag it.
+Adjust handles: hold Ctrl and drag a handle.
+Constrain handle direction to 45° increments: hold Shift.
+Undo the last point: Ctrl + Z.
+Finish the active path: press Enter.
+Related tool hotkeys
+Path Selection Tool: A
+Direct Selection Tool: A, then Shift + A to cycle
+Convert Point Tool: Shift + P to cycle to it
+
+macOS: replace Ctrl with Cmd and Alt with Option.

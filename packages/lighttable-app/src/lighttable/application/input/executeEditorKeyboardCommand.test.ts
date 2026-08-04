@@ -12,8 +12,10 @@ const ports = (): EditorKeyboardCommandPorts => ({
   isTransformActive: vi.fn(() => false),
   commitTransform: vi.fn(),
   repeatTransform: vi.fn(),
+  commitActiveOperation: vi.fn(),
   activateTool: vi.fn(),
   undo: vi.fn(),
+  undoPenAnchor: vi.fn(() => false),
   redo: vi.fn(),
   beginTemporaryPan: vi.fn(),
   beginTemporaryZoom: vi.fn(),
@@ -48,6 +50,20 @@ const ports = (): EditorKeyboardCommandPorts => ({
 });
 
 describe('executeEditorKeyboardCommand', () => {
+  it('undoes a provisional Pen anchor before document history', () => {
+    const target = ports();
+    target.undoPenAnchor = vi.fn(() => true);
+    executeEditorKeyboardCommand('undo', target);
+    expect(target.undoPenAnchor).toHaveBeenCalledOnce();
+    expect(target.undo).not.toHaveBeenCalled();
+  });
+
+  it('routes Enter to the active Pen path transaction', () => {
+    const target = ports();
+    executeEditorKeyboardCommand('commit-active-operation', target);
+    expect(target.commitActiveOperation).toHaveBeenCalledOnce();
+  });
+
   it('routes repeat and repeat-duplicate transforms independently', () => {
     const target = ports();
     executeEditorKeyboardCommand('repeat-transform', target);

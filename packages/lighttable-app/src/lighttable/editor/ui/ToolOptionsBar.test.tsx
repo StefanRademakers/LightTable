@@ -20,6 +20,7 @@ const renderOptions = (
     brush: session.brush,
     gradient: session.gradient,
     shape: session.shape,
+    pen: session.pen,
     warp: session.warp,
     vectorStyle: session.vectorStyle,
     text: session.text,
@@ -45,6 +46,7 @@ const renderOptions = (
     onBrushChange: vi.fn(),
     onGradientChange: vi.fn(),
     onShapeChange: vi.fn(),
+    onPenChange: vi.fn(),
     onWarpChange: vi.fn(),
     onVectorStyleChange: vi.fn(),
     onTextChange: vi.fn(),
@@ -103,6 +105,13 @@ describe('Free Transform tool options', () => {
 });
 
 describe('vector style tool options', () => {
+  it('surfaces Pen Auto Add/Delete and GPU Rubber Band controls', () => {
+    const markup = renderOptions('vector-pen');
+    expect(markup).toContain('aria-label="Pen settings"');
+    expect(markup).toContain('Auto Add/Delete');
+    expect(markup).toContain('Rubber Band');
+  });
+
   it('surfaces shared exact geometry controls for rectangle and ellipse tools', () => {
     const rectangle = renderOptions('shape-rectangle');
     expect(rectangle).toContain('aria-label="Shape geometry"');
