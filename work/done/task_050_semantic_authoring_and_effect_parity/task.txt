@@ -1,6 +1,6 @@
 # Task 050 - Generic semantic authoring and effect parity
 
-Status: in progress
+Status: complete
 
 Build imported and native text, shapes, gradients/fills and layer effects on
 shared LightTable contracts. Adjustment Layers and the existing Grade panel are
@@ -17,12 +17,12 @@ explicitly out of scope and will be handled as a separate parity task.
   unresolved/unchanged and is invalidated by authoritative edits.
 - [x] The same vector scene owns imported and native shapes. Unsupported paint
   or boolean data remains preserved plus preview-backed until promoted.
-- [ ] Effects are ordered compositing programs with declared bounds and cache
+- [x] Effects are ordered compositing programs with declared bounds and cache
   dependencies. Interactive and final quality use the same semantics.
-- [ ] Existing LightTable controls, styling and GPU vector overlay are reused.
+- [x] Existing LightTable controls, styling and GPU vector overlay are reused.
   Gradient UX follows the compact gradient well plus on-canvas handles pattern;
   no separate custom control family is introduced.
-- [ ] Every completed capability is committed separately and leaves desktop
+- [x] Every completed capability is committed separately and leaves desktop
   and web builds green.
 
 ## Work slices
@@ -33,21 +33,33 @@ explicitly out of scope and will be handled as a separate parity task.
   native text.
 - [x] Introduce the shared gradient asset/paint-instance model and bridge the
   existing Layer Style gradient editor to it.
-- [ ] Render and edit gradient fills on vector shapes and text.
+- [x] Render and edit gradient fills on vector shapes and text.
 - [x] Import Photoshop solid/gradient shapes into the shared vector model,
   including no-fill/no-stroke, alignment, joins, caps and compound paths.
-- [ ] Add a native Gradient Fill Layer distinct from Adjustment Layers.
-- [ ] Add effect enable/bypass automation and Photoshop reference captures.
-- [ ] Implement interactive/final effect quality tiers and improve the highest
+- [x] Add a native Gradient Fill Layer distinct from Adjustment Layers.
+- [x] Add effect enable/bypass automation and Photoshop reference captures.
+- [x] Implement interactive/final effect quality tiers and improve the highest
   impact fidelity mismatches without changing effect semantics between tiers.
 
 ## Gates
 
-- [ ] `D:\TextTest.psd` supported text is editable; missing fonts retain their
+- [x] `D:\TextTest.psd` supported text is editable; missing fonts retain their
   source preview until explicit replacement and edits visibly invalidate it.
-- [ ] `D:\shapes.psd` supported shapes remain editable with fill, no-fill,
+- [x] `D:\shapes.psd` supported shapes remain editable with fill, no-fill,
   stroke and gradient state round-tripping through native save/reopen.
-- [ ] Gradient editing stays responsive and exposes on-canvas GPU handles.
-- [ ] Effect solo/context comparisons include bounds, fill opacity, masks,
+- [x] Gradient editing stays responsive and exposes on-canvas GPU handles.
+- [x] Effect solo/context comparisons include bounds, fill opacity, masks,
   groups, high zoom and stacked effects.
-- [ ] No Adjustment Layer or Grade-panel behavior changes in this task.
+- [x] No Adjustment Layer or Grade-panel behavior changes in this task.
+
+## Completion evidence
+
+- Packaged `D:\TextTest.psd`: five editable flow layers plus one editable path,
+  correct rotated thumbnails, active text editing, native save/reopen and zero
+  page errors.
+- Packaged `D:\shapes.psd`: four editable vectors; fill/no-fill, stroke colour,
+  width and alignment edits survive native save/reopen.
+- Native Gradient Fill: GPU handle drag and existing gradient editor survive
+  native save/reopen as a fifth semantic vector layer.
+- Photoshop/LightTable style corpus: five stable source-id targets, context,
+  solo, mask/group, fill-opacity, stacked and 400% captures; zero page errors.

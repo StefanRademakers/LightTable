@@ -1,6 +1,6 @@
 # Task 037 - Text fallback, bidi and complex scripts
 
-Status: in progress
+Status: complete; physical web verification is environment-gated
 
 ## Deterministic fallback and provenance
 
@@ -48,3 +48,13 @@ Status: in progress
 - [ ] Physical web corpus smoke remains open. The 2026-08-03 browser session
   exposed no controllable browser backend, so this gate is deliberately not
   claimed from unit or build evidence.
+
+## External verification note
+
+The browser-backed gate was retried on 2026-08-04 against a live local Vite
+build. Browser discovery again returned zero available browser backends after
+the prescribed recovery check. No implementation failure was observed and no
+standalone automation substitute was used to manufacture this evidence. The
+gate remains explicitly unclaimed until a browser-enabled runner is available;
+all code, real-WASM, packaged Electron, persistence, web build and type gates
+are complete.
