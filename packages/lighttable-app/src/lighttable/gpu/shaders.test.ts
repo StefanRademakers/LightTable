@@ -287,7 +287,7 @@ describe('LightTable WGSL modules', () => {
     expect(LAYER_STYLE_SHAPE_WGSL).toContain('evaluatedMask(input.uv)');
     expect(LAYER_STYLE_SHAPE_WGSL).not.toContain('evaluatedMask(sourceUv)');
     expect(LAYER_STYLE_SHAPE_WGSL).not.toContain('backgroundTexture');
-    expect(LAYER_STYLE_EFFECT_WGSL).toContain('return clamp(value / 68.0, 0.0, 1.0)');
+    expect(LAYER_STYLE_EFFECT_WGSL).toContain('return clamp(value / (4.0 + f32(sampleCount) * 4.0), 0.0, 1.0)');
     expect(LAYER_STYLE_EFFECT_WGSL).not.toContain('if (index < directionCount)');
     expect(LAYER_STYLE_EFFECT_WGSL).not.toContain('\n    normal =');
     expect(LAYER_STYLE_EFFECT_WGSL).not.toMatch(/\btextureSample\(/);

@@ -33,6 +33,7 @@ describe('vector style presentation', () => {
     expect(vectorElementStyleSettings(element)).toEqual({
       fillEnabled: true,
       fillColor: '#000000',
+      fillPaint: { type: 'solid', color: [0, 0, 0, 1] },
       strokeEnabled: true,
       strokeColor: '#ffffff',
       strokeWidth: 3,
