@@ -60,7 +60,7 @@ import {
 } from './sharedWebGpuDevice';
 import { getCorePipelineBundle } from './corePipelineLibrary';
 import { DocumentCoreGpuResources } from './documentCoreGpuResources';
-import { encodeRgba8Png, readRgba8Texture } from './gpuReadback';
+import { encodeRgba8Png, readRgba8Texture, readRgba8TexturePixel } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
@@ -1243,6 +1243,15 @@ export class WebGpuEngine {
     } : null;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
+  }
+
+  async sampleDisplayColor(point: { x: number; y: number }) {
+    const texture = this.imageResources.finalTexture;
+    const metadata = this.metadata;
+    if (!texture || !metadata) throw new Error('The rendered document is unavailable.');
+    const x = Math.max(0, Math.min(metadata.width - 1, Math.floor(point.x)));
+    const y = Math.max(0, Math.min(metadata.height - 1, Math.floor(point.y)));
+    return readRgba8TexturePixel(this.device, texture, x, y, 'LightTable eyedropper sample');
   }
 
   setTransformEditingFrame(frame: VectorSelectionFrame | null) {

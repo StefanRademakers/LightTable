@@ -35,6 +35,7 @@ export interface EditorKeyboardControllerOptions {
   readonly clearTemporaryTool: () => void;
   readonly onShiftChange: (pressed: boolean) => void;
   readonly onAltChange: (pressed: boolean) => void;
+  readonly onCapsLockChange: (active: boolean) => void;
 }
 
 const isTextEditingTarget = (target: EventTarget | null) => (
@@ -64,7 +65,8 @@ export const useEditorKeyboardController = ({
   releaseTemporaryErase,
   clearTemporaryTool,
   onShiftChange,
-  onAltChange
+  onAltChange,
+  onCapsLockChange
 }: EditorKeyboardControllerOptions): void => {
   useEditorWindowInput(enabled, {
     onKeyDown: (event) => {
@@ -98,6 +100,7 @@ export const useEditorKeyboardController = ({
     },
     onShiftChange,
     onAltChange,
+    onCapsLockChange,
     onBlur: clearTemporaryTool
   });
 };

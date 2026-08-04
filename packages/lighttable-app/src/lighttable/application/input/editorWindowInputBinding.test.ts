@@ -27,8 +27,9 @@ class FakeInputTarget implements EditorWindowInputTarget {
   }
 }
 
-const keyboardEvent = (key: string) => ({
+const keyboardEvent = (key: string, capsLock = false) => ({
   key,
+  getModifierState: vi.fn((modifier: string) => modifier === 'CapsLock' && capsLock),
   preventDefault: vi.fn(),
   stopPropagation: vi.fn(),
   stopImmediatePropagation: vi.fn()
@@ -41,6 +42,7 @@ const handlers = (
   onKeyUp: () => false,
   onShiftChange: vi.fn(),
   onAltChange: vi.fn(),
+  onCapsLockChange: vi.fn(),
   onBlur: vi.fn(),
   ...patch
 });
@@ -95,6 +97,22 @@ describe('bindEditorWindowInput', () => {
     expect(onShiftChange.mock.calls).toEqual([[true], [false], [false]]);
     expect(onAltChange.mock.calls).toEqual([[true], [false], [false]]);
     expect(onBlur).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('publishes and clears the Caps Lock precise-cursor state', () => {
+    const target = new FakeInputTarget();
+    const onCapsLockChange = vi.fn();
+    const dispose = bindEditorWindowInput(
+      target,
+      () => handlers({ onCapsLockChange })
+    );
+    const event = keyboardEvent('CapsLock', true);
+
+    target.dispatch('keydown', event as unknown as Event);
+    target.dispatch('blur', {} as Event);
+
+    expect(onCapsLockChange.mock.calls).toEqual([[true], [false]]);
     dispose();
   });
 

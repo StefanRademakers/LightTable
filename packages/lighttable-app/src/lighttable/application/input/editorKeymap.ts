@@ -56,6 +56,7 @@ export type EditorKeyboardCommand =
   | 'brush-size-increase'
   | 'brush-hardness-decrease'
   | 'brush-hardness-increase'
+  | 'open-brush-settings'
   | 'commit-transform'
   | 'activate-next-document'
   | 'activate-previous-document'
@@ -246,6 +247,9 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     }),
     command('brush.hardness-increase', { key: ']', primary: false, alt: false, shift: true }, 'brush-hardness-increase', {
       when: (context) => usesBrushSize(context.activeTool)
+    }),
+    command('brush.open-settings', { key: 'f5', primary: false, alt: false, shift: false }, 'open-brush-settings', {
+      when: (context) => context.activeTool === 'brush'
     }),
     ...brushPercentBindings,
     command(

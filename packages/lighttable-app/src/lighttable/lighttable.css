@@ -949,6 +949,8 @@
 .lighttable-viewport--transform { cursor: default; }
 .lighttable-viewport--zoom { cursor: zoom-in; }
 .lighttable-viewport--zoom-out { cursor: zoom-out; }
+.lighttable-viewport--precise-brush,
+.lighttable-viewport--eyedropper { cursor: crosshair; }
 
 .lighttable-viewport__canvas {
   display: block;

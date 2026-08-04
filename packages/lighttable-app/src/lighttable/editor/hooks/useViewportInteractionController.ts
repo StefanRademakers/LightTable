@@ -24,6 +24,7 @@ import {
   type SelectionShape
 } from '../selection/selectionTypes';
 import { paintTargetSourceToDocument } from '../tools/paint/paintCoordinates';
+import type { BrushPoint } from '../tools/brush/strokeBuilder';
 import {
   isPaintTool,
   isSelectionTool,
@@ -71,6 +72,9 @@ interface ViewportInteractionOptions {
   temporaryTools: TemporaryToolController;
   temporaryZoomOut: boolean;
   vectorMoveActive: boolean;
+  preciseBrushCursor: boolean;
+  eyedropperActive: boolean;
+  onColorPick: (point: { x: number; y: number }) => void;
   focusPickerActive: boolean;
   onFocusPick: (normalizedPoint: { x: number; y: number }) => void;
   onFocusPickerEnd: () => void;
@@ -129,6 +133,9 @@ export const useViewportInteractionController = ({
   temporaryTools,
   temporaryZoomOut,
   vectorMoveActive,
+  preciseBrushCursor,
+  eyedropperActive,
+  onColorPick,
   focusPickerActive,
   onFocusPick,
   onFocusPickerEnd,
@@ -162,12 +169,15 @@ export const useViewportInteractionController = ({
     zoomOut: boolean;
   } | null>(null);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const lastBrushPointRef = useRef<BrushPoint | null>(null);
   const setViewRef = useRef(setView);
   setViewRef.current = setView;
   const onBrushCursorChangeRef = useRef(onBrushCursorChange);
   onBrushCursorChangeRef.current = onBrushCursorChange;
   const onZoomDraftChangeRef = useRef(onZoomDraftChange);
   onZoomDraftChangeRef.current = onZoomDraftChange;
+  const onColorPickRef = useRef(onColorPick);
+  onColorPickRef.current = onColorPick;
   const panFrameRef = useRef<LatestFrameValueScheduler<{
     panX: number;
     panY: number;
@@ -264,6 +274,8 @@ export const useViewportInteractionController = ({
       (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool))
       || temporaryPan
       || focusPickerActive
+      || preciseBrushCursor
+      || eyedropperActive
       || !metadata
     ) {
       hideBrushCursor();
@@ -393,6 +405,11 @@ export const useViewportInteractionController = ({
         return;
       }
       const point = documentPoint(event, bounds);
+      if (eyedropperActive && point && event.button === 0) {
+        onColorPickRef.current(point);
+        event.preventDefault();
+        return;
+      }
       const activeTool = vectorMoveActive && effectiveTool === 'transform'
         ? 'vector-select'
         : effectiveTool;
@@ -542,6 +559,9 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent !== 'paint' || !point || !paintTarget) return;
+      const paintPoint = activeTool === 'brush' && event.shiftKey && lastBrushPointRef.current
+        ? lastBrushPointRef.current
+        : point;
       const started = paint.begin({
         pointerId: event.pointerId,
         layer: paintTarget,
@@ -555,9 +575,10 @@ export const useViewportInteractionController = ({
           )
         },
         brush: editorSession.brush,
-        point
+        point: paintPoint
       });
       if (started) {
+        if (paintPoint !== point) paint.move(event.pointerId, point);
         setEditorSession((current) => ({ ...current, pointerId: event.pointerId }));
         event.currentTarget.setPointerCapture(event.pointerId);
         event.preventDefault();
@@ -713,6 +734,8 @@ export const useViewportInteractionController = ({
       }
       if (intent === 'paint') {
         paint.finish(event.pointerId);
+        const point = documentPoint(event);
+        if (point && editorSession.activeTool === 'brush') lastBrushPointRef.current = point;
         setEditorSession((current) => ({ ...current, pointerId: null }));
       }
       if (intent === 'warp') {

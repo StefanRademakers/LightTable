@@ -35,6 +35,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   toggleScreenMode: vi.fn(),
   changeBrushSize: vi.fn(),
   changeBrushHardness: vi.fn(),
+  openBrushSettings: vi.fn(),
   inputBrushPercent: vi.fn(),
   activateAdjacentDocument: vi.fn(),
   closeActiveDocument: vi.fn(),
@@ -91,6 +92,14 @@ describe('executeEditorKeyboardCommand', () => {
 
     expect(target.changeBrushSize).toHaveBeenCalledWith(-1);
     expect(target.fillBackground).toHaveBeenCalledOnce();
+  });
+
+  it('opens the shared Brush settings surface', () => {
+    const target = ports();
+
+    executeEditorKeyboardCommand('open-brush-settings', target);
+
+    expect(target.openBrushSettings).toHaveBeenCalledOnce();
   });
 
   it('routes workspace and layer commands through explicit ports', () => {

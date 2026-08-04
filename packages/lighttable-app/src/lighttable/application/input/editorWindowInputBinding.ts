@@ -18,6 +18,7 @@ export interface EditorWindowInputHandlers {
   readonly onKeyUp: (event: KeyboardEvent) => boolean;
   readonly onShiftChange: (pressed: boolean) => void;
   readonly onAltChange: (pressed: boolean) => void;
+  readonly onCapsLockChange: (active: boolean) => void;
   readonly onBlur: () => void;
 }
 
@@ -26,6 +27,10 @@ const consumeKeyboardEvent = (event: KeyboardEvent): void => {
   event.stopPropagation();
   event.stopImmediatePropagation();
 };
+
+const capsLockActive = (event: KeyboardEvent) => (
+  typeof event.getModifierState === 'function' && event.getModifierState('CapsLock')
+);
 
 /**
  * Owns the editor's global keyboard subscription as one disposable resource.
@@ -42,6 +47,7 @@ export const bindEditorWindowInput = (
     const handlers = getHandlers();
     if (event.key === 'Shift') handlers.onShiftChange(true);
     if (event.key === 'Alt') handlers.onAltChange(true);
+    handlers.onCapsLockChange(capsLockActive(event));
     if (handlers.onKeyDown(event)) consumeKeyboardEvent(event);
   };
   const handleKeyUp: EventListener = (rawEvent) => {
@@ -49,12 +55,14 @@ export const bindEditorWindowInput = (
     const handlers = getHandlers();
     if (event.key === 'Shift') handlers.onShiftChange(false);
     if (event.key === 'Alt') handlers.onAltChange(false);
+    handlers.onCapsLockChange(capsLockActive(event));
     if (handlers.onKeyUp(event)) consumeKeyboardEvent(event);
   };
   const handleBlur: EventListener = () => {
     const handlers = getHandlers();
     handlers.onShiftChange(false);
     handlers.onAltChange(false);
+    handlers.onCapsLockChange(false);
     handlers.onBlur();
   };
 

@@ -1,0 +1,22 @@
+# Brush tool UX
+
+Status: complete
+
+- [x] Tool hotkey: B
+- [x] Increase/decrease brush size: `]` / `[`
+- [x] Increase/decrease hardness: `Shift+]` / `Shift+[`
+- [x] Temporary composited-color eyedropper while holding Alt
+- [x] Straight line from the last completed Brush point with Shift-click
+- [x] Swap/reset foreground and background colors with X / D
+- [x] Open the existing shared Brush settings with F5
+- [x] Change opacity with number keys and flow with Shift+number
+- [x] Precise crosshair cursor with Caps Lock
+
+## Verification
+
+- 1,522 application tests passed.
+- Application typecheck and packaged desktop build passed.
+- Physical Electron smoke against `D:\\shapes.psd` verified B, D, opacity,
+  flow, F5, two paint commits including Shift-click, Caps Lock, Alt eyedropper,
+  GPU display sampling and zero page errors.
+- Screenshot: `tmp/brush-ux-smoke/brush-ux.png`.

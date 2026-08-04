@@ -323,6 +323,10 @@ const activeLayerCanOwnGrade = (document: ImageDocument | null): boolean => {
   return active?.type === 'raster' || active?.type === 'adjustment';
 };
 
+const rgba8ToHex = (color: readonly number[]) => `#${color.slice(0, 3)
+  .map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0'))
+  .join('')}`;
+
 export interface LightTableEditorOverlayProps {
   open: boolean;
   active?: boolean;
@@ -531,6 +535,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   const [shiftPressed, setShiftPressed] = useState(false);
   const [altPressed, setAltPressed] = useState(false);
+  const [preciseBrushCursor, setPreciseBrushCursor] = useState(false);
   const [scopeSettings, setScopeSettings] = useState<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
   const [scopeVisibility, setScopeVisibility] = useState<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
   const [scopeError, setScopeError] = useState<string | null>(null);
@@ -1740,6 +1745,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           brush: { ...current.brush, [target]: percent / 100 }
         }));
       },
+      openBrushSettings: () => {
+        const bounds = viewportRef.current?.getBoundingClientRect();
+        setToolOptionsMenu({
+          x: (bounds?.left ?? 0) + 16,
+          y: (bounds?.top ?? 0) + 16
+        });
+      },
       activateAdjacentDocument: (direction) => {
         if (!onActivateWorkspaceDocument || !workspaceDocuments?.length) return;
         const currentIndex = workspaceDocuments.findIndex(
@@ -1813,7 +1825,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       brushPercentInputRef.current.clear();
     },
     onShiftChange: setShiftPressed,
-    onAltChange: setAltPressed
+    onAltChange: setAltPressed,
+    onCapsLockChange: setPreciseBrushCursor
   });
 
   const fillCommandController = useFillCommandController({
@@ -2126,6 +2139,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     temporaryTools: temporaryToolRef.current,
     temporaryZoomOut: temporaryZoomOutActive,
     vectorMoveActive,
+    preciseBrushCursor,
+    eyedropperActive: editorSession.activeTool === 'brush' && altPressed,
+    onColorPick: (point) => {
+      void engineRef.current?.sampleDisplayColor(point).then((color) => {
+        updateBrush({ color: rgba8ToHex(color) });
+      }).catch((reason: unknown) => {
+        setGradeStatus(reason instanceof Error ? reason.message : 'The color could not be sampled.');
+      });
+    },
     focusPickerActive: focusPickerActive && Boolean(depthResult),
     onFocusPick: ({ x, y }) => {
       if (!metadata || !depthResult) return;
@@ -3584,6 +3606,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     temporaryZoomActive,
                     zoomOutActive: temporaryZoomOutActive
                       || (editorSession.activeTool === 'zoom' && altPressed),
+                    preciseBrushCursor,
+                    eyedropperActive: editorSession.activeTool === 'brush' && altPressed,
                     dragging: viewportInteraction.dragging,
                     focusPickerActive,
                     selection: editorSession.selection,

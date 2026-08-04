@@ -31,6 +31,8 @@
     "smoke:desktop:line-tool:build": "npm run package:desktop:verify && npm run smoke:desktop:line-tool --",
     "smoke:desktop:tool-context-menu": "node scripts/smoke-desktop-tool-context-menu.mjs",
     "smoke:desktop:tool-context-menu:build": "npm run package:desktop:verify && npm run smoke:desktop:tool-context-menu --",
+    "smoke:desktop:brush-ux": "node scripts/smoke-desktop-brush-ux.mjs",
+    "smoke:desktop:brush-ux:build": "npm run package:desktop:verify && npm run smoke:desktop:brush-ux --",
     "smoke:desktop:tight-merge": "node scripts/smoke-desktop-tight-merge.mjs",
     "smoke:desktop:tight-merge:build": "npm run package:desktop:verify && npm run smoke:desktop:tight-merge --",
     "smoke:desktop:system-fonts": "node scripts/smoke-desktop-system-fonts.mjs",

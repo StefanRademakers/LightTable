@@ -65,6 +65,35 @@ export const readRgba8Texture = async (
   }
 };
 
+export const readRgba8TexturePixel = async (
+  device: GPUDevice,
+  texture: GPUTexture,
+  x: number,
+  y: number,
+  label = 'LightTable RGBA8 pixel readback'
+) => {
+  const bytesPerRow = GPU_COPY_BYTES_PER_ROW_ALIGNMENT;
+  const readBuffer = device.createBuffer({
+    label,
+    size: bytesPerRow,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+  });
+  try {
+    const encoder = device.createCommandEncoder({ label });
+    encoder.copyTextureToBuffer(
+      { texture, origin: { x, y } },
+      { buffer: readBuffer, bytesPerRow, rowsPerImage: 1 },
+      [1, 1]
+    );
+    device.queue.submit([encoder.finish()]);
+    const mapped = new Uint8Array(await mapGpuBufferCopy(readBuffer));
+    return [mapped[0]!, mapped[1]!, mapped[2]!, mapped[3]!] as const;
+  } finally {
+    if (readBuffer.mapState === 'mapped') readBuffer.unmap();
+    readBuffer.destroy();
+  }
+};
+
 /**
  * Browser-backed encoder kept behind one function so the desktop host can
  * replace it with a native/precision-preserving codec without touching the

@@ -20,6 +20,8 @@ export interface DocumentViewportSurfaceProps {
   temporaryPanActive: boolean;
   temporaryZoomActive: boolean;
   zoomOutActive: boolean;
+  preciseBrushCursor: boolean;
+  eyedropperActive: boolean;
   dragging: boolean;
   focusPickerActive: boolean;
   selection: SelectionOperation[];
@@ -56,6 +58,8 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   temporaryPanActive,
   temporaryZoomActive,
   zoomOutActive,
+  preciseBrushCursor,
+  eyedropperActive,
   dragging,
   focusPickerActive,
   selection,
@@ -85,7 +89,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   return (
     <div
       ref={viewportRef}
-      className={`lighttable-viewport lighttable-viewport--${effectiveTool}${zoomOutActive ? ' lighttable-viewport--zoom-out' : ''}${dragging ? ' lighttable-viewport--dragging' : ''}${focusPickerActive ? ' lighttable-viewport--focus-picker' : ''}`}
+      className={`lighttable-viewport lighttable-viewport--${effectiveTool}${zoomOutActive ? ' lighttable-viewport--zoom-out' : ''}${preciseBrushCursor ? ' lighttable-viewport--precise-brush' : ''}${eyedropperActive ? ' lighttable-viewport--eyedropper' : ''}${dragging ? ' lighttable-viewport--dragging' : ''}${focusPickerActive ? ' lighttable-viewport--focus-picker' : ''}`}
       onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

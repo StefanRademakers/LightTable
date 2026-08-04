@@ -48,6 +48,15 @@ pointer delta instead of resizing the preview; releasing Space resumes sizing
 from the translated origin. This gesture-local Space behavior takes precedence
 over temporary viewport panning and still commits one history command.
 
+The Brush tool uses `B`; brackets step size and Shift+brackets step hardness.
+Digit input changes opacity while Shift+digit changes flow. `D` resets and `X`
+swaps the shared foreground/background colours. Holding Alt temporarily samples
+one display-composited GPU pixel without changing tools. A Shift-click begins
+at the last completed Brush point and commits through the normal paint engine.
+`F5` opens the existing shared tool-settings surface, and Caps Lock replaces
+the GPU diameter preview with the precise crosshair. Modifier state is cleared
+on window blur so temporary input cannot remain stuck.
+
 ## Selection model
 
 Selections are document-space authoring state. Rectangle, ellipse, freehand and

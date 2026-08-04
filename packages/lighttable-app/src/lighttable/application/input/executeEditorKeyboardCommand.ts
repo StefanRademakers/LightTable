@@ -31,6 +31,7 @@ export interface EditorKeyboardCommandPorts {
   toggleScreenMode(): void;
   changeBrushSize(direction: -1 | 1): void;
   changeBrushHardness(direction: -1 | 1): void;
+  openBrushSettings(): void;
   inputBrushPercent(target: 'opacity' | 'flow', digit: number): void;
   activateAdjacentDocument(direction: -1 | 1): void;
   closeActiveDocument(): void;
@@ -153,6 +154,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'brush-hardness-increase':
       ports.changeBrushHardness(1);
+      return;
+    case 'open-brush-settings':
+      ports.openBrushSettings();
       return;
     case 'commit-transform':
       ports.commitTransform();

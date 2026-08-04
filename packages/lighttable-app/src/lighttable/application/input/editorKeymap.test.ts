@@ -130,6 +130,19 @@ describe('editor keymap', () => {
     )).toBe('swap-colors');
   });
 
+  it('opens Brush settings with F5 only while Brush is active', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'F5', code: 'F5' }),
+      context({ activeTool: 'brush' })
+    )).toBe('open-brush-settings');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'F5', code: 'F5' }),
+      context({ activeTool: 'view' })
+    )).toBeNull();
+  });
+
   it('normalizes physical browser-zoom keys across main and numeric keyboards', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
