@@ -39,6 +39,21 @@ export {
   type ReversibleDocumentCommand
 } from './lighttable/application/commands/documentCommandHistory';
 export {
+  LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+  LightTableCommandService,
+  type CommandCapabilitySummary,
+  type DocumentQueryResult,
+  type LayerQuerySummary,
+  type LightTableCommandErrorCode,
+  type LightTableCommandId,
+  type LightTableCommandPorts,
+  type LightTableCommandRequest,
+  type LightTableCommandResult,
+  type LightTableRevisionSet,
+  type WorkspaceDocumentSummary,
+  type WorkspaceQueryResult
+} from './lighttable/application/commands/lightTableCommandService';
+export {
   DocumentTaskRegistry,
   type DocumentTaskContext,
   type DocumentTaskKind,

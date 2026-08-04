@@ -1,15 +1,18 @@
 # Task 043 - Playwright automation and command interface
 
-Status: planned; implementation not started
+Status: in progress
 
 - [x] Audit the existing command/history/task/menu/host boundaries.
 - [x] Record the transport-neutral execution plan in
   `architecture/reference/implementation/AUTOMATION_COMMAND_INTERFACE_PLAN.md`.
 - [x] Extend packaged Playwright coverage for PDF/PSD paint, reports, native
   save/fresh-process reopen and cursor-focused high zoom.
-- [ ] Implement Phase A: typed command/error/revision contracts plus read-only
+- [x] Implement Phase A: typed command/error/revision contracts plus read-only
   workspace, document, layer and capability queries.
-- [ ] Implement Phase B vertical slice through the shared registry.
+- [ ] Implement Phase B vertical slice through the shared registry. The
+  transport-neutral registry and validated ports now cover `view.setZoom`,
+  `layer.createRaster`, `layer.rename`, undo and redo; UI/menu/keyboard routing
+  through those ports remains before this phase is complete.
 - [ ] Add async artifact handles and task-backed file/export commands.
 - [ ] Add bounded transactional gesture commands.
 - [ ] Migrate deterministic Playwright setup to the test driver while keeping
