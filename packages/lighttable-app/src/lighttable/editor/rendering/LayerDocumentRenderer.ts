@@ -458,6 +458,14 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.feather(radius);
   }
 
+  transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {
+    return this.runtime.selectionRasterizer.transform(matrix);
+  }
+
+  setDuplicateLayerTransform(duplicate: boolean) {
+    return this.runtime.transformRasterizer.setDuplicateSelection(duplicate);
+  }
+
   copySelectedLayerContent(
     document: ImageDocument,
     layerId: LayerId,

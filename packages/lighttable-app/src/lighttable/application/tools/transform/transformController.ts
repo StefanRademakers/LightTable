@@ -12,7 +12,10 @@ import type {
 import { findDocumentLayer } from '../../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { SelectionCoverageBounds } from '../../../editor/selection/selectionCoverage';
-import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
+import {
+  createTranslateSelectionOperation,
+  type SelectionOperation
+} from '../../../editor/selection/selectionTypes';
 import {
   identityMatrix,
   matrixApproximatelyEqual,
@@ -20,7 +23,6 @@ import {
   transformedBounds
 } from '../../../editor/tools/transform/affine';
 import { projectPoint, solveProjectiveTransform } from '../../../editor/tools/transform/projective';
-import { transformSelectionOperations } from '../../../editor/tools/transform/selectionTransform';
 import type {
   AffineMatrix,
   TransformPoint,
@@ -36,6 +38,7 @@ export interface TransformRendererPort {
   updateLayerProjectiveTransform(source: TransformQuad, destination: TransformQuad): boolean;
   commitLayerTransform(): ReversiblePixelEdit | null;
   cancelLayerTransform(): boolean | void;
+  setDuplicateLayerTransform(duplicate: boolean): boolean;
   measureSemanticLayerContent(layer: LayerNode): Promise<SelectionCoverageBounds | null>;
   beginSemanticLayerTransform(layer: LayerNode): boolean;
   updateSemanticLayerTransform(layer: LayerNode, matrix: AffineMatrix): boolean;
@@ -260,6 +263,13 @@ export class TransformController {
     return this.state;
   }
 
+  setDuplicate(duplicate: boolean): boolean {
+    return Boolean(
+      this.activeState?.sourceKind === 'selection'
+      && this.renderer.setDuplicateLayerTransform(duplicate)
+    );
+  }
+
   finish(
     document: ImageDocument | null,
     selection: SelectionOperation[],
@@ -314,7 +324,13 @@ export class TransformController {
           beforeSelection,
           solveProjectiveTransform(rectToQuad(state.sourceContentBounds), state.projectiveQuad)
         )
-      : transformSelectionOperations(beforeSelection, state.matrix);
+      : [
+          ...beforeSelection,
+          {
+            ...createTranslateSelectionOperation(document.width, document.height, 0, 0),
+            transform: { ...state.matrix }
+          }
+        ];
     const afterDocument = state.projectiveQuad
       ? setLayerTransform(
           markLayerPixelsChanged(document, state.layerId, dirtyBounds),

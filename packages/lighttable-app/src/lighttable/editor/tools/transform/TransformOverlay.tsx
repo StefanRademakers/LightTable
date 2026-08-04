@@ -22,6 +22,7 @@ interface TransformOverlayProps {
   height: number;
   onChange: (matrix: AffineMatrix) => void;
   onProjectiveChange: (quad: TransformQuad) => void;
+  onDuplicateChange: (duplicate: boolean) => void;
 }
 
 interface DragState {
@@ -49,7 +50,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   width,
   height,
   onChange,
-  onProjectiveChange
+  onProjectiveChange,
+  onDuplicateChange
 }) => {
   const dragRef = useRef<DragState | null>(null);
   const toScreen = (point: TransformPoint) => ({
@@ -105,6 +107,9 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     anchor = geometry.center
   ) => {
     if (event.button !== 0) return;
+    if (handle === 'body' && state.sourceKind === 'selection') {
+      onDuplicateChange(event.altKey);
+    }
     const svg = event.currentTarget.ownerSVGElement ?? event.currentTarget as SVGSVGElement;
     const bounds = svg.getBoundingClientRect();
     const start = {

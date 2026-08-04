@@ -512,6 +512,10 @@ export class WebGpuEngine {
     this.markDocumentDirty();
   }
 
+  setDuplicateLayerTransform(duplicate: boolean) {
+    return this.documentRenderer?.setDuplicateLayerTransform(duplicate) ?? false;
+  }
+
   updateLayerTransform(matrix: AffineMatrix) {
     const changed = this.documentRenderer?.updateTransform(matrix) ?? false;
     if (changed) this.markDocumentDirty();
@@ -736,6 +740,14 @@ export class WebGpuEngine {
     return task;
   }
 
+  transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {
+    const task = this.selectionQueue.then(() => (
+      this.documentRenderer?.transformSelection(matrix) ?? false
+    ));
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
   clearSelection() {
     return this.replaceSelection([]);
   }
@@ -785,6 +797,10 @@ export class WebGpuEngine {
           )) return false;
         } else if (operation.mode === 'feather') {
           if (!this.documentRenderer?.featherSelection(operation.amount ?? 0)) return false;
+        } else if (operation.mode === 'transform') {
+          if (!operation.transform || !this.documentRenderer?.transformSelection(operation.transform)) {
+            return false;
+          }
         } else if (!await this.setSelectionNow(operation.shape, operation.mode)) {
           return false;
         }

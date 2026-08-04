@@ -41,6 +41,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   changeBrushHardness: vi.fn(),
   openBrushSettings: vi.fn(),
   inputBrushPercent: vi.fn(),
+  nudge: vi.fn(),
   activateAdjacentDocument: vi.fn(),
   closeActiveDocument: vi.fn(),
   changeZoom: vi.fn(),

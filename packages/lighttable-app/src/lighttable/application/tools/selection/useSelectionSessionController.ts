@@ -8,6 +8,7 @@ import {
   createInvertSelectionOperation,
   createLayerMaskSelectionOperation,
   createLayerTransparencySelectionOperation,
+  createTranslateSelectionOperation,
   type CompositeSelectionChannel,
   type SelectionCombineMode,
   type SelectionMode,
@@ -33,6 +34,7 @@ export interface SelectionRendererPort {
   replaceSelection(operations: SelectionOperation[]): Promise<boolean>;
   setSelection(shape: SelectionShape, mode: SelectionMode): Promise<boolean>;
   clearSelection(): void;
+  transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
 }
 
 export interface SelectionSessionDependencies {
@@ -78,6 +80,7 @@ export interface SelectionSessionController {
   selectLayerMask(layerId: LayerId): void;
   selectLayerTransparency(layerId: LayerId): void;
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
+  translate(x: number, y: number): void;
 }
 
 export const cloneSelectionOperations = (
@@ -85,12 +88,77 @@ export const cloneSelectionOperations = (
 ): SelectionOperation[] => operations.map((operation) => ({
   mode: operation.mode,
   amount: operation.amount,
+  transform: operation.transform ? { ...operation.transform } : undefined,
   source: operation.source ? { ...operation.source } : undefined,
   shape: {
     ...operation.shape,
     points: operation.shape.points.map((point) => ({ ...point }))
   }
 }));
+
+const pointInShape = (shape: SelectionShape, point: SelectionPoint): boolean => {
+  if (shape.points.length < 2) return false;
+  if (shape.kind === 'rectangle') {
+    const [first, last] = shape.points;
+    return point.x >= Math.min(first.x, last.x) && point.x <= Math.max(first.x, last.x)
+      && point.y >= Math.min(first.y, last.y) && point.y <= Math.max(first.y, last.y);
+  }
+  if (shape.kind === 'ellipse') {
+    const [first, last] = shape.points;
+    const rx = Math.abs(last.x - first.x) / 2;
+    const ry = Math.abs(last.y - first.y) / 2;
+    if (rx < 1e-6 || ry < 1e-6) return false;
+    const cx = (first.x + last.x) / 2;
+    const cy = (first.y + last.y) / 2;
+    return ((point.x - cx) / rx) ** 2 + ((point.y - cy) / ry) ** 2 <= 1;
+  }
+  let inside = false;
+  const points = shape.points;
+  for (let index = 0, previous = points.length - 1; index < points.length; previous = index++) {
+    const first = points[index];
+    const second = points[previous];
+    if (((first.y > point.y) !== (second.y > point.y))
+      && point.x < (second.x - first.x) * (point.y - first.y)
+        / (second.y - first.y || 1e-12) + first.x) inside = !inside;
+  }
+  return inside;
+};
+
+const selectionContainsPoint = (
+  operations: readonly SelectionOperation[],
+  point: SelectionPoint
+): boolean => {
+  let sample = (_point: SelectionPoint) => false;
+  operations.forEach((operation) => {
+    const previous = sample;
+    if (operation.mode === 'transform' && operation.transform) {
+      const matrix = operation.transform;
+      const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+      if (Math.abs(determinant) < 1e-8) return;
+      sample = (target) => previous({
+        x: (matrix.d * (target.x - matrix.tx) - matrix.c * (target.y - matrix.ty)) / determinant,
+        y: (-matrix.b * (target.x - matrix.tx) + matrix.a * (target.y - matrix.ty)) / determinant
+      });
+      return;
+    }
+    if (operation.mode === 'feather') return;
+    if (operation.mode === 'invert') {
+      sample = (target) => !previous(target);
+      return;
+    }
+    const shapeSample = operation.source
+      ? (_target: SelectionPoint) => false
+      : (target: SelectionPoint) => pointInShape(operation.shape, target);
+    sample = operation.mode === 'replace'
+      ? shapeSample
+      : operation.mode === 'add'
+        ? (target) => previous(target) || shapeSample(target)
+        : operation.mode === 'subtract'
+          ? (target) => previous(target) && !shapeSample(target)
+          : (target) => previous(target) && shapeSample(target);
+  });
+  return sample(point);
+};
 
 /**
  * Owns selection gestures, command publication and selection-only history.
@@ -104,6 +172,39 @@ export const createSelectionSessionController = (
   gesture = new SelectionGestureController(),
   polygonGesture = new PolygonalSelectionGestureController()
 ): SelectionSessionController => {
+  let translation: {
+    pointerId: number;
+    document: ImageDocument;
+    renderer: SelectionRendererPort;
+    before: SelectionOperation[];
+    last: SelectionPoint;
+    x: number;
+    y: number;
+  } | null = null;
+  const translateSnapshot = (x: number, y: number) => {
+    if (!x && !y) return;
+    const dependencies = resolveDependencies();
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    const before = cloneSelectionOperations(dependencies.getSelection());
+    if (!document || !renderer || !before.length) return;
+    const operation = createTranslateSelectionOperation(document.width, document.height, x, y);
+    const after = [...before, operation];
+    void renderer.transformSelection(operation.transform!)
+      .then((applied) => {
+        if (!applied || !isCurrent(document, renderer)) return;
+        const latest = resolveDependencies();
+        latest.publishSelection(after, null);
+        pushHistory(document, before, after);
+        latest.setError(null);
+      })
+      .catch((reason) => {
+        if (!isCurrent(document, renderer)) return;
+        resolveDependencies().setError(
+          reason instanceof Error ? reason.message : 'The selection could not be moved.'
+        );
+      });
+  };
   const isCurrent = (
     document: ImageDocument,
     renderer: SelectionRendererPort
@@ -217,7 +318,7 @@ export const createSelectionSessionController = (
 
   return {
     get active() {
-      return gesture.pointerId !== null || polygonGesture.active;
+      return gesture.pointerId !== null || polygonGesture.active || translation !== null;
     },
     get polygonActive() {
       return polygonGesture.active;
@@ -225,11 +326,18 @@ export const createSelectionSessionController = (
     get draft() {
       return polygonGesture.draft ?? gesture.draft;
     },
-    owns: (pointerId) => gesture.owns(pointerId),
+    owns: (pointerId) => gesture.owns(pointerId) || translation?.pointerId === pointerId,
     begin: (pointerId, tool, point, mode, stripSize) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
-      if (!document || !dependencies.getRenderer()) return false;
+      const renderer = dependencies.getRenderer();
+      if (!document || !renderer) return false;
+      const before = cloneSelectionOperations(dependencies.getSelection());
+      if (mode === 'replace' && before.length && selectionContainsPoint(before, point)) {
+        translation = { pointerId, document, renderer, before, last: point, x: 0, y: 0 };
+        dependencies.publishSelection(before, pointerId);
+        return true;
+      }
       const draft = gesture.begin(pointerId, tool, point, mode, {
         documentWidth: document.width,
         documentHeight: document.height,
@@ -240,16 +348,56 @@ export const createSelectionSessionController = (
       return true;
     },
     move: (pointerId, point) => {
+      if (translation?.pointerId === pointerId) {
+        const dx = point.x - translation.last.x;
+        const dy = point.y - translation.last.y;
+        translation.last = point;
+        translation.x += dx;
+        translation.y += dy;
+        if (dx || dy) void translation.renderer.transformSelection({
+          a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
+        });
+        const operation = createTranslateSelectionOperation(
+          translation.document.width,
+          translation.document.height,
+          translation.x,
+          translation.y
+        );
+        resolveDependencies().publishSelection([...translation.before, operation], pointerId);
+        return true;
+      }
       const draft = gesture.move(pointerId, point);
       if (!draft) return false;
       resolveDependencies().publishDraft(draft);
       return true;
     },
     finish: (pointerId) => {
+      if (translation?.pointerId === pointerId) {
+        const current = translation;
+        translation = null;
+        const after = current.x || current.y
+          ? [...current.before, createTranslateSelectionOperation(
+              current.document.width,
+              current.document.height,
+              current.x,
+              current.y
+            )]
+          : current.before;
+        resolveDependencies().publishSelection(after, null);
+        if (after !== current.before) pushHistory(current.document, current.before, after);
+        return true;
+      }
       const result = gesture.finish(pointerId);
       return applyGestureResult(result);
     },
     cancel: (pointerId) => {
+      if (translation?.pointerId === pointerId) {
+        const current = translation;
+        translation = null;
+        void current.renderer.replaceSelection(current.before);
+        resolveDependencies().publishSelection(current.before, null);
+        return true;
+      }
       if (!gesture.cancel(pointerId)) return false;
       const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
@@ -290,6 +438,7 @@ export const createSelectionSessionController = (
       return true;
     },
     reset: () => {
+      translation = null;
       gesture.reset();
       polygonGesture.reset();
       const dependencies = resolveDependencies();
@@ -375,7 +524,8 @@ export const createSelectionSessionController = (
         )],
         'The composite channel could not be loaded as a selection.'
       );
-    }
+    },
+    translate: translateSnapshot
   };
 };
 

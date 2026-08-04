@@ -8,7 +8,8 @@ const selectionModeValue: Record<SelectionMode, number> = {
   subtract: 2,
   intersect: 3,
   invert: 4,
-  feather: 5
+  feather: 5,
+  transform: 6
 };
 
 export interface SelectionShapeBuffers {
@@ -280,6 +281,55 @@ export class SelectionRasterizer {
       shapeBuffer.destroy();
       combineBuffer.destroy();
     });
+    return true;
+  }
+
+  transform(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {
+    const { textures, device, sampler } = this.options;
+    if (!textures.active || !textures.mask || !textures.result) return false;
+    const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+    if (Math.abs(determinant) < 1e-8) return false;
+    const inverse = {
+      a: matrix.d / determinant,
+      b: -matrix.b / determinant,
+      c: -matrix.c / determinant,
+      d: matrix.a / determinant,
+      tx: (matrix.c * matrix.ty - matrix.d * matrix.tx) / determinant,
+      ty: (matrix.b * matrix.tx - matrix.a * matrix.ty) / determinant
+    };
+    const { width, height } = this.options.dimensions();
+    const settings = device.createBuffer({
+      label: 'LightTable selection transform settings',
+      size: 64,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    device.queue.writeBuffer(settings, 0, new Float32Array([
+      inverse.a, inverse.c, inverse.tx, 0,
+      inverse.b, inverse.d, inverse.ty, 0,
+      0, 0, 1, 0,
+      width, height, 1, 0
+    ]));
+    const pipeline = this.options.pipelines().selectionTransform;
+    const bindGroup = device.createBindGroup({
+      label: 'LightTable selection transform bindings',
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: textures.mask.createView() },
+        { binding: 1, resource: sampler },
+        { binding: 2, resource: { buffer: settings } }
+      ]
+    });
+    const encoder = device.createCommandEncoder({ label: 'LightTable transform selection' });
+    this.options.drawFullscreen(
+      encoder,
+      pipeline,
+      bindGroup,
+      textures.result.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    device.queue.submit([encoder.finish()]);
+    textures.swapMaskAndResult();
+    void device.queue.onSubmittedWorkDone().then(() => settings.destroy());
     return true;
   }
 

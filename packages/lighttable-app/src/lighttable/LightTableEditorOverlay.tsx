@@ -484,6 +484,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const resetTransformRef = useRef<() => void>(() => undefined);
   const transformActiveRef = useRef<() => boolean>(() => false);
   const repeatTransformRef = useRef<(duplicate?: boolean) => void>(() => undefined);
+  const nudgeTransformRef = useRef<(x: number, y: number) => void>(() => undefined);
   const finishPenPathRef = useRef<() => void>(() => undefined);
   const cancelPenPathRef = useRef<() => boolean>(() => false);
   const undoPenAnchorRef = useRef<() => boolean>(() => false);
@@ -1807,6 +1808,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           brush: { ...current.brush, [target]: percent / 100 }
         }));
       },
+      nudge: (x, y) => {
+        if (transformActiveRef.current()) nudgeTransformRef.current(x, y);
+        else selectionSessionController.translate(x, y);
+      },
       openBrushSettings: () => {
         const bounds = viewportRef.current?.getBoundingClientRect();
         setToolOptionsMenu({
@@ -2725,6 +2730,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   resetTransformRef.current = transformSession.reset;
   transformActiveRef.current = transformSession.isActive;
   repeatTransformRef.current = transformSession.repeat;
+  nudgeTransformRef.current = transformSession.nudge;
   beginAutomationGestureRef.current = (kind, pointerId, parameters, sample) => {
     if (kind === 'selection-rectangle') {
       return selectionSessionController.begin(
@@ -4032,7 +4038,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                       setToolOptionsMenu({ x: event.clientX, y: event.clientY });
                     },
                     onTransformChange: updateTransformMatrix,
-                    onTransformProjectiveChange: updateTransformProjective
+                    onTransformProjectiveChange: updateTransformProjective,
+                    onTransformDuplicateChange: transformSession.setDuplicate
                   }}
                   status={{
                     status: error ?? gradeStatus ?? fontDiagnosticStatus,

@@ -95,7 +95,8 @@ export class TransformRasterizer {
       selectionPreview,
       settingsBuffer,
       usesSelection: useSelection,
-      previewMode: useSelection ? 'selection' : 'none'
+      previewMode: useSelection ? 'selection' : 'none',
+      duplicateSelection: false
     });
   }
 
@@ -130,6 +131,13 @@ export class TransformRasterizer {
     ], session.usesSelection);
   }
 
+  setDuplicateSelection(duplicate: boolean) {
+    const session = this.options.sessions.current;
+    if (!session || !session.usesSelection) return false;
+    session.duplicateSelection = duplicate;
+    return this.update(session.matrix);
+  }
+
   private renderPreview(inverseRows: readonly number[], selectionActive: boolean) {
     const session = this.options.sessions.current;
     if (!session) return false;
@@ -137,7 +145,7 @@ export class TransformRasterizer {
     const { device, sampler, selectionTextures } = this.options;
     device.queue.writeBuffer(session.settingsBuffer, 0, new Float32Array([
       ...inverseRows,
-      width, height, selectionActive ? 1 : 0, 0
+      width, height, selectionActive ? 1 : 0, session.duplicateSelection ? 1 : 0
     ]));
     const selectionSource = session.selectionTexture ?? selectionTextures.mask;
     if (selectionActive && !selectionSource) return false;

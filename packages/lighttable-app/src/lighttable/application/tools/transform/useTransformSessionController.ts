@@ -59,6 +59,8 @@ export interface TransformSessionController {
   reset(): void;
   isActive(): boolean;
   repeat(duplicate?: boolean): void;
+  nudge(x: number, y: number): void;
+  setDuplicate(duplicate: boolean): void;
 }
 
 /**
@@ -199,6 +201,26 @@ export const useTransformSessionController = (
     if (next) setState(next);
   }, []);
 
+  const nudge = useCallback((x: number, y: number) => {
+    const controller = controllerRef.current;
+    const current = controller?.state;
+    if (!controller || !current) return;
+    if (current.projectiveQuad) {
+      const next = current.projectiveQuad.map((point) => ({
+        x: point.x + x,
+        y: point.y + y
+      })) as unknown as TransformQuad;
+      const updated = controller.updateProjective(next);
+      if (updated) setState(updated);
+      return;
+    }
+    const updated = controller.update(multiplyMatrices(
+      { a: 1, b: 0, c: 0, d: 1, tx: x, ty: y },
+      current.matrix
+    ));
+    if (updated) setState(updated);
+  }, []);
+
   const repeat = useCallback((duplicate = false) => {
     const delta = lastLayerTransformRef.current;
     const current = dependenciesRef.current;
@@ -273,6 +295,13 @@ export const useTransformSessionController = (
     cancel: () => finish(false),
     reset,
     isActive,
-    repeat
+    repeat,
+    nudge,
+    setDuplicate: (duplicate) => {
+      if (controllerRef.current?.setDuplicate(duplicate)) {
+        const next = controllerRef.current.state;
+        if (next) setState(next);
+      }
+    }
   };
 };

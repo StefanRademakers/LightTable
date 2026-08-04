@@ -23,7 +23,8 @@ const setup = () => {
   const renderer = {
     replaceSelection: vi.fn(async () => true),
     setSelection: vi.fn(async () => true),
-    clearSelection: vi.fn()
+    clearSelection: vi.fn(),
+    transformSelection: vi.fn(async () => true)
   };
   const dependencies: SelectionSessionDependencies = {
     getDocument: () => activeDocument,
@@ -88,6 +89,44 @@ describe('selection session controller', () => {
       kind: 'rectangle',
       points: [{ x: 0, y: 18 }, { x: 100, y: 23 }]
     }, 'replace');
+  });
+
+  it('moves a selection outline without touching layer pixels', async () => {
+    const state = setup();
+    state.controller.selectAll();
+    await Promise.resolve();
+    const historyBefore = state.history.length;
+
+    state.controller.translate(10, -1);
+    await Promise.resolve();
+
+    expect(state.renderer.transformSelection).toHaveBeenCalledWith({
+      a: 1, b: 0, c: 0, d: 1, tx: 10, ty: -1
+    });
+    expect(state.selection.at(-1)).toMatchObject({
+      mode: 'transform',
+      transform: { tx: 10, ty: -1 }
+    });
+    expect(state.history).toHaveLength(historyBefore + 1);
+  });
+
+  it('drags inside a geometric selection as one selection-only history edit', async () => {
+    const state = setup();
+    state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
+    state.controller.move(1, { x: 40, y: 40 });
+    state.controller.finish(1);
+    await Promise.resolve();
+    const historyBefore = state.history.length;
+
+    expect(state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace')).toBe(true);
+    expect(state.controller.move(2, { x: 27, y: 24 })).toBe(true);
+    expect(state.controller.finish(2)).toBe(true);
+
+    expect(state.renderer.transformSelection).toHaveBeenLastCalledWith({
+      a: 1, b: 0, c: 0, d: 1, tx: 7, ty: 4
+    });
+    expect(state.selection.at(-1)?.transform).toMatchObject({ tx: 7, ty: 4 });
+    expect(state.history).toHaveLength(historyBefore + 1);
   });
 
   it('does not publish an async result after switching documents', async () => {

@@ -33,6 +33,7 @@ const renderer = (): TransformRendererPort => ({
   measureSelectedLayerContent: vi.fn(async () => coverage),
   measureLayerContent: vi.fn(async () => coverage),
   beginLayerTransform: vi.fn(),
+  setDuplicateLayerTransform: vi.fn(() => true),
   updateLayerTransform: vi.fn(() => true),
   updateLayerProjectiveTransform: vi.fn(() => true),
   commitLayerTransform: vi.fn(pixelEdit),
@@ -150,10 +151,21 @@ describe('TransformController', () => {
     expect(result.kind).toBe('selection');
     if (result.kind === 'selection') {
       expect((result.afterDocument.layers[0] as RasterLayer).pixelRevision).toBe(1);
-      expect(result.afterSelection[0].shape.kind).toBe('free');
-      expect(result.afterSelection[0].shape.points[0]).toEqual({ x: 12, y: 10 });
+      expect(result.afterSelection).toHaveLength(2);
+      expect(result.afterSelection[1].mode).toBe('transform');
+      expect(result.afterSelection[1].transform).toMatchObject({ tx: 7, ty: 4 });
       expect(result.pixelEdit.byteSize).toBe(64);
     }
+  });
+
+  it('enables copy-on-move only for selected-pixel transforms', async () => {
+    const document = createImageDocument('Transform', 320, 180, 'asset');
+    const port = renderer();
+    const controller = new TransformController(port);
+    await controller.begin(document, selection());
+
+    expect(controller.setDuplicate(true)).toBe(true);
+    expect(port.setDuplicateLayerTransform).toHaveBeenCalledWith(true);
   });
 
   it('previews and bakes a projective corner transform as one pixel edit', async () => {

@@ -37,6 +37,7 @@ export interface EditorKeyboardCommandPorts {
   changeBrushHardness(direction: -1 | 1): void;
   openBrushSettings(): void;
   inputBrushPercent(target: 'opacity' | 'flow', digit: number): void;
+  nudge(x: number, y: number): void;
   activateAdjacentDocument(direction: -1 | 1): void;
   closeActiveDocument(): void;
   changeZoom(direction: -1 | 1): void;
@@ -59,6 +60,10 @@ export const executeEditorKeyboardCommand = (
   if (typeof command === 'object') {
     if (command.type === 'set-brush-percent') {
       ports.inputBrushPercent(command.target, command.digit);
+      return;
+    }
+    if (command.type === 'nudge') {
+      ports.nudge(command.x, command.y);
       return;
     }
     if (ports.isTransformActive() && command.tool !== 'transform') {

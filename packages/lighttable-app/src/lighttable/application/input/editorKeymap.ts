@@ -74,7 +74,8 @@ export type EditorKeyboardCommand =
   | 'suppress-tab-navigation'
   | 'cancel-or-close'
   | { readonly type: 'activate-tool'; readonly tool: ToolId }
-  | { readonly type: 'set-brush-percent'; readonly target: 'opacity' | 'flow'; readonly digit: number };
+  | { readonly type: 'set-brush-percent'; readonly target: 'opacity' | 'flow'; readonly digit: number }
+  | { readonly type: 'nudge'; readonly x: number; readonly y: number };
 
 export interface EditorKeyChord {
   readonly key: string;
@@ -156,6 +157,24 @@ const brushPercentBindings: readonly EditorKeyBinding[] = Array.from({ length: 1
     })
   }))
 )).flat();
+
+const nudgeBindings: readonly EditorKeyBinding[] = ([
+  ['arrowleft', -1, 0],
+  ['arrowright', 1, 0],
+  ['arrowup', 0, -1],
+  ['arrowdown', 0, 1]
+] as const).flatMap(([key, x, y]) => [false, true].map((large) => ({
+  id: `selection.nudge.${key}.${large ? 'large' : 'small'}`,
+  chord: { key, primary: false, alt: false, shift: large },
+  when: (context: EditorKeyboardContext) => context.hasSelection && (
+    context.transforming || context.activeTool.startsWith('select-')
+  ),
+  resolve: (): EditorKeyboardCommand => ({
+    type: 'nudge',
+    x: x * (large ? 10 : 1),
+    y: y * (large ? 10 : 1)
+  })
+})));
 
 export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
   id: 'lighttable-default',
@@ -244,6 +263,7 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('selection.feather', { key: 'f6', primary: false, alt: false, shift: true }, 'selection-feather', {
       when: (context) => context.hasSelection
     }),
+    ...nudgeBindings,
     command('colors.swap', { key: 'x', primary: false, alt: false }, 'swap-colors'),
     command('colors.reset', { key: 'd', primary: false, alt: false, shift: false }, 'reset-colors'),
     command(

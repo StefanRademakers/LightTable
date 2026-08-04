@@ -8,7 +8,7 @@ export type SelectionToolId =
   | 'select-free'
   | 'select-polygonal';
 export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
-export type SelectionMode = SelectionCombineMode | 'invert' | 'feather';
+export type SelectionMode = SelectionCombineMode | 'invert' | 'feather' | 'transform';
 export type CompositeColorChannel = 'red' | 'green' | 'blue';
 export type CompositeSelectionChannel = 'composite' | CompositeColorChannel;
 
@@ -32,7 +32,27 @@ export interface SelectionOperation {
     | { kind: 'composite-channel'; channel: CompositeSelectionChannel; documentRevision: number };
   /** Document-space feather radius. Only used by the feather operation. */
   amount?: number;
+  /** Replayable affine edit for raster-backed and geometric selections alike. */
+  transform?: {
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    tx: number;
+    ty: number;
+  };
 }
+
+export const createTranslateSelectionOperation = (
+  width: number,
+  height: number,
+  x: number,
+  y: number
+): SelectionOperation => ({
+  mode: 'transform',
+  transform: { a: 1, b: 0, c: 0, d: 1, tx: x, ty: y },
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
 
 export const createLayerMaskSelectionOperation = (
   layerId: LayerId,

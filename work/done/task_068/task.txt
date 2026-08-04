@@ -1,0 +1,14 @@
+UX Pixel selection verplaatsen
+
+Met een actieve pixel-selectie:
+
+1 pixel verplaatsen: gebruik de pijltjestoetsen
+10 pixels verplaatsen: Shift + pijltjestoets
+Selectierand verplaatsen zonder pixels: kies een selectietool, zoals M, en sleep binnen de selectie
+Geselecteerde pixels verplaatsen: kies de Move Tool met V en sleep, of gebruik daarna de pijltjestoetsen
+Pixels kopiëren tijdens verplaatsen: houd Alt ingedrukt en sleep met de Move Tool
+Selectie opheffen: Ctrl + D
+
+Belangrijk: met een selectietool actief verplaats je meestal de selectie-omtrek. Met de Move Tool (V) verplaats je de daadwerkelijke geselecteerde pixels.
+
+macOS: Option in plaats van Alt, Cmd in plaats van Ctrl.

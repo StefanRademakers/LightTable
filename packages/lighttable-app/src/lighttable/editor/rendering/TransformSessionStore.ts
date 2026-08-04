@@ -11,6 +11,7 @@ export interface TransformGpuSession {
   settingsBuffer: GPUBuffer;
   usesSelection: boolean;
   previewMode: 'none' | 'selection' | 'projective';
+  duplicateSelection: boolean;
 }
 
 export interface TransformHistorySeed {

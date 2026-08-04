@@ -18,7 +18,8 @@ const session = (usesSelection = true): TransformGpuSession => ({
   previewTexture: texture(),
   selectionPreview: usesSelection ? texture() : null,
   settingsBuffer: buffer(),
-  usesSelection
+  usesSelection,
+  duplicateSelection: false
 });
 
 describe('TransformSessionStore', () => {

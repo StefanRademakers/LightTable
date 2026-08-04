@@ -41,6 +41,7 @@ export interface DocumentViewportSurfaceProps {
   onContextMenu: React.MouseEventHandler<HTMLDivElement>;
   onTransformChange: (matrix: AffineMatrix) => void;
   onTransformProjectiveChange: (quad: TransformQuad) => void;
+  onTransformDuplicateChange: (duplicate: boolean) => void;
   inputBridge?: React.ReactNode;
 }
 
@@ -79,6 +80,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onContextMenu,
   onTransformChange,
   onTransformProjectiveChange,
+  onTransformDuplicateChange,
   inputBridge
 }) => {
   const effectiveTool = temporaryPanActive
@@ -119,6 +121,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           height={viewportSize.height}
           onChange={onTransformChange}
           onProjectiveChange={onTransformProjectiveChange}
+          onDuplicateChange={onTransformDuplicateChange}
         />
       ) : null}
       {loading ? (

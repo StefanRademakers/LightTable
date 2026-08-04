@@ -5,7 +5,7 @@ struct TransformSettings {
   inverseRow2: vec4f,
   canvasSize: vec2f,
   selectionActive: f32,
-  padding: f32,
+  duplicateSelection: f32,
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
@@ -42,7 +42,12 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     settings.selectionActive > 0.5
   );
   let original = textureSample(sourceTexture, sourceSampler, destinationUv);
-  let base = select(vec4f(0.0), original * (1.0 - selectionAtDestination), settings.selectionActive > 0.5);
+  let cutBase = original * (1.0 - selectionAtDestination);
+  let base = select(
+    vec4f(0.0),
+    select(cutBase, original, settings.duplicateSelection > 0.5),
+    settings.selectionActive > 0.5
+  );
   let sourceSelection = select(
     1.0,
     textureSample(selectionTexture, sourceSampler, safeSourceUv).r,
