@@ -1968,6 +1968,7 @@
 
 .lighttable-layer {
   position: relative;
+  flex: 0 0 auto;
   min-height: 28px;
   display: flex;
   align-items: center;
@@ -2080,8 +2081,8 @@
 
 .lighttable-layer__thumbnail {
   position: relative;
-  width: 40px;
-  height: 40px;
+  max-width: 40px;
+  max-height: 40px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;

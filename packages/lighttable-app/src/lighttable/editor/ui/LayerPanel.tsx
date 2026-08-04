@@ -18,6 +18,7 @@ import type { LayerStyleId } from '../styles/layerStyleTypes';
 import type {
   LayerThumbnailSet
 } from '../layers/layerThumbnailTypes';
+import { layerThumbnailDimensions } from '../layers/layerThumbnailTypes';
 import {
   adjustmentStackHasOwner,
   adjustmentStackOwnerIsEnabled
@@ -192,6 +193,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     source: 'footer' | 'context';
   }>({ open: false, x: 0, y: 0, source: 'footer' });
   const selectionAnchorRef = React.useRef<LayerId | null>(document.activeLayerId);
+  const thumbnailDimensions = layerThumbnailDimensions(document.width, document.height);
   const rows = visualLayerRows(document.layers, collapsedGroups);
   const allRows = visualLayerRows(document.layers, new Set());
   const allLayerIds = new Set(allRows.map(({ layer }) => layer.id));
@@ -695,6 +697,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             <span className="lighttable-layer__thumbnail-slot">
               <button
                 type="button"
+                style={thumbnailDimensions}
                 className={[
                   'lighttable-layer__thumbnail',
                   layer.type === 'raster'
@@ -745,6 +748,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <button
                   type="button"
                   draggable
+                  style={thumbnailDimensions}
                   className={`lighttable-layer__thumbnail lighttable-layer__mask${document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active lighttable-layer__thumbnail--active-mask' : ''}${isolatedMaskLayerId === layer.id ? ' lighttable-layer__thumbnail--mask-isolated' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
                   onClick={(event) => {
                     event.stopPropagation();

@@ -40,6 +40,39 @@ try {
   if (!documentId) throw new Error('No active document.');
   const before = await driver.queryDocument(documentId);
   if (!before) throw new Error('Document projection is unavailable.');
+  const layerListOverflow = await page.locator('.lighttable-layers__list').evaluate((element) => {
+    element.style.maxHeight = '72px';
+    return { clientHeight: element.clientHeight, scrollHeight: element.scrollHeight };
+  });
+  if (layerListOverflow.scrollHeight <= layerListOverflow.clientHeight) {
+    throw new Error(`A scaled layer list did not become scrollable: ${JSON.stringify(layerListOverflow)}`);
+  }
+  const thumbnailBoxes = await page.locator('.lighttable-layer__thumbnail').evaluateAll((elements) =>
+    elements.map((element) => {
+      const bounds = element.getBoundingClientRect();
+      const row = element.closest('.lighttable-layer')?.getBoundingClientRect();
+      return {
+        width: bounds.width,
+        height: bounds.height,
+        contained: Boolean(row)
+          && bounds.top >= row.top - 0.5
+          && bounds.bottom <= row.bottom + 0.5
+      };
+    })
+  );
+  if (!before.canvas) throw new Error('Document canvas projection is unavailable.');
+  const expectedThumbnailHeight = Math.round(40 * before.canvas.height / before.canvas.width);
+  if (!thumbnailBoxes.length || thumbnailBoxes.some(({ width, height }) => (
+    Math.abs(width - 40) > 1 || Math.abs(height - expectedThumbnailHeight) > 1
+  ))) {
+    throw new Error(`Layer thumbnails do not fit the document aspect: ${JSON.stringify({
+      document: before.canvas,
+      thumbnailBoxes
+    })}`);
+  }
+  if (thumbnailBoxes.some(({ contained }) => !contained)) {
+    throw new Error(`A thumbnail escaped its layer row: ${JSON.stringify(thumbnailBoxes)}`);
+  }
 
   await page.keyboard.press('g');
   const gradientButton = page.getByRole('button', { name: 'Gradient (G)', exact: true });
@@ -156,6 +189,7 @@ try {
     sourceFile,
     iconSource,
     bucketIconSource,
+    thumbnailBoxes,
     createdLayerId: activeLayer.id,
     screenshotPath,
     pixelScreenshotPath,
