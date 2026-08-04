@@ -4,14 +4,44 @@ import {
   ToolOptionsContent,
   type ToolOptionsProps
 } from './ToolOptionsBar';
+import { toolDefinition, type ToolDefinition } from '../tools/toolRegistry';
+import { ToolButton, toolFamilyFor } from './EditorToolbar';
+import type { ToolId } from '../session/editorSession';
 
 interface ToolOptionsContextMenuProps extends ToolOptionsProps {
   x: number;
   y: number;
   onClose: () => void;
+  onToolChange: (tool: ToolId) => void;
 }
 
 const EDGE_GAP = 8;
+const CURSOR_OFFSET = 8;
+
+export const placeToolOptionsContextMenu = ({
+  x,
+  y,
+  width,
+  height,
+  viewportWidth,
+  viewportHeight
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}) => {
+  const preferredX = x + CURSOR_OFFSET;
+  const left = preferredX + width + EDGE_GAP <= viewportWidth
+    ? preferredX
+    : x - width - CURSOR_OFFSET;
+  return {
+    x: Math.max(EDGE_GAP, Math.min(left, viewportWidth - width - EDGE_GAP)),
+    y: Math.max(EDGE_GAP, Math.min(y, viewportHeight - height - EDGE_GAP))
+  };
+};
 
 /**
  * A transient, cursor-local projection of the canonical tool controls.
@@ -22,6 +52,7 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
   x,
   y,
   onClose,
+  onToolChange,
   ...toolOptions
 }) => {
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -30,12 +61,31 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
   useLayoutEffect(() => {
     const menu = menuRef.current;
     if (!menu) return;
-    const bounds = menu.getBoundingClientRect();
-    setPosition({
-      x: Math.max(EDGE_GAP, Math.min(x, window.innerWidth - bounds.width - EDGE_GAP)),
-      y: Math.max(EDGE_GAP, Math.min(y, window.innerHeight - bounds.height - EDGE_GAP))
-    });
-  }, [x, y]);
+    const update = () => {
+      const bounds = menu.getBoundingClientRect();
+      setPosition(placeToolOptionsContextMenu({
+        x,
+        y,
+        width: bounds.width,
+        height: bounds.height,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight
+      }));
+    };
+    update();
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(update);
+    resizeObserver?.observe(menu);
+    window.addEventListener('resize', update);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [toolOptions.activeTool, x, y]);
+
+  const family = toolFamilyFor(toolDefinition(toolOptions.activeTool));
+  const relatedTools: readonly ToolDefinition[] = family?.definitions ?? [];
 
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
@@ -56,13 +106,31 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
   return createPortal(
     <div
       ref={menuRef}
-      className="lighttable-tool-options-menu"
+      className="lighttable-tool-options-menu-layout"
       style={{ left: position.x, top: position.y }}
       role="dialog"
       aria-label="Tool settings"
       onContextMenu={(event) => event.preventDefault()}
     >
-      <ToolOptionsContent {...toolOptions} orientation="vertical" />
+      {relatedTools.length > 0 ? (
+        <div
+          className="lighttable-tool-options-menu__family lighttable-toolbox__flyout"
+          role="toolbar"
+          aria-label={family?.label}
+        >
+          {relatedTools.map((tool) => (
+            <ToolButton
+              key={tool.id}
+              tool={tool}
+              active={tool.id === toolOptions.activeTool}
+              onClick={() => onToolChange(tool.id)}
+            />
+          ))}
+        </div>
+      ) : null}
+      <div className="lighttable-tool-options-menu">
+        <ToolOptionsContent {...toolOptions} orientation="horizontal" />
+      </div>
     </div>,
     document.body
   );

@@ -27,7 +27,7 @@ interface ToolButtonProps {
   onClick: () => void;
 }
 
-const ToolButton: React.FC<ToolButtonProps> = ({
+export const ToolButton: React.FC<ToolButtonProps> = ({
   tool,
   active,
   popupOpen,
@@ -128,7 +128,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
   );
 };
 
-const familyFor = (tool: ToolDefinition) => {
+export const toolFamilyFor = (tool: ToolDefinition) => {
   if (tool.role === 'selection') {
     return { definitions: SELECTION_TOOL_DEFINITIONS, label: 'Selection tools' };
   }
@@ -154,7 +154,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   <nav className="lighttable-toolbox" aria-label="Image tools">
     <div className="lighttable-toolbox__content">
       {TOOL_DEFINITIONS.map((tool) => {
-        const family = familyFor(tool);
+        const family = toolFamilyFor(tool);
         if (!family) {
           return (
             <ToolButton

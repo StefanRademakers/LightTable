@@ -642,10 +642,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const copiedGrade = useLightTableGradeClipboard();
   const brushPercentInputRef = useRef(new BrushPercentInput());
 
-  useEffect(() => {
-    setToolOptionsMenu(null);
-  }, [editorSession.activeTool]);
-
   useEffect(() => () => {
     pathTextCreationTargetRef.current = null;
     pointTextController.cancel();
@@ -3538,6 +3534,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,
+            onToolChange: activatePersistentTool,
             onClose: () => setToolOptionsMenu(null)
           } : null}
           />

@@ -22,6 +22,7 @@ export interface ToolOptionsMenuBinding extends ToolOptionsProps {
   x: number;
   y: number;
   onClose: () => void;
+  onToolChange: (tool: ToolOptionsProps['activeTool']) => void;
 }
 
 export interface EditorOverlayLayerProps {

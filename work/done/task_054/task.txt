@@ -1,0 +1,27 @@
+# Related tool families in the canvas context menu
+
+Status: complete
+
+- [x] Keep the existing right-click tool properties and their canonical
+  callbacks/components.
+- [x] Show the active tool's existing toolbar subgroup to the left of the
+  properties for Selection, Shape and Text families.
+- [x] Reuse the toolbar's existing tool buttons, icons, active state and CSS.
+- [x] Offset the combined menu 8 px from the pointer.
+- [x] Keep 8 px between the subgroup and property panel.
+- [x] Flip the menu to the pointer's left when it cannot fit on the right.
+- [x] Clamp all edges to an 8 px viewport margin and allow oversized property
+  content to scroll.
+- [x] Recalculate placement on content/tool changes and window resize.
+- [x] Keep the menu open when choosing a related tool so its properties update
+  in place; outside click and Escape still close it.
+
+## Verification
+
+- Placement and toolbar tests passed.
+- App typecheck passed.
+- Packaged desktop build passed.
+- Physical Electron smoke against `D:\\shapes.psd` passed near the bottom-right
+  viewport edge. It verified all four Shape buttons, the exact 8 px column gap,
+  viewport containment, in-place Rectangle activation and zero page errors.
+- Screenshot: `tmp/tool-context-menu-smoke/shape-context-menu.png`.
