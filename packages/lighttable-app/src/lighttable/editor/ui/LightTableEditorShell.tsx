@@ -53,6 +53,7 @@ export interface LightTableEditorShellProps {
   onTextStrokeColorChange?: (stroke: string) => void;
   onTextStrokeWidthChange?: (width: number) => void;
   onTextAlignmentChange?: (alignment: EditorSession['text']['alignment']) => void;
+  onTextWritingModeChange?: (writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr') => void;
   onTextPropertyBegin?: () => void;
   onTextPropertyCommit?: () => void;
   onTextPropertyCancel?: () => void;
@@ -132,6 +133,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onTextStrokeColorChange,
   onTextStrokeWidthChange,
   onTextAlignmentChange,
+  onTextWritingModeChange,
   onTextPropertyBegin,
   onTextPropertyCommit,
   onTextPropertyCancel,
@@ -220,6 +222,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onTextStrokeColorChange={onTextStrokeColorChange}
         onTextStrokeWidthChange={onTextStrokeWidthChange}
         onTextAlignmentChange={onTextAlignmentChange}
+        onTextWritingModeChange={onTextWritingModeChange}
         onTextPropertyBegin={onTextPropertyBegin}
         onTextPropertyCommit={onTextPropertyCommit}
         onTextPropertyCancel={onTextPropertyCancel}

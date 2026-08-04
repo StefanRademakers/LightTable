@@ -20,6 +20,7 @@ export interface TextPropertyPresentation {
   readonly strokeColor: MixedValue<string>;
   readonly strokeWidth: MixedValue<number>;
   readonly tracking: MixedValue<number>;
+  readonly writingMode: MixedValue<'horizontal-tb' | 'vertical-rl' | 'vertical-lr'>;
   readonly alignment: MixedValue<ParagraphStyleRun['alignment']>;
   readonly lineHeight: MixedValue<ParagraphStyleRun['lineHeight']>;
   readonly firstLineIndent: MixedValue<number>;
@@ -143,6 +144,9 @@ export const buildTextPropertyPresentation = (
       source, selection, (style) => style.stroke?.width ?? 0, insertionStyle
     ),
     tracking: projectFlowTextStyleProperty(source, selection, 'tracking', insertionStyle),
+    writingMode: source.layout.mode === 'path'
+      ? { kind: 'unavailable' }
+      : { kind: 'value', value: source.layout.writingMode },
     alignment: projectFlowTextParagraphProperty(source, selection, 'alignment', insertionParagraph),
     lineHeight: projectFlowTextParagraphProperty(source, selection, 'lineHeight', insertionParagraph),
     firstLineIndent: projectFlowTextParagraphProperty(source, selection, 'firstLineIndent', insertionParagraph),

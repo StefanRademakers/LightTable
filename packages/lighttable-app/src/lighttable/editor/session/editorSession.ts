@@ -20,6 +20,7 @@ export type ToolId =
   | 'erase'
   | 'text-point'
   | 'text-paragraph'
+  | 'text-vertical'
   | 'text-path'
   | VectorEditorToolId
   | SelectionToolId;

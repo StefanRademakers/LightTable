@@ -17,6 +17,7 @@ export interface TextPropertiesPanelProps {
   readonly onStrokeColor: (stroke: string) => void;
   readonly onStrokeWidth: (width: number) => void;
   readonly onTracking: (tracking: number) => void;
+  readonly onWritingMode: (writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr') => void;
   readonly onParagraph: (patch: ParagraphStylePatch) => void;
   readonly onBegin: () => void;
   readonly onCommit: () => void;
@@ -31,7 +32,7 @@ const mixedOption = <option value="" disabled>Mixed</option>;
 
 export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
   model, fonts, onFontAsset, onSize, onFill, onFillEnabled, onStrokeColor, onStrokeWidth,
-  onTracking, onParagraph,
+  onTracking, onWritingMode, onParagraph,
   onBegin, onCommit, onCancel, recovery
 }) => {
   if (recovery) {
@@ -177,6 +178,15 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
               <MixedNumberInput label="Tracking" value={model.tracking} min={-1000}
                 max={1000} step={1} unit="1/1000 em" onBegin={onBegin}
                 onPreview={onTracking} onCommit={onCommit} onCancel={onCancel} />
+              <ToolOptionSelect label="Orientation"
+                value={model.writingMode.kind === 'value' ? model.writingMode.value : ''}
+                disabled={model.writingMode.kind === 'unavailable'}
+                onChange={(event) => onWritingMode(event.currentTarget.value as
+                  'horizontal-tb' | 'vertical-rl' | 'vertical-lr')}>
+                <option value="horizontal-tb">Horizontal</option>
+                <option value="vertical-rl">Vertical, right to left</option>
+                <option value="vertical-lr">Vertical, left to right</option>
+              </ToolOptionSelect>
             </div>
           </div>
         </section>

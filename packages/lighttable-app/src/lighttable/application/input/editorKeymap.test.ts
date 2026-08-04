@@ -264,7 +264,7 @@ describe('editor keymap', () => {
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 't', code: 'KeyT', shiftKey: true }),
       context({ activeTool: 'text-point' })
-    )).toEqual({ type: 'activate-tool', tool: 'text-path' });
+    )).toEqual({ type: 'activate-tool', tool: 'text-vertical' });
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 't', code: 'KeyT' }),

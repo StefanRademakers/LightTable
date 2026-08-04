@@ -39,9 +39,9 @@ describe('toolRegistry', () => {
       'vector-convert-anchor'
     ]);
   });
-  it('keeps point/paragraph gesture-derived and exposes only Type and Path modes', () => {
+  it('keeps point/paragraph gesture-derived and exposes horizontal, vertical and Path modes', () => {
     expect(TEXT_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
-      'text-point', 'text-path'
+      'text-point', 'text-vertical', 'text-path'
     ]);
   });
   it('defines Gradient and Paint Bucket as one toolbar family', () => {
@@ -69,6 +69,7 @@ describe('toolRegistry', () => {
       'shape-line',
       'text-point',
       'text-paragraph',
+      'text-vertical',
       'text-path',
       'select-rectangle',
       'select-ellipse',
@@ -111,7 +112,8 @@ describe('toolRegistry', () => {
     expect(toolForShortcut('u', false)).toBe('shape-rectangle');
     expect(toolForShortcut('U', true)).toBe('shape-ellipse');
     expect(toolForShortcutCycle('t', 'view', false)).toBe('text-point');
-    expect(toolForShortcutCycle('t', 'text-point', true)).toBe('text-path');
+    expect(toolForShortcutCycle('t', 'text-point', true)).toBe('text-vertical');
+    expect(toolForShortcutCycle('t', 'text-vertical', true)).toBe('text-point');
     expect(toolForShortcutCycle('t', 'text-paragraph', false)).toBe('text-point');
     expect(toolForShortcutCycle('t', 'text-path', false)).toBe('text-point');
   });
@@ -124,6 +126,11 @@ describe('toolRegistry', () => {
   it('uses the dedicated Path Text artwork instead of the generic Type icon', () => {
     expect(toolDefinition('text-path').iconName).toBe('tool_text_on_path.png');
     expect(toolDefinition('text-path').iconName).not.toBe(toolDefinition('text-point').iconName);
+  });
+
+  it('uses the dedicated vertical Type artwork', () => {
+    expect(toolDefinition('text-vertical').iconName).toBe('tool_text_vertical.png');
+    expect(toolDefinition('text-vertical').iconName).not.toBe(toolDefinition('text-point').iconName);
   });
 
   it('exposes stable capabilities and presentation metadata', () => {

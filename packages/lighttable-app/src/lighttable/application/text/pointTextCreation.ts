@@ -365,7 +365,8 @@ export const createPointTextDocument = (
   request: PointTextCreationRequest,
   settings: TextToolSettings,
   font: DocumentFontAsset,
-  foregroundColor: string
+  foregroundColor: string,
+  writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' = 'horizontal-tb'
 ): ImageDocument => {
   if (request.documentId !== document.id) return document;
   const anchor = document.activeLayerId
@@ -383,7 +384,7 @@ export const createPointTextDocument = (
     {
         mode: 'point' as const,
         origin: { x: 0, y: 0 },
-        writingMode: 'horizontal-tb' as const
+        writingMode
     },
     settings,
     font,
@@ -405,7 +406,8 @@ export const createParagraphTextDocument = (
   request: ParagraphTextCreationRequest,
   settings: TextToolSettings,
   font: DocumentFontAsset,
-  foregroundColor: string
+  foregroundColor: string,
+  writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' = 'horizontal-tb'
 ): ImageDocument => {
   if (request.documentId !== document.id) return document;
   const anchor = request.aboveLayerId
@@ -431,7 +433,7 @@ export const createParagraphTextDocument = (
       mode: 'paragraph',
       frame: { x: 0, y: 0, width, height },
       overflow: 'indicator',
-      writingMode: 'horizontal-tb'
+      writingMode
     },
     settings,
     font,

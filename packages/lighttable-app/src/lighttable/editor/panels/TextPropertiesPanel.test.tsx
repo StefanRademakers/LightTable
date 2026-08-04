@@ -13,6 +13,7 @@ describe('contextual text properties', () => {
         strokeColor: { kind: 'value', value: '#ffffff' },
         strokeWidth: { kind: 'value', value: 2 },
         tracking: { kind: 'value', value: 0 },
+        writingMode: { kind: 'value', value: 'horizontal-tb' },
         alignment: { kind: 'value', value: 'justify' },
         lineHeight: { kind: 'value', value: { kind: 'absolute', value: 24 } },
         firstLineIndent: { kind: 'value', value: 4 }, startIndent: { kind: 'value', value: 8 },
@@ -23,6 +24,7 @@ describe('contextual text properties', () => {
       fonts={[]}
       onFontAsset={vi.fn()} onSize={vi.fn()} onFill={vi.fn()} onFillEnabled={vi.fn()}
       onTracking={vi.fn()}
+      onWritingMode={vi.fn()}
       onStrokeColor={vi.fn()} onStrokeWidth={vi.fn()}
       onParagraph={vi.fn()}
       onBegin={vi.fn()} onCommit={vi.fn()} onCancel={vi.fn()}
@@ -51,6 +53,7 @@ describe('contextual text properties', () => {
         size: { kind: 'unavailable' }, fillEnabled: { kind: 'unavailable' },
         fill: { kind: 'unavailable' }, strokeColor: { kind: 'unavailable' },
         strokeWidth: { kind: 'unavailable' }, tracking: { kind: 'unavailable' },
+        writingMode: { kind: 'unavailable' },
         alignment: { kind: 'unavailable' }, lineHeight: { kind: 'unavailable' },
         firstLineIndent: { kind: 'unavailable' }, startIndent: { kind: 'unavailable' },
         endIndent: { kind: 'unavailable' }, spaceBefore: { kind: 'unavailable' },
@@ -59,6 +62,7 @@ describe('contextual text properties', () => {
       fonts={[]}
       onFontAsset={vi.fn()} onSize={vi.fn()} onFill={vi.fn()} onFillEnabled={vi.fn()}
       onTracking={vi.fn()} onStrokeColor={vi.fn()} onStrokeWidth={vi.fn()}
+      onWritingMode={vi.fn()}
       onParagraph={vi.fn()} onBegin={vi.fn()} onCommit={vi.fn()} onCancel={vi.fn()}
       recovery={{
         analysis: {

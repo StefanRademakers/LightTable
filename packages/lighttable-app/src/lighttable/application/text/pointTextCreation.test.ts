@@ -158,6 +158,21 @@ describe('createPointTextDocument', () => {
     expect(before.assets.fonts).toEqual([]);
   });
 
+  it('creates editable vertical point text without a bitmap substitute', () => {
+    const before = createImageDocument('Vertical', 400, 300, 'pixels');
+    const after = createPointTextDocument(before, {
+      documentId: before.id,
+      origin: { x: 80, y: 30 },
+      text: 'Vertical'
+    }, createEditorSession().text, font, '#000000', 'vertical-rl');
+    const layer = findDocumentLayer(after, after.activeLayerId);
+    expect(layer?.type).toBe('text');
+    if (layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
+    expect(layer.text.source.layout).toEqual({
+      mode: 'point', origin: { x: 0, y: 0 }, writingMode: 'vertical-rl'
+    });
+  });
+
   it('rebases a document click into a transformed parent group', () => {
     const before = createImageDocument('Fixture', 100, 80, 'pixels');
     const background = before.layers[0]!;

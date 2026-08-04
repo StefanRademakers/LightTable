@@ -68,6 +68,7 @@ export interface ToolOptionsProps {
   onTextStrokeColorChange?: (stroke: string) => void;
   onTextStrokeWidthChange?: (width: number) => void;
   onTextAlignmentChange?: (alignment: TextToolSettings['alignment']) => void;
+  onTextWritingModeChange?: (writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr') => void;
   onTextPropertyBegin?: () => void;
   onTextPropertyCommit?: () => void;
   onTextPropertyCancel?: () => void;
@@ -113,6 +114,7 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'shape-line': 'Line',
   'text-point': 'Type tool',
   'text-paragraph': 'Paragraph text',
+  'text-vertical': 'Vertical type tool',
   'text-path': 'Path text'
 };
 
@@ -285,6 +287,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onTextStrokeColorChange,
   onTextStrokeWidthChange,
   onTextAlignmentChange,
+  onTextWritingModeChange,
   onTextPropertyBegin,
   onTextPropertyCommit,
   onTextPropertyCancel,
@@ -648,7 +651,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         />
       ) : null}
       {activeTool === 'text-point' || activeTool === 'text-paragraph'
-        || activeTool === 'text-path' ? (
+        || activeTool === 'text-vertical' || activeTool === 'text-path' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
           {textLayoutMode && onTextLayoutModeChange ? (
             <SegmentedControl
@@ -661,6 +664,18 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 { value: 'paragraph', label: 'Paragraph', title: 'Convert to paragraph text' }
               ]}
             />
+          ) : null}
+          {textProperties && onTextWritingModeChange ? (
+            <ToolOptionSelect label="Orientation"
+              value={textProperties.writingMode.kind === 'value'
+                ? textProperties.writingMode.value : ''}
+              disabled={textProperties.writingMode.kind === 'unavailable'}
+              onChange={(event) => onTextWritingModeChange(event.currentTarget.value as
+                'horizontal-tb' | 'vertical-rl' | 'vertical-lr')}>
+              <option value="horizontal-tb">Horizontal</option>
+              <option value="vertical-rl">Vertical</option>
+              <option value="vertical-lr">Vertical LTR</option>
+            </ToolOptionSelect>
           ) : null}
           <ToolOptionSelect
             label="Font"

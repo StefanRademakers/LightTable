@@ -266,6 +266,7 @@ describe('point text tool options', () => {
       face: { kind: 'value', value: 'inter' }, size: { kind: 'mixed' },
       fillEnabled: { kind: 'value', value: true },
       fill: { kind: 'value', value: '#ff0000' }, tracking: { kind: 'value', value: 0 },
+      writingMode: { kind: 'value', value: 'horizontal-tb' },
       strokeColor: { kind: 'value', value: '#00ff00' },
       strokeWidth: { kind: 'value', value: 3 },
       alignment: { kind: 'value', value: 'center' },

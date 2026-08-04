@@ -240,18 +240,25 @@ export const buildTextEditingOverlay = ({
       color: [0.16, 0.48, 0.94, 0.34]
     }));
   const lines: TextOverlayLine[] = [];
+  const vertical = layout.glyphRuns.some((run) => run.direction === 'ttb' || run.direction === 'btt');
   if (frame) lines.push(...frameLines(frame, localToDocument));
   lines.push({
       role: 'caret',
       start: transformPoint(localToDocument, caret.x, caret.y),
-      end: transformPoint(localToDocument, caret.x, caret.y + caret.height),
+      end: vertical
+        ? transformPoint(localToDocument, caret.x + caret.height, caret.y)
+        : transformPoint(localToDocument, caret.x, caret.y + caret.height),
       widthPx: 1.5,
       color: [0.96, 0.98, 1, 1]
   });
   lines.push({
       role: 'insertion',
-      start: transformPoint(localToDocument, caret.x - 2, caret.y + caret.height + 1),
-      end: transformPoint(localToDocument, caret.x + 2, caret.y + caret.height + 1),
+      start: vertical
+        ? transformPoint(localToDocument, caret.x + caret.height + 1, caret.y - 2)
+        : transformPoint(localToDocument, caret.x - 2, caret.y + caret.height + 1),
+      end: vertical
+        ? transformPoint(localToDocument, caret.x + caret.height + 1, caret.y + 2)
+        : transformPoint(localToDocument, caret.x + 2, caret.y + caret.height + 1),
       widthPx: 1,
       color: [0.24, 0.66, 1, 0.95]
   });
@@ -260,12 +267,12 @@ export const buildTextEditingOverlay = ({
   if (showBaseline && activeLine) {
     lines.push({
       role: 'baseline',
-      start: transformPoint(localToDocument, activeLine.bounds.x, activeLine.baseline),
-      end: transformPoint(
-        localToDocument,
-        activeLine.bounds.x + activeLine.bounds.width,
-        activeLine.baseline
-      ),
+      start: vertical
+        ? transformPoint(localToDocument, activeLine.baseline, activeLine.bounds.y)
+        : transformPoint(localToDocument, activeLine.bounds.x, activeLine.baseline),
+      end: vertical
+        ? transformPoint(localToDocument, activeLine.baseline, activeLine.bounds.y + activeLine.bounds.height)
+        : transformPoint(localToDocument, activeLine.bounds.x + activeLine.bounds.width, activeLine.baseline),
       widthPx: 1,
       color: [0.24, 0.66, 1, 0.58]
     });
@@ -287,12 +294,12 @@ export const buildTextEditingOverlay = ({
     for (const { bounds } of selectedGeometry(layout, composition.start, composition.end)) {
       lines.push({
         role: 'composition',
-        start: transformPoint(localToDocument, bounds.x, bounds.y + bounds.height + 1),
-        end: transformPoint(
-          localToDocument,
-          bounds.x + bounds.width,
-          bounds.y + bounds.height + 1
-        ),
+        start: vertical
+          ? transformPoint(localToDocument, bounds.x + bounds.width + 1, bounds.y)
+          : transformPoint(localToDocument, bounds.x, bounds.y + bounds.height + 1),
+        end: vertical
+          ? transformPoint(localToDocument, bounds.x + bounds.width + 1, bounds.y + bounds.height)
+          : transformPoint(localToDocument, bounds.x + bounds.width, bounds.y + bounds.height + 1),
         widthPx: 1.5,
         color: [0.96, 0.98, 1, 0.94]
       });

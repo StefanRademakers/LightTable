@@ -249,7 +249,6 @@ describe('Photoshop text adapter', () => {
   it.each([
     [{ text: 'Warp', warp: { style: 'arc' } }, 'Warped'],
     [{ text: 'Path', textPath: { data: {} } }, 'path'],
-    [{ text: 'Vertical', orientation: 'vertical' }, 'Vertical'],
     [{ text: 'Bad transform', transform: [1, 0, 0] }, 'transform'],
     [{ text: 'Bad runs', styleRuns: [{ length: 2, style: {} }] }, 'run lengths'],
     [{ text: 'Faux', style: { fauxBold: true } }, 'faux'],
@@ -265,6 +264,18 @@ describe('Photoshop text adapter', () => {
     const result = importPsdText(descriptor);
     expect(result).toMatchObject({ kind: 'preserved' });
     expect(result.reasons.join(' ')).toContain(reason);
+  });
+
+  it('imports Photoshop vertical text as editable vertical flow', () => {
+    const result = importPsdText({
+      text: 'Vertical', orientation: 'vertical', shapeType: 'point', pointBase: [10, 20]
+    });
+    expect(result).toMatchObject({
+      kind: 'editable-flow',
+      text: { source: { layout: {
+        mode: 'point', origin: { x: 10, y: 20 }, writingMode: 'vertical-rl'
+      } } }
+    });
   });
 
   it('keeps disabled Photoshop kerning editable through an explicit metrics approximation', () => {

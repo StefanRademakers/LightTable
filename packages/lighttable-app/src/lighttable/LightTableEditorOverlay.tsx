@@ -178,7 +178,8 @@ import {
 import {
   applyTextLayerDataMutation,
   convertParagraphTextToPoint,
-  convertPointTextToParagraph
+  convertPointTextToParagraph,
+  setFlowTextLayout
 } from './editor/document/textLayerCommands';
 import { lightTableTextEngine } from './text/wasm/TextEngineClient';
 import { DocumentFontRegistry } from './text/fonts/DocumentFontRegistry';
@@ -848,9 +849,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
   useEffect(() => {
     let activeRegistration = true;
-    if (!thumbnailDocumentReadyId && editorSession.activeTool !== 'text-point') return undefined;
+    const typeToolActive = editorSession.activeTool === 'text-point'
+      || editorSession.activeTool === 'text-vertical';
+    if (!thumbnailDocumentReadyId && !typeToolActive) return undefined;
     void textEngineDiagnostic.probe().catch((reason: unknown) => {
-      if (activeRegistration && editorSession.activeTool === 'text-point') {
+      if (activeRegistration && typeToolActive) {
         setError(reason instanceof Error
           ? reason.message
           : 'The bundled text engine could not be prepared.');
@@ -2141,7 +2144,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (
         generation !== pointTextCapabilityGenerationRef.current
         || imageDocumentRef.current?.id !== documentId
-        || editorSession.activeTool !== (pathTarget ? 'text-path' : 'text-point')
+        || editorSession.activeTool !== (pathTarget
+          ? 'text-path'
+          : editorSession.activeTool === 'text-vertical' ? 'text-vertical' : 'text-point')
         || !engineRef.current
         || rendererLifecycle.getSnapshot().status !== 'ready'
       ) return;
@@ -2176,7 +2181,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           before, request, pathTarget, editorSession.text, font, editorSession.brush.color
         )
       : createPointTextDocument(
-          before, request, editorSession.text, font, editorSession.brush.color
+          before,
+          request,
+          editorSession.text,
+          font,
+          editorSession.brush.color,
+          editorSession.activeTool === 'text-vertical' ? 'vertical-rl' : 'horizontal-tb'
         );
     if (after === before) return false;
     applyDocumentSnapshot(after);
@@ -2261,7 +2271,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       request,
       editorSession.text,
       font,
-      editorSession.brush.color
+      editorSession.brush.color,
+      editorSession.activeTool === 'text-vertical' ? 'vertical-rl' : 'horizontal-tb'
     );
     if (after === before) return false;
     applyDocumentSnapshot(after);
@@ -2777,7 +2788,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
 
   const activatePersistentTool = (requestedTool: ToolId) => {
-    if (requestedTool !== 'text-point') {
+    if (requestedTool !== 'text-point' && requestedTool !== 'text-vertical') {
       pointTextCapabilityGenerationRef.current += 1;
       commitPointTextCreation();
       textEditingController.finish();
@@ -3344,6 +3355,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         strokeColor: { kind: 'unavailable' as const },
         strokeWidth: { kind: 'unavailable' as const },
         tracking: { kind: 'unavailable' as const },
+        writingMode: { kind: 'unavailable' as const },
         alignment: { kind: 'unavailable' as const },
         lineHeight: { kind: 'unavailable' as const },
         firstLineIndent: { kind: 'unavailable' as const },
@@ -3529,6 +3541,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const patch = textStrokePatch(stroke, width);
     if (patch) applyTextPropertyPatch(patch);
   };
+  const applyTextWritingMode = (
+    writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr'
+  ) => {
+    const before = imageDocumentRef.current;
+    const layerId = before?.activeLayerId;
+    if (!before || !layerId) return;
+    const layer = findDocumentLayer(before, layerId);
+    if (layer?.type !== 'text' || layer.text.source.kind !== 'flow'
+      || layer.text.source.layout.mode === 'path') return;
+    textEditingController.finish();
+    const after = setFlowTextLayout(before, layerId, {
+      ...layer.text.source.layout,
+      writingMode
+    });
+    if (after === before) return;
+    applyDocumentSnapshot(after);
+    pushDocumentHistory(before, after);
+    activatePersistentTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
+  };
   useEffect(() => () => {
     pendingTextPaintPatchRef.current = null;
     if (textPaintPreviewFrameRef.current !== null) {
@@ -3546,6 +3577,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onStrokeColor: applyTextStrokeColor,
     onStrokeWidth: applyTextStrokeWidth,
     onTracking: (tracking: number) => applyTextPropertyPatch({ tracking }),
+    onWritingMode: applyTextWritingMode,
     onParagraph: (patch: ParagraphStylePatch) => applyTextPropertyPatch({}, patch),
     onBegin: beginTextPropertyGesture,
     onCommit: commitTextPropertyGesture,
@@ -3624,6 +3656,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onTextStrokeColorChange={applyTextStrokeColor}
       onTextStrokeWidthChange={applyTextStrokeWidth}
       onTextAlignmentChange={(alignment) => applyDiscreteTextParagraph({ alignment })}
+      onTextWritingModeChange={applyTextWritingMode}
       onTextPropertyBegin={beginTextPropertyGesture}
       onTextPropertyCommit={commitTextPropertyGesture}
       onTextPropertyCancel={cancelTextPropertyGesture}
@@ -3793,6 +3826,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onTextStrokeColorChange: applyTextStrokeColor,
             onTextStrokeWidthChange: applyTextStrokeWidth,
             onTextAlignmentChange: (alignment) => applyDiscreteTextParagraph({ alignment }),
+            onTextWritingModeChange: applyTextWritingMode,
             onTextPropertyBegin: beginTextPropertyGesture,
             onTextPropertyCommit: commitTextPropertyGesture,
             onTextPropertyCancel: cancelTextPropertyGesture,

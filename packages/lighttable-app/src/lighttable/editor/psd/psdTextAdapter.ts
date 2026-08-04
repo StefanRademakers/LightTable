@@ -379,8 +379,8 @@ export const importPsdText = (
   if (authoredTextPath && !importedPath) {
     return { kind: 'preserved', reasons: ['Photoshop text on a path remains preview-backed until path binding is implemented.'] };
   }
-  if (source.orientation === 'vertical') {
-    return { kind: 'preserved', reasons: ['Vertical Photoshop text remains preview-backed pending vertical-layout fixtures.'] };
+  if (source.orientation === 'vertical' && importedPath) {
+    return { kind: 'preserved', reasons: ['Vertical Photoshop path text remains preview-backed pending path-layout fixtures.'] };
   }
   const transform = affine(source.transform);
   if (!transform) {
@@ -449,14 +449,14 @@ export const importPsdText = (
         height: boxBounds[3] - boxBounds[1]
       },
       overflow: 'visible' as const,
-      writingMode: 'horizontal-tb' as const
+      writingMode: source.orientation === 'vertical' ? 'vertical-rl' as const : 'horizontal-tb' as const
     }
     : {
       mode: 'point' as const,
       origin: Array.isArray(pointBase) && pointBase.length >= 2 && finite(pointBase[0]) && finite(pointBase[1])
         ? { x: pointBase[0], y: pointBase[1] }
         : { x: 0, y: 0 },
-      writingMode: 'horizontal-tb' as const
+      writingMode: source.orientation === 'vertical' ? 'vertical-rl' as const : 'horizontal-tb' as const
     };
   if (!importedPath && source.shapeType === 'box' && layout.mode !== 'paragraph') {
     return { kind: 'preserved', reasons: ['The Photoshop paragraph text frame is missing or invalid.'] };

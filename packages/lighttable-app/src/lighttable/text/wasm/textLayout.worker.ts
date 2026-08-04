@@ -18,6 +18,8 @@ import {
   createTextLayoutError,
   realizeParagraphFrame,
   type FontAssetRef,
+  type ParagraphTextLayout,
+  type PointTextLayout,
   type RealizedTextLayout,
   type TextLayoutWorkerRequest,
   type TextLayoutWorkerResponse,
@@ -40,6 +42,11 @@ import {
 } from './incrementalParagraphLayout';
 import { alignPackedPointTextBaseline } from './pointTextBaseline';
 import { ParagraphFragmentCache } from './ParagraphFragmentCache';
+import {
+  horizontalLayoutForVertical,
+  projectHorizontalLayoutToVertical,
+  type VerticalFlowLayout
+} from './verticalTextLayout';
 import {
   assembleParagraphLayout,
   estimatePackedParagraphBytes,
@@ -487,10 +494,23 @@ const realizeFlowRequest = (
   if (request.layer.source.kind === 'positioned') {
     throw new UnsupportedLayoutError('Positioned text realization requires exact outline bounds and is not enabled in Slice 06.');
   }
-  const source = request.layer.source;
-  if (source.layout.mode === 'path' || source.layout.writingMode !== 'horizontal-tb') {
-    throw new UnsupportedLayoutError('Path and vertical text require a later layout adapter.');
+  const authoredSource = request.layer.source;
+  if (authoredSource.layout.mode === 'path') {
+    throw new UnsupportedLayoutError('Path text requires the dedicated path layout adapter.');
   }
+  const flowLayout = authoredSource.layout as PointTextLayout | ParagraphTextLayout;
+  const verticalLayout: VerticalFlowLayout | null = flowLayout.writingMode === 'horizontal-tb'
+    ? null
+    : flowLayout as VerticalFlowLayout;
+  const source = verticalLayout
+    ? { ...authoredSource, layout: horizontalLayoutForVertical(verticalLayout) }
+    : { ...authoredSource, layout: flowLayout };
+  const layoutRequest = verticalLayout
+    ? { ...request, layer: { ...request.layer, source } }
+    : request;
+  const finalizeLayout = (layout: RealizedTextLayout) => verticalLayout
+    ? projectHorizontalLayoutToVertical(layout, verticalLayout)
+    : layout;
   const selectedFonts = source.styleRuns.map((run, sourceRunIndex) => {
     if (run.directionOverride || run.scriptOverride || run.kerning === 'optical' || run.kerning === 'none'
       || run.horizontalScale !== 100 || run.verticalScale !== 100 || run.baselineShift !== 0
@@ -525,7 +545,7 @@ const realizeFlowRequest = (
       );
       let fragment = state.paragraphs.get(cacheKey);
       fragment ??= state.paragraphs.set(cacheKey, shapeParagraphFragment(
-        request,
+        layoutRequest,
         segment,
         selectedFonts,
         paragraphResolution.value
@@ -554,7 +574,7 @@ const realizeFlowRequest = (
       documentSessionId: request.documentSessionId,
       sessionGeneration: request.sessionGeneration,
       cacheKey: request.cacheKey,
-      layout,
+      layout: finalizeLayout(layout),
       transferOwnership: 'dedicated',
       metrics: {
         operationDurationMs: performance.now() - operationStartedAt,
@@ -722,7 +742,7 @@ const realizeFlowRequest = (
     documentSessionId: request.documentSessionId,
     sessionGeneration: request.sessionGeneration,
     cacheKey: request.cacheKey,
-    layout,
+    layout: finalizeLayout(layout),
     transferOwnership: 'dedicated',
     metrics: {
       operationDurationMs: performance.now() - operationStartedAt,

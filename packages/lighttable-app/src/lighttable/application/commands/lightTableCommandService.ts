@@ -147,6 +147,11 @@ export interface LayerQuerySummary {
     readonly offsetX: number;
     readonly offsetY: number;
   } | null;
+  readonly textLayout: {
+    readonly sourceKind: 'flow' | 'positioned';
+    readonly mode: 'point' | 'paragraph' | 'path' | 'positioned';
+    readonly writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' | null;
+  } | null;
 }
 
 export interface LayerEffectsQueryResult {
@@ -535,6 +540,16 @@ export class LightTableCommandService {
         height: node.height,
         offsetX: node.offsetX,
         offsetY: node.offsetY
+      } : null,
+      textLayout: node.type === 'text' ? node.text.source.kind === 'flow' ? {
+        sourceKind: 'flow' as const,
+        mode: node.text.source.layout.mode,
+        writingMode: node.text.source.layout.mode === 'path'
+          ? null : node.text.source.layout.writingMode
+      } : {
+        sourceKind: 'positioned' as const,
+        mode: 'positioned' as const,
+        writingMode: null
       } : null
     }));
   }

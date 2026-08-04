@@ -182,6 +182,13 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'text'
   },
   {
+    id: 'text-vertical',
+    label: 'Vertical type tool',
+    shortcutLabel: 'Shift+T',
+    iconName: 'tool_text_vertical.png',
+    role: 'text'
+  },
+  {
     id: 'text-path',
     label: 'Path text',
     iconName: 'tool_text_on_path.png',
@@ -254,7 +261,7 @@ export const PEN_TOOL_DEFINITIONS: readonly ToolDefinition[] =
 
 /** User-facing Type modes share one slot; point/paragraph is gesture-derived. */
 export const TEXT_TOOL_DEFINITIONS: readonly ToolDefinition[] =
-  ['text-point', 'text-path'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
+  ['text-point', 'text-vertical', 'text-path'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
 /** Gradient and Paint Bucket share Photoshop's G toolbar slot. */
 export const FILL_TOOL_DEFINITIONS: readonly ToolDefinition[] =
@@ -288,7 +295,8 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   },
   {
     key: 't',
-    tools: ['text-point', 'text-path']
+    tools: ['text-point', 'text-vertical'],
+    shiftedEntry: 'text-vertical'
   },
   {
     key: 'u',
