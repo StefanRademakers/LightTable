@@ -163,6 +163,7 @@ import {
   replaceMissingTextFonts
 } from './application/text/replaceMissingTextFont';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
+import { TextLayerMoveGestureController } from './application/text/TextLayerMoveGestureController';
 import {
   formatFlowTextSource,
   type ParagraphStylePatch,
@@ -1079,6 +1080,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     cancelFrame: (frame) => window.cancelAnimationFrame(frame)
   }));
   const textSelectionGestureController = textSelectionGestureControllerRef.current;
+  const textLayerMoveGestureControllerRef = useRef<TextLayerMoveGestureController | null>(null);
+  textLayerMoveGestureControllerRef.current ??= new TextLayerMoveGestureController(() => ({
+    getDocument: () => imageDocumentRef.current,
+    getEditingLayerId: () => {
+      const snapshot = textEditingController.getSnapshot();
+      return snapshot.status === 'editing' ? snapshot.layerId : null;
+    },
+    applyDocument: applyDocumentSnapshot,
+    recordHistory: pushDocumentHistory
+  }));
+  const textLayerMoveGestureController = textLayerMoveGestureControllerRef.current;
   const paragraphFrameResizeControllerRef = useRef<ParagraphFrameResizeController | null>(null);
   paragraphFrameResizeControllerRef.current ??= new ParagraphFrameResizeController(() => ({
     getDocument: () => imageDocumentRef.current,
@@ -2385,31 +2397,39 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       void beginPointTextCreation(point);
     },
     textGesture: {
-      beginPoint: (pointerId, point) => pathTextHandleController.begin(
-        pointerId, point, 8 / Math.max(activeScale, 1e-6)
-      ) || beginExistingFlowTextEditing(point, 'any', pointerId),
-      beginParagraph: (pointerId, point) => pathTextHandleController.begin(
-        pointerId, point, 8 / Math.max(activeScale, 1e-6)
-      ) || beginParagraphTextCreation(pointerId, point),
-      owns: (pointerId) => textSelectionGestureController.owns(pointerId)
+      beginPoint: (pointerId, point, temporaryMove) => (temporaryMove
+        && textLayerMoveGestureController.begin(pointerId, point)) || pathTextHandleController.begin(
+          pointerId, point, 8 / Math.max(activeScale, 1e-6)
+        ) || beginExistingFlowTextEditing(point, 'any', pointerId),
+      beginParagraph: (pointerId, point, temporaryMove) => (temporaryMove
+        && textLayerMoveGestureController.begin(pointerId, point)) || pathTextHandleController.begin(
+          pointerId, point, 8 / Math.max(activeScale, 1e-6)
+        ) || beginParagraphTextCreation(pointerId, point),
+      owns: (pointerId) => textLayerMoveGestureController.owns(pointerId)
+        || textSelectionGestureController.owns(pointerId)
         || pathTextHandleController.owns(pointerId)
         || paragraphFrameResizeController.owns(pointerId)
         || paragraphTextController.owns(pointerId),
-      move: (pointerId, point) => textSelectionGestureController.owns(pointerId)
-        ? textSelectionGestureController.move(pointerId, point)
+      move: (pointerId, point) => textLayerMoveGestureController.owns(pointerId)
+        ? textLayerMoveGestureController.move(pointerId, point)
+        : textSelectionGestureController.owns(pointerId)
+          ? textSelectionGestureController.move(pointerId, point)
         : pathTextHandleController.owns(pointerId)
           ? pathTextHandleController.move(pointerId, point)
           : paragraphFrameResizeController.owns(pointerId)
             ? paragraphFrameResizeController.move(pointerId, point)
             : paragraphTextController.move(pointerId, point),
-      finish: (pointerId, point) => textSelectionGestureController.owns(pointerId)
-        ? textSelectionGestureController.finish(pointerId, point)
+      finish: (pointerId, point) => textLayerMoveGestureController.owns(pointerId)
+        ? textLayerMoveGestureController.finish(pointerId, point)
+        : textSelectionGestureController.owns(pointerId)
+          ? textSelectionGestureController.finish(pointerId, point)
         : pathTextHandleController.owns(pointerId)
           ? pathTextHandleController.finish(pointerId, point)
           : paragraphFrameResizeController.owns(pointerId)
             ? paragraphFrameResizeController.finish(pointerId, point)
             : finishParagraphTextCreation(pointerId, point),
-      cancel: (pointerId) => textSelectionGestureController.cancel(pointerId)
+      cancel: (pointerId) => textLayerMoveGestureController.cancel(pointerId)
+        || textSelectionGestureController.cancel(pointerId)
         || pathTextHandleController.cancel(pointerId)
         || paragraphFrameResizeController.cancel(pointerId)
         || (paragraphTextController.owns(pointerId) ? paragraphTextController.cancel() : false)
@@ -3355,6 +3375,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         strokeColor: { kind: 'unavailable' as const },
         strokeWidth: { kind: 'unavailable' as const },
         tracking: { kind: 'unavailable' as const },
+        kerning: { kind: 'unavailable' as const },
         baselineShift: { kind: 'unavailable' as const },
         horizontalScale: { kind: 'unavailable' as const },
         verticalScale: { kind: 'unavailable' as const },

@@ -1,0 +1,36 @@
+UX Type Tool
+
+Tool hotkey: T
+Press Shift + T to cycle through the horizontal and vertical Type tools.
+
+Main properties
+Font family
+Font style — regular, bold, italic, etc.
+Font size
+Alignment — left, center, or right
+Text color
+Character settings — tracking, kerning, leading, baseline shift, horizontal/vertical scale
+Paragraph settings — alignment, indentation, spacing, justification
+Text orientation — horizontal or vertical
+Point text / paragraph text
+Click once for point text
+Click and drag for a text box
+Controls and shortcuts
+Create point text: click once and type
+Create paragraph text: click and drag a text box
+Confirm text: Ctrl + Enter
+Cancel text editing: Esc
+Select all text: Ctrl + A
+Bold: Ctrl + Shift + B
+Italic: Ctrl + Shift + I
+Underline: Ctrl + Shift + U
+Increase font size: Ctrl + Shift + >
+Decrease font size: Ctrl + Shift + <
+Increase leading: Alt + Down Arrow
+Decrease leading: Alt + Up Arrow
+Increase tracking/kerning: Alt + Right Arrow
+Decrease tracking/kerning: Alt + Left Arrow
+Move baseline up: Alt + Shift + Up Arrow
+Move baseline down: Alt + Shift + Down Arrow
+Temporarily switch to Move Tool while editing: hold Ctrl
+Free Transform text layer: Ctrl + T

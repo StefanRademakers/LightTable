@@ -82,8 +82,8 @@ interface ViewportInteractionOptions {
   onFill: (color: string, preserveTransparency?: boolean) => void;
   onPointTextCreate: (point: { x: number; y: number }, clickCount: number) => void;
   textGesture: {
-    beginPoint(pointerId: number, point: { x: number; y: number }): boolean;
-    beginParagraph(pointerId: number, point: { x: number; y: number }): boolean;
+    beginPoint(pointerId: number, point: { x: number; y: number }, temporaryMove: boolean): boolean;
+    beginParagraph(pointerId: number, point: { x: number; y: number }, temporaryMove: boolean): boolean;
     owns(pointerId: number): boolean;
     move(pointerId: number, point: { x: number; y: number }): boolean;
     finish(pointerId: number, point: { x: number; y: number }): boolean;
@@ -544,7 +544,7 @@ export const useViewportInteractionController = ({
       if (intent === 'text-create' && point) {
         if (activeTool === 'text-point' || activeTool === 'text-paragraph'
           || activeTool === 'text-vertical') {
-          if (textGesture.beginParagraph(event.pointerId, point)) {
+          if (textGesture.beginParagraph(event.pointerId, point, event.ctrlKey || event.metaKey)) {
             event.currentTarget.setPointerCapture(event.pointerId);
           }
           event.preventDefault();
@@ -555,7 +555,7 @@ export const useViewportInteractionController = ({
           event.preventDefault();
           return;
         }
-        if (textGesture.beginPoint(event.pointerId, point)) {
+        if (textGesture.beginPoint(event.pointerId, point, event.ctrlKey || event.metaKey)) {
           event.currentTarget.setPointerCapture(event.pointerId);
         } else {
           onPointTextCreate({ x: point.x, y: point.y }, event.detail);

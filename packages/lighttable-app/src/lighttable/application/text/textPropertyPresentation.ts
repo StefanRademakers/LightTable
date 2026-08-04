@@ -20,6 +20,7 @@ export interface TextPropertyPresentation {
   readonly strokeColor: MixedValue<string>;
   readonly strokeWidth: MixedValue<number>;
   readonly tracking: MixedValue<number>;
+  readonly kerning: MixedValue<TextStyleRun['kerning']>;
   readonly baselineShift: MixedValue<number>;
   readonly horizontalScale: MixedValue<number>;
   readonly verticalScale: MixedValue<number>;
@@ -150,6 +151,7 @@ export const buildTextPropertyPresentation = (
       source, selection, (style) => style.stroke?.width ?? 0, insertionStyle
     ),
     tracking: projectFlowTextStyleProperty(source, selection, 'tracking', insertionStyle),
+    kerning: projectFlowTextStyleProperty(source, selection, 'kerning', insertionStyle),
     baselineShift: projectFlowTextStyleProperty(source, selection, 'baselineShift', insertionStyle),
     horizontalScale: projectFlowTextStyleProperty(source, selection, 'horizontalScale', insertionStyle),
     verticalScale: projectFlowTextStyleProperty(source, selection, 'verticalScale', insertionStyle),

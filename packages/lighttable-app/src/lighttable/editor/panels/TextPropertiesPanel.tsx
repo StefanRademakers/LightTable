@@ -179,6 +179,16 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
               <MixedNumberInput label="Tracking" value={model.tracking} min={-1000}
                 max={1000} step={1} unit="1/1000 em" onBegin={onBegin}
                 onPreview={onTracking} onCommit={onCommit} onCancel={onCancel} />
+              <ToolOptionSelect label="Kerning"
+                value={model.kerning.kind === 'value' ? model.kerning.value : ''}
+                disabled={model.kerning.kind === 'unavailable'}
+                onChange={(event) => {
+                  onBegin(); onStyle({ kerning: event.currentTarget.value as 'auto' | 'metrics' }); onCommit();
+                }}>
+                {model.kerning.kind === 'mixed' ? mixedOption : null}
+                <option value="auto">Auto</option>
+                <option value="metrics">Metrics</option>
+              </ToolOptionSelect>
               <MixedNumberInput label="Baseline" value={model.baselineShift} min={-100000}
                 max={100000} step={1} unit="px" onBegin={onBegin}
                 onPreview={(baselineShift) => onStyle({ baselineShift })}
