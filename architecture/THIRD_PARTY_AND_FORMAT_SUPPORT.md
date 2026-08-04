@@ -130,3 +130,6 @@ Use this data in two existing UI patterns rather than inventing editor controls:
 The UI source should be generated or tested against the same capability
 registries used by the file picker and exporters. This Markdown document is the
 human contract; it must not become a second hard-coded runtime truth source.
+
+PSD/PSB writer scope and its fail-closed export policy are specified in
+[`PSD_PSB_EXPORT_SCOPE.md`](PSD_PSB_EXPORT_SCOPE.md).

@@ -21,9 +21,10 @@ Status: active
   dialog/control/CSS system.
 - [ ] Continue auditing PSD import gaps against representative fixtures and
   record structural, editable, visual and round-trip parity separately.
-- [ ] Decide and specify PSD/PSB export scope. Do not add a misleading Save PSD
-  command before round-trip preservation, unsupported-feature policy and tests
-  exist.
+- [x] Decide and specify PSD/PSB export scope in
+  `architecture/PSD_PSB_EXPORT_SCOPE.md`: PSD v1 starts as a fail-closed Export
+  with a mandatory composite and four-axis Photoshop reopen gates; PSB is a
+  separate milestone. No misleading Save PSD command is exposed.
 - [ ] Audit PDF open UX for password handling, page selection, multipage files
   and semantic import without presenting the current raster preview as editable
   PDF structure.
