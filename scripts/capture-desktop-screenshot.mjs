@@ -39,6 +39,9 @@ const strokeWidth = Number.parseFloat(argument('stroke-width', 'NaN'));
 const strokeAlignment = argument('stroke-alignment', '');
 const mergeDown = argument('merge-down', '') === 'true';
 const createRectangle = argument('create-rectangle', '') === 'true';
+const createGradientFill = argument('create-gradient-fill', '') === 'true';
+const openGradientEditor = argument('open-gradient-editor', '') === 'true';
+const dragGradientEnd = argument('drag-gradient-end', '') === 'true';
 const createRasterLayerForPaint = argument('create-raster-layer', '') === 'true';
 const paintStroke = argument('paint-stroke', '') === 'true';
 const paintExistingLayer = argument('paint-existing-layer', '') === 'true';
@@ -93,6 +96,7 @@ const diagnostics = {
   interaction: {
     selectLayer, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
+    createGradientFill, openGradientEditor, dragGradientEnd,
     createRasterLayerForPaint, paintStroke, paintExistingLayer, paintColor, paintX, paintY,
     saveLightTableFile, expectLayer, expectNonemptyLayer, openCompatibilityReport,
     editTextLayer, replacementFont,
@@ -269,6 +273,41 @@ try {
     await window.waitForTimeout(500);
   }
 
+  if (createGradientFill) {
+    const layerCount = await window.locator('.lighttable-layer').count();
+    await window.getByRole('button', { name: 'New Gradient Fill layer' }).click();
+    await window.waitForFunction((expected) =>
+      document.querySelectorAll('.lighttable-layer').length === expected,
+    layerCount + 1, { timeout: 15_000 });
+    const row = window.locator('.lighttable-layer--active');
+    await row.waitFor({ state: 'visible', timeout: 15_000 });
+    diagnostics.gradientFill = { layerName: await row.locator('.lighttable-layer__name').inputValue() };
+    await window.getByRole('button', { name: /Path selection/i }).click();
+    if (dragGradientEnd) {
+      const viewport = window.locator('.lighttable-viewport');
+      const box = await viewport.boundingBox();
+      if (!box) throw new Error('The document viewport has no gradient bounds.');
+      const metadataText = await window.locator('.lighttable-toolbar__meta').textContent() ?? '';
+      const size = metadataText.match(/(\d+)\s*[x×]\s*(\d+)/i);
+      const zoom = metadataText.match(/(\d+(?:\.\d+)?)%/);
+      if (!size || !zoom) throw new Error(`Could not resolve gradient display geometry: ${metadataText}`);
+      const displayWidth = Number(size[1]) * Number(zoom[1]) / 100;
+      const displayHeight = Number(size[2]) * Number(zoom[1]) / 100;
+      const right = box.x + (box.width + displayWidth) / 2;
+      const middle = box.y + box.height / 2;
+      await window.mouse.move(right, middle);
+      await window.mouse.down();
+      await window.mouse.move(right - 150, middle + 90, { steps: 15 });
+      await window.mouse.up();
+      await window.waitForTimeout(250);
+    }
+    if (openGradientEditor) {
+      await window.getByRole('button', { name: 'Edit fill gradient' }).click();
+      await window.getByText('Fill gradient', { exact: true }).waitFor({ state: 'visible' });
+    }
+    await window.waitForTimeout(500);
+  }
+
   if (selectLayer) {
     const layerRow = window.locator('.lighttable-layer').filter({
       has: window.locator(`.lighttable-layer__name[value="${selectLayer.replaceAll('"', '\\"')}"]`)
@@ -360,29 +399,41 @@ try {
     const row = window.locator('.lighttable-layer').filter({
       has: window.locator(`.lighttable-layer__name[value="${escapedLayerName}"]`)
     }).first();
-    // The name input reserves double-click for renaming. The thumbnail has no
-    // competing double-click action, so its native gesture bubbles to the row.
-    await row.locator('.lighttable-layer__thumbnail').first().dispatchEvent('dblclick');
+    if (await row.count() === 0) throw new Error(`Text layer "${editTextLayer}" was not found.`);
+    // Dispatch on the row itself. React's semantic edit gesture lives there;
+    // targeting the thumbnail relied on synthetic bubbling that differs
+    // between packaged Electron/Chromium revisions.
+    await row.click();
+    await row.dispatchEvent('dblclick');
     const dialog = window.getByRole('dialog', { name: 'Replace missing text font' });
-    await dialog.waitFor({ state: 'visible', timeout: 15_000 });
-    const selector = dialog.getByRole('combobox', { name: 'Replacement font' });
-    if (replacementFont) {
-      const option = await selector.locator('option').evaluateAll((options, expected) =>
-        options.find(({ textContent }) => textContent?.includes(expected))?.value ?? '',
-      replacementFont);
-      if (!option) throw new Error(`Replacement font "${replacementFont}" is unavailable.`);
-      await selector.selectOption(option);
+    const editor = window.getByRole('textbox', { name: `Edit ${editTextLayer}` });
+    await Promise.race([
+      dialog.waitFor({ state: 'visible', timeout: 15_000 }),
+      editor.waitFor({ state: 'attached', timeout: 15_000 })
+    ]);
+    if (await dialog.isVisible()) {
+      const selector = dialog.getByRole('combobox', { name: 'Replacement font' });
+      if (replacementFont) {
+        const option = await selector.locator('option').evaluateAll((options, expected) =>
+          options.find(({ textContent }) => textContent?.includes(expected))?.value ?? '',
+        replacementFont);
+        if (!option) throw new Error(`Replacement font "${replacementFont}" is unavailable.`);
+        await selector.selectOption(option);
+      }
+      diagnostics.fontRecovery = {
+        layerName: editTextLayer,
+        selectedFont: await selector.locator('option:checked').textContent()
+      };
+      await dialog.getByRole('button', { name: 'Replace', exact: true }).click();
+      await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
     }
-    diagnostics.fontRecovery = {
-      layerName: editTextLayer,
-      selectedFont: await selector.locator('option:checked').textContent()
-    };
-    await dialog.getByRole('button', { name: 'Replace', exact: true }).click();
-    await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
-    await window.getByRole('textbox', { name: `Edit ${editTextLayer}` }).waitFor({
+    await editor.waitFor({
       state: 'attached', timeout: 15_000
     });
-    diagnostics.fontRecovery.editing = true;
+    diagnostics.fontRecovery = {
+      ...(diagnostics.fontRecovery ?? { layerName: editTextLayer, selectedFont: null }),
+      editing: true
+    };
   }
 
   if (openPdfPreflight) {
@@ -509,7 +560,7 @@ try {
     documentTitle: document.querySelector('.lighttable-document-tab--active')?.textContent?.trim() ?? ''
   }));
   const debugTab = window.getByRole('tab', { name: 'Debug' });
-  if (!openPdfPreflight && !openCompatibilityReport && await debugTab.count()) {
+  if (!openPdfPreflight && !openCompatibilityReport && !openGradientEditor && await debugTab.count()) {
     await debugTab.click();
     diagnostics.debugPanel = await window.getByRole('region', { name: 'LightTable debug log' })
       .textContent() ?? '';
@@ -575,8 +626,11 @@ try {
     await window.screenshot({ path: outputFile });
     screenshotCaptured = true;
     if (editTextLayer) await window.keyboard.press('Escape');
+    // The registered save command is explicitly allowed while/after text
+    // editing and owns transaction finalization. Exercise that canonical path
+    // for every document instead of coupling automation to menu markup.
     await window.keyboard.press('Control+s');
-    const deadline = Date.now() + 30_000;
+    const deadline = Date.now() + 120_000;
     let saved;
     while (!saved && Date.now() < deadline) {
       saved = await stat(saveLightTableFile).catch(() => undefined);
