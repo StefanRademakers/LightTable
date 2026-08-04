@@ -11,10 +11,12 @@ import {
   createVectorPath,
   type FillRule,
   type SolidPaint,
+  type VectorPaint,
   type VectorElement,
   type VectorStroke,
   type VectorStyle
 } from '@lighttable/vector-core';
+import type { GradientPaintInstance } from '@lighttable/paint-core';
 
 interface PsdVectorStrokeDescriptor {
   strokeEnabled?: boolean;
@@ -100,6 +102,69 @@ const solidPaint = (content: unknown): SolidPaint | null => {
   };
 };
 
+const normalizedPercent = (value: number | undefined, fallback = 0) => Number.isFinite(value)
+  ? clamp(value! > 1 ? value! / 100 : value!, 0, 1)
+  : fallback;
+const signedPercent = (value: number | undefined) => Number.isFinite(value)
+  ? clamp(Math.abs(value!) > 1 ? value! / 100 : value!, -1, 1)
+  : 0;
+
+const gradientPaint = (content: unknown, idPrefix: string): GradientPaintInstance | null => {
+  if (!content || typeof content !== 'object') return null;
+  const source = content as Partial<Extract<VectorContent, { type: 'solid' }>>;
+  if (source.type !== 'solid' || !Array.isArray(source.colorStops) || !Array.isArray(source.opacityStops)
+    || source.colorStops.length === 0 || source.opacityStops.length === 0) return null;
+  const colors = source.colorStops.map((stop, index) => {
+    const channels = colorChannels(stop.color);
+    return channels ? {
+      id: `${idPrefix}:color:${index}`,
+      position: clamp(stop.location > 1 ? stop.location / 4096 : stop.location),
+      midpoint: normalizedPercent(stop.midpoint, 0.5),
+      color: { r: channels[0], g: channels[1], b: channels[2], a: channels[3] }
+    } : null;
+  });
+  if (colors.some((stop) => stop === null)) return null;
+  const opacity = source.opacityStops.map((stop, index) => ({
+    id: `${idPrefix}:opacity:${index}`,
+    position: clamp(stop.location > 1 ? stop.location / 4096 : stop.location),
+    midpoint: normalizedPercent(stop.midpoint, 0.5),
+    opacity: normalizedPercent(stop.opacity, 1)
+  }));
+  const shape = source.style ?? 'linear';
+  const angle = (source.angle ?? 0) * Math.PI / 180;
+  const direction = { x: Math.cos(angle), y: -Math.sin(angle) };
+  const scale = Number.isFinite(source.scale)
+    ? Math.max(0.01, source.scale! > 10 ? source.scale! / 100 : source.scale!) : 1;
+  const radial = shape !== 'linear';
+  const extent = scale * (radial ? 0.5 : 1);
+  const columnX = { x: direction.x * extent, y: direction.y * extent };
+  const columnY = { x: -direction.y * extent, y: direction.x * extent };
+  const offsetX = signedPercent(source.offset?.x) * 0.5;
+  const offsetY = signedPercent(source.offset?.y) * 0.5;
+  return {
+    kind: 'gradient',
+    asset: {
+      id: `${idPrefix}:asset`, name: source.name || 'Photoshop Gradient', type: 'solid',
+      smoothness: normalizedPercent(source.smoothness, 1),
+      colorStops: colors as NonNullable<(typeof colors)[number]>[], opacityStops: opacity,
+      roughness: 0, seed: 0
+    },
+    shape,
+    coordinateSpace: 'object-bounds',
+    transform: {
+      a: columnX.x, b: columnX.y, c: columnY.x, d: columnY.y,
+      tx: 0.5 + offsetX - (radial ? 0 : columnX.x * 0.5),
+      ty: 0.5 + offsetY - (radial ? 0 : columnX.y * 0.5)
+    },
+    reverse: source.reverse ?? false,
+    dither: source.dither ?? false,
+    interpolation: source.interpolationMethod ?? 'perceptual'
+  };
+};
+
+const vectorPaint = (content: unknown, idPrefix: string): VectorPaint | null =>
+  solidPaint(content) ?? gradientPaint(content, idPrefix);
+
 const isVectorMask = (value: unknown): value is LayerVectorMask => {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<LayerVectorMask>;
@@ -127,10 +192,11 @@ const unitPixels = (value: UnitsValue | undefined, resolution = 72): number | nu
 
 const vectorStroke = (
   descriptor: PsdVectorStrokeDescriptor | null,
-  fillPaint: SolidPaint | null
+  fillPaint: VectorPaint | null,
+  idPrefix: string
 ): { stroke: VectorStroke | null; opacity: number } | null => {
   if (!descriptor?.strokeEnabled) return { stroke: null, opacity: 1 };
-  const paint = solidPaint(descriptor.content);
+  const paint = vectorPaint(descriptor.content, `${idPrefix}:stroke-gradient`);
   const width = unitPixels(descriptor.lineWidth, descriptor.resolution ?? 72);
   const dashOffset = unitPixels(descriptor.lineDashOffset, descriptor.resolution ?? 72);
   if (!paint || width === null || dashOffset === null) return null;
@@ -210,13 +276,13 @@ export const importPsdVectorShape = (
     ? source.vectorStroke as PsdVectorStrokeDescriptor
     : null;
   const fillEnabled = strokeDescriptor?.fillEnabled !== false;
-  const fill = fillEnabled ? solidPaint(source.vectorFill) : null;
+  const idPrefix = source.sourceObjectId?.trim() || 'psd-shape';
+  const fill = fillEnabled ? vectorPaint(source.vectorFill, `${idPrefix}:fill-gradient`) : null;
   const unsupportedFill = Boolean(fillEnabled && source.vectorFill && !fill);
-  const mappedStroke = vectorStroke(strokeDescriptor, fill);
+  const mappedStroke = vectorStroke(strokeDescriptor, fill, idPrefix);
   const unsupportedStroke = mappedStroke === null;
 
   const elements: VectorElement[] = [];
-  const idPrefix = source.sourceObjectId?.trim() || 'psd-shape';
   const pathGroups = new Map<string, {
     fillRule: FillRule;
     open: boolean;
@@ -258,7 +324,7 @@ export const importPsdVectorShape = (
     status: unsupportedFill || unsupportedStroke ? 'preview-backed' : 'native',
     elements,
     reason: unsupportedFill || unsupportedStroke
-      ? `${unsupportedFill ? 'Gradient or pattern fill' : ''}${unsupportedFill && unsupportedStroke ? ' and ' : ''}${unsupportedStroke ? 'stroke paint/opacity' : ''} remains preview-backed while the Photoshop paths stay editable.`
+      ? `${unsupportedFill ? 'Pattern or noise-gradient fill' : ''}${unsupportedFill && unsupportedStroke ? ' and ' : ''}${unsupportedStroke ? 'stroke paint/opacity' : ''} remains preview-backed while the Photoshop paths stay editable.`
       : 'Photoshop Bézier shape paths and fill/stroke state are mapped to editable LightTable vectors.'
   };
 };

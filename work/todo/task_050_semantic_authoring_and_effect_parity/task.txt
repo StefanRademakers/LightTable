@@ -8,14 +8,14 @@ explicitly out of scope and will be handled as a separate parity task.
 
 ## Architecture rules
 
-- [ ] One reusable paint/gradient asset contract serves text, vector shapes,
+- [x] One reusable paint/gradient asset contract serves text, vector shapes,
   fill layers, Layer Styles and future PDF/AI shading adapters.
-- [ ] Fill/stroke paint instances own coordinate space and transforms; source
+- [x] Fill/stroke paint instances own coordinate space and transforms; source
   format descriptors never become renderer authority.
 - [x] Semantic layers may retain one bounded derived preview cache with a
   dependency fingerprint. The cache renders only while the semantic source is
   unresolved/unchanged and is invalidated by authoritative edits.
-- [ ] The same vector scene owns imported and native shapes. Unsupported paint
+- [x] The same vector scene owns imported and native shapes. Unsupported paint
   or boolean data remains preserved plus preview-backed until promoted.
 - [ ] Effects are ordered compositing programs with declared bounds and cache
   dependencies. Interactive and final quality use the same semantics.
@@ -34,7 +34,7 @@ explicitly out of scope and will be handled as a separate parity task.
 - [x] Introduce the shared gradient asset/paint-instance model and bridge the
   existing Layer Style gradient editor to it.
 - [ ] Render and edit gradient fills on vector shapes and text.
-- [ ] Import Photoshop solid/gradient shapes into the shared vector model,
+- [x] Import Photoshop solid/gradient shapes into the shared vector model,
   including no-fill/no-stroke, alignment, joins, caps and compound paths.
 - [ ] Add a native Gradient Fill Layer distinct from Adjustment Layers.
 - [ ] Add effect enable/bypass automation and Photoshop reference captures.

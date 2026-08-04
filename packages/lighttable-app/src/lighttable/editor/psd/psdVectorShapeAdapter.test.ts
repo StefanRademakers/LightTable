@@ -141,4 +141,34 @@ describe('importPsdVectorShape', () => {
     if (result.status !== 'native') throw new Error(result.reason);
     expect(result.elements[0]?.style).toMatchObject({ fill: null, stroke: null });
   });
+
+  it('imports solid Photoshop gradients as editable shared vector paint', () => {
+    const result = importPsdVectorShape({
+      ...source([path()]),
+      sourceObjectId: 'gradient-layer',
+      vectorFill: {
+        type: 'solid', name: 'Red to blue', style: 'linear', angle: 90, scale: 100,
+        dither: true, reverse: false, interpolationMethod: 'perceptual',
+        colorStops: [
+          { location: 0, midpoint: 50, color: { r: 255, g: 0, b: 0 } },
+          { location: 4096, midpoint: 50, color: { r: 0, g: 0, b: 255 } }
+        ],
+        opacityStops: [
+          { location: 0, midpoint: 50, opacity: 100 },
+          { location: 4096, midpoint: 50, opacity: 50 }
+        ]
+      }
+    });
+
+    expect(result.status).toBe('native');
+    if (result.status !== 'native') throw new Error(result.reason);
+    expect(result.elements[0]?.style.fill).toMatchObject({
+      kind: 'gradient', shape: 'linear', coordinateSpace: 'object-bounds', dither: true,
+      asset: {
+        id: 'gradient-layer:fill-gradient:asset',
+        colorStops: [{ position: 0 }, { position: 1 }],
+        opacityStops: [{ opacity: 1 }, { opacity: 0.5 }]
+      }
+    });
+  });
 });

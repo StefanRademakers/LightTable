@@ -954,6 +954,25 @@ describe('LightTable layered PNG format', () => {
     }, 'Editable badge');
     shape.transform = translationMatrix(-1, 4);
     shape.transformRevision = 1;
+    shape.style.fill = {
+      kind: 'gradient',
+      asset: {
+        id: 'badge-gradient', name: 'Badge gradient', type: 'solid', smoothness: 1,
+        colorStops: [
+          { id: 'green', position: 0, midpoint: 0.5, color: { r: 0, g: 1, b: 0, a: 1 } },
+          { id: 'blue', position: 1, midpoint: 0.5, color: { r: 0, g: 0, b: 1, a: 1 } }
+        ],
+        opacityStops: [
+          { id: 'opaque-a', position: 0, midpoint: 0.5, opacity: 1 },
+          { id: 'opaque-b', position: 1, midpoint: 0.5, opacity: 1 }
+        ],
+        roughness: 0, seed: 0
+      },
+      shape: 'linear', coordinateSpace: 'object-bounds',
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      reverse: false, dither: true, interpolation: 'perceptual'
+    };
+    shape.styleRevision = 1;
     const vector = createVectorLayer([path, shape], 'Logo shape');
     vector.antiAlias = false;
     const document = {
