@@ -19,7 +19,10 @@ import {
 import type { ImageDocument, Rect } from '../document/documentTypes';
 import { findDocumentLayer, findRasterLayer } from '../document/layerTree';
 import type { EditorSession } from '../session/editorSession';
-import { resolveSelectionCombineMode } from '../selection/selectionTypes';
+import {
+  resolveSelectionCombineMode,
+  type SelectionShape
+} from '../selection/selectionTypes';
 import { paintTargetSourceToDocument } from '../tools/paint/paintCoordinates';
 import {
   isPaintTool,
@@ -33,7 +36,8 @@ import {
   panViewFromGesture,
   pointInsideRect,
   zoomViewAtPoint,
-  zoomViewToScaleAtPoint
+  zoomViewToScaleAtPoint,
+  zoomViewToViewportRect
 } from '../tools/pointer/viewportCoordinates';
 import {
   steppedZoomPercent,
@@ -65,6 +69,7 @@ interface ViewportInteractionOptions {
   editorSession: EditorSession;
   setEditorSession: Dispatch<SetStateAction<EditorSession>>;
   temporaryTools: TemporaryToolController;
+  temporaryZoomOut: boolean;
   focusPickerActive: boolean;
   onFocusPick: (normalizedPoint: { x: number; y: number }) => void;
   onFocusPickerEnd: () => void;
@@ -88,6 +93,7 @@ interface ViewportInteractionOptions {
     center: { x: number; y: number };
     diameter: number;
   } | null) => void;
+  onZoomDraftChange: (draft: SelectionShape | null) => void;
 }
 
 export interface ViewportInteractionController {
@@ -120,6 +126,7 @@ export const useViewportInteractionController = ({
   editorSession,
   setEditorSession,
   temporaryTools,
+  temporaryZoomOut,
   focusPickerActive,
   onFocusPick,
   onFocusPickerEnd,
@@ -132,7 +139,8 @@ export const useViewportInteractionController = ({
   vector,
   minScale,
   maxScale,
-  onBrushCursorChange
+  onBrushCursorChange,
+  onZoomDraftChange
 }: ViewportInteractionOptions): ViewportInteractionController => {
   const effectiveTool = temporaryTools.effectiveTool(editorSession.activeTool);
   const temporaryPan = temporaryTools.activeTool === 'view';
@@ -143,11 +151,21 @@ export const useViewportInteractionController = ({
     panX: number;
     panY: number;
   } | null>(null);
+  const zoomDragRef = useRef<{
+    pointerId: number;
+    startLocal: { x: number; y: number };
+    currentLocal: { x: number; y: number };
+    startDocument: { x: number; y: number };
+    currentDocument: { x: number; y: number };
+    zoomOut: boolean;
+  } | null>(null);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
   const setViewRef = useRef(setView);
   setViewRef.current = setView;
   const onBrushCursorChangeRef = useRef(onBrushCursorChange);
   onBrushCursorChangeRef.current = onBrushCursorChange;
+  const onZoomDraftChangeRef = useRef(onZoomDraftChange);
+  onZoomDraftChangeRef.current = onZoomDraftChange;
   const panFrameRef = useRef<LatestFrameValueScheduler<{
     panX: number;
     panY: number;
@@ -194,6 +212,7 @@ export const useViewportInteractionController = ({
 
   useEffect(() => () => {
     onBrushCursorChangeRef.current(null);
+    onZoomDraftChangeRef.current(null);
   }, []);
 
   const documentPoint = (
@@ -350,17 +369,24 @@ export const useViewportInteractionController = ({
           { x: event.clientX, y: event.clientY },
           { x: bounds.left, y: bounds.top }
         );
-        const nextPercent = steppedZoomPercent(
-          activeScale * 100,
-          event.altKey ? -1 : 1
-        );
-        setZoomMode('custom');
-        setView(zoomViewToScaleAtPoint({
+        const point = localToDocumentPointer(
           cursor,
-          viewport: viewportSize,
-          view: { scale: activeScale, panX: view.panX, panY: view.panY },
-          scale: zoomPercentToScale(nextPercent)
-        }));
+          imageRect,
+          activeScale,
+          metadata,
+          event.pressure,
+          false
+        );
+        if (!point) return;
+        zoomDragRef.current = {
+          pointerId: event.pointerId,
+          startLocal: cursor,
+          currentLocal: cursor,
+          startDocument: point,
+          currentDocument: point,
+          zoomOut: temporaryZoomOut || event.altKey
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
         event.preventDefault();
         return;
       }
@@ -538,6 +564,28 @@ export const useViewportInteractionController = ({
       // display frame. Keep this hot path to one layout-dependent read.
       const bounds = event.currentTarget.getBoundingClientRect();
       updateBrushCursor(event, bounds);
+      const zoomDrag = zoomDragRef.current;
+      if (zoomDrag?.pointerId === event.pointerId && metadata) {
+        const local = clientToLocalPoint(
+          { x: event.clientX, y: event.clientY },
+          { x: bounds.left, y: bounds.top }
+        );
+        const point = localToDocumentPointer(
+          local, imageRect, activeScale, metadata, event.pressure, true
+        );
+        if (point) {
+          zoomDrag.currentLocal = local;
+          zoomDrag.currentDocument = point;
+          if (!zoomDrag.zoomOut) {
+            onZoomDraftChangeRef.current({
+              kind: 'rectangle',
+              points: [zoomDrag.startDocument, zoomDrag.currentDocument]
+            });
+          }
+        }
+        event.preventDefault();
+        return;
+      }
       const point = documentPoint(event, bounds);
       if (textGesture.owns(event.pointerId)) {
         if (point && textGesture.move(event.pointerId, point)) event.preventDefault();
@@ -592,6 +640,41 @@ export const useViewportInteractionController = ({
       }
     },
     onPointerUp: (event) => {
+      const zoomDrag = zoomDragRef.current;
+      if (zoomDrag?.pointerId === event.pointerId) {
+        zoomDragRef.current = null;
+        onZoomDraftChangeRef.current(null);
+        const width = Math.abs(zoomDrag.currentLocal.x - zoomDrag.startLocal.x);
+        const height = Math.abs(zoomDrag.currentLocal.y - zoomDrag.startLocal.y);
+        setZoomMode('custom');
+        if (zoomDrag.zoomOut || Math.hypot(width, height) < 5) {
+          const nextPercent = steppedZoomPercent(
+            activeScale * 100,
+            zoomDrag.zoomOut ? -1 : 1
+          );
+          setView(zoomViewToScaleAtPoint({
+            cursor: zoomDrag.startLocal,
+            viewport: viewportSize,
+            view: { scale: activeScale, panX: view.panX, panY: view.panY },
+            scale: zoomPercentToScale(nextPercent)
+          }));
+        } else {
+          setView(zoomViewToViewportRect({
+            rect: {
+              x: Math.min(zoomDrag.startLocal.x, zoomDrag.currentLocal.x),
+              y: Math.min(zoomDrag.startLocal.y, zoomDrag.currentLocal.y),
+              width,
+              height
+            },
+            viewport: viewportSize,
+            view: { scale: activeScale, panX: view.panX, panY: view.panY },
+            minScale,
+            maxScale
+          }));
+        }
+        event.preventDefault();
+        return;
+      }
       if (textGesture.owns(event.pointerId)) {
         const point = documentPoint(event);
         if (point) textGesture.finish(event.pointerId, point);
@@ -629,6 +712,11 @@ export const useViewportInteractionController = ({
       endPan(event);
     },
     onPointerCancel: (event) => {
+      if (zoomDragRef.current?.pointerId === event.pointerId) {
+        zoomDragRef.current = null;
+        onZoomDraftChangeRef.current(null);
+        return;
+      }
       if (textGesture.owns(event.pointerId)) {
         textGesture.cancel(event.pointerId);
         return;

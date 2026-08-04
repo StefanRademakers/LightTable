@@ -5,6 +5,7 @@ import {
   panViewFromGesture,
   pointInsideRect,
   zoomViewAtPoint,
+  zoomViewToViewportRect,
   zoomViewToScaleAtPoint
 } from './viewportCoordinates';
 
@@ -120,5 +121,23 @@ describe('viewportCoordinates', () => {
     const rect = { x: 10, y: 20, width: 30, height: 40 };
     expect(pointInsideRect({ x: 10, y: 60 }, rect)).toBe(true);
     expect(pointInsideRect({ x: 41, y: 60 }, rect)).toBe(false);
+  });
+
+  it('fits a dragged viewport rectangle and centers its document point', () => {
+    const viewport = { width: 800, height: 600 };
+    const before = { scale: 1, panX: 0, panY: 0 };
+    const after = zoomViewToViewportRect({
+      rect: { x: 100, y: 100, width: 200, height: 150 },
+      viewport,
+      view: before,
+      minScale: 0.01,
+      maxScale: 100
+    });
+    expect(after.scale).toBe(4);
+    const selectedDocumentCenter = { x: -200, y: -125 };
+    expect(viewport.width / 2 + after.panX + selectedDocumentCenter.x * after.scale)
+      .toBeCloseTo(viewport.width / 2);
+    expect(viewport.height / 2 + after.panY + selectedDocumentCenter.y * after.scale)
+      .toBeCloseTo(viewport.height / 2);
   });
 });

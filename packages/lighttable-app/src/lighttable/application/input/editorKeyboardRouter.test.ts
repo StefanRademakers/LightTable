@@ -42,6 +42,9 @@ describe('resolveEditorKeyboardCommand', () => {
     [{ ctrlKey: true, key: '+', code: 'Equal' }, 'zoom-in'],
     [{ metaKey: true, key: '-', code: 'Minus' }, 'zoom-out'],
     [{ ctrlKey: true, key: '0', code: 'Digit0' }, 'zoom-fit'],
+    [{ ctrlKey: true, key: '1', code: 'Digit1' }, 'zoom-actual'],
+    [{ ctrlKey: true, key: ' ', code: 'Space' }, 'temporary-zoom-in-start'],
+    [{ altKey: true, key: ' ', code: 'Space' }, 'temporary-zoom-out-start'],
     [{ key: 'Tab' }, 'suppress-tab-navigation'],
     [{ altKey: true, key: 'Backspace' }, 'fill-foreground'],
     [{ metaKey: true, key: 'Delete' }, 'fill-background']

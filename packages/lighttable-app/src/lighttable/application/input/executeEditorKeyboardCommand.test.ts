@@ -15,6 +15,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   undo: vi.fn(),
   redo: vi.fn(),
   beginTemporaryPan: vi.fn(),
+  beginTemporaryZoom: vi.fn(),
   beginTemporaryErase: vi.fn(),
   fillForeground: vi.fn(),
   fillBackground: vi.fn(),
@@ -39,6 +40,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   closeActiveDocument: vi.fn(),
   changeZoom: vi.fn(),
   fitZoom: vi.fn(),
+  actualZoom: vi.fn(),
   cancelOrClose: vi.fn()
 });
 
@@ -111,9 +113,19 @@ describe('executeEditorKeyboardCommand', () => {
     executeEditorKeyboardCommand('zoom-in', target);
     executeEditorKeyboardCommand('zoom-out', target);
     executeEditorKeyboardCommand('zoom-fit', target);
+    executeEditorKeyboardCommand('zoom-actual', target);
 
     expect(target.changeZoom).toHaveBeenNthCalledWith(1, 1);
     expect(target.changeZoom).toHaveBeenNthCalledWith(2, -1);
     expect(target.fitZoom).toHaveBeenCalledOnce();
+    expect(target.actualZoom).toHaveBeenCalledOnce();
+  });
+
+  it('routes temporary zoom direction explicitly', () => {
+    const target = ports();
+    executeEditorKeyboardCommand('temporary-zoom-in-start', target);
+    executeEditorKeyboardCommand('temporary-zoom-out-start', target);
+    expect(target.beginTemporaryZoom).toHaveBeenNthCalledWith(1, 1);
+    expect(target.beginTemporaryZoom).toHaveBeenNthCalledWith(2, -1);
   });
 });

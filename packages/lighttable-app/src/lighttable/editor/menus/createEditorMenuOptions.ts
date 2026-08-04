@@ -417,12 +417,14 @@ export const createEditorMenuOptions = (
     {
       value: 'fit',
       label: state.zoomMode === 'fit' ? 'Fit (current)' : 'Fit',
+      shortcut: labels.primaryShortcut('0'),
       onClick: commands.fit,
       disabled: !state.hasMetadata
     },
     {
       value: 'actual-size',
       label: state.zoomMode === '100' ? '100% (current)' : '100%',
+      shortcut: labels.primaryShortcut('1'),
       onClick: commands.actualSize,
       disabled: !state.hasMetadata
     },

@@ -40,6 +40,7 @@ const handlers = (
   onKeyDown: () => false,
   onKeyUp: () => false,
   onShiftChange: vi.fn(),
+  onAltChange: vi.fn(),
   onBlur: vi.fn(),
   ...patch
 });
@@ -75,20 +76,24 @@ describe('bindEditorWindowInput', () => {
     dispose();
   });
 
-  it('tracks Shift and clears modifiers and temporary state on blur', () => {
+  it('tracks Shift/Alt and clears modifiers and temporary state on blur', () => {
     const target = new FakeInputTarget();
     const onShiftChange = vi.fn();
+    const onAltChange = vi.fn();
     const onBlur = vi.fn();
     const dispose = bindEditorWindowInput(
       target,
-      () => handlers({ onShiftChange, onBlur })
+      () => handlers({ onShiftChange, onAltChange, onBlur })
     );
 
     target.dispatch('keydown', keyboardEvent('Shift') as unknown as Event);
     target.dispatch('keyup', keyboardEvent('Shift') as unknown as Event);
+    target.dispatch('keydown', keyboardEvent('Alt') as unknown as Event);
+    target.dispatch('keyup', keyboardEvent('Alt') as unknown as Event);
     target.dispatch('blur', {} as Event);
 
     expect(onShiftChange.mock.calls).toEqual([[true], [false], [false]]);
+    expect(onAltChange.mock.calls).toEqual([[true], [false], [false]]);
     expect(onBlur).toHaveBeenCalledOnce();
     dispose();
   });

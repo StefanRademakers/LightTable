@@ -2,6 +2,7 @@ import type { EditorKeymap } from '../../application/input/editorKeymap';
 import {
   isTemporaryPanRelease,
   isTemporaryEraseRelease,
+  isTemporaryZoomRelease,
   resolveEditorKeyboardCommand
 } from '../../application/input/editorKeyboardRouter';
 import {
@@ -27,10 +28,13 @@ export interface EditorKeyboardControllerOptions {
   readonly keymap?: EditorKeymap;
   readonly temporaryPanActive: () => boolean;
   readonly releaseTemporaryPan: () => void;
+  readonly temporaryZoomActive: () => boolean;
+  readonly releaseTemporaryZoom: () => void;
   readonly temporaryEraseActive: () => boolean;
   readonly releaseTemporaryErase: () => void;
   readonly clearTemporaryTool: () => void;
   readonly onShiftChange: (pressed: boolean) => void;
+  readonly onAltChange: (pressed: boolean) => void;
 }
 
 const isTextEditingTarget = (target: EventTarget | null) => (
@@ -54,10 +58,13 @@ export const useEditorKeyboardController = ({
   keymap,
   temporaryPanActive,
   releaseTemporaryPan,
+  temporaryZoomActive,
+  releaseTemporaryZoom,
   temporaryEraseActive,
   releaseTemporaryErase,
   clearTemporaryTool,
-  onShiftChange
+  onShiftChange,
+  onAltChange
 }: EditorKeyboardControllerOptions): void => {
   useEditorWindowInput(enabled, {
     onKeyDown: (event) => {
@@ -79,6 +86,10 @@ export const useEditorKeyboardController = ({
         releaseTemporaryPan();
         return true;
       }
+      if (isTemporaryZoomRelease(event) && temporaryZoomActive()) {
+        releaseTemporaryZoom();
+        return true;
+      }
       if (isTemporaryEraseRelease(event) && temporaryEraseActive()) {
         releaseTemporaryErase();
         return true;
@@ -86,6 +97,7 @@ export const useEditorKeyboardController = ({
       return false;
     },
     onShiftChange,
+    onAltChange,
     onBlur: clearTemporaryTool
   });
 };

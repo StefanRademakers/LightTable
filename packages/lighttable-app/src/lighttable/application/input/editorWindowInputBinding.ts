@@ -17,6 +17,7 @@ export interface EditorWindowInputHandlers {
   readonly onKeyDown: (event: KeyboardEvent) => boolean;
   readonly onKeyUp: (event: KeyboardEvent) => boolean;
   readonly onShiftChange: (pressed: boolean) => void;
+  readonly onAltChange: (pressed: boolean) => void;
   readonly onBlur: () => void;
 }
 
@@ -40,17 +41,20 @@ export const bindEditorWindowInput = (
     const event = rawEvent as KeyboardEvent;
     const handlers = getHandlers();
     if (event.key === 'Shift') handlers.onShiftChange(true);
+    if (event.key === 'Alt') handlers.onAltChange(true);
     if (handlers.onKeyDown(event)) consumeKeyboardEvent(event);
   };
   const handleKeyUp: EventListener = (rawEvent) => {
     const event = rawEvent as KeyboardEvent;
     const handlers = getHandlers();
     if (event.key === 'Shift') handlers.onShiftChange(false);
+    if (event.key === 'Alt') handlers.onAltChange(false);
     if (handlers.onKeyUp(event)) consumeKeyboardEvent(event);
   };
   const handleBlur: EventListener = () => {
     const handlers = getHandlers();
     handlers.onShiftChange(false);
+    handlers.onAltChange(false);
     handlers.onBlur();
   };
 

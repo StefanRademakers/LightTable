@@ -146,6 +146,29 @@ describe('editor keymap', () => {
       input({ key: 'Insert', code: 'Numpad0', ctrlKey: true }),
       context()
     )).toBe('zoom-fit');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'End', code: 'Numpad1', ctrlKey: true }),
+      context({ editable: true })
+    )).toBe('zoom-actual');
+  });
+
+  it('routes modifier-space temporary zoom without stealing plain pan', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ' ', code: 'Space', ctrlKey: true }),
+      context()
+    )).toBe('temporary-zoom-in-start');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ' ', code: 'Space', altKey: true }),
+      context()
+    )).toBe('temporary-zoom-out-start');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ' ', code: 'Space' }),
+      context()
+    )).toBe('temporary-pan-start');
   });
 
   it('preserves modifier-specific tool bindings', () => {

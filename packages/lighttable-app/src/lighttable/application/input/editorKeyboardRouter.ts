@@ -29,6 +29,8 @@ export const isTemporaryPanRelease = (
   input: Pick<EditorKeyboardInput, 'code'>
 ): boolean => input.code === 'Space';
 
+export const isTemporaryZoomRelease = isTemporaryPanRelease;
+
 export const isTemporaryEraseRelease = (
   input: Pick<EditorKeyboardInput, 'code'>
 ): boolean => input.code === 'Backquote';

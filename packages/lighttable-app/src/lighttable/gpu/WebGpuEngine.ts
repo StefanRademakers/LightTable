@@ -213,6 +213,7 @@ export class WebGpuEngine {
   private selectionOverlayOperations: SelectionOperation[] = [];
   private selectionOverlayDraft: SelectionShape | null = null;
   private selectionOverlayVisible = false;
+  private zoomOverlayDraft: SelectionShape | null = null;
   private brushCursorOverlay: {
     center: { x: number; y: number };
     diameter: number;
@@ -1199,6 +1200,20 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setZoomEditingOverlay(draft: SelectionShape | null) {
+    const currentKey = this.zoomOverlayDraft
+      ? JSON.stringify(this.zoomOverlayDraft.points)
+      : '';
+    const nextKey = draft ? JSON.stringify(draft.points) : '';
+    if (currentKey === nextKey) return;
+    this.zoomOverlayDraft = draft ? {
+      kind: 'rectangle',
+      points: draft.points.map((point) => ({ ...point }))
+    } : null;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   setTextEditingOverlay(overlay: TextEditingOverlay | null, caretVisible = true) {
     if (
       this.textEditingOverlay?.resourceKey === overlay?.resourceKey
@@ -1911,6 +1926,7 @@ export class WebGpuEngine {
       && !overlayScene.selectionFrame
       && !selectionShape
       && !selectionDraft
+      && !this.zoomOverlayDraft
       && !selectionMask
       && !this.transformEditingFrame
       && !this.brushCursorOverlay
@@ -1983,6 +1999,14 @@ export class WebGpuEngine {
         SELECTION_OUTLINE_THEME
       );
     }
+    if (this.zoomOverlayDraft) {
+      this.vectorEditingOverlayBackend.encode(
+        encoder,
+        buildSelectionEditingOverlay(this.zoomOverlayDraft, 'draft'),
+        target,
+        SELECTION_OUTLINE_THEME
+      );
+    }
     if (this.brushCursorOverlay) {
       this.vectorEditingOverlayBackend.encode(
         encoder,
@@ -2007,6 +2031,7 @@ export class WebGpuEngine {
 
   private destroyImageResources() {
     this.textEditingOverlay = null;
+    this.zoomOverlayDraft = null;
     this.documentRenderer?.destroyImageResources();
     this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();

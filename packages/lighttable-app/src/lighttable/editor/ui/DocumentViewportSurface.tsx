@@ -18,6 +18,8 @@ export interface DocumentViewportSurfaceProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   activeTool: ToolId;
   temporaryPanActive: boolean;
+  temporaryZoomActive: boolean;
+  zoomOutActive: boolean;
   dragging: boolean;
   focusPickerActive: boolean;
   selection: SelectionOperation[];
@@ -52,6 +54,8 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   canvasRef,
   activeTool,
   temporaryPanActive,
+  temporaryZoomActive,
+  zoomOutActive,
   dragging,
   focusPickerActive,
   selection,
@@ -73,11 +77,15 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onTransformProjectiveChange,
   inputBridge
 }) => {
-  const effectiveTool = temporaryPanActive ? 'view' : activeTool;
+  const effectiveTool = temporaryPanActive
+    ? 'view'
+    : temporaryZoomActive
+      ? 'zoom'
+      : activeTool;
   return (
     <div
       ref={viewportRef}
-      className={`lighttable-viewport lighttable-viewport--${effectiveTool}${dragging ? ' lighttable-viewport--dragging' : ''}${focusPickerActive ? ' lighttable-viewport--focus-picker' : ''}`}
+      className={`lighttable-viewport lighttable-viewport--${effectiveTool}${zoomOutActive ? ' lighttable-viewport--zoom-out' : ''}${dragging ? ' lighttable-viewport--dragging' : ''}${focusPickerActive ? ' lighttable-viewport--focus-picker' : ''}`}
       onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

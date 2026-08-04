@@ -202,6 +202,8 @@ describe('createEditorMenuOptions', () => {
     );
 
     expect(options.find((option) => option.value === 'actual-size')?.label).toBe('100% (current)');
+    expect(options.find((option) => option.value === 'fit')?.shortcut).toBe('Ctrl+0');
+    expect(options.find((option) => option.value === 'actual-size')?.shortcut).toBe('Ctrl+1');
     expect(options.find((option) => option.value === 'show-original')?.label).toBe('Show corrected');
     expect(options.find((option) => option.value === 'toggle-screen-mode'))
       .toMatchObject({ label: 'Toggle screen mode', shortcut: 'F' });

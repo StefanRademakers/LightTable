@@ -11,6 +11,7 @@ export interface EditorKeyboardCommandPorts {
   undo(): void;
   redo(): void;
   beginTemporaryPan(): void;
+  beginTemporaryZoom(direction: -1 | 1): void;
   beginTemporaryErase(): void;
   fillForeground(): void;
   fillBackground(): void;
@@ -35,6 +36,7 @@ export interface EditorKeyboardCommandPorts {
   closeActiveDocument(): void;
   changeZoom(direction: -1 | 1): void;
   fitZoom(): void;
+  actualZoom(): void;
   cancelOrClose(): void;
 }
 
@@ -79,6 +81,12 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'temporary-pan-start':
       ports.beginTemporaryPan();
+      return;
+    case 'temporary-zoom-in-start':
+      ports.beginTemporaryZoom(1);
+      return;
+    case 'temporary-zoom-out-start':
+      ports.beginTemporaryZoom(-1);
       return;
     case 'temporary-erase-start':
       ports.beginTemporaryErase();
@@ -166,6 +174,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'zoom-fit':
       ports.fitZoom();
+      return;
+    case 'zoom-actual':
+      ports.actualZoom();
       return;
     case 'suppress-tab-navigation':
       return;

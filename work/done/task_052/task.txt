@@ -1,0 +1,27 @@
+# Better align the Zoom Tool UX
+
+Status: complete
+
+- [x] Tool hotkey: `Z` (verified existing behavior).
+- [x] Zoom in: `Ctrl/Cmd + +`.
+- [x] Zoom out: `Ctrl/Cmd + -`.
+- [x] Temporary zoom in: hold `Ctrl/Cmd + Space`, then click or drag.
+- [x] Temporary zoom out: hold `Alt + Space`, then click.
+- [x] Actual Pixels / 100%: `Ctrl/Cmd + 1`.
+- [x] Fit image on screen: `Ctrl/Cmd + 0`.
+- [x] Zoom to selected area: drag a rectangle with the Zoom tool.
+- [x] Switch the active Zoom tool to zoom out while holding `Alt`.
+- [x] Show View-menu shortcut labels for Fit and Actual Pixels.
+- [x] Render the drag marquee through the existing GPU overlay.
+- [x] Keep temporary activation out of canonical tool and history state.
+
+## Verification
+
+- Targeted input, menu, viewport-coordinate and GPU-overlay tests: 73 passed.
+- Desktop package verification: passed.
+- Physical Electron smoke against `D:\\shapes.psd`: passed with no page errors.
+- Full workspace verification: passed (1,514 app tests plus all package suites,
+  web build and packaged desktop build).
+- Observed zoom: actual 100%, fit 121%, shortcut-in 150%, rectangle 121% to
+  1062%, temporary zoom-in 1100%, temporary zoom-out 1000%.
+- Physical artifact: `tmp/zoom-smoke/zoom-rectangle.png`.

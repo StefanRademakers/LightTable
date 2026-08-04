@@ -110,6 +110,34 @@ export const zoomViewToScaleAtPoint = ({
   };
 };
 
+export const zoomViewToViewportRect = ({
+  rect,
+  viewport,
+  view,
+  minScale,
+  maxScale
+}: {
+  rect: RectLike;
+  viewport: Pick<RectLike, 'width' | 'height'>;
+  view: ViewTransform;
+  minScale: number;
+  maxScale: number;
+}): ViewTransform => {
+  const width = Math.max(rect.width, 1e-6);
+  const height = Math.max(rect.height, 1e-6);
+  const scale = Math.min(
+    maxScale,
+    Math.max(minScale, view.scale * Math.min(viewport.width / width, viewport.height / height))
+  );
+  const cursor = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  const anchored = zoomViewToScaleAtPoint({ cursor, viewport, view, scale });
+  return {
+    scale: anchored.scale,
+    panX: anchored.panX + viewport.width / 2 - cursor.x,
+    panY: anchored.panY + viewport.height / 2 - cursor.y
+  };
+};
+
 export const panViewFromGesture = ({
   origin,
   current,

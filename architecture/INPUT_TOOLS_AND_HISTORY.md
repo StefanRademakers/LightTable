@@ -32,6 +32,15 @@ and zoom should reuse shared brush, scene-transform, overlay and scheduling
 systems. A tool may not patch layer offsets or GPU resources directly to make a
 single case work.
 
+The Zoom tool uses `Z`. `Ctrl/Cmd++` and `Ctrl/Cmd+-` step the viewport zoom,
+`Ctrl/Cmd+1` selects actual pixels, and `Ctrl/Cmd+0` fits the document. Dragging
+with the Zoom tool fits the marked document region; a short click keeps stepped
+zoom centered beneath the pointer. Holding `Alt` reverses the active Zoom tool.
+`Ctrl/Cmd+Space` temporarily activates zoom-in and `Alt+Space` temporarily
+activates zoom-out without replacing the selected tool. Temporary tools end on
+Space release or window blur. The drag marquee is presentation-only and uses
+the shared GPU overlay; it is never serialized or added to history.
+
 ## Selection model
 
 Selections are document-space authoring state. Rectangle, ellipse, freehand and

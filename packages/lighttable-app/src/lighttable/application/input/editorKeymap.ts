@@ -32,6 +32,8 @@ export type EditorKeyboardCommand =
   | 'undo'
   | 'redo'
   | 'temporary-pan-start'
+  | 'temporary-zoom-in-start'
+  | 'temporary-zoom-out-start'
   | 'temporary-erase-start'
   | 'fill-foreground'
   | 'fill-background'
@@ -61,6 +63,7 @@ export type EditorKeyboardCommand =
   | 'zoom-in'
   | 'zoom-out'
   | 'zoom-fit'
+  | 'zoom-actual'
   | 'suppress-tab-navigation'
   | 'cancel-or-close'
   | { readonly type: 'activate-tool'; readonly tool: ToolId }
@@ -178,6 +181,16 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       allowWhileEditing: true
     }),
     command(
+      'tool.temporary-zoom-in',
+      { key: 'space', primary: true, alt: false, shift: false },
+      'temporary-zoom-in-start'
+    ),
+    command(
+      'tool.temporary-zoom-out',
+      { key: 'space', primary: false, alt: true, shift: false },
+      'temporary-zoom-out-start'
+    ),
+    command(
       'tool.temporary-pan',
       { key: 'space', primary: false, alt: false, shift: false },
       'temporary-pan-start'
@@ -267,6 +280,9 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       allowWhileEditing: true
     }),
     command('viewport.zoom-fit', { key: '0', primary: true, alt: false }, 'zoom-fit', {
+      allowWhileEditing: true
+    }),
+    command('viewport.zoom-actual', { key: '1', primary: true, alt: false }, 'zoom-actual', {
       allowWhileEditing: true
     }),
     command(
