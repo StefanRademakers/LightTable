@@ -32,6 +32,9 @@ const setup = () => {
     setLayerEffectEnabled: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
+    beginGesture: vi.fn(async () => true),
+    updateGesture: vi.fn(async () => true),
+    finishGesture: vi.fn(async () => true),
     undo: vi.fn(async () => true),
     redo: vi.fn(async () => true)
   };
@@ -94,6 +97,9 @@ describe('LightTableCommandService registry', () => {
       setLayerEffectEnabled: vi.fn(),
       exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
+      beginGesture: vi.fn(async () => true),
+      updateGesture: vi.fn(async () => true),
+      finishGesture: vi.fn(async () => true),
       undo: vi.fn(async () => true),
       redo: vi.fn(async () => true)
     };
@@ -214,6 +220,32 @@ describe('LightTableCommandService registry', () => {
       expect(artifact).toEqual(expect.objectContaining({ id: expect.any(String), byteLength: expect.any(Number) }));
       expect(state.service.queryArtifact(artifact!.id)).toEqual(artifact);
     }
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('bounds document-coordinate gestures and commits through one owner', async () => {
+    const state = setup();
+    const started = await state.service.beginGesture({
+      documentId: state.session.id,
+      kind: 'selection-rectangle',
+      coordinateSpace: 'document',
+      parameters: { mode: 'replace' },
+      sample: { x: 4, y: 5 }
+    });
+    expect(started).toEqual(expect.objectContaining({ status: 'started', sampleCount: 1 }));
+    const duplicate = await state.service.beginGesture({
+      documentId: state.session.id,
+      kind: 'brush-stroke', coordinateSpace: 'document', parameters: {}, sample: { x: 1, y: 1 }
+    });
+    expect(duplicate.status).toBe('rejected');
+    const updated = await state.service.updateGesture(started.gestureId!, [
+      { x: 10, y: 11, pressure: 0.5 }, { x: 12, y: 13 }
+    ]);
+    expect(updated).toEqual(expect.objectContaining({ status: 'updated', sampleCount: 3 }));
+    expect(await state.service.finishGesture(started.gestureId!, true))
+      .toEqual(expect.objectContaining({ status: 'completed', sampleCount: 3 }));
+    expect(state.ports.finishGesture).toHaveBeenCalledTimes(1);
     state.service.dispose();
     state.workspace.dispose();
   });

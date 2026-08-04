@@ -177,6 +177,21 @@ export interface AutomationTaskQueryResult {
   readonly artifact: LightTableArtifactMetadata | null;
 }
 
+export type LightTableGestureKind = 'brush-stroke' | 'selection-rectangle' | 'layer-translate';
+
+export interface LightTableGestureSample {
+  readonly x: number;
+  readonly y: number;
+  readonly pressure?: number;
+}
+
+export interface LightTableGestureResult {
+  readonly status: 'started' | 'updated' | 'completed' | 'canceled' | 'rejected';
+  readonly gestureId?: string;
+  readonly sampleCount?: number;
+  readonly message?: string;
+}
+
 export interface LightTableWorkspaceCommandPorts {
   openArtifact(file: File): DocumentSessionId | Promise<DocumentSessionId>;
 }
@@ -195,6 +210,9 @@ export interface LightTableCommandPorts {
   setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
+  beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
+  updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
+  finishGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
   undo(documentId: DocumentSessionId): boolean | Promise<boolean>;
   redo(documentId: DocumentSessionId): boolean | Promise<boolean>;
 }
@@ -209,6 +227,9 @@ export interface DocumentLightTableCommandPorts {
   setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
   exportNativeArtifact(): File | Promise<File>;
   exportPngArtifact(): File | Promise<File>;
+  beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
+  updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
+  finishGesture(kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
   undo(): boolean | Promise<boolean>;
   redo(): boolean | Promise<boolean>;
 }
@@ -282,6 +303,18 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     return this.resolve(documentId).exportPngArtifact();
   }
 
+  beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample) {
+    return this.resolve(documentId).beginGesture(kind, pointerId, parameters, sample);
+  }
+
+  updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample) {
+    return this.resolve(documentId).updateGesture(kind, pointerId, sample);
+  }
+
+  finishGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, commit: boolean) {
+    return this.resolve(documentId).finishGesture(kind, pointerId, commit);
+  }
+
   undo(documentId: DocumentSessionId) {
     return this.resolve(documentId).undo();
   }
@@ -312,6 +345,13 @@ export class LightTableCommandService {
   private workspaceRevision = 1;
   private readonly unsubscribe: () => void;
   private readonly taskArtifacts = new Map<string, LightTableArtifactMetadata>();
+  private readonly gestures = new Map<string, {
+    readonly documentId: DocumentSessionId;
+    readonly kind: LightTableGestureKind;
+    readonly pointerId: number;
+    sampleCount: number;
+  }>();
+  private gestureSequence = 0;
 
   constructor(
     private readonly workspace: WorkspaceSession,
@@ -355,6 +395,65 @@ export class LightTableCommandService {
       error: state.error,
       artifact: this.taskArtifacts.get(taskId) ?? null
     } : null;
+  }
+
+  async beginGesture(request: unknown): Promise<LightTableGestureResult> {
+    if (!isRecord(request) || typeof request.documentId !== 'string'
+      || !this.isGestureKind(request.kind) || request.coordinateSpace !== 'document'
+      || !isRecord(request.parameters) || !this.isGestureSample(request.sample)) {
+      return { status: 'rejected', message: 'Gesture begin requires documentId, kind, document coordinates, parameters and a finite sample.' };
+    }
+    const documentId = request.documentId as DocumentSessionId;
+    const snapshot = this.document(documentId);
+    if (!snapshot?.document || snapshot.lifecycle !== 'ready') {
+      return { status: 'rejected', message: 'The target document is not ready.' };
+    }
+    if ([...this.gestures.values()].some((gesture) => gesture.documentId === documentId)) {
+      return { status: 'rejected', message: 'The document already owns an active automation gesture.' };
+    }
+    const pointerId = 1_000_000 + ++this.gestureSequence;
+    const started = await this.ports.beginGesture(
+      documentId, request.kind, pointerId, request.parameters, request.sample
+    );
+    if (!started) return { status: 'rejected', message: 'The editor rejected the gesture.' };
+    const gestureId = `gesture-${Date.now()}-${this.gestureSequence}`;
+    this.gestures.set(gestureId, { documentId, kind: request.kind, pointerId, sampleCount: 1 });
+    return { status: 'started', gestureId, sampleCount: 1 };
+  }
+
+  async updateGesture(gestureId: string, samples: unknown): Promise<LightTableGestureResult> {
+    const gesture = this.gestures.get(gestureId);
+    if (!gesture) return { status: 'rejected', message: 'The gesture does not exist.' };
+    if (!Array.isArray(samples) || samples.length < 1 || samples.length > 64
+      || !samples.every((sample) => this.isGestureSample(sample))) {
+      return { status: 'rejected', message: 'Gesture updates require 1-64 finite samples.' };
+    }
+    if (gesture.sampleCount + samples.length > 4096) {
+      await this.finishGesture(gestureId, false);
+      return { status: 'rejected', message: 'The gesture exceeded the 4096-sample limit and was canceled.' };
+    }
+    for (const sample of samples as LightTableGestureSample[]) {
+      if (!await this.ports.updateGesture(
+        gesture.documentId, gesture.kind, gesture.pointerId, sample
+      )) {
+        await this.finishGesture(gestureId, false);
+        return { status: 'rejected', message: 'The editor rejected a gesture sample.' };
+      }
+    }
+    gesture.sampleCount += samples.length;
+    return { status: 'updated', gestureId, sampleCount: gesture.sampleCount };
+  }
+
+  async finishGesture(gestureId: string, commit: boolean): Promise<LightTableGestureResult> {
+    const gesture = this.gestures.get(gestureId);
+    if (!gesture) return { status: 'rejected', message: 'The gesture does not exist.' };
+    this.gestures.delete(gestureId);
+    const finished = await this.ports.finishGesture(
+      gesture.documentId, gesture.kind, gesture.pointerId, commit
+    );
+    return finished
+      ? { status: commit ? 'completed' : 'canceled', gestureId, sampleCount: gesture.sampleCount }
+      : { status: 'rejected', message: 'The editor could not finish the gesture.' };
   }
 
   queryWorkspace(): WorkspaceQueryResult {
@@ -773,6 +872,22 @@ export class LightTableCommandService {
     ].includes(value);
   }
 
+  private isGestureKind(value: unknown): value is LightTableGestureKind {
+    return value === 'brush-stroke'
+      || value === 'selection-rectangle'
+      || value === 'layer-translate';
+  }
+
+  private isGestureSample(value: unknown): value is LightTableGestureSample {
+    return isRecord(value)
+      && typeof value.x === 'number' && Number.isFinite(value.x) && Math.abs(value.x) <= 10_000_000
+      && typeof value.y === 'number' && Number.isFinite(value.y) && Math.abs(value.y) <= 10_000_000
+      && (value.pressure === undefined || (
+        typeof value.pressure === 'number' && Number.isFinite(value.pressure)
+        && value.pressure >= 0 && value.pressure <= 1
+      ));
+  }
+
   private document(documentId: DocumentSessionId): DocumentSessionSnapshot | null {
     return this.workspace.getSnapshot().documents[documentId] ?? null;
   }
@@ -821,6 +936,9 @@ type DocumentParsedCommandRequest = ParsedCommandRequest & {
 };
 
 export interface LightTableAutomationDriver {
+  beginGesture(request: unknown): Promise<LightTableGestureResult>;
+  updateGesture(gestureId: string, samples: unknown): Promise<LightTableGestureResult>;
+  finishGesture(gestureId: string, commit: boolean): Promise<LightTableGestureResult>;
   registerInputArtifact(file: File): LightTableArtifactMetadata;
   queryArtifact(artifactId: string): LightTableArtifactMetadata | null;
   listArtifacts(): readonly LightTableArtifactMetadata[];

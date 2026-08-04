@@ -82,12 +82,34 @@ try {
     if (pngTask?.status !== 'completed' || !pngTask.artifact) {
       throw new Error(`PNG artifact task failed: ${JSON.stringify(pngTask)}`);
     }
+    const translate = await driver.beginGesture({
+      documentId, kind: 'layer-translate', coordinateSpace: 'document',
+      parameters: { layerId: createdId }, sample: { x: 20, y: 20 }
+    });
+    if (translate.status !== 'started') throw new Error(`Translate did not start: ${JSON.stringify(translate)}`);
+    await driver.updateGesture(translate.gestureId, [{ x: 32, y: 27 }]);
+    const translated = await driver.finishGesture(translate.gestureId, true);
+    const selection = await driver.beginGesture({
+      documentId, kind: 'selection-rectangle', coordinateSpace: 'document',
+      parameters: { mode: 'replace' }, sample: { x: 20, y: 20 }
+    });
+    if (selection.status !== 'started') throw new Error(`Selection did not start: ${JSON.stringify(selection)}`);
+    await driver.updateGesture(selection.gestureId, [{ x: 120, y: 100 }]);
+    const selected = await driver.finishGesture(selection.gestureId, true);
+    const brush = await driver.beginGesture({
+      documentId, kind: 'brush-stroke', coordinateSpace: 'document',
+      parameters: { layerId: createdId, channel: 'pixels' }, sample: { x: 50, y: 50, pressure: 1 }
+    });
+    if (brush.status !== 'started') throw new Error(`Brush did not start: ${JSON.stringify(brush)}`);
+    await driver.updateGesture(brush.gestureId, [{ x: 90, y: 75, pressure: 0.8 }]);
+    const painted = await driver.finishGesture(brush.gestureId, true);
     return {
       workspace,
       before,
       layersBefore: layersBefore.length,
       results: { zoom, hidden, shown, created, renamed, undone },
       artifactExport: { accepted: pngExport, task: pngTask },
+      gestures: { translated, selected, painted },
       after: driver.queryDocument(documentId),
       layersAfter: driver.queryLayers(documentId)
     };
@@ -95,8 +117,9 @@ try {
 
   await page.screenshot({ path: screenshotPath });
   const rejected = Object.values(report.results).filter((result) => result.status !== 'completed');
-  if (rejected.length || pageErrors.length) {
-    throw new Error(`Command driver smoke failed: ${JSON.stringify({ rejected, pageErrors })}`);
+  const rejectedGestures = Object.values(report.gestures).filter((result) => result.status !== 'completed');
+  if (rejected.length || rejectedGestures.length || pageErrors.length) {
+    throw new Error(`Command driver smoke failed: ${JSON.stringify({ rejected, rejectedGestures, pageErrors })}`);
   }
   await writeFile(reportPath, `${JSON.stringify({ ...report, pageErrors, screenshotPath }, null, 2)}\n`);
   process.stdout.write(`Command driver smoke passed. Report: ${reportPath}\n`);

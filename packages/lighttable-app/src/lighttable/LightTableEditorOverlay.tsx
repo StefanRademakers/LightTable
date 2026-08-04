@@ -10,7 +10,9 @@ import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId,
   type LightTableCommandPortRegistry,
-  type LightTableCommandService
+  type LightTableCommandService,
+  type LightTableGestureKind,
+  type LightTableGestureSample
 } from './application/commands/lightTableCommandService';
 import {
   useDocumentHistoryController,
@@ -250,6 +252,8 @@ import {
 import type { PsdDecodeSuccess } from './image-io/psdProtocol';
 import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
+import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
+import { setLayerTransform } from './editor/document/documentCommands';
 import {
   isPaintTool,
   isWarpTool,
@@ -593,6 +597,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const exportPngArtifactRef = useRef<() => Promise<File>>(async () => {
     throw new Error('The PNG export controller is not ready.');
   });
+  const beginAutomationGestureRef = useRef<(
+    kind: LightTableGestureKind,
+    pointerId: number,
+    parameters: Record<string, unknown>,
+    sample: LightTableGestureSample
+  ) => boolean>(() => false);
+  const updateAutomationGestureRef = useRef<(
+    kind: LightTableGestureKind,
+    pointerId: number,
+    sample: LightTableGestureSample
+  ) => boolean>(() => false);
+  const finishAutomationGestureRef = useRef<(
+    kind: LightTableGestureKind,
+    pointerId: number,
+    commit: boolean
+  ) => boolean>(() => false);
+  const automationTranslateRef = useRef<{
+    readonly before: ImageDocument;
+    readonly layerId: LayerId;
+    readonly start: LightTableGestureSample;
+  } | null>(null);
   const textPropertyGestureRef = useRef<
     | { readonly kind: 'text'; readonly layerId: LayerId }
     | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId; readonly before: ImageDocument }
@@ -2305,6 +2330,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setLayerEffectEnabled: layerPanelController.setStyleEnabled,
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
+      beginGesture: (kind, pointerId, parameters, sample) =>
+        beginAutomationGestureRef.current(kind, pointerId, parameters, sample),
+      updateGesture: (kind, pointerId, sample) =>
+        updateAutomationGestureRef.current(kind, pointerId, sample),
+      finishGesture: (kind, pointerId, commit) =>
+        finishAutomationGestureRef.current(kind, pointerId, commit),
       undo: applyUndoEditor,
       redo: applyRedoEditor
     });
@@ -2380,6 +2411,94 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   cancelTransformRef.current = transformSession.cancel;
   resetTransformRef.current = transformSession.reset;
   transformActiveRef.current = transformSession.isActive;
+  beginAutomationGestureRef.current = (kind, pointerId, parameters, sample) => {
+    if (kind === 'selection-rectangle') {
+      return selectionSessionController.begin(
+        pointerId,
+        'select-rectangle',
+        sample,
+        parameters.mode === 'add' || parameters.mode === 'subtract'
+          || parameters.mode === 'intersect'
+          ? parameters.mode
+          : 'replace'
+      );
+    }
+    if (kind === 'brush-stroke') {
+      const document = imageDocumentRef.current;
+      const layerId = typeof parameters.layerId === 'string'
+        ? parameters.layerId as LayerId
+        : document?.activeLayerId ?? null;
+      const layer = document && layerId ? findRasterLayer(document, layerId) : null;
+      if (!layer) return false;
+      const channel = parameters.channel === 'mask' ? 'mask' : 'pixels';
+      return paintSessionController.begin({
+        pointerId,
+        layer,
+        target: {
+          layerId: layer.id,
+          channel,
+          erase: parameters.erase === true,
+          sourceToDocument: paintTargetSourceToDocument(layer, channel)
+        },
+        brush: editorSession.brush,
+        point: {
+          ...sample,
+          pressure: sample.pressure ?? 1
+        }
+      });
+    }
+    const document = imageDocumentRef.current;
+    const layerId = typeof parameters.layerId === 'string'
+      ? parameters.layerId as LayerId
+      : document?.activeLayerId ?? null;
+    if (!document || !layerId || !findDocumentLayer(document, layerId)) return false;
+    automationTranslateRef.current = { before: document, layerId, start: sample };
+    return true;
+  };
+  updateAutomationGestureRef.current = (kind, pointerId, sample) => {
+    if (kind === 'selection-rectangle') {
+      return selectionSessionController.move(pointerId, sample);
+    }
+    if (kind === 'brush-stroke') {
+      return paintSessionController.move(pointerId, {
+        ...sample,
+        pressure: sample.pressure ?? 1
+      });
+    }
+    const transaction = automationTranslateRef.current;
+    const layer = transaction
+      ? findDocumentLayer(transaction.before, transaction.layerId)
+      : null;
+    if (!transaction || !layer || imageDocumentRef.current?.id !== transaction.before.id) return false;
+    applyDocumentSnapshot(setLayerTransform(transaction.before, transaction.layerId, {
+      ...layer.transform,
+      tx: layer.transform.tx + sample.x - transaction.start.x,
+      ty: layer.transform.ty + sample.y - transaction.start.y
+    }));
+    return true;
+  };
+  finishAutomationGestureRef.current = (kind, pointerId, commit) => {
+    if (kind === 'selection-rectangle') {
+      return commit
+        ? selectionSessionController.finish(pointerId)
+        : selectionSessionController.cancel(pointerId);
+    }
+    if (kind === 'brush-stroke') {
+      return commit
+        ? paintSessionController.finish(pointerId)
+        : paintSessionController.cancel(pointerId);
+    }
+    const transaction = automationTranslateRef.current;
+    automationTranslateRef.current = null;
+    if (!transaction || imageDocumentRef.current?.id !== transaction.before.id) return false;
+    if (!commit) {
+      applyDocumentSnapshot(transaction.before);
+      return true;
+    }
+    const after = imageDocumentRef.current;
+    if (after !== transaction.before) pushDocumentHistory(transaction.before, after);
+    return true;
+  };
 
   const activatePersistentTool = (requestedTool: ToolId) => {
     if (requestedTool !== 'text-point') {
