@@ -1,7 +1,7 @@
 [
   { "document": "EHS-395", "address": "3.2", "sourceId": 39, "name": "swirl", "effects": ["color-overlay"] },
-  { "document": "EHS-395", "address": "4.2", "sourceId": 46, "name": "Amit Jain", "effects": ["drop-shadow"] },
+  { "document": "EHS-395", "address": "4.2", "sourceId": 46, "name": "Amit Jain", "effects": ["drop-shadow"], "stackWith": "color-overlay", "fillOpacity": 0.4 },
   { "document": "EHS-395", "address": "4.4", "sourceId": 49, "name": "Shape", "effects": ["pattern-overlay"] },
-  { "document": "EHS-404", "address": "0.1", "sourceId": 694, "name": "Background", "effects": ["gradient-overlay"] },
+  { "document": "EHS-404", "address": "0.1", "sourceId": 694, "name": "Background", "effects": ["gradient-overlay"], "highZoomPercent": 400 },
   { "document": "EHS-406", "address": "0.1.2", "sourceId": 3740, "name": "FRAME", "effects": ["drop-shadow"] }
 ]

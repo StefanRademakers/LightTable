@@ -33,7 +33,11 @@ for (const target of plan) {
     ?? path.join(corpusRoot, target.document, target.document, `${target.document}.psd`);
   await access(sourceFile);
   const stem = `${target.document}-${target.address.replaceAll('.', '_')}-${target.name.replaceAll(' ', '_')}`;
-  const files = Object.fromEntries(['context-enabled', 'context-bypassed', 'solo-enabled', 'solo-bypassed']
+  const captureKinds = ['context-enabled', 'context-bypassed', 'solo-enabled', 'solo-bypassed'];
+  if (target.stackWith) captureKinds.push('context-stacked');
+  if (target.fillOpacity !== undefined) captureKinds.push('context-fill-opacity');
+  if (target.highZoomPercent) captureKinds.push('high-zoom-enabled', 'high-zoom-bypassed');
+  const files = Object.fromEntries(captureKinds
     .map((kind) => [kind, path.join(outputDirectory, `${stem}-${kind}.png`)]));
   const userDataPath = path.join(outputDirectory, `user-data-${process.pid}-${stem}`);
   await mkdir(userDataPath, { recursive: true });
@@ -107,6 +111,44 @@ for (const target of plan) {
     await page.waitForTimeout(250);
     await capture(files['context-bypassed']);
     await execute('layer.style.setEnabled', { layerId: setup.targetLayer.id, enabled: true });
+
+    if (target.stackWith) {
+      const stackedEffect = setup.effects.effects.find(({ kind }) => kind === target.stackWith);
+      if (!stackedEffect) throw new Error(`Stacked ${target.stackWith} fixture is unavailable.`);
+      await execute('layer.effect.setEnabled', {
+        layerId: setup.targetLayer.id, effectId: stackedEffect.id, enabled: true
+      });
+      await page.waitForTimeout(250);
+      await capture(files['context-stacked']);
+      await execute('layer.effect.setEnabled', {
+        layerId: setup.targetLayer.id, effectId: stackedEffect.id, enabled: false
+      });
+    }
+
+    if (target.fillOpacity !== undefined) {
+      await execute('layer.setFillOpacity', {
+        layerId: setup.targetLayer.id, opacity: target.fillOpacity
+      });
+      await page.waitForTimeout(250);
+      await capture(files['context-fill-opacity']);
+      await execute('layer.setFillOpacity', {
+        layerId: setup.targetLayer.id, opacity: setup.targetLayer.fillOpacity
+      });
+    }
+
+    if (target.highZoomPercent) {
+      await execute('view.setZoom', { mode: 'custom', percent: target.highZoomPercent });
+      await page.waitForTimeout(300);
+      const highZoomClip = await page.locator('.lighttable-viewport').boundingBox();
+      if (!highZoomClip) throw new Error('High-zoom viewport bounds are unavailable.');
+      await page.screenshot({ path: files['high-zoom-enabled'], clip: highZoomClip });
+      await execute('layer.style.setEnabled', { layerId: setup.targetLayer.id, enabled: false });
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: files['high-zoom-bypassed'], clip: highZoomClip });
+      await execute('layer.style.setEnabled', { layerId: setup.targetLayer.id, enabled: true });
+      await execute('view.setZoom', { mode: 'fit' });
+      await page.waitForTimeout(250);
+    }
 
     const byId = new Map(setup.layers.map((layer) => [layer.id, layer]));
     const visibleIds = [];
