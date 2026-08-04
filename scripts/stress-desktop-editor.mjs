@@ -64,8 +64,14 @@ delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const bytes = (value) => Number.isFinite(value) ? Math.round(value) : null;
 const metricValue = (metrics, name) => metrics.find((metric) => metric.name === name)?.value ?? null;
 const gpuBytesFrom = (text) => {
-  const match = text.match(/GPU\s*~?\s*(\d+(?:\.\d+)?)\s*MB/i);
-  return match ? Math.round(Number(match[1]) * 1024 * 1024) : null;
+  const match = text.match(/GPU\s*~?\s*(\d+(?:\.\d+)?)\s*(KB|MB|GB)/i);
+  if (!match) return null;
+  const multiplier = {
+    KB: 1024,
+    MB: 1024 * 1024,
+    GB: 1024 * 1024 * 1024
+  }[match[2].toUpperCase()];
+  return Math.round(Number(match[1]) * multiplier);
 };
 
 const growthAssessment = (samples) => {

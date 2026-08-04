@@ -1,4 +1,4 @@
-import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import agPsd from 'ag-psd';
@@ -270,5 +270,6 @@ const report = {
   featureMatrix,
   documents
 };
+await mkdir(path.dirname(outputFile), { recursive: true });
 await writeFile(outputFile, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 process.stdout.write(`${JSON.stringify({ outputFile, documents: documents.length, layers: report.totals.layers })}\n`);
