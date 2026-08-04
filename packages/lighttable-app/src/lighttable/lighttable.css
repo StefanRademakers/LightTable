@@ -2625,6 +2625,7 @@
   border: 1px solid var(--lt-slider-track);
   border-radius: var(--lt-radius-xs);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  cursor: crosshair;
 }
 
 .lighttable-style-gradient__stop {
@@ -2636,8 +2637,11 @@
   border-radius: var(--lt-radius-xs);
   transform: translateX(-50%) rotate(45deg);
   background: #fff;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
 }
+
+.lighttable-style-gradient__stop:active { cursor: grabbing; }
 
 .lighttable-style-gradient__stop--opacity { top: -17px; }
 .lighttable-style-gradient__stop--color { bottom: -17px; }
@@ -2701,6 +2705,12 @@
 .lighttable-style-gradient__controls output {
   color: var(--lt-text-muted);
   text-align: right;
+}
+
+.lighttable-style-gradient__hint {
+  color: var(--lt-text-disabled);
+  font-size: var(--lt-type-micro);
+  line-height: 1.35;
 }
 
 .lighttable-tool-options__vector-style { position: relative; }

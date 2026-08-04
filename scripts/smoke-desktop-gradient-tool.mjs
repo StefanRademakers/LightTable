@@ -54,7 +54,30 @@ try {
   await page.getByRole('combobox', { name: 'Gradient type' }).selectOption('radial');
   await page.getByRole('combobox', { name: 'Gradient type' }).selectOption('linear');
   await page.getByRole('button', { name: 'Edit gradient' }).click();
-  await page.getByRole('dialog', { name: 'Gradient editor' }).waitFor({ state: 'visible' });
+  const editor = page.getByRole('dialog', { name: 'Gradient editor' });
+  await editor.waitFor({ state: 'visible' });
+  const ramp = editor.locator('.lighttable-style-gradient__preview');
+  const colorStops = editor.locator('.lighttable-style-gradient__stop--color');
+  if (await colorStops.count() !== 2) throw new Error('The default gradient needs two color stops.');
+  const rampBounds = await ramp.boundingBox();
+  if (!rampBounds) throw new Error('The gradient ramp is unavailable.');
+  await page.mouse.dblclick(
+    rampBounds.x + rampBounds.width * 0.68,
+    rampBounds.y + rampBounds.height * 0.5
+  );
+  if (await colorStops.count() !== 3) throw new Error('Double-click did not add a color stop.');
+  const addedStop = editor.locator('.lighttable-style-gradient__stop--color.lighttable-style-gradient__stop--active');
+  const addedBounds = await addedStop.boundingBox();
+  if (!addedBounds) throw new Error('The added gradient stop is unavailable.');
+  await page.mouse.move(addedBounds.x + addedBounds.width / 2, addedBounds.y + addedBounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rampBounds.x + rampBounds.width * 0.35, addedBounds.y + addedBounds.height / 2, { steps: 5 });
+  await page.mouse.up();
+  if (await addedStop.getAttribute('aria-label') !== 'Color stop 35%') {
+    throw new Error('Dragging did not update the gradient-stop location.');
+  }
+  await addedStop.click({ button: 'right' });
+  if (await colorStops.count() !== 2) throw new Error('Right-click did not remove the gradient stop.');
   await page.getByRole('button', { name: 'Close gradient' }).click();
 
   const viewport = page.locator('.lighttable-viewport');

@@ -20,6 +20,14 @@ const parseHex = (value: string, alpha = 1): LayerStyleColor => ({
   a: alpha
 });
 
+export const gradientStopPosition = (clientX: number, left: number, width: number) =>
+  clamp01((clientX - left) / Math.max(1, width));
+
+export const removableGradientStops = <T extends { id: string }>(
+  stops: T[],
+  id: string
+) => stops.length > 2 ? stops.filter((stop) => stop.id !== id) : stops;
+
 const sampleColor = (stops: LayerStyleGradientStop[], position: number) => {
   const sorted = [...stops].sort((a, b) => a.position - b.position);
   const upperIndex = sorted.findIndex((stop) => stop.position >= position);
@@ -75,9 +83,8 @@ export const GradientAssetEditor: React.FC<{
     opacityStops: value.opacityStops.map((stop) => stop.id === id ? { ...stop, ...patch } : stop)
   });
 
-  const addColor = () => {
+  const addColor = (position = 0.5) => {
     if (value.colorStops.length >= MAX_STOPS) return;
-    const position = 0.5;
     const stop = {
       id: stopId(),
       position,
@@ -99,10 +106,71 @@ export const GradientAssetEditor: React.FC<{
     publish({ opacityStops: [...value.opacityStops, stop] });
     setSelectedOpacityId(stop.id);
   };
+  const removeColor = (id: string) => {
+    const colorStops = removableGradientStops(value.colorStops, id);
+    if (colorStops === value.colorStops) return;
+    publish({ colorStops });
+    setSelectedColorId(colorStops[0]?.id ?? null);
+  };
+  const removeOpacity = (id: string) => {
+    const opacityStops = removableGradientStops(value.opacityStops, id);
+    if (opacityStops === value.opacityStops) return;
+    publish({ opacityStops });
+    setSelectedOpacityId(opacityStops[0]?.id ?? null);
+  };
+  const pointerPosition = (event: React.PointerEvent<HTMLElement>) => {
+    const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
+    return bounds ? gradientStopPosition(event.clientX, bounds.left, bounds.width) : 0;
+  };
+  const draggableStopProps = (
+    id: string,
+    update: (id: string, patch: { position: number }) => void,
+    select: (id: string) => void,
+    remove: (id: string) => void,
+    removable: boolean
+  ) => ({
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      select(id);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      update(id, { position: pointerPosition(event) });
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+      update(id, { position: pointerPosition(event) });
+    },
+    onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    },
+    onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (removable) remove(id);
+    },
+    onDoubleClick: (event: React.MouseEvent<HTMLButtonElement>) => event.stopPropagation(),
+    onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (removable && (event.key === 'Delete' || event.key === 'Backspace')) {
+        event.preventDefault();
+        remove(id);
+      }
+    }
+  });
 
   return (
     <div className="lighttable-style-gradient">
-      <div className="lighttable-style-gradient__preview" style={{ background: preview }}>
+      <div
+        className="lighttable-style-gradient__preview"
+        style={{ background: preview }}
+        title="Double-click to add a color stop"
+        onDoubleClick={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          addColor(gradientStopPosition(event.clientX, bounds.left, bounds.width));
+        }}
+      >
         {opacityStops.map((stop) => (
           <button
             type="button"
@@ -113,6 +181,14 @@ export const GradientAssetEditor: React.FC<{
             style={{ left: `${stop.position * 100}%`, opacity: Math.max(0.22, stop.opacity) }}
             onClick={() => setSelectedOpacityId(stop.id)}
             aria-label={`Opacity stop ${Math.round(stop.position * 100)}%`}
+            title="Drag to move · Right-click to delete"
+            {...draggableStopProps(
+              stop.id,
+              updateOpacity,
+              setSelectedOpacityId,
+              removeOpacity,
+              opacityStops.length > 2
+            )}
           />
         ))}
         {colorStops.map((stop) => (
@@ -125,18 +201,25 @@ export const GradientAssetEditor: React.FC<{
             style={{ left: `${stop.position * 100}%`, background: colorHex(stop.color) }}
             onClick={() => setSelectedColorId(stop.id)}
             aria-label={`Color stop ${Math.round(stop.position * 100)}%`}
+            title="Drag to move · Right-click to delete"
+            {...draggableStopProps(
+              stop.id,
+              updateColor,
+              setSelectedColorId,
+              removeColor,
+              colorStops.length > 2
+            )}
           />
         ))}
       </div>
 
       <div className="lighttable-style-gradient__toolbar">
         <strong>Color stops</strong>
-        <button type="button" onClick={addColor} disabled={colorStops.length >= MAX_STOPS}>Add</button>
+        <button type="button" onClick={() => addColor()} disabled={colorStops.length >= MAX_STOPS}>Add</button>
         <button type="button" disabled={!selectedColor || colorStops.length <= 2}
           onClick={() => {
             if (!selectedColor || colorStops.length <= 2) return;
-            publish({ colorStops: value.colorStops.filter((stop) => stop.id !== selectedColor.id) });
-            setSelectedColorId(colorStops.find((stop) => stop.id !== selectedColor.id)?.id ?? null);
+            removeColor(selectedColor.id);
           }}>Remove</button>
       </div>
       {selectedColor ? (
@@ -164,8 +247,7 @@ export const GradientAssetEditor: React.FC<{
         <button type="button" disabled={!selectedOpacity || opacityStops.length <= 2}
           onClick={() => {
             if (!selectedOpacity || opacityStops.length <= 2) return;
-            publish({ opacityStops: value.opacityStops.filter((stop) => stop.id !== selectedOpacity.id) });
-            setSelectedOpacityId(opacityStops.find((stop) => stop.id !== selectedOpacity.id)?.id ?? null);
+            removeOpacity(selectedOpacity.id);
           }}>Remove</button>
       </div>
       {selectedOpacity ? (
@@ -187,6 +269,9 @@ export const GradientAssetEditor: React.FC<{
             })} /><output>{Math.round(selectedOpacity.midpoint * 100)}%</output></label>
         </div>
       ) : null}
+      <small className="lighttable-style-gradient__hint">
+        Drag stops to position them · Double-click the ramp to add · Right-click a stop to delete
+      </small>
     </div>
   );
 };

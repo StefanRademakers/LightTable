@@ -1,0 +1,5 @@
+Adjustments to the gradient fx tool
+
+Hij moet intuitiever, je wil de gradient stops kunnen draggen enzo en ik denk right click deleten ook?
+Misschien even onderzoeken hoe pxielmator dit doet...
+En de propertiels die dus in de grdient widget kunnen -> die hoeven we niet nog eens als controls te zien

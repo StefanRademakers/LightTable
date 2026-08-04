@@ -74,6 +74,13 @@ same gradient asset used by imported shapes, text and effects. The drag preview
 and final GPU render remain vector-backed and one completed drag produces one
 history command.
 
+Gradient stop interaction is centralized in that shared editor so consumers
+cannot drift into separate stop models. Color and opacity stops drag directly
+along the ramp, remain bounded to eight with a two-stop minimum, and support
+both explicit controls and right-click/Delete removal. Application settings
+stay in the consuming property bar instead of being duplicated in the stop
+editor.
+
 ## Selection model
 
 Selections are document-space authoring state. Rectangle, ellipse, freehand and
