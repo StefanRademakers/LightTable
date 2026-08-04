@@ -30,6 +30,8 @@ const setup = () => {
     setLayerFillOpacity: vi.fn(),
     setLayerStyleEnabled: vi.fn(),
     setLayerEffectEnabled: vi.fn(),
+    exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
+    exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
     undo: vi.fn(async () => true),
     redo: vi.fn(async () => true)
   };
@@ -90,6 +92,8 @@ describe('LightTableCommandService registry', () => {
       setLayerFillOpacity: vi.fn(),
       setLayerStyleEnabled: vi.fn(),
       setLayerEffectEnabled: vi.fn(),
+      exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
+      exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
       undo: vi.fn(async () => true),
       redo: vi.fn(async () => true)
     };
@@ -193,6 +197,23 @@ describe('LightTableCommandService registry', () => {
     expect(state.ports.setLayerFillOpacity).toHaveBeenCalledWith(
       state.session.id, layerId, 0.42
     );
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('returns task-backed opaque artifacts for native and PNG exports', async () => {
+    const state = setup();
+    for (const command of ['file.exportNative', 'file.exportPng'] as const) {
+      const accepted = await state.service.execute(request(command, state.session.id, {}));
+      expect(accepted.status).toBe('accepted');
+      if (accepted.status !== 'accepted') continue;
+      await vi.waitFor(() => expect(
+        state.service.queryTask(state.session.id, accepted.taskId)?.status
+      ).toBe('completed'));
+      const artifact = state.service.queryTask(state.session.id, accepted.taskId)?.artifact;
+      expect(artifact).toEqual(expect.objectContaining({ id: expect.any(String), byteLength: expect.any(Number) }));
+      expect(state.service.queryArtifact(artifact!.id)).toEqual(artifact);
+    }
     state.service.dispose();
     state.workspace.dispose();
   });

@@ -9,6 +9,11 @@ import type { LayerStyleId, LayerStyleKind } from '../../editor/styles/layerStyl
 import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
 import { queryLayerCommandCapabilities } from '../layers/layerCommandCapabilities';
+import {
+  LightTableArtifactRegistry,
+  type LightTableArtifactKind,
+  type LightTableArtifactMetadata
+} from './lightTableArtifactRegistry';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
@@ -20,6 +25,9 @@ export type LightTableCommandId =
   | 'layer.setFillOpacity'
   | 'layer.style.setEnabled'
   | 'layer.effect.setEnabled'
+  | 'file.openArtifact'
+  | 'file.exportNative'
+  | 'file.exportPng'
   | 'history.undo'
   | 'history.redo';
 
@@ -55,6 +63,12 @@ export type LightTableCommandResult =
       readonly requestId: string;
       readonly status: 'completed';
       readonly value: unknown;
+      readonly revisions: LightTableRevisionSet;
+    }
+  | {
+      readonly requestId: string;
+      readonly status: 'accepted';
+      readonly taskId: string;
       readonly revisions: LightTableRevisionSet;
     }
   | {
@@ -155,6 +169,18 @@ export interface CommandCapabilitySummary {
   readonly reason: string | null;
 }
 
+export interface AutomationTaskQueryResult {
+  readonly id: string;
+  readonly status: 'running' | 'completed' | 'canceled' | 'failed';
+  readonly progress: number | null;
+  readonly error: string | null;
+  readonly artifact: LightTableArtifactMetadata | null;
+}
+
+export interface LightTableWorkspaceCommandPorts {
+  openArtifact(file: File): DocumentSessionId | Promise<DocumentSessionId>;
+}
+
 export interface LightTableCommandPorts {
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(documentId: DocumentSessionId): void | Promise<void>;
@@ -167,6 +193,8 @@ export interface LightTableCommandPorts {
   setLayerFillOpacity(documentId: DocumentSessionId, layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean): void | Promise<void>;
   setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
+  exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
+  exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
   undo(documentId: DocumentSessionId): boolean | Promise<boolean>;
   redo(documentId: DocumentSessionId): boolean | Promise<boolean>;
 }
@@ -179,6 +207,8 @@ export interface DocumentLightTableCommandPorts {
   setLayerFillOpacity(layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(layerId: LayerId, enabled: boolean): void | Promise<void>;
   setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
+  exportNativeArtifact(): File | Promise<File>;
+  exportPngArtifact(): File | Promise<File>;
   undo(): boolean | Promise<boolean>;
   redo(): boolean | Promise<boolean>;
 }
@@ -244,6 +274,14 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     return this.resolve(documentId).setLayerEffectEnabled(layerId, effectId, enabled);
   }
 
+  exportNativeArtifact(documentId: DocumentSessionId) {
+    return this.resolve(documentId).exportNativeArtifact();
+  }
+
+  exportPngArtifact(documentId: DocumentSessionId) {
+    return this.resolve(documentId).exportPngArtifact();
+  }
+
   undo(documentId: DocumentSessionId) {
     return this.resolve(documentId).undo();
   }
@@ -273,10 +311,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
 export class LightTableCommandService {
   private workspaceRevision = 1;
   private readonly unsubscribe: () => void;
+  private readonly taskArtifacts = new Map<string, LightTableArtifactMetadata>();
 
   constructor(
     private readonly workspace: WorkspaceSession,
-    private readonly ports: LightTableCommandPorts
+    private readonly ports: LightTableCommandPorts,
+    private readonly workspacePorts?: LightTableWorkspaceCommandPorts,
+    private readonly artifacts = new LightTableArtifactRegistry()
   ) {
     this.unsubscribe = workspace.subscribe(() => {
       this.workspaceRevision += 1;
@@ -285,6 +326,35 @@ export class LightTableCommandService {
 
   dispose(): void {
     this.unsubscribe();
+    this.artifacts.clear();
+    this.taskArtifacts.clear();
+  }
+
+  registerInputArtifact(file: File): LightTableArtifactMetadata {
+    return this.artifacts.register(file, 'input');
+  }
+
+  queryArtifact(artifactId: string): LightTableArtifactMetadata | null {
+    return this.artifacts.query(artifactId);
+  }
+
+  listArtifacts(): readonly LightTableArtifactMetadata[] {
+    return this.artifacts.list();
+  }
+
+  releaseArtifact(artifactId: string): boolean {
+    return this.artifacts.release(artifactId);
+  }
+
+  queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null {
+    const state = this.workspace.getDocument(documentId)?.tasks.getSnapshot().tasks[taskId];
+    return state ? {
+      id: state.id,
+      status: state.status,
+      progress: state.progress,
+      error: state.error,
+      artifact: this.taskArtifacts.get(taskId) ?? null
+    } : null;
   }
 
   queryWorkspace(): WorkspaceQueryResult {
@@ -415,6 +485,8 @@ export class LightTableCommandService {
       availability('layer.setFillOpacity', true, ''),
       availability('layer.style.setEnabled', true, ''),
       availability('layer.effect.setEnabled', true, ''),
+      availability('file.exportNative', true, ''),
+      availability('file.exportPng', true, ''),
       availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
       availability('history.redo', snapshot.history.canRedo, 'There is nothing to redo.')
     ];
@@ -424,7 +496,30 @@ export class LightTableCommandService {
     const request = this.parseRequest(requestValue);
     if ('rejection' in request) return request.rejection;
     const { value } = request;
-    const snapshot = this.document(value.documentId);
+    if (value.command === 'file.openArtifact') {
+      if (!isRecord(value.parameters) || typeof value.parameters.artifactId !== 'string') {
+        return this.reject(value.requestId, 'invalid-parameters', 'Open requires an artifactId.');
+      }
+      const file = this.artifacts.resolve(value.parameters.artifactId);
+      if (!file) return this.reject(value.requestId, 'command-unavailable', 'The input artifact does not exist.');
+      if (!this.workspacePorts) return this.reject(value.requestId, 'command-unavailable', 'Artifact open is unavailable in this host.');
+      try {
+        const documentId = await this.workspacePorts.openArtifact(file);
+        return {
+          requestId: value.requestId,
+          status: 'completed',
+          value: { documentId },
+          revisions: this.revisions()
+        };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason));
+      }
+    }
+    if (!value.documentId) {
+      return this.reject(value.requestId, 'document-required', 'This command requires a documentId.');
+    }
+    const documentRequest = value as DocumentParsedCommandRequest;
+    const snapshot = this.document(documentRequest.documentId);
     if (!snapshot) {
       return this.reject(value.requestId, 'document-not-found', 'The target document is not open.');
     }
@@ -443,14 +538,21 @@ export class LightTableCommandService {
       );
     }
 
+    if (value.command === 'file.exportNative' || value.command === 'file.exportPng') {
+      if (!isRecord(value.parameters) || Object.keys(value.parameters).length > 0) {
+        return this.reject(value.requestId, 'invalid-parameters', 'Export parameters must be an empty object.', snapshot);
+      }
+      return this.startArtifactExport(documentRequest, snapshot);
+    }
+
     try {
-      const result = await this.executeParsed(value, snapshot);
+      const result = await this.executeParsed(documentRequest, snapshot);
       if ('code' in result) return this.reject(value.requestId, result.code, result.message, snapshot);
       return {
         requestId: value.requestId,
         status: 'completed',
         value: result.value,
-        revisions: this.revisions(this.document(value.documentId) ?? snapshot)
+        revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot)
       };
     } catch (reason) {
       return this.reject(
@@ -462,8 +564,36 @@ export class LightTableCommandService {
     }
   }
 
+  private startArtifactExport(
+    request: DocumentParsedCommandRequest,
+    snapshot: DocumentSessionSnapshot
+  ): LightTableCommandResult {
+    const session = this.workspace.getDocument(request.documentId);
+    if (!session) return this.reject(request.requestId, 'document-not-found', 'The target document is not open.');
+    const native = request.command === 'file.exportNative';
+    const operation = native ? this.ports.exportNativeArtifact.bind(this.ports)
+      : this.ports.exportPngArtifact.bind(this.ports);
+    const kind: LightTableArtifactKind = native ? 'native-document' : 'png-export';
+    const running = session.tasks.run('export', native ? 'Export native document' : 'Export PNG artifact', async (task) => {
+      const file = await operation(request.documentId);
+      task.throwIfCanceled();
+      return this.artifacts.register(file, kind);
+    });
+    const taskId = session.tasks.getSnapshot().activeTaskIds.at(-1);
+    if (!taskId) return this.reject(request.requestId, 'execution-failed', 'The export task did not start.', snapshot);
+    void running.then((result) => {
+      if (result.status === 'completed') this.taskArtifacts.set(taskId, result.value);
+    });
+    return {
+      requestId: request.requestId,
+      status: 'accepted',
+      taskId,
+      revisions: this.revisions(snapshot)
+    };
+  }
+
   private async executeParsed(
-    request: ParsedCommandRequest,
+    request: DocumentParsedCommandRequest,
     snapshot: DocumentSessionSnapshot
   ): Promise<{ value: unknown } | { code: LightTableCommandErrorCode; message: string }> {
     const parameters = request.parameters;
@@ -579,6 +709,7 @@ export class LightTableCommandService {
         return { value: { changed: true } };
       }
     }
+    return { code: 'command-unavailable', message: 'The command is not available in this document scope.' };
   }
 
   private parseRequest(value: unknown):
@@ -599,7 +730,8 @@ export class LightTableCommandService {
     if (!this.isCommandId(value.command)) {
       return { rejection: this.reject(requestId, 'unknown-command', `Unknown command: ${value.command}.`) };
     }
-    if (typeof value.documentId !== 'string' || !value.documentId) {
+    if (value.command !== 'file.openArtifact'
+      && (typeof value.documentId !== 'string' || !value.documentId)) {
       return { rejection: this.reject(requestId, 'document-required', 'An explicit documentId is required.') };
     }
     if (
@@ -616,7 +748,9 @@ export class LightTableCommandService {
       protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
       requestId,
       command: value.command,
-      documentId: value.documentId as DocumentSessionId,
+      documentId: typeof value.documentId === 'string'
+        ? value.documentId as DocumentSessionId
+        : undefined,
       parameters: value.parameters,
       expectedDocumentRevision: value.expectedDocumentRevision as number | undefined
     } };
@@ -631,6 +765,9 @@ export class LightTableCommandService {
       'layer.setFillOpacity',
       'layer.style.setEnabled',
       'layer.effect.setEnabled',
+      'file.openArtifact',
+      'file.exportNative',
+      'file.exportPng',
       'history.undo',
       'history.redo'
     ].includes(value);
@@ -674,12 +811,21 @@ interface ParsedCommandRequest {
   readonly protocolVersion: typeof LIGHTTABLE_COMMAND_PROTOCOL_VERSION;
   readonly requestId: string;
   readonly command: LightTableCommandId;
-  readonly documentId: DocumentSessionId;
+  readonly documentId?: DocumentSessionId;
   readonly parameters: unknown;
   readonly expectedDocumentRevision?: number;
 }
 
+type DocumentParsedCommandRequest = ParsedCommandRequest & {
+  readonly documentId: DocumentSessionId;
+};
+
 export interface LightTableAutomationDriver {
+  registerInputArtifact(file: File): LightTableArtifactMetadata;
+  queryArtifact(artifactId: string): LightTableArtifactMetadata | null;
+  listArtifacts(): readonly LightTableArtifactMetadata[];
+  releaseArtifact(artifactId: string): boolean;
+  queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null;
   queryWorkspace(): WorkspaceQueryResult;
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;

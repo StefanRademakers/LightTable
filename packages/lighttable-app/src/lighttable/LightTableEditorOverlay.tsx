@@ -587,6 +587,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const cancelParagraphTextRef = useRef<() => boolean>(() => false);
   const paragraphCanvasCreationPendingRef = useRef(false);
   const finishTextEditingRef = useRef<() => boolean>(() => false);
+  const exportNativeArtifactRef = useRef<() => Promise<File>>(async () => {
+    throw new Error('The native export controller is not ready.');
+  });
+  const exportPngArtifactRef = useRef<() => Promise<File>>(async () => {
+    throw new Error('The PNG export controller is not ready.');
+  });
   const textPropertyGestureRef = useRef<
     | { readonly kind: 'text'; readonly layerId: LayerId }
     | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId; readonly before: ImageDocument }
@@ -2297,6 +2303,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setLayerFillOpacity: layerPanelController.setFillOpacity,
       setLayerStyleEnabled: layerPanelController.setStyleStackEnabled,
       setLayerEffectEnabled: layerPanelController.setStyleEnabled,
+      exportNativeArtifact: () => exportNativeArtifactRef.current(),
+      exportPngArtifact: () => exportPngArtifactRef.current(),
       undo: applyUndoEditor,
       redo: applyRedoEditor
     });
@@ -2431,6 +2439,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const {
     saving,
+    exportOutput,
     save: handleSave,
     exportPng: handleExportPng,
     handleFastFileInput: handleLocalFile,
@@ -2472,6 +2481,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setLoading,
     setError
   });
+  exportNativeArtifactRef.current = async () => (await exportOutput()).file;
+  exportPngArtifactRef.current = async () => {
+    const renderer = engineRef.current;
+    if (!renderer || !imageDocumentRef.current) {
+      throw new Error('The document renderer is not ready.');
+    }
+    return new File(
+      [await renderer.exportPng()],
+      `${fileNameBase.replace(/\.[^.]+$/, '') || 'image'}-lighttable.png`,
+      { type: 'image/png' }
+    );
+  };
 
   const editorMenuController = createEditorMenuController({
     projection: {

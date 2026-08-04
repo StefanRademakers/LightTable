@@ -54,8 +54,14 @@ export function LightTableStandaloneApp({
   } = useStandaloneDocumentWorkspace(host.systemFontProvider);
   const commandPorts = useMemo(() => new LightTableCommandPortRegistry(), []);
   const commandService = useMemo(
-    () => new LightTableCommandService(controller.workspace, commandPorts),
-    [commandPorts, controller]
+    () => new LightTableCommandService(controller.workspace, commandPorts, {
+      openArtifact: (file) => {
+        const opened = openDocument(file);
+        if (!opened.ok) throw new Error(`The artifact could not be opened: ${opened.error.code}.`);
+        return opened.value.id;
+      }
+    }),
+    [commandPorts, controller, openDocument]
   );
   const [opening, setOpening] = useState(false);
   const [creating, setCreating] = useState(false);

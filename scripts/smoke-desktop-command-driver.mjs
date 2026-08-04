@@ -71,11 +71,23 @@ try {
       layerId: createdId, name: 'Command driver layer'
     });
     const undone = await execute('history.undo', {});
+    const pngExport = await execute('file.exportPng', {});
+    if (pngExport.status !== 'accepted') throw new Error('PNG artifact export was not accepted.');
+    let pngTask = driver.queryTask(documentId, pngExport.taskId);
+    const deadline = Date.now() + 30_000;
+    while (pngTask?.status === 'running' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      pngTask = driver.queryTask(documentId, pngExport.taskId);
+    }
+    if (pngTask?.status !== 'completed' || !pngTask.artifact) {
+      throw new Error(`PNG artifact task failed: ${JSON.stringify(pngTask)}`);
+    }
     return {
       workspace,
       before,
       layersBefore: layersBefore.length,
       results: { zoom, hidden, shown, created, renamed, undone },
+      artifactExport: { accepted: pngExport, task: pngTask },
       after: driver.queryDocument(documentId),
       layersAfter: driver.queryLayers(documentId)
     };
@@ -91,4 +103,3 @@ try {
 } finally {
   await app.close().catch(() => {});
 }
-
