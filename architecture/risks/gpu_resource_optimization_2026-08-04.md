@@ -146,6 +146,25 @@ evaluation, settled visual output or warm interaction latency. The known
 Photoshop-fidelity gaps in individual Layer Style algorithms remain a separate
 quality task and must not be hidden by cache work.
 
+## Experiment 5 — retire Layer Style work targets after every submit
+
+A post-submit candidate detached the three full-document RGBA16F style work
+targets and handed them to the existing submitted-resource retainer. GPU
+destruction remained correctly delayed until `onSubmittedWorkDone()` and the
+settled estimate fell by another 288.4 MiB on `EHS-395` and 299.3 MiB on
+`EHS-404`. All restored images remained stable and no runtime or WebGPU error
+occurred.
+
+The buffers are nevertheless reused by cache-missing styled owners during
+ordinary visibility cycles. Recreating them increased the `EHS-395` median
+show latency from 259.7 ms to 270.8, 278.3 and 280.9 ms across three production
+runs: a repeatable 11–21 ms regression.
+
+Decision: reject per-submit work-target retirement and restore the production
+ownership policy. A future change may reduce these targets only if it removes
+their full-frame requirement or proves safe reuse/aliasing without allocation
+churn; merely evicting them fails the interaction-speed gate.
+
 ## CPU-to-GPU transfer finding
 
 The four toggled effects do not upload image-sized CPU data when enabled. They
