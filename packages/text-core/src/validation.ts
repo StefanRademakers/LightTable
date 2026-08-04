@@ -305,6 +305,9 @@ const assertFlowSource = (source: Record<string, unknown>, path: string): void =
     }
     if (typeof run.syntheticBold !== 'boolean') fail(`${runPath}.syntheticBold`, 'expected a boolean');
     if (typeof run.syntheticItalic !== 'boolean') fail(`${runPath}.syntheticItalic`, 'expected a boolean');
+    if (run.underline !== undefined && typeof run.underline !== 'boolean') {
+      fail(`${runPath}.underline`, 'expected a boolean');
+    }
     if (run.language !== undefined) boundedString(run.language, `${runPath}.language`, 128);
     if (run.scriptOverride !== undefined) boundedString(run.scriptOverride, `${runPath}.scriptOverride`, 32);
     if (run.directionOverride !== undefined) oneOf(run.directionOverride, `${runPath}.directionOverride`, ['ltr', 'rtl']);

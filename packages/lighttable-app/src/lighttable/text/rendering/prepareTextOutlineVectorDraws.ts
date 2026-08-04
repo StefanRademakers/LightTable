@@ -12,6 +12,9 @@ import {
   serializeGlyphOutlineKey
 } from '@lighttable/text-rendering';
 import {
+  createAnchor,
+  createSubpath,
+  createVectorPath,
   multiplyMatrices,
   scaleMatrix,
   translationMatrix,
@@ -171,6 +174,45 @@ const maximumScale = (matrix: AffineMatrix) => {
   return Math.sqrt(Math.max(0, (sum + Math.sqrt(Math.max(0, sum ** 2 - 4 * determinant ** 2))) / 2));
 };
 
+const underlineDraw = (
+  run: RealizedGlyphRun,
+  runIndex: number,
+  sourceScale: number
+): TextOutlineVectorDraw | null => {
+  if (!run.underline || !run.paint.fill || run.glyphIds.length === 0) return null;
+  const vertical = run.direction === 'ttb' || run.direction === 'btt';
+  const origins = Array.from({ length: run.glyphIds.length }, (_, index) => ({
+    x: run.geometry[index * 4]!,
+    y: run.geometry[index * 4 + 1]!,
+    endX: run.geometry[index * 4]! + run.geometry[index * 4 + 2]!,
+    endY: run.geometry[index * 4 + 1]! + run.geometry[index * 4 + 3]!
+  }));
+  const thickness = Math.max(1, run.fontSize * 0.055);
+  const xs = origins.flatMap(({ x, endX }) => [x, endX]);
+  const ys = origins.flatMap(({ y, endY }) => [y, endY]);
+  const x = vertical ? Math.max(...xs) + run.fontSize * 0.12 : Math.min(...xs);
+  const y = vertical ? Math.min(...ys) : Math.max(...ys) + run.fontSize * 0.1;
+  const width = vertical ? thickness : Math.max(thickness, Math.max(...xs) - x);
+  const height = vertical ? Math.max(thickness, Math.max(...ys) - y) : thickness;
+  const path = createVectorPath(`text-underline:${runIndex}`, 'Text underline', [
+    createSubpath(`text-underline:${runIndex}:contour`, [
+      createAnchor(`text-underline:${runIndex}:0`, { x, y }),
+      createAnchor(`text-underline:${runIndex}:1`, { x: x + width, y }),
+      createAnchor(`text-underline:${runIndex}:2`, { x: x + width, y: y + height }),
+      createAnchor(`text-underline:${runIndex}:3`, { x, y: y + height })
+    ], true)
+  ]);
+  path.style = {
+    fill: vectorPaint(run.paint.fill, 'Text underline', sourceScale),
+    stroke: null,
+    opacity: 1
+  };
+  path.transform = scaleMatrix(sourceScale, sourceScale);
+  path.transformRevision = 1;
+  const geometry = realizeVectorPath(path, DEFAULT_SOURCE_TOLERANCE / Math.max(sourceScale, 1e-6));
+  return { path, geometry, runIndex, glyphIndex: -1 };
+};
+
 const outlineIdentity = (run: RealizedGlyphRun, glyphId: number) => serializeGlyphOutlineKey({
   fontFingerprintSha256: run.font.font.fingerprintSha256,
   faceIndex: run.font.font.faceIndex,
@@ -208,9 +250,6 @@ export const prepareTextOutlineVectorDraws = async (
     height: clippedFrame.bounds.height * identity.sourceScale
   }) : undefined;
   const entries: GlyphEntry[] = layout.glyphRuns.flatMap((run, runIndex) => {
-    if (run.font.syntheticBold || run.font.syntheticItalic) {
-      throw new Error('Synthetic text styles require outline synthesis before vector rendering.');
-    }
     return [...run.glyphIds].flatMap((glyphId, glyphIndex) => (
       firstHiddenTextOffset !== undefined && run.clusters[glyphIndex]! >= firstHiddenTextOffset
         ? []
@@ -276,5 +315,12 @@ export const prepareTextOutlineVectorDraws = async (
         }]
       : [];
   });
-  return Object.freeze({ draws: Object.freeze(draws), uniqueOutlineCount: unique.size });
+  const underlines = layout.glyphRuns.flatMap((run, runIndex) => {
+    const draw = underlineDraw(run, runIndex, identity.sourceScale);
+    return draw ? [draw] : [];
+  });
+  return Object.freeze({
+    draws: Object.freeze([...draws, ...underlines]),
+    uniqueOutlineCount: unique.size
+  });
 };

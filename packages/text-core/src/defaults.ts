@@ -59,7 +59,8 @@ export const createDefaultFlowTextSource = (text = 'Text'): FlowTextSource => ({
     openTypeFeatures: {},
     variableAxes: {},
     syntheticBold: false,
-    syntheticItalic: false
+    syntheticItalic: false,
+    underline: false
   }],
   paragraphRuns: text.length === 0 ? [] : [{
     start: 0,

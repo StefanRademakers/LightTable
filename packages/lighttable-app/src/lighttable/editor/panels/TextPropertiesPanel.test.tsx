@@ -13,6 +13,9 @@ describe('contextual text properties', () => {
         strokeColor: { kind: 'value', value: '#ffffff' },
         strokeWidth: { kind: 'value', value: 2 },
         tracking: { kind: 'value', value: 0 },
+        baselineShift: { kind: 'value', value: 0 }, horizontalScale: { kind: 'value', value: 100 },
+        verticalScale: { kind: 'value', value: 100 }, syntheticBold: { kind: 'value', value: false },
+        syntheticItalic: { kind: 'value', value: false }, underline: { kind: 'value', value: false },
         writingMode: { kind: 'value', value: 'horizontal-tb' },
         alignment: { kind: 'value', value: 'justify' },
         lineHeight: { kind: 'value', value: { kind: 'absolute', value: 24 } },
@@ -23,7 +26,7 @@ describe('contextual text properties', () => {
       }}
       fonts={[]}
       onFontAsset={vi.fn()} onSize={vi.fn()} onFill={vi.fn()} onFillEnabled={vi.fn()}
-      onTracking={vi.fn()}
+      onTracking={vi.fn()} onStyle={vi.fn()}
       onWritingMode={vi.fn()}
       onStrokeColor={vi.fn()} onStrokeWidth={vi.fn()}
       onParagraph={vi.fn()}
@@ -53,6 +56,9 @@ describe('contextual text properties', () => {
         size: { kind: 'unavailable' }, fillEnabled: { kind: 'unavailable' },
         fill: { kind: 'unavailable' }, strokeColor: { kind: 'unavailable' },
         strokeWidth: { kind: 'unavailable' }, tracking: { kind: 'unavailable' },
+        baselineShift: { kind: 'unavailable' }, horizontalScale: { kind: 'unavailable' },
+        verticalScale: { kind: 'unavailable' }, syntheticBold: { kind: 'unavailable' },
+        syntheticItalic: { kind: 'unavailable' }, underline: { kind: 'unavailable' },
         writingMode: { kind: 'unavailable' },
         alignment: { kind: 'unavailable' }, lineHeight: { kind: 'unavailable' },
         firstLineIndent: { kind: 'unavailable' }, startIndent: { kind: 'unavailable' },
@@ -61,7 +67,7 @@ describe('contextual text properties', () => {
       }}
       fonts={[]}
       onFontAsset={vi.fn()} onSize={vi.fn()} onFill={vi.fn()} onFillEnabled={vi.fn()}
-      onTracking={vi.fn()} onStrokeColor={vi.fn()} onStrokeWidth={vi.fn()}
+      onTracking={vi.fn()} onStyle={vi.fn()} onStrokeColor={vi.fn()} onStrokeWidth={vi.fn()}
       onWritingMode={vi.fn()}
       onParagraph={vi.fn()} onBegin={vi.fn()} onCommit={vi.fn()} onCancel={vi.fn()}
       recovery={{

@@ -20,6 +20,12 @@ export interface TextPropertyPresentation {
   readonly strokeColor: MixedValue<string>;
   readonly strokeWidth: MixedValue<number>;
   readonly tracking: MixedValue<number>;
+  readonly baselineShift: MixedValue<number>;
+  readonly horizontalScale: MixedValue<number>;
+  readonly verticalScale: MixedValue<number>;
+  readonly syntheticBold: MixedValue<boolean>;
+  readonly syntheticItalic: MixedValue<boolean>;
+  readonly underline: MixedValue<boolean>;
   readonly writingMode: MixedValue<'horizontal-tb' | 'vertical-rl' | 'vertical-lr'>;
   readonly alignment: MixedValue<ParagraphStyleRun['alignment']>;
   readonly lineHeight: MixedValue<ParagraphStyleRun['lineHeight']>;
@@ -144,6 +150,14 @@ export const buildTextPropertyPresentation = (
       source, selection, (style) => style.stroke?.width ?? 0, insertionStyle
     ),
     tracking: projectFlowTextStyleProperty(source, selection, 'tracking', insertionStyle),
+    baselineShift: projectFlowTextStyleProperty(source, selection, 'baselineShift', insertionStyle),
+    horizontalScale: projectFlowTextStyleProperty(source, selection, 'horizontalScale', insertionStyle),
+    verticalScale: projectFlowTextStyleProperty(source, selection, 'verticalScale', insertionStyle),
+    syntheticBold: projectFlowTextStyleProperty(source, selection, 'syntheticBold', insertionStyle),
+    syntheticItalic: projectFlowTextStyleProperty(source, selection, 'syntheticItalic', insertionStyle),
+    underline: projectFlowTextStyleValue(
+      source, selection, (style) => style.underline ?? false, insertionStyle
+    ),
     writingMode: source.layout.mode === 'path'
       ? { kind: 'unavailable' }
       : { kind: 'value', value: source.layout.writingMode },
@@ -155,6 +169,6 @@ export const buildTextPropertyPresentation = (
     spaceBefore: projectFlowTextParagraphProperty(source, selection, 'spaceBefore', insertionParagraph),
     spaceAfter: projectFlowTextParagraphProperty(source, selection, 'spaceAfter', insertionParagraph),
     advancedUnavailableReason:
-      'Baseline shift, faux styles, OpenType features and variable axes remain disabled until layout and glyph rasterization support the same setting.'
+      'OpenType feature controls and variable axes remain unavailable.'
   };
 };

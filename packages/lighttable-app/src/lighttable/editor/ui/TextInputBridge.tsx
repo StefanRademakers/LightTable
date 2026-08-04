@@ -9,6 +9,32 @@ export type TextInputNavigationCommand =
   | 'line-start' | 'line-end' | 'document-start' | 'document-end'
   | 'line-up' | 'line-down' | 'select-all';
 
+export type TextInputFormatCommand =
+  | 'toggle-bold' | 'toggle-italic' | 'toggle-underline'
+  | 'increase-size' | 'decrease-size'
+  | 'increase-leading' | 'decrease-leading'
+  | 'increase-tracking' | 'decrease-tracking'
+  | 'baseline-up' | 'baseline-down';
+
+export const textInputFormatCommandFromKey = (
+  event: Pick<React.KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'>
+): TextInputFormatCommand | null => {
+  const primary = event.ctrlKey || event.metaKey;
+  const key = event.key.toLowerCase();
+  if (primary && event.shiftKey && key === 'b') return 'toggle-bold';
+  if (primary && event.shiftKey && key === 'i') return 'toggle-italic';
+  if (primary && event.shiftKey && key === 'u') return 'toggle-underline';
+  if (primary && event.shiftKey && (event.key === '>' || event.key === '.')) return 'increase-size';
+  if (primary && event.shiftKey && (event.key === '<' || event.key === ',')) return 'decrease-size';
+  if (event.altKey && event.shiftKey && event.key === 'ArrowUp') return 'baseline-up';
+  if (event.altKey && event.shiftKey && event.key === 'ArrowDown') return 'baseline-down';
+  if (event.altKey && event.key === 'ArrowUp') return 'decrease-leading';
+  if (event.altKey && event.key === 'ArrowDown') return 'increase-leading';
+  if (event.altKey && event.key === 'ArrowLeft') return 'decrease-tracking';
+  if (event.altKey && event.key === 'ArrowRight') return 'increase-tracking';
+  return null;
+};
+
 export const textInputCommandFromBeforeInput = (
   inputType: string | null | undefined,
   data: string | null | undefined
@@ -47,6 +73,7 @@ export interface TextInputBridgeProps {
   readonly selectedText: string;
   readonly onEdit: (command: TextInputEditCommand) => void;
   readonly onNavigate: (command: TextInputNavigationCommand, extend: boolean) => void;
+  readonly onFormat: (command: TextInputFormatCommand) => void;
   readonly onCompositionStart: () => void;
   readonly onCompositionUpdate: (text: string) => void;
   readonly onCompositionEnd: (text: string) => void;
@@ -73,7 +100,7 @@ const navigationFromKey = (
 /** Native input/IME bridge. Visible authored text and feedback remain WebGPU-owned. */
 export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
   label, text, selectionStart, selectionEnd, focusKey, selectedText, onEdit, onNavigate, onCompositionStart,
-  onCompositionUpdate, onCompositionEnd, onPaste, onCut, onCheckpoint, onCommit, onCancel
+  onFormat, onCompositionUpdate, onCompositionEnd, onPaste, onCut, onCheckpoint, onCommit, onCancel
 }) => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
@@ -145,6 +172,10 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
       }}
       onBlur={onCheckpoint}
       onKeyDown={(event) => {
+        const format = textInputFormatCommandFromKey(event);
+        if (format) {
+          event.preventDefault(); event.stopPropagation(); onFormat(format); return;
+        }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
           event.preventDefault(); event.stopPropagation(); onNavigate('select-all', false); return;
         }

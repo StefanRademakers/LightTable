@@ -3,7 +3,7 @@ import type { PositionedTextRecoveryAnalysis } from '@lighttable/text-core';
 import { ActionButton } from '../../../ui/ActionButton';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
-import type { ParagraphStylePatch } from '../../application/text/flowTextFormatting';
+import type { ParagraphStylePatch, TextStylePatch } from '../../application/text/flowTextFormatting';
 import { MixedNumberInput } from '../ui/MixedNumberInput';
 import { ToolOptionColor, ToolOptionSelect } from '../ui/ToolOptionControls';
 
@@ -17,6 +17,7 @@ export interface TextPropertiesPanelProps {
   readonly onStrokeColor: (stroke: string) => void;
   readonly onStrokeWidth: (width: number) => void;
   readonly onTracking: (tracking: number) => void;
+  readonly onStyle: (patch: TextStylePatch) => void;
   readonly onWritingMode: (writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr') => void;
   readonly onParagraph: (patch: ParagraphStylePatch) => void;
   readonly onBegin: () => void;
@@ -32,7 +33,7 @@ const mixedOption = <option value="" disabled>Mixed</option>;
 
 export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
   model, fonts, onFontAsset, onSize, onFill, onFillEnabled, onStrokeColor, onStrokeWidth,
-  onTracking, onWritingMode, onParagraph,
+  onTracking, onStyle, onWritingMode, onParagraph,
   onBegin, onCommit, onCancel, recovery
 }) => {
   if (recovery) {
@@ -178,6 +179,35 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
               <MixedNumberInput label="Tracking" value={model.tracking} min={-1000}
                 max={1000} step={1} unit="1/1000 em" onBegin={onBegin}
                 onPreview={onTracking} onCommit={onCommit} onCancel={onCancel} />
+              <MixedNumberInput label="Baseline" value={model.baselineShift} min={-100000}
+                max={100000} step={1} unit="px" onBegin={onBegin}
+                onPreview={(baselineShift) => onStyle({ baselineShift })}
+                onCommit={onCommit} onCancel={onCancel} />
+              <MixedNumberInput label="Horizontal scale" value={model.horizontalScale} min={1}
+                max={1000} step={1} unit="%" onBegin={onBegin}
+                onPreview={(horizontalScale) => onStyle({ horizontalScale })}
+                onCommit={onCommit} onCancel={onCancel} />
+              <MixedNumberInput label="Vertical scale" value={model.verticalScale} min={1}
+                max={1000} step={1} unit="%" onBegin={onBegin}
+                onPreview={(verticalScale) => onStyle({ verticalScale })}
+                onCommit={onCommit} onCancel={onCancel} />
+              <div className="lighttable-tool-options__color-field" aria-label="Faux character styles">
+                <span>Style</span>
+                {([['Bold', 'syntheticBold'], ['Italic', 'syntheticItalic'], ['Underline', 'underline']] as const)
+                  .map(([label, property]) => {
+                    const value = model[property];
+                    return <label className="lighttable-tool-options__toggle" key={property}>
+                      <input type="checkbox" aria-label={label}
+                        checked={value.kind === 'value' && value.value}
+                        ref={(input) => { if (input) input.indeterminate = value.kind === 'mixed'; }}
+                        disabled={value.kind === 'unavailable'}
+                        onChange={(event) => {
+                          onBegin(); onStyle({ [property]: event.currentTarget.checked }); onCommit();
+                        }} />
+                      <span>{label}</span>
+                    </label>;
+                  })}
+              </div>
               <ToolOptionSelect label="Orientation"
                 value={model.writingMode.kind === 'value' ? model.writingMode.value : ''}
                 disabled={model.writingMode.kind === 'unavailable'}

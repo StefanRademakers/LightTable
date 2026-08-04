@@ -126,7 +126,8 @@ const shapingStyleIdentity = ({ run }: TextStyleSlice) => [
   orderedRecord(run.openTypeFeatures),
   orderedRecord(run.variableAxes),
   run.syntheticBold,
-  run.syntheticItalic
+  run.syntheticItalic,
+  run.underline ?? false
 ];
 
 const paragraphStyleIdentity = ({ run }: ParagraphStyleSlice) => [

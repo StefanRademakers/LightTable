@@ -271,7 +271,8 @@ const style = (
     },
     variableAxes: {},
     syntheticBold: Boolean(source.fauxBold),
-    syntheticItalic: Boolean(source.fauxItalic)
+    syntheticItalic: Boolean(source.fauxItalic),
+    underline: Boolean(source.underline)
   };
 };
 
@@ -329,21 +330,11 @@ const unsupportedEditableSemantics = (source: LayerTextData): string[] => {
     ? source.styleRuns.map((run) => ({ ...base, ...run.style }))
     : [base];
   const reasons: string[] = [];
-  if (styles.some((candidate) => candidate.fauxBold || candidate.fauxItalic)) {
-    reasons.push('Photoshop faux bold or italic requires text synthesis that is not editable yet.');
-  }
-  if (styles.some((candidate) => finite(candidate.baselineShift) && candidate.baselineShift !== 0)) {
-    reasons.push('Photoshop baseline shift is preserved until the editable layout path supports it.');
-  }
-  if (styles.some((candidate) => characterScalePercent(candidate.horizontalScale) !== 100
-    || characterScalePercent(candidate.verticalScale) !== 100)) {
-    reasons.push('Photoshop character scaling is preserved until the editable layout path supports it.');
-  }
   if (styles.some((candidate) => candidate.ligatures === false || candidate.dLigatures === true)) {
     reasons.push('Photoshop OpenType ligature overrides are preserved until editable feature controls are supported.');
   }
-  if (styles.some((candidate) => candidate.underline || candidate.strikethrough)) {
-    reasons.push('Photoshop text decorations are preserved until they can be rendered and edited faithfully.');
+  if (styles.some((candidate) => candidate.strikethrough)) {
+    reasons.push('Photoshop strikethrough is preserved until it can be rendered and edited faithfully.');
   }
   if (source.shapeType === 'box') {
     const paragraphs = source.paragraphStyleRuns?.length

@@ -74,6 +74,18 @@ describe('prepareTextOutlineVectorDraws', () => {
     expect(strokePaint && !('kind' in strokePaint) ? strokePaint.color[0] : null).toBeGreaterThan(1);
   });
 
+  it('adds underline as vector geometry without rasterizing the text layer', async () => {
+    const prepared = await prepareTextOutlineVectorDraws({
+      resolve: vi.fn().mockResolvedValue({ outline: glyphOutline, source: 'worker' })
+    }, layout(run({ underline: true })), identity);
+
+    expect(prepared.draws).toHaveLength(3);
+    expect(prepared.draws[2]).toMatchObject({ runIndex: 0, glyphIndex: -1 });
+    expect(prepared.draws[2]?.path.name).toBe('Text underline');
+    expect(prepared.draws[2]?.path.style.stroke).toBeNull();
+    expect(prepared.draws[2]?.geometry.subpaths[0]?.closed).toBe(true);
+  });
+
   it('composes affine per-glyph transforms before document source scaling', async () => {
     const transformed = run({
       glyphIds: new Uint32Array([42]), clusters: new Uint32Array([0]),

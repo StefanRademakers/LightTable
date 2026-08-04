@@ -513,10 +513,8 @@ const realizeFlowRequest = (
     : layout;
   const selectedFonts = source.styleRuns.map((run, sourceRunIndex) => {
     if (run.directionOverride || run.scriptOverride || run.kerning === 'optical' || run.kerning === 'none'
-      || run.horizontalScale !== 100 || run.verticalScale !== 100 || run.baselineShift !== 0
-      || Object.keys(run.openTypeFeatures).length > 0 || Object.keys(run.variableAxes).length > 0
-      || run.syntheticBold || run.syntheticItalic) {
-      throw new UnsupportedLayoutError('Overrides, optical/disabled kerning, baseline or geometric scaling, variations, synthesis and OpenType feature changes are not supported yet.');
+      || Object.keys(run.openTypeFeatures).length > 0 || Object.keys(run.variableAxes).length > 0) {
+      throw new UnsupportedLayoutError('Overrides, optical/disabled kerning, variations and OpenType feature changes are not supported yet.');
     }
     const selection = request.flowFontSelections[sourceRunIndex];
     const font = selection ? state.fonts.get(selection.font.assetId) : undefined;
@@ -674,6 +672,36 @@ const realizeFlowRequest = (
         raw.free();
         throw new Error('Parley returned an invalid source style index.');
       }
+      const runGeometry = geometry.slice(start * 4, end * 4);
+      for (let glyphIndex = 0; glyphIndex < end - start; glyphIndex += 1) {
+        runGeometry[glyphIndex * 4 + 1] -= style.baselineShift;
+      }
+      const requiresTransform = style.horizontalScale !== 100
+        || style.verticalScale !== 100 || style.syntheticItalic;
+      const transforms = requiresTransform ? new Float32Array((end - start) * 9) : undefined;
+      if (transforms) {
+        const horizontalScale = style.horizontalScale / 100;
+        const verticalScale = style.verticalScale / 100;
+        const shear = style.syntheticItalic ? -Math.tan(12 * Math.PI / 180) : 0;
+        for (let glyphIndex = 0; glyphIndex < end - start; glyphIndex += 1) {
+          transforms.set([
+            horizontalScale, shear, 0,
+            0, verticalScale, 0,
+            0, 0, 1
+          ], glyphIndex * 9);
+        }
+      }
+      const syntheticStroke = style.syntheticBold && style.fill && !style.stroke ? {
+        paint: style.fill,
+        width: Math.max(0.5, style.fontSize * 0.025),
+        cap: 'round' as const,
+        join: 'round' as const,
+        miterLimit: 4
+      } : undefined;
+      const paint = {
+        ...(style.fill ? { fill: style.fill } : {}),
+        ...(style.stroke ? { stroke: style.stroke } : syntheticStroke ? { stroke: syntheticStroke } : {})
+      };
       return {
         font: {
           font: selectedFonts[sourceRunIndex].font,
@@ -683,13 +711,15 @@ const realizeFlowRequest = (
         },
         fontSize: style.fontSize,
         fontResolution: selectedFonts[sourceRunIndex].resolution,
-        paint: { ...(style.fill ? { fill: style.fill } : {}), ...(style.stroke ? { stroke: style.stroke } : {}) },
-        renderingMode: style.stroke ? 'fill-stroke' : 'fill',
+        paint,
+        renderingMode: style.stroke || syntheticStroke ? 'fill-stroke' : style.fill ? 'fill' : 'invisible',
         direction: runMeta[index * 5 + 1] === 1 ? 'rtl' : 'ltr',
         ...(style.language ? { language: style.language } : {}),
         glyphIds: glyphIds.slice(start, end),
         clusters: clusters.slice(start, end),
-        geometry: geometry.slice(start * 4, end * 4)
+        geometry: runGeometry,
+        ...(transforms ? { transforms } : {}),
+        ...(style.underline ? { underline: true } : {})
       };
     }
   );

@@ -5,8 +5,9 @@ import {
 } from '@lighttable/text-rendering';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { TextInputBridge } from '../../editor/ui/TextInputBridge';
+import { TextInputBridge, type TextInputFormatCommand } from '../../editor/ui/TextInputBridge';
 import type { FlowTextEditingSessionController } from './flowTextEditingSession';
+import type { ParagraphStylePatch, TextStylePatch } from './flowTextFormatting';
 import { buildPathTextEditingOverlay } from '../../text/rendering/pathTextEditingOverlay';
 import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
 
@@ -121,6 +122,41 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
     const startedAt = performance.now();
     if (mutation()) renderer?.beginTextInput(layerId, startedAt);
   };
+  const format = (command: TextInputFormatCommand) => {
+    const projection = controller.formatProjection();
+    if (!projection) return;
+    const style = projection.style.kind === 'value' ? projection.style.value : null;
+    const paragraph = projection.paragraph.kind === 'value' ? projection.paragraph.value : null;
+    let stylePatch: TextStylePatch = {};
+    let paragraphPatch: ParagraphStylePatch = {};
+    if (command === 'toggle-bold') stylePatch = { syntheticBold: !(style?.syntheticBold ?? false) };
+    else if (command === 'toggle-italic') stylePatch = { syntheticItalic: !(style?.syntheticItalic ?? false) };
+    else if (command === 'toggle-underline') stylePatch = { underline: !(style?.underline ?? false) };
+    else if (command === 'increase-size' || command === 'decrease-size') {
+      stylePatch = { fontSize: Math.max(1, Math.min(1296, (style?.fontSize ?? 16)
+        + (command === 'increase-size' ? 1 : -1))) };
+    } else if (command === 'increase-tracking' || command === 'decrease-tracking') {
+      stylePatch = { tracking: Math.max(-1000, Math.min(1000, (style?.tracking ?? 0)
+        + (command === 'increase-tracking' ? 20 : -20))) };
+    } else if (command === 'baseline-up' || command === 'baseline-down') {
+      stylePatch = { baselineShift: Math.max(-100000, Math.min(100000, (style?.baselineShift ?? 0)
+        + (command === 'baseline-up' ? 1 : -1))) };
+    } else {
+      const delta = command === 'increase-leading' ? 1 : -1;
+      const current = paragraph?.lineHeight ?? { kind: 'normal' as const };
+      const lineHeight: NonNullable<ParagraphStylePatch['lineHeight']> = current.kind === 'absolute'
+        ? { kind: 'absolute', value: Math.max(1, current.value + delta) }
+        : current.kind === 'multiple'
+          ? { kind: 'multiple', value: Math.max(0.01, current.value + delta * 0.1) }
+          : { kind: 'absolute', value: Math.max(1, (style?.fontSize ?? 16) * 1.2 + delta) };
+      paragraphPatch = { lineHeight };
+    }
+    const startedAt = performance.now();
+    if (!controller.beginFormatting()) return;
+    const changed = controller.format(stylePatch, paragraphPatch);
+    controller.endFormatting();
+    if (changed) renderer?.beginTextInput(layerId, startedAt);
+  };
   return (
     <TextInputBridge
       label={`Edit ${document
@@ -158,6 +194,7 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
           else controller.navigateLogicalLine(command, extend);
         }
       }}
+      onFormat={format}
       onCompositionStart={() => { controller.compositionStart(); }}
       onCompositionUpdate={(text) => { runMeasured(() => controller.compositionUpdate(text)); }}
       onCompositionEnd={(text) => {

@@ -251,11 +251,8 @@ describe('Photoshop text adapter', () => {
     [{ text: 'Path', textPath: { data: {} } }, 'path'],
     [{ text: 'Bad transform', transform: [1, 0, 0] }, 'transform'],
     [{ text: 'Bad runs', styleRuns: [{ length: 2, style: {} }] }, 'run lengths'],
-    [{ text: 'Faux', style: { fauxBold: true } }, 'faux'],
-    [{ text: 'Baseline', style: { baselineShift: 2 } }, 'baseline'],
-    [{ text: 'Scaled', style: { horizontalScale: 90 } }, 'scaling'],
     [{ text: 'Ligature', style: { ligatures: false } }, 'ligature'],
-    [{ text: 'Underline', style: { underline: true } }, 'decorations'],
+    [{ text: 'Strike', style: { strikethrough: true } }, 'strikethrough'],
     [{
       text: 'Hyphenation', shapeType: 'box', boxBounds: [0, 0, 100, 100],
       paragraphStyle: { autoHyphenate: true }
@@ -264,6 +261,20 @@ describe('Photoshop text adapter', () => {
     const result = importPsdText(descriptor);
     expect(result).toMatchObject({ kind: 'preserved' });
     expect(result.reasons.join(' ')).toContain(reason);
+  });
+
+  it('imports Photoshop baseline, scale, faux styles and underline as editable character data', () => {
+    const result = importPsdText({ text: 'Styled', style: {
+      baselineShift: 2, horizontalScale: 90, verticalScale: 110,
+      fauxBold: true, fauxItalic: true, underline: true
+    } });
+    expect(result).toMatchObject({
+      kind: 'editable-flow',
+      text: { source: { styleRuns: [{
+        baselineShift: 2, horizontalScale: 90, verticalScale: 110,
+        syntheticBold: true, syntheticItalic: true, underline: true
+      }] } }
+    });
   });
 
   it('imports Photoshop vertical text as editable vertical flow', () => {

@@ -115,6 +115,8 @@ export interface TextStyleRun {
   readonly variableAxes: Readonly<Record<string, number>>;
   readonly syntheticBold: boolean;
   readonly syntheticItalic: boolean;
+  /** Semantic underline; omitted legacy data is equivalent to false. */
+  readonly underline?: boolean;
 }
 
 export interface ParagraphStyleRun {
@@ -267,6 +269,7 @@ export interface RealizedGlyphRun {
   readonly direction: 'ltr' | 'rtl' | 'ttb' | 'btt';
   readonly language?: string;
   readonly script?: string;
+  readonly underline?: boolean;
   readonly glyphIds: Uint32Array;
   readonly clusters: Uint32Array;
   /** x, y, advanceX and advanceY per glyph, in layer-local document units. */

@@ -67,6 +67,28 @@ const glyphTransform = (projection: VerticalProjection) => new Float32Array([
   0, 0, 1
 ]);
 
+const composeGlyphTransform = (
+  projection: VerticalProjection,
+  source: Float32Array,
+  offset: number
+) => {
+  const a = source[offset]!;
+  const c = source[offset + 1]!;
+  const tx = source[offset + 2]!;
+  const b = source[offset + 3]!;
+  const d = source[offset + 4]!;
+  const ty = source[offset + 5]!;
+  return new Float32Array([
+    projection.a * a + projection.c * b,
+    projection.a * c + projection.c * d,
+    projection.a * tx + projection.c * ty,
+    projection.b * a + projection.d * b,
+    projection.b * c + projection.d * d,
+    projection.b * tx + projection.d * ty,
+    0, 0, 1
+  ]);
+};
+
 /**
  * Projects exact horizontal WASM shaping into CSS/PDF-style vertical columns.
  * The glyph outlines remain GPU vectors. Latin glyphs use sideways orientation;
@@ -90,7 +112,9 @@ export const projectHorizontalLayoutToVertical = (
       }
       const transforms = new Float32Array(run.glyphIds.length * 9);
       for (let index = 0; index < run.glyphIds.length; index += 1) {
-        transforms.set(perGlyphTransform, index * 9);
+        transforms.set(run.transforms
+          ? composeGlyphTransform(projection, run.transforms, index * 9)
+          : perGlyphTransform, index * 9);
       }
       return { ...run, direction: 'ttb' as const, geometry, transforms };
     }),

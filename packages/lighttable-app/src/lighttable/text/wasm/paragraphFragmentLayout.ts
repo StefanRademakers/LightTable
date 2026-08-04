@@ -154,11 +154,30 @@ export const assembleParagraphLayout = ({
       const geometry = fragment.geometry.slice(start * 4, end * 4);
       for (let index = 0; index < geometry.length; index += 4) {
         geometry[index] += dx;
-        geometry[index + 1] += dy;
+        geometry[index + 1] += dy - style.baselineShift;
+      }
+      const requiresTransform = style.horizontalScale !== 100
+        || style.verticalScale !== 100 || style.syntheticItalic;
+      const transforms = requiresTransform ? new Float32Array((end - start) * 9) : undefined;
+      if (transforms) {
+        const horizontalScale = style.horizontalScale / 100;
+        const verticalScale = style.verticalScale / 100;
+        const shear = style.syntheticItalic ? -Math.tan(12 * Math.PI / 180) : 0;
+        for (let glyphIndex = 0; glyphIndex < end - start; glyphIndex += 1) {
+          transforms.set([
+            horizontalScale, shear, 0,
+            0, verticalScale, 0,
+            0, 0, 1
+          ], glyphIndex * 9);
+        }
       }
       const clusters = fragment.clusters.slice(start, end);
       for (let index = 0; index < clusters.length; index += 1) clusters[index] += segment.start;
       const glyphIds = fragment.glyphIds.slice(start, end);
+      const syntheticStroke = style.syntheticBold && style.fill && !style.stroke ? {
+        paint: style.fill, width: Math.max(0.5, style.fontSize * 0.025),
+        cap: 'round' as const, join: 'round' as const, miterLimit: 4
+      } : undefined;
       glyphRuns.push({
         font: {
           font: fontSelection.font,
@@ -168,13 +187,16 @@ export const assembleParagraphLayout = ({
         },
         fontSize: style.fontSize,
         fontResolution: fontSelection.resolution,
-        paint: { ...(style.fill ? { fill: style.fill } : {}), ...(style.stroke ? { stroke: style.stroke } : {}) },
-        renderingMode: style.stroke ? 'fill-stroke' : 'fill',
+        paint: { ...(style.fill ? { fill: style.fill } : {}),
+          ...(style.stroke ? { stroke: style.stroke } : syntheticStroke ? { stroke: syntheticStroke } : {}) },
+        renderingMode: style.stroke || syntheticStroke ? 'fill-stroke' : style.fill ? 'fill' : 'invisible',
         direction: fragment.runMeta[meta + 1] === 1 ? 'rtl' : 'ltr',
         ...(style.language ? { language: style.language } : {}),
         glyphIds,
         clusters,
-        geometry
+        geometry,
+        ...(transforms ? { transforms } : {}),
+        ...(style.underline ? { underline: true } : {})
       });
       if (glyphIds.includes(0)) {
         warnings.push({
