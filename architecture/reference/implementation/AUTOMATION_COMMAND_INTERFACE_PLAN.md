@@ -1,6 +1,6 @@
 # LightTable automation and command interface plan
 
-Status: approved direction; implementation is incremental and capability-gated
+Status: Phases A-F baseline implemented and capability-gated
 
 Last reviewed: 2026-08-03
 
@@ -199,12 +199,24 @@ UI commands already surface through the editor's bounded error presentation.
 - add PDF/PSD compatibility-report queries;
 - verify web and Electron use identical command semantics.
 
+Implemented baseline: large payloads stay in a bounded host-side artifact
+registry. Input artifacts open through an explicit workspace port; native and
+PNG exports return task IDs and publish opaque artifact metadata after the
+existing document task registry completes. Unit coverage proves input open and
+both export paths; the packaged command smoke proves a real GPU PNG export.
+
 ### Phase D - transactional gestures
 
 - add brush, transform and selection gesture sessions in document coordinates;
 - enforce sample/count/byte limits and one-history-entry commit;
 - add deterministic paint/transform Playwright setup without bypassing the
   renderer or canonical tools.
+
+Implemented baseline: brush strokes, rectangular selections and layer
+translations use document coordinates, one active session per document,
+64 samples per update and 4096 per gesture. They route to the existing editor
+session controllers; commit creates one history entry and cancel restores the
+opening document.
 
 ### Phase E - test driver
 
@@ -213,13 +225,16 @@ UI commands already surface through the editor's bounded error presentation.
 - cover save/reopen in a fresh process and crash/timeout cleanup;
 - publish machine-readable test artifacts and screenshots under `tmp/` only.
 
-Implemented baseline: packaged Electron exposes the transport-neutral driver
+Implemented: packaged Electron exposes the transport-neutral driver
 only when the main process explicitly launches an automation user-data session.
 The sandboxed preload receives a fixed launch flag; ordinary desktop and web
 sessions expose nothing. `smoke:desktop:commands` now queries the workspace and
 drives zoom, bounded layer visibility, raster creation, rename and undo through
 the same registry used by UI controls, then writes its report and screenshot
-under `tmp/command-driver/`.
+under `tmp/command-driver/`. Reusable orchestration now lives in
+`scripts/lighttable-automation-driver.mjs`; deterministic command/reference
+setup uses it while pointer, focus, shortcut and screenshot behavior stays in
+the physical suite catalogued in `AUTOMATION_TEST_SURFACE_INVENTORY.md`.
 
 ### Phase F - optional MCP adapter
 
@@ -228,6 +243,14 @@ under `tmp/command-driver/`.
   revocation;
 - keep unsupported/high-risk operations absent rather than silently no-op;
 - version protocol additions without tying them to PSD/PDF internals.
+
+Implemented application boundary: `AuthenticatedLightTableMcpAdapter` is an
+opt-in, transport-neutral wrapper over the stable driver. It opens no listener
+and installs no global. It enforces protocol version, constant-work token
+comparison, absolute expiry, request limits, revocation, a method/command
+allowlist and a bounded activity projection. A future desktop host may attach
+localhost/named-pipe transport and existing-component consent/status UI; until
+then there is deliberately no remotely reachable endpoint.
 
 ## Always-green gates
 

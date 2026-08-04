@@ -1,0 +1,38 @@
+# Task 043 - Playwright automation and command interface
+
+Status: complete
+
+- [x] Audit the existing command/history/task/menu/host boundaries.
+- [x] Record the transport-neutral execution plan in
+  `architecture/reference/implementation/AUTOMATION_COMMAND_INTERFACE_PLAN.md`.
+- [x] Extend packaged Playwright coverage for PDF/PSD paint, reports, native
+  save/fresh-process reopen and cursor-focused high zoom.
+- [x] Implement Phase A: typed command/error/revision contracts plus read-only
+  workspace, document, layer and capability queries.
+- [x] Implement Phase B vertical slice through the shared registry. A
+  workspace-owned, document-scoped port registry now routes `view.setZoom`,
+  `layer.createRaster`, `layer.rename`, undo and redo from the existing
+  toolbar, menu, layer-panel and keyboard paths without duplicating mutation
+  or history implementations.
+- [x] Add async artifact handles and task-backed file/export commands.
+- [x] Add bounded transactional gesture commands.
+- [x] Migrate deterministic Playwright setup to the test driver while keeping
+  a small physical UI/event/screenshot suite. The opt-in packaged driver and
+  deterministic setup paths now share one client; intentionally physical
+  selector/event/screenshot paths are documented separately.
+- [x] Add an opt-in authenticated MCP adapter only after the registry is stable.
+
+## Completion evidence
+
+- The typed registry owns bounded workspace/document/layer/effect/capability
+  projections and the shared mutation paths used by UI and automation.
+- Host-side artifacts cover input open, native export and GPU PNG export;
+  asynchronous exports use document task IDs.
+- Brush, selection and translation gestures are bounded transactions routed to
+  canonical editor controllers.
+- Shared Playwright orchestration and the retained physical suite are recorded
+  in `architecture/reference/implementation/AUTOMATION_TEST_SURFACE_INVENTORY.md`.
+- The optional MCP adapter has no listener or production global and enforces
+  opt-in, authentication, expiry, limits, allowlists, activity and revocation.
+- Command-service and MCP unit tests, app typecheck, packaged command smoke and
+  the repository `npm run verify` gate pass on 2026-08-04.
