@@ -106,6 +106,18 @@ const synchronizeWorkspacePanelTitles = (
   });
 };
 
+const applyWorkspacePanelRenderers = (
+  api: DockviewApi,
+  panels: LightTableWorkspacePanelRegistration[]
+) => {
+  panels.forEach((panel) => {
+    const restoredPanel = api.getPanel(panel.id);
+    if (restoredPanel?.api.renderer !== 'onlyWhenVisible') {
+      restoredPanel?.api.setRenderer('onlyWhenVisible');
+    }
+  });
+};
+
 const addRegisteredPanel = (
   api: DockviewApi,
   panel: LightTableWorkspacePanelRegistration
@@ -118,7 +130,7 @@ const addRegisteredPanel = (
     tabComponent: 'persistentPanelTab',
     title: panel.title,
     params: { contentKey: panel.contentKey },
-    renderer: 'always',
+    renderer: 'onlyWhenVisible',
     position: {
       referencePanel,
       direction: panel.defaultPosition.direction
@@ -214,6 +226,10 @@ const restoreLayout = (
     // Serialized Dockview layouts include titles. Product-owned labels remain
     // authoritative when an older saved layout is restored.
     synchronizeWorkspacePanelTitles(api, panels);
+    // Older serialized layouts retain their original renderer strategy.
+    // Reassert the product policy so hidden heavy inspectors do not remain
+    // mounted merely because the user upgraded from an older workspace.
+    applyWorkspacePanelRenderers(api, panels);
     applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
     return true;
   } catch {
@@ -494,6 +510,7 @@ export const LightTableDockWorkspace = forwardRef<
     if (!api) return;
     applyWorkspacePanelConstraints(api, panelsRef.current, accessoryWidthConstraintsEnabled);
     synchronizeWorkspacePanelTitles(api, panelsRef.current);
+    applyWorkspacePanelRenderers(api, panelsRef.current);
     const documentHost = api.getPanel(DOCUMENT_HOST_PANEL_ID);
     if (documentHost) {
       documentHost.group.header.hidden = true;
