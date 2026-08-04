@@ -28,6 +28,7 @@ export interface SelectionOperation {
   /** Raster-backed source used when a mask or composite channel becomes a selection. */
   source?:
     | { kind: 'layer-mask'; layerId: LayerId; pixelRevision: number }
+    | { kind: 'layer-transparency'; layerId: LayerId; pixelRevision: number }
     | { kind: 'composite-channel'; channel: CompositeSelectionChannel; documentRevision: number };
   /** Document-space feather radius. Only used by the feather operation. */
   amount?: number;
@@ -54,6 +55,17 @@ export const createCompositeChannelSelectionOperation = (
 ): SelectionOperation => ({
   mode: 'replace',
   source: { kind: 'composite-channel', channel, documentRevision },
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
+
+export const createLayerTransparencySelectionOperation = (
+  layerId: LayerId,
+  pixelRevision: number,
+  width: number,
+  height: number
+): SelectionOperation => ({
+  mode: 'replace',
+  source: { kind: 'layer-transparency', layerId, pixelRevision },
   shape: createFullCanvasSelection(width, height)[0].shape
 });
 

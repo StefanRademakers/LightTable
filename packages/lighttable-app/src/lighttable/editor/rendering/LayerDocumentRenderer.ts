@@ -38,7 +38,7 @@ export class LayerDocumentRenderer {
   private readonly runtime: LayerDocumentRendererRuntime;
 
   constructor(
-    device: GPUDevice,
+    private readonly device: GPUDevice,
     sampler: GPUSampler,
     onDevelopmentTextFixtureChanged?: Parameters<typeof createLayerDocumentRendererRuntime>[2],
     onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void,
@@ -419,6 +419,35 @@ export class LayerDocumentRenderer {
 
   loadCompositeChannelAsSelection(source: GPUTexture, channel: CompositeSelectionChannel) {
     return this.runtime.selectionRasterizer.loadColorChannel(source, channel);
+  }
+
+  loadRasterLayerTransparencyAsSelection(document: ImageDocument, layer: RasterLayer) {
+    const encoder = this.device.createCommandEncoder({
+      label: 'LightTable load layer transparency as selection'
+    });
+    // The RGB thumbnail represents intrinsic layer pixels. Isolate them in
+    // document space so tight rasters, offsets and transforms are honored,
+    // while visibility, opacity, masks, effects and local grading do not
+    // silently alter the Photoshop-compatible transparency selection.
+    const isolatedLayer: RasterLayer = {
+      ...layer,
+      visible: true,
+      opacity: 1,
+      fillOpacity: 1,
+      blendMode: 'normal',
+      clipping: false,
+      adjustmentStack: null,
+      mask: null,
+      styleStack: { ...layer.styleStack, enabled: false }
+    };
+    const source = this.encodeComposite(encoder, {
+      ...document,
+      layers: [isolatedLayer],
+      activeLayerId: layer.id
+    });
+    this.device.queue.submit([encoder.finish()]);
+    this.releaseSubmittedResources();
+    return this.runtime.selectionRasterizer.loadColorChannel(source, 'composite');
   }
 
   setSelection(shape: SelectionShape, requestedMode: SelectionMode) {

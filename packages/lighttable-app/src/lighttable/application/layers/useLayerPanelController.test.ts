@@ -47,6 +47,7 @@ const setup = (initialDocument: ImageDocument) => {
     duplicateActiveLayer: vi.fn(() => true),
     rasterizeActiveTextLayer: vi.fn(() => true),
     loadLayerMaskSelection: vi.fn(),
+    loadLayerTransparencySelection: vi.fn(),
     mergeActiveLayerDown: vi.fn(),
     mergeSelectedRasterLayers: vi.fn(),
     requestFlattenGroup: vi.fn(),
@@ -138,6 +139,16 @@ describe('createLayerPanelController', () => {
     harness.controller.loadMaskSelection(activeLayerId);
 
     expect(harness.dependencies.loadLayerMaskSelection).toHaveBeenCalledWith(activeLayerId);
+    expect(harness.dependencies.setPaintTarget).not.toHaveBeenCalled();
+  });
+
+  it('delegates loading raster transparency without changing the active paint target', () => {
+    const harness = setup(createImageDocument('test', 100, 100, 'asset'));
+    const activeLayerId = harness.document().activeLayerId!;
+
+    harness.controller.loadTransparencySelection(activeLayerId);
+
+    expect(harness.dependencies.loadLayerTransparencySelection).toHaveBeenCalledWith(activeLayerId);
     expect(harness.dependencies.setPaintTarget).not.toHaveBeenCalled();
   });
 

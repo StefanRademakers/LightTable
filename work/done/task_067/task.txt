@@ -1,0 +1,3 @@
+ctrl-click op raster layer (the rgb thumbnail) should also load that as the active selection.
+this already works for bw masks but not for that part.
+

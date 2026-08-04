@@ -56,6 +56,7 @@ interface LayerPanelProps {
   ) => void;
   onAddMask: () => void;
   onLoadMaskSelection: (layerId: LayerId) => void;
+  onLoadTransparencySelection: (layerId: LayerId) => void;
   onToggleMask: () => void;
   onRemoveMask: (layerId: LayerId) => void;
   onLockChange: (layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean) => void;
@@ -143,6 +144,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onReorder,
   onAddMask,
   onLoadMaskSelection,
+  onLoadTransparencySelection,
   onToggleMask,
   onRemoveMask,
   onLockChange,
@@ -709,6 +711,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 ].filter(Boolean).join(' ')}
                 onClick={(event) => {
                   event.stopPropagation();
+                  if (layer.type === 'raster' && (event.ctrlKey || event.metaKey)) {
+                    event.preventDefault();
+                    onMaskIsolationChange(null);
+                    onLoadTransparencySelection(layer.id);
+                    return;
+                  }
                   onMaskIsolationChange(null);
                   selectLayer(event, layer.id);
                 }}
@@ -720,7 +728,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 }}
                 title={
                   layer.type === 'raster'
-                    ? 'Edit layer pixels'
+                    ? 'Edit layer pixels; Ctrl/Cmd-click to load transparency as selection'
                     : layer.type === 'group'
                       ? 'Group'
                       : layer.type === 'text'

@@ -139,6 +139,26 @@ describe('selection session controller', () => {
     expect(state.history).toHaveLength(1);
   });
 
+  it('loads raster layer transparency as a replayable selection source', async () => {
+    const state = setup();
+
+    state.controller.selectLayerTransparency(document.activeLayerId!);
+    await Promise.resolve();
+
+    expect(state.renderer.replaceSelection).toHaveBeenCalledWith([
+      expect.objectContaining({
+        mode: 'replace',
+        source: expect.objectContaining({
+          kind: 'layer-transparency',
+          layerId: document.activeLayerId,
+          pixelRevision: expect.any(Number)
+        })
+      })
+    ]);
+    expect(state.selection[0]?.source?.kind).toBe('layer-transparency');
+    expect(state.history).toHaveLength(1);
+  });
+
   it('keeps a polygon draft across clicks and commits it near the origin', async () => {
     const state = setup();
     expect(state.controller.polygonClick(

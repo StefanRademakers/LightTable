@@ -7,6 +7,7 @@ import {
   createFullCanvasSelection,
   createInvertSelectionOperation,
   createLayerMaskSelectionOperation,
+  createLayerTransparencySelectionOperation,
   type CompositeSelectionChannel,
   type SelectionCombineMode,
   type SelectionMode,
@@ -75,6 +76,7 @@ export interface SelectionSessionController {
   invert(): void;
   feather(radius: number): void;
   selectLayerMask(layerId: LayerId): void;
+  selectLayerTransparency(layerId: LayerId): void;
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
 }
 
@@ -344,6 +346,21 @@ export const createSelectionSessionController = (
           document.height
         )],
         'The layer mask could not be loaded as a selection.'
+      );
+    },
+    selectLayerTransparency: (layerId) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      const layer = document ? findDocumentLayer(document, layerId) : null;
+      if (!document || layer?.type !== 'raster') return;
+      commitSnapshot(
+        [createLayerTransparencySelectionOperation(
+          layer.id,
+          layer.pixelRevision,
+          document.width,
+          document.height
+        )],
+        'The layer transparency could not be loaded as a selection.'
       );
     },
     selectCompositeChannel: (channel) => {

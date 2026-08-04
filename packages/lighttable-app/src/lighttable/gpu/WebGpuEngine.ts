@@ -753,6 +753,19 @@ export class WebGpuEngine {
             || layer.mask.pixelRevision !== operation.source.pixelRevision
             || !this.documentRenderer?.loadLayerMaskAsSelection(layer.id)
           ) return false;
+        } else if (operation.source?.kind === 'layer-transparency') {
+          const layer = this.imageDocument
+            ? findDocumentLayer(this.imageDocument, operation.source.layerId)
+            : null;
+          if (
+            !this.imageDocument
+            || layer?.type !== 'raster'
+            || layer.pixelRevision !== operation.source.pixelRevision
+            || !this.documentRenderer?.loadRasterLayerTransparencyAsSelection(
+              this.imageDocument,
+              layer
+            )
+          ) return false;
         } else if (operation.source?.kind === 'composite-channel') {
           if (
             !this.imageDocument
