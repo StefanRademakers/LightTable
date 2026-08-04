@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const planPath = path.resolve(workspaceRoot, process.argv[2]
@@ -59,39 +60,25 @@ for (const target of plan) {
     await page.getByRole('button', { name: 'Open file' }).click();
     await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: 60_000 });
-    await page.waitForFunction(() => Boolean(window.__lightTableAutomation), undefined, { timeout: 10_000 });
+    const driver = await attachLightTableAutomation(page, 'style-capture');
     await page.addStyleTag({ content: '.dv-floating-overlay-host { display: none !important; }' });
-    const setup = await page.evaluate(({ name, sourceId, expectedKinds }) => {
-      const driver = window.__lightTableAutomation;
-      if (!driver) throw new Error('Automation driver is unavailable.');
-      const documentId = driver.queryWorkspace().activeDocumentId;
-      if (!documentId) throw new Error('No active document.');
-      const layers = driver.queryLayers(documentId) ?? [];
-      const targetLayer = layers.find((layer) => layer.id === `psd-layer-${sourceId}`);
-      if (!targetLayer || targetLayer.name !== name) {
-        throw new Error(`Layer ${name} with PSD source id ${sourceId} was not found.`);
+    const workspace = await driver.queryWorkspace();
+    const documentId = workspace?.activeDocumentId;
+    if (!documentId) throw new Error('No active document.');
+    const layers = await driver.queryLayers(documentId) ?? [];
+    const targetLayer = layers.find((layer) => layer.id === `psd-layer-${target.sourceId}`);
+    if (!targetLayer || targetLayer.name !== target.name) {
+      throw new Error(`Layer ${target.name} with PSD source id ${target.sourceId} was not found.`);
+    }
+    const effects = await driver.queryLayerEffects(documentId, targetLayer.id);
+    if (!effects) throw new Error('Layer effect projection is unavailable.');
+    for (const kind of target.effects) {
+      if (!effects.effects.some((effect) => effect.kind === kind && effect.enabled)) {
+        throw new Error(`Expected enabled ${kind} was not imported.`);
       }
-      const effects = driver.queryLayerEffects(documentId, targetLayer.id);
-      if (!effects) throw new Error('Layer effect projection is unavailable.');
-      for (const kind of expectedKinds) {
-        if (!effects.effects.some((effect) => effect.kind === kind && effect.enabled)) {
-          throw new Error(`Expected enabled ${kind} was not imported.`);
-        }
-      }
-      return { documentId, targetLayer, layers, effects };
-    }, { name: target.name, sourceId: target.sourceId, expectedKinds: target.effects });
-
-    let sequence = 0;
-    const execute = async (command, parameters) => {
-      const result = await page.evaluate(async ({ command, documentId, parameters, requestId }) =>
-        window.__lightTableAutomation.execute({
-          protocolVersion: 1, requestId, command, documentId, parameters
-        }), {
-        command, documentId: setup.documentId, parameters,
-        requestId: `style-capture-${++sequence}`
-      });
-      if (result.status !== 'completed') throw new Error(result.message);
-    };
+    }
+    const setup = { documentId, targetLayer, layers, effects };
+    const execute = (command, parameters) => driver.execute(documentId, command, parameters);
     const viewportBounds = await page.locator('.lighttable-viewport').boundingBox();
     const metadataText = await page.locator('.lighttable-toolbar__meta').textContent() ?? '';
     const size = metadataText.match(/(\d+)\s*[x×]\s*(\d+)/i);

@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const planPath = path.resolve(
@@ -61,9 +62,7 @@ for (const target of plan) {
     await page.getByRole('button', { name: 'Open file' }).click();
     await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: 60_000 });
-    await page.waitForFunction(() => Boolean(window.__lightTableAutomation), undefined, {
-      timeout: 10_000
-    });
+    const driver = await attachLightTableAutomation(page, 'layer-capture');
     await page.addStyleTag({ content: '.dv-floating-overlay-host { display: none !important; }' });
     await page.evaluate(() => {
       for (const layersPanel of document.querySelectorAll('.lighttable-layers-panel')) {
@@ -76,47 +75,35 @@ for (const target of plan) {
     });
     await page.locator('.lighttable-viewport').screenshot({ path: contextPath });
 
-    const isolation = await page.evaluate(async ({ name, occurrence }) => {
-      const driver = window.__lightTableAutomation;
-      if (!driver) throw new Error('Automation driver is unavailable.');
-      const documentId = driver.queryWorkspace().activeDocumentId;
-      if (!documentId) throw new Error('No active document.');
-      const layers = driver.queryLayers(documentId) ?? [];
-      const matches = layers.filter((layer) => layer.name === name);
-      const targetLayer = matches[occurrence];
-      if (!targetLayer) {
-        throw new Error(`Layer ${name} occurrence ${occurrence} was not found (${matches.length} matches).`);
-      }
-      const byId = new Map(layers.map((layer) => [layer.id, layer]));
-      const visibleIds = [];
-      let current = targetLayer;
-      while (current) {
-        visibleIds.push(current.id);
-        current = current.parentId ? byId.get(current.parentId) : undefined;
-      }
-      let sequence = 0;
-      const execute = async (layerIds, visible) => {
-        for (let offset = 0; offset < layerIds.length; offset += 256) {
-          const result = await driver.execute({
-            protocolVersion: 1,
-            requestId: `capture-${++sequence}`,
-            command: 'layer.setVisibility',
-            documentId,
-            parameters: { layerIds: layerIds.slice(offset, offset + 256), visible }
-          });
-          if (result.status !== 'completed') throw new Error(result.message);
-        }
-      };
-      await execute(layers.map(({ id }) => id), false);
-      await execute(visibleIds, true);
-      return {
-        documentId,
-        layerId: targetLayer.id,
-        layerType: targetLayer.type,
-        parentIds: visibleIds.slice(1),
-        layerCount: layers.length
-      };
-    }, { name: target.name, occurrence: target.lightTableOccurrence });
+    const workspace = await driver.queryWorkspace();
+    const documentId = workspace?.activeDocumentId;
+    if (!documentId) throw new Error('No active document.');
+    const layers = await driver.queryLayers(documentId) ?? [];
+    const matches = layers.filter((layer) => layer.name === target.name);
+    const targetLayer = matches[target.lightTableOccurrence];
+    if (!targetLayer) {
+      throw new Error(`Layer ${target.name} occurrence ${target.lightTableOccurrence} was not found (${matches.length} matches).`);
+    }
+    const byId = new Map(layers.map((layer) => [layer.id, layer]));
+    const visibleIds = [];
+    let current = targetLayer;
+    while (current) {
+      visibleIds.push(current.id);
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    for (let offset = 0; offset < layers.length; offset += 256) {
+      await driver.execute(documentId, 'layer.setVisibility', {
+        layerIds: layers.slice(offset, offset + 256).map(({ id }) => id), visible: false
+      });
+    }
+    await driver.execute(documentId, 'layer.setVisibility', { layerIds: visibleIds, visible: true });
+    const isolation = {
+      documentId,
+      layerId: targetLayer.id,
+      layerType: targetLayer.type,
+      parentIds: visibleIds.slice(1),
+      layerCount: layers.length
+    };
 
     await page.waitForTimeout(750);
     await page.locator('.lighttable-viewport').screenshot({ path: soloPath });

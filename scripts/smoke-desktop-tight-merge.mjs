@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2]
@@ -34,9 +35,7 @@ try {
   await page.getByRole('button', { name: 'Open file' }).click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
-  await page.waitForFunction(() => Boolean(window.__lightTableAutomation), undefined, {
-    timeout: 10_000
-  });
+  const driver = await attachLightTableAutomation(page, 'tight-merge');
 
   const before = await page.evaluate(() => {
     const driver = window.__lightTableAutomation;
@@ -87,20 +86,7 @@ try {
     throw new Error('Merge reused and overwrote a tight source runtime.');
   }
 
-  let sequence = 0;
-  const executeHistory = (command) => page.evaluate(async ({ documentId, command, requestId }) => {
-    const result = await window.__lightTableAutomation?.execute({
-      protocolVersion: 1,
-      requestId,
-      command,
-      documentId,
-      parameters: {}
-    });
-    if (!result || result.status !== 'completed') throw new Error(result?.message ?? 'History failed.');
-    return result;
-  }, { documentId: before.documentId, command, requestId: `tight-merge-${++sequence}` });
-
-  await executeHistory('history.undo');
+  await driver.execute(before.documentId, 'history.undo', {});
   const afterUndo = await page.evaluate((documentId) => ({
     document: window.__lightTableAutomation?.queryDocument(documentId),
     layers: window.__lightTableAutomation?.queryLayers(documentId) ?? []
@@ -110,7 +96,7 @@ try {
     throw new Error('Undo did not restore both tight source layers.');
   }
 
-  await executeHistory('history.redo');
+  await driver.execute(before.documentId, 'history.redo', {});
   const afterRedo = await page.evaluate((documentId) => ({
     document: window.__lightTableAutomation?.queryDocument(documentId),
     layers: window.__lightTableAutomation?.queryLayers(documentId) ?? []
