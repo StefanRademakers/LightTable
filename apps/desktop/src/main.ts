@@ -4,6 +4,7 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  Menu,
   nativeImage,
   session
 } from 'electron';
@@ -259,6 +260,10 @@ async function createWindow(): Promise<void> {
 }
 
 void app.whenReady().then(async () => {
+  // LightTable owns its visible menu and tool modifiers in the renderer. The
+  // default Windows Electron menu would otherwise steal focus when Alt is used
+  // for eyedropper, centre-origin drawing or zoom-out gestures.
+  Menu.setApplicationMenu(null);
   rendererOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
     ? MAIN_WINDOW_VITE_DEV_SERVER_URL.replace(/\/+$/, '')
     : await startPackagedRendererServer();
