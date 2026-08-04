@@ -68,8 +68,10 @@ describe('PaintSessionController', () => {
       brush,
       point: { x: 10, y: 10, pressure: 1 }
     })).toBe(true);
+    expect(fixture.history).toHaveLength(0);
     brush.color = '#ffffff';
     fixture.controller.move(4, { x: 20, y: 10, pressure: 1 });
+    expect(fixture.history).toHaveLength(0);
     expect(fixture.controller.finish(4)).toBe(true);
 
     expect(fixture.renderer.paintBrushDabs).toHaveBeenCalledTimes(2);

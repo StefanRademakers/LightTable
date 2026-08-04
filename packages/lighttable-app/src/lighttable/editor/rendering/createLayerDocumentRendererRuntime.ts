@@ -243,7 +243,8 @@ export const createLayerDocumentRendererRuntime = (
     dimensions: resources.dimensions,
     createTextureSized: (label, width, height) =>
       textures.createColorSized(label, width, height),
-    createMaskTexture: (label) => textures.createMask(label),
+    createMaskTextureSized: (label, width, height) =>
+      textures.createMaskSized(label, width, height),
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId)
   });
@@ -259,6 +260,10 @@ export const createLayerDocumentRendererRuntime = (
     createMaskTexture: (label) => textures.createMask(label),
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId),
+    captureHistoryRegions: (layerId, channel, regions) =>
+      pixelEditHistory.captureRegions(layerId, channel, regions),
+    captureAllHistory: (layerId, channel) =>
+      pixelEditHistory.captureAll(layerId, channel),
     releaseSubmittedResources: () => renderResources.releaseAfterSubmit(),
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)

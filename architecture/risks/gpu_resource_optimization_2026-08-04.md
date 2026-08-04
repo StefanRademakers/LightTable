@@ -56,6 +56,43 @@ Decision: retain the lazy first-encode lifecycle. It removes up to hundreds of
 MiB from enabled but not-yet-rendered owners without adding a warm interaction,
 fidelity or stability regression.
 
+## Experiment 2 — dirty-tile GPU pixel history
+
+Fixtures:
+
+- `D:\shapes.psd` for a repeatable before/after run;
+- `EHS-396 copy.jpg` (12.7 megapixels) for a large-raster validation run.
+
+The previous history implementation copied the complete RGBA16 pixel surface,
+or complete R8 mask, at pointer-down. The accepted implementation captures each
+newly touched 256 x 256 tile once per gesture immediately before its first GPU
+paint submission. Pointer moves only extend that pending snapshot; pointer-up
+publishes one undo command and pointer-cancel restores and destroys it.
+
+| Gesture | Full-surface baseline | Dirty tiles | Reduction | Before | After |
+|---|---:|---:|---:|---:|---:|
+| `shapes.psd` pixel brush | 4.57 MiB | 0.50 MiB | 89.1% | 584.7 ms | 582.9 ms |
+| `shapes.psd` pixel eraser | 4.57 MiB | 0.50 MiB | 89.1% | 573.4 ms | 574.3 ms |
+| `shapes.psd` mask brush | 0.57 MiB | 0.06 MiB | 89.1% | 372.7 ms | 383.8 ms |
+| 12.7 MP pixel brush | 97.1 MiB | 2.50 MiB | 97.4% | n/a | 587.1 ms |
+| 12.7 MP mask brush | 12.1 MiB | 0.19 MiB | 98.5% | n/a | 383.2 ms |
+
+The generic interaction audit now derives all pointer coordinates from the
+actual fitted document rectangle. Paint, erase, mask and gradient actions must
+advance the history state; a gesture outside the canvas is a test failure rather
+than a misleading successful timing. On the large fixture, pixel and mask
+undo/redo completed in 30.7–32.3 ms.
+
+Full-surface operations such as mask fill and invert deliberately retain their
+full-surface history cost. There is no CPU readback or CPU-to-GPU image upload:
+capture, undo and redo remain GPU-to-GPU copies. Existing brush, fill and
+gradient Electron smokes passed, including transformed brush behavior.
+
+Decision: retain dirty-tile history for localized gestures. It materially lowers
+bounded undo residency while keeping the hot path and ownership model simple.
+The mask-brush wall-time difference on the small fixture is 11.1 ms and remains
+inside interaction-run noise; no speed-improvement claim is made.
+
 ## CPU-to-GPU transfer finding
 
 The four toggled effects do not upload image-sized CPU data when enabled. They
@@ -75,7 +112,5 @@ GPU-only effect path.
 1. Instrument and compare Layer Style full-document caches against tight-bounds
    caches and replay cost.
 2. Add resource lifetime telemetry before aliasing full-frame temporaries.
-3. Compare dirty-tile GPU history with current full-surface snapshots.
-4. Test inactive-document/hidden-layer eviction and restoration latency.
-5. Only then test cold CPU tile compression and checkpointed stroke replay.
-
+3. Test inactive-document/hidden-layer eviction and restoration latency.
+4. Only then test cold CPU tile compression and checkpointed stroke replay.

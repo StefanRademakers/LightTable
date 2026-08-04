@@ -8,7 +8,7 @@ const texture = () => ({
   destroy: vi.fn()
 }) as unknown as GPUTexture;
 
-const harness = () => {
+const harness = (size = { width: 20, height: 10 }) => {
   const target = texture();
   const maskTarget = texture();
   const created: GPUTexture[] = [];
@@ -27,17 +27,17 @@ const harness = () => {
     } as unknown as GPUDevice,
     layerResources: {
       raster: (layerId: LayerId) => layerId === id
-        ? { texture: target, maskTexture: null, maskId: null, width: 20, height: 10 }
+        ? { texture: target, maskTexture: null, maskId: null, ...size }
         : null
     } as never,
     sessions,
-    dimensions: () => ({ width: 20, height: 10 }),
+    dimensions: () => size,
     createTextureSized: () => {
       const result = texture();
       created.push(result);
       return result;
     },
-    createMaskTexture: () => {
+    createMaskTextureSized: () => {
       const result = texture();
       createdMasks.push(result);
       return result;
@@ -62,6 +62,7 @@ describe('PixelEditHistoryService', () => {
   it('captures one pre-edit snapshot and exposes one atomic undo/redo entry', () => {
     const test = harness();
     test.service.begin(id, 'pixels');
+    test.service.captureAll(id, 'pixels');
     const history = test.service.finish()!;
 
     expect(history.byteSize).toBe(20 * 10 * 8);
@@ -78,7 +79,8 @@ describe('PixelEditHistoryService', () => {
   it('releases a pending snapshot when an edit is cancelled', () => {
     const test = harness();
     test.service.begin(id, 'pixels');
-    const snapshot = test.sessions.current!.texture;
+    test.service.captureAll(id, 'pixels');
+    const snapshot = test.sessions.current!.tiles[0]!.texture;
 
     expect(test.service.cancel()).toBe(true);
     expect(snapshot.destroy).toHaveBeenCalledOnce();
@@ -95,6 +97,7 @@ describe('PixelEditHistoryService', () => {
   it('keeps mask history in single-channel textures and budgets', () => {
     const test = harness();
     test.service.begin(id, 'mask');
+    test.service.captureAll(id, 'mask');
     const history = test.service.finish()!;
 
     expect(history.byteSize).toBe(20 * 10);
@@ -102,5 +105,23 @@ describe('PixelEditHistoryService', () => {
     expect(test.createdMasks).toHaveLength(1);
     expect(history.undo()).toBe(true);
     expect(test.createdMasks).toHaveLength(2);
+  });
+
+  it('captures each touched tile once and budgets only captured pixels', () => {
+    const test = harness({ width: 600, height: 600 });
+    test.service.begin(id, 'pixels');
+
+    expect(test.service.captureRegions(id, 'pixels', [
+      { x: 250, y: 250, width: 20, height: 20 }
+    ])).toBe(4);
+    expect(test.service.captureRegions(id, 'pixels', [
+      { x: 252, y: 252, width: 4, height: 4 }
+    ])).toBe(0);
+
+    const history = test.service.finish()!;
+    expect(history.byteSize).toBe(256 * 256 * 8 * 4);
+    expect(test.copyTextureToTexture).toHaveBeenCalledTimes(4);
+    expect(history.undo()).toBe(true);
+    expect(test.copyTextureToTexture).toHaveBeenCalledTimes(12);
   });
 });

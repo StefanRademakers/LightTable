@@ -41,6 +41,18 @@ export class DocumentTextureFactory {
     return texture;
   }
 
+  createMaskSized(label: string, width: number, height: number) {
+    if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+      throw new TypeError('Texture dimensions must be positive integers.');
+    }
+    return this.options.device.createTexture({
+      label,
+      size: [width, height],
+      format: 'r8unorm',
+      usage: documentTextureUsage()
+    });
+  }
+
   createSelection(label: string) {
     return this.create(label, 'r8unorm');
   }

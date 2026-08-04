@@ -24,7 +24,7 @@ trading away image fidelity or direct-manipulation responsiveness.
       replay cost before choosing a representation.
 - [ ] Full-frame temporary aliasing: prove non-overlapping lifetimes first.
 - [ ] Inactive-document and hidden-layer eviction with deterministic restore.
-- [ ] Dirty-tile GPU history versus full-surface snapshots.
+- [x] Dirty-tile GPU history versus full-surface snapshots.
 - [ ] Cold CPU tile backing and lossless compression outside the hot path.
 - [ ] Checkpointed semantic paint journal with deterministic replay budget.
 - [ ] Semantic texture formats where channel requirements permit it.

@@ -17,6 +17,10 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const createdTextures: GPUTexture[] = [];
   const createdMaskTextures: GPUTexture[] = [];
   const pipelineSet = {
+    brush: { getBindGroupLayout: vi.fn(() => ({})) },
+    erase: { getBindGroupLayout: vi.fn(() => ({})) },
+    maskBrush: { getBindGroupLayout: vi.fn(() => ({})) },
+    maskErase: { getBindGroupLayout: vi.fn(() => ({})) },
     fillColor: { getBindGroupLayout: vi.fn(() => ({})) },
     fillGradient: { getBindGroupLayout: vi.fn(() => ({})) },
     invertColors: { getBindGroupLayout: vi.fn(() => ({})) },
@@ -30,6 +34,8 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const copyTextureToTexture = vi.fn();
   const submit = vi.fn();
   const invalidateLayer = vi.fn();
+  const captureHistoryRegions = vi.fn();
+  const captureAllHistory = vi.fn();
   const releaseSubmittedResources = vi.fn();
   const drawFullscreen = vi.fn();
   const service = new RasterPaintService({
@@ -38,6 +44,9 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
       createBindGroup: vi.fn(() => ({})),
       createCommandEncoder: vi.fn(() => ({
         copyTextureToTexture,
+        beginRenderPass: () => ({
+          setPipeline: vi.fn(), setBindGroup: vi.fn(), draw: vi.fn(), end: vi.fn()
+        }),
         finish: () => 'commands'
       })),
       queue: {
@@ -67,6 +76,8 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     },
     maskTextureFor: (id) => id === layerId ? maskTarget : null,
     invalidateLayer,
+    captureHistoryRegions,
+    captureAllHistory,
     releaseSubmittedResources,
     drawFullscreen
   });
@@ -81,6 +92,8 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     copyTextureToTexture,
     submit,
     invalidateLayer,
+    captureHistoryRegions,
+    captureAllHistory,
     releaseSubmittedResources,
     drawFullscreen
   };
@@ -117,6 +130,31 @@ describe('RasterPaintService', () => {
     expect(test.createdTextures).toHaveLength(0);
   });
 
+  it('captures conservative local brush bounds before submitting dabs', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+
+    test.service.paintDabs(
+      layerId,
+      'pixels',
+      [{ x: 30, y: 20, size: 12, pressure: 1 }],
+      [1, 0, 0],
+      0.5,
+      1,
+      1,
+      false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 5 }
+    );
+
+    expect(test.captureHistoryRegions).toHaveBeenCalledWith(
+      layerId,
+      'pixels',
+      [{ x: 12, y: 7, width: 16, height: 16 }]
+    );
+    expect(test.captureHistoryRegions.mock.invocationCallOrder[0])
+      .toBeLessThan(test.submit.mock.invocationCallOrder[0]!);
+  });
+
   it('routes mask fills through a single-channel result pipeline', () => {
     vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
     const test = harness();
@@ -145,6 +183,7 @@ describe('RasterPaintService', () => {
     )).toBe(true);
 
     expect(test.pipelines).toHaveBeenCalledOnce();
+    expect(test.captureAllHistory).toHaveBeenCalledWith(layerId, 'pixels');
     expect(test.ensureSelectionTargets).toHaveBeenCalledOnce();
     expect(test.drawFullscreen).toHaveBeenCalledOnce();
     expect(test.copyTextureToTexture).toHaveBeenCalledWith(

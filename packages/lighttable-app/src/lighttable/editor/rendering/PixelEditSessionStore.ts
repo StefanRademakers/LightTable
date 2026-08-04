@@ -4,9 +4,18 @@ import type { PaintChannel } from '../session/editorSession';
 export interface PixelEditSnapshot {
   layerId: LayerId;
   channel: PaintChannel;
-  texture: GPUTexture;
   width: number;
   height: number;
+  tiles: PixelEditSnapshotTile[];
+  capturedTileKeys: Set<string>;
+}
+
+export interface PixelEditSnapshotTile {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  texture: GPUTexture;
 }
 
 /**
@@ -37,14 +46,17 @@ export class PixelEditSessionStore {
     const snapshot = this.activeSnapshot;
     if (!snapshot) return false;
     this.activeSnapshot = null;
-    snapshot.texture.destroy();
+    snapshot.tiles.forEach(({ texture }) => texture.destroy());
     return true;
   }
 
   estimatedTextureBytes(_rgba16Bytes: number) {
     return this.activeSnapshot
-      ? this.activeSnapshot.width * this.activeSnapshot.height
-        * (this.activeSnapshot.channel === 'mask' ? 1 : 8)
+      ? this.activeSnapshot.tiles.reduce(
+          (bytes, tile) => bytes + tile.width * tile.height
+            * (this.activeSnapshot?.channel === 'mask' ? 1 : 8),
+          0
+        )
       : 0;
   }
 

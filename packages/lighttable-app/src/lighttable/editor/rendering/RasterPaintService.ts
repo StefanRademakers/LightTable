@@ -1,6 +1,6 @@
 import { sampleGradientAsset, type GradientPaintInstance } from '@lighttable/paint-core';
 import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
-import type { LayerId } from '../document/documentTypes';
+import type { LayerId, Rect } from '../document/documentTypes';
 import type { PaintChannel } from '../session/editorSession';
 import type { BrushDab } from '../tools/brush/strokeBuilder';
 import { invertMatrix } from '../tools/transform/affine';
@@ -21,6 +21,12 @@ interface RasterPaintServiceOptions {
   createMaskTexture: (label: string) => GPUTexture;
   maskTextureFor: (layerId: LayerId) => GPUTexture | null;
   invalidateLayer: (layerId: LayerId) => void;
+  captureHistoryRegions: (
+    layerId: LayerId,
+    channel: PaintChannel,
+    regions: readonly Rect[]
+  ) => number;
+  captureAllHistory: (layerId: LayerId, channel: PaintChannel) => number;
   releaseSubmittedResources: () => void;
   drawFullscreen: (
     encoder: GPUCommandEncoder,
@@ -90,6 +96,25 @@ export class RasterPaintService {
     const paintColor: [number, number, number] = channel === 'mask'
       ? [luminance, luminance, luminance]
       : color;
+    const localRegions = dabs.map((dab) => {
+      const radius = dab.size * 0.5;
+      const corners = [
+        [dab.x - radius, dab.y - radius],
+        [dab.x + radius, dab.y - radius],
+        [dab.x - radius, dab.y + radius],
+        [dab.x + radius, dab.y + radius]
+      ] as const;
+      const projected = corners.map(([x, y]) => ({
+        x: inverse.a * x + inverse.c * y + inverse.tx,
+        y: inverse.b * x + inverse.d * y + inverse.ty
+      }));
+      const left = Math.min(...projected.map(({ x }) => x)) - 2;
+      const top = Math.min(...projected.map(({ y }) => y)) - 2;
+      const right = Math.max(...projected.map(({ x }) => x)) + 2;
+      const bottom = Math.max(...projected.map(({ y }) => y)) + 2;
+      return { x: left, y: top, width: right - left, height: bottom - top };
+    });
+    this.options.captureHistoryRegions(layerId, channel, localRegions);
     const values = new Float32Array(dabs.length * 8);
     dabs.forEach((dab, index) => {
       const pressure = Math.min(1, Math.max(0.05, dab.pressure || 1));
@@ -149,6 +174,7 @@ export class RasterPaintService {
       : runtime?.texture;
     const selection = this.options.selectionTextures.mask;
     if (!target || !selection) return false;
+    this.options.captureAllHistory(layerId, channel);
 
     const { width, height } = channel === 'pixels' && runtime
       ? runtime
@@ -219,6 +245,7 @@ export class RasterPaintService {
     const selection = this.options.selectionTextures.mask;
     const gradientInverse = invertMatrix(paint.transform);
     if (!target || !selection || !gradientInverse || paint.asset.type !== 'solid') return false;
+    this.options.captureAllHistory(layerId, channel);
 
     const pipelines = this.options.pipelines();
     const { width, height } = channel === 'pixels' && runtime
@@ -294,6 +321,7 @@ export class RasterPaintService {
       ? this.options.maskTextureFor(layerId)
       : runtime?.texture;
     if (!target) return false;
+    this.options.captureAllHistory(layerId, channel);
     const pipelines = this.options.pipelines();
     const { width, height } = channel === 'pixels' && runtime
       ? runtime

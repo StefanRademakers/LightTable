@@ -77,17 +77,30 @@ try {
   const viewport = page.locator('.lighttable-viewport');
   const bounds = await viewport.boundingBox();
   if (!bounds) throw new Error('Viewport bounds are unavailable.');
-  const point = (x, y) => ({ x: bounds.x + bounds.width * x, y: bounds.y + bounds.height * y });
+  const canvas = (await driver.queryDocument(documentId))?.canvas;
+  if (!canvas) throw new Error('Document canvas dimensions are unavailable.');
+  const fitScale = Math.min(bounds.width / canvas.width, bounds.height / canvas.height) * 0.94;
+  const documentBounds = {
+    x: bounds.x + (bounds.width - canvas.width * fitScale) / 2,
+    y: bounds.y + (bounds.height - canvas.height * fitScale) / 2,
+    width: canvas.width * fitScale,
+    height: canvas.height * fitScale
+  };
+  report.documentBounds = documentBounds;
+  const point = (x, y) => ({
+    x: documentBounds.x + documentBounds.width * x,
+    y: documentBounds.y + documentBounds.height * y
+  });
   const settleFrame = () => page.evaluate(() => new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now())));
   }));
-  const measure = async (name, action) => {
+  const measure = async (name, action, expectation = null) => {
     const before = await driver.queryDocument(documentId);
     const startedAt = performance.now();
     await action();
     await settleFrame();
     const after = await driver.queryDocument(documentId);
-    report.actions.push({
+    const result = {
       name,
       durationMs: performance.now() - startedAt,
       historyDelta: (after?.history.undoDepth ?? 0) - (before?.history.undoDepth ?? 0),
@@ -96,6 +109,11 @@ try {
       historyBytesDelta: before && after
         ? after.history.estimatedBytes - before.history.estimatedBytes
         : null,
+      historyStateBefore: before?.history.currentStateId ?? null,
+      historyStateAfter: after?.history.currentStateId ?? null,
+      historyStateDelta: before && after
+        ? after.history.currentStateId - before.history.currentStateId
+        : null,
       estimatedGpuBytesBefore: before?.renderer.estimatedGpuBytes ?? null,
       estimatedGpuBytesAfter: after?.renderer.estimatedGpuBytes ?? null,
       estimatedGpuBytesDelta: before && after
@@ -103,7 +121,11 @@ try {
         : null,
       zoomBefore: before?.viewport.scale ?? null,
       zoomAfter: after?.viewport.scale ?? null
-    });
+    };
+    report.actions.push(result);
+    if (expectation && !expectation(result)) {
+      throw new Error(`${name} did not mutate the intended pixel history: ${JSON.stringify(result)}`);
+    }
   };
   const drag = async (start, end, steps = 16) => {
     await page.mouse.move(start.x, start.y);
@@ -120,8 +142,10 @@ try {
 
   await page.keyboard.press('h');
   await measure('pan-drag', () => drag(point(0.18, 0.20), point(0.26, 0.27), 24));
+  await page.keyboard.press('Control+0');
   await page.keyboard.press('z');
   await measure('zoom-click', () => page.mouse.click(point(0.20, 0.20).x, point(0.20, 0.20).y));
+  await page.keyboard.press('Control+0');
 
   const rectangular = point(0.14, 0.17);
   const rectangularEnd = point(0.29, 0.31);
@@ -156,10 +180,20 @@ try {
   await page.keyboard.press('Control+d');
 
   await page.keyboard.press('b');
-  await measure('brush-stroke', () => drag(point(0.17, 0.20), point(0.30, 0.27), 32));
+  await measure(
+    'brush-stroke',
+    () => drag(point(0.17, 0.20), point(0.30, 0.27), 32),
+    ({ historyDelta, historyStateDelta }) => historyDelta === 1 && historyStateDelta === 1
+  );
+  await measure('brush-undo', () => driver.execute(documentId, 'history.undo'));
+  await measure('brush-redo', () => driver.execute(documentId, 'history.redo'));
 
   await page.keyboard.press('e');
-  await measure('erase-stroke', () => drag(point(0.17, 0.20), point(0.30, 0.27), 32));
+  await measure(
+    'erase-stroke',
+    () => drag(point(0.17, 0.20), point(0.30, 0.27), 32),
+    ({ historyDelta, historyStateDelta }) => historyDelta === 1 && historyStateDelta === 1
+  );
 
   await page.keyboard.press('w');
   await measure('warp-stroke', () => drag(point(0.18, 0.22), point(0.31, 0.29), 32));
@@ -173,11 +207,29 @@ try {
   await activeMask.waitFor({ state: 'visible' });
   await activeMask.click();
   await page.keyboard.press('b');
-  await measure('mask-brush-stroke', () => drag(point(0.18, 0.21), point(0.27, 0.26), 20));
-  await measure('mask-invert', () => page.keyboard.press('Control+i'));
-  await measure('mask-fill-foreground', () => page.keyboard.press('Alt+Delete'));
+  await measure(
+    'mask-brush-stroke',
+    () => drag(point(0.18, 0.21), point(0.27, 0.26), 20),
+    ({ historyDelta, historyStateDelta }) => historyDelta === 1 && historyStateDelta === 1
+  );
+  await measure('mask-brush-undo', () => driver.execute(documentId, 'history.undo'));
+  await measure('mask-brush-redo', () => driver.execute(documentId, 'history.redo'));
+  await measure(
+    'mask-invert',
+    () => page.keyboard.press('Control+i'),
+    ({ historyDelta, historyStateDelta }) => historyDelta === 1 && historyStateDelta === 1
+  );
+  await measure(
+    'mask-fill-foreground',
+    () => page.keyboard.press('Alt+Delete'),
+    ({ historyDelta, historyStateDelta }) => historyDelta === 1 && historyStateDelta === 1
+  );
   await page.keyboard.press('g');
-  await measure('mask-gradient', () => drag(point(0.17, 0.20), point(0.30, 0.28), 8));
+  await measure(
+    'mask-gradient',
+    () => drag(point(0.17, 0.20), point(0.30, 0.28), 8),
+    ({ historyDelta, historyStateDelta }) => historyDelta === 1 && historyStateDelta === 1
+  );
 
   // Re-run non-destructive viewport and selection interactions after all tool
   // code paths are warm. GC-backed samples catch retained React trees,
@@ -185,6 +237,7 @@ try {
   // with leaks.
   report.retentionSamples = [];
   for (let round = 0; round < 5; round += 1) {
+    await page.keyboard.press('Control+0');
     await page.keyboard.press('h');
     await drag(point(0.19, 0.21), point(0.21, 0.23), 4);
     await page.keyboard.press('z');

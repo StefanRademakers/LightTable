@@ -9,9 +9,10 @@ const texture = () => ({ destroy: vi.fn() }) as unknown as GPUTexture;
 const snapshot = (layerId = 'layer-1'): PixelEditSnapshot => ({
   layerId: layerId as LayerId,
   channel: 'pixels',
-  texture: texture(),
   width: 20,
-  height: 10
+  height: 10,
+  tiles: [{ x: 0, y: 0, width: 20, height: 10, texture: texture() }],
+  capturedTileKeys: new Set(['0:0'])
 });
 
 describe('PixelEditSessionStore', () => {
@@ -23,7 +24,7 @@ describe('PixelEditSessionStore', () => {
     store.begin(first);
     store.begin(second);
 
-    expect(first.texture.destroy).toHaveBeenCalledOnce();
+    expect(first.tiles[0]!.texture.destroy).toHaveBeenCalledOnce();
     expect(store.current).toBe(second);
   });
 
@@ -33,7 +34,7 @@ describe('PixelEditSessionStore', () => {
     store.begin(active);
 
     expect(store.complete()).toBe(active);
-    expect(active.texture.destroy).not.toHaveBeenCalled();
+    expect(active.tiles[0]!.texture.destroy).not.toHaveBeenCalled();
     expect(store.current).toBeNull();
   });
 
@@ -44,7 +45,7 @@ describe('PixelEditSessionStore', () => {
 
     expect(store.estimatedTextureBytes(80)).toBe(20 * 10 * 8);
     expect(store.cancel()).toBe(true);
-    expect(active.texture.destroy).toHaveBeenCalledOnce();
+    expect(active.tiles[0]!.texture.destroy).toHaveBeenCalledOnce();
     expect(store.estimatedTextureBytes(80)).toBe(0);
     expect(store.cancel()).toBe(false);
   });
