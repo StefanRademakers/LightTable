@@ -43,7 +43,8 @@ export class PixelEditSessionStore {
 
   estimatedTextureBytes(_rgba16Bytes: number) {
     return this.activeSnapshot
-      ? this.activeSnapshot.width * this.activeSnapshot.height * 8
+      ? this.activeSnapshot.width * this.activeSnapshot.height
+        * (this.activeSnapshot.channel === 'mask' ? 1 : 8)
       : 0;
   }
 

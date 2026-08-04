@@ -48,4 +48,11 @@ describe('PixelEditSessionStore', () => {
     expect(store.estimatedTextureBytes(80)).toBe(0);
     expect(store.cancel()).toBe(false);
   });
+
+  it('accounts for a single-channel mask snapshot', () => {
+    const store = new PixelEditSessionStore();
+    store.begin({ ...snapshot(), channel: 'mask' });
+
+    expect(store.estimatedTextureBytes(80)).toBe(20 * 10);
+  });
 });

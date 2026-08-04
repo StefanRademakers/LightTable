@@ -10,6 +10,7 @@ interface PixelEditHistoryServiceOptions {
   sessions: PixelEditSessionStore;
   dimensions: () => { width: number; height: number };
   createTextureSized: (label: string, width: number, height: number) => GPUTexture;
+  createMaskTexture: (label: string) => GPUTexture;
   maskTextureFor: (layerId: LayerId) => GPUTexture | null;
   invalidateLayer: (layerId: LayerId) => void;
 }
@@ -35,11 +36,9 @@ export class PixelEditHistoryService {
     const { width, height } = channel === 'pixels' && runtime
       ? runtime
       : this.options.dimensions();
-    const snapshot = this.options.createTextureSized(
-      'LightTable pixel edit undo snapshot',
-      width,
-      height
-    );
+    const snapshot = channel === 'mask'
+      ? this.options.createMaskTexture('LightTable mask edit undo snapshot')
+      : this.options.createTextureSized('LightTable pixel edit undo snapshot', width, height);
     const encoder = this.options.device.createCommandEncoder({
       label: 'LightTable begin pixel edit'
     });
@@ -68,11 +67,9 @@ export class PixelEditHistoryService {
         ? this.options.maskTextureFor(before.layerId)
         : runtime?.texture;
       if (!target) return false;
-      const inverse = this.options.createTextureSized(
-        `LightTable ${direction} pixel history`,
-        width,
-        height
-      );
+      const inverse = before.channel === 'mask'
+        ? this.options.createMaskTexture(`LightTable ${direction} mask history`)
+        : this.options.createTextureSized(`LightTable ${direction} pixel history`, width, height);
       const encoder = this.options.device.createCommandEncoder({
         label: `LightTable ${direction} pixel edit`
       });
@@ -101,7 +98,7 @@ export class PixelEditHistoryService {
       return true;
     };
     return {
-      byteSize: width * height * 8,
+      byteSize: width * height * (before.channel === 'mask' ? 1 : 8),
       undo: () => swap('undo'),
       redo: () => swap('redo'),
       destroy: () => {

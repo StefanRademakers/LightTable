@@ -243,6 +243,7 @@ export const createLayerDocumentRendererRuntime = (
     dimensions: resources.dimensions,
     createTextureSized: (label, width, height) =>
       textures.createColorSized(label, width, height),
+    createMaskTexture: (label) => textures.createMask(label),
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId)
   });
@@ -255,6 +256,7 @@ export const createLayerDocumentRendererRuntime = (
     ensureSelectionTargets,
     createTextureSized: (label, width, height) =>
       textures.createColorSized(label, width, height),
+    createMaskTexture: (label) => textures.createMask(label),
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId),
     releaseSubmittedResources: () => renderResources.releaseAfterSubmit(),

@@ -18,6 +18,7 @@ interface RasterPaintServiceOptions {
   pipelines: () => ToolPipelineBundle;
   ensureSelectionTargets: () => void;
   createTextureSized: (label: string, width: number, height: number) => GPUTexture;
+  createMaskTexture: (label: string) => GPUTexture;
   maskTextureFor: (layerId: LayerId) => GPUTexture | null;
   invalidateLayer: (layerId: LayerId) => void;
   releaseSubmittedResources: () => void;
@@ -103,7 +104,9 @@ export class RasterPaintService {
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
     this.options.device.queue.writeBuffer(dabBuffer, 0, values);
-    const pipeline = erase ? pipelines.erase : pipelines.brush;
+    const pipeline = channel === 'mask'
+      ? erase ? pipelines.maskErase : pipelines.maskBrush
+      : erase ? pipelines.erase : pipelines.brush;
     const bindGroup = this.options.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [
@@ -150,11 +153,9 @@ export class RasterPaintService {
     const { width, height } = channel === 'pixels' && runtime
       ? runtime
       : this.options.dimensions();
-    const result = this.options.createTextureSized(
-      'LightTable filled layer color',
-      width,
-      height
-    );
+    const result = channel === 'mask'
+      ? this.options.createMaskTexture('LightTable filled mask color')
+      : this.options.createTextureSized('LightTable filled layer color', width, height);
     const settingsBuffer = this.options.device.createBuffer({
       label: 'LightTable fill color settings',
       size: 64,
@@ -169,7 +170,7 @@ export class RasterPaintService {
       transform.b, transform.d, transform.ty, 0
     ]));
     const bindGroup = this.options.device.createBindGroup({
-      layout: pipelines.fillColor.getBindGroupLayout(0),
+      layout: (channel === 'mask' ? pipelines.maskFillColor : pipelines.fillColor).getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: target.createView() },
         { binding: 1, resource: selection.createView() },
@@ -181,7 +182,7 @@ export class RasterPaintService {
     });
     this.options.drawFullscreen(
       encoder,
-      pipelines.fillColor,
+      channel === 'mask' ? pipelines.maskFillColor : pipelines.fillColor,
       bindGroup,
       result.createView(),
       { r: 0, g: 0, b: 0, a: 0 }
@@ -223,11 +224,9 @@ export class RasterPaintService {
     const { width, height } = channel === 'pixels' && runtime
       ? runtime
       : this.options.dimensions();
-    const result = this.options.createTextureSized(
-      'LightTable gradient-filled layer',
-      width,
-      height
-    );
+    const result = channel === 'mask'
+      ? this.options.createMaskTexture('LightTable gradient-filled mask')
+      : this.options.createTextureSized('LightTable gradient-filled layer', width, height);
     const settings = this.options.device.createBuffer({
       label: 'LightTable gradient fill settings',
       size: 96,
@@ -257,7 +256,7 @@ export class RasterPaintService {
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
     this.options.device.queue.writeBuffer(lut, 0, lutValues);
-    const pipeline = pipelines.fillGradient;
+    const pipeline = channel === 'mask' ? pipelines.maskFillGradient : pipelines.fillGradient;
     const bindGroup = this.options.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [
@@ -299,13 +298,12 @@ export class RasterPaintService {
     const { width, height } = channel === 'pixels' && runtime
       ? runtime
       : this.options.dimensions();
-    const result = this.options.createTextureSized(
-      'LightTable inverted layer colors',
-      width,
-      height
-    );
+    const result = channel === 'mask'
+      ? this.options.createMaskTexture('LightTable inverted mask')
+      : this.options.createTextureSized('LightTable inverted layer colors', width, height);
+    const pipeline = channel === 'mask' ? pipelines.maskInvertColors : pipelines.invertColors;
     const bindGroup = this.options.device.createBindGroup({
-      layout: pipelines.invertColors.getBindGroupLayout(0),
+      layout: pipeline.getBindGroupLayout(0),
       entries: [{ binding: 0, resource: target.createView() }]
     });
     const encoder = this.options.device.createCommandEncoder({
@@ -313,7 +311,7 @@ export class RasterPaintService {
     });
     this.options.drawFullscreen(
       encoder,
-      pipelines.invertColors,
+      pipeline,
       bindGroup,
       result.createView(),
       { r: 0, g: 0, b: 0, a: 0 }

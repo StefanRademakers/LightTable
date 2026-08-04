@@ -12,13 +12,19 @@ const texture = () => ({
 
 const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const source = texture();
+  const maskTarget = texture();
   const selection = texture();
   const createdTextures: GPUTexture[] = [];
-  const pipelines = vi.fn(() => ({
+  const createdMaskTextures: GPUTexture[] = [];
+  const pipelineSet = {
     fillColor: { getBindGroupLayout: vi.fn(() => ({})) },
     fillGradient: { getBindGroupLayout: vi.fn(() => ({})) },
-    invertColors: { getBindGroupLayout: vi.fn(() => ({})) }
-  }));
+    invertColors: { getBindGroupLayout: vi.fn(() => ({})) },
+    maskFillColor: { getBindGroupLayout: vi.fn(() => ({})) },
+    maskFillGradient: { getBindGroupLayout: vi.fn(() => ({})) },
+    maskInvertColors: { getBindGroupLayout: vi.fn(() => ({})) }
+  };
+  const pipelines = vi.fn(() => pipelineSet);
   const ensureSelectionTargets = vi.fn();
   const createBuffer = vi.fn(() => ({ destroy: vi.fn() }));
   const copyTextureToTexture = vi.fn();
@@ -54,17 +60,24 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
       createdTextures.push(result);
       return result;
     },
-    maskTextureFor: () => null,
+    createMaskTexture: () => {
+      const result = texture();
+      createdMaskTextures.push(result);
+      return result;
+    },
+    maskTextureFor: (id) => id === layerId ? maskTarget : null,
     invalidateLayer,
     releaseSubmittedResources,
     drawFullscreen
   });
   return {
     service,
+    pipelineSet,
     pipelines,
     ensureSelectionTargets,
     createBuffer,
     createdTextures,
+    createdMaskTextures,
     copyTextureToTexture,
     submit,
     invalidateLayer,
@@ -102,6 +115,22 @@ describe('RasterPaintService', () => {
     expect(test.service.invertColors(layerId)).toBe(false);
     expect(test.pipelines).not.toHaveBeenCalled();
     expect(test.createdTextures).toHaveLength(0);
+  });
+
+  it('routes mask fills through a single-channel result pipeline', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const test = harness();
+
+    expect(test.service.fillColor(layerId, 'mask', [0, 0, 0], false)).toBe(true);
+    expect(test.createdTextures).toHaveLength(0);
+    expect(test.createdMaskTextures).toHaveLength(1);
+    expect(test.drawFullscreen).toHaveBeenCalledWith(
+      expect.anything(),
+      test.pipelineSet.maskFillColor,
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    );
   });
 
   it('encodes fill as one submitted edit and invalidates the raster cache', () => {

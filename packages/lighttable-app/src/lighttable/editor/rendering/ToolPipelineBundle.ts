@@ -22,9 +22,14 @@ import {
 export interface ToolPipelineBundle {
   brush: GPURenderPipeline;
   erase: GPURenderPipeline;
+  maskBrush: GPURenderPipeline;
+  maskErase: GPURenderPipeline;
   fillColor: GPURenderPipeline;
   fillGradient: GPURenderPipeline;
   invertColors: GPURenderPipeline;
+  maskFillColor: GPURenderPipeline;
+  maskFillGradient: GPURenderPipeline;
+  maskInvertColors: GPURenderPipeline;
   selectionShape: GPURenderPipeline;
   selectionCombine: GPURenderPipeline;
   selectionContentCoverage: GPURenderPipeline;
@@ -69,7 +74,8 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
   const brushPipeline = (
     label: string,
     color: GPUBlendComponent,
-    alpha: GPUBlendComponent
+    alpha: GPUBlendComponent,
+    format: GPUTextureFormat = 'rgba16float'
   ) => device.createRenderPipeline({
     label,
     layout: 'auto',
@@ -78,7 +84,7 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
       module: brushModule,
       entryPoint: 'brushFragment',
       targets: [{
-        format: 'rgba16float',
+        format,
         blend: { color, alpha }
       }]
     },
@@ -95,9 +101,24 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' }
     ),
+    maskBrush: brushPipeline(
+      'LightTable round mask brush',
+      { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      'r8unorm'
+    ),
+    maskErase: brushPipeline(
+      'LightTable round mask eraser',
+      { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      'r8unorm'
+    ),
     fillColor: fullscreenPipeline('LightTable fill layer color', LAYER_FILL_COLOR_WGSL),
     fillGradient: fullscreenPipeline('LightTable fill layer gradient', LAYER_FILL_GRADIENT_WGSL),
     invertColors: fullscreenPipeline('LightTable invert layer colors', LAYER_INVERT_COLORS_WGSL),
+    maskFillColor: fullscreenPipeline('LightTable fill mask color', LAYER_FILL_COLOR_WGSL, 'r8unorm'),
+    maskFillGradient: fullscreenPipeline('LightTable fill mask gradient', LAYER_FILL_GRADIENT_WGSL, 'r8unorm'),
+    maskInvertColors: fullscreenPipeline('LightTable invert mask', LAYER_INVERT_COLORS_WGSL, 'r8unorm'),
     selectionShape: fullscreenPipeline('LightTable selection shape rasterizer', SELECTION_SHAPE_WGSL, 'r8unorm'),
     selectionCombine: fullscreenPipeline('LightTable selection boolean compositor', SELECTION_COMBINE_WGSL, 'r8unorm'),
     selectionContentCoverage: fullscreenPipeline('LightTable selected content coverage', SELECTION_CONTENT_COVERAGE_WGSL, 'r8unorm'),
@@ -105,7 +126,7 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     selectionResample: fullscreenPipeline('LightTable selection feather upscale', SELECTION_RESAMPLE_WGSL, 'r8unorm'),
     selectionCopy: fullscreenPipeline('LightTable selected pixel copy', SELECTION_COPY_WGSL),
     selectionDisplayCopy: fullscreenPipeline('LightTable selected display copy', SELECTION_DISPLAY_COPY_WGSL, 'rgba8unorm'),
-    selectionToMask: fullscreenPipeline('LightTable selection to layer mask', RED_CHANNEL_COPY_WGSL),
+    selectionToMask: fullscreenPipeline('LightTable selection to layer mask', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
     maskToSelection: fullscreenPipeline('LightTable layer mask to selection', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
     channelToSelection: fullscreenPipeline('LightTable composite channel to selection', COLOR_CHANNEL_COPY_WGSL, 'r8unorm'),
     transform: fullscreenPipeline('LightTable layer transform preview', LAYER_TRANSFORM_WGSL),

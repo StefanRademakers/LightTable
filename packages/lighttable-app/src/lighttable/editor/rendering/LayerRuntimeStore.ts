@@ -245,12 +245,12 @@ export class LayerRuntimeStore {
     let bytes = 0;
     this.rasterRuntimes.forEach((runtime) => {
       bytes += Math.max(1, runtime.width) * Math.max(1, runtime.height) * 8;
-      if (runtime.maskTexture) bytes += rgba16Bytes;
+      if (runtime.maskTexture) bytes += Math.max(1, width) * Math.max(1, height);
     });
     this.derivedPreviews.forEach((runtime) => {
       bytes += Math.max(1, runtime.width) * Math.max(1, runtime.height) * 8;
     });
-    return bytes + this.nodeMasks.size * rgba16Bytes;
+    return bytes + this.nodeMasks.size * Math.max(1, width) * Math.max(1, height);
   }
 
   destroy() {

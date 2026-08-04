@@ -43,9 +43,10 @@ describe('DocumentTextureFactory', () => {
     const finish = vi.fn(() => ({}) as GPUCommandBuffer);
     const submit = vi.fn();
     const texture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    const createTexture = vi.fn(() => texture);
     const factory = new DocumentTextureFactory({
       device: {
-        createTexture: vi.fn(() => texture),
+        createTexture,
         createCommandEncoder: vi.fn(() => ({ beginRenderPass, finish })),
         queue: { submit }
       } as unknown as GPUDevice,
@@ -53,6 +54,11 @@ describe('DocumentTextureFactory', () => {
     });
 
     expect(factory.createMask('mask')).toBe(texture);
+    expect(createTexture).toHaveBeenCalledWith(expect.objectContaining({
+      label: 'mask',
+      size: [32, 16],
+      format: 'r8unorm'
+    }));
     expect(beginRenderPass).toHaveBeenCalledWith({
       colorAttachments: [{
         view: expect.anything(),

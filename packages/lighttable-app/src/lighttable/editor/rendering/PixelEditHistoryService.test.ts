@@ -10,7 +10,9 @@ const texture = () => ({
 
 const harness = () => {
   const target = texture();
+  const maskTarget = texture();
   const created: GPUTexture[] = [];
+  const createdMasks: GPUTexture[] = [];
   const copyTextureToTexture = vi.fn();
   const submit = vi.fn();
   const invalidateLayer = vi.fn();
@@ -35,14 +37,21 @@ const harness = () => {
       created.push(result);
       return result;
     },
-    maskTextureFor: () => null,
+    createMaskTexture: () => {
+      const result = texture();
+      createdMasks.push(result);
+      return result;
+    },
+    maskTextureFor: (layerId) => layerId === id ? maskTarget : null,
     invalidateLayer
   });
   return {
     service,
     sessions,
     target,
+    maskTarget,
     created,
+    createdMasks,
     copyTextureToTexture,
     submit,
     invalidateLayer
@@ -81,5 +90,17 @@ describe('PixelEditHistoryService', () => {
     expect(() => test.service.begin('missing' as LayerId, 'pixels'))
       .toThrow('The active raster layer is not available on the GPU.');
     expect(test.created).toHaveLength(0);
+  });
+
+  it('keeps mask history in single-channel textures and budgets', () => {
+    const test = harness();
+    test.service.begin(id, 'mask');
+    const history = test.service.finish()!;
+
+    expect(history.byteSize).toBe(20 * 10);
+    expect(test.created).toHaveLength(0);
+    expect(test.createdMasks).toHaveLength(1);
+    expect(history.undo()).toBe(true);
+    expect(test.createdMasks).toHaveLength(2);
   });
 });

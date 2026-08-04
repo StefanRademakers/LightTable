@@ -32,7 +32,7 @@ export class DocumentTextureFactory {
   }
 
   createMask(label: string) {
-    const texture = this.createColor(label);
+    const texture = this.create(label, 'r8unorm');
     const encoder = this.options.device.createCommandEncoder({
       label: `Initialize ${label}`
     });

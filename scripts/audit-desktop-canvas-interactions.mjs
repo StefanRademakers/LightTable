@@ -158,6 +158,17 @@ try {
   await page.getByLabel('Transform controls').waitFor({ state: 'visible', timeout: 30_000 });
   await measure('transform-cancel', () => page.keyboard.press('Escape'));
 
+  await page.getByRole('button', { name: 'Add layer mask' }).click();
+  const activeMask = page.locator('.lighttable-layer--active .lighttable-layer__mask');
+  await activeMask.waitFor({ state: 'visible' });
+  await activeMask.click();
+  await page.keyboard.press('b');
+  await measure('mask-brush-stroke', () => drag(point(0.18, 0.21), point(0.27, 0.26), 20));
+  await measure('mask-invert', () => page.keyboard.press('Control+i'));
+  await measure('mask-fill-foreground', () => page.keyboard.press('Alt+Delete'));
+  await page.keyboard.press('g');
+  await measure('mask-gradient', () => drag(point(0.17, 0.20), point(0.30, 0.28), 8));
+
   // Re-run non-destructive viewport and selection interactions after all tool
   // code paths are warm. GC-backed samples catch retained React trees,
   // listeners and controller state without confusing undo-owned pixel buffers

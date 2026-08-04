@@ -41,7 +41,7 @@ export const documentPipelinesFor = (device: GPUDevice): DocumentPipelineBundle 
   });
   const bundle: DocumentPipelineBundle = {
     decode: create('LightTable layer source decode', LAYER_SOURCE_DECODE_WGSL, 'rgba16float'),
-    maskDecode: create('LightTable mask source decode', LAYER_MASK_DECODE_WGSL, 'rgba16float'),
+    maskDecode: create('LightTable mask source decode', LAYER_MASK_DECODE_WGSL, 'r8unorm'),
     exportLayer: create('LightTable raster layer export', LAYER_EXPORT_WGSL, 'rgba8unorm'),
     composite: create('LightTable layer compositor', LAYER_COMPOSITE_WGSL, 'rgba16float'),
     adjustmentMix: create('LightTable adjustment layer mix', ADJUSTMENT_LAYER_MIX_WGSL, 'rgba16float'),
