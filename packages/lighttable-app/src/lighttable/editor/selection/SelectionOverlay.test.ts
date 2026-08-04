@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
+  SelectionOverlay,
   createRasterViewportTransform,
   createVectorViewportTransform,
   getPrimitiveSelectionBounds,
   isDirectVectorSelection
 } from './SelectionOverlay';
 import type { SelectionOperation } from './selectionTypes';
+import { selectionStripShape } from '../tools/selection/selectionGestureController';
 
 const rectangle: SelectionOperation = {
   mode: 'replace',
@@ -61,5 +65,50 @@ describe('getPrimitiveSelectionBounds', () => {
       width: 60,
       height: 60
     });
+  });
+});
+
+describe('SelectionOverlay dimensions', () => {
+  it.each(['rectangle', 'ellipse'] as const)(
+    'shows W, H, X and Y while drawing a %s selection',
+    (kind) => {
+      const markup = renderToStaticMarkup(React.createElement(SelectionOverlay, {
+        operations: [],
+        draft: {
+          kind,
+          points: [{ x: 110, y: 90 }, { x: 30, y: 20 }]
+        },
+        imageRect: { x: 0, y: 0, width: 320, height: 180 },
+        scale: 1,
+        width: 640,
+        height: 480
+      }));
+      expect(markup).toContain('W: 80 px');
+      expect(markup).toContain('H: 70 px');
+      expect(markup).toContain('X: 30 px');
+      expect(markup).toContain('Y: 20 px');
+    }
+  );
+
+  it('shows the same measurements for horizontal and vertical strip geometry', () => {
+    for (const tool of ['select-horizontal', 'select-vertical'] as const) {
+      const markup = renderToStaticMarkup(React.createElement(SelectionOverlay, {
+        operations: [],
+        draft: selectionStripShape(tool, { x: 30, y: 20 }, {
+          documentWidth: 320,
+          documentHeight: 180,
+          size: 1
+        }),
+        imageRect: { x: 0, y: 0, width: 320, height: 180 },
+        scale: 1,
+        width: 640,
+        height: 480
+      }));
+      expect(markup).toContain('W:');
+      expect(markup).toContain('H:');
+      expect(markup).toContain('X:');
+      expect(markup).toContain('Y:');
+      expect(markup).toContain('1 px');
+    }
   });
 });

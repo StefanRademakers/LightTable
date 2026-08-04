@@ -41,6 +41,8 @@
     "smoke:desktop:pen-tools:build": "npm run package:desktop:verify && npm run smoke:desktop:pen-tools --",
     "smoke:desktop:type-tool": "node scripts/smoke-desktop-type-tool.mjs",
     "smoke:desktop:type-tool:build": "npm run package:desktop:verify && npm run smoke:desktop:type-tool --",
+    "smoke:desktop:selection-dimensions": "node scripts/smoke-desktop-selection-dimensions.mjs",
+    "smoke:desktop:selection-dimensions:build": "npm run package:desktop:verify && npm run smoke:desktop:selection-dimensions --",
     "smoke:desktop:tight-merge": "node scripts/smoke-desktop-tight-merge.mjs",
     "smoke:desktop:tight-merge:build": "npm run package:desktop:verify && npm run smoke:desktop:tight-merge --",
     "smoke:desktop:system-fonts": "node scripts/smoke-desktop-system-fonts.mjs",

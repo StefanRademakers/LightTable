@@ -86,15 +86,19 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   height
 }) => {
   const renderDraftDimensions = (shape: SelectionShape) => {
-    if (shape.kind !== 'rectangle' || shape.points.length < 2) return null;
+    if ((shape.kind !== 'rectangle' && shape.kind !== 'ellipse') || shape.points.length < 2) {
+      return null;
+    }
     const first = shape.points[0];
     const second = shape.points[1];
+    const selectionX = Math.min(first.x, second.x);
+    const selectionY = Math.min(first.y, second.y);
     const selectionWidth = Math.abs(second.x - first.x);
     const selectionHeight = Math.abs(second.y - first.y);
     const right = imageRect.x + Math.max(first.x, second.x) * scale;
     const bottom = imageRect.y + Math.max(first.y, second.y) * scale;
-    const labelWidth = 76;
-    const labelHeight = 34;
+    const labelWidth = 82;
+    const labelHeight = 60;
     const x = Math.max(4, Math.min(right + 8, width - labelWidth - 4));
     const y = Math.max(4, Math.min(bottom - labelHeight, height - labelHeight - 4));
     return (
@@ -105,6 +109,8 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
         <rect width={labelWidth} height={labelHeight} rx="3" />
         <text x="7" y="14">W: {Math.round(selectionWidth)} px</text>
         <text x="7" y="27">H: {Math.round(selectionHeight)} px</text>
+        <text x="7" y="40">X: {Math.round(selectionX)} px</text>
+        <text x="7" y="53">Y: {Math.round(selectionY)} px</text>
       </g>
     );
   };

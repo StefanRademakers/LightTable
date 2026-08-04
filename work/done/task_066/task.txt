@@ -1,0 +1,12 @@
+Die vierkante selection geeft een mooie width en height
+dat willen we bij circle ook...
+
+En eigenlijk willen we dit:
+
+W: vlaue
+H: value
+
+X: value
+Y: value
+
+En bij horizontal of vertical selection line willen we dat ook zien.
