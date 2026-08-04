@@ -378,6 +378,39 @@ describe('VectorToolSessionController', () => {
     ]);
   });
 
+  it('edits selected live-shape geometry as one revisioned history command', () => {
+    const state = setup();
+    const rectangle = createVectorLiveShape('rectangle', {
+      kind: 'rectangle', width: 20, height: 30,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    const path = createVectorPath('path', 'Path', [
+      createSubpath('subpath', [createAnchor('anchor', { x: 2, y: 3 })])
+    ]);
+    const layer = createVectorLayer([rectangle, path]);
+    state.document.layers = [layer];
+    state.selection.elements = [
+      { layerId: layer.id, elementId: rectangle.id },
+      { layerId: layer.id, elementId: path.id }
+    ];
+
+    expect(state.controller.editSelectedLiveShapes((shape) => ({
+      ...shape,
+      geometry: shape.geometry.kind === 'rectangle'
+        ? { ...shape.geometry, width: 120, height: 80, cornerRadii: [8, 8, 8, 8] }
+        : shape.geometry
+    }))).toBe(true);
+    expect(state.history).toHaveLength(1);
+    const updated = findDocumentLayer(state.document, layer.id);
+    if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
+    expect(updated.elements[0]).toMatchObject({
+      type: 'live-shape',
+      geometry: { width: 120, height: 80, cornerRadii: [8, 8, 8, 8] },
+      geometryRevision: 1
+    });
+    expect(updated.elements[1]).toEqual(path);
+  });
+
   it('cancels a provisional live shape when the active document changes', () => {
     const state = setup();
     const opening = state.document;

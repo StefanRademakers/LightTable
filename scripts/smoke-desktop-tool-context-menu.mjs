@@ -80,6 +80,12 @@ try {
   await family.getByRole('button', { name: 'Rectangle (U)' }).click();
   await family.getByRole('button', { name: 'Rectangle (U)' })
     .waitFor({ state: 'visible' });
+  await layout.getByLabel('Shape geometry mode').waitFor({ state: 'visible' });
+  await layout.getByText('From center', { exact: true }).waitFor({ state: 'visible' });
+  await layout.getByText('Snap pixels', { exact: true }).waitFor({ state: 'visible' });
+  await layout.getByText('Link corners', { exact: true }).waitFor({ state: 'visible' });
+  await layout.getByText('Radius', { exact: true }).waitFor({ state: 'visible' });
+  await page.screenshot({ path: screenshotPath });
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
   await writeFile(reportPath, `${JSON.stringify({
     sourceFile,

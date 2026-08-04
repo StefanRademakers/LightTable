@@ -1918,6 +1918,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activeTool: vectorMoveActive ? 'vector-select' : editorSession.activeTool,
     foregroundColor: editorSession.brush.color,
     gradient: gradientToolSettings,
+    shape: editorSession.shape,
     fillEnabled: editorSession.vectorStyle.fillEnabled,
     fillColor: editorSession.vectorStyle.fillColor,
     strokeEnabled: editorSession.vectorStyle.strokeEnabled,
@@ -1939,10 +1940,55 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       : null;
     return element ? vectorElementStyleSettings(element) : null;
   }, [editorSession.vectorSelection.elements, imageDocument]);
+  const selectedShapeGeometry = useMemo(() => {
+    const reference = editorSession.vectorSelection.elements[0];
+    if (!reference || !imageDocument) return null;
+    const layer = findDocumentLayer(imageDocument, reference.layerId);
+    const element = layer?.type === 'vector'
+      ? layer.elements.find(({ id }) => id === reference.elementId)
+      : null;
+    if (element?.type !== 'live-shape'
+      || (element.geometry.kind !== 'rectangle' && element.geometry.kind !== 'ellipse')) return null;
+    const geometry = element.geometry;
+    return {
+      kind: geometry.kind,
+      settings: {
+        ...editorSession.shape,
+        width: geometry.width,
+        height: geometry.height,
+        rectangleCornerRadii: geometry.kind === 'rectangle'
+          ? [...geometry.cornerRadii] as [number, number, number, number]
+          : editorSession.shape.rectangleCornerRadii,
+        linkedCorners: geometry.kind === 'rectangle'
+          ? geometry.linkedCorners : editorSession.shape.linkedCorners
+      }
+    };
+  }, [editorSession.shape, editorSession.vectorSelection.elements, imageDocument]);
   const updateSelectedVectorStyle = (change: Partial<EditorSession['vectorStyle']>) => {
     vectorToolSessionController.editSelectedElementStyles(
       (style) => patchVectorStyle(style, change)
     );
+  };
+  const updateSelectedShapeGeometry = (change: Partial<EditorSession['shape']>) => {
+    vectorToolSessionController.editSelectedLiveShapes((shape) => {
+      if (shape.geometry.kind === 'rectangle') {
+        shape.geometry = {
+          ...shape.geometry,
+          width: change.width ?? shape.geometry.width,
+          height: change.height ?? shape.geometry.height,
+          cornerRadii: change.rectangleCornerRadii
+            ? [...change.rectangleCornerRadii] : shape.geometry.cornerRadii,
+          linkedCorners: change.linkedCorners ?? shape.geometry.linkedCorners
+        };
+      } else if (shape.geometry.kind === 'ellipse') {
+        shape.geometry = {
+          ...shape.geometry,
+          width: change.width ?? shape.geometry.width,
+          height: change.height ?? shape.geometry.height
+        };
+      }
+      return shape;
+    });
   };
 
   const selectedPointTextFont = () => {
@@ -3419,6 +3465,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       activeTool={visibleTool}
       brush={editorSession.brush}
       gradient={gradientToolSettings}
+      shape={editorSession.shape}
       warp={editorSession.warp}
       vectorStyle={editorSession.vectorStyle}
       text={editorSession.text}
@@ -3426,6 +3473,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       textProperties={textPropertyPresentation}
       textLayoutMode={textLayoutMode}
       selectedVectorStyle={selectedVectorStyle}
+      selectedShape={selectedShapeGeometry?.settings ?? null}
+      selectedShapeKind={selectedShapeGeometry?.kind ?? null}
       selectionPixelSnap={editorSession.selectionPixelSnap}
       selectionCombineMode={editorSession.selectionCombineMode}
       selectionRowHeight={editorSession.selectionRowHeight}
@@ -3435,6 +3484,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onGradientChange={(change) => setEditorSession((current) => ({
         ...current,
         gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }
+      }))}
+      onShapeChange={(change) => setEditorSession((current) => ({
+        ...current, shape: { ...current.shape, ...change }
       }))}
       onWarpChange={updateWarp}
       onVectorStyleChange={(change) => {
@@ -3457,6 +3509,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onTextPropertyCancel={cancelTextPropertyGesture}
       onTextLayoutModeChange={changeTextLayoutMode}
       onSelectedVectorStyleChange={updateSelectedVectorStyle}
+      onSelectedShapeChange={updateSelectedShapeGeometry}
       onWarpReset={() => {
         warpSessionController.clearActiveLayer();
       }}
@@ -3574,6 +3627,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             activeTool: visibleTool,
             brush: editorSession.brush,
             gradient: gradientToolSettings,
+            shape: editorSession.shape,
             warp: editorSession.warp,
             vectorStyle: editorSession.vectorStyle,
             text: editorSession.text,
@@ -3581,6 +3635,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             textProperties: textPropertyPresentation,
             textLayoutMode,
             selectedVectorStyle,
+            selectedShape: selectedShapeGeometry?.settings ?? null,
+            selectedShapeKind: selectedShapeGeometry?.kind ?? null,
             selectionPixelSnap: editorSession.selectionPixelSnap,
             selectionCombineMode: editorSession.selectionCombineMode,
             selectionRowHeight: editorSession.selectionRowHeight,
@@ -3590,6 +3646,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onGradientChange: (change) => setEditorSession((current) => ({
               ...current,
               gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }
+            })),
+            onShapeChange: (change) => setEditorSession((current) => ({
+              ...current, shape: { ...current.shape, ...change }
             })),
             onWarpChange: updateWarp,
             onVectorStyleChange: (change) => {
@@ -3612,6 +3671,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onTextPropertyCancel: cancelTextPropertyGesture,
             onTextLayoutModeChange: changeTextLayoutMode,
             onSelectedVectorStyleChange: updateSelectedVectorStyle,
+            onSelectedShapeChange: updateSelectedShapeGeometry,
             onWarpReset: () => {
               warpSessionController.clearActiveLayer();
               setToolOptionsMenu(null);

@@ -26,6 +26,19 @@ describe('LightTable editor session', () => {
     });
   });
 
+  it('starts shape creation unrestricted, pixel-snapped and non-destructive', () => {
+    expect(createEditorSession().shape).toEqual({
+      mode: 'shape',
+      geometry: 'unrestricted',
+      width: 100,
+      height: 100,
+      fromCenter: false,
+      snapToPixels: true,
+      rectangleCornerRadii: [0, 0, 0, 0],
+      linkedCorners: true
+    });
+  });
+
   it('compares and clones scene-scoped vector selection without aliasing it', () => {
     const layerId = 'layer-1' as LayerId;
     const source = {

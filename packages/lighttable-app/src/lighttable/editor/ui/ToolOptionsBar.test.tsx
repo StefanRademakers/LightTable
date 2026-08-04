@@ -17,6 +17,7 @@ const renderOptions = (
     activeTool,
     brush: session.brush,
     gradient: session.gradient,
+    shape: session.shape,
     warp: session.warp,
     vectorStyle: session.vectorStyle,
     text: session.text,
@@ -31,6 +32,8 @@ const renderOptions = (
     textProperties,
     textLayoutMode: textProperties ? 'point' : null,
     selectedVectorStyle,
+    selectedShape: null,
+    selectedShapeKind: null,
     selectionPixelSnap: session.selectionPixelSnap,
     selectionCombineMode: session.selectionCombineMode,
     selectionRowHeight: rowHeight,
@@ -38,6 +41,7 @@ const renderOptions = (
     zoomPercent: 100,
     onBrushChange: vi.fn(),
     onGradientChange: vi.fn(),
+    onShapeChange: vi.fn(),
     onWarpChange: vi.fn(),
     onVectorStyleChange: vi.fn(),
     onTextChange: vi.fn(),
@@ -52,6 +56,7 @@ const renderOptions = (
     onTextPropertyCancel: vi.fn(),
     onTextLayoutModeChange: vi.fn(),
     onSelectedVectorStyleChange: vi.fn(),
+    onSelectedShapeChange: vi.fn(),
     onWarpReset: vi.fn(),
     onSelectionPixelSnapChange: vi.fn(),
     onSelectionCombineModeChange: vi.fn(),
@@ -64,6 +69,20 @@ const renderOptions = (
 };
 
 describe('vector style tool options', () => {
+  it('surfaces shared exact geometry controls for rectangle and ellipse tools', () => {
+    const rectangle = renderOptions('shape-rectangle');
+    expect(rectangle).toContain('aria-label="Shape geometry"');
+    expect(rectangle).toContain('aria-label="Shape geometry mode"');
+    expect(rectangle).toContain('From center');
+    expect(rectangle).toContain('Snap pixels');
+    expect(rectangle).toContain('Link corners');
+    expect(rectangle).toContain('Radius');
+
+    const ellipse = renderOptions('shape-ellipse');
+    expect(ellipse).toContain('aria-label="Shape geometry"');
+    expect(ellipse).not.toContain('Link corners');
+  });
+
   it('surfaces native Gradient Tool geometry and quality controls', () => {
     const markup = renderOptions('gradient');
     expect(markup).toContain('aria-label="Edit gradient"');

@@ -27,6 +27,7 @@ export interface ToolOptionsProps {
   activeTool: ToolId;
   brush: BrushSettings;
   gradient: EditorSession['gradient'];
+  shape: EditorSession['shape'];
   warp: EditorSession['warp'];
   vectorStyle: VectorToolStyleSettings;
   text: TextToolSettings;
@@ -34,6 +35,8 @@ export interface ToolOptionsProps {
   textProperties?: TextPropertyPresentation | null;
   textLayoutMode?: 'point' | 'paragraph' | null;
   selectedVectorStyle?: VectorToolStyleSettings | null;
+  selectedShape?: EditorSession['shape'] | null;
+  selectedShapeKind?: 'rectangle' | 'ellipse' | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
   selectionRowHeight: number;
@@ -41,6 +44,7 @@ export interface ToolOptionsProps {
   zoomPercent: number;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
+  onShapeChange: (change: Partial<EditorSession['shape']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<VectorToolStyleSettings>) => void;
   onTextChange: (change: Partial<TextToolSettings>) => void;
@@ -57,6 +61,7 @@ export interface ToolOptionsProps {
   onTextPropertyCancel?: () => void;
   onTextLayoutModeChange?: (mode: 'point' | 'paragraph') => void;
   onSelectedVectorStyleChange?: (change: Partial<VectorToolStyleSettings>) => void;
+  onSelectedShapeChange?: (change: Partial<EditorSession['shape']>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
@@ -132,6 +137,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   activeTool,
   brush,
   gradient,
+  shape,
   warp,
   vectorStyle,
   text,
@@ -139,6 +145,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   textProperties,
   textLayoutMode,
   selectedVectorStyle,
+  selectedShape,
+  selectedShapeKind,
   selectionPixelSnap,
   selectionCombineMode,
   selectionRowHeight,
@@ -146,6 +154,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   zoomPercent,
   onBrushChange,
   onGradientChange,
+  onShapeChange,
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
@@ -162,6 +171,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onTextPropertyCancel,
   onTextLayoutModeChange,
   onSelectedVectorStyleChange,
+  onSelectedShapeChange,
   onWarpReset,
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
@@ -175,6 +185,13 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   const vectorStyleToolActive = activeTool.startsWith('vector-') || activeTool.startsWith('shape-');
   const editsVectorSelection = vectorStyleToolActive && Boolean(selectedVectorStyle);
   const presentedVectorStyle = editsVectorSelection ? selectedVectorStyle! : vectorStyle;
+  const presentedShape = selectedShape ?? shape;
+  const changeShape = selectedShape && onSelectedShapeChange
+    ? onSelectedShapeChange : onShapeChange;
+  const shapeGeometryActive = activeTool === 'shape-rectangle'
+    || activeTool === 'shape-ellipse' || Boolean(selectedShapeKind);
+  const rectangleGeometryActive = selectedShapeKind
+    ? selectedShapeKind === 'rectangle' : activeTool === 'shape-rectangle';
   const presentedGradient = presentedVectorStyle.fillPaint
     && 'kind' in presentedVectorStyle.fillPaint
     ? presentedVectorStyle.fillPaint as GradientPaintInstance
@@ -360,6 +377,57 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           <span className="lighttable-tool-options__status">
             {gradient.application === 'fill-layer' ? 'Editable fill layer' : 'Active raster target'}
           </span>
+        </div>
+      ) : null}
+      {shapeGeometryActive ? (
+        <div className="lighttable-tool-options__vector-style" aria-label="Shape geometry">
+          <ToolOptionSelect label="Geometry" value={presentedShape.geometry}
+            aria-label="Shape geometry mode"
+            onChange={(event) => changeShape({
+              geometry: event.currentTarget.value as EditorSession['shape']['geometry']
+            })}>
+            <option value="unrestricted">Unrestricted</option>
+            <option value="fixed">Fixed size</option>
+            <option value="proportional">Proportional</option>
+          </ToolOptionSelect>
+          <ToolOptionNumber label="W" unit="px" min={0.01} max={100000} step={1}
+            value={presentedShape.width}
+            onChange={(width) => changeShape({ width: Math.max(0.01, width || 0.01) })} />
+          <ToolOptionNumber label="H" unit="px" min={0.01} max={100000} step={1}
+            value={presentedShape.height}
+            onChange={(height) => changeShape({ height: Math.max(0.01, height || 0.01) })} />
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={presentedShape.fromCenter}
+              onChange={(event) => changeShape({ fromCenter: event.currentTarget.checked })} />
+            <span>From center</span>
+          </label>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={presentedShape.snapToPixels}
+              onChange={(event) => changeShape({ snapToPixels: event.currentTarget.checked })} />
+            <span>Snap pixels</span>
+          </label>
+          {rectangleGeometryActive ? (
+            <>
+              <label className="lighttable-tool-options__toggle">
+                <input type="checkbox" checked={presentedShape.linkedCorners}
+                  aria-label="Link rectangle corners"
+                  onChange={(event) => changeShape({ linkedCorners: event.currentTarget.checked })} />
+                <span>Link corners</span>
+              </label>
+              {presentedShape.rectangleCornerRadii.map((radius, index) => presentedShape.linkedCorners && index > 0 ? null : (
+                <ToolOptionNumber key={index} label={presentedShape.linkedCorners ? 'Radius' : `R${index + 1}`}
+                  unit="px" min={0} max={100000} step={1} value={radius}
+                  onChange={(value) => {
+                    const next = Math.max(0, value || 0);
+                    changeShape({ rectangleCornerRadii: presentedShape.linkedCorners
+                      ? [next, next, next, next]
+                      : presentedShape.rectangleCornerRadii.map((current, corner) => (
+                          corner === index ? next : current
+                        )) as [number, number, number, number] });
+                  }} />
+              ))}
+            </>
+          ) : null}
         </div>
       ) : null}
       {activeTool === 'zoom' ? (

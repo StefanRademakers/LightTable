@@ -19,6 +19,7 @@ export interface VectorToolSessionHookOptions {
   readonly activeTool: ToolId;
   readonly foregroundColor: string;
   readonly gradient: EditorSession['gradient'];
+  readonly shape: EditorSession['shape'];
   readonly fillColor: string;
   readonly fillEnabled: boolean;
   readonly strokeColor: string;
@@ -43,6 +44,7 @@ export const useVectorToolSessionController = ({
   activeTool,
   foregroundColor,
   gradient,
+  shape,
   fillColor,
   fillEnabled,
   strokeColor,
@@ -131,9 +133,18 @@ export const useVectorToolSessionController = ({
       return;
     }
     const activation = vectorToolActivation(activeTool);
-    if (activation.preset) controller.setLiveShapePreset(activation.preset);
+    if (activation.preset) controller.setLiveShapePreset(
+      activation.preset.kind === 'rectangle'
+        ? {
+            ...activation.preset,
+            cornerRadii: [...shape.rectangleCornerRadii],
+            linkedCorners: shape.linkedCorners
+          }
+        : activation.preset
+    );
     controller.activate(activation.mode);
-  }, [activeTool, document?.id, gradient.application]);
+  }, [activeTool, document?.id, gradient.application, shape.linkedCorners,
+    shape.rectangleCornerRadii]);
 
   // Delay destruction by one microtask. React development StrictMode performs
   // a synthetic setup/cleanup/setup cycle; the generation guard prevents that

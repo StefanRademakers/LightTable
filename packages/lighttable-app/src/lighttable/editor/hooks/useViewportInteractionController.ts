@@ -442,7 +442,14 @@ export const useViewportInteractionController = ({
           closeTolerance: 8 / Math.max(activeScale, 0.0001),
           additive: event.shiftKey,
           preserveAspect: event.shiftKey,
-          fromCenter: event.altKey
+          fromCenter: event.altKey || editorSession.shape.fromCenter,
+          fixedSize: editorSession.shape.geometry === 'fixed'
+            ? { x: editorSession.shape.width, y: editorSession.shape.height }
+            : undefined,
+          proportionalRatio: editorSession.shape.geometry === 'proportional'
+            ? editorSession.shape.width / Math.max(editorSession.shape.height, 1e-6)
+            : undefined,
+          snapToPixels: editorSession.shape.snapToPixels
         })) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();
@@ -639,7 +646,14 @@ export const useViewportInteractionController = ({
       if (point && vector.ownsPointer(event.pointerId)) {
         if (vector.pointerMove(event.pointerId, point, {
           preserveAspect: event.shiftKey,
-          fromCenter: event.altKey,
+          fromCenter: event.altKey || editorSession.shape.fromCenter,
+          fixedSize: editorSession.shape.geometry === 'fixed'
+            ? { x: editorSession.shape.width, y: editorSession.shape.height }
+            : undefined,
+          proportionalRatio: editorSession.shape.geometry === 'proportional'
+            ? editorSession.shape.width / Math.max(editorSession.shape.height, 1e-6)
+            : undefined,
+          snapToPixels: editorSession.shape.snapToPixels,
           moveOrigin: temporaryTools.activeTool === 'view'
         })) event.preventDefault();
         return;
@@ -742,7 +756,14 @@ export const useViewportInteractionController = ({
         const point = documentPoint(event);
         if (point) vector.pointerUp(event.pointerId, point, event.detail, {
           preserveAspect: event.shiftKey,
-          fromCenter: event.altKey,
+          fromCenter: event.altKey || editorSession.shape.fromCenter,
+          fixedSize: editorSession.shape.geometry === 'fixed'
+            ? { x: editorSession.shape.width, y: editorSession.shape.height }
+            : undefined,
+          proportionalRatio: editorSession.shape.geometry === 'proportional'
+            ? editorSession.shape.width / Math.max(editorSession.shape.height, 1e-6)
+            : undefined,
+          snapToPixels: editorSession.shape.snapToPixels,
           moveOrigin: temporaryTools.activeTool === 'view'
         });
         else vector.pointerCancel(event.pointerId);

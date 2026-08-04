@@ -20,6 +20,7 @@ export interface LightTableEditorShellProps {
   activeTool: ToolId;
   brush: EditorSession['brush'];
   gradient: EditorSession['gradient'];
+  shape: EditorSession['shape'];
   warp: EditorSession['warp'];
   vectorStyle: EditorSession['vectorStyle'];
   text: EditorSession['text'];
@@ -27,6 +28,8 @@ export interface LightTableEditorShellProps {
   textProperties?: TextPropertyPresentation | null;
   textLayoutMode?: 'point' | 'paragraph' | null;
   selectedVectorStyle: EditorSession['vectorStyle'] | null;
+  selectedShape: EditorSession['shape'] | null;
+  selectedShapeKind: 'rectangle' | 'ellipse' | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: EditorSession['selectionCombineMode'];
   selectionRowHeight: number;
@@ -34,6 +37,7 @@ export interface LightTableEditorShellProps {
   zoomPercent: number;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
+  onShapeChange: (change: Partial<EditorSession['shape']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onTextChange: (change: Partial<EditorSession['text']>) => void;
@@ -50,6 +54,7 @@ export interface LightTableEditorShellProps {
   onTextPropertyCancel?: () => void;
   onTextLayoutModeChange?: (mode: 'point' | 'paragraph') => void;
   onSelectedVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
+  onSelectedShapeChange: (change: Partial<EditorSession['shape']>) => void;
   onWarpReset: () => void;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: EditorSession['selectionCombineMode']) => void;
@@ -88,6 +93,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   activeTool,
   brush,
   gradient,
+  shape,
   warp,
   vectorStyle,
   text,
@@ -95,6 +101,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   textProperties,
   textLayoutMode,
   selectedVectorStyle,
+  selectedShape,
+  selectedShapeKind,
   selectionPixelSnap,
   selectionCombineMode,
   selectionRowHeight,
@@ -102,6 +110,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   zoomPercent,
   onBrushChange,
   onGradientChange,
+  onShapeChange,
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
@@ -118,6 +127,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onTextPropertyCancel,
   onTextLayoutModeChange,
   onSelectedVectorStyleChange,
+  onSelectedShapeChange,
   onWarpReset,
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
@@ -165,6 +175,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         activeTool={activeTool}
         brush={brush}
         gradient={gradient}
+        shape={shape}
         warp={warp}
         vectorStyle={vectorStyle}
         text={text}
@@ -172,6 +183,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         textProperties={textProperties}
         textLayoutMode={textLayoutMode}
         selectedVectorStyle={selectedVectorStyle}
+        selectedShape={selectedShape}
+        selectedShapeKind={selectedShapeKind}
         selectionPixelSnap={selectionPixelSnap}
         selectionCombineMode={selectionCombineMode}
         selectionRowHeight={selectionRowHeight}
@@ -179,6 +192,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         zoomPercent={zoomPercent}
         onBrushChange={onBrushChange}
         onGradientChange={onGradientChange}
+        onShapeChange={onShapeChange}
         onWarpChange={onWarpChange}
         onVectorStyleChange={onVectorStyleChange}
         onTextChange={onTextChange}
@@ -195,6 +209,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onTextPropertyCancel={onTextPropertyCancel}
         onTextLayoutModeChange={onTextLayoutModeChange}
         onSelectedVectorStyleChange={onSelectedVectorStyleChange}
+        onSelectedShapeChange={onSelectedShapeChange}
         onWarpReset={onWarpReset}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}
         onSelectionCombineModeChange={onSelectionCombineModeChange}

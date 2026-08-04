@@ -2,6 +2,8 @@ import {
   cloneVectorElement,
   type AnchorMode,
   type VectorIdSource,
+  type VectorElement,
+  type VectorLiveShape,
   type VectorPath,
   type Vec2,
   type VectorStyle
@@ -19,6 +21,7 @@ import {
 import { PenToolController } from './PenToolController';
 import {
   LiveShapeToolController,
+  type LiveShapeDragOptions,
   type LiveShapeDragUpdateOptions,
   type LiveShapeToolPreset
 } from './LiveShapeToolController';
@@ -54,12 +57,10 @@ export interface VectorToolSessionOptions {
   pathName?: string;
 }
 
-export interface VectorPointerDownOptions {
+export interface VectorPointerDownOptions extends LiveShapeDragOptions {
   hitRadius: number;
   closeTolerance?: number;
   additive?: boolean;
-  preserveAspect?: boolean;
-  fromCenter?: boolean;
 }
 
 interface CapturedPointer {
@@ -195,7 +196,10 @@ export class VectorToolSessionController {
     } else if (this.activeMode === 'live-shape') {
       if (!this.liveShape.pointerDown(documentPoint, {
         preserveAspect: options.preserveAspect,
-        fromCenter: options.fromCenter
+        fromCenter: options.fromCenter,
+        fixedSize: options.fixedSize,
+        proportionalRatio: options.proportionalRatio,
+        snapToPixels: options.snapToPixels
       })) return false;
     } else if (this.activeMode === 'gradient') {
       if (!this.gradient.pointerDown(documentPoint)) return false;
@@ -347,6 +351,30 @@ export class VectorToolSessionController {
         return next;
       }
     })));
+  }
+
+  editSelectedLiveShapes(edit: (shape: VectorLiveShape) => VectorLiveShape) {
+    if (!this.prepareSelectionCommand()) return false;
+    const document = this.dependencies.getDocument();
+    if (!document) return false;
+    const edits = this.dependencies.getSelection().elements.flatMap(({ layerId, elementId }) => {
+      const layer = findDocumentLayer(document, layerId);
+      const element = layer?.type === 'vector'
+        ? layer.elements.find(({ id }) => id === elementId)
+        : null;
+      if (element?.type !== 'live-shape') return [];
+      return [{
+        layerId,
+        elementId,
+        edit: (current: VectorElement) => {
+          if (current.type !== 'live-shape') return current;
+          const next = edit(cloneVectorElement(current) as VectorLiveShape);
+          next.geometryRevision += 1;
+          return next;
+        }
+      }];
+    });
+    return edits.length > 0 && this.documents.editElements(edits);
   }
 
   setSelectedAnchorMode(mode: AnchorMode) {

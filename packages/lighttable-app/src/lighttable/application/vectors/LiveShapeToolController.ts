@@ -41,6 +41,12 @@ export interface LiveShapeDragOptions {
   preserveAspect?: boolean;
   /** Treat the pointer-down position as the shape centre instead of a corner. */
   fromCenter?: boolean;
+  /** Use exact full shape dimensions while retaining the drag direction. */
+  fixedSize?: Vec2;
+  /** Preserve this width/height ratio while dragging. */
+  proportionalRatio?: number;
+  /** Align authored geometry to document pixel boundaries. */
+  snapToPixels?: boolean;
 }
 
 export interface LiveShapeDragUpdateOptions extends LiveShapeDragOptions {
@@ -69,8 +75,28 @@ export const resolveLiveShapeDrag = (
   preset: LiveShapeToolPreset,
   options: LiveShapeDragOptions = {}
 ): readonly [Vec2, Vec2] => {
-  let dx = pointer.x - origin.x;
-  let dy = pointer.y - origin.y;
+  const resolvedOrigin = options.snapToPixels
+    ? { x: Math.round(origin.x), y: Math.round(origin.y) }
+    : origin;
+  const resolvedPointer = options.snapToPixels
+    ? { x: Math.round(pointer.x), y: Math.round(pointer.y) }
+    : pointer;
+  let dx = resolvedPointer.x - resolvedOrigin.x;
+  let dy = resolvedPointer.y - resolvedOrigin.y;
+
+  if (options.fixedSize && preset.kind !== 'polygon' && preset.kind !== 'star') {
+    const centerFactor = options.fromCenter ? 0.5 : 1;
+    dx = (dx < 0 ? -1 : 1) * Math.max(Number.EPSILON, options.fixedSize.x) * centerFactor;
+    dy = (dy < 0 ? -1 : 1) * Math.max(Number.EPSILON, options.fixedSize.y) * centerFactor;
+  } else if (options.proportionalRatio && options.proportionalRatio > 0
+    && preset.kind !== 'line' && preset.kind !== 'polygon' && preset.kind !== 'star') {
+    const ratio = options.proportionalRatio;
+    if (Math.abs(dx) / Math.max(Math.abs(dy), Number.EPSILON) > ratio) {
+      dy = (dy < 0 ? -1 : 1) * Math.abs(dx) / ratio;
+    } else {
+      dx = (dx < 0 ? -1 : 1) * Math.abs(dy) * ratio;
+    }
+  }
 
   if (options.preserveAspect) {
     if (preset.kind === 'line') {
@@ -91,12 +117,12 @@ export const resolveLiveShapeDrag = (
     }
   }
 
-  const constrained = { x: origin.x + dx, y: origin.y + dy };
+  const constrained = { x: resolvedOrigin.x + dx, y: resolvedOrigin.y + dy };
   if (!options.fromCenter || preset.kind === 'polygon' || preset.kind === 'star') {
-    return [{ ...origin }, constrained];
+    return [{ ...resolvedOrigin }, constrained];
   }
   return [
-    { x: origin.x - dx, y: origin.y - dy },
+    { x: resolvedOrigin.x - dx, y: resolvedOrigin.y - dy },
     constrained
   ];
 };
@@ -230,7 +256,10 @@ export class LiveShapeToolController {
     this.lastPointer = { ...position };
     const dragOptions: LiveShapeDragOptions = {
       preserveAspect: options.preserveAspect ?? this.dragOptions.preserveAspect,
-      fromCenter: options.fromCenter ?? this.dragOptions.fromCenter
+      fromCenter: options.fromCenter ?? this.dragOptions.fromCenter,
+      fixedSize: options.fixedSize ?? this.dragOptions.fixedSize,
+      proportionalRatio: options.proportionalRatio ?? this.dragOptions.proportionalRatio,
+      snapToPixels: options.snapToPixels ?? this.dragOptions.snapToPixels
     };
     const dx = position.x - this.start.x;
     const dy = position.y - this.start.y;

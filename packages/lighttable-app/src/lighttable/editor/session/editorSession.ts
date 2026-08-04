@@ -175,6 +175,17 @@ export interface VectorToolStyleSettings {
   strokeAlignment: 'inside' | 'center' | 'outside';
 }
 
+export interface ShapeToolSettings {
+  mode: 'shape' | 'pixels';
+  geometry: 'unrestricted' | 'fixed' | 'proportional';
+  width: number;
+  height: number;
+  fromCenter: boolean;
+  snapToPixels: boolean;
+  rectangleCornerRadii: [number, number, number, number];
+  linkedCorners: boolean;
+}
+
 export interface TextToolSettings {
   family: string;
   style: string;
@@ -213,6 +224,7 @@ export interface EditorSession {
   brush: BrushSettings;
   gradient: GradientToolSettings;
   vectorStyle: VectorToolStyleSettings;
+  shape: ShapeToolSettings;
   text: TextToolSettings;
   warp: WarpToolSettings;
 }
@@ -244,6 +256,16 @@ export const createEditorSession = (): EditorSession => ({
     strokeColor: '#ffffff',
     strokeWidth: 3,
     strokeAlignment: 'center'
+  },
+  shape: {
+    mode: 'shape',
+    geometry: 'unrestricted',
+    width: 100,
+    height: 100,
+    fromCenter: false,
+    snapToPixels: true,
+    rectangleCornerRadii: [0, 0, 0, 0],
+    linkedCorners: true
   },
   text: {
     family: 'Inter',

@@ -104,6 +104,38 @@ describe('resolveLiveShapeDrag', () => {
     expect(current.x).toBeCloseTo(26.15, 1);
     expect(current.y).toBeCloseTo(26.15, 1);
   });
+
+  it('uses exact full dimensions in fixed-size centre mode', () => {
+    expect(resolveLiveShapeDrag(
+      { x: 50.4, y: 40.4 },
+      { x: 80.1, y: 60.2 },
+      { kind: 'ellipse' },
+      { fromCenter: true, fixedSize: { x: 120, y: 80 }, snapToPixels: true }
+    )).toEqual([
+      { x: -10, y: 0 },
+      { x: 110, y: 80 }
+    ]);
+  });
+
+  it('preserves the configured proportional ratio in either drag direction', () => {
+    const [start, end] = resolveLiveShapeDrag(
+      { x: 20, y: 20 },
+      { x: 50, y: 80 },
+      { kind: 'rectangle' },
+      { proportionalRatio: 2 }
+    );
+    expect(start).toEqual({ x: 20, y: 20 });
+    expect(end).toEqual({ x: 140, y: 80 });
+  });
+
+  it('snaps authored endpoints to whole document pixels', () => {
+    expect(resolveLiveShapeDrag(
+      { x: 10.4, y: 12.6 },
+      { x: 40.6, y: 50.2 },
+      { kind: 'rectangle' },
+      { snapToPixels: true }
+    )).toEqual([{ x: 10, y: 13 }, { x: 41, y: 50 }]);
+  });
 });
 
 describe('LiveShapeToolController', () => {
