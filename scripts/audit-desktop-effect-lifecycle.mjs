@@ -66,11 +66,22 @@ try {
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.activeDocumentId;
   if (!documentId) throw new Error('No active document.');
-  // Document adjustments require a raster/Grade owner. Corpus documents can
-  // legitimately open with a vector, text or group selected, so create one
-  // isolated raster owner instead of making the fixture's initial selection
-  // part of the benchmark.
-  await driver.execute(documentId, 'layer.createRaster', {});
+  // Document adjustments require a raster/Grade owner. Prefer an existing,
+  // currently presented raster layer so visual fidelity is exercised too;
+  // fall back to an isolated raster only for vector-only fixtures.
+  const layers = await driver.queryLayers(documentId) ?? [];
+  const presentedLayerIds = new Set(await page.locator('[data-layer-id]').evaluateAll(
+    (nodes) => nodes.map((node) => node.getAttribute('data-layer-id')).filter(Boolean)
+  ));
+  const rasterOwner = layers.find((layer) => (
+    layer.type === 'raster' && layer.visible && presentedLayerIds.has(layer.id)
+  ));
+  if (rasterOwner) {
+    const selectorId = rasterOwner.id.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+    await page.locator(`[data-layer-id="${selectorId}"]`).click();
+  } else {
+    await driver.execute(documentId, 'layer.createRaster', {});
+  }
 
   await page.evaluate(() => {
     globalThis.__lightTableEffectAudit = { longTasks: [] };
@@ -130,11 +141,17 @@ try {
       const disabledStartedAt = performance.now();
       await toggle.click();
       const disabled = await settle(enabled.estimatedGpuBytes, 'down');
+      const disabledHash = await capture(`${effect.replaceAll(' ', '-').toLowerCase()}-${cycle}-disabled`);
       cycles.push({
         cycle: cycle + 1,
         enabled: { ...enabled, wallMs: enabledWallMs, screenshotHash: enabledHash },
-        disabled: { ...disabled, wallMs: performance.now() - disabledStartedAt },
-        enabledMatchesReference: enabledHash === referenceHash
+        disabled: {
+          ...disabled,
+          wallMs: performance.now() - disabledStartedAt,
+          screenshotHash: disabledHash
+        },
+        enabledMatchesReference: enabledHash === referenceHash,
+        enabledDiffersFromDisabled: enabledHash !== disabledHash
       });
     }
     const warm = cycles.slice(1).map(({ enabled }) => enabled.wallMs);
@@ -146,7 +163,8 @@ try {
       warmEnableMedianMs: percentile(warm, 0.5),
       warmEnableP95Ms: percentile(warm, 0.95),
       peakGpuDeltaBytes: Math.max(0, ...cycles.map(({ enabled }) => enabled.estimatedGpuBytes - beforeBytes)),
-      fidelityStable: cycles.every(({ enabledMatchesReference }) => enabledMatchesReference)
+      fidelityStable: cycles.every(({ enabledMatchesReference }) => enabledMatchesReference),
+      effectVisuallyObserved: cycles.some(({ enabledDiffersFromDisabled }) => enabledDiffersFromDisabled)
     });
   }
 
