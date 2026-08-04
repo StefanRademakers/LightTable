@@ -7,6 +7,7 @@ import type { EditorDialogController } from './useEditorDialogController';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { PdfExportPreflightDialog } from '../pdf/PdfExportPreflightDialog';
 import { MissingFontRecoveryDialog } from './MissingFontRecoveryDialog';
+import { FormatSupportDialog } from './FormatSupportDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -128,6 +129,10 @@ export const EditorDialogs = ({
       open={Boolean(controller.pdfExportPreflightRequest)}
       request={controller.pdfExportPreflightRequest}
       onClose={controller.closePdfExportPreflight}
+    />
+    <FormatSupportDialog
+      open={controller.formatSupportOpen}
+      onClose={controller.closeFormatSupport}
     />
   </>
 );

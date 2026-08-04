@@ -2488,6 +2488,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       openCompatibilityReport: editorDialogs.openPsdReport,
+      openFormatSupport: editorDialogs.openFormatSupport,
       pdfExportPreflight: () => {
         finishTextEditingRef.current();
         commitPointTextRef.current();

@@ -42,7 +42,8 @@ describe('createEditorMenuController', () => {
         save: vi.fn(),
         exportPng: vi.fn(),
         pdfExportPreflight: vi.fn(),
-        openCompatibilityReport: vi.fn()
+        openCompatibilityReport: vi.fn(),
+        openFormatSupport: vi.fn()
       },
       edit: {
         copySelectedContent: vi.fn(),
@@ -125,7 +126,8 @@ describe('createEditorMenuController', () => {
       file: {
         newDocument: vi.fn(), open: vi.fn(), save: vi.fn(), exportPng: vi.fn(),
         pdfExportPreflight: vi.fn(),
-        openCompatibilityReport: vi.fn()
+        openCompatibilityReport: vi.fn(),
+        openFormatSupport: vi.fn()
       },
       edit: {
         copySelectedContent: vi.fn(), copyMergedContent: vi.fn(),

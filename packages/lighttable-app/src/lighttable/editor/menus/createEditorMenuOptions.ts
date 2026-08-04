@@ -50,6 +50,7 @@ export interface EditorMenuCommands {
   exportPng: () => void;
   pdfExportPreflight: () => void;
   openCompatibilityReport: () => void;
+  openFormatSupport: () => void;
   copySelectedContent: () => void;
   copyMergedContent: () => void;
   pasteSelectedContent: () => void;
@@ -145,6 +146,12 @@ export const createEditorMenuOptions = (
         label: 'Document Compatibility Report...',
         onClick: commands.openCompatibilityReport,
         disabled: !state.hasCompatibilityReport || state.saving
+      },
+      {
+        value: 'format-support',
+        label: 'Format Support...',
+        separatorBefore: true,
+        onClick: commands.openFormatSupport
       }
     ];
   }

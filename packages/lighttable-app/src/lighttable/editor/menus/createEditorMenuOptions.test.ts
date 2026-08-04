@@ -69,9 +69,12 @@ describe('createEditorMenuOptions', () => {
       { label: 'Saving...', shortcut: 'Ctrl+S' },
       { label: 'Quick Export PNG', shortcut: 'Ctrl+Shift+S' },
       { label: 'PDF Export Preflight...', shortcut: undefined },
-      { label: 'Document Compatibility Report...', shortcut: undefined }
+      { label: 'Document Compatibility Report...', shortcut: undefined },
+      { label: 'Format Support...', shortcut: undefined }
     ]);
-    expect(options.every((option) => option.disabled)).toBe(true);
+    expect(options.filter(({ value }) => value !== 'format-support')
+      .every((option) => option.disabled)).toBe(true);
+    expect(options.find(({ value }) => value === 'format-support')?.disabled).not.toBe(true);
   });
 
   it('exposes the existing compatibility report only when one is available', () => {

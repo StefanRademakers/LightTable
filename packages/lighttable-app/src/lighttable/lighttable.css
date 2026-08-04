@@ -1266,6 +1266,54 @@
   padding-left: 18px;
 }
 
+.lighttable-format-support {
+  width: min(760px, calc(100vw - 48px));
+}
+
+.lighttable-format-support__table {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 18px 18px;
+}
+
+.lighttable-format-support__entry {
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.lighttable-format-support__row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 72px 72px 72px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0 4px;
+}
+
+.lighttable-format-support__row--header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: 8px;
+  background: var(--panel-bg);
+  color: var(--text-secondary);
+  font-size: var(--lt-type-label);
+}
+
+.lighttable-format-support__row strong small {
+  display: block;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.lighttable-format-support__entry p {
+  margin: 0 0 9px;
+  color: var(--text-secondary);
+  font-size: var(--lt-type-label);
+}
+
+.lighttable-format-support__level--supported { color: var(--lt-success); }
+.lighttable-format-support__level--partial { color: var(--lt-warning); }
+.lighttable-format-support__level--unavailable { color: var(--text-secondary); }
+
 .lighttable-panel {
   width: 100%;
   height: 100%;

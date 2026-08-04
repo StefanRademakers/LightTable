@@ -30,9 +30,9 @@ Status: active
   PDF structure.
 - [ ] Harden PDF export UX and validation for unsupported layer interleaving,
   fonts, transparency and multiple pages.
-- [ ] Add explicit format-support access from the existing Open/Export UI once
-  the shared capability surface described in
-  `architecture/THIRD_PARTY_AND_FORMAT_SUPPORT.md` is implemented.
+- [x] Add File > Format Support using the existing dialog/button/select design
+  system and one tested runtime capability registry aligned with the automatic
+  Open route; PSD/PSB/AI export remain explicitly unavailable.
 - [x] Add native save/reopen coverage after editing above an imported PDF:
   packaged Electron paints, saves through Ctrl+S, starts a fresh process,
   reopens the native document and verifies the paint layer has visible pixels.
