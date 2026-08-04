@@ -1,0 +1,21 @@
+UX Rectangle Tool
+
+Tool hotkey: U
+Press Shift + U to cycle through the Shape tools until Rectangle Tool is selected.
+
+Main properties
+Mode — create a Shape, or Pixels. (shape is always dfault)
+Fill — color, gradient, or pattern inside the rectangle.
+Stroke — outline color, width, style, and alignment.
+Width / Height — enter exact dimensions.
+Corner radius — round all corners or set each corner independently.
+Geometry options — fixed size, proportional dimensions, draw from center, or snap to pixels.
+Controls and shortcuts
+Draw rectangle: click and drag.
+Draw a perfect square: hold Shift.
+Draw outward from the center: hold Alt.
+Draw a centered square: hold Alt + Shift.
+Move while drawing: hold Spacebar.
+Select and move the shape path: A.
+Move the entire shape layer: V.
+Duplicate while moving: hold Alt with the Move Tool.

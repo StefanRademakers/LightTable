@@ -37,7 +37,8 @@ describe('vector style presentation', () => {
       strokeEnabled: true,
       strokeColor: '#ffffff',
       strokeWidth: 3,
-      strokeAlignment: 'outside'
+      strokeAlignment: 'outside',
+      strokeStyle: 'dashed'
     });
     const style = patchVectorStyle(element.style, {
       fillColor: '#ff0000',
@@ -53,6 +54,7 @@ describe('vector style presentation', () => {
       dash: [2, 4],
       dashOffset: 1
     });
+    expect(patchVectorStyle(style, { strokeStyle: 'dotted' }).stroke?.dash).toEqual([1, 2]);
   });
 
   it('round-trips explicit no-fill and no-stroke states without losing remembered colors', () => {

@@ -1,0 +1,23 @@
+UX Ellipse Tool
+
+Tool hotkey: U
+Press Shift + U to cycle through the Shape tools until Ellipse Tool is selected.
+
+Main properties
+Mode — create a Shape, or Pixels.
+Fill — solid color, gradient, pattern, or no fill.
+Stroke — color, width, line style, and alignment.
+Width / Height — enter exact dimensions.
+Geometry options — unrestricted, fixed size, proportional, or draw from center.
+Controls and shortcuts
+Draw an ellipse: click and drag.
+Draw a perfect circle: hold Shift.
+Draw outward from the center: hold Alt.
+Draw a centered circle: hold Alt + Shift.
+Move while drawing: hold Spacebar.
+Select/edit the path: A.
+Move the shape layer: V.
+Free Transform: Ctrl + T.
+Undo: Ctrl + Z.
+
+macOS: replace Alt with Option and Ctrl with Cmd.

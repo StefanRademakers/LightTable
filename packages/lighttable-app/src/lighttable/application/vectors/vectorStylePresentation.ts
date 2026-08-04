@@ -54,7 +54,9 @@ export const vectorElementStyleSettings = (
   strokeEnabled: element.style.stroke !== null,
   strokeColor: paintCssColor(element.style.stroke?.paint ?? null, '#ffffff'),
   strokeWidth: element.style.stroke?.width ?? 3,
-  strokeAlignment: element.style.stroke?.alignment ?? 'center'
+  strokeAlignment: element.style.stroke?.alignment ?? 'center',
+  strokeStyle: !element.style.stroke?.dash.length
+    ? 'solid' : element.style.stroke.dash[0]! <= 1 ? 'dotted' : 'dashed'
 });
 
 export const patchVectorStyle = (
@@ -81,7 +83,10 @@ export const patchVectorStyle = (
     cap: style.stroke?.cap ?? 'round',
     join: style.stroke?.join ?? 'round',
     miterLimit: style.stroke?.miterLimit ?? 4,
-    dash: [...(style.stroke?.dash ?? [])],
+    dash: change.strokeStyle === 'solid' ? []
+      : change.strokeStyle === 'dotted' ? [1, 2]
+        : change.strokeStyle === 'dashed' ? [4, 3]
+          : [...(style.stroke?.dash ?? [])],
     dashOffset: style.stroke?.dashOffset ?? 0
   }
 });

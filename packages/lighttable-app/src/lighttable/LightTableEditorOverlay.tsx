@@ -1933,6 +1933,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     strokeColor: editorSession.vectorStyle.strokeColor,
     strokeWidth: editorSession.vectorStyle.strokeWidth,
     strokeAlignment: editorSession.vectorStyle.strokeAlignment,
+    strokeStyle: editorSession.vectorStyle.strokeStyle,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection: (vectorSelection) => {
@@ -1943,6 +1944,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const selectedVectorStyle = useMemo(() => {
     const reference = editorSession.vectorSelection.elements[0];
     if (!reference || !imageDocument) return null;
+    if (reference.layerId !== imageDocument.activeLayerId) return null;
     const layer = findDocumentLayer(imageDocument, reference.layerId);
     const element = layer?.type === 'vector'
       ? layer.elements.find(({ id }) => id === reference.elementId)
@@ -1952,6 +1954,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const selectedShapeGeometry = useMemo(() => {
     const reference = editorSession.vectorSelection.elements[0];
     if (!reference || !imageDocument) return null;
+    if (reference.layerId !== imageDocument.activeLayerId) return null;
     const layer = findDocumentLayer(imageDocument, reference.layerId);
     const element = layer?.type === 'vector'
       ? layer.elements.find(({ id }) => id === reference.elementId)
@@ -1965,7 +1968,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       x: geometry.end.x - geometry.start.x,
       y: geometry.end.y - geometry.start.y
     } : null;
-    const strokeDash = element.style.stroke?.dash ?? [];
     return {
       kind: geometry.kind,
       settings: {
@@ -1977,9 +1979,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           : editorSession.shape.rectangleCornerRadii,
         linkedCorners: geometry.kind === 'rectangle'
           ? geometry.linkedCorners : editorSession.shape.linkedCorners,
-        lineStyle: geometry.kind === 'line'
-          ? strokeDash.length === 0 ? 'solid' : strokeDash[0]! <= 1 ? 'dotted' : 'dashed'
-          : editorSession.shape.lineStyle,
         lineStartArrow: geometry.kind === 'line'
           ? Boolean(geometry.startArrow) : editorSession.shape.lineStartArrow,
         lineEndArrow: geometry.kind === 'line'
@@ -2002,16 +2001,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   };
   const updateSelectedShapeGeometry = (change: Partial<EditorSession['shape']>) => {
-    if (change.lineStyle) {
-      vectorToolSessionController.editSelectedElementStyles((style) => style.stroke ? ({
-        ...style,
-        stroke: {
-          ...style.stroke,
-          dash: change.lineStyle === 'solid' ? [] : change.lineStyle === 'dotted' ? [1, 2] : [4, 3]
-        }
-      }) : style);
-      return;
-    }
     vectorToolSessionController.editSelectedLiveShapes((shape) => {
       if (shape.geometry.kind === 'rectangle') {
         shape.geometry = {

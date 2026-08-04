@@ -173,6 +173,7 @@ export interface VectorToolStyleSettings {
   strokeColor: string;
   strokeWidth: number;
   strokeAlignment: 'inside' | 'center' | 'outside';
+  strokeStyle?: 'solid' | 'dashed' | 'dotted';
 }
 
 export interface ShapeToolSettings {
@@ -184,7 +185,6 @@ export interface ShapeToolSettings {
   snapToPixels: boolean;
   rectangleCornerRadii: [number, number, number, number];
   linkedCorners: boolean;
-  lineStyle: 'solid' | 'dashed' | 'dotted';
   lineStartArrow: boolean;
   lineEndArrow: boolean;
   lineArrowWidth: number;
@@ -261,7 +261,8 @@ export const createEditorSession = (): EditorSession => ({
     strokeEnabled: true,
     strokeColor: '#ffffff',
     strokeWidth: 3,
-    strokeAlignment: 'center'
+    strokeAlignment: 'center',
+    strokeStyle: 'solid'
   },
   shape: {
     mode: 'shape',
@@ -272,7 +273,6 @@ export const createEditorSession = (): EditorSession => ({
     snapToPixels: true,
     rectangleCornerRadii: [0, 0, 0, 0],
     linkedCorners: true,
-    lineStyle: 'solid',
     lineStartArrow: false,
     lineEndArrow: false,
     lineArrowWidth: 18,

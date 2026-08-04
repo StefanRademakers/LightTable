@@ -441,15 +441,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               <ToolOptionNumber label="Angle" unit="deg" min={-360} max={360} step={1}
                 value={presentedShape.lineRotationDegrees}
                 onChange={(lineRotationDegrees) => changeShape({ lineRotationDegrees })} />
-              <ToolOptionSelect label="Style" value={presentedShape.lineStyle}
-                aria-label="Line style"
-                onChange={(event) => changeShape({
-                  lineStyle: event.currentTarget.value as EditorSession['shape']['lineStyle']
-                })}>
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </ToolOptionSelect>
               <div className="lighttable-tool-options__line-ends" role="group" aria-label="Arrowheads">
                 <button type="button" aria-label="Start arrowhead"
                   aria-pressed={presentedShape.lineStartArrow}
@@ -751,6 +742,16 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           <ToolOptionNumber label="Weight" min={0.1} max={1000} step={0.5}
             value={presentedVectorStyle.strokeWidth} unit="px"
             onChange={(value) => changeVectorStyle({ strokeWidth: Math.max(0.1, value || 0.1) })} />
+          <ToolOptionSelect label="Style" value={presentedVectorStyle.strokeStyle ?? 'solid'}
+            disabled={!presentedVectorStyle.strokeEnabled}
+            aria-label="Stroke style"
+            onChange={(event) => changeVectorStyle({
+              strokeStyle: event.currentTarget.value as NonNullable<VectorToolStyleSettings['strokeStyle']>
+            })}>
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+          </ToolOptionSelect>
           <ToolOptionSelect label="Align" value={presentedVectorStyle.strokeAlignment}
             disabled={!presentedVectorStyle.strokeEnabled}
             aria-label="Stroke alignment"

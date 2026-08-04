@@ -36,7 +36,6 @@ describe('LightTable editor session', () => {
       snapToPixels: true,
       rectangleCornerRadii: [0, 0, 0, 0],
       linkedCorners: true,
-      lineStyle: 'solid',
       lineStartArrow: false,
       lineEndArrow: false,
       lineArrowWidth: 18,

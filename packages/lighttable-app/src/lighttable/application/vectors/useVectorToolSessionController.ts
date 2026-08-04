@@ -27,6 +27,7 @@ export interface VectorToolSessionHookOptions {
   readonly strokeEnabled: boolean;
   readonly strokeWidth: number;
   readonly strokeAlignment: VectorToolStyleSettings['strokeAlignment'];
+  readonly strokeStyle: VectorToolStyleSettings['strokeStyle'];
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
@@ -53,6 +54,7 @@ export const useVectorToolSessionController = ({
   strokeEnabled,
   strokeWidth,
   strokeAlignment,
+  strokeStyle,
   applyDocumentSnapshot,
   pushDocumentHistory,
   publishSelection,
@@ -71,6 +73,7 @@ export const useVectorToolSessionController = ({
     strokeEnabled,
     strokeWidth,
     strokeAlignment,
+    strokeStyle,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
@@ -89,6 +92,7 @@ export const useVectorToolSessionController = ({
     strokeEnabled,
     strokeWidth,
     strokeAlignment,
+    strokeStyle,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
@@ -124,8 +128,7 @@ export const useVectorToolSessionController = ({
         stroke: portsRef.current.strokeEnabled
           ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth,
             portsRef.current.strokeAlignment,
-            portsRef.current.activeTool === 'shape-line'
-              ? portsRef.current.shape.lineStyle : 'solid') : null,
+            portsRef.current.strokeStyle ?? 'solid') : null,
         opacity: 1
       }),
       gradientSettings: () => portsRef.current.gradient,
@@ -193,7 +196,7 @@ const createStroke = (
   color: string,
   width: number,
   alignment: VectorToolStyleSettings['strokeAlignment'],
-  lineStyle: EditorSession['shape']['lineStyle'] = 'solid'
+  lineStyle: NonNullable<VectorToolStyleSettings['strokeStyle']> = 'solid'
 ): NonNullable<VectorStyle['stroke']> => ({
   paint: { type: 'solid', color: cssHexToLinearRgba(color) },
   width: Math.max(0.1, width),

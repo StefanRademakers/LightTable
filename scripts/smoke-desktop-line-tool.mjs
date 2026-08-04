@@ -52,7 +52,7 @@ try {
   await page.keyboard.press('Shift+u');
   await page.keyboard.press('d');
   await page.getByText('Line', { exact: true }).first().waitFor({ state: 'visible' });
-  await page.getByLabel('Line style').selectOption('dashed');
+  await page.getByLabel('Stroke style').selectOption('dashed');
   await page.getByRole('button', { name: 'End arrowhead' }).click();
   if (await page.getByRole('button', { name: 'End arrowhead' }).getAttribute('aria-pressed') !== 'true') {
     throw new Error('The end-arrowhead control did not become active.');
