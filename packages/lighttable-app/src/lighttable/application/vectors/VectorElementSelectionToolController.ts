@@ -1,6 +1,8 @@
 import {
+  cloneVectorElement,
   invertMatrix,
   multiplyMatrices,
+  pathBounds,
   transformPoint,
   transformVectorElement,
   translationMatrix,
@@ -64,6 +66,17 @@ interface ActiveElementDrag {
   moved: boolean;
 }
 
+interface ActiveGradientDrag {
+  readonly documentId: ImageDocument['id'];
+  readonly layerId: LayerId;
+  readonly elementId: string;
+  readonly handle: 'start' | 'end';
+  readonly documentToPaintParent: NonNullable<ReturnType<typeof invertMatrix>>;
+  readonly openingStart: Vec2;
+  readonly openingEnd: Vec2;
+  moved: boolean;
+}
+
 const sameElement = (
   left: VectorElementSelectionReference,
   right: VectorElementSelectionReference
@@ -96,6 +109,7 @@ const localDelta = (
  */
 export class VectorElementSelectionToolController {
   private drag: ActiveElementDrag | null = null;
+  private gradientDrag: ActiveGradientDrag | null = null;
 
   constructor(
     private readonly documents: VectorDocumentController,
@@ -107,6 +121,15 @@ export class VectorElementSelectionToolController {
     const document = this.dependencies.getDocument();
     if (!document) return false;
     const current = cloneVectorEditorSelection(this.dependencies.getSelection());
+    const gradient = this.gradientHandleAt(document, current, documentPoint, options.radius);
+    if (gradient && this.documents.beginElementMutations([gradient])) {
+      this.gradientDrag = {
+        documentId: document.id,
+        ...gradient,
+        moved: false
+      };
+      return true;
+    }
     const currentBounds = vectorElementsDocumentBounds(document, current.elements);
     const currentFrame = currentBounds
       ? buildVectorSelectionFrame(currentBounds, { resourceKey: 'interaction-frame' })
@@ -173,6 +196,7 @@ export class VectorElementSelectionToolController {
   }
 
   pointerMove(documentPoint: Vec2) {
+    if (this.gradientDrag) return this.moveGradientHandle(documentPoint);
     const drag = this.drag;
     if (!drag || this.dependencies.getDocument()?.id !== drag.documentId) {
       if (drag) this.cancel();
@@ -211,6 +235,16 @@ export class VectorElementSelectionToolController {
   }
 
   pointerUp(documentPoint: Vec2) {
+    if (this.gradientDrag) {
+      const drag = this.gradientDrag;
+      this.moveGradientHandle(documentPoint);
+      this.gradientDrag = null;
+      if (!drag.moved) {
+        this.documents.cancelElementMutation();
+        return false;
+      }
+      return this.documents.commitElementMutation();
+    }
     const drag = this.drag;
     if (!drag) return false;
     this.pointerMove(documentPoint);
@@ -223,8 +257,9 @@ export class VectorElementSelectionToolController {
   }
 
   cancel() {
-    const active = this.drag !== null;
+    const active = this.drag !== null || this.gradientDrag !== null;
     this.drag = null;
+    this.gradientDrag = null;
     return this.documents.cancelElementMutation() || active;
   }
 
@@ -271,5 +306,83 @@ export class VectorElementSelectionToolController {
       moved: false
     };
     return true;
+  }
+
+  private gradientHandleAt(
+    document: ImageDocument,
+    selection: VectorEditorSelection,
+    point: Vec2,
+    radius: number
+  ): Omit<ActiveGradientDrag, 'documentId' | 'moved'> | null {
+    const selected = new Set(selection.elements.map(({ layerId, elementId }) => `${layerId}\0${elementId}`));
+    let closest: (Omit<ActiveGradientDrag, 'documentId' | 'moved'> & { distanceSquared: number }) | null = null;
+    for (const resolved of vectorElementsTopmostFirst(document)) {
+      if (!selected.has(`${resolved.layerId}\0${resolved.elementId}`)) continue;
+      const paint = resolved.element.style.fill;
+      if (!paint || !('kind' in paint)) continue;
+      let paintParentToDocument = paint.coordinateSpace !== 'object-bounds'
+        ? { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+        : resolved.layerToDocument;
+      if (paint.coordinateSpace === 'object-bounds') {
+        const bounds = pathBounds(resolved.documentPath);
+        if (!bounds || bounds.width <= 0 || bounds.height <= 0) continue;
+        paintParentToDocument = multiplyMatrices(resolved.documentPath.transform, {
+          a: bounds.width, b: 0, c: 0, d: bounds.height, tx: bounds.x, ty: bounds.y
+        });
+      }
+      const documentToPaintParent = invertMatrix(paintParentToDocument);
+      if (!documentToPaintParent) continue;
+      const start = transformPoint(paintParentToDocument, transformPoint(paint.transform, { x: 0, y: 0 }));
+      const end = transformPoint(paintParentToDocument, transformPoint(paint.transform, { x: 1, y: 0 }));
+      for (const handle of ['start', 'end'] as const) {
+        const target = handle === 'start' ? start : end;
+        const distanceSquared = (target.x - point.x) ** 2 + (target.y - point.y) ** 2;
+        if (distanceSquared > radius ** 2 || (closest && distanceSquared >= closest.distanceSquared)) continue;
+        closest = {
+          layerId: resolved.layerId,
+          elementId: resolved.elementId,
+          handle,
+          documentToPaintParent,
+          openingStart: transformPoint(paint.transform, { x: 0, y: 0 }),
+          openingEnd: transformPoint(paint.transform, { x: 1, y: 0 }),
+          distanceSquared
+        };
+      }
+    }
+    if (!closest) return null;
+    const { distanceSquared: _distanceSquared, ...result } = closest;
+    return result;
+  }
+
+  private moveGradientHandle(documentPoint: Vec2) {
+    const drag = this.gradientDrag;
+    if (!drag || this.dependencies.getDocument()?.id !== drag.documentId) {
+      if (drag) this.cancel();
+      return false;
+    }
+    const position = transformPoint(drag.documentToPaintParent, documentPoint);
+    const start = drag.handle === 'start' ? position : drag.openingStart;
+    const end = drag.handle === 'end' ? position : drag.openingEnd;
+    drag.moved = drag.moved
+      || position.x !== (drag.handle === 'start' ? drag.openingStart.x : drag.openingEnd.x)
+      || position.y !== (drag.handle === 'start' ? drag.openingStart.y : drag.openingEnd.y);
+    return this.documents.previewElementMutations((target) => {
+      if (target.layerId !== drag.layerId || target.elementId !== drag.elementId) return target.openingElement;
+      const fill = target.openingElement.style.fill;
+      if (!fill || !('kind' in fill)) return target.openingElement;
+      const next = cloneVectorElement(target.openingElement);
+      next.style.fill = {
+        ...fill,
+        transform: {
+          ...fill.transform,
+          a: end.x - start.x,
+          b: end.y - start.y,
+          tx: start.x,
+          ty: start.y
+        }
+      };
+      next.styleRevision += 1;
+      return next;
+    });
   }
 }

@@ -89,6 +89,18 @@ const colorToDisplaySrgb = (color: RgbaColor) => {
 const vectorPaint = (paint: TextPaint | undefined, label: string, sourceScale: number) => {
   if (!paint) return null;
   if (paint.kind === 'solid') return { type: 'solid' as const, color: colorToLinearSrgb(paint.color) };
+  if (paint.kind === 'gradient') {
+    const clone = structuredClone(paint);
+    if (clone.coordinateSpace === 'object-bounds' || sourceScale === 1) return clone;
+    return {
+      ...clone,
+      transform: {
+        a: clone.transform.a * sourceScale, b: clone.transform.b * sourceScale,
+        c: clone.transform.c * sourceScale, d: clone.transform.d * sourceScale,
+        tx: clone.transform.tx * sourceScale, ty: clone.transform.ty * sourceScale
+      }
+    };
+  }
   if (paint.stops.length === 0) throw new Error(`${label} gradient requires at least one color stop.`);
   const dx = (paint.end.x - paint.start.x) * sourceScale;
   const dy = (paint.end.y - paint.start.y) * sourceScale;

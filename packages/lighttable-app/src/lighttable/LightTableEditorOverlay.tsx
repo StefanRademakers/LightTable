@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { TEXT_CONTRACT_FIXTURE_COUNT } from '@lighttable/text-core';
+import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint } from '@lighttable/text-core';
 import {
   buildParagraphFrameOverlay
 } from '@lighttable/text-rendering';
@@ -3079,6 +3079,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const patch = textFillPatchFromHex(fill);
     if (patch) queueTextPaintPreview(patch);
   };
+  const applyTextFillPaint = (fill: TextPaint) => {
+    queueTextPaintPreview({ fill: structuredClone(fill) });
+  };
   const applyTextFillEnabled = (enabled: boolean) => {
     if (!textPropertyPresentation) {
       updateText({ fillEnabled: enabled });
@@ -3175,6 +3178,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onTextFontAssetChange={applyTextFontAsset}
       onTextSizeChange={(fontSize) => applyTextPropertyPatch({ fontSize })}
       onTextFillChange={applyTextFill}
+      onTextFillPaintChange={applyTextFillPaint}
       onTextFillEnabledChange={applyTextFillEnabled}
       onTextStrokeColorChange={applyTextStrokeColor}
       onTextStrokeWidthChange={applyTextStrokeWidth}
@@ -3321,6 +3325,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onTextFontAssetChange: applyTextFontAsset,
             onTextSizeChange: (fontSize) => applyTextPropertyPatch({ fontSize }),
             onTextFillChange: applyTextFill,
+            onTextFillPaintChange: applyTextFillPaint,
             onTextFillEnabledChange: applyTextFillEnabled,
             onTextStrokeColorChange: applyTextStrokeColor,
             onTextStrokeWidthChange: applyTextStrokeWidth,

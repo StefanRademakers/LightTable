@@ -62,6 +62,33 @@ const renderOptions = (
 };
 
 describe('vector style tool options', () => {
+  it('surfaces the shared compact gradient editor entry for gradient artwork', () => {
+    const markup = renderOptions('vector-select', 1, 1, undefined, {
+      fillEnabled: true, fillColor: '#000000',
+      fillPaint: {
+        kind: 'gradient',
+        asset: {
+          id: 'gradient', name: 'Gradient', type: 'solid', smoothness: 1,
+          colorStops: [
+            { id: 'a', position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0, a: 1 } },
+            { id: 'b', position: 1, midpoint: 0.5, color: { r: 1, g: 1, b: 1, a: 1 } }
+          ],
+          opacityStops: [
+            { id: 'oa', position: 0, midpoint: 0.5, opacity: 1 },
+            { id: 'ob', position: 1, midpoint: 0.5, opacity: 1 }
+          ], roughness: 0, seed: 0
+        },
+        shape: 'linear', coordinateSpace: 'object-bounds',
+        transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+        reverse: false, dither: true, interpolation: 'perceptual'
+      },
+      strokeEnabled: false, strokeColor: '#ffffff', strokeWidth: 3,
+      strokeAlignment: 'center'
+    });
+    expect(markup).toContain('aria-label="Edit fill gradient"');
+    expect(markup).toContain('>Gradient</button>');
+  });
+
   it('shows an imported selected shape style across the existing vector tool family', () => {
     const selected = {
       fillEnabled: true, fillColor: '#123456',

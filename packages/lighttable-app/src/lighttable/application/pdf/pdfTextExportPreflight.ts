@@ -41,7 +41,8 @@ const affineMatrix = (matrix: Matrix3) => (
 );
 
 const paintNeedsOutlines = (paint: TextPaint | undefined) => Boolean(
-  paint && (paint.kind === 'linear-gradient' || paint.color.colorSpace !== 'srgb')
+  paint && (paint.kind === 'linear-gradient' || paint.kind === 'gradient'
+    || (paint.kind === 'solid' && paint.color.colorSpace !== 'srgb'))
 );
 const paintSupport = (paint: TextRunPaint): PdfExportTextRunInput['paintSupport'] => (
   paint.stroke !== undefined

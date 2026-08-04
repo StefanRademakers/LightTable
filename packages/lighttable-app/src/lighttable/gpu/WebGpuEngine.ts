@@ -1907,6 +1907,7 @@ export class WebGpuEngine {
       : null;
     if (
       !overlayScene.paths.length
+      && !overlayScene.gradientHandles.length
       && !overlayScene.selectionFrame
       && !selectionShape
       && !selectionDraft
@@ -1935,6 +1936,9 @@ export class WebGpuEngine {
     // handles remain the final visible editing affordance.
     for (let index = overlayScene.paths.length - 1; index >= 0; index -= 1) {
       this.vectorEditingOverlayBackend.encode(encoder, overlayScene.paths[index]!, target);
+    }
+    for (const overlay of overlayScene.gradientHandles) {
+      this.vectorEditingOverlayBackend.encode(encoder, overlay, target);
     }
     if (overlayScene.selectionFrame) {
       this.vectorEditingOverlayBackend.encodeSelectionFrame(

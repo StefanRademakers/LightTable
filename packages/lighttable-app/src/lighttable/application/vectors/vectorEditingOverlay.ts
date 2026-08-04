@@ -4,6 +4,7 @@ import {
   type VectorSelectionFrame,
   type VectorEditingOverlay
 } from '@lighttable/vector-rendering';
+import { multiplyMatrices, pathBounds, transformPoint } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { VectorEditorSelection } from '../../editor/session/editorSession';
 import {
@@ -18,7 +19,43 @@ export interface VectorDocumentEditingOverlay extends VectorEditingOverlay {
 export interface VectorDocumentEditingSceneOverlay {
   paths: readonly VectorDocumentEditingOverlay[];
   selectionFrame: VectorSelectionFrame | null;
+  gradientHandles: readonly VectorEditingOverlay[];
 }
+
+const gradientHandleOverlays = (
+  document: Pick<ImageDocument, 'layers' | 'revision'>,
+  selection: VectorEditorSelection
+): VectorEditingOverlay[] => vectorElementsTopmostFirst(document).flatMap((resolved) => {
+  if (!selection.elements.some(({ layerId, elementId }) =>
+    layerId === resolved.layerId && elementId === resolved.elementId)) return [];
+  const paint = resolved.element.style.fill;
+  if (!paint || !('kind' in paint)) return [];
+  let mapping = paint.transform;
+  if (paint.coordinateSpace === 'object-bounds') {
+    const bounds = pathBounds(resolved.documentPath);
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return [];
+    mapping = multiplyMatrices(resolved.documentPath.transform, multiplyMatrices({
+      a: bounds.width, b: 0, c: 0, d: bounds.height, tx: bounds.x, ty: bounds.y
+    }, paint.transform));
+  }
+  const start = transformPoint(mapping, { x: 0, y: 0 });
+  const end = transformPoint(mapping, { x: 1, y: 0 });
+  return [{
+    pathId: `gradient:${resolved.elementId}`,
+    resourceKey: `gradient:${resolved.elementId}:${resolved.element.styleRevision}:${document.revision}`,
+    geometryRevision: 0,
+    transformRevision: 0,
+    cubics: [{
+      subpathId: 'gradient-axis', segmentIndex: 0,
+      p0: start, p1: start, p2: end, p3: end
+    }],
+    anchors: [
+      { subpathId: 'gradient-axis', anchorId: 'start', point: start, markerSizePx: 8, selected: true, active: false },
+      { subpathId: 'gradient-axis', anchorId: 'end', point: end, markerSizePx: 8, selected: true, active: true }
+    ],
+    handles: []
+  }];
+});
 
 const samePath = (
   reference: { layerId: string; pathId: string },
@@ -95,6 +132,7 @@ export const buildVectorDocumentEditingSceneOverlay = (
     .join(',');
   return {
     paths,
+    gradientHandles: gradientHandleOverlays(document, selection),
     selectionFrame: bounds
       ? buildVectorSelectionFrame(bounds, {
           resourceKey: `selection-frame:${document.revision}:${selectionKey}`

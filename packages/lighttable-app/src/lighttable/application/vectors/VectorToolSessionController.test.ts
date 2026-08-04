@@ -8,6 +8,7 @@ import {
 } from '@lighttable/vector-core';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { setActiveLayer } from '../../editor/document/documentCommands';
+import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   createVectorEditorSelection,
@@ -219,6 +220,33 @@ describe('VectorToolSessionController', () => {
       geometry: shape.geometry,
       transform: { a: 1, b: 0, c: 0, d: 1, tx: 30, ty: 25 },
       transformRevision: 1
+    });
+  });
+
+  it('drags a selected gradient endpoint as one non-React document transaction', () => {
+    const state = setup();
+    const shape = createVectorLiveShape('gradient-shape', {
+      kind: 'rectangle', width: 100, height: 50,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    shape.transform = { a: 1, b: 0, c: 0, d: 1, tx: 20, ty: 10 };
+    shape.style.fill = createDefaultGradientPaint('drag-gradient');
+    const layer = createVectorLayer([shape]);
+    state.document.layers = [layer];
+    state.document.activeLayerId = layer.id;
+    state.controller.activate('element-selection');
+
+    expect(state.controller.pointerDown(21, { x: 120, y: 35 }, { hitRadius: 5 })).toBe(true);
+    expect(state.controller.pointerMove(21, { x: 170, y: 60 })).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.pointerUp(21, { x: 170, y: 60 })).toBe(true);
+    expect(state.history).toHaveLength(1);
+
+    const updated = findDocumentLayer(state.document, layer.id);
+    if (updated?.type !== 'vector') throw new Error('Expected vector layer.');
+    const fill = updated.elements[0]?.style.fill;
+    expect(fill && 'kind' in fill ? fill.transform : null).toMatchObject({
+      a: 1.5, b: 0.5, tx: 0, ty: 0.5
     });
   });
 

@@ -9,6 +9,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { ToolOptionsBar } from './ToolOptionsBar';
 import type { EditorScreenMode } from '../workspace/editorScreenMode';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
+import type { TextPaint } from '@lighttable/text-core';
 
 export interface LightTableEditorShellProps {
   screenMode: EditorScreenMode;
@@ -37,6 +38,7 @@ export interface LightTableEditorShellProps {
   onTextFontAssetChange?: (assetId: string) => void;
   onTextSizeChange?: (size: number) => void;
   onTextFillChange?: (fill: string) => void;
+  onTextFillPaintChange?: (fill: TextPaint) => void;
   onTextFillEnabledChange?: (enabled: boolean) => void;
   onTextStrokeColorChange?: (stroke: string) => void;
   onTextStrokeWidthChange?: (width: number) => void;
@@ -102,6 +104,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onTextFontAssetChange,
   onTextSizeChange,
   onTextFillChange,
+  onTextFillPaintChange,
   onTextFillEnabledChange,
   onTextStrokeColorChange,
   onTextStrokeWidthChange,
@@ -176,6 +179,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onTextFontAssetChange={onTextFontAssetChange}
         onTextSizeChange={onTextSizeChange}
         onTextFillChange={onTextFillChange}
+        onTextFillPaintChange={onTextFillPaintChange}
         onTextFillEnabledChange={onTextFillEnabledChange}
         onTextStrokeColorChange={onTextStrokeColorChange}
         onTextStrokeWidthChange={onTextStrokeWidthChange}

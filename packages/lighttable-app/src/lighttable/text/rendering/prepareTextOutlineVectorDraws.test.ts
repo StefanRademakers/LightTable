@@ -111,6 +111,34 @@ describe('prepareTextOutlineVectorDraws', () => {
     })), identity)).rejects.toThrow('clip-stack');
   });
 
+  it('renders the shared gradient paint used by shape, fill-layer and text authoring', async () => {
+    const fill = {
+      kind: 'gradient' as const,
+      asset: {
+        id: 'shared-text-gradient', name: 'Shared', type: 'solid' as const, smoothness: 1,
+        colorStops: [
+          { id: 'a', position: 0, midpoint: 0.5, color: { r: 1, g: 0, b: 0, a: 1 } },
+          { id: 'b', position: 1, midpoint: 0.5, color: { r: 0, g: 0, b: 1, a: 1 } }
+        ],
+        opacityStops: [
+          { id: 'oa', position: 0, midpoint: 0.5, opacity: 1 },
+          { id: 'ob', position: 1, midpoint: 0.5, opacity: 1 }
+        ], roughness: 0, seed: 0
+      },
+      shape: 'radial' as const, coordinateSpace: 'layer' as const,
+      transform: { a: 50, b: 0, c: 0, d: 25, tx: 10, ty: 20 },
+      reverse: true, dither: true, interpolation: 'perceptual' as const
+    };
+    const prepared = await prepareTextOutlineVectorDraws({
+      resolve: vi.fn().mockResolvedValue({ outline: glyphOutline, source: 'worker' })
+    }, layout(run({ paint: { fill } })), identity);
+
+    expect(prepared.draws[0]?.path.style.fill).toMatchObject({
+      kind: 'gradient', shape: 'radial', coordinateSpace: 'layer', reverse: true,
+      transform: { a: 100, d: 50, tx: 20, ty: 40 }
+    });
+  });
+
   it('rejects viewport-like invalid scale values at the document boundary', async () => {
     await expect(prepareTextOutlineVectorDraws({ resolve: vi.fn() }, layout(run()), {
       ...identity, sourceScale: 0

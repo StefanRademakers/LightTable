@@ -1,4 +1,4 @@
-import type { FlowTextSource, ParagraphStyleRun, TextStyleRun } from '@lighttable/text-core';
+import type { FlowTextSource, ParagraphStyleRun, TextPaint, TextStyleRun } from '@lighttable/text-core';
 import type { DocumentFontAsset } from '../../editor/document/documentTypes';
 import type { TextSelectionRange } from './flowTextEditing';
 import {
@@ -16,6 +16,7 @@ export interface TextPropertyPresentation {
   readonly size: MixedValue<number>;
   readonly fillEnabled: MixedValue<boolean>;
   readonly fill: MixedValue<string>;
+  readonly fillPaint?: MixedValue<TextPaint | undefined>;
   readonly strokeColor: MixedValue<string>;
   readonly strokeWidth: MixedValue<number>;
   readonly tracking: MixedValue<number>;
@@ -133,6 +134,7 @@ export const buildTextPropertyPresentation = (
       projectFlowTextStyleProperty(source, selection, 'fill', insertionStyle),
       (paint) => paint ? solidTextPaintHex(paint) : '#000000'
     ),
+    fillPaint: projectFlowTextStyleProperty(source, selection, 'fill', insertionStyle),
     strokeColor: mapValue(
       projectFlowTextStyleProperty(source, selection, 'stroke', insertionStyle),
       (stroke) => stroke ? solidTextPaintHex(stroke.paint) : '#000000'

@@ -16,6 +16,7 @@ import {
 import { createTextLayoutCacheKey } from './cacheKeys';
 import { collectTextResponseTransferBuffers } from './workerProtocol';
 import type { TextLayoutWorkerRequest, TextLayoutWorkerResponse, TextWorkerRequest } from './workerProtocol';
+import { gradientPaintIsValid, type GradientPaintInstance } from '@lighttable/paint-core';
 
 const MAX_TEXT_CODE_UNITS = 10_000_000;
 const MAX_RUN_COUNT = 100_000;
@@ -132,7 +133,13 @@ const assertColor = (value: unknown, path: string): void => {
 
 const assertPaint = (value: unknown, path: string): void => {
   const candidate = record(value, path);
-  const kind = oneOf(candidate.kind, `${path}.kind`, ['solid', 'linear-gradient']);
+  const kind = oneOf(candidate.kind, `${path}.kind`, ['solid', 'linear-gradient', 'gradient']);
+  if (kind === 'gradient') {
+    if (!gradientPaintIsValid(candidate as unknown as GradientPaintInstance)) {
+      fail(path, 'expected a valid shared gradient paint');
+    }
+    return;
+  }
   if (kind === 'solid') {
     assertColor(candidate.color, `${path}.color`);
     return;

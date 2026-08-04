@@ -188,6 +188,7 @@
 
 .lighttable-tool-options__vector-style,
 .lighttable-tool-options__text {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 14px;
@@ -2683,6 +2684,41 @@
   color: var(--lt-text-muted);
   text-align: right;
 }
+
+.lighttable-tool-options__vector-style { position: relative; }
+.lighttable-tool-options__gradient-button {
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  background: var(--lt-surface-control);
+  color: var(--lt-text-secondary);
+  font: inherit;
+}
+.lighttable-tool-options__gradient-popover {
+  position: fixed;
+  z-index: 10030;
+  width: 340px;
+  padding: 12px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  background: var(--lt-surface-panel);
+  box-shadow: var(--lt-shadow-dialog);
+}
+.lighttable-tool-options__gradient-header,
+.lighttable-tool-options__gradient-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.lighttable-tool-options__gradient-header button {
+  border: 0;
+  background: transparent;
+  color: var(--lt-text-secondary);
+  font-size: 17px;
+}
+.lighttable-tool-options__gradient-options { margin-top: 12px; }
 
 .lighttable-style-editor__empty {
   display: grid;

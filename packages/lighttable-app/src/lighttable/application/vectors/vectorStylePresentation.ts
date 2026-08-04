@@ -1,4 +1,5 @@
 import type { VectorElement, VectorStyle } from '@lighttable/vector-core';
+import { cloneGradientPaint } from '@lighttable/paint-core';
 import type { VectorToolStyleSettings } from '../../editor/session/editorSession';
 
 const linearToSrgb = (value: number) => value <= 0.0031308
@@ -45,6 +46,11 @@ export const vectorElementStyleSettings = (
 ): VectorToolStyleSettings => ({
   fillEnabled: element.style.fill !== null,
   fillColor: paintCssColor(element.style.fill, '#000000'),
+  ...(element.style.fill ? {
+    fillPaint: 'kind' in element.style.fill
+      ? cloneGradientPaint(element.style.fill)
+      : { ...element.style.fill, color: [...element.style.fill.color] }
+  } : {}),
   strokeEnabled: element.style.stroke !== null,
   strokeColor: paintCssColor(element.style.stroke?.paint ?? null, '#ffffff'),
   strokeWidth: element.style.stroke?.width ?? 3,
@@ -57,6 +63,10 @@ export const patchVectorStyle = (
 ): VectorStyle => ({
   ...style,
   fill: change.fillEnabled === false ? null
+    : change.fillPaint !== undefined
+      ? ('kind' in change.fillPaint
+          ? cloneGradientPaint(change.fillPaint)
+          : { ...change.fillPaint, color: [...change.fillPaint.color] })
     : change.fillColor !== undefined
       ? { type: 'solid', color: cssHexToLinearRgba(change.fillColor) }
       : change.fillEnabled === true && !style.fill

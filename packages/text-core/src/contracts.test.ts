@@ -147,6 +147,36 @@ describe('text document contracts', () => {
     expect(() => assertTextLayerData(layer)).not.toThrow();
   });
 
+  it('round-trips the shared gradient paint contract in editable character runs', () => {
+    const layer = createDefaultTextLayerData();
+    const source = createDefaultFlowTextSource('Gradient');
+    const fill = {
+      kind: 'gradient' as const,
+      asset: {
+        id: 'text-gradient', name: 'Text gradient', type: 'solid' as const, smoothness: 1,
+        colorStops: [
+          { id: 'a', position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0, a: 1 } },
+          { id: 'b', position: 1, midpoint: 0.5, color: { r: 1, g: 1, b: 1, a: 1 } }
+        ],
+        opacityStops: [
+          { id: 'oa', position: 0, midpoint: 0.5, opacity: 1 },
+          { id: 'ob', position: 1, midpoint: 0.5, opacity: 1 }
+        ], roughness: 0, seed: 0
+      },
+      shape: 'linear' as const, coordinateSpace: 'layer' as const,
+      transform: { a: 100, b: 0, c: 0, d: 100, tx: 0, ty: 0 },
+      reverse: false, dither: true, interpolation: 'perceptual' as const
+    };
+    const candidate = {
+      ...layer,
+      source: {
+        ...source,
+        styleRuns: source.styleRuns.map((run) => ({ ...run, fill }))
+      }
+    };
+    expect(parseTextLayerData(JSON.parse(JSON.stringify(candidate)) as unknown)).toEqual(candidate);
+  });
+
   it('round-trips validated insertion styling for an empty authored flow', () => {
     const populated = createDefaultFlowTextSource('x');
     const { start: _styleStart, end: _styleEnd, ...insertionStyle } = populated.styleRuns[0];

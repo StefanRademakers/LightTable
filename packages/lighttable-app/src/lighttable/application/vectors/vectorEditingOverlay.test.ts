@@ -135,5 +135,43 @@ describe('vector document editing overlays', () => {
     });
     expect(scene.selectionFrame?.handles).toHaveLength(8);
     expect(scene.selectionFrame?.resourceKey).toContain(`${layer.id}/first,${layer.id}/second`);
+    expect(scene.gradientHandles).toEqual([]);
+  });
+
+  it('projects shared object-space gradient endpoints into the GPU editing overlay', () => {
+    const document = createImageDocument('gradient', 200, 100, 'asset');
+    const shape = createVectorLiveShape('gradient-shape', {
+      kind: 'rectangle', width: 100, height: 50,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    shape.transform = translationMatrix(20, 10);
+    shape.style.fill = {
+      kind: 'gradient',
+      asset: {
+        id: 'g', name: 'G', type: 'solid', smoothness: 1,
+        colorStops: [
+          { id: 'a', position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0, a: 1 } },
+          { id: 'b', position: 1, midpoint: 0.5, color: { r: 1, g: 1, b: 1, a: 1 } }
+        ],
+        opacityStops: [
+          { id: 'oa', position: 0, midpoint: 0.5, opacity: 1 },
+          { id: 'ob', position: 1, midpoint: 0.5, opacity: 1 }
+        ], roughness: 0, seed: 0
+      },
+      shape: 'linear', coordinateSpace: 'object-bounds',
+      transform: { a: 0.8, b: 0, c: 0, d: 1, tx: 0.1, ty: 0.5 },
+      reverse: false, dither: true, interpolation: 'perceptual'
+    };
+    const layer = createVectorLayer([shape]);
+    document.layers = [layer];
+    const selection = createVectorEditorSelection();
+    selection.elements = [{ layerId: layer.id, elementId: shape.id }];
+
+    const handles = buildVectorDocumentEditingSceneOverlay(document, selection).gradientHandles;
+    expect(handles).toHaveLength(1);
+    expect(handles[0]?.anchors.map(({ anchorId, point }) => ({ anchorId, point }))).toEqual([
+      { anchorId: 'start', point: { x: 30, y: 35 } },
+      { anchorId: 'end', point: { x: 110, y: 35 } }
+    ]);
   });
 });

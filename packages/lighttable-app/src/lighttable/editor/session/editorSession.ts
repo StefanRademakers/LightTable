@@ -4,7 +4,7 @@ import type {
   SelectionToolId
 } from '../selection/selectionTypes';
 import type { WarpToolSettings } from '../../effects/warp/warpTypes';
-import type { PathSelectionTarget } from '@lighttable/vector-core';
+import type { PathSelectionTarget, VectorPaint } from '@lighttable/vector-core';
 import type { LayerId } from '../document/documentTypes';
 import type { VectorEditorToolId } from '../tools/vectorToolCatalog';
 
@@ -165,6 +165,8 @@ export interface BrushSettings {
 export interface VectorToolStyleSettings {
   fillEnabled: boolean;
   fillColor: string;
+  /** Selected/native gradient authority; ordinary solid tool defaults omit it. */
+  fillPaint?: VectorPaint;
   strokeEnabled: boolean;
   strokeColor: string;
   strokeWidth: number;

@@ -32,7 +32,7 @@ export interface TextRealizationDecision {
 const runReason = (run: RealizedGlyphRun): TextRealizationReason | null => {
   if (run.renderingMode !== 'fill') return 'pdf-rendering-mode';
   if (run.paint.stroke) return 'stroke';
-  if (run.paint.fill?.kind === 'linear-gradient') return 'gradient-paint';
+  if (run.paint.fill?.kind === 'linear-gradient' || run.paint.fill?.kind === 'gradient') return 'gradient-paint';
   if (run.transforms) return 'glyph-transform';
   if (Object.keys(run.font.variableAxes).length > 0) return 'variable-font';
   if (run.font.syntheticBold || run.font.syntheticItalic) return 'synthetic-style';

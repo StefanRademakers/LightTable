@@ -1,3 +1,5 @@
+import type { GradientPaintInstance } from '@lighttable/paint-core';
+
 export const TEXT_DOCUMENT_SCHEMA_VERSION = 1 as const;
 export const TEXT_LAYOUT_SCHEMA_VERSION = 2 as const;
 export const TEXT_WORKER_PROTOCOL_VERSION = 6 as const;
@@ -45,7 +47,8 @@ export interface LinearTextPaint {
   readonly stops: readonly TextGradientStop[];
 }
 
-export type TextPaint = SolidTextPaint | LinearTextPaint;
+/** Legacy linear gradients remain readable; new authoring uses the shared paint instance. */
+export type TextPaint = SolidTextPaint | LinearTextPaint | GradientPaintInstance;
 
 export interface TextStroke {
   readonly paint: TextPaint;

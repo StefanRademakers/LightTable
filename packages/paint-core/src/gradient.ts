@@ -85,7 +85,10 @@ export const createDefaultGradientPaint = (
   asset: createDefaultGradientAsset(id),
   shape: 'linear',
   coordinateSpace,
-  transform: identityPaintTransform(),
+  // Linear gradients are evaluated on their local x axis. Place that axis
+  // through the visual centre so the shared GPU handles do not hide under the
+  // top edge of a newly created shape/fill layer.
+  transform: { ...identityPaintTransform(), ty: 0.5 },
   reverse: false,
   dither: true,
   interpolation: 'perceptual'

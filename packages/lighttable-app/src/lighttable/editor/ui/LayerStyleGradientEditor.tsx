@@ -47,7 +47,7 @@ const sampleOpacity = (stops: LayerStyleOpacityStop[], position: number) => {
   return lower.opacity + (upper.opacity - lower.opacity) * amount;
 };
 
-export const LayerStyleGradientEditor: React.FC<{
+export const GradientAssetEditor: React.FC<{
   value: LayerStyleGradient;
   onChange: (value: LayerStyleGradient) => void;
 }> = ({ value, onChange }) => {
@@ -190,3 +190,6 @@ export const LayerStyleGradientEditor: React.FC<{
     </div>
   );
 };
+
+/** Compatibility name retained for Layer Style callers. */
+export const LayerStyleGradientEditor = GradientAssetEditor;
