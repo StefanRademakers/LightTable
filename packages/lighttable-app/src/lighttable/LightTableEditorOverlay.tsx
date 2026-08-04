@@ -222,6 +222,7 @@ import {
   browserImageClipboard,
   type LightTableImageClipboard
 } from '../platform/LightTableImageClipboard';
+import type { LightTableRecentFile } from '../platform/LightTableHost';
 import { useLensBlurDepthController } from './application/effects/lensBlur/useLensBlurDepthController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
@@ -374,6 +375,9 @@ export interface LightTableEditorOverlayProps {
   onCloseWorkspaceDocument?: (documentId: string) => void;
   onRequestNewWorkspaceDocument?: () => void;
   onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void;
+  recentFiles?: readonly LightTableRecentFile[];
+  onOpenRecentWorkspaceDocument?: (id: string) => Promise<void> | void;
+  onClearRecentWorkspaceDocuments?: () => Promise<void> | void;
   onOpenWorkspaceDocument?: (file: File, decodeMode: DocumentOpenMode) => void;
   onDocumentReady?: () => void;
   onDocumentError?: (message: string) => void;
@@ -412,6 +416,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onCloseWorkspaceDocument,
   onRequestNewWorkspaceDocument,
   onRequestOpenWorkspaceDocument,
+  recentFiles = [],
+  onOpenRecentWorkspaceDocument,
+  onClearRecentWorkspaceDocuments,
   onOpenWorkspaceDocument,
   onDocumentReady,
   onDocumentError,
@@ -2959,6 +2966,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       // The application probe selects browser-native, wasm-vips, Photoshop or
       // layered-document import after reading the source signature.
       open: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
+      recentFiles,
+      openRecent: (id) => {
+        finishTextEditingRef.current();
+        void onOpenRecentWorkspaceDocument?.(id);
+      },
+      clearRecent: () => { void onClearRecentWorkspaceDocuments?.(); },
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       openCompatibilityReport: editorDialogs.openPsdReport,

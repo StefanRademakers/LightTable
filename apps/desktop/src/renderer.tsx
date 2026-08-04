@@ -53,6 +53,9 @@ const desktopHost: LightTableHost = {
       type: payload.type
     });
   },
+  clearRecentFiles() {
+    return window.lightTableDesktop.clearRecentFiles();
+  },
   setFullscreen(enabled) {
     return window.lightTableDesktop.setFullscreen(enabled);
   },

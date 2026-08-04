@@ -47,6 +47,7 @@ export interface LightTableDesktopBridge {
   openFile(): Promise<DesktopFilePayload | null>;
   listRecentFiles(): Promise<readonly DesktopRecentFile[]>;
   openRecentFile(id: string): Promise<DesktopFilePayload | null>;
+  clearRecentFiles(): Promise<void>;
   setFullscreen(enabled: boolean): Promise<void>;
   onFullscreenChange(listener: (enabled: boolean) => void): () => void;
   confirmDiscardChanges(documentTitle: string): Promise<boolean>;

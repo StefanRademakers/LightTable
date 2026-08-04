@@ -12,6 +12,7 @@ import {
 } from '../../editor/menus/projectEditorMenuState';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import type { LightTableViewState } from '../../types';
+import type { LightTableRecentFile } from '../../../platform/LightTableHost';
 
 export interface EditorMenuControllerOptions {
   readonly projection: EditorMenuProjectionInput;
@@ -19,6 +20,9 @@ export interface EditorMenuControllerOptions {
   readonly file: {
     newDocument(): void;
     open(): void;
+    recentFiles: readonly LightTableRecentFile[];
+    openRecent(id: string): void;
+    clearRecent(): void;
     save(): void;
     exportPng(): void;
     pdfExportPreflight(): void;
@@ -106,6 +110,9 @@ export const createEditorMenuController = ({
     {
       newDocument: file.newDocument,
       open: file.open,
+      recentFiles: file.recentFiles,
+      openRecent: file.openRecent,
+      clearRecent: file.clearRecent,
       save: file.save,
       exportPng: file.exportPng,
       pdfExportPreflight: file.pdfExportPreflight,

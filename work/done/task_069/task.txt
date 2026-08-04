@@ -1,0 +1,5 @@
+File menu... 
+
+Onder Open komt:
+Open Recent
+  -> submenu met de laatste 15 files en een HR en dan "Clear list"

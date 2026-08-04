@@ -45,6 +45,7 @@ const state = (change: Partial<EditorMenuState> = {}): EditorMenuState => ({
 
 const commands = (): EditorMenuCommands => new Proxy({} as EditorMenuCommands, {
   get: (target, property: keyof EditorMenuCommands) => {
+    if (property === 'recentFiles') return target[property] ?? [];
     target[property] ??= vi.fn() as never;
     return target[property];
   }
@@ -66,6 +67,7 @@ describe('createEditorMenuOptions', () => {
     expect(options.map(({ label, shortcut }) => ({ label, shortcut }))).toEqual([
       { label: 'New', shortcut: 'Ctrl+N' },
       { label: 'Open', shortcut: 'Ctrl+O' },
+      { label: 'Open Recent', shortcut: undefined },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
       { label: 'Quick Export PNG', shortcut: 'Ctrl+Shift+S' },
       { label: 'PDF Export Preflight...', shortcut: undefined },
@@ -93,6 +95,27 @@ describe('createEditorMenuOptions', () => {
     expect(report?.disabled).toBe(false);
     report?.onClick?.();
     expect(menuCommands.openCompatibilityReport).toHaveBeenCalledOnce();
+  });
+
+  it('shows at most fifteen recent files and clears them from the submenu', () => {
+    const menuCommands = commands();
+    menuCommands.recentFiles = Array.from({ length: 17 }, (_, index) => ({
+      id: `recent-${index}`,
+      name: `Document ${index}.psd`
+    }));
+    const options = createEditorMenuOptions('file', state(), labels, menuCommands);
+    const recent = options.find(({ value }) => value === 'open-recent');
+
+    expect(recent?.children).toHaveLength(16);
+    recent?.children?.[0]?.onClick?.();
+    expect(menuCommands.openRecent).toHaveBeenCalledWith('recent-0');
+    expect(recent?.children?.at(-1)).toMatchObject({
+      value: 'clear-recent',
+      label: 'Clear list',
+      separatorBefore: true
+    });
+    recent?.children?.at(-1)?.onClick?.();
+    expect(menuCommands.clearRecent).toHaveBeenCalledOnce();
   });
 
   it('derives selection availability without reading editor state', () => {

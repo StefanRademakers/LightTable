@@ -4,7 +4,7 @@ export interface PersistedRecentFile {
   openedAt: number;
 }
 
-export const RECENT_FILE_LIMIT = 4;
+export const RECENT_FILE_LIMIT = 15;
 
 /** Serializes manifest operations while allowing the queue to recover after a failure. */
 export class RecentFileOperationQueue {

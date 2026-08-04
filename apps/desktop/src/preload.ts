@@ -6,6 +6,7 @@ const bridge: LightTableDesktopBridge = {
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),
   listRecentFiles: () => ipcRenderer.invoke('lighttable:list-recent-files'),
   openRecentFile: (id: string) => ipcRenderer.invoke('lighttable:open-recent-file', id),
+  clearRecentFiles: () => ipcRenderer.invoke('lighttable:clear-recent-files'),
   setFullscreen: (enabled: boolean) =>
     ipcRenderer.invoke('lighttable:set-fullscreen', enabled),
   onFullscreenChange: (listener) => {

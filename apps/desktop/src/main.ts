@@ -360,6 +360,11 @@ void app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle('lighttable:clear-recent-files', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    await recentFileOperations.run(() => saveRecentFiles([]));
+  });
+
   ipcMain.handle('lighttable:save-file', async (event, payload: DesktopSavePayload) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     if (

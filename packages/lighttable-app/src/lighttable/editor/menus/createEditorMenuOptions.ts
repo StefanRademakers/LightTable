@@ -1,5 +1,6 @@
 import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import type { BlendMode } from '../document/blendModes';
+import type { LightTableRecentFile } from '../../../platform/LightTableHost';
 
 export type EditorMenuId = 'file' | 'edit' | 'select' | 'layer' | 'type' | 'view';
 
@@ -46,6 +47,9 @@ export interface EditorMenuLabels {
 export interface EditorMenuCommands {
   newDocument: () => void;
   open: () => void;
+  recentFiles: readonly LightTableRecentFile[];
+  openRecent: (id: string) => void;
+  clearRecent: () => void;
   save: () => void;
   exportPng: () => void;
   pdfExportPreflight: () => void;
@@ -119,6 +123,24 @@ export const createEditorMenuOptions = (
         shortcut: labels.primaryShortcut('O'),
         onClick: commands.open,
         disabled: state.saving
+      },
+      {
+        value: 'open-recent',
+        label: 'Open Recent',
+        disabled: state.saving || commands.recentFiles.length === 0,
+        children: [
+          ...commands.recentFiles.slice(0, 15).map((file) => ({
+            value: `open-recent-${file.id}`,
+            label: file.name,
+            onClick: () => commands.openRecent(file.id)
+          })),
+          {
+            value: 'clear-recent',
+            label: 'Clear list',
+            separatorBefore: true,
+            onClick: commands.clearRecent
+          }
+        ]
       },
       {
         value: 'save-corrected',

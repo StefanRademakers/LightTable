@@ -6,7 +6,8 @@ import type {
   DocumentSessionId
 } from '../lighttable/application/documents/documentSession';
 import type {
-  LightTableHost
+  LightTableHost,
+  LightTableRecentFile
 } from '../platform/LightTableHost';
 import { DocumentRuntimeErrorBoundary } from './DocumentRuntimeErrorBoundary';
 import type {
@@ -37,6 +38,9 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onActivate: (id: DocumentSessionId) => void;
   readonly onClose: (id: DocumentSessionId) => void;
   readonly onRequestOpen?: (decodeMode?: StandaloneDecodeMode) => Promise<void>;
+  readonly recentFiles: readonly LightTableRecentFile[];
+  readonly onOpenRecent: (id: string) => Promise<void>;
+  readonly onClearRecent: () => Promise<void>;
   readonly onRequestNew: () => void;
   readonly onOpen: (
     file: File,
@@ -64,6 +68,9 @@ export function StandaloneDocumentRuntimeView({
   onActivate,
   onClose,
   onRequestOpen,
+  recentFiles,
+  onOpenRecent,
+  onClearRecent,
   onRequestNew,
   onOpen
 }: StandaloneDocumentRuntimeViewProps) {
@@ -107,6 +114,9 @@ export function StandaloneDocumentRuntimeView({
           onClose(documentId as DocumentSessionId);
         }}
         onRequestOpenWorkspaceDocument={onRequestOpen}
+        recentFiles={recentFiles}
+        onOpenRecentWorkspaceDocument={onOpenRecent}
+        onClearRecentWorkspaceDocuments={onClearRecent}
         onRequestNewWorkspaceDocument={onRequestNew}
         onOpenWorkspaceDocument={onOpen}
         onDocumentReady={() => {

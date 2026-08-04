@@ -6,16 +6,16 @@ import {
 } from './recentFiles';
 
 describe('desktop recent files', () => {
-  it('keeps the four most recently opened unique files', () => {
-    const result = normalizeRecentFiles([
-      { id: 'one', path: 'one.png', openedAt: 1 },
-      { id: 'two', path: 'two.png', openedAt: 2 },
-      { id: 'three', path: 'three.png', openedAt: 3 },
-      { id: 'four', path: 'four.png', openedAt: 4 },
-      { id: 'five', path: 'five.png', openedAt: 5 }
-    ]);
+  it('keeps the fifteen most recently opened unique files', () => {
+    const result = normalizeRecentFiles(Array.from({ length: 17 }, (_, index) => ({
+      id: String(index + 1),
+      path: `${index + 1}.png`,
+      openedAt: index + 1
+    })));
 
-    expect(result.map((entry) => entry.id)).toEqual(['five', 'four', 'three', 'two']);
+    expect(result).toHaveLength(15);
+    expect(result[0]?.id).toBe('17');
+    expect(result.at(-1)?.id).toBe('3');
   });
 
   it('moves a reopened file to the front without losing the other entries', () => {

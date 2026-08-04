@@ -39,6 +39,7 @@ export interface LightTableHost {
   openFile?(): Promise<File | null>;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
   openRecentFile?(id: string): Promise<File | null>;
+  clearRecentFiles?(): Promise<void>;
   /** Enter or leave the host window's native/browser fullscreen presentation. */
   setFullscreen?(enabled: boolean): Promise<void>;
   /** Observe fullscreen exits initiated by the OS, browser or Escape key. */

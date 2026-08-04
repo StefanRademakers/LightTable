@@ -105,15 +105,13 @@ export function LightTableStandaloneApp({
       return;
     }
     try {
-      setRecentFiles((await host.listRecentFiles()).slice(0, 4));
+      setRecentFiles((await host.listRecentFiles()).slice(0, 15));
     } catch {
       setRecentFiles([]);
     }
   }, [host]);
 
-  useEffect(() => {
-    if (snapshot.documentOrder.length === 0) void refreshRecentFiles();
-  }, [refreshRecentFiles, snapshot.documentOrder.length]);
+  useEffect(() => { void refreshRecentFiles(); }, [refreshRecentFiles]);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
@@ -122,11 +120,14 @@ export function LightTableStandaloneApp({
     setOpening(true);
     try {
       const file = await host.openFile();
-      if (file) openDocument(file, decodeMode);
+      if (file) {
+        openDocument(file, decodeMode);
+        await refreshRecentFiles();
+      }
     } finally {
       setOpening(false);
     }
-  }, [host, openDocument]);
+  }, [host, openDocument, refreshRecentFiles]);
 
   const openRecentDocument = useCallback(async (id: string) => {
     if (!host.openRecentFile) return;
@@ -134,11 +135,16 @@ export function LightTableStandaloneApp({
     try {
       const file = await host.openRecentFile(id);
       if (file) openDocument(file);
-      else await refreshRecentFiles();
+      await refreshRecentFiles();
     } finally {
       setOpening(false);
     }
   }, [host, openDocument, refreshRecentFiles]);
+
+  const clearRecentFiles = useCallback(async () => {
+    await host.clearRecentFiles?.();
+    await refreshRecentFiles();
+  }, [host, refreshRecentFiles]);
 
   const createDocument = useCallback(async ({
     width,
@@ -238,7 +244,7 @@ export function LightTableStandaloneApp({
             <section className="lighttable-launcher__recent-section">
               <h2>Recent files</h2>
               <div className="lighttable-launcher__recents">
-                {recentFiles.map((recent) => (
+                {recentFiles.slice(0, 4).map((recent) => (
                   <button key={recent.id} type="button" disabled={opening} onClick={() => void openRecentDocument(recent.id)}>
                     <span className="lighttable-launcher__recent-preview">
                       {recent.thumbnailUrl ? <img src={recent.thumbnailUrl} alt="" /> : <span>No preview</span>}
@@ -293,6 +299,9 @@ export function LightTableStandaloneApp({
           onActivate={activateDocument}
           onClose={closeDocument}
           onRequestOpen={host.openFile ? requestHostDocument : undefined}
+          recentFiles={recentFiles}
+          onOpenRecent={openRecentDocument}
+          onClearRecent={clearRecentFiles}
           onRequestNew={requestNewDocument}
           onOpen={openDocument}
         />
