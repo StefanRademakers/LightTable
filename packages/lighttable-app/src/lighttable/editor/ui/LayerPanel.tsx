@@ -92,6 +92,12 @@ interface VisualLayerRow {
   depth: number;
 }
 
+export const LAYER_CREATION_OPTIONS = [
+  { id: 'grade', label: 'New Grade layer', iconName: 'add_adjustment_layer.png' },
+  { id: 'lens-fx', label: 'New Lens Fx layer', iconName: 'lens_fx.png' },
+  { id: 'gradient-fill', label: 'New Gradient Fill layer', iconName: 'tool_gradient.png' }
+] as const;
+
 const visualLayerRows = (
   layers: readonly LayerNode[],
   collapsedGroups: ReadonlySet<LayerId>,
@@ -185,6 +191,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const [collapsedGroups, setCollapsedGroups] = React.useState<Set<LayerId>>(() => new Set());
   const [collapsedStyles, setCollapsedStyles] = React.useState<Set<LayerId>>(() => new Set());
   const [renamingLayerId, setRenamingLayerId] = React.useState<LayerId | null>(null);
+  const [createLayerMenuOpen, setCreateLayerMenuOpen] = React.useState(false);
   const [selectedLayerIds, setSelectedLayerIds] = React.useState<Set<LayerId>>(
     () => new Set(document.activeLayerId ? [document.activeLayerId] : [])
   );
@@ -216,6 +223,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     canUngroupSelection
   } = layerCapabilities;
   const canDeleteSelection = layerCapabilities.canDeleteSelection;
+  const layerCreationHandlers: Record<(typeof LAYER_CREATION_OPTIONS)[number]['id'], () => void> = {
+    'grade': onCreateAdjustment,
+    'lens-fx': onCreateLensFx,
+    'gradient-fill': onCreateGradientFill
+  };
 
   React.useEffect(() => {
     setSelectedLayerIds((current) => {
@@ -1002,24 +1014,52 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           title="Add layer mask"
           aria-label="Add layer mask"
         ><img src={lightTableIcon('add_mask.png')} alt="" aria-hidden="true" /></button>
-        <button
-          type="button"
-          onClick={onCreateAdjustment}
-          title="New Grade layer"
-          aria-label="New Grade layer"
-        ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></button>
-        <button
-          type="button"
-          onClick={onCreateGradientFill}
-          title="New Gradient Fill layer"
-          aria-label="New Gradient Fill layer"
-        ><img src={lightTableIcon('tool_fill_color.png')} alt="" aria-hidden="true" /></button>
-        <button
-          type="button"
-          onClick={onCreateLensFx}
-          title="New Lens Fx layer"
-          aria-label="New Lens Fx layer"
-        ><img src={lightTableIcon('lens_fx.png')} alt="" aria-hidden="true" /></button>
+        <div
+          className="lighttable-layers__create-menu"
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setCreateLayerMenuOpen(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation();
+              setCreateLayerMenuOpen(false);
+              event.currentTarget.querySelector<HTMLButtonElement>(
+                '.lighttable-layers__create-menu-trigger'
+              )?.focus();
+            }
+          }}
+        >
+          <button
+            type="button"
+            className="lighttable-layers__create-menu-trigger"
+            onClick={() => setCreateLayerMenuOpen((open) => !open)}
+            title="New fill or processing layer"
+            aria-label="New fill or processing layer"
+            aria-haspopup="menu"
+            aria-expanded={createLayerMenuOpen}
+          ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></button>
+          {createLayerMenuOpen ? (
+            <div
+              className="lighttable-layers__create-flyout"
+              role="menu"
+              aria-label="New fill or processing layer"
+            >
+              {LAYER_CREATION_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setCreateLayerMenuOpen(false);
+                    layerCreationHandlers[option.id]();
+                  }}
+                  title={option.label}
+                  aria-label={option.label}
+                ><img src={lightTableIcon(option.iconName)} alt="" aria-hidden="true" /></button>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <button
           type="button"
           onClick={onCreate}

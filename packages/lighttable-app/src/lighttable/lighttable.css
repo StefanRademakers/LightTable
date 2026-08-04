@@ -2029,6 +2029,34 @@
   font-weight: var(--lt-weight-bold);
 }
 
+.lighttable-layers__create-menu {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+}
+
+.lighttable-layers__create-flyout {
+  position: absolute;
+  z-index: 12;
+  right: -5px;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-md);
+  background: var(--lt-surface-panel);
+  box-shadow: var(--lt-shadow-panel);
+}
+
+.lighttable-layers__create-flyout button {
+  flex: 0 0 26px;
+  border-color: var(--lt-border);
+  background: var(--lt-surface-control);
+}
+
 .lighttable-layers__actions button,
 .lighttable-layer__visibility {
   width: 25px;
