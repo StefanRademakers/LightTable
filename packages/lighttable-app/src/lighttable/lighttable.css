@@ -2023,6 +2023,8 @@
 .lighttable-layers__list {
   min-height: 42px;
   max-height: 170px;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -2031,6 +2033,10 @@
 
 .lighttable-layer {
   position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   flex: 0 0 auto;
   min-height: 28px;
   display: flex;
@@ -2040,6 +2046,7 @@
   border: 1px solid var(--lt-border-layer-row);
   border-radius: var(--lt-radius-sm);
   background: var(--lt-surface-layer-row);
+  overflow: hidden;
   cursor: pointer;
 }
 
@@ -2137,6 +2144,8 @@
 .lighttable-layer__thumbnail-slot {
   width: 42px;
   min-width: 42px;
+  max-width: 42px;
+  flex: 0 0 42px;
   display: grid;
   place-items: center;
   align-self: stretch;

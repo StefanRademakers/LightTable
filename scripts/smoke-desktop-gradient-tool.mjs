@@ -47,16 +47,26 @@ try {
   if (layerListOverflow.scrollHeight <= layerListOverflow.clientHeight) {
     throw new Error(`A scaled layer list did not become scrollable: ${JSON.stringify(layerListOverflow)}`);
   }
+  const layersPanel = page.locator('.lighttable-layers-panel');
+  await layersPanel.evaluate((element) => {
+    element.style.width = '190px';
+  });
   const thumbnailBoxes = await page.locator('.lighttable-layer__thumbnail').evaluateAll((elements) =>
     elements.map((element) => {
       const bounds = element.getBoundingClientRect();
       const row = element.closest('.lighttable-layer')?.getBoundingClientRect();
+      const panel = element.closest('.lighttable-layers-panel')?.getBoundingClientRect();
       return {
         width: bounds.width,
         height: bounds.height,
-        contained: Boolean(row)
+        containedInRow: Boolean(row)
+          && bounds.left >= row.left - 0.5
+          && bounds.right <= row.right + 0.5
           && bounds.top >= row.top - 0.5
-          && bounds.bottom <= row.bottom + 0.5
+          && bounds.bottom <= row.bottom + 0.5,
+        containedInPanel: Boolean(panel)
+          && bounds.left >= panel.left - 0.5
+          && bounds.right <= panel.right + 0.5
       };
     })
   );
@@ -70,7 +80,9 @@ try {
       thumbnailBoxes
     })}`);
   }
-  if (thumbnailBoxes.some(({ contained }) => !contained)) {
+  if (thumbnailBoxes.some(({ containedInRow, containedInPanel }) => (
+    !containedInRow || !containedInPanel
+  ))) {
     throw new Error(`A thumbnail escaped its layer row: ${JSON.stringify(thumbnailBoxes)}`);
   }
 
