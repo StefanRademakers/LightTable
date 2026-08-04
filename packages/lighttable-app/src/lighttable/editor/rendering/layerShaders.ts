@@ -110,7 +110,15 @@ fn setSaturation(color: vec3f, targetValue: f32) -> vec3f {
   return (color - vec3f(minimum)) * targetValue / (maximum - minimum);
 }
 
-fn blendColor(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
+fn linearToBlendChannel(value: f32) -> f32 {
+  return select(value * 12.92, 1.055 * pow(max(value, 0.0), 1.0 / 2.4) - 0.055, value > 0.0031308);
+}
+
+fn blendToLinearChannel(value: f32) -> f32 {
+  return select(value / 12.92, pow((value + 0.055) / 1.055, 2.4), value > 0.04045);
+}
+
+fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
   if (mode == 1) { return background * foreground; }
   if (mode == 2) { return vec3f(1.0) - (vec3f(1.0) - background) * (vec3f(1.0) - foreground); }
   if (mode == 3) {
@@ -180,6 +188,28 @@ fn blendColor(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
   if (mode == 24) { return max(vec3f(0.0), background - foreground); }
   if (mode == 25) { return min(vec3f(1.0), background / max(foreground, vec3f(1e-6))); }
   return foreground;
+}
+
+fn blendColor(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
+  // Photoshop/PDF blend functions operate in the document's blend colour
+  // space. LightTable stores and filters textures in linear light, so run the
+  // blend equation in sRGB and convert its result back before compositing.
+  let backgroundEncoded = vec3f(
+    linearToBlendChannel(background.r),
+    linearToBlendChannel(background.g),
+    linearToBlendChannel(background.b)
+  );
+  let foregroundEncoded = vec3f(
+    linearToBlendChannel(foreground.r),
+    linearToBlendChannel(foreground.g),
+    linearToBlendChannel(foreground.b)
+  );
+  let encoded = clamp(blendColorEncoded(backgroundEncoded, foregroundEncoded, mode), vec3f(0.0), vec3f(1.0));
+  return vec3f(
+    blendToLinearChannel(encoded.r),
+    blendToLinearChannel(encoded.g),
+    blendToLinearChannel(encoded.b)
+  );
 }
 `;
 
