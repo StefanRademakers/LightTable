@@ -216,6 +216,42 @@
   gap: 8px;
 }
 
+.lighttable-tool-options__content--vertical .lighttable-tool-options__vector-style {
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__vector-style > * {
+  min-height: 38px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--lt-border-subtle);
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__vector-style > *:last-child {
+  border-bottom: 0;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__color-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__color-field .lighttable-tool-options__gradient-button {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__weight-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px auto;
+}
+
+.lighttable-tool-options__content--vertical .lighttable-tool-options__weight-field input {
+  width: 100%;
+}
+
 .lighttable-point-text {
   position: fixed;
   inset: 0;

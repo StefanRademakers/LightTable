@@ -1,0 +1,2 @@
+Right click menu moet er meer zo uit zien, die horizontal layout van de properties werkt niet goed met right click 
+

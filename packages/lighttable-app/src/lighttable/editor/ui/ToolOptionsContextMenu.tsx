@@ -44,7 +44,7 @@ export const placeToolOptionsContextMenu = ({
 };
 
 /**
- * A transient, cursor-local projection of the canonical tool controls.
+ * A transient, cursor-local vertical projection of the canonical tool controls.
  * It owns no settings: the horizontal bar and this menu dispatch through the
  * exact same commands, so neither surface can drift from the other.
  */
@@ -129,7 +129,7 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
         </div>
       ) : null}
       <div className="lighttable-tool-options-menu">
-        <ToolOptionsContent {...toolOptions} orientation="horizontal" />
+        <ToolOptionsContent {...toolOptions} orientation="vertical" />
       </div>
     </div>,
     document.body
