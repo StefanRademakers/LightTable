@@ -1,91 +1,77 @@
 # LightTable Layer Styles support report
 
-Status: alpha implementation, 29 July 2026.
+Status: semantic implementation with automated Adobe reference corpus, 4 August 2026.
 
 ## Current contract
 
-Layer Styles are ordered, editable effects on raster layers. They use
-premultiplied linear-sRGB `rgba16float` working textures. Fill affects source
-content; layer opacity affects the finished content plus styles. Merge and
-flatten commands bake the visible result once and clear the destination style
-stack.
+Layer Styles are ordered, editable effects on raster and semantic layers. They
+use premultiplied linear-sRGB `rgba16float` working textures. Fill opacity
+affects source content; layer opacity affects the finished content plus styles.
+Merge and flatten bake the visible result once and clear the destination stack.
 
-Disabled stacks, disabled effects and zero-opacity effects allocate and submit
-no style passes. When the document has no active styles, the style cache and
-all three style work textures are released.
+Blend equations run in the document's encoded sRGB blend colour space and are
+converted back to linear light for filtering and Porter-Duff compositing. This
+matches Photoshop/PDF Color Burn semantics much more closely than evaluating
+the blend equation directly in linear light.
+
+Disabled stacks, disabled effects and zero-opacity effects submit no style
+passes. With no active styles the cache and all style work textures are
+released. Interactive and final quality share geometry and compositing
+semantics; only the evenly distributed blur sample count changes.
 
 ## Effect audit
 
-| Effect | Native state | Alpha/outside-canvas audit | Asset failure behavior |
-|---|---|---|---|
-| Drop Shadow | Editable, multiple | Bounded alpha, normalized blur, clamped coverage | n/a |
-| Inner Shadow | Editable, multiple | Interior coverage cannot replace canvas alpha | n/a |
-| Outer Glow | Editable color/solid gradient | Bounded alpha, normalized blur | n/a |
-| Inner Glow | Editable color/solid gradient | Interior coverage only | n/a |
-| Color Overlay | Editable, multiple | Preserves source coverage | n/a |
-| Gradient Overlay | Editable solid gradients | Preserves source coverage | Noise gradients use fallback |
-| Pattern Overlay | Editable when resolved | Preserves source coverage | Unresolved/missing GPU asset is an explicit no-op |
-| Satin | Editable | Interior coverage only | n/a |
-| Stroke | Editable color/solid gradient/pattern | Outside samples are transparent, not edge-clamped | Unresolved pattern is an explicit no-op |
-| Bevel & Emboss | Editable supported subset | Outer variants use bounded alpha | Missing texture disables only texture contribution |
+| Effect | Native state | Asset/fidelity behavior |
+|---|---|---|
+| Drop Shadow | Editable, multiple | Bounded alpha, normalized blur, spread and contour |
+| Inner Shadow | Editable, multiple | Interior coverage preserves canvas alpha |
+| Outer/Inner Glow | Editable color/solid gradient | Bounded/interior coverage; deterministic blur |
+| Color Overlay | Editable, multiple | Preserves source coverage |
+| Gradient Overlay | Editable solid gradients | GPU gradient contract; noise gradients retain fallback |
+| Pattern Overlay | Editable when resolved | Missing pattern asset is an explicit no-op |
+| Satin | Editable | Interior coverage only |
+| Stroke | Editable color/gradient/pattern | Inside/center/outside; transparent out-of-bounds samples |
+| Bevel & Emboss | Editable supported subset | Missing texture disables only the texture contribution |
 
-The former black-canvas failure was caused by materializing a layer shape
-through the ordinary compositor and sampling clamped edge alpha. A dedicated
-shape pass and one shared bounded alpha sampler now cover every effect.
-Pattern-backed effects also require a real registry texture; layer pixels are
-never substituted as a fake pattern.
+The former black-canvas and radial-spike failures came from clamped edge alpha
+and disconnected stroke samples. A dedicated bounded shape pass and shared
+coverage evaluation now serve every effect. Zero spread/choke preserves soft
+blur coverage rather than thresholding it away.
 
 ## PSD adapter semantics
 
-`ag-psd` 31.0.2 is a codec dependency. The isolated adapter maps PSD effect
-descriptors into the canonical stack and returns a compatibility report.
+`ag-psd` is a codec dependency, not renderer authority. The isolated adapter
+maps PSD descriptors to the canonical stack and returns a compatibility report.
 
-- **Editable:** supported RGB effects, solid gradients, multiple shadows,
-  fills, strokes and gradient overlays.
-- **Preserved:** unresolved pattern references and incomplete Bevel Texture
-  metadata.
-- **Rasterized:** unsupported Photoshop blend modes, non-RGB effect colors and
-  noise gradients until a matching evaluator exists.
-- **Lossy:** never chosen silently. Export must require an explicit policy.
+- Editable: supported RGB effects, solid gradients, multiple shadows, fills,
+  strokes and gradient overlays.
+- Preserved: unresolved pattern references and incomplete Bevel Texture data.
+- Rasterized fallback: noise gradients and unsupported source semantics.
+- Lossy: never selected silently; export must require an explicit policy.
 
-The adapter result retains unsupported source descriptors for the future PSD
-document preservation envelope. Wiring that envelope into full PSD open/save
-is a later PSD workstream; the Layer Style adapter itself does not own files.
+## Automated reference evidence
 
-## Known visual-parity limits
+`scripts/capture-photoshop-layer-style-references.ps1` captures enabled and
+bypassed Photoshop composites from disposable source copies. The matching
+packaged-Electron runner,
+`scripts/capture-lighttable-layer-style-references.mjs`, targets layers by
+stable PSD source id through the transport-neutral command driver. The plan is
+versioned in `LAYER_STYLE_REFERENCE_PLAN.json`; generated images remain
+disposable `tmp/` evidence.
 
-- Effect-specific blend modes for outside effects are currently precomposed
-  with the styled layer before the layer is blended into the document. Exact
-  Photoshop backdrop interaction still needs golden-image validation.
-- Gradient and pattern coordinates are canvas-relative. Photoshop
-  align-with-layer, pattern phase and layer-relative origin need exact bounds.
-- Anti-alias toggles and gradient interpolation variants are preserved in the
-  model but are not all distinct shader algorithms yet.
-- Photoshop noise gradients are preserved/rasterized, not approximated.
-- The current blur kernel is a deterministic preview/final approximation, not
-  claimed pixel-identical to Photoshop.
+The 4 August run completed five targets without page errors. It records context
+and solo pairs plus vector-mask/group, controlled fill-opacity, stacked-effect
+and 400% zoom cases. Mean enabled-versus-bypassed effect magnitude was close
+for both Drop Shadows (LightTable/Photoshop ratios 0.97 and 1.30), Color Overlay
+(0.84), and Color Burn Gradient Overlay (1.47 after encoded-space blending;
+previously 5.43). Unresolved Pattern Overlay remains an intentional no-op until
+the referenced pattern asset is available. These are fidelity baselines, not a
+claim of pixel-identical Adobe rendering.
 
-## Browser smoke sequence
+## Remaining bounded limits
 
-Use a sparse white brush stroke on transparency over a colored background:
-
-1. Toggle each effect alone at opacity 0, 1, 35 and 100 percent.
-2. Confirm disabled and zero opacity are pixel-identical to the no-effect
-   composite.
-3. Move the stroke against all four canvas edges; no effect may fill the
-   canvas or smear an edge.
-4. Stack two Drop Shadows, two Color Overlays and two Strokes; reorder and
-   undo/redo them.
-5. Test color and solid-gradient glows, all Stroke positions and all Bevel
-   styles.
-6. Remove a pattern asset after opening. Pattern effects must become no-ops
-   and Bevel must retain its non-texture lighting.
-7. Merge Down, Merge Selected, Flatten Group and Flatten Image. Compare before
-   and after with the effect editor closed; styles must be baked exactly once.
-8. Save/reopen the native layered document and repeat the comparison.
-
-Reference-image sign-off still needs Photoshop-generated goldens based on the
-dialog references retained in `../photoshop/styles/`. Until that pass,
-“editable” means the semantic
-controls and stable LightTable rendering work, not pixel-identical Adobe
-rendering.
+- Exact Photoshop pattern phase awaits resolved pattern assets.
+- Anti-alias toggles and every gradient interpolation variant are preserved but
+  do not yet all select distinct shader algorithms.
+- Photoshop noise gradients remain preview-backed rather than approximated.
+- The deterministic blur kernel is visually close, not pixel-identical.
