@@ -17,5 +17,7 @@ Status: in progress
 - [ ] Add async artifact handles and task-backed file/export commands.
 - [ ] Add bounded transactional gesture commands.
 - [ ] Migrate deterministic Playwright setup to the test driver while keeping
-  a small physical UI/event/screenshot suite.
+  a small physical UI/event/screenshot suite. The opt-in packaged driver and
+  first command smoke are complete; remaining legacy setup paths still need
+  migration before this item can close.
 - [ ] Add an opt-in authenticated MCP adapter only after the registry is stable.

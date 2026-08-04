@@ -1,5 +1,6 @@
 import type { LightTableImageClipboard } from './LightTableImageClipboard';
 import { browserImageClipboard } from './LightTableImageClipboard';
+import type { LightTableAutomationDriver } from '../lighttable/application/commands/lightTableCommandService';
 
 export interface LightTableMediaItem {
   id: string;
@@ -47,6 +48,8 @@ export interface LightTableHost {
    * Undefined/void means the save completed.
    */
   save(request: LightTableSaveRequest): Promise<boolean | void>;
+  /** Test-only host seam. Production browser hosts never install this. */
+  installAutomationDriver?(driver: LightTableAutomationDriver): (() => void) | void;
 }
 
 export const createBrowserHost = (): LightTableHost => ({

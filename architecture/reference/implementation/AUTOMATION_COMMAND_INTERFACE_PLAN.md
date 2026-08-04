@@ -213,6 +213,14 @@ UI commands already surface through the editor's bounded error presentation.
 - cover save/reopen in a fresh process and crash/timeout cleanup;
 - publish machine-readable test artifacts and screenshots under `tmp/` only.
 
+Implemented baseline: packaged Electron exposes the transport-neutral driver
+only when the main process explicitly launches an automation user-data session.
+The sandboxed preload receives a fixed launch flag; ordinary desktop and web
+sessions expose nothing. `smoke:desktop:commands` now queries the workspace and
+drives zoom, bounded layer visibility, raster creation, rename and undo through
+the same registry used by UI controls, then writes its report and screenshot
+under `tmp/command-driver/`.
+
 ### Phase F - optional MCP adapter
 
 - map a deliberately small tool set onto the stable registry;

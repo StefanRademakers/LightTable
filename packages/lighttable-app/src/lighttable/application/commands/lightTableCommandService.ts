@@ -15,6 +15,7 @@ export type LightTableCommandId =
   | 'view.setZoom'
   | 'layer.createRaster'
   | 'layer.rename'
+  | 'layer.setVisibility'
   | 'history.undo'
   | 'history.redo';
 
@@ -133,20 +134,23 @@ export interface LightTableCommandPorts {
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(documentId: DocumentSessionId): void | Promise<void>;
   renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string): void | Promise<void>;
+  setLayerVisibility(
+    documentId: DocumentSessionId,
+    layerIds: readonly LayerId[],
+    visible: boolean
+  ): void | Promise<void>;
   undo(documentId: DocumentSessionId): boolean | Promise<boolean>;
   redo(documentId: DocumentSessionId): boolean | Promise<boolean>;
 }
 
-export type DocumentLightTableCommandPorts = Omit<
-  LightTableCommandPorts,
-  'setZoom' | 'createRasterLayer' | 'renameLayer' | 'undo' | 'redo'
-> & {
+export interface DocumentLightTableCommandPorts {
   setZoom(viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(): void | Promise<void>;
   renameLayer(layerId: LayerId, name: string): void | Promise<void>;
+  setLayerVisibility(layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;
   undo(): boolean | Promise<boolean>;
   redo(): boolean | Promise<boolean>;
-};
+}
 
 /**
  * Routes transport-neutral commands to the mounted controller for one document.
@@ -182,6 +186,14 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string) {
     return this.resolve(documentId).renameLayer(layerId, name);
+  }
+
+  setLayerVisibility(
+    documentId: DocumentSessionId,
+    layerIds: readonly LayerId[],
+    visible: boolean
+  ) {
+    return this.resolve(documentId).setLayerVisibility(layerIds, visible);
   }
 
   undo(documentId: DocumentSessionId) {
@@ -325,6 +337,7 @@ export class LightTableCommandService {
         Boolean(layerCapabilities.activeLayer),
         'Select an existing layer.'
       ),
+      availability('layer.setVisibility', true, ''),
       availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
       availability('history.redo', snapshot.history.canRedo, 'There is nothing to redo.')
     ];
@@ -414,6 +427,25 @@ export class LightTableCommandService {
         await this.ports.renameLayer(request.documentId, layerId, name);
         return { value: { layerId, name } };
       }
+      case 'layer.setVisibility': {
+        if (!isRecord(parameters) || !Array.isArray(parameters.layerIds)
+          || parameters.layerIds.length < 1 || parameters.layerIds.length > 256
+          || typeof parameters.visible !== 'boolean') {
+          return this.invalidParameters(
+            'Visibility requires 1-256 layerIds and a boolean visible value.'
+          );
+        }
+        const layerIds = parameters.layerIds;
+        if (layerIds.some((id) => typeof id !== 'string')) {
+          return this.invalidParameters('Every visibility layerId must be a string.');
+        }
+        const unique = [...new Set(layerIds)] as LayerId[];
+        if (unique.some((id) => !findDocumentLayer(snapshot.document!, id))) {
+          return { code: 'command-unavailable', message: 'One or more target layers do not exist.' };
+        }
+        await this.ports.setLayerVisibility(request.documentId, unique, parameters.visible);
+        return { value: { layerIds: unique, visible: parameters.visible } };
+      }
       case 'history.undo':
       case 'history.redo': {
         if (!isRecord(parameters) || Object.keys(parameters).length > 0) {
@@ -480,6 +512,7 @@ export class LightTableCommandService {
       'view.setZoom',
       'layer.createRaster',
       'layer.rename',
+      'layer.setVisibility',
       'history.undo',
       'history.redo'
     ].includes(value);
@@ -526,4 +559,12 @@ interface ParsedCommandRequest {
   readonly documentId: DocumentSessionId;
   readonly parameters: unknown;
   readonly expectedDocumentRevision?: number;
+}
+
+export interface LightTableAutomationDriver {
+  queryWorkspace(): WorkspaceQueryResult;
+  queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
+  queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;
+  queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
+  execute(request: unknown): Promise<LightTableCommandResult>;
 }

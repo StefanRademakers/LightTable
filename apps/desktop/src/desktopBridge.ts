@@ -16,6 +16,7 @@ export interface DesktopRecentFile {
 }
 
 export interface LightTableDesktopBridge {
+  readonly automationEnabled: boolean;
   openFile(): Promise<DesktopFilePayload | null>;
   listRecentFiles(): Promise<readonly DesktopRecentFile[]>;
   openRecentFile(id: string): Promise<DesktopFilePayload | null>;

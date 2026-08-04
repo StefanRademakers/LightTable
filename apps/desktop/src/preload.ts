@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopSavePayload, LightTableDesktopBridge } from './desktopBridge';
 
 const bridge: LightTableDesktopBridge = {
+  automationEnabled: process.argv.includes('--lighttable-automation'),
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),
   listRecentFiles: () => ipcRenderer.invoke('lighttable:list-recent-files'),
   openRecentFile: (id: string) => ipcRenderer.invoke('lighttable:open-recent-file', id),

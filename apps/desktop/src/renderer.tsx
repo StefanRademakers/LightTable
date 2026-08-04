@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom/client';
 import {
   createLightTableImageClipboard,
   LightTableStandaloneApp,
+  type LightTableAutomationDriver,
   type LightTableHost
 } from '@lighttable/app';
 import './renderer.css';
@@ -59,7 +60,17 @@ const desktopHost: LightTableHost = {
       suggestedName: file.name,
       bytes: new Uint8Array(await file.arrayBuffer())
     });
-  }
+  },
+  installAutomationDriver: window.lightTableDesktop.automationEnabled
+    ? (driver) => {
+        (window as Window & { __lightTableAutomation?: LightTableAutomationDriver })
+          .__lightTableAutomation = driver;
+        return () => {
+          delete (window as Window & { __lightTableAutomation?: LightTableAutomationDriver })
+            .__lightTableAutomation;
+        };
+      }
+    : undefined
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

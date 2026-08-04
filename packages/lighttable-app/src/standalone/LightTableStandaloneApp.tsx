@@ -65,6 +65,7 @@ export function LightTableStandaloneApp({
   const fileDrop = useStandaloneFileDrop(openDocument);
 
   useEffect(() => () => commandService.dispose(), [commandService]);
+  useEffect(() => host.installAutomationDriver?.(commandService), [commandService, host]);
 
   const changeScreenMode = useCallback((mode: EditorScreenMode) => {
     setScreenMode(mode);

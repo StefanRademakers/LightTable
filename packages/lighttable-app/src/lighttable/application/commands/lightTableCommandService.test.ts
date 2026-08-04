@@ -25,6 +25,7 @@ const setup = () => {
     setZoom: vi.fn((_documentId, viewport) => session.updateViewport(() => viewport)),
     createRasterLayer: vi.fn(),
     renameLayer: vi.fn(),
+    setLayerVisibility: vi.fn(),
     undo: vi.fn(async () => true),
     redo: vi.fn(async () => true)
   };
@@ -77,6 +78,7 @@ describe('LightTableCommandService registry', () => {
       setZoom: vi.fn(),
       createRasterLayer: vi.fn(),
       renameLayer: vi.fn(),
+      setLayerVisibility: vi.fn(),
       undo: vi.fn(async () => true),
       redo: vi.fn(async () => true)
     };
@@ -124,6 +126,28 @@ describe('LightTableCommandService registry', () => {
       code: 'stale-document-revision'
     }));
     expect(state.ports.createRasterLayer).not.toHaveBeenCalled();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('validates bounded layer visibility mutations', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    expect(await state.service.execute(request(
+      'layer.setVisibility',
+      state.session.id,
+      { layerIds: [layerId, layerId], visible: false }
+    ))).toEqual(expect.objectContaining({ status: 'completed' }));
+    expect(state.ports.setLayerVisibility).toHaveBeenCalledWith(
+      state.session.id,
+      [layerId],
+      false
+    );
+    expect(await state.service.execute(request(
+      'layer.setVisibility',
+      state.session.id,
+      { layerIds: [], visible: false }
+    ))).toEqual(expect.objectContaining({ status: 'rejected', code: 'invalid-parameters' }));
     state.service.dispose();
     state.workspace.dispose();
   });

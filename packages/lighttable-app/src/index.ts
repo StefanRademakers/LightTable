@@ -51,6 +51,7 @@ export {
   type DocumentLightTableCommandPorts,
   type LightTableCommandRequest,
   type LightTableCommandResult,
+  type LightTableAutomationDriver,
   type LightTableRevisionSet,
   type WorkspaceDocumentSummary,
   type WorkspaceQueryResult

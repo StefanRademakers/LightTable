@@ -2288,6 +2288,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       createRasterLayer: layerPanelController.createRasterLayer,
       renameLayer: layerPanelController.rename,
+      setLayerVisibility: layerPanelController.setVisibility,
       undo: applyUndoEditor,
       redo: applyRedoEditor
     });
@@ -2311,6 +2312,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rename: (layerId: LayerId, name: string) => {
       if (!executeRegisteredCommand('layer.rename', { layerId, name })) {
         layerPanelController.rename(layerId, name);
+      }
+    },
+    setVisibility: (layerIds: LayerId[], visible: boolean) => {
+      if (!executeRegisteredCommand('layer.setVisibility', { layerIds, visible })) {
+        layerPanelController.setVisibility(layerIds, visible);
       }
     }
   }), [executeRegisteredCommand, layerPanelController]);
