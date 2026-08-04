@@ -1034,8 +1034,10 @@ export const rasterizeTextLayer = (
 /**
  * Returns a lossless merge plan for a Layers-panel selection.
  *
- * Selected layers must be contiguous drawable/processing siblings above a
- * raster destination. Allowing gaps would
+ * Selected layers must be contiguous drawable/processing siblings. The
+ * destination is always a newly allocated full-canvas raster, so the
+ * bottom-most selected layer does not itself need to be raster content.
+ * Allowing gaps would
  * silently move unselected layers above or below the flattened result and
  * therefore change the document's appearance.
  */
@@ -1061,13 +1063,9 @@ export const getMergeLayersPlan = (
   ) return null;
 
   const layers = siblings.slice(indexes[0], indexes[indexes.length - 1] + 1);
-  // The bottom layer owns the baked pixels. Layers above it may be raster,
-  // vector, text or processing layers; the GPU compositor evaluates the
-  // already realized/cached presentation in document order.
-  if (
-    layers[0]?.type !== 'raster'
-    || layers.some((layer) => layer.type === 'group')
-  ) return null;
+  // The GPU compositor evaluates each selected layer's realized presentation
+  // in document order and writes it to a fresh raster destination.
+  if (!layers[0] || layers.some((layer) => layer.type === 'group')) return null;
   return {
     layerIds: layers.map((layer) => layer.id),
     destinationId: layers[0].id,
@@ -1081,30 +1079,33 @@ export const mergeLayers = (
 ): ImageDocument => {
   const plan = getMergeLayersPlan(document, selectedLayerIds);
   if (!plan) return document;
-  const destination = findRasterLayer(document, plan.destinationId);
-  if (!destination) return document;
+  const destination = findLayerNode(document.layers, plan.destinationId)?.node;
+  if (!destination || destination.type === 'group') return document;
   const now = Date.now();
   const id = createLayerId();
   const merged: RasterLayer = {
-    ...destination,
     id,
+    type: 'raster',
     name: plan.name,
+    visible: destination.visible,
+    locks: destination.locks,
     opacity: 1,
     fillOpacity: 1,
     blendMode: 'normal',
     clipping: false,
     styleStack: createDefaultLayerStyleStack(),
+    transform: identityAffineMatrix(),
     adjustmentStack: null,
+    createdAt: destination.createdAt,
     width: document.width,
     height: document.height,
     offsetX: 0,
     offsetY: 0,
     pixelSource: { kind: 'runtime-raster', runtimeId: id },
     mask: null,
-    transform: identityAffineMatrix(),
     geometryRevision: destination.geometryRevision + 1,
     revision: destination.revision + 1,
-    pixelRevision: destination.pixelRevision + 1,
+    pixelRevision: destination.type === 'raster' ? destination.pixelRevision + 1 : 1,
     modifiedAt: now,
     dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
   };

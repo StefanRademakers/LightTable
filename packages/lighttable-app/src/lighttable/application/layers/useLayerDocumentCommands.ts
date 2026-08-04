@@ -306,7 +306,7 @@ export const createLayerDocumentCommands = (
     const plan = getMergeLayersPlan(current, selectedLayerIds);
     if (!plan) {
       dependenciesRef.current.setError(
-        'Merge Selected requires contiguous raster or processing layers with a raster layer at the bottom.'
+        'Merge Selected requires at least two contiguous drawable or processing layers in the same group.'
       );
       return false;
     }

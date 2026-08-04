@@ -428,6 +428,27 @@ describe('LightTable document commands', () => {
     });
   });
 
+  it('rasterizes a bottom vector shape when merging it with a raster layer above', () => {
+    const base = createImageDocument('Image', 100, 50, 'asset');
+    const withVector = createVectorLayer(base, [], 'Shape');
+    const withRaster = createRasterLayer(withVector, 'Pixels');
+    const [background, shape, pixels] = withRaster.layers;
+    const merged = mergeLayers(withRaster, [shape.id, pixels.id]);
+
+    expect(merged.layers).toHaveLength(2);
+    expect(merged.layers[0]?.id).toBe(background.id);
+    expect(merged.layers[1]).toMatchObject({
+      type: 'raster', name: 'Pixels', width: 100, height: 50,
+      offsetX: 0, offsetY: 0, transform: translationMatrix(0, 0)
+    });
+    expect(merged.layers[1]?.id).not.toBe(shape.id);
+    expect(getMergeLayersPlan(withRaster, [pixels.id, shape.id])).toEqual({
+      destinationId: shape.id,
+      layerIds: [shape.id, pixels.id],
+      name: pixels.name
+    });
+  });
+
   it('merges a contiguous raster selection and rejects appearance-changing selections', () => {
     const base = createImageDocument('Image', 100, 50, 'asset');
     const middle = createRasterLayer(base, 'Middle');
