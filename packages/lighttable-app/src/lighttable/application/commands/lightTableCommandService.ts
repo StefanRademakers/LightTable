@@ -5,6 +5,7 @@ import type {
 } from '../documents/documentSession';
 import type { WorkspaceSession } from '../workspace/workspaceSession';
 import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
+import type { LayerStyleId, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
 import { queryLayerCommandCapabilities } from '../layers/layerCommandCapabilities';
@@ -16,6 +17,8 @@ export type LightTableCommandId =
   | 'layer.createRaster'
   | 'layer.rename'
   | 'layer.setVisibility'
+  | 'layer.style.setEnabled'
+  | 'layer.effect.setEnabled'
   | 'history.undo'
   | 'history.redo';
 
@@ -131,6 +134,20 @@ export interface LayerQuerySummary {
   } | null;
 }
 
+export interface LayerEffectsQueryResult {
+  readonly layerId: LayerId;
+  readonly enabled: boolean;
+  readonly revision: number;
+  readonly effects: readonly {
+    readonly id: LayerStyleId;
+    readonly kind: LayerStyleKind;
+    readonly name: string;
+    readonly enabled: boolean;
+    readonly opacity: number;
+    readonly blendMode: LayerNode['blendMode'];
+  }[];
+}
+
 export interface CommandCapabilitySummary {
   readonly command: LightTableCommandId;
   readonly available: boolean;
@@ -146,6 +163,8 @@ export interface LightTableCommandPorts {
     layerIds: readonly LayerId[],
     visible: boolean
   ): void | Promise<void>;
+  setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean): void | Promise<void>;
+  setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
   undo(documentId: DocumentSessionId): boolean | Promise<boolean>;
   redo(documentId: DocumentSessionId): boolean | Promise<boolean>;
 }
@@ -155,6 +174,8 @@ export interface DocumentLightTableCommandPorts {
   createRasterLayer(): void | Promise<void>;
   renameLayer(layerId: LayerId, name: string): void | Promise<void>;
   setLayerVisibility(layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;
+  setLayerStyleEnabled(layerId: LayerId, enabled: boolean): void | Promise<void>;
+  setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
   undo(): boolean | Promise<boolean>;
   redo(): boolean | Promise<boolean>;
 }
@@ -201,6 +222,19 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     visible: boolean
   ) {
     return this.resolve(documentId).setLayerVisibility(layerIds, visible);
+  }
+
+  setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean) {
+    return this.resolve(documentId).setLayerStyleEnabled(layerId, enabled);
+  }
+
+  setLayerEffectEnabled(
+    documentId: DocumentSessionId,
+    layerId: LayerId,
+    effectId: LayerStyleId,
+    enabled: boolean
+  ) {
+    return this.resolve(documentId).setLayerEffectEnabled(layerId, effectId, enabled);
   }
 
   undo(documentId: DocumentSessionId) {
@@ -329,6 +363,25 @@ export class LightTableCommandService {
     }));
   }
 
+  queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null {
+    const canonical = this.document(documentId)?.document;
+    const layer = canonical ? findDocumentLayer(canonical, layerId) : null;
+    if (!layer) return null;
+    return {
+      layerId,
+      enabled: layer.styleStack.enabled,
+      revision: layer.styleStack.revision,
+      effects: layer.styleStack.effects.map((effect) => ({
+        id: effect.id,
+        kind: effect.kind,
+        name: effect.name,
+        enabled: effect.enabled,
+        opacity: effect.opacity,
+        blendMode: effect.blendMode
+      }))
+    };
+  }
+
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null {
     const snapshot = this.document(documentId);
     if (!snapshot?.document) return null;
@@ -352,6 +405,8 @@ export class LightTableCommandService {
         'Select an existing layer.'
       ),
       availability('layer.setVisibility', true, ''),
+      availability('layer.style.setEnabled', true, ''),
+      availability('layer.effect.setEnabled', true, ''),
       availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
       availability('history.redo', snapshot.history.canRedo, 'There is nothing to redo.')
     ];
@@ -460,6 +515,31 @@ export class LightTableCommandService {
         await this.ports.setLayerVisibility(request.documentId, unique, parameters.visible);
         return { value: { layerIds: unique, visible: parameters.visible } };
       }
+      case 'layer.style.setEnabled':
+      case 'layer.effect.setEnabled': {
+        if (!isRecord(parameters) || typeof parameters.layerId !== 'string'
+          || typeof parameters.enabled !== 'boolean') {
+          return this.invalidParameters('Style enable commands require layerId and enabled.');
+        }
+        const layerId = parameters.layerId as LayerId;
+        const layer = findDocumentLayer(snapshot.document!, layerId);
+        if (!layer) return { code: 'command-unavailable', message: 'The target layer does not exist.' };
+        if (request.command === 'layer.style.setEnabled') {
+          await this.ports.setLayerStyleEnabled(request.documentId, layerId, parameters.enabled);
+          return { value: { layerId, enabled: parameters.enabled } };
+        }
+        if (typeof parameters.effectId !== 'string' || !parameters.effectId) {
+          return this.invalidParameters('Effect enable requires a non-empty effectId.');
+        }
+        const effectId = parameters.effectId as LayerStyleId;
+        if (!layer.styleStack.effects.some(({ id }) => id === effectId)) {
+          return { code: 'command-unavailable', message: 'The target effect does not exist.' };
+        }
+        await this.ports.setLayerEffectEnabled(
+          request.documentId, layerId, effectId, parameters.enabled
+        );
+        return { value: { layerId, effectId, enabled: parameters.enabled } };
+      }
       case 'history.undo':
       case 'history.redo': {
         if (!isRecord(parameters) || Object.keys(parameters).length > 0) {
@@ -527,6 +607,8 @@ export class LightTableCommandService {
       'layer.createRaster',
       'layer.rename',
       'layer.setVisibility',
+      'layer.style.setEnabled',
+      'layer.effect.setEnabled',
       'history.undo',
       'history.redo'
     ].includes(value);
@@ -579,6 +661,7 @@ export interface LightTableAutomationDriver {
   queryWorkspace(): WorkspaceQueryResult;
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;
+  queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null;
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
   execute(request: unknown): Promise<LightTableCommandResult>;
 }

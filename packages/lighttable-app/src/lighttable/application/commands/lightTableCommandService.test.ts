@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRasterLayer } from '../../editor/document/documentCommands';
 import { createImageDocument } from '../../editor/document/documentTypes';
+import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
@@ -26,6 +27,8 @@ const setup = () => {
     createRasterLayer: vi.fn(),
     renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(),
+    setLayerStyleEnabled: vi.fn(),
+    setLayerEffectEnabled: vi.fn(),
     undo: vi.fn(async () => true),
     redo: vi.fn(async () => true)
   };
@@ -83,6 +86,8 @@ describe('LightTableCommandService registry', () => {
       createRasterLayer: vi.fn(),
       renameLayer: vi.fn(),
       setLayerVisibility: vi.fn(),
+      setLayerStyleEnabled: vi.fn(),
+      setLayerEffectEnabled: vi.fn(),
       undo: vi.fn(async () => true),
       redo: vi.fn(async () => true)
     };
@@ -152,6 +157,34 @@ describe('LightTableCommandService registry', () => {
       state.session.id,
       { layerIds: [], visible: false }
     ))).toEqual(expect.objectContaining({ status: 'rejected', code: 'invalid-parameters' }));
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('queries and toggles effect bypass through bounded document ports', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    state.session.setDocument(addLayerStyle(state.session.getSnapshot().document!, layerId, 'drop-shadow'));
+    const effect = state.session.getSnapshot().document!.layers
+      .find(({ id }) => id === layerId)!.styleStack.effects[0]!;
+
+    expect(state.service.queryLayerEffects(state.session.id, layerId)).toMatchObject({
+      layerId, enabled: true,
+      effects: [{ id: effect.id, kind: 'drop-shadow', enabled: true }]
+    });
+    expect(await state.service.execute(request(
+      'layer.effect.setEnabled', state.session.id,
+      { layerId, effectId: effect.id, enabled: false }
+    ))).toEqual(expect.objectContaining({ status: 'completed' }));
+    expect(state.ports.setLayerEffectEnabled).toHaveBeenCalledWith(
+      state.session.id, layerId, effect.id, false
+    );
+    expect(await state.service.execute(request(
+      'layer.style.setEnabled', state.session.id, { layerId, enabled: false }
+    ))).toEqual(expect.objectContaining({ status: 'completed' }));
+    expect(state.ports.setLayerStyleEnabled).toHaveBeenCalledWith(
+      state.session.id, layerId, false
+    );
     state.service.dispose();
     state.workspace.dispose();
   });
