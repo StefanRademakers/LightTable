@@ -40,6 +40,10 @@ try {
   if (!documentId) throw new Error('No active document.');
   const before = await driver.queryDocument(documentId);
   if (!before) throw new Error('Document projection is unavailable.');
+  const historyCheckpoints = [];
+  const captureHistory = async (label) => {
+    historyCheckpoints.push({ label, history: (await driver.queryDocument(documentId))?.history ?? null });
+  };
   const layerListOverflow = await page.locator('.lighttable-layers__list').evaluate((element) => {
     element.style.maxHeight = '72px';
     return { clientHeight: element.clientHeight, scrollHeight: element.scrollHeight };
@@ -87,6 +91,7 @@ try {
   }
 
   await page.keyboard.press('g');
+  await captureHistory('tool-activated');
   const gradientButton = page.getByRole('button', { name: 'Gradient (G)', exact: true });
   await gradientButton.waitFor({ state: 'visible' });
   const iconSource = await gradientButton.locator('img').getAttribute('src');
@@ -99,6 +104,7 @@ try {
   await page.locator('.lighttable-tool-options__identity').click();
   await page.getByRole('combobox', { name: 'Gradient type' }).selectOption('radial');
   await page.getByRole('combobox', { name: 'Gradient type' }).selectOption('linear');
+  await captureHistory('options-changed');
   await page.getByRole('button', { name: 'Edit gradient' }).click();
   const editor = page.getByRole('dialog', { name: 'Gradient editor' });
   await editor.waitFor({ state: 'visible' });
@@ -125,6 +131,7 @@ try {
   await addedStop.click({ button: 'right' });
   if (await colorStops.count() !== 2) throw new Error('Right-click did not remove the gradient stop.');
   await page.getByRole('button', { name: 'Close gradient' }).click();
+  await captureHistory('gradient-editor-closed');
 
   const viewport = page.locator('.lighttable-viewport');
   const bounds = await viewport.boundingBox();
@@ -134,6 +141,7 @@ try {
     ?.classList.contains('lighttable-viewport--eyedropper'));
   await page.mouse.click(bounds.x + bounds.width * 0.85, bounds.y + bounds.height * 0.18);
   await page.keyboard.up('Alt');
+  await captureHistory('color-sampled');
 
   const start = { x: bounds.x + bounds.width * 0.14, y: bounds.y + bounds.height * 0.20 };
   const end = { x: bounds.x + bounds.width * 0.37, y: bounds.y + bounds.height * 0.42 };
@@ -143,6 +151,7 @@ try {
   await page.mouse.move(end.x, end.y, { steps: 6 });
   await page.mouse.up();
   await page.keyboard.up('Shift');
+  await captureHistory('gradient-dragged');
   await page.screenshot({ path: screenshotPath });
 
   const after = await driver.queryDocument(documentId);
@@ -155,6 +164,7 @@ try {
       before,
       after,
       activeLayer,
+      historyCheckpoints,
       pageErrors,
       body: await page.locator('body').innerText()
     })}`);

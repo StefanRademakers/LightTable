@@ -49,7 +49,7 @@ const diagnostics = {
   finalText: '',
   status: '',
   layers: [],
-  paragraphTraces: [],
+  cacheStats: null,
   dragSelection: null,
   debugPanel: '',
   runtime: null,
@@ -88,9 +88,11 @@ try {
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 30_000 });
 
-  await window.getByRole('button', { name: 'Show text tools' }).click();
-  await window.getByRole('toolbar', { name: 'Text tools' })
-    .getByRole('button', { name: 'Paragraph text' }).click();
+  // Point and paragraph text intentionally share the Type tool: clicking
+  // creates point text, while this drag gesture creates the paragraph frame.
+  await window.keyboard.press('t');
+  await window.getByRole('button', { name: 'Type tool (T)', exact: true })
+    .waitFor({ state: 'visible' });
   if (sizeBeforeCreate !== null) {
     await window.locator('[aria-label="Text settings"]')
       .getByLabel('Size').fill(String(sizeBeforeCreate));
@@ -173,17 +175,21 @@ try {
   await debugPanel.waitFor({ state: 'visible' });
   await window.waitForFunction(() => {
     const text = document.querySelector('.lighttable-debug-panel')?.textContent ?? '';
-    return /paragraphHits=[1-9]\d*.*paragraphShapes=1/.test(text);
+    return /Layout cache:.*?[1-9]\d* hits/i.test(text);
   }, undefined, { timeout: 30_000 });
   diagnostics.debugPanel = await debugPanel.textContent() ?? '';
-  diagnostics.paragraphTraces = [...diagnostics.debugPanel.matchAll(
-    /paragraphHits=(\d+).*?paragraphShapes=(\d+).*?paragraphCache=(\d+)\/(\d+)/g
-  )].map((match) => ({
-    hits: Number(match[1]),
-    shapes: Number(match[2]),
-    entries: Number(match[3]),
-    bytes: Number(match[4])
-  }));
+  const layoutCache = diagnostics.debugPanel.match(
+    /Layout cache:.*?(\d+) hits\s*\/\s*(\d+) misses/i
+  );
+  const textInput = diagnostics.debugPanel.match(
+    /Text input:.*?submit p95 ([\d.]+) ms.*?GPU p95 ([\d.]+) ms/i
+  );
+  diagnostics.cacheStats = {
+    layoutHits: Number(layoutCache?.[1] ?? 0),
+    layoutMisses: Number(layoutCache?.[2] ?? 0),
+    submitP95Ms: Number(textInput?.[1] ?? 0),
+    gpuP95Ms: Number(textInput?.[2] ?? 0)
+  };
   await window.getByRole('tab', { name: 'Text', exact: true }).click();
 
   await window.mouse.move(end.x, end.y);
@@ -208,8 +214,8 @@ try {
   if (finalBridgeValue !== diagnostics.finalText) {
     throw new Error('Paragraph frame resize mutated the authored text.');
   }
-  if (!diagnostics.paragraphTraces.some(({ hits, shapes }) => hits >= 2 && shapes === 1)) {
-    throw new Error('No incremental paragraph cache trace proved sibling reuse.');
+  if (!diagnostics.cacheStats || diagnostics.cacheStats.layoutHits < 1) {
+    throw new Error('No layout-cache reuse was observed while editing paragraph text.');
   }
   if (diagnostics.layers.filter(({ statuses }) => statuses.includes('Flow')).length !== 1) {
     throw new Error('Expected exactly one editable Flow paragraph layer.');

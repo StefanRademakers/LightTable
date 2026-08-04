@@ -39,8 +39,11 @@ try {
   if (!documentId) throw new Error('No active document.');
   await driver.execute(documentId, 'layer.createRaster', {});
 
-  await page.keyboard.press('g');
-  await page.getByRole('button', { name: 'Fill (G)', exact: true }).waitFor({ state: 'visible' });
+  // The G family now opens on Gradient; Shift+G selects its Paint Bucket
+  // alternate through the same shortcut router used by the editor.
+  await page.keyboard.press('Shift+g');
+  await page.getByRole('button', { name: 'Paint bucket', exact: true })
+    .waitFor({ state: 'visible' });
   await page.keyboard.press('d');
   const before = await driver.queryDocument(documentId);
   if (!before) throw new Error('Document projection is unavailable.');

@@ -66,9 +66,9 @@ try {
   await dialog.getByRole('button', { name: 'Create' }).click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 30_000 });
-  await page.getByRole('button', { name: 'Show text tools' }).click();
-  await page.getByRole('toolbar', { name: 'Text tools' })
-    .getByRole('button', { name: 'Point text' }).click();
+  await page.keyboard.press('t');
+  await page.getByRole('button', { name: 'Type tool (T)', exact: true })
+    .waitFor({ state: 'visible' });
   const fontSelect = page.locator('[aria-label="Text settings"]').getByLabel('Font');
   await fontSelect.locator(`option[value="${report.selected.family.replaceAll('"', '\\"')}"]`)
     .waitFor({ state: 'attached', timeout: 30_000 });
@@ -77,7 +77,7 @@ try {
   const viewportBox = await viewport.boundingBox();
   if (!viewportBox) throw new Error('The system-font smoke viewport has no bounds.');
   await page.mouse.click(viewportBox.x + viewportBox.width * 0.76, viewportBox.y + viewportBox.height * 0.28);
-  const creationDialog = page.getByRole('dialog', { name: 'Create point text' });
+  const creationDialog = page.getByRole('dialog', { name: 'Create text' });
   await page.waitForTimeout(1_000);
   await page.screenshot({ path: path.join(outputDirectory, 'system-font-authoring.png') });
   await creationDialog.waitFor({ state: 'visible', timeout: 30_000 });
