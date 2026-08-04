@@ -17,6 +17,7 @@ import {
   type StandaloneDecodeMode,
   type StandaloneDocumentRuntime
 } from './standaloneDocumentRuntime';
+import type { SystemFontByteProvider } from '../lighttable/text/fonts/DocumentFontRegistry';
 
 export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
 
@@ -25,10 +26,10 @@ export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
  * Electron shells. React subscribes to one immutable workspace projection;
  * opaque File handles remain aligned with their DocumentSession lifetime.
  */
-export const useStandaloneDocumentWorkspace = () => {
+export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontByteProvider) => {
   const controller = useMemo(
-    () => new DocumentWorkspaceController<StandaloneDocumentRuntime>(),
-    []
+    () => new DocumentWorkspaceController<StandaloneDocumentRuntime>({ systemFontProvider }),
+    [systemFontProvider]
   );
   const snapshot = useSyncExternalStore(
     controller.subscribe,

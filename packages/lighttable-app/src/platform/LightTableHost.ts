@@ -1,6 +1,8 @@
 import type { LightTableImageClipboard } from './LightTableImageClipboard';
 import { browserImageClipboard } from './LightTableImageClipboard';
 import type { LightTableAutomationDriver } from '../lighttable/application/commands/lightTableCommandService';
+import type { DocumentFontAsset } from '../lighttable/editor/document/documentTypes';
+import type { SystemFontByteProvider } from '../lighttable/text/fonts/DocumentFontRegistry';
 
 export interface LightTableMediaItem {
   id: string;
@@ -32,6 +34,8 @@ export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
   readonly media?: LightTableMediaBrowser;
   readonly clipboard?: LightTableImageClipboard;
+  readonly systemFontProvider?: SystemFontByteProvider;
+  listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
   openRecentFile?(id: string): Promise<File | null>;

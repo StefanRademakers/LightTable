@@ -55,9 +55,9 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 
 | Feature | Detect | Preserve | Display | Render | Edit/Create | Export | Verify | Current truth |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Yes native | Native manifest v5 preserves tight bounds and offsets. Merge/flatten use a separate full-canvas runtime and retain tight sources for undo/redo; the ten-file corpus and packaged EHS-396 bake smoke pass. |
+| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Yes native | Native manifest v6 retains the v4 tight-bounds contract. Merge/flatten use a separate full-canvas runtime and retain tight sources for undo/redo; the ten-file corpus and packaged EHS-396 bake smoke pass. |
 | Groups and nesting | Yes | Yes | Yes | Yes | Yes | No | Partial | 33 pass-through groups occur in nine corpus files; exact contextual parity is not fully signed off. |
-| Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v5 save/reopen retains the v4 tight-raster contract and is verified on painted EHS-396 content. |
+| Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v6 save/reopen retains the v4 tight-raster contract and is verified on painted EHS-396 content. |
 | Opacity | Yes | Yes | Yes | Yes | Yes | No | Partial | Nineteen partial-opacity layers occur in seven documents. |
 | Fill opacity | Yes | Yes | Yes | Yes | Yes | No | Weak | Canonical property exists, but this corpus contains only one non-default instance. |
 | Blend modes | Yes | Yes | Yes | Partial | Yes | No | Partial | Screen, Multiply, Soft Light and Hard Light occur; contextual mask/group fixtures remain. |
@@ -69,9 +69,9 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 | Dormant style descriptors | Yes | Yes | Correctly hidden | N/A | Style editor | No | Yes UI | Dormant descriptors remain stored but no longer clutter the compact Layers tree. |
 | Solid vector shapes | Yes | Partial | Partial | Partial | **Partial** | No | Failed authoring parity | Some simple shapes map natively, but observed imported shapes still fall back or expose incomplete editable properties. |
 | Vector strokes | Yes | Yes | Preview/Partial | Partial | Partial | No | Failed | Six strokes expose incomplete alignment, paint, join/cap and opacity semantics. |
-| PSD text descriptors | Yes | Yes descriptor | Preview or native | **Yes where supported** | Partial | No | Partial | Ordinary point/paragraph descriptors now become semantic text with a bounded v5 preview; missing-font Replace/Manage UX and a fresh whole-corpus count remain. |
+| PSD text descriptors | Yes | Yes descriptor | Preview or native | **Yes where supported** | Partial | No | Partial | Ordinary point/paragraph descriptors now become semantic text with a bounded v5 preview; missing-font Replace/Manage UX and a fresh whole-corpus count remain. Native v6 can persist stable external system-font references without embedding their bytes. |
 | Native LightTable text | N/A | Yes | Yes | Yes | Yes | PDF partial | Separate fixtures | The text engine works independently; PSD realization/font recovery is the gap. |
-| Missing fonts | Yes | Partial | Preview | No | No | No | Failed | Twenty-eight source font families occur; replacement/recovery is Task 048 and system discovery is Task 046. |
+| Missing fonts | Yes | Partial | Preview | Partial | Partial | No | Partial | Twenty-eight source font families occur. Desktop system discovery is lazy and complete for Windows TTF/OTF/TTC/variable faces; native absent-font reopening and broader recovery coverage remain in Task 048. |
 | Smart Objects | Yes | **Partial descriptor** | Preview | No | No | No | Failed semantic parity | Fifty-seven previews display; embedded/linked object payloads are skipped and cannot be reopened. |
 | Smart Object affine placement | Yes | Descriptor | Preview | Via pixels | No | No | Partial visual | Placement appearance comes from the layer-local preview rather than a native smart container. |
 | Smart Object non-affine/warp | Yes | Descriptor | Preview | No | No | No | Failed semantic parity | Eight instances in EHS-401 require a canonical quadrilateral/warp contract. |

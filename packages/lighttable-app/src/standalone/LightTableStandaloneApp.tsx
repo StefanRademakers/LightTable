@@ -51,7 +51,7 @@ export function LightTableStandaloneApp({
     openDocument,
     closeDocument: closeWorkspaceDocument,
     activateDocument
-  } = useStandaloneDocumentWorkspace();
+  } = useStandaloneDocumentWorkspace(host.systemFontProvider);
   const commandPorts = useMemo(() => new LightTableCommandPortRegistry(), []);
   const commandService = useMemo(
     () => new LightTableCommandService(controller.workspace, commandPorts),
@@ -66,6 +66,15 @@ export function LightTableStandaloneApp({
 
   useEffect(() => () => commandService.dispose(), [commandService]);
   useEffect(() => host.installAutomationDriver?.(commandService), [commandService, host]);
+  useEffect(() => {
+    let cancelled = false;
+    void host.listSystemFonts?.().then((fonts) => {
+      if (!cancelled) controller.workspace.registerSystemFontReferences(fonts);
+    }).catch(() => {
+      // System fonts are optional; bundled/document fonts remain available.
+    });
+    return () => { cancelled = true; };
+  }, [controller, host]);
 
   const changeScreenMode = useCallback((mode: EditorScreenMode) => {
     setScreenMode(mode);

@@ -16,6 +16,31 @@ const ids = (...values: string[]) => {
 };
 
 describe('WorkspaceSession', () => {
+  it('publishes lazy system-font references to open and future documents', () => {
+    const workspace = new WorkspaceSession({
+      createId: ids('one', 'two'),
+      systemFontProvider: { load: async () => null }
+    });
+    const first = workspace.open({ source: source('first') });
+    if (!first.ok) throw new Error('Fixture failed to open.');
+    const font = {
+      assetId: `system:${'b'.repeat(64)}:0`, faceIndex: 0,
+      fingerprintSha256: 'b'.repeat(64), source: 'system' as const,
+      container: 'sfnt' as const, outline: 'truetype' as const,
+      embedding: { level: 'installable' as const, noSubsetting: false, bitmapOnly: false },
+      familyNames: ['System Fixture'], styleName: 'Regular', weight: 400,
+      stretch: 100, italic: false, byteLength: 1024
+    };
+
+    workspace.registerSystemFontReferences([font]);
+    const second = workspace.open({ source: source('second') });
+    if (!second.ok) throw new Error('Fixture failed to open.');
+    expect(first.value.fonts.availableAssets).toContainEqual(font);
+    expect(second.value.fonts.availableAssets).toContainEqual(font);
+    expect(first.value.fonts.byteSize).toBe(0);
+    expect(second.value.fonts.byteSize).toBe(0);
+  });
+
   it('opens documents and exposes exactly one active document', () => {
     const workspace = new WorkspaceSession({
       createId: ids('one', 'two')

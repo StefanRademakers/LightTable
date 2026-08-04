@@ -20,7 +20,9 @@ const bridge: LightTableDesktopBridge = {
   writeClipboardPng: (bytes: Uint8Array) =>
     ipcRenderer.invoke('lighttable:clipboard-write-png', bytes),
   readClipboardPng: () =>
-    ipcRenderer.invoke('lighttable:clipboard-read-png')
+    ipcRenderer.invoke('lighttable:clipboard-read-png'),
+  listSystemFonts: () => ipcRenderer.invoke('lighttable:list-system-fonts'),
+  loadSystemFont: (assetId: string) => ipcRenderer.invoke('lighttable:load-system-font', assetId)
 };
 
 contextBridge.exposeInMainWorld('lightTableDesktop', bridge);

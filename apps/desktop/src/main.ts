@@ -23,6 +23,7 @@ import {
   touchRecentFile,
   type PersistedRecentFile
 } from './recentFiles';
+import { WindowsSystemFontCatalog } from './systemFonts';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -37,6 +38,15 @@ if (automationUserData) app.setPath('userData', path.resolve(automationUserData)
 const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
+const systemFonts = new WindowsSystemFontCatalog(
+  [
+    path.join(process.env.WINDIR ?? 'C:\\Windows', 'Fonts'),
+    ...(process.env.LOCALAPPDATA
+      ? [path.join(process.env.LOCALAPPDATA, 'Microsoft', 'Windows', 'Fonts')]
+      : [])
+  ],
+  path.join(app.getPath('userData'), 'system-font-catalog-v1.json')
+);
 
 if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
   // Keep Chromium's development-only HTTP/code cache separate from userData.
@@ -386,6 +396,19 @@ void app.whenReady().then(async () => {
     const image = clipboard.readImage();
     if (image.isEmpty()) return null;
     return new Uint8Array(image.toPNG());
+  });
+
+  ipcMain.handle('lighttable:list-system-fonts', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return systemFonts.list();
+  });
+
+  ipcMain.handle('lighttable:load-system-font', async (event, assetId: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof assetId !== 'string' || !/^system:[a-f\d]{64}:\d{1,2}$/i.test(assetId)) {
+      throw new Error('Invalid system-font request.');
+    }
+    return systemFonts.load(assetId);
   });
 
   ipcMain.handle('lighttable:confirm-discard-changes', async (event, documentTitle: string) => {

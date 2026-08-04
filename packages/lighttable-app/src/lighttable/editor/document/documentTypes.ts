@@ -311,6 +311,12 @@ export interface DocumentFontAsset extends FontAssetRef {
   readonly stretch: number;
   readonly italic: boolean;
   readonly byteLength: number;
+  readonly variableAxes?: readonly {
+    readonly tag: string;
+    readonly minimum: number;
+    readonly defaultValue: number;
+    readonly maximum: number;
+  }[];
 }
 
 export interface DocumentAssetRegistry {

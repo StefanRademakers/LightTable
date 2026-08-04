@@ -218,7 +218,7 @@ describe('LightTable layered PNG format', () => {
       }],
       'versions.png'
     );
-    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 6; });
+    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 7; });
     const futureText = await rewriteManifest(file, (manifest) => {
       const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
       const text = layers.find((layer) => layer.type === 'text')!.text as Record<string, unknown>;
@@ -421,6 +421,42 @@ describe('LightTable layered PNG format', () => {
     await expect(parseLayeredDocumentFile(corrupted)).rejects.toThrow(/SHA-256/);
   });
 
+  it('persists system font references without silently embedding their bytes', async () => {
+    const document = createImageDocument('System font', 2, 2, 'source');
+    const systemFont: DocumentFontAsset = {
+      assetId: `system:${'a'.repeat(64)}:0`,
+      faceIndex: 0,
+      fingerprintSha256: 'a'.repeat(64),
+      source: 'system',
+      container: 'sfnt',
+      outline: 'truetype',
+      postScriptName: 'FixtureSystem-Regular',
+      embedding: { level: 'restricted', noSubsetting: true, bitmapOnly: false },
+      familyNames: ['Fixture System'],
+      styleName: 'Regular',
+      weight: 400,
+      stretch: 100,
+      italic: false,
+      byteLength: 1234,
+      variableAxes: [{ tag: 'wght', minimum: 100, defaultValue: 400, maximum: 900 }]
+    };
+    document.assets.fonts.push(systemFont);
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{ layerId: document.layers[0].id, pixels: new Blob([BACKGROUND_PNG]), mask: null }],
+      'system-font.png'
+    );
+
+    const manifest = await readManifest(file);
+    expect(manifest.version).toBe(6);
+    expect((manifest.document as { fonts: Array<{ asset: unknown }> }).fonts[0]?.asset).toBeNull();
+    const parsed = await parseLayeredDocumentFile(file);
+    expect(parsed?.document.assets.fonts).toEqual([systemFont]);
+    expect(parsed?.fontAssets).toEqual([]);
+  });
+
   it('retains original Photoshop, PDF and Illustrator documents byte-exact', async () => {
     const document = createImageDocument('PSD source', 2, 2, 'source');
     const sourceId = 'source-photoshop-1' as DocumentAssetId;
@@ -613,7 +649,7 @@ describe('LightTable layered PNG format', () => {
     const parsed = await parseLayeredDocumentFile(file);
     const parsedLayer = parsed && findRasterLayer(parsed.document, sourceLayer.id);
 
-    expect(await readManifest(file)).toMatchObject({ version: 5 });
+    expect(await readManifest(file)).toMatchObject({ version: 6 });
     expect(parsedLayer).toMatchObject({
       width: 900,
       height: 48,

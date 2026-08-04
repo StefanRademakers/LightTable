@@ -169,7 +169,8 @@ export class DocumentFontRegistry {
   }
 
   get availableAssets(): readonly DocumentFontAsset[] {
-    return this.assets.filter((asset) => this.bytesByFingerprint.has(asset.fingerprintSha256));
+    return this.assets.filter((asset) => this.bytesByFingerprint.has(asset.fingerprintSha256)
+      || (asset.source === 'system' && Boolean(this.options.systemProvider)));
   }
 
   get availabilityRevision() {
@@ -182,9 +183,12 @@ export class DocumentFontRegistry {
     return () => { this.availabilityListeners.delete(listener); };
   }
 
-  async materializeBytes() {
+  async materializeBytes(assetIds?: readonly string[]) {
     const unique = new Map<string, Uint8Array>();
-    for (const asset of this.assets) {
+    const selected = assetIds
+      ? assetIds.map((assetId) => this.assetsById.get(assetId)).filter((asset): asset is DocumentFontAsset => Boolean(asset))
+      : this.assets;
+    for (const asset of selected) {
       if (unique.has(asset.fingerprintSha256)) continue;
       if (
         asset.source === 'system'
@@ -197,7 +201,17 @@ export class DocumentFontRegistry {
     return [...unique].map(([fingerprintSha256, bytes]) => ({ fingerprintSha256, bytes }));
   }
 
-  registerReference(asset: DocumentFontAsset) {
+  registerReferences(assets: readonly DocumentFontAsset[]) {
+    let changed = false;
+    for (const asset of assets) {
+      const existing = this.assetsById.has(asset.assetId);
+      this.registerReference(asset, false);
+      if (!existing && asset.source === 'system' && this.options.systemProvider) changed = true;
+    }
+    if (changed) this.notifyAvailability();
+  }
+
+  registerReference(asset: DocumentFontAsset, notify = true) {
     this.assertActive();
     this.validateAsset(asset);
     const knownLength = this.byteLengthByFingerprint.get(asset.fingerprintSha256);
@@ -206,8 +220,8 @@ export class DocumentFontRegistry {
     }
     this.assertCompatibleFaceAlias(asset);
     const existing = this.assetsById.get(asset.assetId);
-    if (!existing && this.assetsById.size >= 256) {
-      throw new Error('A document may contain at most 256 font faces.');
+    if (!existing && this.assetsById.size >= 4096) {
+      throw new Error('A font registry may contain at most 4096 font faces.');
     }
     if (existing && (
       existing.fingerprintSha256 !== asset.fingerprintSha256
@@ -215,6 +229,7 @@ export class DocumentFontRegistry {
     )) throw new Error(`Font asset ID ${asset.assetId} already identifies another face.`);
     this.assetsById.set(asset.assetId, structuredClone(asset));
     this.byteLengthByFingerprint.set(asset.fingerprintSha256, asset.byteLength);
+    if (notify && !existing && asset.source === 'system' && this.options.systemProvider) this.notifyAvailability();
     return this.assetsById.get(asset.assetId)!;
   }
 

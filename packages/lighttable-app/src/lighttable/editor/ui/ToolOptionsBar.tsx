@@ -272,8 +272,17 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           >
             {textProperties?.family.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
             {textProperties?.family.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
-            {[...new Set(textFonts.flatMap(({ familyNames }) => familyNames.slice(0, 1)))]
-              .map((family) => <option key={family} value={family}>{family}</option>)}
+            {([
+              ['Bundled', (font: DocumentFontAsset) => font.source === 'bundled'],
+              ['Document', (font: DocumentFontAsset) => font.source !== 'bundled' && font.source !== 'system'],
+              ['System', (font: DocumentFontAsset) => font.source === 'system']
+            ] as const).map(([label, accepts]) => {
+              const families = [...new Set(textFonts.filter(accepts)
+                .flatMap(({ familyNames }) => familyNames.slice(0, 1)))];
+              return families.length ? <optgroup key={label} label={label}>
+                {families.map((family) => <option key={`${label}:${family}`} value={family}>{family}</option>)}
+              </optgroup> : null;
+            })}
           </ToolOptionSelect>
           <ToolOptionSelect
             label="Style"

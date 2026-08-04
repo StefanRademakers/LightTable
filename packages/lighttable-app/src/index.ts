@@ -32,6 +32,7 @@ export {
   type DocumentViewport
 } from './lighttable/application/documents/documentSession';
 export type { SystemFontByteProvider } from './lighttable/text/fonts/DocumentFontRegistry';
+export type { DocumentFontAsset } from './lighttable/editor/document/documentTypes';
 export {
   DocumentCommandHistory,
   type DocumentCommandHistoryOptions,

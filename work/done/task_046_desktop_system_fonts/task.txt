@@ -1,0 +1,59 @@
+# Task 046 - Desktop system fonts
+
+Status: done
+
+Ondersteun systeemfonts in de desktopversie zonder de WebGPU/WASM-tekststack te
+omzeilen en zonder fonts eager in geheugen te laden.
+
+## Gewenst resultaat
+
+- [x] Voeg een desktop `SystemFontProvider` toe achter de bestaande font
+  registry; maak geen tweede text-engine of CSS/DOM-renderroute.
+- [x] Inventariseer bij startup alleen lichte metadata zoals family, face,
+  style, weight, bestandspad, TTC-index en variable-fontinformatie.
+- [x] Lees en registreer fontbytes pas wanneer een font wordt gekozen of een
+  geopend document het nodig heeft.
+- [x] Fingerprint geladen fonts en laat ze door de bestaande lazy WASM-runtime,
+  substitutions en byte-bounded caches lopen.
+- [x] Ondersteun ten minste TTF, OTF, TTC en variable fonts op Windows,
+  inclusief systeem- en per-user-fontinstallaties.
+- [x] Toon Bundled, Document en System fonts met de bestaande fontkeuze-UI en
+  bestaande controls/CSS.
+- [x] Bewaar bij native save/reopen een stabiele fontreferentie en fingerprint;
+  sluit system-fontbytes niet stilzwijgend in.
+- [x] Behoud bestaande missing-font/substitution-diagnostiek wanneer een font
+  verwijderd, gewijzigd of niet beschikbaar is.
+- [x] Respecteer font-embeddingrechten, waaronder `OS/2.fsType`, bij PDF- en
+  toekomstige PSD-export; lokaal renderbaar betekent niet automatisch
+  exporteerbaar of insluitbaar.
+- [x] Houd ongebruikte fontbytes, outlines en glyph-caches buiten het geheugen
+  of verwijderbaar onder de bestaande cachebudgetten.
+- [x] Houd dezelfde providerinterface bruikbaar voor een latere macOS-, Linux-
+  en optionele web-local-fontimplementatie.
+
+## Gates
+
+- [x] Font discovery blokkeert startup en raster-only documenten niet.
+- [x] Een gekozen system font rendert via WASM + WebGPU in web-gedeelde code.
+- [x] Point text, paragraph text, mixed runs en save/reopen zijn getest.
+- [x] TTC, variable fonts, ontbrekende fonts en embeddingrestricties hebben
+  gerichte tests.
+- [x] Web en Electron blijven buildable; de webversie vereist geen desktop-API.
+- [x] Packaged Electron-smoke toont lazy loading en correcte geheugenrelease.
+
+## Afgerond
+
+- Windows system- en per-user-fontdirectories worden na de eerste paint asynchroon
+  geïndexeerd. De cache bevat alleen bestandstatistieken en SFNT-face-metadata.
+- Het main process bewaart de gecontroleerde `assetId -> path`-mapping; IPC kan
+  geen willekeurige paden lezen en controleert de SHA-256 opnieuw bij lazy load.
+- Native manifest v6 bewaart system-fontmetadata met `asset: null`. Andere
+  fontbronnen blijven byte-exact en deduplicated embedded.
+- De bestaande fontkeuzes tonen Bundled, Document en System met dezelfde native
+  selectcomponenten en CSS. Een keuze zonder geselecteerde tekst wijzigt nu ook
+  correct de defaults van de text tool.
+- Gerichte tests dekken TTC-face-indexen, `fvar`, embeddingrechten, lazy registry
+  lifecycle, bestaande/toekomstige workspaces en v6 save/reopen.
+- Packaged smoke op Windows: 460 faces, eerste venster 244.5 ms, catalogus 526 ms,
+  geen bytes in discoverymetadata, fingerprint exact en editable Agency FB point
+  text zichtbaar via de bestaande WASM/WebGPU-canvasroute; nul page errors.

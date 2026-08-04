@@ -6,6 +6,7 @@ import {
   type DocumentSourceDescriptor
 } from '../documents/documentSession';
 import type { SystemFontByteProvider } from '../../text/fonts/DocumentFontRegistry';
+import type { DocumentFontAsset } from '../../editor/document/documentTypes';
 import {
   failure,
   success,
@@ -58,6 +59,7 @@ export class WorkspaceSession {
   private readonly sessions = new Map<DocumentSessionId, DocumentSession>();
   private readonly sessionUnsubscribers = new Map<DocumentSessionId, () => void>();
   private readonly listeners = new Set<WorkspaceListener>();
+  private systemFontAssets: readonly DocumentFontAsset[] = [];
   private documentOrder: DocumentSessionId[] = [];
   private activeDocumentId: DocumentSessionId | null = null;
   private snapshot: WorkspaceSnapshot = {
@@ -88,6 +90,13 @@ export class WorkspaceSession {
       : null;
   }
 
+  registerSystemFontReferences(assets: readonly DocumentFontAsset[]): void {
+    this.systemFontAssets = assets.filter((asset) => asset.source === 'system').map((asset) => structuredClone(asset));
+    for (const session of this.sessions.values()) {
+      session.fonts.registerReferences(this.systemFontAssets);
+    }
+  }
+
   open(
     options: OpenDocumentOptions
   ): Result<DocumentSession, WorkspaceError> {
@@ -111,6 +120,7 @@ export class WorkspaceSession {
       systemFontProvider: this.systemFontProvider
     };
     const session = new DocumentSession(createOptions);
+    session.fonts.registerReferences(this.systemFontAssets);
     this.sessions.set(session.id, session);
     this.documentOrder = [...this.documentOrder, session.id];
     this.sessionUnsubscribers.set(

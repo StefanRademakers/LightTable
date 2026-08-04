@@ -2444,10 +2444,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
     getPreservedSourceAssets: () => preservedSourceAssetsRef.current,
     getFontAssets: async () => {
-      const materialized = await textFontRegistry.materializeBytes();
-      const usedFingerprints = new Set(
-        imageDocumentRef.current?.assets.fonts.map(({ fingerprintSha256 }) => fingerprintSha256)
-      );
+      const embeddedFonts = imageDocumentRef.current?.assets.fonts
+        .filter(({ source }) => source !== 'system') ?? [];
+      const usedFingerprints = new Set(embeddedFonts.map(({ fingerprintSha256 }) => fingerprintSha256));
+      const materialized = await textFontRegistry.materializeBytes(embeddedFonts.map(({ assetId }) => assetId));
       return materialized
         .filter(({ fingerprintSha256 }) => usedFingerprints.has(fingerprintSha256))
         .map(({ fingerprintSha256, bytes }) => ({
@@ -3057,7 +3057,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     void (async () => {
       const bundled = await registerBundledTextFontByAssetId(textFontRegistry, assetId);
       const asset = bundled ?? textFontRegistry.availableAssets.find((font) => font.assetId === assetId);
-      if (asset) applyDiscreteTextProperty(textFontPatch(asset));
+      if (!asset) return;
+      if (!textPropertyPresentation) {
+        updateText({ family: asset.familyNames[0]!, style: asset.styleName });
+      } else {
+        applyDiscreteTextProperty(textFontPatch(asset));
+      }
     })().catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : 'The selected font could not be loaded.');
     });

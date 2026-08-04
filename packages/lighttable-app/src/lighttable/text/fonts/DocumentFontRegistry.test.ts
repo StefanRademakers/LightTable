@@ -143,14 +143,15 @@ describe('DocumentFontRegistry', () => {
 
     expect(registry.resolve({ families: ['System Fixture'] }, {
       weight: 400, stretch: 100, italic: false
-    }).kind).toBe('missing');
+    }).kind).toBe('exact');
+    expect(provider.load).not.toHaveBeenCalled();
 
     expect(await registry.bytes(systemAsset.assetId)).toEqual(bytes);
     expect(registry.resolve({ families: ['System Fixture'] }, {
       weight: 400, stretch: 100, italic: false
     }).kind).toBe('exact');
     expect(provider.load).toHaveBeenCalledOnce();
-    expect(availabilityChanged).toHaveBeenCalledOnce();
+    expect(availabilityChanged).toHaveBeenCalledTimes(2);
     expect(await registry.materializeBytes()).toEqual([{ fingerprintSha256: fingerprint, bytes }]);
     await expect(registry.registerBytes(
       new Uint8Array(5),

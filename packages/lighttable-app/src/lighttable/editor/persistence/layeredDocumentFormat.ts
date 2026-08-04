@@ -110,7 +110,7 @@ type LayerManifestEntry =
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
-  version: 5;
+  version: 6;
   previewLength: number;
   document: {
     id: string;
@@ -136,7 +136,7 @@ interface LayeredDocumentManifest {
       byteLength: number;
       asset: BinaryAssetReference;
     }>;
-    fonts: Array<DocumentFontAsset & { asset: BinaryAssetReference }>;
+    fonts: Array<DocumentFontAsset & { asset: BinaryAssetReference | null }>;
     layers: LayerManifestEntry[];
   };
   adjustmentStack: AdjustmentStack;
@@ -398,6 +398,9 @@ export const buildLayeredDocumentFile = (
   });
   const fontReferences = new Map<string, BinaryAssetReference>();
   const fonts = document.assets.fonts.map((font) => {
+    if (font.source === 'system') {
+      return { ...structuredClone(font), asset: null };
+    }
     let asset = fontReferences.get(font.fingerprintSha256);
     if (!asset) {
       const binary = assetsByFontFingerprint.get(font.fingerprintSha256);
@@ -413,7 +416,7 @@ export const buildLayeredDocumentFile = (
   });
   const manifest: LayeredDocumentManifest = {
     format: 'lighttable-layered-png',
-    version: 5,
+    version: 6,
     previewLength: preview.size,
     document: {
       id: document.id,
@@ -648,12 +651,12 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   if (
     !isRecord(raw)
     || raw.format !== 'lighttable-layered-png'
-    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4 && raw.version !== 5)
+    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4 && raw.version !== 5 && raw.version !== 6)
     || !isRecord(raw.document)
   ) {
     throw new Error('This LightTable document format is not supported.');
   }
-  const manifestVersion = raw.version as 1 | 2 | 3 | 4 | 5;
+  const manifestVersion = raw.version as 1 | 2 | 3 | 4 | 5 | 6;
   const source = raw.document;
   const width = source.width;
   const height = source.height;
@@ -1032,14 +1035,52 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       || !Number.isFinite(entry.stretch)
       || entry.stretch <= 0
       || typeof entry.italic !== 'boolean'
+      || (entry.variableAxes !== undefined && (
+        !Array.isArray(entry.variableAxes)
+        || entry.variableAxes.length > 64
+        || !entry.variableAxes.every((axis) => isRecord(axis)
+          && typeof axis.tag === 'string' && /^[\x20-\x7e]{4}$/.test(axis.tag)
+          && typeof axis.minimum === 'number' && Number.isFinite(axis.minimum)
+          && typeof axis.defaultValue === 'number' && Number.isFinite(axis.defaultValue)
+          && typeof axis.maximum === 'number' && Number.isFinite(axis.maximum)
+          && Number(axis.minimum) <= Number(axis.defaultValue)
+          && Number(axis.defaultValue) <= Number(axis.maximum))
+      ))
       || !Number.isSafeInteger(entry.byteLength)
       || Number(entry.byteLength) < 1
       || Number(entry.byteLength) > MAX_FONT_BYTES
-      || !validAssetReference(entry.asset, Number(previewLength), manifestStart)
-      || Number(entry.asset.length) !== Number(entry.byteLength)
+      || !(
+        manifestVersion >= 6 && entry.source === 'system' && entry.asset === null
+        || validAssetReference(entry.asset, Number(previewLength), manifestStart)
+      )
+      || (isRecord(entry.asset) && Number(entry.asset.length) !== Number(entry.byteLength))
     ) throw new Error(`Font ${index + 1} in the LightTable document is invalid.`);
     const reference = entry.asset;
     const fingerprint = entry.fingerprintSha256.toLowerCase();
+    if (reference === null) {
+      seenFontIds.add(entry.assetId);
+      return {
+        assetId: entry.assetId,
+        faceIndex: Number(entry.faceIndex),
+        fingerprintSha256: fingerprint,
+        source: 'system',
+        container: entry.container as DocumentFontAsset['container'],
+        outline: entry.outline as DocumentFontAsset['outline'],
+        ...(typeof entry.postScriptName === 'string' ? { postScriptName: entry.postScriptName } : {}),
+        embedding: {
+          level: entry.embedding.level as DocumentFontAsset['embedding']['level'],
+          noSubsetting: entry.embedding.noSubsetting,
+          bitmapOnly: entry.embedding.bitmapOnly
+        },
+        familyNames: [...entry.familyNames] as string[],
+        styleName: entry.styleName,
+        weight: Number(entry.weight),
+        stretch: Number(entry.stretch),
+        italic: entry.italic,
+        byteLength: Number(entry.byteLength),
+        ...(Array.isArray(entry.variableAxes) ? { variableAxes: structuredClone(entry.variableAxes) } : {})
+      };
+    }
     const existingReference = seenFontFingerprints.get(fingerprint);
     if (existingReference && (
       existingReference.offset !== reference.offset
@@ -1075,7 +1116,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       weight: Number(entry.weight),
       stretch: Number(entry.stretch),
       italic: entry.italic,
-      byteLength: Number(entry.byteLength)
+      byteLength: Number(entry.byteLength),
+      ...(Array.isArray(entry.variableAxes) ? { variableAxes: structuredClone(entry.variableAxes) } : {})
     };
   });
   for (const fontAsset of fontAssets) {

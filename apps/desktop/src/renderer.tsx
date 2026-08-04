@@ -12,6 +12,13 @@ import './renderer.css';
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  systemFontProvider: {
+    async load(asset) {
+      const bytes = await window.lightTableDesktop.loadSystemFont(asset.assetId);
+      return bytes ? Uint8Array.from(bytes) : null;
+    }
+  },
+  listSystemFonts: () => window.lightTableDesktop.listSystemFonts(),
   clipboard: createLightTableImageClipboard({
     async writePng(blob) {
       await window.lightTableDesktop.writeClipboardPng(

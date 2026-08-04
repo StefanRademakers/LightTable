@@ -27,6 +27,8 @@
     "smoke:desktop:commands:build": "npm run package:desktop:verify && npm run smoke:desktop:commands --",
     "smoke:desktop:tight-merge": "node scripts/smoke-desktop-tight-merge.mjs",
     "smoke:desktop:tight-merge:build": "npm run package:desktop:verify && npm run smoke:desktop:tight-merge --",
+    "smoke:desktop:system-fonts": "node scripts/smoke-desktop-system-fonts.mjs",
+    "smoke:desktop:system-fonts:build": "npm run package:desktop:verify && npm run smoke:desktop:system-fonts --",
     "smoke:desktop:paragraph": "node scripts/smoke-desktop-paragraph.mjs",
     "smoke:desktop:paragraph:build": "npm run package:desktop:verify && npm run smoke:desktop:paragraph --",
     "smoke:pdf-corpus": "node scripts/smoke-pdf-corpus.mjs",

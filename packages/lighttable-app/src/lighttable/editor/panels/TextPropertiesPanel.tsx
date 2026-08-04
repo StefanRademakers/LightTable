@@ -121,9 +121,17 @@ export const TextPropertiesPanel: React.FC<TextPropertiesPanelProps> = ({
                 onChange={(event) => applyFamily(event.currentTarget.value)}>
                 {model.family.kind === 'mixed' ? mixedOption : null}
                 {model.family.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
-                {[...new Set(fonts.flatMap((font) => font.familyNames.slice(0, 1)))].map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
+                {([
+                  ['Bundled', (font: DocumentFontAsset) => font.source === 'bundled'],
+                  ['Document', (font: DocumentFontAsset) => font.source !== 'bundled' && font.source !== 'system'],
+                  ['System', (font: DocumentFontAsset) => font.source === 'system']
+                ] as const).map(([label, accepts]) => {
+                  const families = [...new Set(fonts.filter(accepts)
+                    .flatMap((font) => font.familyNames.slice(0, 1)))];
+                  return families.length ? <optgroup key={label} label={label}>
+                    {families.map((name) => <option key={`${label}:${name}`} value={name}>{name}</option>)}
+                  </optgroup> : null;
+                })}
               </ToolOptionSelect>
               <ToolOptionSelect label="Face" value={selectedFace}
                 disabled={model.face.kind === 'unavailable'}
