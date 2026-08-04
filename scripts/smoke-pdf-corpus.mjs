@@ -1,7 +1,9 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
+import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
@@ -47,6 +49,8 @@ const concurrency = asPositiveInteger('concurrency', 2);
 const timeoutMs = asPositiveInteger('timeout-ms', 30_000);
 const maxBytes = asPositiveInteger('max-bytes', 64 * 1024 * 1024);
 const quiet = hasFlag('quiet');
+const internalBatch = hasFlag('internal-batch');
+const batchSize = asPositiveInteger('batch-size', 50);
 
 if (!argument('dir', '')) {
   throw new Error('Pass the PDF corpus directory with --dir <path>.');
@@ -73,6 +77,73 @@ const selectedFiles = sample > 0 && sample < pdfFiles.length
       (_, index) => pdfFiles[Math.floor(index * pdfFiles.length / sample)]
     )
   : limit > 0 ? pdfFiles.slice(0, limit) : pdfFiles;
+
+if (!internalBatch && selectedFiles.length > batchSize) {
+  const run = promisify(execFile);
+  const batchResults = [];
+  await mkdir(path.dirname(outputFile), { recursive: true });
+  let reportSequence = 0;
+  const runBatch = async (names) => {
+    reportSequence += 1;
+    const batchOutput = `${outputFile}.batch-${String(reportSequence).padStart(3, '0')}.json`;
+    const args = [
+      import.meta.filename,
+      '--dir', corpusDirectory,
+      '--files', names.join(','),
+      '--concurrency', String(concurrency),
+      '--timeout-ms', String(timeoutMs),
+      '--max-bytes', String(maxBytes),
+      '--output', batchOutput,
+      '--internal-batch'
+    ];
+    if (quiet) args.push('--quiet');
+    try {
+      await run(process.execPath, args, { maxBuffer: 16 * 1024 * 1024 });
+      const batch = JSON.parse(await readFile(batchOutput, 'utf8'));
+      batchResults.push(...batch.results);
+    } catch (error) {
+      if (names.length > 1) {
+        const middle = Math.ceil(names.length / 2);
+        await runBatch(names.slice(0, middle));
+        await runBatch(names.slice(middle));
+        return;
+      }
+      const workerOutput = String(error?.stderr || error?.message || error).trim();
+      const fatalLine = workerOutput.split(/\r?\n/)
+        .find(line => /fatal error:|heap out of memory|timed out/i.test(line));
+      batchResults.push({
+        file: names[0],
+        status: 'failed',
+        errorName: 'CorpusWorkerError',
+        error: fatalLine?.trim() || workerOutput.split(/\r?\n/).filter(Boolean).at(-1) || 'Worker failed.'
+      });
+    }
+  };
+  for (let offset = 0; offset < selectedFiles.length; offset += batchSize) {
+    const names = selectedFiles.slice(offset, offset + batchSize);
+    const batchNumber = Math.floor(offset / batchSize) + 1;
+    await runBatch(names);
+    if (!quiet) console.info(`Completed PDF corpus batch ${batchNumber}.`);
+  }
+  const summary = {
+    corpusDirectory,
+    selected: selectedFiles.length,
+    passed: batchResults.filter(result => result.status === 'passed').length,
+    failed: batchResults.filter(result => result.status === 'failed').length,
+    passwordProtected: batchResults.filter(result => result.status === 'password').length,
+    skipped: batchResults.filter(result => result.status === 'skipped').length,
+    generatedAt: new Date().toISOString(),
+    limits: { concurrency, timeoutMs, maxBytes, batchSize },
+    results: batchResults
+  };
+  await writeFile(outputFile, `${JSON.stringify(summary, null, 2)}\n`);
+  console.info(
+    `PDF corpus smoke: ${summary.passed} passed, ${summary.failed} failed, `
+    + `${summary.passwordProtected} password protected, ${summary.skipped} skipped. `
+    + `Report: ${outputFile}`
+  );
+  process.exit(hasFlag('fail-on-error') && summary.failed > 0 ? 1 : 0);
+}
 
 const withTimeout = async (promise, milliseconds, onTimeout) => {
   let timer;

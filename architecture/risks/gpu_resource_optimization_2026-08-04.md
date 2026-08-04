@@ -258,3 +258,50 @@ encode remained 1.67–1.80 ms versus 1.72 ms baseline and median show latency
 repeatedly rose to 170–187 ms versus 158 ms. The arena and its complexity were
 removed. Fewer CPU-to-GPU API calls are not automatically faster on the current
 Windows WebGPU backend; production interaction latency remains the gate.
+
+## Whole-app endurance validation — 2026-08-05
+
+The generic desktop stress runner now treats every tested interaction as a
+roundtrip. Layer selection, visibility, zoom, pan and panel navigation restore
+their reference state before the post-GC sample. This matters because selecting
+a text layer schedules the Text panel on a later animation frame, while
+Dockview deliberately retains a bounded alternate React panel tree. Comparing
+two different active layer/panel states produced false detached-DOM growth of
+400–1,796 nodes even though live DOM and heap were stable. The runner now waits
+for that scheduled product action, restores the original layer and Grade panel,
+and can optionally include Chromium's detached-DOM root summary with
+`--diagnose-dom true`.
+
+Ten interaction iterations passed on `TextTest.psd`, `shapes.psd`,
+`FormulierPersoneel.pdf` and vector/style-heavy `EHS-395.psd`. Tail post-GC heap
+variation was 0.15–0.35 MiB; no page error, stopped document runtime, listener
+growth or suspicious retained DOM remained. A second desktop pass opened all
+ten Save-the-Date PSD templates and exercised layer selection/visibility, zoom,
+pan and panel navigation. All ten passed. The three initially state-mismatched
+fixtures (`EHS-402`, `EHS-406`, `EHS-409`) passed six-iteration rechecks with
+0.04–0.08 MiB tail heap variation and stable live DOM.
+
+The read-only PSD inventory covers 10 documents and 284 layers. The PDF corpus
+contains 974 files. pdf.js retains enough process-wide data that one monolithic
+Node run can reach the 4 GiB heap limit, and the intentional
+`operator_list_cycle.pdf` stress fixture can exhaust a worker by itself. The
+corpus runner therefore uses bounded subprocess batches and recursively
+isolates a failed batch down to one file instead of losing the remainder of the
+run. Final results were 954 valid PDFs passed, 12 password-protected, seven
+known malformed/fuzz PDFs rejected, and the cyclic operator-list fixture safely
+reported as a worker failure. This batching belongs to test infrastructure; it
+does not change LightTable's PDF runtime or claim that malformed inputs render.
+
+The complete workspace verification remained green before this endurance pass:
+304 application test files / 1,616 application tests plus every workspace test,
+all typechecks, Web and desktop production builds, and the complete desktop tool
+smoke set. Engine A/B screenshots for compositor (`EHS-395`), vector
+(`shapes.psd`) and text (`TextTest.psd`) retained exact SHA-256 canvas hashes.
+
+Decision: retain the two measured engine optimizations (tight style caches,
+bounded vector realization cache) and the text input diagnostic reduction.
+Retain the generic render-engine and endurance audits. Do not add vector
+scissors, a composite uniform arena, immediate cache eviction, CPU compression
+on warm GPU paths or an unproven renderer replacement. Realtime interaction
+latency and settled visual equivalence remain hard gates; memory reduction is
+accepted only after those gates pass.

@@ -177,6 +177,22 @@ const collectMetrics = async (window, cdp, iteration) => {
   };
 };
 
+const collectDetachedDomNodes = async (cdp) => {
+  const response = await cdp.send('DOM.getDetachedDomNodes', { includeWhitespace: 'none' })
+    .catch((error) => ({ error: String(error), detachedNodes: [] }));
+  return {
+    error: response.error,
+    nodes: (response.detachedNodes ?? []).map(({ treeNode, retainedNodeIds }) => ({
+      nodeName: treeNode?.nodeName ?? '',
+      nodeValue: treeNode?.nodeValue ?? '',
+      attributes: treeNode?.attributes ?? [],
+      childNodeCount: treeNode?.childNodeCount ?? 0,
+      backendNodeId: treeNode?.backendNodeId ?? null,
+      retainedNodeIds: retainedNodeIds ?? []
+    }))
+  };
+};
+
 const clickToolIfPresent = async (window, name) => {
   const button = window.getByRole('button', { name }).first();
   if (await button.count()) await button.click();
@@ -186,6 +202,8 @@ const exerciseDocument = async (window, iteration, actions) => {
   const layers = window.locator('.lighttable-layer');
   const baselineLayerCount = await layers.count();
   if (baselineLayerCount < 1) throw new Error('The loaded document has no layer rows.');
+  const activeLayer = window.locator('.lighttable-layer--selected').first();
+  const activeLayerId = await activeLayer.getAttribute('data-layer-id');
 
   if (actionSet.has('layers') || actionSet.has('select') || actionSet.has('visibility')) {
     const selectedIndex = iteration % baselineLayerCount;
@@ -203,6 +221,16 @@ const exerciseDocument = async (window, iteration, actions) => {
         actions.push({ iteration, action: 'toggle-visibility-roundtrip', index: selectedIndex });
       }
     }
+
+    if (activeLayerId) {
+      await window.locator(`.lighttable-layer[data-layer-id="${activeLayerId}"]`).click();
+      actions.push({ iteration, action: 'restore-layer-selection', layerId: activeLayerId });
+    }
+    await window.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+    const gradeTab = window.getByRole('tab', { name: 'Grade', exact: true });
+    if (await gradeTab.count()) await gradeTab.click();
   }
 
   if (actionSet.has('zoom')) {
@@ -333,6 +361,7 @@ const runFile = async (sourceFile, fileIndex) => {
     }
 
     result.growth = growthAssessment(result.samples);
+    if (diagnoseDom) result.detachedDom = await collectDetachedDomNodes(cdp);
     if (result.pageErrors.length) {
       result.failures.push(`Page errors: ${result.pageErrors.join(' | ')}`);
     }
