@@ -64,6 +64,16 @@ shared Fill dialog. Holding Alt over the Fill tool temporarily routes a click
 to the same display-composited GPU eyedropper used by Brush. Fill, dialog Fill,
 and shortcuts all converge on one reversible pixel transaction.
 
+Gradient and Paint Bucket share the `G` family while Paint Bucket remains the
+first/default toolbar icon. A Gradient drag creates one semantic full-canvas
+Gradient Fill vector layer; its reusable color/opacity asset remains separate
+from document-space drag geometry. Shift constrains the axis to 45-degree
+increments. Type, blend mode, opacity, reverse, dither, transparency and
+interpolation are canonical tool settings, and the shared stop editor edits the
+same gradient asset used by imported shapes, text and effects. The drag preview
+and final GPU render remain vector-backed and one completed drag produces one
+history command.
+
 ## Selection model
 
 Selections are document-space authoring state. Rectangle, ellipse, freehand and

@@ -188,10 +188,16 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'text'
   },
   {
-    id: 'fill',
-    label: 'Fill',
+    id: 'gradient',
+    label: 'Gradient',
     shortcutLabel: 'G',
     shortcutKey: 'g',
+    iconName: 'tool_gradient.png',
+    role: 'vector'
+  },
+  {
+    id: 'fill',
+    label: 'Paint bucket',
     iconName: 'tool_fill_color.png',
     role: 'fill'
   },
@@ -241,6 +247,10 @@ export const SHAPE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
 export const TEXT_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   TOOL_DEFINITIONS.filter(({ role }) => role === 'text');
 
+/** Gradient and Paint Bucket share Photoshop's G toolbar slot. */
+export const FILL_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  ['fill', 'gradient'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
+
 /**
  * Photoshop-style tool families. The ordering is user-facing: repeatedly
  * pressing the family key walks forward, while Shift walks backward once a
@@ -261,6 +271,11 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
       'vector-delete-anchor',
       'vector-convert-anchor'
     ]
+  },
+  {
+    key: 'g',
+    tools: ['gradient', 'fill'],
+    shiftedEntry: 'fill'
   },
   {
     key: 't',

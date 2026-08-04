@@ -19,6 +19,7 @@ export interface LightTableEditorShellProps {
   menuOptionsFor: (menuId: EditorMenuId) => Array<ContextMenuOption<string>>;
   activeTool: ToolId;
   brush: EditorSession['brush'];
+  gradient: EditorSession['gradient'];
   warp: EditorSession['warp'];
   vectorStyle: EditorSession['vectorStyle'];
   text: EditorSession['text'];
@@ -32,6 +33,7 @@ export interface LightTableEditorShellProps {
   selectionColumnWidth: number;
   zoomPercent: number;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
+  onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onTextChange: (change: Partial<EditorSession['text']>) => void;
@@ -85,6 +87,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   menuOptionsFor,
   activeTool,
   brush,
+  gradient,
   warp,
   vectorStyle,
   text,
@@ -98,6 +101,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectionColumnWidth,
   zoomPercent,
   onBrushChange,
+  onGradientChange,
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
@@ -160,6 +164,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
       {screenMode !== 'canvas-only' ? <ToolOptionsBar
         activeTool={activeTool}
         brush={brush}
+        gradient={gradient}
         warp={warp}
         vectorStyle={vectorStyle}
         text={text}
@@ -173,6 +178,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectionColumnWidth={selectionColumnWidth}
         zoomPercent={zoomPercent}
         onBrushChange={onBrushChange}
+        onGradientChange={onGradientChange}
         onWarpChange={onWarpChange}
         onVectorStyleChange={onVectorStyleChange}
         onTextChange={onTextChange}

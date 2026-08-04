@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ToolId } from '../session/editorSession';
 import {
   SELECTION_TOOL_DEFINITIONS,
+  FILL_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
@@ -34,12 +35,16 @@ describe('toolRegistry', () => {
       'text-point', 'text-paragraph', 'text-path'
     ]);
   });
+  it('defines Gradient and Paint Bucket as one toolbar family', () => {
+    expect(FILL_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual(['fill', 'gradient']);
+  });
   it('defines every editor tool exactly once', () => {
     const expected: ToolId[] = [
       'view',
       'zoom',
       'transform',
       'warp',
+      'gradient',
       'fill',
       'brush',
       'erase',
@@ -75,6 +80,9 @@ describe('toolRegistry', () => {
     expect(toolForShortcutCycle('u', 'shape-ellipse', false)).toBe('shape-triangle');
     expect(toolForShortcutCycle('p', 'vector-pen', false)).toBe('vector-add-anchor');
     expect(toolForShortcutCycle('p', 'vector-pen', true)).toBe('vector-convert-anchor');
+    expect(toolForShortcutCycle('g', 'view', false)).toBe('gradient');
+    expect(toolForShortcutCycle('g', 'gradient', false)).toBe('fill');
+    expect(toolForShortcutCycle('g', 'fill', true)).toBe('gradient');
   });
 
   it('resolves modifier-sensitive shortcuts', () => {
@@ -87,6 +95,7 @@ describe('toolRegistry', () => {
     expect(toolForShortcut('v', false)).toBe('transform');
     expect(toolForShortcut('w', false)).toBe('warp');
     expect(toolForShortcut('z', false)).toBe('zoom');
+    expect(toolForShortcutCycle('g', 'view', false)).toBe('gradient');
     expect(toolForShortcut('a', false)).toBe('vector-select');
     expect(toolForShortcut('A', true)).toBe('vector-direct-select');
     expect(toolForShortcut('p', false)).toBe('vector-pen');

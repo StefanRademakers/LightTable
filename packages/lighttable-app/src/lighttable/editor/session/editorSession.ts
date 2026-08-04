@@ -6,7 +6,9 @@ import type {
 import type { WarpToolSettings } from '../../effects/warp/warpTypes';
 import type { PathSelectionTarget, VectorPaint } from '@lighttable/vector-core';
 import type { LayerId } from '../document/documentTypes';
+import type { BlendMode } from '../document/blendModes';
 import type { VectorEditorToolId } from '../tools/vectorToolCatalog';
+import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
 
 export type ToolId =
   | 'view'
@@ -182,6 +184,22 @@ export interface TextToolSettings {
   fillEnabled: boolean;
 }
 
+export interface GradientToolSettings {
+  paint: GradientPaintInstance;
+  opacity: number;
+  blendMode: BlendMode;
+  transparency: boolean;
+  application: 'fill-layer';
+}
+
+export const createGradientToolSettings = (): GradientToolSettings => ({
+  paint: createDefaultGradientPaint('gradient-tool', 'document'),
+  opacity: 1,
+  blendMode: 'normal',
+  transparency: true,
+  application: 'fill-layer'
+});
+
 export interface EditorSession {
   activeTool: ToolId;
   pointerId: number | null;
@@ -193,6 +211,7 @@ export interface EditorSession {
   selectionRowHeight: number;
   selectionColumnWidth: number;
   brush: BrushSettings;
+  gradient: GradientToolSettings;
   vectorStyle: VectorToolStyleSettings;
   text: TextToolSettings;
   warp: WarpToolSettings;
@@ -217,6 +236,7 @@ export const createEditorSession = (): EditorSession => ({
     color: '#000000',
     backgroundColor: '#ffffff'
   },
+  gradient: createGradientToolSettings(),
   vectorStyle: {
     fillEnabled: true,
     fillColor: '#000000',

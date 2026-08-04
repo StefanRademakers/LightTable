@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { VectorStyle } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type {
+  EditorSession,
   ToolId,
   VectorEditorSelection,
   VectorToolStyleSettings
@@ -17,6 +18,7 @@ export interface VectorToolSessionHookOptions {
   readonly selection: VectorEditorSelection;
   readonly activeTool: ToolId;
   readonly foregroundColor: string;
+  readonly gradient: EditorSession['gradient'];
   readonly fillColor: string;
   readonly fillEnabled: boolean;
   readonly strokeColor: string;
@@ -40,6 +42,7 @@ export const useVectorToolSessionController = ({
   selection,
   activeTool,
   foregroundColor,
+  gradient,
   fillColor,
   fillEnabled,
   strokeColor,
@@ -54,6 +57,7 @@ export const useVectorToolSessionController = ({
     document,
     selection,
     foregroundColor,
+    gradient,
     fillColor,
     fillEnabled,
     strokeColor,
@@ -68,6 +72,7 @@ export const useVectorToolSessionController = ({
     document,
     selection,
     foregroundColor,
+    gradient,
     fillColor,
     fillEnabled,
     strokeColor,
@@ -109,7 +114,8 @@ export const useVectorToolSessionController = ({
           ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth,
             portsRef.current.strokeAlignment) : null,
         opacity: 1
-      })
+      }),
+      gradientSettings: () => portsRef.current.gradient
     });
   }
 

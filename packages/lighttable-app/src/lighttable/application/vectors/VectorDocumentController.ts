@@ -20,8 +20,10 @@ import {
 } from '../../editor/document/documentCommands';
 import type {
   ImageDocument,
-  LayerId
+  LayerId,
+  VectorLayer
 } from '../../editor/document/documentTypes';
+import type { BlendMode } from '../../editor/document/blendModes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
@@ -95,6 +97,13 @@ export interface VectorElementCreationPlacement<TElement extends VectorElement =
   documentToLayer: AffineMatrix;
 }
 
+export interface VectorElementCreationOptions {
+  readonly alwaysCreateLayer?: boolean;
+  readonly role?: VectorLayer['role'];
+  readonly opacity?: number;
+  readonly blendMode?: BlendMode;
+}
+
 /**
  * Application boundary for native vector mutations.
  *
@@ -110,6 +119,10 @@ export class VectorDocumentController {
   constructor(
     private readonly resolveDependencies: () => VectorDocumentControllerDependencies
   ) {}
+
+  currentDocument() {
+    return this.resolveDependencies().getDocument();
+  }
 
   createLayer(elements: readonly VectorElement[] = [], name = 'Shape') {
     return this.applyAtomic((document) => createVectorLayer(document, elements, name));
@@ -220,7 +233,8 @@ export class VectorDocumentController {
    */
   beginElementCreation<TElement extends VectorElement>(
     element: TElement,
-    name = 'Shape'
+    name = 'Shape',
+    options: VectorElementCreationOptions = {}
   ): VectorElementCreationPlacement<TElement> | null {
     this.cancelActiveInteraction();
     const dependencies = this.resolveDependencies();
@@ -230,11 +244,22 @@ export class VectorDocumentController {
     const activeLayer = beforeDocument.activeLayerId
       ? findDocumentLayer(beforeDocument, beforeDocument.activeLayerId)
       : null;
-    const canAppendToActive = activeLayer?.type === 'vector'
+    const canAppendToActive = !options.alwaysCreateLayer
+      && activeLayer?.type === 'vector'
       && !layerIsLocked(activeLayer, 'pixels');
     let previewDocument = canAppendToActive
       ? appendVectorElement(beforeDocument, activeLayer.id, element)
-      : createVectorLayer(beforeDocument, [element], name);
+      : createVectorLayer(
+          beforeDocument,
+          [element],
+          name,
+          beforeDocument.activeLayerId ?? undefined,
+          options.role,
+          {
+            opacity: options.opacity ?? 1,
+            blendMode: options.blendMode ?? 'normal'
+          }
+        );
     const layerId = canAppendToActive
       ? activeLayer.id
       : previewDocument.activeLayerId;

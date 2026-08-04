@@ -11,7 +11,8 @@ export type VectorEditorToolId =
   | 'shape-rectangle'
   | 'shape-ellipse'
   | 'shape-triangle'
-  | 'shape-line';
+  | 'shape-line'
+  | 'gradient';
 
 export interface VectorToolActivation {
   readonly mode: VectorToolMode;
@@ -28,7 +29,8 @@ const ACTIVATIONS: Readonly<Record<VectorEditorToolId, VectorToolActivation>> = 
   'shape-rectangle': { mode: 'live-shape', preset: { kind: 'rectangle' } },
   'shape-ellipse': { mode: 'live-shape', preset: { kind: 'ellipse' } },
   'shape-triangle': { mode: 'live-shape', preset: { kind: 'triangle' } },
-  'shape-line': { mode: 'live-shape', preset: { kind: 'line' } }
+  'shape-line': { mode: 'live-shape', preset: { kind: 'line' } },
+  gradient: { mode: 'gradient' }
 };
 
 export const isVectorEditorTool = (tool: string): tool is VectorEditorToolId =>

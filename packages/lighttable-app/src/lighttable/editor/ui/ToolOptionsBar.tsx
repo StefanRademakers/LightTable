@@ -26,6 +26,7 @@ import type { TextPaint } from '@lighttable/text-core';
 export interface ToolOptionsProps {
   activeTool: ToolId;
   brush: BrushSettings;
+  gradient: EditorSession['gradient'];
   warp: EditorSession['warp'];
   vectorStyle: VectorToolStyleSettings;
   text: TextToolSettings;
@@ -39,6 +40,7 @@ export interface ToolOptionsProps {
   selectionColumnWidth: number;
   zoomPercent: number;
   onBrushChange: (change: Partial<BrushSettings>) => void;
+  onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onWarpChange: (change: Partial<EditorSession['warp']>) => void;
   onVectorStyleChange: (change: Partial<VectorToolStyleSettings>) => void;
   onTextChange: (change: Partial<TextToolSettings>) => void;
@@ -73,7 +75,8 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'select-vertical': 'Vertical selection',
   'select-free': 'Free selection',
   'select-polygonal': 'Polygonal selection',
-  fill: 'Fill',
+  gradient: 'Gradient',
+  fill: 'Paint bucket',
   brush: 'Brush',
   erase: 'Erase',
   view: 'Move canvas',
@@ -128,6 +131,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
 }> = ({
   activeTool,
   brush,
+  gradient,
   warp,
   vectorStyle,
   text,
@@ -141,6 +145,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectionColumnWidth,
   zoomPercent,
   onBrushChange,
+  onGradientChange,
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
@@ -255,6 +260,97 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           />
           <span>px</span>
         </label>
+      ) : null}
+      {activeTool === 'gradient' ? (
+        <div className="lighttable-tool-options__vector-style" aria-label="Gradient settings">
+          <button
+            ref={gradientButtonRef}
+            type="button"
+            className="lighttable-tool-options__gradient-button"
+            aria-label="Edit gradient"
+            title="Edit gradient"
+            onClick={() => setGradientEditorOpen((open) => !open)}
+          >Gradient</button>
+          {gradientEditorOpen ? (
+            <AnchoredGradientPopover anchor={gradientButtonRef} ariaLabel="Gradient editor">
+              <div className="lighttable-tool-options__gradient-header">
+                <strong>Gradient</strong>
+                <button type="button" aria-label="Close gradient"
+                  onClick={() => setGradientEditorOpen(false)}>×</button>
+              </div>
+              <GradientAssetEditor
+                value={gradient.paint.asset}
+                onChange={(asset) => onGradientChange({
+                  paint: { ...gradient.paint, asset }
+                })}
+              />
+            </AnchoredGradientPopover>
+          ) : null}
+          <ToolOptionSelect label="Type" value={gradient.paint.shape}
+            aria-label="Gradient type"
+            onChange={(event) => onGradientChange({ paint: {
+              ...gradient.paint,
+              shape: event.currentTarget.value as GradientPaintInstance['shape']
+            } })}>
+            <option value="linear">Linear</option>
+            <option value="radial">Radial</option>
+            <option value="angle">Angle</option>
+            <option value="reflected">Reflected</option>
+            <option value="diamond">Diamond</option>
+          </ToolOptionSelect>
+          <AdjustmentSlider label="Opacity" value={gradient.opacity * 100}
+            min={1} max={100} resetValue={100}
+            format={(value) => `${Math.round(value)}%`}
+            onReset={() => onGradientChange({ opacity: 1 })}
+            onChange={(opacity) => onGradientChange({ opacity: opacity / 100 })} />
+          <ToolOptionSelect label="Mode" value={gradient.blendMode}
+            aria-label="Gradient blend mode"
+            onChange={(event) => onGradientChange({
+              blendMode: event.currentTarget.value as EditorSession['gradient']['blendMode']
+            })}>
+            <option value="normal">Normal</option>
+            <option value="multiply">Multiply</option>
+            <option value="screen">Screen</option>
+            <option value="overlay">Overlay</option>
+            <option value="soft-light">Soft Light</option>
+            <option value="hard-light">Hard Light</option>
+            <option value="difference">Difference</option>
+          </ToolOptionSelect>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={gradient.paint.reverse}
+              aria-label="Reverse gradient"
+              onChange={(event) => onGradientChange({ paint: {
+                ...gradient.paint, reverse: event.currentTarget.checked
+              } })} />
+            <span>Reverse</span>
+          </label>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={gradient.paint.dither}
+              aria-label="Dither gradient"
+              onChange={(event) => onGradientChange({ paint: {
+                ...gradient.paint, dither: event.currentTarget.checked
+              } })} />
+            <span>Dither</span>
+          </label>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={gradient.transparency}
+              aria-label="Use gradient transparency"
+              onChange={(event) => onGradientChange({ transparency: event.currentTarget.checked })} />
+            <span>Transparency</span>
+          </label>
+          <ToolOptionSelect label="Method" value={gradient.paint.interpolation}
+            aria-label="Gradient interpolation"
+            onChange={(event) => onGradientChange({ paint: {
+              ...gradient.paint,
+              interpolation: event.currentTarget.value as GradientPaintInstance['interpolation']
+            } })}>
+            <option value="perceptual">Perceptual</option>
+            <option value="linear">Linear</option>
+            <option value="classic">Classic</option>
+            <option value="smooth">Smooth</option>
+          </ToolOptionSelect>
+          <span className="lighttable-tool-options__status">Fill layer</span>
+        </div>
       ) : null}
       {activeTool === 'zoom' ? (
         <div className="lighttable-tool-options__zoom-presets" aria-label="Zoom presets">

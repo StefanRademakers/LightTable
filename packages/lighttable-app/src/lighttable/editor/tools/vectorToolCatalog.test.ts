@@ -17,7 +17,8 @@ describe('vectorToolCatalog', () => {
       'shape-rectangle',
       'shape-ellipse',
       'shape-triangle',
-      'shape-line'
+      'shape-line',
+      'gradient'
     ];
     for (const tool of tools) {
       expect(isVectorEditorTool(tool)).toBe(true);

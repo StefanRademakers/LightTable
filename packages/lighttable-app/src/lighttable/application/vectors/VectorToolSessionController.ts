@@ -33,8 +33,12 @@ import {
   type VectorPointToolMode
 } from './VectorPointToolController';
 import { hitTestVectorDocument } from './vectorSceneQueries';
+import {
+  GradientToolController,
+  type GradientToolSettingsSnapshot
+} from './GradientToolController';
 
-export type VectorToolMode = 'element-selection' | 'direct-selection' | 'pen' | 'live-shape' | VectorPointToolMode;
+export type VectorToolMode = 'element-selection' | 'direct-selection' | 'pen' | 'live-shape' | 'gradient' | VectorPointToolMode;
 
 export interface VectorToolSessionDependencies extends VectorDocumentControllerDependencies {
   getSelection(): VectorEditorSelection;
@@ -45,6 +49,7 @@ export interface VectorToolSessionOptions {
   ids?: VectorIdSource;
   penStyle?: () => VectorStyle;
   liveShapeStyle?: () => VectorStyle;
+  gradientSettings?: () => GradientToolSettingsSnapshot;
   layerName?: string;
   pathName?: string;
 }
@@ -78,6 +83,7 @@ export class VectorToolSessionController {
   private readonly elementSelection: VectorElementSelectionToolController;
   private readonly pen: PenToolController;
   private readonly liveShape: LiveShapeToolController;
+  private readonly gradient: GradientToolController;
   private readonly selectionCommands: VectorSelectionCommandController;
   private readonly pointTools: VectorPointToolController;
   private capturedPointer: CapturedPointer | null = null;
@@ -107,6 +113,12 @@ export class VectorToolSessionController {
         style: options.liveShapeStyle,
         layerName: options.layerName
       }
+    );
+    this.gradient = new GradientToolController(
+      this.documents,
+      options.gradientSettings ?? (() => {
+        throw new Error('Gradient tool settings are unavailable.');
+      })
     );
     this.selectionCommands = options.ids
       ? new VectorSelectionCommandController(this.documents, dependencies, options.ids)
@@ -185,6 +197,8 @@ export class VectorToolSessionController {
         preserveAspect: options.preserveAspect,
         fromCenter: options.fromCenter
       })) return false;
+    } else if (this.activeMode === 'gradient') {
+      if (!this.gradient.pointerDown(documentPoint)) return false;
     } else {
       const result = this.pointTools.pointerDown(
         this.activeMode,
@@ -210,6 +224,10 @@ export class VectorToolSessionController {
     if (capture.mode === 'element-selection') return this.elementSelection.pointerMove(documentPoint);
     if (capture.mode === 'direct-selection') return this.directSelection.pointerMove(documentPoint);
     if (capture.mode === 'live-shape') return this.liveShape.pointerMove(documentPoint, options);
+    if (capture.mode === 'gradient') return this.gradient.pointerMove(
+      documentPoint,
+      options.preserveAspect
+    );
     return this.pointTools.pointerMove(documentPoint);
   }
 
@@ -229,6 +247,10 @@ export class VectorToolSessionController {
       return this.directSelection.pointerUp(documentPoint);
     }
     if (capture.mode === 'live-shape') return this.liveShape.pointerUp(documentPoint, options);
+    if (capture.mode === 'gradient') return this.gradient.pointerUp(
+      documentPoint,
+      options.preserveAspect
+    );
     if (capture.mode !== 'pen') return this.pointTools.pointerUp(documentPoint);
     const changed = this.pen.pointerUp(documentPoint);
     if (clickCount >= 2) this.pen.finishOpen();
@@ -242,6 +264,7 @@ export class VectorToolSessionController {
     if (mode === 'element-selection') return this.elementSelection.cancel();
     if (mode === 'direct-selection') return this.directSelection.cancel();
     if (mode === 'live-shape') return this.liveShape.cancel();
+    if (mode === 'gradient') return this.gradient.cancel();
     if (mode && mode !== 'pen') return this.pointTools.cancel();
     // Cancelling a pointer gesture must not discard previously placed anchors.
     return mode === 'pen' ? this.pen.cancelPointerGesture() : false;
@@ -351,6 +374,7 @@ export class VectorToolSessionController {
     this.elementSelection.dispose();
     this.pen.dispose();
     this.liveShape.dispose();
+    this.gradient.dispose();
     this.pointTools.dispose();
     this.documents.dispose();
     this.disposed = true;
@@ -399,6 +423,10 @@ export class VectorToolSessionController {
       this.liveShape.cancel();
       return;
     }
+    if (this.activeMode === 'gradient') {
+      this.gradient.cancel();
+      return;
+    }
     this.pointTools.cancel();
   }
 
@@ -408,6 +436,7 @@ export class VectorToolSessionController {
     this.elementSelection.cancel();
     this.pen.cancel();
     this.liveShape.cancel();
+    this.gradient.cancel();
     this.pointTools.cancel();
   }
 

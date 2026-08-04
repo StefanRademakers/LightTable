@@ -2,6 +2,7 @@ import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import type { ToolId } from '../session/editorSession';
 import {
+  FILL_TOOL_DEFINITIONS,
   SELECTION_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
@@ -137,6 +138,9 @@ export const toolFamilyFor = (tool: ToolDefinition) => {
   }
   if (tool.role === 'text') {
     return { definitions: TEXT_TOOL_DEFINITIONS, label: 'Text tools' };
+  }
+  if (tool.id === 'gradient' || tool.id === 'fill') {
+    return { definitions: FILL_TOOL_DEFINITIONS, label: 'Gradient and fill tools' };
   }
   return null;
 };

@@ -16,6 +16,7 @@ const renderOptions = (
   const props: ToolOptionsProps = {
     activeTool,
     brush: session.brush,
+    gradient: session.gradient,
     warp: session.warp,
     vectorStyle: session.vectorStyle,
     text: session.text,
@@ -36,6 +37,7 @@ const renderOptions = (
     selectionColumnWidth: columnWidth,
     zoomPercent: 100,
     onBrushChange: vi.fn(),
+    onGradientChange: vi.fn(),
     onWarpChange: vi.fn(),
     onVectorStyleChange: vi.fn(),
     onTextChange: vi.fn(),
@@ -62,6 +64,15 @@ const renderOptions = (
 };
 
 describe('vector style tool options', () => {
+  it('surfaces native Gradient Tool geometry and quality controls', () => {
+    const markup = renderOptions('gradient');
+    expect(markup).toContain('aria-label="Edit gradient"');
+    expect(markup).toContain('aria-label="Gradient type"');
+    expect(markup).toContain('aria-label="Gradient blend mode"');
+    expect(markup).toContain('aria-label="Gradient interpolation"');
+    expect(markup).toContain('aria-label="Use gradient transparency"');
+  });
+
   it('surfaces the shared compact gradient editor entry for gradient artwork', () => {
     const markup = renderOptions('vector-select', 1, 1, undefined, {
       fillEnabled: true, fillColor: '#000000',

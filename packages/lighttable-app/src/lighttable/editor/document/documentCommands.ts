@@ -299,9 +299,17 @@ export const createVectorLayer = (
   document: ImageDocument,
   elements: readonly VectorElement[] = [],
   name = 'Shape',
-  aboveLayerId = document.activeLayerId ?? undefined
+  aboveLayerId = document.activeLayerId ?? undefined,
+  role: VectorLayer['role'] = 'artwork',
+  presentation: Pick<VectorLayer, 'opacity' | 'blendMode'> = {
+    opacity: 1,
+    blendMode: 'normal'
+  }
 ): ImageDocument => {
   const layer = createVectorLayerNode(validatedVectorElements(elements), name);
+  layer.role = role;
+  layer.opacity = presentation.opacity;
+  layer.blendMode = presentation.blendMode;
   const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
   const parentId = anchor?.parentId ?? null;
   const insertionIndex = anchor

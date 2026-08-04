@@ -202,7 +202,12 @@ import {
   type EditorScreenMode
 } from './editor/workspace/editorScreenMode';
 import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePanelRegistry';
-import { createEditorSession, type EditorSession, type ToolId } from './editor/session/editorSession';
+import {
+  createEditorSession,
+  createGradientToolSettings,
+  type EditorSession,
+  type ToolId
+} from './editor/session/editorSession';
 import { TemporaryToolController } from './editor/tools/temporaryToolController';
 import { useFillCommandController } from './application/tools/fill/useFillCommandController';
 import {
@@ -554,6 +559,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     useDocumentImageState(documentSession);
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
   const [editorSession, setEditorSession] = useDocumentEditorSession(documentSession);
+  const fallbackGradientSettingsRef = useRef(createGradientToolSettings());
+  const gradientToolSettings = editorSession.gradient ?? fallbackGradientSettingsRef.current;
+  useEffect(() => {
+    if (editorSession.gradient) return;
+    setEditorSession((current) => ({
+      ...current,
+      gradient: current.gradient ?? fallbackGradientSettingsRef.current
+    }));
+  }, [editorSession.gradient, setEditorSession]);
   const [selectionDraft, setSelectionDraft] = useState<SelectionShape | null>(null);
   const editorDialogs = useEditorDialogController();
   const [selectionClipboardAvailable, setSelectionClipboardAvailable] = useState(false);
@@ -1872,6 +1886,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selection: editorSession.vectorSelection,
     activeTool: vectorMoveActive ? 'vector-select' : editorSession.activeTool,
     foregroundColor: editorSession.brush.color,
+    gradient: gradientToolSettings,
     fillEnabled: editorSession.vectorStyle.fillEnabled,
     fillColor: editorSession.vectorStyle.fillColor,
     strokeEnabled: editorSession.vectorStyle.strokeEnabled,
@@ -2145,7 +2160,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     vectorMoveActive,
     preciseBrushCursor,
     eyedropperActive: (editorSession.activeTool === 'brush'
-      || editorSession.activeTool === 'fill') && altPressed,
+      || editorSession.activeTool === 'fill'
+      || editorSession.activeTool === 'gradient') && altPressed,
     onColorPick: (point) => {
       void engineRef.current?.sampleDisplayColor(point).then((color) => {
         updateBrush({ color: rgba8ToHex(color) });
@@ -3362,6 +3378,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       menuOptionsFor={createAppMenuOptions}
       activeTool={visibleTool}
       brush={editorSession.brush}
+      gradient={gradientToolSettings}
       warp={editorSession.warp}
       vectorStyle={editorSession.vectorStyle}
       text={editorSession.text}
@@ -3375,6 +3392,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionColumnWidth={editorSession.selectionColumnWidth}
       zoomPercent={activeScale * 100}
       onBrushChange={updateBrush}
+      onGradientChange={(change) => setEditorSession((current) => ({
+        ...current,
+        gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }
+      }))}
       onWarpChange={updateWarp}
       onVectorStyleChange={(change) => {
         setEditorSession((current) => ({
@@ -3512,6 +3533,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             y: toolOptionsMenu.y,
             activeTool: visibleTool,
             brush: editorSession.brush,
+            gradient: gradientToolSettings,
             warp: editorSession.warp,
             vectorStyle: editorSession.vectorStyle,
             text: editorSession.text,
@@ -3525,6 +3547,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             selectionColumnWidth: editorSession.selectionColumnWidth,
             zoomPercent: activeScale * 100,
             onBrushChange: updateBrush,
+            onGradientChange: (change) => setEditorSession((current) => ({
+              ...current,
+              gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }
+            })),
             onWarpChange: updateWarp,
             onVectorStyleChange: (change) => {
               setEditorSession((current) => ({
@@ -3616,7 +3642,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                       || (editorSession.activeTool === 'zoom' && altPressed),
                     preciseBrushCursor,
                     eyedropperActive: (editorSession.activeTool === 'brush'
-                      || editorSession.activeTool === 'fill') && altPressed,
+                      || editorSession.activeTool === 'fill'
+                      || editorSession.activeTool === 'gradient') && altPressed,
                     dragging: viewportInteraction.dragging,
                     focusPickerActive,
                     selection: editorSession.selection,
