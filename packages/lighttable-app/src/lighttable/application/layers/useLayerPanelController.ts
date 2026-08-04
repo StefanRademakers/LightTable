@@ -9,6 +9,7 @@ import type {
 } from '../../editor/document/documentTypes';
 import {
   createGroupLayer,
+  createGradientFillLayer,
   createRasterLayer,
   deleteLayers,
   groupLayers,
@@ -92,6 +93,7 @@ export interface LayerPanelController {
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
   createRasterLayer(): void;
   createAdjustmentLayer(): void;
+  createGradientFillLayer(): void;
   createLensFxLayer(): void;
   createGroup(): void;
   groupSelection(layerIds: LayerId[]): void;
@@ -223,6 +225,8 @@ export const createLayerPanelController = (
     createRasterLayer: () =>
       usePixelChannel((current) => createRasterLayer(current)),
     createAdjustmentLayer: () => resolveDependencies().createAdjustmentLayer(),
+    createGradientFillLayer: () =>
+      usePixelChannel((current) => createGradientFillLayer(current)),
     createLensFxLayer: () => resolveDependencies().createLensFxLayer(),
     createGroup: () =>
       usePixelChannel((current) => createGroupLayer(current)),

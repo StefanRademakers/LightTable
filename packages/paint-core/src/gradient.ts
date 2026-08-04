@@ -57,6 +57,40 @@ export const identityPaintTransform = (): PaintAffineTransform => ({
   a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0
 });
 
+let defaultGradientSequence = 0;
+export const createDefaultGradientAsset = (
+  id = `gradient-${Date.now().toString(36)}-${(++defaultGradientSequence).toString(36)}`
+): GradientAsset => ({
+  id,
+  name: 'Black, White',
+  type: 'solid',
+  smoothness: 1,
+  colorStops: [
+    { id: `${id}:black`, position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0, a: 1 } },
+    { id: `${id}:white`, position: 1, midpoint: 0.5, color: { r: 1, g: 1, b: 1, a: 1 } }
+  ],
+  opacityStops: [
+    { id: `${id}:opaque-start`, position: 0, midpoint: 0.5, opacity: 1 },
+    { id: `${id}:opaque-end`, position: 1, midpoint: 0.5, opacity: 1 }
+  ],
+  roughness: 0,
+  seed: 0
+});
+
+export const createDefaultGradientPaint = (
+  id?: string,
+  coordinateSpace: GradientPaintInstance['coordinateSpace'] = 'object-bounds'
+): GradientPaintInstance => ({
+  kind: 'gradient',
+  asset: createDefaultGradientAsset(id),
+  shape: 'linear',
+  coordinateSpace,
+  transform: identityPaintTransform(),
+  reverse: false,
+  dither: true,
+  interpolation: 'perceptual'
+});
+
 export const cloneGradientAsset = (asset: GradientAsset): GradientAsset => ({
   ...asset,
   colorStops: asset.colorStops.map((stop) => ({ ...stop, color: { ...stop.color } })),

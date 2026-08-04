@@ -23,11 +23,13 @@ import {
 import {
   cloneVectorElement,
   convertLiveShapeToPath,
+  createVectorLiveShape,
   parseVectorElement,
   type VectorElement,
   type VectorLiveShape,
   type VectorPath
 } from '@lighttable/vector-core';
+import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
 import {
   setAdjustmentStackOwnerEnabled,
   type AdjustmentStackOwner,
@@ -310,6 +312,27 @@ export const createVectorLayer = (
     insertLayerNode(document.layers, layer, parentId, insertionIndex),
     layer.id
   );
+};
+
+/** Inserts a semantic, resolution-independent Gradient Fill layer. */
+export const createGradientFillLayer = (
+  document: ImageDocument,
+  paint: GradientPaintInstance = createDefaultGradientPaint(),
+  name = 'Gradient Fill',
+  aboveLayerId = document.activeLayerId ?? undefined
+): ImageDocument => {
+  const shape = createVectorLiveShape(`gradient-fill-shape-${crypto.randomUUID()}`, {
+    kind: 'rectangle', width: document.width, height: document.height,
+    cornerRadii: [0, 0, 0, 0], linkedCorners: true
+  }, name);
+  shape.style.fill = structuredClone(paint);
+  shape.style.stroke = null;
+  shape.styleRevision = 1;
+  const layer = createVectorLayerNode([shape], name, 'gradient-fill');
+  const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
+  const parentId = anchor?.parentId ?? null;
+  const insertionIndex = anchor ? anchor.path.at(-1)! + 1 : document.layers.length;
+  return updateDocument(document, insertLayerNode(document.layers, layer, parentId, insertionIndex), layer.id);
 };
 
 /**

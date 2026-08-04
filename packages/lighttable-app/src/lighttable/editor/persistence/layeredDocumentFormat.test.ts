@@ -22,6 +22,7 @@ import {
 import {
   addLayerMask,
   createAdjustmentLayer,
+  createGradientFillLayer,
   createGroupLayer,
   createRasterLayer,
   createTextLayer,
@@ -1002,6 +1003,26 @@ describe('LightTable layered PNG format', () => {
       .toBe('live-shape');
     expect(parsedVector?.type === 'vector' ? parsedVector.antiAlias : null).toBe(false);
     expect(parsed?.assets.map((asset) => asset.layerId)).toEqual([source.layers[0].id]);
+  });
+
+  it('round-trips a semantic Gradient Fill role and editable paint', async () => {
+    const document = createGradientFillLayer(createImageDocument('Gradient Fill', 320, 180, 'source'));
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{ layerId: document.layers[0].id, pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }), mask: null }],
+      'gradient-fill.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const layer = parsed?.document.layers.find(({ id }) => id === document.activeLayerId);
+    expect(layer).toMatchObject({ type: 'vector', role: 'gradient-fill' });
+    expect(layer?.type === 'vector' ? layer.elements[0] : null).toMatchObject({
+      type: 'live-shape',
+      geometry: { kind: 'rectangle', width: 320, height: 180 },
+      style: { fill: { kind: 'gradient' }, stroke: null }
+    });
   });
 
   it('reopens converted text as editable glyph paths without restoring text semantics', async () => {

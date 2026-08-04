@@ -6,6 +6,7 @@ import {
   addLayerMask,
   applyTranslationAlignment,
   createAdjustmentLayer,
+  createGradientFillLayer,
   createGroupLayer,
   createRasterLayer,
   createTextLayer,
@@ -63,6 +64,18 @@ import { addLayerStyle } from '../styles/layerStyleCommands';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 
 describe('LightTable document commands', () => {
+  it('creates a full-canvas semantic Gradient Fill above the active layer', () => {
+    const source = createImageDocument('Gradient', 320, 180, 'asset');
+    const result = createGradientFillLayer(source);
+    const layer = result.layers.find(({ id }) => id === result.activeLayerId);
+    expect(layer).toMatchObject({ type: 'vector', role: 'gradient-fill', name: 'Gradient Fill' });
+    if (layer?.type !== 'vector') throw new Error('Expected Gradient Fill vector layer.');
+    expect(layer.elements[0]).toMatchObject({
+      type: 'live-shape', geometry: { kind: 'rectangle', width: 320, height: 180 },
+      style: { fill: { kind: 'gradient', coordinateSpace: 'object-bounds' }, stroke: null }
+    });
+  });
+
   it('replaces text with cloned paths without mutating the editable source snapshot', () => {
     const opening = createTextLayer(
       createImageDocument('Convert text', 200, 100, 'asset'),

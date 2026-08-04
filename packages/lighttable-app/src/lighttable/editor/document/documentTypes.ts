@@ -190,6 +190,8 @@ export interface AdjustmentLayer extends CommonLayer {
  */
 export interface VectorLayer extends CommonLayer {
   type: 'vector';
+  /** Semantic role; gradient fills remain vectors but are not generic shape artwork. */
+  role?: 'artwork' | 'gradient-fill';
   /** Four-sample edge antialiasing for native fill and stroke rasterization. */
   antiAlias: boolean;
   /**
@@ -376,10 +378,12 @@ export const createAdjustmentLayer = (
 
 export const createVectorLayer = (
   elements: readonly VectorElement[] = [],
-  name = 'Shape'
+  name = 'Shape',
+  role: VectorLayer['role'] = 'artwork'
 ): VectorLayer => ({
   ...createCommonLayer('vector', name),
   type: 'vector',
+  role,
   antiAlias: true,
   elements: elements.map(cloneVectorElement),
   mask: null

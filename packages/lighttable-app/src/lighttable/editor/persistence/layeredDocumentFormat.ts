@@ -90,6 +90,7 @@ interface AdjustmentLayerManifestEntry extends CommonLayerManifestEntry {
 
 interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'vector';
+  role?: 'artwork' | 'gradient-fill';
   antiAlias: boolean;
   elements: VectorElement[];
   mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
@@ -318,6 +319,7 @@ export const buildLayeredDocumentFile = (
       return {
         ...common,
         type: 'vector',
+        role: layer.role ?? 'artwork',
         antiAlias: layer.antiAlias,
         elements: layer.elements.map(cloneVectorElement),
         mask
@@ -823,6 +825,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       return {
         ...common,
         type: 'vector',
+        role: entry.role === 'gradient-fill' ? 'gradient-fill' : 'artwork',
         antiAlias: entry.antiAlias,
         elements: entry.elements.map((candidate, index) =>
           parseVectorElement(candidate, `Layer ${path} element ${index + 1}`)),

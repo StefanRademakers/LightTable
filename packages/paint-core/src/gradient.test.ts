@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   cloneGradientAsset,
   cloneGradientPaint,
+  createDefaultGradientPaint,
   gradientAssetIsValid,
   gradientPaintIsValid,
   identityPaintTransform,
@@ -62,5 +63,13 @@ describe('gradient paint contract', () => {
       ]
     }, 0.25);
     expect(sampled).toMatchObject({ r: 0.5, g: 0.5, b: 0.5, a: 0.25 });
+  });
+
+  it('creates a complete editable default without shared stop state', () => {
+    const first = createDefaultGradientPaint('first');
+    const second = createDefaultGradientPaint('second');
+    expect(first).toMatchObject({ kind: 'gradient', coordinateSpace: 'object-bounds', dither: true });
+    expect(gradientPaintIsValid(first)).toBe(true);
+    expect(first.asset.colorStops).not.toBe(second.asset.colorStops);
   });
 });

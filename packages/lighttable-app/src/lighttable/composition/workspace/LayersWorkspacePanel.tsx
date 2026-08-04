@@ -90,6 +90,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onLockChange={controller.setLock}
         onCreate={controller.createRasterLayer}
         onCreateAdjustment={controller.createAdjustmentLayer}
+        onCreateGradientFill={controller.createGradientFillLayer}
         onCreateLensFx={controller.createLensFxLayer}
         onCreateGroup={controller.createGroup}
         onGroupSelection={controller.groupSelection}

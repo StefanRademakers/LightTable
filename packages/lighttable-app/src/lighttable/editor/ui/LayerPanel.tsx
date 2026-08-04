@@ -60,6 +60,7 @@ interface LayerPanelProps {
   onLockChange: (layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean) => void;
   onCreate: () => void;
   onCreateAdjustment: () => void;
+  onCreateGradientFill: () => void;
   onCreateLensFx: () => void;
   onCreateGroup: () => void;
   onGroupSelection: (layerIds: LayerId[]) => void;
@@ -146,6 +147,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onLockChange,
   onCreate,
   onCreateAdjustment,
+  onCreateGradientFill,
   onCreateLensFx,
   onCreateGroup,
   onGroupSelection,
@@ -994,6 +996,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           title="New Grade layer"
           aria-label="New Grade layer"
         ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></button>
+        <button
+          type="button"
+          onClick={onCreateGradientFill}
+          title="New Gradient Fill layer"
+          aria-label="New Gradient Fill layer"
+        ><img src={lightTableIcon('tool_fill_color.png')} alt="" aria-hidden="true" /></button>
         <button
           type="button"
           onClick={onCreateLensFx}
