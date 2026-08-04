@@ -26,6 +26,7 @@ interface ToolButtonProps {
   tool: ToolDefinition;
   active: boolean;
   popupOpen?: boolean;
+  onMouseDown?: () => void;
   onClick: () => void;
 }
 
@@ -33,11 +34,13 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   tool,
   active,
   popupOpen,
+  onMouseDown,
   onClick
 }) => (
   <button
     type="button"
     className={`lighttable-toolbox__button${active ? ' lighttable-toolbox__button--active' : ''}`}
+    onMouseDown={onMouseDown}
     onClick={onClick}
     aria-pressed={active}
     aria-haspopup={popupOpen === undefined ? undefined : 'true'}
@@ -96,6 +99,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
         tool={master}
         active={Boolean(activeDefinition)}
         popupOpen={open}
+        onMouseDown={showFlyout}
         onClick={() => {
           onToolChange(master.id);
           showFlyout();
@@ -108,6 +112,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
         aria-haspopup="true"
         aria-expanded={open}
         title={`Show ${label.toLowerCase()}`}
+        onMouseDown={showFlyout}
         onClick={showFlyout}
       ><span aria-hidden="true" /></button>
       {open ? (
