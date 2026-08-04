@@ -7,6 +7,12 @@ import {
   DocumentCommandHistory
 } from './application/commands/documentCommandHistory';
 import {
+  LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+  type LightTableCommandId,
+  type LightTableCommandPortRegistry,
+  type LightTableCommandService
+} from './application/commands/lightTableCommandService';
+import {
   useDocumentHistoryController,
   type EditorHistoryEntry
 } from './application/commands/useDocumentHistoryController';
@@ -346,6 +352,8 @@ export interface LightTableEditorOverlayProps {
   tasks?: DocumentTaskRegistry;
   rendererLifecycle?: DocumentRendererLifecycle;
   documentSession?: DocumentSession;
+  commandService?: LightTableCommandService;
+  commandPorts?: LightTableCommandPortRegistry;
   imageClipboard?: LightTableImageClipboard;
 }
 
@@ -382,6 +390,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   tasks,
   rendererLifecycle: providedRendererLifecycle,
   documentSession,
+  commandService,
+  commandPorts,
   imageClipboard: providedImageClipboard
 }) => {
   const imageClipboard = providedImageClipboard ?? browserImageClipboard();
@@ -405,6 +415,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onLocalDirtyChange: onDirtyChange
   });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const commandRequestSequenceRef = useRef(0);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerHueCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorMixerScopeContainerRef = useRef<HTMLDivElement | null>(null);
@@ -483,6 +494,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const executeRegisteredCommand = useCallback((
+    command: LightTableCommandId,
+    parameters: unknown
+  ) => {
+    if (!commandService) return null;
+    const requestId = `ui-${workspaceDocumentId}-${++commandRequestSequenceRef.current}`;
+    const execution = commandService.execute({
+      protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+      requestId,
+      command,
+      documentId: workspaceDocumentId,
+      parameters
+    });
+    void execution.then((result) => {
+      if (result.status === 'rejected') setError(result.message);
+    });
+    return execution;
+  }, [commandService, workspaceDocumentId]);
   const [showOriginal, setShowOriginal] = useState(false);
   const [showDifference, setShowDifference] = useState(false);
   const [isolatedMaskLayerId, setIsolatedMaskLayerId] = useState<LayerId | null>(null);
@@ -1172,17 +1201,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   };
 
-  const undoEditor = useCallback(() => {
+  const applyUndoEditor = useCallback(async () => {
     endAdjustmentTransaction();
     endDocumentTransaction();
-    void documentHistoryController.undo();
+    return documentHistoryController.undo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
-  const redoEditor = useCallback(() => {
+  const applyRedoEditor = useCallback(async () => {
     endAdjustmentTransaction();
     endDocumentTransaction();
-    void documentHistoryController.redo();
+    return documentHistoryController.redo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
+
+  const undoEditor = useCallback(() => {
+    if (!executeRegisteredCommand('history.undo', {})) void applyUndoEditor();
+  }, [applyUndoEditor, executeRegisteredCommand]);
+
+  const redoEditor = useCallback(() => {
+    if (!executeRegisteredCommand('history.redo', {})) void applyRedoEditor();
+  }, [applyRedoEditor, executeRegisteredCommand]);
 
   const getDocumentPublicationPorts = useCallback(() => ({
     mergeStartupTimings: (timings: LightTableStartupTimings) => {
@@ -1535,7 +1572,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const clearCurrentSelection = selectionSessionController.clear;
   const invertCurrentSelection = selectionSessionController.invert;
   const featherCurrentSelection = selectionSessionController.feather;
-  const setExactZoom = (percent: number) => {
+  const applyExactZoom = useCallback((percent: number) => {
     setZoomMode('custom');
     setView(zoomViewToScaleAtPoint({
       cursor: {
@@ -1546,11 +1583,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       view: { scale: activeScale, panX: view.panX, panY: view.panY },
       scale: zoomPercentToScale(percent)
     }));
-  };
-  const fitZoom = () => {
+  }, [activeScale, setView, setZoomMode, view.panX, view.panY, viewportSize]);
+  const applyFitZoom = useCallback(() => {
     setZoomMode('fit');
     setView({ scale: 1, panX: 0, panY: 0 });
-  };
+  }, [setView, setZoomMode]);
+  const applyActualZoom = useCallback(() => {
+    setZoomMode('100');
+    setView({ scale: 1, panX: 0, panY: 0 });
+  }, [setView, setZoomMode]);
+  const setExactZoom = useCallback((percent: number) => {
+    if (!executeRegisteredCommand('view.setZoom', { mode: 'custom', percent })) {
+      applyExactZoom(percent);
+    }
+  }, [applyExactZoom, executeRegisteredCommand]);
+  const fitZoom = useCallback(() => {
+    if (!executeRegisteredCommand('view.setZoom', { mode: 'fit' })) applyFitZoom();
+  }, [applyFitZoom, executeRegisteredCommand]);
+  const actualZoom = useCallback(() => {
+    if (!executeRegisteredCommand('view.setZoom', { mode: '100' })) applyActualZoom();
+  }, [applyActualZoom, executeRegisteredCommand]);
 
   useEditorKeyboardController({
     enabled: open && active,
@@ -2223,6 +2275,42 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     finishTextEditing: () => { textEditingController.finish(); }
   });
+  useEffect(() => {
+    if (!commandPorts) return;
+    return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
+      setZoom: (viewport) => {
+        if (viewport.zoomMode === 'fit') applyFitZoom();
+        else if (viewport.zoomMode === '100') applyActualZoom();
+        else applyExactZoom(viewport.scale * 100);
+      },
+      createRasterLayer: layerPanelController.createRasterLayer,
+      renameLayer: layerPanelController.rename,
+      undo: applyUndoEditor,
+      redo: applyRedoEditor
+    });
+  }, [
+    applyActualZoom,
+    applyExactZoom,
+    applyFitZoom,
+    applyRedoEditor,
+    applyUndoEditor,
+    commandPorts,
+    layerPanelController,
+    workspaceDocumentId
+  ]);
+  const commandLayerPanelController = useMemo(() => ({
+    ...layerPanelController,
+    createRasterLayer: () => {
+      if (!executeRegisteredCommand('layer.createRaster', {})) {
+        layerPanelController.createRasterLayer();
+      }
+    },
+    rename: (layerId: LayerId, name: string) => {
+      if (!executeRegisteredCommand('layer.rename', { layerId, name })) {
+        layerPanelController.rename(layerId, name);
+      }
+    }
+  }), [executeRegisteredCommand, layerPanelController]);
   selectLayerRef.current = layerPanelController.select;
 
   const transformSession = useTransformSessionController({
@@ -2633,7 +2721,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       invert: invertCurrentSelection
     },
     layers: {
-      panel: layerPanelController,
+      panel: commandLayerPanelController,
       duplicate: duplicateActiveLayer,
       rasterizeText: rasterizeActiveTextLayer,
       convertTextToShape: () => {
@@ -2654,6 +2742,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     viewport: {
       setZoomMode,
       setView,
+      fit: fitZoom,
+      actualSize: actualZoom,
       setShowOriginal,
       setShowDifference
     },
@@ -2672,7 +2762,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       thumbnails={layerThumbnails}
       activeChannel={editorSession.activeChannel}
       isolatedMaskLayerId={isolatedMaskLayerId}
-      controller={layerPanelController}
+      controller={commandLayerPanelController}
       editingTextLayerId={textEditing.layerId}
       onEditText={(layerId) => {
         pointTextController.cancel();

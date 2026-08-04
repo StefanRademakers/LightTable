@@ -55,6 +55,8 @@ export interface EditorMenuControllerOptions {
   readonly viewport: {
     setZoomMode(mode: 'fit' | '100' | 'custom'): void;
     setView: Dispatch<SetStateAction<LightTableViewState>>;
+    fit?(): void;
+    actualSize?(): void;
     setShowOriginal: Dispatch<SetStateAction<boolean>>;
     setShowDifference: Dispatch<SetStateAction<boolean>>;
   };
@@ -158,10 +160,12 @@ export const createEditorMenuController = ({
       deleteLayer: () => activeLayer
         && layers.panel.deleteSelection([activeLayer.id]),
       fit: () => {
+        if (viewport.fit) return viewport.fit();
         viewport.setZoomMode('fit');
         viewport.setView({ scale: 1, panX: 0, panY: 0 });
       },
       actualSize: () => {
+        if (viewport.actualSize) return viewport.actualSize();
         viewport.setZoomMode('100');
         viewport.setView({ scale: 1, panX: 0, panY: 0 });
       },

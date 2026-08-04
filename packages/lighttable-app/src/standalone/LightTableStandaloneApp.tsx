@@ -25,6 +25,10 @@ import {
 } from '../lighttable/image-io/supportedImageFormats';
 import { createBlankPngFile } from './createBlankPngFile';
 import { NewDocumentDialog } from './NewDocumentDialog';
+import {
+  LightTableCommandPortRegistry,
+  LightTableCommandService
+} from '../lighttable/application/commands/lightTableCommandService';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -41,18 +45,26 @@ export function LightTableStandaloneApp({
   host = createBrowserHost()
 }: LightTableStandaloneAppProps) {
   const {
+    controller,
     snapshot,
     documents,
     openDocument,
     closeDocument: closeWorkspaceDocument,
     activateDocument
   } = useStandaloneDocumentWorkspace();
+  const commandPorts = useMemo(() => new LightTableCommandPortRegistry(), []);
+  const commandService = useMemo(
+    () => new LightTableCommandService(controller.workspace, commandPorts),
+    [commandPorts, controller]
+  );
   const [opening, setOpening] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
   const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
   const fileDrop = useStandaloneFileDrop(openDocument);
+
+  useEffect(() => () => commandService.dispose(), [commandService]);
 
   const changeScreenMode = useCallback((mode: EditorScreenMode) => {
     setScreenMode(mode);
@@ -258,6 +270,8 @@ export function LightTableStandaloneApp({
           document={document}
           workspaceDocuments={workspaceDocuments}
           host={host}
+          commandService={commandService}
+          commandPorts={commandPorts}
           screenMode={screenMode}
           onScreenModeChange={changeScreenMode}
           onActivate={activateDocument}

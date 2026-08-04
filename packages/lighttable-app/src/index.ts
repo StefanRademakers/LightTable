@@ -40,6 +40,7 @@ export {
 } from './lighttable/application/commands/documentCommandHistory';
 export {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+  LightTableCommandPortRegistry,
   LightTableCommandService,
   type CommandCapabilitySummary,
   type DocumentQueryResult,
@@ -47,6 +48,7 @@ export {
   type LightTableCommandErrorCode,
   type LightTableCommandId,
   type LightTableCommandPorts,
+  type DocumentLightTableCommandPorts,
   type LightTableCommandRequest,
   type LightTableCommandResult,
   type LightTableRevisionSet,

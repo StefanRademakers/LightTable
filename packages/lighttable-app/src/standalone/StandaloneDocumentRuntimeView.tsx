@@ -15,6 +15,10 @@ import type {
 import type {
   StandaloneDecodeMode
 } from './standaloneDocumentRuntime';
+import type {
+  LightTableCommandPortRegistry,
+  LightTableCommandService
+} from '../lighttable/application/commands/lightTableCommandService';
 
 export interface WorkspaceDocumentTab {
   readonly id: DocumentSessionId;
@@ -26,6 +30,8 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly document: StandaloneWorkspaceDocument;
   readonly workspaceDocuments: readonly WorkspaceDocumentTab[];
   readonly host: LightTableHost;
+  readonly commandService: LightTableCommandService;
+  readonly commandPorts: LightTableCommandPortRegistry;
   readonly screenMode: EditorScreenMode;
   readonly onScreenModeChange: (mode: EditorScreenMode) => void;
   readonly onActivate: (id: DocumentSessionId) => void;
@@ -51,6 +57,8 @@ export function StandaloneDocumentRuntimeView({
   document,
   workspaceDocuments,
   host,
+  commandService,
+  commandPorts,
   screenMode,
   onScreenModeChange,
   onActivate,
@@ -89,6 +97,8 @@ export function StandaloneDocumentRuntimeView({
         tasks={session.tasks}
         rendererLifecycle={session.renderer}
         documentSession={session}
+        commandService={commandService}
+        commandPorts={commandPorts}
         imageClipboard={host.clipboard}
         onActivateWorkspaceDocument={(documentId) => {
           onActivate(documentId as DocumentSessionId);

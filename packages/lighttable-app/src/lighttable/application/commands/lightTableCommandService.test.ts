@@ -4,6 +4,7 @@ import { createImageDocument } from '../../editor/document/documentTypes';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+  LightTableCommandPortRegistry,
   LightTableCommandService,
   type LightTableCommandPorts
 } from './lightTableCommandService';
@@ -70,6 +71,31 @@ describe('LightTableCommandService queries', () => {
 });
 
 describe('LightTableCommandService registry', () => {
+  it('routes mounted document controllers and rejects calls after unmount', async () => {
+    const registry = new LightTableCommandPortRegistry();
+    const ports = {
+      setZoom: vi.fn(),
+      createRasterLayer: vi.fn(),
+      renameLayer: vi.fn(),
+      undo: vi.fn(async () => true),
+      redo: vi.fn(async () => true)
+    };
+    const unregister = registry.register('document-mounted' as never, ports);
+
+    await registry.setZoom('document-mounted' as never, {
+      zoomMode: 'custom',
+      scale: 2,
+      panX: 4,
+      panY: 8
+    });
+    expect(ports.setZoom).toHaveBeenCalledWith(expect.objectContaining({ scale: 2 }));
+
+    unregister();
+    expect(() => registry.createRasterLayer('document-mounted' as never)).toThrow(
+      'command controller is not mounted'
+    );
+  });
+
   it('validates and executes the zoom vertical slice through an injected controller', async () => {
     const state = setup();
     const result = await state.service.execute(request(

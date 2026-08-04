@@ -64,6 +64,7 @@ export const useStandaloneDocumentWorkspace = () => {
   );
 
   return {
+    controller,
     snapshot,
     documents,
     openDocument,

@@ -184,6 +184,14 @@ enabled, use existing Settings/status/dialog patterns for:
 - retain exact history and dirty-state behavior;
 - add command tracing to existing bounded diagnostics.
 
+Implemented baseline: the standalone workspace owns one command service and
+document-port registry. Mounted editor runtimes register their existing zoom,
+layer and history controllers; toolbar, menu, Layers panel and keyboard entry
+points invoke that same registry. Transport adapters therefore cannot mutate a
+document whose runtime is absent, and unmount removes its ports deterministically.
+Structured subscription tracing remains part of the later adapter work; rejected
+UI commands already surface through the editor's bounded error presentation.
+
 ### Phase C - async I/O and artifacts
 
 - expose open, native save and export through host-issued artifact handles;
@@ -220,4 +228,3 @@ document save/reopen. Registry tests cover validation, preconditions, document
 targeting, stale revisions, task cancellation, history atomicity and stable
 error codes. Physical tests cover only behavior that typed tests cannot prove:
 focus, event routing, native host dialogs, pixels and visual layout.
-

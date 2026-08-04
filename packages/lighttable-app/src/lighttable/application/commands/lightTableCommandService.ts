@@ -137,6 +137,68 @@ export interface LightTableCommandPorts {
   redo(documentId: DocumentSessionId): boolean | Promise<boolean>;
 }
 
+export type DocumentLightTableCommandPorts = Omit<
+  LightTableCommandPorts,
+  'setZoom' | 'createRasterLayer' | 'renameLayer' | 'undo' | 'redo'
+> & {
+  setZoom(viewport: DocumentViewport): void | Promise<void>;
+  createRasterLayer(): void | Promise<void>;
+  renameLayer(layerId: LayerId, name: string): void | Promise<void>;
+  undo(): boolean | Promise<boolean>;
+  redo(): boolean | Promise<boolean>;
+};
+
+/**
+ * Routes transport-neutral commands to the mounted controller for one document.
+ *
+ * The workspace owns this registry while each editor runtime registers its
+ * existing application controllers. That keeps commands document-scoped and
+ * prevents automation from introducing a second mutation implementation.
+ */
+export class LightTableCommandPortRegistry implements LightTableCommandPorts {
+  private readonly documents = new Map<DocumentSessionId, DocumentLightTableCommandPorts>();
+
+  register(
+    documentId: DocumentSessionId,
+    ports: DocumentLightTableCommandPorts
+  ): () => void {
+    this.documents.set(documentId, ports);
+    return () => {
+      if (this.documents.get(documentId) === ports) this.documents.delete(documentId);
+    };
+  }
+
+  has(documentId: DocumentSessionId): boolean {
+    return this.documents.has(documentId);
+  }
+
+  setZoom(documentId: DocumentSessionId, viewport: DocumentViewport) {
+    return this.resolve(documentId).setZoom(viewport);
+  }
+
+  createRasterLayer(documentId: DocumentSessionId) {
+    return this.resolve(documentId).createRasterLayer();
+  }
+
+  renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string) {
+    return this.resolve(documentId).renameLayer(layerId, name);
+  }
+
+  undo(documentId: DocumentSessionId) {
+    return this.resolve(documentId).undo();
+  }
+
+  redo(documentId: DocumentSessionId) {
+    return this.resolve(documentId).redo();
+  }
+
+  private resolve(documentId: DocumentSessionId): DocumentLightTableCommandPorts {
+    const ports = this.documents.get(documentId);
+    if (!ports) throw new Error('The target document command controller is not mounted.');
+    return ports;
+  }
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
