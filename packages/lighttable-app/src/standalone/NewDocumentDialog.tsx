@@ -80,6 +80,7 @@ export function NewDocumentDialog({
     <div className="modal-backdrop lighttable-dialog-backdrop">
       <form
         className="modal lighttable-new-document-dialog"
+        data-editor-native-tab-navigation
         onSubmit={(event) => {
           event.preventDefault();
           if (valid && !creating) {
