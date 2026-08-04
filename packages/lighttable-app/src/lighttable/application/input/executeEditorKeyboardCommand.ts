@@ -13,8 +13,9 @@ export interface EditorKeyboardCommandPorts {
   beginTemporaryPan(): void;
   beginTemporaryZoom(direction: -1 | 1): void;
   beginTemporaryErase(): void;
-  fillForeground(): void;
-  fillBackground(): void;
+  fillForeground(preserveTransparency?: boolean): void;
+  fillBackground(preserveTransparency?: boolean): void;
+  openFillDialog(): void;
   selectAll(): void;
   selectNone(): void;
   invertSelection(): void;
@@ -97,6 +98,15 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'fill-background':
       ports.fillBackground();
+      return;
+    case 'fill-foreground-preserve':
+      ports.fillForeground(true);
+      return;
+    case 'fill-background-preserve':
+      ports.fillBackground(true);
+      return;
+    case 'open-fill-dialog':
+      ports.openFillDialog();
       return;
     case 'select-all':
       ports.selectAll();

@@ -81,7 +81,8 @@ export const executeFillOperation = (
   document: ImageDocument,
   renderer: FillRendererPort,
   channel: PaintChannel,
-  color: string
+  color: string,
+  preserveTransparencyOverride = false
 ): FillOperationResult => {
   if (!document.activeLayerId) {
     return {
@@ -117,7 +118,7 @@ export const executeFillOperation = (
     transactionOpen = true;
     const preserveTransparency = channel === 'pixels'
       && layer.type === 'raster'
-      && layer.locks.transparency;
+      && (layer.locks.transparency || preserveTransparencyOverride);
     if (!renderer.fillLayerColor(
       layer.id,
       channel,

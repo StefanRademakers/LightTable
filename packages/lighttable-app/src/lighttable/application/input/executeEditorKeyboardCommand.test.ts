@@ -19,6 +19,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   beginTemporaryErase: vi.fn(),
   fillForeground: vi.fn(),
   fillBackground: vi.fn(),
+  openFillDialog: vi.fn(),
   selectAll: vi.fn(),
   selectNone: vi.fn(),
   invertSelection: vi.fn(),
@@ -92,6 +93,18 @@ describe('executeEditorKeyboardCommand', () => {
 
     expect(target.changeBrushSize).toHaveBeenCalledWith(-1);
     expect(target.fillBackground).toHaveBeenCalledOnce();
+  });
+
+  it('routes transparency-preserving fills and the Fill dialog explicitly', () => {
+    const target = ports();
+
+    executeEditorKeyboardCommand('fill-foreground-preserve', target);
+    executeEditorKeyboardCommand('fill-background-preserve', target);
+    executeEditorKeyboardCommand('open-fill-dialog', target);
+
+    expect(target.fillForeground).toHaveBeenCalledWith(true);
+    expect(target.fillBackground).toHaveBeenCalledWith(true);
+    expect(target.openFillDialog).toHaveBeenCalledOnce();
   });
 
   it('opens the shared Brush settings surface', () => {

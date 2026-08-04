@@ -78,7 +78,7 @@ interface ViewportInteractionOptions {
   focusPickerActive: boolean;
   onFocusPick: (normalizedPoint: { x: number; y: number }) => void;
   onFocusPickerEnd: () => void;
-  onFill: (color: string) => void;
+  onFill: (color: string, preserveTransparency?: boolean) => void;
   onPointTextCreate: (point: { x: number; y: number }, clickCount: number) => void;
   textGesture: {
     beginPoint(pointerId: number, point: { x: number; y: number }): boolean;
@@ -502,7 +502,7 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent === 'fill') {
-        onFill(editorSession.brush.color);
+        onFill(editorSession.brush.color, event.shiftKey);
         event.preventDefault();
         return;
       }

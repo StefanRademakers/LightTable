@@ -37,6 +37,9 @@ export type EditorKeyboardCommand =
   | 'temporary-erase-start'
   | 'fill-foreground'
   | 'fill-background'
+  | 'fill-foreground-preserve'
+  | 'fill-background-preserve'
+  | 'open-fill-dialog'
   | 'select-all'
   | 'select-none'
   | 'select-invert'
@@ -201,6 +204,9 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     }),
     command('fill.foreground', { key: 'delete', primary: false, alt: true, shift: false }, 'fill-foreground'),
     command('fill.background', { key: 'delete', primary: true, alt: false, shift: false }, 'fill-background'),
+    command('fill.foreground-preserve', { key: 'delete', primary: false, alt: true, shift: true }, 'fill-foreground-preserve'),
+    command('fill.background-preserve', { key: 'delete', primary: true, alt: false, shift: true }, 'fill-background-preserve'),
+    command('fill.dialog', { key: 'f5', primary: false, alt: false, shift: true }, 'open-fill-dialog'),
     command('selection.all', { key: 'a', primary: true, alt: false, shift: false }, 'select-all'),
     command('selection.none', { key: 'd', primary: true, alt: false, shift: false }, 'select-none'),
     command('selection.invert', { key: 'i', primary: true, alt: false, shift: true }, 'select-invert'),

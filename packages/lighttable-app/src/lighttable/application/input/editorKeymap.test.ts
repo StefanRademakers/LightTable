@@ -130,6 +130,29 @@ describe('editor keymap', () => {
     )).toBe('swap-colors');
   });
 
+  it('supports Fill shortcuts with a transient preserve-transparency modifier', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Backspace', code: 'Backspace', altKey: true }),
+      context()
+    )).toBe('fill-foreground');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Backspace', code: 'Backspace', altKey: true, shiftKey: true }),
+      context()
+    )).toBe('fill-foreground-preserve');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Backspace', code: 'Backspace', ctrlKey: true, shiftKey: true }),
+      context()
+    )).toBe('fill-background-preserve');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'F5', code: 'F5', shiftKey: true }),
+      context()
+    )).toBe('open-fill-dialog');
+  });
+
   it('opens Brush settings with F5 only while Brush is active', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

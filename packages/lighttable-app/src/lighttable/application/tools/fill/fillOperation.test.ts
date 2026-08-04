@@ -61,6 +61,26 @@ describe('executeFillOperation', () => {
     }
   });
 
+  it('can preserve transparency for one fill without changing the layer lock', () => {
+    const fixture = createFixture();
+    const renderer = createRenderer();
+    const result = executeFillOperation(
+      fixture.document,
+      renderer,
+      'pixels',
+      '#ff0000',
+      true
+    );
+    expect(result.ok).toBe(true);
+    expect(renderer.fillLayerColor).toHaveBeenCalledWith(
+      fixture.layer.id,
+      'pixels',
+      [1, 0, 0],
+      true
+    );
+    expect(fixture.layer.locks.transparency).toBe(false);
+  });
+
   it('requires and revisions an explicit mask target', () => {
     const mask: RasterMask = {
       id: 'mask',

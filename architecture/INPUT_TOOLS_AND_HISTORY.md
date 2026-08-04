@@ -57,6 +57,13 @@ at the last completed Brush point and commits through the normal paint engine.
 the GPU diameter preview with the precise crosshair. Modifier state is cleared
 on window blur so temporary input cannot remain stuck.
 
+Fill commands use Alt+Backspace for foreground and Ctrl/Cmd+Backspace for
+background. Adding Shift preserves existing pixel transparency for that one
+command without mutating the layer's transparency lock. Shift+F5 opens the
+shared Fill dialog. Holding Alt over the Fill tool temporarily routes a click
+to the same display-composited GPU eyedropper used by Brush. Fill, dialog Fill,
+and shortcuts all converge on one reversible pixel transaction.
+
 ## Selection model
 
 Selections are document-space authoring state. Rectangle, ellipse, freehand and

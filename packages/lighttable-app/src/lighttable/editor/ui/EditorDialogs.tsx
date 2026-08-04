@@ -8,6 +8,7 @@ import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { PdfExportPreflightDialog } from '../pdf/PdfExportPreflightDialog';
 import { MissingFontRecoveryDialog } from './MissingFontRecoveryDialog';
 import { FormatSupportDialog } from './FormatSupportDialog';
+import { FillDialog } from './FillDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -28,6 +29,9 @@ export interface EditorDialogsProps {
     requestedFont: string
   ) => void;
   readonly onFeather: (radius: number) => void;
+  readonly foregroundColor: string;
+  readonly backgroundColor: string;
+  readonly onFill: (color: string, preserveTransparency: boolean) => void;
   readonly onFlatten: () => void;
   readonly onConvertTextToShape: (layerId: LayerId) => void;
   readonly onError: (message: string) => void;
@@ -43,11 +47,21 @@ export const EditorDialogs = ({
   onReplaceTextFont,
   onReplaceTextFonts,
   onFeather,
+  foregroundColor,
+  backgroundColor,
+  onFill,
   onFlatten,
   onConvertTextToShape,
   onError
 }: EditorDialogsProps) => (
   <>
+    <FillDialog
+      open={controller.fillOpen}
+      foregroundColor={foregroundColor}
+      backgroundColor={backgroundColor}
+      onCancel={controller.closeFill}
+      onFill={onFill}
+    />
     <TextInputDialog
       open={controller.featherOpen}
       title="Select feather"

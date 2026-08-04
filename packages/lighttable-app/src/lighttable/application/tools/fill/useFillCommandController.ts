@@ -31,14 +31,14 @@ export interface FillCommandDependencies {
 }
 
 export interface FillCommandController {
-  fill(color: string): boolean;
+  fill(color: string, preserveTransparency?: boolean): boolean;
 }
 
 /** Owns one fill command from renderer mutation through reversible history. */
 export const createFillCommandController = (
   resolveDependencies: () => FillCommandDependencies
 ): FillCommandController => ({
-  fill: (color) => {
+  fill: (color, preserveTransparency = false) => {
     const dependencies = resolveDependencies();
     const before = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
@@ -47,7 +47,8 @@ export const createFillCommandController = (
       before,
       renderer,
       dependencies.getChannel(),
-      color
+      color,
+      preserveTransparency
     );
     if (!result.ok) {
       dependencies.setError(result.message);

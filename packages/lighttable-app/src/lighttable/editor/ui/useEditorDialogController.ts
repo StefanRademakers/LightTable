@@ -18,6 +18,7 @@ export interface MissingFontRecoveryRequest {
 
 export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
+  const [fillOpen, setFillOpen] = useState(false);
   const [flattenRequest, setFlattenRequest] =
     useState<FlattenRequest | null>(null);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
@@ -29,6 +30,7 @@ export const useEditorDialogController = () => {
 
   const reset = useCallback(() => {
     setFeatherOpen(false);
+    setFillOpen(false);
     setFlattenRequest(null);
     setPsdReportOpen(false);
     setFormatSupportOpen(false);
@@ -39,6 +41,7 @@ export const useEditorDialogController = () => {
 
   return {
     featherOpen,
+    fillOpen,
     flattenRequest,
     psdReportOpen,
     formatSupportOpen,
@@ -47,6 +50,8 @@ export const useEditorDialogController = () => {
     pdfExportPreflightRequest,
     openFeather: useCallback(() => setFeatherOpen(true), []),
     closeFeather: useCallback(() => setFeatherOpen(false), []),
+    openFill: useCallback(() => setFillOpen(true), []),
+    closeFill: useCallback(() => setFillOpen(false), []),
     requestFlatten: useCallback(
       (request: FlattenRequest) => setFlattenRequest(request),
       []

@@ -474,7 +474,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);
-  const fillActiveTargetRef = useRef<(color: string) => void>(() => undefined);
+  const fillActiveTargetRef = useRef<(
+    color: string,
+    preserveTransparency?: boolean
+  ) => void>(() => undefined);
   const temporaryToolRef = useRef(new TemporaryToolController());
   const groupVisibilityRef = useRef<GroupVisibility>(createDefaultGroupVisibility());
   const scopeSettingsRef = useRef<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
@@ -1677,10 +1680,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       beginTemporaryErase: () => {
         if (temporaryToolRef.current.begin('erase')) setTemporaryEraseActive(true);
       },
-      fillForeground: () =>
-        fillActiveTargetRef.current(editorSession.brush.color),
-      fillBackground: () =>
-        fillActiveTargetRef.current(editorSession.brush.backgroundColor),
+      fillForeground: (preserveTransparency) =>
+        fillActiveTargetRef.current(editorSession.brush.color, preserveTransparency),
+      fillBackground: (preserveTransparency) =>
+        fillActiveTargetRef.current(editorSession.brush.backgroundColor, preserveTransparency),
+      openFillDialog: editorDialogs.openFill,
       selectAll: selectAllContent,
       selectNone: clearCurrentSelection,
       invertSelection: invertCurrentSelection,
@@ -2140,7 +2144,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     temporaryZoomOut: temporaryZoomOutActive,
     vectorMoveActive,
     preciseBrushCursor,
-    eyedropperActive: editorSession.activeTool === 'brush' && altPressed,
+    eyedropperActive: (editorSession.activeTool === 'brush'
+      || editorSession.activeTool === 'fill') && altPressed,
     onColorPick: (point) => {
       void engineRef.current?.sampleDisplayColor(point).then((color) => {
         updateBrush({ color: rgba8ToHex(color) });
@@ -3495,6 +3500,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               });
             },
             onFeather: featherCurrentSelection,
+            foregroundColor: editorSession.brush.color,
+            backgroundColor: editorSession.brush.backgroundColor,
+            onFill: fillActiveTarget,
             onFlatten: commitFlattenRequest,
             onConvertTextToShape: commitTextToShape,
             onError: setError
@@ -3607,7 +3615,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     zoomOutActive: temporaryZoomOutActive
                       || (editorSession.activeTool === 'zoom' && altPressed),
                     preciseBrushCursor,
-                    eyedropperActive: editorSession.activeTool === 'brush' && altPressed,
+                    eyedropperActive: (editorSession.activeTool === 'brush'
+                      || editorSession.activeTool === 'fill') && altPressed,
                     dragging: viewportInteraction.dragging,
                     focusPickerActive,
                     selection: editorSession.selection,
