@@ -156,6 +156,56 @@ describe('LiveShapeToolController', () => {
     });
   });
 
+  it('moves a line without resizing while Space is held during its drag', () => {
+    const state = setup();
+    const tool = new LiveShapeToolController(
+      state.documents,
+      { kind: 'line' },
+      { ids: state.ids }
+    );
+
+    tool.pointerDown({ x: 10, y: 10 });
+    tool.pointerMove({ x: 50, y: 30 });
+    tool.pointerMove({ x: 65, y: 38 }, { moveOrigin: true });
+    tool.pointerUp({ x: 65, y: 38 });
+
+    const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    const shape = layer?.type === 'vector' ? layer.elements[0] : null;
+    expect(shape).toMatchObject({
+      geometry: { kind: 'line', end: { x: 40, y: 20 } },
+      transform: { tx: 25, ty: 18 }
+    });
+  });
+
+  it('updates angle and centre modifiers while a line gesture is active', () => {
+    const state = setup();
+    const tool = new LiveShapeToolController(
+      state.documents,
+      { kind: 'line' },
+      { ids: state.ids }
+    );
+
+    tool.pointerDown({ x: 40, y: 40 });
+    tool.pointerMove(
+      { x: 60, y: 50 },
+      { preserveAspect: true, fromCenter: true }
+    );
+    tool.pointerUp(
+      { x: 60, y: 50 },
+      { preserveAspect: true, fromCenter: true }
+    );
+
+    const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    const shape = layer?.type === 'vector' ? layer.elements[0] : null;
+    expect(shape?.transform.tx).toBeCloseTo(24.19, 1);
+    expect(shape?.transform.ty).toBeCloseTo(24.19, 1);
+    if (shape?.type !== 'live-shape' || shape.geometry.kind !== 'line') {
+      throw new Error('Expected a line shape.');
+    }
+    expect(shape.geometry.end.x).toBeCloseTo(31.62, 1);
+    expect(shape.geometry.end.y).toBeCloseTo(31.62, 1);
+  });
+
   it('rebases every preview through a transformed nested vector layer', () => {
     const state = setup();
     const group = createGroupLayer('Nested');

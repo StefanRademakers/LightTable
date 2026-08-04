@@ -70,6 +70,7 @@ interface ViewportInteractionOptions {
   setEditorSession: Dispatch<SetStateAction<EditorSession>>;
   temporaryTools: TemporaryToolController;
   temporaryZoomOut: boolean;
+  vectorMoveActive: boolean;
   focusPickerActive: boolean;
   onFocusPick: (normalizedPoint: { x: number; y: number }) => void;
   onFocusPickerEnd: () => void;
@@ -127,6 +128,7 @@ export const useViewportInteractionController = ({
   setEditorSession,
   temporaryTools,
   temporaryZoomOut,
+  vectorMoveActive,
   focusPickerActive,
   onFocusPick,
   onFocusPickerEnd,
@@ -391,7 +393,9 @@ export const useViewportInteractionController = ({
         return;
       }
       const point = documentPoint(event, bounds);
-      const activeTool = effectiveTool;
+      const activeTool = vectorMoveActive && effectiveTool === 'transform'
+        ? 'vector-select'
+        : effectiveTool;
       if (
         isVectorEditorTool(activeTool)
         && point
@@ -592,7 +596,11 @@ export const useViewportInteractionController = ({
         return;
       }
       if (point && vector.ownsPointer(event.pointerId)) {
-        if (vector.pointerMove(event.pointerId, point)) event.preventDefault();
+        if (vector.pointerMove(event.pointerId, point, {
+          preserveAspect: event.shiftKey,
+          fromCenter: event.altKey,
+          moveOrigin: temporaryTools.activeTool === 'view'
+        })) event.preventDefault();
         return;
       }
       if (
@@ -684,7 +692,11 @@ export const useViewportInteractionController = ({
       }
       if (vector.ownsPointer(event.pointerId)) {
         const point = documentPoint(event);
-        if (point) vector.pointerUp(event.pointerId, point, event.detail);
+        if (point) vector.pointerUp(event.pointerId, point, event.detail, {
+          preserveAspect: event.shiftKey,
+          fromCenter: event.altKey,
+          moveOrigin: temporaryTools.activeTool === 'view'
+        });
         else vector.pointerCancel(event.pointerId);
         event.preventDefault();
         return;

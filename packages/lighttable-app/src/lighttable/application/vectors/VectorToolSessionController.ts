@@ -19,6 +19,7 @@ import {
 import { PenToolController } from './PenToolController';
 import {
   LiveShapeToolController,
+  type LiveShapeDragUpdateOptions,
   type LiveShapeToolPreset
 } from './LiveShapeToolController';
 import {
@@ -198,17 +199,26 @@ export class VectorToolSessionController {
     return true;
   }
 
-  pointerMove(pointerId: number, documentPoint: Vec2) {
+  pointerMove(
+    pointerId: number,
+    documentPoint: Vec2,
+    options: LiveShapeDragUpdateOptions = {}
+  ) {
     const capture = this.validCapture(pointerId);
     if (!capture) return false;
     if (capture.mode === 'pen') return this.pen.pointerMove(documentPoint);
     if (capture.mode === 'element-selection') return this.elementSelection.pointerMove(documentPoint);
     if (capture.mode === 'direct-selection') return this.directSelection.pointerMove(documentPoint);
-    if (capture.mode === 'live-shape') return this.liveShape.pointerMove(documentPoint);
+    if (capture.mode === 'live-shape') return this.liveShape.pointerMove(documentPoint, options);
     return this.pointTools.pointerMove(documentPoint);
   }
 
-  pointerUp(pointerId: number, documentPoint: Vec2, clickCount = 1) {
+  pointerUp(
+    pointerId: number,
+    documentPoint: Vec2,
+    clickCount = 1,
+    options: LiveShapeDragUpdateOptions = {}
+  ) {
     const capture = this.validCapture(pointerId);
     if (!capture) return false;
     this.capturedPointer = null;
@@ -218,7 +228,7 @@ export class VectorToolSessionController {
     if (capture.mode === 'direct-selection') {
       return this.directSelection.pointerUp(documentPoint);
     }
-    if (capture.mode === 'live-shape') return this.liveShape.pointerUp(documentPoint);
+    if (capture.mode === 'live-shape') return this.liveShape.pointerUp(documentPoint, options);
     if (capture.mode !== 'pen') return this.pointTools.pointerUp(documentPoint);
     const changed = this.pen.pointerUp(documentPoint);
     if (clickCount >= 2) this.pen.finishOpen();

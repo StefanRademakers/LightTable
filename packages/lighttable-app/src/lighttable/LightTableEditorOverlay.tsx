@@ -1848,10 +1848,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
   });
 
+  const activeDocumentLayer = imageDocument?.activeLayerId
+    ? findDocumentLayer(imageDocument, imageDocument.activeLayerId)
+    : null;
+  const vectorMoveActive = editorSession.activeTool === 'transform'
+    && activeDocumentLayer?.type === 'vector';
+
   const vectorToolSessionController = useVectorToolSessionController({
     document: imageDocument,
     selection: editorSession.vectorSelection,
-    activeTool: editorSession.activeTool,
+    activeTool: vectorMoveActive ? 'vector-select' : editorSession.activeTool,
     foregroundColor: editorSession.brush.color,
     fillEnabled: editorSession.vectorStyle.fillEnabled,
     fillColor: editorSession.vectorStyle.fillColor,
@@ -2123,6 +2129,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setEditorSession,
     temporaryTools: temporaryToolRef.current,
     temporaryZoomOut: temporaryZoomOutActive,
+    vectorMoveActive,
     focusPickerActive: focusPickerActive && Boolean(depthResult),
     onFocusPick: ({ x, y }) => {
       if (!metadata || !depthResult) return;
@@ -2399,7 +2406,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   selectLayerRef.current = layerPanelController.select;
 
   const transformSession = useTransformSessionController({
-    activeTool: editorSession.activeTool,
+    activeTool: vectorMoveActive ? 'view' : editorSession.activeTool,
     activeDocument: imageDocument,
     activeLayerId: imageDocument?.activeLayerId ?? null,
     selection: editorSession.selection,

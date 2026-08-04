@@ -43,6 +43,11 @@ export interface LiveShapeDragOptions {
   fromCenter?: boolean;
 }
 
+export interface LiveShapeDragUpdateOptions extends LiveShapeDragOptions {
+  /** Translate the gesture origin by the latest pointer delta without resizing. */
+  moveOrigin?: boolean;
+}
+
 const uuidIds: VectorIdSource = {
   next: (kind) => `${kind}-${crypto.randomUUID()}`
 };
@@ -176,6 +181,7 @@ export const createLiveShapeFromDrag = (
  */
 export class LiveShapeToolController {
   private start: Vec2 | null = null;
+  private lastPointer: Vec2 | null = null;
   private shape: VectorLiveShape | null = null;
   private layerId: LayerId | null = null;
   private documentToLayer = identityAffineMatrix();
@@ -208,12 +214,24 @@ export class LiveShapeToolController {
   pointerDown(position: Vec2, options: LiveShapeDragOptions = {}) {
     if (this.start) return false;
     this.start = { ...position };
+    this.lastPointer = { ...position };
     this.dragOptions = { ...options };
     return true;
   }
 
-  pointerMove(position: Vec2) {
+  pointerMove(position: Vec2, options: LiveShapeDragUpdateOptions = {}) {
     if (!this.start) return false;
+    if (options.moveOrigin && this.lastPointer) {
+      this.start = {
+        x: this.start.x + position.x - this.lastPointer.x,
+        y: this.start.y + position.y - this.lastPointer.y
+      };
+    }
+    this.lastPointer = { ...position };
+    const dragOptions: LiveShapeDragOptions = {
+      preserveAspect: options.preserveAspect ?? this.dragOptions.preserveAspect,
+      fromCenter: options.fromCenter ?? this.dragOptions.fromCenter
+    };
     const dx = position.x - this.start.x;
     const dy = position.y - this.start.y;
     if (!this.shape && dx * dx + dy * dy < this.minimumDragDistanceSquared) return false;
@@ -222,7 +240,7 @@ export class LiveShapeToolController {
       this.start,
       position,
       this.preset,
-      this.dragOptions
+      dragOptions
     );
     const draft = createLiveShapeFromDrag(
       this.shape?.id ?? this.ids.next('live-shape'),
@@ -263,9 +281,9 @@ export class LiveShapeToolController {
     return true;
   }
 
-  pointerUp(position: Vec2) {
+  pointerUp(position: Vec2, options: LiveShapeDragUpdateOptions = {}) {
     if (!this.start) return false;
-    this.pointerMove(position);
+    this.pointerMove(position, options);
     if (!this.shape) {
       this.reset();
       return false;
@@ -296,6 +314,7 @@ export class LiveShapeToolController {
 
   private reset() {
     this.start = null;
+    this.lastPointer = null;
     this.shape = null;
     this.layerId = null;
     this.documentToLayer = identityAffineMatrix();

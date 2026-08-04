@@ -1,0 +1,26 @@
+# UX for Line Tool
+
+Status: complete
+
+- [x] Tool family hotkey: `U`.
+- [x] `Shift+U` cycles through the Shape tools and reaches Line.
+- [x] Draw a line with click-drag.
+- [x] Hold `Shift` to constrain to 45-degree increments.
+- [x] Hold `Alt` to draw outward from the centre.
+- [x] Hold `Alt+Shift` for centre-origin constrained drawing.
+- [x] Hold Space while drawing to translate the line without resizing it.
+- [x] Modifiers can be engaged or released during the gesture.
+- [x] `A` selects/moves via Path Selection.
+- [x] `V` remains Move and contextually moves vector elements on vector layers;
+  it no longer launches the raster-only transform controller there.
+- [x] `Ctrl+Z` undoes the completed gesture as one command.
+
+## Verification
+
+- Live-shape, vector-session and transform tests passed.
+- App typecheck passed.
+- Packaged desktop build passed.
+- Physical Electron smoke against `D:\\shapes.psd` passed: U/Shift+U,
+  Alt+Shift draw, Space relocation, A, V and Ctrl+Z; no page errors.
+- The same smoke verifies that Electron's native menu is absent so Alt remains
+  owned by LightTable.

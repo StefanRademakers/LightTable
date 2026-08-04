@@ -41,6 +41,13 @@ activates zoom-out without replacing the selected tool. Temporary tools end on
 Space release or window blur. The drag marquee is presentation-only and uses
 the shared GPU overlay; it is never serialized or added to history.
 
+Live-shape gestures read `Shift` and `Alt` continuously, so constraints and
+centre-origin drawing can be engaged or released after pointer-down. While a
+shape pointer is captured, holding Space translates the gesture origin by the
+pointer delta instead of resizing the preview; releasing Space resumes sizing
+from the translated origin. This gesture-local Space behavior takes precedence
+over temporary viewport panning and still commits one history command.
+
 ## Selection model
 
 Selections are document-space authoring state. Rectangle, ellipse, freehand and
