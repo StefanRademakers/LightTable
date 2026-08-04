@@ -389,15 +389,18 @@ fn blurredAlpha(uv: vec2f, centerOffset: vec2f, radius: f32) -> f32 {
     vec2f(-1.0, 0.0), vec2f(-0.9239, -0.3827), vec2f(-0.7071, -0.7071), vec2f(-0.3827, -0.9239),
     vec2f(0.0, -1.0), vec2f(0.3827, -0.9239), vec2f(0.7071, -0.7071), vec2f(0.9239, -0.3827)
   );
+  let sampleCount = u32(clamp(settings.canvas.w, 1.0, 16.0) + 0.5);
   var value = alphaAt(uv, centerOffset) * 4.0;
-  for (var index = 0u; index < 16u; index += 1u) {
+  for (var sampleIndex = 0u; sampleIndex < 16u; sampleIndex += 1u) {
+    if (sampleIndex >= sampleCount) { continue; }
+    // Interactive quality uses eight evenly distributed directions rather
+    // than the first half of the final ring, keeping geometry identical.
+    let index = (sampleIndex * 16u) / sampleCount;
     value += alphaAt(uv, centerOffset + directions[index] * radius * 0.35) * 2.0;
     value += alphaAt(uv, centerOffset + directions[index] * radius * 0.72);
     value += alphaAt(uv, centerOffset + directions[index] * radius);
   }
-  // A fixed sample topology avoids backend-dependent uniform-flow validation:
-  // center=4 and sixteen directions contribute 2+1+1, for a total of 68.
-  return clamp(value / 68.0, 0.0, 1.0);
+  return clamp(value / (4.0 + f32(sampleCount) * 4.0), 0.0, 1.0);
 }
 
 fn noiseAt(pixel: vec2f) -> f32 {
@@ -430,7 +433,11 @@ fn contourAt(position: f32) -> f32 {
 }
 
 fn shapedCoverage(value: f32, choke: f32, noise: f32, pixel: vec2f) -> f32 {
-  let tightened = smoothstep(max(0.0, 0.5 - choke * 0.5), min(1.0, 0.5 + (1.0 - choke) * 0.5), value);
+  // Zero spread/choke must preserve soft blur coverage. The old 0.5
+  // threshold discarded nearly every shadow/glow sample at realistic radii.
+  // Increasing choke progressively saturates the existing coverage without
+  // changing the effect's declared bounds or ordered compositing semantics.
+  let tightened = clamp(value / max(1.0 - choke, 1e-4), 0.0, 1.0);
   return clamp(contourAt(tightened) + (noiseAt(pixel) - 0.5) * noise, 0.0, 1.0);
 }
 
