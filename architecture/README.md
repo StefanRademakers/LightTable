@@ -37,8 +37,9 @@ history still has value. Keep temporary task notes out of this directory.
 13. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
 14. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
 15. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
-16. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
-17. [Change rules](CHANGE_RULES.md)
+16. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
+17. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
+18. [Change rules](CHANGE_RULES.md)
 
 ## Directory roles
 
