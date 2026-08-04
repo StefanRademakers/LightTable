@@ -20,7 +20,7 @@ describe('LayerCompositor', () => {
     const document = createImageDocument('Image', 64, 32, 'source');
     const source = {} as GPUTexture;
     const syncDocument = vi.fn();
-    const targets = { ensure: vi.fn() };
+    const targets = { ensure: vi.fn(), destroy: vi.fn() };
     const layerStyles = {
       releaseTargets: vi.fn(),
       releaseCache: vi.fn()
@@ -54,8 +54,46 @@ describe('LayerCompositor', () => {
     expect(compositor.encode({} as GPUCommandEncoder, document)).toBe(source);
     expect(syncDocument).toHaveBeenCalledWith(document);
     expect(targets.ensure).not.toHaveBeenCalled();
+    expect(targets.destroy).toHaveBeenCalledOnce();
     expect(layerStyles.releaseTargets).toHaveBeenCalledOnce();
     expect(layerStyles.releaseCache).toHaveBeenCalledOnce();
+  });
+
+  it('uses one transparent target for a document without visible layers', () => {
+    const document = createImageDocument('Empty', 64, 32, 'source');
+    document.layers = [];
+    document.activeLayerId = null;
+    const transparentTarget = texture();
+    const targets = {
+      ensureSingle: vi.fn(() => transparentTarget),
+      ensure: vi.fn()
+    };
+    const clearTexture = vi.fn();
+    const compositor = new LayerCompositor({
+      device: {} as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: {} as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => null) } as never,
+      targets: targets as never,
+      submittedResources: {} as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: vi.fn() } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(),
+      clearTexture,
+      drawFullscreen: vi.fn()
+    });
+
+    expect(compositor.encode({} as GPUCommandEncoder, document)).toBe(transparentTarget);
+    expect(targets.ensureSingle).toHaveBeenCalledOnce();
+    expect(targets.ensure).not.toHaveBeenCalled();
+    expect(clearTexture).toHaveBeenCalledWith(expect.anything(), transparentTarget);
   });
 
   it('propagates parent transforms to native vector layers', () => {

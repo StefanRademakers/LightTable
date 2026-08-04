@@ -137,7 +137,19 @@ export class LayerCompositor {
         && isIdentityAffineMatrix(layer.transform)
         && layer.width === width
         && layer.height === height
-      ) return runtime.texture;
+      ) {
+        targets.destroy();
+        return runtime.texture;
+      }
+    }
+
+    if (
+      visibleLeafNodes.length === 0
+      && !(includeDevelopmentTextFixture && this.options.developmentTextFixture?.hasReadyPlan)
+    ) {
+      const transparentTarget = targets.ensureSingle();
+      this.options.clearTexture(encoder, transparentTarget);
+      return transparentTarget;
     }
 
     const [compositeA, compositeB] = targets.ensure();
