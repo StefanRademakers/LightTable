@@ -14,6 +14,9 @@ import {
   TransformController,
   type TransformRendererPort
 } from './transformController';
+import { duplicateLayer, setLayerTransform } from '../../../editor/document/documentCommands';
+import { findDocumentLayer } from '../../../editor/document/layerTree';
+import { matrixApproximatelyEqual, multiplyMatrices, identityMatrix } from '../../../editor/tools/transform/affine';
 
 export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
@@ -55,6 +58,7 @@ export interface TransformSessionController {
   cancel(): void;
   reset(): void;
   isActive(): boolean;
+  repeat(duplicate?: boolean): void;
 }
 
 /**
@@ -72,6 +76,7 @@ export const useTransformSessionController = (
   const controllerRef = useRef<TransformController | null>(null);
   const controllerDocumentIdRef = useRef<ImageDocument['id'] | null>(null);
   const [state, setState] = useState<TransformSessionState | null>(null);
+  const lastLayerTransformRef = useRef<AffineMatrix | null>(null);
 
   const isActive = useCallback(
     () => Boolean(controllerRef.current?.state),
@@ -133,6 +138,7 @@ export const useTransformSessionController = (
     const belongsToActiveDocument = Boolean(
       document && document.id === controllerDocumentIdRef.current
     );
+    const transformDelta = controller.state?.matrix ?? null;
     const result = controller.finish(
       belongsToActiveDocument ? document : null,
       belongsToActiveDocument ? current.selection : [],
@@ -141,6 +147,10 @@ export const useTransformSessionController = (
     controllerDocumentIdRef.current = null;
     setState(null);
     current.activateViewTool();
+    if (commit && result.kind === 'layer' && transformDelta
+      && !matrixApproximatelyEqual(transformDelta, identityMatrix())) {
+      lastLayerTransformRef.current = { ...transformDelta };
+    }
     applyFinishedTransform(result);
   }, [applyFinishedTransform]);
 
@@ -187,6 +197,30 @@ export const useTransformSessionController = (
   const updateProjective = useCallback((quad: TransformQuad) => {
     const next = controllerRef.current?.updateProjective(quad);
     if (next) setState(next);
+  }, []);
+
+  const repeat = useCallback((duplicate = false) => {
+    const delta = lastLayerTransformRef.current;
+    const current = dependenciesRef.current;
+    const before = current.getDocument();
+    if (!delta || !before?.activeLayerId) {
+      current.setError('There is no previous layer transform to repeat.');
+      return;
+    }
+    const withTarget = duplicate ? duplicateLayer(before, before.activeLayerId) : before;
+    const target = findDocumentLayer(withTarget, withTarget.activeLayerId);
+    if (!target) {
+      current.setError('The active layer can no longer be transformed.');
+      return;
+    }
+    const after = setLayerTransform(
+      withTarget,
+      target.id,
+      multiplyMatrices(delta, target.transform)
+    );
+    current.applyDocumentSnapshot(after);
+    current.pushDocumentHistory(before, after);
+    current.setError(null);
   }, []);
 
   useEffect(() => {
@@ -238,6 +272,7 @@ export const useTransformSessionController = (
     commit: () => finish(true),
     cancel: () => finish(false),
     reset,
-    isActive
+    isActive,
+    repeat
   };
 };

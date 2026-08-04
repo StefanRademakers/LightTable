@@ -49,6 +49,8 @@ export type EditorKeyboardCommand =
   | 'layer-via-copy'
   | 'merge-down'
   | 'free-transform'
+  | 'repeat-transform'
+  | 'repeat-transform-duplicate'
   | 'invert-active-target'
   | 'selection-feather'
   | 'swap-colors'
@@ -228,8 +230,14 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('layer.merge-down', { key: 'e', primary: true, alt: false, shift: false }, 'merge-down', {
       when: (context) => !context.saving && context.hasActiveLayer
     }),
-    command('transform.free', { key: 't', primary: true, alt: true, shift: false }, 'free-transform', {
+    command('transform.free', { key: 't', primary: true, alt: false, shift: false }, 'free-transform', {
       when: (context) => !context.saving && context.hasActiveLayer
+    }),
+    command('transform.repeat', { key: 't', primary: true, alt: false, shift: true }, 'repeat-transform', {
+      when: (context) => !context.saving && context.hasActiveLayer && !context.transforming
+    }),
+    command('transform.repeat-duplicate', { key: 't', primary: true, alt: true, shift: true }, 'repeat-transform-duplicate', {
+      when: (context) => !context.saving && context.hasActiveLayer && !context.transforming
     }),
     command('layer.invert-target', { key: 'i', primary: true, alt: false, shift: false }, 'invert-active-target'),
     command('selection.feather', { key: 'f6', primary: false, alt: false, shift: true }, 'selection-feather', {

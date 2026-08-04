@@ -11,6 +11,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   quickExportPng: vi.fn(),
   isTransformActive: vi.fn(() => false),
   commitTransform: vi.fn(),
+  repeatTransform: vi.fn(),
   activateTool: vi.fn(),
   undo: vi.fn(),
   redo: vi.fn(),
@@ -47,6 +48,14 @@ const ports = (): EditorKeyboardCommandPorts => ({
 });
 
 describe('executeEditorKeyboardCommand', () => {
+  it('routes repeat and repeat-duplicate transforms independently', () => {
+    const target = ports();
+    executeEditorKeyboardCommand('repeat-transform', target);
+    executeEditorKeyboardCommand('repeat-transform-duplicate', target);
+    expect(target.repeatTransform).toHaveBeenNthCalledWith(1, false);
+    expect(target.repeatTransform).toHaveBeenNthCalledWith(2, true);
+  });
+
   it('routes file commands through the active editor file ports', () => {
     const target = ports();
 

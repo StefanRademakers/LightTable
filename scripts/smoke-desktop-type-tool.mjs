@@ -10,6 +10,7 @@ const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dis
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'type-tool-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'type-tool.png');
+const transformScreenshotPath = path.join(outputDirectory, 'text-free-transform.png');
 const reportPath = path.join(outputDirectory, 'type-tool.json');
 
 await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
@@ -94,9 +95,57 @@ try {
     || after.history.undoDepth !== before.history.undoDepth + 2) {
     throw new Error(`Unified Type gestures produced unexpected history: ${JSON.stringify({ before, after })}`);
   }
+  const beforeTransformLayers = await driver.queryLayers(documentId);
+  const activeBeforeTransform = beforeTransformLayers?.find(({ id }) => id === after.activeLayerId);
+  if (!activeBeforeTransform || activeBeforeTransform.type !== 'text') {
+    throw new Error('The paragraph text layer is not the active transform target.');
+  }
+  await page.keyboard.press('Control+Enter');
+  await page.keyboard.press('Control+t');
+  const transformOverlay = page.getByLabel('Transform controls');
+  await transformOverlay.waitFor({ state: 'visible', timeout: 30_000 });
+  await page.getByLabel('Free Transform properties').waitFor({ state: 'visible' });
+  await page.screenshot({ path: transformScreenshotPath });
+  const firstHandle = transformOverlay.locator('rect').first();
+  const handleBox = await firstHandle.boundingBox();
+  if (!handleBox) throw new Error('The text transform handle is unavailable.');
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x - 24, handleBox.y - 18, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.press('Enter');
+  await transformOverlay.waitFor({ state: 'detached', timeout: 30_000 });
+  const transformed = await driver.queryDocument(documentId);
+  const transformedLayers = await driver.queryLayers(documentId);
+  const activeTransformed = transformedLayers?.find(({ id }) => id === after.activeLayerId);
+  if (!transformed || transformed.history.undoDepth !== after.history.undoDepth + 1
+    || !activeTransformed
+    || JSON.stringify(activeTransformed.transform) === JSON.stringify(activeBeforeTransform.transform)) {
+    throw new Error(`Text Free Transform was not committed semantically: ${JSON.stringify({
+      after,
+      transformed,
+      activeBeforeTransform,
+      activeTransformed
+    })}`);
+  }
+  await page.keyboard.press('Control+Shift+t');
+  const repeated = await driver.queryDocument(documentId);
+  const repeatedLayers = await driver.queryLayers(documentId);
+  const activeRepeated = repeatedLayers?.find(({ id }) => id === after.activeLayerId);
+  if (!repeated || repeated.history.undoDepth !== transformed.history.undoDepth + 1
+    || !activeRepeated
+    || JSON.stringify(activeRepeated.transform) === JSON.stringify(activeTransformed.transform)) {
+    throw new Error('Ctrl+Shift+T did not repeat the semantic text transform.');
+  }
+  await page.keyboard.press('Control+Alt+Shift+t');
+  const duplicated = await driver.queryDocument(documentId);
+  if (!duplicated || duplicated.layerCount !== repeated.layerCount + 1
+    || duplicated.history.undoDepth !== repeated.history.undoDepth + 1) {
+    throw new Error('Ctrl+Alt+Shift+T did not duplicate and repeat as one command.');
+  }
   await page.screenshot({ path: screenshotPath });
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
-  await writeFile(reportPath, `${JSON.stringify({ sourceFile, before, after, pageErrors, screenshotPath }, null, 2)}\n`);
+  await writeFile(reportPath, `${JSON.stringify({ sourceFile, before, after, transformed, repeated, duplicated, pageErrors, screenshotPath, transformScreenshotPath }, null, 2)}\n`);
   process.stdout.write(`Type Tool smoke passed. Report: ${reportPath}\n`);
 } finally {
   await app.close().catch(() => {});

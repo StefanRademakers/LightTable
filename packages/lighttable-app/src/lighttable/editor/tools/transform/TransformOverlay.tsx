@@ -81,6 +81,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       : { x: 0, y: -1 };
     return {
       source,
+      sourceCenter: midpoint(source[0], source[2]),
       corners,
       center,
       rotation: { x: top.x + normal.x * 28 / Math.max(scale, 1e-6), y: top.y + normal.y * 28 / Math.max(scale, 1e-6) },
@@ -119,7 +120,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       handle,
       matrix: state.matrix,
       start,
-      anchor,
+      anchor: event.altKey ? geometry.sourceCenter : anchor,
       handlePoint,
       pivot: geometry.center,
       angle: Math.atan2(start.y - geometry.center.y, start.x - geometry.center.x),
@@ -172,9 +173,33 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       const vertical = !['east', 'west'].includes(drag.handle);
       const denominatorX = drag.handlePoint.x - drag.anchor.x;
       const denominatorY = drag.handlePoint.y - drag.anchor.y;
+      const sideHandle = ['north', 'east', 'south', 'west'].includes(drag.handle);
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && sideHandle) {
+        const horizontalSide = drag.handle === 'north' || drag.handle === 'south';
+        const shear = horizontalSide
+          ? {
+              a: 1, b: 0,
+              c: Math.max(-10, Math.min(10, (local.x - drag.handlePoint.x) / Math.max(1e-6, Math.abs(denominatorY)))),
+              d: 1, tx: 0, ty: 0
+            }
+          : {
+              a: 1,
+              b: Math.max(-10, Math.min(10, (local.y - drag.handlePoint.y) / Math.max(1e-6, Math.abs(denominatorX)))),
+              c: 0, d: 1, tx: 0, ty: 0
+            };
+        onChange(multiplyMatrices(
+          drag.matrix,
+          aroundPoint(shear, drag.anchor)
+        ));
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       let scaleX = horizontal && Math.abs(denominatorX) > 1e-6 ? (local.x - drag.anchor.x) / denominatorX : 1;
       let scaleY = vertical && Math.abs(denominatorY) > 1e-6 ? (local.y - drag.anchor.y) / denominatorY : 1;
-      if (event.shiftKey && horizontal && vertical) {
+      // Photoshop's current Free Transform keeps corner proportions by
+      // default; Shift explicitly opts into independent axes.
+      if (!event.shiftKey && horizontal && vertical) {
         const uniform = Math.abs(scaleX - 1) >= Math.abs(scaleY - 1) ? scaleX : scaleY;
         scaleX = uniform;
         scaleY = uniform;

@@ -68,6 +68,32 @@ describe('editor keymap', () => {
     )).toBe('quick-export-png');
   });
 
+  it('routes Photoshop-compatible primary+T to Free Transform', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 't', code: 'KeyT', ctrlKey: true }),
+      context({ hasActiveLayer: true })
+    )).toBe('free-transform');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 't', code: 'KeyT', ctrlKey: true, altKey: true }),
+      context({ hasActiveLayer: true })
+    )).toBeNull();
+  });
+
+  it('routes Photoshop-compatible repeat transform chords', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 't', code: 'KeyT', ctrlKey: true, shiftKey: true }),
+      context({ hasActiveLayer: true })
+    )).toBe('repeat-transform');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 't', code: 'KeyT', ctrlKey: true, altKey: true, shiftKey: true }),
+      context({ hasActiveLayer: true })
+    )).toBe('repeat-transform-duplicate');
+  });
+
   it('uses physical bracket codes for brush size on keyboard layouts that alter key', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

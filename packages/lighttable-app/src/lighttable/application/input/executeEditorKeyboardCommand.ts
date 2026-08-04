@@ -7,6 +7,7 @@ export interface EditorKeyboardCommandPorts {
   quickExportPng(): void;
   isTransformActive(): boolean;
   commitTransform(): void;
+  repeatTransform(duplicate?: boolean): void;
   activateTool(tool: ToolId): void;
   undo(): void;
   redo(): void;
@@ -134,6 +135,12 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'free-transform':
       ports.activateTool('transform');
+      return;
+    case 'repeat-transform':
+      ports.repeatTransform(false);
+      return;
+    case 'repeat-transform-duplicate':
+      ports.repeatTransform(true);
       return;
     case 'invert-active-target':
       ports.invertActiveTarget();

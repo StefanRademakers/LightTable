@@ -135,7 +135,7 @@ export class LayerDocumentRenderer {
     return this.runtime.textureMemory.estimate();
   }
 
-  setGeometryPreview(layer: RasterLayer, matrix: AffineMatrix | null) {
+  setGeometryPreview(layer: Pick<LayerNode, 'id' | 'geometryRevision'>, matrix: AffineMatrix | null) {
     return this.runtime.geometryPreviews.set(layer.id, layer.geometryRevision, matrix);
   }
 

@@ -480,6 +480,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const cancelTransformRef = useRef<() => void>(() => undefined);
   const resetTransformRef = useRef<() => void>(() => undefined);
   const transformActiveRef = useRef<() => boolean>(() => false);
+  const repeatTransformRef = useRef<(duplicate?: boolean) => void>(() => undefined);
   const activateToolRef = useRef<(tool: ToolId) => void>(() => undefined);
   const cancelAutoAlignRef = useRef<() => void>(() => undefined);
   const copySelectedContentRef = useRef<() => void>(() => undefined);
@@ -1692,6 +1693,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
+      repeatTransform: (duplicate) => repeatTransformRef.current(duplicate),
       activateTool: (tool) => activateToolRef.current(tool),
       undo: () => { void undoEditor(); },
       redo: () => { void redoEditor(); },
@@ -2669,6 +2671,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   cancelTransformRef.current = transformSession.cancel;
   resetTransformRef.current = transformSession.reset;
   transformActiveRef.current = transformSession.isActive;
+  repeatTransformRef.current = transformSession.repeat;
   beginAutomationGestureRef.current = (kind, pointerId, parameters, sample) => {
     if (kind === 'selection-rectangle') {
       return selectionSessionController.begin(
@@ -3577,6 +3580,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionRowHeight={editorSession.selectionRowHeight}
       selectionColumnWidth={editorSession.selectionColumnWidth}
       zoomPercent={activeScale * 100}
+      transformState={transformState}
       onBrushChange={updateBrush}
       onGradientChange={(change) => setEditorSession((current) => ({
         ...current,
@@ -3624,6 +3628,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
+      onTransformChange={updateTransformMatrix}
+      onTransformCommit={transformSession.commit}
+      onTransformCancel={transformSession.cancel}
       onToolChange={activatePersistentTool}
       onForegroundColorChange={(color) => updateBrush({ color })}
       onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}

@@ -18,6 +18,8 @@ export interface TransformSessionState {
   /** Explicit document-space cage once corner distortion is active. */
   projectiveQuad: TransformQuad | null;
   sourceKind: 'selection' | 'layer';
+  /** Semantic layers preview through the compositor without baking pixels. */
+  previewKind: 'raster' | 'semantic';
 }
 
 export type TransformQuad = readonly [

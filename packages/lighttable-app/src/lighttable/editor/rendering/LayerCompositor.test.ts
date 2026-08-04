@@ -184,7 +184,7 @@ describe('LayerCompositor', () => {
     expect(encodeDevelopmentText).not.toHaveBeenCalled();
   });
 
-  it('composites an exact tight text source with inherited transform instead of the placeholder', () => {
+  it('composites an exact tight text source with a transient semantic transform preview', () => {
     const document = createImageDocument('Text source', 64, 32, 'source');
     const textLayer = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
     const group = createGroupLayer('Group');
@@ -220,7 +220,7 @@ describe('LayerCompositor', () => {
       submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
       transformSessions: { current: null } as never,
       pixelEditSessions: { current: null } as never,
-      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      geometryPreviews: { resolve: vi.fn(() => translationMatrix(13, 17)) } as never,
       layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
       vectors: { encode: encodeVector } as never,
       texts: { resolvePresentation: resolve } as never,
@@ -233,7 +233,13 @@ describe('LayerCompositor', () => {
     });
 
     expect(compositor.encode({} as GPUCommandEncoder, document)).toBe(compositeB);
-    expect(resolve).toHaveBeenCalledWith(textLayer, group.transform);
+    expect(resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: textLayer.id,
+        transform: translationMatrix(13, 17)
+      }),
+      group.transform
+    );
     expect(encodeVector).not.toHaveBeenCalled();
     const values = vi.mocked(writeBuffer).mock.calls[0][2] as Float32Array;
     expect([...values.slice(12, 14)]).toEqual([20, 10]);

@@ -247,12 +247,21 @@ export class LayerCompositor {
       if ((node.type === 'text' || node.type === 'vector')
         && layerDerivedPreviewIsCurrent(node)
         && layerResources.derivedPreview(node.id)) {
-        return renderDerivedPreview(node, background, target, clippingTexture, inheritedTransform);
+        const geometryPreview = geometryPreviews.resolve(node.id, node.geometryRevision);
+        return renderDerivedPreview(
+          node,
+          background,
+          target,
+          clippingTexture,
+          inheritedTransform,
+          geometryPreview
+        );
       }
 
       if (node.type === 'vector') {
+        const geometryPreview = geometryPreviews.resolve(node.id, node.geometryRevision);
         return renderVectorLayer(
-          node,
+          geometryPreview ? { ...node, transform: geometryPreview } : node,
           background,
           target,
           clippingTexture,
@@ -261,25 +270,27 @@ export class LayerCompositor {
       }
 
       if (node.type === 'text') {
-        if (this.options.texts?.isTransparent?.(node)) return [background, target];
-        const directEligible = node.opacity === 1
-          && node.fillOpacity === 1
-          && node.blendMode === 'normal'
-          && !node.clipping
-          && !node.mask?.enabled
-          && !layerStyleStackIsActive(node.styleStack);
+        const geometryPreview = geometryPreviews.resolve(node.id, node.geometryRevision);
+        const textNode = geometryPreview ? { ...node, transform: geometryPreview } : node;
+        if (this.options.texts?.isTransparent?.(textNode)) return [background, target];
+        const directEligible = textNode.opacity === 1
+          && textNode.fillOpacity === 1
+          && textNode.blendMode === 'normal'
+          && !textNode.clipping
+          && !textNode.mask?.enabled
+          && !layerStyleStackIsActive(textNode.styleStack);
         if (directEligible && this.options.texts?.encodeAtlasPresentation?.(
           encoder,
-          node,
+          textNode,
           inheritedTransform,
           { texture: background, width, height }
         )) {
           return [background, target];
         }
-        const source = this.options.texts?.resolvePresentation(node, inheritedTransform) ?? null;
+        const source = this.options.texts?.resolvePresentation(textNode, inheritedTransform) ?? null;
         if (!source) {
           return renderVectorLayer(
-            textPlaceholderVectorLayer(node),
+            textPlaceholderVectorLayer(textNode),
             background,
             target,
             clippingTexture,
@@ -498,12 +509,21 @@ export class LayerCompositor {
       background: GPUTexture,
       target: GPUTexture,
       clippingTexture: GPUTexture | null,
-      inheritedTransform: AffineMatrix
+      inheritedTransform: AffineMatrix,
+      geometryPreview: AffineMatrix | null = null
     ): [GPUTexture, GPUTexture] => {
       const preview = layer.derivedPreview;
       const runtime = layerResources.derivedPreview(layer.id);
       if (!preview || !runtime) return [background, target];
-      const sourceToDocument = multiplyMatrices(inheritedTransform, preview.transform);
+      const sourceToDocument = geometryPreview
+        ? multiplyMatrices(
+            inheritedTransform,
+            multiplyMatrices(
+              geometryPreview,
+              multiplyMatrices(invertMatrix(layer.transform) ?? identityAffineMatrix(), preview.transform)
+            )
+          )
+        : multiplyMatrices(inheritedTransform, preview.transform);
       const inverse = invertMatrix(sourceToDocument);
       if (!inverse) return [background, target];
       const dimensions = { width: runtime.width, height: runtime.height };

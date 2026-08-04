@@ -4,13 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEditorSession, type ToolId } from '../session/editorSession';
 import { ToolOptionsContent, type ToolOptionsProps } from './ToolOptionsBar';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
+import type { TransformSessionState } from '../tools/transform/transformTypes';
 
 const renderOptions = (
   activeTool: ToolId,
   rowHeight = 1,
   columnWidth = 1,
   textProperties?: TextPropertyPresentation,
-  selectedVectorStyle?: ToolOptionsProps['selectedVectorStyle']
+  selectedVectorStyle?: ToolOptionsProps['selectedVectorStyle'],
+  transformState?: TransformSessionState
 ) => {
   const session = createEditorSession();
   const props: ToolOptionsProps = {
@@ -39,6 +41,7 @@ const renderOptions = (
     selectionRowHeight: rowHeight,
     selectionColumnWidth: columnWidth,
     zoomPercent: 100,
+    transformState,
     onBrushChange: vi.fn(),
     onGradientChange: vi.fn(),
     onShapeChange: vi.fn(),
@@ -63,10 +66,41 @@ const renderOptions = (
     onSelectionRowHeightChange: vi.fn(),
     onSelectionColumnWidthChange: vi.fn(),
     onZoomPreset: vi.fn(),
-    onZoomFit: vi.fn()
+    onZoomFit: vi.fn(),
+    onTransformChange: vi.fn(),
+    onTransformCommit: vi.fn(),
+    onTransformCancel: vi.fn()
   };
   return renderToStaticMarkup(<ToolOptionsContent {...props} />);
 };
+
+describe('Free Transform tool options', () => {
+  it('surfaces exact semantic transform controls and apply/cancel actions', () => {
+    const markup = renderOptions('transform', 1, 1, undefined, undefined, {
+      layerId: 'text-1' as never,
+      sourceBounds: { x: 10, y: 20, width: 100, height: 40 },
+      supportBounds: { x: 10, y: 20, width: 100, height: 40 },
+      sourceContentBounds: { x: 10, y: 20, width: 100, height: 40 },
+      sourceMatrix: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      matrix: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      projectiveQuad: null,
+      sourceKind: 'layer',
+      previewKind: 'semantic'
+    });
+    expect(markup).toContain('aria-label="Free Transform properties"');
+    expect(markup).toContain('Transform reference point');
+    expect(markup).toContain('<span>X</span>');
+    expect(markup).toContain('<span>Y</span>');
+    expect(markup).toContain('<span>W</span>');
+    expect(markup).toContain('<span>H</span>');
+    expect(markup).toContain('Link transform proportions');
+    expect(markup).toContain('Angle');
+    expect(markup).toContain('Skew X');
+    expect(markup).toContain('Skew Y');
+    expect(markup).toContain('Apply');
+    expect(markup).toContain('Cancel');
+  });
+});
 
 describe('vector style tool options', () => {
   it('surfaces shared exact geometry controls for rectangle and ellipse tools', () => {

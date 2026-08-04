@@ -538,6 +538,42 @@ export class WebGpuEngine {
     return changed;
   }
 
+  async measureSemanticLayerContent(layer: LayerNode) {
+    if (layer.type !== 'text') return null;
+    const realized = this.documentRenderer?.textEditingLayout(layer.id)?.layout;
+    const bounds = realized?.paragraphFrame?.bounds ?? realized?.logicalBounds;
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return null;
+    return {
+      coreBounds: { ...bounds },
+      supportBounds: { ...bounds },
+      peakCoverage: 1
+    };
+  }
+
+  beginSemanticLayerTransform(layer: LayerNode) {
+    const renderer = this.documentRenderer;
+    if (!renderer || (layer.type !== 'text' && layer.type !== 'vector')) return false;
+    const changed = renderer.setGeometryPreview(layer, layer.transform);
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
+  updateSemanticLayerTransform(layer: LayerNode, matrix: AffineMatrix) {
+    const renderer = this.documentRenderer;
+    if (!renderer || (layer.type !== 'text' && layer.type !== 'vector')) return false;
+    const changed = renderer.setGeometryPreview(layer, matrix);
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
+  cancelSemanticLayerTransform(layer: LayerNode) {
+    const renderer = this.documentRenderer;
+    if (!renderer) return false;
+    const changed = renderer.setGeometryPreview(layer, null);
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
   async alignLayersTranslation(
     referenceLayerId: LayerId,
     targetLayerId: LayerId,

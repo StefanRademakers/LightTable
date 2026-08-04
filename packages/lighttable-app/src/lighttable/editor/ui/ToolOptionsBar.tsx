@@ -22,6 +22,15 @@ import { ToolOptionColor, ToolOptionNumber, ToolOptionSelect } from './ToolOptio
 import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import type { TextPaint } from '@lighttable/text-core';
+import type { AffineMatrix, TransformSessionState } from '../tools/transform/transformTypes';
+import {
+  aroundPoint,
+  multiplyMatrices,
+  rotationMatrix,
+  scaleMatrix,
+  transformedBounds,
+  translationMatrix
+} from '../tools/transform/affine';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
@@ -42,6 +51,7 @@ export interface ToolOptionsProps {
   selectionRowHeight: number;
   selectionColumnWidth: number;
   zoomPercent: number;
+  transformState?: TransformSessionState | null;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
@@ -69,6 +79,9 @@ export interface ToolOptionsProps {
   onSelectionColumnWidthChange: (width: number) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
+  onTransformChange?: (matrix: AffineMatrix) => void;
+  onTransformCommit?: () => void;
+  onTransformCancel?: () => void;
 }
 
 const TOOL_LABELS: Record<ToolId, string> = {
@@ -131,6 +144,107 @@ const AnchoredGradientPopover: React.FC<{
   );
 };
 
+const TransformToolOptions: React.FC<{
+  state: TransformSessionState;
+  proportionsLinked: boolean;
+  onProportionsLinkedChange: (linked: boolean) => void;
+  onChange: (matrix: AffineMatrix) => void;
+  onCommit?: () => void;
+  onCancel?: () => void;
+}> = ({
+  state,
+  proportionsLinked,
+  onProportionsLinkedChange,
+  onChange,
+  onCommit,
+  onCancel
+}) => {
+  const [referencePoint, setReferencePoint] = React.useState('center');
+  const [skew, setSkew] = React.useState({ x: 0, y: 0 });
+  const bounds = transformedBounds(state.matrix, state.sourceBounds);
+  const referenceColumn = referencePoint.endsWith('left') ? 0
+    : referencePoint.endsWith('right') ? 1 : 0.5;
+  const referenceRow = referencePoint.startsWith('top') ? 0
+    : referencePoint.startsWith('bottom') ? 1 : 0.5;
+  const reference = {
+    x: bounds.x + bounds.width * referenceColumn,
+    y: bounds.y + bounds.height * referenceRow
+  };
+  const scaleXPercent = Math.hypot(state.matrix.a, state.matrix.b) * 100;
+  const scaleYPercent = Math.hypot(state.matrix.c, state.matrix.d) * 100;
+  const rotationDegrees = Math.atan2(state.matrix.b, state.matrix.a) * 180 / Math.PI;
+  const moveAxis = (axis: 'x' | 'y', value: number) => onChange(multiplyMatrices(
+    translationMatrix(axis === 'x' ? value - bounds.x : 0, axis === 'y' ? value - bounds.y : 0),
+    state.matrix
+  ));
+  const setScale = (axis: 'x' | 'y', percent: number) => {
+    const requested = Math.max(0.01, Math.abs(percent || 0.01));
+    const current = axis === 'x' ? scaleXPercent : scaleYPercent;
+    const ratio = requested / Math.max(0.01, current);
+    onChange(multiplyMatrices(
+      aroundPoint(scaleMatrix(
+        axis === 'x' || proportionsLinked ? ratio : 1,
+        axis === 'y' || proportionsLinked ? ratio : 1
+      ), reference),
+      state.matrix
+    ));
+  };
+  const setSkewAxis = (axis: 'x' | 'y', degrees: number) => {
+    const previous = skew[axis];
+    const delta = (degrees - previous) * Math.PI / 180;
+    const shear: AffineMatrix = axis === 'x'
+      ? { a: 1, b: 0, c: Math.tan(delta), d: 1, tx: 0, ty: 0 }
+      : { a: 1, b: Math.tan(delta), c: 0, d: 1, tx: 0, ty: 0 };
+    setSkew((current) => ({ ...current, [axis]: degrees }));
+    onChange(multiplyMatrices(aroundPoint(shear, reference), state.matrix));
+  };
+  return (
+    <div className="lighttable-tool-options__vector-style" aria-label="Free Transform properties">
+      <ToolOptionSelect label="Reference" value={referencePoint} aria-label="Transform reference point"
+        onChange={(event) => setReferencePoint(event.currentTarget.value)}>
+        <option value="top-left">Top left</option>
+        <option value="top-center">Top center</option>
+        <option value="top-right">Top right</option>
+        <option value="middle-left">Middle left</option>
+        <option value="center">Center</option>
+        <option value="middle-right">Middle right</option>
+        <option value="bottom-left">Bottom left</option>
+        <option value="bottom-center">Bottom center</option>
+        <option value="bottom-right">Bottom right</option>
+      </ToolOptionSelect>
+      <ToolOptionNumber label="X" unit="px" step={1} value={Number(bounds.x.toFixed(2))}
+        onChange={(value) => moveAxis('x', value)} />
+      <ToolOptionNumber label="Y" unit="px" step={1} value={Number(bounds.y.toFixed(2))}
+        onChange={(value) => moveAxis('y', value)} />
+      <ToolOptionNumber label="W" unit="%" min={0.01} step={0.1}
+        value={Number(scaleXPercent.toFixed(2))} onChange={(value) => setScale('x', value)} />
+      <label className="lighttable-tool-options__toggle" title="Link width and height">
+        <input type="checkbox" checked={proportionsLinked}
+          aria-label="Link transform proportions"
+          onChange={(event) => onProportionsLinkedChange(event.currentTarget.checked)} />
+        <span>Link</span>
+      </label>
+      <ToolOptionNumber label="H" unit="%" min={0.01} step={0.1}
+        value={Number(scaleYPercent.toFixed(2))} onChange={(value) => setScale('y', value)} />
+      <ToolOptionNumber label="Angle" unit="deg" step={0.1}
+        value={Number(rotationDegrees.toFixed(2))}
+        onChange={(value) => onChange(multiplyMatrices(
+          aroundPoint(rotationMatrix((value - rotationDegrees) * Math.PI / 180), reference),
+          state.matrix
+        ))} />
+      <ToolOptionNumber label="Skew X" unit="deg" step={0.1} value={skew.x}
+        onChange={(value) => setSkewAxis('x', value)} />
+      <ToolOptionNumber label="Skew Y" unit="deg" step={0.1} value={skew.y}
+        onChange={(value) => setSkewAxis('y', value)} />
+      <ToolOptionSelect label="Interpolation" value="automatic" aria-label="Transform interpolation" disabled={state.previewKind === 'semantic'}>
+        <option value="automatic">Automatic</option>
+      </ToolOptionSelect>
+      <button type="button" className="lighttable-tool-options__preset" onClick={onCommit}>Apply</button>
+      <button type="button" className="lighttable-tool-options__preset" onClick={onCancel}>Cancel</button>
+    </div>
+  );
+};
+
 export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   orientation?: 'horizontal' | 'vertical';
 }> = ({
@@ -152,6 +266,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectionRowHeight,
   selectionColumnWidth,
   zoomPercent,
+  transformState,
   onBrushChange,
   onGradientChange,
   onShapeChange,
@@ -179,6 +294,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectionColumnWidthChange,
   onZoomPreset,
   onZoomFit,
+  onTransformChange,
+  onTransformCommit,
+  onTransformCancel,
   orientation = 'horizontal'
 }) => {
   const activeToolDefinition = toolDefinition(activeTool);
@@ -202,6 +320,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
     && textProperties.fillPaint.value?.kind === 'gradient'
     ? textProperties.fillPaint.value : null;
   const [textGradientEditorOpen, setTextGradientEditorOpen] = React.useState(false);
+  const [transformProportionsLinked, setTransformProportionsLinked] = React.useState(true);
   const textGradientButtonRef = React.useRef<HTMLButtonElement>(null);
   const changeVectorStyle = editsVectorSelection
     ? onSelectedVectorStyleChange ?? onVectorStyleChange
@@ -246,6 +365,16 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             { value: 'subtract', label: 'Subtract', title: 'Subtract from selection' },
             { value: 'intersect', label: 'Intersect', title: 'Intersect with selection' }
           ]}
+        />
+      ) : null}
+      {activeTool === 'transform' && transformState && onTransformChange ? (
+        <TransformToolOptions
+          state={transformState}
+          proportionsLinked={transformProportionsLinked}
+          onProportionsLinkedChange={setTransformProportionsLinked}
+          onChange={onTransformChange}
+          onCommit={onTransformCommit}
+          onCancel={onTransformCancel}
         />
       ) : null}
       {activeTool === 'select-rectangle' || activeTool === 'select-ellipse' ? (

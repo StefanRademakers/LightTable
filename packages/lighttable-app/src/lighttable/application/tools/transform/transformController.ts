@@ -4,10 +4,12 @@ import {
 } from '../../../editor/document/documentCommands';
 import type {
   ImageDocument,
+  LayerId,
+  LayerNode,
   RasterLayer,
   Rect
 } from '../../../editor/document/documentTypes';
-import { findRasterLayer } from '../../../editor/document/layerTree';
+import { findDocumentLayer } from '../../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { SelectionCoverageBounds } from '../../../editor/selection/selectionCoverage';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
@@ -34,6 +36,10 @@ export interface TransformRendererPort {
   updateLayerProjectiveTransform(source: TransformQuad, destination: TransformQuad): boolean;
   commitLayerTransform(): ReversiblePixelEdit | null;
   cancelLayerTransform(): boolean | void;
+  measureSemanticLayerContent(layer: LayerNode): Promise<SelectionCoverageBounds | null>;
+  beginSemanticLayerTransform(layer: LayerNode): boolean;
+  updateSemanticLayerTransform(layer: LayerNode, matrix: AffineMatrix): boolean;
+  cancelSemanticLayerTransform(layer: LayerNode): boolean | void;
 }
 
 export type BeginTransformResult =
@@ -55,7 +61,7 @@ export type FinishTransformResult =
     readonly kind: 'layer';
     readonly beforeDocument: ImageDocument;
     readonly afterDocument: ImageDocument;
-    readonly layerId: RasterLayer['id'];
+    readonly layerId: LayerId;
   }
   | {
     readonly kind: 'selection';
@@ -63,7 +69,7 @@ export type FinishTransformResult =
     readonly afterDocument: ImageDocument;
     readonly beforeSelection: SelectionOperation[];
     readonly afterSelection: SelectionOperation[];
-    readonly layerId: RasterLayer['id'];
+    readonly layerId: LayerId;
     readonly pixelEdit: ReversiblePixelEdit;
   }
   | {
@@ -98,6 +104,7 @@ const mergeBounds = (first: Rect, second: Rect): Rect => {
  */
 export class TransformController {
   private activeState: TransformSessionState | null = null;
+  private activeSemanticLayer: LayerNode | null = null;
   private launchRevision = 0;
 
   constructor(private readonly renderer: TransformRendererPort) {}
@@ -132,31 +139,34 @@ export class TransformController {
       };
     }
     const launchRevision = ++this.launchRevision;
-    const layer = findRasterLayer(document, document.activeLayerId);
-    if (!layer) {
+    const layer = findDocumentLayer(document, document.activeLayerId);
+    const semanticLayer = layer?.type === 'text' || layer?.type === 'vector';
+    if (!layer || (layer.type !== 'raster' && !semanticLayer)) {
       return {
         ok: false,
         code: 'invalid-target',
-        message: 'Select a raster layer before transforming.'
+        message: 'Select a raster, text, or vector layer before transforming.'
       };
     }
 
-    const selectionRequested = selection.length > 0;
+    const selectionRequested = layer.type === 'raster' && selection.length > 0;
     let usesSelection = selectionRequested
       && matrixApproximatelyEqual(layer.transform, identityMatrix());
     let sourceMatrix = usesSelection ? identityMatrix() : layer.transform;
 
     try {
-      let measuredContent = usesSelection
-        ? await this.renderer.measureSelectedLayerContent(layer)
-        : await this.renderer.measureLayerContent(layer);
+      let measuredContent = semanticLayer
+        ? await this.renderer.measureSemanticLayerContent(layer)
+        : usesSelection
+          ? await this.renderer.measureSelectedLayerContent(layer as RasterLayer)
+          : await this.renderer.measureLayerContent(layer as RasterLayer);
       if (launchRevision !== this.launchRevision || this.activeState) {
         return { ok: false, code: 'stale', message: null };
       }
       if (!measuredContent && usesSelection) {
         usesSelection = false;
         sourceMatrix = layer.transform;
-        measuredContent = await this.renderer.measureLayerContent(layer);
+        measuredContent = await this.renderer.measureLayerContent(layer as RasterLayer);
         if (launchRevision !== this.launchRevision || this.activeState) {
           return { ok: false, code: 'stale', message: null };
         }
@@ -165,7 +175,9 @@ export class TransformController {
         return {
           ok: false,
           code: 'empty-layer',
-          message: 'The active layer does not contain visible pixels.'
+          message: semanticLayer
+            ? 'The semantic layer has no measurable content yet.'
+            : 'The active layer does not contain visible pixels.'
         };
       }
 
@@ -181,13 +193,18 @@ export class TransformController {
         sourceMatrix: { ...sourceMatrix },
         matrix: identityMatrix(),
         projectiveQuad: null,
-        sourceKind: usesSelection ? 'selection' : 'layer'
+        sourceKind: usesSelection ? 'selection' : 'layer',
+        previewKind: semanticLayer ? 'semantic' : 'raster'
       };
-      this.renderer.beginLayerTransform(layer, usesSelection);
-      if (!this.renderer.updateLayerTransform(
-        multiplyMatrices(state.matrix, state.sourceMatrix)
-      )) {
-        this.renderer.cancelLayerTransform();
+      const previewStarted = semanticLayer
+        ? this.renderer.beginSemanticLayerTransform(layer)
+        : (this.renderer.beginLayerTransform(layer as RasterLayer, usesSelection), true);
+      const previewUpdated = previewStarted && (semanticLayer
+        ? this.renderer.updateSemanticLayerTransform(layer, sourceMatrix)
+        : this.renderer.updateLayerTransform(sourceMatrix));
+      if (!previewUpdated) {
+        if (semanticLayer) this.renderer.cancelSemanticLayerTransform(layer);
+        else this.renderer.cancelLayerTransform();
         return {
           ok: false,
           code: 'preview-unavailable',
@@ -195,6 +212,7 @@ export class TransformController {
         };
       }
       this.activeState = state;
+      this.activeSemanticLayer = semanticLayer ? layer : null;
       return {
         ok: true,
         state: this.state!,
@@ -207,7 +225,8 @@ export class TransformController {
           : null
       };
     } catch (reason) {
-      this.renderer.cancelLayerTransform();
+      if (semanticLayer) this.renderer.cancelSemanticLayerTransform(layer);
+      else this.renderer.cancelLayerTransform();
       return {
         ok: false,
         code: 'renderer-error',
@@ -219,18 +238,18 @@ export class TransformController {
   }
 
   update(matrix: AffineMatrix): TransformSessionState | null {
-    if (
-      !this.activeState
-      || !this.renderer.updateLayerTransform(
-        multiplyMatrices(matrix, this.activeState.sourceMatrix)
-      )
-    ) return null;
+    if (!this.activeState) return null;
+    const nextTransform = multiplyMatrices(matrix, this.activeState.sourceMatrix);
+    const previewUpdated = this.activeState.previewKind === 'semantic'
+      ? this.updateSemanticPreview(this.activeState.layerId, nextTransform)
+      : this.renderer.updateLayerTransform(nextTransform);
+    if (!previewUpdated) return null;
     this.activeState = { ...this.activeState, matrix: { ...matrix }, projectiveQuad: null };
     return this.state;
   }
 
   updateProjective(destination: TransformQuad): TransformSessionState | null {
-    if (!this.activeState) return null;
+    if (!this.activeState || this.activeState.previewKind === 'semantic') return null;
     const source = rectToQuad(this.activeState.sourceContentBounds);
     if (!this.renderer.updateLayerProjectiveTransform(source, destination)) return null;
     this.activeState = {
@@ -247,20 +266,22 @@ export class TransformController {
     commit: boolean
   ): FinishTransformResult {
     const state = this.activeState;
+    const semanticLayer = this.activeSemanticLayer;
     this.launchRevision += 1;
     this.activeState = null;
+    this.activeSemanticLayer = null;
     if (!state) return { kind: 'unchanged' };
     if (
       !commit
       || !document
       || (!state.projectiveQuad && matrixApproximatelyEqual(state.matrix, identityMatrix()))
     ) {
-      this.renderer.cancelLayerTransform();
+      this.cancelPreview(state, semanticLayer);
       return { kind: commit ? 'unchanged' : 'cancelled' };
     }
 
     if (state.sourceKind === 'layer' && !state.projectiveQuad) {
-      this.renderer.cancelLayerTransform();
+      this.cancelPreview(state, semanticLayer);
       return {
         kind: 'layer',
         beforeDocument: document,
@@ -310,6 +331,19 @@ export class TransformController {
       layerId: state.layerId,
       pixelEdit
     };
+  }
+
+  private updateSemanticPreview(layerId: LayerId, matrix: AffineMatrix): boolean {
+    const layer = this.activeSemanticLayer?.id === layerId ? this.activeSemanticLayer : null;
+    return Boolean(layer && this.renderer.updateSemanticLayerTransform(layer, matrix));
+  }
+
+  private cancelPreview(state: TransformSessionState, semanticLayer: LayerNode | null): void {
+    if (state.previewKind === 'raster') {
+      this.renderer.cancelLayerTransform();
+      return;
+    }
+    if (semanticLayer) this.renderer.cancelSemanticLayerTransform(semanticLayer);
   }
 }
 

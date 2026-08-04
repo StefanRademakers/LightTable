@@ -18,7 +18,8 @@ describe('buildTransformEditingFrame', () => {
       sourceMatrix,
       matrix: translationMatrix(5, 7),
       projectiveQuad: null,
-      sourceKind: 'layer'
+      sourceKind: 'layer',
+      previewKind: 'raster'
     };
 
     const frame = buildTransformEditingFrame(state, 1);

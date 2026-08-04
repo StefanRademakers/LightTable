@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createImageDocument,
+  createTextLayerNode,
   type RasterLayer
 } from '../../../editor/document/documentTypes';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 import {
@@ -34,7 +36,11 @@ const renderer = (): TransformRendererPort => ({
   updateLayerTransform: vi.fn(() => true),
   updateLayerProjectiveTransform: vi.fn(() => true),
   commitLayerTransform: vi.fn(pixelEdit),
-  cancelLayerTransform: vi.fn()
+  cancelLayerTransform: vi.fn(),
+  measureSemanticLayerContent: vi.fn(async () => coverage),
+  beginSemanticLayerTransform: vi.fn(() => true),
+  updateSemanticLayerTransform: vi.fn(() => true),
+  cancelSemanticLayerTransform: vi.fn()
 });
 
 const selection = (): SelectionOperation[] => [{
@@ -46,6 +52,30 @@ const selection = (): SelectionOperation[] => [{
 }];
 
 describe('TransformController', () => {
+  it('previews and commits text transforms semantically without a pixel edit', async () => {
+    const document = createImageDocument('Text transform', 320, 180, 'asset');
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
+    document.layers = [text];
+    document.activeLayerId = text.id;
+    const port = renderer();
+    const controller = new TransformController(port);
+
+    const launch = await controller.begin(document, []);
+    expect(launch.ok).toBe(true);
+    if (launch.ok) expect(launch.state.previewKind).toBe('semantic');
+    expect(port.beginSemanticLayerTransform).toHaveBeenCalledWith(text);
+
+    controller.update(translationMatrix(18, 7));
+    const result = controller.finish(document, [], true);
+
+    expect(result.kind).toBe('layer');
+    if (result.kind === 'layer') {
+      expect(result.afterDocument.layers[0]?.transform).toEqual(translationMatrix(18, 7));
+    }
+    expect(port.commitLayerTransform).not.toHaveBeenCalled();
+    expect(port.cancelSemanticLayerTransform).toHaveBeenCalledWith(text);
+  });
+
   it('starts a selected-pixel preview only for an identity layer transform', async () => {
     const document = createImageDocument('Transform', 320, 180, 'asset');
     const port = renderer();
