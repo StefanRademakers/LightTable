@@ -1,6 +1,6 @@
 # Task 048 - Missing-font text recovery
 
-Status: in progress
+Status: done
 
 Native LightTable, PSD, PDF and AI text with unavailable fonts must remain
 semantically recoverable. A retained bounded raster preview provides visual
@@ -40,13 +40,25 @@ representation of the layer.
 
 - [x] The EHS template corpus exposes unavailable Photoshop fonts as text layers
   with a preview rather than raster-only layers where semantics are supported.
-- [ ] A native LightTable file created with a temporarily available font reopens
+- [x] A native LightTable file created with a temporarily available font reopens
   visually from its cached preview when that font is absent, then becomes native
   editable text after Replace without losing its runs/layout/path.
 - [x] Cancel changes nothing; Replace produces editable text; Manage resolves
   repeated missing fonts across the document without changing runs that use a
   different available face.
-- [ ] Mixed available/missing runs, paragraph text, point text, rotations and
+- [x] Mixed available/missing runs, paragraph text, point text, rotations and
   text-on-path have focused tests.
-- [ ] Web remains functional with bundled/document fonts; desktop system fonts
+- [x] Web remains functional with bundled/document fonts; desktop system fonts
   integrate through Task 046 without a second rendering path.
+
+## Afgerond
+
+- Native v6 roundtriptests openen een system-fontlaag zonder fontbytes opnieuw
+  vanaf de actuele bounded preview en houden de semantische Flow-bron intact.
+- Dezelfde testmatrix dekt point, paragraph, een 90-graden affine, mixed
+  available/missing runs en text-on-path inclusief richting, side en offsets.
+- Replace behoudt layout, transform, path en niet-doelruns, maakt de preview
+  niet-authoritatief en registreert nu ook het vervangende font in de canonieke
+  document-assets. Daarmee blijven native save/reopen en export betrouwbaar.
+- Task 046 levert de optionele desktopprovider; de webhost houdt dezelfde
+  registry en WASM/WebGPU-route zonder desktop-API-verplichting.

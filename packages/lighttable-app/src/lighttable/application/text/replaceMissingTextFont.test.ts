@@ -70,6 +70,7 @@ describe('replaceMissingTextFont', () => {
     ]);
     expect(result.text.revisions.font).toBeGreaterThan(layer.text.revisions.font);
     expect(layerDerivedPreviewIsCurrent(result)).toBe(false);
+    expect(replaced.assets.fonts).toContainEqual(replacement);
   });
 
   it('leaves non-text targets unchanged', () => {
@@ -126,5 +127,6 @@ describe('replaceMissingTextFont', () => {
     expect(layer.text.source.styleRuns[0]?.requestedFont.preferredAsset?.assetId)
       .toBe('replacement');
     expect(layer.text.source.styleRuns[1]?.requestedFont).toEqual({ families: ['Inter'] });
+    expect(replaced.assets.fonts).toContainEqual(replacement);
   });
 });

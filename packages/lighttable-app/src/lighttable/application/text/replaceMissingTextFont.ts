@@ -39,7 +39,7 @@ export const replaceMissingTextFont = (
       ? { ...run, ...patch }
       : run
   ) as Run;
-  return applyTextLayerDataMutation(document, layerId, {
+  const changed = applyTextLayerDataMutation(document, layerId, {
     ...layer.text,
     source: {
       ...layer.text.source,
@@ -49,6 +49,16 @@ export const replaceMissingTextFont = (
       } : {})
     }
   });
+  if (changed === document || changed.assets.fonts.some((font) =>
+    font.fingerprintSha256 === asset.fingerprintSha256 && font.faceIndex === asset.faceIndex
+  )) return changed;
+  return {
+    ...changed,
+    assets: {
+      ...changed.assets,
+      fonts: [...changed.assets.fonts, structuredClone(asset)]
+    }
+  };
 };
 
 /** Replaces a document font across several editable layers as one snapshot. */
