@@ -240,28 +240,6 @@ fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
   return foreground;
 }
 
-fn blendColor(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
-  // Photoshop/PDF blend functions operate in the document's blend colour
-  // space. LightTable stores and filters textures in linear light, so run the
-  // blend equation in sRGB and convert its result back before compositing.
-  let backgroundEncoded = vec3f(
-    linearToBlendChannel(background.r),
-    linearToBlendChannel(background.g),
-    linearToBlendChannel(background.b)
-  );
-  let foregroundEncoded = vec3f(
-    linearToBlendChannel(foreground.r),
-    linearToBlendChannel(foreground.g),
-    linearToBlendChannel(foreground.b)
-  );
-  let encoded = clamp(blendColorEncoded(backgroundEncoded, foregroundEncoded, mode), vec3f(0.0), vec3f(1.0));
-  return vec3f(
-    blendToLinearChannel(encoded.r),
-    blendToLinearChannel(encoded.g),
-    blendToLinearChannel(encoded.b)
-  );
-}
-
 fn linearStraightToBlend(color: vec3f) -> vec3f {
   return vec3f(
     linearToBlendChannel(color.r),
