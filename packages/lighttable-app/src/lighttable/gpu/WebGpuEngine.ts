@@ -610,6 +610,12 @@ export class WebGpuEngine {
     return changed;
   }
 
+  setSemanticLayerInteraction(layer: LayerNode, active: boolean) {
+    return layer.type === 'text'
+      ? this.documentRenderer?.setTextLayerInteraction(layer.id, active) ?? false
+      : false;
+  }
+
   async alignLayersTranslation(
     referenceLayerId: LayerId,
     targetLayerId: LayerId,

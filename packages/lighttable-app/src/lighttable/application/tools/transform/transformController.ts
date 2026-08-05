@@ -43,6 +43,7 @@ export interface TransformRendererPort {
   beginSemanticLayerTransform(layer: LayerNode): boolean;
   updateSemanticLayerTransform(layer: LayerNode, matrix: AffineMatrix): boolean;
   cancelSemanticLayerTransform(layer: LayerNode): boolean | void;
+  setSemanticLayerInteraction(layer: LayerNode, active: boolean): boolean | void;
 }
 
 export type BeginTransformResult =
@@ -206,7 +207,10 @@ export class TransformController {
         ? this.renderer.updateSemanticLayerTransform(layer, sourceMatrix)
         : this.renderer.updateLayerTransform(sourceMatrix));
       if (!previewUpdated) {
-        if (semanticLayer) this.renderer.cancelSemanticLayerTransform(layer);
+        if (semanticLayer) {
+          this.renderer.cancelSemanticLayerTransform(layer);
+          this.renderer.setSemanticLayerInteraction(layer, false);
+        }
         else this.renderer.cancelLayerTransform();
         return {
           ok: false,
@@ -214,6 +218,7 @@ export class TransformController {
           message: 'The transform preview could not be started.'
         };
       }
+      if (semanticLayer) this.renderer.setSemanticLayerInteraction(layer, true);
       this.activeState = state;
       this.activeSemanticLayer = semanticLayer ? layer : null;
       return {
@@ -228,7 +233,10 @@ export class TransformController {
           : null
       };
     } catch (reason) {
-      if (semanticLayer) this.renderer.cancelSemanticLayerTransform(layer);
+      if (semanticLayer) {
+        this.renderer.cancelSemanticLayerTransform(layer);
+        this.renderer.setSemanticLayerInteraction(layer, false);
+      }
       else this.renderer.cancelLayerTransform();
       return {
         ok: false,
@@ -359,7 +367,10 @@ export class TransformController {
       this.renderer.cancelLayerTransform();
       return;
     }
-    if (semanticLayer) this.renderer.cancelSemanticLayerTransform(semanticLayer);
+    if (semanticLayer) {
+      this.renderer.cancelSemanticLayerTransform(semanticLayer);
+      this.renderer.setSemanticLayerInteraction(semanticLayer, false);
+    }
   }
 }
 

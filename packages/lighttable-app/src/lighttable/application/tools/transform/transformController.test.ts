@@ -41,7 +41,8 @@ const renderer = (): TransformRendererPort => ({
   measureSemanticLayerContent: vi.fn(async () => coverage),
   beginSemanticLayerTransform: vi.fn(() => true),
   updateSemanticLayerTransform: vi.fn(() => true),
-  cancelSemanticLayerTransform: vi.fn()
+  cancelSemanticLayerTransform: vi.fn(),
+  setSemanticLayerInteraction: vi.fn(() => true)
 });
 
 const selection = (): SelectionOperation[] => [{
@@ -65,6 +66,7 @@ describe('TransformController', () => {
     expect(launch.ok).toBe(true);
     if (launch.ok) expect(launch.state.previewKind).toBe('semantic');
     expect(port.beginSemanticLayerTransform).toHaveBeenCalledWith(text);
+    expect(port.setSemanticLayerInteraction).toHaveBeenCalledWith(text, true);
 
     controller.update(translationMatrix(18, 7));
     const result = controller.finish(document, [], true);
@@ -75,6 +77,7 @@ describe('TransformController', () => {
     }
     expect(port.commitLayerTransform).not.toHaveBeenCalled();
     expect(port.cancelSemanticLayerTransform).toHaveBeenCalledWith(text);
+    expect(port.setSemanticLayerInteraction).toHaveBeenLastCalledWith(text, false);
   });
 
   it('starts a selected-pixel preview only for an identity layer transform', async () => {
