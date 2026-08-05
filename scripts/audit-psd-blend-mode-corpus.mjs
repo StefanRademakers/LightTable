@@ -98,7 +98,7 @@ for (const [index, entry] of cases.entries()) {
     const documentId = state?.activeDocumentId;
     if (!documentId) throw new Error('No active document.');
     const layers = await driver.queryLayers(documentId) ?? [];
-    const blendLayer = layers.find((layer) => layer.name === `Blend ${entry.id}`);
+    const blendLayer = layers.find((layer) => layer.name === (entry.layerName ?? `Blend ${entry.id}`));
     if (!blendLayer) throw new Error('Blend test layer was not imported.');
     result.imported = { blendMode: blendLayer.blendMode, opacity: blendLayer.opacity,
       fillOpacity: blendLayer.fillOpacity };

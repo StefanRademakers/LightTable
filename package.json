@@ -42,6 +42,7 @@
     "capture:psd-side-by-side": "node scripts/capture-psd-side-by-side.mjs",
     "report:side-by-side-gallery": "node scripts/create-side-by-side-gallery.mjs",
     "generate:psd-blend-corpus": "node scripts/generate-psd-blend-mode-corpus.mjs",
+    "generate:psd-blend-color-matrix": "node scripts/generate-psd-blend-color-matrix.mjs",
     "audit:psd-blend-corpus": "node scripts/audit-psd-blend-mode-corpus.mjs",
     "audit:psd-blend-corpus:build": "npm run package:desktop:verify && npm run audit:psd-blend-corpus --",
     "smoke:desktop:zoom": "node scripts/smoke-desktop-zoom.mjs",
