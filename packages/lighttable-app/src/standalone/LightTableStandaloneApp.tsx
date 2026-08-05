@@ -34,6 +34,10 @@ interface LightTableStandaloneAppProps {
   host?: LightTableHost;
 }
 
+export const recentFilesForLauncher = (
+  recentFiles: readonly LightTableRecentFile[]
+): readonly LightTableRecentFile[] => recentFiles.slice(0, 15);
+
 /**
  * Host-neutral workspace shell.
  *
@@ -111,7 +115,9 @@ export function LightTableStandaloneApp({
     }
   }, [host]);
 
-  useEffect(() => { void refreshRecentFiles(); }, [refreshRecentFiles]);
+  useEffect(() => {
+    if (snapshot.documentOrder.length === 0) void refreshRecentFiles();
+  }, [refreshRecentFiles, snapshot.documentOrder.length]);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
@@ -244,7 +250,7 @@ export function LightTableStandaloneApp({
             <section className="lighttable-launcher__recent-section">
               <h2>Recent files</h2>
               <div className="lighttable-launcher__recents">
-                {recentFiles.slice(0, 4).map((recent) => (
+                {recentFilesForLauncher(recentFiles).map((recent) => (
                   <button key={recent.id} type="button" disabled={opening} onClick={() => void openRecentDocument(recent.id)}>
                     <span className="lighttable-launcher__recent-preview">
                       {recent.thumbnailUrl ? <img src={recent.thumbnailUrl} alt="" /> : <span>No preview</span>}

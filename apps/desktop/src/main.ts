@@ -388,6 +388,7 @@ void app.whenReady().then(async () => {
         : await dialog.showSaveDialog(options);
     if (result.canceled || !result.filePath) return false;
     await writeFile(result.filePath, payload.bytes);
+    await rememberRecentFile(result.filePath);
     return true;
   });
 
