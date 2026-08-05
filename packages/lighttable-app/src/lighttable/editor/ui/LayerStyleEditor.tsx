@@ -91,6 +91,21 @@ const ColorField: React.FC<{
   </label>
 );
 
+const ColorSwatch: React.FC<{
+  label: string;
+  value: LayerStyleColor;
+  onChange: (color: LayerStyleColor) => void;
+}> = ({ label, value, onChange }) => (
+  <label className="lighttable-style-shadow-color" title={label}>
+    <input
+      type="color"
+      value={colorHex(value)}
+      aria-label={label}
+      onChange={(event) => onChange(parseHexColor(event.currentTarget.value, value.a))}
+    />
+  </label>
+);
+
 const NumberSlider: React.FC<{
   label: string;
   value: number;
@@ -205,8 +220,7 @@ const AngleField: React.FC<{
   };
 
   return (
-    <label className="lighttable-style-angle">
-      <span>{label}</span>
+    <div className="lighttable-style-angle">
       <span className="lighttable-style-angle__controls">
         <div
           ref={dialRef}
@@ -273,7 +287,7 @@ const AngleField: React.FC<{
           <span>°</span>
         </span>
       </span>
-    </label>
+    </div>
   );
 };
 
@@ -386,13 +400,6 @@ const DropShadowControls: React.FC<{
         resetValue={30}
         onChange={(distance) => patch({ distance })}
       />
-      <ColorField label="Color" value={effect.color} onChange={(color) => patch({ color })} />
-      <AngleField
-        label="Angle"
-        value={effect.angle}
-        resetValue={120}
-        onChange={(angle) => patch({ angle })}
-      />
       <NumberSlider
         label="Opacity"
         value={effect.opacity * 100}
@@ -402,6 +409,19 @@ const DropShadowControls: React.FC<{
         resetValue={35}
         onChange={(opacity) => patch({ opacity: opacity / 100 })}
       />
+      <div className="lighttable-style-shadow-appearance">
+        <ColorSwatch
+          label="Shadow color"
+          value={effect.color}
+          onChange={(color) => patch({ color })}
+        />
+        <AngleField
+          label="Angle"
+          value={effect.angle}
+          resetValue={120}
+          onChange={(angle) => patch({ angle })}
+        />
+      </div>
     </div>
     <details className="lighttable-style-advanced">
       <summary>Advanced</summary>
@@ -858,15 +878,15 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
       aria-modal={mode === 'dialog' ? true : undefined}
       aria-label="Layer Style"
     >
-      <header>
-        <div>
-          <strong>Layer Style</strong>
-          <span>{layerName}</span>
-        </div>
-        {mode === 'dialog' ? (
+      {mode === 'dialog' ? (
+        <header>
+          <div>
+            <strong>Layer Style</strong>
+            <span>{layerName}</span>
+          </div>
           <button type="button" onClick={onCancel} aria-label="Close Layer Style editor">×</button>
-        ) : null}
-      </header>
+        </header>
+      ) : null}
       <div className="lighttable-style-editor__body">
         <aside>
           <label className="lighttable-style-stack-toggle">

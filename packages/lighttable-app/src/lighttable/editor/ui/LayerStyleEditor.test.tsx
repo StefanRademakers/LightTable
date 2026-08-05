@@ -22,6 +22,8 @@ describe('LayerStyleEditor', () => {
 
     expect(markup).toContain('role="region"');
     expect(markup).toContain('lighttable-style-editor--panel');
+    expect(markup).not.toContain('<header>');
+    expect(markup).not.toContain('>Shape<');
     expect(markup).not.toContain('aria-modal="true"');
     expect(markup).not.toContain('>Cancel<');
     expect(markup).not.toContain('>OK<');
@@ -35,6 +37,8 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('role="slider"');
     expect(markup).toContain('aria-label="Angle"');
     expect(markup).toContain('aria-label="Angle degrees"');
+    expect(markup).toContain('aria-label="Shadow color"');
+    expect(markup).not.toContain('<span>Color</span>');
     expect(markup).toContain('<summary>Advanced</summary>');
     expect(markup).toContain('title="Spread"');
   });

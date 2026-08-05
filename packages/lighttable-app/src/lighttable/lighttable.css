@@ -2562,7 +2562,7 @@
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  grid-template-rows: 42px minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .lighttable-style-editor--panel .lighttable-style-editor__body {
@@ -2854,12 +2854,33 @@
 }
 
 .lighttable-style-angle {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: 10px;
   color: var(--lt-text-secondary);
   font-size: var(--lt-type-label);
+}
+
+.lighttable-style-shadow-appearance {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lighttable-style-shadow-color {
+  display: flex;
+  align-items: center;
+}
+
+.lighttable-style-shadow-color input {
+  width: 66px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  background: var(--lt-surface-panel);
+  cursor: pointer;
 }
 
 .lighttable-style-angle__controls,
