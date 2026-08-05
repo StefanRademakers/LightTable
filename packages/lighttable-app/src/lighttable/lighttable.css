@@ -256,7 +256,7 @@
 
 .lighttable-font-picker__menu {
   position: fixed;
-  z-index: 1300;
+  z-index: 10030;
   width: 244px;
   padding: 6px;
   border: 1px solid var(--lt-border-strong);

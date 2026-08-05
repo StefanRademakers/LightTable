@@ -210,11 +210,13 @@ const TextFontPicker: React.FC<{
     <button ref={anchorRef} type="button" className="lighttable-font-picker__trigger"
       disabled={disabled} aria-haspopup="listbox" aria-expanded={open}
       title={placeholder ?? value}
+      onPointerDown={(event) => event.stopPropagation()}
       onClick={() => { setQuery(''); setOpen((current) => !current); }}>
       <span>{placeholder ?? value}</span><span aria-hidden="true">▾</span>
     </button>
     {open ? createPortal(
       <div className="lighttable-font-picker__menu" style={position}
+        onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key !== 'Escape') return;
           event.preventDefault(); setOpen(false); anchorRef.current?.focus();
