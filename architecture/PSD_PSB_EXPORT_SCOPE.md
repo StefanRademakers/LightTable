@@ -1,19 +1,18 @@
 # PSD/PSB export scope
 
-Status: approved implementation contract, 2026-08-04.
+Status: PSD release candidate implemented, 2026-08-05; PSB remains gated.
 
-LightTable does not currently write PSD or PSB. `Save LightTable` remains the
-only editable native save operation. A future Photoshop deliverable is exposed
-as `Export PSD`, never as `Save PSD`, until verified round-trip editing can
-preserve every source construct without loss.
+LightTable now writes the verified 8-bit RGB PSD subset through `Export
+Photoshop PSD...`. `Save LightTable` remains the native editable save operation;
+PSD export does not replace it or mark the native document clean.
 
 ## First export milestone
 
-The first writer targets PSD version 1 only and must always write a valid
+The release-candidate writer targets PSD version 1 and always writes a valid
 merged composite. It may emit only features for which LightTable has a tested,
 canonical representation and a Photoshop reopen oracle:
 
-- RGB documents at 8 or 16 bits per channel within PSD v1 dimension limits;
+- 8-bit RGB documents within PSD v1 dimension limits;
 - ordered groups and raster layers, including layer-local bounds outside the
   canvas, visibility, opacity, fill opacity and supported blend modes;
 - raster and vector masks whose coordinate mapping is lossless;
@@ -22,11 +21,12 @@ canonical representation and a Photoshop reopen oracle:
   references survive Photoshop reopen without a semantic downgrade;
 - supported layer effects only after descriptor and rendered parity gates pass.
 
-The writer is fail-closed. Unsupported adjustment layers, smart objects,
+The writer is fail-closed. Unsupported native adjustment layers, smart objects,
 patterns, gradients, effects, text constructs, color modes or interleaving
-must be listed before export. The user may explicitly choose a flattened PSD
-deliverable, but LightTable must not silently rasterize individual unsupported
-layers while presenting the result as editable parity.
+are collected during projection and stop the current editable export. A future
+preflight may offer an explicitly flattened deliverable, but LightTable does
+not silently rasterize individual unsupported layers while presenting the
+result as editable parity.
 
 ## Preservation and round-trip policy
 
@@ -62,8 +62,9 @@ limits than Photoshop when those limits are disclosed before opening/export.
 - `Save LightTable`: editable native document.
 - `Quick Export PNG`: flattened PNG deliverable.
 - `Export PDF`: current preflighted PDF modes.
-- `Export PSD`: absent until the first milestone passes; when enabled it opens
-  a compatibility preflight and never replaces the native save command.
+- `Export Photoshop PSD...`: enabled for ready documents, runs the same
+  fail-closed projection used by command automation and never replaces the
+  native save command.
 
 The runtime format-capability registry, File menu and Format Support dialog
 must derive the same availability and limitation text. Documentation alone

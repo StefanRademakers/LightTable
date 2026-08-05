@@ -31,6 +31,9 @@
     "audit:desktop:effects:build": "npm run package:desktop:verify && npm run audit:desktop:effects --",
     "smoke:desktop:commands": "node scripts/smoke-desktop-command-driver.mjs",
     "smoke:desktop:commands:build": "npm run package:desktop:verify && npm run smoke:desktop:commands --",
+    "smoke:desktop:psd-roundtrip": "node scripts/smoke-desktop-psd-roundtrip.mjs",
+    "smoke:desktop:psd-roundtrip:build": "npm run package:desktop:verify && npm run smoke:desktop:psd-roundtrip --",
+    "verify:psd-render-parity": "node scripts/compare-psd-render.mjs",
     "smoke:desktop:zoom": "node scripts/smoke-desktop-zoom.mjs",
     "smoke:desktop:zoom:build": "npm run package:desktop:verify && npm run smoke:desktop:zoom --",
     "smoke:desktop:line-tool": "node scripts/smoke-desktop-line-tool.mjs",
@@ -67,6 +70,8 @@
     "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
   },
   "devDependencies": {
-    "playwright-core": "^1.62.1"
+    "ag-psd": "^31.0.2",
+    "playwright-core": "^1.62.1",
+    "sharp": "^0.34.5"
   }
 }

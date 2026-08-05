@@ -77,7 +77,7 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 | Smart Object non-affine/warp | Yes | Descriptor | Preview | No | No | No | Failed semantic parity | Eight instances in EHS-401 require a canonical quadrilateral/warp contract. |
 | Smart Filters | Parser-dependent | No contract | Preview at best | No | No | No | Not covered | No fixture in this corpus. |
 | Gradient/pattern fill layers | Parser-dependent | Partial | Preview at best | **No complete contract** | No | No | Not covered | Core authoring parity is missing; do not confuse fill layers with Layer Style overlays. |
-| PSD/PSB write-back | N/A | N/A | N/A | N/A | N/A | **No** | No | Import and native LightTable save exist; editable Photoshop export does not. |
+| PSD/PSB write-back | Yes for verified subset | Yes | Photoshop-verified | Yes for flow text and supported vectors | File > Export Photoshop PSD | **PSD RC / PSB gated** | TextTest + shapes + projection fixtures | The 8-bit RGB PSD writer preserves the verified canonical subset and stops on known lossy projections. Smart Object payloads, native unsupported adjustments, pattern resources, arbitrary text-on-path authoring and PSB remain gated. |
 | Unknown Photoshop blocks | Partial | Partial | N/A | N/A | No | No | No | Warnings are reported, but original PSD bytes and block-complete roundtrip are not retained. |
 
 ## Corpus findings by impact
@@ -328,14 +328,24 @@ not distorted by changing row sizes. **Priority:** baseline UI.
 
 ### PSD-EXPORT-001 - Photoshop write-back
 
-**Gap:** No PSD/PSB writer maps LightTable's native tree back to editable
-Photoshop semantics.
+**Status:** PSD release candidate implemented 2026-08-05 for the verified
+8-bit RGB subset. The File menu, desktop host save route, web download route
+and command/artifact stack all use the same lazy worker writer.
 
-**Required order:** Define export capability reporting after the native model
-stabilizes. Every node must declare editable mapping, preserved payload,
-flatten-required or unsupported. Flattening is an explicit user decision.
+**Verified:** merged composite, ordered groups/raster bounds, opacity/fill,
+blend/clipping/locks, raster masks, editable flow text including affine
+transforms and imported path-text descriptors, editable vector paths,
+no-fill/fill/stroke/gradient state and the mapped Layer Style descriptors.
+`TextTest.psd` and `shapes.psd` survive LightTable -> Photoshop -> LightTable;
+Photoshop recognizes all fixture text as Text and all fixture vectors as
+Solid Fill shape layers. Composite deltas are recorded in
+`PSD_EXPORT_RELEASE_CANDIDATE.md`.
 
-**Priority:** Later; it must influence present storage contracts now.
+**Still gated:** Smart Object source embedding, PSD pattern resources, native
+adjustments without an imported Photoshop descriptor, newly authored arbitrary
+text-on-path resources, 16-bit write and representative PSB validation. Known
+lossy projections stop export instead of silently producing a misleading
+editable file.
 
 ## Canonical native-format rules
 

@@ -46,6 +46,20 @@ Unknown blocks are recorded with location and identifier. Import must not
 silently flatten, silently drop a mask/style/transform or report a comparison
 with zero sampled pixels as success.
 
+## Export contract
+
+The PSD release-candidate writer projects from the canonical document through
+the same adapter boundary. It writes a merged 8-bit RGB composite and editable
+descriptors only for the tested subset. Known lossy mappings are blocking
+compatibility findings, not console-only warnings. Desktop, web and command
+automation share this projection; Photoshop export never changes the native
+save target or clears native dirty state.
+
+Current evidence and explicit gates are recorded in
+`PSD_EXPORT_RELEASE_CANDIDATE.md`. PSB, Smart Object packages, PSD pattern
+resources and unsupported native adjustments remain outside the released
+writer boundary.
+
 ## Mapping to LightTable
 
 - Photoshop Adjustment Layer -> LightTable adjustment/Grade or Lens Fx layer
