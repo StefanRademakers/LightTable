@@ -32,14 +32,15 @@ history still has value. Keep temporary task notes out of this directory.
 8. [Photoshop interchange](PHOTOSHOP_INTERCHANGE.md)
 9. [Photoshop parity and missing features](PHOTOSHOP_PARITY_AND_MISSING_FEATURES.md)
 10. [PSD/PSB export scope](PSD_PSB_EXPORT_SCOPE.md)
-11. [PDF open and export audit](PDF_OPEN_AND_EXPORT_AUDIT.md)
-12. [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
-13. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
-14. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
-15. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
-16. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
-17. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
-18. [Change rules](CHANGE_RULES.md)
+11. [Photoshop layer-effects roundtrip corpus](PSD_LAYER_EFFECTS_ROUNDTRIP_CORPUS.md)
+12. [PDF open and export audit](PDF_OPEN_AND_EXPORT_AUDIT.md)
+13. [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
+14. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
+15. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
+16. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
+17. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
+18. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
+19. [Change rules](CHANGE_RULES.md)
 
 ## Directory roles
 

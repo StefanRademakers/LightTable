@@ -24,7 +24,7 @@ The merged composite is always present, while supported layers remain editable.
 | Text | Editable point and paragraph flow text, runs, paragraphs, affine transforms and warp fields | `D:\TextTest.psd` |
 | Imported text on path | Editable when the source TySh path descriptor and document TextFrameSet resource are preserved | `D:\TextTest.psd` |
 | Vectors | Editable Bezier paths, solid/gradient fill, no-fill state, stroke paint/width/cap/join/alignment/dash | `D:\shapes.psd` |
-| Layer Styles | Drop/inner shadow, glow, color/gradient overlays, color/gradient stroke, satin and bevel descriptor mapping | Unit descriptor roundtrip; pattern-backed styles remain gated |
+| Layer Styles | Drop/inner shadow, glow, color/gradient overlays, color/gradient stroke, satin and bevel descriptor mapping | 40-case Photoshop canonical roundtrip; pattern-backed styles remain gated |
 | Commands/hosts | File menu, Electron save, web download and command artifact | desktop Playwright smoke |
 
 ## Measured oracle results
@@ -38,6 +38,7 @@ renders it, saves a compatibility copy and that copy is reopened in LightTable.
 |---|---|---|
 | `D:\TextTest.psd` | 5/5 layers remain Photoshop Text layers, including rotations and imported path text | 0 pixels above 8/255; maximum delta 1/255 |
 | `D:\shapes.psd` | 4/4 vectors remain Photoshop Solid Fill shape layers; stroke-only shapes retain disabled dormant fill | 4 of 598,598 pixels above 8/255 (0.000668%); maximum delta 13/255 |
+| 40-case layer-effects corpus | 40/40 retain complete editable effect settings; LightTable export/reopen RMSE 0 | 0 structural failures; 8 explicitly retained visual-review cases |
 
 The comparison uses the source PSD embedded composite as reference and
 Photoshop's render of the LightTable export as candidate:
@@ -49,6 +50,8 @@ npm run verify:psd-render-parity -- D:\TextTest.psd <photoshop-render.png>
 
 `scripts/photoshop-psd-roundtrip.jsx` is the Photoshop open/render/save oracle;
 `scripts/compare-psd-render.mjs` enforces the visible-difference tolerance.
+The parameterized effects procedure and current residuals are documented in
+[Photoshop layer-effects roundtrip corpus](PSD_LAYER_EFFECTS_ROUNDTRIP_CORPUS.md).
 
 ## Explicitly gated after this RC
 
@@ -59,7 +62,8 @@ npm run verify:psd-render-parity -- D:\TextTest.psd <photoshop-render.png>
 - newly authored arbitrary text-on-path TextFrameSet generation;
 - independent simultaneous user and vector mask export;
 - a user-facing compatibility preflight with an explicit flattened-copy choice;
-- exhaustive multi-effect Photoshop render calibration across the effects corpus.
+- pattern-backed layer styles and the documented extreme spread/choke/bevel
+  calibration cases.
 
 These gaps are not silently flattened. The export error identifies the layer or
 feature that prevented a verified editable projection.
