@@ -263,6 +263,18 @@ describe('LightTable WGSL modules', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('blended * background.a * foreground.a');
   });
 
+  it('uses explicit Photoshop endpoints for the Color Dodge/Burn blend family', () => {
+    expect(LAYER_COMPOSITE_WGSL).toContain('if (foreground >= 1.0) { return 1.0; }');
+    expect(LAYER_COMPOSITE_WGSL).toContain('if (foreground <= 0.0) { return 0.0; }');
+    expect(LAYER_COMPOSITE_WGSL).toContain('colorBurn(background, vec3f(2.0) * foreground)');
+    expect(LAYER_COMPOSITE_WGSL).toContain(
+      'colorDodge(background, vec3f(2.0) * foreground - vec3f(1.0))'
+    );
+    expect(LAYER_COMPOSITE_WGSL).not.toContain(
+      'background / max(vec3f(2.0) * (vec3f(1.0) - foreground), vec3f(1e-6))'
+    );
+  });
+
   it('mixes an adjustment result through its opacity, semantic mask and clipping base', () => {
     expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('@group(0) @binding(4) var maskTexture');
     expect(ADJUSTMENT_LAYER_MIX_WGSL).toContain('@group(0) @binding(5) var clippingTexture');

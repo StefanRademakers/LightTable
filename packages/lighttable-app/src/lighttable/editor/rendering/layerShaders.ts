@@ -118,6 +118,32 @@ fn blendToLinearChannel(value: f32) -> f32 {
   return select(value / 12.92, pow((value + 0.055) / 1.055, 2.4), value > 0.04045);
 }
 
+fn colorDodgeChannel(background: f32, foreground: f32) -> f32 {
+  if (foreground >= 1.0) { return 1.0; }
+  return min(1.0, background / (1.0 - foreground));
+}
+
+fn colorBurnChannel(background: f32, foreground: f32) -> f32 {
+  if (foreground <= 0.0) { return 0.0; }
+  return 1.0 - min(1.0, (1.0 - background) / foreground);
+}
+
+fn colorDodge(background: vec3f, foreground: vec3f) -> vec3f {
+  return vec3f(
+    colorDodgeChannel(background.r, foreground.r),
+    colorDodgeChannel(background.g, foreground.g),
+    colorDodgeChannel(background.b, foreground.b)
+  );
+}
+
+fn colorBurn(background: vec3f, foreground: vec3f) -> vec3f {
+  return vec3f(
+    colorBurnChannel(background.r, foreground.r),
+    colorBurnChannel(background.g, foreground.g),
+    colorBurnChannel(background.b, foreground.b)
+  );
+}
+
 fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
   if (mode == 1) { return background * foreground; }
   if (mode == 2) { return vec3f(1.0) - (vec3f(1.0) - background) * (vec3f(1.0) - foreground); }
@@ -138,8 +164,8 @@ fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
   }
   if (mode == 6) { return min(background, foreground); }
   if (mode == 7) { return max(background, foreground); }
-  if (mode == 8) { return min(vec3f(1.0), background / max(vec3f(1e-6), vec3f(1.0) - foreground)); }
-  if (mode == 9) { return vec3f(1.0) - min(vec3f(1.0), (vec3f(1.0) - background) / max(foreground, vec3f(1e-6))); }
+  if (mode == 8) { return colorDodge(background, foreground); }
+  if (mode == 9) { return colorBurn(background, foreground); }
   if (mode == 10) { return min(vec3f(1.0), background + foreground); }
   if (mode == 11) { return abs(background - foreground); }
   if (mode == 12) { return setLuminance(setSaturation(foreground, saturation(background)), luminance(background)); }
@@ -154,14 +180,8 @@ fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
     return select(foreground, background, luminance(background) > luminance(foreground));
   }
   if (mode == 19) {
-    let burn = vec3f(1.0) - min(
-      vec3f(1.0),
-      (vec3f(1.0) - background) / max(vec3f(2.0) * foreground, vec3f(1e-6))
-    );
-    let dodge = min(
-      vec3f(1.0),
-      background / max(vec3f(2.0) * (vec3f(1.0) - foreground), vec3f(1e-6))
-    );
+    let burn = colorBurn(background, vec3f(2.0) * foreground);
+    let dodge = colorDodge(background, vec3f(2.0) * foreground - vec3f(1.0));
     return select(burn, dodge, foreground >= vec3f(0.5));
   }
   if (mode == 20) { return clamp(background + vec3f(2.0) * foreground - vec3f(1.0), vec3f(0.0), vec3f(1.0)); }
@@ -173,14 +193,8 @@ fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
     );
   }
   if (mode == 22) {
-    let burn = vec3f(1.0) - min(
-      vec3f(1.0),
-      (vec3f(1.0) - background) / max(vec3f(2.0) * foreground, vec3f(1e-6))
-    );
-    let dodge = min(
-      vec3f(1.0),
-      background / max(vec3f(2.0) * (vec3f(1.0) - foreground), vec3f(1e-6))
-    );
+    let burn = colorBurn(background, vec3f(2.0) * foreground);
+    let dodge = colorDodge(background, vec3f(2.0) * foreground - vec3f(1.0));
     let vivid = select(burn, dodge, foreground >= vec3f(0.5));
     return select(vec3f(0.0), vec3f(1.0), vivid >= vec3f(0.5));
   }
