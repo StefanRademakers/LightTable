@@ -43,6 +43,32 @@ const midpoint = (first: TransformPoint, second: TransformPoint): TransformPoint
   y: (first.y + second.y) / 2
 });
 
+const ROTATE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+    <path d="M8 13a9 9 0 1 1 1 9" fill="none" stroke="white" stroke-width="5" stroke-linecap="round"/>
+    <path d="M8 13 4 8m4 5 6-1" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M8 13a9 9 0 1 1 1 9" fill="none" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M8 13 4 8m4 5 6-1" fill="none" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`)}") 16 16, crosshair`;
+
+const resizeCursorCache = new Map<number, string>();
+const resizeCursorFor = (from: TransformPoint, opposite: TransformPoint) => {
+  const rawDegrees = Math.atan2(from.y - opposite.y, from.x - opposite.x) * 180 / Math.PI;
+  // A resize axis is bidirectional. Quantizing only limits unique browser
+  // cursor resources; it is visually sub-degree at cursor size.
+  const degrees = Math.round(((rawDegrees % 180) + 180) % 180);
+  const cached = resizeCursorCache.get(degrees);
+  if (cached) return cached;
+  const cursor = `url("data:image/svg+xml,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+      <g transform="rotate(${degrees} 16 16)" fill="white" stroke="#111" stroke-width="1.5" stroke-linejoin="round">
+        <path d="M3 16 10 10v4h12v-4l7 6-7 6v-4H10v4z"/>
+      </g>
+    </svg>`)}") 16 16, crosshair`;
+  resizeCursorCache.set(degrees, cursor);
+  return cursor;
+};
+
 export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   state,
   imageRect,
@@ -88,15 +114,15 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       center,
       rotation: { x: top.x + normal.x * 28 / Math.max(scale, 1e-6), y: top.y + normal.y * 28 / Math.max(scale, 1e-6) },
       handles: [
-        ['north-west', source[0], source[2], corners[0]],
-        ['north', midpoint(source[0], source[1]), midpoint(source[2], source[3]), midpoint(corners[0], corners[1])],
-        ['north-east', source[1], source[3], corners[1]],
-        ['east', midpoint(source[1], source[2]), midpoint(source[3], source[0]), midpoint(corners[1], corners[2])],
-        ['south-east', source[2], source[0], corners[2]],
-        ['south', midpoint(source[2], source[3]), midpoint(source[0], source[1]), midpoint(corners[2], corners[3])],
-        ['south-west', source[3], source[1], corners[3]],
-        ['west', midpoint(source[3], source[0]), midpoint(source[1], source[2]), midpoint(corners[3], corners[0])]
-      ] as Array<[TransformHandle, TransformPoint, TransformPoint, TransformPoint]>
+        ['north-west', source[0], source[2], corners[0], corners[2]],
+        ['north', midpoint(source[0], source[1]), midpoint(source[2], source[3]), midpoint(corners[0], corners[1]), midpoint(corners[2], corners[3])],
+        ['north-east', source[1], source[3], corners[1], corners[3]],
+        ['east', midpoint(source[1], source[2]), midpoint(source[3], source[0]), midpoint(corners[1], corners[2]), midpoint(corners[3], corners[0])],
+        ['south-east', source[2], source[0], corners[2], corners[0]],
+        ['south', midpoint(source[2], source[3]), midpoint(source[0], source[1]), midpoint(corners[2], corners[3]), midpoint(corners[0], corners[1])],
+        ['south-west', source[3], source[1], corners[3], corners[1]],
+        ['west', midpoint(source[3], source[0]), midpoint(source[1], source[2]), midpoint(corners[3], corners[0]), midpoint(corners[1], corners[2])]
+      ] as Array<[TransformHandle, TransformPoint, TransformPoint, TransformPoint, TransformPoint]>
     };
   }, [scale, state.matrix, state.projectiveQuad, state.sourceContentBounds, state.sourceMatrix]);
 
@@ -254,7 +280,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       />
       <line style={{ visibility: 'hidden' }} x1={top.x} y1={top.y} x2={rotation.x} y2={rotation.y} />
       <circle
-        style={{ fill: 'transparent', stroke: 'none', cursor: 'grab', pointerEvents: state.projectiveQuad ? 'none' : 'all' }}
+        style={{ fill: 'transparent', stroke: 'none', cursor: ROTATE_CURSOR, pointerEvents: state.projectiveQuad ? 'none' : 'all' }}
         cx={rotation.x}
         cy={rotation.y}
         r="12"
@@ -264,13 +290,14 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         <circle
           key={`corner-rotate-${index}`}
           className="lighttable-transform__corner-rotation-target"
+          style={{ cursor: ROTATE_CURSOR }}
           cx={target.x}
           cy={target.y}
           r="12"
           onPointerDown={(event) => begin(event, 'rotate')}
         />
       ))}
-      {geometry.handles.map(([handle, sourcePoint, anchor, point]) => {
+      {geometry.handles.map(([handle, sourcePoint, anchor, point, opposite]) => {
         const screen = toScreen(point);
         return (
           <rect
@@ -279,10 +306,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
               fill: 'transparent',
               stroke: 'none',
               pointerEvents: state.projectiveQuad && !['north-west', 'north-east', 'south-east', 'south-west'].includes(handle) ? 'none' : 'all',
-              cursor: handle === 'north' || handle === 'south' ? 'ns-resize'
-                : handle === 'east' || handle === 'west' ? 'ew-resize'
-                  : handle === 'north-west' || handle === 'south-east' ? 'nwse-resize'
-                    : 'nesw-resize'
+              cursor: resizeCursorFor(point, opposite)
             }}
             x={screen.x - 12}
             y={screen.y - 12}
