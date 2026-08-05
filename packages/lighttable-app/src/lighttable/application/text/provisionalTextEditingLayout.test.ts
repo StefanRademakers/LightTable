@@ -34,4 +34,10 @@ describe('provisional text editing layout', () => {
     expect(buildProvisionalTextEditingLayout({ ...layout, caretStops: [] }, 'abc', 'abcd', [4]))
       .toMatchObject({ caretStops: [] });
   });
+
+  it('moves the provisional caret to the next line immediately for Enter', () => {
+    const provisional = buildProvisionalTextEditingLayout(layout, 'abc', 'a\nbc', [2]);
+    expect(provisional.caretStops.at(-1)).toMatchObject({ x: 0, textOffset: 2 });
+    expect(provisional.caretStops.at(-1)?.y).toBeCloseTo(14.4);
+  });
 });

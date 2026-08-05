@@ -16,7 +16,24 @@ const commonSuffixLength = (left: string, right: string, prefix: number) => {
   return length;
 };
 
-const characterCount = (value: string) => Array.from(value).length;
+const advanceText = (
+  value: string,
+  origin: Pick<CaretStop, 'x' | 'y' | 'height'>,
+  advance: number,
+  lineStartX: number
+) => {
+  let x = origin.x;
+  let y = origin.y;
+  for (const character of Array.from(value)) {
+    if (character === '\n' || character === '\r') {
+      x = lineStartX;
+      y += Math.max(1, origin.height) * 1.2;
+    } else {
+      x += advance;
+    }
+  }
+  return { x, y };
+};
 
 interface ProvisionalLayoutMetrics {
   readonly stops: readonly CaretStop[];
@@ -93,14 +110,17 @@ export const buildProvisionalTextEditingLayout = (
   const suffix = commonSuffixLength(exactText, currentText, prefix);
   const oldChangeEnd = exactText.length - suffix;
   const newChangeEnd = currentText.length - suffix;
-  const insertedAdvance = characterCount(currentText.slice(prefix, newChangeEnd))
-    * advance;
   const startCaret = caretAt(stops, prefix);
   const oldEndCaret = caretAt(stops, oldChangeEnd);
   if (!startCaret || !oldEndCaret) return layout;
-  const removedAdvance = Math.abs(startCaret.y - oldEndCaret.y) < 0.5
-    ? oldEndCaret.x - startCaret.x : 0;
-  const shift = insertedAdvance - removedAdvance;
+  const lineStartX = layout.paragraphFrame?.bounds.x
+    ?? Math.min(...stops.filter((stop) => Math.abs(stop.y - startCaret.y) < 0.5)
+      .map((stop) => stop.x), startCaret.x);
+  const insertedEnd = advanceText(
+    currentText.slice(prefix, newChangeEnd), startCaret, advance, lineStartX
+  );
+  const shiftX = insertedEnd.x - oldEndCaret.x;
+  const shiftY = insertedEnd.y - oldEndCaret.y;
   const delta = currentText.length - exactText.length;
   const synthetic = [...new Set(offsets)].flatMap((requestedOffset) => {
     const offset = Math.max(0, Math.min(currentText.length, requestedOffset));
@@ -111,13 +131,17 @@ export const buildProvisionalTextEditingLayout = (
       x = base?.x ?? startCaret.x;
     } else if (offset < newChangeEnd) {
       base = startCaret;
-      x = startCaret.x + characterCount(currentText.slice(prefix, offset))
-        * advance;
+      const advanced = advanceText(
+        currentText.slice(prefix, offset), startCaret, advance, lineStartX
+      );
+      x = advanced.x;
     } else {
       base = caretAt(stops, offset - delta) ?? oldEndCaret;
-      x = base.x + shift;
+      x = base.x + shiftX;
     }
-    let y = base?.y ?? startCaret.y;
+    let y = offset > prefix && offset < newChangeEnd
+      ? advanceText(currentText.slice(prefix, offset), startCaret, advance, lineStartX).y
+      : (base?.y ?? startCaret.y) + (offset >= newChangeEnd ? shiftY : 0);
     const height = Math.max(1, base?.height ?? startCaret.height);
     const frame = layout.paragraphFrame?.bounds;
     if (frame && frame.width > 0 && x > frame.x + frame.width) {

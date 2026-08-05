@@ -227,6 +227,13 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
         if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
           event.preventDefault(); event.stopPropagation(); onCommit(); return;
         }
+        if (event.key === 'Enter' && !event.altKey) {
+          // Electron does not consistently dispatch beforeinput for Enter on
+          // the off-screen textarea. Own it here just like deletion so the
+          // semantic document and GPU overlay advance in the same event.
+          event.preventDefault(); event.stopPropagation();
+          onEdit({ kind: 'insert', text: '\n' }); return;
+        }
         const navigation = textInputNavigationFromKey(event);
         if (!navigation) return;
         event.preventDefault(); event.stopPropagation();

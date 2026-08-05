@@ -63,6 +63,8 @@ const diagnostics = {
   dragSelection: null,
   doubleClickSelection: null,
   keyboardWordSelection: null,
+  immediateEditKeys: null,
+  fontSearch: null,
   debugPanel: '',
   runtime: null,
   geometry: null,
@@ -160,6 +162,36 @@ try {
     const bridge = document.querySelector('.lighttable-text-input-bridge');
     return bridge instanceof HTMLTextAreaElement && bridge.value === expected;
   }, diagnostics.finalText, { timeout: 30_000 });
+
+  // Delete and Enter must update the semantic input in the same gesture, not
+  // hitch a pending edit onto the next key or pointer event.
+  await input.press('Backspace');
+  const afterDelete = diagnostics.finalText.slice(0, -1);
+  await window.waitForFunction((expected) => document
+    .querySelector('.lighttable-text-input-bridge')?.value === expected,
+  afterDelete, { timeout: 1_000 });
+  await input.pressSequentially(diagnostics.finalText.at(-1));
+  await input.press('Enter');
+  await window.waitForFunction((expected) => document
+    .querySelector('.lighttable-text-input-bridge')?.value === expected,
+  `${diagnostics.finalText}\n`, { timeout: 1_000 });
+  await input.press('Backspace');
+  await window.waitForFunction((expected) => document
+    .querySelector('.lighttable-text-input-bridge')?.value === expected,
+  diagnostics.finalText, { timeout: 1_000 });
+  diagnostics.immediateEditKeys = { delete: true, enter: true };
+
+  const fontTrigger = window.locator('.lighttable-font-picker__trigger');
+  await fontTrigger.click();
+  const fontSearch = window.getByRole('searchbox', { name: 'Search fonts' });
+  await fontSearch.fill('Source Serif');
+  const matchingFonts = await window.locator('.lighttable-font-picker__option').allTextContents();
+  if (!matchingFonts.length || matchingFonts.some((family) => !/source serif/i.test(family))) {
+    throw new Error(`Font search returned unexpected options: ${matchingFonts.join(', ')}`);
+  }
+  diagnostics.fontSearch = { query: 'Source Serif', matches: matchingFonts };
+  await fontSearch.press('Escape');
+  await input.focus();
 
   // Measure the user-visible bridge update, not Playwright command latency.
   // Each sample dispatches one real React keyboard event and waits until the
@@ -412,6 +444,9 @@ try {
   if (/unavailable|failed|error/i.test(diagnostics.status)) throw new Error(diagnostics.status);
 } catch (error) {
   failure = error;
+  diagnostics.bridgeTextOnFailure = window && !window.isClosed()
+    ? await window.locator('.lighttable-text-input-bridge').inputValue().catch(() => null)
+    : null;
   diagnostics.failure = error instanceof Error ? (error.stack ?? error.message) : String(error);
 } finally {
   if (window && !window.isClosed()) {

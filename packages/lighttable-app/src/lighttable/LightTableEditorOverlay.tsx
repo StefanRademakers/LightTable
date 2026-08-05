@@ -1039,14 +1039,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textDocumentPublicationFrameRef.current = window.requestAnimationFrame(() => {
       textDocumentPublicationFrameRef.current = null;
       const pending = pendingTextDocumentRef.current;
-      if (pending && imageDocumentRef.current === pending) {
-        // This frame has consumed the newest edit. Leaving it marked pending
-        // makes the next history/navigation action publish the same document
-        // again and can restart shaping long after the visual edit completed.
-        pendingTextDocumentRef.current = null;
-        engineRef.current?.setDocument(pending);
-        setImageDocument(pending);
-      }
+      pendingTextDocumentRef.current = null;
+      if (!pending) return;
+      // React can render the previous external-store snapshot between the
+      // edit and this frame, which temporarily rewinds imageDocumentRef. The
+      // dedicated pending slot is the authoritative newest text document.
+      imageDocumentRef.current = pending;
+      engineRef.current?.setDocument(pending);
+      setImageDocument(pending);
     });
   };
   const flushTextEditingDocument = () => {
@@ -2286,7 +2286,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const beginParagraphTextCreation = (
     pointerId: number,
-    origin: { x: number; y: number }
+    origin: { x: number; y: number },
+    clickCount = 1,
+    extend = false
   ) => {
     const document = imageDocumentRef.current;
     if (!document || !engineRef.current || rendererLifecycle.getSnapshot().status !== 'ready') {
@@ -2298,7 +2300,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       origin,
       8 / Math.max(activeScale, 1e-6)
     )) return true;
-    if (beginExistingFlowTextEditing(origin, 'any', pointerId)) return true;
+    if (beginExistingFlowTextEditing(origin, 'any', pointerId, clickCount, extend)) return true;
     pointTextController.cancel();
     textEditingController.finish();
     paragraphCanvasCreationPendingRef.current = false;
@@ -2475,8 +2477,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       beginParagraph: (pointerId, point, temporaryMove, clickCount, extend) => (temporaryMove
         && textLayerMoveGestureController.begin(pointerId, point)) || pathTextHandleController.begin(
           pointerId, point, 8 / Math.max(activeScale, 1e-6)
-        ) || beginExistingFlowTextEditing(point, 'any', pointerId, clickCount, extend)
-          || beginParagraphTextCreation(pointerId, point),
+        ) || beginParagraphTextCreation(pointerId, point, clickCount, extend),
       owns: (pointerId) => textLayerMoveGestureController.owns(pointerId)
         || textSelectionGestureController.owns(pointerId)
         || pathTextHandleController.owns(pointerId)

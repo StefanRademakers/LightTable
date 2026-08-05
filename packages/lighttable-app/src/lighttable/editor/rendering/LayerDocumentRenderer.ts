@@ -16,6 +16,9 @@ import type {
 import type { SelectionCoverageBounds } from '../selection/selectionCoverage';
 import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
+import { findDocumentLayer } from '../document/layerTree';
+import { invertMatrix, multiplyMatrices } from '../tools/transform/affine';
+import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
 import {
   identityAffineMatrix,
   type RasterRenderContract
@@ -34,8 +37,24 @@ import {
   type TextRenderPresentationSnapshot
 } from './createLayerDocumentRendererRuntime';
 
+export const projectTextEditingGeometryPreview = (
+  presentation: TextLayerEditingLayout,
+  canonicalLocal: AffineMatrix,
+  previewLocal: AffineMatrix
+): TextLayerEditingLayout => {
+  const inverseLocal = invertMatrix(canonicalLocal);
+  if (!inverseLocal) return presentation;
+  return {
+    ...presentation,
+    localToDocument: multiplyMatrices(
+      multiplyMatrices(presentation.localToDocument, inverseLocal), previewLocal
+    )
+  };
+};
+
 export class LayerDocumentRenderer {
   private readonly runtime: LayerDocumentRendererRuntime;
+  private document: ImageDocument | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -68,6 +87,7 @@ export class LayerDocumentRenderer {
   }
 
   syncDocument(document: ImageDocument) {
+    this.document = document;
     // Keep detached runtimes alive for the bounded editor history. This makes
     // delete/create/duplicate undo lossless without a synchronous GPU readback.
     // All cached runtimes are released when the image/editor is destroyed.
@@ -84,7 +104,15 @@ export class LayerDocumentRenderer {
   }
 
   textEditingLayout(layerId: LayerId) {
-    return this.runtime.textLayerCoordinator.editingLayout(layerId);
+    const presentation = this.runtime.textLayerCoordinator.editingLayout(layerId);
+    const layer = this.document ? findDocumentLayer(this.document, layerId) : null;
+    if (!presentation || !layer) return presentation;
+    const preview = this.runtime.geometryPreviews.resolve(layer.id, layer.geometryRevision);
+    if (!preview) return presentation;
+    // The text coordinator publishes parent * canonical-local. The compositor
+    // replaces canonical-local with the live geometry preview, so mirror that
+    // exact transform for caret, selection and paragraph frame overlays.
+    return projectTextEditingGeometryPreview(presentation, layer.transform, preview);
   }
 
   setTextLayerInteraction(layerId: LayerId, active: boolean) {
