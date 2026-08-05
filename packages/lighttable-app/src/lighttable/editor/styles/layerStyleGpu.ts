@@ -22,7 +22,7 @@ const color = (value: { r: number; g: number; b: number; a: number }) => [
 
 const empty = () => new Float32Array(LAYER_STYLE_SETTINGS_FLOATS);
 
-const blurRadius = (effect: LayerStyleInstance, scale: number) => {
+export const layerStyleBlurRadius = (effect: LayerStyleInstance, scale: number) => {
   switch (effect.kind) {
     case 'drop-shadow':
     case 'inner-shadow':
@@ -38,12 +38,44 @@ const blurRadius = (effect: LayerStyleInstance, scale: number) => {
   }
 };
 
+export interface LayerStyleGaussianBlurPlan {
+  scale: number;
+  workingWidth: number;
+  workingHeight: number;
+  workingRadius: number;
+}
+
+export const layerStyleGaussianBlurPlan = (
+  effect: LayerStyleInstance,
+  stack: LayerStyleStack,
+  width: number,
+  height: number,
+  quality: 'interactive' | 'final'
+): LayerStyleGaussianBlurPlan | null => {
+  if (!['drop-shadow', 'inner-shadow', 'outer-glow', 'inner-glow'].includes(effect.kind)) {
+    return null;
+  }
+  if ((effect.kind === 'outer-glow' || effect.kind === 'inner-glow') && effect.jitter > 0) {
+    return null;
+  }
+  const radius = layerStyleBlurRadius(effect, stack.scale);
+  if (radius <= 8) return null;
+  const pixelsPerWorkingRadius = quality === 'interactive' ? 6 : 8;
+  const scale = Math.max(2, Math.min(8, Math.ceil(radius / pixelsPerWorkingRadius)));
+  return {
+    scale,
+    workingWidth: Math.max(1, Math.ceil(width / scale)),
+    workingHeight: Math.max(1, Math.ceil(height / scale)),
+    workingRadius: radius / scale
+  };
+};
+
 const adaptiveBlurSamples = (
   effect: LayerStyleInstance,
   scale: number,
   quality: 'interactive' | 'final'
 ) => {
-  const radius = blurRadius(effect, scale);
+  const radius = layerStyleBlurRadius(effect, scale);
   if (radius <= 0.01) return 1;
   const interval = quality === 'interactive' ? 20 : 10;
   const minimum = quality === 'interactive' ? 8 : 16;

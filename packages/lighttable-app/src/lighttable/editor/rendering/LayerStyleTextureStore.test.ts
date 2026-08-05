@@ -50,6 +50,17 @@ describe('LayerStyleTextureStore', () => {
     expect(cached?.texture.destroy).toHaveBeenCalledOnce();
   });
 
+  it('reuses and releases radius-scaled blur work textures', () => {
+    const storeOptions = options();
+    const store = new LayerStyleTextureStore(storeOptions);
+    const first = store.ensureBlurTextures(250, 125);
+    expect(store.ensureBlurTextures(250, 125)).toBe(first);
+    expect(storeOptions.createTextureSized).toHaveBeenCalledTimes(2);
+    store.releaseWorkTextures();
+    expect(first.horizontal.destroy).toHaveBeenCalledOnce();
+    expect(first.vertical.destroy).toHaveBeenCalledOnce();
+  });
+
   it('reallocates a tight cache only when its dimensions change', () => {
     const storeOptions = options();
     const store = new LayerStyleTextureStore(storeOptions);

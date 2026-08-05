@@ -27,7 +27,7 @@ describe('LayerStylePipelineProvider', () => {
 
     expect(await first.initialize()).toBe(pipeline);
     expect(await second.initialize()).toBe(pipeline);
-    expect(device.createRenderPipelineAsync).toHaveBeenCalledOnce();
+    expect(device.createRenderPipelineAsync).toHaveBeenCalledTimes(2);
   });
 
   it('reports only labeled shader compilation errors', async () => {

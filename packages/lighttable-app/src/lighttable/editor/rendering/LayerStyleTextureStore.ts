@@ -6,6 +6,11 @@ export interface LayerStyleWorkTextures {
   second: GPUTexture;
 }
 
+export interface LayerStyleBlurTextures {
+  horizontal: GPUTexture;
+  vertical: GPUTexture;
+}
+
 export interface CachedStyleTexture {
   key: string;
   texture: GPUTexture;
@@ -24,6 +29,7 @@ export interface LayerStyleTextureStoreOptions {
  */
 export class LayerStyleTextureStore {
   private workTextures: LayerStyleWorkTextures | null = null;
+  private readonly blurTextures = new Map<string, LayerStyleBlurTextures>();
   private readonly cache = new Map<LayerId, CachedStyleTexture>();
 
   constructor(private readonly options: LayerStyleTextureStoreOptions) {}
@@ -35,6 +41,23 @@ export class LayerStyleTextureStore {
       second: this.options.createTexture('LightTable Layer Style work B')
     };
     return this.workTextures;
+  }
+
+  ensureBlurTextures(width: number, height: number) {
+    const key = `${width}x${height}`;
+    let textures = this.blurTextures.get(key);
+    if (!textures) {
+      textures = {
+        horizontal: this.options.createTextureSized(
+          'LightTable Layer Style blur horizontal', width, height
+        ),
+        vertical: this.options.createTextureSized(
+          'LightTable Layer Style blur vertical', width, height
+        )
+      };
+      this.blurTextures.set(key, textures);
+    }
+    return textures;
   }
 
   cached(layerId: LayerId, key: string | null) {
@@ -92,11 +115,15 @@ export class LayerStyleTextureStore {
   }
 
   releaseWorkTextures() {
-    if (!this.workTextures) return;
-    this.workTextures.shape.destroy();
-    this.workTextures.first.destroy();
-    this.workTextures.second.destroy();
+    this.workTextures?.shape.destroy();
+    this.workTextures?.first.destroy();
+    this.workTextures?.second.destroy();
     this.workTextures = null;
+    this.blurTextures.forEach(({ horizontal, vertical }) => {
+      horizontal.destroy();
+      vertical.destroy();
+    });
+    this.blurTextures.clear();
   }
 
   estimatedTextureBytes(width: number, height: number) {
@@ -105,7 +132,11 @@ export class LayerStyleTextureStore {
       (bytes, { bounds }) => bytes + bounds.width * bounds.height * 8,
       0
     );
-    return cacheBytes + (this.workTextures ? 3 * bytesPerWorkTexture : 0);
+    const blurBytes = [...this.blurTextures.keys()].reduce((bytes, key) => {
+      const [width = 0, height = 0] = key.split('x').map(Number);
+      return bytes + width * height * 8 * 2;
+    }, 0);
+    return cacheBytes + blurBytes + (this.workTextures ? 3 * bytesPerWorkTexture : 0);
   }
 
   destroy() {

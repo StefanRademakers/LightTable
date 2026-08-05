@@ -7,6 +7,7 @@ import {
 import {
   baseLayerStyleUniform,
   LAYER_STYLE_SETTINGS_FLOATS,
+  layerStyleGaussianBlurPlan,
   layerStyleUniform
 } from './layerStyleGpu';
 
@@ -35,6 +36,27 @@ describe('Layer Style GPU settings', () => {
     effect.size = 250;
     expect(layerStyleUniform(effect, stack, 100, 100, true, 'interactive')?.[23]).toBe(16);
     expect(layerStyleUniform(effect, stack, 100, 100, true, 'final')?.[23]).toBe(64);
+  });
+
+  it('uses downsampled two-pass blur only for settled wide shadows', () => {
+    const effect = createDefaultLayerStyle('drop-shadow');
+    if (effect.kind !== 'drop-shadow') throw new Error('Expected Drop Shadow.');
+    const stack = createDefaultLayerStyleStack();
+    effect.size = 8;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 1000, 500, 'final')).toBeNull();
+    effect.size = 29;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 1000, 500, 'interactive')).toEqual({
+      scale: 5,
+      workingWidth: 200,
+      workingHeight: 100,
+      workingRadius: 5.8
+    });
+    expect(layerStyleGaussianBlurPlan(effect, stack, 1000, 500, 'final')).toEqual({
+      scale: 4,
+      workingWidth: 250,
+      workingHeight: 125,
+      workingRadius: 7.25
+    });
   });
 
   it('uses global light and stack scaling for a shadow', () => {

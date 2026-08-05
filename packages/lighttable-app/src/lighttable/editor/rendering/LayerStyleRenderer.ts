@@ -11,6 +11,7 @@ import { layerStyleCacheBounds } from '../styles/layerStyleRenderPlan';
 import {
   baseLayerStyleUniform,
   LAYER_STYLE_SETTINGS_BYTES,
+  layerStyleGaussianBlurPlan,
   layerStyleUniform
 } from '../styles/layerStyleGpu';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
@@ -121,6 +122,7 @@ export class LayerStyleRenderer {
     cacheKey: string | null
   ) {
     const styleEffectPipeline = this.pipelineProvider.pipeline;
+    const styleBlurPipeline = this.pipelineProvider.blurPipeline;
     if (!styleEffectPipeline) return null;
     const cached = this.textures.cached(layer.id, cacheKey);
     if (cached) return cached;
@@ -172,7 +174,8 @@ export class LayerStyleRenderer {
       target: GPUTexture,
       values: Float32Array,
       label: string,
-      patternTexture: GPUTexture | null = null
+      patternTexture: GPUTexture | null = null,
+      blurredShapeTexture: GPUTexture = styleTextures.shape
     ) => {
       const settingsBuffer = device.createBuffer({
         label,
@@ -188,12 +191,49 @@ export class LayerStyleRenderer {
           { binding: 1, resource: styleTextures.shape.createView() },
           { binding: 2, resource: sampler },
           { binding: 3, resource: { buffer: settingsBuffer } },
-          { binding: 4, resource: (patternTexture ?? styleTextures.shape).createView() }
+          { binding: 4, resource: (patternTexture ?? styleTextures.shape).createView() },
+          { binding: 5, resource: blurredShapeTexture.createView() }
         ]
       });
       drawFullscreen(
         encoder,
         styleEffectPipeline,
+        bindGroup,
+        target.createView(),
+        { r: 0, g: 0, b: 0, a: 0 }
+      );
+    };
+
+    const encodeBlurPass = (
+      source: GPUTexture,
+      target: GPUTexture,
+      direction: [number, number],
+      blurWidth: number,
+      blurHeight: number,
+      radius: number,
+      label: string
+    ) => {
+      if (!styleBlurPipeline) return;
+      const settingsBuffer = device.createBuffer({
+        label: `${label} settings`,
+        size: 32,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+      device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
+        blurWidth, blurHeight, direction[0], direction[1], radius, 0, 0, 0
+      ]));
+      submittedResources.retainBuffer(settingsBuffer);
+      const bindGroup = device.createBindGroup({
+        layout: styleBlurPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: source.createView() },
+          { binding: 1, resource: sampler },
+          { binding: 2, resource: { buffer: settingsBuffer } }
+        ]
+      });
+      drawFullscreen(
+        encoder,
+        styleBlurPipeline,
         bindGroup,
         target.createView(),
         { r: 0, g: 0, b: 0, a: 0 }
@@ -213,21 +253,53 @@ export class LayerStyleRenderer {
       const patternTexture = reference?.assetId
         ? this.options.patternAssets.getTexture(reference.assetId as DocumentAssetId)
         : null;
+      const quality = this.cacheKeyQuality(layer.id);
       const values = layerStyleUniform(
         effect,
         layer.styleStack,
         width,
         height,
         !effectRequiresPattern(effect) || Boolean(patternTexture),
-        this.cacheKeyQuality(layer.id)
+        quality
       );
       if (!values) return;
+      const blurPlan = styleBlurPipeline
+        ? layerStyleGaussianBlurPlan(effect, layer.styleStack, width, height, quality)
+        : null;
+      let blurredShape = styleTextures.shape;
+      if (blurPlan) {
+        const blurTextures = this.textures.ensureBlurTextures(
+          blurPlan.workingWidth,
+          blurPlan.workingHeight
+        );
+        encodeBlurPass(
+          styleTextures.shape,
+          blurTextures.horizontal,
+          [1, 0],
+          blurPlan.workingWidth,
+          blurPlan.workingHeight,
+          blurPlan.workingRadius,
+          `LightTable Layer Style ${effect.name} horizontal blur: ${layer.name}`
+        );
+        encodeBlurPass(
+          blurTextures.horizontal,
+          blurTextures.vertical,
+          [0, 1],
+          blurPlan.workingWidth,
+          blurPlan.workingHeight,
+          blurPlan.workingRadius,
+          `LightTable Layer Style ${effect.name} vertical blur: ${layer.name}`
+        );
+        values[23] = -1;
+        blurredShape = blurTextures.vertical;
+      }
       encodeStylePass(
         current,
         target,
         values,
         `LightTable Layer Style ${effect.name}: ${layer.name}`,
-        patternTexture
+        patternTexture,
+        blurredShape
       );
       [current, target] = [target, current];
     });

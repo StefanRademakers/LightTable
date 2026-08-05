@@ -57,6 +57,7 @@ import {
   LAYER_MASK_DECODE_WGSL,
   LAYER_SOURCE_DECODE_WGSL,
   LAYER_STYLE_EFFECT_WGSL,
+  LAYER_STYLE_GAUSSIAN_BLUR_WGSL,
   LAYER_STYLE_SHAPE_WGSL,
   SELECTION_COMBINE_WGSL,
   SELECTION_FEATHER_WGSL,
@@ -95,7 +96,8 @@ const renderShaders = [
   ['viewport blit', VIEWPORT_BLIT_WGSL],
   ['mask viewport blit', MASK_VIEWPORT_BLIT_WGSL],
   ['warp', WARP_RENDER_WGSL],
-  ['warp displacement debug', WARP_DISPLACEMENT_DEBUG_WGSL]
+  ['warp displacement debug', WARP_DISPLACEMENT_DEBUG_WGSL],
+  ['layer style Gaussian blur', LAYER_STYLE_GAUSSIAN_BLUR_WGSL]
 ] as const;
 
 describe('LightTable WGSL modules', () => {

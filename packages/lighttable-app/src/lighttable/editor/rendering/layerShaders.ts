@@ -382,6 +382,7 @@ struct StyleSettings {
 @group(0) @binding(2) var sourceSampler: sampler;
 @group(0) @binding(3) var<uniform> settings: StyleSettings;
 @group(0) @binding(4) var patternTexture: texture_2d<f32>;
+@group(0) @binding(5) var blurredShapeTexture: texture_2d<f32>;
 
 ${LAYER_BLEND_FUNCTIONS_WGSL}
 
@@ -422,6 +423,17 @@ fn alphaAt(uv: vec2f, pixelOffset: vec2f) -> f32 {
 
 fn blurredAlpha(uv: vec2f, centerOffset: vec2f, radius: f32) -> f32 {
   if (radius <= 0.01) { return alphaAt(uv, centerOffset); }
+  if (settings.canvas.w < 0.0) {
+    let sampleUv = uv + centerOffset / settings.canvas.xy;
+    let inside = all(sampleUv >= vec2f(0.0)) && all(sampleUv <= vec2f(1.0));
+    let sampled = textureSampleLevel(
+      blurredShapeTexture,
+      sourceSampler,
+      clamp(sampleUv, vec2f(0.0), vec2f(1.0)),
+      0.0
+    ).a;
+    return select(0.0, clamp(sampled, 0.0, 1.0), inside);
+  }
   let directions = array<vec2f, ${LAYER_STYLE_BLUR_DIRECTION_COUNT}>(
     ${LAYER_STYLE_BLUR_DIRECTIONS}
   );
@@ -824,6 +836,58 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   }
 
   return current;
+}
+`;
+
+export const LAYER_STYLE_GAUSSIAN_BLUR_WGSL = /* wgsl */ `
+struct LayerStyleBlurSettings {
+  canvasSize: vec2f,
+  direction: vec2f,
+  radius: f32,
+  padding0: f32,
+  padding1: f32,
+  padding2: f32,
+}
+
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var sourceSampler: sampler;
+@group(0) @binding(2) var<uniform> settings: LayerStyleBlurSettings;
+
+const gaussianKernel = array<vec2f, 17>(
+  vec2f(0.00000000, 0.074947560), vec2f(0.06250000, 0.073641634),
+  vec2f(0.12500000, 0.069858807), vec2f(0.18750000, 0.063980960),
+  vec2f(0.25000000, 0.056573386), vec2f(0.31250000, 0.048295362),
+  vec2f(0.37500000, 0.039804348), vec2f(0.43750000, 0.031672872),
+  vec2f(0.50000000, 0.024331910), vec2f(0.56250000, 0.018046658),
+  vec2f(0.62500000, 0.012922580), vec2f(0.68750000, 0.008933744),
+  vec2f(0.75000000, 0.005962791), vec2f(0.81250000, 0.003842355),
+  vec2f(0.87500000, 0.002390437), vec2f(0.93750000, 0.001435783),
+  vec2f(1.00000000, 0.000832592)
+);
+
+fn alphaSample(uv: vec2f) -> f32 {
+  let inside = all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
+  let sampled = textureSampleLevel(
+    sourceTexture,
+    sourceSampler,
+    clamp(uv, vec2f(0.0), vec2f(1.0)),
+    0.0
+  ).a;
+  return select(0.0, sampled, inside);
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let texel = settings.direction / settings.canvasSize;
+  let radius = max(settings.radius, 0.0);
+  var result = alphaSample(input.uv) * gaussianKernel[0].y;
+  for (var index = 1u; index < 17u; index += 1u) {
+    let kernel = gaussianKernel[index];
+    let offset = texel * radius * kernel.x;
+    result += (alphaSample(input.uv + offset) + alphaSample(input.uv - offset)) * kernel.y;
+  }
+  let coverage = clamp(result, 0.0, 1.0);
+  return vec4f(coverage);
 }
 `;
 
