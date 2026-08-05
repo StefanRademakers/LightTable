@@ -31,7 +31,8 @@
   --lt-surface-layer-row: #262a2f;
   --lt-surface-layer-row-hover: var(--lt-surface-control-hover);
   --lt-surface-layer-row-selected: var(--lt-accent-selected-subtle);
-  --lt-surface-layer-row-active: var(--lt-accent-selected);
+  /* 15% higher RGB luminance than the base selected accent (#26344a). */
+  --lt-surface-layer-row-active: #2c3c55;
   --lt-border-layer-row: transparent;
   --lt-border-layer-row-active: var(--lt-accent);
   --lt-surface-inset: #0c0f13;
