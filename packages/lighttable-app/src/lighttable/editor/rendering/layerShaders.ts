@@ -119,13 +119,54 @@ fn blendToLinearChannel(value: f32) -> f32 {
 }
 
 fn colorDodgeChannel(background: f32, foreground: f32) -> f32 {
-  if (foreground >= 1.0) { return 1.0; }
+  if (background <= 1e-5) { return 0.0; }
+  if (foreground >= 1.0 - 1e-5) { return 1.0; }
   return min(1.0, background / (1.0 - foreground));
 }
 
 fn colorBurnChannel(background: f32, foreground: f32) -> f32 {
-  if (foreground <= 0.0) { return 0.0; }
+  if (background >= 1.0 - 1e-5) { return 1.0; }
+  if (foreground <= 1e-5) { return 0.0; }
   return 1.0 - min(1.0, (1.0 - background) / foreground);
+}
+
+fn vividLightChannel(background: f32, foreground: f32) -> f32 {
+  // Photoshop saturates pure Vivid Light source endpoints independently of
+  // the backdrop. A small tolerance retains those authored 8/16-bit endpoints
+  // after their roundtrip through the linear rgba16float working texture.
+  if (foreground <= 1e-5) { return 0.0; }
+  if (foreground >= 1.0 - 1e-5) { return 1.0; }
+  if (foreground < 0.5) {
+    return 1.0 - min(1.0, (1.0 - background) / (2.0 * foreground));
+  }
+  return min(1.0, background / (2.0 * (1.0 - foreground)));
+}
+
+fn vividLight(background: vec3f, foreground: vec3f) -> vec3f {
+  return vec3f(
+    vividLightChannel(background.r, foreground.r),
+    vividLightChannel(background.g, foreground.g),
+    vividLightChannel(background.b, foreground.b)
+  );
+}
+
+fn hardMixChannel(background: f32, foreground: f32) -> f32 {
+  let sum = background + foreground;
+  // Photoshop's 8-bit Hard Mix threshold is binary around a channel sum of
+  // 255. On the exact boundary the backdrop decides the result: 128..255 is
+  // white and 0..127 is black. The tolerance preserves that boundary after
+  // the encoded values have made a roundtrip through rgba16float storage.
+  if (sum > 1.0 + 1e-3) { return 1.0; }
+  if (sum < 1.0 - 1e-3) { return 0.0; }
+  return select(0.0, 1.0, background >= 0.5);
+}
+
+fn hardMix(background: vec3f, foreground: vec3f) -> vec3f {
+  return vec3f(
+    hardMixChannel(background.r, foreground.r),
+    hardMixChannel(background.g, foreground.g),
+    hardMixChannel(background.b, foreground.b)
+  );
 }
 
 fn colorDodge(background: vec3f, foreground: vec3f) -> vec3f {
@@ -180,9 +221,7 @@ fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
     return select(foreground, background, luminance(background) > luminance(foreground));
   }
   if (mode == 19) {
-    let burn = colorBurn(background, vec3f(2.0) * foreground);
-    let dodge = colorDodge(background, vec3f(2.0) * foreground - vec3f(1.0));
-    return select(burn, dodge, foreground >= vec3f(0.5));
+    return vividLight(background, foreground);
   }
   if (mode == 20) { return clamp(background + vec3f(2.0) * foreground - vec3f(1.0), vec3f(0.0), vec3f(1.0)); }
   if (mode == 21) {
@@ -193,10 +232,7 @@ fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
     );
   }
   if (mode == 22) {
-    let burn = colorBurn(background, vec3f(2.0) * foreground);
-    let dodge = colorDodge(background, vec3f(2.0) * foreground - vec3f(1.0));
-    let vivid = select(burn, dodge, foreground >= vec3f(0.5));
-    return select(vec3f(0.0), vec3f(1.0), vivid >= vec3f(0.5));
+    return hardMix(background, foreground);
   }
   if (mode == 23) { return background + foreground - vec3f(2.0) * background * foreground; }
   if (mode == 24) { return max(vec3f(0.0), background - foreground); }
@@ -224,6 +260,41 @@ fn blendColor(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
     blendToLinearChannel(encoded.g),
     blendToLinearChannel(encoded.b)
   );
+}
+
+fn linearStraightToBlend(color: vec3f) -> vec3f {
+  return vec3f(
+    linearToBlendChannel(color.r),
+    linearToBlendChannel(color.g),
+    linearToBlendChannel(color.b)
+  );
+}
+
+fn blendStraightToLinear(color: vec3f) -> vec3f {
+  return vec3f(
+    blendToLinearChannel(color.r),
+    blendToLinearChannel(color.g),
+    blendToLinearChannel(color.b)
+  );
+}
+
+fn compositeBlend(background: vec4f, foreground: vec4f, mode: i32) -> vec4f {
+  let backgroundStraight = background.rgb / max(background.a, 1e-6);
+  let foregroundStraight = foreground.rgb / max(foreground.a, 1e-6);
+  let backgroundEncoded = linearStraightToBlend(backgroundStraight);
+  let foregroundEncoded = linearStraightToBlend(foregroundStraight);
+  let blendedEncoded = clamp(
+    blendColorEncoded(backgroundEncoded, foregroundEncoded, mode),
+    vec3f(0.0),
+    vec3f(1.0)
+  );
+  let outputAlpha = foreground.a + background.a * (1.0 - foreground.a);
+  let outputPremultipliedEncoded =
+    backgroundEncoded * background.a * (1.0 - foreground.a) +
+    foregroundEncoded * foreground.a * (1.0 - background.a) +
+    blendedEncoded * background.a * foreground.a;
+  let outputStraightEncoded = outputPremultipliedEncoded / max(outputAlpha, 1e-6);
+  return vec4f(blendStraightToLinear(outputStraightEncoded) * outputAlpha, outputAlpha);
 }
 `;
 
@@ -294,15 +365,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     settings.clippingEnabled > 0.5
   );
   let foreground = sampledForeground * settings.opacity * mask * clipping;
-  let backgroundStraight = background.rgb / max(background.a, 1e-6);
-  let foregroundStraight = foreground.rgb / max(foreground.a, 1e-6);
-  let blended = blendColor(backgroundStraight, foregroundStraight, i32(settings.blendMode + 0.5));
-  let outputAlpha = foreground.a + background.a * (1.0 - foreground.a);
-  let outputRgb =
-    background.rgb * (1.0 - foreground.a) +
-    foreground.rgb * (1.0 - background.a) +
-    blended * background.a * foreground.a;
-  return vec4f(outputRgb, outputAlpha);
+  return compositeBlend(background, foreground, i32(settings.blendMode + 0.5));
 }
 `;
 
@@ -409,24 +472,23 @@ struct StyleSettings {
 ${LAYER_BLEND_FUNCTIONS_WGSL}
 
 fn over(foreground: vec4f, background: vec4f) -> vec4f {
-  return vec4f(
-    foreground.rgb + background.rgb * (1.0 - foreground.a),
-    foreground.a + background.a * (1.0 - foreground.a)
-  );
+  return compositeBlend(background, foreground, 0);
 }
 
 fn styleOverCurrent(current: vec4f, color: vec3f, alpha: f32, mode: i32) -> vec4f {
   let effectAlpha = clamp(alpha, 0.0, 1.0);
   let currentStraight = current.rgb / max(current.a, 1e-6);
-  let blended = blendColor(currentStraight, color, mode);
+  let currentEncoded = linearStraightToBlend(currentStraight);
+  let colorEncoded = linearStraightToBlend(color);
+  let blendedEncoded = blendColorEncoded(currentEncoded, colorEncoded, mode);
   // Interior styles operate inside the source coverage. Using Porter-Duff
   // Porter-Duff over here would make an antialiased edge more opaque every time another
   // overlay is added. Preserve the strongest existing coverage and replace
   // only the proportional straight-color contribution instead.
   let outputAlpha = max(current.a, effectAlpha);
   let mixAmount = effectAlpha / max(outputAlpha, 1e-6);
-  let outputStraight = mix(currentStraight, blended, mixAmount);
-  return vec4f(outputStraight * outputAlpha, outputAlpha);
+  let outputEncoded = mix(currentEncoded, blendedEncoded, mixAmount);
+  return vec4f(blendStraightToLinear(outputEncoded) * outputAlpha, outputAlpha);
 }
 
 fn alphaAt(uv: vec2f, pixelOffset: vec2f) -> f32 {
@@ -1052,13 +1114,16 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let amount = clamp(settings.opacity * mask * clipping, 0.0, 1.0);
   let sourceStraight = source.rgb / max(source.a, 1e-6);
   let adjustedStraight = adjusted.rgb / max(adjusted.a, 1e-6);
-  let blendedStraight = blendColor(
-    sourceStraight,
-    adjustedStraight,
+  let sourceEncoded = linearStraightToBlend(sourceStraight);
+  let adjustedEncoded = linearStraightToBlend(adjustedStraight);
+  let blendedEncoded = blendColorEncoded(
+    sourceEncoded,
+    adjustedEncoded,
     i32(settings.blendMode + 0.5)
   );
-  let blended = vec4f(blendedStraight * source.a, source.a);
-  return mix(source, blended, amount);
+  let outputAlpha = mix(source.a, adjusted.a, amount);
+  let outputEncoded = mix(sourceEncoded, blendedEncoded, amount);
+  return vec4f(blendStraightToLinear(outputEncoded) * outputAlpha, outputAlpha);
 }
 `;
 
@@ -1527,15 +1592,21 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     return mix(source, vec4f(gray, gray, gray, 1.0), amount);
   }
   let sourceStraight = source.rgb / max(source.a, 1e-6);
-  let blended = blendColor(sourceStraight, gradient.rgb, i32(settings.options.w + 0.5));
+  let sourceEncoded = linearStraightToBlend(sourceStraight);
+  let gradientEncoded = linearStraightToBlend(gradient.rgb);
+  let blendedEncoded = blendColorEncoded(
+    sourceEncoded,
+    gradientEncoded,
+    i32(settings.options.w + 0.5)
+  );
   if (settings.channel.x > 0.5) {
-    let straight = mix(sourceStraight, blended, amount);
-    return vec4f(straight * source.a, source.a);
+    let outputEncoded = mix(sourceEncoded, blendedEncoded, amount);
+    return vec4f(blendStraightToLinear(outputEncoded) * source.a, source.a);
   }
-  let compositedGradient = mix(gradient.rgb, blended, source.a);
-  return vec4f(
-    compositedGradient * amount + source.rgb * (1.0 - amount),
-    amount + source.a * (1.0 - amount)
+  return compositeBlend(
+    source,
+    vec4f(gradient.rgb * amount, amount),
+    i32(settings.options.w + 0.5)
   );
 }
 `;

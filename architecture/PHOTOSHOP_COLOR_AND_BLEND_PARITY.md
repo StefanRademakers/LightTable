@@ -27,16 +27,20 @@ The measured context is:
 Results:
 
 - opaque Normal is exact in all opaque chart regions;
-- 21 of 26 opaque blend modes have RMSE at or below 1;
-- 24 of 26 have opaque RMSE below 3;
+- 24 of 26 opaque blend modes have RMSE below 1;
+- all 26 opaque blend modes have RMSE at or below 3.08;
 - Multiply and Screen use the expected encoded-channel equations and are not
   the source of the broad discrepancy;
-- Vivid Light and Hard Mix are structural outliers caused by Color Dodge/Burn
-  endpoint handling;
-- alpha, antialias coverage, layer opacity and fill opacity expose a separate
-  color-domain mismatch;
-- Normal at 50% opacity produces approximately `[187, 188, 188]` in LightTable
-  versus `[127, 128, 128]` in Photoshop for the controlled red/cyan sample.
+- Color Dodge/Burn require backdrop-first endpoint handling; Vivid Light has
+  separately measured pure-source endpoint behavior;
+- Photoshop 8-bit Hard Mix uses a binary channel-sum threshold. At the exact
+  255 boundary it resolves to the backdrop side: backdrop 128..255 becomes
+  white and 0..127 becomes black;
+- encoded document-space coverage/compositing is required for Photoshop
+  parity even though LightTable stores working textures in linear light;
+- the four 50% opacity cases now measure RMSE 0.21..0.37 and the two 50% fill
+  cases measure RMSE 0.30..0.31;
+- the full 32-case packaged-desktop run passes, with Hard Mix at RMSE 0.07.
 
 These findings apply to the recorded configuration. They are not evidence for
 untested tagged profiles, 16/32-bit Photoshop behavior, proof colors or a
@@ -77,21 +81,23 @@ LightTable keeps these concepts separate:
 2. **Canonical working representation**: high-precision, linear, premultiplied
    GPU content used for filtering, blur, transforms and most processing.
 3. **Document blend behavior**: the transfer/profile domain required when a
-   blend or coverage operation must match the document's compatibility mode.
+   blend or coverage operation must match the document format contract.
 4. **Display/output transform**: conversion to the display or export profile
    and requested output precision.
 
-The native document stores the source/profile provenance and the chosen
-document working/blend policy. It does not store a profile copy on every layer
-after that layer has been normalized. Imported unknown ICC payloads remain
-preservable provenance; they are never silently guessed.
+The native document stores source/profile provenance and document color
+settings. Blend behavior is one canonical renderer contract, not a serialized
+legacy/compatibility switch. The document does not store a profile copy on
+every layer after that layer has been normalized. Imported unknown ICC payloads
+remain preservable provenance; they are never silently guessed.
 
 The initial production document policy is deliberately bounded:
 
 - default new documents: sRGB working profile;
 - missing profile: explicit `assumed sRGB`, never an invisible assumption;
 - internal compositing/filtering: linear high precision;
-- Photoshop compatibility blend behavior: document-defined and serialized;
+- layer blending and coverage: the canonical Photoshop/PDF-compatible
+  document-space path;
 - conversion to a different profile: explicit, undoable document operation;
 - assigning a profile changes interpretation, not pixels, and is a distinct
   advanced operation from conversion.
@@ -112,15 +118,15 @@ linear premultiplied inputs
 Implementation rules:
 
 - perform the domain conversion in the existing compositor shader/pass;
-- use a pipeline specialization or compact uniform, not a new full-frame pass;
+- do not add a user-facing or serialized legacy blend-gamma branch;
 - do not introduce CPU readback or CPU-to-GPU image uploads;
 - preserve fast exact bypasses for opaque Normal and other proven no-op cases;
 - share transfer helpers across ordinary layers and Layer Styles;
 - keep blur, resampling, gradients and neighborhood effects in linear space
   unless their own declared compatibility contract requires another domain;
-- cache pipeline variants and color transforms per device/profile/policy;
-- dirtying the blend policy invalidates affected composites, not source
-  realization, vector geometry, text shaping or unrelated overlays.
+- cache color transforms per device/profile;
+- changing document profile interpretation invalidates affected composites,
+  not source realization, vector geometry, text shaping or unrelated overlays.
 
 This adds shader ALU to affected blend pixels, but no additional texture-sized
 memory and no transfer bottleneck. It is expected to be a small cost compared
@@ -149,9 +155,7 @@ A compact document panel/dialog should expose:
 - bit depth;
 - `Assign profile...` and `Convert to profile...` as distinct commands;
 - rendering intent and black-point compensation when a real ICC conversion is
-  requested;
-- one advanced Photoshop-compatibility blend policy, normally inherited from
-  import and hidden from the main toolbar.
+  requested.
 
 Do not expose a generic artistic gamma slider, per-layer ICC selectors or raw
 transfer-function controls in the normal UI. Gamma in Grade is an image
@@ -168,32 +172,34 @@ and web. No stage is accepted only because its aggregate RMSE improves.
 
 ### 1. Blend endpoint parity
 
-- [ ] Add explicit Photoshop-compatible endpoint branches to Color Dodge and
+- [x] Add explicit Photoshop-compatible endpoint branches to Color Dodge and
   Color Burn.
-- [ ] Verify Color Dodge, Color Burn, Vivid Light and Hard Mix at exact and
+- [x] Verify Color Dodge, Color Burn, Vivid Light and Hard Mix at exact and
   near-zero/one inputs.
-- [ ] Confirm no NaN/Inf and no regression in the remaining blend corpus.
+- [x] Confirm no NaN/Inf and no regression in the remaining blend corpus.
 
 ### 2. Explicit document blend-space contract
 
-- [ ] Add a serializable document blend policy separate from working texture
-  encoding and Grade gamma.
-- [ ] Route normal layers, masks, opacity, fill opacity and Layer Styles
+- [x] Define one canonical document blend-space contract separate from working
+  texture encoding and Grade gamma; do not serialize a legacy switch.
+- [x] Route normal layers, masks, opacity, fill opacity and Layer Styles
   through the same declared contract.
-- [ ] Preserve imported policy/provenance through native save/reopen.
+- [ ] Preserve imported color-profile provenance through native save/reopen.
 
 ### 3. Fused GPU implementation
 
-- [ ] Keep linear GPU storage/filtering and fuse only required domain
+- [x] Keep linear GPU storage/filtering and fuse only required domain
   conversions into the compositor.
 - [ ] Retain fast paths for opaque Normal and unaffected blends.
 - [ ] Measure GPU frame time, submissions, transient bytes and cache behavior
   before and after on representative small and large documents.
-- [ ] Reject extra CPU readback/upload or a material interaction regression.
+- [x] Reject extra CPU readback/upload; the implementation remains in the
+  existing compositor pass and allocates no texture-sized intermediate.
 
 ### 4. Full visual regression gate
 
-- [ ] Re-run all 32 blend fixtures and inspect side-by-side images and heatmaps.
+- [x] Re-run all 32 blend fixtures in the packaged desktop and inspect their
+  side-by-side images and heatmaps.
 - [ ] Re-run isolated and stacked Layer Style corpora, including soft alpha,
   antialiasing, masks, fill opacity, clipping and groups.
 - [ ] Re-run the ten-template PSD corpus and packaged Electron/web smokes.
@@ -213,8 +219,7 @@ and web. No stage is accepted only because its aggregate RMSE improves.
 - [ ] Show profile/mode/bit depth in document status and import/export details.
 - [ ] Add document-level Assign/Convert operations using existing LightTable UI
   components and styling.
-- [ ] Keep compatibility controls under Advanced and persist them in native
-  documents and verified PSD projection where representable.
+- [x] Do not expose a compatibility toggle; blend behavior is canonical.
 - [ ] Verify undo/redo, native roundtrip, PSD roundtrip warnings and web
   fallback behavior.
 
@@ -232,3 +237,24 @@ The work is release-ready only when:
 - unsupported profiles or Photoshop behaviors are reported, not approximated
   silently.
 
+## Primary references
+
+- W3C Compositing and Blending Level 1 defines non-premultiplied blend inputs,
+  source-over alpha composition and the standard separable/non-separable
+  equations: <https://www.w3.org/TR/compositing-1/>.
+- Adobe's current blend-mode descriptions define Photoshop mode intent,
+  including Hard Mix and the restricted 32-bit mode set:
+  <https://helpx.adobe.com/photoshop/desktop/repair-retouch/adjust-light-tone/blending-mode-descriptions.html>.
+- Adobe's layer blending documentation distinguishes layer opacity, fill
+  opacity, effects, group isolation and clipping behavior:
+  <https://helpx.adobe.com/photoshop/using/layer-opacity-blending.html>.
+- Adobe's color-settings documentation confirms that the optional global
+  `Blend RGB Colors Using Gamma` preference changes compositing appearance and
+  may differ from other applications:
+  <https://helpx.adobe.com/photoshop/using/color-settings.html>.
+
+Adobe's prose is treated as behavioral guidance, not executable truth. For
+example, it describes Darker/Lighter Color as comparing the total channel
+values, while controlled Photoshop output follows a Rec.601-like weighted
+luminance decision far more closely. Exact acceptance therefore comes from
+Photoshop-rendered fixtures recorded with profile, bit depth and color settings.
