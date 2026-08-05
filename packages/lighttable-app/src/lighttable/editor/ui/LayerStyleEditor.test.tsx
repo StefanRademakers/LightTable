@@ -22,6 +22,11 @@ describe('LayerStyleEditor', () => {
 
     expect(markup).toContain('role="region"');
     expect(markup).toContain('lighttable-style-editor--panel');
+    expect(markup).toContain('lighttable-group lighttable-master-group');
+    expect(markup).toContain('lighttable-group lighttable-effect');
+    expect(markup).toContain('role="switch"');
+    expect(markup).toContain('aria-label="Disable all layer effects"');
+    expect(markup).toContain('aria-label="Reset Drop Shadow"');
     expect(markup).not.toContain('<header>');
     expect(markup).not.toContain('>Shape<');
     expect(markup).not.toContain('aria-modal="true"');
@@ -29,6 +34,8 @@ describe('LayerStyleEditor', () => {
     expect(markup).not.toContain('>OK<');
     expect(markup).toContain('aria-label="Disable Drop Shadow"');
     expect(markup).toContain('aria-label="Remove Drop Shadow"');
+    expect(markup).toContain('layer_trash.png');
+    expect(markup).not.toContain('lighttable-style-editor__effect-list');
     expect(markup).not.toContain('>Enabled<');
     expect(markup).not.toContain('>Remove<');
     expect(markup).toContain('title="Blur"');

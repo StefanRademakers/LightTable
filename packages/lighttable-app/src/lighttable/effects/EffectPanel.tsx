@@ -10,6 +10,7 @@ interface EffectPanelProps {
   onExpandedChange: (expanded: boolean) => void;
   onEnabledChange: (enabled: boolean) => void;
   onReset: () => void;
+  onRemove?: () => void;
   children: React.ReactNode;
 }
 
@@ -21,6 +22,7 @@ export const EffectPanel: React.FC<EffectPanelProps> = ({
   onExpandedChange,
   onEnabledChange,
   onReset,
+  onRemove,
   children
 }) => (
   <section className={`lighttable-group lighttable-effect${enabled ? '' : ' lighttable-group--disabled'}`}>
@@ -52,6 +54,17 @@ export const EffectPanel: React.FC<EffectPanelProps> = ({
         <button type="button" className="lighttable-group__reset" onClick={onReset} aria-label={`Reset ${label}`} title={`Reset ${label}`}>
           <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
         </button>
+        {onRemove ? (
+          <button
+            type="button"
+            className="lighttable-group__remove"
+            onClick={onRemove}
+            aria-label={`Remove ${label}`}
+            title={`Remove ${label}`}
+          >
+            <img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" />
+          </button>
+        ) : null}
         <SwitchControl
           checked={enabled}
           onCheckedChange={onEnabledChange}

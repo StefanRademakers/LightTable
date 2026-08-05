@@ -1,5 +1,8 @@
 import React from 'react';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { lightTableIcon } from '../../../assets/icons';
+import { SwitchControl } from '../../../ui/SwitchControl';
+import { EffectPanel } from '../../effects/EffectPanel';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import {
   cloneLayerStyleStack,
@@ -758,6 +761,10 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   const [selectedId, setSelectedId] = React.useState<LayerStyleId | null>(
     initialEffectId ?? initialStack.effects.at(-1)?.id ?? null
   );
+  const [expandedIds, setExpandedIds] = React.useState<Set<LayerStyleId>>(() => {
+    const first = initialEffectId ?? initialStack.effects.at(-1)?.id;
+    return new Set(first ? [first] : []);
+  });
   const [newKind, setNewKind] = React.useState<LayerStyleKind>('drop-shadow');
   const selected = draft.effects.find((effect) => effect.id === selectedId) ?? null;
 
@@ -789,6 +796,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   React.useEffect(() => {
     if (initialEffectId && draft.effects.some((effect) => effect.id === initialEffectId)) {
       setSelectedId(initialEffectId);
+      setExpandedIds((current) => new Set(current).add(initialEffectId));
     }
   // The requested row changes only when the Layers panel opens a specific
   // effect. Draft edits must not force selection back to that row.
@@ -827,11 +835,45 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
 
   const patchSelected = (patch: Partial<LayerStyleInstance>) => {
     if (!selectedId) return;
+    patchEffect(selectedId, patch);
+  };
+
+  const patchEffect = (effectId: LayerStyleId, patch: Partial<LayerStyleInstance>) => {
     updateDraft((current) => ({
       ...current,
       effects: current.effects.map((effect) =>
-        effect.id === selectedId ? { ...effect, ...patch } as LayerStyleInstance : effect
+        effect.id === effectId ? { ...effect, ...patch } as LayerStyleInstance : effect
       ),
+      revision: current.revision + 1
+    }));
+  };
+
+  const resetEffect = (effectId: LayerStyleId) => {
+    updateDraft((current) => ({
+      ...current,
+      effects: current.effects.map((effect) => {
+        if (effect.id !== effectId) return effect;
+        return {
+          ...createDefaultLayerStyle(effect.kind),
+          id: effect.id,
+          name: effect.name,
+          enabled: effect.enabled
+        } as LayerStyleInstance;
+      }),
+      revision: current.revision + 1
+    }));
+  };
+
+  const resetAllEffects = () => {
+    updateDraft((current) => ({
+      ...current,
+      scale: 1,
+      effects: current.effects.map((effect) => ({
+        ...createDefaultLayerStyle(effect.kind),
+        id: effect.id,
+        name: effect.name,
+        enabled: effect.enabled
+      } as LayerStyleInstance)),
       revision: current.revision + 1
     }));
   };
@@ -845,6 +887,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
       revision: current.revision + 1
     }));
     setSelectedId(effect.id);
+    setExpandedIds((current) => new Set(current).add(effect.id));
   };
 
   const removeEffect = (effectId: LayerStyleId) => {
@@ -857,6 +900,11 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
       revision: current.revision + 1
     }));
     if (selectedId === effectId) setSelectedId(nextId);
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      next.delete(effectId);
+      return next;
+    });
   };
 
   const moveSelected = (direction: -1 | 1) => {
@@ -871,22 +919,96 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     });
   };
 
+  if (mode === 'panel') {
+    return (
+      <div
+        className="lighttable-style-editor lighttable-style-editor--panel lighttable-style-editor--groups"
+        role="region"
+        aria-label="Layer Style"
+      >
+        <section className="lighttable-group lighttable-master-group">
+          <div className="lighttable-group__header">
+            <div className="lighttable-master-group__label"><strong>All</strong></div>
+            <div className="lighttable-group__actions">
+              <button
+                type="button"
+                className="lighttable-group__reset"
+                onClick={resetAllEffects}
+                aria-label="Reset all layer effects"
+                title="Reset all layer effects"
+              >
+                <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
+              </button>
+              <SwitchControl
+                checked={draft.enabled}
+                onCheckedChange={(enabled) => updateDraft((current) => ({
+                  ...current,
+                  enabled,
+                  revision: current.revision + 1
+                }))}
+                label={`${draft.enabled ? 'Disable' : 'Enable'} all layer effects`}
+              />
+            </div>
+          </div>
+        </section>
+        <div className="lighttable-panel__controls lighttable-style-editor__groups">
+          {[...draft.effects].reverse().map((effect) => (
+            <EffectPanel
+              key={effect.id}
+              label={effect.name}
+              expanded={expandedIds.has(effect.id)}
+              enabled={effect.enabled}
+              resetModifierActive={false}
+              onExpandedChange={(expanded) => setExpandedIds((current) => {
+                const next = new Set(current);
+                if (expanded) next.add(effect.id);
+                else next.delete(effect.id);
+                return next;
+              })}
+              onEnabledChange={(enabled) => patchEffect(effect.id, { enabled })}
+              onReset={() => resetEffect(effect.id)}
+              onRemove={() => removeEffect(effect.id)}
+            >
+              <EffectControls
+                effect={effect}
+                patch={(patch) => patchEffect(effect.id, patch)}
+              />
+            </EffectPanel>
+          ))}
+          <div className="lighttable-style-editor__add">
+            <select value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
+              {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
+            </select>
+            <button type="button" onClick={addStyle}>Add</button>
+          </div>
+          <div className="lighttable-style-editor__panel-scale">
+            <NumberSlider label="Scale effects" value={draft.scale * 100} min={1} max={1000}
+              suffix="%" resetValue={100}
+              onChange={(scale) => updateDraft((current) => ({
+                ...current,
+                scale: scale / 100,
+                revision: current.revision + 1
+              }))} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`lighttable-style-editor${mode === 'panel' ? ' lighttable-style-editor--panel' : ''}`}
-      role={mode === 'dialog' ? 'dialog' : 'region'}
-      aria-modal={mode === 'dialog' ? true : undefined}
+      className="lighttable-style-editor"
+      role="dialog"
+      aria-modal="true"
       aria-label="Layer Style"
     >
-      {mode === 'dialog' ? (
-        <header>
-          <div>
-            <strong>Layer Style</strong>
-            <span>{layerName}</span>
-          </div>
-          <button type="button" onClick={onCancel} aria-label="Close Layer Style editor">×</button>
-        </header>
-      ) : null}
+      <header>
+        <div>
+          <strong>Layer Style</strong>
+          <span>{layerName}</span>
+        </div>
+        <button type="button" onClick={onCancel} aria-label="Close Layer Style editor">×</button>
+      </header>
       <div className="lighttable-style-editor__body">
         <aside>
           <label className="lighttable-style-stack-toggle">
@@ -972,12 +1094,8 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
               revision: current.revision + 1
             }))} />
         </div>
-        {mode === 'dialog' ? (
-          <>
-            <button type="button" onClick={onCancel}>Cancel</button>
-            <button type="button" className="lighttable-style-editor__primary" onClick={onCommit}>OK</button>
-          </>
-        ) : null}
+        <button type="button" onClick={onCancel}>Cancel</button>
+        <button type="button" className="lighttable-style-editor__primary" onClick={onCommit}>OK</button>
       </footer>
     </div>
   );
