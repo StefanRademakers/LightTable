@@ -30,6 +30,10 @@ describe('Layer Style GPU settings', () => {
     stack.scale = 2;
     stack.globalLight.angle = 135;
     const shadow = createDefaultLayerStyle('drop-shadow');
+    if (shadow.kind !== 'drop-shadow') throw new Error('Expected Drop Shadow.');
+    shadow.useGlobalLight = true;
+    shadow.distance = 5;
+    shadow.size = 8;
     const values = layerStyleUniform(shadow, stack, 800, 600)!;
     expect(values[0]).toBe(2);
     expect(values[12]).toBe(135);

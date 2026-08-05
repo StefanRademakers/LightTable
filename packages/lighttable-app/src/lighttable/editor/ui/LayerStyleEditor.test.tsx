@@ -29,5 +29,13 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('aria-label="Remove Drop Shadow"');
     expect(markup).not.toContain('>Enabled<');
     expect(markup).not.toContain('>Remove<');
+    expect(markup).toContain('title="Blur"');
+    expect(markup).toContain('title="Distance"');
+    expect(markup).toContain('title="Opacity"');
+    expect(markup).toContain('role="slider"');
+    expect(markup).toContain('aria-label="Angle"');
+    expect(markup).toContain('aria-label="Angle degrees"');
+    expect(markup).toContain('<summary>Advanced</summary>');
+    expect(markup).toContain('title="Spread"');
   });
 });

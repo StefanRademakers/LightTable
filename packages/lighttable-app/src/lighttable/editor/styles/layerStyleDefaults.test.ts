@@ -21,6 +21,15 @@ const kinds: LayerStyleKind[] = [
 ];
 
 describe('LightTable Layer Style model', () => {
+  it('creates a locally directed, visible Drop Shadow for the compact editor', () => {
+    const shadow = createDefaultLayerStyle('drop-shadow');
+    expect(shadow).toMatchObject({
+      useGlobalLight: false,
+      distance: 30,
+      size: 30
+    });
+  });
+
   it('creates and validates every Photoshop-compatible style family', () => {
     const stack = createDefaultLayerStyleStack();
     stack.effects = kinds.map(createDefaultLayerStyle);

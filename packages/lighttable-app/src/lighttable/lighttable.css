@@ -2813,6 +2813,125 @@
   font-size: var(--lt-type-label);
 }
 
+.lighttable-style-advanced {
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.lighttable-style-advanced > summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-label);
+  font-weight: var(--lt-weight-bold);
+  cursor: pointer;
+  user-select: none;
+}
+
+.lighttable-style-advanced > summary::before {
+  width: 14px;
+  content: '›';
+  color: var(--lt-text-subtle);
+  font-size: 16px;
+  transform: rotate(0deg);
+  transition: transform 100ms ease;
+}
+
+.lighttable-style-advanced[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.lighttable-style-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lighttable-style-advanced__content {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 4px 12px 12px;
+}
+
+.lighttable-style-angle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-label);
+}
+
+.lighttable-style-angle__controls,
+.lighttable-style-angle__number {
+  display: flex;
+  align-items: center;
+}
+
+.lighttable-style-angle__controls {
+  gap: 8px;
+}
+
+.lighttable-style-angle__dial {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 38%, #7d858f 0, #4b5159 58%, #292d32 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.lighttable-style-angle__dial:focus-visible {
+  outline: 2px solid var(--lt-focus-ring);
+  outline-offset: 2px;
+}
+
+.lighttable-style-angle__hand {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 1px);
+  width: 13px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--lt-text-primary);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+.lighttable-style-angle__hand::after {
+  position: absolute;
+  right: -2px;
+  top: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lt-text-primary);
+  content: '';
+}
+
+.lighttable-style-angle__number {
+  gap: 3px;
+  color: var(--lt-text-subtle);
+}
+
+.lighttable-style-angle__number input {
+  width: 58px;
+  height: 28px;
+  box-sizing: border-box;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  color: var(--lt-text-secondary);
+  background: var(--lt-surface-control);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .lighttable-style-field {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr);

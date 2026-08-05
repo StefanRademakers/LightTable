@@ -123,6 +123,99 @@ const NumberSlider: React.FC<{
   />
 );
 
+const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
+
+const AngleField: React.FC<{
+  label: string;
+  value: number;
+  resetValue?: number;
+  onChange: (value: number) => void;
+}> = ({ label, value, resetValue = 0, onChange }) => {
+  const dialRef = React.useRef<HTMLDivElement | null>(null);
+  const pointerIdRef = React.useRef<number | null>(null);
+  const normalized = normalizeAngle(value);
+
+  const updateFromPointer = (clientX: number, clientY: number) => {
+    const bounds = dialRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const x = clientX - (bounds.left + bounds.width / 2);
+    const y = clientY - (bounds.top + bounds.height / 2);
+    if (Math.hypot(x, y) < 1) return;
+    onChange(normalizeAngle(Math.atan2(-y, x) * 180 / Math.PI));
+  };
+
+  return (
+    <label className="lighttable-style-angle">
+      <span>{label}</span>
+      <span className="lighttable-style-angle__controls">
+        <div
+          ref={dialRef}
+          className="lighttable-style-angle__dial"
+          role="slider"
+          tabIndex={0}
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={359}
+          aria-valuenow={Math.round(normalized)}
+          aria-valuetext={`${Math.round(normalized)} degrees`}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            pointerIdRef.current = event.pointerId;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            updateFromPointer(event.clientX, event.clientY);
+          }}
+          onPointerMove={(event) => {
+            if (pointerIdRef.current === event.pointerId) {
+              updateFromPointer(event.clientX, event.clientY);
+            }
+          }}
+          onPointerUp={(event) => {
+            if (pointerIdRef.current === event.pointerId) pointerIdRef.current = null;
+          }}
+          onPointerCancel={(event) => {
+            if (pointerIdRef.current === event.pointerId) pointerIdRef.current = null;
+          }}
+          onDoubleClick={() => onChange(resetValue)}
+          onKeyDown={(event) => {
+            const step = event.shiftKey ? 10 : 1;
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+              event.preventDefault();
+              onChange(normalizeAngle(normalized - step));
+            } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              onChange(normalizeAngle(normalized + step));
+            } else if (event.key === 'Home') {
+              event.preventDefault();
+              onChange(resetValue);
+            }
+          }}
+        >
+          <span
+            className="lighttable-style-angle__hand"
+            style={{ transform: `rotate(${-normalized}deg)` }}
+            aria-hidden="true"
+          />
+        </div>
+        <span className="lighttable-style-angle__number">
+          <input
+            type="number"
+            min={0}
+            max={359}
+            step={1}
+            value={Math.round(normalized)}
+            aria-label={`${label} degrees`}
+            onChange={(event) => {
+              const next = event.currentTarget.valueAsNumber;
+              if (Number.isFinite(next)) onChange(normalizeAngle(next));
+            }}
+          />
+          <span>°</span>
+        </span>
+      </span>
+    </label>
+  );
+};
+
 const CommonControls: React.FC<{
   effect: LayerStyleInstance;
   patch: (patch: Partial<LayerStyleInstance>) => void;
@@ -207,6 +300,97 @@ const DirectionControls: React.FC<{
   </div>
 );
 
+const DropShadowControls: React.FC<{
+  effect: Extract<LayerStyleInstance, { kind: 'drop-shadow' }>;
+  patch: (patch: Partial<LayerStyleInstance>) => void;
+}> = ({ effect, patch }) => (
+  <>
+    <div className="lighttable-style-section">
+      <h4>Shadow</h4>
+      <NumberSlider
+        label="Blur"
+        value={effect.size}
+        min={0}
+        max={250}
+        suffix=" px"
+        resetValue={30}
+        onChange={(size) => patch({ size })}
+      />
+      <NumberSlider
+        label="Distance"
+        value={effect.distance}
+        min={0}
+        max={250}
+        suffix=" px"
+        resetValue={30}
+        onChange={(distance) => patch({ distance })}
+      />
+      <ColorField label="Color" value={effect.color} onChange={(color) => patch({ color })} />
+      <AngleField
+        label="Angle"
+        value={effect.angle}
+        resetValue={120}
+        onChange={(angle) => patch({ angle })}
+      />
+      <NumberSlider
+        label="Opacity"
+        value={effect.opacity * 100}
+        min={0}
+        max={100}
+        suffix="%"
+        resetValue={35}
+        onChange={(opacity) => patch({ opacity: opacity / 100 })}
+      />
+    </div>
+    <details className="lighttable-style-advanced">
+      <summary>Advanced</summary>
+      <div className="lighttable-style-advanced__content">
+        <SelectField
+          label="Blend mode"
+          value={effect.blendMode}
+          options={BLEND_MODES.map((mode) => ({ value: mode.id, label: mode.label }))}
+          onChange={(blendMode) => patch({ blendMode: blendMode as BlendMode })}
+        />
+        <NumberSlider
+          label="Spread"
+          value={effect.spread * 100}
+          min={0}
+          max={100}
+          suffix="%"
+          onChange={(spread) => patch({ spread: spread / 100 })}
+        />
+        <ToggleField
+          label="Use global light"
+          checked={effect.useGlobalLight}
+          onChange={(useGlobalLight) => patch({ useGlobalLight })}
+        />
+        <ToggleField
+          label="Layer knocks out shadow"
+          checked={effect.layerKnocksOut}
+          onChange={(layerKnocksOut) => patch({ layerKnocksOut })}
+        />
+        <ToggleField
+          label="Anti-alias"
+          checked={effect.antiAlias}
+          onChange={(antiAlias) => patch({ antiAlias })}
+        />
+        <NumberSlider
+          label="Noise"
+          value={effect.noise * 100}
+          min={0}
+          max={100}
+          suffix="%"
+          onChange={(noise) => patch({ noise: noise / 100 })}
+        />
+        <LayerStyleContourEditor
+          value={effect.contour}
+          onChange={(contour) => patch({ contour })}
+        />
+      </div>
+    </details>
+  </>
+);
+
 const EffectControls: React.FC<{
   effect: LayerStyleInstance;
   patch: (patch: Partial<LayerStyleInstance>) => void;
@@ -218,6 +402,7 @@ const EffectControls: React.FC<{
         <ColorField label="Color" value={effect.color} onChange={(color) => patch({ color })} />
       </div></>;
     case 'drop-shadow':
+      return <DropShadowControls effect={effect} patch={patch} />;
     case 'inner-shadow':
       return <>{common}
         <div className="lighttable-style-section"><h4>Color</h4>
@@ -226,21 +411,15 @@ const EffectControls: React.FC<{
         <DirectionControls effect={effect} patch={patch} />
         <div className="lighttable-style-section"><h4>Structure</h4>
           <NumberSlider
-            label={effect.kind === 'drop-shadow' ? 'Spread' : 'Choke'}
-            value={(effect.kind === 'drop-shadow' ? effect.spread : effect.choke) * 100}
+            label="Choke"
+            value={effect.choke * 100}
             min={0}
             max={100}
             suffix="%"
-            onChange={(value) => patch(
-              effect.kind === 'drop-shadow' ? { spread: value / 100 } : { choke: value / 100 }
-            )}
+            onChange={(choke) => patch({ choke: choke / 100 })}
           />
           <NumberSlider label="Size" value={effect.size} min={0} max={250} suffix=" px"
             resetValue={8} onChange={(size) => patch({ size })} />
-          {effect.kind === 'drop-shadow' ? (
-            <ToggleField label="Layer knocks out shadow" checked={effect.layerKnocksOut}
-              onChange={(layerKnocksOut) => patch({ layerKnocksOut })} />
-          ) : null}
         </div>
         <QualityControls effect={effect} patch={patch} />
       </>;
