@@ -1,0 +1,30 @@
+# Task 074 — Photoshop PSD export release candidate
+
+Status: completed and reverified 2026-08-06.
+
+LightTable exposes `File > Export Photoshop PSD...` and the shared
+`file.exportPsd` command. The lazy worker projects the canonical document to
+ag-psd and writes a merged composite plus the verified editable subset:
+
+- raster layers and off-canvas/tight transformed bounds;
+- ordered nested groups, visibility, opacity, fill opacity, clipping and locks;
+- raster masks;
+- point/paragraph flow text, runs, transforms, warp fields and preserved
+  imported text-on-path descriptors;
+- vector paths, no-fill, solid/gradient fill and strokes;
+- supported Layer Styles;
+- desktop save, web download and opaque command artifacts.
+
+The writer is fail-closed for unsupported semantic projections. PSD export
+does not replace native LightTable save and does not clear native dirty state.
+
+Reverification:
+
+- `npm run smoke:desktop:psd-roundtrip -- D:\TextTest.psd` — passed;
+- `npm run smoke:desktop:psd-roundtrip -- D:\shapes.psd` — passed;
+- both command-artifact reopen and physical desktop PSD export produced the
+  same canvas and semantic layer signatures with no page errors.
+
+Detailed coverage and remaining explicit PSD/PSB gates are maintained in
+`architecture/PSD_EXPORT_RELEASE_CANDIDATE.md` and
+`architecture/PSD_PSB_EXPORT_SCOPE.md`.
