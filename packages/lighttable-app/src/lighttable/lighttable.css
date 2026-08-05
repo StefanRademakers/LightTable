@@ -2682,17 +2682,35 @@
   padding: 5px;
 }
 
-.lighttable-style-editor__effect-list > button {
+.lighttable-style-editor__effect-list > div {
   width: 100%;
   min-height: 30px;
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr) 28px;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: 3px;
+  padding: 1px 2px 1px 7px;
   border: 1px solid transparent;
   border-radius: var(--lt-radius-sm);
   color: var(--lt-text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: var(--lt-type-label);
+}
+
+.lighttable-style-editor__effect-list > div:hover { background: var(--lt-surface-control-hover); }
+.lighttable-style-editor__effect-list > .lighttable-style-editor__effect--active {
+  border-color: var(--lt-accent);
+  color: var(--lt-text-on-accent);
+  background: var(--lt-accent-selected);
+}
+
+.lighttable-style-editor__effect-list > div > button {
+  min-width: 0;
+  height: 28px;
+  padding: 0 3px;
+  border: 0;
+  color: inherit;
   background: transparent;
   font: inherit;
   font-size: var(--lt-type-label);
@@ -2700,29 +2718,28 @@
   cursor: pointer;
 }
 
-.lighttable-style-editor__effect-list > button:hover { background: var(--lt-surface-control-hover); }
-.lighttable-style-editor__effect-list > .lighttable-style-editor__effect--active {
-  border-color: var(--lt-accent);
-  color: var(--lt-text-on-accent);
-  background: var(--lt-accent-selected);
-}
-
-.lighttable-style-editor__effect-list > button > span:last-child {
+.lighttable-style-editor__effect-list > div > button:first-of-type {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.lighttable-style-editor__effect-list > button > span:first-child {
-  width: 7px;
-  height: 7px;
-  border: 1px solid #5f6874;
-  border-radius: 50%;
+.lighttable-style-editor__effect-list > div > input {
+  margin: 0;
+  cursor: pointer;
 }
 
-.lighttable-style-editor__effect-list .lighttable-style-editor__effect-dot--on {
-  border-color: var(--lt-focus-ring);
-  background: var(--lt-focus-ring);
+.lighttable-style-editor__effect-list > div > .lighttable-style-editor__effect-remove {
+  width: 28px;
+  padding: 0;
+  color: var(--lt-text-secondary);
+  font-size: 17px;
+  font-weight: var(--lt-weight-bold);
+  text-align: center;
+}
+
+.lighttable-style-editor__effect-list > div > .lighttable-style-editor__effect-remove:hover {
+  color: var(--lt-danger);
 }
 
 .lighttable-style-editor__add {

@@ -129,11 +129,6 @@ const CommonControls: React.FC<{
 }> = ({ effect, patch }) => (
   <div className="lighttable-style-section">
     <h4>Blend</h4>
-    <ToggleField
-      label="Enabled"
-      checked={effect.enabled}
-      onChange={(enabled) => patch({ enabled })}
-    />
     <SelectField
       label="Mode"
       value={effect.blendMode}
@@ -553,16 +548,16 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     setSelectedId(effect.id);
   };
 
-  const removeSelected = () => {
-    if (!selectedId) return;
-    const index = draft.effects.findIndex((effect) => effect.id === selectedId);
+  const removeEffect = (effectId: LayerStyleId) => {
+    const index = draft.effects.findIndex((effect) => effect.id === effectId);
+    if (index < 0) return;
     const nextId = draft.effects[index - 1]?.id ?? draft.effects[index + 1]?.id ?? null;
     updateDraft((current) => ({
       ...current,
-      effects: current.effects.filter((effect) => effect.id !== selectedId),
+      effects: current.effects.filter((effect) => effect.id !== effectId),
       revision: current.revision + 1
     }));
-    setSelectedId(nextId);
+    if (selectedId === effectId) setSelectedId(nextId);
   };
 
   const moveSelected = (direction: -1 | 1) => {
@@ -606,15 +601,36 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
           </label>
           <div className="lighttable-style-editor__effect-list">
             {[...draft.effects].reverse().map((effect) => (
-              <button
-                type="button"
+              <div
                 key={effect.id}
                 className={effect.id === selectedId ? 'lighttable-style-editor__effect--active' : ''}
-                onClick={() => setSelectedId(effect.id)}
               >
-                <span className={effect.enabled ? 'lighttable-style-editor__effect-dot--on' : ''} />
-                <span>{effect.name}</span>
-              </button>
+                <input
+                  type="checkbox"
+                  checked={effect.enabled}
+                  aria-label={`${effect.enabled ? 'Disable' : 'Enable'} ${effect.name}`}
+                  onChange={(event) => {
+                    const enabled = event.currentTarget.checked;
+                    updateDraft((current) => ({
+                      ...current,
+                      effects: current.effects.map((candidate) => candidate.id === effect.id
+                        ? { ...candidate, enabled }
+                        : candidate),
+                      revision: current.revision + 1
+                    }));
+                  }}
+                />
+                <button type="button" onClick={() => setSelectedId(effect.id)}>
+                  {effect.name}
+                </button>
+                <button
+                  type="button"
+                  className="lighttable-style-editor__effect-remove"
+                  aria-label={`Remove ${effect.name}`}
+                  title={`Remove ${effect.name}`}
+                  onClick={() => removeEffect(effect.id)}
+                >×</button>
+              </div>
             ))}
           </div>
           <div className="lighttable-style-editor__add">
@@ -636,7 +652,6 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
                   <button type="button" onClick={() => moveSelected(-1)}
                     disabled={draft.effects[0]?.id === selectedId}
                     title="Move effect down">↓</button>
-                  <button type="button" onClick={removeSelected}>Remove</button>
                 </div>
               </div>
               <EffectControls effect={selected} patch={patchSelected} />
