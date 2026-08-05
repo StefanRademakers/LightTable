@@ -42,6 +42,19 @@ files and LightTable imported all expected blend modes and quantized opacity
 values correctly. PSD stores opacity in an 8-bit field, so authored 50% returns
 as either 128/255 or 127/255; this is valid semantic parity.
 
+The Photoshop reference run records its color context alongside every render:
+
+- document mode: RGB;
+- bit depth: 8 bits/channel;
+- assigned document profile: none (the generated PSDs are untagged);
+- Photoshop Color Settings preset: `North America General Purpose 2`.
+
+Consequently, the conclusions below are measured parity conclusions for this
+specific document context. They must not be generalized silently to tagged
+sRGB or Adobe RGB documents, 16/32-bit documents, proofing, or a Photoshop
+configuration with different RGB blending preferences. A follow-up matrix
+must vary those inputs independently.
+
 ## Findings
 
 The opaque color result disproves a general profile or gamma mismatch:
@@ -51,6 +64,13 @@ The opaque color result disproves a general profile or gamma mismatch:
 - 21 of 26 modes have opaque-color RMSE at or below 1;
 - 24 of 26 modes have opaque-color RMSE below 3;
 - only Vivid Light and Hard Mix are structural outliers.
+
+For Multiply and Screen, the implementation and the supplied reference agree
+on the standard encoded-channel equations (`Cb * Cs` and
+`1 - (1 - Cb) * (1 - Cs)`). The shared premultiplied source-over structure is
+also algebraically consistent with the reference. The unresolved issue is not
+those two blend equations themselves, but the color space in which the final
+coverage/opacity terms are evaluated.
 
 ### Vivid Light and Hard Mix
 
@@ -79,6 +99,13 @@ result in this corpus interpolates that coverage in document blend-color
 space. This explains the systematic 50% opacity/fill differences and the
 per-pixel alpha strip without invoking an ICC-profile mismatch.
 
+This is deliberately scoped to the recorded untagged, 8-bit Photoshop run.
+The corpus proves what Photoshop produced under that configuration; it does
+not yet establish one universal Photoshop rule for every profile, bit depth,
+or `Blend RGB Colors Using Gamma` preference. It also does not generalize the
+two ordinary fill-opacity cases to Photoshop's special fill-opacity behavior
+for the special blend-mode family.
+
 ## Relationship to Layer Styles
 
 Layer Styles call the same central blend functions as ordinary layers.
@@ -102,3 +129,7 @@ test dimension.
 4. Re-run the complete rendering and effects corpora before accepting the
    change. A lower RMSE must not introduce halos, alpha seams or performance
    regressions.
+5. Add a controlled color-management matrix: tagged sRGB, tagged Adobe RGB,
+   untagged RGB, 8/16-bit, and the relevant Photoshop RGB blending preference.
+   Keep source pixels and blend parameters identical so profile conversion is
+   not confused with blend-equation or opacity-compositing behavior.

@@ -23,6 +23,11 @@
       var fields = lines[index].split('|');
       var source = new File(fields[0]); var canonical = new File(fields[1]); var reference = new File(fields[2]);
       var document = app.open(source); app.activeDocument = document;
+      var profile = ''; var bits = ''; var mode = ''; var colorSettings = '';
+      try { profile = document.colorProfileName; } catch (_) {}
+      try { bits = document.bitsPerChannel.toString(); } catch (_) {}
+      try { mode = document.mode.toString(); } catch (_) {}
+      try { colorSettings = app.colorSettings; } catch (_) {}
       var rendered = document.duplicate(document.name + '-render', false); rendered.flatten();
       var png = new PNGSaveOptions(); png.compression = 0; png.interlaced = false;
       rendered.saveAs(reference, png, true, Extension.LOWERCASE);
@@ -30,7 +35,9 @@
       var psd = new PhotoshopSaveOptions(); psd.layers = true; psd.maximizeCompatibility = true;
       psd.embedColorProfile = true; document.saveAs(canonical, psd, true, Extension.LOWERCASE);
       results.push('{"source":' + quote(source.fsName) + ',"canonical":' + quote(canonical.fsName)
-        + ',"reference":' + quote(reference.fsName) + '}');
+        + ',"reference":' + quote(reference.fsName) + ',"profile":' + quote(profile)
+        + ',"bitsPerChannel":' + quote(bits) + ',"documentMode":' + quote(mode)
+        + ',"colorSettings":' + quote(colorSettings) + '}');
       document.close(SaveOptions.DONOTSAVECHANGES); report('running', '');
     }
     report('passed', '');
