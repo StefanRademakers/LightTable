@@ -28,6 +28,7 @@ export type LightTableCommandId =
   | 'file.openArtifact'
   | 'file.exportNative'
   | 'file.exportPng'
+  | 'file.exportPsd'
   | 'history.undo'
   | 'history.redo';
 
@@ -216,6 +217,7 @@ export interface LightTableCommandPorts {
   setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
+  exportPsdArtifact(documentId: DocumentSessionId): File | Promise<File>;
   beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
   finishGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
@@ -233,6 +235,7 @@ export interface DocumentLightTableCommandPorts {
   setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
   exportNativeArtifact(): File | Promise<File>;
   exportPngArtifact(): File | Promise<File>;
+  exportPsdArtifact(): File | Promise<File>;
   beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
   finishGesture(kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
@@ -307,6 +310,10 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   exportPngArtifact(documentId: DocumentSessionId) {
     return this.resolve(documentId).exportPngArtifact();
+  }
+
+  exportPsdArtifact(documentId: DocumentSessionId) {
+    return this.resolve(documentId).exportPsdArtifact();
   }
 
   beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample) {
@@ -603,6 +610,7 @@ export class LightTableCommandService {
       availability('layer.effect.setEnabled', true, ''),
       availability('file.exportNative', true, ''),
       availability('file.exportPng', true, ''),
+      availability('file.exportPsd', true, ''),
       availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
       availability('history.redo', snapshot.history.canRedo, 'There is nothing to redo.')
     ];
@@ -654,7 +662,8 @@ export class LightTableCommandService {
       );
     }
 
-    if (value.command === 'file.exportNative' || value.command === 'file.exportPng') {
+    if (value.command === 'file.exportNative' || value.command === 'file.exportPng'
+      || value.command === 'file.exportPsd') {
       if (!isRecord(value.parameters) || Object.keys(value.parameters).length > 0) {
         return this.reject(value.requestId, 'invalid-parameters', 'Export parameters must be an empty object.', snapshot);
       }
@@ -687,10 +696,14 @@ export class LightTableCommandService {
     const session = this.workspace.getDocument(request.documentId);
     if (!session) return this.reject(request.requestId, 'document-not-found', 'The target document is not open.');
     const native = request.command === 'file.exportNative';
+    const psd = request.command === 'file.exportPsd';
     const operation = native ? this.ports.exportNativeArtifact.bind(this.ports)
-      : this.ports.exportPngArtifact.bind(this.ports);
-    const kind: LightTableArtifactKind = native ? 'native-document' : 'png-export';
-    const running = session.tasks.run('export', native ? 'Export native document' : 'Export PNG artifact', async (task) => {
+      : psd ? this.ports.exportPsdArtifact.bind(this.ports)
+        : this.ports.exportPngArtifact.bind(this.ports);
+    const kind: LightTableArtifactKind = native ? 'native-document'
+      : psd ? 'psd-export' : 'png-export';
+    const running = session.tasks.run('export', native ? 'Export native document'
+      : psd ? 'Export Photoshop artifact' : 'Export PNG artifact', async (task) => {
       const file = await operation(request.documentId);
       task.throwIfCanceled();
       return this.artifacts.register(file, kind);
@@ -884,6 +897,7 @@ export class LightTableCommandService {
       'file.openArtifact',
       'file.exportNative',
       'file.exportPng',
+      'file.exportPsd',
       'history.undo',
       'history.redo'
     ].includes(value);

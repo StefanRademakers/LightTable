@@ -13,8 +13,13 @@ describe('format capability projection', () => {
     advertised.forEach((extension) => expect(openExtensions.has(extension)).toBe(true));
   });
 
-  it('does not advertise PSD, PSB or AI export before their parity gates pass', () => {
-    ['psd', 'ai'].forEach((id) => expect(
+  it('advertises the gated PSD writer without claiming complete parity', () => {
+    expect(LIGHTTABLE_FORMAT_CAPABILITIES.find((format) => format.id === 'psd')?.export)
+      .toBe('partial');
+  });
+
+  it('does not advertise PSB or AI export before their parity gates pass', () => {
+    ['psb', 'ai'].forEach((id) => expect(
       LIGHTTABLE_FORMAT_CAPABILITIES.find((format) => format.id === id)?.export
     ).toBe('unavailable'));
   });

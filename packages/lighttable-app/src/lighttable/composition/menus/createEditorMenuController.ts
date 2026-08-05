@@ -25,6 +25,7 @@ export interface EditorMenuControllerOptions {
     clearRecent(): void;
     save(): void;
     exportPng(): void;
+    exportPsd(): void;
     pdfExportPreflight(): void;
     openCompatibilityReport(): void;
     openFormatSupport(): void;
@@ -115,6 +116,7 @@ export const createEditorMenuController = ({
       clearRecent: file.clearRecent,
       save: file.save,
       exportPng: file.exportPng,
+      exportPsd: file.exportPsd,
       pdfExportPreflight: file.pdfExportPreflight,
       openCompatibilityReport: file.openCompatibilityReport,
       openFormatSupport: file.openFormatSupport,

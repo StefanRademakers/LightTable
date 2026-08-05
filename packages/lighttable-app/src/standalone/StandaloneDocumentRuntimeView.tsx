@@ -136,6 +136,7 @@ export function StandaloneDocumentRuntimeView({
           if (saved !== false) session.markSaved();
           return saved;
         }}
+        onExportFile={(file) => host.save({ file, recipe: null })}
       />
     </DocumentRuntimeErrorBoundary>
   );

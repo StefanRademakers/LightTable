@@ -32,6 +32,7 @@ const setup = () => {
     setLayerEffectEnabled: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
+    exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
     beginGesture: vi.fn(async () => true),
     updateGesture: vi.fn(async () => true),
     finishGesture: vi.fn(async () => true),
@@ -97,6 +98,7 @@ describe('LightTableCommandService registry', () => {
       setLayerEffectEnabled: vi.fn(),
       exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
+      exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
       beginGesture: vi.fn(async () => true),
       updateGesture: vi.fn(async () => true),
       finishGesture: vi.fn(async () => true),
@@ -207,9 +209,9 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
-  it('returns task-backed opaque artifacts for native and PNG exports', async () => {
+  it('returns task-backed opaque artifacts for native, PNG and PSD exports', async () => {
     const state = setup();
-    for (const command of ['file.exportNative', 'file.exportPng'] as const) {
+    for (const command of ['file.exportNative', 'file.exportPng', 'file.exportPsd'] as const) {
       const accepted = await state.service.execute(request(command, state.session.id, {}));
       expect(accepted.status).toBe('accepted');
       if (accepted.status !== 'accepted') continue;

@@ -52,6 +52,7 @@ export interface EditorMenuCommands {
   clearRecent: () => void;
   save: () => void;
   exportPng: () => void;
+  exportPsd: () => void;
   pdfExportPreflight: () => void;
   openCompatibilityReport: () => void;
   openFormatSupport: () => void;
@@ -148,6 +149,12 @@ export const createEditorMenuOptions = (
         shortcut: labels.primaryShortcut('S'),
         onClick: commands.save,
         disabled: !state.hasMetadata || !state.hasSourceKey || state.saving
+      },
+      {
+        value: 'export-psd',
+        label: 'Export Photoshop PSD...',
+        onClick: commands.exportPsd,
+        disabled: !state.hasDocument || state.saving
       },
       {
         value: 'export-png',

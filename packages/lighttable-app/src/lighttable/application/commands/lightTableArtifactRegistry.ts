@@ -1,4 +1,4 @@
-export type LightTableArtifactKind = 'input' | 'native-document' | 'png-export';
+export type LightTableArtifactKind = 'input' | 'native-document' | 'png-export' | 'psd-export';
 
 export interface LightTableArtifactMetadata {
   readonly id: string;

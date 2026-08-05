@@ -19,8 +19,10 @@ import type {
 import type { ImageDocument } from '../document/documentTypes';
 import type {
   FontAssetBlob,
+  LayerAssetBlobs,
   PreservedSourceAssetBlob
 } from '../persistence/layeredDocumentFormat';
+import { exportPsdDocument } from '../../application/documents/PsdExportClient';
 import {
   pickSupportedImageFile
 } from '../../image-io/supportedImageFormats';
@@ -55,6 +57,7 @@ export interface DocumentFileCommandsOptions {
     file: File,
     recipe: LightTableRecipe
   ) => Promise<boolean | void> | boolean | void;
+  readonly onExportFile?: (file: File) => Promise<boolean | void> | boolean | void;
   readonly onClose: () => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly onRequestOpenWorkspaceDocument?: (
@@ -73,6 +76,7 @@ export interface DocumentFileCommands {
   exportOutput(): Promise<ExportedLightTableDocument>;
   save(): Promise<void>;
   exportPng(): Promise<void>;
+  exportPsd(): Promise<void>;
   openLocalFile(
     file: File | null,
     decodeMode: DocumentOpenMode
@@ -184,6 +188,46 @@ export const useDocumentFileCommands = (
     }
   }, []);
 
+  const exportPsd = useCallback(async () => {
+    const current = optionsRef.current;
+    current.setError(null);
+    const result = await current.taskRegistry.run(
+      'export',
+      'Export Photoshop document',
+      async (task) => {
+        const renderer = current.getRenderer();
+        const imageDocument = current.getDocument();
+        if (!renderer || !imageDocument || !current.hasMetadata) {
+          throw new Error('LightTable is not ready yet.');
+        }
+        const [composite, exportedAssets] = await Promise.all([
+          renderer.exportPng(),
+          renderer.exportPsdLayerAssets?.(imageDocument)
+            ?? renderer.exportLayerAssets(imageDocument)
+        ]);
+        task.throwIfCanceled();
+        const layerAssets = exportedAssets.filter(
+          (asset): asset is LayerAssetBlobs => 'layerId' in asset
+        );
+        const exported = await exportPsdDocument(
+          imageDocument,
+          composite,
+          layerAssets,
+          current.fileNameBase
+        );
+        task.throwIfCanceled();
+        if (current.onExportFile) await current.onExportFile(exported.file);
+        else downloadOutput(exported.file);
+        if (exported.warnings.length) {
+          console.warn('[PSD export compatibility]', ...exported.warnings);
+        }
+      }
+    );
+    if (result.status === 'failed') {
+      current.setError(result.error.message || 'Photoshop export failed.');
+    }
+  }, []);
+
   const openLocalFile = useCallback(async (
     file: File | null,
     decodeMode: DocumentOpenMode
@@ -266,6 +310,7 @@ export const useDocumentFileCommands = (
     exportOutput,
     save,
     exportPng,
+    exportPsd,
     openLocalFile,
     handleFastFileInput: (event) => handleFileInput(event, 'fast'),
     handlePrecisionFileInput: (event) =>

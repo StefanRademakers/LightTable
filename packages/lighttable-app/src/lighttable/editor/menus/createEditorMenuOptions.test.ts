@@ -69,6 +69,7 @@ describe('createEditorMenuOptions', () => {
       { label: 'Open', shortcut: 'Ctrl+O' },
       { label: 'Open Recent', shortcut: undefined },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
+      { label: 'Export Photoshop PSD...', shortcut: undefined },
       { label: 'Quick Export PNG', shortcut: 'Ctrl+Shift+S' },
       { label: 'PDF Export Preflight...', shortcut: undefined },
       { label: 'Document Compatibility Report...', shortcut: undefined },

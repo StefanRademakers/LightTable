@@ -108,6 +108,8 @@ import {
 import {
   useEditorDocumentFileController
 } from './composition/documents/useEditorDocumentFileController';
+import { exportPsdDocument } from './application/documents/PsdExportClient';
+import type { LayerAssetBlobs } from './editor/persistence/layeredDocumentFormat';
 import {
   useEditorKeyboardController
 } from './composition/input/useEditorKeyboardController';
@@ -369,6 +371,7 @@ export interface LightTableEditorOverlayProps {
   subjectLabel: string;
   onClose: () => void;
   onSave: (file: File, recipe: LightTableRecipe) => Promise<boolean | void> | boolean | void;
+  onExportFile?: (file: File) => Promise<boolean | void> | boolean | void;
   workspaceDocumentId?: string;
   workspaceDocuments?: ReadonlyArray<{
     id: string;
@@ -414,6 +417,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   fileNameBase,
   onClose,
   onSave,
+  onExportFile,
   workspaceDocumentId = 'active-document',
   workspaceDocuments,
   onActivateWorkspaceDocument,
@@ -653,6 +657,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const exportPngArtifactRef = useRef<() => Promise<File>>(async () => {
     throw new Error('The PNG export controller is not ready.');
+  });
+  const exportPsdArtifactRef = useRef<() => Promise<File>>(async () => {
+    throw new Error('The PSD export controller is not ready.');
   });
   const beginAutomationGestureRef = useRef<(
     kind: LightTableGestureKind,
@@ -2718,6 +2725,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setLayerEffectEnabled: layerPanelController.setStyleEnabled,
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
+      exportPsdArtifact: () => exportPsdArtifactRef.current(),
       beginGesture: (kind, pointerId, parameters, sample) =>
         beginAutomationGestureRef.current(kind, pointerId, parameters, sample),
       updateGesture: (kind, pointerId, sample) =>
@@ -2951,6 +2959,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     exportOutput,
     save: handleSave,
     exportPng: handleExportPng,
+    exportPsd: handleExportPsd,
     handleFastFileInput: handleLocalFile,
     handlePrecisionFileInput: handleAdvancedLocalFile,
     chooseLocalFile,
@@ -2983,6 +2992,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     cancelAutoAlign: cancelAutoAlignPreview,
     onSave,
+    onExportFile,
     onClose,
     onDirtyChange,
     onRequestOpenWorkspaceDocument,
@@ -3001,6 +3011,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       `${fileNameBase.replace(/\.[^.]+$/, '') || 'image'}-lighttable.png`,
       { type: 'image/png' }
     );
+  };
+  exportPsdArtifactRef.current = async () => {
+    const renderer = engineRef.current;
+    const document = imageDocumentRef.current;
+    if (!renderer || !document) throw new Error('The document renderer is not ready.');
+    const [composite, assets] = await Promise.all([
+      renderer.exportPng(),
+      renderer.exportPsdLayerAssets(document)
+    ]);
+    return (await exportPsdDocument(
+      document,
+      composite,
+      assets.filter((asset): asset is LayerAssetBlobs => 'layerId' in asset),
+      fileNameBase
+    )).file;
   };
 
   const editorMenuController = createEditorMenuController({
@@ -3037,6 +3062,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       clearRecent: () => { void onClearRecentWorkspaceDocuments?.(); },
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
+      exportPsd: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsd(); },
       openCompatibilityReport: editorDialogs.openPsdReport,
       openFormatSupport: editorDialogs.openFormatSupport,
       pdfExportPreflight: () => {

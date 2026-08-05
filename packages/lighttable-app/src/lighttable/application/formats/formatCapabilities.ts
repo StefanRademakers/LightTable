@@ -38,9 +38,14 @@ export const LIGHTTABLE_FORMAT_CAPABILITIES: readonly FormatCapability[] = Objec
     summary: 'Precision still-raster import; multipage TIFF and export are unavailable.'
   },
   {
-    id: 'psd', label: 'Photoshop PSD / PSB', extensions: ['.psd', '.psb'],
+    id: 'psd', label: 'Photoshop PSD', extensions: ['.psd'],
+    open: 'supported', editable: 'partial', export: 'partial',
+    summary: 'Semantic import plus fail-closed 8-bit RGB export for the Photoshop-verified editable subset.'
+  },
+  {
+    id: 'psb', label: 'Photoshop PSB', extensions: ['.psb'],
     open: 'supported', editable: 'partial', export: 'unavailable',
-    summary: 'Progressive semantic import with reported preview fallbacks; PSD/PSB export is not enabled.'
+    summary: 'Uses the PSD import adapter; large-document export remains validation-gated.'
   },
   {
     id: 'pdf', label: 'PDF', extensions: ['.pdf'],
