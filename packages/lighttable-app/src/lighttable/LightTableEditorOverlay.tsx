@@ -142,7 +142,6 @@ import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
-import { PointTextCreationDialog } from './editor/ui/PointTextCreationDialog';
 import {
   ParagraphTextCreationController,
   PointTextCreationController,
@@ -638,7 +637,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const paragraphTextController = paragraphTextControllerRef.current;
   const pointTextCapabilityGenerationRef = useRef(0);
   const pathTextCreationTargetRef = useRef<PathTextCreationTarget | null>(null);
-  const commitPointTextRef = useRef<() => boolean>(() => false);
+  const commitPointTextRef = useRef<(beginEditing?: boolean) => boolean>(() => false);
   const cancelPointTextRef = useRef<() => boolean>(() => false);
   const commitParagraphTextRef = useRef<() => boolean>(() => false);
   const commitParagraphCanvasTextRef = useRef<() => boolean>(() => false);
@@ -685,11 +684,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pendingTextPaintPatchRef = useRef<TextStylePatch | null>(null);
   const textPaintPreviewFrameRef = useRef<number | null>(null);
   const selectLayerRef = useRef<(layerId: LayerId) => void>(() => undefined);
-  const pointTextCreation = useSyncExternalStore(
-    pointTextController.subscribe,
-    pointTextController.getSnapshot,
-    pointTextController.getSnapshot
-  );
   const paragraphTextCreation = useSyncExternalStore(
     paragraphTextController.subscribe,
     paragraphTextController.getSnapshot,
@@ -2136,12 +2130,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const candidates = walkLayerTree(document.layers)
       .map(({ node }) => node)
       .filter((node) => node.type === 'text'
+        && node.visible
+        && node.opacity > 0
         && node.text.source.kind === 'flow'
-        && (mode === 'any' || node.text.source.layout.mode === mode))
-      .reverse();
-    for (const layer of candidates) {
+        && (mode === 'any' || node.text.source.layout.mode === mode));
+    const active = candidates.find(({ id }) => id === document.activeLayerId);
+    const ordered = [
+      ...(active ? [active] : []),
+      ...candidates.filter(({ id }) => id !== active?.id).reverse()
+    ];
+    for (const layer of ordered) {
       const layout = engineRef.current?.textEditingLayout(layer.id);
-      const hit = layout ? hitTestTextEditingLayout(layout, point) : null;
+      const hit = layout ? hitTestTextEditingLayout(layout, point, 8 / Math.max(activeScale, 1e-6)) : null;
       if (!hit) continue;
       pointTextController.cancel();
       paragraphTextController.cancel();
@@ -2187,6 +2187,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ) return;
       pathTextCreationTargetRef.current = pathTarget;
       pointTextController.begin(documentId, origin);
+      commitPointTextRef.current(true);
       setGradeStatus(null);
     } catch (reason) {
       if (generation !== pointTextCapabilityGenerationRef.current) return;
@@ -2200,7 +2201,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   };
 
-  const commitPointTextCreation = () => {
+  const commitPointTextCreation = (beginEditing = false) => {
     const before = imageDocumentRef.current;
     const font = selectedPointTextFont();
     if (pointTextController.getSnapshot().request && !font) {
@@ -2226,6 +2227,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (after === before) return false;
     applyDocumentSnapshot(after);
     pushDocumentHistory(before, after);
+    if (beginEditing && after.activeLayerId) {
+      textEditingController.begin(after.activeLayerId);
+      textEditingController.selectAll();
+    }
     return true;
   };
 
@@ -3974,22 +3979,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onClose: () => setToolOptionsMenu(null)
           } : null}
           />
-          {pointTextCreation.request ? (
-            <PointTextCreationDialog
-              value={pointTextCreation.request.text}
-              onChange={(text) => pointTextController.update(text)}
-              onCommit={commitPointTextCreation}
-              onCancel={cancelPointTextCreation}
-            />
-          ) : null}
-          {paragraphTextCreation.status === 'editing' && paragraphTextCreation.request ? (
-            <PointTextCreationDialog
-              value={paragraphTextCreation.request.text}
-              onChange={(text) => paragraphTextController.update(text)}
-              onCommit={commitParagraphTextCreation}
-              onCancel={cancelParagraphTextCreation}
-            />
-          ) : null}
         </>
       )}
     >

@@ -17,6 +17,10 @@ describe('LightTable editor session', () => {
     expect(createEditorSession().brush.spacing).toBe(0.05);
   });
 
+  it('starts newly authored text at fifty document pixels', () => {
+    expect(createEditorSession().text.size).toBe(50);
+  });
+
   it('starts with document-local vector selection state', () => {
     expect(createEditorSession().vectorSelection).toEqual({
       elements: [],

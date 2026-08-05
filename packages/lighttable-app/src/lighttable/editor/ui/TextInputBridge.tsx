@@ -64,6 +64,17 @@ export const textInputCommandFromBeforeInput = (
   return null;
 };
 
+export const textInputDeleteCommandFromKey = (
+  event: Pick<React.KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'>
+): TextInputEditCommand | null => {
+  if (event.altKey || (event.key !== 'Backspace' && event.key !== 'Delete')) return null;
+  return {
+    kind: 'delete',
+    direction: event.key === 'Backspace' ? 'backward' : 'forward',
+    unit: event.ctrlKey || event.metaKey ? 'word' : 'grapheme'
+  };
+};
+
 export interface TextInputBridgeProps {
   readonly label: string;
   readonly text: string;
@@ -175,6 +186,13 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
       }}
       onBlur={onCheckpoint}
       onKeyDown={(event) => {
+        const deletion = textInputDeleteCommandFromKey(event);
+        if (deletion) {
+          // Chromium/React does not consistently surface deletion through
+          // synthetic beforeinput. Owning keydown also prevents the native
+          // textarea from briefly diverging from the semantic text model.
+          event.preventDefault(); event.stopPropagation(); onEdit(deletion); return;
+        }
         const format = textInputFormatCommandFromKey(event);
         if (format) {
           event.preventDefault(); event.stopPropagation(); onFormat(format); return;

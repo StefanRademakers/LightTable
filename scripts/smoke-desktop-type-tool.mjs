@@ -85,10 +85,22 @@ try {
   if (!bounds) throw new Error('Viewport bounds are unavailable.');
   const point = { x: bounds.x + bounds.width * 0.30, y: bounds.y + bounds.height * 0.30 };
   await page.mouse.click(point.x, point.y);
-  const dialog = page.getByRole('dialog', { name: 'Create text' });
-  await dialog.waitFor({ state: 'visible', timeout: 30_000 });
-  await dialog.getByRole('textbox', { name: 'Text' }).fill('Point gesture');
-  await dialog.getByRole('button', { name: 'Create' }).click();
+  const textInput = page.getByRole('textbox', { name: /^Edit / });
+  await textInput.waitFor({ state: 'attached', timeout: 30_000 });
+  if (await page.getByRole('dialog', { name: 'Create text' }).count()) {
+    throw new Error('Point text still opened the legacy creation dialog.');
+  }
+  await textInput.pressSequentially('Point gesture');
+  await textInput.press('Backspace');
+  if (await textInput.inputValue() !== 'Point gestur') {
+    throw new Error('Backspace did not delete the previous text grapheme.');
+  }
+  await textInput.pressSequentially('e');
+  await textInput.press('Control+Backspace');
+  if (await textInput.inputValue() !== 'Point ') {
+    throw new Error('Ctrl+Backspace did not delete the previous text word.');
+  }
+  await textInput.pressSequentially('gesture');
   await page.getByRole('radio', { name: 'Convert to point text' })
     .waitFor({ state: 'visible', timeout: 30_000 });
   if (await page.getByRole('radio', { name: 'Convert to point text' }).getAttribute('aria-checked') !== 'true') {
@@ -108,7 +120,7 @@ try {
   }
   const afterCreation = await driver.queryDocument(documentId);
   if (!afterCreation || afterCreation.layerCount !== before.layerCount + 2
-    || afterCreation.history.undoDepth !== before.history.undoDepth + 2) {
+    || afterCreation.history.undoDepth !== before.history.undoDepth + 7) {
     throw new Error(`Unified Type gestures produced unexpected history: ${JSON.stringify({ before, afterCreation })}`);
   }
   const orientation = page.locator('.lighttable-tool-options').getByLabel('Orientation');
@@ -123,7 +135,7 @@ try {
 
   const after = await driver.queryDocument(documentId);
   if (!after || after.layerCount !== before.layerCount + 2
-    || after.history.undoDepth !== before.history.undoDepth + 4) {
+    || after.history.undoDepth !== before.history.undoDepth + 9) {
     throw new Error(`Text orientation produced unexpected history: ${JSON.stringify({ before, after })}`);
   }
   const beforeTransformLayers = await driver.queryLayers(documentId);
@@ -159,6 +171,36 @@ try {
       activeTransformed
     })}`);
   }
+  await page.keyboard.press('Control+t');
+  await transformOverlay.waitFor({ state: 'visible', timeout: 30_000 });
+  const transformHandleBounds = await transformOverlay.locator('rect').evaluateAll((rectangles) => (
+    rectangles
+      .map((rectangle) => rectangle.getBoundingClientRect())
+      .filter(({ width, height }) => width > 0 && height > 0 && width <= 24 && height <= 24)
+      .map(({ x, y, width, height }) => ({ x, y, width, height }))
+  ));
+  if (transformHandleBounds.length < 2) {
+    throw new Error('The transformed text handles are unavailable.');
+  }
+  const transformedBounds = transformHandleBounds.reduce((bounds, handle) => ({
+    left: Math.min(bounds.left, handle.x + handle.width / 2),
+    top: Math.min(bounds.top, handle.y + handle.height / 2),
+    right: Math.max(bounds.right, handle.x + handle.width / 2),
+    bottom: Math.max(bounds.bottom, handle.y + handle.height / 2)
+  }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
+  await page.keyboard.press('Escape');
+  await transformOverlay.waitFor({ state: 'detached', timeout: 30_000 });
+  await page.keyboard.press('t');
+  await page.mouse.click(
+    (transformedBounds.left + transformedBounds.right) / 2,
+    (transformedBounds.top + transformedBounds.bottom) / 2
+  );
+  await textInput.waitFor({ state: 'attached', timeout: 30_000 });
+  const reopened = await driver.queryDocument(documentId);
+  if (reopened?.activeLayerId !== after.activeLayerId) {
+    throw new Error('A Type Tool click did not re-enter the transformed text layer.');
+  }
+  await page.keyboard.press('Control+Enter');
   await page.keyboard.press('Control+Shift+t');
   const repeated = await driver.queryDocument(documentId);
   const repeatedLayers = await driver.queryLayers(documentId);

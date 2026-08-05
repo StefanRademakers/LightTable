@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   TextInputBridge,
   textInputCommandFromBeforeInput,
+  textInputDeleteCommandFromKey,
   textInputFormatCommandFromKey
 } from './TextInputBridge';
 
@@ -22,6 +23,19 @@ describe('TextInputBridge', () => {
       .toEqual({ kind: 'insert', text: 'x' });
     expect(textInputCommandFromBeforeInput('insertText', undefined)).toBeNull();
     expect(textInputCommandFromBeforeInput('insertCompositionText', '編')).toBeNull();
+  });
+
+  it('maps native deletion keys even when React omits beforeinput', () => {
+    const key = (value: string, overrides: Partial<{
+      ctrlKey: boolean; metaKey: boolean; altKey: boolean
+    }> = {}) => textInputDeleteCommandFromKey({
+      key: value, ctrlKey: false, metaKey: false, altKey: false, ...overrides
+    });
+    expect(key('Backspace')).toEqual({ kind: 'delete', direction: 'backward', unit: 'grapheme' });
+    expect(key('Delete', { ctrlKey: true }))
+      .toEqual({ kind: 'delete', direction: 'forward', unit: 'word' });
+    expect(key('Backspace', { altKey: true })).toBeNull();
+    expect(key('A')).toBeNull();
   });
 
   it('maps Photoshop-compatible character formatting shortcuts', () => {

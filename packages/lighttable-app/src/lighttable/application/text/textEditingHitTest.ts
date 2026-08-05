@@ -1,5 +1,5 @@
 import type { CaretStop, PathTextLayout, RealizedTextLayout } from '@lighttable/text-core';
-import type { AffineMatrix } from '../../editor/geometry/affine';
+import { invertMatrix, transformPoint, type AffineMatrix } from '../../editor/geometry/affine';
 import { nearestPathArcLength, type PathArcLengthTable } from '@lighttable/vector-rendering';
 import type { RigidPathGlyphProjection } from '../../text/rendering/rigidPathGlyphProjection';
 import { pathTextLocalPoint } from '../../text/rendering/pathTextEditingOverlay';
@@ -15,15 +15,16 @@ export interface TextEditingLayoutHitTarget {
   }>;
 }
 
-const inversePoint = (matrix: AffineMatrix, point: { readonly x: number; readonly y: number }) => {
-  const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
-  if (Math.abs(determinant) < 1e-12) return null;
-  const x = point.x - matrix.tx;
-  const y = point.y - matrix.ty;
-  return {
-    x: (matrix.d * x - matrix.c * y) / determinant,
-    y: (-matrix.b * x + matrix.a * y) / determinant
-  };
+const documentToleranceToLocal = (documentToLocal: AffineMatrix, tolerance: number) => {
+  if (!Number.isFinite(tolerance)) return tolerance;
+  const { a, b, c, d } = documentToLocal;
+  const sumSquares = a * a + b * b + c * c + d * d;
+  const inverseDeterminant = a * d - b * c;
+  const maximumInverseScale = Math.sqrt(Math.max(0,
+    (sumSquares + Math.sqrt(Math.max(0,
+      sumSquares * sumSquares - 4 * inverseDeterminant * inverseDeterminant))) / 2
+  ));
+  return tolerance * maximumInverseScale;
 };
 
 export interface TextEditingHit {
@@ -211,8 +212,10 @@ export const hitTestTextEditingLayout = (
   documentPoint: { readonly x: number; readonly y: number },
   tolerance = 4
 ): TextEditingHit | null => {
-  const transformedPoint = inversePoint(target.localToDocument, documentPoint);
-  if (!transformedPoint) return null;
+  const documentToLocal = invertMatrix(target.localToDocument);
+  if (!documentToLocal) return null;
+  const transformedPoint = transformPoint(documentToLocal, documentPoint);
+  const localTolerance = documentToleranceToLocal(documentToLocal, tolerance);
   const point = target.layout.warp
     ? unwarpTextPoint(transformedPoint, target.layout.warp, target.layout.logicalBounds)
     : transformedPoint;
@@ -222,12 +225,12 @@ export const hitTestTextEditingLayout = (
       target as TextEditingLayoutHitTarget & { path: NonNullable<TextEditingLayoutHitTarget['path']> },
       transformedPoint
     );
-    return nearest && nearest.distance <= tolerance ? nearest : null;
+    return nearest && nearest.distance <= localTolerance ? nearest : null;
   }
   const bounds = target.layout.paragraphFrame?.bounds ?? target.layout.logicalBounds;
   if (
-    point.x < bounds.x - tolerance || point.x > bounds.x + bounds.width + tolerance
-    || point.y < bounds.y - tolerance || point.y > bounds.y + bounds.height + tolerance
+    point.x < bounds.x - localTolerance || point.x > bounds.x + bounds.width + localTolerance
+    || point.y < bounds.y - localTolerance || point.y > bounds.y + bounds.height + localTolerance
   ) return null;
   const nearest = nearestCaret(target.layout, point);
   return nearest ?? (target.layout.paragraphFrame ? {

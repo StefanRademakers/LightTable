@@ -229,3 +229,41 @@ The frame-coalesced authored document publication therefore remains. The next
 safe optimization is measured worker backpressure/newest-source handoff or a
 provisional incremental editing layout; it must retain one-frame caret/overlay
 updates, exact settled shaping and the current bitmap/atlas cache policy.
+
+## Text authoring and backpressure follow-up - 5 August 2026
+
+Point text now enters the existing GPU-backed editing session immediately at
+its canvas origin; the modal seed-text dialog is no longer mounted. The same
+Type Tool click re-enters an active point or paragraph text layer, with the
+active layer considered before overlapping siblings. Hit tolerance is defined
+in screen pixels and converted through the full inverse affine transform, so
+scaled-down and rotated text does not become effectively unclickable. New text
+defaults to 50 px.
+
+Chromium/React did not reliably surface Backspace and Delete through synthetic
+`beforeinput`. The native bridge now owns Backspace, Delete and their Ctrl/Cmd
+word variants at `keydown` and sends the same semantic delete command used by
+the editing transaction. Packaged automation verifies grapheme deletion, word
+deletion, direct point/paragraph authoring and re-entry after Free Transform.
+
+Identical in-flight glyph raster and outline requests are now shared per exact
+session/font/glyph/raster identity. A superseded generation rejects locally,
+while the unavoidable synchronous WASM result remains available to the newest
+consumer. The client contract test proves one physical worker post instead of
+two for that case; this changes neither glyph pixels nor settled layout.
+
+A strict one-active/one-newest shaping lane was also implemented and measured,
+then rejected. It reduced a roughly 175-superseded-input burst to 3-9 accepted
+shapes, but introduced intermittent head-of-line stalls: ordinary runs were
+about 34-51 ms input-to-submit while outliers reached roughly 253 ms and once
+1,064 ms. The independent generation path was restored. Eight packaged runs
+with only exact glyph-work sharing produced seven submit samples between 32.0
+and 58.0 ms and one 252.9 ms outlier, with zero runtime errors. Consequently,
+worker request count is not an acceptable proxy for responsiveness and the
+remaining occasional stall is not claimed solved.
+
+The next experiment should be a provisional incremental editing layout (or a
+worker protocol that can discard queued sources before synchronous shaping
+starts), guarded by input-to-submit/GPU tail-latency tests. It must not serialize
+the newest source behind an uninterruptible stale request, and exact HarfBuzz /
+Parley shaping remains the mandatory settled result.

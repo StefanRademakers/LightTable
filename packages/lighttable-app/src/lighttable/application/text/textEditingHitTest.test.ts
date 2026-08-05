@@ -54,6 +54,18 @@ describe('text editing hit test', () => {
     });
   });
 
+  it('keeps a screen-sized hit target after point text is scaled down', () => {
+    const target = {
+      layout,
+      localToDocument: { a: 0.1, b: 0, c: 0, d: 0.1, tx: 100, ty: 50 }
+    };
+    // Five document pixels outside the transformed two-pixel-wide text still
+    // falls inside an eight-document-pixel Type-tool hit target.
+    expect(hitTestTextEditingLayout(target, { x: 107, y: 51 }, 8)).toMatchObject({
+      offset: 1
+    });
+  });
+
   it('rejects points outside logical text bounds and singular transforms', () => {
     expect(hitTestTextEditingLayout({
       layout, localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }

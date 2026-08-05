@@ -146,7 +146,7 @@ describe('createPointTextDocument', () => {
       mode: 'point', origin: { x: 0, y: 0 }, writingMode: 'horizontal-tb'
     });
     expect(layer.text.source.styleRuns[0]).toMatchObject({
-      fontSize: 250,
+      fontSize: 50,
       requestedFont: {
         families: ['Inter'],
         postScriptName: 'Inter-Regular',

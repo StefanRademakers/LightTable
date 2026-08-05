@@ -487,6 +487,27 @@ describe('TextEngineClient', () => {
     });
   });
 
+  it('reuses an unavoidable in-flight raster after its first consumer is superseded', async () => {
+    const worker = new FakeWorker();
+    const client = new TextEngineClient(() => worker);
+    const request = {
+      kind: 'rasterize-glyph' as const,
+      documentSessionId: 'document', sessionGeneration: 1,
+      assetId: CONTRACT_FIXTURE_FONT_ASSET.assetId, faceIndex: 0,
+      glyphId: 36, ppem: 24, fontSnapshotRevision: 1,
+      variationCoordinates: {}, syntheticBold: false, syntheticItalic: false,
+      hinting: 'smooth' as const, renderMode: 'alpha' as const
+    };
+    const abort = new AbortController();
+    const superseded = client.rasterizeGlyph(request, abort.signal);
+    abort.abort();
+    await expect(superseded).rejects.toMatchObject({ layoutError: { code: 'cancelled' } });
+    const newest = client.rasterizeGlyph(request);
+    expect(worker.postMessage).toHaveBeenCalledTimes(1);
+    worker.rasterized(1);
+    await expect(newest).resolves.toMatchObject({ raster: { width: 2, height: 2 } });
+  });
+
   it('rejects a glyph raster whose exact font or raster identity is stale', async () => {
     const worker = new FakeWorker();
     const client = new TextEngineClient(() => worker);

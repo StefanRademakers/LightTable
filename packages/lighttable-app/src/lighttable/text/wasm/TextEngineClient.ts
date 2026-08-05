@@ -118,6 +118,7 @@ export class TextEngineClient {
   private readonly pending = new Map<number, PendingProbe>();
   private readonly pendingInspections = new Map<number, PendingInspection>();
   private readonly pendingLayouts = new Map<number, PendingLayoutRequest>();
+  private readonly sharedLayoutRequests = new Map<string, Promise<TextLayoutWorkerResponse>>();
   private capability: TextEngineCapability | null = null;
   private inFlight: Promise<TextEngineCapability> | null = null;
 
@@ -281,12 +282,20 @@ export class TextEngineClient {
     signal?: AbortSignal
   ): Promise<TextGlyphRasterReport> {
     const startedAt = performance.now();
-    return this.requestLayout({
+    const request = {
       ...input,
       kind: 'rasterize-glyph',
       protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
       requestId: ++this.requestId
-    }, signal).then((response) => {
+    } satisfies TextWorkerGlyphRasterRequest;
+    const sharedKey = [
+      'raster', request.documentSessionId, request.sessionGeneration,
+      request.assetId, request.faceIndex, request.glyphId, request.ppem,
+      request.fontSnapshotRevision, variationIdentity(request.variationCoordinates),
+      request.syntheticBold ? 1 : 0, request.syntheticItalic ? 1 : 0,
+      request.hinting, request.renderMode
+    ].join(':');
+    return this.requestSharedLayout(sharedKey, request, signal).then((response) => {
       if (response.kind === 'glyph-rasterization-failed') {
         throw new TextLayoutRuntimeError(response.error);
       }
@@ -307,12 +316,18 @@ export class TextEngineClient {
     signal?: AbortSignal
   ): Promise<TextGlyphOutlineReport> {
     const startedAt = performance.now();
-    return this.requestLayout({
+    const request = {
       ...input,
       kind: 'extract-glyph-outline',
       protocolVersion: TEXT_WORKER_PROTOCOL_VERSION,
       requestId: ++this.requestId
-    }, signal).then((response) => {
+    } satisfies TextWorkerGlyphOutlineRequest;
+    const sharedKey = [
+      'outline', request.documentSessionId, request.sessionGeneration,
+      request.assetId, request.faceIndex, request.glyphId,
+      request.fontSnapshotRevision, variationIdentity(request.variationCoordinates)
+    ].join(':');
+    return this.requestSharedLayout(sharedKey, request, signal).then((response) => {
       if (response.kind === 'glyph-outline-extraction-failed') {
         throw new TextLayoutRuntimeError(response.error);
       }
@@ -478,6 +493,55 @@ export class TextEngineClient {
       pending.reject(reason);
     }
     this.pendingLayouts.clear();
+    this.sharedLayoutRequests.clear();
+  }
+
+  private requestSharedLayout(
+    key: string,
+    request: TextWorkerRequest,
+    signal?: AbortSignal
+  ): Promise<TextLayoutWorkerResponse> {
+    if (signal?.aborted) return Promise.reject(this.cancelledLayoutError());
+    let physical = this.sharedLayoutRequests.get(key);
+    if (!physical) {
+      physical = this.requestLayout(request);
+      this.sharedLayoutRequests.set(key, physical);
+      void physical.finally(() => {
+        if (this.sharedLayoutRequests.get(key) === physical) {
+          this.sharedLayoutRequests.delete(key);
+        }
+      }).catch(() => undefined);
+    }
+    if (!signal) return physical;
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const abort = () => {
+        if (settled) return;
+        settled = true;
+        reject(this.cancelledLayoutError());
+      };
+      signal.addEventListener('abort', abort, { once: true });
+      void physical!.then(
+        (response) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener('abort', abort);
+          resolve(response);
+        },
+        (reason: unknown) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener('abort', abort);
+          reject(reason);
+        }
+      );
+    });
+  }
+
+  private cancelledLayoutError() {
+    return new TextLayoutRuntimeError(
+      createTextLayoutError('cancelled', 'Text layout was cancelled.')
+    );
   }
 
   private requestLayout(
