@@ -41,6 +41,8 @@
     "prepare:psd-side-by-side": "node scripts/prepare-psd-compare-corpus.mjs",
     "capture:psd-side-by-side": "node scripts/capture-psd-side-by-side.mjs",
     "report:side-by-side-gallery": "node scripts/create-side-by-side-gallery.mjs",
+    "generate:psd-blend-corpus": "node scripts/generate-psd-blend-mode-corpus.mjs",
+    "audit:psd-blend-corpus": "node scripts/audit-psd-blend-mode-corpus.mjs",
     "smoke:desktop:zoom": "node scripts/smoke-desktop-zoom.mjs",
     "smoke:desktop:zoom:build": "npm run package:desktop:verify && npm run smoke:desktop:zoom --",
     "smoke:desktop:line-tool": "node scripts/smoke-desktop-line-tool.mjs",
