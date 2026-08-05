@@ -180,3 +180,52 @@ Every rendering optimization must preserve:
 Performance changes require a before/after telemetry capture plus the closest
 pixel, compositor-plan, cache-lifetime and packaged interaction gates. A lower
 frame time with a different result is a rendering bug, not an optimization.
+
+## Text interaction critical-path follow-up - 5 August 2026
+
+The packaged paragraph smoke now has opt-in, end-to-end phase traces for both
+authored input and caret navigation. Authored input correlates the exact text
+source through document sync, coordinator scheduling, font-session readiness,
+shaping, atlas/cache publication, compositor submit and GPU completion. Caret
+traces cover controller mutation, overlay construction/publication, render
+start, queue submit and GPU completion. The trace is local-only, disabled by
+default and does not send telemetry.
+
+The investigation ruled out several suspected bottlenecks:
+
+- caret lookup plus overlay construction is below 0.2 ms in the measured
+  fixture; its visible GPU completion is one frame, about 16.5 ms;
+- general document/layer runtime synchronization is about 0.45 ms median and
+  0.55 ms p95 for the one-layer paragraph fixture;
+- adjustment and style synchronization are effectively zero in that fixture;
+- a final cache-hit shape is near-zero, while a changed paragraph shape is
+  normally about 6-10 ms; the RTX-class GPU and coverage shader are not the
+  source of the reported pre-submit stall.
+
+Defects resolved:
+
+- a consumed text document remained marked pending and could be published and
+  shaped again on the next history/navigation action;
+- selection/caret overlay publication crossed an avoidable second React/rAF
+  boundary;
+- newest text preparation waited behind an obsolete async preparation even
+  after that generation was aborted;
+- an already-current font session still crossed an unnecessary async yield;
+- transient `loading-runtime` diagnostics could wake React during authored
+  input even though input latency bookkeeping was deliberately non-reactive.
+
+Three production runs without tracing compared the retained baseline with the
+candidate. Input-to-submit p95 averaged 38.0 to 30.9 ms (-19%); input-to-GPU
+p95 averaged 55.2 to 39.6 ms (-28%); caret GPU p95 remained 16.5 to 16.6 ms.
+The synthetic Playwright key injection loop itself increased from 881.6 to
+1076.5 ms because useful coordinator work begins earlier (about 1.1 ms per
+injected character). No page/runtime errors occurred. This is accepted as a
+visual latency improvement, but burst throughput remains an explicit follow-up.
+
+A rejected experiment published every authored snapshot to the engine from a
+microtask. It reduced initial engine sync to about 0.5-0.7 ms but doubled the
+typing fixture to 2.0-2.4 seconds by flooding/cancelling worker generations.
+The frame-coalesced authored document publication therefore remains. The next
+safe optimization is measured worker backpressure/newest-source handoff or a
+provisional incremental editing layout; it must retain one-frame caret/overlay
+updates, exact settled shaping and the current bitmap/atlas cache policy.

@@ -352,9 +352,14 @@ export class TextLayerRenderCoordinator {
       'Document synchronized',
       `document=${document.id} textLayers=${allText.length} visible=${visibleEntries.length} fonts=${this.fontPort?.assets.length ?? 0} active=${this.active}`
     );
-    // Queue canonical preparation before bookkeeping below. The Promise chain
-    // starts in a microtask, so bookkeeping still completes first, while an
-    // unrelated retention/diagnostic failure can no longer suppress shaping.
+    this.inputLatency.retainLayers(visibleLayerIds);
+    for (const { layer } of visibleEntries) {
+      this.inputLatency.syncSource(layer.id, textLayerSourceKey(layer));
+    }
+    this.trace('Text input identities synchronized', `layers=${visibleEntries.length}`);
+    // Correlate the exact authored source before urgent input preparation can
+    // synchronously reach layout/source publication. Dispatch also stays
+    // independent from fallible presentation bookkeeping below.
     this.schedule();
     this.trace('Preparation dispatch returned', `document=${document.id}`);
     this.options.renderer.setVisibleLayerIds(new Set(visibleEntries.map(({ layer }) => layer.id)));
@@ -380,11 +385,6 @@ export class TextLayerRenderCoordinator {
     for (const layerId of this.outlineLayerKeys.keys()) {
       if (!retained.has(layerId)) this.outlineLayerKeys.delete(layerId);
     }
-    this.inputLatency.retainLayers(visibleLayerIds);
-    for (const { layer } of visibleEntries) {
-      this.inputLatency.syncSource(layer.id, textLayerSourceKey(layer));
-    }
-    this.trace('Text input identities synchronized', `layers=${visibleEntries.length}`);
     for (const { layer, transform } of visibleEntries) {
       const editing = this.editingLayouts.get(layer.id);
       if (!editing || !this.interactingLayerScales.has(layer.id)) continue;
@@ -678,6 +678,9 @@ export class TextLayerRenderCoordinator {
       return;
     }
     const layers = visibleTextLayers(this.document);
+    for (const { layer } of layers) {
+      this.inputLatency.markStage(layer.id, textLayerSourceKey(layer), 'schedule-enter');
+    }
     this.visibleTextLayerCount = layers.length;
     this.trace('Schedule guard passed', `document=${this.document.id} layers=${layers.length} fonts=${this.fontPort.assets.length}`);
     if (layers.length === 0 || this.fontPort.assets.length === 0) {
@@ -711,23 +714,43 @@ export class TextLayerRenderCoordinator {
       ))
     ].join('|');
     this.trace('Preparation key built', `key=${key} pendingMatch=${key === this.pendingKey}`);
+    for (const { layer } of layers) {
+      this.inputLatency.markStage(layer.id, textLayerSourceKey(layer), 'key-ready');
+    }
     if (key === this.pendingKey) return;
     this.abortController?.abort();
+    for (const { layer } of layers) {
+      this.inputLatency.markStage(layer.id, textLayerSourceKey(layer), 'previous-aborted');
+    }
     const abortController = new AbortController();
     this.abortController = abortController;
     this.pendingKey = key;
     const generation = ++this.generation;
-    this.setPreparationStage('loading-runtime');
+    const urgentTextInput = layers.some(({ layer }) => this.inputLatency.hasPending(layer.id));
+    this.setPreparationStage('loading-runtime', null, null, !urgentTextInput);
     this.trace('Preparation scheduled', `generation=${generation} document=${this.document.id} layers=${layers.length} fontRevision=${this.fontPort.revision}`);
-    this.work = this.work
-      .then(() => {
-        // Continuous property gestures can publish several canonical snapshots
-        // before the preceding GPU preparation yields. Never let those obsolete
-        // snapshots turn into a serialized render backlog: only the newest
-        // generation is allowed to enter the worker/GPU preparation path.
-        if (abortController.signal.aborted || !this.current(generation, key)) return;
-        return this.prepare(generation, key, layers, abortController.signal);
-      })
+    // Start the newest generation independently. Chaining it behind `work`
+    // made an aborted worker/GPU preparation a head-of-line blocker even
+    // though its result could no longer be published. Generation checks below
+    // preserve newest-wins publication; `work` remains an aggregate lifetime
+    // fence so disposal still waits for every in-flight preparation to settle.
+    const start = () => {
+      if (abortController.signal.aborted || !this.current(generation, key)) return;
+      return this.prepare(generation, key, layers, abortController.signal);
+    };
+    // Authored input is already frame-coalesced by the editor and must enter
+    // the synchronous cache-hit prefix now. Generic document/property bursts
+    // retain microtask coalescing so intermediate snapshots never reach WASM.
+    for (const { layer } of layers) {
+      this.inputLatency.markStage(
+        layer.id,
+        textLayerSourceKey(layer),
+        urgentTextInput ? 'urgent-dispatch' : 'deferred-dispatch'
+      );
+    }
+    const task = (urgentTextInput
+      ? Promise.resolve(start())
+      : Promise.resolve().then(start))
       .catch((reason: unknown) => {
         if (!this.current(generation, key)) return;
         const message = reason instanceof Error ? reason.message : 'Text source preparation failed.';
@@ -744,6 +767,7 @@ export class TextLayerRenderCoordinator {
       .finally(() => {
         if (this.abortController === abortController) this.abortController = null;
       });
+    this.work = Promise.allSettled([this.work, task]).then(() => undefined);
   }
 
   private async prepare(
@@ -764,11 +788,19 @@ export class TextLayerRenderCoordinator {
     }
     this.dependencies = dependencies;
     this.trace('Runtime dependencies ready', `generation=${generation}`);
+    for (const { layer } of layers) {
+      this.inputLatency.markStage(layer.id, textLayerSourceKey(layer), 'runtime-ready');
+    }
     this.setPreparationStage('registering-fonts');
-    if (!await this.beginSession(
+    const sessionCurrent = Boolean(this.sessionId)
+      && this.sessionKey === this.fontSessionKey(document.id, layers, port);
+    if (!sessionCurrent && !await this.beginSession(
       dependencies, document.id, layers, port, generation, key, signal
     )) return;
     if (!this.current(generation, key)) return;
+    for (const { layer } of layers) {
+      this.inputLatency.markStage(layer.id, textLayerSourceKey(layer), 'session-ready');
+    }
     const retainedFallbackErrors: string[] = [];
     for (const entry of layers) {
       if (!this.current(generation, key)) return;
@@ -811,9 +843,7 @@ export class TextLayerRenderCoordinator {
     signal: AbortSignal
   ) {
     const sessionAssets = referencedFontAssets(layers, port.assets);
-    const nextSessionKey = `${documentId}:${sessionAssets.map((asset) =>
-      `${asset.assetId}:${asset.faceIndex}:${asset.fingerprintSha256}`
-    ).join('|')}`;
+    const nextSessionKey = this.fontSessionKey(documentId, layers, port);
     if (this.sessionId && this.sessionKey === nextSessionKey) return true;
     const candidateSessionId = `document-text-${documentId}-${++sessionSequence}`;
     const candidateGeneration = sessionSequence;
@@ -860,6 +890,17 @@ export class TextLayerRenderCoordinator {
     return true;
   }
 
+  private fontSessionKey(
+    documentId: string,
+    layers: readonly VisibleTextEntry[],
+    port: TextFontRuntimePort
+  ) {
+    const sessionAssets = referencedFontAssets(layers, port.assets);
+    return `${documentId}:${sessionAssets.map((asset) =>
+      `${asset.assetId}:${asset.faceIndex}:${asset.fingerprintSha256}`
+    ).join('|')}`;
+  }
+
   private sessionFontRevision = 0;
 
   private async prepareLayer(
@@ -871,6 +912,7 @@ export class TextLayerRenderCoordinator {
     key: string,
     signal: AbortSignal
   ) {
+    const authoredSourceKey = textLayerSourceKey(layer);
     const sourceScale = this.sourceScaleForLayer(layer.id, transform);
     const options = { quality: 'final' as const, effectiveScale: sourceScale, maxGlyphCount: 100_000 };
     const source = layer.text.source;
@@ -902,6 +944,7 @@ export class TextLayerRenderCoordinator {
       );
     }
     this.setPreparationStage('shaping', layer.id);
+    this.inputLatency.markStage(layer.id, authoredSourceKey, 'shape-start');
     let layout = this.layoutCache.get(layoutCacheKey);
     if (!layout) {
       const report = await dependencies.client.realizeTextDetailed({
@@ -929,6 +972,7 @@ export class TextLayerRenderCoordinator {
         ] : [])
       ].join(' '));
     }
+    this.inputLatency.markStage(layer.id, authoredSourceKey, 'shape-complete');
     if (!this.current(generation, key)) return;
     let realizedLayout = layout;
     let pathEditing: TextLayerEditingLayout['path'];
@@ -1047,6 +1091,7 @@ export class TextLayerRenderCoordinator {
           return;
         }
         candidate.publish();
+        this.inputLatency.markStage(layer.id, authoredSourceKey, 'source-published');
         this.trace('Atlas source published', `layer=${layer.id} draws=${prepared.draws.length}`);
         this.settledLayerKeys.set(
           layer.id,
@@ -1079,6 +1124,7 @@ export class TextLayerRenderCoordinator {
     }
     if (!candidate) {
       this.options.renderer.markTransparent(layer);
+      this.inputLatency.markStage(layer.id, authoredSourceKey, 'source-published');
       this.trace('Transparent text source published', `layer=${layer.id}`);
       this.forcedCachedLayers.delete(layer.id);
       this.settledLayerKeys.set(
@@ -1100,6 +1146,7 @@ export class TextLayerRenderCoordinator {
       throw error;
     }
     candidate.publish();
+    this.inputLatency.markStage(layer.id, authoredSourceKey, 'source-published');
     this.trace('Cached text source published', `layer=${layer.id}`);
     this.forcedCachedLayers.delete(layer.id);
     this.settledLayerKeys.set(
@@ -1140,6 +1187,7 @@ export class TextLayerRenderCoordinator {
     );
     if (prepared.draws.length === 0) {
       this.options.renderer.markTransparent(layer);
+      this.inputLatency.markStage(layer.id, textLayerSourceKey(layer), 'source-published');
       this.finishLayerPreparation(layer, transform, fontPortRevision);
       this.trace('Transparent outline text source published', `layer=${layer.id}`);
       return;
@@ -1155,6 +1203,7 @@ export class TextLayerRenderCoordinator {
     const surface = backend.encodeTight(encoder, prepared.draws);
     if (!surface) {
       this.options.renderer.markTransparent(layer);
+      this.inputLatency.markStage(layer.id, textLayerSourceKey(layer), 'source-published');
       this.finishLayerPreparation(layer, transform, fontPortRevision);
       return;
     }
@@ -1190,6 +1239,7 @@ export class TextLayerRenderCoordinator {
       throw error;
     }
     this.trace('Outline text source published', `layer=${layer.id} draws=${prepared.draws.length}`);
+    this.inputLatency.markStage(layer.id, textLayerSourceKey(layer), 'source-published');
     this.finishLayerPreparation(layer, transform, fontPortRevision);
     void backend.notifySubmitted();
   }
@@ -1355,7 +1405,8 @@ export class TextLayerRenderCoordinator {
   private setPreparationStage(
     stage: TextRenderPresentationSnapshot['preparationStage'],
     layerId: LayerId | null = null,
-    error: string | null = null
+    error: string | null = null,
+    publish = true
   ) {
     if (
       this.preparationStage === stage
@@ -1365,7 +1416,7 @@ export class TextLayerRenderCoordinator {
     this.preparationStage = stage;
     this.preparationLayerId = layerId;
     this.lastPreparationError = error;
-    this.publishChanged();
+    if (publish) this.publishChanged();
   }
 
   private layerPreparationKey(

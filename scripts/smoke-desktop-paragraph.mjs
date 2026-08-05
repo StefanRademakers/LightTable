@@ -24,6 +24,9 @@ const sizeBeforeCreate = Number.isFinite(requestedSizeBeforeCreate)
   ? requestedSizeBeforeCreate
   : null;
 const maximumTypingMs = Number.parseFloat(argument('max-typing-ms', '10000'));
+const immediateTextOverlay = argument('immediate-text-overlay', 'true') !== 'false';
+const textInputTrace = argument('text-input-trace', 'true') !== 'false';
+const caretSettleMs = Number.parseFloat(argument('caret-settle-ms', '1000'));
 const userDataPath = path.join(workspaceRoot, 'tmp', `playwright-paragraph-user-data-${process.pid}`);
 const documentSize = { width: 1000, height: 700 };
 const authoredText = [
@@ -46,12 +49,17 @@ const diagnostics = {
   authoredText,
   sizeBeforeCreate,
   maximumTypingMs,
+  immediateTextOverlay,
+  textInputTrace,
+  caretSettleMs,
   typingMs: null,
   finalText: '',
   status: '',
   layers: [],
   cacheStats: null,
+  typingPipeline: null,
   caretNavigation: null,
+  caretPipeline: null,
   dragSelection: null,
   debugPanel: '',
   runtime: null,
@@ -124,6 +132,11 @@ try {
 
   const input = window.getByRole('textbox', { name: /^Edit / });
   await input.waitFor({ state: 'attached', timeout: 30_000 });
+  await input.evaluate((enabled) => {
+    globalThis.__LIGHTTABLE_TEXT_INPUT_TRACE__ = enabled;
+    performance.clearMeasures('LightTable text input');
+    performance.clearMeasures('LightTable text document sync');
+  }, textInputTrace);
   await input.press('Control+A');
   const typingStartedAt = performance.now();
   for (const [index, paragraph] of authoredText.split('\n').entries()) {
@@ -150,15 +163,70 @@ try {
   // Each sample dispatches one real React keyboard event and waits until the
   // controlled native selection reflects the new editing-controller state.
   // Keep typing/re-layout out of the caret-only sample.
-  await window.waitForTimeout(1_000);
+  await window.waitForTimeout(caretSettleMs);
+  diagnostics.typingPipeline = await input.evaluate(() => {
+    const grouped = new Map();
+    for (const entry of performance.getEntriesByName('LightTable text input')) {
+      if (!entry.detail?.id || !entry.detail?.stage) continue;
+      const sample = grouped.get(entry.detail.id) ?? {};
+      sample[entry.detail.stage] ??= entry.detail.elapsedMs;
+      grouped.set(entry.detail.id, sample);
+    }
+    globalThis.__LIGHTTABLE_TEXT_INPUT_TRACE__ = false;
+    const samples = [...grouped.values()].filter((sample) => sample['queue-submit'] !== undefined);
+    const summarize = (stage) => {
+      const values = samples.flatMap((sample) => (
+        sample[stage] === undefined ? [] : [sample[stage]]
+      )).sort((left, right) => left - right);
+      const at = (fraction) => values[Math.min(
+        values.length - 1, Math.max(0, Math.ceil(values.length * fraction) - 1)
+      )] ?? 0;
+      return { sampleCount: values.length, medianMs: at(0.5), p95Ms: at(0.95), maxMs: at(1) };
+    };
+    const documentSync = {};
+    for (const entry of performance.getEntriesByName('LightTable text document sync')) {
+      const stage = entry.detail?.stage;
+      if (!stage) continue;
+      (documentSync[stage] ??= []).push(entry.duration);
+    }
+    const summarizeDurations = (values = []) => {
+      values.sort((left, right) => left - right);
+      const at = (fraction) => values[Math.min(
+        values.length - 1, Math.max(0, Math.ceil(values.length * fraction) - 1)
+      )] ?? 0;
+      return { sampleCount: values.length, medianMs: at(0.5), p95Ms: at(0.95), maxMs: at(1) };
+    };
+    return {
+      sampleCount: samples.length,
+      sourceSync: summarize('source-sync'),
+      scheduleEnter: summarize('schedule-enter'),
+      keyReady: summarize('key-ready'),
+      previousAborted: summarize('previous-aborted'),
+      urgentDispatch: summarize('urgent-dispatch'),
+      deferredDispatch: summarize('deferred-dispatch'),
+      runtimeReady: summarize('runtime-ready'),
+      sessionReady: summarize('session-ready'),
+      shapeStart: summarize('shape-start'),
+      shapeComplete: summarize('shape-complete'),
+      sourcePublished: summarize('source-published'),
+      queueSubmit: summarize('queue-submit'),
+      gpuComplete: summarize('gpu-complete'),
+      documentSync: Object.fromEntries(Object.entries(documentSync)
+        .map(([stage, values]) => [stage, summarizeDurations(values)])),
+      samples
+    };
+  });
   await input.press('Control+Home');
   await window.waitForFunction(() => {
     const bridge = document.querySelector('.lighttable-text-input-bridge');
     return bridge instanceof HTMLTextAreaElement && bridge.selectionStart === 0;
   }, undefined, { timeout: 1_000 });
-  await input.evaluate((bridge) => {
+  await input.evaluate((bridge, immediateOverlay) => {
     const samples = [];
     globalThis.__lightTableCaretSamples = samples;
+    globalThis.__LIGHTTABLE_TEXT_INTERACTION_TRACE__ = true;
+    globalThis.__LIGHTTABLE_TEXT_IMMEDIATE_OVERLAY__ = immediateOverlay;
+    performance.clearMeasures('LightTable text interaction');
     bridge.addEventListener('keydown', (event) => {
       if (event.key !== 'ArrowRight') return;
       const before = bridge.selectionStart;
@@ -169,11 +237,14 @@ try {
       };
       requestAnimationFrame(inspect);
     }, { capture: true });
-  });
-  const caretSampleCount = Math.min(12, diagnostics.finalText.length);
+  }, immediateTextOverlay);
+  const caretSampleCount = Math.min(10, diagnostics.finalText.length);
   for (let index = 0; index < caretSampleCount; index += 1) {
     await input.press('ArrowRight');
-    await window.waitForTimeout(50);
+    await window.waitForFunction((expected) => performance
+      .getEntriesByName('LightTable text interaction')
+      .filter((entry) => entry.detail?.stage === 'gpu-complete').length >= expected,
+    index + 1, { timeout: 2_000 });
   }
   diagnostics.caretNavigation = await input.evaluate(() => {
     const samples = globalThis.__lightTableCaretSamples ?? [];
@@ -187,6 +258,35 @@ try {
       medianMs: percentile(0.5),
       p95Ms: percentile(0.95),
       maxMs: percentile(1)
+    };
+  });
+  diagnostics.caretPipeline = await input.evaluate(() => {
+    const grouped = new Map();
+    for (const entry of performance.getEntriesByName('LightTable text interaction')) {
+      if (!entry.detail?.id || !entry.detail?.stage) continue;
+      const sample = grouped.get(entry.detail.id) ?? {};
+      sample[entry.detail.stage] = entry.detail.elapsedMs;
+      sample[`${entry.detail.stage}StageMs`] = entry.detail.stageMs;
+      grouped.set(entry.detail.id, sample);
+    }
+    globalThis.__LIGHTTABLE_TEXT_INTERACTION_TRACE__ = false;
+    const samples = [...grouped.values()].filter((sample) => sample['gpu-complete'] !== undefined);
+    const summarize = (stage) => {
+      const values = samples.map((sample) => sample[stage]).sort((left, right) => left - right);
+      const at = (fraction) => values[Math.min(
+        values.length - 1, Math.max(0, Math.ceil(values.length * fraction) - 1)
+      )] ?? 0;
+      return { medianMs: at(0.5), p95Ms: at(0.95), maxMs: at(1) };
+    };
+    return {
+      sampleCount: samples.length,
+      controller: summarize('controller'),
+      overlayBuild: summarize('overlay-build'),
+      overlaySet: summarize('overlay-set'),
+      renderStart: summarize('render-start'),
+      queueSubmit: summarize('queue-submit'),
+      gpuComplete: summarize('gpu-complete'),
+      samples
     };
   });
 

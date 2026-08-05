@@ -708,6 +708,13 @@ describe('TextLayerRenderCoordinator', () => {
     const latest = repaint(intermediate, 0, 1);
     state.coordinator.sync(intermediate);
     state.coordinator.sync(latest);
+    await flush();
+    // The latest generation must not wait for an obsolete worker operation
+    // which has ignored cancellation to resolve.
+    expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(2);
+    expect(state.client.realizeTextDetailed.mock.calls[1]?.[0]).toMatchObject({
+      revisions: { paint: 2 }
+    });
     releaseFirst({
       layout: { key: 'superseded-layout', glyphRuns: [] },
       metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
@@ -715,9 +722,6 @@ describe('TextLayerRenderCoordinator', () => {
     await state.coordinator.waitForSettledSource(layer.id);
 
     expect(state.client.realizeTextDetailed).toHaveBeenCalledTimes(2);
-    expect(state.client.realizeTextDetailed.mock.calls[1]?.[0]).toMatchObject({
-      revisions: { paint: 2 }
-    });
   });
 
   it('reflows only the paragraph-edited layer and gives settled siblings zero work', async () => {

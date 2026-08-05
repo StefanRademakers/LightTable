@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useSyncExternalStore } from 'react';
+import React, { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import {
   buildTextEditingOverlay,
   type TextEditingOverlay
@@ -13,10 +13,20 @@ import type {
 import type { ParagraphStylePatch, TextStylePatch } from './flowTextFormatting';
 import { buildPathTextEditingOverlay } from '../../text/rendering/pathTextEditingOverlay';
 import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
+import {
+  beginTextInteractionTrace,
+  immediateTextInteractionOverlayEnabled,
+  recordTextInteractionTrace,
+  type TextInteractionTraceIdentity
+} from './textInteractionPerformanceTrace';
 
 export interface FlowTextEditingRuntimeRenderer {
   textEditingLayout(layerId: LayerId): TextLayerEditingLayout | null;
-  setTextEditingOverlay(overlay: TextEditingOverlay | null, caretVisible?: boolean): void;
+  setTextEditingOverlay(
+    overlay: TextEditingOverlay | null,
+    caretVisible?: boolean,
+    trace?: TextInteractionTraceIdentity | null
+  ): void;
   beginTextInput(layerId: LayerId, startedAt?: number): boolean;
 }
 
@@ -84,11 +94,41 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
   active,
   layoutPublicationRevision
 }) => {
+  const interactionContext = useRef({ document, renderer });
+  const pendingInteractionTrace = useRef<TextInteractionTraceIdentity | null>(null);
+  interactionContext.current = { document, renderer };
   const subscribeAtAnimationFrame = useMemo(() => (
     notify: () => void
   ) => {
     let frame: number | null = null;
+    let previous = controller.getSnapshot();
     const unsubscribe = controller.subscribe(() => {
+      const next = controller.getSnapshot();
+      const selectionChanged = previous.status === 'editing'
+        && next.status === 'editing'
+        && previous.layerId === next.layerId
+        && (previous.selection.anchor !== next.selection.anchor
+          || previous.selection.focus !== next.selection.focus
+          || previous.caretAffinity !== next.caretAffinity
+          || previous.compositionRange !== next.compositionRange);
+      previous = next;
+      if (selectionChanged && next.layerId) {
+        const trace = beginTextInteractionTrace();
+        recordTextInteractionTrace(trace, 'controller');
+        const current = interactionContext.current;
+        const presentation = current.renderer?.textEditingLayout(next.layerId) ?? null;
+        const overlayStartedAt = performance.now();
+        const immediateOverlay = editingOverlayFor(next, presentation, current.document);
+        recordTextInteractionTrace(trace, 'overlay-build', overlayStartedAt);
+        if (immediateOverlay) {
+          if (immediateTextInteractionOverlayEnabled()) {
+            current.renderer?.setTextEditingOverlay(immediateOverlay, true, trace);
+            pendingInteractionTrace.current = null;
+          } else {
+            pendingInteractionTrace.current = trace;
+          }
+        }
+      }
       if (frame !== null) return;
       frame = window.requestAnimationFrame(() => {
         frame = null;
@@ -120,7 +160,9 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
       return undefined;
     }
     let caretVisible = true;
-    renderer.setTextEditingOverlay(overlay, caretVisible);
+    const interactionTrace = pendingInteractionTrace.current;
+    pendingInteractionTrace.current = null;
+    renderer.setTextEditingOverlay(overlay, caretVisible, interactionTrace);
     const blink = window.setInterval(() => {
       caretVisible = !caretVisible;
       renderer.setTextEditingOverlay(overlay, caretVisible);
@@ -206,9 +248,6 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
           else controller.navigateLogicalLine(command, extend);
         }
         const next = controller.getSnapshot();
-        const nextPresentation = renderer?.textEditingLayout(layerId) ?? null;
-        const nextOverlay = editingOverlayFor(next, nextPresentation, document);
-        if (nextOverlay) renderer?.setTextEditingOverlay(nextOverlay, true);
         return {
           start: Math.min(next.selection.anchor, next.selection.focus),
           end: Math.max(next.selection.anchor, next.selection.focus)

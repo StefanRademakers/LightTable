@@ -1042,6 +1042,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       textDocumentPublicationFrameRef.current = null;
       const pending = pendingTextDocumentRef.current;
       if (pending && imageDocumentRef.current === pending) {
+        // This frame has consumed the newest edit. Leaving it marked pending
+        // makes the next history/navigation action publish the same document
+        // again and can restart shaping long after the visual edit completed.
+        pendingTextDocumentRef.current = null;
         engineRef.current?.setDocument(pending);
         setImageDocument(pending);
       }

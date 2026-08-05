@@ -7,6 +7,43 @@ interface PendingInput {
   sourceKey: string | null;
 }
 
+export type TextInputTraceStage =
+  | 'source-sync'
+  | 'schedule-enter'
+  | 'key-ready'
+  | 'previous-aborted'
+  | 'urgent-dispatch'
+  | 'deferred-dispatch'
+  | 'runtime-ready'
+  | 'session-ready'
+  | 'shape-start'
+  | 'shape-complete'
+  | 'source-published'
+  | 'queue-submit'
+  | 'gpu-complete';
+
+const traceEnabled = () => (
+  globalThis as typeof globalThis & { __LIGHTTABLE_TEXT_INPUT_TRACE__?: boolean }
+).__LIGHTTABLE_TEXT_INPUT_TRACE__ === true;
+
+const traceStage = (
+  input: Pick<PendingInput, 'id' | 'layerId' | 'startedAt'>,
+  stage: TextInputTraceStage,
+  at: number
+) => {
+  if (!traceEnabled()) return;
+  performance.measure('LightTable text input', {
+    start: input.startedAt,
+    end: at,
+    detail: Object.freeze({
+      id: input.id,
+      layerId: input.layerId,
+      stage,
+      elapsedMs: Math.max(0, at - input.startedAt)
+    })
+  });
+};
+
 export interface TextInputLatencySnapshot {
   readonly sampleCount: number;
   readonly pendingCount: number;
@@ -33,7 +70,10 @@ const appendBounded = (values: number[], value: number) => {
 export class TextInputLatencyTracker {
   private sequence = 0;
   private readonly pending = new Map<LayerId, PendingInput>();
-  private readonly submitted = new Map<number, { readonly startedAt: number }>();
+  private readonly submitted = new Map<number, {
+    readonly layerId: LayerId;
+    readonly startedAt: number;
+  }>();
   private readonly submitSamples: number[] = [];
   private readonly gpuSamples: number[] = [];
   private supersededCount = 0;
@@ -46,6 +86,10 @@ export class TextInputLatencyTracker {
     return input.id;
   }
 
+  hasPending(layerId: LayerId) {
+    return this.pending.has(layerId);
+  }
+
   syncSource(layerId: LayerId, sourceKey: string) {
     const input = this.pending.get(layerId);
     if (!input) return false;
@@ -56,6 +100,15 @@ export class TextInputLatencyTracker {
       return false;
     }
     input.sourceKey = sourceKey;
+    traceStage(input, 'source-sync', performance.now());
+    return true;
+  }
+
+  markStage(layerId: LayerId, sourceKey: string, stage: Exclude<TextInputTraceStage,
+    'source-sync' | 'queue-submit' | 'gpu-complete'>, at = performance.now()) {
+    const input = this.pending.get(layerId);
+    if (!input || input.sourceKey !== sourceKey) return false;
+    traceStage(input, stage, at);
     return true;
   }
 
@@ -77,7 +130,8 @@ export class TextInputLatencyTracker {
     for (const [layerId, input] of this.pending) {
       if (!input.sourceKey || exactSourceKey(layerId) !== input.sourceKey) continue;
       appendBounded(this.submitSamples, Math.max(0, submittedAt - input.startedAt));
-      this.submitted.set(input.id, { startedAt: input.startedAt });
+      traceStage(input, 'queue-submit', submittedAt);
+      this.submitted.set(input.id, { layerId: input.layerId, startedAt: input.startedAt });
       this.pending.delete(layerId);
       submittedIds.push(input.id);
     }
@@ -91,6 +145,8 @@ export class TextInputLatencyTracker {
       const input = this.submitted.get(inputId);
       if (!input) continue;
       appendBounded(this.gpuSamples, Math.max(0, completedAt - input.startedAt));
+      traceStage({ id: inputId, layerId: input.layerId, startedAt: input.startedAt },
+        'gpu-complete', completedAt);
       this.submitted.delete(inputId);
       completed += 1;
     }

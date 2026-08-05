@@ -45,4 +45,30 @@ describe('TextInputLatencyTracker', () => {
       inputToSubmitMaxMs: 299
     });
   });
+
+  it('emits opt-in critical-path measures without changing latency accounting', () => {
+    const runtime = globalThis as typeof globalThis & {
+      __LIGHTTABLE_TEXT_INPUT_TRACE__?: boolean;
+    };
+    runtime.__LIGHTTABLE_TEXT_INPUT_TRACE__ = true;
+    performance.clearMeasures('LightTable text input');
+    try {
+      const tracker = new TextInputLatencyTracker();
+      const inputId = tracker.begin(layer, performance.now());
+      tracker.syncSource(layer, 'revision-traced');
+      tracker.markStage(layer, 'revision-traced', 'shape-start');
+      tracker.markStage(layer, 'revision-traced', 'shape-complete');
+      tracker.markSubmitted(() => 'revision-traced', performance.now());
+      tracker.markGpuComplete([inputId], performance.now());
+
+      expect(performance.getEntriesByName('LightTable text input')
+        .map((entry) => (entry as PerformanceMeasure).detail?.stage)).toEqual([
+        'source-sync', 'shape-start', 'shape-complete', 'queue-submit', 'gpu-complete'
+      ]);
+      expect(tracker.snapshot()).toMatchObject({ sampleCount: 1, pendingCount: 0 });
+    } finally {
+      runtime.__LIGHTTABLE_TEXT_INPUT_TRACE__ = false;
+      performance.clearMeasures('LightTable text input');
+    }
+  });
 });

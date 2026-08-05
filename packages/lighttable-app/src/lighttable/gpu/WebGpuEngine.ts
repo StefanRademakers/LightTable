@@ -50,6 +50,10 @@ import {
   resolveAdjustmentInvalidationStage
 } from '../application/rendering/renderDirtyState';
 import { RenderTelemetry } from '../application/rendering/renderTelemetry';
+import {
+  recordTextInteractionTrace,
+  type TextInteractionTraceIdentity
+} from '../application/text/textInteractionPerformanceTrace';
 import { ViewportPresentationController } from '../application/rendering/viewportPresentationController';
 import type { ViewportRenderRect } from '../application/rendering/viewportRenderState';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
@@ -131,6 +135,7 @@ export class WebGpuEngine {
   private readonly selectionAntsAnimator: SelectionAntsAnimator;
   private readonly renderDirty = new RenderDirtyState();
   private readonly renderTelemetry = new RenderTelemetry();
+  private pendingTextInteractionTrace: TextInteractionTraceIdentity | null = null;
   private readonly imageResources = new DocumentImageGpuResources();
   private readonly adjustmentState = new DocumentAdjustmentState();
   private readonly viewportPresentation: ViewportPresentationController;
@@ -402,15 +407,34 @@ export class WebGpuEngine {
       if (warpDebugOwnerChanged) this.markDocumentDirty();
       return;
     }
+    const traceDocumentSync = (
+      globalThis as typeof globalThis & { __LIGHTTABLE_TEXT_INPUT_TRACE__?: boolean }
+    ).__LIGHTTABLE_TEXT_INPUT_TRACE__ === true;
+    const measure = (stage: string, startedAt: number) => {
+      if (!traceDocumentSync) return;
+      performance.measure('LightTable text document sync', {
+        start: startedAt,
+        end: performance.now(),
+        detail: Object.freeze({ stage })
+      });
+    };
+    let stageStartedAt = performance.now();
     if (firstDocument) this.documentRenderer.initialize(document, this.imageResources.sourceTexture);
     else this.documentRenderer.syncDocument(document);
+    measure('layer-runtimes', stageStartedAt);
+    stageStartedAt = performance.now();
     this.initializeLayerStylesIfNeeded(document);
+    measure('style-initialization', stageStartedAt);
+    stageStartedAt = performance.now();
     this.adjustmentLayerResources.syncDocument(document);
+    measure('adjustment-resources', stageStartedAt);
     // The first layered document changes the shared shader input domain from
     // an encoded source image to a linear layer composite. Later document
     // revisions do not change this uniform contract.
     if (firstDocument) this.writeAdjustments();
+    stageStartedAt = performance.now();
     this.markDocumentDirty();
+    measure('dirty-scheduling', stageStartedAt);
   }
 
   configureTextFonts(port: TextFontRuntimePort | null) {
@@ -1318,13 +1342,21 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
-  setTextEditingOverlay(overlay: TextEditingOverlay | null, caretVisible = true) {
+  setTextEditingOverlay(
+    overlay: TextEditingOverlay | null,
+    caretVisible = true,
+    trace: TextInteractionTraceIdentity | null = null
+  ) {
     if (
       this.textEditingOverlay?.resourceKey === overlay?.resourceKey
       && this.textCaretVisible === caretVisible
     ) return;
     this.textEditingOverlay = overlay;
     this.textCaretVisible = caretVisible;
+    if (trace) {
+      this.pendingTextInteractionTrace = trace;
+      recordTextInteractionTrace(trace, 'overlay-set');
+    }
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -1600,6 +1632,8 @@ export class WebGpuEngine {
       !this.imageResources.channelNearestBindGroup ||
       !this.imageResources.differenceNearestBindGroup) return;
 
+    const textInteractionTrace = this.pendingTextInteractionTrace;
+    if (textInteractionTrace) recordTextInteractionTrace(textInteractionTrace, 'render-start');
     this.renderTelemetry.recordRenderCall();
 
     // Observer completion (notably histogram readback) may request a retry in
@@ -1813,6 +1847,13 @@ export class WebGpuEngine {
       scopePasses.displayPasses
     );
     this.device.queue.submit([encoder.finish()]);
+    if (textInteractionTrace) {
+      this.pendingTextInteractionTrace = null;
+      recordTextInteractionTrace(textInteractionTrace, 'queue-submit');
+      void this.device.queue.onSubmittedWorkDone().then(() => {
+        recordTextInteractionTrace(textInteractionTrace, 'gpu-complete');
+      });
+    }
     const textLatencyRenderer = this.documentRenderer;
     const submittedTextInputs = textLatencyRenderer.markTextFrameSubmitted(
       this.imageDocument,
