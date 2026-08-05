@@ -204,7 +204,10 @@ export const loadDocumentSource = async (
         decoder: 'ag-psd',
         sourceBitDepth: psdImport.bitsPerChannel,
         sourceFormat: 'PSD',
-        sourceInterpretation: psdImport.colorMode
+        sourceInterpretation: psdImport.colorMode,
+        sourceProfile: psdImport.colorProfile.disposition === 'embedded'
+          ? 'embedded ICC -> sRGB'
+          : 'no embedded ICC; assumed sRGB'
       }
     : pdfPreview
       ? {

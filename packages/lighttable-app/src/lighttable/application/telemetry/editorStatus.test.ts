@@ -11,6 +11,7 @@ const photoshopImport = {
   height: 1080,
   bitsPerChannel: 8,
   colorMode: 'RGB',
+  colorProfile: { disposition: 'untagged', name: null, normalizedToSrgb: true },
   inventory: {
     layers: 5,
     groups: 1,

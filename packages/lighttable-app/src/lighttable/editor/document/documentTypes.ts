@@ -37,6 +37,7 @@ export interface NormalizedImportProvenance {
   sourceFormat: string | null;
   sourceInterpretation: string | null;
   sourceProfile: 'embedded ICC -> sRGB' | 'no embedded ICC; assumed sRGB' | null;
+  sourceProfileName?: string | null;
   normalizedColorSpace: 'linear-srgb';
 }
 

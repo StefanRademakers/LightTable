@@ -81,6 +81,11 @@ export interface PsdDecodeSuccess {
   height: number;
   bitsPerChannel: number;
   colorMode: string;
+  colorProfile: {
+    disposition: 'untagged' | 'embedded';
+    name: string | null;
+    normalizedToSrgb: boolean;
+  };
   inventory: PsdFeatureInventory;
   /** Explicitly bottom-to-top at every sibling level. */
   layers: PsdLayerNodeDto[];

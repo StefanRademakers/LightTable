@@ -488,6 +488,9 @@ const parseImportProvenance = (value: unknown): NormalizedImportProvenance | nul
     sourceFormat: value.sourceFormat,
     sourceInterpretation: value.sourceInterpretation,
     sourceProfile: value.sourceProfile,
+    ...(typeof value.sourceProfileName === 'string' || value.sourceProfileName === null
+      ? { sourceProfileName: value.sourceProfileName }
+      : {}),
     normalizedColorSpace: 'linear-srgb'
   };
 };

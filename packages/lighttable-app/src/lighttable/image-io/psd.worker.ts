@@ -13,6 +13,11 @@ import type {
   PsdWorkerResponse
 } from './psdProtocol';
 import { PSD_RAW_RGBA8_MEDIA_TYPE } from './psdProtocol';
+import { readPsdColorProfile } from './psdColorProfile';
+import {
+  createPsdPixelNormalizer,
+  type PsdPixelNormalizer
+} from './psdColorManagement.worker';
 
 const publishProgress = (requestId: number, stage: PsdDecodeStage) => {
   self.postMessage({ kind: 'progress', requestId, stage } satisfies PsdWorkerResponse);
@@ -119,13 +124,23 @@ const validateDocument = (psd: Psd) => {
   }
 };
 
-const createPreview = async (psd: Psd) => {
-  const pixels = psdCompositeToPreviewPixels(psd.imageData!.data, psd.bitsPerChannel ?? 8);
+const createPreview = async (psd: Psd, normalizer: PsdPixelNormalizer) => {
+  const pixels = await normalizer.transform(
+    psdCompositeToPreviewPixels(psd.imageData!.data, psd.bitsPerChannel ?? 8),
+    psd.width,
+    psd.height
+  );
   const canvas = new OffscreenCanvas(psd.width, psd.height);
   const context = canvas.getContext('2d');
   if (!context) throw new Error('The PSD worker could not create its preview canvas.');
-  context.putImageData(new ImageData(pixels, psd.width, psd.height), 0, 0);
+  context.putImageData(new ImageData(copyClampedPixels(pixels), psd.width, psd.height), 0, 0);
   return canvas.convertToBlob({ type: 'image/png' });
+};
+
+const copyClampedPixels = (source: ArrayBufferView) => {
+  const copy = new Uint8ClampedArray(source.byteLength);
+  copy.set(new Uint8Array(source.buffer, source.byteOffset, source.byteLength));
+  return copy;
 };
 
 const imageDataBlob = async (
@@ -159,11 +174,16 @@ const imageDataBlob = async (
   return canvas.convertToBlob({ type: 'image/png' });
 };
 
-const layerImageDataBlob = (
+const layerImageDataBlob = async (
   data: NonNullable<Layer['imageData']>,
-  bitsPerChannel: number
+  bitsPerChannel: number,
+  normalizer: PsdPixelNormalizer
 ) => new Blob(
-  [psdCompositeToPreviewPixels(data.data, bitsPerChannel)],
+  [copyClampedPixels(await normalizer.transform(
+    psdCompositeToPreviewPixels(data.data, bitsPerChannel),
+    data.width,
+    data.height
+  ))],
   { type: PSD_RAW_RGBA8_MEDIA_TYPE }
 );
 
@@ -175,7 +195,7 @@ const transparentDocumentBlob = async (width: number, height: number) => {
   return canvas.convertToBlob({ type: 'image/png' });
 };
 
-const patternBlob = async (pattern: PatternInfo) => {
+const patternBlob = async (pattern: PatternInfo, normalizer: PsdPixelNormalizer) => {
   const { w: width, h: height } = pattern.bounds;
   if (
     !Number.isInteger(width)
@@ -190,7 +210,9 @@ const patternBlob = async (pattern: PatternInfo) => {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('The PSD worker could not create a pattern canvas.');
   context.putImageData(
-    new ImageData(new Uint8ClampedArray(pattern.data), width, height),
+    new ImageData(copyClampedPixels(
+      await normalizer.transform(new Uint8ClampedArray(pattern.data), width, height)
+    ), width, height),
     0,
     0
   );
@@ -198,7 +220,8 @@ const patternBlob = async (pattern: PatternInfo) => {
 };
 
 const serializePatterns = async (
-  layers: readonly Layer[] | undefined
+  layers: readonly Layer[] | undefined,
+  normalizer: PsdPixelNormalizer
 ): Promise<PsdPatternDto[]> => {
   const patterns = new Map<string, PatternInfo>();
   const visit = (nodes: readonly Layer[] | undefined) => {
@@ -213,7 +236,7 @@ const serializePatterns = async (
     name: pattern.name,
     width: pattern.bounds.w,
     height: pattern.bounds.h,
-    pixels: await patternBlob(pattern)
+    pixels: await patternBlob(pattern, normalizer)
   })));
 };
 
@@ -255,7 +278,8 @@ const preservedMaskDescriptor = (mask: Layer['realMask']) => {
 const serializeLayers = async (
   layers: readonly Layer[] | undefined,
   psd: Psd,
-  transparentFallback: () => Promise<Blob>
+  transparentFallback: () => Promise<Blob>,
+  normalizer: PsdPixelNormalizer
 ): Promise<PsdLayerNodeDto[]> => {
   const result: PsdLayerNodeDto[] = [];
   // ag-psd exposes siblings bottom first, matching LightTable's render stack.
@@ -297,7 +321,7 @@ const serializeLayers = async (
         // Keep raster previews layer-local. Expanding every small Photoshop
         // layer to a document-sized intermediate here multiplied both transfer
         // work and the retained RGBA16 GPU footprint by the layer count.
-        ? layerImageDataBlob(imageData, psd.bitsPerChannel ?? 8)
+        ? await layerImageDataBlob(imageData, psd.bitsPerChannel ?? 8, normalizer)
         : needsSemanticPlaceholder ? await transparentFallback() : null,
       rasterFallback: imageData
         ? 'layer-preview'
@@ -337,7 +361,7 @@ const serializeLayers = async (
         referencePoint: layer.referencePoint ?? null,
         realMask: preservedMaskDescriptor(layer.realMask)
       },
-      children: await serializeLayers(layer.children, psd, transparentFallback)
+      children: await serializeLayers(layer.children, psd, transparentFallback, normalizer)
     });
   }
   return result;
@@ -351,6 +375,7 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
     initializeAgPsdCanvas();
     publishProgress(data.requestId, 'canvas-ready');
     const warnings: string[] = [];
+    const colorProfile = readPsdColorProfile(data.bytes);
     publishProgress(data.requestId, 'parsing');
     const parseStartedAt = performance.now();
     const psd = readPsd(data.bytes, {
@@ -373,6 +398,10 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
     }
     publishProgress(data.requestId, 'parsed');
     validateDocument(psd);
+    const pixelNormalizer = await createPsdPixelNormalizer(colorProfile);
+    if (colorProfile.disposition === 'embedded') {
+      warnings.push(`Embedded ${colorProfile.name ?? 'ICC profile'} normalized to sRGB.`);
+    }
     const inventory = emptyInventory();
     inspectLayers(psd.children, inventory);
     publishProgress(data.requestId, 'validated');
@@ -382,18 +411,19 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
     const layers = await serializeLayers(
       psd.children,
       psd,
-      () => transparentFallback ??= transparentDocumentBlob(psd.width, psd.height)
+      () => transparentFallback ??= transparentDocumentBlob(psd.width, psd.height),
+      pixelNormalizer
     );
     const layerSerializationMs = performance.now() - layerSerializationStartedAt;
     publishProgress(data.requestId, 'layers-ready');
     publishProgress(data.requestId, 'creating-preview');
     const previewStartedAt = performance.now();
-    const preview = await createPreview(psd);
+    const preview = await createPreview(psd, pixelNormalizer);
     const previewMs = performance.now() - previewStartedAt;
     publishProgress(data.requestId, 'preview-ready');
     publishProgress(data.requestId, 'serializing-patterns');
     const patternSerializationStartedAt = performance.now();
-    const patterns = await serializePatterns(psd.children);
+    const patterns = await serializePatterns(psd.children, pixelNormalizer);
     const patternSerializationMs = performance.now() - patternSerializationStartedAt;
     publishProgress(data.requestId, 'complete');
     response = {
@@ -404,6 +434,11 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
       height: psd.height,
       bitsPerChannel: psd.bitsPerChannel ?? 8,
       colorMode: COLOR_MODE_NAMES[psd.colorMode ?? 3] ?? `mode ${psd.colorMode}`,
+      colorProfile: {
+        disposition: colorProfile.disposition,
+        name: colorProfile.name,
+        normalizedToSrgb: pixelNormalizer.normalizedToSrgb
+      },
       inventory,
       layers,
       patterns,

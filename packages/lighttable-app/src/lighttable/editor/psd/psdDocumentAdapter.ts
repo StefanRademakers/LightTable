@@ -729,14 +729,17 @@ export const importPsdDocument = (
           ? source.bitsPerChannel
           : 16,
         workingProfile: 'srgb',
-        profileState: 'assumed'
+        profileState: source.colorProfile.disposition === 'embedded' ? 'assigned' : 'assumed'
       },
       importProvenance: {
         decoder: 'ag-psd',
         sourceBitDepth: source.bitsPerChannel,
         sourceFormat: 'PSD',
         sourceInterpretation: source.colorMode,
-        sourceProfile: null,
+        sourceProfile: source.colorProfile.disposition === 'embedded'
+          ? 'embedded ICC -> sRGB'
+          : 'no embedded ICC; assumed sRGB',
+        sourceProfileName: source.colorProfile.name,
         normalizedColorSpace: 'linear-srgb'
       },
       photoshopImportReport: {

@@ -9,7 +9,9 @@ export interface DocumentColorPanelProps {
 
 const sourceProfileLabel = (document: ImageDocument) => {
   const source = document.importProvenance?.sourceProfile;
-  if (source === 'embedded ICC -> sRGB') return 'Embedded ICC, converted to sRGB';
+  if (source === 'embedded ICC -> sRGB') {
+    return `${document.importProvenance?.sourceProfileName ?? 'Embedded ICC'}, converted to sRGB`;
+  }
   if (source === 'no embedded ICC; assumed sRGB') return 'Untagged, assumed sRGB';
   return document.importProvenance ? 'No profile information' : 'New sRGB document';
 };

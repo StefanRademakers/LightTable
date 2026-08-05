@@ -52,6 +52,7 @@ const decoded = (layers: PsdLayerNodeDto[]): PsdDecodeSuccess => ({
   height: 24,
   bitsPerChannel: 8,
   colorMode: 'RGB',
+  colorProfile: { disposition: 'untagged', name: null, normalizedToSrgb: true },
   inventory: {
     layers: 0,
     groups: 0,
