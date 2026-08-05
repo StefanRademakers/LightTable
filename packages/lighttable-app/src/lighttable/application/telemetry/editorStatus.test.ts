@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PsdDecodeSuccess } from '../../image-io/psdProtocol';
 import { buildEditorStatus } from './editorStatus';
+import { createImageDocument } from '../../editor/document/documentTypes';
 
 const photoshopImport = {
   kind: 'decoded-psd',
@@ -29,6 +30,11 @@ const photoshopImport = {
 
 describe('buildEditorStatus', () => {
   it('formats precision, scale, readiness and owned GPU memory', () => {
+    const document = createImageDocument('flowers.tiff', 960, 640, 'source', {
+      decoder: 'wasm-vips', sourceBitDepth: 16, sourceFormat: 'TIFF',
+      sourceInterpretation: 'RGB', sourceProfile: 'embedded ICC -> sRGB',
+      normalizedColorSpace: 'linear-srgb'
+    });
     const status = buildEditorStatus({
       metadata: {
         name: 'flowers.tiff',
@@ -41,6 +47,7 @@ describe('buildEditorStatus', () => {
         sourceProfile: 'embedded ICC -> sRGB',
         decodeDurationMs: 103
       },
+      document,
       scale: 0.88,
       startupTimings: { firstFrameMs: 592 },
       gpuMemoryBytes: 128 * 1024 * 1024,
@@ -51,7 +58,7 @@ describe('buildEditorStatus', () => {
     });
 
     expect(status.meta).toBe(
-      '960 × 640 · 88% · 16-bit ushort · embedded ICC -> sRGB · wasm-vips · 103 ms · ready 592 ms · GPU ~128 MB'
+      '960 × 640 · 88% · RGB / 16-bit / sRGB · 16-bit ushort · embedded ICC -> sRGB · wasm-vips · 103 ms · ready 592 ms · GPU ~128 MB'
     );
     expect(status.title).toContain('first frame: 592 ms');
     expect(status.title).toContain('GPU memory is an estimate');
@@ -59,6 +66,11 @@ describe('buildEditorStatus', () => {
   });
 
   it('describes reconstructed Photoshop semantics and comparison metrics', () => {
+    const document = createImageDocument('parity.psd', 1920, 1080, 'source', {
+      decoder: 'ag-psd', sourceBitDepth: 8, sourceFormat: 'PSD',
+      sourceInterpretation: 'RGB', sourceProfile: null,
+      normalizedColorSpace: 'linear-srgb'
+    });
     const status = buildEditorStatus({
       metadata: {
         name: 'parity.psd',
@@ -70,6 +82,7 @@ describe('buildEditorStatus', () => {
         sourceFormat: 'PSD',
         sourceInterpretation: 'RGB'
       },
+      document,
       scale: 1,
       startupTimings: null,
       gpuMemoryBytes: 0,
@@ -90,6 +103,7 @@ describe('buildEditorStatus', () => {
     });
 
     expect(status.meta).toContain('8-bit PSD · RGB · Photoshop composite');
+    expect(status.meta).toContain('RGB / 8-bit / sRGB (assumed)');
     expect(status.title).toContain('5 layers; 1 groups; 2 masks');
     expect(status.title).toContain('Semantic import support: 9 native; 1 preview-backed.');
     expect(status.title).toContain('0.125% above 2/255');
@@ -100,6 +114,7 @@ describe('buildEditorStatus', () => {
   it('has an explicit empty-document model', () => {
     expect(buildEditorStatus({
       metadata: null,
+      document: null,
       scale: 1,
       startupTimings: null,
       gpuMemoryBytes: 0,

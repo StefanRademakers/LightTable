@@ -219,7 +219,7 @@ describe('LightTable layered PNG format', () => {
       }],
       'versions.png'
     );
-    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 7; });
+    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 8; });
     const futureText = await rewriteManifest(file, (manifest) => {
       const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
       const text = layers.find((layer) => layer.type === 'text')!.text as Record<string, unknown>;
@@ -451,7 +451,10 @@ describe('LightTable layered PNG format', () => {
     );
 
     const manifest = await readManifest(file);
-    expect(manifest.version).toBe(6);
+    expect(manifest.version).toBe(7);
+    expect(manifest).toMatchObject({
+      document: { colorSettings: document.colorSettings }
+    });
     expect((manifest.document as { fonts: Array<{ asset: unknown }> }).fonts[0]?.asset).toBeNull();
     const parsed = await parseLayeredDocumentFile(file);
     expect(parsed?.document.assets.fonts).toEqual([systemFont]);
@@ -650,7 +653,7 @@ describe('LightTable layered PNG format', () => {
     const parsed = await parseLayeredDocumentFile(file);
     const parsedLayer = parsed && findRasterLayer(parsed.document, sourceLayer.id);
 
-    expect(await readManifest(file)).toMatchObject({ version: 6 });
+    expect(await readManifest(file)).toMatchObject({ version: 7 });
     expect(parsedLayer).toMatchObject({
       width: 900,
       height: 48,

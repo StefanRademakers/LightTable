@@ -1,6 +1,7 @@
 import type { ReferenceDifferenceMetrics } from '../rendering/rendererTypes';
 import type { PsdDecodeSuccess } from '../../image-io/psdProtocol';
 import type { LightTableImageMetadata } from '../../types';
+import type { ImageDocument } from '../../editor/document/documentTypes';
 import {
   formatGpuMemory,
   formatStartupTimings,
@@ -9,6 +10,7 @@ import {
 
 export interface EditorStatusInput {
   metadata: LightTableImageMetadata | null;
+  document: ImageDocument | null;
   scale: number;
   startupTimings: LightTableStartupTimings | null;
   gpuMemoryBytes: number;
@@ -54,12 +56,16 @@ const photoshopStatus = (
 
 const imageMeta = (
   metadata: LightTableImageMetadata,
+  document: ImageDocument | null,
   scale: number,
   startupTimings: LightTableStartupTimings | null,
   gpuMemoryBytes: number
 ): string => [
   `${metadata.width} × ${metadata.height}`,
   `${Math.round(scale * 100)}%`,
+  document
+    ? `RGB / ${document.colorSettings.bitDepth}-bit / sRGB${document.colorSettings.profileState === 'assumed' ? ' (assumed)' : ''}`
+    : null,
   metadata.decoder === 'wasm-vips'
     ? [
         `${metadata.sourceBitDepth}-bit ${metadata.sourceFormat}`,
@@ -82,6 +88,7 @@ const imageMeta = (
 
 export const buildEditorStatus = ({
   metadata,
+  document,
   scale,
   startupTimings,
   gpuMemoryBytes,
@@ -106,7 +113,7 @@ export const buildEditorStatus = ({
 
   return {
     meta: metadata
-      ? imageMeta(metadata, scale, startupTimings, gpuMemoryBytes)
+      ? imageMeta(metadata, document, scale, startupTimings, gpuMemoryBytes)
       : 'No image',
     title,
     reportAvailable

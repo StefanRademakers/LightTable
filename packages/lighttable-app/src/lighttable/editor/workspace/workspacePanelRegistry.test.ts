@@ -10,6 +10,7 @@ describe('workspacePanelRegistry', () => {
       scopes: 'scopes',
       grade: 'grade',
       effects: 'effects',
+      color: 'color',
       text: 'text',
       lensFx: 'lensFx',
       layers: 'layers',
@@ -26,6 +27,7 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
     ]);
@@ -36,6 +38,7 @@ describe('workspacePanelRegistry', () => {
       content.grade,
       content.lensFx,
       content.effects,
+      content.color,
       content.text,
       content.debug
     ]);
@@ -46,6 +49,7 @@ describe('workspacePanelRegistry', () => {
       'grade',
       'lensFx',
       'effects',
+      'color',
       'text',
       'debug'
     ]);
@@ -62,6 +66,7 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.text
     ]);
   });
@@ -71,6 +76,7 @@ describe('workspacePanelRegistry', () => {
       scopes: null,
       grade: null,
       effects: null,
+      color: null,
       text: null,
       lensFx: null,
       layers: null,
@@ -95,6 +101,7 @@ describe('workspacePanelRegistry', () => {
       scopes: null,
       grade: null,
       effects: null,
+      color: null,
       text: null,
       lensFx: null,
       layers: null,
@@ -144,6 +151,7 @@ describe('workspacePanelRegistry', () => {
       scopes: null,
       grade: null,
       effects: null,
+      color: null,
       text: null,
       lensFx: null,
       layers: null,

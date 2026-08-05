@@ -40,6 +40,40 @@ export interface NormalizedImportProvenance {
   normalizedColorSpace: 'linear-srgb';
 }
 
+export type DocumentBitDepth = 8 | 16 | 32;
+
+/**
+ * Authoritative document color semantics.
+ *
+ * This is deliberately independent from the GPU texture format. LightTable
+ * may keep a document in linear rgba16float while its authored/export depth
+ * remains 8 or 16 bits per channel. Blend behavior is a renderer contract and
+ * is therefore not represented as a user-selectable compatibility flag.
+ */
+export interface DocumentColorSettings {
+  mode: 'rgb';
+  bitDepth: DocumentBitDepth;
+  workingProfile: 'srgb';
+  profileState: 'assigned' | 'assumed';
+}
+
+export const documentBitDepth = (value: number | null | undefined): DocumentBitDepth =>
+  value === 8 || value === 16 || value === 32 ? value : 16;
+
+export const createDocumentColorSettings = (
+  provenance: NormalizedImportProvenance | null = null
+): DocumentColorSettings => ({
+  mode: 'rgb',
+  bitDepth: documentBitDepth(provenance?.sourceBitDepth),
+  workingProfile: 'srgb',
+  profileState: provenance !== null && (
+    provenance.sourceProfile === 'no embedded ICC; assumed sRGB'
+    || provenance.sourceProfile === null
+  )
+    ? 'assumed'
+    : 'assigned'
+});
+
 export interface LayerLocks {
   transparency: boolean;
   pixels: boolean;
@@ -283,6 +317,7 @@ export interface ImageDocument {
   /** Root nodes, bottom-most first; groups recursively use the same ordering. */
   layers: LayerNode[];
   activeLayerId: LayerId | null;
+  colorSettings: DocumentColorSettings;
   importProvenance: NormalizedImportProvenance | null;
   /** Persisted semantic import audit; never inferred from the flat preview. */
   photoshopImportReport: PhotoshopImportReport | null;
@@ -449,6 +484,7 @@ export const createImageDocument = (
       mask: null
     }],
     activeLayerId: backgroundId,
+    colorSettings: createDocumentColorSettings(importProvenance),
     importProvenance,
     photoshopImportReport: null,
     photoshopDocument: null,

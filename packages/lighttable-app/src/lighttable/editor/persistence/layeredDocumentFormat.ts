@@ -1,5 +1,6 @@
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import type {
+  DocumentColorSettings,
   DocumentId,
   DocumentAssetId,
   DocumentFontAsset,
@@ -13,6 +14,7 @@ import type {
   PhotoshopLayerMetadata,
   RasterMask
 } from '../document/documentTypes';
+import { createDocumentColorSettings } from '../document/documentTypes';
 import { walkLayerTree } from '../document/layerTree';
 import { parseLightTableSettings } from '../../lightTableRecipe';
 import {
@@ -111,7 +113,7 @@ type LayerManifestEntry =
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
-  version: 6;
+  version: 7;
   previewLength: number;
   document: {
     id: string;
@@ -119,6 +121,7 @@ interface LayeredDocumentManifest {
     width: number;
     height: number;
     activeLayerId: string | null;
+    colorSettings: DocumentColorSettings;
     importProvenance: NormalizedImportProvenance | null;
     photoshopImportReport: PhotoshopImportReport | null;
     photoshopDocument?: { engineData: string | null } | null;
@@ -421,7 +424,7 @@ export const buildLayeredDocumentFile = (
   });
   const manifest: LayeredDocumentManifest = {
     format: 'lighttable-layered-png',
-    version: 6,
+    version: 7,
     previewLength: preview.size,
     document: {
       id: document.id,
@@ -429,6 +432,7 @@ export const buildLayeredDocumentFile = (
       width: document.width,
       height: document.height,
       activeLayerId: document.activeLayerId,
+      colorSettings: structuredClone(document.colorSettings),
       importProvenance: document.importProvenance,
       photoshopImportReport: document.photoshopImportReport
         ? structuredClone(document.photoshopImportReport)
@@ -485,6 +489,29 @@ const parseImportProvenance = (value: unknown): NormalizedImportProvenance | nul
     sourceInterpretation: value.sourceInterpretation,
     sourceProfile: value.sourceProfile,
     normalizedColorSpace: 'linear-srgb'
+  };
+};
+
+const parseDocumentColorSettings = (
+  value: unknown,
+  provenance: NormalizedImportProvenance | null,
+  required: boolean
+): DocumentColorSettings => {
+  if (value === undefined && !required) return createDocumentColorSettings(provenance);
+  if (
+    !isRecord(value)
+    || value.mode !== 'rgb'
+    || (value.bitDepth !== 8 && value.bitDepth !== 16 && value.bitDepth !== 32)
+    || value.workingProfile !== 'srgb'
+    || (value.profileState !== 'assigned' && value.profileState !== 'assumed')
+  ) {
+    throw new Error('The LightTable document color settings are invalid.');
+  }
+  return {
+    mode: 'rgb',
+    bitDepth: value.bitDepth,
+    workingProfile: 'srgb',
+    profileState: value.profileState
   };
 };
 
@@ -659,12 +686,12 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   if (
     !isRecord(raw)
     || raw.format !== 'lighttable-layered-png'
-    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4 && raw.version !== 5 && raw.version !== 6)
+    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4 && raw.version !== 5 && raw.version !== 6 && raw.version !== 7)
     || !isRecord(raw.document)
   ) {
     throw new Error('This LightTable document format is not supported.');
   }
-  const manifestVersion = raw.version as 1 | 2 | 3 | 4 | 5 | 6;
+  const manifestVersion = raw.version as 1 | 2 | 3 | 4 | 5 | 6 | 7;
   const source = raw.document;
   const width = source.width;
   const height = source.height;
@@ -675,6 +702,11 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   }
   const adjustmentStack = parseAdjustmentStack(raw.adjustmentStack);
   const importProvenance = parseImportProvenance(source.importProvenance);
+  const colorSettings = parseDocumentColorSettings(
+    source.colorSettings,
+    importProvenance,
+    manifestVersion >= 7
+  );
   const photoshopImportReport = parsePhotoshopImportReport(source.photoshopImportReport);
   const photoshopDocument = source.photoshopDocument
     && typeof source.photoshopDocument === 'object'
@@ -1148,6 +1180,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     height: Number(height),
     layers,
     activeLayerId,
+    colorSettings,
     importProvenance,
     photoshopImportReport,
     photoshopDocument,

@@ -3379,6 +3379,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   const statusBar = buildEditorStatus({
     metadata,
+    document: imageDocument,
     scale: activeScale,
     startupTimings,
     gpuMemoryBytes,
@@ -4320,6 +4321,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               effects: {
                 document: imageDocument,
                 controller: layerStyleEditor
+              },
+              color: {
+                document: imageDocument,
+                onAssignSrgb: () => {
+                  documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'
+                    ? document
+                    : {
+                        ...document,
+                        colorSettings: { ...document.colorSettings, profileState: 'assigned' },
+                        revision: document.revision + 1,
+                        modifiedAt: Date.now()
+                      });
+                }
               },
               text: textPropertiesPanel
             })}

@@ -722,6 +722,15 @@ export const importPsdDocument = (
       height: source.height,
       layers,
       activeLayerId,
+      colorSettings: {
+        mode: 'rgb',
+        bitDepth: source.bitsPerChannel === 8 || source.bitsPerChannel === 16
+          || source.bitsPerChannel === 32
+          ? source.bitsPerChannel
+          : 16,
+        workingProfile: 'srgb',
+        profileState: 'assumed'
+      },
       importProvenance: {
         decoder: 'ag-psd',
         sourceBitDepth: source.bitsPerChannel,
