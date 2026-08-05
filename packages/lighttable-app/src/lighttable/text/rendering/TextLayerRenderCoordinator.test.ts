@@ -919,6 +919,53 @@ describe('TextLayerRenderCoordinator', () => {
     expect(state.submit).not.toHaveBeenCalled();
   });
 
+  it('retains the last exact editing geometry until a newer edit finishes shaping', async () => {
+    const state = harness();
+    const document = createImageDocument('Provisional editing geometry', 32, 24, 'source');
+    const layer = createTextLayerNode(createDefaultTextLayerData(), 'Text');
+    document.layers = [layer];
+    state.coordinator.configureFonts(state.port);
+    state.coordinator.sync(document);
+    await flush();
+    if (layer.text.source.kind !== 'flow') throw new Error('Expected flow text fixture.');
+    const exactText = layer.text.source.text;
+    expect(state.coordinator.editingLayout(layer.id)).toMatchObject({ sourceText: exactText });
+
+    let finishShaping!: (value: unknown) => void;
+    state.client.realizeTextDetailed.mockImplementationOnce(() => new Promise((resolve) => {
+      finishShaping = resolve;
+    }) as never);
+    state.coordinator.setLayerInteraction(layer.id, true);
+    const nextText = `${exactText}x`;
+    const changed = setFlowTextContent(
+      document,
+      layer.id,
+      nextText,
+      layer.text.source.styleRuns.map((run, index, runs) => (
+        index === runs.length - 1 ? { ...run, end: nextText.length } : run
+      )),
+      layer.text.source.paragraphRuns.map((run, index, runs) => (
+        index === runs.length - 1 ? { ...run, end: nextText.length } : run
+      ))
+    );
+    state.coordinator.sync(changed);
+    await flush();
+
+    expect(state.coordinator.editingLayout(layer.id)).toMatchObject({
+      sourceText: exactText,
+      layout: { key: 'layout' }
+    });
+    finishShaping({
+      layout: { key: 'new-layout', glyphRuns: [] },
+      metrics: {}, roundTripDurationMs: 0, responseTransferBytes: 0
+    });
+    await flush();
+    expect(state.coordinator.editingLayout(layer.id)).toMatchObject({
+      sourceText: nextText,
+      layout: { key: 'new-layout' }
+    });
+  });
+
   it('invalidates queued work when text becomes hidden', async () => {
     const state = harness();
     let resolveLayout!: (value: unknown) => void;

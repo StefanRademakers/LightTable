@@ -116,6 +116,9 @@ export interface TextLayerEditingLayout {
   readonly preparationKey: string;
   readonly layout: RealizedTextLayout;
   readonly localToDocument: AffineMatrix;
+  /** Source represented by `layout`; it may trail the live edit while shaping is in flight. */
+  readonly sourceText: string | null;
+  readonly writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' | null;
   readonly path?: Readonly<{
     pathLayout: PathTextLayout;
     table: PathArcLengthTable;
@@ -703,7 +706,9 @@ export class TextLayerRenderCoordinator {
       if (expected.get(layerId) !== settled) {
         this.settledLayerKeys.delete(layerId);
         this.outlineLayerKeys.delete(layerId);
-        this.editingLayouts.delete(layerId);
+        // Keep the last exact editing geometry during an active edit. The UI can
+        // project immediate overlay-only feedback from it until exact shaping lands.
+        if (!this.interactingLayerScales.has(layerId)) this.editingLayouts.delete(layerId);
       }
     }
     const key = [
@@ -1360,6 +1365,11 @@ export class TextLayerRenderCoordinator {
       ),
       layout,
       localToDocument: Object.freeze({ ...transform }),
+      sourceText: layer.text.source.kind === 'flow' ? layer.text.source.text : null,
+      writingMode: layer.text.source.kind === 'flow'
+        && layer.text.source.layout.mode !== 'path'
+        ? layer.text.source.layout.writingMode
+        : null,
       ...(path ? { path } : {})
     }));
   }

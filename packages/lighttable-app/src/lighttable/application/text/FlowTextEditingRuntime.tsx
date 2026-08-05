@@ -19,6 +19,7 @@ import {
   recordTextInteractionTrace,
   type TextInteractionTraceIdentity
 } from './textInteractionPerformanceTrace';
+import { buildProvisionalTextEditingLayout } from './provisionalTextEditingLayout';
 
 export interface FlowTextEditingRuntimeRenderer {
   textEditingLayout(layerId: LayerId): TextLayerEditingLayout | null;
@@ -42,7 +43,8 @@ interface FlowTextEditingRuntimeProps {
 const editingOverlayFor = (
   editing: FlowTextEditingSnapshot,
   presentation: TextLayerEditingLayout | null,
-  document: ImageDocument | null
+  document: ImageDocument | null,
+  currentText: string
 ) => {
   if (editing.status !== 'editing' || !editing.layerId || !presentation) return null;
   const layer = document ? findDocumentLayer(document, editing.layerId) : null;
@@ -69,9 +71,19 @@ const editingOverlayFor = (
       composition
     });
   }
+  const layout = presentation.sourceText !== null
+    && presentation.writingMode === 'horizontal-tb'
+    ? buildProvisionalTextEditingLayout(
+      presentation.layout,
+      presentation.sourceText,
+      currentText,
+      [editing.selection.anchor, editing.selection.focus],
+      editing.caretAffinity
+    )
+    : presentation.layout;
   return buildTextEditingOverlay({
     layerId: editing.layerId,
-    layout: presentation.layout,
+    layout,
     localToDocument: presentation.localToDocument,
     anchor: editing.selection.anchor,
     focus: editing.selection.focus,
@@ -118,7 +130,12 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
         const current = interactionContext.current;
         const presentation = current.renderer?.textEditingLayout(next.layerId) ?? null;
         const overlayStartedAt = performance.now();
-        const immediateOverlay = editingOverlayFor(next, presentation, current.document);
+        const immediateOverlay = editingOverlayFor(
+          next,
+          presentation,
+          current.document,
+          controller.text()
+        );
         recordTextInteractionTrace(trace, 'overlay-build', overlayStartedAt);
         if (immediateOverlay) {
           if (immediateTextInteractionOverlayEnabled()) {
@@ -148,9 +165,10 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
   const presentation = editing.status === 'editing' && editing.layerId
     ? renderer?.textEditingLayout(editing.layerId) ?? null
     : null;
+  const currentText = editing.status === 'editing' ? controller.text() : '';
   const overlay = useMemo(
-    () => editingOverlayFor(editing, presentation, document),
-    [document, editing, layoutPublicationRevision, presentation]
+    () => editingOverlayFor(editing, presentation, document, currentText),
+    [currentText, document, editing, layoutPublicationRevision, presentation]
   );
 
   useEffect(() => () => renderer?.setTextEditingOverlay(null), [renderer]);
