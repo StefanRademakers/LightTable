@@ -5,7 +5,8 @@ import {
   TextInputBridge,
   textInputCommandFromBeforeInput,
   textInputDeleteCommandFromKey,
-  textInputFormatCommandFromKey
+  textInputFormatCommandFromKey,
+  textInputNavigationFromKey
 } from './TextInputBridge';
 
 describe('TextInputBridge', () => {
@@ -36,6 +37,23 @@ describe('TextInputBridge', () => {
       .toEqual({ kind: 'delete', direction: 'forward', unit: 'word' });
     expect(key('Backspace', { altKey: true })).toBeNull();
     expect(key('A')).toBeNull();
+    expect(textInputDeleteCommandFromKey({
+      key: 'Backspace', ctrlKey: false, metaKey: false, altKey: true
+    }, 'MacIntel')).toEqual({ kind: 'delete', direction: 'backward', unit: 'word' });
+  });
+
+  it('uses native Windows and macOS text navigation conventions', () => {
+    const key = (value: string, overrides: Partial<{
+      ctrlKey: boolean; metaKey: boolean; altKey: boolean
+    }> = {}, platform = 'Win32') => textInputNavigationFromKey({
+      key: value, ctrlKey: false, metaKey: false, altKey: false, ...overrides
+    }, platform);
+    expect(key('ArrowRight', { ctrlKey: true })).toBe('word-forward');
+    expect(key('ArrowDown', { ctrlKey: true })).toBe('paragraph-forward');
+    expect(key('ArrowLeft', { altKey: true }, 'MacIntel')).toBe('word-backward');
+    expect(key('ArrowRight', { metaKey: true }, 'MacIntel')).toBe('line-end');
+    expect(key('ArrowUp', { metaKey: true }, 'MacIntel')).toBe('document-start');
+    expect(key('ArrowDown', { altKey: true }, 'MacIntel')).toBe('paragraph-forward');
   });
 
   it('maps Photoshop-compatible character formatting shortcuts', () => {

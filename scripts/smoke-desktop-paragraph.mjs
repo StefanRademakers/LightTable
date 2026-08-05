@@ -61,6 +61,8 @@ const diagnostics = {
   caretNavigation: null,
   caretPipeline: null,
   dragSelection: null,
+  doubleClickSelection: null,
+  keyboardWordSelection: null,
   debugPanel: '',
   runtime: null,
   geometry: null,
@@ -315,6 +317,28 @@ try {
     text: bridge.value.slice(bridge.selectionStart, bridge.selectionEnd)
   }));
 
+  // Stay left of the deliberately floating Layers panel and hit the first word.
+  const wordPoint = { x: start.x + 90 * scale, y: start.y + 28 * scale };
+  await window.mouse.dblclick(wordPoint.x, wordPoint.y, { delay: 45 });
+  await window.waitForFunction(() => {
+    const bridge = document.querySelector('.lighttable-text-input-bridge');
+    return bridge instanceof HTMLTextAreaElement
+      && bridge.selectionEnd > bridge.selectionStart;
+  }, undefined, { timeout: 2_000 });
+  diagnostics.doubleClickSelection = await input.evaluate((bridge) => ({
+    start: bridge.selectionStart,
+    end: bridge.selectionEnd,
+    text: bridge.value.slice(bridge.selectionStart, bridge.selectionEnd)
+  }));
+
+  await input.press('Control+Home');
+  await input.press('Control+Shift+ArrowRight');
+  diagnostics.keyboardWordSelection = await input.evaluate((bridge) => ({
+    start: bridge.selectionStart,
+    end: bridge.selectionEnd,
+    text: bridge.value.slice(bridge.selectionStart, bridge.selectionEnd)
+  }));
+
   await window.waitForTimeout(750);
   await window.getByRole('tab', { name: 'Debug', exact: true }).click();
   const debugPanel = window.getByRole('region', { name: 'LightTable debug log' });
@@ -368,6 +392,14 @@ try {
   }
   if (!diagnostics.dragSelection || diagnostics.dragSelection.start === diagnostics.dragSelection.end) {
     throw new Error('Viewport mouse drag did not produce a text selection.');
+  }
+  if (!diagnostics.doubleClickSelection
+    || !diagnostics.doubleClickSelection.text
+    || /\s/.test(diagnostics.doubleClickSelection.text)) {
+    throw new Error('Viewport double-click did not select one word.');
+  }
+  if (diagnostics.keyboardWordSelection?.text !== 'Paragraph') {
+    throw new Error('Ctrl+Shift+ArrowRight did not select the next complete word.');
   }
   if (diagnostics.typingMs === null || diagnostics.typingMs > maximumTypingMs) {
     throw new Error(

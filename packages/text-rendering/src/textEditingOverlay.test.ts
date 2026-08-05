@@ -35,10 +35,11 @@ describe('text editing overlay', () => {
     expect(overlay.quads[0]!.points).toEqual([
       { x: 30, y: 44 }, { x: 48, y: 44 }, { x: 48, y: 70 }, { x: 30, y: 70 }
     ]);
-    expect(overlay.lines.map(({ role }) => role)).toEqual(['caret', 'insertion', 'baseline']);
+    expect(overlay.lines.map(({ role }) => role)).toEqual(['caret', 'caret', 'insertion', 'baseline']);
     expect(overlay.lines[0]).toMatchObject({
-      start: { x: 48, y: 44 }, end: { x: 48, y: 64 }
+      start: { x: 48, y: 44 }, end: { x: 48, y: 64 }, widthPx: 3.5
     });
+    expect(overlay.lines[1]).toMatchObject({ widthPx: 1.25, color: [0.96, 0.98, 1, 1] });
   });
 
   it('adds composition underlines without putting blink in the resource key', () => {
@@ -99,7 +100,7 @@ describe('text editing overlay', () => {
       layerId: 'empty', layout: empty, anchor: 0, focus: 0,
       localToDocument: { a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 20 }
     });
-    expect(overlay.lines.map(({ role }) => role)).toEqual(['caret', 'insertion', 'baseline']);
+    expect(overlay.lines.map(({ role }) => role)).toEqual(['caret', 'caret', 'insertion', 'baseline']);
     expect(overlay.lines[0]).toMatchObject({
       start: { x: 14, y: 26 }, end: { x: 14, y: 42 }
     });

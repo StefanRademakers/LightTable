@@ -10,6 +10,8 @@ export interface TextSelectionRange {
   readonly focus: number;
 }
 
+export type TextSelectionGranularity = 'character' | 'word' | 'line' | 'paragraph' | 'story';
+
 export interface FlowTextEditResult {
   readonly source: FlowTextSource;
   readonly selection: TextSelectionRange;
@@ -70,7 +72,7 @@ export const moveTextOffset = (
   text: string,
   offset: number,
   direction: 'backward' | 'forward',
-  unit: 'grapheme' | 'word' = 'grapheme'
+  unit: 'grapheme' | 'word' | 'paragraph' = 'grapheme'
 ) => {
   const current = snapTextOffset(text, offset, direction);
   if (unit === 'grapheme') {
@@ -78,6 +80,15 @@ export const moveTextOffset = (
     return direction === 'backward'
       ? [...stops].reverse().find((stop) => stop < current) ?? 0
       : stops.find((stop) => stop > current) ?? text.length;
+  }
+  if (unit === 'paragraph') {
+    const paragraphStart = text.lastIndexOf('\n', Math.max(0, current - 1)) + 1;
+    if (direction === 'backward') {
+      if (current > paragraphStart) return paragraphStart;
+      return text.lastIndexOf('\n', Math.max(0, paragraphStart - 2)) + 1;
+    }
+    const nextBreak = text.indexOf('\n', current);
+    return nextBreak < 0 ? text.length : nextBreak + 1;
   }
   const words = [...wordSegmenter.segment(text)];
   if (direction === 'backward') {
@@ -98,7 +109,7 @@ export const moveTextSelection = (
   text: string,
   selection: TextSelectionRange,
   direction: 'backward' | 'forward',
-  options: { readonly extend?: boolean; readonly unit?: 'grapheme' | 'word' } = {}
+  options: { readonly extend?: boolean; readonly unit?: 'grapheme' | 'word' | 'paragraph' } = {}
 ): TextSelectionRange => {
   const normalized = normalizeTextSelection(text, selection);
   const ordered = orderedTextSelection(normalized);
@@ -108,6 +119,34 @@ export const moveTextSelection = (
   }
   const focus = moveTextOffset(text, normalized.focus, direction, options.unit);
   return options.extend ? { anchor: normalized.anchor, focus } : { anchor: focus, focus };
+};
+
+export const textSelectionForGranularity = (
+  text: string,
+  layout: RealizedTextLayout,
+  offset: number,
+  granularity: TextSelectionGranularity
+): TextSelectionRange => {
+  const focus = snapTextOffset(text, offset);
+  if (granularity === 'character') return { anchor: focus, focus };
+  if (granularity === 'story') return { anchor: 0, focus: text.length };
+  if (granularity === 'line') {
+    const line = layout.lines.find(({ start, end }) => focus >= start && focus <= end)
+      ?? layout.lines.at(-1);
+    return line ? { anchor: line.start, focus: line.end } : { anchor: focus, focus };
+  }
+  if (granularity === 'paragraph') {
+    const start = text.lastIndexOf('\n', Math.max(0, focus - 1)) + 1;
+    const nextBreak = text.indexOf('\n', focus);
+    return { anchor: start, focus: nextBreak < 0 ? text.length : nextBreak + 1 };
+  }
+  const segments = [...wordSegmenter.segment(text)];
+  const segment = segments.find(({ index, segment: value }) => (
+    focus >= index && focus < index + value.length
+  )) ?? (focus === text.length ? segments.at(-1) : undefined);
+  return segment
+    ? { anchor: segment.index, focus: segment.index + segment.segment.length }
+    : { anchor: focus, focus };
 };
 
 type CaretStop = RealizedTextLayout['caretStops'][number];

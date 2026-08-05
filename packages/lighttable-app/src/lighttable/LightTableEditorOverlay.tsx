@@ -81,6 +81,10 @@ import {
   type HybridPdfNativePageExportReason
 } from './application/pdf/planHybridPdfNativePageExport';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
+import {
+  textSelectionForGranularity,
+  type TextSelectionGranularity
+} from './application/text/flowTextEditing';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
@@ -1084,6 +1088,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const layout = engineRef.current?.textEditingLayout(layerId);
       return layout
         ? hitTestTextEditingLayout(layout, point, Number.POSITIVE_INFINITY)?.offset ?? null
+        : null;
+    },
+    rangeAt: (layerId, offset, granularity) => {
+      const document = imageDocumentRef.current;
+      const layer = document ? findDocumentLayer(document, layerId) : null;
+      const layout = engineRef.current?.textEditingLayout(layerId)?.layout;
+      return layer?.type === 'text' && layer.text.source.kind === 'flow' && layout
+        ? textSelectionForGranularity(layer.text.source.text, layout, offset, granularity)
         : null;
     },
     publishSelection: (selection, transient) => {
@@ -2123,7 +2135,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const beginExistingFlowTextEditing = (
     point: { x: number; y: number },
     mode: 'point' | 'paragraph' | 'any' = 'any',
-    pointerId?: number
+    pointerId?: number,
+    clickCount = 1,
+    extend = false
   ) => {
     const document = imageDocumentRef.current;
     if (!document) return false;
@@ -2141,14 +2155,43 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     ];
     for (const layer of ordered) {
       const layout = engineRef.current?.textEditingLayout(layer.id);
-      const hit = layout ? hitTestTextEditingLayout(layout, point, 8 / Math.max(activeScale, 1e-6)) : null;
+      if (!layout || layer.type !== 'text' || layer.text.source.kind !== 'flow') continue;
+      const hit = hitTestTextEditingLayout(layout, point, 8 / Math.max(activeScale, 1e-6));
       if (!hit) continue;
       pointTextController.cancel();
       paragraphTextController.cancel();
       selectLayerRef.current(layer.id);
-      const editingStarted = requestExistingFlowTextEditing(layer.id, hit.offset, hit.affinity);
+      const previous = textEditingController.getSnapshot();
+      const continuing = previous.status === 'editing' && previous.layerId === layer.id;
+      const editingStarted = continuing
+        ? true
+        : requestExistingFlowTextEditing(layer.id, hit.offset, hit.affinity);
       if (editingStarted && pointerId !== undefined) {
-        textSelectionGestureController.begin(pointerId, layer.id, hit.offset);
+        const granularity: TextSelectionGranularity = clickCount >= 5 ? 'story'
+          : clickCount === 4 ? 'paragraph'
+            : clickCount === 3 ? 'line'
+              : clickCount === 2 ? 'word'
+                : 'character';
+        const currentLayout = layout.layout;
+        const source = layer.text.source;
+        const clicked = textSelectionForGranularity(
+          source.text,
+          currentLayout,
+          hit.offset,
+          granularity
+        );
+        const initial = extend && continuing
+          ? { anchor: previous.selection.anchor, focus: hit.offset }
+          : clicked;
+        textEditingController.setSelection(initial, { transient: true });
+        textSelectionGestureController.begin(
+          pointerId,
+          layer.id,
+          extend && continuing
+            ? { anchor: previous.selection.anchor, focus: previous.selection.anchor }
+            : clicked,
+          extend && continuing ? 'character' : granularity
+        );
       }
       return true;
     }
@@ -2401,8 +2444,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     onFocusPickerEnd: () => setFocusPickerActive(false),
     onFill: fillActiveTarget,
-    onPointTextCreate: (point) => {
-      if (beginExistingFlowTextEditing(point)) return;
+    onPointTextCreate: (point, clickCount, extend) => {
+      if (beginExistingFlowTextEditing(point, 'any', undefined, clickCount, extend)) return;
       textEditingController.finish();
       if (editorSession.activeTool === 'text-path') {
         const resolution = imageDocumentRef.current
@@ -2425,14 +2468,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       void beginPointTextCreation(point);
     },
     textGesture: {
-      beginPoint: (pointerId, point, temporaryMove) => (temporaryMove
+      beginPoint: (pointerId, point, temporaryMove, clickCount, extend) => (temporaryMove
         && textLayerMoveGestureController.begin(pointerId, point)) || pathTextHandleController.begin(
           pointerId, point, 8 / Math.max(activeScale, 1e-6)
-        ) || beginExistingFlowTextEditing(point, 'any', pointerId),
-      beginParagraph: (pointerId, point, temporaryMove) => (temporaryMove
+        ) || beginExistingFlowTextEditing(point, 'any', pointerId, clickCount, extend),
+      beginParagraph: (pointerId, point, temporaryMove, clickCount, extend) => (temporaryMove
         && textLayerMoveGestureController.begin(pointerId, point)) || pathTextHandleController.begin(
           pointerId, point, 8 / Math.max(activeScale, 1e-6)
-        ) || beginParagraphTextCreation(pointerId, point),
+        ) || beginExistingFlowTextEditing(point, 'any', pointerId, clickCount, extend)
+          || beginParagraphTextCreation(pointerId, point),
       owns: (pointerId) => textLayerMoveGestureController.owns(pointerId)
         || textSelectionGestureController.owns(pointerId)
         || pathTextHandleController.owns(pointerId)

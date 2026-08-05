@@ -6,6 +6,7 @@ export type TextInputEditCommand =
 
 export type TextInputNavigationCommand =
   | 'backward' | 'forward' | 'word-backward' | 'word-forward'
+  | 'paragraph-backward' | 'paragraph-forward'
   | 'line-start' | 'line-end' | 'document-start' | 'document-end'
   | 'line-up' | 'line-down' | 'select-all';
 
@@ -65,13 +66,16 @@ export const textInputCommandFromBeforeInput = (
 };
 
 export const textInputDeleteCommandFromKey = (
-  event: Pick<React.KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'>
+  event: Pick<React.KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'>,
+  platform = globalThis.navigator?.platform ?? ''
 ): TextInputEditCommand | null => {
-  if (event.altKey || (event.key !== 'Backspace' && event.key !== 'Delete')) return null;
+  if (event.key !== 'Backspace' && event.key !== 'Delete') return null;
+  const mac = /Mac|iPhone|iPad|iPod/i.test(platform);
+  if (!mac && event.altKey && !event.ctrlKey && !event.metaKey) return null;
   return {
     kind: 'delete',
     direction: event.key === 'Backspace' ? 'backward' : 'forward',
-    unit: event.ctrlKey || event.metaKey ? 'word' : 'grapheme'
+    unit: (mac ? event.altKey : event.ctrlKey || event.metaKey) ? 'word' : 'grapheme'
   };
 };
 
@@ -98,16 +102,30 @@ export interface TextInputBridgeProps {
   readonly onCancel: () => void;
 }
 
-const navigationFromKey = (
-  event: Pick<React.KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey'>
+export const textInputNavigationFromKey = (
+  event: Pick<React.KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'>,
+  platform = globalThis.navigator?.platform ?? ''
 ): TextInputNavigationCommand | null => {
-  const primary = event.ctrlKey || event.metaKey;
-  if (event.key === 'ArrowLeft') return primary ? 'word-backward' : 'backward';
-  if (event.key === 'ArrowRight') return primary ? 'word-forward' : 'forward';
-  if (event.key === 'ArrowUp') return 'line-up';
-  if (event.key === 'ArrowDown') return 'line-down';
-  if (event.key === 'Home') return primary ? 'document-start' : 'line-start';
-  if (event.key === 'End') return primary ? 'document-end' : 'line-end';
+  const mac = /Mac|iPhone|iPad|iPod/i.test(platform);
+  if (event.key === 'ArrowLeft') {
+    if (mac && event.metaKey) return 'line-start';
+    return (mac ? event.altKey : event.ctrlKey) ? 'word-backward' : 'backward';
+  }
+  if (event.key === 'ArrowRight') {
+    if (mac && event.metaKey) return 'line-end';
+    return (mac ? event.altKey : event.ctrlKey) ? 'word-forward' : 'forward';
+  }
+  if (event.key === 'ArrowUp') {
+    if (mac && event.metaKey) return 'document-start';
+    return (mac ? event.altKey : event.ctrlKey) ? 'paragraph-backward' : 'line-up';
+  }
+  if (event.key === 'ArrowDown') {
+    if (mac && event.metaKey) return 'document-end';
+    return (mac ? event.altKey : event.ctrlKey) ? 'paragraph-forward' : 'line-down';
+  }
+  const documentBoundary = mac ? event.metaKey : event.ctrlKey;
+  if (event.key === 'Home') return documentBoundary ? 'document-start' : 'line-start';
+  if (event.key === 'End') return documentBoundary ? 'document-end' : 'line-end';
   return null;
 };
 
@@ -209,7 +227,7 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
         if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
           event.preventDefault(); event.stopPropagation(); onCommit(); return;
         }
-        const navigation = navigationFromKey(event);
+        const navigation = textInputNavigationFromKey(event);
         if (!navigation) return;
         event.preventDefault(); event.stopPropagation();
         const selection = onNavigate(navigation, event.shiftKey);

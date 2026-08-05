@@ -256,6 +256,11 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
             command === 'word-backward' ? 'backward' : 'forward',
             { extend, unit: 'word' }
           );
+        } else if (command === 'paragraph-backward' || command === 'paragraph-forward') {
+          controller.navigate(
+            command === 'paragraph-backward' ? 'backward' : 'forward',
+            { extend, unit: 'paragraph' }
+          );
         } else if (command === 'document-start') {
           controller.moveToBoundary('start', extend);
         } else if (command === 'document-end') {

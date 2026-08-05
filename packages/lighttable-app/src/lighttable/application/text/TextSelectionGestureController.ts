@@ -1,5 +1,9 @@
 import type { LayerId } from '../../editor/document/documentTypes';
-import type { TextSelectionRange } from './flowTextEditing';
+import {
+  orderedTextSelection,
+  type TextSelectionGranularity,
+  type TextSelectionRange
+} from './flowTextEditing';
 
 export interface TextSelectionPoint {
   readonly x: number;
@@ -8,6 +12,11 @@ export interface TextSelectionPoint {
 
 export interface TextSelectionGestureDependencies {
   focusAt(layerId: LayerId, point: TextSelectionPoint): number | null;
+  rangeAt(
+    layerId: LayerId,
+    offset: number,
+    granularity: TextSelectionGranularity
+  ): TextSelectionRange | null;
   publishSelection(selection: TextSelectionRange, transient: boolean): void;
   requestFrame(callback: () => void): number;
   cancelFrame(frame: number): void;
@@ -16,7 +25,8 @@ export interface TextSelectionGestureDependencies {
 interface ActiveTextSelectionGesture {
   readonly pointerId: number;
   readonly layerId: LayerId;
-  readonly anchor: number;
+  readonly anchorRange: TextSelectionRange;
+  readonly granularity: TextSelectionGranularity;
   pendingFocus: number | null;
   frame: number | null;
 }
@@ -29,9 +39,14 @@ export class TextSelectionGestureController {
     private readonly dependencies: () => TextSelectionGestureDependencies
   ) {}
 
-  begin(pointerId: number, layerId: LayerId, anchor: number) {
+  begin(
+    pointerId: number,
+    layerId: LayerId,
+    anchorRange: TextSelectionRange,
+    granularity: TextSelectionGranularity = 'character'
+  ) {
     this.cancelActiveFrame();
-    this.active = { pointerId, layerId, anchor, pendingFocus: null, frame: null };
+    this.active = { pointerId, layerId, anchorRange, granularity, pendingFocus: null, frame: null };
   }
 
   owns(pointerId: number) {
@@ -50,10 +65,7 @@ export class TextSelectionGestureController {
       if (!current || current.pointerId !== pointerId) return;
       current.frame = null;
       if (current.pendingFocus === null) return;
-      this.dependencies().publishSelection({
-        anchor: current.anchor,
-        focus: current.pendingFocus
-      }, true);
+      this.dependencies().publishSelection(this.selectionAt(current, current.pendingFocus), true);
       current.pendingFocus = null;
     });
     return true;
@@ -64,10 +76,10 @@ export class TextSelectionGestureController {
     if (!active || active.pointerId !== pointerId) return false;
     const focus = this.dependencies().focusAt(active.layerId, point)
       ?? active.pendingFocus
-      ?? active.anchor;
+      ?? active.anchorRange.focus;
     this.cancelActiveFrame();
     this.active = null;
-    this.dependencies().publishSelection({ anchor: active.anchor, focus }, false);
+    this.dependencies().publishSelection(this.selectionAt(active, focus), false);
     return true;
   }
 
@@ -87,5 +99,15 @@ export class TextSelectionGestureController {
     if (this.active?.frame === null || this.active?.frame === undefined) return;
     this.dependencies().cancelFrame(this.active.frame);
     this.active.frame = null;
+  }
+
+  private selectionAt(active: ActiveTextSelectionGesture, focus: number): TextSelectionRange {
+    const anchor = orderedTextSelection(active.anchorRange);
+    const target = this.dependencies().rangeAt(active.layerId, focus, active.granularity)
+      ?? { anchor: focus, focus };
+    const orderedTarget = orderedTextSelection(target);
+    return focus < anchor.start
+      ? { anchor: anchor.end, focus: orderedTarget.start }
+      : { anchor: anchor.start, focus: orderedTarget.end };
   }
 }

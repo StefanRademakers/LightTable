@@ -7,6 +7,7 @@ import {
   type WheelEvent
 } from 'react';
 import { LatestFrameValueScheduler } from '../../application/input/latestFrameValueScheduler';
+import { PointerClickCounter } from '../../application/input/pointerClickCounter';
 import type { PaintSessionController } from '../../application/tools/paint/usePaintSessionController';
 import type { SelectionSessionController } from '../../application/tools/selection/useSelectionSessionController';
 import type { WarpSessionController } from '../../application/tools/warp/warpSessionController';
@@ -80,10 +81,26 @@ interface ViewportInteractionOptions {
   onFocusPick: (normalizedPoint: { x: number; y: number }) => void;
   onFocusPickerEnd: () => void;
   onFill: (color: string, preserveTransparency?: boolean) => void;
-  onPointTextCreate: (point: { x: number; y: number }, clickCount: number) => void;
+  onPointTextCreate: (
+    point: { x: number; y: number },
+    clickCount: number,
+    extend: boolean
+  ) => void;
   textGesture: {
-    beginPoint(pointerId: number, point: { x: number; y: number }, temporaryMove: boolean): boolean;
-    beginParagraph(pointerId: number, point: { x: number; y: number }, temporaryMove: boolean): boolean;
+    beginPoint(
+      pointerId: number,
+      point: { x: number; y: number },
+      temporaryMove: boolean,
+      clickCount: number,
+      extend: boolean
+    ): boolean;
+    beginParagraph(
+      pointerId: number,
+      point: { x: number; y: number },
+      temporaryMove: boolean,
+      clickCount: number,
+      extend: boolean
+    ): boolean;
     owns(pointerId: number): boolean;
     move(pointerId: number, point: { x: number; y: number }): boolean;
     finish(pointerId: number, point: { x: number; y: number }): boolean;
@@ -178,6 +195,8 @@ export const useViewportInteractionController = ({
   } | null>(null);
   const brushCursorCenterRef = useRef<{ x: number; y: number } | null>(null);
   const lastBrushPointRef = useRef<BrushPoint | null>(null);
+  const textClickCounterRef = useRef<PointerClickCounter | null>(null);
+  textClickCounterRef.current ??= new PointerClickCounter();
   const setViewRef = useRef(setView);
   setViewRef.current = setView;
   const onBrushCursorChangeRef = useRef(onBrushCursorChange);
@@ -210,6 +229,10 @@ export const useViewportInteractionController = ({
     panFrameRef.current?.cancel();
     zoomFrameRef.current?.cancel();
   }, [setView]);
+
+  useEffect(() => {
+    textClickCounterRef.current?.reset();
+  }, [document?.id, editorSession.activeTool]);
 
   useEffect(() => () => {
     panFrameRef.current?.dispose();
@@ -542,23 +565,52 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent === 'text-create' && point) {
+        const clickCount = textClickCounterRef.current!.next({
+          x: event.clientX,
+          y: event.clientY,
+          timeMs: event.timeStamp,
+          button: event.button,
+          pointerType: event.pointerType
+        });
         if (activeTool === 'text-point' || activeTool === 'text-paragraph'
           || activeTool === 'text-vertical') {
-          if (textGesture.beginParagraph(event.pointerId, point, event.ctrlKey || event.metaKey)) {
+          if (textGesture.beginParagraph(
+            event.pointerId,
+            point,
+            event.ctrlKey || event.metaKey,
+            clickCount,
+            event.shiftKey
+          )) {
             event.currentTarget.setPointerCapture(event.pointerId);
           }
           event.preventDefault();
           return;
         }
         if (activeTool === 'text-path') {
-          onPointTextCreate({ x: point.x, y: point.y }, event.detail);
+          if (textGesture.beginPoint(
+            event.pointerId,
+            point,
+            event.ctrlKey || event.metaKey,
+            clickCount,
+            event.shiftKey
+          )) {
+            event.currentTarget.setPointerCapture(event.pointerId);
+          } else {
+            onPointTextCreate({ x: point.x, y: point.y }, clickCount, event.shiftKey);
+          }
           event.preventDefault();
           return;
         }
-        if (textGesture.beginPoint(event.pointerId, point, event.ctrlKey || event.metaKey)) {
+        if (textGesture.beginPoint(
+          event.pointerId,
+          point,
+          event.ctrlKey || event.metaKey,
+          clickCount,
+          event.shiftKey
+        )) {
           event.currentTarget.setPointerCapture(event.pointerId);
         } else {
-          onPointTextCreate({ x: point.x, y: point.y }, event.detail);
+          onPointTextCreate({ x: point.x, y: point.y }, clickCount, event.shiftKey);
         }
         event.preventDefault();
         return;
@@ -649,6 +701,7 @@ export const useViewportInteractionController = ({
       }
       const point = documentPoint(event, bounds);
       if (textGesture.owns(event.pointerId)) {
+        textClickCounterRef.current?.moved(event.clientX, event.clientY);
         if (point && textGesture.move(event.pointerId, point)) event.preventDefault();
         return;
       }

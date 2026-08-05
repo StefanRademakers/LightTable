@@ -255,13 +255,24 @@ export const buildTextEditingOverlay = ({
   const lines: TextOverlayLine[] = [];
   const vertical = layout.glyphRuns.some((run) => run.direction === 'ttb' || run.direction === 'btt');
   if (frame) lines.push(...frameLines(frame, localToDocument));
+  const caretStart = projectPoint(caret.x, caret.y);
+  const caretEnd = vertical
+    ? projectPoint(caret.x + caret.height, caret.y)
+    : projectPoint(caret.x, caret.y + caret.height);
+  // A blue outer rail plus white core stays visible over light, dark and
+  // saturated artwork without sampling or recompositing document pixels.
   lines.push({
       role: 'caret',
-      start: projectPoint(caret.x, caret.y),
-      end: vertical
-        ? projectPoint(caret.x + caret.height, caret.y)
-        : projectPoint(caret.x, caret.y + caret.height),
-      widthPx: 1.5,
+      start: caretStart,
+      end: caretEnd,
+      widthPx: 3.5,
+      color: [0.08, 0.38, 0.96, 1]
+  });
+  lines.push({
+      role: 'caret',
+      start: caretStart,
+      end: caretEnd,
+      widthPx: 1.25,
       color: [0.96, 0.98, 1, 1]
   });
   lines.push({

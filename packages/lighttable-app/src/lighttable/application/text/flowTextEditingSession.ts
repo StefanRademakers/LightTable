@@ -163,7 +163,7 @@ export class FlowTextEditingSessionController {
 
   navigate(
     direction: 'backward' | 'forward',
-    options: { readonly extend?: boolean; readonly unit?: 'grapheme' | 'word' } = {}
+    options: { readonly extend?: boolean; readonly unit?: 'grapheme' | 'word' | 'paragraph' } = {}
   ) {
     const source = this.currentSource();
     if (!source) return false;

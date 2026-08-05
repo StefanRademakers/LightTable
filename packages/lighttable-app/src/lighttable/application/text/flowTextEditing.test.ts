@@ -8,7 +8,8 @@ import {
   moveTextSelectionInLayout,
   moveTextSelectionHorizontallyInLayout,
   replaceFlowTextSelection,
-  snapTextOffset
+  snapTextOffset,
+  textSelectionForGranularity
 } from './flowTextEditing';
 
 describe('flow text editing', () => {
@@ -30,6 +31,9 @@ describe('flow text editing', () => {
       .toEqual({ anchor: 0, focus: 1 });
     expect(moveTextOffset(text, 7, 'backward', 'word')).toBe(4);
     expect(moveTextOffset(text, 0, 'forward', 'word')).toBe(3);
+    expect(moveTextOffset('one two\nthree four', 18, 'backward', 'paragraph')).toBe(8);
+    expect(moveTextOffset('one two\nthree four', 8, 'backward', 'paragraph')).toBe(0);
+    expect(moveTextOffset('one two\nthree four', 2, 'forward', 'paragraph')).toBe(8);
   });
 
   it('replaces a range and keeps style and paragraph coverage canonical', () => {
@@ -110,6 +114,14 @@ describe('flow text editing', () => {
       .toEqual({ anchor: 4, focus: 4 });
     expect(moveTextSelectionInLayout(layout, { anchor: 4, focus: 4 }, 'line-up', true).selection)
       .toEqual({ anchor: 4, focus: 1 });
+    expect(textSelectionForGranularity('ab\ncd', layout, 1, 'word'))
+      .toEqual({ anchor: 0, focus: 2 });
+    expect(textSelectionForGranularity('ab\ncd', layout, 4, 'line'))
+      .toEqual({ anchor: 3, focus: 5 });
+    expect(textSelectionForGranularity('ab\ncd', layout, 1, 'paragraph'))
+      .toEqual({ anchor: 0, focus: 3 });
+    expect(textSelectionForGranularity('ab\ncd', layout, 4, 'story'))
+      .toEqual({ anchor: 0, focus: 5 });
   });
 
   it('moves horizontally through mixed-direction visual caret order', () => {
