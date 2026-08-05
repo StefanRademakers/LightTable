@@ -18,6 +18,7 @@ const outputFile = path.resolve(argument(
 ));
 const reportFile = outputFile.replace(/\.[^.]+$/, '.json');
 const executablePath = path.resolve(argument('executable', defaultExecutable));
+const packagedApplication = /LightTable\.exe$/i.test(executablePath);
 const requestedSizeBeforeCreate = Number.parseFloat(argument('size-before-create', ''));
 const sizeBeforeCreate = Number.isFinite(requestedSizeBeforeCreate)
   ? requestedSizeBeforeCreate
@@ -50,6 +51,7 @@ const diagnostics = {
   status: '',
   layers: [],
   cacheStats: null,
+  caretNavigation: null,
   dragSelection: null,
   debugPanel: '',
   runtime: null,
@@ -66,7 +68,7 @@ let failure;
 try {
   electronApp = await electron.launch({
     executablePath,
-    args: [desktopAppPath],
+    args: packagedApplication ? [] : [desktopAppPath],
     cwd: workspaceRoot,
     env: {
       ...launchEnvironment,
@@ -143,6 +145,50 @@ try {
     const bridge = document.querySelector('.lighttable-text-input-bridge');
     return bridge instanceof HTMLTextAreaElement && bridge.value === expected;
   }, diagnostics.finalText, { timeout: 30_000 });
+
+  // Measure the user-visible bridge update, not Playwright command latency.
+  // Each sample dispatches one real React keyboard event and waits until the
+  // controlled native selection reflects the new editing-controller state.
+  // Keep typing/re-layout out of the caret-only sample.
+  await window.waitForTimeout(1_000);
+  await input.press('Control+Home');
+  await window.waitForFunction(() => {
+    const bridge = document.querySelector('.lighttable-text-input-bridge');
+    return bridge instanceof HTMLTextAreaElement && bridge.selectionStart === 0;
+  }, undefined, { timeout: 1_000 });
+  await input.evaluate((bridge) => {
+    const samples = [];
+    globalThis.__lightTableCaretSamples = samples;
+    bridge.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowRight') return;
+      const before = bridge.selectionStart;
+      const startedAt = performance.now();
+      const inspect = () => {
+        if (bridge.selectionStart > before) samples.push(performance.now() - startedAt);
+        else requestAnimationFrame(inspect);
+      };
+      requestAnimationFrame(inspect);
+    }, { capture: true });
+  });
+  const caretSampleCount = Math.min(12, diagnostics.finalText.length);
+  for (let index = 0; index < caretSampleCount; index += 1) {
+    await input.press('ArrowRight');
+    await window.waitForTimeout(50);
+  }
+  diagnostics.caretNavigation = await input.evaluate(() => {
+    const samples = globalThis.__lightTableCaretSamples ?? [];
+    const ordered = [...samples].sort((left, right) => left - right);
+    const percentile = (fraction) => ordered[Math.min(
+      ordered.length - 1,
+      Math.max(0, Math.ceil(ordered.length * fraction) - 1)
+    )] ?? 0;
+    return {
+      samples,
+      medianMs: percentile(0.5),
+      p95Ms: percentile(0.95),
+      maxMs: percentile(1)
+    };
+  });
 
   // Exercise the real viewport pointer route. Selection geometry remains in
   // the WebGPU overlay; the hidden input is only the semantic assertion port.

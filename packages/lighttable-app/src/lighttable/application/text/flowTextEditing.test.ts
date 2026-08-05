@@ -145,4 +145,65 @@ describe('flow text editing', () => {
       layout, { anchor: 6, focus: 6 }, 'line-end', false, 'upstream'
     ).selection).toEqual({ anchor: 4, focus: 4 });
   });
+
+  it('reuses indexed visual caret order across repeated navigation', () => {
+    let numericReads = 0;
+    const stops = [
+      { textOffset: 0, x: 0, y: 8, height: 8, affinity: 'downstream' as const },
+      { textOffset: 1, x: 10, y: 8, height: 8, affinity: 'upstream' as const },
+      { textOffset: 2, x: 20, y: 8, height: 8, affinity: 'upstream' as const }
+    ];
+    const caretStops = new Proxy(stops, {
+      get(target, property, receiver) {
+        if (typeof property === 'string' && /^\d+$/.test(property)) numericReads += 1;
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    const layout = {
+      schemaVersion: 2 as const, key: 'cached-caret-navigation', glyphRuns: [],
+      selectionGeometry: [], clusterMap: [], warnings: [],
+      inkBounds: { x: 0, y: 0, width: 20, height: 10 },
+      logicalBounds: { x: 0, y: 0, width: 20, height: 10 },
+      lines: [{
+        start: 0, end: 2, baseline: 8, ascent: 8, descent: 2,
+        bounds: { x: 0, y: 0, width: 20, height: 10 }
+      }],
+      caretStops
+    };
+    moveTextSelectionHorizontallyInLayout(
+      layout, { anchor: 0, focus: 0 }, 'forward'
+    );
+    const readsAfterWarmup = numericReads;
+    moveTextSelectionHorizontallyInLayout(
+      layout, { anchor: 1, focus: 1 }, 'forward', false, 'upstream'
+    );
+    expect(numericReads).toBe(readsAfterWarmup);
+  });
+
+  it('continues horizontal caret navigation across visual line boundaries', () => {
+    const layout = {
+      schemaVersion: 2 as const, key: 'line-boundary-navigation', glyphRuns: [],
+      selectionGeometry: [], clusterMap: [], warnings: [],
+      inkBounds: { x: 0, y: 0, width: 20, height: 20 },
+      logicalBounds: { x: 0, y: 0, width: 20, height: 20 },
+      lines: [
+        { start: 0, end: 2, baseline: 8, ascent: 8, descent: 2, bounds: { x: 0, y: 0, width: 20, height: 10 } },
+        { start: 3, end: 5, baseline: 18, ascent: 8, descent: 2, bounds: { x: 0, y: 10, width: 20, height: 10 } }
+      ],
+      caretStops: [
+        { textOffset: 0, x: 0, y: 0, height: 8, affinity: 'downstream' as const },
+        { textOffset: 1, x: 10, y: 0, height: 8, affinity: 'upstream' as const },
+        { textOffset: 2, x: 20, y: 0, height: 8, affinity: 'upstream' as const },
+        { textOffset: 3, x: 0, y: 10, height: 8, affinity: 'downstream' as const },
+        { textOffset: 4, x: 10, y: 10, height: 8, affinity: 'upstream' as const },
+        { textOffset: 5, x: 20, y: 10, height: 8, affinity: 'upstream' as const }
+      ]
+    };
+    expect(moveTextSelectionHorizontallyInLayout(
+      layout, { anchor: 2, focus: 2 }, 'forward', false, 'upstream'
+    ).selection).toEqual({ anchor: 3, focus: 3 });
+    expect(moveTextSelectionHorizontallyInLayout(
+      layout, { anchor: 3, focus: 3 }, 'backward'
+    ).selection).toEqual({ anchor: 2, focus: 2 });
+  });
 });

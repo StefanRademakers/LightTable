@@ -6,7 +6,10 @@ import {
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { TextInputBridge, type TextInputFormatCommand } from '../../editor/ui/TextInputBridge';
-import type { FlowTextEditingSessionController } from './flowTextEditingSession';
+import type {
+  FlowTextEditingSessionController,
+  FlowTextEditingSnapshot
+} from './flowTextEditingSession';
 import type { ParagraphStylePatch, TextStylePatch } from './flowTextFormatting';
 import { buildPathTextEditingOverlay } from '../../text/rendering/pathTextEditingOverlay';
 import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
@@ -25,6 +28,48 @@ interface FlowTextEditingRuntimeProps {
   /** Rebuild overlay geometry only when the renderer publishes a fresh layout. */
   readonly layoutPublicationRevision: number;
 }
+
+const editingOverlayFor = (
+  editing: FlowTextEditingSnapshot,
+  presentation: TextLayerEditingLayout | null,
+  document: ImageDocument | null
+) => {
+  if (editing.status !== 'editing' || !editing.layerId || !presentation) return null;
+  const layer = document ? findDocumentLayer(document, editing.layerId) : null;
+  const frame = layer?.type === 'text'
+    && layer.text.source.kind === 'flow'
+    && layer.text.source.layout.mode === 'paragraph'
+    ? layer.text.source.layout.frame
+    : null;
+  const composition = editing.compositionRange ? {
+    start: Math.min(editing.compositionRange.anchor, editing.compositionRange.focus),
+    end: Math.max(editing.compositionRange.anchor, editing.compositionRange.focus)
+  } : null;
+  if (presentation.path) {
+    return buildPathTextEditingOverlay({
+      layerId: editing.layerId,
+      layout: presentation.layout,
+      pathLayout: presentation.path.pathLayout,
+      table: presentation.path.table,
+      projection: presentation.path.projection,
+      localToDocument: presentation.localToDocument,
+      anchor: editing.selection.anchor,
+      focus: editing.selection.focus,
+      caretAffinity: editing.caretAffinity,
+      composition
+    });
+  }
+  return buildTextEditingOverlay({
+    layerId: editing.layerId,
+    layout: presentation.layout,
+    localToDocument: presentation.localToDocument,
+    anchor: editing.selection.anchor,
+    focus: editing.selection.focus,
+    caretAffinity: editing.caretAffinity,
+    composition,
+    frame
+  });
+};
 
 /**
  * Isolated high-frequency text interaction island.
@@ -63,43 +108,10 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
   const presentation = editing.status === 'editing' && editing.layerId
     ? renderer?.textEditingLayout(editing.layerId) ?? null
     : null;
-  const overlay = useMemo(() => {
-    if (editing.status !== 'editing' || !editing.layerId || !presentation) return null;
-    const layer = document ? findDocumentLayer(document, editing.layerId) : null;
-    const frame = layer?.type === 'text'
-      && layer.text.source.kind === 'flow'
-      && layer.text.source.layout.mode === 'paragraph'
-      ? layer.text.source.layout.frame
-      : null;
-    const composition = editing.compositionRange ? {
-      start: Math.min(editing.compositionRange.anchor, editing.compositionRange.focus),
-      end: Math.max(editing.compositionRange.anchor, editing.compositionRange.focus)
-    } : null;
-    if (presentation.path) {
-      return buildPathTextEditingOverlay({
-        layerId: editing.layerId,
-        layout: presentation.layout,
-        pathLayout: presentation.path.pathLayout,
-        table: presentation.path.table,
-        projection: presentation.path.projection,
-        localToDocument: presentation.localToDocument,
-        anchor: editing.selection.anchor,
-        focus: editing.selection.focus,
-        caretAffinity: editing.caretAffinity,
-        composition
-      });
-    }
-    return buildTextEditingOverlay({
-      layerId: editing.layerId,
-      layout: presentation.layout,
-      localToDocument: presentation.localToDocument,
-      anchor: editing.selection.anchor,
-      focus: editing.selection.focus,
-      caretAffinity: editing.caretAffinity,
-      composition,
-      frame
-    });
-  }, [document, editing, layoutPublicationRevision, presentation]);
+  const overlay = useMemo(
+    () => editingOverlayFor(editing, presentation, document),
+    [document, editing, layoutPublicationRevision, presentation]
+  );
 
   useEffect(() => () => renderer?.setTextEditingOverlay(null), [renderer]);
   useEffect(() => {
@@ -193,6 +205,14 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
           if (layout) controller.navigateLayout(layout, command, extend);
           else controller.navigateLogicalLine(command, extend);
         }
+        const next = controller.getSnapshot();
+        const nextPresentation = renderer?.textEditingLayout(layerId) ?? null;
+        const nextOverlay = editingOverlayFor(next, nextPresentation, document);
+        if (nextOverlay) renderer?.setTextEditingOverlay(nextOverlay, true);
+        return {
+          start: Math.min(next.selection.anchor, next.selection.focus),
+          end: Math.max(next.selection.anchor, next.selection.focus)
+        };
       }}
       onFormat={format}
       onCompositionStart={() => { controller.compositionStart(); }}

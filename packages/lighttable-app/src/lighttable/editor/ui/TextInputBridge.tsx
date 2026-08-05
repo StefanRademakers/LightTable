@@ -72,7 +72,10 @@ export interface TextInputBridgeProps {
   readonly focusKey: number;
   readonly selectedText: string;
   readonly onEdit: (command: TextInputEditCommand) => void;
-  readonly onNavigate: (command: TextInputNavigationCommand, extend: boolean) => void;
+  readonly onNavigate: (
+    command: TextInputNavigationCommand,
+    extend: boolean
+  ) => { readonly start: number; readonly end: number } | void;
   readonly onFormat: (command: TextInputFormatCommand) => void;
   readonly onCompositionStart: () => void;
   readonly onCompositionUpdate: (text: string) => void;
@@ -177,7 +180,10 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
           event.preventDefault(); event.stopPropagation(); onFormat(format); return;
         }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
-          event.preventDefault(); event.stopPropagation(); onNavigate('select-all', false); return;
+          event.preventDefault(); event.stopPropagation();
+          const selection = onNavigate('select-all', false);
+          if (selection) inputRef.current?.setSelectionRange(selection.start, selection.end);
+          return;
         }
         if (event.key === 'Escape') {
           event.preventDefault(); event.stopPropagation(); onCancel(); return;
@@ -188,7 +194,8 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
         const navigation = navigationFromKey(event);
         if (!navigation) return;
         event.preventDefault(); event.stopPropagation();
-        onNavigate(navigation, event.shiftKey);
+        const selection = onNavigate(navigation, event.shiftKey);
+        if (selection) inputRef.current?.setSelectionRange(selection.start, selection.end);
       }}
     />
   );

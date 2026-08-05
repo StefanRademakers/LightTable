@@ -110,21 +110,73 @@ export const moveTextSelection = (
   return options.extend ? { anchor: normalized.anchor, focus } : { anchor: focus, focus };
 };
 
+type CaretStop = RealizedTextLayout['caretStops'][number];
+
+interface CaretNavigationIndex {
+  readonly exact: ReadonlyMap<string, CaretStop>;
+  readonly firstByOffset: ReadonlyMap<number, CaretStop>;
+  readonly visualStopsByLine: Map<RealizedTextLayout['lines'][number], readonly CaretStop[]>;
+}
+
+const caretNavigationIndexes = new WeakMap<RealizedTextLayout, CaretNavigationIndex>();
+
+const caretNavigationIndex = (layout: RealizedTextLayout): CaretNavigationIndex => {
+  const existing = caretNavigationIndexes.get(layout);
+  if (existing) return existing;
+  const exact = new Map<string, CaretStop>();
+  const firstByOffset = new Map<number, CaretStop>();
+  for (const stop of layout.caretStops) {
+    exact.set(`${stop.textOffset}:${stop.affinity}`, stop);
+    if (!firstByOffset.has(stop.textOffset)) firstByOffset.set(stop.textOffset, stop);
+  }
+  const created = { exact, firstByOffset, visualStopsByLine: new Map() };
+  caretNavigationIndexes.set(layout, created);
+  return created;
+};
+
 const caretStopFor = (
   layout: RealizedTextLayout,
   offset: number,
   affinity: 'upstream' | 'downstream'
-) => layout.caretStops.find((stop) => stop.textOffset === offset && stop.affinity === affinity)
-  ?? layout.caretStops.find((stop) => stop.textOffset === offset);
+) => {
+  const index = caretNavigationIndex(layout);
+  return index.exact.get(`${offset}:${affinity}`) ?? index.firstByOffset.get(offset);
+};
 
-const visualLineStops = (layout: RealizedTextLayout, offset: number) => {
-  const line = layout.lines.find((candidate) => offset >= candidate.start && offset <= candidate.end);
-  if (!line) return [];
-  return layout.caretStops
+const visualStopsForLine = (
+  layout: RealizedTextLayout,
+  line: RealizedTextLayout['lines'][number]
+) => {
+  const index = caretNavigationIndex(layout);
+  const existing = index.visualStopsByLine.get(line);
+  if (existing) return existing;
+  const created = layout.caretStops
     .filter((stop) => stop.textOffset >= line.start && stop.textOffset <= line.end)
     .map((stop, order) => ({ stop, order }))
     .sort((left, right) => left.stop.x - right.stop.x || left.order - right.order)
     .map(({ stop }) => stop);
+  index.visualStopsByLine.set(line, created);
+  return created;
+};
+
+const visualLineStops = (layout: RealizedTextLayout, offset: number) => {
+  const line = layout.lines.find((candidate) => offset >= candidate.start && offset <= candidate.end);
+  return line ? visualStopsForLine(layout, line) : [];
+};
+
+const adjacentVisualLineStop = (
+  layout: RealizedTextLayout,
+  offset: number,
+  direction: 'backward' | 'forward'
+) => {
+  const lineIndex = layout.lines.findIndex(
+    (candidate) => offset >= candidate.start && offset <= candidate.end
+  );
+  if (lineIndex < 0) return undefined;
+  const adjacent = layout.lines[lineIndex + (direction === 'backward' ? -1 : 1)];
+  if (!adjacent) return undefined;
+  const stops = visualStopsForLine(layout, adjacent);
+  return stops[direction === 'backward' ? stops.length - 1 : 0];
 };
 
 /** Moves through realized visual caret order while retaining logical offsets. */
@@ -155,10 +207,10 @@ export const moveTextSelectionHorizontallyInLayout = (
   const stops = visualLineStops(layout, selection.focus);
   const index = stops.indexOf(current);
   if (index < 0) return { selection, affinity };
-  const target = stops[Math.max(0, Math.min(
-    stops.length - 1,
-    index + (direction === 'backward' ? -1 : 1)
-  ))] ?? current;
+  const nextIndex = index + (direction === 'backward' ? -1 : 1);
+  const target = stops[nextIndex]
+    ?? adjacentVisualLineStop(layout, selection.focus, direction)
+    ?? current;
   return {
     selection: extend
       ? { anchor: selection.anchor, focus: target.textOffset }
@@ -175,9 +227,7 @@ export const moveTextSelectionInLayout = (
   affinity: 'upstream' | 'downstream' = 'downstream',
   preferredX?: number | null
 ) => {
-  const current = layout.caretStops.find(
-    (stop) => stop.textOffset === selection.focus && stop.affinity === affinity
-  ) ?? layout.caretStops.find((stop) => stop.textOffset === selection.focus);
+  const current = caretStopFor(layout, selection.focus, affinity);
   if (!current || !layout.lines.length) return { selection, affinity, preferredX: null };
   const currentLineIndex = layout.lines.findIndex(
     (line) => selection.focus >= line.start && selection.focus <= line.end
@@ -195,9 +245,7 @@ export const moveTextSelectionInLayout = (
       ? Math.max(0, lineIndex - 1)
       : Math.min(layout.lines.length - 1, lineIndex + 1);
     const line = layout.lines[targetLineIndex]!;
-    const candidates = layout.caretStops.filter(
-      (stop) => stop.textOffset >= line.start && stop.textOffset <= line.end
-    );
+    const candidates = visualStopsForLine(layout, line);
     const desiredX = preferredX ?? current.x;
     const stop = [...candidates].sort((left, right) => (
       Math.abs(left.x - desiredX) - Math.abs(right.x - desiredX)

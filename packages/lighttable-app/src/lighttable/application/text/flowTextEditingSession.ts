@@ -53,6 +53,8 @@ const IDLE_SNAPSHOT: FlowTextEditingSnapshot = Object.freeze({
   caretAffinity: 'downstream', preferredCaretX: null, focusKey: 0
 });
 
+const DEFAULT_INSERTION_SOURCE = createDefaultFlowTextSource('x');
+
 const flowSourceFor = (document: ImageDocument | null, layerId: LayerId | null) => {
   if (!document || !layerId) return null;
   const layer = findDocumentLayer(document, layerId);
@@ -484,17 +486,16 @@ export class FlowTextEditingSessionController {
   }
 
   private captureInsertionStyle(source: FlowTextSource, offset: number) {
-    const defaults = createDefaultFlowTextSource('x');
     this.insertionStyle = source.styleRuns.find(
       (run) => run.start <= offset && offset < run.end
     ) ?? source.styleRuns.at(-1)
       ?? (source.insertionStyle ? { ...source.insertionStyle, start: 0, end: 0 } : undefined)
-      ?? this.insertionStyle ?? defaults.styleRuns[0];
+      ?? this.insertionStyle ?? DEFAULT_INSERTION_SOURCE.styleRuns[0];
     this.insertionParagraph = source.paragraphRuns.find(
       (run) => run.start <= offset && offset < run.end
     ) ?? source.paragraphRuns.at(-1)
       ?? (source.insertionParagraph ? { ...source.insertionParagraph, start: 0, end: 0 } : undefined)
-      ?? this.insertionParagraph ?? defaults.paragraphRuns[0];
+      ?? this.insertionParagraph ?? DEFAULT_INSERTION_SOURCE.paragraphRuns[0];
   }
 
   private replaceSelection(replacement: string) {
