@@ -15,6 +15,18 @@ const manifest = JSON.parse(await readFile(path.join(root, 'manifest.json'), 'ut
 const requestedIds = new Set(argument('ids').split(',').map((value) => value.trim()).filter(Boolean));
 const cases = manifest.cases.filter(({ id }) => !requestedIds.size || requestedIds.has(id));
 const reportPath = path.resolve(argument('report', path.join(root, 'report.json')));
+const numericLimit = (name) => {
+  const value = argument(name);
+  if (!value) return Number.POSITIVE_INFINITY;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`--${name} must be a non-negative number.`);
+  return parsed;
+};
+const thresholds = {
+  rgbRmse: numericLimit('max-rmse'),
+  maximumDelta: numericLimit('max-delta'),
+  significantPercent: numericLimit('max-significant-percent')
+};
 const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
 await Promise.all([access(executable), ...cases.flatMap(({ canonical, reference }) =>
   [access(canonical), access(reference)])]);
@@ -30,19 +42,27 @@ const regions = [
   { id: 'swatches-128', left: 0, top: 200, width: 400, height: 200 }
 ];
 const metrics = (reference, candidate, width, height) => {
-  let squared = 0; let maximum = 0; let significant = 0;
+  let squared = 0; let maximum = 0; let significant = 0; let maximumOffset = 0;
   for (let offset = 0; offset < reference.length; offset += 4) {
     let pixelMaximum = 0;
     for (let channel = 0; channel < 3; channel += 1) {
       const delta = Math.abs(reference[offset + channel] - candidate[offset + channel]);
-      squared += delta * delta; maximum = Math.max(maximum, delta); pixelMaximum = Math.max(pixelMaximum, delta);
+      squared += delta * delta;
+      if (delta > maximum) { maximum = delta; maximumOffset = offset; }
+      pixelMaximum = Math.max(pixelMaximum, delta);
     }
     if (pixelMaximum > 8) significant += 1;
   }
+  const pixelIndex = maximumOffset / 4;
   return { rgbRmse: Math.sqrt(squared / (width * height * 3)), maximumDelta: maximum,
-    significantPercent: significant / (width * height) * 100 };
+    significantPercent: significant / (width * height) * 100,
+    maximumSample: {
+      x: pixelIndex % width, y: Math.floor(pixelIndex / width),
+      reference: [...reference.subarray(maximumOffset, maximumOffset + 4)],
+      candidate: [...candidate.subarray(maximumOffset, maximumOffset + 4)]
+    } };
 };
-const compare = async (referencePath, candidatePath, differencePath) => {
+const compare = async (referencePath, candidatePath, differencePath, rawDifferencePath) => {
   const [reference, candidate] = await Promise.all([
     sharp(referencePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
     sharp(candidatePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
@@ -52,12 +72,19 @@ const compare = async (referencePath, candidatePath, differencePath) => {
     throw new Error(`Blend comparison must be 400x400: ${reference.info.width}x${reference.info.height}`);
   }
   const difference = Buffer.alloc(reference.data.length);
+  const rawDifference = Buffer.alloc(reference.data.length);
   for (let offset = 0; offset < reference.data.length; offset += 4) {
-    for (let channel = 0; channel < 3; channel += 1) difference[offset + channel] = Math.min(255,
-      Math.abs(reference.data[offset + channel] - candidate.data[offset + channel]) * 4);
-    difference[offset + 3] = 255;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const delta = Math.abs(reference.data[offset + channel] - candidate.data[offset + channel]);
+      rawDifference[offset + channel] = delta;
+      difference[offset + channel] = Math.min(255, delta * 4);
+    }
+    difference[offset + 3] = 255; rawDifference[offset + 3] = 255;
   }
+  await mkdir(path.dirname(rawDifferencePath), { recursive: true });
   await sharp(difference, { raw: { width: 400, height: 400, channels: 4 } }).png().toFile(differencePath);
+  await sharp(rawDifference, { raw: { width: 400, height: 400, channels: 4 } })
+    .png().toFile(rawDifferencePath);
   const regionMetrics = {};
   for (const region of regions) {
     const [referenceRegion, candidateRegion] = await Promise.all([
@@ -114,7 +141,8 @@ for (const [index, entry] of cases.entries()) {
       x: Math.round(viewport.x + (viewport.width - 400) / 2),
       y: Math.round(viewport.y + (viewport.height - 400) / 2), width: 400, height: 400
     } });
-    result.metrics = await compare(entry.reference, entry.lightTable, entry.difference);
+    result.rawDifference = path.join(root, 'difference-raw', path.basename(entry.difference));
+    result.metrics = await compare(entry.reference, entry.lightTable, entry.difference, result.rawDifference);
     const [left, right] = await Promise.all([
       sharp(entry.lightTable).removeAlpha().png().toBuffer(),
       sharp(entry.reference).flatten({ background: '#d9dde4' }).removeAlpha().png().toBuffer()
@@ -123,7 +151,10 @@ for (const [index, entry] of cases.entries()) {
       .composite([{ input: left, left: 0, top: 0 }, { input: right, left: 400, top: 0 }])
       .png().toFile(entry.compare);
     result.pageErrors = pageErrors;
-    result.status = pageErrors.length || !result.semanticParity ? 'failed' : 'passed';
+    result.visualParity = result.metrics.rgbRmse <= thresholds.rgbRmse
+      && result.metrics.maximumDelta <= thresholds.maximumDelta
+      && result.metrics.significantPercent <= thresholds.significantPercent;
+    result.status = pageErrors.length || !result.semanticParity || !result.visualParity ? 'failed' : 'passed';
   } catch (error) {
     result.status = 'failed'; result.error = error instanceof Error ? error.stack ?? error.message : String(error);
   } finally { await app?.close().catch(() => {}); }
@@ -131,8 +162,8 @@ for (const [index, entry] of cases.entries()) {
   process.stdout.write(`[${index + 1}/${cases.length}] ${entry.id}: ${result.status}`
     + `${result.metrics ? ` RMSE ${result.metrics.rgbRmse.toFixed(2)}` : ''}\n`);
   await mkdir(path.dirname(reportPath), { recursive: true });
-  await writeFile(reportPath, `${JSON.stringify({ schema: 1,
-    generatedAt: new Date().toISOString(), regions, results }, null, 2)}\n`);
+  await writeFile(reportPath, `${JSON.stringify({ schema: 2,
+    generatedAt: new Date().toISOString(), thresholds, regions, results }, null, 2)}\n`);
 }
 const failed = results.filter(({ status }) => status !== 'passed');
 const ranked = results.filter(({ metrics: value }) => value).sort((left, right) =>
