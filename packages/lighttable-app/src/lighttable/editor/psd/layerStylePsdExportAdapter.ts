@@ -25,7 +25,14 @@ const color = (value: LayerStyleColor): Color => ({
 const blendMode = (value: BlendMode) => value.replaceAll('-', ' ') as NonNullable<LayerEffectsInfo['dropShadow']>[number]['blendMode'];
 const contour = (value: LayerStyleContour): EffectContour => ({
   name: 'Custom',
-  curve: value.points.map((point) => ({ x: point.position, y: point.value }))
+  // ag-psd exposes Photoshop's descriptor-native contour coordinates here,
+  // unlike gradients/opacity which use normalized values. Photoshop expects
+  // the complete 0..255 domain; writing 0..1 makes an otherwise enabled
+  // shadow or glow effectively disappear after export.
+  curve: value.points.map((point) => ({
+    x: Math.round(percent(point.position) * 255),
+    y: Math.round(percent(point.value) * 255)
+  }))
 });
 const gradient = (value: LayerStyleGradient): EffectSolidGradient => ({
   name: value.name,
@@ -65,7 +72,7 @@ export const exportLayerStyleStackToPsd = (
           distance: px(effect.distance), color: color(effect.color),
           useGlobalLight: effect.useGlobalLight, antialiased: effect.antiAlias,
           contour: contour(effect.contour), choke: px((effect.kind === 'drop-shadow'
-            ? effect.spread : effect.choke) * effect.size),
+            ? effect.spread : effect.choke) * 100),
           ...(effect.kind === 'drop-shadow' ? { layerConceals: effect.layerKnocksOut } : {})
         });
         break;
@@ -75,7 +82,7 @@ export const exportLayerStyleStackToPsd = (
         const projected = {
           ...base, size: px(effect.size), color: color(effect.color),
           antialiased: effect.antiAlias, noise: effect.noise, range: effect.range,
-          choke: px(effect.choke * effect.size), jitter: effect.jitter,
+          choke: px(effect.choke * 100), jitter: effect.jitter,
           contour: contour(effect.contour), technique: effect.technique,
           ...(effect.kind === 'inner-glow' ? { source: effect.source } : {})
         };

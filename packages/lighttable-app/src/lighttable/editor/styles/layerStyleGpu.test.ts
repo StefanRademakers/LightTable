@@ -38,6 +38,18 @@ describe('Layer Style GPU settings', () => {
     expect(layerStyleUniform(effect, stack, 100, 100, true, 'final')?.[23]).toBe(64);
   });
 
+  it('keeps small strokes cheap and gives settled wide strokes round coverage', () => {
+    const effect = createDefaultLayerStyle('stroke');
+    if (effect.kind !== 'stroke') throw new Error('Expected Stroke.');
+    const stack = createDefaultLayerStyleStack();
+    effect.size = 3;
+    expect(layerStyleUniform(effect, stack, 100, 100, true, 'interactive')?.[23]).toBe(16);
+    expect(layerStyleUniform(effect, stack, 100, 100, true, 'final')?.[23]).toBe(24);
+    effect.size = 200;
+    expect(layerStyleUniform(effect, stack, 100, 100, true, 'interactive')?.[23]).toBe(32);
+    expect(layerStyleUniform(effect, stack, 100, 100, true, 'final')?.[23]).toBe(128);
+  });
+
   it('uses downsampled two-pass blur only for settled wide shadows', () => {
     const effect = createDefaultLayerStyle('drop-shadow');
     if (effect.kind !== 'drop-shadow') throw new Error('Expected Drop Shadow.');
@@ -59,6 +71,28 @@ describe('Layer Style GPU settings', () => {
     });
   });
 
+  it('uses the settled Gaussian path for wide satin without changing small satin cost', () => {
+    const effect = createDefaultLayerStyle('satin');
+    if (effect.kind !== 'satin') throw new Error('Expected Satin.');
+    const stack = createDefaultLayerStyleStack();
+    effect.size = 8;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 500, 500, 'final')).toBeNull();
+    effect.size = 60;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 500, 500, 'final')).toMatchObject({
+      workingRadius: 7.5
+    });
+  });
+
+  it('builds a settled height map for wide bevel normals', () => {
+    const effect = createDefaultLayerStyle('bevel-emboss');
+    if (effect.kind !== 'bevel-emboss') throw new Error('Expected Bevel.');
+    const stack = createDefaultLayerStyleStack();
+    effect.size = 20;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 500, 500, 'final')).toMatchObject({
+      workingRadius: 20 / 3
+    });
+  });
+
   it('uses global light and stack scaling for a shadow', () => {
     const stack = createDefaultLayerStyleStack();
     stack.scale = 2;
@@ -76,6 +110,16 @@ describe('Layer Style GPU settings', () => {
     expect(values[22]).toBe(2);
     expect([...values.slice(120, 122)]).toEqual([0, 0]);
     expect([...values.slice(124, 126)]).toEqual([1, 1]);
+  });
+
+  it('packs transformed layer bounds and align-with-layer for gradients', () => {
+    const effect = createDefaultLayerStyle('gradient-overlay');
+    if (effect.kind !== 'gradient-overlay') throw new Error('Expected Gradient Overlay.');
+    const values = layerStyleUniform(effect, createDefaultLayerStyleStack(), 800, 600,
+      true, 'final', { x: 120, y: 80, width: 240, height: 160 })!;
+    expect([...values.slice(89, 95)]).toEqual([120, 80, 240, 0.5, 160, 1]);
+    effect.alignWithLayer = false;
+    expect(layerStyleUniform(effect, createDefaultLayerStyleStack(), 800, 600)?.[94]).toBe(0);
   });
 
   it('does not render unresolved pattern assets', () => {

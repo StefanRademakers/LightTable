@@ -184,7 +184,12 @@ describe('LightTableCommandService registry', () => {
 
     expect(state.service.queryLayerEffects(state.session.id, layerId)).toMatchObject({
       layerId, enabled: true,
-      effects: [{ id: effect.id, kind: 'drop-shadow', enabled: true }]
+      effects: [{
+        id: effect.id,
+        kind: 'drop-shadow',
+        enabled: true,
+        settings: { id: effect.id, kind: 'drop-shadow', distance: 30, size: 30 }
+      }]
     });
     expect(await state.service.execute(request(
       'layer.effect.setEnabled', state.session.id,

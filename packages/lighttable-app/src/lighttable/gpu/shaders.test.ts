@@ -301,9 +301,9 @@ describe('LightTable WGSL modules', () => {
     expect(LAYER_STYLE_EFFECT_WGSL).toContain('let effectAlpha = clamp(alpha, 0.0, 1.0)');
     expect(LAYER_STYLE_EFFECT_WGSL).toContain('let shadow = vec4f(settings.color0.rgb * alpha, alpha)');
     expect(LAYER_STYLE_EFFECT_WGSL).toContain('let glow = vec4f(settings.color0.rgb * alpha, alpha)');
-    expect(LAYER_STYLE_EFFECT_WGSL).toContain('let alpha = shape.a * (1.0 - shifted) * opacity');
-    expect(LAYER_STYLE_EFFECT_WGSL).toContain('let alpha = shapedCoverage(coverage, choke, noise, pixel) * shape.a * opacity');
-    expect(LAYER_STYLE_EFFECT_WGSL).toContain('let coverage = contourAt(abs(wave - 0.5) * 2.0) * shape.a');
+    expect(LAYER_STYLE_EFFECT_WGSL).toContain('let alpha = shape.a * shapedCoverage(absent, choke, noise, pixel, true) * opacity');
+    expect(LAYER_STYLE_EFFECT_WGSL).toContain('let alpha = shapedCoverage(coverage, choke, noise, pixel, false) * shape.a * opacity');
+    expect(LAYER_STYLE_EFFECT_WGSL).toContain('let coverage = contourAt(abs(first - second)) * shape.a');
     expect(LAYER_STYLE_EFFECT_WGSL).not.toContain('vec4f(settings.color0.rgb, alpha)');
   });
 

@@ -52,7 +52,9 @@ export const layerStyleGaussianBlurPlan = (
   height: number,
   quality: 'interactive' | 'final'
 ): LayerStyleGaussianBlurPlan | null => {
-  if (!['drop-shadow', 'inner-shadow', 'outer-glow', 'inner-glow'].includes(effect.kind)) {
+  if (![
+    'drop-shadow', 'inner-shadow', 'outer-glow', 'inner-glow', 'satin', 'bevel-emboss'
+  ].includes(effect.kind)) {
     return null;
   }
   if ((effect.kind === 'outer-glow' || effect.kind === 'inner-glow') && effect.jitter > 0) {
@@ -77,6 +79,13 @@ const adaptiveBlurSamples = (
 ) => {
   const radius = layerStyleBlurRadius(effect, scale);
   if (radius <= 0.01) return 1;
+  if (effect.kind === 'stroke') {
+    // Morphological stroke coverage needs enough angular samples to keep wide
+    // outlines round, but small strokes should remain cheap while dragging.
+    const minimum = quality === 'interactive' ? 16 : 24;
+    const maximum = quality === 'interactive' ? 32 : 128;
+    return Math.min(maximum, Math.max(minimum, Math.ceil(radius / 4) * 8));
+  }
   const interval = quality === 'interactive' ? 20 : 10;
   const minimum = quality === 'interactive' ? 8 : 16;
   const maximum = quality === 'interactive' ? 16 : 64;
@@ -138,7 +147,10 @@ export const layerStyleUniform = (
   width: number,
   height: number,
   patternAvailable = true,
-  quality: 'interactive' | 'final' = 'final'
+  quality: 'interactive' | 'final' = 'final',
+  geometry: { x: number; y: number; width: number; height: number } = {
+    x: 0, y: 0, width, height
+  }
 ) => {
   if (!effect.enabled || effect.opacity <= 0) return null;
   const values = empty();
@@ -285,9 +297,21 @@ export const layerStyleUniform = (
   }
   values[20] = width;
   values[21] = height;
+  // Gradient midpoint vec4s reserve y/z/w. Keep the midpoint in x and use
+  // those otherwise-unused lanes for transformed layer-local geometry.
+  values[89] = geometry.x;
+  values[90] = geometry.y;
+  values[91] = geometry.width;
+  values[93] = geometry.height;
+  values[94] = effect.kind === 'gradient-overlay'
+    ? effect.alignWithLayer ? 1 : 0
+    : effect.kind === 'stroke' && effect.fill.type === 'gradient'
+      ? effect.fill.alignWithLayer ? 1 : 0
+      : 0;
   // Wide effects need more angular coverage to avoid visible concentric bands.
   // Interactive previews retain a lower cap; final rendering scales up to the
   // shader's complete 64-direction kernel without changing authored geometry.
   values[23] = adaptiveBlurSamples(effect, scale, quality);
+  values[95] = values[23];
   return values;
 };

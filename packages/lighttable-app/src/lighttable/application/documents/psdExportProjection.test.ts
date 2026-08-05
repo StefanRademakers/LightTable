@@ -31,6 +31,7 @@ describe('PSD export projection', () => {
     if (shadow.kind !== 'drop-shadow') throw new Error('Expected shadow fixture.');
     shadow.distance = 12;
     shadow.size = 18;
+    shadow.spread = 0.5;
     shadow.opacity = 0.5;
     raster.styleStack.effects = [shadow];
     const text = createTextLayerNode(createDefaultTextLayerData(), 'Editable text');
@@ -76,7 +77,9 @@ describe('PSD export projection', () => {
     expect(decodedRaster?.fillOpacity).toBeCloseTo(0.6, 2);
     expect(decodedRaster?.effects?.dropShadow?.[0]).toMatchObject({
       enabled: true, distance: { units: 'Pixels', value: 12 },
-      size: { units: 'Pixels', value: 18 }, opacity: 0.5
+      size: { units: 'Pixels', value: 18 }, opacity: 0.5,
+      choke: { units: 'Pixels', value: 50 },
+      contour: { curve: [{ x: 0, y: 0 }, { x: 255, y: 255 }] }
     });
     expect(decodedGroup?.name).toBe('Artwork');
     expect(decodedGroup?.children?.[0]?.text).toMatchObject({

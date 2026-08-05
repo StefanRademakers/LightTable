@@ -362,6 +362,14 @@ const LAYER_STYLE_BLUR_DIRECTIONS = Array.from(
     return `vec2f(${Math.cos(angle).toFixed(7)}, ${Math.sin(angle).toFixed(7)})`;
   }
 ).join(', ');
+const LAYER_STYLE_MORPH_DIRECTION_COUNT = 128;
+const LAYER_STYLE_MORPH_DIRECTIONS = Array.from(
+  { length: LAYER_STYLE_MORPH_DIRECTION_COUNT },
+  (_, index) => {
+    const angle = index * Math.PI * 2 / LAYER_STYLE_MORPH_DIRECTION_COUNT;
+    return `vec2f(${Math.cos(angle).toFixed(7)}, ${Math.sin(angle).toFixed(7)})`;
+  }
+).join(', ');
 
 export const LAYER_STYLE_EFFECT_WGSL = /* wgsl */ `
 struct StyleSettings {
@@ -483,16 +491,40 @@ fn contourAt(position: f32) -> f32 {
   return mix(first.y, second.y, amount);
 }
 
-fn shapedCoverage(value: f32, choke: f32, noise: f32, pixel: vec2f) -> f32 {
+fn shapedCoverage(
+  value: f32,
+  choke: f32,
+  noise: f32,
+  pixel: vec2f,
+  hardenTails: bool
+) -> f32 {
   // Zero spread/choke must preserve soft blur coverage. The old 0.5
   // threshold discarded nearly every shadow/glow sample at realistic radii.
   // Increasing choke progressively saturates the existing coverage without
   // changing the effect's declared bounds or ordered compositing semantics.
-  let tightened = clamp(value / max(1.0 - choke, 1e-4), 0.0, 1.0);
+  let exponent = max(0.05, 1.0 - clamp(choke, 0.0, 1.0) * 1.7);
+  let linear = clamp(value / max(1.0 - choke, 1e-4), 0.0, 1.0);
+  let tightened = select(linear, pow(clamp(value, 0.0, 1.0), exponent), hardenTails);
   return clamp(contourAt(tightened) + (noiseAt(pixel) - 0.5) * noise, 0.0, 1.0);
 }
 
-fn gradientColorAt(position: f32, count: u32) -> vec3f {
+fn linearToSrgb(color: vec3f) -> vec3f {
+  return select(
+    color * 12.92,
+    1.055 * pow(max(color, vec3f(0.0)), vec3f(1.0 / 2.4)) - 0.055,
+    color > vec3f(0.0031308)
+  );
+}
+
+fn srgbToLinear(color: vec3f) -> vec3f {
+  return select(
+    color / 12.92,
+    pow((color + 0.055) / 1.055, vec3f(2.4)),
+    color > vec3f(0.04045)
+  );
+}
+
+fn gradientColorAt(position: f32, count: u32, interpolationMethod: f32) -> vec3f {
   if (count == 0u) { return vec3f(0.0); }
   var lower = 0u;
   var upper = count - 1u;
@@ -519,7 +551,11 @@ fn gradientColorAt(position: f32, count: u32) -> vec3f {
     0.5 + 0.5 * (amount - midpoint) / (1.0 - midpoint),
     amount >= midpoint
   );
-  return mix(first.rgb, second.rgb, amount);
+  let linear = mix(first.rgb, second.rgb, amount);
+  if (i32(interpolationMethod + 0.5) == 2) {
+    return srgbToLinear(mix(linearToSrgb(first.rgb), linearToSrgb(second.rgb), amount));
+  }
+  return linear;
 }
 
 fn gradientOpacityAt(position: f32, count: u32) -> f32 {
@@ -560,12 +596,19 @@ fn gradientPositionAt(
   style: i32,
   scale: f32,
   offset: vec2f,
-  reverse: bool
+  reverse: bool,
+  bounds: vec4f,
+  alignWithLayer: bool
 ) -> f32 {
   let direction = vec2f(cos(radians(angleDegrees)), -sin(radians(angleDegrees)));
-  let centeredUv = uv - vec2f(0.5) - offset * 0.5;
-  let centered = centeredUv * settings.canvas.xy;
-  let extent = max(settings.canvas.x, settings.canvas.y) * max(scale, 0.01);
+  let canvasBounds = vec4f(0.0, 0.0, settings.canvas.x, settings.canvas.y);
+  let activeBounds = select(canvasBounds, bounds, alignWithLayer);
+  let pixel = uv * settings.canvas.xy;
+  let center = activeBounds.xy + activeBounds.zw * 0.5;
+  let centered = pixel - center - offset * activeBounds.zw * 0.5;
+  // Photoshop keeps Scale independent of angle; rotating a linear gradient
+  // must not lengthen it by the projected bounding-box diagonal.
+  let extent = max(max(activeBounds.z, activeBounds.w), 1.0) * max(scale, 0.01);
   var position = dot(centered, direction) / extent + 0.5;
   if (style == 1) {
     position = length(centered) / max(extent * 0.5, 1e-6);
@@ -598,17 +641,53 @@ fn patternColorAt(uv: vec2f, angleDegrees: f32, scale: f32, offset: vec2f) -> ve
   return textureSampleLevel(patternTexture, sourceSampler, patternUv, 0.0);
 }
 
+fn expandedAlpha(uv: vec2f, radius: f32) -> f32 {
+  if (radius <= 0.01) { return alphaAt(uv, vec2f(0.0)); }
+  let directions = array<vec2f, ${LAYER_STYLE_MORPH_DIRECTION_COUNT}>(
+    ${LAYER_STYLE_MORPH_DIRECTIONS}
+  );
+  let sampleCount = u32(clamp(settings.gradientMidpoints[1].w, 1.0,
+    f32(${LAYER_STYLE_MORPH_DIRECTION_COUNT})) + 0.5);
+  var coverage = alphaAt(uv, vec2f(0.0));
+  for (var sampleIndex = 0u; sampleIndex < sampleCount; sampleIndex += 1u) {
+    let index = (sampleIndex * ${LAYER_STYLE_MORPH_DIRECTION_COUNT}u) / sampleCount;
+    let direction = directions[index] * radius;
+    coverage = max(coverage, alphaAt(uv, direction * 0.35));
+    coverage = max(coverage, alphaAt(uv, direction * 0.72));
+    coverage = max(coverage, alphaAt(uv, direction));
+  }
+  return coverage;
+}
+
+fn contractedAlpha(uv: vec2f, radius: f32) -> f32 {
+  if (radius <= 0.01) { return alphaAt(uv, vec2f(0.0)); }
+  let directions = array<vec2f, ${LAYER_STYLE_MORPH_DIRECTION_COUNT}>(
+    ${LAYER_STYLE_MORPH_DIRECTIONS}
+  );
+  let sampleCount = u32(clamp(settings.gradientMidpoints[1].w, 1.0,
+    f32(${LAYER_STYLE_MORPH_DIRECTION_COUNT})) + 0.5);
+  var coverage = alphaAt(uv, vec2f(0.0));
+  for (var sampleIndex = 0u; sampleIndex < sampleCount; sampleIndex += 1u) {
+    let index = (sampleIndex * ${LAYER_STYLE_MORPH_DIRECTION_COUNT}u) / sampleCount;
+    let direction = directions[index] * radius;
+    coverage = min(coverage, alphaAt(uv, direction * 0.35));
+    coverage = min(coverage, alphaAt(uv, direction * 0.72));
+    coverage = min(coverage, alphaAt(uv, direction));
+  }
+  return coverage;
+}
+
 fn strokeCoverageAt(uv: vec2f, radius: f32, position: f32) -> f32 {
   let centerAlpha = textureSampleLevel(shapeTexture, sourceSampler, uv, 0.0).a;
-  let expanded = blurredAlpha(uv, vec2f(0.0), max(radius, 0.5));
-  let contracted = alphaAt(uv, vec2f(radius, 0.0))
-    * alphaAt(uv, vec2f(-radius, 0.0))
-    * alphaAt(uv, vec2f(0.0, radius))
-    * alphaAt(uv, vec2f(0.0, -radius));
-  var coverage = max(0.0, expanded - centerAlpha);
-  if (position > 0.5 && position < 1.5) { coverage = max(0.0, centerAlpha - contracted); }
-  if (position >= 1.5) { coverage = max(0.0, expanded - contracted); }
-  return coverage;
+  // Photoshop's center stroke size is its total width: half is inside and
+  // half outside. Inside/outside strokes consume the full authored size.
+  let morphologyRadius = select(radius, radius * 0.5, position >= 1.5);
+  if (position < 0.5) {
+    return max(0.0, expandedAlpha(uv, max(morphologyRadius, 0.5)) - centerAlpha);
+  }
+  let contracted = contractedAlpha(uv, max(morphologyRadius, 0.5));
+  if (position < 1.5) { return max(0.0, centerAlpha - contracted); }
+  return max(0.0, expandedAlpha(uv, max(morphologyRadius, 0.5)) - contracted);
 }
 
 @fragment
@@ -639,22 +718,27 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let noise = settings.params1.w;
 
   if (kind == 2) {
-    let coverage = shapedCoverage(blurredAlpha(input.uv, -offset, radius), choke, noise, pixel);
+    // Photoshop stores the light angle, while the cast shadow travels away
+    // from that light. alphaAt samples at uv + offset, which shifts the
+    // visible coverage by -offset and therefore implements that convention.
+    let coverage = shapedCoverage(blurredAlpha(input.uv, offset, radius), choke, noise, pixel, true);
     let knockout = clamp(settings.params1.x, 0.0, 1.0);
     let alpha = clamp(coverage * opacity * mix(1.0, 1.0 - shape.a, knockout), 0.0, 1.0);
     let shadow = vec4f(settings.color0.rgb * alpha, alpha);
     return over(current, shadow);
   }
   if (kind == 3) {
-    let shifted = shapedCoverage(blurredAlpha(input.uv, -offset, radius), choke, noise, pixel);
-    let alpha = shape.a * (1.0 - shifted) * opacity;
+    // Inner Shadow uses the same Photoshop light-angle convention. Sampling
+    // toward the light leaves the inward-facing edge in shadow.
+    let absent = 1.0 - blurredAlpha(input.uv, offset, radius);
+    let alpha = shape.a * shapedCoverage(absent, choke, noise, pixel, true) * opacity;
     return styleOverCurrent(current, settings.color0.rgb, alpha, mode);
   }
   if (kind == 4) {
     let jitteredRadius = radius * (1.0 + (noiseAt(pixel + vec2f(31.0, 17.0)) - 0.5) * settings.params1.z);
     let raw = blurredAlpha(input.uv, vec2f(0.0), jitteredRadius);
     let ranged = pow(clamp(raw, 0.0, 1.0), mix(2.0, 0.5, settings.params1.y));
-    let expanded = shapedCoverage(ranged, choke, noise, pixel);
+    let expanded = shapedCoverage(ranged, choke, noise, pixel, false);
     let alpha = max(0.0, expanded - shape.a) * opacity;
     let glow = vec4f(settings.color0.rgb * alpha, alpha);
     return over(current, glow);
@@ -663,13 +747,13 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     let jitteredRadius = radius * (1.0 + (noiseAt(pixel + vec2f(31.0, 17.0)) - 0.5) * settings.params1.z);
     let raw = blurredAlpha(input.uv, vec2f(0.0), jitteredRadius);
     let ranged = pow(clamp(raw, 0.0, 1.0), mix(2.0, 0.5, settings.params1.y));
-    let expanded = shapedCoverage(ranged, choke, noise, pixel);
+    let expanded = shapedCoverage(ranged, choke, noise, pixel, false);
     let alphaCoverage = max(0.0, expanded - shape.a);
     let colorCount = u32(settings.color1.x + 0.5);
     let opacityCount = u32(settings.color1.y + 0.5);
     let gradientAlpha = gradientOpacityAt(alphaCoverage, opacityCount);
     let alpha = clamp(alphaCoverage * opacity * gradientAlpha, 0.0, 1.0);
-    let glow = vec4f(gradientColorAt(alphaCoverage, colorCount) * alpha, alpha);
+    let glow = vec4f(gradientColorAt(alphaCoverage, colorCount, 1.0) * alpha, alpha);
     return over(current, glow);
   }
   if (kind == 5) {
@@ -678,7 +762,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     let sourceCenter = settings.params1.x;
     let ranged = pow(clamp(blurred, 0.0, 1.0), mix(2.0, 0.5, settings.params1.y));
     let coverage = select(1.0 - ranged, ranged, sourceCenter > 0.5);
-    let alpha = shapedCoverage(coverage, choke, noise, pixel) * shape.a * opacity;
+    let alpha = shapedCoverage(coverage, choke, noise, pixel, false) * shape.a * opacity;
     return styleOverCurrent(current, settings.color0.rgb, alpha, mode);
   }
   if (kind == 12) {
@@ -687,11 +771,11 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     let sourceCenter = settings.params1.x;
     let ranged = pow(clamp(blurred, 0.0, 1.0), mix(2.0, 0.5, settings.params1.y));
     let coverage = select(1.0 - ranged, ranged, sourceCenter > 0.5);
-    let shaped = shapedCoverage(coverage, choke, noise, pixel) * shape.a;
+    let shaped = shapedCoverage(coverage, choke, noise, pixel, false) * shape.a;
     let colorCount = u32(settings.color1.x + 0.5);
     let opacityCount = u32(settings.color1.y + 0.5);
     let alpha = shaped * opacity * gradientOpacityAt(coverage, opacityCount);
-    return styleOverCurrent(current, gradientColorAt(coverage, colorCount), alpha, mode);
+    return styleOverCurrent(current, gradientColorAt(coverage, colorCount, 1.0), alpha, mode);
   }
   if (kind == 6) {
     let position = settings.params1.x;
@@ -710,11 +794,13 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
       style,
       settings.params0.z,
       vec2f(settings.params0.y, settings.params0.w),
-      settings.params1.x > 0.5
+      settings.params1.x > 0.5,
+      vec4f(settings.gradientMidpoints[0].yzw, settings.gradientMidpoints[1].y),
+      settings.gradientMidpoints[1].z > 0.5
     );
     let colorCount = u32(settings.color1.x + 0.5);
     let opacityCount = u32(settings.color1.y + 0.5);
-    let color = gradientColorAt(position, colorCount);
+    let color = gradientColorAt(position, colorCount, settings.params1.w);
     let gradientOpacity = gradientOpacityAt(position, opacityCount);
     let dither = select(0.0, (noiseAt(pixel) - 0.5) / 255.0, settings.params1.z > 0.5);
     return styleOverCurrent(current, color + vec3f(dither), shape.a * opacity * gradientOpacity, mode);
@@ -728,14 +814,16 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
       i32(settings.params1.y + 0.5),
       settings.params0.z,
       vec2f(settings.params0.y, settings.params0.w),
-      settings.params1.w > 0.5
+      settings.params1.w > 0.5,
+      vec4f(settings.gradientMidpoints[0].yzw, settings.gradientMidpoints[1].y),
+      settings.gradientMidpoints[1].z > 0.5
     );
     let colorCount = u32(settings.color1.x + 0.5);
     let opacityCount = u32(settings.color1.y + 0.5);
     let gradientOpacity = gradientOpacityAt(position, opacityCount);
     let dither = select(0.0, (noiseAt(pixel) - 0.5) / 255.0, settings.params1.z > 0.5);
     let alpha = coverage * opacity * gradientOpacity;
-    let color = gradientColorAt(position, colorCount) + vec3f(dither);
+    let color = gradientColorAt(position, colorCount, 1.0) + vec3f(dither);
     if (strokePosition < 0.5) {
       return over(current, vec4f(color * alpha, alpha));
     }
@@ -767,9 +855,9 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     return styleOverCurrent(current, color, alpha, mode);
   }
   if (kind == 8) {
-    let first = alphaAt(input.uv, offset) - alphaAt(input.uv, -offset);
-    let wave = 0.5 + 0.5 * sin(first * max(radius, 1.0) * 3.14159265);
-    let coverage = contourAt(abs(wave - 0.5) * 2.0) * shape.a;
+    let first = blurredAlpha(input.uv, offset, radius);
+    let second = blurredAlpha(input.uv, -offset, radius);
+    let coverage = contourAt(abs(first - second)) * shape.a;
     let invert = settings.params1.x;
     let alpha = mix(coverage, shape.a - coverage, invert) * opacity;
     return styleOverCurrent(current, settings.color0.rgb, alpha, mode);
@@ -777,12 +865,15 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   if (kind == 9) {
     let soften = max(settings.params1.z, 0.0);
     let stepSize = max(radius + soften, 1.0);
+    let normalStep = select(stepSize, 1.0, settings.canvas.w < 0.0);
     let technique = fillOpacity;
     let style = i32(settings.params1.w + 0.5);
     let center = alphaAt(input.uv, vec2f(0.0));
     let rawNormal = vec2f(
-      alphaAt(input.uv, vec2f(stepSize, 0.0)) - alphaAt(input.uv, vec2f(-stepSize, 0.0)),
-      alphaAt(input.uv, vec2f(0.0, stepSize)) - alphaAt(input.uv, vec2f(0.0, -stepSize))
+      blurredAlpha(input.uv, vec2f(normalStep, 0.0), radius)
+        - blurredAlpha(input.uv, vec2f(-normalStep, 0.0), radius),
+      blurredAlpha(input.uv, vec2f(0.0, normalStep), radius)
+        - blurredAlpha(input.uv, vec2f(0.0, -normalStep), radius)
     );
     let chisel = select(
       1.0,
@@ -798,7 +889,10 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
       -sin(angle) * cos(altitude),
       sin(altitude)
     ));
-    var lighting = dot(surfaceNormal, light);
+    // A flat layer is the neutral baseline. Layer Styles add only the relief
+    // response; retaining the light's Z term would highlight the entire bevel
+    // band and leave almost no room for the opposing Photoshop shadow lobe.
+    var lighting = dot(surfaceNormal, light) - sin(altitude);
     let textureSettings = settings.gradientColors[0];
     if (textureSettings.x > 0.5) {
       let textureSampleValue = patternColorAt(
@@ -814,11 +908,8 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
       textureHeight = select(textureHeight, -textureHeight, textureSettings.w > 0.5);
       lighting += textureHeight * textureSettings.z;
     }
-    let expanded = blurredAlpha(input.uv, vec2f(0.0), max(radius, 0.5));
-    let contracted = alphaAt(input.uv, vec2f(radius, 0.0))
-      * alphaAt(input.uv, vec2f(-radius, 0.0))
-      * alphaAt(input.uv, vec2f(0.0, radius))
-      * alphaAt(input.uv, vec2f(0.0, -radius));
+    let expanded = expandedAlpha(input.uv, max(radius, 0.5));
+    let contracted = contractedAlpha(input.uv, max(radius, 0.5));
     var coverage = center;
     if (style == 0) { coverage = max(0.0, expanded - center); }
     if (style == 1) { coverage = max(0.0, center - contracted); }

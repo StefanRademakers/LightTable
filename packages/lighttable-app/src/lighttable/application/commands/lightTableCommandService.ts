@@ -5,7 +5,11 @@ import type {
 } from '../documents/documentSession';
 import type { WorkspaceSession } from '../workspace/workspaceSession';
 import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
-import type { LayerStyleId, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
+import type {
+  LayerStyleId,
+  LayerStyleInstance,
+  LayerStyleKind
+} from '../../editor/styles/layerStyleTypes';
 import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
 import { queryLayerCommandCapabilities } from '../layers/layerCommandCapabilities';
@@ -167,6 +171,8 @@ export interface LayerEffectsQueryResult {
     readonly enabled: boolean;
     readonly opacity: number;
     readonly blendMode: LayerNode['blendMode'];
+    /** Complete transport-safe canonical settings for parity/automation. */
+    readonly settings: LayerStyleInstance;
   }[];
 }
 
@@ -577,7 +583,8 @@ export class LightTableCommandService {
         name: effect.name,
         enabled: effect.enabled,
         opacity: effect.opacity,
-        blendMode: effect.blendMode
+        blendMode: effect.blendMode,
+        settings: structuredClone(effect)
       }))
     };
   }

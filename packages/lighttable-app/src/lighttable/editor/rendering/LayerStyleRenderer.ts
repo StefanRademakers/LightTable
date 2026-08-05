@@ -56,6 +56,33 @@ const effectRequiresPattern = (effect: StyleEffect) =>
   || (effect.kind === 'stroke' && effect.fill.type === 'pattern')
   || (effect.kind === 'bevel-emboss' && effect.texture.enabled);
 
+const sourceDocumentBounds = (
+  inverse: AffineMatrix,
+  sourceSize: { width: number; height: number }
+): Rect => {
+  const determinant = inverse.a * inverse.d - inverse.b * inverse.c;
+  if (Math.abs(determinant) < 1e-9) return { x: 0, y: 0, width: 1, height: 1 };
+  const forward = {
+    a: inverse.d / determinant,
+    b: -inverse.b / determinant,
+    c: -inverse.c / determinant,
+    d: inverse.a / determinant,
+    tx: (inverse.c * inverse.ty - inverse.d * inverse.tx) / determinant,
+    ty: (inverse.b * inverse.tx - inverse.a * inverse.ty) / determinant
+  };
+  const points = [
+    [0, 0], [sourceSize.width, 0], [0, sourceSize.height],
+    [sourceSize.width, sourceSize.height]
+  ].map(([x, y]) => ({
+    x: forward.a * x! + forward.c * y! + forward.tx,
+    y: forward.b * x! + forward.d * y! + forward.ty
+  }));
+  const xs = points.map(({ x }) => x);
+  const ys = points.map(({ y }) => y);
+  const x = Math.min(...xs); const y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+};
+
 /**
  * Owns Layer Style GPU pipelines, work textures, cache and quality state.
  * The document compositor sees this as one optional styled-foreground encoder
@@ -134,6 +161,7 @@ export class LayerStyleRenderer {
       drawFullscreen
     } = this.options;
     const { width, height } = this.options.dimensions();
+    const gradientGeometry = sourceDocumentBounds(inverse, sourceSize);
     const styleTextures = this.textures.ensureWorkTextures();
 
     const shapeSettings = device.createBuffer({
@@ -260,7 +288,8 @@ export class LayerStyleRenderer {
         width,
         height,
         !effectRequiresPattern(effect) || Boolean(patternTexture),
-        quality
+        quality,
+        gradientGeometry
       );
       if (!values) return;
       const blurPlan = styleBlurPipeline
