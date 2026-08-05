@@ -30,6 +30,15 @@ from the parameterized effects corpus. They include stroke widths 1, 5, 10,
 50 and 200 px plus small, normal and extreme shadow, glow, satin, bevel and
 gradient values.
 
+The current eight visual-review cases are also regenerated independently in:
+
+`D:\Mediavibe\LightTableTests\Effects\ReviewCases`
+
+The targeted audit accepts a comma-separated `--ids` list and a separate
+`--report` path, so it does not replace the complete 40-case report. The folder
+contains eight 800 x 400 comparisons, `review-report.json`, `manifest.json`
+and the combined `all-review-cases.png` gallery.
+
 ## General PSD corpus
 
 The current 24 unique source documents comprise the 22 PSDs below

@@ -7,6 +7,8 @@ const sourceRoot = path.resolve(process.argv[2]
   ?? 'D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip');
 const outputRoot = path.resolve(process.argv[3]
   ?? 'D:\\Mediavibe\\LightTableTests\\Effects');
+const requestedIds = new Set((process.argv[4] ?? '').split(',')
+  .map((value) => value.trim()).filter(Boolean));
 const manifest = JSON.parse(await readFile(path.join(sourceRoot, 'manifest.json'), 'utf8'));
 await mkdir(outputRoot, { recursive: true });
 
@@ -18,7 +20,7 @@ const normalize = async (file) => sharp(file)
   .toBuffer();
 
 const results = [];
-for (const entry of manifest.cases) {
+for (const entry of manifest.cases.filter(({ id }) => !requestedIds.size || requestedIds.has(id))) {
   const lightTable = path.join(sourceRoot, 'lighttable', `${entry.id}-import.png`);
   const photoshop = entry.reference;
   const output = path.join(outputRoot, `${entry.id}.png`);

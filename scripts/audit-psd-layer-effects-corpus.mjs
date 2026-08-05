@@ -13,13 +13,15 @@ const workspace = path.resolve(import.meta.dirname, '..');
 const corpusRoot = path.resolve(argument('root',
   'D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip'));
 const manifestPath = path.join(corpusRoot, 'manifest.json');
-const reportPath = path.join(corpusRoot, 'lighttable-report.json');
+const reportPath = path.resolve(argument('report', path.join(corpusRoot, 'lighttable-report.json')));
 const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
 const requestedFamily = argument('family');
+const requestedIds = new Set(argument('ids').split(',').map((value) => value.trim()).filter(Boolean));
 const limit = Number.parseInt(argument('limit', '0'), 10);
 const strict = process.argv.includes('--strict');
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-let cases = manifest.cases.filter((entry) => !requestedFamily || entry.family === requestedFamily);
+let cases = manifest.cases.filter((entry) => (!requestedFamily || entry.family === requestedFamily)
+  && (!requestedIds.size || requestedIds.has(entry.id)));
 if (limit > 0) cases = cases.slice(0, limit);
 await Promise.all([access(executable), ...cases.flatMap(({ canonical, reference }) =>
   [access(canonical), access(reference)])]);
@@ -28,7 +30,11 @@ const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const outputDirectory = path.join(corpusRoot, 'lighttable');
 const differenceDirectory = path.join(corpusRoot, 'difference');
-await Promise.all([mkdir(outputDirectory, { recursive: true }), mkdir(differenceDirectory, { recursive: true })]);
+await Promise.all([
+  mkdir(outputDirectory, { recursive: true }),
+  mkdir(differenceDirectory, { recursive: true }),
+  mkdir(path.dirname(reportPath), { recursive: true })
+]);
 
 const stable = (value) => {
   if (Array.isArray(value)) return value.map(stable);
