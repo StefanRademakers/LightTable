@@ -124,6 +124,8 @@ const NumberSlider: React.FC<{
 );
 
 const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
+const ANGLE_PUBLISH_INTERVAL_MS = 33;
+const STYLE_PREVIEW_DELAY_MS = 16;
 
 const AngleField: React.FC<{
   label: string;
@@ -133,7 +135,65 @@ const AngleField: React.FC<{
 }> = ({ label, value, resetValue = 0, onChange }) => {
   const dialRef = React.useRef<HTMLDivElement | null>(null);
   const pointerIdRef = React.useRef<number | null>(null);
-  const normalized = normalizeAngle(value);
+  const [displayValue, setDisplayValue] = React.useState(() => normalizeAngle(value));
+  const latestValueRef = React.useRef(displayValue);
+  const publishedValueRef = React.useRef(displayValue);
+  const lastPublishTimeRef = React.useRef(0);
+  const publishTimerRef = React.useRef<number | null>(null);
+  const onChangeRef = React.useRef(onChange);
+  onChangeRef.current = onChange;
+  const normalized = normalizeAngle(displayValue);
+
+  const cancelScheduledPublish = React.useCallback(() => {
+    if (publishTimerRef.current === null) return;
+    window.clearTimeout(publishTimerRef.current);
+    publishTimerRef.current = null;
+  }, []);
+
+  const publishLatestValue = React.useCallback((force = false) => {
+    const next = latestValueRef.current;
+    if (!force && next === publishedValueRef.current) return;
+    cancelScheduledPublish();
+    publishedValueRef.current = next;
+    lastPublishTimeRef.current = performance.now();
+    onChangeRef.current(next);
+  }, [cancelScheduledPublish]);
+
+  const scheduleValuePublish = React.useCallback(() => {
+    const elapsed = performance.now() - lastPublishTimeRef.current;
+    if (elapsed >= ANGLE_PUBLISH_INTERVAL_MS) {
+      publishLatestValue();
+      return;
+    }
+    if (publishTimerRef.current !== null) return;
+    publishTimerRef.current = window.setTimeout(() => {
+      publishTimerRef.current = null;
+      publishLatestValue();
+    }, ANGLE_PUBLISH_INTERVAL_MS - elapsed);
+  }, [publishLatestValue]);
+
+  const previewValue = React.useCallback((next: number) => {
+    const normalizedNext = normalizeAngle(next);
+    latestValueRef.current = normalizedNext;
+    setDisplayValue(normalizedNext);
+    scheduleValuePublish();
+  }, [scheduleValuePublish]);
+
+  const finishPointerInteraction = React.useCallback((pointerId: number) => {
+    if (pointerIdRef.current !== pointerId) return;
+    pointerIdRef.current = null;
+    publishLatestValue(true);
+  }, [publishLatestValue]);
+
+  React.useEffect(() => {
+    if (pointerIdRef.current !== null) return;
+    const next = normalizeAngle(value);
+    latestValueRef.current = next;
+    publishedValueRef.current = next;
+    setDisplayValue(next);
+  }, [value]);
+
+  React.useEffect(() => cancelScheduledPublish, [cancelScheduledPublish]);
 
   const updateFromPointer = (clientX: number, clientY: number) => {
     const bounds = dialRef.current?.getBoundingClientRect();
@@ -141,7 +201,7 @@ const AngleField: React.FC<{
     const x = clientX - (bounds.left + bounds.width / 2);
     const y = clientY - (bounds.top + bounds.height / 2);
     if (Math.hypot(x, y) < 1) return;
-    onChange(normalizeAngle(Math.atan2(-y, x) * 180 / Math.PI));
+    previewValue(Math.atan2(-y, x) * 180 / Math.PI);
   };
 
   return (
@@ -170,11 +230,12 @@ const AngleField: React.FC<{
             }
           }}
           onPointerUp={(event) => {
-            if (pointerIdRef.current === event.pointerId) pointerIdRef.current = null;
+            finishPointerInteraction(event.pointerId);
           }}
           onPointerCancel={(event) => {
-            if (pointerIdRef.current === event.pointerId) pointerIdRef.current = null;
+            finishPointerInteraction(event.pointerId);
           }}
+          onLostPointerCapture={(event) => finishPointerInteraction(event.pointerId)}
           onDoubleClick={() => onChange(resetValue)}
           onKeyDown={(event) => {
             const step = event.shiftKey ? 10 : 1;
@@ -668,12 +729,42 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   onCommit
 }) => {
   const [draft, setDraft] = React.useState(() => cloneLayerStyleStack(initialStack));
+  const draftRef = React.useRef(draft);
   const publishedRevisionRef = React.useRef(initialStack.revision);
+  const latestPreviewRef = React.useRef<LayerStyleStack | null>(null);
+  const previewTimerRef = React.useRef<number | null>(null);
+  const onPreviewRef = React.useRef(onPreview);
+  onPreviewRef.current = onPreview;
   const [selectedId, setSelectedId] = React.useState<LayerStyleId | null>(
     initialEffectId ?? initialStack.effects.at(-1)?.id ?? null
   );
   const [newKind, setNewKind] = React.useState<LayerStyleKind>('drop-shadow');
   const selected = draft.effects.find((effect) => effect.id === selectedId) ?? null;
+
+  const cancelScheduledPreview = React.useCallback(() => {
+    if (previewTimerRef.current === null) return;
+    window.clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = null;
+  }, []);
+
+  const publishLatestPreview = React.useCallback(() => {
+    cancelScheduledPreview();
+    const next = latestPreviewRef.current;
+    if (!next) return;
+    latestPreviewRef.current = null;
+    onPreviewRef.current(next);
+  }, [cancelScheduledPreview]);
+
+  const schedulePreview = React.useCallback(() => {
+    if (previewTimerRef.current !== null) return;
+    // Let the local inspector state paint before document synchronization and
+    // GPU style invalidation. Repeated control events retain only the newest
+    // complete stack, preventing a render backlog on large documents.
+    previewTimerRef.current = window.setTimeout(() => {
+      previewTimerRef.current = null;
+      publishLatestPreview();
+    }, STYLE_PREVIEW_DELAY_MS);
+  }, [publishLatestPreview]);
 
   React.useEffect(() => {
     if (initialEffectId && draft.effects.some((effect) => effect.id === initialEffectId)) {
@@ -686,23 +777,32 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
 
   React.useEffect(() => {
     if (initialStack.revision === publishedRevisionRef.current) return;
+    cancelScheduledPreview();
+    latestPreviewRef.current = null;
     publishedRevisionRef.current = initialStack.revision;
     const next = cloneLayerStyleStack(initialStack);
+    draftRef.current = next;
     setDraft(next);
     setSelectedId((current) => (
       current && next.effects.some((effect) => effect.id === current)
         ? current
         : next.effects.at(-1)?.id ?? null
     ));
-  }, [initialStack]);
+  }, [cancelScheduledPreview, initialStack]);
+
+  React.useEffect(() => () => {
+    publishLatestPreview();
+  }, [publishLatestPreview]);
 
   const updateDraft = (updater: (current: LayerStyleStack) => LayerStyleStack) => {
-    setDraft((current) => {
-      const next = updater(current);
-      publishedRevisionRef.current = next.revision;
-      onPreview(next);
-      return next;
-    });
+    const current = draftRef.current;
+    const next = updater(current);
+    if (next === current) return;
+    draftRef.current = next;
+    publishedRevisionRef.current = next.revision;
+    latestPreviewRef.current = next;
+    setDraft(next);
+    schedulePreview();
   };
 
   const patchSelected = (patch: Partial<LayerStyleInstance>) => {

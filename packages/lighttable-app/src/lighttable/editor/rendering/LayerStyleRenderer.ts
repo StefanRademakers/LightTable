@@ -1,6 +1,7 @@
 import type {
   DocumentAssetId,
   GroupLayer,
+  LayerId,
   RasterLayer,
   Rect,
   TextLayer,
@@ -62,7 +63,7 @@ const effectRequiresPattern = (effect: StyleEffect) =>
 export class LayerStyleRenderer {
   private readonly pipelineProvider: LayerStylePipelineProvider;
   private readonly textures: LayerStyleTextureStore;
-  private quality: 'interactive' | 'final' = 'final';
+  private interactionLayerId: LayerId | null = null;
 
   constructor(private readonly options: LayerStyleRendererOptions) {
     this.pipelineProvider = new LayerStylePipelineProvider(
@@ -83,16 +84,14 @@ export class LayerStyleRenderer {
     return this.pipelineProvider.shaderErrors();
   }
 
-  setInteractionActive(active: boolean) {
-    const quality = active ? 'interactive' : 'final';
-    if (quality === this.quality) return false;
-    this.quality = quality;
-    this.releaseCache();
+  setInteractionLayer(layerId: LayerId | null) {
+    if (layerId === this.interactionLayerId) return false;
+    this.interactionLayerId = layerId;
     return true;
   }
 
-  cacheKeyQuality() {
-    return this.quality;
+  cacheKeyQuality(layerId: LayerId) {
+    return layerId === this.interactionLayerId ? 'interactive' : 'final';
   }
 
   estimatedTextureBytes(width: number, height: number) {
@@ -220,7 +219,7 @@ export class LayerStyleRenderer {
         width,
         height,
         !effectRequiresPattern(effect) || Boolean(patternTexture),
-        this.quality
+        this.cacheKeyQuality(layer.id)
       );
       if (!values) return;
       encodeStylePass(

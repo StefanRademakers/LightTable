@@ -12,7 +12,7 @@ import type {
 } from '../../editor/styles/layerStyleTypes';
 
 export interface LayerStyleInteractionPort {
-  setLayerStyleInteractionActive(active: boolean): void;
+  setLayerStyleInteractionActive(active: boolean, layerId?: LayerId): void;
 }
 
 export interface LayerStyleEditorRequest {
@@ -108,7 +108,10 @@ export const useLayerStyleEditorController = (
     if (!current || !currentRequest || current.id !== currentRequest.before.id) return;
     const next = setLayerStyleStack(current, currentRequest.layerId, stack);
     if (next !== current) {
-      dependenciesRef.current.getRenderer()?.setLayerStyleInteractionActive(true);
+      dependenciesRef.current.getRenderer()?.setLayerStyleInteractionActive(
+        true,
+        currentRequest.layerId
+      );
       dependenciesRef.current.applyDocumentSnapshot(next);
       scheduleCheckpoint();
     }

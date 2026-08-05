@@ -1476,8 +1476,8 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
-  setLayerStyleInteractionActive(active: boolean) {
-    if (this.documentRenderer?.setLayerStyleInteractionActive(active)) {
+  setLayerStyleInteractionActive(active: boolean, layerId?: LayerId) {
+    if (this.documentRenderer?.setLayerStyleInteractionActive(active, layerId)) {
       this.markDocumentDirty();
     }
   }

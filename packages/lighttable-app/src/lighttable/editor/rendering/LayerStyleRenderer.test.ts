@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { LayerId } from '../document/documentTypes';
 import { LayerStyleRenderer } from './LayerStyleRenderer';
 
 const renderer = () => new LayerStyleRenderer({
@@ -22,14 +23,17 @@ const renderer = () => new LayerStyleRenderer({
 describe('LayerStyleRenderer', () => {
   it('switches quality only at interaction boundaries', () => {
     const styles = renderer();
+    const edited = 'edited' as LayerId;
+    const retained = 'retained' as LayerId;
 
-    expect(styles.cacheKeyQuality()).toBe('final');
-    expect(styles.setInteractionActive(false)).toBe(false);
-    expect(styles.setInteractionActive(true)).toBe(true);
-    expect(styles.cacheKeyQuality()).toBe('interactive');
-    expect(styles.setInteractionActive(true)).toBe(false);
-    expect(styles.setInteractionActive(false)).toBe(true);
-    expect(styles.cacheKeyQuality()).toBe('final');
+    expect(styles.cacheKeyQuality(edited)).toBe('final');
+    expect(styles.setInteractionLayer(null)).toBe(false);
+    expect(styles.setInteractionLayer(edited)).toBe(true);
+    expect(styles.cacheKeyQuality(edited)).toBe('interactive');
+    expect(styles.cacheKeyQuality(retained)).toBe('final');
+    expect(styles.setInteractionLayer(edited)).toBe(false);
+    expect(styles.setInteractionLayer(null)).toBe(true);
+    expect(styles.cacheKeyQuality(edited)).toBe('final');
   });
 
   it('owns and releases its work textures', () => {

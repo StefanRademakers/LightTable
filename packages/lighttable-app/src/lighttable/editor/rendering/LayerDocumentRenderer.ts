@@ -171,8 +171,8 @@ export class LayerDocumentRenderer {
     return this.runtime.geometryPreviews.clear();
   }
 
-  setLayerStyleInteractionActive(active: boolean) {
-    return this.runtime.layerStyleRenderer.setInteractionActive(active);
+  setLayerStyleInteractionActive(active: boolean, layerId?: LayerId) {
+    return this.runtime.layerStyleRenderer.setInteractionLayer(active ? layerId ?? null : null);
   }
 
   encodeComposite(

@@ -334,7 +334,7 @@ export class LayerCompositor {
             layerSourceStyleCacheKey(
               node,
               source,
-              layerStyles.cacheKeyQuality()
+              layerStyles.cacheKeyQuality(node.id)
             )
           );
           if (styled) {
@@ -429,7 +429,7 @@ export class LayerCompositor {
           : layerStyleCacheKey(
               layer,
               sourceToDocument,
-              layerStyles.cacheKeyQuality()
+              layerStyles.cacheKeyQuality(layer.id)
             );
         const styled = layerStyles.encode(
           encoder,
