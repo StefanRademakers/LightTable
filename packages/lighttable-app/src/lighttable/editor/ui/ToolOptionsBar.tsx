@@ -154,6 +154,91 @@ const AnchoredGradientPopover: React.FC<{
   );
 };
 
+const TextFontPicker: React.FC<{
+  readonly value: string;
+  readonly fonts: readonly DocumentFontAsset[];
+  readonly disabled?: boolean;
+  readonly placeholder?: string;
+  readonly onChange: (family: string) => void;
+}> = ({ value, fonts, disabled = false, placeholder, onChange }) => {
+  const anchorRef = React.useRef<HTMLButtonElement>(null);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [position, setPosition] = React.useState({ left: 0, top: 0 });
+  const groups = React.useMemo(() => ([
+    ['Bundled', (font: DocumentFontAsset) => font.source === 'bundled'],
+    ['Document', (font: DocumentFontAsset) => font.source !== 'bundled' && font.source !== 'system'],
+    ['System', (font: DocumentFontAsset) => font.source === 'system']
+  ] as const).map(([label, accepts]) => ({
+    label,
+    families: [...new Set(fonts.filter(accepts)
+      .flatMap(({ familyNames }) => familyNames.slice(0, 1)))]
+      .filter((family) => family.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  })).filter(({ families }) => families.length > 0), [fonts, query]);
+
+  React.useLayoutEffect(() => {
+    if (!open) return undefined;
+    const update = () => {
+      const bounds = anchorRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setPosition({
+        left: Math.max(8, Math.min(bounds.left, window.innerWidth - 252)),
+        top: bounds.bottom + 3
+      });
+    };
+    update();
+    searchRef.current?.focus({ preventScroll: true });
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const close = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (anchorRef.current?.contains(target)
+        || document.querySelector('.lighttable-font-picker__menu')?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+
+  return <div className="lighttable-tool-options__field lighttable-tool-options__font-field">
+    <span>Font</span>
+    <button ref={anchorRef} type="button" className="lighttable-font-picker__trigger"
+      disabled={disabled} aria-haspopup="listbox" aria-expanded={open}
+      title={placeholder ?? value}
+      onClick={() => { setQuery(''); setOpen((current) => !current); }}>
+      <span>{placeholder ?? value}</span><span aria-hidden="true">▾</span>
+    </button>
+    {open ? createPortal(
+      <div className="lighttable-font-picker__menu" style={position}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return;
+          event.preventDefault(); setOpen(false); anchorRef.current?.focus();
+        }}>
+        <input ref={searchRef} type="search" value={query} placeholder="Search fonts"
+          aria-label="Search fonts" onChange={(event) => setQuery(event.currentTarget.value)} />
+        <div className="lighttable-font-picker__options" role="listbox" aria-label="Fonts">
+          {groups.map((group) => <React.Fragment key={group.label}>
+            <div className="lighttable-font-picker__group">{group.label}</div>
+            {group.families.map((family) => <button key={`${group.label}:${family}`}
+              type="button" role="option" aria-selected={family === value}
+              className={family === value ? 'lighttable-font-picker__option lighttable-font-picker__option--selected'
+                : 'lighttable-font-picker__option'}
+              onClick={() => { onChange(family); setOpen(false); anchorRef.current?.focus(); }}>
+              {family}
+            </button>)}
+          </React.Fragment>)}
+          {groups.length === 0 ? <div className="lighttable-font-picker__empty">No matching fonts</div> : null}
+        </div>
+      </div>, document.body
+    ) : null}
+  </div>;
+};
+
 const TransformToolOptions: React.FC<{
   state: TransformSessionState;
   proportionsLinked: boolean;
@@ -789,34 +874,21 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               <option value="vertical-lr">Vertical LTR</option>
             </ToolOptionSelect>
           ) : null}
-          <ToolOptionSelect
-            label="Font"
-            value={textProperties && textProperties.family.kind !== 'value' ? '' : presentedTextFamily}
+          <TextFontPicker
+            value={presentedTextFamily}
+            fonts={textFonts}
+            placeholder={textProperties?.family.kind === 'mixed' ? 'Mixed'
+              : textProperties?.family.kind === 'unavailable' ? 'Unavailable' : undefined}
             disabled={textProperties?.family.kind === 'unavailable'}
-            onChange={(event) => {
+            onChange={(family) => {
               if (!textProperties || !onTextFontAssetChange) {
-                onTextChange({ family: event.currentTarget.value }); return;
+                onTextChange({ family }); return;
               }
-              const family = event.currentTarget.value;
               const matches = textFonts.filter((font) => font.familyNames.includes(family));
               const asset = matches.find((font) => font.styleName === 'Regular') ?? matches[0];
               if (asset) onTextFontAssetChange(asset.assetId);
             }}
-          >
-            {textProperties?.family.kind === 'mixed' ? <option value="" disabled>Mixed</option> : null}
-            {textProperties?.family.kind === 'unavailable' ? <option value="">Unavailable</option> : null}
-            {([
-              ['Bundled', (font: DocumentFontAsset) => font.source === 'bundled'],
-              ['Document', (font: DocumentFontAsset) => font.source !== 'bundled' && font.source !== 'system'],
-              ['System', (font: DocumentFontAsset) => font.source === 'system']
-            ] as const).map(([label, accepts]) => {
-              const families = [...new Set(textFonts.filter(accepts)
-                .flatMap(({ familyNames }) => familyNames.slice(0, 1)))];
-              return families.length ? <optgroup key={label} label={label}>
-                {families.map((family) => <option key={`${label}:${family}`} value={family}>{family}</option>)}
-              </optgroup> : null;
-            })}
-          </ToolOptionSelect>
+          />
           <ToolOptionSelect
             label="Style"
             value={textProperties?.face.kind === 'mixed' ? ''
