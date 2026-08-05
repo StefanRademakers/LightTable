@@ -22,6 +22,36 @@ const color = (value: { r: number; g: number; b: number; a: number }) => [
 
 const empty = () => new Float32Array(LAYER_STYLE_SETTINGS_FLOATS);
 
+const blurRadius = (effect: LayerStyleInstance, scale: number) => {
+  switch (effect.kind) {
+    case 'drop-shadow':
+    case 'inner-shadow':
+    case 'outer-glow':
+    case 'inner-glow':
+    case 'stroke':
+    case 'satin':
+      return effect.size * scale;
+    case 'bevel-emboss':
+      return Math.max(effect.size, effect.soften) * scale;
+    default:
+      return 0;
+  }
+};
+
+const adaptiveBlurSamples = (
+  effect: LayerStyleInstance,
+  scale: number,
+  quality: 'interactive' | 'final'
+) => {
+  const radius = blurRadius(effect, scale);
+  if (radius <= 0.01) return 1;
+  const interval = quality === 'interactive' ? 20 : 10;
+  const minimum = quality === 'interactive' ? 8 : 16;
+  const maximum = quality === 'interactive' ? 16 : 64;
+  const requested = Math.ceil(radius / interval) * 8;
+  return Math.min(maximum, Math.max(minimum, requested));
+};
+
 const writeGradient = (
   values: Float32Array,
   gradient: LayerStyleGradient
@@ -223,8 +253,9 @@ export const layerStyleUniform = (
   }
   values[20] = width;
   values[21] = height;
-  // Keep the interactive editor responsive without changing effect geometry.
-  // The final render always restores the full angular blur kernel.
-  values[23] = quality === 'interactive' ? 8 : 16;
+  // Wide effects need more angular coverage to avoid visible concentric bands.
+  // Interactive previews retain a lower cap; final rendering scales up to the
+  // shader's complete 64-direction kernel without changing authored geometry.
+  values[23] = adaptiveBlurSamples(effect, scale, quality);
   return values;
 };

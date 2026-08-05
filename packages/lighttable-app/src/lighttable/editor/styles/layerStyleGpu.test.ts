@@ -21,8 +21,20 @@ describe('Layer Style GPU settings', () => {
   it('selects normalized interactive and final blur quality tiers', () => {
     const effect = createDefaultLayerStyle('drop-shadow');
     const stack = createDefaultLayerStyleStack();
+    expect(layerStyleUniform(effect, stack, 100, 100, true, 'interactive')?.[23]).toBe(16);
+    expect(layerStyleUniform(effect, stack, 100, 100, true, 'final')?.[23]).toBe(24);
+  });
+
+  it('adapts blur sampling to effect radius with bounded interaction and final tiers', () => {
+    const effect = createDefaultLayerStyle('drop-shadow');
+    if (effect.kind !== 'drop-shadow') throw new Error('Expected Drop Shadow.');
+    const stack = createDefaultLayerStyleStack();
+    effect.size = 3;
     expect(layerStyleUniform(effect, stack, 100, 100, true, 'interactive')?.[23]).toBe(8);
     expect(layerStyleUniform(effect, stack, 100, 100, true, 'final')?.[23]).toBe(16);
+    effect.size = 250;
+    expect(layerStyleUniform(effect, stack, 100, 100, true, 'interactive')?.[23]).toBe(16);
+    expect(layerStyleUniform(effect, stack, 100, 100, true, 'final')?.[23]).toBe(64);
   });
 
   it('uses global light and stack scaling for a shadow', () => {

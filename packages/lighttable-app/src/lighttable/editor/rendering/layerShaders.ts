@@ -354,6 +354,15 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+const LAYER_STYLE_BLUR_DIRECTION_COUNT = 64;
+const LAYER_STYLE_BLUR_DIRECTIONS = Array.from(
+  { length: LAYER_STYLE_BLUR_DIRECTION_COUNT },
+  (_, index) => {
+    const angle = index * Math.PI * 2 / LAYER_STYLE_BLUR_DIRECTION_COUNT;
+    return `vec2f(${Math.cos(angle).toFixed(7)}, ${Math.sin(angle).toFixed(7)})`;
+  }
+).join(', ');
+
 export const LAYER_STYLE_EFFECT_WGSL = /* wgsl */ `
 struct StyleSettings {
   header: vec4f,
@@ -413,19 +422,19 @@ fn alphaAt(uv: vec2f, pixelOffset: vec2f) -> f32 {
 
 fn blurredAlpha(uv: vec2f, centerOffset: vec2f, radius: f32) -> f32 {
   if (radius <= 0.01) { return alphaAt(uv, centerOffset); }
-  let directions = array<vec2f, 16>(
-    vec2f(1.0, 0.0), vec2f(0.9239, 0.3827), vec2f(0.7071, 0.7071), vec2f(0.3827, 0.9239),
-    vec2f(0.0, 1.0), vec2f(-0.3827, 0.9239), vec2f(-0.7071, 0.7071), vec2f(-0.9239, 0.3827),
-    vec2f(-1.0, 0.0), vec2f(-0.9239, -0.3827), vec2f(-0.7071, -0.7071), vec2f(-0.3827, -0.9239),
-    vec2f(0.0, -1.0), vec2f(0.3827, -0.9239), vec2f(0.7071, -0.7071), vec2f(0.9239, -0.3827)
+  let directions = array<vec2f, ${LAYER_STYLE_BLUR_DIRECTION_COUNT}>(
+    ${LAYER_STYLE_BLUR_DIRECTIONS}
   );
-  let sampleCount = u32(clamp(settings.canvas.w, 1.0, 16.0) + 0.5);
+  let sampleCount = u32(clamp(
+    settings.canvas.w,
+    1.0,
+    f32(${LAYER_STYLE_BLUR_DIRECTION_COUNT})
+  ) + 0.5);
   var value = alphaAt(uv, centerOffset) * 4.0;
-  for (var sampleIndex = 0u; sampleIndex < 16u; sampleIndex += 1u) {
-    if (sampleIndex >= sampleCount) { continue; }
-    // Interactive quality uses eight evenly distributed directions rather
-    // than the first half of the final ring, keeping geometry identical.
-    let index = (sampleIndex * 16u) / sampleCount;
+  for (var sampleIndex = 0u; sampleIndex < sampleCount; sampleIndex += 1u) {
+    // Lower budgets remain evenly distributed around the complete ring,
+    // keeping the effect centered and its geometry invariant across tiers.
+    let index = (sampleIndex * ${LAYER_STYLE_BLUR_DIRECTION_COUNT}u) / sampleCount;
     value += alphaAt(uv, centerOffset + directions[index] * radius * 0.35) * 2.0;
     value += alphaAt(uv, centerOffset + directions[index] * radius * 0.72);
     value += alphaAt(uv, centerOffset + directions[index] * radius);
