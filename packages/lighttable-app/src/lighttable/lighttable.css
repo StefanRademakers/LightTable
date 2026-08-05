@@ -2633,12 +2633,6 @@
   background: var(--lt-surface-collapsible-content);
 }
 
-.lighttable-style-editor__panel-scale {
-  padding: 7px 14px 12px;
-  border-top: 1px solid var(--lt-border-subtle);
-  background: var(--lt-surface-collapsible-content);
-}
-
 .lighttable-style-editor > header {
   display: flex;
   align-items: center;

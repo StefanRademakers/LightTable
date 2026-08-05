@@ -981,15 +981,6 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             </select>
             <button type="button" onClick={addStyle}>Add</button>
           </div>
-          <div className="lighttable-style-editor__panel-scale">
-            <NumberSlider label="Scale effects" value={draft.scale * 100} min={1} max={1000}
-              suffix="%" resetValue={100}
-              onChange={(scale) => updateDraft((current) => ({
-                ...current,
-                scale: scale / 100,
-                revision: current.revision + 1
-              }))} />
-          </div>
         </div>
       </div>
     );
