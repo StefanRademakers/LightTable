@@ -7,10 +7,12 @@ artifacts/
 .vite/
 .electron-dev-session/
 coverage/
+/tmp/
 .test-data/
 .referenceCode/
 .tools/
 /target/
+*.tsbuildinfo
 *.log
 .env
 .env.*
