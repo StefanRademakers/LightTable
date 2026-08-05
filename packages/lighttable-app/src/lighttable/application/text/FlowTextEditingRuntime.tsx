@@ -20,6 +20,7 @@ import {
   type TextInteractionTraceIdentity
 } from './textInteractionPerformanceTrace';
 import { buildProvisionalTextEditingLayout } from './provisionalTextEditingLayout';
+import { textFillPatchFromHex } from './textPropertyPresentation';
 
 export interface FlowTextEditingRuntimeRenderer {
   textEditingLayout(layerId: LayerId): TextLayerEditingLayout | null;
@@ -36,6 +37,7 @@ interface FlowTextEditingRuntimeProps {
   readonly document: ImageDocument | null;
   readonly renderer: FlowTextEditingRuntimeRenderer | null;
   readonly active: boolean;
+  readonly foregroundColor: string;
   /** Rebuild overlay geometry only when the renderer publishes a fresh layout. */
   readonly layoutPublicationRevision: number;
 }
@@ -104,6 +106,7 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
   document,
   renderer,
   active,
+  foregroundColor,
   layoutPublicationRevision
 }) => {
   const interactionContext = useRef({ document, renderer });
@@ -197,11 +200,13 @@ export const FlowTextEditingRuntime: React.FC<FlowTextEditingRuntimeProps> = ({
   const format = (command: TextInputFormatCommand) => {
     const projection = controller.formatProjection();
     if (!projection) return;
+    if (command === 'fill-foreground' && projection.target !== 'selection') return;
     const style = projection.style.kind === 'value' ? projection.style.value : null;
     const paragraph = projection.paragraph.kind === 'value' ? projection.paragraph.value : null;
     let stylePatch: TextStylePatch = {};
     let paragraphPatch: ParagraphStylePatch = {};
-    if (command === 'toggle-bold') stylePatch = { syntheticBold: !(style?.syntheticBold ?? false) };
+    if (command === 'fill-foreground') stylePatch = textFillPatchFromHex(foregroundColor) ?? {};
+    else if (command === 'toggle-bold') stylePatch = { syntheticBold: !(style?.syntheticBold ?? false) };
     else if (command === 'toggle-italic') stylePatch = { syntheticItalic: !(style?.syntheticItalic ?? false) };
     else if (command === 'toggle-underline') stylePatch = { underline: !(style?.underline ?? false) };
     else if (command === 'increase-size' || command === 'decrease-size') {

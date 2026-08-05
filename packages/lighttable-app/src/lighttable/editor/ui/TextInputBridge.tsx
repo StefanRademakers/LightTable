@@ -12,6 +12,7 @@ export type TextInputNavigationCommand =
 
 export type TextInputFormatCommand =
   | 'toggle-bold' | 'toggle-italic' | 'toggle-underline'
+  | 'fill-foreground'
   | 'increase-size' | 'decrease-size'
   | 'increase-leading' | 'decrease-leading'
   | 'increase-tracking' | 'decrease-tracking'
@@ -22,9 +23,10 @@ export const textInputFormatCommandFromKey = (
 ): TextInputFormatCommand | null => {
   const primary = event.ctrlKey || event.metaKey;
   const key = event.key.toLowerCase();
-  if (primary && event.shiftKey && key === 'b') return 'toggle-bold';
-  if (primary && event.shiftKey && key === 'i') return 'toggle-italic';
-  if (primary && event.shiftKey && key === 'u') return 'toggle-underline';
+  if (event.altKey && !primary && event.key === 'Backspace') return 'fill-foreground';
+  if (primary && key === 'b') return 'toggle-bold';
+  if (primary && key === 'i') return 'toggle-italic';
+  if (primary && key === 'u') return 'toggle-underline';
   if (primary && event.shiftKey && (event.key === '>' || event.key === '.')) return 'increase-size';
   if (primary && event.shiftKey && (event.key === '<' || event.key === ',')) return 'decrease-size';
   if (event.altKey && event.shiftKey && event.key === 'ArrowUp') return 'baseline-up';
@@ -204,16 +206,16 @@ export const TextInputBridge: React.FC<TextInputBridgeProps> = ({
       }}
       onBlur={onCheckpoint}
       onKeyDown={(event) => {
+        const format = textInputFormatCommandFromKey(event);
+        if (format) {
+          event.preventDefault(); event.stopPropagation(); onFormat(format); return;
+        }
         const deletion = textInputDeleteCommandFromKey(event);
         if (deletion) {
           // Chromium/React does not consistently surface deletion through
           // synthetic beforeinput. Owning keydown also prevents the native
           // textarea from briefly diverging from the semantic text model.
           event.preventDefault(); event.stopPropagation(); onEdit(deletion); return;
-        }
-        const format = textInputFormatCommandFromKey(event);
-        if (format) {
-          event.preventDefault(); event.stopPropagation(); onFormat(format); return;
         }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
           event.preventDefault(); event.stopPropagation();

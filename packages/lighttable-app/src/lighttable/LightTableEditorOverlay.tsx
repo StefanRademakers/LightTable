@@ -4074,6 +4074,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                         document={imageDocument}
                         renderer={engineRef.current}
                         active={active}
+                        foregroundColor={editorSession.brush.color}
                         layoutPublicationRevision={textRenderPresentation.publicationRevision}
                       />
                     ) : null,

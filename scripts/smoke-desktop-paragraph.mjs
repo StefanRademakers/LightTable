@@ -65,6 +65,8 @@ const diagnostics = {
   keyboardWordSelection: null,
   immediateEditKeys: null,
   fontSearch: null,
+  formatHotkeys: null,
+  foregroundFillHotkey: null,
   debugPanel: '',
   runtime: null,
   geometry: null,
@@ -192,6 +194,37 @@ try {
   diagnostics.fontSearch = { query: 'Source Serif', matches: matchingFonts };
   await fontSearch.press('Escape');
   await input.focus();
+
+  await input.press('Control+b');
+  await window.getByLabel('Bold', { exact: true }).waitFor({ state: 'visible' });
+  if (!await window.getByLabel('Bold', { exact: true }).isChecked()) {
+    throw new Error('Ctrl+B did not toggle bold during active text editing.');
+  }
+  await input.press('Control+i');
+  if (!await window.getByLabel('Italic', { exact: true }).isChecked()) {
+    throw new Error('Ctrl+I did not toggle italic during active text editing.');
+  }
+  await input.press('Control+u');
+  if (!await window.getByLabel('Underline', { exact: true }).isChecked()) {
+    throw new Error('Ctrl+U did not toggle underline during active text editing.');
+  }
+  diagnostics.formatHotkeys = { bold: true, italic: true, underline: true };
+
+  await window.getByLabel('Foreground color').fill('#d02040');
+  await input.press('Control+Shift+ArrowLeft');
+  await input.press('Alt+Backspace');
+  const textFill = window.locator('.lighttable-tool-options__color-field input[type="color"]').first();
+  await window.waitForFunction(() => document
+    .querySelector('.lighttable-tool-options__color-field input[type="color"]')?.value === '#d02040',
+  undefined, { timeout: 1_000 });
+  diagnostics.foregroundFillHotkey = {
+    foreground: await window.getByLabel('Foreground color').inputValue(),
+    textFill: await textFill.inputValue(),
+    selection: await input.evaluate((bridge) => ({
+      start: bridge.selectionStart, end: bridge.selectionEnd
+    }))
+  };
+  await input.press('ArrowRight');
 
   // Measure the user-visible bridge update, not Playwright command latency.
   // Each sample dispatches one real React keyboard event and waits until the

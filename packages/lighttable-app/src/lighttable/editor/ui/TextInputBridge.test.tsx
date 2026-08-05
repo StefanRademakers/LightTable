@@ -64,6 +64,10 @@ describe('TextInputBridge', () => {
     });
     expect(key('B', { ctrlKey: true, shiftKey: true })).toBe('toggle-bold');
     expect(key('u', { metaKey: true, shiftKey: true })).toBe('toggle-underline');
+    expect(key('b', { ctrlKey: true })).toBe('toggle-bold');
+    expect(key('i', { ctrlKey: true })).toBe('toggle-italic');
+    expect(key('u', { ctrlKey: true })).toBe('toggle-underline');
+    expect(key('Backspace', { altKey: true })).toBe('fill-foreground');
     expect(key('ArrowRight', { altKey: true })).toBe('increase-tracking');
     expect(key('ArrowUp', { altKey: true, shiftKey: true })).toBe('baseline-up');
     expect(key('.', { ctrlKey: true, shiftKey: true })).toBe('increase-size');
