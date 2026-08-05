@@ -305,3 +305,51 @@ scissors, a composite uniform arena, immediate cache eviction, CPU compression
 on warm GPU paths or an unproven renderer replacement. Realtime interaction
 latency and settled visual equivalence remain hard gates; memory reduction is
 accepted only after those gates pass.
+
+## Production text interaction and Vello/usvg bake-off â€” 2026-08-05
+
+`run_clean.bat` is intentionally a clean development launch. It clears Forge
+and Vite caches and then runs `electron-forge start`; HMR, React development
+checks and development-only diagnostics remain active. It is not a performance
+build. `build.bat` produces production Vite/React bundles after the complete
+verification suite. `run_release.bat` now provides the shorter local route: it
+packages the current source into `out-local-release` and launches that package.
+Development-only text corpus and bake-off fixtures are removed by
+`import.meta.env.DEV`. The packaged app retains local, low-overhead startup,
+render and text-latency counters; these do not send external telemetry.
+
+The production paragraph interaction smoke now supports packaged executables
+and records native keydown-to-controlled-selection samples. A fresh immutable
+baseline package was compared with separate candidate packages. The accepted
+text interaction changes:
+
+- cache exact caret stops and visual line order per immutable realized layout;
+- reuse the default insertion style instead of allocating it per movement;
+- update native selection and the GPU editing overlay immediately for keyboard
+  navigation while retaining animation-frame batching for authored typing;
+- continue horizontal navigation onto the adjacent realized line instead of
+  clamping at a wrapped-line boundary.
+
+Across three packaged runs, authored typing averaged 850.8 ms before and 816.3
+ms after (-4.1%, within normal run variance). The visible native caret sample
+median averaged 31.8 to 14.4 ms (-54.7%); p95 averaged 93.0 to 76.8 ms (-17.4%).
+The p95 fixture includes affinity-only caret transitions that a textarea cannot
+observe directly, so the median and the explicit line-boundary regression test
+are the stronger gates. A rejected direct React subscription reached a 14.8 ms
+caret median but made typing 2.3x slower; it was removed. Making per-frame
+WebGPU validation scopes development-only produced no repeatable gain and was
+also removed.
+
+An isolated Rust release benchmark used `vello_svg` 0.10, Vello 0.9 and usvg
+0.46 on the 63,088-byte Ghostscript Tiger SVG. Fifty usvg normalizations
+measured 0.729 ms p50 / 1.120 ms p95. Two hundred conversions of one retained
+usvg tree into a Vello scene measured 0.049 ms p50 / 0.051 ms p95. This is a
+useful result for a future SVG import adapter: usvg normalization is fast
+enough to run lazily and Vello's compact scene encoding is worth studying for
+large immutable vector batches. It is not evidence for replacing LightTable's
+renderer: the benchmark excludes GPU rendering, compositing, editing overlays
+and interchange roundtrip, while vello_svg still documents unsupported text
+and incomplete document effects. The accepted direction remains usvg to a
+canonical LightTable scene plus preserved unsupported source/fallback; Vello
+stays an isolated renderer/encoding bake-off until end-to-end visual and
+interaction gates pass.
