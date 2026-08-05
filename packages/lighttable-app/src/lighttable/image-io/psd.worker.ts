@@ -332,6 +332,9 @@ const serializeLayers = async (
         vectorFill: layer.vectorFill ?? null,
         vectorMask: layer.vectorMask ?? null,
         vectorStroke: layer.vectorStroke ?? null,
+        vectorOrigination: layer.vectorOrigination ?? null,
+        usingAlignedRendering: layer.usingAlignedRendering ?? null,
+        referencePoint: layer.referencePoint ?? null,
         realMask: preservedMaskDescriptor(layer.realMask)
       },
       children: await serializeLayers(layer.children, psd, transparentFallback)
@@ -404,6 +407,7 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
       inventory,
       layers,
       patterns,
+      engineData: psd.engineData ?? null,
       warnings,
       timings: {
         parseMs,

@@ -22,6 +22,7 @@ import type { BasicAdjustments } from '../../types';
 export interface DocumentExportRenderer {
   exportPng(): Promise<Blob>;
   exportLayerAssets(document: ImageDocument): Promise<DocumentAssetBlob[]>;
+  exportPsdLayerAssets?(document: ImageDocument): Promise<DocumentAssetBlob[]>;
   getAdjustmentStack(): AdjustmentStack;
 }
 

@@ -7,6 +7,11 @@ import {
   walkLayerTree,
   walkRasterLayers
 } from '../document/layerTree';
+import {
+  multiplyMatrices,
+  transformedBounds,
+  translationMatrix
+} from '../geometry/affine';
 import type {
   DocumentAssetBlob,
   PatternAssetBlob
@@ -19,7 +24,12 @@ export interface LayerDocumentAssetPorts {
   encodeTexture: (
     layerId: LayerId,
     texture: GPUTexture,
-    maskChannel: boolean
+    maskChannel: boolean,
+    output?: {
+      width: number;
+      height: number;
+      sourceToOutput: ReturnType<typeof translationMatrix>;
+    }
   ) => Promise<Blob>;
   decodeTexture: (
     layerId: LayerId,
@@ -83,6 +93,74 @@ export class LayerDocumentAssetService {
       const source = this.ports.patternSource(pattern.id);
       if (!source) throw new Error(`Pattern ${pattern.name} is not available for saving.`);
       assets.push({ patternId: pattern.id, source });
+    }
+    return assets;
+  }
+
+  /** Exports tight, document-space PSD previews and bakes arbitrary raster affines. */
+  async exportPsd(document: ImageDocument): Promise<DocumentAssetBlob[]> {
+    const assets: DocumentAssetBlob[] = [];
+    for (const { layer } of walkRasterLayers(document.layers)) {
+      const texture = this.ports.rasterTexture(layer.id);
+      if (!texture) throw new Error(`Layer ${layer.name} is not available for PSD export.`);
+      const transformed = transformedBounds(layer.transform, {
+        x: 0, y: 0, width: layer.width, height: layer.height
+      });
+      const left = Math.floor(transformed.x);
+      const top = Math.floor(transformed.y);
+      const right = Math.ceil(transformed.x + transformed.width);
+      const bottom = Math.ceil(transformed.y + transformed.height);
+      const width = Math.max(1, right - left);
+      const height = Math.max(1, bottom - top);
+      const sourceToOutput = multiplyMatrices(
+        translationMatrix(-left, -top),
+        layer.transform
+      );
+      const maskTexture = layer.mask ? this.ports.maskTexture(layer.id) : null;
+      assets.push({
+        layerId: layer.id,
+        bounds: { x: left, y: top, width, height },
+        pixels: await this.ports.encodeTexture(layer.id, texture, false, {
+          width, height, sourceToOutput
+        }),
+        mask: maskTexture
+          ? await this.ports.encodeTexture(layer.id, maskTexture, true)
+          : null
+      });
+    }
+    for (const { node } of walkLayerTree(document.layers)) {
+      if (node.type === 'raster') continue;
+      const maskTexture = node.mask ? this.ports.maskTexture(node.id) : null;
+      const previewTexture = node.derivedPreview
+        ? this.ports.derivedPreviewTexture(node.id) : null;
+      let pixels = new Blob();
+      let bounds: { x: number; y: number; width: number; height: number } | undefined;
+      if (node.derivedPreview && previewTexture) {
+        const preview = node.derivedPreview;
+        const transformed = transformedBounds(preview.transform, {
+          x: 0, y: 0, width: preview.width, height: preview.height
+        });
+        const left = Math.floor(transformed.x);
+        const top = Math.floor(transformed.y);
+        const right = Math.ceil(transformed.x + transformed.width);
+        const bottom = Math.ceil(transformed.y + transformed.height);
+        bounds = { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
+        pixels = await this.ports.encodeTexture(node.id, previewTexture, false, {
+          width: bounds.width,
+          height: bounds.height,
+          sourceToOutput: multiplyMatrices(
+            translationMatrix(-left, -top), preview.transform
+          )
+        });
+      }
+      if (pixels.size || maskTexture) assets.push({
+        layerId: node.id,
+        ...(bounds ? { bounds } : {}),
+        pixels,
+        mask: maskTexture
+          ? await this.ports.encodeTexture(node.id, maskTexture, true)
+          : null
+      });
     }
     return assets;
   }

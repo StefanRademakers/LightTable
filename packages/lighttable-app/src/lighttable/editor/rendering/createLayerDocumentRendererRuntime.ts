@@ -323,13 +323,19 @@ export const createLayerDocumentRendererRuntime = (
     rasterTexture: (layerId) => layerResources.raster(layerId)?.texture ?? null,
     derivedPreviewTexture: (layerId) => layerResources.derivedPreview(layerId)?.texture ?? null,
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
-    encodeTexture: (layerId, texture, maskChannel) => {
+    encodeTexture: (layerId, texture, maskChannel, output) => {
       const { width, height } = maskChannel
         ? resources.dimensions()
         : layerResources.raster(layerId)
           ?? layerResources.derivedPreview(layerId)
           ?? resources.dimensions();
-      return textureCodec.encode(texture, maskChannel, width, height);
+      return textureCodec.encode(
+        texture,
+        maskChannel,
+        output?.width ?? width,
+        output?.height ?? height,
+        output?.sourceToOutput
+      );
     },
     decodeTexture: async (layerId, blob, texture, maskChannel) => {
       const generation = resources.generation();

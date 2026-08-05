@@ -29,6 +29,7 @@ const rendererFacadePath =
   'packages/lighttable-app/src/lighttable/editor/rendering/LayerDocumentRenderer.ts';
 const rendererFacadeImports = new Set([
   '../document/documentTypes',
+  '../document/layerTree',
   '../history/ReversiblePixelEdit',
   '../persistence/layeredDocumentFormat',
   '../selection/selectionCoverage',
@@ -36,6 +37,8 @@ const rendererFacadeImports = new Set([
   '../session/editorSession',
   '../tools/brush/strokeBuilder',
   '../tools/transform/transformTypes',
+  '../tools/transform/affine',
+  '../../text/rendering/TextLayerRenderCoordinator',
   './LayerThumbnailService',
   './RasterDocumentOperations',
   './createLayerDocumentRendererRuntime',

@@ -85,6 +85,9 @@ export interface PhotoshopLayerMetadata {
     vectorFill: unknown | null;
     vectorMask: unknown | null;
     vectorStroke: unknown | null;
+    vectorOrigination?: unknown | null;
+    usingAlignedRendering?: boolean | null;
+    referencePoint?: unknown | null;
     realMask: unknown | null;
   };
 }
@@ -283,6 +286,11 @@ export interface ImageDocument {
   importProvenance: NormalizedImportProvenance | null;
   /** Persisted semantic import audit; never inferred from the flat preview. */
   photoshopImportReport: PhotoshopImportReport | null;
+  /** Document-level Photoshop resources needed for lossless semantic export. */
+  photoshopDocument: {
+    /** Global TextFrameSet resource used by Photoshop text-on-path layers. */
+    engineData: string | null;
+  } | null;
   /** Shared immutable resources referenced by styles, fills and future PSD nodes. */
   assets: DocumentAssetRegistry;
   revision: number;
@@ -443,6 +451,7 @@ export const createImageDocument = (
     activeLayerId: backgroundId,
     importProvenance,
     photoshopImportReport: null,
+    photoshopDocument: null,
     assets: { patterns: [], preservedSources: [], fonts: [] },
     revision: 0,
     createdAt: now,

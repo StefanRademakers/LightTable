@@ -734,6 +734,9 @@ export const importPsdDocument = (
         warnings: [...warnings],
         compatibility: structuredClone(compatibility)
       },
+      photoshopDocument: {
+        engineData: source.engineData ?? null
+      },
       assets: {
         patterns: source.patterns.map((pattern) => ({
           id: patternIds.get(pattern.id)!,

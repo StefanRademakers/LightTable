@@ -51,6 +51,9 @@ export interface PsdLayerNodeDto {
     vectorFill: unknown | null;
     vectorMask: unknown | null;
     vectorStroke: unknown | null;
+    vectorOrigination?: unknown | null;
+    usingAlignedRendering?: boolean | null;
+    referencePoint?: unknown | null;
     realMask: unknown | null;
   };
   children: PsdLayerNodeDto[];
@@ -82,6 +85,8 @@ export interface PsdDecodeSuccess {
   /** Explicitly bottom-to-top at every sibling level. */
   layers: PsdLayerNodeDto[];
   patterns: PsdPatternDto[];
+  /** Base64 ag-psd Txt2 payload; retained for exact text-on-path export. */
+  engineData?: string | null;
   warnings: string[];
   timings?: {
     parseMs: number;

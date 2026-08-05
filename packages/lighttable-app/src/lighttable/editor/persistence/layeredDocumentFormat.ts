@@ -121,6 +121,7 @@ interface LayeredDocumentManifest {
     activeLayerId: string | null;
     importProvenance: NormalizedImportProvenance | null;
     photoshopImportReport: PhotoshopImportReport | null;
+    photoshopDocument?: { engineData: string | null } | null;
     patterns: Array<{
       id: string;
       name: string;
@@ -145,6 +146,8 @@ interface LayeredDocumentManifest {
 
 export interface LayerAssetBlobs {
   layerId: LayerId;
+  /** Optional document-space placement used by interchange exporters. */
+  bounds?: { x: number; y: number; width: number; height: number };
   /** Empty for non-raster nodes that only contribute a persisted mask. */
   pixels: Blob;
   mask: Blob | null;
@@ -430,6 +433,9 @@ export const buildLayeredDocumentFile = (
       photoshopImportReport: document.photoshopImportReport
         ? structuredClone(document.photoshopImportReport)
         : null,
+      photoshopDocument: document.photoshopDocument
+        ? structuredClone(document.photoshopDocument)
+        : null,
       patterns,
       preservedSources,
       fonts,
@@ -670,6 +676,13 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   const adjustmentStack = parseAdjustmentStack(raw.adjustmentStack);
   const importProvenance = parseImportProvenance(source.importProvenance);
   const photoshopImportReport = parsePhotoshopImportReport(source.photoshopImportReport);
+  const photoshopDocument = source.photoshopDocument
+    && typeof source.photoshopDocument === 'object'
+    && !Array.isArray(source.photoshopDocument)
+    && ((source.photoshopDocument as Record<string, unknown>).engineData === null
+      || typeof (source.photoshopDocument as Record<string, unknown>).engineData === 'string')
+    ? { engineData: (source.photoshopDocument as { engineData: string | null }).engineData }
+    : null;
   const now = Date.now();
   const assets: LayerAssetBlobs[] = [];
   const patternAssets: PatternAssetBlob[] = [];
@@ -1137,6 +1150,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     activeLayerId,
     importProvenance,
     photoshopImportReport,
+    photoshopDocument,
     assets: { patterns, preservedSources, fonts },
     revision: 0,
     createdAt: now,

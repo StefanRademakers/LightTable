@@ -912,6 +912,11 @@ export class WebGpuEngine {
     return this.documentRenderer.exportDocumentAssets(document);
   }
 
+  exportPsdLayerAssets(document: ImageDocument) {
+    if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
+    return this.documentRenderer.exportPsdDocumentAssets(document);
+  }
+
   exportLayerThumbnail(layerId: LayerId, maskChannel = false) {
     if (!this.documentRenderer) {
       throw new Error('The LightTable layer renderer is unavailable.');

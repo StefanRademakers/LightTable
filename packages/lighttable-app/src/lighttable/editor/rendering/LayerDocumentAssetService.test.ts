@@ -88,6 +88,33 @@ describe('LayerDocumentAssetService', () => {
     expect(ports.loadPattern).toHaveBeenCalledWith({ patternId, source: pattern });
   });
 
+  it('bakes affine raster transforms into tight PSD export bounds', async () => {
+    const ports = createPorts();
+    const service = new LayerDocumentAssetService(ports);
+    const document = documentWith();
+    const layer = document.layers[0] as RasterLayer;
+    layer.transform = { a: 0, b: 1, c: -1, d: 0, tx: 100, ty: 20 };
+
+    const assets = await service.exportPsd(document);
+
+    expect(assets).toEqual([{
+      layerId: layer.id,
+      bounds: { x: 68, y: 20, width: 32, height: 64 },
+      pixels,
+      mask: null
+    }]);
+    expect(ports.encodeTexture).toHaveBeenCalledWith(
+      layer.id,
+      texture,
+      false,
+      {
+        width: 32,
+        height: 64,
+        sourceToOutput: { a: 0, b: 1, c: -1, d: 0, tx: 32, ty: 0 }
+      }
+    );
+  });
+
   it('exports and loads semantic preview pixels through their derived GPU destination', async () => {
     const previewTexture = { label: 'preview' } as GPUTexture;
     const ports = createPorts();

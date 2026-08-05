@@ -1,0 +1,149 @@
+import type { BezierPath, LayerVectorMask, VectorContent } from 'ag-psd';
+import {
+  multiplyMatrices,
+  realizeLiveShape,
+  transformPoint,
+  type AffineMatrix,
+  type VectorElement,
+  type VectorPaint,
+  type VectorStyle
+} from '@lighttable/vector-core';
+import type { GradientPaintInstance } from '@lighttable/paint-core';
+import { linearChannelToSrgb } from '../../colorMath';
+
+const rgba = (value: readonly [number, number, number, number]) => ({
+  r: Math.round(Math.min(1, Math.max(0, linearChannelToSrgb(value[0]))) * 255),
+  g: Math.round(Math.min(1, Math.max(0, linearChannelToSrgb(value[1]))) * 255),
+  b: Math.round(Math.min(1, Math.max(0, linearChannelToSrgb(value[2]))) * 255),
+  a: Math.round(value[3] * 255)
+});
+
+const gradient = (paint: GradientPaintInstance): VectorContent => paint.asset.type === 'noise'
+  ? ({
+    name: paint.asset.name,
+    type: 'noise',
+    roughness: paint.asset.roughness,
+    randomSeed: paint.asset.seed,
+    colorModel: 'rgb' as const,
+    min: [0, 0, 0, 0], max: [1, 1, 1, 1],
+    style: paint.shape, reverse: paint.reverse, dither: paint.dither,
+    interpolationMethod: paint.interpolation
+  })
+  : ({
+    name: paint.asset.name,
+    type: 'solid',
+    smoothness: paint.asset.smoothness,
+    colorStops: paint.asset.colorStops.map((stop) => ({
+      color: { r: Math.round(stop.color.r * 255), g: Math.round(stop.color.g * 255),
+        b: Math.round(stop.color.b * 255), a: Math.round(stop.color.a * 255) },
+      location: stop.position, midpoint: stop.midpoint
+    })),
+    opacityStops: paint.asset.opacityStops.map((stop) => ({
+      opacity: stop.opacity, location: stop.position, midpoint: stop.midpoint
+    })),
+    style: paint.shape, reverse: paint.reverse, dither: paint.dither,
+    interpolationMethod: paint.interpolation
+  });
+
+const content = (paint: VectorPaint): VectorContent => {
+  if ('type' in paint) return { type: 'color', color: rgba(paint.color) };
+  return gradient(paint);
+};
+
+export interface PsdVectorProjection {
+  vectorMask: LayerVectorMask;
+  vectorFill?: VectorContent;
+  vectorStroke: {
+    strokeEnabled: boolean;
+    fillEnabled: boolean;
+    lineWidth?: { units: 'Pixels'; value: number };
+    lineDashOffset?: { units: 'Pixels'; value: number };
+    miterLimit?: number;
+    lineCapType?: 'butt' | 'round' | 'square';
+    lineJoinType?: 'miter' | 'round' | 'bevel';
+    lineAlignment?: 'inside' | 'center' | 'outside';
+    lineDashSet?: { units: 'Pixels'; value: number }[];
+    scaleLock?: boolean;
+    strokeAdjust?: boolean;
+    blendMode: 'normal';
+    opacity: number;
+    content?: VectorContent;
+    resolution: number;
+  };
+}
+
+type PreservedStrokeMetadata = {
+  readonly resolution?: number;
+  readonly scaleLock?: boolean;
+  readonly strokeAdjust?: boolean;
+};
+
+const projectPath = (element: VectorElement, layerTransform: AffineMatrix): {
+  paths: BezierPath[]; style: VectorStyle;
+} => {
+  const path = element.type === 'path' ? element : realizeLiveShape(element);
+  const matrix = multiplyMatrices(layerTransform, path.transform);
+  return {
+    style: path.style,
+    paths: path.subpaths.map((subpath) => ({
+      open: !subpath.closed,
+      operation: 'combine',
+      fillRule: path.fillRule === 'evenodd' ? 'even-odd' : 'non-zero',
+      knots: subpath.anchors.map((anchor) => {
+        const position = transformPoint(matrix, anchor.position);
+        const handleIn = transformPoint(matrix, anchor.handleIn ?? anchor.position);
+        const handleOut = transformPoint(matrix, anchor.handleOut ?? anchor.position);
+        return {
+          linked: anchor.mode !== 'corner',
+          points: [handleIn.x, handleIn.y, position.x, position.y, handleOut.x, handleOut.y]
+        };
+      })
+    }))
+  };
+};
+
+/** Exports a vector layer when its elements share one Photoshop fill/stroke style. */
+export const exportVectorLayerToPsd = (
+  elements: readonly VectorElement[],
+  layerTransform: AffineMatrix,
+  inactiveFill?: VectorContent | null,
+  preservedStroke?: PreservedStrokeMetadata | null
+): PsdVectorProjection | undefined => {
+  if (elements.length === 0) return undefined;
+  const projected = elements.map((element) => projectPath(element, layerTransform));
+  const signature = (style: VectorStyle) => JSON.stringify(style);
+  if (projected.some((entry) => signature(entry.style) !== signature(projected[0]!.style))) {
+    return undefined;
+  }
+  const style = projected[0]!.style;
+  return {
+    vectorMask: {
+      fillStartsWithAllPixels: false,
+      paths: projected.flatMap((entry) => entry.paths)
+    },
+    // Photoshop still models a stroke-only shape as a solid-fill content layer
+    // whose fill is disabled in `vstk`. Keeping a dormant fill descriptor makes
+    // the path remain a fully editable Shape layer and lets Fill be enabled later.
+    vectorFill: style.fill
+      ? content(style.fill)
+      : inactiveFill ?? { type: 'color', color: { r: 0, g: 0, b: 0, a: 255 } },
+    vectorStroke: {
+      strokeEnabled: Boolean(style.stroke),
+      fillEnabled: Boolean(style.fill),
+      ...(style.stroke ? {
+        lineWidth: { units: 'Pixels', value: style.stroke.width },
+        lineDashOffset: { units: 'Pixels', value: style.stroke.dashOffset },
+        miterLimit: style.stroke.miterLimit,
+        lineCapType: style.stroke.cap,
+        lineJoinType: style.stroke.join,
+        lineAlignment: style.stroke.alignment ?? 'center',
+        lineDashSet: style.stroke.dash.map((value) => ({ units: 'Pixels', value })),
+        scaleLock: preservedStroke?.scaleLock,
+        strokeAdjust: preservedStroke?.strokeAdjust,
+        content: content(style.stroke.paint)
+      } : {}),
+      blendMode: 'normal', opacity: style.opacity,
+      resolution: preservedStroke?.resolution ?? 72
+    }
+  };
+};

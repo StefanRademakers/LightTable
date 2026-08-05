@@ -224,6 +224,10 @@ export class LayerDocumentRenderer {
     return this.runtime.documentAssets.export(document);
   }
 
+  async exportPsdDocumentAssets(document: ImageDocument): Promise<DocumentAssetBlob[]> {
+    return this.runtime.documentAssets.exportPsd(document);
+  }
+
   async exportLayerThumbnail(
     layerId: LayerId,
     maskChannel = false,
