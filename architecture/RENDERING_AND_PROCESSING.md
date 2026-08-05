@@ -222,12 +222,22 @@ The intended color path is explicit:
 ```text
 decoded source + embedded/input profile
 -> normalized linear working representation
--> premultiplied-alpha content processing/composition
+-> premultiplied-alpha content processing
+-> document-declared blend and coverage domain where compatibility requires it
 -> output gamut/chroma fit and display transform
 -> display encoding or requested export encoding/bit depth
 ```
 
 Modules that require perceptual or display domains declare the conversion.
+The compositor does the same for document blend behavior: linear texture
+storage does not imply that every blend equation or opacity interpolation is
+evaluated in linear light. Required transfer functions are fused into the
+existing blend pass and the result returns to the linear premultiplied working
+representation. They must not add CPU readback/upload or an avoidable
+full-frame pass. The authoritative Photoshop-facing contract and measured
+baseline live in
+[Photoshop color and blend parity](PHOTOSHOP_COLOR_AND_BLEND_PARITY.md).
+
 Intermediate textures preserve precision; quantization occurs at an explicit
 export/presentation boundary, never incidentally between effects. Eight- and
 sixteen-bit source metadata must not be confused with internal precision or

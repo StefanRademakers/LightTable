@@ -37,6 +37,11 @@ current target includes:
 - text and vector content with explicit native/preview/missing status;
 - color mode, bit depth and profile metadata.
 
+Color and blending compatibility follows the explicit document contract in
+`PHOTOSHOP_COLOR_AND_BLEND_PARITY.md`. The PSD adapter may select and preserve
+a compatibility policy, but it may not hide profile assumptions or implement
+Photoshop-only gamma branches outside the shared compositor.
+
 The embedded Photoshop composite is transient comparison truth. It may be
 shown as Original/reference during import diagnostics, but is not embedded as
 a second PSD payload in a saved LightTable document. A raster preview is not
@@ -87,6 +92,10 @@ a Photoshop-saved composite. The verification path is:
 4. compare in a defined common encoding/domain;
 5. report sampled pixels, threshold, mean and maximum error;
 6. inspect structural/editable import status separately from pixel error.
+
+Every generated Photoshop reference records document mode, bit depth,
+assigned profile, Photoshop Color Settings and the relevant RGB blend
+preference. Untagged evidence is not silently presented as tagged-sRGB proof.
 
 Golden coverage grows from order/groups/blend/opacity/masks/clipping and
 transforms toward adjustments, styles, text, vectors and smart content. Web

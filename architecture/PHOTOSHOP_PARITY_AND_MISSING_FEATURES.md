@@ -60,7 +60,7 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 | Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v6 save/reopen retains the v4 tight-raster contract and is verified on painted EHS-396 content. |
 | Opacity | Yes | Yes | Yes | Yes | Yes | No | Partial | Nineteen partial-opacity layers occur in seven documents. |
 | Fill opacity | Yes | Yes | Yes | Yes | Yes | No | Weak | Canonical property exists, but this corpus contains only one non-default instance. |
-| Blend modes | Yes | Yes | Yes | Partial | Yes | No | Partial | Screen, Multiply, Soft Light and Hard Light occur; contextual mask/group fixtures remain. |
+| Blend modes | Yes | Yes | Yes | Partial | Yes | PSD RC subset | Measured corpus | All 26 exposed modes plus opacity/fill cases have isolated fixtures. Opaque Multiply/Screen are correct; Vivid Light/Hard Mix endpoint behavior and alpha/opacity blend-domain parity remain open. See `PHOTOSHOP_COLOR_AND_BLEND_PARITY.md`. |
 | Clipping chains | Yes | Yes | Yes | Yes | Yes | No | Separate fixtures | Not exercised by the ten-template corpus. |
 | Raster masks | Yes | Partial | Yes | Yes | Partial | No | Partial | One bitmap-mask slot exists; density/feather calibration remains. |
 | Vector + user mask combination | Yes | **Partial** | Preview | Partial | No | No | Failed architecture | Photoshop can retain both independently; LightTable currently collapses toward one effective raster mask. |
@@ -417,6 +417,12 @@ This lab can reveal parameter scaling, curve shape, operation order and most
 blend behavior. It cannot justify blindly curve-fitting every unknown internal
 Photoshop algorithm: where exact semantics cannot be established, LightTable
 must remain explicitly approximate and retain a visual scope preview.
+
+The color/blend branch of this lab is governed by
+`PHOTOSHOP_COLOR_AND_BLEND_PARITY.md`. Its first baseline covers 32 blend,
+opacity and fill fixtures. The next matrix varies profiles, bit depth and
+Photoshop RGB blend preferences independently; those variables may never be
+inferred from a single untagged 8-bit reference run.
 
 The lab should initially cover Gradient Map, Photo Filter, Color Balance,
 Hue/Saturation and Brightness/Contrast because those eleven adjustment layers

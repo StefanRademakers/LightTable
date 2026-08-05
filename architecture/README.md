@@ -35,14 +35,15 @@ history still has value. Keep temporary task notes out of this directory.
 11. [Photoshop layer-effects roundtrip corpus](PSD_LAYER_EFFECTS_ROUNDTRIP_CORPUS.md)
 12. [PSD visual side-by-side review](PSD_VISUAL_SIDE_BY_SIDE.md)
 13. [Photoshop blend-mode color profile corpus](PSD_BLEND_MODE_COLOR_PROFILE_CORPUS.md)
-14. [PDF open and export audit](PDF_OPEN_AND_EXPORT_AUDIT.md)
-15. [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
-16. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
-17. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
-18. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
-19. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
-20. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
-21. [Change rules](CHANGE_RULES.md)
+14. [Photoshop color and blend parity](PHOTOSHOP_COLOR_AND_BLEND_PARITY.md)
+15. [PDF open and export audit](PDF_OPEN_AND_EXPORT_AUDIT.md)
+16. [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
+17. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
+18. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
+19. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
+20. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
+21. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
+22. [Change rules](CHANGE_RULES.md)
 
 ## Directory roles
 
