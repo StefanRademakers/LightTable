@@ -1,7 +1,6 @@
 # Photoshop blend-mode color profile corpus
 
-Status: measured diagnostic baseline, 2026-08-06. No production blend
-semantics were changed by this audit.
+Status: reproducible visual regression corpus, updated 2026-08-06.
 
 ## Purpose
 
@@ -19,8 +18,9 @@ The chart contains:
 - 128 deterministic RGB swatches spanning the color cube.
 
 Every flat comparison is 800 x 400 with LightTable on the left and Photoshop
-on the right. Amplified differences and numeric metrics are retained per
-region.
+on the right. Amplified and unscaled Difference images plus numeric metrics
+are retained per region. The runner records the maximum-error pixel and
+accepts `--max-rmse`, `--max-delta` and `--max-significant-percent` gates.
 
 ## Reproduce
 
@@ -33,6 +33,19 @@ npm run report:side-by-side-gallery -- D:\Mediavibe\LightTableTests\BlendModes\c
 
 Outputs live at `D:\Mediavibe\LightTableTests\BlendModes`. `report.json`
 contains the region metrics; `ranking.json` is sorted by total RMSE.
+
+The profile/precision extension lives at
+`D:\Mediavibe\LightTableTests\BlendColorMatrix` and is generated with:
+
+```text
+npm run generate:psd-blend-color-matrix
+"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe" -r D:\mediavibe\LightTable\scripts\photoshop-render-blend-color-matrix.jsx
+npm run audit:psd-blend-corpus -- --root D:\Mediavibe\LightTableTests\BlendColorMatrix --max-rmse 3
+```
+
+That gate currently rejects the two Adobe-RGB Hard Mix cases. It must remain
+red until the compositor evaluates binary thresholds in the declared document
+blend profile; a successful run without a numeric gate is diagnostic only.
 
 ## Coverage and semantic result
 

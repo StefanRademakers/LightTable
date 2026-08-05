@@ -42,9 +42,38 @@ Results:
   cases measure RMSE 0.30..0.31;
 - the full 32-case packaged-desktop run passes, with Hard Mix at RMSE 0.07.
 
-These findings apply to the recorded configuration. They are not evidence for
-untested tagged profiles, 16/32-bit Photoshop behavior, proof colors or a
-different `Blend RGB Colors Using Gamma` preference.
+These findings apply to the recorded configuration. A second controlled run
+now covers untagged, tagged sRGB and tagged Adobe RGB in 8 and 16 bits/channel.
+It is not evidence for 32-bit Photoshop behavior, proof colors or a different
+`Blend RGB Colors Using Gamma` preference.
+
+## Controlled profile and precision matrix
+
+The follow-up matrix contains 48 Photoshop-canonical documents: Normal,
+50%-opacity Normal, Multiply, Screen, Overlay, Color, Color Dodge and Hard Mix
+crossed with untagged/sRGB/Adobe RGB and 8/16-bit documents. Photoshop converts
+each reference duplicate to sRGB before PNG export; LightTable is therefore
+compared in the same output encoding.
+
+After bounded PSD ICC-resource parsing and one lazy LittleCMS normalization at
+the import boundary:
+
+- all untagged and tagged-sRGB cases measure RMSE 0.07..0.76;
+- Adobe RGB Normal, opacity, Multiply, Screen, Overlay and Color measure RMSE
+  0.16..0.78;
+- Adobe RGB Color Dodge measures RMSE 1.27 (8-bit) and 2.55 (16-bit);
+- Adobe RGB Hard Mix remains the only structural exception: RMSE 10.27 (8-bit)
+  and 47.47 (16-bit), affecting 0.49% of pixels in the 8-bit chart because its
+  binary threshold is evaluated after normalization rather than in the source
+  document profile;
+- the runner now supports numeric visual gates and writes both an unscaled
+  Difference image and a 4x heatmap with the maximum-error pixel recorded.
+
+The remaining Hard Mix discrepancy must be solved by the generic declared
+document-blend-profile transform. It must not become an Adobe-RGB/Hard-Mix
+special case. Generic ICC/profile-domain GPU support must also preserve
+wide-gamut values; an RGBA8 import intermediate is not sufficient for that
+final contract.
 
 ## Formula contract
 
@@ -184,7 +213,7 @@ and web. No stage is accepted only because its aggregate RMSE improves.
   texture encoding and Grade gamma; do not serialize a legacy switch.
 - [x] Route normal layers, masks, opacity, fill opacity and Layer Styles
   through the same declared contract.
-- [ ] Preserve imported color-profile provenance through native save/reopen.
+- [x] Preserve imported color-profile provenance through native save/reopen.
 
 ### 3. Fused GPU implementation
 
@@ -207,18 +236,21 @@ and web. No stage is accepted only because its aggregate RMSE improves.
 
 ### 5. Controlled color-management matrix
 
-- [ ] Test untagged/assumed-sRGB, tagged sRGB and tagged Adobe RGB.
-- [ ] Test 8- and 16-bit documents; add 32-bit only when the product contract
+- [x] Test untagged/assumed-sRGB, tagged sRGB and tagged Adobe RGB.
+- [x] Test 8- and 16-bit documents; add 32-bit only when the product contract
   supports it rather than simulating parity.
-- [ ] Record Photoshop color settings and relevant RGB blending preference.
-- [ ] Compare in one declared common output encoding with profile conversion
+- [x] Record Photoshop color settings and relevant RGB blending preference.
+- [x] Compare in one declared common output encoding with profile conversion
   kept separate from blend and opacity tests.
 
 ### 6. Product exposure and roundtrip
 
-- [ ] Show profile/mode/bit depth in document status and import/export details.
-- [ ] Add document-level Assign/Convert operations using existing LightTable UI
+- [x] Show profile/mode/bit depth in document status and import details.
+- [ ] Show and apply the target profile in every export path.
+- [x] Add the truthful document-level Assign operation using existing LightTable UI
   components and styling.
+- [ ] Add Convert Profile as an undoable document operation; it remains disabled
+  until it can update semantic colors and high-precision raster content together.
 - [x] Do not expose a compatibility toggle; blend behavior is canonical.
 - [ ] Verify undo/redo, native roundtrip, PSD roundtrip warnings and web
   fallback behavior.
