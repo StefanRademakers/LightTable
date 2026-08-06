@@ -36,8 +36,47 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 30_000 });
   const driver = await attachLightTableAutomation(page, 'command-smoke');
+  const semanticCreate = await driver.executeWorkspace('document.create', {
+    name: 'Command canvas', width: 320, height: 240, resolutionPpi: 144,
+    bitDepth: 16, profile: 'adobe-rgb-1998', background: { kind: 'solid', color: '#112233' }
+  });
+  const semanticDocumentId = semanticCreate.value?.documentId;
+  if (!semanticDocumentId) throw new Error('Semantic document creation returned no stable ID.');
+  const makeImageBytes = async (mediaType) => Buffer.from(await page.evaluate(async (type) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 4; canvas.height = 3;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas 2D is unavailable.');
+    context.fillStyle = '#f40'; context.fillRect(0, 0, 4, 3);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob(
+      (value) => value ? resolve(value) : reject(new Error(`Could not encode ${type}.`)), type, 0.9
+    ));
+    return Array.from(new Uint8Array(await blob.arrayBuffer()));
+  }, mediaType));
+  const placements = [];
+  for (const [mediaType, extension, x] of [
+    ['image/png', 'png', -1], ['image/jpeg', 'jpg', 8], ['image/webp', 'webp', 16]
+  ]) {
+    const artifact = await driver.registerInputArtifact(
+      await makeImageBytes(mediaType), `placed.${extension}`, mediaType
+    );
+    if (!artifact?.id) throw new Error(`${mediaType} artifact registration failed.`);
+    placements.push(await driver.execute(semanticDocumentId, 'layer.placeArtifact', {
+      artifactId: artifact.id, name: `Placed ${extension}`, x, y: 24
+    }));
+  }
+  const placedLayers = await driver.queryLayers(semanticDocumentId);
+  if (placements.some(({ status }) => status !== 'completed') || !placedLayers?.some((layer) => layer.name === 'Placed png'
+    && layer.rasterSurface?.width > 0 && layer.transform?.tx === -1)) {
+    throw new Error('Placed image media, bounds or transform were not preserved.');
+  }
+  const nativeExport = await driver.execute(semanticDocumentId, 'file.exportNative', {}, { requireCompleted: false });
+  const nativeTask = await driver.waitForTask(semanticDocumentId, nativeExport.taskId);
+  const psdExport = await driver.execute(semanticDocumentId, 'file.exportPsd', {}, { requireCompleted: false });
+  const psdTask = await driver.waitForTask(semanticDocumentId, psdExport.taskId);
+  if (!nativeTask.artifact || !psdTask.artifact) throw new Error('Placed document exports did not complete.');
   const workspace = await driver.queryWorkspace();
-  const documentId = workspace?.activeDocumentId;
+  const documentId = workspace?.documents.find(({ title }) => title === path.basename(sourceFile))?.id;
   if (!documentId) throw new Error('No active document.');
   const before = await driver.queryDocument(documentId);
   const layerProjection = await driver.queryLayers(documentId) ?? [];
@@ -81,7 +120,9 @@ try {
     parameters: { layerId: createdId, channel: 'pixels' }, sample: { x: 50, y: 50, pressure: 1 }
   }, [{ x: 90, y: 75, pressure: 0.8 }]);
   const report = {
-    workspace, before, layersBefore: layerProjection.length,
+    workspace, semantic: { create: semanticCreate, placements, layers: placedLayers,
+      exports: { native: nativeTask, psd: psdTask } },
+    before, layersBefore: layerProjection.length,
     results: { zoom, hidden, shown, created, renamed, undone },
     artifactExport: { accepted: pngExport, task: pngTask },
     gestures: { translated, selected, painted },

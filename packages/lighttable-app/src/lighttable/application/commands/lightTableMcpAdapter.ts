@@ -65,8 +65,10 @@ export interface AuthenticatedLightTableMcpAdapterOptions {
 }
 
 const allowedCommands = new Set<LightTableCommandId>([
+  'document.create',
   'view.setZoom',
   'layer.createRaster',
+  'layer.placeArtifact',
   'layer.rename',
   'layer.setVisibility',
   'layer.setFillOpacity',
@@ -192,6 +194,9 @@ export class AuthenticatedLightTableMcpAdapter {
           parameters: isRecord(parameters.commandParameters) ? parameters.commandParameters : {},
           ...(typeof parameters.expectedDocumentRevision === 'number'
             ? { expectedDocumentRevision: parameters.expectedDocumentRevision }
+            : {}),
+          ...(typeof parameters.expectedWorkspaceRevision === 'number'
+            ? { expectedWorkspaceRevision: parameters.expectedWorkspaceRevision }
             : {})
         });
       }

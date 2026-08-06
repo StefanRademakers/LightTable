@@ -36,6 +36,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const tools = await reader.listTools();
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_workspace'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_preview'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_document'));
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
@@ -53,6 +54,12 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
       layerId: 'layer-background', name: 'Renamed by MCP' } } });
   assert.equal(result.isError, undefined);
   assert.equal(result.structuredContent.status, 'completed');
+  const created = await editor.callTool({ name: 'lighttable_create_document', arguments: {
+    name: 'MCP canvas', width: 400, height: 300, resolutionPpi: 144,
+    bitDepth: '16', profile: 'adobe-rgb-1998', backgroundColor: '#112233'
+  } });
+  assert.equal(created.isError, undefined);
+  assert.equal(created.structuredContent.status, 'completed');
 });
 
 test('MCP endpoint advertises protected-resource metadata when unauthenticated', async (context) => {

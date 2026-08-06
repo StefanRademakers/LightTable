@@ -66,6 +66,20 @@ export class LightTableAutomationClient {
     return result;
   }
 
+  executeWorkspace(command, parameters = {}, options = {}) {
+    return this.execute(undefined, command, parameters, options);
+  }
+
+  registerInputArtifact(bytes, name, mediaType) {
+    const encoded = Buffer.from(bytes).toString('base64');
+    return this.page.evaluate(({ encoded, name, mediaType }) => {
+      const binary = atob(encoded);
+      const data = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      const file = new File([data], name, { type: mediaType });
+      return window.__lightTableAutomation?.registerInputArtifact(file) ?? null;
+    }, { encoded, name, mediaType });
+  }
+
   beginGesture(request) {
     return this.page.evaluate((value) => window.__lightTableAutomation?.beginGesture(value) ?? null, request);
   }

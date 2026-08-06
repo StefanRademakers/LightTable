@@ -72,6 +72,28 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     expect(adapter.activity()).toHaveLength(3);
   });
 
+  it('forwards semantic document creation and placement with optimistic revisions', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    await adapter.invoke(request('command.execute', {
+      command: 'document.create', commandRequestId: 'create-1', expectedWorkspaceRevision: 4,
+      commandParameters: { name: 'Agent canvas', width: 400, height: 300, resolutionPpi: 72,
+        bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' } }
+    }));
+    await adapter.invoke(request('command.execute', {
+      command: 'layer.placeArtifact', documentId: 'document-1', commandRequestId: 'place-1',
+      expectedDocumentRevision: 2, commandParameters: { artifactId: 'artifact-1', x: 10, y: 20 }
+    }));
+    expect(driver.execute).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      command: 'document.create', expectedWorkspaceRevision: 4
+    }));
+    expect(driver.execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      command: 'layer.placeArtifact', documentId: 'document-1', expectedDocumentRevision: 2
+    }));
+  });
+
   it('expires and bounds sessions and their activity history', async () => {
     const driver = createDriver();
     const expired = new AuthenticatedLightTableMcpAdapter({

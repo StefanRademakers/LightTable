@@ -56,7 +56,7 @@ const downloadImage = async (value, fetchImpl = fetch, redirects = 0) => {
   return { bytes, mediaType, suggestedName: decodeURIComponent(url.pathname.split('/').at(-1) || 'agent-image') };
 };
 
-const commandIds = ['view.setZoom', 'layer.createRaster', 'layer.rename', 'layer.setVisibility',
+const commandIds = ['view.setZoom', 'layer.createRaster', 'layer.placeArtifact', 'layer.rename', 'layer.setVisibility',
   'layer.setFillOpacity', 'layer.style.setEnabled', 'layer.effect.setEnabled',
   'file.exportNative', 'file.exportPng', 'file.exportPsd', 'history.undo', 'history.redo'];
 
@@ -94,6 +94,22 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     client.invoke('command.execute', { documentId, command,
       commandRequestId: crypto.randomUUID(), commandParameters: parameters,
       ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) }), { edit: true }));
+  server.registerTool('lighttable_create_document', {
+    title: 'Create a LightTable document',
+    description: 'Creates one document with explicit canvas, resolution, bit depth, profile and background semantics.',
+    inputSchema: z.object({
+      name: z.string().min(1).max(255), width: z.number().int().min(1).max(32768),
+      height: z.number().int().min(1).max(32768), resolutionPpi: z.number().int().min(1).max(2400).default(72),
+      bitDepth: z.enum(['8', '16']).default('8'),
+      profile: z.enum(['srgb', 'adobe-rgb-1998']).default('srgb'),
+      backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
+    })
+  }, withResult(({ name, width, height, resolutionPpi, bitDepth, profile, backgroundColor }) =>
+    client.invoke('command.execute', {
+      command: 'document.create', commandRequestId: crypto.randomUUID(),
+      commandParameters: { name, width, height, resolutionPpi, bitDepth: Number(bitDepth), profile,
+        background: backgroundColor ? { kind: 'solid', color: backgroundColor } : { kind: 'transparent' } }
+    }), { edit: true }));
   server.registerTool('lighttable_gesture_begin', {
     title: 'Begin one LightTable gesture', description: 'Begins a bounded document-space brush, selection-rectangle or layer-translate gesture. Finish it to create one undo entry.',
     inputSchema: z.object({ documentId: z.string().min(1),
@@ -113,15 +129,22 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   }, withResult((input) => client.invoke('gesture.finish', input), { edit: true }));
   server.registerTool('lighttable_import_image_url', {
     title: 'Import a generated or reference image',
-    description: 'Downloads one public HTTPS PNG/JPEG/WebP/AVIF (maximum 32 MiB), registers it as a bounded input artifact and opens it in LightTable. Private-network URLs are rejected.',
-    inputSchema: z.object({ url: z.string().url(), name: z.string().min(1).max(255).optional() })
-  }, withResult(async ({ url, name }) => {
+    description: 'Downloads one public HTTPS image (maximum 32 MiB), registers it as a bounded input artifact, then opens it or places PNG/JPEG/WebP into an explicit document. Private-network URLs are rejected.',
+    inputSchema: z.object({ url: z.string().url(), name: z.string().min(1).max(255).optional(),
+      documentId: z.string().min(1).optional(), x: z.number().finite().optional(), y: z.number().finite().optional() })
+  }, withResult(async ({ url, name, documentId, x, y }) => {
     const image = await downloadImage(url, fetchImpl);
     const artifact = await client.uploadArtifact({ bytes: image.bytes,
       name: name ?? image.suggestedName, mediaType: image.mediaType });
-    const opened = await client.invoke('command.execute', { command: 'file.openArtifact',
-      commandRequestId: crypto.randomUUID(), commandParameters: { artifactId: artifact.id } });
-    return { artifact, opened };
+    if (documentId && image.mediaType === 'image/avif') throw new Error('Placed images must be PNG, JPEG or WebP.');
+    const result = await client.invoke('command.execute', {
+      ...(documentId ? { documentId } : {}),
+      command: documentId ? 'layer.placeArtifact' : 'file.openArtifact',
+      commandRequestId: crypto.randomUUID(), commandParameters: {
+        artifactId: artifact.id, ...(name ? { name } : {}), ...(x === undefined ? {} : { x }), ...(y === undefined ? {} : { y })
+      }
+    });
+    return { artifact, result };
   }, { edit: true }));
   server.registerTool('lighttable_preview', {
     title: 'Render a LightTable document preview',
