@@ -1,0 +1,42 @@
+# Task 083 — crash-safe persistence and atomic-save foundation (P0)
+
+Priority: P0. Dependencies: none. Expected effort: 6–10 focused hours.
+
+## Objective
+
+Make supported native saves resilient to interruption and establish one tested
+persistence transaction used by web capabilities and Electron. A failed save
+must never replace the last valid document or mark the session clean.
+
+## Required work
+
+- Inventory every native save entry point, dirty-state transition and host port.
+- Introduce one application-owned save transaction with revision pinning,
+  cancellation and an explicit prepared/write/committed/failed lifecycle.
+- On Electron, write a unique sibling temporary file, flush/close it, validate
+  its container, then atomically replace where the filesystem supports it.
+- Specify and implement safe fallback behavior where atomic replacement is not
+  available; never delete the previous valid file first.
+- Guard late completion after document close, replacement or new edits.
+- Add deterministic fault injection for serialize, write, flush, validate,
+  rename and cancellation phases.
+- Keep Web save behind the same application result contract without pretending
+  browser downloads are atomic filesystem replacement.
+
+## UI exposure
+
+Use the existing status/error system. Show Saving, Saved, Canceled and Failed
+with a copyable phase-specific cause. Do not add a modal for successful saves.
+Dirty state clears only for the exact committed document revision.
+
+## Verification and completion
+
+- Unit-test every injected failure and stale-revision case.
+- Prove the prior file remains byte-valid after every failure.
+- Save/reopen representative raster, text, vector, styled and off-canvas docs.
+- Verify Ctrl/Cmd+S and File > Save in web and packaged Electron.
+- Run boundary, app tests, typechecks and production web/desktop builds.
+- Update persistence/reliability architecture, commit cohesively, move to done.
+
+Do not implement autosave or recovery UI here; Task 084/085 consume this
+transaction.

@@ -1,0 +1,36 @@
+# Task 094 — Layer Style and adjustment parity closure (P1)
+
+Priority: P1. Depends on Task 090. Expected effort: 10–18 focused hours.
+
+## Objective
+
+Improve the highest-value remaining visual differences through generic effect
+and adjustment executors, never document-specific formulas.
+
+## Required work
+
+- Re-run strict effects/contact sheets and rank isolated/stacked failures.
+- Fix bounds expansion, adaptive blur/outline sampling, choke/spread, edge
+  quality, ordering, fill-opacity and blend/profile behavior across zoom.
+- Cover Drop/Inner Shadow, Outer/Inner Glow, Stroke, Bevel/Emboss, Satin,
+  Color/Gradient Overlay and combined stacks currently represented by the model.
+- Calibrate the corpus adjustment priorities (Gradient Map, Photo Filter, Color
+  Balance, Hue/Saturation, Brightness/Contrast) from isolated Photoshop oracles.
+- Keep interactive preview bounded and pointer-up final quality; cache keys must
+  include every semantic dependency and never overcrop feathers/shadows.
+- Preserve imported descriptors and fail/report when exact mapping is absent.
+
+## UI exposure
+
+Generate regular inspector sections from shared controls/tokens. Common values
+stay visible; Photoshop-only compatibility values remain under Advanced.
+Checkbox toggles effect, trailing remove action deletes it.
+
+## Verification and completion
+
+- Parameter sweeps at small/large values, 100/200/800% zoom, masks/groups/text/
+  vectors and stacked effects with raw Difference/heatmaps.
+- Compare identical parameters/blend modes/profiles in Photoshop and LightTable.
+- Interaction audit proves responsive controls on EHS-396-class documents.
+- Run strict corpora, parity profile, builds, docs, focused commits; move only
+  when remaining review cases are quantified and no regression is hidden.

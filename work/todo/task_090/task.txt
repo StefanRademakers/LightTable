@@ -1,0 +1,37 @@
+# Task 090 — layered interchange release matrix (P1)
+
+Priority: P1. Depends on Tasks 083–085. Expected effort: 6–10 focused hours.
+
+## Objective
+
+Turn the advertised layered-design workflow into one capability matrix covering
+create, import, edit, undo, native save/reopen, PSD export/reopen and visual
+parity. Detect gaps before adding format-specific fixes.
+
+## Required work
+
+- Generate inventory from canonical layer/model registries rather than a fixed
+  handwritten feature list.
+- Cover raster/group/off-canvas, masks/clipping, blends/fill opacity, text,
+  vectors/gradients, styles, adjustments and retained unsupported previews.
+- Assign each cell supported/partial/preserved/unavailable with an executable
+  fixture or explicit reason.
+- Exercise both LightTable → Photoshop → LightTable and Photoshop → LightTable
+  → Photoshop for the verified subset.
+- Keep solo and contextual renders where masks, clipping, groups or effects
+  make isolated layers misleading.
+- Fail on silent semantic loss, stale preview use or zero-pixel comparisons.
+
+## UI exposure
+
+Feed truthful compatibility/recovery summaries to the existing import report;
+do not expose internal test terminology in normal tool panels.
+
+## Verification and completion
+
+- Run focused fixtures, 48-case color/blend, 40-case effects and ten-template
+  corpus with settled-frame capture.
+- Produce machine-readable matrix and compact durable architecture summary.
+- Do not implement unrelated missing features in this audit; create evidence
+  for Tasks 091–093.
+- Run parity profile, commit the matrix/harness separately and move to done.

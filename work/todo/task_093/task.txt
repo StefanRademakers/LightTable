@@ -1,0 +1,35 @@
+# Task 093 — selections, masks and painting end-to-end workflow (P1)
+
+Priority: P1. Depends on Task 090. Expected effort: 10–16 focused hours.
+
+## Objective
+
+Make the common select → mask/paint → transform → save workflow complete,
+fast and semantically consistent for raster and vector-backed layers.
+
+## Required work
+
+- Audit rectangle/ellipse/row/column/lasso families and new/add/subtract/
+  intersect, feather, antialias and off-canvas behavior.
+- Separate raster mask, vector mask and active edit target; do not collapse two
+  Photoshop masks into one slot.
+- Ensure selection ants/caret/gizmos remain overlay-only and dirty no document
+  composite; animate with bounded presentation submissions.
+- Paint/erase/fill on raster layers created after PNG/PSD/PDF open, including
+  selection coverage, transparency lock, pressure and mask targets.
+- One completed brush gesture creates one undo entry at pointer-up and uses
+  dirty-tile history.
+- Save/reopen, merge/rasterize and PSD projection retain/report semantics.
+
+## UI exposure
+
+Reuse current toolbar flyouts, options-bar controls, mask thumbnails/borders and
+Layers actions. Clearly distinguish multi-selected layers from active mask/layer.
+
+## Verification and completion
+
+- Packaged smokes for every implemented selection family and paint target.
+- Overlay-only telemetry: zero composite submissions during ants/caret changes.
+- Visual fixtures for feather/edges/transforms and PSD mask roundtrip.
+- Stress gestures for latency, undo bytes and stable-tail GPU/heap behavior.
+- Run full affected gates, update contracts, commit and move.

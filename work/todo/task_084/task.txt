@@ -1,0 +1,41 @@
+# Task 084 — bounded autosave recovery journal (P0)
+
+Priority: P0. Depends on Task 083. Expected effort: 8–12 focused hours.
+
+## Objective
+
+Persist recoverable canonical edits without serializing GPU caches or blocking
+interaction. Journals must be bounded, private, versioned and provably unable
+to corrupt normal save/open behavior.
+
+## Required work
+
+- Define a versioned recovery record: document/session identity, source
+  fingerprint, canonical revision, save-state ID, manifest/assets and checksum.
+- Choose snapshot-plus-bounded-delta or snapshot-only behavior from measured
+  serialization/write cost; document the decision.
+- Schedule only after semantic commits with debounce/max-delay and newest-work
+  supersession. No pointer-move, viewport, overlay or background timer churn.
+- Store per-installation recovery data in a host capability; browser storage
+  must use quota/error reporting and Electron must use private app data.
+- Encrypt or avoid sensitive metadata where platform facilities permit; never
+  upload journals.
+- Bound document count, age and bytes with deterministic pruning.
+- Delete or supersede records only after a verified native save or explicit
+  discard; retain them after crashes and failed saves.
+- Isolate malformed/old records and expose migration/rejection reasons.
+
+## UI exposure
+
+Add only a subtle recoverability/status indicator to the existing document
+status surface. The recovery chooser belongs to Task 085.
+
+## Verification and completion
+
+- Fake-clock and fault-injection tests for debounce, supersession, quota,
+  pruning, corrupt records, close and crash-like termination.
+- Measure serialization time, main-thread long tasks, journal size and idle
+  writes on small and EHS-396-class documents.
+- Prove inactive unchanged documents perform no recurring work.
+- Run shared typechecks/tests and production builds; update architecture,
+  commit independently and move to done.

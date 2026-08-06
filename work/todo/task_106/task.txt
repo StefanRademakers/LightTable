@@ -1,0 +1,43 @@
+# Task 106 — production MCP service and prompt-to-design release candidate (P3)
+
+Priority: P3. Depends on Tasks 099, 104–105. Expected effort: 12–20 focused hours.
+
+## Objective
+
+Deliver the first release-candidate server-backed agent workflow that creates a
+real layered design and survives native/PSD roundtrip, with production-minded
+authorization, isolation and observability.
+
+## Required work
+
+- Replace the prototype in-memory OAuth state behind an interface with durable
+  transactional storage suitable for one server process; add migrations,
+  encrypted secrets, expiry/pruning and restart tests.
+- Add tenant/user/device/client isolation, centralized rate/size/concurrency
+  limits, CSRF/session protections and privacy-safe audit retention.
+- Package health/readiness, graceful shutdown, structured redacted logs,
+  deployment config validation and backup/restore instructions.
+- Expose the completed document/asset/text/vector/gradient/style/batch commands
+  as compact MCP tools with capability discovery; do not expose arbitrary
+  internal JSON mutation.
+- Build one deterministic scenario: create 1080×1350 document, place asset,
+  add styled point/paragraph text, gradient shape and drop shadow, align layers,
+  preview, revise, undo/redo, native save and PSD export.
+- Reopen the PSD in Photoshop and LightTable; verify editable layer types,
+  parameters, transforms, visual difference and no silent fallback.
+
+## UI exposure
+
+Agent Access activity shows the named design transaction, bounded progress,
+approvals, cancel, result preview/export and one-step Undo Agent Action.
+
+## Verification and completion
+
+- Protocol/security/restart/multi-tenant tests and hostile-input fuzz bounds.
+- MCP → tunnel → normal packaged Electron → GPU → native/PSD end-to-end smoke.
+- Long reconnect/command soak: zero unauthorized cross-talk, orphan processes,
+  runtime stops, monotonic retention or partial committed batches.
+- Deployment documentation for Hetzner/systemd/TLS with secrets supplied only
+  through environment/secret store.
+- Run full quality/parity profiles, document measured limitations, commit
+  cohesive implementation slices and move only at release-candidate quality.

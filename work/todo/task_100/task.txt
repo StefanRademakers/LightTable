@@ -1,0 +1,38 @@
+# Task 100 — unified Layers tree and property-control language (P2)
+
+Priority: P2. Depends on P1 canonical properties. Expected effort: 10–16 hours.
+
+## Objective
+
+Make Layers, Grade, Lens Fx, Text, shapes and Layer Styles feel like one product
+without hiding compatibility semantics or introducing custom controls.
+
+## Required work
+
+- Inventory every row, thumbnail, indent, disclosure, visibility, selection,
+  active target, mask and effect state; define one tokenized Layers geometry.
+- Square bounded thumbnail cells contain evaluated aspect/transforms; content
+  never changes row width or escapes during scaling.
+- Distinguish active layer/target, multi-selected rows and hover using accessible
+  tokens; only present effects/masks appear in the tree.
+- Inventory dropdowns, numbers/spinners, checkboxes, switches, sliders, color/
+  gradient widgets, angle controls and Advanced disclosures.
+- Consolidate shared primitives and spacing first; remove feature-local visual
+  lookalikes only after behavior parity tests.
+- Preserve Photoshop-compatible shortcuts/semantics while using the simpler
+  Pixelmator-like disclosure policy: common controls first, compatibility under
+  Advanced.
+
+## UI exposure
+
+Apply incrementally to Layers and Drop Shadow first, then Text/Shape/Gradient
+and remaining effects/panels. No new design language or modal property editor.
+
+## Verification and completion
+
+- Screenshot matrix at supported panel widths, scaling, long names, nesting,
+  masks/effects and 100/200% OS scale.
+- Keyboard/focus/contrast plus large-stack scrolling/performance.
+- Existing tool/property/effect semantic tests remain unchanged and green.
+- Run UI smokes, quick/desktop builds, update design-system docs, commit coherent
+  component slices and move after full inventory reconciliation.

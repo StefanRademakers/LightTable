@@ -1,0 +1,36 @@
+# Task 105 — server pairing, outbound tunnel and Agent Access UI (P3)
+
+Priority: P3. Depends on Task 104. Expected effort: 10–16 focused hours.
+
+## Objective
+
+Connect a desktop installation outbound to the authenticated MCP server without
+opening a public desktop port, with understandable pairing and revocation.
+
+## Required work
+
+- Define device registration, one-time pairing, server identity pinning,
+  short-lived session credentials, rotation, reconnect/backoff and revocation.
+- Implement a transport interface supporting the current reverse SSH trial and
+  a production outbound WebSocket/secure-tunnel adapter without coupling editor
+  commands to transport.
+- Reject insecure production URLs, certificate mismatch, replay, expired codes
+  and cross-device routing. Never log secrets.
+- Model offline/degraded/connecting/connected/revoked states and bounded event
+  history; closing a tunnel does not mutate or close documents.
+- Add per-client read/edit permissions and explicit approval for new clients.
+
+## UI exposure
+
+Agent Access shows server URL, Pair, code/QR if appropriate, connection state,
+connected clients/scopes, last activity, Revoke and reconnect/error guidance.
+Use shared controls and accessible status—not a developer console.
+
+## Verification and completion
+
+- Local TLS/integration harness simulates server, disconnects, rotation,
+  multiple clients, revocation and hostile messages without real credentials.
+- Real Hetzner deployment remains a documented optional smoke when credentials
+  exist; lack of credentials is not allowed to hide local failures.
+- No public listener, secret leakage or edits after revoke.
+- Package/security/MCP tests, docs, commit and move.

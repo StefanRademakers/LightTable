@@ -1,0 +1,36 @@
+# Task 085 — recovery and session-restore UX (P0)
+
+Priority: P0. Depends on Tasks 083–084. Expected effort: 5–8 focused hours.
+
+## Objective
+
+Turn verified recovery records into a clear startup workflow without silently
+overwriting originals or reopening broken documents in a crash loop.
+
+## Required work
+
+- Detect recoverable sessions before ordinary recent-file restoration.
+- Present file name, last edit time, source path/type and recoverable revision.
+- Support Preview/Open recovered copy, Discard and Later; recovered work opens
+  dirty and Save As until the user deliberately replaces a source.
+- Restore multiple documents and active-tab order without activating every GPU
+  renderer concurrently.
+- Record a crash-loop/safe-mode marker and isolate the failing document while
+  allowing other documents to open.
+- Reconcile missing source files, moved files, malformed journals and newer
+  successfully saved documents explicitly.
+
+## UI exposure
+
+Use existing start-page cards, menus, buttons and tokens. Add a Recoverable
+work section only when records exist and an in-editor recovery banner only for
+the recovered copy. No custom dialog styling.
+
+## Verification and completion
+
+- Packaged Electron smoke: edit without save, force termination, restart,
+  preview/recover, save, reopen and verify canonical equality.
+- Multi-document and corrupt-record fixtures; no repeated crash loop.
+- Keyboard/focus/accessibility checks for the recovery UI.
+- Web behavior must be honest when durable restoration is unavailable.
+- Run quality quick plus focused packaged smoke, update docs, commit and move.

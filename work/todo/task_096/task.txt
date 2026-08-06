@@ -1,0 +1,33 @@
+# Task 096 — semantic document creation and asset placement commands (P1/P3)
+
+Priority: P1 foundation for P3. Depends on persistence foundation. Expected
+effort: 5–8 focused hours.
+
+## Objective
+
+Expose document creation and asset placement through the shared application
+command service so UI, automation and MCP consume identical behavior.
+
+## Required work
+
+- Add create document with explicit dimensions, resolution, profile, bit depth
+  policy, transparent/solid background and stable session ID.
+- Add place registered artifact into an existing document as an editable layer
+  with deterministic naming, placement, local bounds and transform.
+- Validate dimensions/bytes/media types and expected workspace/document revision.
+- Ensure command capability queries explain unavailable inputs.
+- One accepted command produces one history/workspace transition; cancellation
+  and decode failure publish no partial document/layer.
+- Extend the transport-neutral MCP adapter only after the command contract passes.
+
+## UI exposure
+
+Wire File > New and Place through these same commands using existing dialogs
+and controls. Do not create an automation-only document schema.
+
+## Verification and completion
+
+- Unit/contract/history tests, web and Electron New/Place smokes.
+- MCP protocol-to-desktop test creates a document and places PNG/JPEG/WebP.
+- Native save/reopen and PSD export preserve placed layer bounds/transform.
+- Security/resource bounds, typechecks/builds/docs pass; commit and move.

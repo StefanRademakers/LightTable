@@ -260,6 +260,14 @@ and make “unsupported but preserved” a trust feature.
 - verify one complete prompt-to-editable-design flow through MCP, native save
   and Photoshop PSD roundtrip before expanding the agent tool surface.
 
+The executable backlog is decomposed under `work/todo/`: P0 Tasks 083–089, P1
+Tasks 090–099, P2 Tasks 100–103 and P3 Tasks 104–106. The complete queue is
+roughly 174–286 focused engineering hours, deliberately enough for repeated
+unattended runs rather than a single superficial pass. Execute in numeric order
+unless an earlier task records a genuine blocker; each task owns its UI
+exposure, measurable verification, architecture update, focused commit and
+move to `work/done/`.
+
 Deep painting, Smart Object authoring, broad PDF object editing, animation, 3D,
 plugin marketplace and generative breadth come after the core release gates.
 

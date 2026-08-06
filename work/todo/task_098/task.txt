@@ -1,0 +1,34 @@
+# Task 098 — semantic vector, gradient and Layer Style commands (P1/P3)
+
+Priority: P1 foundation for P3. Depends on Tasks 092 and 096. Expected effort:
+8–12 focused hours.
+
+## Objective
+
+Expose canonical shapes, paths, fills, strokes, gradients and Layer Styles to
+UI/automation/MCP without duplicating geometry or effect models.
+
+## Required work
+
+- Typed create/update commands for primitives and bounded path commands,
+  transform, fill/no-fill, stroke/no-stroke, gradient asset/stops and opacity.
+- Add/update/remove/reorder/toggle supported Layer Style effects with validated
+  settings and effect IDs.
+- Reuse shared gradient assets and property controls; bound points/stops/effects
+  and reject non-finite/out-of-policy payloads.
+- Expected revision and capability reporting on every mutation.
+- One semantic mutation/transaction has deterministic undo and derived-cache
+  invalidation; no direct GPU or React state access.
+
+## UI exposure
+
+Route Shape/Gradient property bars and Layer Style panel through the same
+commands where practical, preserving high-frequency preview controllers.
+
+## Verification and completion
+
+- Create/edit/undo/save/reopen/PSD for rectangle, ellipse, star, line, compound
+  path, solid/gradient fill, strokes and each supported effect.
+- MCP-generated and UI-generated canonical snapshots/pixels must match.
+- Bounds, malformed-input, performance and cache invalidation tests.
+- Run vector/gradient/effects/MCP/parity gates and builds; docs, commit, move.

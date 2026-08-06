@@ -1,0 +1,37 @@
+# Task 091 — missing-font recovery and replacement workflow (P1)
+
+Priority: P1. Depends on Task 090. Expected effort: 6–10 focused hours.
+
+## Objective
+
+Let imported and native text with missing fonts become safely editable through
+explicit replacement while preserving original family/style metadata and visual
+fallback until the user commits.
+
+## Required work
+
+- Model exact, substituted and missing resolution per run with stable source
+  identity; never mutate source metadata during passive discovery.
+- Add Replace for selected layer/document and Manage document fonts operations.
+- Match by family/face/style/weight/stretch; report substitutions and metrics
+  changes. System-font bytes remain lazy and desktop-only capability data.
+- Preview replacement without invalidating the retained source bitmap; commit
+  once through history and regenerate exact text realization.
+- Persist replacement choices and original provenance in native format; map
+  supported results back to editable PSD text.
+- Bound documents with many faces and eliminate the former 256-face creation
+  failure by resolving only fonts actually required by visible/edited text.
+
+## UI exposure
+
+Use the Text panel, layer warning badge and a standard recovery dialog with
+Replace, Manage and Cancel. Reuse the searchable font picker and existing
+controls; no custom dropdowns/swatches.
+
+## Verification and completion
+
+- Fixtures: missing family, missing face, mixed runs, system font, variable
+  font, reopen on machine without the replacement and cancel/undo/redo.
+- Measure first edit, memory, font bytes loaded and shaping latency.
+- Photoshop roundtrip confirms editable type after accepted replacement.
+- Run text smoke, PSD roundtrip, quick/desktop gates, docs, commit and move.

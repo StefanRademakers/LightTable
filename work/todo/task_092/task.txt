@@ -1,0 +1,36 @@
+# Task 092 — complete shape, vector stroke and gradient authoring (P1)
+
+Priority: P1. Depends on Task 090. Expected effort: 10–16 focused hours.
+
+## Objective
+
+Make imported and native shapes/gradients reliably editable with one canonical
+path/paint/stroke model and Photoshop-compatible export.
+
+## Required work
+
+- Close corpus gaps for compound/open paths, fill/no-fill, stroke/no-stroke,
+  solid/gradient paint, caps, joins, miter, alignment, opacity and transforms.
+- Use connected stroke tessellation with adaptive quality; no per-segment quads
+  or zoom-dependent cracks/spikes.
+- Ensure choosing a color implies enabling the corresponding fill/stroke intent.
+- Preserve layer-local geometry and off-canvas bounds; transforms/pivots remain
+  industry-aligned and thumbnails use evaluated scene transforms.
+- Reuse one gradient asset/stop editor across tool, shape, text and effects.
+- Rasterize/merge evaluates the compositor once and remains undoable.
+- PSD import/export must stop or report unsupported paints instead of flattening
+  silently.
+
+## UI exposure
+
+Use the existing Shape property bar: normal checkboxes, shared color widgets,
+number spinners and gradient editor. Advanced caps/joins/alignment stay compact
+and consistent with existing panels.
+
+## Verification and completion
+
+- `D:\shapes.psd`, native fixtures and extreme 1/10/50/200 px strokes at
+  multiple zooms; inspect raw and difference images.
+- Edit/undo/save/reopen/PSD/Photoshop roundtrip for every supported property.
+- Measure interactive/final frame time and cache bytes; no visual regression.
+- Run vector/shape smokes, parity and builds, update docs, commit/move.

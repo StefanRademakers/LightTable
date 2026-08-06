@@ -1,0 +1,37 @@
+# Task 086 — desktop release, update and signing boundary (P0)
+
+Priority: P0. Depends on Task 083. Expected effort: 6–10 focused hours.
+
+## Objective
+
+Produce a repeatable release-candidate desktop artifact with truthful version,
+channel, update and signature verification boundaries. No production secret is
+required for local verification.
+
+## Required work
+
+- Inventory Forge/package outputs, bundled runtime assets and host permissions.
+- Define dev/preview/stable channels, semantic version source and build metadata.
+- Add deterministic installer/package verification and clean-machine smoke.
+- Introduce a signing/notarization capability boundary with unsigned local test
+  mode; never commit certificates, tokens or provider credentials.
+- Define a signed update manifest and verify signature/hash before offering an
+  update. A failed check must leave the running installation untouched.
+- Add rollback/version compatibility rules for native documents and recovery
+  records; do not promise old alpha compatibility.
+- Produce an SBOM/notices artifact from the existing generated inventory.
+
+## UI exposure
+
+Use About/Update surfaces built from existing controls: version, channel,
+Check for updates, downloaded state, release notes and explicit restart action.
+Never force restart while documents are dirty.
+
+## Verification and completion
+
+- Package, install/unpack and launch in a clean temporary user-data directory.
+- Test valid, tampered, older, unavailable and canceled update manifests.
+- Distribution boundary, licenses, CSP and ordinary open/save smoke pass.
+- Document external production signing steps as unavailable until credentials
+  exist; local signature-verification tests must still pass.
+- Commit one cohesive release boundary and move to done.

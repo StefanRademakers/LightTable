@@ -1,0 +1,33 @@
+# Task 102 — resources, workspaces and truthful recents (P2)
+
+Priority: P2. Dependencies: shared UI from Task 100. Expected effort: 8–12 hours.
+
+## Objective
+
+Make repeated daily use coherent: searchable resources, stable workspace layout
+and real newest-first recent documents across native and imported formats.
+
+## Required work
+
+- Create one searchable resource browser contract for fonts, gradients, brushes,
+  patterns and future assets; providers remain lazy and paged.
+- Persist dock layout, panel visibility/size and selected workspace preset with
+  versioned validation and reset; never serialize document/runtime state there.
+- Make recent entries authoritative in the desktop host: successful open/save,
+  native LightTable files included, deduplicated by stable path identity and
+  ordered newest first.
+- Generate bounded square thumbnail areas with contained aspect ratio and lazy
+  refresh; missing/moved files remain actionable without crashes.
+- Bound recents/resource caches and keep private paths out of web telemetry.
+
+## UI exposure
+
+Use existing start page, menus, dock panels, search fields and resource controls.
+Add workspace Save/Reset only where it does not clutter the editor.
+
+## Verification and completion
+
+- Restart/reopen, moved/deleted/renamed files, mixed formats and 100+ recents.
+- Workspace migration/corruption/multi-monitor bounds and keyboard tests.
+- Resource search latency/memory with many system fonts; no eager font bytes.
+- Web fallback, packaged desktop smoke, builds/docs, commit and move.

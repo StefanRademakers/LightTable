@@ -1,0 +1,37 @@
+# Task 097 — semantic text commands for UI and MCP (P1/P3)
+
+Priority: P1 foundation for P3. Depends on Tasks 091 and 096. Expected effort:
+6–10 focused hours.
+
+## Objective
+
+Create and edit point/paragraph text through typed commands while retaining the
+same WYSIWYG editor, font resolution, history and rendering path as the Type Tool.
+
+## Required work
+
+- Commands for create point/paragraph, set content/frame/transform, replace
+  ranges, set run font/size/fill/stroke/tracking/style and paragraph alignment/
+  leading/indents.
+- Unicode-safe ranges and revision preconditions; report missing/substituted
+  fonts before destructive replacement.
+- Batch related properties without intermediate worker backlog or visible stale
+  publications; exact settled shaping remains authoritative.
+- Reuse Type Tool document commands and text model—no MCP-specific runs/layout.
+- Query compact editable text properties without returning entire font bytes or
+  unbounded content.
+
+## UI exposure
+
+Refactor existing Type Tool/Text panel handlers to dispatch these commands;
+WYSIWYG typing remains optimized locally and commits through the same semantic
+operation. Existing controls and searchable font picker remain authoritative.
+
+## Verification and completion
+
+- Mixed runs, Unicode/RTL/vertical/paragraph, transformed text, missing fonts,
+  undo/redo and concurrent revision rejection.
+- MCP creates/edits text, GPU preview matches UI-created fixture, native and PSD
+  roundtrips stay editable.
+- Measure command-to-preview/final latency and worker backpressure.
+- Run text/type/MCP/PSD gates and builds, update docs, commit/move.

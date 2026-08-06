@@ -1,0 +1,35 @@
+# Task 099 — atomic command batches, progress and event delivery (P1/P3)
+
+Priority: P1 foundation for P3. Depends on Tasks 096–098. Expected effort:
+6–10 focused hours.
+
+## Objective
+
+Let an agent build one logical design step from multiple commands with atomic
+revision checking, one undo entry, cancellation and observable progress.
+
+## Required work
+
+- Define bounded batch request with one document/workspace precondition,
+  ordered commands, maximum operations/bytes/time and deterministic result IDs.
+- Validate the complete batch before mutation where possible; on failure/cancel,
+  restore exact prior canonical state and release derived resources.
+- Commit successful batch as one named undo entry while preserving internal
+  command diagnostics.
+- Add task/event cursor for queued/running/progress/completed/failed/canceled,
+  with bounded retention and reconnect-safe polling/stream semantics.
+- Supersede stale preview work and prohibit partially visible intermediate
+  documents from becoming exportable.
+
+## UI exposure
+
+Show agent operation name, progress, cancel and final undo label in the Agent
+Access/activity surface; normal History remains authoritative.
+
+## Verification and completion
+
+- Failure at every command position, cancel, timeout, stale revision, reconnect,
+  undo/redo and document-close tests.
+- One MCP batch creates a layered mini-design and one undo restores baseline.
+- Measure publication/render count to prevent N-command recomposition storms.
+- Run command/MCP/desktop/quality gates, update contracts, commit and move.

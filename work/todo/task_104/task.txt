@@ -1,0 +1,35 @@
+# Task 104 — embedded desktop Agent Access bridge (P3)
+
+Priority: P3. Depends on Tasks 096–099. Expected effort: 8–12 focused hours.
+
+## Objective
+
+Replace the test script that launches a separate automation instance with a
+product-owned, opt-in bridge controlling the user's normal open LightTable app.
+
+## Required work
+
+- Move bridge lifecycle behind an Electron host capability/main-process owner;
+  renderer exposes only the typed automation driver when explicitly enabled.
+- Bind loopback only, allocate/configure port safely and require a rotating
+  high-entropy device token stored through platform credential capability.
+- Start/stop/restart without reopening LightTable or losing documents; close
+  listeners/sockets deterministically on disable/app quit.
+- Reject origins/methods/body sizes outside the bridge contract; retain timing-
+  safe auth and bounded artifact storage.
+- Support status, version/capabilities and health without exposing documents to
+  unauthenticated callers.
+- Keep development Playwright automation isolated from production enablement.
+
+## UI exposure
+
+Add Settings/Agent Access enable toggle, local status, port/device identity,
+Rotate credentials and Stop. Default is off with clear local-access wording.
+
+## Verification and completion
+
+- Packaged app enable → connect → edit existing document → disable; no second
+  Electron instance and no orphan server/process.
+- Port conflict, invalid token, restart, crash and document switch tests.
+- Security/boundary/distribution tests and web build remain green.
+- Update MCP topology docs, commit and move.

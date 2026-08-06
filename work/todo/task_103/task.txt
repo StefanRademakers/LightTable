@@ -1,0 +1,34 @@
+# Task 103 — first-run onboarding and compatibility proof (P2)
+
+Priority: P2. Depends on Tasks 090, 100–102. Expected effort: 5–8 focused hours.
+
+## Objective
+
+Get a new user from launch to a successful layered edit/export without knowing
+LightTable architecture, while demonstrating the Photoshop/Pixelmator hybrid.
+
+## Required work
+
+- Define the minimum first session: open sample/own file, select a layer, edit
+  Grade or text/shape, undo, quick export and PSD export/preflight.
+- Add an optional non-blocking guided sample that uses real commands and can be
+  dismissed/reset; no separate demo renderer/document model.
+- Explain local-first processing, supported formats and “unsupported but
+  preserved” in product language.
+- Surface Photoshop shortcut compatibility and searchable command help.
+- Add empty/loading/error states for start page, no document, no layer and
+  unsupported export.
+- Instrument local opt-in funnel events through a capability boundary; the app
+  works fully with telemetry absent.
+
+## UI exposure
+
+Reuse start page, contextual tips, Help menu and existing panels. Avoid a modal
+tour that obscures the canvas or returns on every update.
+
+## Verification and completion
+
+- Fresh-profile packaged journey at common window sizes and keyboard-only.
+- Every step asserts a real semantic state/result and never depends on timing.
+- Privacy/offline test proves no network requirement.
+- User-facing copy review, accessibility, quick/desktop gates, docs, commit/move.
