@@ -21,7 +21,9 @@ import {
 
 export interface ToolPipelineBundle {
   brush: GPURenderPipeline;
+  brushPreserveTransparency: GPURenderPipeline;
   erase: GPURenderPipeline;
+  erasePreserveTransparency: GPURenderPipeline;
   maskBrush: GPURenderPipeline;
   maskErase: GPURenderPipeline;
   fillColor: GPURenderPipeline;
@@ -96,10 +98,24 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
       { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
     ),
+    brushPreserveTransparency: brushPipeline(
+      'LightTable round brush with transparency lock',
+      // Premultiplied result: paint * coverage * destination alpha plus the
+      // existing color outside coverage. Destination alpha remains exact.
+      { srcFactor: 'dst-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
+    ),
     erase: brushPipeline(
       'LightTable round eraser',
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+    ),
+    erasePreserveTransparency: brushPipeline(
+      'LightTable round eraser with transparency lock',
+      // Erasing is an alpha mutation. Lock Transparent Pixels therefore
+      // makes the eraser an exact no-op for both color and alpha.
+      { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+      { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
     ),
     maskBrush: brushPipeline(
       'LightTable round mask brush',

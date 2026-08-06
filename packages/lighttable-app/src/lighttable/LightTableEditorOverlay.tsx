@@ -2769,7 +2769,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       finishGesture: (kind, pointerId, commit) =>
         finishAutomationGestureRef.current(kind, pointerId, commit),
       undo: applyUndoEditor,
-      redo: applyRedoEditor
+      redo: applyRedoEditor,
+      queryRenderTelemetry: () => engineRef.current?.renderTelemetrySnapshot() ?? null,
+      resetRenderTelemetry: () => engineRef.current?.resetRenderTelemetry()
     });
   }, [
     applyActualZoom,

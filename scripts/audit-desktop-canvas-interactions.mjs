@@ -151,6 +151,39 @@ try {
   const rectangularEnd = point(0.29, 0.31);
   await selectFamilyTool('Rectangular selection (M)');
   await measure('selection-rectangle', () => drag(rectangular, rectangularEnd));
+  if (!await driver.resetRenderTelemetry(documentId)) {
+    throw new Error('Render telemetry could not be reset for the selection overlay audit.');
+  }
+  await page.waitForTimeout(1_100);
+  report.selectionOverlayTelemetry = await driver.queryRenderTelemetry(documentId);
+  if (!report.selectionOverlayTelemetry
+    || report.selectionOverlayTelemetry.submittedFrames < 1
+    || report.selectionOverlayTelemetry.stages['document-composite'].executions !== 0
+    || report.selectionOverlayTelemetry.correctionFrames !== 0) {
+    throw new Error(`Selection ants dirtied document composition: ${JSON.stringify(
+      report.selectionOverlayTelemetry
+    )}`);
+  }
+
+  const selectionModes = page.getByRole('radiogroup', { name: 'Selection combine mode' });
+  await selectionModes.getByRole('radio', { name: 'Add to selection' }).click();
+  await measure('selection-add', () => drag(point(0.25, 0.24), point(0.38, 0.37), 8));
+  await selectionModes.getByRole('radio', { name: 'Subtract from selection' }).click();
+  await measure('selection-subtract', () => drag(point(0.27, 0.26), point(0.31, 0.30), 8));
+  await selectionModes.getByRole('radio', { name: 'Intersect with selection' }).click();
+  await measure('selection-intersect', () => drag(point(0.20, 0.20), point(0.34, 0.34), 8));
+  await selectionModes.getByRole('radio', { name: 'New selection' }).click();
+  await measure('selection-off-canvas', () => drag(
+    { x: documentBounds.x - 20, y: documentBounds.y - 15 },
+    point(0.12, 0.14),
+    8
+  ));
+  await page.keyboard.press('Shift+F6');
+  const featherDialog = page.getByRole('dialog', { name: 'Select feather' });
+  await featherDialog.waitFor({ state: 'visible' });
+  await featherDialog.getByRole('textbox').fill('12');
+  await featherDialog.getByRole('button', { name: /ok|confirm/i }).click();
+  await settleFrame();
   await page.keyboard.press('Control+d');
 
   await selectFamilyTool('Elliptical selection (Shift+M)');

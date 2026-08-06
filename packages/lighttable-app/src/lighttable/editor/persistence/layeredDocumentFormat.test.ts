@@ -1137,6 +1137,54 @@ describe('LightTable layered PNG format', () => {
     });
   });
 
+  it('round-trips an editable raster mask independently from preserved Photoshop vector-mask semantics', async () => {
+    const source = createImageDocument('Independent masks', 2, 2, 'source');
+    const layerId = source.layers[0].id;
+    const masked = addLayerMask(source, layerId);
+    const document = {
+      ...masked,
+      layers: masked.layers.map((layer) => layer.id !== layerId ? layer : ({
+        ...layer,
+        photoshop: {
+          sourceKind: 'raster' as const,
+          sourceBlendMode: 'normal',
+          bounds: { x: 0, y: 0, width: 2, height: 2 },
+          mask: { defaultColor: 255, density: 1, feather: 0 },
+          effects: null,
+          adjustment: null,
+          preserved: {
+            text: null,
+            placedLayer: null,
+            vectorFill: null,
+            vectorMask: { paths: [{ operation: 'combine', knots: [] }] },
+            vectorStroke: null,
+            realMask: null
+          }
+        }
+      }))
+    };
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: new Blob([OVERLAY_PNG], { type: 'image/png' })
+      }],
+      'independent-masks.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const reopened = parsed?.document.layers[0];
+
+    expect(reopened?.mask).not.toBeNull();
+    expect(reopened?.photoshop?.preserved.vectorMask).toEqual({
+      paths: [{ operation: 'combine', knots: [] }]
+    });
+    expect(parsed?.assets[0]?.mask?.size).toBeGreaterThan(0);
+  });
+
   it('treats a regular PNG as a non-layered image', async () => {
     expect(await parseLayeredDocumentFile(new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }))).toBeNull();
   });

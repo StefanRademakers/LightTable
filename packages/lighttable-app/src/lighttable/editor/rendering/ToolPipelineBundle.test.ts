@@ -15,8 +15,25 @@ describe('toolPipelinesFor', () => {
     const second = toolPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(22);
-    expect(Object.keys(first)).toHaveLength(22);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(24);
+    expect(Object.keys(first)).toHaveLength(24);
+    const calls = createRenderPipeline.mock.calls as unknown as [GPURenderPipelineDescriptor][];
+    const descriptor = (label: string) => calls
+      .map(([value]) => value)
+      .find((value) => value.label === label)!;
+    const blend = (label: string) => Array.from(descriptor(label).fragment?.targets ?? [])[0]?.blend;
+    expect(blend('LightTable round brush with transparency lock')).toEqual({
+        color: {
+          srcFactor: 'dst-alpha',
+          dstFactor: 'one-minus-src-alpha',
+          operation: 'add'
+        },
+        alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
+      });
+    expect(blend('LightTable round eraser with transparency lock')).toEqual({
+        color: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
+        alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
+      });
   });
 
   it('does not share pipelines across GPU devices', () => {

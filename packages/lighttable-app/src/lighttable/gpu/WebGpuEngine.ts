@@ -695,7 +695,8 @@ export class WebGpuEngine {
       opacity,
       flow,
       erase,
-      sourceToDocument ?? (channel === 'mask' && layer ? layer.transform : undefined)
+      sourceToDocument ?? (channel === 'mask' && layer ? layer.transform : undefined),
+      channel === 'pixels' && Boolean(layer?.locks.transparency)
     );
     this.markDocumentDirty();
   }

@@ -592,8 +592,11 @@ export class TextLayerRenderCoordinator {
       const expected = this.layerPreparationKey(
         openingDocument.id, layer, transform, fontRevision
       );
-      return this.outlineLayerKeys.get(layer.id) === expected
+      const exactOutline = this.outlineLayerKeys.get(layer.id) === expected
         && this.isSettledForCurrentGeneration(layer);
+      // A current imported preview remains a valid export source when a font or
+      // path dependency prevents rebuilding editable outlines.
+      return exactOutline || layerDerivedPreviewIsCurrent(layer);
     });
   }
 

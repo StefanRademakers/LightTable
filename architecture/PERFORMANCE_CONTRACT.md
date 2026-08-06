@@ -24,6 +24,9 @@ empty command buffers.
   loop remains responsive; pointer-up schedules final-quality evaluation.
 - Brush/warp dab schedulers own spacing and coalescing.
 - Selection outlines and other overlays must not force image recomposition.
+- Animated overlay audits reset and query document-scoped render telemetry;
+  selection-ant phase changes must report zero heavy-stage executions and zero
+  correction frames.
 
 ## Caching and revisions
 

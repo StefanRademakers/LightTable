@@ -318,6 +318,7 @@ describe('TextLayerRenderCoordinator', () => {
       preparationStage: 'idle',
       lastPreparationError: expect.stringContaining('retained its derived preview')
     });
+    await expect(state.coordinator.waitForFinalOutputSources()).resolves.toBe(true);
   });
 
   it('does no worker or GPU work while suspended and resumes the latest document', async () => {

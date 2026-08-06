@@ -1,0 +1,39 @@
+{
+  "task": 93,
+  "completedAt": "2026-08-06",
+  "gates": [
+    {
+      "command": "npm run quality:agent -- --profile quick",
+      "result": "passed",
+      "details": "Boundary, source-structure, architecture, all workspace typechecks/tests and production builds passed; the application suite covered 317 files and 1706 tests."
+    },
+    {
+      "command": "npm run smoke:desktop:selection-dimensions -- D:\\shapes.psd",
+      "result": "passed"
+    },
+    {
+      "command": "npm run audit:desktop:canvas -- D:\\shapes.psd",
+      "result": "passed",
+      "details": "All six selection families, add/subtract/intersect, feather, off-canvas input, raster/mask brush, erase, fill, gradient, undo and retention passed. Animated ants submitted 2 overlay frames with 0 correction frames and 0 executions for every heavy render stage. Brush and mask gestures produced one undo entry with 1,048,576 and 131,072 dirty-tile bytes respectively. Stable-tail deltas were 0 DOM nodes, 0 listeners, 0 GPU bytes and 84,396 heap bytes."
+    },
+    {
+      "command": "npm run smoke:desktop:psd-roundtrip -- D:\\shapes.psd",
+      "result": "passed"
+    },
+    {
+      "command": "npm run smoke:desktop:psd-roundtrip -- <EHS-402.psd>",
+      "result": "passed",
+      "details": "45 layers and 4 raster masks survived PSD export/reopen with equal semantic signatures and no page errors."
+    },
+    {
+      "command": "npm run package:desktop:verify",
+      "result": "passed"
+    }
+  ],
+  "notes": [
+    "Brush and eraser now honor Lock Transparent Pixels through dedicated premultiplied-alpha GPU blend pipelines.",
+    "Raster masks and preserved Photoshop vector masks are independently queryable and survive native persistence.",
+    "The EHS-396 corpus exposed and fixed a separate export gate for current derived text previews; its subsequent export correctly stopped at the unrelated smart-object compatibility guard.",
+    "EHS-402 was selected as the mask roundtrip oracle because it has raster masks without unsupported smart objects."
+  ]
+}

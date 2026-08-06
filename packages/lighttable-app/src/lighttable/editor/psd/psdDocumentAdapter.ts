@@ -403,6 +403,20 @@ export const importPsdDocument = (
           : 'Bitmap mask is mapped to a native LightTable mask.'
       });
     }
+    if (node.kind !== 'vector' && node.preserved.vectorMask) {
+      const simultaneous = Boolean(node.mask);
+      compatibility.push({
+        path,
+        feature: 'mask',
+        support: simultaneous ? 'preserved' : 'native',
+        reason: simultaneous
+          ? 'Raster mask pixels and Photoshop vector-mask geometry remain separate operands; the rasterized combined result is used only as the current visual cache.'
+          : 'Photoshop vector-mask geometry is retained independently from raster mask pixels.'
+      });
+      if (simultaneous) warnings.push(
+        `${path}: raster and vector masks are retained separately; the compatibility report records that the combined raster cache is not editable vector authority.`
+      );
+    }
     const common = {
       id,
       name: node.name,

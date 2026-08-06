@@ -2,8 +2,8 @@ import type { DocumentSessionId, DocumentSessionSnapshot, DocumentViewport } fro
 import type { WorkspaceSession } from '../workspace/workspaceSession';
 import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
+import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
 import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
-import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
 import { queryLayerCommandCapabilities } from '../layers/layerCommandCapabilities';
 import {
   LightTableArtifactRegistry,
@@ -11,9 +11,10 @@ import {
   type LightTableArtifactMetadata
 } from './lightTableArtifactRegistry';
 import {
-  projectVectorContentQuery,
-  type VectorContentQuerySummary
-} from './vectorLayerQueryProjection';
+  projectLayerQuery,
+  type LayerQuerySummary
+} from './layerQueryProjection';
+export type { LayerQuerySummary } from './layerQueryProjection';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
@@ -129,34 +130,6 @@ export interface DocumentQueryResult {
   };
 }
 
-export interface LayerQuerySummary {
-  readonly id: LayerId;
-  readonly parentId: LayerId | null;
-  readonly depth: number;
-  readonly type: LayerNode['type'];
-  readonly name: string;
-  readonly visible: boolean;
-  readonly opacity: number;
-  readonly fillOpacity: number;
-  readonly blendMode: LayerNode['blendMode'];
-  readonly clipping: boolean;
-  readonly hasMask: boolean;
-  readonly hasActiveEffects: boolean;
-  readonly transform: LayerNode['transform'];
-  readonly rasterSurface: {
-    readonly width: number;
-    readonly height: number;
-    readonly offsetX: number;
-    readonly offsetY: number;
-  } | null;
-  readonly textLayout: {
-    readonly sourceKind: 'flow' | 'positioned';
-    readonly mode: 'point' | 'paragraph' | 'path' | 'positioned';
-    readonly writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' | null;
-  } | null;
-  readonly vectorContent: VectorContentQuerySummary | null;
-}
-
 export interface LayerEffectsQueryResult {
   readonly layerId: LayerId;
   readonly enabled: boolean;
@@ -226,6 +199,8 @@ export interface LightTableCommandPorts {
   finishGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
   undo(documentId: DocumentSessionId): boolean | Promise<boolean>;
   redo(documentId: DocumentSessionId): boolean | Promise<boolean>;
+  queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
+  resetRenderTelemetry?(documentId: DocumentSessionId): void;
 }
 
 export interface DocumentLightTableCommandPorts {
@@ -244,6 +219,8 @@ export interface DocumentLightTableCommandPorts {
   finishGesture(kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
   undo(): boolean | Promise<boolean>;
   redo(): boolean | Promise<boolean>;
+  queryRenderTelemetry?(): RenderTelemetrySnapshot | null;
+  resetRenderTelemetry?(): void;
 }
 
 /**
@@ -339,6 +316,14 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     return this.resolve(documentId).redo();
   }
 
+  queryRenderTelemetry(documentId: DocumentSessionId) {
+    return this.resolve(documentId).queryRenderTelemetry?.() ?? null;
+  }
+
+  resetRenderTelemetry(documentId: DocumentSessionId) {
+    this.resolve(documentId).resetRenderTelemetry?.();
+  }
+
   private resolve(documentId: DocumentSessionId): DocumentLightTableCommandPorts {
     const ports = this.documents.get(documentId);
     if (!ports) throw new Error('The target document command controller is not mounted.');
@@ -416,6 +401,20 @@ export class LightTableCommandService {
       error: state.error,
       artifact: this.taskArtifacts.get(taskId) ?? null
     } : null;
+  }
+
+  queryRenderTelemetry(documentId: DocumentSessionId): RenderTelemetrySnapshot | null {
+    return this.document(documentId)?.lifecycle === 'ready'
+      ? this.ports.queryRenderTelemetry?.(documentId) ?? null
+      : null;
+  }
+
+  resetRenderTelemetry(documentId: DocumentSessionId): boolean {
+    if (this.document(documentId)?.lifecycle !== 'ready' || !this.ports.resetRenderTelemetry) {
+      return false;
+    }
+    this.ports.resetRenderTelemetry(documentId);
+    return true;
   }
 
   async beginGesture(request: unknown): Promise<LightTableGestureResult> {
@@ -539,38 +538,8 @@ export class LightTableCommandService {
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null {
     const canonical = this.document(documentId)?.document;
     if (!canonical) return null;
-    return walkLayerTree(canonical.layers).map(({ node, parentId, path }) => ({
-      id: node.id,
-      parentId,
-      depth: path.length - 1,
-      type: node.type,
-      name: node.name,
-      visible: node.visible,
-      opacity: node.opacity,
-      fillOpacity: node.fillOpacity,
-      blendMode: node.blendMode,
-      clipping: node.clipping,
-      hasMask: Boolean(node.mask),
-      hasActiveEffects: layerStyleStackIsActive(node.styleStack),
-      transform: { ...node.transform },
-      rasterSurface: node.type === 'raster' ? {
-        width: node.width,
-        height: node.height,
-        offsetX: node.offsetX,
-        offsetY: node.offsetY
-      } : null,
-      textLayout: node.type === 'text' ? node.text.source.kind === 'flow' ? {
-        sourceKind: 'flow' as const,
-        mode: node.text.source.layout.mode,
-        writingMode: node.text.source.layout.mode === 'path'
-          ? null : node.text.source.layout.writingMode
-      } : {
-        sourceKind: 'positioned' as const,
-        mode: 'positioned' as const,
-        writingMode: null
-      } : null,
-      vectorContent: node.type === 'vector' ? projectVectorContentQuery(node) : null
-    }));
+    return walkLayerTree(canonical.layers).map(({ node, parentId, path }) =>
+      projectLayerQuery(node, parentId, path.length - 1));
   }
 
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null {
@@ -995,5 +964,7 @@ export interface LightTableAutomationDriver {
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null;
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
+  queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
+  resetRenderTelemetry?(documentId: DocumentSessionId): boolean;
   execute(request: unknown): Promise<LightTableCommandResult>;
 }

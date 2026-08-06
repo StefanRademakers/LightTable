@@ -100,7 +100,17 @@ a normal thumbnail click only selects the mask as the active edit target.
 
 Selection visualization is presentation-only and must stay cheap while
 panning/zooming. Consolidate outlines and handles onto shared GPU vector overlay
-primitives.
+primitives. Animated ants may submit a bounded overlay frame, but their phase
+change must execute zero document-composite, correction, style or content
+stages. The packaged canvas audit enforces this through document-scoped render
+telemetry.
+
+Raster masks and preserved Photoshop vector masks are independent operands.
+The raster mask remains the editable `layer.mask`; an unsupported imported
+vector mask remains in preserved metadata and is reported separately. A raster
+combined preview is not vector editing authority. The full contract and current
+verification boundary are in
+[Selection, mask and paint workflow](features/SELECTION_MASK_AND_PAINT_WORKFLOW.md).
 
 ## Command history
 

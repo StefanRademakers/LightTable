@@ -18,7 +18,9 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const createdMaskTextures: GPUTexture[] = [];
   const pipelineSet = {
     brush: { getBindGroupLayout: vi.fn(() => ({})) },
+    brushPreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
     erase: { getBindGroupLayout: vi.fn(() => ({})) },
+    erasePreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
     maskBrush: { getBindGroupLayout: vi.fn(() => ({})) },
     maskErase: { getBindGroupLayout: vi.fn(() => ({})) },
     fillColor: { getBindGroupLayout: vi.fn(() => ({})) },
@@ -153,6 +155,26 @@ describe('RasterPaintService', () => {
     );
     expect(test.captureHistoryRegions.mock.invocationCallOrder[0])
       .toBeLessThan(test.submit.mock.invocationCallOrder[0]!);
+  });
+
+  it('uses alpha-preserving paint and eraser pipelines for locked transparency', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const painted = harness();
+    const erased = harness();
+
+    painted.service.paintDabs(
+      layerId, 'pixels', [{ x: 10, y: 10, size: 8, pressure: 1 }],
+      [1, 0, 0], 1, 1, 1, false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, true
+    );
+    erased.service.paintDabs(
+      layerId, 'pixels', [{ x: 10, y: 10, size: 8, pressure: 1 }],
+      [1, 0, 0], 1, 1, 1, true,
+      { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, true
+    );
+
+    expect(painted.pipelineSet.brushPreserveTransparency.getBindGroupLayout).toHaveBeenCalled();
+    expect(erased.pipelineSet.erasePreserveTransparency.getBindGroupLayout).toHaveBeenCalled();
   });
 
   it('routes mask fills through a single-channel result pipeline', () => {

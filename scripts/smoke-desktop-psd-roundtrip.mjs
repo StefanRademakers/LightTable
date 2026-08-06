@@ -76,6 +76,7 @@ try {
     visible: layer.visible,
     blendMode: layer.blendMode,
     clipping: layer.clipping,
+    maskContent: layer.maskContent,
     textMode: layer.textLayout?.mode ?? null
   }));
   const report = {

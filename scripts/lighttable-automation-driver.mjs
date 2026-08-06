@@ -30,6 +30,18 @@ export class LightTableAutomationClient {
     { documentId, layerId });
   }
 
+  queryRenderTelemetry(documentId) {
+    return this.page.evaluate((id) =>
+      window.__lightTableAutomation?.queryRenderTelemetry?.(id) ?? null,
+    documentId);
+  }
+
+  resetRenderTelemetry(documentId) {
+    return this.page.evaluate((id) =>
+      window.__lightTableAutomation?.resetRenderTelemetry?.(id) ?? false,
+    documentId);
+  }
+
   queryTask(documentId, taskId) {
     return this.page.evaluate(({ documentId, taskId }) =>
       window.__lightTableAutomation?.queryTask(documentId, taskId) ?? null,

@@ -58,7 +58,8 @@ export class RasterPaintService {
     opacity: number,
     flow: number,
     erase = false,
-    transform: AffineMatrix = identityAffineMatrix()
+    transform: AffineMatrix = identityAffineMatrix(),
+    preserveTransparency = false
   ) {
     if (!dabs.length) return;
     const pipelines = this.options.pipelines();
@@ -131,7 +132,9 @@ export class RasterPaintService {
     this.options.device.queue.writeBuffer(dabBuffer, 0, values);
     const pipeline = channel === 'mask'
       ? erase ? pipelines.maskErase : pipelines.maskBrush
-      : erase ? pipelines.erase : pipelines.brush;
+      : preserveTransparency
+        ? erase ? pipelines.erasePreserveTransparency : pipelines.brushPreserveTransparency
+        : erase ? pipelines.erase : pipelines.brush;
     const bindGroup = this.options.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [

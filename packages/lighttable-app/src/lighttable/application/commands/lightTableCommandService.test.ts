@@ -54,6 +54,22 @@ const request = (command: string, documentId: string, parameters: unknown = {}) 
 });
 
 describe('LightTableCommandService queries', () => {
+  it('exposes document-scoped render telemetry without making it document state', () => {
+    const state = setup();
+    const telemetry = {
+      renderCalls: 2, submittedFrames: 2, noWorkSkips: 0, correctionFrames: 0,
+      scopeAnalysisPasses: 0, scopeDisplayPasses: 0, stages: {}
+    } as never;
+    state.ports.queryRenderTelemetry = vi.fn(() => telemetry);
+    state.ports.resetRenderTelemetry = vi.fn();
+
+    expect(state.service.queryRenderTelemetry(state.session.id)).toBe(telemetry);
+    expect(state.service.resetRenderTelemetry(state.session.id)).toBe(true);
+    expect(state.ports.resetRenderTelemetry).toHaveBeenCalledWith(state.session.id);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('projects bounded workspace, document and layer summaries', () => {
     const state = setup();
     const workspace = state.service.queryWorkspace();
@@ -69,6 +85,11 @@ describe('LightTableCommandService queries', () => {
     expect(layers[0]).toEqual(expect.objectContaining({
       depth: 0,
       hasMask: false,
+      maskContent: {
+        raster: null,
+        preservedVector: false,
+        simultaneousRasterAndVector: false
+      },
       rasterSurface: { width: 80, height: 60, offsetX: 0, offsetY: 0 }
     }));
     state.service.dispose();

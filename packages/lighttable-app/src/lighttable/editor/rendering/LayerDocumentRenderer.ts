@@ -380,7 +380,8 @@ export class LayerDocumentRenderer {
     opacity: number,
     flow: number,
     erase = false,
-    transform: AffineMatrix = identityAffineMatrix()
+    transform: AffineMatrix = identityAffineMatrix(),
+    preserveTransparency = false
   ) {
     return this.runtime.rasterPaint.paintDabs(
       layerId,
@@ -391,7 +392,8 @@ export class LayerDocumentRenderer {
       opacity,
       flow,
       erase,
-      transform
+      transform,
+      preserveTransparency
     );
   }
 

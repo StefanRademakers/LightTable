@@ -190,6 +190,39 @@ describe('importPsdDocument', () => {
     expect('mask' in result.assets[0] && result.assets[0].mask).toBeInstanceOf(Blob);
   });
 
+  it('reports raster and vector mask operands independently', () => {
+    const vectorMask = { paths: [], disable: false };
+    const result = importPsdDocument(decoded([raster('combined-mask', {
+      mask: {
+        id: 'combined-mask-cache',
+        pixels: pixels(),
+        source: 'real-mask',
+        enabled: true,
+        defaultColor: 0,
+        density: 0.8,
+        feather: 2
+      },
+      preserved: {
+        text: null,
+        placedLayer: null,
+        vectorFill: null,
+        vectorMask,
+        vectorStroke: null,
+        realMask: { density: 0.8 }
+      }
+    })]), 'combined-mask.psd');
+
+    const layer = result.document.layers[0];
+    expect(layer.mask).toMatchObject({ density: 0.8, feather: 2 });
+    expect(layer.photoshop?.preserved.vectorMask).toEqual(vectorMask);
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      feature: 'mask',
+      support: 'preserved',
+      reason: expect.stringContaining('separate operands')
+    }));
+    expect(result.warnings.join('\n')).toContain('combined raster cache is not editable vector authority');
+  });
+
   it('maps extended Photoshop blend modes without silently falling back to Normal', () => {
     const modes = [
       ['linear-burn', 'linear burn'],
