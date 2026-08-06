@@ -3,13 +3,8 @@ import { ContextMenu, type ContextMenuOption } from '../../../ui/ContextMenu';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
 import { layerSupportsLayerStyles } from '../document/documentTypes';
-import type {
-  ImageDocument,
-  DocumentFontAsset,
-  LayerId,
-  LayerLocks,
-  LayerNode
-} from '../document/documentTypes';
+import type { ImageDocument, DocumentFontAsset, LayerId, LayerLocks, LayerNode }
+  from '../document/documentTypes';
 import { findLayerNode, siblingLayers } from '../document/layerTree';
 import { queryLayerCommandCapabilities } from '../../application/layers/layerCommandCapabilities';
 import { layerTreeItemAccessibility, useLayerTreeKeyboardNavigation } from '../../application/layers/useLayerTreeKeyboardNavigation';
@@ -26,12 +21,11 @@ import {
   adjustmentStackHasOwner,
   adjustmentStackOwnerIsEnabled
 } from '../../processing/adjustmentStack';
-import {
-  textLayerFontStatus,
-  type TextFontDiagnostic
-} from '../../text/fonts/textLayerFontStatus';
-import { DEFAULT_TEXT_SUBSTITUTION_FAMILIES } from '../../text/fonts/flowFontSelection';
+import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { layerStyleTreeEffects } from './layerStyleTreePresentation';
+import { buildDocumentCapabilityFindings } from '../compatibility/documentCapabilityFindings';
+import { LayerCompatibilityBadge } from './LayerCompatibilityBadge';
+import { layerCompatibilityPresentation } from './layerCompatibilityPresentation';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -206,6 +200,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   }>({ open: false, x: 0, y: 0, source: 'footer' });
   const selectionAnchorRef = React.useRef<LayerId | null>(document.activeLayerId);
   const thumbnailDimensions = layerThumbnailDimensions(document.width, document.height);
+  const capabilityFindings = React.useMemo(() => buildDocumentCapabilityFindings(
+    document.photoshopImportReport ?? null, textFontDiagnostics
+  ), [document.photoshopImportReport, textFontDiagnostics]);
   const rows = visualLayerRows(document.layers, collapsedGroups);
   const allRows = visualLayerRows(document.layers, new Set());
   const allLayerIds = new Set(allRows.map(({ layer }) => layer.id));
@@ -510,13 +507,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           const siblingIndex = siblings.findIndex((sibling) => sibling.id === layer.id);
           const clippingBase = siblingIndex > 0 ? siblings[siblingIndex - 1] : null;
           const canToggleClipping = layer.clipping || Boolean(clippingBase);
-          const fontStatus = layer.type === 'text'
-            ? textFontDiagnostics.find((entry) => (
-                entry.layerId === layer.id && entry.issue === 'missing-glyph'
-              ))?.status ?? textLayerFontStatus(
-                layer, availableFonts, DEFAULT_TEXT_SUBSTITUTION_FAMILIES
-              )
-            : null;
+          const { fontStatus, finding: capabilityFinding } = layerCompatibilityPresentation(
+            layer, textFontDiagnostics, availableFonts, capabilityFindings
+          );
           return (
           <React.Fragment key={layer.id}>
           <div
@@ -901,6 +894,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     >{fontStatus.label}</span>
                   ) : null}
                 </>
+              ) : null}
+              {capabilityFinding && capabilityFinding.feature !== 'text-font' ? (
+                <LayerCompatibilityBadge finding={capabilityFinding}
+                  onOpen={() => onOpenFontReport?.(layer.id)} />
               ) : null}
               {layer.type === 'raster'
                 && layer.adjustmentStack

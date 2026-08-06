@@ -19,6 +19,7 @@ export interface EditorDialogsProps {
   readonly textFontDiagnostics: readonly TextFontDiagnostic[];
   readonly replacementFonts: readonly DocumentFontAsset[];
   readonly onResolveTextFont: (layerId: TextFontDiagnostic['layerId']) => void;
+  readonly onSelectCompatibilityLayer: (layerId: LayerId) => void;
   readonly onReplaceTextFont: (
     layerId: LayerId,
     assetId: string,
@@ -58,6 +59,7 @@ export const EditorDialogs = ({
   textFontDiagnostics,
   replacementFonts,
   onResolveTextFont,
+  onSelectCompatibilityLayer,
   onReplaceTextFont,
   onPreviewTextFont,
   onCancelTextFontPreview,
@@ -136,6 +138,7 @@ export const EditorDialogs = ({
       textFontDiagnostics={textFontDiagnostics}
       replacementFonts={replacementFonts}
       onResolveTextFont={onResolveTextFont}
+      onSelectLayer={onSelectCompatibilityLayer}
       onReplaceTextFonts={onReplaceTextFonts}
       onClose={controller.closePsdReport}
     />

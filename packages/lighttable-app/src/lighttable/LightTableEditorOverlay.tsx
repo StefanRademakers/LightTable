@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
-import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind,
-  type LightTableGestureSample } from './application/commands/lightTableCommandService';
+import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
 import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
@@ -3936,6 +3935,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             differenceMetrics: psdDifferenceMetrics,
             textFontDiagnostics: fontDiagnostics,
             replacementFonts: selectableTextFonts,
+            onSelectCompatibilityLayer: (layerId) => { layerPanelController.select(layerId); editorDialogs.closePsdReport(); },
             onResolveTextFont: (layerId) => {
               const layer = imageDocumentRef.current
                 ? findDocumentLayer(imageDocumentRef.current, layerId)

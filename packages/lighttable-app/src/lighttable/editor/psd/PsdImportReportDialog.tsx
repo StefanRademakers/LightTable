@@ -7,22 +7,27 @@ import type {
   DocumentFontAsset,
   LayerId,
   PhotoshopImportCompatibilityEntry,
-  PhotoshopImportReport,
-  PhotoshopImportSupport
+  PhotoshopImportReport
 } from '../document/documentTypes';
 import type { ReferenceDifferenceMetrics } from '../../application/rendering/rendererTypes';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { FontAssetPicker } from '../ui/FontAssetPicker';
+import {
+  buildDocumentCapabilityFindings,
+  sanitizeCompatibilityText,
+  summarizeDocumentCapabilityFindings,
+  type DocumentCapabilityStatus
+} from '../compatibility/documentCapabilityFindings';
 
-type ReportFilter = 'all' | PhotoshopImportSupport;
+type ReportFilter = 'all' | DocumentCapabilityStatus;
 
 const FILTERS: Array<{ value: ReportFilter; label: string }> = [
   { value: 'all', label: 'All' },
-  { value: 'native', label: 'Native' },
-  { value: 'approximate', label: 'Approx.' },
-  { value: 'preserved', label: 'Preserved' },
-  { value: 'raster-preview', label: 'Preview' },
-  { value: 'placeholder', label: 'Missing' }
+  { value: 'exact', label: 'Exact' },
+  { value: 'approximated', label: 'Approx.' },
+  { value: 'preview-backed', label: 'Preview' },
+  { value: 'missing-asset', label: 'Missing' },
+  { value: 'export-blocking', label: 'Export' }
 ];
 
 interface PsdImportReportDialogProps {
@@ -32,6 +37,7 @@ interface PsdImportReportDialogProps {
   textFontDiagnostics?: readonly TextFontDiagnostic[];
   replacementFonts?: readonly DocumentFontAsset[];
   onResolveTextFont?(layerId: TextFontDiagnostic['layerId']): void;
+  onSelectLayer?(layerId: LayerId): void;
   onReplaceTextFonts?(
     layerIds: readonly LayerId[],
     assetId: string,
@@ -111,19 +117,21 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
   textFontDiagnostics = [],
   replacementFonts = [],
   onResolveTextFont,
+  onSelectLayer,
   onReplaceTextFonts,
   onClose
 }) => {
   const dialogOpen = open && Boolean(report || textFontDiagnostics.length);
   const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(dialogOpen, onClose);
   const [filter, setFilter] = useState<ReportFilter>('all');
-  const compatibility = useMemo(
-    () => buildDocumentCompatibilityEntries(report, textFontDiagnostics),
+  const findings = useMemo(
+    () => buildDocumentCapabilityFindings(report, textFontDiagnostics),
     [report, textFontDiagnostics]
   );
+  const summary = useMemo(() => summarizeDocumentCapabilityFindings(findings), [findings]);
   const entries = useMemo(
-    () => compatibility.filter((entry) => filter === 'all' || entry.support === filter),
-    [compatibility, filter]
+    () => findings.filter((entry) => filter === 'all' || entry.status === filter),
+    [findings, filter]
   );
   const missingFontGroups = useMemo(
     () => groupMissingFontDiagnostics(textFontDiagnostics),
@@ -176,6 +184,12 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
             <span>{metrics.sampledPixels.toLocaleString()} samples</span>
           </div>
         ) : null}
+        <div className="lighttable-psd-report__summary" aria-label="Compatibility summary">
+          <span><strong>{summary.attention}</strong> need attention</span>
+          <span><strong>{summary.previewBacked}</strong> preview-backed</span>
+          <span><strong>{summary.missingAssets}</strong> missing assets</span>
+          <span><strong>{summary.exportBlocking}</strong> block editable export</span>
+        </div>
         <SegmentedControl
           className="lighttable-psd-report__filters"
           value={filter}
@@ -216,23 +230,35 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
           </section>
         ) : null}
         <div className="lighttable-psd-report__entries">
-          {entries.map((entry: DocumentCompatibilityEntry, index) => (
-            <article className="lighttable-psd-report__entry" key={`${entry.path}-${entry.feature}-${index}`}>
-              <span className={`lighttable-psd-report__support lighttable-psd-report__support--${entry.support}`}>
-                {entry.support}
+          {entries.map((entry, index) => (
+            <article className="lighttable-psd-report__entry" key={entry.id}>
+              <span className={`lighttable-psd-report__support lighttable-psd-report__support--${entry.status}`}>
+                {entry.status}
               </span>
               <div>
-                <strong>{entry.path}</strong>
+                <strong>{entry.layerName}</strong>
                 <small>{entry.feature}</small>
                 {formatCompatibilityParity(entry.parity) ? (
                   <small>{formatCompatibilityParity(entry.parity)}</small>
                 ) : null}
-                <p>{entry.reason}</p>
-                {entry.layerId && onResolveTextFont ? (
-                  <ActionButton onClick={() => onResolveTextFont(entry.layerId!)}>
-                    {entry.editable ? 'Choose font...' : 'Select layer'}
-                  </ActionButton>
+                <p>{entry.message}</p>
+                {entry.invalidatedByEdit ? (
+                  <p className="lighttable-psd-report__invalidation">
+                    Editing this feature discards its retained visual preview. Keep it unchanged or make an explicit raster copy first.
+                  </p>
                 ) : null}
+                <div className="lighttable-psd-report__actions">
+                  {entry.layerId && (entry.feature === 'text-font' ? onResolveTextFont : onSelectLayer) ? (
+                    <ActionButton onClick={() => entry.feature === 'text-font'
+                      ? onResolveTextFont?.(entry.layerId!)
+                      : onSelectLayer?.(entry.layerId!)}>
+                      {entry.feature === 'text-font' && entry.editable ? 'Choose font...' : 'Select layer'}
+                    </ActionButton>
+                  ) : null}
+                  {entry.actions.includes('keep-preview') ? (
+                    <ActionButton onClick={onClose}>Keep preview</ActionButton>
+                  ) : null}
+                </div>
               </div>
             </article>
           ))}
@@ -242,7 +268,9 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
           <details className="lighttable-psd-report__warnings">
             <summary>Parser and compatibility warnings ({report.warnings.length})</summary>
             <ul>
-              {report.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+              {report.warnings.map((warning, index) => (
+                <li key={`${warning}-${index}`}>{sanitizeCompatibilityText(warning)}</li>
+              ))}
             </ul>
           </details>
         ) : null}
