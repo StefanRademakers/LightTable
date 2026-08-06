@@ -246,6 +246,20 @@ and make “unsupported but preserved” a trust feature.
 - contextual next actions without duplicating authoritative panels;
 - user-facing performance/compatibility diagnostics where actionable.
 
+##### P3 — server-backed MCP design workflows
+
+- productize the local automation bridge inside the normal Electron app;
+- connect it outbound to the authenticated MCP server on Hetzner without
+  exposing a public desktop port;
+- add an Agent Access surface for enable/disable, pairing, server and tunnel
+  status, permissions, connected clients, revoke and activity history;
+- extend the shared command service with document creation, asset placement,
+  text, vector/shape, gradient and complete Layer Style mutations;
+- add atomic multi-command design transactions, revision conflicts, progress,
+  cancellation and one-step undo;
+- verify one complete prompt-to-editable-design flow through MCP, native save
+  and Photoshop PSD roundtrip before expanding the agent tool surface.
+
 Deep painting, Smart Object authoring, broad PDF object editing, animation, 3D,
 plugin marketplace and generative breadth come after the core release gates.
 
