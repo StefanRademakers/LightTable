@@ -10,6 +10,9 @@ const response = (value) => ({
 const failure = (error) => ({ isError: true, content: [{ type: 'text',
   text: error instanceof Error ? error.message : String(error) }] });
 const editable = (context) => context?.http?.authInfo?.scopes?.includes('lighttable:edit') === true;
+const srgbToLinear = (value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+const hexLinearRgba = (hex) => [1, 3, 5]
+  .map((offset) => srgbToLinear(Number.parseInt(hex.slice(offset, offset + 2), 16) / 255)).concat(1);
 const withResult = (operation, { edit = false } = {}) => async (input, context) => {
   try {
     if (edit && !editable(context)) throw new Error('This tool requires the lighttable:edit scope.');
@@ -59,6 +62,8 @@ const downloadImage = async (value, fetchImpl = fetch, redirects = 0) => {
 const commandIds = ['view.setZoom', 'layer.createRaster', 'layer.placeArtifact', 'layer.rename', 'layer.setVisibility',
   'layer.setFillOpacity', 'layer.style.setEnabled', 'layer.effect.setEnabled',
   'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
+  'vector.create', 'vector.update', 'vector.remove',
+  'layer.effect.add', 'layer.effect.update', 'layer.effect.remove', 'layer.effect.move',
   'file.exportNative', 'file.exportPng', 'file.exportPsd', 'history.undo', 'history.redo'];
 
 export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) => {
@@ -86,6 +91,12 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('text.query', input)));
+  server.registerTool('lighttable_vector', {
+    title: 'Inspect editable vector content',
+    description: 'Returns bounded canonical live-shape/path geometry, transforms, fills, gradients and strokes.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('vector.query', input)));
   server.registerTool('lighttable_capabilities', {
     title: 'List available document commands', description: 'Reports which typed LightTable commands are currently valid and why unavailable commands are disabled.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
@@ -164,6 +175,78 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
           ...(fontAssetId ? { font: { assetId: fontAssetId } } : {}), ...(fontSize ? { fontSize } : {}),
           ...(fill ? { fill: { enabled: true, color: fill } } : {}), ...(tracking === undefined ? {} : { tracking })
         }, ...(alignment ? { paragraph: { alignment } } : {}) } });
+  }, { edit: true }));
+  server.registerTool('lighttable_create_shape', {
+    title: 'Create an editable vector shape',
+    description: 'Creates a canonical rectangle, ellipse, star or line with optional solid fill and stroke.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1).optional(),
+      shape: z.enum(['rectangle', 'ellipse', 'star', 'line']), name: z.string().min(1).max(255).optional(),
+      x: z.number().finite(), y: z.number().finite(), width: z.number().nonnegative().max(10_000_000),
+      height: z.number().nonnegative().max(10_000_000), points: z.number().int().min(3).max(2048).default(5),
+      innerRatio: z.number().min(0).max(1).default(0.5), fillEnabled: z.boolean().default(true),
+      fill: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#000000'),
+      strokeEnabled: z.boolean().default(false), stroke: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#000000'),
+      strokeWidth: z.number().nonnegative().max(100_000).default(1),
+      expectedDocumentRevision: z.number().int().nonnegative().optional() })
+  }, withResult(({ documentId, layerId, shape, name, x, y, width, height, points, innerRatio,
+    fillEnabled, fill, strokeEnabled, stroke, strokeWidth, expectedDocumentRevision }) => {
+    const primitive = shape === 'star'
+      ? { kind: 'star', cx: x, cy: y, points, outerRadius: width,
+        innerRadius: width * innerRatio, rotationRadians: -Math.PI / 2 }
+      : shape === 'line' ? { kind: 'line', x1: x, y1: y, x2: x + width, y2: y + height }
+        : { kind: shape, x, y, width, height };
+    return client.invoke('command.execute', { documentId, command: 'vector.create',
+      commandRequestId: crypto.randomUUID(), ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }),
+      commandParameters: { ...(layerId ? { layerId } : {}), ...(name ? { name } : {}), primitive,
+        style: { fill: fillEnabled ? { type: 'solid', color: hexLinearRgba(fill) } : null,
+          stroke: strokeEnabled ? { paint: { type: 'solid', color: hexLinearRgba(stroke) }, width: strokeWidth,
+            alignment: 'center', cap: 'butt', join: 'miter', miterLimit: 4, dash: [], dashOffset: 0 } : null } } });
+  }, { edit: true }));
+  server.registerTool('lighttable_edit_vector', {
+    title: 'Edit or remove vector content',
+    description: 'Updates canonical vector name, transform, solid fill/stroke or removes one stable element ID.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1), elementId: z.string().min(1),
+      remove: z.boolean().default(false), name: z.string().min(1).max(255).optional(),
+      transform: z.object({ a: z.number().finite(), b: z.number().finite(), c: z.number().finite(),
+        d: z.number().finite(), tx: z.number().finite(), ty: z.number().finite() }).optional(),
+      fillEnabled: z.boolean().optional(), fill: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      strokeEnabled: z.boolean().optional(), stroke: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      strokeWidth: z.number().nonnegative().max(100_000).optional(),
+      expectedDocumentRevision: z.number().int().nonnegative().optional() })
+  }, withResult(({ documentId, layerId, elementId, remove, name, transform, fillEnabled, fill,
+    strokeEnabled, stroke, strokeWidth, expectedDocumentRevision }) => {
+    const style = { ...(fillEnabled === undefined && !fill ? {} : {
+      fill: fillEnabled === false ? null : { type: 'solid', color: hexLinearRgba(fill ?? '#000000') } }),
+      ...(strokeEnabled === undefined && !stroke && strokeWidth === undefined ? {} : {
+        stroke: strokeEnabled === false ? null : { paint: { type: 'solid', color: hexLinearRgba(stroke ?? '#000000') },
+          width: strokeWidth ?? 1, alignment: 'center', cap: 'butt', join: 'miter', miterLimit: 4,
+          dash: [], dashOffset: 0 } }) };
+    return client.invoke('command.execute', { documentId, command: remove ? 'vector.remove' : 'vector.update',
+      commandRequestId: crypto.randomUUID(), ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }),
+      commandParameters: { layerId, elementId, ...(name ? { name } : {}), ...(transform ? { transform } : {}),
+        ...(Object.keys(style).length ? { style } : {}) } });
+  }, { edit: true }));
+  server.registerTool('lighttable_layer_style', {
+    title: 'Edit Layer Styles',
+    description: 'Adds, updates, removes, reorders or toggles a validated canonical Layer Style effect.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1),
+      operation: z.enum(['add', 'update', 'remove', 'move', 'toggle']), effectId: z.string().min(1).optional(),
+      effectKind: z.enum(['drop-shadow', 'inner-shadow', 'outer-glow', 'inner-glow', 'bevel-emboss',
+        'color-overlay', 'gradient-overlay', 'pattern-overlay', 'satin', 'stroke']).optional(),
+      settings: z.record(z.string(), z.unknown()).optional(), targetIndex: z.number().int().min(0).max(63).optional(),
+      enabled: z.boolean().optional(), expectedDocumentRevision: z.number().int().nonnegative().optional() })
+  }, withResult(({ documentId, layerId, operation, effectId, effectKind, settings, targetIndex,
+    enabled, expectedDocumentRevision }) => {
+    if (operation === 'add' && !effectKind) throw new Error('Adding an effect requires effectKind.');
+    if (operation !== 'add' && !effectId) throw new Error(`${operation} requires effectId.`);
+    if (operation === 'move' && targetIndex === undefined) throw new Error('Moving an effect requires targetIndex.');
+    if (operation === 'toggle' && enabled === undefined) throw new Error('Toggling an effect requires enabled.');
+    const command = operation === 'toggle' ? 'layer.effect.setEnabled' : `layer.effect.${operation}`;
+    return client.invoke('command.execute', { documentId, command, commandRequestId: crypto.randomUUID(),
+      ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }),
+      commandParameters: { layerId, ...(effectId ? { effectId } : {}), ...(effectKind ? { effectKind } : {}),
+        ...(settings ? { settings } : {}), ...(targetIndex === undefined ? {} : { targetIndex }),
+        ...(enabled === undefined ? {} : { enabled }) } });
   }, { edit: true }));
   server.registerTool('lighttable_gesture_begin', {
     title: 'Begin one LightTable gesture', description: 'Begins a bounded document-space brush, selection-rectangle or layer-translate gesture. Finish it to create one undo entry.',

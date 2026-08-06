@@ -22,6 +22,7 @@ const createDriver = (): LightTableAutomationDriver => ({
   queryLayers: vi.fn(() => null),
   queryLayerEffects: vi.fn(() => null),
   queryText: vi.fn(() => null),
+  queryVector: vi.fn(() => null),
   queryCapabilities: vi.fn(() => null),
   execute: vi.fn(async (request: unknown) => ({
     requestId: (request as { requestId: string }).requestId,
@@ -111,6 +112,25 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       commandParameters: { layerId: 'text-1', style: { fontSize: 72 } } })))
       .toMatchObject({ status: 'completed' });
     expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({ command: 'text.format' }));
+  });
+
+  it('exposes bounded vector queries and semantic vector/style edits', async () => {
+    const driver = createDriver();
+    vi.mocked(driver.queryVector).mockReturnValue({ layerId: 'vector-1' as never, revision: 2,
+      totalElements: 1, truncated: false, elements: [] });
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('vector.query', { documentId: 'document-1', layerId: 'vector-1' })))
+      .toMatchObject({ status: 'completed', value: { totalElements: 1 } });
+    expect(await adapter.invoke(request('command.execute', { command: 'vector.create',
+      documentId: 'document-1', commandRequestId: 'vector-create', commandParameters: {
+        primitive: { kind: 'ellipse', x: 0, y: 0, width: 80, height: 40 }
+      } }))).toMatchObject({ status: 'completed' });
+    expect(await adapter.invoke(request('command.execute', { command: 'layer.effect.add',
+      documentId: 'document-1', commandRequestId: 'effect-add', commandParameters: {
+        layerId: 'vector-1', effectKind: 'stroke'
+      } }))).toMatchObject({ status: 'completed' });
   });
 
   it('expires and bounds sessions and their activity history', async () => {

@@ -36,6 +36,12 @@ export class LightTableAutomationClient {
     { documentId, layerId });
   }
 
+  queryVector(documentId, layerId) {
+    return this.page.evaluate(({ documentId, layerId }) => (
+      window.__lightTableAutomation?.queryVector(documentId, layerId) ?? null
+    ), { documentId, layerId });
+  }
+
   queryRenderTelemetry(documentId) {
     return this.page.evaluate((id) =>
       window.__lightTableAutomation?.queryRenderTelemetry?.(id) ?? null,

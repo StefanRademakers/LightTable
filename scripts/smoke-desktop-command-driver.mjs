@@ -105,6 +105,39 @@ try {
   if (Math.max(textLatencies.replace, textLatencies.format, textLatencies.layout) > 1_000) {
     throw new Error(`Semantic text edit latency exceeded 1000 ms: ${JSON.stringify(textLatencies)}`);
   }
+  const vectorStartedAt = performance.now();
+  const vectorCreated = await driver.execute(semanticDocumentId, 'vector.create', {
+    name: 'Semantic vector', primitive: { kind: 'rectangle', x: 170, y: 35, width: 120, height: 80,
+      cornerRadii: [12, 12, 12, 12] }, style: { fill: { kind: 'gradient',
+        asset: { id: 'smoke-gradient', name: 'Smoke gradient', type: 'solid', smoothness: 1,
+          colorStops: [
+            { id: 'pink', position: 0, midpoint: 0.5, color: { r: 1, g: 0, b: 0.5, a: 1 } },
+            { id: 'blue', position: 1, midpoint: 0.5, color: { r: 0, g: 0.3, b: 1, a: 1 } }
+          ], opacityStops: [
+            { id: 'opaque-0', position: 0, midpoint: 0.5, opacity: 1 },
+            { id: 'opaque-1', position: 1, midpoint: 0.5, opacity: 1 }
+          ], roughness: 0, seed: 0 }, shape: 'linear', coordinateSpace: 'object-bounds',
+        transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0.5 }, reverse: false,
+        dither: true, interpolation: 'perceptual' }, stroke: { paint: { type: 'solid', color: [1, 1, 1, 1] },
+        width: 6, alignment: 'outside', cap: 'round', join: 'round', miterLimit: 4, dash: [], dashOffset: 0 } }
+  });
+  const vectorCreateLatencyMs = performance.now() - vectorStartedAt;
+  const vectorLayerId = vectorCreated.value?.layerId; const vectorElementId = vectorCreated.value?.elementId;
+  if (!vectorLayerId || !vectorElementId) throw new Error('Semantic vector creation returned no stable IDs.');
+  const effectStartedAt = performance.now();
+  const effectCreated = await driver.execute(semanticDocumentId, 'layer.effect.add', {
+    layerId: vectorLayerId, effectKind: 'drop-shadow', settings: { distance: 18, size: 12, spread: 0.2 }
+  });
+  const effectCreateLatencyMs = performance.now() - effectStartedAt;
+  const vectorProjection = await driver.queryVector(semanticDocumentId, vectorLayerId);
+  const effectProjection = await driver.queryLayerEffects(semanticDocumentId, vectorLayerId);
+  if (vectorProjection?.elements[0]?.style?.fill?.kind !== 'gradient'
+    || vectorProjection.elements[0].style.stroke?.width !== 6 || effectProjection?.effects[0]?.settings?.size !== 12) {
+    throw new Error(`Semantic vector/style projection is incorrect: ${JSON.stringify({ vectorProjection, effectProjection })}`);
+  }
+  if (Math.max(vectorCreateLatencyMs, effectCreateLatencyMs) > 1_000) {
+    throw new Error(`Semantic vector/style latency exceeded 1000 ms: ${JSON.stringify({ vectorCreateLatencyMs, effectCreateLatencyMs })}`);
+  }
   const nativeExport = await driver.execute(semanticDocumentId, 'file.exportNative', {}, { requireCompleted: false });
   const nativeTask = await driver.waitForTask(semanticDocumentId, nativeExport.taskId);
   const psdExport = await driver.execute(semanticDocumentId, 'file.exportPsd', {}, { requireCompleted: false });
@@ -120,6 +153,9 @@ try {
   if (!nativeTextLayer || nativeText?.content.text !== 'Semantic text 👋') {
     throw new Error(`Native text roundtrip did not preserve editable content: ${JSON.stringify({ nativeText, nativeLayers })}`);
   }
+  const nativeVectorLayer = nativeLayers?.find(({ name }) => name === 'Semantic vector');
+  const nativeVector = nativeVectorLayer ? await driver.queryVector(nativeDocumentId, nativeVectorLayer.id) : null;
+  if (!nativeVector?.elements.length) throw new Error('Native vector roundtrip lost editable geometry.');
   const psdOpen = await driver.executeWorkspace('file.openArtifact', { artifactId: psdTask.artifact.id });
   const psdDocumentId = psdOpen.value?.documentId;
   if (!psdDocumentId) throw new Error('PSD text roundtrip did not return a document ID.');
@@ -129,6 +165,12 @@ try {
   const psdText = psdTextLayer ? await driver.queryText(psdDocumentId, psdTextLayer.id) : null;
   if (!psdText?.editable || psdText.content.text !== 'Semantic text 👋') {
     throw new Error(`PSD text roundtrip lost editable content: ${JSON.stringify({ psdText, psdLayers })}`);
+  }
+  const psdVectorLayer = psdLayers?.find(({ name }) => name === 'Semantic vector');
+  const psdVector = psdVectorLayer ? await driver.queryVector(psdDocumentId, psdVectorLayer.id) : null;
+  const psdEffects = psdVectorLayer ? await driver.queryLayerEffects(psdDocumentId, psdVectorLayer.id) : null;
+  if (!psdVector?.elements.length || !psdEffects?.effects.some(({ kind }) => kind === 'drop-shadow')) {
+    throw new Error(`PSD vector/style roundtrip lost editable semantics: ${JSON.stringify({ psdVector, psdEffects })}`);
   }
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.documents.find(({ title }) => title === path.basename(sourceFile))?.id;
@@ -178,6 +220,9 @@ try {
     workspace, semantic: { create: semanticCreate, placements, layers: placedLayers,
       text: { created: textCreated, projection: textProjection, latenciesMs: textLatencies,
         nativeDocumentId, psdDocumentId },
+      vector: { created: vectorCreated, effectCreated, projection: vectorProjection,
+        effects: effectProjection, latenciesMs: { create: vectorCreateLatencyMs, effect: effectCreateLatencyMs },
+        nativeLayerId: nativeVectorLayer.id, psdLayerId: psdVectorLayer.id },
       exports: { native: nativeTask, psd: psdTask } },
     before, layersBefore: layerProjection.length,
     results: { zoom, hidden, shown, created, renamed, undone },

@@ -40,6 +40,10 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_text'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_edit_text'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_text'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_vector'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_shape'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_edit_vector'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_style'));
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
@@ -76,6 +80,20 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     documentId: 'document-demo', layerId: 'layer-text'
   } });
   assert.equal(textQuery.structuredContent.content.text, 'Text');
+  const shape = await editor.callTool({ name: 'lighttable_create_shape', arguments: {
+    documentId: 'document-demo', shape: 'rectangle', x: 20, y: 30, width: 200, height: 120,
+    fillEnabled: false, strokeEnabled: true, stroke: '#ff0000', strokeWidth: 12
+  } });
+  assert.equal(shape.isError, undefined);
+  const vector = await reader.callTool({ name: 'lighttable_vector', arguments: {
+    documentId: 'document-demo', layerId: 'layer-vector'
+  } });
+  assert.equal(vector.structuredContent.totalElements, 0);
+  const style = await editor.callTool({ name: 'lighttable_layer_style', arguments: {
+    documentId: 'document-demo', layerId: 'layer-background', operation: 'add',
+    effectKind: 'drop-shadow', settings: { distance: 20, size: 10 }
+  } });
+  assert.equal(style.isError, undefined);
 });
 
 test('MCP endpoint advertises protected-resource metadata when unauthenticated', async (context) => {
