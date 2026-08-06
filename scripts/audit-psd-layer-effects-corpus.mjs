@@ -88,26 +88,39 @@ for (const [index, entry] of cases.entries()) {
   await mkdir(userData, { recursive: true });
   const importedPath = path.join(outputDirectory, `${entry.id}-import.png`);
   const roundtripPath = path.join(outputDirectory, `${entry.id}-roundtrip.png`);
-  const app = await electron.launch({
+  const launchCase = () => electron.launch({
     executablePath: executable,
     args: [path.join(workspace, 'apps', 'desktop')], cwd: workspace,
     env: { ...environment, LIGHTTABLE_AUTOMATION_OPEN_FILE: entry.canonical,
       LIGHTTABLE_AUTOMATION_USER_DATA: userData }, timeout: 30_000
   });
+  let app = await launchCase();
   const result = { id: entry.id, family: entry.family, parameters: entry.parameters,
     source: entry.canonical, reference: entry.reference };
   try {
-    await app.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]?.setBounds({ x: 20, y: 20, width: 1500, height: 1100 });
-    });
-    const page = await app.firstWindow({ timeout: 30_000 });
+    let page;
+    for (let startupAttempt = 0; startupAttempt < 2; startupAttempt += 1) {
+      try {
+        await app.evaluate(({ BrowserWindow }) => {
+          BrowserWindow.getAllWindows()[0]?.setBounds({ x: 20, y: 20, width: 1500, height: 1100 });
+        });
+        page = await app.firstWindow({ timeout: 30_000 });
+        const openFileButton = page.getByRole('button', { name: 'Open file' });
+        // A 40-case cold-launch corpus can briefly contend with Windows process
+        // teardown and shader-cache I/O. Retry only this pre-document readiness
+        // boundary; all import, render and parity failures remain hard failures.
+        await openFileButton.waitFor({ state: 'visible', timeout: 60_000 });
+        break;
+      } catch (error) {
+        await app.close().catch(() => {});
+        if (startupAttempt === 1) throw error;
+        app = await launchCase();
+      }
+    }
+    if (!page) throw new Error('Electron did not expose a renderer page.');
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
     const openFileButton = page.getByRole('button', { name: 'Open file' });
-    // A 40-case cold-launch corpus can briefly contend with Windows process
-    // teardown and shader-cache I/O. Keep the product readiness gate strict,
-    // but do not inherit Playwright's shorter implicit action timeout here.
-    await openFileButton.waitFor({ state: 'visible', timeout: 60_000 });
     await openFileButton.click();
     await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: 60_000 });
