@@ -15,3 +15,9 @@ Task remains open. No design partners have been recruited or observed, and the
 cohort cannot start before owner acceptance and the declared hardware cells are
 available. Therefore there is no honest aggregate cohort report or exit review
 yet; the committed report is explicitly a zero-participant readiness audit.
+
+## Candidate rerun — 7 August 2026
+
+Diagnostics, opt-in/redaction, triage and hostile-data checks pass on clean
+candidate `85fad8d0`. A real consented cohort and exit review remain the Task
+110 follow-up; no external result is inferred from local automation.

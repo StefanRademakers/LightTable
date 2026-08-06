@@ -12,3 +12,9 @@ Blocking completion condition: explicit product-owner sign-off for interaction
 feel, visual quality and documented release classification. The task must remain
 in `work/todo/` until that human judgment is recorded; automation cannot supply
 it.
+
+## Candidate rerun — 7 August 2026
+
+The same 15/15 automation passed on clean candidate `85fad8d0`; evidence is in
+`tmp/release-candidate/task-112-85fad8d0/owner-acceptance/`. The disposition is
+unchanged: owner execution and sign-off remain the follow-up in Task 108.

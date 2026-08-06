@@ -13,3 +13,10 @@ Task remains open because Task 110 has no cohort exit review, commercial/legal
 copy has no owner approval, activation receipt verification is not implemented
 and the production installer/rollback provider is not configured. The rehearsal
 must report `commercialReady: false` until those blockers are actually removed.
+
+## Candidate rerun — 7 August 2026
+
+Contract tests and packaged save/export/accessibility, private diagnostics and
+recovery rehearsals pass on clean candidate `85fad8d0` without production
+credentials. Owner/legal review, activation receipts, production distribution,
+hardware qualification and the beta exit review remain explicit blockers.

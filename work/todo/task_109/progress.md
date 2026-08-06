@@ -19,3 +19,9 @@ discrete web also needs a real browser-host run. Common 125%, 150% and 200%
 display scales, sRGB/Display-P3 displays, controlled device-loss, constrained
 storage/memory refusal and the configured release signing key remain to be
 qualified. No support claim is made from missing hardware.
+
+## Candidate rerun — 7 August 2026
+
+The signed probe, classifier, refusal paths and bounded Windows/discrete-GPU
+soak pass on clean candidate `85fad8d0`. Physical matrix blockers and the
+Task 109 follow-up remain unchanged.
