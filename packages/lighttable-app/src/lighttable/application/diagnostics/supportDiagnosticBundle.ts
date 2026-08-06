@@ -17,6 +17,7 @@ export type DiagnosticAvailability<T> =
 
 export interface SupportDiagnosticOptions {
   readonly includeFileName: boolean;
+  readonly betaDiagnostics?: LocalBetaDiagnosticSnapshot | null;
 }
 
 export interface SupportDiagnosticInput {

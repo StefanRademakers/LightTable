@@ -8,6 +8,7 @@ import type { TextRendererBakeoffReport } from '../../text/diagnostics/runTextRe
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 import type { SupportDiagnosticArtifact, SupportDiagnosticOptions } from '../../application/diagnostics/supportDiagnosticBundle';
 import type { WebGpuSupportTier } from '../../gpu/webGpuSupportTier';
+import { useLocalBetaDiagnostics } from '../hooks/useLocalBetaDiagnostics';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];
@@ -15,9 +16,6 @@ interface DebugPanelProps {
   onCollectSupportDiagnostics: (options: SupportDiagnosticOptions) => Promise<SupportDiagnosticArtifact>;
   onExportSupportDiagnostics?: (file: File) => Promise<unknown> | unknown;
   gpuSupport: WebGpuSupportTier | null;
-  betaDiagnosticsEnabled: boolean;
-  betaDiagnosticsEventCount: number;
-  onBetaDiagnosticsEnabledChange: (enabled: boolean) => void;
   accessoryWidthConstraintsEnabled: boolean;
   editorResizeObserversEnabled: boolean;
   dockResizeActive: boolean;
@@ -62,9 +60,6 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   onCollectSupportDiagnostics,
   onExportSupportDiagnostics,
   gpuSupport,
-  betaDiagnosticsEnabled,
-  betaDiagnosticsEventCount,
-  onBetaDiagnosticsEnabledChange,
   accessoryWidthConstraintsEnabled,
   editorResizeObserversEnabled,
   dockResizeActive,
@@ -100,6 +95,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   const [supportArtifact, setSupportArtifact] = useState<SupportDiagnosticArtifact | null>(null);
   const [supportState, setSupportState] = useState<'idle' | 'collecting' | 'exported' | 'failed'>('idle');
   const [rendererView, setRendererView] = useState<'coverage-atlas' | 'hb-gpu' | 'side-by-side'>('side-by-side');
+  const betaDiagnostics = useLocalBetaDiagnostics(messages);
   const summary = useMemo(() => ({
     warnings: messages.filter((entry) => entry.severity === 'warning').length,
     errors: messages.filter((entry) => entry.severity === 'error').length
@@ -134,7 +130,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   const collectSupportArtifact = async () => {
     setSupportState('collecting');
     try {
-      const artifact = await onCollectSupportDiagnostics({ includeFileName });
+      const artifact = await onCollectSupportDiagnostics({ includeFileName, betaDiagnostics: betaDiagnostics.snapshot() });
       setSupportArtifact(artifact);
       setSupportState('idle');
       return artifact;
@@ -179,16 +175,16 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         <label>
           <input
             type="checkbox"
-            checked={betaDiagnosticsEnabled}
+            checked={betaDiagnostics.enabled}
             onChange={(event) => {
               setSupportArtifact(null);
-              onBetaDiagnosticsEnabledChange(event.currentTarget.checked);
+              betaDiagnostics.setEnabled(event.currentTarget.checked);
             }}
           />
           Record privacy-safe beta events locally
         </label>
         <small>
-          Nothing is sent automatically. {betaDiagnosticsEventCount} bounded event(s) stored. Turning this off clears them.
+          Nothing is sent automatically. {betaDiagnostics.eventCount} bounded event(s) stored. Turning this off clears them.
         </small>
         <label>
           <input

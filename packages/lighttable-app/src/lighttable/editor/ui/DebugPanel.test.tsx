@@ -14,9 +14,6 @@ const renderPanel = (
     onClear={vi.fn()}
     onCollectSupportDiagnostics={vi.fn()}
     gpuSupport={null}
-    betaDiagnosticsEnabled={false}
-    betaDiagnosticsEventCount={0}
-    onBetaDiagnosticsEnabledChange={vi.fn()}
     accessoryWidthConstraintsEnabled
     editorResizeObserversEnabled
     dockResizeActive={false}

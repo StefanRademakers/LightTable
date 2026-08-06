@@ -83,10 +83,12 @@ const readEvents = (storage: StorageLike): LocalBetaEvent[] => {
 export const createLocalBetaDiagnosticRecorder = (
   storage: StorageLike,
   now: () => number = Date.now
-): LocalBetaDiagnosticRecorder => ({
-  enabled: () => {
+): LocalBetaDiagnosticRecorder => {
+  const enabled = () => {
     try { return storage.getItem(ENABLED_KEY) === 'true'; } catch { return false; }
-  },
+  };
+  return {
+  enabled,
   setEnabled(enabled) {
     try {
       if (enabled) storage.setItem(ENABLED_KEY, 'true');
@@ -105,10 +107,11 @@ export const createLocalBetaDiagnosticRecorder = (
     } catch { return false; }
   },
   snapshot() {
-    const enabled = this.enabled();
-    return { schemaVersion: 1, localOnly: true, enabled, events: enabled ? readEvents(storage) : [] };
+    const isEnabled = enabled();
+    return { schemaVersion: 1, localOnly: true, enabled: isEnabled, events: isEnabled ? readEvents(storage) : [] };
   }
-});
+  };
+};
 
 export const bucketBetaDuration = (durationMs: number): BetaDurationBucket => {
   if (durationMs < 16) return 'under-16ms';
