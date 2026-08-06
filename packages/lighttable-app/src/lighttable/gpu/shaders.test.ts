@@ -212,6 +212,12 @@ describe('LightTable WGSL modules', () => {
     expect(() => new WgslReflect(WARP_FIELD_COMPUTE_WGSL)).not.toThrow();
   });
 
+  it('stores Warp XY displacement as one packed pair of half floats', () => {
+    expect(WARP_FIELD_COMPUTE_WGSL).toContain('texture_storage_2d<r32uint, write>');
+    expect(WARP_FIELD_COMPUTE_WGSL).toContain('pack2x16float(displacement)');
+    expect(WARP_RENDER_WGSL).toContain('unpack2x16float');
+  });
+
   it('uses the shared fullscreen vertex output contract for Warp rendering', () => {
     expect(WARP_RENDER_WGSL).toContain('fn main(input: VertexOutput)');
     expect(WARP_RENDER_WGSL).not.toContain('FullscreenOutput');

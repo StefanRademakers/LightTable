@@ -11,8 +11,8 @@ struct WarpFieldSettings {
 }
 
 @group(0) @binding(0) var<storage, read> stamps: array<Stamp>;
-@group(0) @binding(1) var previousDisplacement: texture_2d<f32>;
-@group(0) @binding(2) var displacementOutput: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(1) var previousDisplacement: texture_2d<u32>;
+@group(0) @binding(2) var displacementOutput: texture_storage_2d<r32uint, write>;
 @group(0) @binding(3) var<uniform> settings: WarpFieldSettings;
 
 fn samplePreviousDisplacement(pixel: vec2f) -> vec2f {
@@ -21,10 +21,10 @@ fn samplePreviousDisplacement(pixel: vec2f) -> vec2f {
   let fraction = fract(pixel - vec2f(0.5));
   let lower = clamp(vec2i(base), vec2i(0), maximum);
   let upper = clamp(lower + vec2i(1), vec2i(0), maximum);
-  let topLeft = textureLoad(previousDisplacement, lower, 0).xy;
-  let topRight = textureLoad(previousDisplacement, vec2i(upper.x, lower.y), 0).xy;
-  let bottomLeft = textureLoad(previousDisplacement, vec2i(lower.x, upper.y), 0).xy;
-  let bottomRight = textureLoad(previousDisplacement, upper, 0).xy;
+  let topLeft = unpack2x16float(textureLoad(previousDisplacement, lower, 0).x);
+  let topRight = unpack2x16float(textureLoad(previousDisplacement, vec2i(upper.x, lower.y), 0).x);
+  let bottomLeft = unpack2x16float(textureLoad(previousDisplacement, vec2i(lower.x, upper.y), 0).x);
+  let bottomRight = unpack2x16float(textureLoad(previousDisplacement, upper, 0).x);
   return mix(
     mix(topLeft, topRight, fraction.x),
     mix(bottomLeft, bottomRight, fraction.x),
@@ -77,7 +77,7 @@ fn main(@builtin(global_invocation_id) invocation: vec3u) {
     source += samplePreviousDisplacement(source);
   }
   let displacement = source - destination;
-  textureStore(displacementOutput, vec2i(invocation.xy), vec4f(displacement, 0.0, 1.0));
+  textureStore(displacementOutput, vec2i(invocation.xy), vec4u(pack2x16float(displacement), 0u, 0u, 0u));
 }
 `;
 
@@ -90,7 +90,7 @@ struct WarpRenderSettings {
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
-@group(0) @binding(1) var displacementTexture: texture_2d<f32>;
+@group(0) @binding(1) var displacementTexture: texture_2d<u32>;
 @group(0) @binding(2) var sourceSampler: sampler;
 @group(0) @binding(3) var<uniform> settings: WarpRenderSettings;
 
@@ -101,11 +101,11 @@ fn mirrorCoordinate(value: f32) -> f32 {
 
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
-  var displacement = textureLoad(
+  var displacement = unpack2x16float(textureLoad(
     displacementTexture,
     clamp(vec2i(input.uv * settings.canvasSize), vec2i(0), vec2i(settings.canvasSize) - 1),
     0
-  ).xy;
+  ).x);
   let destination = input.uv * settings.canvasSize;
   let edgeDistance = min(
     min(destination.x, settings.canvasSize.x - destination.x),
@@ -145,7 +145,7 @@ struct WarpRenderSettings {
   edgePinning: f32,
 }
 
-@group(0) @binding(0) var displacementTexture: texture_2d<f32>;
+@group(0) @binding(0) var displacementTexture: texture_2d<u32>;
 @group(0) @binding(1) var<uniform> settings: WarpRenderSettings;
 
 @fragment
@@ -155,7 +155,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     vec2i(0),
     vec2i(settings.canvasSize) - 1
   );
-  let displacement = textureLoad(displacementTexture, pixel, 0).xy;
+  let displacement = unpack2x16float(textureLoad(displacementTexture, pixel, 0).x);
   let debugRange = max(min(settings.canvasSize.x, settings.canvasSize.y) * 0.04, 8.0);
   let signedDisplacement = clamp(displacement / debugRange, vec2f(-1.0), vec2f(1.0));
   let magnitude = clamp(length(signedDisplacement), 0.0, 1.0);

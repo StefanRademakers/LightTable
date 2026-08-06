@@ -251,7 +251,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
 
   estimatedTextureBytes(): number {
     return this.displacementTextures && this.outputTexture
-      ? this.width * this.height * 24
+      ? this.width * this.height * 16
       : 0;
   }
 
@@ -291,7 +291,7 @@ export class WarpEffect implements LightTableGpuEffect<WarpNodeSettings> {
     this.displacementTextures = [0, 1].map((index) => this.device.createTexture({
       label: `LightTable Warp displacement ${index}`,
       size: [this.width, this.height],
-      format: 'rgba16float',
+      format: 'r32uint',
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
     })) as [GPUTexture, GPUTexture];
     this.outputTexture = this.device.createTexture({
