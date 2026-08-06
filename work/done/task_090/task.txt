@@ -35,3 +35,25 @@ do not expose internal test terminology in normal tool panels.
 - Do not implement unrelated missing features in this audit; create evidence
   for Tasks 091–093.
 - Run parity profile, commit the matrix/harness separately and move to done.
+
+## Completion evidence (2026-08-06)
+
+- Generated 73 capability rows from the canonical layer, blend, style,
+  processing, vector and paint registries; no duplicated handwritten inventory.
+- Every workflow cell has one of four statuses, evidence and a reason. All
+  dependency-sensitive rows require both solo and contextual settled renders.
+- Fresh gates: 32/32 all-mode cases executed (31 strict passes; `Darker Color`
+  is the declared RMSE 3.05 partial), 48/48 color/profile cases passed, 40/40
+  strict effects cases passed, and 10/10 production templates plus all 24
+  compare-manifest cases produced settled captures without runtime errors.
+- TextTest and shapes survived LightTable PSD export/reopen. Photoshop 2026
+  accepted and rewrote the LightTable shapes PSD as five semantic layers; that
+  Photoshop output then survived another LightTable export/reopen with an
+  unchanged semantic signature.
+- The evidence verifier rejects stale generated inventory, undeclared visual
+  failures, semantic signature loss, page errors, missing/flat captures and
+  zero-sized comparisons. Existing import-report vocabulary remains the normal
+  user-facing truth surface; audit terminology was not added to tool panels.
+- `npm run quality:agent -- --profile parity --output
+  tmp/quality-gates/task-090-parity` passed the matrix check, production desktop
+  package, 40 effects cases and 48 color/profile cases in 327.8 seconds.

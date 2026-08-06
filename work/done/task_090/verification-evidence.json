@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-08-06T11:57:55.037Z",
+  "matrixRows": 73,
+  "gates": {
+    "blend": {
+      "colorProfileCases": 48,
+      "allModeCases": 32,
+      "canonicalModes": 26,
+      "declaredPartialModes": [
+        "darker-color"
+      ],
+      "colorReport": "D:\\Mediavibe\\LightTableTests\\BlendColorMatrix\\report.json",
+      "allModeReport": "D:\\Mediavibe\\LightTableTests\\BlendModes\\report.json",
+      "captures": 48
+    },
+    "effects": {
+      "cases": 40,
+      "strict": true,
+      "report": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\lighttable-report.json",
+      "soloCaptures": [
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\drop-shadow-size-3.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\drop-shadow-size-10.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\drop-shadow-size-30.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\drop-shadow-size-100.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\drop-shadow-spread-25.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\drop-shadow-spread-50.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\drop-shadow-distance-0.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\drop-shadow-distance-80.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\inner-shadow-size-3.png",
+          "width": 768,
+          "height": 768
+        },
+        {
+          "file": "D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip\\photoshop-reference\\inner-shadow-size-30.png",
+          "width": 768,
+          "height": 768
+        }
+      ]
+    },
+    "templates": {
+      "documents": 10,
+      "inventory": "D:\\mediavibe\\LightTable\\work\\done\\task_049_psd_template_corpus_feature_audit\\corpus-inventory.json",
+      "contextCaptures": [
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-395-ff4f2b8c.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-396-c2ee8e14.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-401-5ff85a7a.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-402-181f2b70.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-404-623f4005.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-405-bcb95d6a.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-406-bb9649c5.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-407-6217f4cd.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-409-d33ac6d0.png",
+          "width": 800,
+          "height": 400
+        },
+        {
+          "file": "D:\\Mediavibe\\LightTableTests\\PsdCompare\\compare\\EHS-442-588e1886.png",
+          "width": 800,
+          "height": 400
+        }
+      ]
+    },
+    "roundtrip": {
+      "lightTableToPsdToLightTable": "D:\\mediavibe\\LightTable\\tmp\\psd-roundtrip\\report.json",
+      "lightTableToPhotoshopToPsd": "D:\\mediavibe\\LightTable\\tmp\\psd-roundtrip\\photoshop-report.json",
+      "semanticSignatureStable": true
+    },
+    "guards": {
+      "zeroPixelComparisons": 0,
+      "runtimeErrors": 0,
+      "silentSemanticLoss": 0
+    }
+  }
+}

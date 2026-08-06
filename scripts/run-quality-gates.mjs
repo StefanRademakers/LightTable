@@ -60,6 +60,7 @@ if (profile === 'parity' || profile === 'full') {
     'D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip'));
   const blendRoot = path.resolve(argument('blend-root',
     'D:\\Mediavibe\\LightTableTests\\BlendColorMatrix'));
+  addNpm('layered-interchange-matrix', ['run', 'verify:interchange-matrix']);
   addNpm('desktop-production-build', ['run', 'package:desktop:verify'], { deduplicate: true });
   add('photoshop-layer-effects', node,
     [path.join(workspace, 'scripts', 'audit-psd-layer-effects-corpus.mjs'),

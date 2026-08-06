@@ -1,0 +1,4789 @@
+{
+  "schema": 1,
+  "statusVocabulary": [
+    "supported",
+    "partial",
+    "preserved",
+    "unavailable"
+  ],
+  "columns": [
+    "create",
+    "import",
+    "edit",
+    "undo",
+    "native-save-reopen",
+    "psd-export-reopen",
+    "visual-parity"
+  ],
+  "inventory": {
+    "sources": {
+      "layers": "packages/lighttable-app/src/lighttable/editor/document/documentTypes.ts",
+      "blends": "packages/lighttable-app/src/lighttable/editor/document/blendModes.ts",
+      "styles": "packages/lighttable-app/src/lighttable/editor/styles/layerStyleTypes.ts",
+      "processing": "packages/lighttable-app/src/lighttable/processing/moduleDefinitions.ts",
+      "vectors": "packages/vector-core/src/model/types.ts",
+      "gradients": "packages/paint-core/src/gradient.ts"
+    },
+    "layers": [
+      "raster",
+      "group",
+      "adjustment",
+      "vector",
+      "text"
+    ],
+    "blends": [
+      "normal",
+      "darken",
+      "multiply",
+      "color-burn",
+      "lighten",
+      "screen",
+      "color-dodge",
+      "linear-dodge",
+      "overlay",
+      "soft-light",
+      "hard-light",
+      "difference",
+      "hue",
+      "saturation",
+      "color",
+      "luminosity",
+      "linear-burn",
+      "darker-color",
+      "lighter-color",
+      "vivid-light",
+      "linear-light",
+      "pin-light",
+      "hard-mix",
+      "exclusion",
+      "subtract",
+      "divide"
+    ],
+    "styles": [
+      "drop-shadow",
+      "inner-shadow",
+      "outer-glow",
+      "inner-glow",
+      "bevel-emboss",
+      "color-overlay",
+      "gradient-overlay",
+      "pattern-overlay",
+      "satin",
+      "stroke"
+    ],
+    "processing": [
+      "lt.warp",
+      "lt.white-balance",
+      "lt.light",
+      "lt.global-color",
+      "lt.color-mixer",
+      "lt.color-grading",
+      "lt.curves",
+      "lt.detail",
+      "lt.vignette",
+      "lt.lens-distortion",
+      "lt.chromatic-aberration",
+      "lt.lens-blur",
+      "lt.halation",
+      "lt.grain"
+    ],
+    "vectorElements": [
+      "path",
+      "live-shape"
+    ],
+    "liveShapes": [
+      "live",
+      "rectangle",
+      "ellipse",
+      "triangle",
+      "polygon",
+      "star",
+      "line"
+    ],
+    "vectorPaints": [
+      "solid",
+      "gradient"
+    ],
+    "gradientAssets": [
+      "solid",
+      "noise"
+    ]
+  },
+  "evidence": {
+    "lifecycle": {
+      "kind": "test",
+      "command": "npm test -w @lighttable/app -- documentCommands layeredDocumentFormat",
+      "proves": "Canonical document edits, history and native serialization are executable."
+    },
+    "psdFocused": {
+      "kind": "test",
+      "command": "npm run smoke:desktop:psd-roundtrip -- D:\\TextTest.psd && npm run smoke:desktop:psd-roundtrip -- D:\\shapes.psd",
+      "proves": "Photoshop-authored text/vector documents survive LightTable PSD projection and reopen."
+    },
+    "photoshopBridge": {
+      "kind": "test",
+      "command": "Photoshop.exe -r scripts/photoshop-psd-roundtrip.jsx",
+      "proves": "Photoshop accepts the latest LightTable PSD and writes a PSD which LightTable can reopen."
+    },
+    "blends48": {
+      "kind": "visual-test",
+      "command": "npm run audit:psd-blend-corpus -- --root D:\\Mediavibe\\LightTableTests\\BlendColorMatrix --max-rmse 3",
+      "proves": "The 48-case Photoshop color/blend corpus compares non-empty settled pixels."
+    },
+    "blendsAll": {
+      "kind": "visual-test",
+      "command": "npm run audit:psd-blend-corpus -- --root D:\\Mediavibe\\LightTableTests\\BlendModes",
+      "proves": "All 26 canonical blend modes plus opacity/fill variants have settled Photoshop comparisons; matrix status owns the fidelity boundary."
+    },
+    "effects40": {
+      "kind": "visual-test",
+      "command": "npm run audit:psd-effects-corpus -- --root D:\\mediavibe\\LightTableTestFiles\\psd\\layer-effects-roundtrip --strict",
+      "proves": "The 40-case layer-style corpus validates semantics, self-roundtrip and settled pixels."
+    },
+    "templates10": {
+      "kind": "corpus",
+      "command": "node scripts/audit-psd-template-corpus.mjs --root \"D:\\mediavibe\\LightTableTestFiles\\psd\\templates\\Save the Date Invitation PSD 6\"",
+      "proves": "Ten production templates inventory dependency-sensitive and unsupported PSD constructs."
+    },
+    "previewFreshness": {
+      "kind": "test",
+      "command": "npm test -w @lighttable/app -- derivedPreview",
+      "proves": "A derived preview is eligible only while its semantic dependency key is current."
+    },
+    "soloContext": {
+      "kind": "visual-test",
+      "command": "node scripts/verify-layered-interchange-evidence.mjs --check-renders",
+      "proves": "Dependency-sensitive features have non-empty solo and contextual settled captures."
+    },
+    "explicitBoundary": {
+      "kind": "reason",
+      "command": null,
+      "proves": "No verified adapter exists; metadata/preview preservation is the release boundary."
+    }
+  },
+  "rows": [
+    {
+      "id": "layer:raster",
+      "family": "layer",
+      "capability": "raster",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Raster structure and pixels are verified through both PSD directions."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Raster structure and pixels are verified through both PSD directions."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Raster structure and pixels are verified through both PSD directions."
+        }
+      }
+    },
+    {
+      "id": "layer:group",
+      "family": "layer",
+      "capability": "group",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "group semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "group semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "group semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        }
+      }
+    },
+    {
+      "id": "layer:adjustment",
+      "family": "layer",
+      "capability": "adjustment",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "adjustment semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "adjustment semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "adjustment semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        }
+      }
+    },
+    {
+      "id": "layer:vector",
+      "family": "layer",
+      "capability": "vector",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "vector semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "vector semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "vector semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        }
+      }
+    },
+    {
+      "id": "layer:text",
+      "family": "layer",
+      "capability": "text",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "text semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "text semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge",
+            "soloContext"
+          ],
+          "reason": "text semantics are native, but the verified Photoshop subset is narrower than the canonical model."
+        }
+      }
+    },
+    {
+      "id": "geometry:off-canvas",
+      "family": "geometry",
+      "capability": "off-canvas layer bounds",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Layer-local bounds remain unbounded; clipping occurs only at final canvas composition."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Layer-local bounds remain unbounded; clipping occurs only at final canvas composition."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Layer-local bounds remain unbounded; clipping occurs only at final canvas composition."
+        }
+      }
+    },
+    {
+      "id": "mask:raster",
+      "family": "mask",
+      "capability": "raster mask density and feather",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "soloContext"
+          ],
+          "reason": "Raster masks are editable; real/vector masks are rasterized while original descriptors remain preserved."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "soloContext"
+          ],
+          "reason": "Raster masks are editable; real/vector masks are rasterized while original descriptors remain preserved."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "soloContext"
+          ],
+          "reason": "Raster masks are editable; real/vector masks are rasterized while original descriptors remain preserved."
+        }
+      }
+    },
+    {
+      "id": "composition:clipping",
+      "family": "composition",
+      "capability": "clipping chain",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "soloContext"
+          ],
+          "reason": "Clipping is semantic and editable; complex nested/group chains remain contextual parity work."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "soloContext"
+          ],
+          "reason": "Clipping is semantic and editable; complex nested/group chains remain contextual parity work."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "soloContext"
+          ],
+          "reason": "Clipping is semantic and editable; complex nested/group chains remain contextual parity work."
+        }
+      }
+    },
+    {
+      "id": "composition:fill-opacity",
+      "family": "composition",
+      "capability": "fill opacity separate from effects",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The model separates fill and layer opacity; effect interaction remains fixture-calibrated rather than universally exact."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The model separates fill and layer opacity; effect interaction remains fixture-calibrated rather than universally exact."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The model separates fill and layer opacity; effect interaction remains fixture-calibrated rather than universally exact."
+        }
+      }
+    },
+    {
+      "id": "blend:normal",
+      "family": "blend-mode",
+      "capability": "normal",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:darken",
+      "family": "blend-mode",
+      "capability": "darken",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:multiply",
+      "family": "blend-mode",
+      "capability": "multiply",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:color-burn",
+      "family": "blend-mode",
+      "capability": "color-burn",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:lighten",
+      "family": "blend-mode",
+      "capability": "lighten",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:screen",
+      "family": "blend-mode",
+      "capability": "screen",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:color-dodge",
+      "family": "blend-mode",
+      "capability": "color-dodge",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:linear-dodge",
+      "family": "blend-mode",
+      "capability": "linear-dodge",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:overlay",
+      "family": "blend-mode",
+      "capability": "overlay",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:soft-light",
+      "family": "blend-mode",
+      "capability": "soft-light",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:hard-light",
+      "family": "blend-mode",
+      "capability": "hard-light",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:difference",
+      "family": "blend-mode",
+      "capability": "difference",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:hue",
+      "family": "blend-mode",
+      "capability": "hue",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:saturation",
+      "family": "blend-mode",
+      "capability": "saturation",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:color",
+      "family": "blend-mode",
+      "capability": "color",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:luminosity",
+      "family": "blend-mode",
+      "capability": "luminosity",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:linear-burn",
+      "family": "blend-mode",
+      "capability": "linear-burn",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:darker-color",
+      "family": "blend-mode",
+      "capability": "darker-color",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "blendsAll"
+          ],
+          "reason": "Semantic mapping passes, but the settled Photoshop comparison is RMSE 3.05 and remains a declared parity gap."
+        }
+      }
+    },
+    {
+      "id": "blend:lighter-color",
+      "family": "blend-mode",
+      "capability": "lighter-color",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:vivid-light",
+      "family": "blend-mode",
+      "capability": "vivid-light",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:linear-light",
+      "family": "blend-mode",
+      "capability": "linear-light",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:pin-light",
+      "family": "blend-mode",
+      "capability": "pin-light",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:hard-mix",
+      "family": "blend-mode",
+      "capability": "hard-mix",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:exclusion",
+      "family": "blend-mode",
+      "capability": "exclusion",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:subtract",
+      "family": "blend-mode",
+      "capability": "subtract",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "blend:divide",
+      "family": "blend-mode",
+      "capability": "divide",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "blendsAll",
+            "blends48"
+          ],
+          "reason": "Canonical GPU/PSD mapping is covered by the all-mode corpus; color-profile representatives also pass the 48-case corpus."
+        }
+      }
+    },
+    {
+      "id": "style:drop-shadow",
+      "family": "layer-style",
+      "capability": "drop-shadow",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:inner-shadow",
+      "family": "layer-style",
+      "capability": "inner-shadow",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:outer-glow",
+      "family": "layer-style",
+      "capability": "outer-glow",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:inner-glow",
+      "family": "layer-style",
+      "capability": "inner-glow",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:bevel-emboss",
+      "family": "layer-style",
+      "capability": "bevel-emboss",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:color-overlay",
+      "family": "layer-style",
+      "capability": "color-overlay",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:gradient-overlay",
+      "family": "layer-style",
+      "capability": "gradient-overlay",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:pattern-overlay",
+      "family": "layer-style",
+      "capability": "pattern-overlay",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:satin",
+      "family": "layer-style",
+      "capability": "satin",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "style:stroke",
+      "family": "layer-style",
+      "capability": "stroke",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "effects40",
+            "soloContext"
+          ],
+          "reason": "The style is semantic and roundtrips in the verified corpus; exact Photoshop pixels remain parameter-dependent."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.warp",
+      "family": "processing",
+      "capability": "lt.warp",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.white-balance",
+      "family": "processing",
+      "capability": "lt.white-balance",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.light",
+      "family": "processing",
+      "capability": "lt.light",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.global-color",
+      "family": "processing",
+      "capability": "lt.global-color",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.color-mixer",
+      "family": "processing",
+      "capability": "lt.color-mixer",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.color-grading",
+      "family": "processing",
+      "capability": "lt.color-grading",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.curves",
+      "family": "processing",
+      "capability": "lt.curves",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.detail",
+      "family": "processing",
+      "capability": "lt.detail",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.vignette",
+      "family": "processing",
+      "capability": "lt.vignette",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.lens-distortion",
+      "family": "processing",
+      "capability": "lt.lens-distortion",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.chromatic-aberration",
+      "family": "processing",
+      "capability": "lt.chromatic-aberration",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.lens-blur",
+      "family": "processing",
+      "capability": "lt.lens-blur",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.halation",
+      "family": "processing",
+      "capability": "lt.halation",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.grain",
+      "family": "processing",
+      "capability": "lt.grain",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "vector-element:path",
+      "family": "vector-element",
+      "capability": "path",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Native vector geometry is editable; Photoshop export supports the verified common-style subset."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Native vector geometry is editable; Photoshop export supports the verified common-style subset."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Native vector geometry is editable; Photoshop export supports the verified common-style subset."
+        }
+      }
+    },
+    {
+      "id": "vector-element:live-shape",
+      "family": "vector-element",
+      "capability": "live-shape",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Native vector geometry is editable; Photoshop export supports the verified common-style subset."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Native vector geometry is editable; Photoshop export supports the verified common-style subset."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Native vector geometry is editable; Photoshop export supports the verified common-style subset."
+        }
+      }
+    },
+    {
+      "id": "live-shape:live",
+      "family": "live-shape",
+      "capability": "live",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        }
+      }
+    },
+    {
+      "id": "live-shape:rectangle",
+      "family": "live-shape",
+      "capability": "rectangle",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        }
+      }
+    },
+    {
+      "id": "live-shape:ellipse",
+      "family": "live-shape",
+      "capability": "ellipse",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        }
+      }
+    },
+    {
+      "id": "live-shape:triangle",
+      "family": "live-shape",
+      "capability": "triangle",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        }
+      }
+    },
+    {
+      "id": "live-shape:polygon",
+      "family": "live-shape",
+      "capability": "polygon",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        }
+      }
+    },
+    {
+      "id": "live-shape:star",
+      "family": "live-shape",
+      "capability": "star",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        }
+      }
+    },
+    {
+      "id": "live-shape:line",
+      "family": "live-shape",
+      "capability": "line",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "The parametric shape is native; PSD stores realized Photoshop vector geometry and may not retain LightTable parameters."
+        }
+      }
+    },
+    {
+      "id": "vector-paint:solid",
+      "family": "vector-paint",
+      "capability": "solid",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Solid fill/stroke paint is in the verified PSD subset."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Solid fill/stroke paint is in the verified PSD subset."
+        },
+        "visual-parity": {
+          "status": "supported",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Solid fill/stroke paint is in the verified PSD subset."
+        }
+      }
+    },
+    {
+      "id": "vector-paint:gradient",
+      "family": "vector-paint",
+      "capability": "gradient",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Gradient geometry is native; Photoshop gradient variants and methods are only partially mapped."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Gradient geometry is native; Photoshop gradient variants and methods are only partially mapped."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused",
+            "photoshopBridge"
+          ],
+          "reason": "Gradient geometry is native; Photoshop gradient variants and methods are only partially mapped."
+        }
+      }
+    },
+    {
+      "id": "gradient-asset:solid",
+      "family": "gradient-asset",
+      "capability": "solid",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused"
+          ],
+          "reason": "Editable stop gradients are supported with a partial Photoshop method mapping."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused"
+          ],
+          "reason": "Editable stop gradients are supported with a partial Photoshop method mapping."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "psdFocused"
+          ],
+          "reason": "Editable stop gradients are supported with a partial Photoshop method mapping."
+        }
+      }
+    },
+    {
+      "id": "gradient-asset:noise",
+      "family": "gradient-asset",
+      "capability": "noise",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "preserved",
+          "evidence": [
+            "explicitBoundary",
+            "previewFreshness"
+          ],
+          "reason": "Noise gradients retain source semantics/preview; there is no complete editable Photoshop mapping."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "preserved",
+          "evidence": [
+            "explicitBoundary",
+            "previewFreshness"
+          ],
+          "reason": "Noise gradients retain source semantics/preview; there is no complete editable Photoshop mapping."
+        },
+        "visual-parity": {
+          "status": "preserved",
+          "evidence": [
+            "explicitBoundary",
+            "previewFreshness"
+          ],
+          "reason": "Noise gradients retain source semantics/preview; there is no complete editable Photoshop mapping."
+        }
+      }
+    },
+    {
+      "id": "fallback:retained-unsupported-preview",
+      "family": "fallback",
+      "capability": "retained unsupported semantic preview",
+      "dependencySensitive": false,
+      "evidenceViews": [
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "unavailable",
+          "evidence": [
+            "explicitBoundary"
+          ],
+          "reason": "Fallback previews are import artifacts, not authoring features."
+        },
+        "import": {
+          "status": "preserved",
+          "evidence": [
+            "explicitBoundary",
+            "previewFreshness"
+          ],
+          "reason": "Unsupported source descriptors and a bounded preview are retained explicitly."
+        },
+        "edit": {
+          "status": "unavailable",
+          "evidence": [
+            "explicitBoundary"
+          ],
+          "reason": "Editing requires a native adapter or an explicit destructive rasterize action."
+        },
+        "undo": {
+          "status": "unavailable",
+          "evidence": [
+            "explicitBoundary"
+          ],
+          "reason": "There is no implicit edit to an unsupported payload."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "previewFreshness",
+            "lifecycle"
+          ],
+          "reason": "The native format retains source metadata and its bounded preview without making it authority."
+        },
+        "psd-export-reopen": {
+          "status": "preserved",
+          "evidence": [
+            "explicitBoundary",
+            "previewFreshness"
+          ],
+          "reason": "The original descriptor remains preservation authority where export supports it."
+        },
+        "visual-parity": {
+          "status": "preserved",
+          "evidence": [
+            "explicitBoundary",
+            "previewFreshness"
+          ],
+          "reason": "Current previews preserve appearance only while their dependency key remains current."
+        }
+      }
+    }
+  ]
+}
