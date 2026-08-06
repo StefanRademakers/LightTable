@@ -64,6 +64,7 @@ const commandIds = ['view.setZoom', 'layer.createRaster', 'layer.placeArtifact',
   'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
   'vector.create', 'vector.update', 'vector.remove',
   'layer.effect.add', 'layer.effect.update', 'layer.effect.remove', 'layer.effect.move',
+  'command.batch', 'task.cancel',
   'file.exportNative', 'file.exportPng', 'file.exportPsd', 'history.undo', 'history.redo'];
 
 export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) => {
@@ -112,6 +113,30 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     client.invoke('command.execute', { documentId, command,
       commandRequestId: crypto.randomUUID(), commandParameters: parameters,
       ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) }), { edit: true }));
+  server.registerTool('lighttable_batch', {
+    title: 'Execute an atomic LightTable command batch',
+    description: 'Runs up to 64 semantic edits as one publication and one named undo entry. Failure or cancellation publishes nothing.',
+    inputSchema: z.object({ documentId: z.string().min(1), name: z.string().min(1).max(128),
+      timeoutMs: z.number().int().min(100).max(10_000).default(5_000),
+      expectedDocumentRevision: z.number().int().nonnegative().optional(),
+      operations: z.array(z.object({ operationId: z.string().min(1).max(128),
+        command: z.enum(commandIds.filter((id) => id !== 'command.batch' && id !== 'task.cancel')),
+        parameters: z.record(z.string(), z.unknown()).default({}) })).min(1).max(64) })
+  }, withResult(({ documentId, name, timeoutMs, operations, expectedDocumentRevision }) =>
+    client.invoke('command.execute', { documentId, command: 'command.batch',
+      commandRequestId: crypto.randomUUID(), commandParameters: { name, timeoutMs, operations },
+      ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) }), { edit: true }));
+  server.registerTool('lighttable_task_events', {
+    title: 'Poll LightTable agent activity',
+    description: 'Returns bounded task events after a reconnect-safe cursor.',
+    inputSchema: z.object({ afterCursor: z.number().int().nonnegative().default(0),
+      limit: z.number().int().min(1).max(200).default(100) }), annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('task.events', input)));
+  server.registerTool('lighttable_cancel_task', {
+    title: 'Cancel a LightTable task',
+    inputSchema: z.object({ documentId: z.string().min(1), taskId: z.string().min(1) })
+  }, withResult(({ documentId, taskId }) => client.invoke('command.execute', { documentId,
+    command: 'task.cancel', commandRequestId: crypto.randomUUID(), commandParameters: { taskId } }), { edit: true }));
   server.registerTool('lighttable_create_document', {
     title: 'Create a LightTable document',
     description: 'Creates one document with explicit canvas, resolution, bit depth, profile and background semantics.',

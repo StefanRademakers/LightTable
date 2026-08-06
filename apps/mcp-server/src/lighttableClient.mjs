@@ -92,6 +92,7 @@ export class MockLightTableClient {
       'layer.setVisibility', 'layer.setFillOpacity', 'history.undo', 'history.redo']
       .map((command) => ({ command, available: true, reason: null }));
     if (method === 'artifact.list') return [];
+    if (method === 'task.events') return { cursor: 0, events: [] };
     if (method === 'command.execute') {
       this.revision += 1; this.document.canonicalRevision += 1; this.document.dirty = true;
       return { requestId: parameters.commandRequestId, status: 'completed', value: { changed: true },

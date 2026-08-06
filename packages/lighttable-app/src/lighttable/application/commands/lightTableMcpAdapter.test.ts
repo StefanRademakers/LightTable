@@ -17,6 +17,7 @@ const createDriver = (): LightTableAutomationDriver => ({
   listArtifacts: vi.fn(() => []),
   releaseArtifact: vi.fn(() => true),
   queryTask: vi.fn(() => null),
+  queryTaskEvents: vi.fn(() => ({ cursor: 0, events: [] })),
   queryWorkspace: vi.fn(() => ({ revision: 1, activeDocumentId: null, documents: [] })),
   queryDocument: vi.fn(() => null),
   queryLayers: vi.fn(() => null),
@@ -131,6 +132,22 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       documentId: 'document-1', commandRequestId: 'effect-add', commandParameters: {
         layerId: 'vector-1', effectKind: 'stroke'
       } }))).toMatchObject({ status: 'completed' });
+  });
+
+  it('forwards atomic batches, cancellation and event cursors', async () => {
+    const driver = createDriver();
+    vi.mocked(driver.queryTaskEvents).mockReturnValue({ cursor: 4, events: [] });
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('task.events', { afterCursor: 2, limit: 50 })))
+      .toMatchObject({ status: 'completed', value: { cursor: 4 } });
+    expect(await adapter.invoke(request('command.execute', { command: 'command.batch',
+      documentId: 'document-1', commandRequestId: 'batch-1', commandParameters: {
+        name: 'Build', operations: [{ operationId: 'rename', command: 'layer.rename',
+          parameters: { layerId: 'layer-1', name: 'Hero' } }]
+      } }))).toMatchObject({ status: 'completed' });
+    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({ command: 'command.batch' }));
   });
 
   it('expires and bounds sessions and their activity history', async () => {

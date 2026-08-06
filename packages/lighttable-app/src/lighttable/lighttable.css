@@ -1890,6 +1890,34 @@
   padding: 0 0 18px;
 }
 
+.lighttable-agent-activity__title,
+.lighttable-agent-activity__task {
+  padding: 12px;
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.lighttable-agent-activity__title {
+  font-size: var(--lt-type-body);
+  font-weight: 600;
+}
+
+.lighttable-agent-activity__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lighttable-agent-activity progress {
+  width: 100%;
+  margin: 8px 0;
+}
+
+.lighttable-agent-activity__hint {
+  margin: 6px 0;
+  color: var(--text-secondary);
+  font-size: var(--lt-type-label);
+}
+
 .lighttable-layers-panel {
   width: 100%;
   height: 100%;

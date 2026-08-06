@@ -15,7 +15,8 @@ describe('workspacePanelRegistry', () => {
       lensFx: 'lensFx',
       layers: 'layers',
       channels: 'channels',
-      debug: 'debug'
+      debug: 'debug',
+      agent: 'agent'
     };
 
     const panels = createDefaultLightTableWorkspacePanels(content);
@@ -29,7 +30,8 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.debug,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent
     ]);
     expect(panels.map((panel) => panel.content)).toEqual([
       content.layers,
@@ -40,7 +42,8 @@ describe('workspacePanelRegistry', () => {
       content.effects,
       content.color,
       content.text,
-      content.debug
+      content.debug,
+      content.agent
     ]);
     expect(panels.map((panel) => panel.contentKey)).toEqual([
       'layers',
@@ -51,7 +54,8 @@ describe('workspacePanelRegistry', () => {
       'effects',
       'color',
       'text',
-      'debug'
+      'debug',
+      'agent'
     ]);
     expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.grade)?.title)
       .toBe('Grade');
@@ -67,7 +71,8 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.text
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent
     ]);
   });
 
@@ -81,7 +86,8 @@ describe('workspacePanelRegistry', () => {
       lensFx: null,
       layers: null,
       channels: null,
-      debug: null
+      debug: null,
+      agent: null
     });
     const scopesPanel = panels.find(
       (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes
@@ -106,7 +112,8 @@ describe('workspacePanelRegistry', () => {
       lensFx: null,
       layers: null,
       channels: null,
-      debug: null
+      debug: null,
+      agent: null
     });
     const debugPanel = panels.find(
       (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
@@ -156,7 +163,8 @@ describe('workspacePanelRegistry', () => {
       lensFx: null,
       layers: null,
       channels: null,
-      debug: null
+      debug: null,
+      agent: null
     });
     const layersPanel = panels.find(
       (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.layers

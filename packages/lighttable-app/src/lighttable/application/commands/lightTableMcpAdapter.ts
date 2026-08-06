@@ -17,6 +17,7 @@ export type LightTableMcpMethod =
   | 'command.capabilities'
   | 'command.execute'
   | 'task.query'
+  | 'task.events'
   | 'artifact.list'
   | 'artifact.query'
   | 'artifact.release'
@@ -87,6 +88,8 @@ const allowedCommands = new Set<LightTableCommandId>([
   'layer.effect.update',
   'layer.effect.remove',
   'layer.effect.move',
+  'command.batch',
+  'task.cancel',
   'file.exportNative',
   'file.exportPng',
   'history.undo',
@@ -186,6 +189,8 @@ export class AuthenticatedLightTableMcpAdapter {
       case 'vector.query': return this.options.driver.queryVector(documentId, parameters.layerId as LayerId);
       case 'command.capabilities': return this.options.driver.queryCapabilities(documentId);
       case 'task.query': return this.options.driver.queryTask(documentId, String(parameters.taskId ?? ''));
+      case 'task.events': return this.options.driver.queryTaskEvents(
+        Number(parameters.afterCursor ?? 0), Number(parameters.limit ?? 100));
       case 'artifact.list': return this.options.driver.listArtifacts();
       case 'artifact.query': return this.options.driver.queryArtifact(String(parameters.artifactId ?? ''));
       case 'artifact.release': return this.options.driver.releaseArtifact(String(parameters.artifactId ?? ''));

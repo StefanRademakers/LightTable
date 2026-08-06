@@ -60,6 +60,12 @@ export class LightTableAutomationClient {
     { documentId, taskId });
   }
 
+  queryTaskEvents(afterCursor = 0, limit = 100) {
+    return this.page.evaluate(({ afterCursor, limit }) => (
+      window.__lightTableAutomation?.queryTaskEvents(afterCursor, limit) ?? null
+    ), { afterCursor, limit });
+  }
+
   async execute(documentId, command, parameters = {}, options = {}) {
     const result = await this.page.evaluate(async (request) =>
       window.__lightTableAutomation?.execute(request) ?? null, {

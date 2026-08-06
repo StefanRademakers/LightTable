@@ -55,6 +55,7 @@ const invoke = (method, parameters) => page.evaluate(async ({ method, parameters
   if (method === 'vector.query') return driver.queryVector(parameters.documentId, parameters.layerId);
   if (method === 'command.capabilities') return driver.queryCapabilities(parameters.documentId);
   if (method === 'task.query') return driver.queryTask(parameters.documentId, parameters.taskId);
+  if (method === 'task.events') return driver.queryTaskEvents(parameters.afterCursor, parameters.limit);
   if (method === 'artifact.list') return driver.listArtifacts();
   if (method === 'artifact.query') return driver.queryArtifact(parameters.artifactId);
   if (method === 'artifact.release') return driver.releaseArtifact(parameters.artifactId);

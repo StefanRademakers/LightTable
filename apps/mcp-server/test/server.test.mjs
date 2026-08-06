@@ -44,6 +44,9 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_shape'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_edit_vector'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_style'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_batch'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_task_events'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_cancel_task'));
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
@@ -94,6 +97,15 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     effectKind: 'drop-shadow', settings: { distance: 20, size: 10 }
   } });
   assert.equal(style.isError, undefined);
+  const batch = await editor.callTool({ name: 'lighttable_batch', arguments: {
+    documentId: 'document-demo', name: 'MCP mini design', operations: [
+      { operationId: 'rename', command: 'layer.rename', parameters: {
+        layerId: 'layer-background', name: 'Batch background' } }
+    ]
+  } });
+  assert.equal(batch.isError, undefined);
+  const events = await reader.callTool({ name: 'lighttable_task_events', arguments: { afterCursor: 0 } });
+  assert.deepEqual(events.structuredContent.events, []);
 });
 
 test('MCP endpoint advertises protected-resource metadata when unauthenticated', async (context) => {

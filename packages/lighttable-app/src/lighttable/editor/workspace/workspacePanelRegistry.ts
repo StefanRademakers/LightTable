@@ -10,7 +10,8 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   lensFx: 'lighttable.lens-fx',
   layers: 'lighttable.layers',
   channels: 'lighttable.channels',
-  debug: 'lighttable.debug'
+  debug: 'lighttable.debug',
+  agent: 'lighttable.agent-activity'
 } as const;
 
 export type LightTableWorkspacePanelId =
@@ -49,6 +50,7 @@ export interface DefaultLightTableWorkspacePanelContent {
   layers: ReactNode;
   channels: ReactNode;
   debug: ReactNode;
+  agent: ReactNode;
 }
 
 /**
@@ -173,5 +175,17 @@ export const createDefaultLightTableWorkspacePanels = (
       direction: 'within'
     },
     initiallyInactive: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
+    contentKey: 'agent',
+    title: 'Agent',
+    content: content.agent,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
   }
 ];

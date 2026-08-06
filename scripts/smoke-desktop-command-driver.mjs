@@ -138,6 +138,42 @@ try {
   if (Math.max(vectorCreateLatencyMs, effectCreateLatencyMs) > 1_000) {
     throw new Error(`Semantic vector/style latency exceeded 1000 ms: ${JSON.stringify({ vectorCreateLatencyMs, effectCreateLatencyMs })}`);
   }
+  const batchHistoryBefore = (await driver.queryDocument(semanticDocumentId)).history.undoDepth;
+  await driver.resetRenderTelemetry(semanticDocumentId);
+  const batchStartedAt = performance.now();
+  const batchAccepted = await driver.execute(semanticDocumentId, 'command.batch', {
+    name: 'Agent: build mini card', operations: [
+      { operationId: 'card', command: 'vector.create', parameters: {
+        name: 'Batch shape', primitive: { kind: 'rectangle', x: 20, y: 180, width: 120, height: 42 }
+      } },
+      { operationId: 'name-card', command: 'layer.rename', parameters: {
+        layerId: { resultOf: 'card', field: 'layerId' }, name: 'Agent mini card'
+      } },
+      { operationId: 'shadow', command: 'layer.effect.add', parameters: {
+        layerId: { resultOf: 'card', field: 'layerId' }, effectKind: 'drop-shadow',
+        settings: { distance: 8, size: 6, opacity: 0.5 }
+      } }
+    ]
+  }, { requireCompleted: false });
+  const batchTask = await driver.waitForTask(semanticDocumentId, batchAccepted.taskId);
+  const batchLatencyMs = performance.now() - batchStartedAt;
+  const batchDocument = await driver.queryDocument(semanticDocumentId);
+  const batchLayer = (await driver.queryLayers(semanticDocumentId))?.find(({ name }) => name === 'Agent mini card');
+  const batchEffects = batchLayer ? await driver.queryLayerEffects(semanticDocumentId, batchLayer.id) : null;
+  const batchRenderTelemetry = await driver.queryRenderTelemetry(semanticDocumentId);
+  if (batchTask.status !== 'completed' || !batchLayer || batchEffects?.effects[0]?.kind !== 'drop-shadow'
+    || batchDocument.history.undoDepth !== batchHistoryBefore + 1
+    || Number(batchRenderTelemetry?.submittedFrames ?? 99) > 3) {
+    throw new Error(`Atomic mini-design batch or undo boundary is incorrect: ${JSON.stringify({ batchTask, batchLayer, batchEffects, batchDocument, batchRenderTelemetry })}`);
+  }
+  await driver.execute(semanticDocumentId, 'history.undo', {});
+  if ((await driver.queryLayers(semanticDocumentId))?.some(({ name }) => name === 'Agent mini card')) {
+    throw new Error('One batch undo did not restore the exact baseline.');
+  }
+  await driver.execute(semanticDocumentId, 'history.redo', {});
+  if (!(await driver.queryLayers(semanticDocumentId))?.some(({ name }) => name === 'Agent mini card')) {
+    throw new Error('One batch redo did not restore the mini design.');
+  }
   const nativeExport = await driver.execute(semanticDocumentId, 'file.exportNative', {}, { requireCompleted: false });
   const nativeTask = await driver.waitForTask(semanticDocumentId, nativeExport.taskId);
   const psdExport = await driver.execute(semanticDocumentId, 'file.exportPsd', {}, { requireCompleted: false });
@@ -223,6 +259,8 @@ try {
       vector: { created: vectorCreated, effectCreated, projection: vectorProjection,
         effects: effectProjection, latenciesMs: { create: vectorCreateLatencyMs, effect: effectCreateLatencyMs },
         nativeLayerId: nativeVectorLayer.id, psdLayerId: psdVectorLayer.id },
+      batch: { accepted: batchAccepted, task: batchTask, latencyMs: batchLatencyMs, renderTelemetry: batchRenderTelemetry,
+        layerId: batchLayer.id, events: await driver.queryTaskEvents(0, 200) },
       exports: { native: nativeTask, psd: psdTask } },
     before, layersBefore: layerProjection.length,
     results: { zoom, hidden, shown, created, renamed, undone },
