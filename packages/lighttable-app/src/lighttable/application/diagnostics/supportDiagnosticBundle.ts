@@ -5,6 +5,7 @@ import type { LightTableDebugMessage } from '../../editor/debug/debugLog';
 import type { ImageDocument, LayerNode } from '../../editor/document/documentTypes';
 import type { LightTableImageMetadata } from '../../types';
 import type { SharedWebGpuDiagnosticSnapshot } from '../../gpu/sharedWebGpuDevice';
+import type { LocalBetaDiagnosticSnapshot } from './localBetaDiagnostics';
 
 export const SUPPORT_DIAGNOSTIC_SCHEMA_VERSION = 1;
 export const SUPPORT_DIAGNOSTIC_MAX_EVENTS = 100;
@@ -31,6 +32,7 @@ export interface SupportDiagnosticInput {
   readonly gpuMemoryBytes: number | null;
   readonly textRender: TextRenderPresentationSnapshot | null;
   readonly events: readonly LightTableDebugMessage[];
+  readonly betaDiagnostics?: LocalBetaDiagnosticSnapshot | null;
 }
 
 export interface SupportDiagnosticArtifact {
@@ -66,6 +68,8 @@ export const redactDiagnosticText = (
   value = value.replace(/\b(?:https?|wss?):\/\/[^\s"'<>]+/giu, REDACTED_URL);
   value = value.replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/giu, `Bearer ${REDACTED_SECRET}`);
   value = value.replace(/\b(?:pairing[\s_-]*(?:code|token)|access[\s_-]*token|api[\s_-]*key)\s*[:=]\s*[^\s,;]+/giu,
+    (match) => `${match.split(/[:=]/u, 1)[0]}: ${REDACTED_SECRET}`);
+  value = value.replace(/\b(?:mcp[\s_-]*(?:token|data|payload|prompt))\s*[:=]\s*[^\r\n]+/giu,
     (match) => `${match.split(/[:=]/u, 1)[0]}: ${REDACTED_SECRET}`);
   value = value.replace(/\b(?:document[\s_-]*(?:content|text)|text[\s_-]*content)\s*[:=]\s*[^\r\n]+/giu,
     (match) => `${match.split(/[:=]/u, 1)[0]}: ${REDACTED_CONTENT}`);
@@ -199,6 +203,9 @@ export const createSupportDiagnosticArtifact = (
     },
     failures,
     events,
+    betaDiagnostics: input.betaDiagnostics?.enabled
+      ? available(input.betaDiagnostics)
+      : unavailable('Local beta diagnostics are disabled.'),
     attachments: [{
       name: 'summary.txt',
       mediaType: 'text/plain',

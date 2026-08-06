@@ -15,6 +15,9 @@ interface DebugPanelProps {
   onCollectSupportDiagnostics: (options: SupportDiagnosticOptions) => Promise<SupportDiagnosticArtifact>;
   onExportSupportDiagnostics?: (file: File) => Promise<unknown> | unknown;
   gpuSupport: WebGpuSupportTier | null;
+  betaDiagnosticsEnabled: boolean;
+  betaDiagnosticsEventCount: number;
+  onBetaDiagnosticsEnabledChange: (enabled: boolean) => void;
   accessoryWidthConstraintsEnabled: boolean;
   editorResizeObserversEnabled: boolean;
   dockResizeActive: boolean;
@@ -59,6 +62,9 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   onCollectSupportDiagnostics,
   onExportSupportDiagnostics,
   gpuSupport,
+  betaDiagnosticsEnabled,
+  betaDiagnosticsEventCount,
+  onBetaDiagnosticsEnabledChange,
   accessoryWidthConstraintsEnabled,
   editorResizeObserversEnabled,
   dockResizeActive,
@@ -169,6 +175,20 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         </small>
         <small role="status">
           WebGPU support: {gpuSupport?.label ?? 'Not initialized'}. {gpuSupport?.action ?? 'Open a document to probe this device.'}
+        </small>
+        <label>
+          <input
+            type="checkbox"
+            checked={betaDiagnosticsEnabled}
+            onChange={(event) => {
+              setSupportArtifact(null);
+              onBetaDiagnosticsEnabledChange(event.currentTarget.checked);
+            }}
+          />
+          Record privacy-safe beta events locally
+        </label>
+        <small>
+          Nothing is sent automatically. {betaDiagnosticsEventCount} bounded event(s) stored. Turning this off clears them.
         </small>
         <label>
           <input

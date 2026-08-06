@@ -24,7 +24,7 @@ describe('support diagnostic bundle', () => {
       severity: 'error',
       source: 'Renderer',
       message: 'secret-client.psd failed at D:\\Clients\\Acme\\secret-client.psd https://private.example/doc',
-      details: 'Bearer abc.def pairing-code=842199 document content: CANARY_DOCUMENT_TEXT data:image/png;base64,QUJDREVGRw=='
+      details: 'Bearer abc.def pairing-code=842199 MCP prompt: PRIVATE_AGENT_REQUEST document content: CANARY_DOCUMENT_TEXT data:image/png;base64,QUJDREVGRw=='
     }]), { includeFileName: false });
     for (const output of [artifact.json, artifact.summary]) {
       expect(output).not.toContain('secret-client.psd');
@@ -33,6 +33,7 @@ describe('support diagnostic bundle', () => {
       expect(output).not.toContain('abc.def');
       expect(output).not.toContain('842199');
       expect(output).not.toContain('CANARY_DOCUMENT_TEXT');
+      expect(output).not.toContain('PRIVATE_AGENT_REQUEST');
       expect(output).not.toContain('QUJDREVGRw');
     }
     expect(artifact.json).toContain('[redacted-path]');

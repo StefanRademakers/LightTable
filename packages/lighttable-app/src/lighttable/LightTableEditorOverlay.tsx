@@ -60,6 +60,10 @@ import {
 } from './application/rendering/rendererTypes';
 import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
 import { createSupportDiagnosticArtifact } from './application/diagnostics/supportDiagnosticBundle';
+import {
+  betaEventFromDebugMessage,
+  createLocalBetaDiagnosticRecorder
+} from './application/diagnostics/localBetaDiagnostics';
 import { sharedWebGpuDiagnostics } from './gpu/sharedWebGpuDevice';
 import { useTextEngineDiagnostics } from './text/diagnostics/useTextEngineDiagnostics';
 import {
@@ -786,6 +790,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onDocumentReady,
     onDocumentError
   });
+  const betaDiagnosticRecorder = useMemo(
+    () => createLocalBetaDiagnosticRecorder(window.localStorage),
+    []
+  );
+  const [betaDiagnosticsEnabled, setBetaDiagnosticsEnabled] = useState(
+    () => betaDiagnosticRecorder.enabled()
+  );
+  const [betaDiagnosticsEventCount, setBetaDiagnosticsEventCount] = useState(
+    () => betaDiagnosticRecorder.snapshot().events.length
+  );
+  const lastBetaDiagnosticMessageIdRef = useRef(0);
+  useEffect(() => {
+    const latestId = debugMessages.at(-1)?.id ?? 0;
+    if (!betaDiagnosticsEnabled) {
+      lastBetaDiagnosticMessageIdRef.current = latestId;
+      return;
+    }
+    let recorded = false;
+    for (const message of debugMessages) {
+      if (message.id <= lastBetaDiagnosticMessageIdRef.current) continue;
+      const event = betaEventFromDebugMessage(message);
+      if (event) recorded = betaDiagnosticRecorder.record(event) || recorded;
+    }
+    lastBetaDiagnosticMessageIdRef.current = latestId;
+    if (recorded) setBetaDiagnosticsEventCount(betaDiagnosticRecorder.snapshot().events.length);
+  }, [betaDiagnosticRecorder, betaDiagnosticsEnabled, debugMessages]);
   const textEngineDiagnostic = useTextEngineDiagnostics(appendDebugMessage);
   const textRenderTraceSignatureRef = useRef('');
   const pendingTextRenderPresentationRef = useRef<TextRenderPresentationSnapshot | null>(null);
@@ -4164,7 +4194,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 messages: debugMessages,
                 onClear: clearDebugMessages,
                 gpuSupport: sharedWebGpuDiagnostics()?.support ?? null,
-                onCollectSupportDiagnostics: async (options) => createSupportDiagnosticArtifact({ hostKind, release: await releaseService?.info().catch(() => null) ?? null, gpu: sharedWebGpuDiagnostics(), metadata, sourceFileName: initialSourceName, document: imageDocument, startupTimings, gpuMemoryBytes: metadata ? gpuMemoryBytes : null, textRender: metadata ? textRenderPresentation : null, events: debugMessages }, options),
+                betaDiagnosticsEnabled,
+                betaDiagnosticsEventCount,
+                onBetaDiagnosticsEnabledChange: (enabled) => {
+                  betaDiagnosticRecorder.setEnabled(enabled);
+                  setBetaDiagnosticsEnabled(enabled);
+                  setBetaDiagnosticsEventCount(betaDiagnosticRecorder.snapshot().events.length);
+                },
+                onCollectSupportDiagnostics: async (options) => createSupportDiagnosticArtifact({ hostKind, release: await releaseService?.info().catch(() => null) ?? null, gpu: sharedWebGpuDiagnostics(), metadata, sourceFileName: initialSourceName, document: imageDocument, startupTimings, gpuMemoryBytes: metadata ? gpuMemoryBytes : null, textRender: metadata ? textRenderPresentation : null, events: debugMessages, betaDiagnostics: betaDiagnosticRecorder.snapshot() }, options),
                 onExportSupportDiagnostics: onExportFile,
                 accessoryWidthConstraintsEnabled,
                 editorResizeObserversEnabled,

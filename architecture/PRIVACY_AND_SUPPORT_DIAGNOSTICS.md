@@ -49,3 +49,9 @@ data, font bytes, recovery payloads or source files.
 
 Recovery remains a separate private local persistence lane. Its encrypted
 metadata and canonical snapshots are not diagnostic inputs.
+
+The optional design-partner beta event lane follows the same local-first rule.
+It is disabled by default, retains only bounded enum records with hourly time
+buckets and has no free-text field. Revoking consent deletes its local storage.
+When enabled, its exact snapshot is included in the inspectable bundle; it is
+still never uploaded automatically. See `BETA_PRIVACY_AND_DEFECT_TRIAGE.md`.

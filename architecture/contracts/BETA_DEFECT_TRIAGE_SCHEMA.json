@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lighttable.local/schemas/beta-defect-triage-v1.json",
+  "title": "LightTable beta defect triage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "kind", "severity", "frequency", "workflow", "hardwareCell", "reproducibility", "dataLossRisk", "summary", "ownerDecision", "regressionEvidence"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^BETA-[0-9]{4}$" },
+    "kind": { "enum": ["defect", "feature-request"] },
+    "severity": { "enum": ["blocker", "critical", "major", "minor"] },
+    "frequency": { "enum": ["once", "intermittent", "frequent", "always"] },
+    "workflow": { "enum": ["startup", "import", "edit", "recovery", "export", "accessibility", "automation"] },
+    "hardwareCell": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "reproducibility": { "enum": ["not-reproduced", "scripted", "sanitized-fixture", "physical-device-only"] },
+    "dataLossRisk": { "enum": ["none", "possible", "confirmed"] },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "sanitizedSteps": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 240 } },
+    "ownerDecision": { "enum": ["unreviewed", "fix-now", "fix-before-paid-release", "defer-preview", "declined", "duplicate"] },
+    "regressionEvidence": { "type": "array", "items": { "type": "string", "maxLength": 240 } }
+  }
+}

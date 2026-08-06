@@ -45,11 +45,27 @@ for (const fixture of fixtures) {
     await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: 45_000 });
     await window.getByRole('tab', { name: 'Debug' }).click();
+    const betaToggle = window.getByLabel('Record privacy-safe beta events locally');
+    if (await betaToggle.isChecked()) throw new Error(`${fixture.kind}: beta diagnostics were not opt-in.`);
+    await betaToggle.check();
     await window.getByRole('button', { name: 'Preview' }).click();
     const preview = window.locator('.lighttable-debug-panel__preview');
     await preview.waitFor({ state: 'visible', timeout: 10_000 });
     const previewJson = await preview.textContent();
     const previewBundle = JSON.parse(previewJson ?? '{}');
+    if (previewBundle.betaDiagnostics?.status !== 'available'
+      || previewBundle.betaDiagnostics?.value?.localOnly !== true) {
+      throw new Error(`${fixture.kind}: opted-in local beta diagnostics were not inspectable.`);
+    }
+    await betaToggle.uncheck();
+    const retainedBetaKeys = await window.evaluate(() => Object.keys(localStorage)
+      .filter((key) => key.startsWith('lighttable.beta-diagnostics.')));
+    if (retainedBetaKeys.length) throw new Error(`${fixture.kind}: revocation retained beta event storage.`);
+    await window.getByRole('button', { name: 'Preview' }).click();
+    const revokedBundle = JSON.parse(await preview.textContent() ?? '{}');
+    if (revokedBundle.betaDiagnostics?.status !== 'unavailable') {
+      throw new Error(`${fixture.kind}: revoked beta diagnostics remained in the bundle.`);
+    }
     await window.screenshot({ path: path.join(outputDirectory, `${fixture.kind}-diagnostics.png`) });
     await window.getByRole('button', { name: 'Export bundle' }).click();
     await window.getByText('Diagnostic bundle exported.').waitFor({ state: 'visible', timeout: 10_000 });
