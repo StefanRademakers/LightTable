@@ -18,6 +18,33 @@ Autosave, recovery journals and crash restoration are pre-1.0 requirements.
 They must serialize canonical state/assets, not GPU caches or DOM layout
 accidents.
 
+## Native save transaction
+
+One application-owned transaction governs File > Save and Ctrl/Cmd+S in every
+host. It pins both the canonical document revision and command-history state,
+then advances through `preparing`, `prepared`, `writing` and a terminal
+`committed`, `canceled` or `failed` state. Serialization that becomes stale is
+canceled before host I/O. A prepared revision that commits while newer edits
+arrive remains a valid saved snapshot, but the open document stays dirty.
+
+Electron writes a unique sibling temporary file with exclusive creation,
+flushes and closes it, validates its length and known PNG/LightTable, PSD or PDF
+container boundary, and only then publishes it. The normal path uses a sibling
+rename. Hosts that reject replacement by rename use a bounded fallback: move
+the previous target to a unique sibling backup, publish the complete temporary
+file, and restore the backup if publication fails. The previous valid document
+is never deleted before a replacement exists. Symbolic-link and non-file save
+targets are rejected.
+
+Browser downloads use the same application result contract but report
+`download` durability; they do not claim atomic replacement. Dialog cancel and
+phase-specific failures are normal structured results. Successful saves are
+quiet status updates, while failure text retains the failing phase and cause.
+
+Exports share the host byte writer but never change document dirty state. A
+normal Save does not close the document. Autosave and recovery consume this
+transaction in later tasks rather than adding a second durable-write path.
+
 ## Error boundary
 
 Errors identify subsystem, phase, document and underlying cause. WebGPU shader

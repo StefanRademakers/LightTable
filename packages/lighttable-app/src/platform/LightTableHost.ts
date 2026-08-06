@@ -22,7 +22,29 @@ export interface LightTableMediaBrowser {
 export interface LightTableSaveRequest {
   file: File;
   recipe: unknown;
+  transaction?: {
+    readonly id: string;
+    readonly documentId: string;
+    readonly revision: number;
+  };
 }
+
+export type LightTableSaveDurability =
+  | 'atomic-replace'
+  | 'safe-replace'
+  | 'download';
+
+export type LightTableSaveResult =
+  | {
+      readonly status: 'committed';
+      readonly durability: LightTableSaveDurability;
+    }
+  | { readonly status: 'canceled' }
+  | {
+      readonly status: 'failed';
+      readonly phase: string;
+      readonly message: string;
+    };
 
 export interface LightTableRecentFile {
   id: string;
@@ -48,11 +70,8 @@ export interface LightTableHost {
    * Ask the host whether unsaved changes may be discarded.
    */
   confirmDiscardChanges(documentTitle: string): Promise<boolean>;
-  /**
-   * Return false when the host showed a save dialog and the user cancelled it.
-   * Undefined/void means the save completed.
-   */
-  save(request: LightTableSaveRequest): Promise<boolean | void>;
+  /** Persist a prepared artifact and report the host durability honestly. */
+  save(request: LightTableSaveRequest): Promise<LightTableSaveResult>;
   /** Test-only host seam. Production browser hosts never install this. */
   installAutomationDriver?(driver: LightTableAutomationDriver): (() => void) | void;
 }
@@ -82,6 +101,13 @@ export const createBrowserHost = (): LightTableHost => ({
       anchor.href = url;
       anchor.download = file.name;
       anchor.click();
+      return { status: 'committed', durability: 'download' };
+    } catch (reason) {
+      return {
+        status: 'failed',
+        phase: 'download',
+        message: reason instanceof Error ? reason.message : String(reason)
+      };
     } finally {
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
     }

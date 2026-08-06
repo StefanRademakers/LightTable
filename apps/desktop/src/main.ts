@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
+import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
 import {
   createDesktopOpenDialogFilters,
   desktopMediaTypeForFileName
@@ -371,7 +372,14 @@ void app.whenReady().then(async () => {
       !payload ||
       typeof payload.suggestedName !== 'string' ||
       !(payload.bytes instanceof Uint8Array) ||
-      payload.bytes.byteLength > 2_147_483_647
+      payload.bytes.byteLength > 2_147_483_647 ||
+      (payload.transaction !== undefined && (
+        !payload.transaction ||
+        typeof payload.transaction.id !== 'string' ||
+        typeof payload.transaction.documentId !== 'string' ||
+        !Number.isSafeInteger(payload.transaction.revision) ||
+        payload.transaction.revision < 0
+      ))
     ) {
       throw new Error('Invalid LightTable save request.');
     }
@@ -386,10 +394,32 @@ void app.whenReady().then(async () => {
       : mainWindow
         ? await dialog.showSaveDialog(mainWindow, options)
         : await dialog.showSaveDialog(options);
-    if (result.canceled || !result.filePath) return false;
-    await writeFile(result.filePath, payload.bytes);
-    await rememberRecentFile(result.filePath);
-    return true;
+    if (result.canceled || !result.filePath) return { status: 'canceled' };
+    try {
+      const committed = await atomicWriteFile({
+        targetPath: result.filePath,
+        bytes: payload.bytes
+      });
+      try {
+        await rememberRecentFile(result.filePath);
+      } catch (reason) {
+        console.warn('[LightTable desktop] Saved the document but could not update recents.', reason);
+      }
+      return { status: 'committed', durability: committed.durability };
+    } catch (reason) {
+      const failure = reason instanceof AtomicWriteError
+        ? reason
+        : new AtomicWriteError(
+            'write',
+            reason instanceof Error ? reason.message : String(reason),
+            reason
+          );
+      return {
+        status: 'failed',
+        phase: failure.phase,
+        message: failure.message
+      };
+    }
   });
 
   ipcMain.handle('lighttable:clipboard-write-png', async (event, bytes: Uint8Array) => {

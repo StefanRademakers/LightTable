@@ -65,10 +65,11 @@ const desktopHost: LightTableHost = {
   confirmDiscardChanges(documentTitle) {
     return window.lightTableDesktop.confirmDiscardChanges(documentTitle);
   },
-  async save({ file }) {
+  async save({ file, transaction }) {
     return window.lightTableDesktop.saveFile({
       suggestedName: file.name,
-      bytes: new Uint8Array(await file.arrayBuffer())
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      transaction
     });
   },
   installAutomationDriver: window.lightTableDesktop.automationEnabled

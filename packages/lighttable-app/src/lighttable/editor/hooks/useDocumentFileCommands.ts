@@ -28,6 +28,8 @@ import {
 } from '../../image-io/supportedImageFormats';
 import type { LightTableRecipe } from '../../lightTableRecipe';
 import type { BasicAdjustments } from '../../types';
+import type { LightTableSaveResult } from '../../../platform/LightTableHost';
+import { executeDocumentSaveTransaction } from '../../application/documents/documentSaveTransaction';
 
 export interface DocumentFileCommandsOptions {
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
@@ -55,11 +57,12 @@ export interface DocumentFileCommandsOptions {
   readonly cancelAutoAlign: () => void;
   readonly onSave: (
     file: File,
-    recipe: LightTableRecipe
-  ) => Promise<boolean | void> | boolean | void;
-  readonly onExportFile?: (file: File) => Promise<boolean | void> | boolean | void;
-  readonly onClose: () => void;
-  readonly onDirtyChange?: (dirty: boolean) => void;
+    recipe: LightTableRecipe,
+    transaction: { readonly id: string; readonly documentId: string; readonly revision: number }
+  ) => Promise<LightTableSaveResult> | LightTableSaveResult;
+  readonly onExportFile?: (file: File) => Promise<unknown> | unknown;
+  readonly getDocumentRevision?: () => number;
+  readonly commitSavedRevision?: (revision: number) => void;
   readonly onRequestOpenWorkspaceDocument?: (
     decodeMode: DocumentOpenMode
   ) => Promise<void> | void;
@@ -69,6 +72,7 @@ export interface DocumentFileCommandsOptions {
   ) => void;
   readonly setLoading: (loading: boolean) => void;
   readonly setError: (error: string | null) => void;
+  readonly setStatus?: (status: string | null) => void;
 }
 
 export interface DocumentFileCommands {
@@ -138,26 +142,55 @@ export const useDocumentFileCommands = (
     savingRef.current = true;
     setSaving(true);
     current.setError(null);
+    current.setStatus?.('Saving…');
+    const historyRevision = current.commandHistory.getSnapshot().currentStateId;
+    const documentRevision = current.getDocumentRevision?.() ?? historyRevision;
+    const transactionId = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `save-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const result = await current.taskRegistry.run(
       'save',
       'Save document',
       async (task) => {
-        const output = await exportOutput();
-        task.throwIfCanceled();
-        const saved = await current.onSave(output.file, output.recipe);
-        task.throwIfCanceled();
-        if (saved !== false) {
-          current.commandHistory.markSaved();
-          current.onDirtyChange?.(false);
-          current.onClose();
-        }
-        return saved;
+        return executeDocumentSaveTransaction({
+          id: transactionId,
+          documentId: String(current.commandHistory.documentId),
+          revision: documentRevision,
+          signal: task.signal,
+          isCurrent: () => task.isCurrent()
+            && current.commandHistory.getSnapshot().currentStateId === historyRevision
+            && (current.getDocumentRevision?.() ?? historyRevision) === documentRevision,
+          prepare: exportOutput,
+          buildRequest: (output) => ({ file: output.file, recipe: output.recipe }),
+          write: (request) => Promise.resolve(current.onSave(
+            request.file,
+            request.recipe as LightTableRecipe,
+            request.transaction!
+          )),
+          commit: () => {
+            if (current.commitSavedRevision) current.commitSavedRevision(documentRevision);
+            else current.commandHistory.markSaved();
+          }
+        });
       }
     );
     if (result.status === 'failed') {
       current.setError(
         result.error.message || 'LightTable image could not be saved.'
       );
+      current.setStatus?.('Save failed');
+    } else if (result.status === 'canceled') {
+      current.setStatus?.('Save canceled');
+    } else if (result.value.status === 'failed') {
+      const phase = result.value.phase ?? 'unknown';
+      current.setError(`Save failed during ${phase}: ${result.value.message ?? 'Unknown error'}`);
+      current.setStatus?.('Save failed');
+    } else if (result.value.status === 'canceled') {
+      current.setStatus?.('Save canceled');
+    } else if (result.value.markedClean) {
+      current.setStatus?.('Saved');
+    } else {
+      current.setStatus?.('Saved revision; newer edits remain unsaved');
     }
     savingRef.current = false;
     setSaving(false);

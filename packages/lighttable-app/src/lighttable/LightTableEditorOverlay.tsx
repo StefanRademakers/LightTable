@@ -228,7 +228,10 @@ import {
   browserImageClipboard,
   type LightTableImageClipboard
 } from '../platform/LightTableImageClipboard';
-import type { LightTableRecentFile } from '../platform/LightTableHost';
+import type {
+  LightTableRecentFile,
+  LightTableSaveResult
+} from '../platform/LightTableHost';
 import { useLensBlurDepthController } from './application/effects/lensBlur/useLensBlurDepthController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
@@ -370,8 +373,12 @@ export interface LightTableEditorOverlayProps {
   fileNameBase: string;
   subjectLabel: string;
   onClose: () => void;
-  onSave: (file: File, recipe: LightTableRecipe) => Promise<boolean | void> | boolean | void;
-  onExportFile?: (file: File) => Promise<boolean | void> | boolean | void;
+  onSave: (
+    file: File,
+    recipe: LightTableRecipe,
+    transaction: { readonly id: string; readonly documentId: string; readonly revision: number }
+  ) => Promise<LightTableSaveResult> | LightTableSaveResult;
+  onExportFile?: (file: File) => Promise<unknown> | unknown;
   workspaceDocumentId?: string;
   workspaceDocuments?: ReadonlyArray<{
     id: string;
@@ -2993,12 +3000,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     cancelAutoAlign: cancelAutoAlignPreview,
     onSave,
     onExportFile,
-    onClose,
-    onDirtyChange,
+    getDocumentRevision: () => documentSession?.getSnapshot().documentRevision
+      ?? commandHistory.getSnapshot().currentStateId,
+    commitSavedRevision: (revision) => {
+      if (documentSession) documentSession.markSaved(revision);
+      else commandHistory.markSaved();
+    },
     onRequestOpenWorkspaceDocument,
     onOpenWorkspaceDocument,
     setLoading,
-    setError
+    setError,
+    setStatus: setGradeStatus
   });
   exportNativeArtifactRef.current = async () => (await exportOutput()).file;
   exportPngArtifactRef.current = async () => {

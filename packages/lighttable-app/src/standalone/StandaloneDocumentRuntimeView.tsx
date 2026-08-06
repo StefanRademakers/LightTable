@@ -131,11 +131,11 @@ export function StandaloneDocumentRuntimeView({
           }
         }}
         onClose={() => onClose(id)}
-        onSave={async (output, recipe) => {
-          const saved = await host.save({ file: output, recipe });
-          if (saved !== false) session.markSaved();
-          return saved;
-        }}
+        onSave={(output, recipe, transaction) => host.save({
+          file: output,
+          recipe,
+          transaction
+        })}
         onExportFile={(file) => host.save({ file, recipe: null })}
       />
     </DocumentRuntimeErrorBoundary>

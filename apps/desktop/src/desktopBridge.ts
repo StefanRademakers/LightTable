@@ -7,7 +7,24 @@ export interface DesktopFilePayload {
 export interface DesktopSavePayload {
   suggestedName: string;
   bytes: Uint8Array;
+  transaction?: {
+    readonly id: string;
+    readonly documentId: string;
+    readonly revision: number;
+  };
 }
+
+export type DesktopSaveResult =
+  | {
+      readonly status: 'committed';
+      readonly durability: 'atomic-replace' | 'safe-replace';
+    }
+  | { readonly status: 'canceled' }
+  | {
+      readonly status: 'failed';
+      readonly phase: string;
+      readonly message: string;
+    };
 
 export interface DesktopRecentFile {
   id: string;
@@ -51,7 +68,7 @@ export interface LightTableDesktopBridge {
   setFullscreen(enabled: boolean): Promise<void>;
   onFullscreenChange(listener: (enabled: boolean) => void): () => void;
   confirmDiscardChanges(documentTitle: string): Promise<boolean>;
-  saveFile(payload: DesktopSavePayload): Promise<boolean>;
+  saveFile(payload: DesktopSavePayload): Promise<DesktopSaveResult>;
   writeClipboardPng(bytes: Uint8Array): Promise<void>;
   readClipboardPng(): Promise<Uint8Array | null>;
   listSystemFonts(): Promise<readonly DesktopSystemFontAsset[]>;

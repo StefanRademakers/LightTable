@@ -40,3 +40,24 @@ Dirty state clears only for the exact committed document revision.
 
 Do not implement autosave or recovery UI here; Task 084/085 consume this
 transaction.
+
+## Completion evidence — 6 August 2026
+
+- Added one revision-pinned application save transaction with explicit
+  preparing/prepared/writing/committed/canceled/failed states. Late or stale
+  completions never clean newer edits, and a normal Save no longer closes the
+  document.
+- Electron now exclusively creates a sibling temporary artifact, flushes,
+  closes and validates it, then uses atomic rename or a tested backup/restore
+  fallback. Phase failures preserve the previous byte-valid target.
+- Browser saving reports download durability through the same structured host
+  result contract without claiming filesystem atomicity.
+- Deterministic tests cover serialization, cancellation, write, flush,
+  validation, replace, compatibility fallback and rollback: desktop 9/9 and
+  application transaction 8/8.
+- Full app tests passed (313 files, 1,673 tests), desktop tests passed (4 files,
+  17 tests), boundary verification passed, both workspace typechecks passed,
+  and production web plus packaged Electron builds passed.
+- Packaged Ctrl+S saved `TextTest.psd` as a 478,746-byte native layered file.
+  Reopen verified seven layers, five flow-text layers, one vector layer and no
+  renderer page errors.
