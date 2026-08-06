@@ -283,7 +283,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const serialized = `${JSON.stringify(await createLayeredInterchangeMatrix(), null, 2)}\n`;
   if (check) {
     const current = await readFile(output, 'utf8');
-    if (current !== serialized) throw new Error(`${path.relative(workspace, output)} is stale.`);
+    // Git may materialize text files with CRLF on Windows even though the
+    // generator intentionally emits platform-independent LF. Content checks
+    // must not turn a clean detached checkout into a false stale result.
+    if (current.replaceAll('\r\n', '\n') !== serialized) {
+      throw new Error(`${path.relative(workspace, output)} is stale.`);
+    }
   } else {
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, serialized);
