@@ -28,6 +28,7 @@ const createProvider = (devices: GPUDevice[], supportsTier1 = true) => {
     return device;
   });
   const adapter = {
+    info: { vendor: 'test-vendor', architecture: 'test-arch', device: 'test-device', description: 'Test GPU' },
     features: new Set<GPUFeatureName>(
       supportsTier1 ? [TEXTURE_FORMATS_TIER1] : []
     ),
@@ -53,6 +54,10 @@ describe('SharedWebGpuDeviceManager', () => {
     expect(reused).toBe(first.device);
     expect(provider.requestAdapter).toHaveBeenCalledTimes(1);
     expect(requestDevice).toHaveBeenCalledTimes(1);
+    expect(manager.diagnostics()).toEqual({
+      vendor: 'test-vendor', architecture: 'test-arch', device: 'test-device',
+      description: 'Test GPU', features: [TEXTURE_FORMATS_TIER1]
+    });
   });
 
   it('requests tier-one texture formats only when supported', async () => {

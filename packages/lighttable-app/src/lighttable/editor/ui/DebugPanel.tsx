@@ -6,10 +6,13 @@ import {
 import type { TypographyCorpusReport } from '../../text/diagnostics/runTypographyCorpus';
 import type { TextRendererBakeoffReport } from '../../text/diagnostics/runTextRendererBakeoff';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
+import type { SupportDiagnosticArtifact, SupportDiagnosticOptions } from '../../application/diagnostics/supportDiagnosticBundle';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];
   onClear: () => void;
+  onCollectSupportDiagnostics: (options: SupportDiagnosticOptions) => Promise<SupportDiagnosticArtifact>;
+  onExportSupportDiagnostics?: (file: File) => Promise<unknown> | unknown;
   accessoryWidthConstraintsEnabled: boolean;
   editorResizeObserversEnabled: boolean;
   dockResizeActive: boolean;
@@ -47,6 +50,8 @@ const formatTimestamp = (timestamp: number) => new Date(timestamp).toLocaleTimeS
 export const DebugPanel: React.FC<DebugPanelProps> = ({
   messages,
   onClear,
+  onCollectSupportDiagnostics,
+  onExportSupportDiagnostics,
   accessoryWidthConstraintsEnabled,
   editorResizeObserversEnabled,
   dockResizeActive,
@@ -78,6 +83,9 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   const visibleMessages = messages.slice(-100);
   const omittedMessageCount = messages.length - visibleMessages.length;
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [includeFileName, setIncludeFileName] = useState(false);
+  const [supportArtifact, setSupportArtifact] = useState<SupportDiagnosticArtifact | null>(null);
+  const [supportState, setSupportState] = useState<'idle' | 'collecting' | 'exported' | 'failed'>('idle');
   const [rendererView, setRendererView] = useState<'coverage-atlas' | 'hb-gpu' | 'side-by-side'>('side-by-side');
   const summary = useMemo(() => ({
     warnings: messages.filter((entry) => entry.severity === 'warning').length,
@@ -110,10 +118,79 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
     }
   };
 
+  const collectSupportArtifact = async () => {
+    setSupportState('collecting');
+    try {
+      const artifact = await onCollectSupportDiagnostics({ includeFileName });
+      setSupportArtifact(artifact);
+      setSupportState('idle');
+      return artifact;
+    } catch {
+      setSupportState('failed');
+      return null;
+    }
+  };
+
+  const copySupportSummary = async () => {
+    const artifact = supportArtifact ?? await collectSupportArtifact();
+    if (!artifact) return;
+    try {
+      await navigator.clipboard.writeText(artifact.summary);
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+  };
+
+  const exportSupportBundle = async () => {
+    const artifact = await collectSupportArtifact();
+    if (!artifact || !onExportSupportDiagnostics) return;
+    try {
+      await onExportSupportDiagnostics(artifact.file);
+      setSupportState('exported');
+    } catch {
+      setSupportState('failed');
+    }
+  };
+
   return (
     <section className="lighttable-debug-panel" aria-label="LightTable debug log">
       <fieldset className="lighttable-debug-panel__diagnostics">
-        <legend>Layout diagnostics</legend>
+        <legend>Support diagnostics</legend>
+        <small>
+          Built locally from bounded snapshots. No document pixels, text, binary payloads or network upload.
+        </small>
+        <label>
+          <input
+            type="checkbox"
+            checked={includeFileName}
+            onChange={(event) => {
+              setIncludeFileName(event.currentTarget.checked);
+              setSupportArtifact(null);
+            }}
+          />
+          Include document filename
+        </label>
+        <div className="lighttable-debug-panel__actions">
+          <button type="button" onClick={() => void collectSupportArtifact()} disabled={supportState === 'collecting'}>
+            {supportState === 'collecting' ? 'Collecting...' : 'Preview'}
+          </button>
+          <button type="button" onClick={() => void copySupportSummary()}>Copy summary</button>
+          <button type="button" onClick={() => void exportSupportBundle()} disabled={!onExportSupportDiagnostics || supportState === 'collecting'}>
+            Export bundle
+          </button>
+        </div>
+        {supportState === 'exported' ? <small role="status">Diagnostic bundle exported.</small> : null}
+        {supportState === 'failed' ? <small role="alert">Diagnostic collection or export failed.</small> : null}
+        {supportArtifact ? (
+          <details open>
+            <summary>Redacted preview ({supportArtifact.collectionDurationMs.toFixed(2)} ms)</summary>
+            <pre className="lighttable-debug-panel__preview">{supportArtifact.json}</pre>
+          </details>
+        ) : null}
+      </fieldset>
+      <fieldset className="lighttable-debug-panel__diagnostics">
+        <legend>Development diagnostics</legend>
         <label>
           <input
             type="checkbox"

@@ -6,6 +6,14 @@ export interface WebGpuAdapterProvider {
 
 export type SharedWebGpuDeviceLostListener = (info: GPUDeviceLostInfo) => void;
 
+export interface SharedWebGpuDiagnosticSnapshot {
+  readonly vendor: string;
+  readonly architecture: string;
+  readonly device: string;
+  readonly description: string;
+  readonly features: readonly string[];
+}
+
 /**
  * Owns the process-wide WebGPU device shared by document renderers.
  *
@@ -17,6 +25,7 @@ export type SharedWebGpuDeviceLostListener = (info: GPUDeviceLostInfo) => void;
 export class SharedWebGpuDeviceManager {
   private device: GPUDevice | null = null;
   private pending: Promise<GPUDevice> | null = null;
+  private adapterSnapshot: SharedWebGpuDiagnosticSnapshot | null = null;
   private readonly lostListeners = new Set<SharedWebGpuDeviceLostListener>();
 
   constructor(private readonly adapterProvider: WebGpuAdapterProvider) {}
@@ -33,12 +42,24 @@ export class SharedWebGpuDeviceManager {
     return () => this.lostListeners.delete(listener);
   }
 
+  diagnostics(): SharedWebGpuDiagnosticSnapshot | null {
+    return this.adapterSnapshot;
+  }
+
   private async acquire(): Promise<GPUDevice> {
     try {
       const adapter = await this.adapterProvider.requestAdapter({
         powerPreference: 'high-performance'
       });
       if (!adapter) throw new Error('No compatible WebGPU adapter was found.');
+      const info = adapter.info ?? {} as GPUAdapterInfo;
+      this.adapterSnapshot = {
+        vendor: info.vendor ?? '',
+        architecture: info.architecture ?? '',
+        device: info.device ?? '',
+        description: info.description ?? '',
+        features: [...adapter.features].map(String).sort()
+      };
       const requiredFeatures = adapter.features.has(TEXTURE_FORMATS_TIER1)
         ? [TEXTURE_FORMATS_TIER1]
         : [];
@@ -79,3 +100,7 @@ export const requestSharedWebGpuDevice = (): Promise<GPUDevice> =>
 export const subscribeSharedWebGpuDeviceLost = (
   listener: SharedWebGpuDeviceLostListener
 ): (() => void) => getBrowserManager().subscribeLost(listener);
+
+/** Read-only; never initializes WebGPU or requests another adapter. */
+export const sharedWebGpuDiagnostics = (): SharedWebGpuDiagnosticSnapshot | null =>
+  browserManager?.diagnostics() ?? null;

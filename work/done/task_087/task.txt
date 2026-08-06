@@ -1,0 +1,58 @@
+# Task 087 — diagnostics, privacy and support bundle (P0)
+
+Priority: P0. Dependencies: none. Expected effort: 4–7 focused hours.
+
+## Objective
+
+Make failures supportable without exposing user documents, paths, tokens or
+content. Produce one bounded diagnostic artifact a user can inspect before
+sharing.
+
+## Required work
+
+- Define diagnostic schema for version/build, host, GPU adapter/features,
+  document type/dimensions (not content), subsystem failures, timing summaries,
+  owned-resource totals and recent bounded application events.
+- Centralize redaction for paths, URLs, bearer tokens, pairing codes, document
+  text, filenames when opted out and binary payloads.
+- Add Copy summary and Export diagnostic bundle using the normal host save port.
+- Include validity metadata; unavailable samples remain unavailable, never zero.
+- Bound event count/bytes and avoid continuous telemetry or network upload.
+- Document local-first privacy behavior and which optional remote AI/MCP paths
+  transmit data.
+
+## UI exposure
+
+Add a Diagnostics section to the existing Debug/About experience with preview,
+redaction choices, Copy and Export. Keep development-only controls separated.
+
+## Verification and completion
+
+- Secret/path/content canary tests prove redaction in JSON and attachments.
+- Generate a bundle from PNG, PSD, PDF and a simulated renderer failure.
+- Measure collection cost and prove it triggers no recomposition/readback.
+- Run web/desktop tests and builds, update reliability/privacy docs, commit/move.
+
+## Completion evidence (2026-08-06)
+
+- Added versioned `com.lighttable.support-diagnostics` JSON with explicit
+  validity/availability, release/host/GPU/document/timing/resource snapshots,
+  100-event and 64-KiB bounds, and a redacted `summary.txt` attachment.
+- One redaction boundary removes Windows/Unix paths, URLs, bearer and pairing
+  credentials, opted-out basenames, document text canaries and data/binary
+  payloads. Filename inclusion is an explicit off-by-default choice.
+- The Debug panel now separates user support diagnostics from development
+  controls and provides Preview, Copy summary and Export bundle through the
+  normal host save port. No telemetry or upload was introduced.
+- GPU diagnostics reuse the initialized adapter snapshot; the collector has no
+  renderer/canvas port and records zero recompositions and zero readbacks.
+- Packaged Electron smoke opened real PNG, `D:\TextTest.psd` and
+  `D:\FormulierPersoneel.pdf`, previewed and exported each bundle, observed no
+  page errors or filename leaks, and measured 0.22 / 0.30 / 0.20 ms collection.
+  Screenshots and JSON evidence are under `tmp/diagnostic-smoke/`.
+- Canary/unit tests include a simulated renderer failure. The quick quality
+  profile passed all boundaries, structure/docs audits, workspace typechecks,
+  317 app test files / 1691 tests, desktop/MCP/other workspace tests and the web
+  production build. Final desktop package and diagnostic smoke also passed.
+- Privacy behavior and optional AI/MCP/update network boundaries are documented
+  in `architecture/PRIVACY_AND_SUPPORT_DIAGNOSTICS.md`.

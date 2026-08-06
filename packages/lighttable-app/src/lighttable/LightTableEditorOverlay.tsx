@@ -89,6 +89,8 @@ import {
   type TextRenderPresentationSnapshot
 } from './application/rendering/rendererTypes';
 import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
+import { createSupportDiagnosticArtifact } from './application/diagnostics/supportDiagnosticBundle';
+import { sharedWebGpuDiagnostics } from './gpu/sharedWebGpuDevice';
 import { useTextEngineDiagnostics } from './text/diagnostics/useTextEngineDiagnostics';
 import {
   documentTextFontDiagnostics,
@@ -399,16 +401,13 @@ export interface LightTableEditorOverlayProps {
   commandPorts?: LightTableCommandPortRegistry;
   imageClipboard?: LightTableImageClipboard;
   recoveryStore?: LightTableRecoveryStore;
-  releaseService?: import('../platform/LightTableHost').LightTableReleaseService;
+  releaseService?: import('../platform/LightTableHost').LightTableReleaseService; hostKind?: import('../platform/LightTableHost').LightTableHost['kind'];
   recoveryNotice?: string | null;
   onRecoveryResolved?: () => Promise<void> | void;
 }
-
 export type { EditorScreenMode } from './editor/workspace/editorScreenMode';
-
 type ZoomMode = 'fit' | '100' | 'custom';
 const cloneAdjustments = cloneAllAdjustments;
-
 export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = ({
   open,
   active = true,
@@ -445,7 +444,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   commandPorts,
   imageClipboard: providedImageClipboard,
   recoveryStore,
-  releaseService,
+  releaseService, hostKind = 'web',
   recoveryNotice = null,
   onRecoveryResolved
 }) => {
@@ -4168,6 +4167,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               debug: {
                 messages: debugMessages,
                 onClear: clearDebugMessages,
+                onCollectSupportDiagnostics: async (options) => createSupportDiagnosticArtifact({ hostKind, release: await releaseService?.info().catch(() => null) ?? null, gpu: sharedWebGpuDiagnostics(), metadata, sourceFileName: initialSourceName, document: imageDocument, startupTimings, gpuMemoryBytes: metadata ? gpuMemoryBytes : null, textRender: metadata ? textRenderPresentation : null, events: debugMessages }, options),
+                onExportSupportDiagnostics: onExportFile,
                 accessoryWidthConstraintsEnabled,
                 editorResizeObserversEnabled,
                 dockResizeActive: dockResizeActiveRef.current,

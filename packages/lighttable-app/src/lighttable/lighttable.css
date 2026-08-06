@@ -4156,6 +4156,17 @@
   font-size: var(--lt-type-label);
 }
 
+.lighttable-debug-panel__preview {
+  max-height: 240px;
+  margin: 6px 0 0;
+  overflow: auto;
+  padding: 8px;
+  background: var(--lt-surface-inset);
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-label);
+  white-space: pre-wrap;
+}
+
 .lighttable-debug-panel__toolbar {
   display: flex;
   min-height: 38px;

@@ -12,6 +12,7 @@ const renderPanel = (
   renderToStaticMarkup(<DebugPanel
     messages={messages}
     onClear={vi.fn()}
+    onCollectSupportDiagnostics={vi.fn()}
     accessoryWidthConstraintsEnabled
     editorResizeObserversEnabled
     dockResizeActive={false}

@@ -72,6 +72,10 @@ test: disposal is idempotent and subscriptions never retain disposed owners.
 
 ## Test ladder
 
+Support diagnostics follow the local-only, bounded and centrally redacted
+contract in `PRIVACY_AND_SUPPORT_DIAGNOSTICS.md`. Collection is user-triggered,
+uses existing snapshots and cannot invoke a renderer recomposition or readback.
+
 1. Pure domain and planning tests.
 2. Command/history and serialization round trips.
 3. Processing-order, exact bypass and cache invalidation tests.
