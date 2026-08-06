@@ -4,14 +4,15 @@ Status: active execution and handoff plan
 
 Last reviewed: 2026-08-03
 
-Architecture source: [`../../research/LIGHTTABLE_GPU_TEXT_AND_DOCUMENT_TEXT_ARCHITECTURE.md`](../../research/LIGHTTABLE_GPU_TEXT_AND_DOCUMENT_TEXT_ARCHITECTURE.md)
+Canonical architecture boundary: [`GPU_TEXT_CONTRACT_BOUNDARIES.md`](GPU_TEXT_CONTRACT_BOUNDARIES.md)
 
-PDF reference: [`../pdf/PDF_TEXT_RENDERING_REFERENCE.md`](../pdf/PDF_TEXT_RENDERING_REFERENCE.md)
+PDF implementation reference: [`PDF_ENGINE_EXTRACTION_SPIKE.md`](PDF_ENGINE_EXTRACTION_SPIKE.md)
 
 This document is the daily source of truth for implementing editable GPU text
-in LightTable. The research document explains the complete target architecture;
-this tracker divides it into independently verifiable vertical slices that may
-be completed by different agents over multiple days.
+in LightTable. Local exploratory research may inform later decisions but is not
+a release-documentation dependency; the tracked contracts above define the
+current architecture. This tracker divides it into independently verifiable
+vertical slices that may be completed by different agents over multiple days.
 
 The app must remain loadable, testable and buildable after every checked slice.
 Unchecked target behavior must never be described as current behavior.
