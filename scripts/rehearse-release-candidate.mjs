@@ -41,8 +41,8 @@ const environment = { ...process.env,
 const stages = [
   { id: 'dependency-install', command: process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'npm',
     args: process.platform === 'win32'
-      ? ['/d', '/s', '/c', 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund']
-      : ['ci', '--ignore-scripts', '--no-audit', '--no-fund'] },
+      ? ['/d', '/s', '/c', 'npm', 'ci', '--no-audit', '--no-fund']
+      : ['ci', '--no-audit', '--no-fund'] },
   { id: 'full-quality', script: 'run-quality-gates.mjs', args: ['--profile', 'full', '--iterations', argument('iterations', '2'), '--output', path.join(output, 'quality')] },
   { id: 'owner-acceptance-automation', script: 'run-owner-acceptance.mjs', args: ['--skip-package', '--output', path.join(output, 'owner-acceptance')] },
   { id: 'hardware-probe', script: 'probe-hardware-qualification.mjs', args: ['--output', path.join(output, 'hardware')] },
