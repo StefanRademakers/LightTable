@@ -2274,6 +2274,14 @@
 .lighttable-layer__visibility img { width: 13px; height: 13px; object-fit: contain; }
 
 .lighttable-layers__list {
+  --lt-layer-row-min-height: 28px;
+  --lt-layer-row-gap: 2px;
+  --lt-layer-row-padding-inline: 5px;
+  --lt-layer-row-padding-block: 3px;
+  --lt-layer-indent: 16px;
+  --lt-layer-thumbnail-slot: 42px;
+  --lt-layer-thumbnail-content-max: 40px;
+  --lt-layer-status-width: 46px;
   min-height: 42px;
   max-height: 170px;
   min-width: 0;
@@ -2281,7 +2289,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--lt-layer-row-gap);
 }
 
 .lighttable-layer {
@@ -2291,11 +2299,11 @@
   min-width: 0;
   max-width: 100%;
   flex: 0 0 auto;
-  min-height: 28px;
+  min-height: var(--lt-layer-row-min-height);
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 5px;
+  padding: var(--lt-layer-row-padding-block) var(--lt-layer-row-padding-inline);
   border: 1px solid var(--lt-border-layer-row);
   border-radius: var(--lt-radius-sm);
   background: var(--lt-surface-layer-row);
@@ -2309,6 +2317,10 @@
 .lighttable-layer--active:hover {
   border-color: var(--lt-border-layer-row-active);
   background: var(--lt-surface-layer-row-active);
+}
+.lighttable-layer:focus-visible {
+  outline: 2px solid var(--lt-focus-ring);
+  outline-offset: -2px;
 }
 .lighttable-layer--dragging { opacity: 0.45; }
 .lighttable-layer--text-editing {
@@ -2395,10 +2407,12 @@
 }
 
 .lighttable-layer__thumbnail-slot {
-  width: 42px;
-  min-width: 42px;
-  max-width: 42px;
-  flex: 0 0 42px;
+  width: var(--lt-layer-thumbnail-slot);
+  min-width: var(--lt-layer-thumbnail-slot);
+  max-width: var(--lt-layer-thumbnail-slot);
+  height: var(--lt-layer-thumbnail-slot);
+  max-height: var(--lt-layer-thumbnail-slot);
+  flex: 0 0 var(--lt-layer-thumbnail-slot);
   display: grid;
   place-items: center;
   align-self: stretch;
@@ -2406,8 +2420,8 @@
 
 .lighttable-layer__thumbnail {
   position: relative;
-  max-width: 40px;
-  max-height: 40px;
+  max-width: var(--lt-layer-thumbnail-content-max);
+  max-height: var(--lt-layer-thumbnail-content-max);
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -2494,6 +2508,9 @@
   font: inherit;
   font-size: var(--lt-type-label);
   cursor: default;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   caret-color: transparent;
   user-select: none;
   -webkit-user-select: none;
@@ -2523,8 +2540,8 @@
 }
 
 .lighttable-layer__status {
-  width: 46px;
-  min-width: 46px;
+  width: var(--lt-layer-status-width);
+  min-width: var(--lt-layer-status-width);
   display: flex;
   align-items: center;
   justify-content: flex-end;

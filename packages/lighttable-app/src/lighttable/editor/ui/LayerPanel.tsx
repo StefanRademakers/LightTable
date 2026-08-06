@@ -21,6 +21,7 @@ import type {
   LayerThumbnailSet
 } from '../layers/layerThumbnailTypes';
 import { layerThumbnailDimensions } from '../layers/layerThumbnailTypes';
+import { layerClippingMarkInset, layerRowInset } from '../layers/layerTreeGeometry';
 import {
   adjustmentStackHasOwner,
   adjustmentStackOwnerIsEnabled
@@ -532,7 +533,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               draggedLayerId === layer.id ? 'lighttable-layer--dragging' : '',
               dropTarget?.layerId === layer.id ? `lighttable-layer--drop-${dropTarget.placement}` : ''
             ].filter(Boolean).join(' ')}
-            style={{ paddingLeft: `${5 + depth * 16 + (layer.clipping ? 14 : 0)}px` }}
+            style={{ paddingLeft: `${layerRowInset(depth, layer.clipping)}px` }}
             onPointerDown={(event) => {
               if (!event.altKey || !canToggleClipping) return;
               const bounds = event.currentTarget.getBoundingClientRect();
@@ -640,7 +641,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             {layer.clipping ? (
               <span
                 className="lighttable-layer__clipping-mark"
-                style={{ left: `${5 + depth * 16}px` }}
+                style={{ left: `${layerClippingMarkInset(depth)}px` }}
                 title={`Clipped to ${clippingBase?.name ?? 'layer below'}`}
                 aria-label={`Clipped to ${clippingBase?.name ?? 'layer below'}`}
               >
