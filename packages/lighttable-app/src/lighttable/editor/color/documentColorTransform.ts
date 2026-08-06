@@ -23,8 +23,8 @@ export const documentBlendProfileGpuValue = (profile: DocumentBlendProfile) =>
   profile === 'adobe-rgb-1998' ? 1 : 0;
 
 /** Photoshop's 16-bit blend math uses its 15-bit+1 working range. */
-export const documentBlendQuantization = (bitDepth: 8 | 16) =>
-  bitDepth === 8 ? 255 : 32_768;
+export const documentBlendQuantization = (bitDepth: 8 | 16 | 32) =>
+  bitDepth === 8 ? 255 : bitDepth === 16 ? 32_768 : 0;
 
 export const encodedDocumentToLinearSrgb = (
   color: RgbTriplet,

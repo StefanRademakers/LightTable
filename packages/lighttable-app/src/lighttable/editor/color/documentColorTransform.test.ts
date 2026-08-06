@@ -16,6 +16,7 @@ describe('document color transform', () => {
   it('uses Photoshop encoded blend precision for 8-bit and 16-bit documents', () => {
     expect(documentBlendQuantization(8)).toBe(255);
     expect(documentBlendQuantization(16)).toBe(32_768);
+    expect(documentBlendQuantization(32)).toBe(0);
   });
 
   it('roundtrips Adobe RGB encoded values through canonical linear sRGB', () => {
