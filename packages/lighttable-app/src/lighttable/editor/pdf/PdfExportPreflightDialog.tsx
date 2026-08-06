@@ -6,6 +6,7 @@ import type {
   PdfTextExportPlan
 } from '@lighttable/pdf-core';
 import { ActionButton } from '../../../ui/ActionButton';
+import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 
 type ReportSupport = 'native' | 'approximate' | 'raster-preview' | 'placeholder';
 
@@ -66,6 +67,7 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
   request,
   onClose
 }) => {
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(Boolean(open && request), onClose);
   const generationRef = useRef(0);
   const pageExportGenerationRef = useRef(0);
   const nativeExportGenerationRef = useRef(0);
@@ -213,10 +215,14 @@ export const PdfExportPreflightDialog: React.FC<PdfExportPreflightDialogProps> =
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className="lighttable-psd-report lighttable-psd-report--pdf"
         role="dialog"
         aria-modal="true"
         aria-label="PDF export preflight"
+        tabIndex={-1}
+        data-editor-native-tab-navigation
+        onKeyDown={onDialogKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="lighttable-psd-report__header">

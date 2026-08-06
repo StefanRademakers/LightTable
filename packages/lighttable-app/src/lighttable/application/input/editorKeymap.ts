@@ -71,7 +71,6 @@ export type EditorKeyboardCommand =
   | 'zoom-out'
   | 'zoom-fit'
   | 'zoom-actual'
-  | 'suppress-tab-navigation'
   | 'cancel-or-close'
   | { readonly type: 'activate-tool'; readonly tool: ToolId }
   | { readonly type: 'set-brush-percent'; readonly target: 'opacity' | 'flow'; readonly digit: number }
@@ -324,12 +323,6 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('viewport.zoom-actual', { key: '1', primary: true, alt: false }, 'zoom-actual', {
       allowWhileEditing: true
     }),
-    command(
-      'browser.suppress-tab-navigation',
-      { key: 'tab', primary: false, alt: false },
-      'suppress-tab-navigation',
-      { allowWhileEditing: true }
-    ),
     ...toolGroupBindings,
     ...toolBindings,
     command('editor.commit-context', { key: 'enter' }, 'commit-active-operation', {

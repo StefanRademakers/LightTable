@@ -282,7 +282,8 @@
   background: var(--lt-hover-overlay);
 }
 
-.context-menu__item:disabled {
+.context-menu__item:disabled,
+.context-menu__item--disabled {
   color: var(--lt-text-disabled);
 }
 
@@ -314,7 +315,8 @@
   white-space: nowrap;
 }
 
-.context-menu__item:disabled .context-menu__item-shortcut {
+.context-menu__item:disabled .context-menu__item-shortcut,
+.context-menu__item--disabled .context-menu__item-shortcut {
   color: inherit;
 }
 

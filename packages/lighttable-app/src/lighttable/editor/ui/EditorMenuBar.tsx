@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ContextMenu,
   type ContextMenuOption
@@ -39,7 +39,12 @@ export const EditorMenuBar = ({
   optionsFor
 }: EditorMenuBarProps) => {
   const [openMenu, setOpenMenu] = useState<OpenEditorMenu | null>(null);
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const options = openMenu ? optionsFor(openMenu.id) : [];
+  const openFromButton = (id: EditorMenuId, button: HTMLButtonElement) => {
+    const rect = button.getBoundingClientRect();
+    setOpenMenu({ id, x: rect.left, y: rect.bottom + 6 });
+  };
 
   useEffect(() => {
     if (!openMenu) return;
@@ -48,6 +53,8 @@ export const EditorMenuBar = ({
       event.preventDefault();
       event.stopImmediatePropagation();
       setOpenMenu(null);
+      const index = MENU_ITEMS.findIndex(({ id }) => id === openMenu.id);
+      window.requestAnimationFrame(() => buttonRefs.current[index]?.focus());
     };
     window.addEventListener('keydown', closeOnEscape, true);
     return () => window.removeEventListener('keydown', closeOnEscape, true);
@@ -60,14 +67,39 @@ export const EditorMenuBar = ({
         role="menubar"
         aria-label="LightTable menu"
       >
-        {MENU_ITEMS.map(({ id, label }) => (
+        {MENU_ITEMS.map(({ id, label }, index) => (
           <button
             key={id}
+            ref={(node) => { buttonRefs.current[index] = node; }}
             type="button"
+            role="menuitem"
             className={`shots-app-menu__button${openMenu?.id === id ? ' shots-app-menu__button--active' : ''}`}
+            aria-haspopup="menu"
+            aria-expanded={openMenu?.id === id}
             onClick={(event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              setOpenMenu({ id, x: rect.left, y: rect.bottom + 6 });
+              openFromButton(id, event.currentTarget);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openFromButton(id, event.currentTarget);
+                return;
+              }
+              if (event.key === 'Escape') {
+                setOpenMenu(null);
+                return;
+              }
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
+              event.preventDefault();
+              const next = event.key === 'Home' ? 0
+                : event.key === 'End' ? MENU_ITEMS.length - 1
+                  : (index + (event.key === 'ArrowRight' ? 1 : -1) + MENU_ITEMS.length) % MENU_ITEMS.length;
+              buttonRefs.current[next]?.focus();
+              if (openMenu) {
+                const nextItem = MENU_ITEMS[next];
+                const nextButton = buttonRefs.current[next];
+                if (nextItem && nextButton) openFromButton(nextItem.id, nextButton);
+              }
             }}
           >
             {label}

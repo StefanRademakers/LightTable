@@ -1,6 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionButton } from './ActionButton';
+import { useDialogAccessibility } from './useDialogAccessibility';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -25,11 +26,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onCancel,
   onConfirm
 }) => {
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLDivElement>(open, onCancel);
   if (!open) return null;
 
   return createPortal(
     <div className="modal-backdrop modal-backdrop--confirm">
-      <div className="modal text-input-dialog" onClick={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} className="modal text-input-dialog" role="dialog" aria-modal="true" aria-label={title}
+        tabIndex={-1} data-editor-native-tab-navigation onKeyDown={onDialogKeyDown} onClick={(event) => event.stopPropagation()}>
         <div className="modal__header">
           <h3 className="modal__title">{title}</h3>
         </div>

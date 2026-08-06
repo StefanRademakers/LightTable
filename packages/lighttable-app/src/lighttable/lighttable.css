@@ -64,14 +64,46 @@
   -webkit-user-drag: none;
 }
 
-/*
- * LightTable owns keyboard navigation and active/selected presentation.
- * Suppress Chromium's document-style focus rings; plain Tab is consumed by
- * the editor keymap instead of scrolling through controls.
- */
-.lighttable :focus,
-.lighttable :focus-visible {
-  outline: none !important;
+/* Mouse focus stays quiet; keyboard focus must remain unambiguous. */
+.lighttable :focus:not(:focus-visible) {
+  outline: none;
+}
+
+.lighttable :focus-visible,
+.lighttable-launcher :focus-visible,
+.context-menu :focus-visible,
+.modal-backdrop :focus-visible,
+.lighttable-psd-report__backdrop :focus-visible {
+  outline: 2px solid var(--lt-accent, #4d9cff);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lighttable *,
+  .lighttable-launcher *,
+  .context-menu *,
+  .modal-backdrop * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .lighttable :focus-visible,
+  .lighttable-launcher :focus-visible,
+  .context-menu :focus-visible,
+  .modal-backdrop :focus-visible {
+    outline-color: Highlight;
+  }
+
+  .lighttable-toolbox__button--active,
+  .lighttable-layer--active,
+  .lighttable-layer--selected {
+    border: 1px solid Highlight;
+    forced-color-adjust: auto;
+  }
 }
 
 .lighttable__header {

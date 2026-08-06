@@ -54,6 +54,17 @@ npm run stress:desktop:build -- --iterations 10
 npm run audit:desktop:tool-switching:build -- --iterations 10
 ```
 
+The packaged accessibility journey can be run independently with:
+
+```powershell
+npm run smoke:desktop:accessibility:build
+```
+
+It verifies real keyboard focus from launcher through layer edit, undo, native
+save and quick export, scans visible controls for accessible names, and captures
+forced-colors plus reduced-motion evidence. The manual assistive-technology
+matrix is defined in [Accessibility, keyboard and focus](../ACCESSIBILITY_KEYBOARD_AND_FOCUS.md).
+
 The first gate restores every interaction to its reference state before forced
 GC and checks stable-tail heap, DOM, listeners and renderer-owned GPU bytes. The
 second reaches every toolbar/flyout tool each round, detects stopped document

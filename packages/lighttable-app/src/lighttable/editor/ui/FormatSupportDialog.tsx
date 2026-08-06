@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { ActionButton } from '../../../ui/ActionButton';
+import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import {
   LIGHTTABLE_FORMAT_CAPABILITIES,
   type FormatSupportLevel
@@ -14,14 +15,19 @@ export const FormatSupportDialog: React.FC<{
   readonly open: boolean;
   readonly onClose: () => void;
 }> = ({ open, onClose }) => {
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(open, onClose);
   if (!open) return null;
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className="lighttable-psd-report lighttable-format-support"
         role="dialog"
         aria-modal="true"
         aria-label="Format support"
+        tabIndex={-1}
+        data-editor-native-tab-navigation
+        onKeyDown={onDialogKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="lighttable-psd-report__header">

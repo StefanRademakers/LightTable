@@ -7,6 +7,7 @@ export interface ContextMenuOption<T extends string> {
   shortcut?: string;
   onClick?: () => void;
   disabled?: boolean;
+  disabledReason?: string;
   icon?: ReactNode;
   separatorBefore?: boolean;
   children?: Array<ContextMenuOption<T>>;
@@ -30,6 +31,7 @@ export function ContextMenu<T extends string>({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const closeSubmenuTimeoutRef = useRef<number | null>(null);
   const submenuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
   const [position, setPosition] = useState({ left: x, top: y });
   const [submenuDirection, setSubmenuDirection] = useState<'left' | 'right'>('right');
   const [openSubmenuPath, setOpenSubmenuPath] = useState<string[]>([]);
@@ -60,6 +62,22 @@ export function ContextMenu<T extends string>({
     setOpenSubmenuPath([]);
     setSubmenuOffsets({});
   }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      restoreFocusRef.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      const frame = window.requestAnimationFrame(() => {
+        menuRef.current?.querySelector<HTMLElement>(':scope > .context-menu__item-wrap > .context-menu__item')?.focus();
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+    const restore = restoreFocusRef.current;
+    restoreFocusRef.current = null;
+    if (restore?.isConnected) restore.focus();
+    return undefined;
+  }, [open, x, y]);
 
   useEffect(() => () => clearCloseSubmenuTimeout(), []);
 
@@ -143,6 +161,9 @@ export function ContextMenu<T extends string>({
         isSubmenu && submenuDirection === 'left' ? 'context-menu--submenu-left' : '',
         isSubmenu && submenuDirection === 'right' ? 'context-menu--submenu-right' : ''
       ].filter(Boolean).join(' ')}
+      role="menu"
+      data-editor-native-tab-navigation
+      aria-label={isSubmenu ? 'Submenu' : 'Context menu'}
       style={isSubmenu ? { top: `${-8 + submenuOffset}px` } : { left: position.left, top: position.top }}
       onMouseEnter={() => {
         if (!isSubmenu) return;
@@ -158,6 +179,35 @@ export function ContextMenu<T extends string>({
       }}
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+          ':scope > .context-menu__item-wrap > .context-menu__item'
+        )];
+        const index = Math.max(0, items.indexOf(document.activeElement as HTMLButtonElement));
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+          return;
+        }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+          event.preventDefault();
+          const next = event.key === 'Home' ? 0
+            : event.key === 'End' ? items.length - 1
+              : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+          items[next]?.focus();
+          return;
+        }
+        if (event.key === 'ArrowRight') {
+          const wrap = (document.activeElement as HTMLElement | null)?.closest('.context-menu__item-wrap');
+          const submenu = wrap?.querySelector<HTMLElement>(':scope > .context-menu--submenu');
+          submenu?.querySelector<HTMLElement>(':scope > .context-menu__item-wrap > .context-menu__item')?.focus();
+          return;
+        }
+        if (event.key === 'ArrowLeft' && isSubmenu) {
+          event.preventDefault();
+          event.currentTarget.parentElement?.querySelector<HTMLElement>(':scope > .context-menu__item')?.focus();
+        }
+      }}
     >
       {menuOptions.map((option, index) => {
         const hasChildren = Boolean(option.children?.length);
@@ -189,9 +239,14 @@ export function ContextMenu<T extends string>({
               type="button"
               className={[
                 'context-menu__item',
-                hasChildren ? 'context-menu__item--has-children' : ''
+                hasChildren ? 'context-menu__item--has-children' : '',
+                option.disabled ? 'context-menu__item--disabled' : ''
               ].filter(Boolean).join(' ')}
-              disabled={option.disabled}
+              role="menuitem"
+              aria-disabled={option.disabled || undefined}
+              aria-haspopup={hasChildren ? 'menu' : undefined}
+              aria-expanded={hasChildren ? submenuOpen : undefined}
+              title={option.disabled ? option.disabledReason ?? 'Unavailable in the current context.' : undefined}
               onPointerDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -199,7 +254,7 @@ export function ContextMenu<T extends string>({
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                if (hasChildren) return;
+                if (hasChildren || option.disabled) return;
                 onClose();
                 option.onClick?.();
               }}

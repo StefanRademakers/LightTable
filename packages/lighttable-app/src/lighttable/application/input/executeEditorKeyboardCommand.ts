@@ -209,8 +209,6 @@ export const executeEditorKeyboardCommand = (
     case 'zoom-actual':
       ports.actualZoom();
       return;
-    case 'suppress-tab-navigation':
-      return;
     case 'cancel-or-close':
       ports.cancelOrClose();
   }

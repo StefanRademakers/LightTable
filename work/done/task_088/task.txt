@@ -1,0 +1,68 @@
+# Task 088 — accessibility, keyboard and focus release audit (P0)
+
+Priority: P0. Dependencies: none. Expected effort: 6–10 focused hours.
+
+## Objective
+
+Make core open-edit-save workflows keyboard-operable and screen-reader legible
+without breaking Photoshop-compatible shortcuts or canvas performance.
+
+## Required work
+
+- Inventory menus, toolbar/flyouts, options bar, dock tabs, Layers, Grade,
+  Lens Fx, Text, Layer Style, dialogs, start page and error/recovery surfaces.
+- Establish semantic roles, accessible names, focus order, visible focus,
+  disabled explanations and escape/return behavior using existing components.
+- Preserve tool shortcuts outside text editing; prevent native Electron menu
+  focus and hidden popovers from stealing keys.
+- Add reduced-motion handling for nonessential UI/overlay animation and verify
+  contrast at supported themes/states.
+- Build a declarative keyboard journey and accessibility smoke that grows from
+  current registry/panel/menu inventory.
+
+## UI exposure
+
+Do not redesign visuals. Repair shared primitives first so all consumers gain
+the same focus, label and keyboard behavior.
+
+## Verification and completion
+
+- Keyboard-only: start page → open → select/edit layer → undo → save/export.
+- Automated role/name/focus tests plus manual high-contrast/scale inspection.
+- Verify Ctrl/Cmd parity, Type Tool exceptions and flyout/menu navigation.
+- No React/pointer hot-path regression; run quick and packaged smoke.
+- Record remaining OS/screen-reader matrix explicitly, commit and move.
+
+## Completion evidence (2026-08-06)
+
+- Restored native `Tab`/`Shift+Tab` navigation and a shared two-pixel
+  `:focus-visible` treatment. Reduced-motion and forced-colors rules preserve
+  focus, active-tool and active-layer state without touching document render
+  invalidation or pointer hot paths.
+- Menubars, context menus, toolbar families, the font picker and Layers tree
+  now expose roles, names, selection/expansion state and deterministic arrow,
+  Home/End, Escape and focus-return behavior. Disabled commands remain
+  discoverable and non-executable with an explanation.
+- Shared dialog accessibility provides initial focus, containment, Escape and
+  opener restoration across confirm, text input, new-document, update,
+  format-support, font recovery and PSD/PDF report dialogs.
+- The editor command router no longer consumes plain Tab and ignores complete
+  native-keyboard UI scopes. Tool shortcuts remain active outside editable
+  text, while printable Type Tool input stays inside the editor.
+- A serialization regression exposed by keyboard save was fixed at its source:
+  text formatting patches now delete optional fill/stroke fields rather than
+  retaining explicit `undefined` contract values. A unit regression test was
+  added.
+- `smoke:desktop:accessibility` completed a packaged launcher-to-open, menu,
+  toolbar, Layers rename/undo, native save and quick-export journey. The scan
+  found zero unnamed visible controls and zero page errors; native and export
+  files had valid PNG signatures. Forced-colors/reduced-motion evidence is in
+  `tmp/accessibility-smoke/` and was visually inspected.
+- The quick quality profile passed boundaries, source/docs audits, all
+  workspace typechecks, 317 app test files / 1692 tests, other workspace tests
+  and the production web build. The final production desktop package and
+  packaged accessibility smoke also passed.
+- `architecture/ACCESSIBILITY_KEYBOARD_AND_FOCUS.md` records the surface
+  inventory, keyboard contract and the still-manual NVDA, JAWS, VoiceOver,
+  display-scale, OS-theme and integrated-GPU release matrix without claiming
+  unexecuted coverage.

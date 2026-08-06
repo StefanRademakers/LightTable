@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionButton } from '../../../ui/ActionButton';
+import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
 import type {
   DocumentFontAsset,
@@ -105,6 +106,8 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
   onReplaceTextFonts,
   onClose
 }) => {
+  const dialogOpen = open && Boolean(report || textFontDiagnostics.length);
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(dialogOpen, onClose);
   const [filter, setFilter] = useState<ReportFilter>('all');
   const compatibility = useMemo(
     () => buildDocumentCompatibilityEntries(report, textFontDiagnostics),
@@ -138,10 +141,14 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className="lighttable-psd-report"
         role="dialog"
         aria-modal="true"
         aria-label={documentReport ? 'Document compatibility report' : 'Photoshop import report'}
+        tabIndex={-1}
+        data-editor-native-tab-navigation
+        onKeyDown={onDialogKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="lighttable-psd-report__header">

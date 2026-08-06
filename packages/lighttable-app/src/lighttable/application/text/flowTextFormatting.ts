@@ -92,13 +92,22 @@ const mergeRuns = <Run extends RangedRun>(runs: readonly Run[]) => runs.reduce<R
   return result;
 }, []);
 
+const applyPatch = <Value extends object>(value: Value, patch: object): Value => {
+  const result = { ...value };
+  for (const [key, entry] of Object.entries(patch)) {
+    if (entry === undefined) delete (result as Record<string, unknown>)[key];
+    else (result as Record<string, unknown>)[key] = entry;
+  }
+  return result;
+};
+
 const patchRuns = <Run extends RangedRun>(
   runs: readonly Run[],
   selection: TextSelectionRange | null,
   patch: Partial<Omit<Run, 'start' | 'end'>>
 ) => {
   if (!Object.keys(patch).length) return runs;
-  if (!selection) return mergeRuns(runs.map((run) => ({ ...run, ...patch })));
+  if (!selection) return mergeRuns(runs.map((run) => applyPatch(run, patch)));
   const { start, end } = orderedTextSelection(selection);
   if (start === end) return runs;
   const result: Run[] = [];
@@ -108,7 +117,7 @@ const patchRuns = <Run extends RangedRun>(
       continue;
     }
     if (run.start < start) result.push({ ...run, end: start });
-    result.push({ ...run, ...patch, start: Math.max(run.start, start), end: Math.min(run.end, end) });
+    result.push(applyPatch({ ...run, start: Math.max(run.start, start), end: Math.min(run.end, end) }, patch));
     if (run.end > end) result.push({ ...run, start: end });
   }
   return mergeRuns(result);
@@ -232,8 +241,8 @@ export const formatFlowTextSource = (
     return {
       ...source,
       paragraphRuns: patchRuns(source.paragraphRuns, null, paragraphPatch),
-      ...(styleSeed ? { insertionStyle: { ...styleSeed, ...stylePatch } } : {}),
-      ...(paragraphSeed ? { insertionParagraph: { ...paragraphSeed, ...paragraphPatch } } : {})
+      ...(styleSeed ? { insertionStyle: applyPatch(styleSeed, stylePatch) } : {}),
+      ...(paragraphSeed ? { insertionParagraph: applyPatch(paragraphSeed, paragraphPatch) } : {})
     };
   }
   const defaultSource = source.text.length === 0 ? createDefaultFlowTextSource('x') : null;
@@ -246,8 +255,8 @@ export const formatFlowTextSource = (
     styleRuns: patchRuns(source.styleRuns, selection, stylePatch),
     paragraphRuns: patchRuns(source.paragraphRuns, null, paragraphPatch),
     ...(!selection && source.styleRuns.length === 0 && emptyStyleSeed
-      ? { insertionStyle: { ...emptyStyleSeed, ...stylePatch } } : {}),
+      ? { insertionStyle: applyPatch(emptyStyleSeed, stylePatch) } : {}),
     ...(!selection && source.paragraphRuns.length === 0 && emptyParagraphSeed
-      ? { insertionParagraph: { ...emptyParagraphSeed, ...paragraphPatch } } : {})
+      ? { insertionParagraph: applyPatch(emptyParagraphSeed, paragraphPatch) } : {})
   };
 };

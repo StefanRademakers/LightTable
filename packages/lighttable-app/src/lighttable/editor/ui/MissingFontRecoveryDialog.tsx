@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionButton } from '../../../ui/ActionButton';
+import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import type { MissingFontRecoveryRequest } from './useEditorDialogController';
@@ -22,6 +23,7 @@ const fontLabel = (font: DocumentFontAsset) => {
 export const MissingFontRecoveryDialog: React.FC<MissingFontRecoveryDialogProps> = ({
   request, diagnostic, fonts, onCancel, onManage, onReplace
 }) => {
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(Boolean(request && diagnostic), onCancel);
   const sortedFonts = useMemo(() => [...fonts].sort((left, right) =>
     fontLabel(left).localeCompare(fontLabel(right))), [fonts]);
   const [assetId, setAssetId] = useState('');
@@ -33,10 +35,14 @@ export const MissingFontRecoveryDialog: React.FC<MissingFontRecoveryDialogProps>
   return createPortal(
     <div className="modal-backdrop modal-backdrop--confirm lighttable-dialog-backdrop">
       <section
+        ref={dialogRef}
         className="modal text-input-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Replace missing text font"
+        tabIndex={-1}
+        data-editor-native-tab-navigation
+        onKeyDown={onDialogKeyDown}
       >
         <div className="modal__header"><h3 className="modal__title">Font unavailable</h3></div>
         <p className="muted">

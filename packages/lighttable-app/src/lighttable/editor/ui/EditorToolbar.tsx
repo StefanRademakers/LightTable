@@ -27,6 +27,7 @@ interface ToolButtonProps {
   active: boolean;
   popupOpen?: boolean;
   onMouseDown?: () => void;
+  onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
   onClick: () => void;
 }
 
@@ -35,12 +36,14 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   active,
   popupOpen,
   onMouseDown,
+  onKeyDown,
   onClick
 }) => (
   <button
     type="button"
     className={`lighttable-toolbox__button${active ? ' lighttable-toolbox__button--active' : ''}`}
     onMouseDown={onMouseDown}
+    onKeyDown={onKeyDown}
     onClick={onClick}
     aria-pressed={active}
     aria-haspopup={popupOpen === undefined ? undefined : 'true'}
@@ -71,6 +74,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
   );
   const [open, setOpen] = React.useState(false);
   const [generation, setGeneration] = React.useState(0);
+  const flyoutId = React.useId();
 
   React.useEffect(() => {
     if (activeDefinition) setRememberedDefinition(activeDefinition);
@@ -100,6 +104,16 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
         active={Boolean(activeDefinition)}
         popupOpen={open}
         onMouseDown={showFlyout}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowDown') return;
+          event.preventDefault();
+          showFlyout();
+          window.requestAnimationFrame(() => {
+            event.currentTarget.parentElement
+              ?.querySelector<HTMLButtonElement>('.lighttable-toolbox__flyout .lighttable-toolbox__button')
+              ?.focus();
+          });
+        }}
         onClick={() => {
           onToolChange(master.id);
           showFlyout();
@@ -111,12 +125,35 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
         aria-label={`Show ${label.toLowerCase()}`}
         aria-haspopup="true"
         aria-expanded={open}
+        aria-controls={flyoutId}
         title={`Show ${label.toLowerCase()}`}
         onMouseDown={showFlyout}
         onClick={showFlyout}
       ><span aria-hidden="true" /></button>
       {open ? (
-        <div className="lighttable-toolbox__flyout" role="toolbar" aria-label={label}>
+        <div
+          id={flyoutId}
+          className="lighttable-toolbox__flyout"
+          role="toolbar"
+          data-editor-native-tab-navigation
+          aria-label={label}
+          onKeyDown={(event) => {
+            const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('.lighttable-toolbox__button')];
+            const index = Math.max(0, buttons.indexOf(document.activeElement as HTMLButtonElement));
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setOpen(false);
+              event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(':scope > .lighttable-toolbox__button')?.focus();
+              return;
+            }
+            if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === 'Home' ? 0
+              : event.key === 'End' ? buttons.length - 1
+                : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+            buttons[next]?.focus();
+          }}
+        >
           {definitions.map((tool) => (
             <ToolButton
               key={tool.id}

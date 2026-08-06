@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionButton } from '../../../ui/ActionButton';
+import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import type {
   LightTableReleaseInfo,
   LightTableReleaseService,
@@ -13,6 +14,7 @@ export const AboutUpdateDialog: React.FC<{
   readonly dirtyDocuments: boolean;
   readonly onClose: () => void;
 }> = ({ open, release, dirtyDocuments, onClose }) => {
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(open, onClose);
   const [info, setInfo] = useState<LightTableReleaseInfo | null>(null);
   const [update, setUpdate] = useState<LightTableUpdateResult | null>(null);
   const [checking, setChecking] = useState(false);
@@ -29,10 +31,14 @@ export const AboutUpdateDialog: React.FC<{
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className="lighttable-psd-report lighttable-about"
         role="dialog"
         aria-modal="true"
         aria-label="About LightTable"
+        tabIndex={-1}
+        data-editor-native-tab-navigation
+        onKeyDown={onDialogKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="lighttable-psd-report__header">

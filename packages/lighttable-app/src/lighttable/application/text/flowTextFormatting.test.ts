@@ -7,6 +7,14 @@ import {
 } from './flowTextFormatting';
 
 describe('flow text character formatting', () => {
+  it('removes optional properties instead of retaining undefined contract values', () => {
+    const source = createDefaultFlowTextSource('Text');
+    const withStroke = formatFlowTextSource(source, null, { stroke: {
+      paint: source.styleRuns[0]!.fill!, width: 4, cap: 'butt', join: 'miter', miterLimit: 4
+    } });
+    const withoutStroke = formatFlowTextSource(withStroke, null, { stroke: undefined });
+    expect(withoutStroke.styleRuns[0]).not.toHaveProperty('stroke');
+  });
   it('splits only the selected UTF-16 range and rejoins equivalent neighbors', () => {
     const source = createDefaultFlowTextSource('abcdef');
     const formatted = formatFlowTextSource(

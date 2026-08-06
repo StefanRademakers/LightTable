@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionButton } from './ActionButton';
 import { FormInput } from './FormInput';
+import { useDialogAccessibility } from './useDialogAccessibility';
 
 interface TextInputDialogProps {
   open: boolean;
@@ -34,6 +35,7 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
 }) => {
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLDivElement>(open, onCancel);
 
   useEffect(() => {
     if (!open) return;
@@ -50,7 +52,14 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
   return createPortal(
     <div className={`modal-backdrop${backdropClassName ? ` ${backdropClassName}` : ''}`}>
       <div
+        ref={dialogRef}
         className={`modal text-input-dialog${compact ? ' text-input-dialog--compact' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        data-editor-native-tab-navigation
+        onKeyDown={onDialogKeyDown}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="modal__header">

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { LightTableImageClipboard } from '../platform/LightTableImageClipboard';
 import { ActionButton } from '../ui/ActionButton';
 import { FormInput } from '../ui/FormInput';
+import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 
 interface NewDocumentDialogProps {
   readonly open: boolean;
@@ -46,6 +47,7 @@ export function NewDocumentDialog({
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const requestRef = useRef(0);
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLFormElement>(open, onCancel);
 
   useEffect(() => {
     if (!open) return;
@@ -79,8 +81,14 @@ export function NewDocumentDialog({
   return createPortal(
     <div className="modal-backdrop lighttable-dialog-backdrop">
       <form
+        ref={dialogRef}
         className="modal lighttable-new-document-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="New document"
+        tabIndex={-1}
         data-editor-native-tab-navigation
+        onKeyDown={onDialogKeyDown}
         onSubmit={(event) => {
           event.preventDefault();
           if (valid && !creating) {

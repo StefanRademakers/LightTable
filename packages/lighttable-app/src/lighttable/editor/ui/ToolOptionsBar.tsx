@@ -1,4 +1,5 @@
 import React from 'react';
+import { navigateFontPicker } from './fontPickerKeyboard';
 import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
@@ -216,10 +217,14 @@ const TextFontPicker: React.FC<{
     </button>
     {open ? createPortal(
       <div className="lighttable-font-picker__menu" style={position}
+        data-editor-native-tab-navigation
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
-          if (event.key !== 'Escape') return;
-          event.preventDefault(); setOpen(false); anchorRef.current?.focus();
+          if (event.key === 'Escape') {
+            event.preventDefault(); setOpen(false); anchorRef.current?.focus();
+            return;
+          }
+          navigateFontPicker(event);
         }}>
         <input ref={searchRef} type="search" value={query} placeholder="Search fonts"
           aria-label="Search fonts" onChange={(event) => setQuery(event.currentTarget.value)} />

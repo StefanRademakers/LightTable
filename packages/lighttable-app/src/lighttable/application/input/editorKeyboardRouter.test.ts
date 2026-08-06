@@ -45,7 +45,6 @@ describe('resolveEditorKeyboardCommand', () => {
     [{ ctrlKey: true, key: '1', code: 'Digit1' }, 'zoom-actual'],
     [{ ctrlKey: true, key: ' ', code: 'Space' }, 'temporary-zoom-in-start'],
     [{ altKey: true, key: ' ', code: 'Space' }, 'temporary-zoom-out-start'],
-    [{ key: 'Tab' }, 'suppress-tab-navigation'],
     [{ altKey: true, key: 'Backspace' }, 'fill-foreground'],
     [{ metaKey: true, key: 'Delete' }, 'fill-background']
   ] as const)('normalizes %o to %s', (keys, expected) => {
@@ -64,6 +63,16 @@ describe('resolveEditorKeyboardCommand', () => {
       input({ ctrlKey: true, key: 'z' }),
       context({ editable: true })
     )).toBe('undo');
+  });
+
+  it('leaves native tab navigation and printable Type Tool input alone', () => {
+    expect(resolveEditorKeyboardCommand(input({ key: 'Tab' }), context())).toBeNull();
+    expect(resolveEditorKeyboardCommand(
+      input({ key: 'b' }), context({ editable: true, activeTool: 'text-point' })
+    )).toBeNull();
+    expect(resolveEditorKeyboardCommand(
+      input({ key: 'b' }), context({ editable: false, activeTool: 'text-point' })
+    )).toEqual({ type: 'activate-tool', tool: 'brush' });
   });
 
   it('only exposes selection clipboard commands when their capabilities exist', () => {

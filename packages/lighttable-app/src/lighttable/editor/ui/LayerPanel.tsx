@@ -12,6 +12,7 @@ import type {
 } from '../document/documentTypes';
 import { findLayerNode, siblingLayers } from '../document/layerTree';
 import { queryLayerCommandCapabilities } from '../../application/layers/layerCommandCapabilities';
+import { layerTreeItemAccessibility, useLayerTreeKeyboardNavigation } from '../../application/layers/useLayerTreeKeyboardNavigation';
 import { primaryShortcutLabel } from '../../application/input/editorShortcutPresentation';
 import type { PaintChannel } from '../session/editorSession';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
@@ -291,6 +292,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     onSelect(layerId);
     onChannelChange(channel);
   };
+  const handleLayerTreeKeyDown = useLayerTreeKeyboardNavigation({ rows, selectionFor, setSelected: setSelectedLayerIds, selectionAnchor: selectionAnchorRef, activate: (layerId) => { onSelect(layerId); onChannelChange('pixels'); }, toggleVisibility: onVisibility, beginRename: (layerId) => { setRenamingLayerId(layerId); requestAnimationFrame(() => globalThis.document.getElementById(`lighttable-layer-name-${layerId}`)?.focus()); }, editText: onEditText, openContextMenu: (x, y) => setMoreMenu({ open: true, x, y, source: 'context' }) });
 
   const moreMenuOptions: Array<ContextMenuOption<string>> = [
     { value: 'new-layer', label: 'New layer', onClick: onCreate },
@@ -496,7 +498,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           </div>
         </>
       ) : null}
-      <div className="lighttable-layers__list">
+      <div className="lighttable-layers__list" role="tree" aria-label="Layer stack" data-editor-native-tab-navigation>
         {rows.map(({ layer, depth }) => {
           const icon = layerTypeIcon(layer);
           const previews = thumbnails.get(layer.id);
@@ -519,6 +521,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           <div
             data-layer-id={layer.id}
             draggable
+            {...layerTreeItemAccessibility(layer, depth, selectedLayerIds.has(layer.id), document.activeLayerId === layer.id,
+              layer.type === 'group' ? !collapsedGroups.has(layer.id) : undefined)}
             className={[
               'lighttable-layer',
               document.activeLayerId === layer.id ? 'lighttable-layer--active' : '',
@@ -556,6 +560,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               event.stopPropagation();
               if (layer.text.source.kind === 'flow') onEditText?.(layer.id);
             }}
+            onKeyDown={(event) => handleLayerTreeKeyDown(event, layer)}
             onContextMenu={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -824,6 +829,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               className="lighttable-layer__name"
               defaultValue={layer.name}
               readOnly={renamingLayerId !== layer.id}
+              tabIndex={renamingLayerId === layer.id ? 0 : -1}
               draggable={false}
               onPointerDown={(event) => {
                 if (renamingLayerId !== layer.id) event.preventDefault();
