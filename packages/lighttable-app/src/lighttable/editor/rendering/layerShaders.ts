@@ -9,7 +9,6 @@ struct ExportSettings {
   sourceSize: vec2f,
   outputSize: vec2f,
 }
-
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
 @group(0) @binding(1) var sourceSampler: sampler;
 @group(0) @binding(2) var<uniform> settings: ExportSettings;
@@ -556,13 +555,15 @@ fn shapedCoverage(
   pixel: vec2f,
   hardenTails: bool
 ) -> f32 {
-  // Zero spread/choke must preserve soft blur coverage. The old 0.5
-  // threshold discarded nearly every shadow/glow sample at realistic radii.
-  // Increasing choke progressively saturates the existing coverage without
-  // changing the effect's declared bounds or ordered compositing semantics.
-  let exponent = max(0.05, 1.0 - clamp(choke, 0.0, 1.0) * 1.7);
-  let linear = clamp(value / max(1.0 - choke, 1e-4), 0.0, 1.0);
-  let tightened = select(linear, pow(clamp(value, 0.0, 1.0), exponent), hardenTails);
+  // Exterior glow choke removes its low tail while saturating the dense core.
+  // Shadow spread uses Photoshop's broader solid-core response instead.
+  let amount = clamp(choke, 0.0, 1.0);
+  let lower = amount * 0.25;
+  let upper = max(lower + 1e-4, 1.0 - amount * 0.75);
+  let hardened = smoothstep(lower, upper, clamp(value, 0.0, 1.0));
+  let glowChoke = mix(clamp(value, 0.0, 1.0), hardened, clamp(amount * 2.0, 0.0, 1.0));
+  let shadowSpread = pow(clamp(value, 0.0, 1.0), max(0.05, 1.0 - amount * 1.7));
+  let tightened = select(glowChoke, shadowSpread, hardenTails);
   return clamp(contourAt(tightened) + (noiseAt(pixel) - 0.5) * noise, 0.0, 1.0);
 }
 

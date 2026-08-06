@@ -23,6 +23,7 @@ const EXPECTED_SETTINGS_PATHS = [
   'colorMixer',
   'colorGrading',
   'curves',
+  'gradientMap',
   'effects.grain',
   'effects.halation',
   'effects.chromaticAberration',

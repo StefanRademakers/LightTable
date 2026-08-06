@@ -54,6 +54,7 @@ export type CurrentAdjustmentSettingsPath =
   | 'colorMixer'
   | 'colorGrading'
   | 'curves'
+  | 'gradientMap'
   | 'effects.grain'
   | 'effects.halation'
   | 'effects.chromaticAberration'
@@ -171,6 +172,18 @@ export const CURRENT_PROCESSING_MODULES = [
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
     psdCandidates: ['curves']
+  },
+  {
+    type: 'lt.gradient-map',
+    label: 'Gradient Map',
+    category: 'color',
+    settingsPaths: ['gradientMap'],
+    allowedScopes: CREATIVE_GRADE_SCOPES,
+    inputDomain: 'display-referred',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'preserve',
+    psdCandidates: ['gradient-map'],
+    notes: 'Maps Photoshop document luminance through an editable shared gradient.'
   },
   {
     type: 'lt.detail',

@@ -137,4 +137,30 @@ describe('createAdjustmentCommands', () => {
 
     expect(harness.adjustments().curves.master[1].y).toBe(0.75);
   });
+
+  it('publishes and resets an owned Gradient Map snapshot without retaining editor arrays', () => {
+    const harness = createHarness();
+    const gradientMap = {
+      enabled: true,
+      reverse: true,
+      dither: true,
+      colorStops: [
+        { position: 0, midpoint: 0.5, color: { r: 1, g: 0, b: 0 } },
+        { position: 1, midpoint: 0.5, color: { r: 0, g: 0, b: 1 } }
+      ],
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 1 },
+        { position: 1, midpoint: 0.5, opacity: 0.75 }
+      ]
+    };
+
+    harness.commands.updateGradientMap(gradientMap);
+    gradientMap.colorStops[0].color.r = 0;
+
+    expect(harness.adjustments().gradientMap).toMatchObject({ enabled: true, reverse: true });
+    expect(harness.adjustments().gradientMap?.colorStops[0].color.r).toBe(1);
+    harness.commands.resetGradientMap();
+    expect(harness.adjustments().gradientMap).toEqual(createDefaultAdjustments().gradientMap);
+    expect(harness.endAdjustment).toHaveBeenCalled();
+  });
 });

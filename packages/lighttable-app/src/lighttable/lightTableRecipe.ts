@@ -86,7 +86,8 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
   const settings = createDefaultAdjustments();
   let recognizedSettings = 0;
   (Object.keys(settings) as Array<keyof BasicAdjustments>).forEach((key) => {
-    if (key === 'colorMixer' || key === 'colorGrading' || key === 'curves' || key === 'effects') return;
+    if (key === 'colorMixer' || key === 'colorGrading' || key === 'curves'
+      || key === 'gradientMap' || key === 'effects') return;
     const settingValue = value[key];
     if (typeof settingValue === 'number' && Number.isFinite(settingValue)) {
       (settings as unknown as Record<string, number>)[key] = settingValue;
@@ -135,6 +136,33 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
         recognizedSettings += 1;
       }
     });
+  }
+
+  const rawGradientMap = value.gradientMap;
+  if (isObject(rawGradientMap)
+    && typeof rawGradientMap.enabled === 'boolean'
+    && typeof rawGradientMap.reverse === 'boolean'
+    && typeof rawGradientMap.dither === 'boolean'
+    && Array.isArray(rawGradientMap.colorStops)
+    && rawGradientMap.colorStops.length >= 2
+    && rawGradientMap.colorStops.length <= 8
+    && rawGradientMap.colorStops.every((stop) => {
+      if (!isObject(stop) || !isObject(stop.color)) return false;
+      const color = stop.color;
+      return typeof stop.position === 'number' && Number.isFinite(stop.position)
+        && typeof stop.midpoint === 'number' && Number.isFinite(stop.midpoint)
+        && ['r', 'g', 'b'].every((channel) => typeof color[channel] === 'number'
+          && Number.isFinite(color[channel]));
+    })
+    && Array.isArray(rawGradientMap.opacityStops)
+    && rawGradientMap.opacityStops.length >= 2
+    && rawGradientMap.opacityStops.length <= 8
+    && rawGradientMap.opacityStops.every((stop) => isObject(stop)
+      && typeof stop.position === 'number' && Number.isFinite(stop.position)
+      && typeof stop.midpoint === 'number' && Number.isFinite(stop.midpoint)
+      && typeof stop.opacity === 'number' && Number.isFinite(stop.opacity))) {
+    settings.gradientMap = structuredClone(rawGradientMap) as unknown as NonNullable<BasicAdjustments['gradientMap']>;
+    recognizedSettings += 1;
   }
 
   const rawEffects = value.effects;

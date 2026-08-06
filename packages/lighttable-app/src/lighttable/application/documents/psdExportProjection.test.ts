@@ -16,6 +16,9 @@ import { appendPsdImageResource } from './psdImageResourceWriter';
 import { srgbIccProfileBytes } from '../../editor/color/srgbIccProfile';
 import { replaceMissingTextFont } from '../text/replaceMissingTextFont';
 import type { DocumentFontAsset } from '../../editor/document/documentTypes';
+import { createAdjustmentLayer } from '../../editor/document/documentCommands';
+import { createDefaultAdjustments } from '../../types';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 
 const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -188,6 +191,45 @@ describe('PSD export projection', () => {
     }]);
     expect(projection.warnings).toContain(
       'layers[0]: Smart Object source data is not embedded by the PSD writer yet.'
+    );
+  });
+
+  it('exports an authored native Gradient Map as an editable Photoshop adjustment', () => {
+    const document = createImageDocument('Gradient map', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.gradientMap = {
+      enabled: true, reverse: false, dither: true,
+      colorStops: [
+        { position: 0, midpoint: 0.5, color: { r: 0.1, g: 0.2, b: 0.3 } },
+        { position: 1, midpoint: 0.4, color: { r: 0.9, g: 0.8, b: 0.7 } }
+      ],
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 1 },
+        { position: 1, midpoint: 0.5, opacity: 1 }
+      ]
+    };
+    const authored = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Gradient Map'
+    );
+    const adjustment = authored.layers[1]!;
+    adjustment.revision = 1;
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
+      layerId: authored.layers[0]!.id, pixels: pixels(2, 2)
+    }]);
+    const exported = projection.psd.children?.[1]?.adjustment;
+
+    expect(exported).toMatchObject({
+      type: 'gradient map', gradientType: 'solid', dither: true,
+      colorStops: [
+        { location: 0, midpoint: 50, color: { r: 26, g: 51, b: 77 } },
+        { location: 4096, midpoint: 40, color: { r: 230, g: 204, b: 179 } }
+      ]
+    });
+    expect(projection.warnings).not.toContain(
+      'layers[1]: this adjustment has no unchanged, exact Photoshop descriptor.'
     );
   });
 });

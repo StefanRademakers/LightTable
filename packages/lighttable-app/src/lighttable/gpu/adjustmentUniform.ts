@@ -1,7 +1,7 @@
 import { curveActiveMask } from '../curves';
 import type { BasicAdjustments } from '../types';
 
-export const ADJUSTMENT_UNIFORM_FLOATS = 60;
+export const ADJUSTMENT_UNIFORM_FLOATS = 128;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
 
 /**
@@ -13,7 +13,14 @@ export const buildAdjustmentUniform = (
   sourceWidth: number,
   sourceHeight: number,
   inputIsLinearComposite: boolean
-) => new Float32Array([
+) => {
+  const gradientMap = value.gradientMap;
+  const colorStops = [...(gradientMap?.colorStops ?? [])]
+    .sort((left, right) => left.position - right.position).slice(0, 8);
+  const opacityStops = [...(gradientMap?.opacityStops ?? [])]
+    .sort((left, right) => left.position - right.position).slice(0, 8);
+  const packed = new Float32Array(ADJUSTMENT_UNIFORM_FLOATS);
+  packed.set([
   value.temperature,
   value.tint,
   value.exposureEV,
@@ -44,4 +51,24 @@ export const buildAdjustmentUniform = (
   value.colorGrading.balance,
   0,
   0
-]);
+  ]);
+  packed.set([
+    gradientMap?.enabled ? 1 : 0,
+    colorStops.length,
+    opacityStops.length,
+    (gradientMap?.reverse ? 1 : 0) + (gradientMap?.dither ? 2 : 0)
+  ], 60);
+  colorStops.forEach((stop, index) => packed.set([
+    stop.color.r, stop.color.g, stop.color.b, stop.position
+  ], 64 + index * 4));
+  for (let index = 0; index < 8; index += 1) {
+    const stop = opacityStops[index];
+    packed.set([
+      stop?.position ?? 0,
+      stop?.opacity ?? 1,
+      stop?.midpoint ?? 0.5,
+      colorStops[index]?.midpoint ?? 0.5
+    ], 96 + index * 4);
+  }
+  return packed;
+};

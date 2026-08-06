@@ -1320,6 +1320,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetColorGradingLuminance,
     updateCurve,
     resetCurve,
+    updateGradientMap,
+    resetGradientMap,
     resetAll,
     toggleGroupVisibility,
     resetGroup
@@ -4308,7 +4310,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetColorGradingZone,
                   resetColorGradingLuminance,
                   updateCurve,
-                    resetCurve
+                  resetCurve,
+                  updateGradientMap,
+                  resetGradientMap
                   }
                 },
               effects: {

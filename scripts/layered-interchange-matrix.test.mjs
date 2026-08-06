@@ -11,7 +11,7 @@ test('discovers interchange inventory from canonical registries', async () => {
   assert.deepEqual(inventory.layers.sort(), ['adjustment', 'group', 'raster', 'text', 'vector']);
   assert.equal(inventory.blends.length, 26);
   assert.equal(inventory.styles.length, 10);
-  assert.equal(inventory.processing.length, 14);
+  assert.equal(inventory.processing.length, 15);
   assert.deepEqual(inventory.gradientAssets.sort(), ['noise', 'solid']);
 });
 

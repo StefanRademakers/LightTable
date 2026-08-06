@@ -322,6 +322,48 @@ const importPsdAdjustment = (
       supportReason = 'Photo Filter is mapped to global grading tint pending fixture calibration.';
       break;
     }
+    case 'gradient map': {
+      if (source.gradientType !== 'solid' || !source.colorStops?.length) {
+        support = 'preserved';
+        supportReason = 'Photoshop noise Gradient Maps remain preserved until the deterministic noise-gradient evaluator is available.';
+        warnings.push(`${path}: Photoshop noise Gradient Map is preserved and currently renders as a no-op.`);
+        break;
+      }
+      const colorStops = source.colorStops.flatMap((stop) => {
+        const mapped = rgbColor(stop.color, sourceProfile);
+        return mapped ? [{
+          position: clamp(stop.location > 1 ? stop.location / 4096 : stop.location, 0, 1),
+          midpoint: clamp(stop.midpoint > 1 ? stop.midpoint / 100 : stop.midpoint, 0.01, 0.99),
+          color: { r: mapped.red, g: mapped.green, b: mapped.blue }
+        }] : [];
+      });
+      if (colorStops.length < 2) {
+        support = 'preserved';
+        supportReason = 'Gradient Map colors could not be converted to the document RGB profile.';
+        warnings.push(`${path}: Gradient Map colors could not be converted and the descriptor remains preserved.`);
+        break;
+      }
+      adjustments.gradientMap = {
+        enabled: true,
+        reverse: source.reverse ?? false,
+        dither: source.dither ?? false,
+        colorStops,
+        opacityStops: (source.opacityStops?.length ? source.opacityStops : [
+          { location: 0, midpoint: 50, opacity: 100 },
+          { location: 4096, midpoint: 50, opacity: 100 }
+        ]).map((stop) => ({
+          position: clamp(stop.location > 1 ? stop.location / 4096 : stop.location, 0, 1),
+          midpoint: clamp(stop.midpoint > 1 ? stop.midpoint / 100 : stop.midpoint, 0.01, 0.99),
+          opacity: clamp(stop.opacity > 1 ? stop.opacity / 100 : stop.opacity, 0, 1)
+        }))
+      };
+      if (source.method && source.method !== 'classic') {
+        support = 'approximate';
+        supportReason = `Solid Gradient Map is native; Photoshop ${source.method} interpolation is currently approximated by classic midpoint interpolation.`;
+        warnings.push(`${path}: Gradient Map ${source.method} interpolation is approximated by classic midpoint interpolation.`);
+      }
+      break;
+    }
     default:
       support = 'preserved';
       supportReason = `Photoshop ${source.type} is structurally preserved and currently renders as a no-op.`;

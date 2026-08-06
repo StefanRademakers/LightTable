@@ -79,7 +79,9 @@ try {
           duration: entry.duration
         });
       }
-    }).observe({ type: 'longtask', buffered: true });
+    // This gate measures the authored gesture. Do not import startup/decode
+    // long tasks from the performance buffer after the document is ready.
+    }).observe({ type: 'longtask' });
   });
   await slider.evaluate((node) => node.addEventListener('input', () => {
     globalThis.__lightTableStyleInteractionAudit.inputEvents += 1;

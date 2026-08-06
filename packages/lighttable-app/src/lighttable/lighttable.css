@@ -3256,6 +3256,15 @@
   line-height: 1.35;
 }
 
+.lighttable-gradient-map__options {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 8px;
+  color: var(--lt-text-secondary);
+  font-size: 12px;
+}
+
 .lighttable-tool-options__vector-style { position: relative; }
 .lighttable-tool-options__gradient-button {
   height: 20px;

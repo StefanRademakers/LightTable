@@ -44,7 +44,8 @@ import { copyLightTableGrade } from '../../lightTableGradeClipboard';
 import {
   createDefaultAdjustments,
   DEFAULT_BASIC_ADJUSTMENTS,
-  type BasicAdjustments
+  type BasicAdjustments,
+  type GradientMapAdjustments
 } from '../../types';
 import {
   COLOR_SLIDER_KEYS,
@@ -141,6 +142,8 @@ export interface AdjustmentCommands {
   readonly resetColorGradingLuminance: (zone: ColorGradingZone) => void;
   readonly updateCurve: (channel: CurveChannel, points: ToneCurve) => void;
   readonly resetCurve: (channel: CurveChannel) => void;
+  readonly updateGradientMap: (value: GradientMapAdjustments) => void;
+  readonly resetGradientMap: () => void;
   readonly resetAll: () => void;
   readonly toggleGroupVisibility: (group: keyof GroupVisibility) => void;
   readonly resetGroup: (group: keyof GroupVisibility) => void;
@@ -177,6 +180,22 @@ export const createAdjustmentCommands = (
       ...current,
       [key]: DEFAULT_BASIC_ADJUSTMENTS[key]
     }));
+  };
+
+  const updateGradientMap = (value: GradientMapAdjustments) => {
+    ports.beginAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      gradientMap: structuredClone(value)
+    }), 'grade');
+  };
+
+  const resetGradientMap = () => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      gradientMap: structuredClone(DEFAULT_BASIC_ADJUSTMENTS.gradientMap)
+    }), 'grade');
   };
 
   const updateGrain = (key: GrainNumericKey, value: number) => {
@@ -554,6 +573,8 @@ export const createAdjustmentCommands = (
     resetColorGradingLuminance,
     updateCurve,
     resetCurve,
+    updateGradientMap,
+    resetGradientMap,
     resetAll,
     toggleGroupVisibility,
     resetGroup,

@@ -23,6 +23,19 @@ describe('LightTable adjustment stacks', () => {
     settings.colorMixer.saturation[3] = 42;
     settings.colorGrading.hue[0] = 0.73;
     settings.curves.master = [{ x: 0, y: 0 }, { x: 0.4, y: 0.52 }, { x: 1, y: 1 }];
+    settings.gradientMap = {
+      enabled: true,
+      reverse: true,
+      dither: true,
+      colorStops: [
+        { position: 0, midpoint: 0.4, color: { r: 0.1, g: 0.2, b: 0.3 } },
+        { position: 1, midpoint: 0.6, color: { r: 0.9, g: 0.8, b: 0.7 } }
+      ],
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 0.25 },
+        { position: 1, midpoint: 0.5, opacity: 1 }
+      ]
+    };
     settings.effects.halation.enabled = true;
     settings.effects.grain.amount = 1.55;
 

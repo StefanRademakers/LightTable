@@ -538,4 +538,40 @@ describe('importPsdDocument', () => {
       { x: 1, y: 0 }
     ]);
   });
+
+  it('maps a solid Photoshop Gradient Map to the native ordered gradient executor', () => {
+    const result = importPsdDocument(decoded([raster('gradient-map', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: {
+        type: 'gradient map',
+        gradientType: 'solid',
+        reverse: true,
+        dither: true,
+        colorStops: [
+          { location: 0, midpoint: 40, color: { r: 10, g: 20, b: 30 } },
+          { location: 4096, midpoint: 50, color: { r: 240, g: 230, b: 220 } }
+        ],
+        opacityStops: [
+          { location: 0, midpoint: 50, opacity: 100 },
+          { location: 4096, midpoint: 50, opacity: 100 }
+        ]
+      }
+    })]), 'gradient-map.psd');
+    const layer = result.document.layers[0];
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
+
+    expect(materializeBasicAdjustments(layer.adjustmentStack).gradientMap).toMatchObject({
+      enabled: true,
+      reverse: true,
+      dither: true,
+      colorStops: [
+        { position: 0, midpoint: 0.4 },
+        { position: 1, midpoint: 0.5 }
+      ]
+    });
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      feature: 'adjustment', support: 'native'
+    }));
+  });
 });

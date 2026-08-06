@@ -1,9 +1,9 @@
+import { GRADIENT_MAP_WGSL } from './gradientMapShader';
 export const FULLSCREEN_VERTEX_WGSL = /* wgsl */ `
 struct VertexOutput {
   @builtin(position) position: vec4f,
   @location(0) uv: vec2f,
 }
-
 @vertex
 fn fullscreenVertex(@builtin(vertex_index) index: u32) -> VertexOutput {
   var positions = array<vec2f, 3>(
@@ -18,7 +18,6 @@ fn fullscreenVertex(@builtin(vertex_index) index: u32) -> VertexOutput {
   return output;
 }
 `;
-
 export const BASIC_CORRECTION_WGSL = /* wgsl */ `
 struct Adjustments {
   temperature: f32,
@@ -294,6 +293,9 @@ struct Adjustments {
   gradingSaturation: vec4f,
   gradingLuminance: vec4f,
   gradingControls: vec4f,
+  gradientMapControls: vec4f,
+  gradientMapColors: array<vec4f, 8>,
+  gradientMapOpacity: array<vec4f, 8>,
 }
 
 @group(0) @binding(0) var correctedTexture: texture_2d<f32>;
@@ -592,6 +594,8 @@ fn applyCustomCurves(rgb: vec3f) -> vec3f {
   return curved;
 }
 
+${GRADIENT_MAP_WGSL}
+
 fn edgeAwareTextureSample(uv: vec2f, offset: vec2f, centerY: f32) -> vec2f {
   let sampleY = luminance(textureSample(correctedTexture, sourceSampler, uv + offset).rgb);
   // Keep real object edges out of the local detail estimate while allowing
@@ -693,6 +697,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   rgb = applyColorGrading(rgb);
   rgb = applyLift(rgb);
   rgb = applyCustomCurves(rgb);
+  rgb = applyGradientMap(rgb, input.uv * vec2f(textureDimensions(correctedTexture)));
   return vec4f(rgb, corrected.a);
 }
 `;

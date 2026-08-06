@@ -79,6 +79,7 @@
       "lt.color-mixer",
       "lt.color-grading",
       "lt.curves",
+      "lt.gradient-map",
       "lt.detail",
       "lt.vignette",
       "lt.lens-distortion",
@@ -3405,6 +3406,69 @@
       "id": "processing:lt.curves",
       "family": "processing",
       "capability": "lt.curves",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.gradient-map",
+      "family": "processing",
+      "capability": "lt.gradient-map",
       "dependencySensitive": true,
       "evidenceViews": [
         "solo",

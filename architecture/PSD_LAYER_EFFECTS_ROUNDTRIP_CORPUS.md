@@ -1,6 +1,6 @@
 # Photoshop layer-effects roundtrip corpus
 
-Status: repeatable release-candidate gate, 2026-08-05.
+Status: repeatable release-candidate gate, refreshed 2026-08-06.
 
 ## Purpose
 
@@ -69,7 +69,7 @@ The 2026-08-05 run passed all 40 semantic roundtrips:
 - 40/40 preserve full editable effect settings;
 - 40/40 reopen with a pixel-identical LightTable render (RGB RMSE 0);
 - 0 structural visual failures (Photoshop-versus-LightTable RGB RMSE above 20);
-- 8 cases remain in the visual-review band (RGB RMSE above 8).
+- 6 cases remain in the visual-review band (RGB RMSE above 8).
 
 Important measured improvements from the first corrected Photoshop oracle to
 the current renderer include:
@@ -86,6 +86,7 @@ the current renderer include:
 | Gradient Overlay, linear | 12.34 | 3.32 |
 | Satin, size 10 | 9.93 | 4.61 |
 | Combined shadow/stroke/glow | 18.26 | 7.66 |
+| Outer Glow, choke 50% | 13.67 | 8.13 |
 
 The visual review confirms that 1, 5, 10 and 50 px strokes closely track the
 Photoshop silhouette and no longer produce disconnected radial spokes.
@@ -101,7 +102,14 @@ The following are real residual fidelity differences, not export data loss:
   faceted;
 - large 80 px bevel relief and the combined bevel/satin case still have a
   different highlight/shadow profile;
-- 50% outer-glow choke remains slightly stronger than Photoshop.
+- 50% outer-glow choke now sits just inside the review boundary after a
+  generic exterior-coverage transfer fix; it remains a useful calibration edge.
+
+The complete refreshed ranking above the review threshold is: Drop Shadow
+spread 50% (13.53), Stroke outside 200 px (12.11), Bevel 80 px (11.47), Outer
+Glow 100 px (8.53), Outer Glow choke 50% (8.13), and the combined
+overlay/bevel/satin stack (8.06). Small 3 px effects retain their fast bounded
+sampling path and did not regress.
 
 These cases remain in the corpus so future quality work is measurable. A fix
 must improve the relevant oracle metrics without changing the zero-RMSE

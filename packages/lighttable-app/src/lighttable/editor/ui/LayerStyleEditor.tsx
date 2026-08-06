@@ -25,6 +25,7 @@ interface LayerStyleEditorProps {
   layerName: string;
   initialStack: LayerStyleStack;
   initialEffectId?: LayerStyleId;
+  previewIntervalMs?: number;
   onPreview: (stack: LayerStyleStack) => void;
   onCancel?: () => void;
   onCommit?: () => void;
@@ -145,9 +146,9 @@ const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
 const ANGLE_PUBLISH_INTERVAL_MS = 33;
 // Style controls update their local UI at native input speed. Publishing a
 // complete document/style snapshot faster than an interactive render frame
-// only creates React and GPU invalidation backlog on integrated GPUs. Keep all
-// continuous FX controls at one explicit 30 Hz contract; pointer-up still
-// flushes the final slider value through AdjustmentSlider.
+// only creates React and GPU invalidation backlog. Simple documents keep the
+// normal 30 Hz contract; the panel can select a slower newest-only cadence for
+// complex documents. Pointer-up still flushes the exact final value.
 export const LAYER_STYLE_PREVIEW_INTERVAL_MS = 33;
 
 const AngleField: React.FC<{
@@ -752,6 +753,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
   layerName,
   initialStack,
   initialEffectId,
+  previewIntervalMs = LAYER_STYLE_PREVIEW_INTERVAL_MS,
   onPreview,
   onCancel,
   onCommit
@@ -795,8 +797,8 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     previewTimerRef.current = window.setTimeout(() => {
       previewTimerRef.current = null;
       publishLatestPreview();
-    }, LAYER_STYLE_PREVIEW_INTERVAL_MS);
-  }, [publishLatestPreview]);
+    }, previewIntervalMs);
+  }, [previewIntervalMs, publishLatestPreview]);
 
   React.useEffect(() => {
     if (initialEffectId && draft.effects.some((effect) => effect.id === initialEffectId)) {

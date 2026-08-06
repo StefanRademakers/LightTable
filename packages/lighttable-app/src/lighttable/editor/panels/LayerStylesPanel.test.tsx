@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument } from '../document/documentTypes';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 import type { LayerStyleEditorController } from '../../application/styles/useLayerStyleEditorController';
-import { LayerStylesPanel, previewLayerStyleFromPanel } from './LayerStylesPanel';
+import {
+  LayerStylesPanel,
+  layerStylePreviewIntervalForLayerCount,
+  previewLayerStyleFromPanel
+} from './LayerStylesPanel';
 
 const controller = (): LayerStyleEditorController => ({
   request: null,
@@ -15,6 +19,10 @@ const controller = (): LayerStyleEditorController => ({
 });
 
 describe('LayerStylesPanel', () => {
+  it('keeps 30 Hz previews for normal documents and applies backpressure to large PSDs', () => {
+    expect(layerStylePreviewIntervalForLayerCount(32)).toBe(33);
+    expect(layerStylePreviewIntervalForLayerCount(33)).toBe(100);
+  });
   it('does not open a style transaction merely because the persistent panel renders', () => {
     const document = createImageDocument('Image', 64, 32, 'source');
     const styles = controller();

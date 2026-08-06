@@ -3,6 +3,40 @@ import { cloneColorGrading, createDefaultColorGrading, type ColorGradingAdjustme
 import { cloneCurves, createDefaultCurves, type CurvesAdjustments } from './curves';
 import { cloneEffects, createDefaultEffects, type LightTableEffects } from './effects/types';
 
+export interface GradientMapStop {
+  position: number;
+  midpoint: number;
+  color: { r: number; g: number; b: number };
+}
+
+export interface GradientMapOpacityStop {
+  position: number;
+  midpoint: number;
+  opacity: number;
+}
+
+export interface GradientMapAdjustments {
+  enabled: boolean;
+  reverse: boolean;
+  dither: boolean;
+  colorStops: GradientMapStop[];
+  opacityStops: GradientMapOpacityStop[];
+}
+
+export const createDefaultGradientMap = (): GradientMapAdjustments => ({
+  enabled: false,
+  reverse: false,
+  dither: false,
+  colorStops: [
+    { position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0 } },
+    { position: 1, midpoint: 0.5, color: { r: 1, g: 1, b: 1 } }
+  ],
+  opacityStops: [
+    { position: 0, midpoint: 0.5, opacity: 1 },
+    { position: 1, midpoint: 0.5, opacity: 1 }
+  ]
+});
+
 export interface BasicAdjustments {
   temperature: number;
   tint: number;
@@ -22,6 +56,8 @@ export interface BasicAdjustments {
   colorMixer: ColorMixerAdjustments;
   colorGrading: ColorGradingAdjustments;
   curves: CurvesAdjustments;
+  /** Optional during alpha-format reads; defaults always materialize it. */
+  gradientMap?: GradientMapAdjustments;
   effects: LightTableEffects;
 }
 
@@ -69,6 +105,7 @@ export const DEFAULT_BASIC_ADJUSTMENTS: Readonly<BasicAdjustments> = Object.free
   colorMixer: createDefaultColorMixer(),
   colorGrading: createDefaultColorGrading(),
   curves: createDefaultCurves(),
+  gradientMap: createDefaultGradientMap(),
   effects: createDefaultEffects()
 });
 
@@ -77,6 +114,7 @@ export const cloneAdjustments = (adjustments: BasicAdjustments): BasicAdjustment
   colorMixer: cloneColorMixer(adjustments.colorMixer),
   colorGrading: cloneColorGrading(adjustments.colorGrading),
   curves: cloneCurves(adjustments.curves),
+  gradientMap: structuredClone(adjustments.gradientMap ?? createDefaultGradientMap()),
   effects: cloneEffects(adjustments.effects)
 });
 
@@ -85,5 +123,6 @@ export const createDefaultAdjustments = (): BasicAdjustments => ({
   colorMixer: cloneColorMixer(DEFAULT_BASIC_ADJUSTMENTS.colorMixer),
   colorGrading: cloneColorGrading(DEFAULT_BASIC_ADJUSTMENTS.colorGrading),
   curves: cloneCurves(DEFAULT_BASIC_ADJUSTMENTS.curves),
+  gradientMap: structuredClone(DEFAULT_BASIC_ADJUSTMENTS.gradientMap ?? createDefaultGradientMap()),
   effects: cloneEffects(DEFAULT_BASIC_ADJUSTMENTS.effects)
 });

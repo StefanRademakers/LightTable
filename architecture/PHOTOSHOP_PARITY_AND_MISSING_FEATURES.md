@@ -64,7 +64,7 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 | Clipping chains | Yes | Yes | Yes | Yes | Yes | No | Separate fixtures | Not exercised by the ten-template corpus. |
 | Raster masks | Yes | Partial | Yes | Yes | Partial | No | Partial | One bitmap-mask slot exists; density/feather calibration remains. |
 | Vector + user mask combination | Yes | **Partial** | Preview | Partial | No | No | Failed architecture | Photoshop can retain both independently; LightTable currently collapses toward one effective raster mask. |
-| Adjustment layers | Yes | Yes | Partial | Partial | Yes | No | Failed visual parity | Eleven instances occur. Gradient Map is a no-op; several other mappings are explicitly approximate. |
+| Adjustment layers | Yes | Yes | Partial | Partial | Yes | Gradient Map PSD RC | Partial | Solid Gradient Map is now native, GPU-rendered, editable and PSD-roundtrippable. Noise gradients remain preserved/no-op; Photo Filter, Color Balance, Hue/Saturation and Brightness/Contrast remain explicit approximations pending isolated calibration. |
 | Layer styles | Yes | Yes | Partial | Partial | Yes | No | Partial | Corpus uses Color Overlay, Drop Shadow, Gradient Overlay and Pattern Overlay; edge cases and combined stacks remain. |
 | Dormant style descriptors | Yes | Yes | Correctly hidden | N/A | Style editor | No | Yes UI | Dormant descriptors remain stored but no longer clutter the compact Layers tree. |
 | Solid vector shapes | Yes | Partial | Partial | Partial | **Partial** | No | Failed authoring parity | Some simple shapes map natively, but observed imported shapes still fall back or expose incomplete editable properties. |
@@ -84,7 +84,7 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 
 | Document | Difference | Main reason to keep as a gate |
 | --- | ---: | --- |
-| EHS-395 | 95.12% | Two unsupported Gradient Maps prove that a semantic no-op cannot preserve an adjustment scope visually. |
+| EHS-395 | baseline 95.12% | Its two Gradient Maps are now native and make this the next whole-document regression oracle; remaining Smart Object, text/font and contextual-stack differences must be isolated before attributing a new aggregate score. |
 | EHS-404 | 98.39% | Six approximate adjustment layers demonstrate accumulated color-stack error. |
 | EHS-405 | 55.79% | Small tree with text, mask and vector reconstruction differences. |
 | EHS-407 | 53.92% | Compact text/mask/vector regression document. |
@@ -197,10 +197,17 @@ command. Native save/reopen must preserve this recovery state.
 **Corpus instances:** 5 Photo Filter, 2 Gradient Map, 2 Color Balance,
 1 Brightness/Contrast and 1 Hue/Saturation.
 
-**Required order:** Implement Gradient Map first because it is currently a
-complete no-op. Then calibrate Photo Filter, Color Balance, Hue/Saturation and
-Brightness/Contrast with isolated Photoshop fixtures and combined-stack gates.
-Do not relabel approximate mappings as native merely because controls exist.
+**Current status:** Solid Gradient Map is implemented as a canonical
+`lt.gradient-map` module with up to eight color and opacity stops, midpoint
+interpolation, reverse and dither. The same data drives the shared gradient
+editor, WebGPU execution, native persistence and editable PSD import/export.
+Photoshop noise gradients and non-classic interpolation remain preserved or
+explicitly approximate; their descriptors are never discarded.
+
+**Next calibrated order:** Photo Filter (five corpus instances), Color Balance
+(two), Hue/Saturation (one) and Brightness/Contrast (one), using isolated
+Photoshop fixtures and combined-stack gates. Do not relabel their current
+grading/mixer approximations as native merely because controls exist.
 
 **Priority:** P1.
 

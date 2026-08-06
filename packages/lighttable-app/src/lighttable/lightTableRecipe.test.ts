@@ -163,6 +163,30 @@ describe('parseLightTableRecipe', () => {
     expect(recipe?.settings.curves.blue[1].y).toBe(0.9);
   });
 
+  it('restores a structured Gradient Map without flattening its stops', () => {
+    const gradientMap = {
+      enabled: true,
+      reverse: true,
+      dither: false,
+      colorStops: [
+        { position: 0, midpoint: 0.35, color: { r: 0.1, g: 0.2, b: 0.3 } },
+        { position: 1, midpoint: 0.65, color: { r: 0.8, g: 0.7, b: 0.6 } }
+      ],
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 0.2 },
+        { position: 1, midpoint: 0.5, opacity: 1 }
+      ]
+    };
+    const recipe = parseLightTableRecipe({
+      lighttable: {
+        sourceFileKey: 'gradient-map.psd',
+        settings: { gradientMap }
+      }
+    });
+
+    expect(recipe?.settings.gradientMap).toEqual(gradientMap);
+  });
+
   it('rejects incomplete and non-numeric recipes', () => {
     expect(parseLightTableRecipe({ lighttable: { settings: { exposureEV: 1 } } })).toBeNull();
     expect(parseLightTableRecipe({

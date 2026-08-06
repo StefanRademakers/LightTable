@@ -9,6 +9,7 @@ import { exportLayerStyleStackToPsd } from '../../editor/psd/layerStylePsdExport
 import { exportTextLayerToPsd } from '../../editor/psd/psdTextExportAdapter';
 import { exportVectorLayerToPsd } from '../../editor/psd/psdVectorExportAdapter';
 import { walkLayerTree } from '../../editor/document/layerTree';
+import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
 
 export interface PsdExportPixelAsset {
   readonly layerId: LayerId;
@@ -121,7 +122,31 @@ export const projectDocumentToPsd = (
       if (node.photoshop?.adjustment && node.revision === 0) {
         common.adjustment = structuredClone(node.photoshop.adjustment) as Layer['adjustment'];
       } else {
-        warnings.push(`${path}: this adjustment has no unchanged, exact Photoshop descriptor.`);
+        const gradientMap = materializeBasicAdjustments(node.adjustmentStack).gradientMap;
+        if (gradientMap?.enabled) {
+          common.adjustment = {
+            type: 'gradient map',
+            gradientType: 'solid',
+            reverse: gradientMap.reverse,
+            dither: gradientMap.dither,
+            colorStops: gradientMap.colorStops.map((stop) => ({
+              location: Math.round(stop.position * 4096),
+              midpoint: Math.round(stop.midpoint * 100),
+              color: {
+                r: Math.round(stop.color.r * 255),
+                g: Math.round(stop.color.g * 255),
+                b: Math.round(stop.color.b * 255)
+              }
+            })),
+            opacityStops: gradientMap.opacityStops.map((stop) => ({
+              location: Math.round(stop.position * 4096),
+              midpoint: Math.round(stop.midpoint * 100),
+              opacity: Math.round(stop.opacity * 100)
+            }))
+          };
+        } else {
+          warnings.push(`${path}: this adjustment has no unchanged, exact Photoshop descriptor.`);
+        }
       }
       return common;
     }

@@ -28,4 +28,31 @@ describe('LightTable adjustment uniform packing', () => {
     expect(packed[58]).toBe(0);
     expect(packed[59]).toBe(0);
   });
+
+  it('packs the native Gradient Map after the existing grading ABI', () => {
+    const settings = createDefaultAdjustments();
+    settings.gradientMap = {
+      enabled: true,
+      reverse: true,
+      dither: true,
+      colorStops: [
+        { position: 0, midpoint: 0.4, color: { r: 0.1, g: 0.2, b: 0.3 } },
+        { position: 1, midpoint: 0.5, color: { r: 0.8, g: 0.9, b: 1 } }
+      ],
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 0.25 },
+        { position: 1, midpoint: 0.6, opacity: 1 }
+      ]
+    };
+
+    const packed = buildAdjustmentUniform(settings, 100, 50, true);
+
+    expect([...packed.slice(60, 64)]).toEqual([1, 2, 2, 3]);
+    expect([...packed.slice(64, 68)]).toEqual([
+      expect.closeTo(0.1), expect.closeTo(0.2), expect.closeTo(0.3), 0
+    ]);
+    expect([...packed.slice(96, 100)]).toEqual([
+      0, 0.25, 0.5, expect.closeTo(0.4)
+    ]);
+  });
 });
