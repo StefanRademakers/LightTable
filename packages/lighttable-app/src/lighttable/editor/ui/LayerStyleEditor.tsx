@@ -143,7 +143,12 @@ const NumberSlider: React.FC<{
 
 const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
 const ANGLE_PUBLISH_INTERVAL_MS = 33;
-const STYLE_PREVIEW_DELAY_MS = 16;
+// Style controls update their local UI at native input speed. Publishing a
+// complete document/style snapshot faster than an interactive render frame
+// only creates React and GPU invalidation backlog on integrated GPUs. Keep all
+// continuous FX controls at one explicit 30 Hz contract; pointer-up still
+// flushes the final slider value through AdjustmentSlider.
+export const LAYER_STYLE_PREVIEW_INTERVAL_MS = 33;
 
 const AngleField: React.FC<{
   label: string;
@@ -790,7 +795,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
     previewTimerRef.current = window.setTimeout(() => {
       previewTimerRef.current = null;
       publishLatestPreview();
-    }, STYLE_PREVIEW_DELAY_MS);
+    }, LAYER_STYLE_PREVIEW_INTERVAL_MS);
   }, [publishLatestPreview]);
 
   React.useEffect(() => {

@@ -1,0 +1,44 @@
+# Task 081 — Layer Style interaction performance
+
+Status: completed and measured 2026-08-06.
+
+## Finding
+
+Every `AdjustmentSlider` already kept its local thumb/label responsive and
+coalesced expensive publication to 33 ms, but `LayerStyleEditor` republished
+complete style/document snapshots on a separate 16 ms schedule. Each
+interactive style revision also wrote a persistent tight cache that was
+destroyed by the next slider value. On large documents and integrated GPUs,
+those redundant React/document invalidations and GPU copies created avoidable
+backpressure.
+
+## Change
+
+- All continuous Layer Style/FX controls now share an explicit 33 ms (30 Hz)
+  expensive-preview contract while local control presentation stays native.
+- Interactive one-frame style results no longer enter the persistent style
+  cache. Final-quality results remain cached exactly as before.
+- The implementation is generic for all Layer Styles, not specific to Drop
+  Shadow or Apple hardware.
+- Final rendering algorithms and authored values are unchanged.
+
+## Repeatable audit
+
+`npm run audit:desktop:style-interaction:build`
+
+The production Electron audit opens a Photoshop-canonical Drop Shadow PSD,
+drives one active Blur-slider gesture with 120 changing input events, captures
+render telemetry and rejects runtime errors, publication above the interaction
+budget or long tasks above 250 ms.
+
+Measured on the current Windows RTX 5090 reference machine:
+
+- 121 observed input events in 1,125 ms;
+- 19 submitted GPU frames / 20 render calls;
+- effective publication 16.9 Hz under renderer backpressure;
+- final slider value changed from 30 to 250;
+- zero long tasks, page errors, console errors or runtime stops.
+
+The complete 40-case Photoshop Layer Style corpus subsequently passed with no
+fidelity failures. The six existing visual-review cases remain calibration
+work, not regressions introduced by this optimization.

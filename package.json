@@ -25,6 +25,8 @@
     "stress:desktop:build": "npm run package:desktop:verify && npm run stress:desktop --",
     "audit:desktop:canvas": "node scripts/audit-desktop-canvas-interactions.mjs",
     "audit:desktop:style-cache": "node scripts/audit-desktop-style-cache-lifecycle.mjs",
+    "audit:desktop:style-interaction": "node scripts/audit-desktop-layer-style-interaction.mjs",
+    "audit:desktop:style-interaction:build": "npm run package:desktop:verify && npm run audit:desktop:style-interaction --",
     "audit:desktop:canvas:build": "npm run package:desktop:verify && npm run audit:desktop:canvas --",
     "audit:desktop:effects": "node scripts/audit-desktop-effect-lifecycle.mjs",
     "audit:desktop:render-engine": "node scripts/audit-desktop-render-engines.mjs",

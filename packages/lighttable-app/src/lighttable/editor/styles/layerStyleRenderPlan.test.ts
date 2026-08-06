@@ -5,6 +5,7 @@ import {
   layerStyleCacheKey,
   layerStyleDocumentBounds,
   layerStyleExpansion,
+  persistentLayerStyleCacheKey,
   layerSourceStyleCacheKey,
   layerSourceStyleDocumentBounds
 } from './layerStyleRenderPlan';
@@ -17,6 +18,10 @@ const rasterLayer = (width: number, height: number) => {
 };
 
 describe('Layer Style render planning', () => {
+  it('caches final style results without copying one-frame interaction previews', () => {
+    expect(persistentLayerStyleCacheKey('revision-1', 'interactive')).toBeNull();
+    expect(persistentLayerStyleCacheKey('revision-1', 'final')).toBe('revision-1');
+  });
   it('rounds conservative style extents outward for lossless GPU copies', () => {
     expect(layerStyleCacheBounds(
       { x: 4.4, y: 5.8, width: 10.2, height: 20.1 },

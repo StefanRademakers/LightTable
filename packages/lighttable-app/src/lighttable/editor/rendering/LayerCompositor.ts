@@ -21,7 +21,8 @@ import {
   layerStyleCacheKey,
   layerStyleDocumentBounds,
   layerSourceStyleCacheKey,
-  layerSourceStyleDocumentBounds
+  layerSourceStyleDocumentBounds,
+  persistentLayerStyleCacheKey
 } from '../styles/layerStyleRenderPlan';
 import {
   analyzeDocumentComposite,
@@ -323,6 +324,7 @@ export class LayerCompositor {
           if (styleBounds.width <= 0 || styleBounds.height <= 0) {
             return [background, target];
           }
+          const styleQuality = layerStyles.cacheKeyQuality(node.id);
           const styled = layerStyles.encode(
             encoder,
             node,
@@ -331,11 +333,11 @@ export class LayerCompositor {
             inverse,
             source.dimensions,
             styleBounds,
-            layerSourceStyleCacheKey(
+            persistentLayerStyleCacheKey(layerSourceStyleCacheKey(
               node,
               source,
-              layerStyles.cacheKeyQuality(node.id)
-            )
+              styleQuality
+            ), styleQuality)
           );
           if (styled) {
             compositeTexture(background, styled.texture, target, {
@@ -424,13 +426,14 @@ export class LayerCompositor {
           return [background, target];
         }
         const activePixelEdit = pixelEditSessions.current?.layerId === layer.id;
+        const styleQuality = layerStyles.cacheKeyQuality(layer.id);
         const styleCacheKey = activeTransform || activePixelEdit
           ? null
-          : layerStyleCacheKey(
+          : persistentLayerStyleCacheKey(layerStyleCacheKey(
               layer,
               sourceToDocument,
-              layerStyles.cacheKeyQuality(layer.id)
-            );
+              styleQuality
+            ), styleQuality);
         const styled = layerStyles.encode(
           encoder,
           layer,

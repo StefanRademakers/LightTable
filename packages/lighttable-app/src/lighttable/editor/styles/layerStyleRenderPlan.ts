@@ -4,6 +4,16 @@ import type { LayerStyleInstance, LayerStyleStack } from './layerStyleTypes';
 
 export type LayerStyleRenderQuality = 'interactive' | 'final';
 
+/**
+ * Interactive style revisions normally live for one frame. Persisting each
+ * one adds a tight-cache copy and immediate cache destruction before the next
+ * slider value, so only final-quality results enter the reusable cache.
+ */
+export const persistentLayerStyleCacheKey = (
+  key: string,
+  quality: LayerStyleRenderQuality
+) => quality === 'final' ? key : null;
+
 const effectExpansion = (effect: LayerStyleInstance, scale: number) => {
   if (!effect.enabled || effect.opacity <= 0) return 0;
   switch (effect.kind) {

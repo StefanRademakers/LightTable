@@ -5,9 +5,12 @@ import {
   createDefaultLayerStyle,
   createDefaultLayerStyleStack
 } from '../styles/layerStyleDefaults';
-import { LayerStyleEditor } from './LayerStyleEditor';
+import { LAYER_STYLE_PREVIEW_INTERVAL_MS, LayerStyleEditor } from './LayerStyleEditor';
 
 describe('LayerStyleEditor', () => {
+  it('publishes expensive style snapshots at an explicit 30 Hz interaction rate', () => {
+    expect(LAYER_STYLE_PREVIEW_INTERVAL_MS).toBe(33);
+  });
   it('renders as a non-modal dock panel without dialog actions', () => {
     const initialStack = createDefaultLayerStyleStack();
     initialStack.effects = [createDefaultLayerStyle('drop-shadow')];
