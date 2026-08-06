@@ -63,7 +63,7 @@ blend/profile work.
 ### Generated dependency truth
 
 `THIRD_PARTY_AND_FORMAT_SUPPORT.md` now agrees with the generated inventory:
-705 npm package/version entries and 80 Cargo crates. It still requires actual
+709 npm package/version entries and 80 Cargo crates. It still requires actual
 distributed notice review and does not turn transitive codecs into product
 support.
 

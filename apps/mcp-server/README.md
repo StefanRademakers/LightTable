@@ -24,6 +24,13 @@ npm run mcp:server
 ```
 
 The demo exposes mock state and is only useful for MCP/OAuth client testing.
+
+Desktop devices can pair over `/agent/pair` and connect outbound over
+`/agent/tunnel`. Configure a one-time `LIGHTTABLE_DEVICE_PAIRING_CODE` and a
+stable `LIGHTTABLE_SERVER_ID`; production requires the same HTTPS origin and a
+WSS-capable reverse proxy. The desktop pins the observed certificate. The
+single-process broker is the bounded trial implementation; durable multi-user
+state is part of the production service milestone.
 Run `npm run smoke:mcp` for the real Electron end-to-end path.
 
 ## Real desktop bridge

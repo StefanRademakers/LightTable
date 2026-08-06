@@ -2,13 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   LightTableAgentAccessService,
-  LightTableAgentAccessStatus
+  LightTableAgentAccessStatus,
+  LightTableAgentTunnelStatus
 } from '../platform/LightTableHost';
 import { ActionButton } from '../ui/ActionButton';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 
 const unavailable: LightTableAgentAccessStatus = {
   supported: false, enabled: false, state: 'stopped'
+};
+const tunnelUnavailable: LightTableAgentTunnelStatus = {
+  state: 'offline', deviceId: 'unavailable', clients: [], events: []
 };
 
 export const AgentAccessSettingsDialog: React.FC<{
@@ -19,20 +23,32 @@ export const AgentAccessSettingsDialog: React.FC<{
   const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(open, onClose);
   const [status, setStatus] = useState<LightTableAgentAccessStatus>(unavailable);
   const [port, setPort] = useState('');
+  const [serverUrl, setServerUrl] = useState('');
+  const [pairingCode, setPairingCode] = useState('');
+  const [tunnel, setTunnel] = useState<LightTableAgentTunnelStatus>(tunnelUnavailable);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open || !service) return;
     let canceled = false;
     void service.status().then((value) => { if (!canceled) setStatus(value); });
+    void service.tunnelStatus().then((value) => {
+      if (!canceled) { setTunnel(value); if (value.serverUrl) setServerUrl(value.serverUrl); }
+    });
     const unsubscribe = service.subscribe((value) => { if (!canceled) setStatus(value); });
-    return () => { canceled = true; unsubscribe(); };
+    const unsubscribeTunnel = service.subscribeTunnel((value) => {
+      if (!canceled) { setTunnel(value); if (value.serverUrl) setServerUrl(value.serverUrl); }
+    });
+    return () => { canceled = true; unsubscribe(); unsubscribeTunnel(); };
   }, [open, service]);
 
   if (!open) return null;
   const run = (operation: () => Promise<LightTableAgentAccessStatus>) => {
     setBusy(true);
     void operation().then(setStatus).finally(() => setBusy(false));
+  };
+  const runTunnel = (operation: () => Promise<LightTableAgentTunnelStatus>) => {
+    setBusy(true); void operation().then(setTunnel).finally(() => setBusy(false));
   };
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
@@ -77,6 +93,49 @@ export const AgentAccessSettingsDialog: React.FC<{
                 <ActionButton disabled={busy || !status.enabled} onClick={() => run(() => service.disable())}>Stop</ActionButton>
               </div>
               <p className="lighttable-agent-settings__note">Rotating credentials immediately invalidates the previous token. Stopping closes every local connection without closing documents.</p>
+              <div className="lighttable-agent-settings__server">
+                <h3>Server connection</h3>
+                <p>Connect outbound to your authenticated LightTable MCP server. No public port is opened on this computer.</p>
+                <label>Server URL<input type="url" placeholder="https://mcp.example.com" value={serverUrl}
+                  disabled={busy || tunnel.state === 'connected'} onChange={(event) => setServerUrl(event.currentTarget.value)} /></label>
+                <label>One-time pairing code<input type="text" autoComplete="one-time-code" maxLength={64}
+                  value={pairingCode} disabled={busy || tunnel.state === 'connected'}
+                  onChange={(event) => setPairingCode(event.currentTarget.value)} /></label>
+                <div className="lighttable-agent-settings__actions">
+                  <ActionButton disabled={busy || !serverUrl || pairingCode.length < 6 || tunnel.state === 'connected'}
+                    onClick={() => {
+                      setBusy(true);
+                      void service.pairServer(serverUrl, pairingCode).then((value) => {
+                        setTunnel(value); if (value.state === 'connected') setPairingCode('');
+                      }).finally(() => setBusy(false));
+                    }}>Pair</ActionButton>
+                  <ActionButton disabled={busy || (tunnel.state !== 'degraded' && tunnel.state !== 'offline') || !tunnel.serverUrl}
+                    onClick={() => runTunnel(() => service.reconnectServer())}>Reconnect</ActionButton>
+                  <ActionButton disabled={busy || tunnel.state === 'offline'}
+                    onClick={() => runTunnel(() => service.disconnectServer())}>Disconnect</ActionButton>
+                </div>
+                <dl>
+                  <div><dt>Connection</dt><dd>{tunnel.state}</dd></div>
+                  <div><dt>Server</dt><dd>{tunnel.serverId ?? 'Not paired'}</dd></div>
+                  <div><dt>Device</dt><dd>{tunnel.deviceId}</dd></div>
+                  <div><dt>Activity</dt><dd>{tunnel.lastActivity ? new Date(tunnel.lastActivity).toLocaleString() : 'None'}</dd></div>
+                </dl>
+                {tunnel.error ? <p className="lighttable-agent-settings__error" role="alert">{tunnel.error}</p> : null}
+                {tunnel.clients.length ? <div className="lighttable-agent-settings__clients">
+                  <h4>Clients</h4>
+                  {tunnel.clients.map((client) => <div key={client.id}>
+                    <span><strong>{client.name}</strong><small>{client.approved ? client.scopes.join(' + ') : `Requests ${client.requestedScopes.join(' + ')}`}</small></span>
+                    {client.approved
+                      ? <ActionButton onClick={() => runTunnel(() => service.revokeClient(client.id))}>Revoke</ActionButton>
+                      : <><ActionButton onClick={() => runTunnel(() => service.approveClient(client.id, ['read']))}>Allow read</ActionButton>
+                        {client.requestedScopes.includes('edit') ? <ActionButton onClick={() => runTunnel(() => service.approveClient(client.id, ['read', 'edit']))}>Allow edit</ActionButton> : null}</>}
+                  </div>)}
+                </div> : null}
+                {tunnel.events.length ? <div className="lighttable-agent-settings__events" aria-label="Recent Agent Access activity">
+                  {tunnel.events.slice(-5).map((event) => <p key={event.id}><time>{new Date(event.at).toLocaleTimeString()}</time>{event.detail}</p>)}
+                </div> : null}
+                <ActionButton disabled={busy || !tunnel.serverUrl} onClick={() => runTunnel(() => service.revokeDevice())}>Revoke this device</ActionButton>
+              </div>
             </>
           )}
         </div>

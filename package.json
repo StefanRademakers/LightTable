@@ -52,6 +52,8 @@
     "smoke:desktop:onboarding:build": "npm run package:desktop:verify && npm run smoke:desktop:onboarding --",
     "smoke:desktop:agent-access": "node scripts/smoke-desktop-agent-access.mjs",
     "smoke:desktop:agent-access:build": "npm run package:desktop:verify && npm run smoke:desktop:agent-access --",
+    "smoke:desktop:agent-tunnel": "node scripts/smoke-desktop-agent-tunnel.mjs",
+    "smoke:desktop:agent-tunnel:build": "npm run package:desktop:verify && npm run smoke:desktop:agent-tunnel --",
     "audit:desktop:panel-language": "node scripts/audit-desktop-panel-language.mjs",
     "audit:desktop:panel-language:build": "npm run package:desktop:verify && npm run audit:desktop:panel-language --",
     "smoke:desktop:psd-roundtrip": "node scripts/smoke-desktop-psd-roundtrip.mjs",
@@ -120,6 +122,7 @@
   "devDependencies": {
     "ag-psd": "^31.0.2",
     "playwright-core": "^1.62.1",
+    "selfsigned": "^3.0.1",
     "sharp": "^0.34.5"
   }
 }

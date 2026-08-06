@@ -32,7 +32,7 @@ ChatGPT / MCP client
         v
 Hetzner: apps/mcp-server
         |
-        | bearer-authenticated private/reverse tunnel
+        | approved client route over outbound WSS
         v
 Desktop: embedded, opt-in Agent Access bridge
         |
@@ -40,7 +40,7 @@ Desktop: embedded, opt-in Agent Access bridge
 LightTable command service -> history/document model -> GPU renderer
 ```
 
-The bridge is owned by the normal LightTable Electron main process. It binds
+The local bridge is owned by the normal LightTable Electron main process. It binds
 only to `127.0.0.1`, is disabled by default and requires an OS-protected,
 rotatable high-entropy device token. Enable it in **Settings > Agent Access**;
 the displayed address and token configure the private tunnel. Stopping it
@@ -57,6 +57,11 @@ The MCP process on the server then uses
 `LIGHTTABLE_BRIDGE_URL=http://127.0.0.1:8790`. Do not bind the desktop bridge to
 a public interface. OpenAI's Secure MCP Tunnel is another suitable private
 transport when it is available for the target workspace.
+
+The production-oriented route no longer needs SSH: Settings pairs once over
+HTTPS, pins the server identity and opens WSS outbound from the desktop. Client
+read/edit scopes require explicit desktop approval. See
+[Outbound Agent server pairing](OUTBOUND_AGENT_PAIRING.md).
 
 ## V1 tool surface
 

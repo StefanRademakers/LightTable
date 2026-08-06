@@ -100,6 +100,30 @@ export interface LightTableAgentAccessStatus {
   readonly error?: string;
 }
 
+export type LightTableAgentTunnelState = 'offline' | 'pairing' | 'connecting' | 'connected' | 'degraded' | 'revoked';
+export type LightTableAgentClientScope = 'read' | 'edit';
+export interface LightTableAgentClient {
+  readonly id: string;
+  readonly name: string;
+  readonly requestedScopes: readonly LightTableAgentClientScope[];
+  readonly scopes: readonly LightTableAgentClientScope[];
+  readonly approved: boolean;
+  readonly lastActivity?: number;
+}
+export interface LightTableAgentTunnelEvent {
+  readonly id: number; readonly at: number; readonly kind: string; readonly detail: string;
+}
+export interface LightTableAgentTunnelStatus {
+  readonly state: LightTableAgentTunnelState;
+  readonly serverUrl?: string;
+  readonly serverId?: string;
+  readonly deviceId: string;
+  readonly clients: readonly LightTableAgentClient[];
+  readonly events: readonly LightTableAgentTunnelEvent[];
+  readonly lastActivity?: number;
+  readonly error?: string;
+}
+
 export interface LightTableAgentAccessService {
   status(): Promise<LightTableAgentAccessStatus>;
   enable(options?: { readonly port?: number }): Promise<LightTableAgentAccessStatus>;
@@ -107,6 +131,14 @@ export interface LightTableAgentAccessService {
   rotateCredentials(): Promise<LightTableAgentAccessStatus>;
   subscribe(listener: (status: LightTableAgentAccessStatus) => void): () => void;
   installDriver(driver: LightTableAutomationDriver): (() => void) | void;
+  tunnelStatus(): Promise<LightTableAgentTunnelStatus>;
+  pairServer(serverUrl: string, code: string): Promise<LightTableAgentTunnelStatus>;
+  disconnectServer(): Promise<LightTableAgentTunnelStatus>;
+  reconnectServer(): Promise<LightTableAgentTunnelStatus>;
+  approveClient(clientId: string, scopes: readonly LightTableAgentClientScope[]): Promise<LightTableAgentTunnelStatus>;
+  revokeClient(clientId: string): Promise<LightTableAgentTunnelStatus>;
+  revokeDevice(): Promise<LightTableAgentTunnelStatus>;
+  subscribeTunnel(listener: (status: LightTableAgentTunnelStatus) => void): () => void;
 }
 
 export interface LightTableHost {

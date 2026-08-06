@@ -23,7 +23,9 @@ describe('DesktopAgentAccessCredentialStore', () => {
     expect(first.token.length).toBeGreaterThanOrEqual(40);
     expect(new TextDecoder().decode(await readFile(file))).not.toContain(first.token.slice(0, 12));
     expect(await store.loadOrCreate()).toEqual(first);
-    expect(await store.rotate()).not.toEqual(first);
+    const rotated = await store.rotate();
+    expect(rotated.deviceId).toBe(first.deviceId);
+    expect(rotated.token).not.toBe(first.token);
   });
 
   it('fails closed when OS credential protection is unavailable', async () => {

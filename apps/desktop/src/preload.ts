@@ -68,6 +68,18 @@ const bridge: LightTableDesktopBridge = {
     };
     ipcRenderer.on('lighttable:agent-access-request', handler);
     return () => ipcRenderer.removeListener('lighttable:agent-access-request', handler);
+  },
+  agentTunnelStatus: () => ipcRenderer.invoke('lighttable:agent-tunnel-status'),
+  pairAgentServer: (serverUrl, code) => ipcRenderer.invoke('lighttable:agent-tunnel-pair', serverUrl, code),
+  disconnectAgentServer: () => ipcRenderer.invoke('lighttable:agent-tunnel-disconnect'),
+  reconnectAgentServer: () => ipcRenderer.invoke('lighttable:agent-tunnel-reconnect'),
+  approveAgentClient: (clientId, scopes) => ipcRenderer.invoke('lighttable:agent-client-approve', clientId, scopes),
+  revokeAgentClient: (clientId) => ipcRenderer.invoke('lighttable:agent-client-revoke', clientId),
+  revokeAgentDevice: () => ipcRenderer.invoke('lighttable:agent-device-revoke'),
+  onAgentTunnelStatus: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
+    ipcRenderer.on('lighttable:agent-tunnel-changed', handler);
+    return () => ipcRenderer.removeListener('lighttable:agent-tunnel-changed', handler);
   }
 };
 

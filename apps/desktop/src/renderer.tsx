@@ -83,7 +83,15 @@ const desktopHost: LightTableHost = {
     subscribe: (listener) => window.lightTableDesktop.onAgentAccessStatus(listener),
     installDriver: (driver) => window.lightTableDesktop.installAgentAccessHandler(
       (method, parameters) => invokeAgentDriver(driver, method, parameters)
-    )
+    ),
+    tunnelStatus: () => window.lightTableDesktop.agentTunnelStatus(),
+    pairServer: (serverUrl, code) => window.lightTableDesktop.pairAgentServer(serverUrl, code),
+    disconnectServer: () => window.lightTableDesktop.disconnectAgentServer(),
+    reconnectServer: () => window.lightTableDesktop.reconnectAgentServer(),
+    approveClient: (clientId, scopes) => window.lightTableDesktop.approveAgentClient(clientId, scopes),
+    revokeClient: (clientId) => window.lightTableDesktop.revokeAgentClient(clientId),
+    revokeDevice: () => window.lightTableDesktop.revokeAgentDevice(),
+    subscribeTunnel: (listener) => window.lightTableDesktop.onAgentTunnelStatus(listener)
   },
   release: {
     info: () => window.lightTableDesktop.releaseInfo(),

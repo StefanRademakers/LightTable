@@ -15,8 +15,8 @@
     ]
   },
   "summary": {
-    "npmPackages": 705,
-    "npmRuntimePackages": 184,
+    "npmPackages": 709,
+    "npmRuntimePackages": 185,
     "cargoPackages": 80,
     "unknownLicenses": 0
   },
@@ -1370,6 +1370,14 @@
       "version": "3.0.0",
       "license": "MIT",
       "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@types/ws",
+      "version": "8.18.1",
+      "license": "MIT",
+      "role": "direct-development",
       "optional": false
     },
     {
@@ -3982,6 +3990,14 @@
     },
     {
       "ecosystem": "npm",
+      "name": "node-forge",
+      "version": "1.4.0",
+      "license": "(BSD-3-Clause OR GPL-2.0)",
+      "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
       "name": "node-readable-to-web-readable-stream",
       "version": "0.4.2",
       "license": "MIT",
@@ -4762,6 +4778,14 @@
       "version": "4.3.3",
       "license": "MIT",
       "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "selfsigned",
+      "version": "3.0.1",
+      "license": "MIT",
+      "role": "direct-development",
       "optional": false
     },
     {
@@ -5602,6 +5626,14 @@
       "version": "1.0.2",
       "license": "ISC",
       "role": "transitive-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "ws",
+      "version": "8.18.3",
+      "license": "MIT",
+      "role": "direct-runtime",
       "optional": false
     },
     {

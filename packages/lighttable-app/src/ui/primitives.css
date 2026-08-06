@@ -753,3 +753,16 @@
 .lighttable-agent-settings__actions { display: flex; gap: 8px; margin-top: 14px; }
 .lighttable-agent-settings__error { color: var(--color-danger) !important; }
 .lighttable-agent-settings__note { font-size: var(--lt-type-small); }
+.lighttable-agent-settings { max-height: min(840px, calc(100vh - 32px)); overflow: auto; }
+.lighttable-agent-settings__server { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--lt-border-subtle); }
+.lighttable-agent-settings__server > h3 { margin: 0 0 6px; }
+.lighttable-agent-settings__server > p { color: var(--color-text-muted); }
+.lighttable-agent-settings__server > label { display: grid; gap: 6px; margin: 10px 0; color: var(--color-text-muted); }
+.lighttable-agent-settings__server > label input { width: 100%; }
+.lighttable-agent-settings__clients { margin: 14px 0; }
+.lighttable-agent-settings__clients > div { display: flex; align-items: center; gap: 7px; padding: 7px 0; border-top: 1px solid var(--lt-border-subtle); }
+.lighttable-agent-settings__clients span { display: grid; flex: 1; }
+.lighttable-agent-settings__clients small { color: var(--color-text-muted); }
+.lighttable-agent-settings__events { margin: 12px 0; padding: 8px; background: var(--lt-surface-recessed); }
+.lighttable-agent-settings__events p { display: flex; gap: 8px; margin: 4px 0; font-size: var(--lt-type-small); }
+.lighttable-agent-settings__events time { color: var(--color-text-muted); }

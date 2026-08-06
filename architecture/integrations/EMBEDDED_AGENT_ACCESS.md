@@ -46,3 +46,7 @@ shutdown.
 The separate remote MCP server remains an optional adapter. It connects to
 this local bridge through a user-controlled private/reverse tunnel; it does not
 change the local trust boundary or create a second editor model.
+
+The preferred production topology is now the product-owned outbound WSS path
+described in [Outbound Agent server pairing](OUTBOUND_AGENT_PAIRING.md). The
+loopback bridge remains useful for local clients and the reverse-SSH trial.

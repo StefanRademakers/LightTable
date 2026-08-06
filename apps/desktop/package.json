@@ -18,7 +18,8 @@
     "@fontsource/inter": "5.3.0",
     "@lighttable/app": "0.0.1",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.10.2",
@@ -30,6 +31,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.1",
     "@webgpu/types": "^0.1.71",
     "electron": "^39.2.7",

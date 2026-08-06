@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import express from 'express';
 import { createMcpExpressApp, mcpAuthMetadataRouter } from '@modelcontextprotocol/express';
 import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { createLightTableMcpServer } from './mcp.mjs';
 import { installOAuthRoutes, LightTableOAuthStore } from './oauth.mjs';
+import { DeviceTunnelBroker } from './deviceTunnel.mjs';
 
 export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
-  allowInsecure = false, allowedHosts } = {}) => {
+  allowInsecure = false, allowedHosts, devicePairingCode = pairingCode, serverId } = {}) => {
   const resource = new URL('/mcp', publicUrl);
   const issuer = new URL('/', publicUrl);
   if (!allowInsecure && (resource.protocol !== 'https:' || issuer.protocol !== 'https:')) {
@@ -30,6 +32,9 @@ export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
     scopesSupported: oauthMetadata.scopes_supported, resourceName: 'LightTable',
     dangerouslyAllowInsecureIssuerUrl: allowInsecure }));
   installOAuthRoutes(app, oauth);
+  const deviceTunnel = new DeviceTunnelBroker({ publicUrl, pairingCode: devicePairingCode, serverId });
+  app.use('/agent/pair', express.json({ limit: '16kb' }));
+  deviceTunnel.installRoutes(app);
   app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'lighttable-mcp', version: '0.1.0' }));
   const authenticate = async (req, res, next) => {
     const match = req.get('authorization')?.match(/^Bearer\s+(.+)$/iu);
@@ -49,5 +54,6 @@ export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
     enableJsonResponse: true });
   await mcp.connect(transport);
   app.all('/mcp', authenticate, (req, res) => void transport.handleRequest(req, res, req.body));
-  return { app, oauth, close: () => transport.close(), requestId: randomUUID() };
+  return { app, oauth, deviceTunnel,
+    close: () => { deviceTunnel.close(); return transport.close(); }, requestId: randomUUID() };
 };

@@ -17,10 +17,14 @@ const client = process.env.LIGHTTABLE_DEMO_MODE === 'true'
     token: process.env.LIGHTTABLE_BRIDGE_TOKEN });
 const allowedHosts = (process.env.LIGHTTABLE_ALLOWED_HOSTS ?? new URL(publicUrl).hostname)
   .split(',').map((value) => value.trim()).filter(Boolean);
-const { app, close } = await createLightTableMcpApp({ publicUrl, pairingCode, client,
-  allowInsecure, allowedHosts });
+const { app, close, deviceTunnel } = await createLightTableMcpApp({ publicUrl, pairingCode, client,
+  allowInsecure, allowedHosts, devicePairingCode: process.env.LIGHTTABLE_DEVICE_PAIRING_CODE ?? pairingCode,
+  serverId: process.env.LIGHTTABLE_SERVER_ID ?? 'lighttable-mcp' });
 const server = app.listen(port, host, () => {
   process.stdout.write(`LightTable MCP listening at ${new URL('/mcp', publicUrl).href}\n`);
+});
+server.on('upgrade', (request, socket, head) => {
+  if (!deviceTunnel.handleUpgrade(request, socket, head)) socket.destroy();
 });
 const shutdown = () => void close().finally(() => server.close());
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

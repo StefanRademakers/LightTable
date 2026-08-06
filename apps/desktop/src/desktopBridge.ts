@@ -4,7 +4,9 @@ import type {
   LightTableRecoveryWriteResult,
   LightTableReleaseInfo,
   LightTableUpdateResult,
-  LightTableAgentAccessStatus
+  LightTableAgentAccessStatus,
+  LightTableAgentClientScope,
+  LightTableAgentTunnelStatus
 } from '@lighttable/app';
 
 export interface DesktopFilePayload {
@@ -113,4 +115,12 @@ export interface LightTableDesktopBridge {
   rotateAgentAccessCredentials(): Promise<LightTableAgentAccessStatus>;
   onAgentAccessStatus(listener: (status: LightTableAgentAccessStatus) => void): () => void;
   installAgentAccessHandler(handler: (method: string, parameters: unknown) => Promise<unknown>): () => void;
+  agentTunnelStatus(): Promise<LightTableAgentTunnelStatus>;
+  pairAgentServer(serverUrl: string, code: string): Promise<LightTableAgentTunnelStatus>;
+  disconnectAgentServer(): Promise<LightTableAgentTunnelStatus>;
+  reconnectAgentServer(): Promise<LightTableAgentTunnelStatus>;
+  approveAgentClient(clientId: string, scopes: readonly LightTableAgentClientScope[]): Promise<LightTableAgentTunnelStatus>;
+  revokeAgentClient(clientId: string): Promise<LightTableAgentTunnelStatus>;
+  revokeAgentDevice(): Promise<LightTableAgentTunnelStatus>;
+  onAgentTunnelStatus(listener: (status: LightTableAgentTunnelStatus) => void): () => void;
 }

@@ -118,6 +118,10 @@ export type {
   LightTableReleaseService,
   LightTableAgentAccessService,
   LightTableAgentAccessStatus,
+  LightTableAgentTunnelStatus,
+  LightTableAgentTunnelState,
+  LightTableAgentClientScope,
+  LightTableAgentClient,
   LightTableUpdateResult,
   LightTableSaveRequest
 } from './platform/LightTableHost';

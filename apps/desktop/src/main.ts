@@ -39,6 +39,12 @@ import type { LightTableUpdateResult } from '@lighttable/app';
 import { BoundedLruCache } from './boundedLruCache';
 import { AgentAccessBridge } from './agentAccessBridge';
 import { DesktopAgentAccessCredentialStore } from './agentAccessCredentialStore';
+import { AgentTunnelController, createAgentDeviceId } from './agentTunnel';
+import {
+  HttpsAgentPairingClient,
+  ProtectedAgentTunnelSessionStore,
+  WebSocketAgentTunnelTransport
+} from './agentTunnelAdapters';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -48,6 +54,7 @@ let rendererOrigin = '';
 let packagedRendererServer: Server | null = null;
 let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath: string } | null = null;
 let agentAccessBridge: AgentAccessBridge | null = null;
+let agentTunnel: AgentTunnelController | null = null;
 let agentRequestSequence = 0;
 const pendingAgentRequests = new Map<string, {
   readonly resolve: (value: unknown) => void;
@@ -304,6 +311,7 @@ async function createWindow(): Promise<void> {
     console.error(`[LightTable renderer] Process exited: ${details.reason} (${details.exitCode})`);
     rejectPendingAgentRequests('LightTable renderer stopped.');
     void agentAccessBridge?.disable();
+    void agentTunnel?.disconnect(false);
   });
   window.once('ready-to-show', () => window.show());
   window.on('enter-full-screen', () => {
@@ -360,15 +368,19 @@ void app.whenReady().then(async () => {
     callback(false);
   });
 
+  const credentialProtector = {
+    available: () => safeStorage.isEncryptionAvailable(),
+    protect: (value: string) => new Uint8Array(safeStorage.encryptString(value)),
+    unprotect: (value: Uint8Array) => safeStorage.decryptString(Buffer.from(value))
+  };
+  const credentialStore = new DesktopAgentAccessCredentialStore(
+    path.join(app.getPath('userData'), 'agent-access', 'credentials.bin'), credentialProtector
+  );
+  const deviceCredentials = await credentialStore.loadOrCreate().catch(() => ({
+    deviceId: createAgentDeviceId(), token: ''
+  }));
   agentAccessBridge = new AgentAccessBridge(
-    new DesktopAgentAccessCredentialStore(
-      path.join(app.getPath('userData'), 'agent-access', 'credentials.bin'),
-      {
-        available: () => safeStorage.isEncryptionAvailable(),
-        protect: (value) => new Uint8Array(safeStorage.encryptString(value)),
-        unprotect: (value) => safeStorage.decryptString(Buffer.from(value))
-      }
-    ),
+    credentialStore,
     invokeAgentRenderer,
     app.getVersion(),
     ['semantic-commands', 'atomic-batches', 'gestures', 'bounded-artifacts']
@@ -378,6 +390,21 @@ void app.whenReady().then(async () => {
       mainWindow.webContents.send('lighttable:agent-access-changed', status);
     }
   });
+  agentTunnel = new AgentTunnelController(
+    deviceCredentials.deviceId,
+    new HttpsAgentPairingClient(process.env.LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS === 'true'),
+    new WebSocketAgentTunnelTransport(process.env.LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS === 'true'),
+    new ProtectedAgentTunnelSessionStore(
+      path.join(app.getPath('userData'), 'agent-access', 'server-session.bin'), credentialProtector
+    ),
+    invokeAgentRenderer
+  );
+  agentTunnel.subscribe((status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('lighttable:agent-tunnel-changed', status);
+    }
+  });
+  void agentTunnel.restore();
 
   ipcMain.on('lighttable:agent-access-response', (event, payload: {
     readonly id?: unknown; readonly value?: unknown; readonly error?: unknown;
@@ -407,6 +434,36 @@ void app.whenReady().then(async () => {
   ipcMain.handle('lighttable:agent-access-rotate', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     return agentAccessBridge?.rotateCredentials();
+  });
+  ipcMain.handle('lighttable:agent-tunnel-status', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return agentTunnel?.status();
+  });
+  ipcMain.handle('lighttable:agent-tunnel-pair', (event, serverUrl: string, code: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof serverUrl !== 'string' || serverUrl.length > 2048
+      || typeof code !== 'string' || code.length > 64) throw new Error('Invalid Agent server pairing request.');
+    return agentTunnel?.pair(serverUrl, code);
+  });
+  ipcMain.handle('lighttable:agent-tunnel-disconnect', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return agentTunnel?.disconnect(false);
+  });
+  ipcMain.handle('lighttable:agent-tunnel-reconnect', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return agentTunnel?.connect();
+  });
+  ipcMain.handle('lighttable:agent-client-approve', (event, clientId: string, scopes: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof clientId !== 'string' || clientId.length > 256 || !Array.isArray(scopes)
+      || scopes.some((scope) => scope !== 'read' && scope !== 'edit')) throw new Error('Invalid Agent client approval.');
+    return agentTunnel?.approveClient(clientId, scopes);
+  });
+  ipcMain.handle('lighttable:agent-client-revoke', (event, clientId: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof clientId !== 'string' || clientId.length > 256) throw new Error('Invalid Agent client revocation.');
+    return agentTunnel?.revokeClient(clientId);
+  });
+  ipcMain.handle('lighttable:agent-device-revoke', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return agentTunnel?.revoke();
   });
 
   ipcMain.handle('lighttable:open-file', async (event) => {
@@ -769,6 +826,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     rejectPendingAgentRequests('LightTable is closing.');
     void agentAccessBridge?.disable();
+    void agentTunnel?.disconnect(false);
     packagedRendererServer?.close();
     packagedRendererServer = null;
     app.quit();

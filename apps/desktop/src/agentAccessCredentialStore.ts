@@ -13,6 +13,7 @@ const createCredentials = (): AgentAccessCredentials => ({
   deviceId: randomBytes(12).toString('hex'),
   token: randomBytes(32).toString('base64url')
 });
+const createToken = (): string => randomBytes(32).toString('base64url');
 
 const valid = (value: unknown): value is AgentAccessCredentials => Boolean(
   value && typeof value === 'object'
@@ -34,9 +35,10 @@ export class DesktopAgentAccessCredentialStore implements AgentAccessCredentialS
     return this.persist(createCredentials());
   }
 
-  rotate(): Promise<AgentAccessCredentials> {
+  async rotate(): Promise<AgentAccessCredentials> {
     if (!this.protector.available()) return Promise.reject(new Error('OS-protected credential storage is unavailable.'));
-    return this.persist(createCredentials());
+    const current = await this.loadOrCreate();
+    return this.persist({ ...current, token: createToken() });
   }
 
   private async persist(credentials: AgentAccessCredentials): Promise<AgentAccessCredentials> {

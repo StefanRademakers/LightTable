@@ -16,7 +16,7 @@ npm run generate:third-party
 npm run verify:third-party
 ```
 
-The current snapshot contains 705 npm package/version entries, 80 Cargo crates
+The current snapshot contains 709 npm package/version entries, 80 Cargo crates
 and no unknown license fields. Multiple versions are deliberately separate.
 The inventory separates direct/transitive and runtime/development roles so a
 future About > Licenses view can filter the same data without maintaining a

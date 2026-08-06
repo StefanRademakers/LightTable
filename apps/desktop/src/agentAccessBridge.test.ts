@@ -5,7 +5,7 @@ import { AgentAccessBridge, type AgentAccessCredentialStore } from './agentAcces
 const credentials = { deviceId: 'a'.repeat(24), token: 't'.repeat(43) };
 const store = (): AgentAccessCredentialStore => ({
   loadOrCreate: async () => credentials,
-  rotate: async () => ({ deviceId: 'b'.repeat(24), token: 'r'.repeat(43) })
+  rotate: async () => ({ deviceId: credentials.deviceId, token: 'r'.repeat(43) })
 });
 
 describe('AgentAccessBridge', () => {
@@ -64,7 +64,7 @@ describe('AgentAccessBridge', () => {
     const after = await bridge.rotateCredentials();
     expect(after.port).toBe(before.port);
     expect(after.token).not.toBe(before.token);
-    expect(after.deviceId).not.toBe(before.deviceId);
+    expect(after.deviceId).toBe(before.deviceId);
     await bridge.disable();
   });
 
