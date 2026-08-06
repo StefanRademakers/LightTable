@@ -10,6 +10,10 @@ to corrupt normal save/open behavior.
 
 ## Required work
 
+- Before implementation, research and cite primary sources for Photoshop-style
+  background recovery, Electron private application storage and atomic host
+  writes, browser OPFS/quota behavior and recovery crash-loop failure modes.
+  Record the chosen design and rejected alternatives in a persistence ADR.
 - Define a versioned recovery record: document/session identity, source
   fingerprint, canonical revision, save-state ID, manifest/assets and checksum.
 - Choose snapshot-plus-bounded-delta or snapshot-only behavior from measured

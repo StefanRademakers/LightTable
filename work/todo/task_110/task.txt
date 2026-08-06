@@ -1,0 +1,41 @@
+# Task 110 — privacy-safe design-partner beta and defect triage (P4)
+
+Priority: P4. Depends on Tasks 087, 103, 108 and 109. Expected effort: 7–12
+focused hours plus beta observation time.
+
+## Objective
+
+Learn from a small external beta without turning user documents into telemetry
+or allowing anecdotal reports to create unbounded feature work.
+
+## Required work
+
+- Recruit a bounded design-partner cohort representing the launch workflows
+  and supported hardware, with explicit consent and test-build expectations.
+- Define privacy-safe opt-in events for runtime stops, command duration buckets,
+  recovery outcome, import/export capability results and device-loss; never
+  collect pixels, text, filenames, paths, prompts or assets by default.
+- Provide an inspect-before-send diagnostic/feedback flow and a local-only mode
+  that remains fully functional.
+- Establish one triage schema for severity, frequency, workflow, hardware,
+  reproducibility, data-loss risk and owner decision.
+- Turn repeated issues into sanitized fixtures or deterministic scripts and
+  link fixes to regression tests.
+- Prevent scope creep: feature requests are recorded separately and cannot
+  displace crash, corruption, latency, accessibility or fidelity blockers.
+
+## UI exposure
+
+Use existing Help/Diagnostics surfaces for opt-in feedback, privacy disclosure,
+bundle preview and consent revocation. No forced account and no dark-pattern
+telemetry toggle.
+
+## Verification and completion
+
+- Verify redaction with hostile filenames, document text, tokens and MCP data.
+- Run a bounded beta soak and publish aggregate findings with no user content.
+- Close all supported-path data-loss/crash blockers and disposition remaining
+  reports explicitly.
+- Run privacy, diagnostics and release builds; commit independently and move to
+  done after the cohort exit review.
+

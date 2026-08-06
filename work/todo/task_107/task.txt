@@ -1,0 +1,46 @@
+# Task 107 — autosave and recovery release qualification (P4)
+
+Priority: P4. Depends on Tasks 083–085 and 089. Expected effort: 6–10 focused
+hours.
+
+## Objective
+
+Prove that crash recovery protects real work without making painting, typing,
+transforms, effect scrubbing, save or startup feel slower. This task qualifies
+the implemented recovery system; it must not create a second persistence path.
+
+## Required work
+
+- Review the Task 084 persistence ADR against current primary Adobe, Electron,
+  filesystem and browser-storage sources; record any changed platform facts.
+- Benchmark small native files, `TextTest.psd`, `shapes.psd`, EHS-396 and a
+  large styled document with recovery disabled and enabled.
+- Measure input-to-frame latency, p95/p99 long tasks, serialization CPU time,
+  peak heap, bytes written, queue depth, recovery age and restore time.
+- Verify newest-revision backpressure, one bounded writer, inactive-document
+  silence and zero pointer/viewport/overlay-triggered recovery work.
+- Inject termination during prepare, serialize, compress, write, flush,
+  publish, prune and explicit Save overlap; preserve the last valid source and
+  last valid recovery generation in every case.
+- Test disk full, quota exhaustion, permission failure, malformed records,
+  schema migration, clock changes and a corrupt-record startup loop.
+- Tune debounce, maximum recovery age, asset reuse and pruning only from the
+  measurements. Do not trade interaction latency for a shorter recovery age.
+
+## UI exposure
+
+Use the existing status and recoverable-work surfaces. Recovery activity may
+be inspected in Debug diagnostics, but ordinary successful checkpoints must
+remain quiet and must not steal focus, open a modal or animate continuously.
+
+## Verification and completion
+
+- Add a repeatable packaged-desktop recovery stress profile and a browser
+  storage/quota profile with machine-readable baselines.
+- On the supported hardware floor, recovery adds no visible interaction hitch;
+  any statistically measurable cost and accepted threshold are documented.
+- Recover canonical edits after forced termination and verify native/PSD output
+  against the pre-crash revision.
+- Run quality quick, persistence tests and production builds; update the
+  release evidence, commit independently and move to done.
+

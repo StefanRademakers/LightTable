@@ -1,0 +1,100 @@
+# Task 113 — final full-product audit and evidence-based reassessment (P4)
+
+Priority: final P4 gate. Depends on every Task 083–112 being completed or
+explicitly dispositioned. Expected effort: 12–20 focused hours.
+
+## Objective
+
+Independently retest the complete post-backlog product from a clean checkout,
+look again for crashes, leaks and interaction regressions, and then rewrite the
+product assessment from current evidence. Earlier task results are inputs, not
+proof that the final integrated build remains healthy.
+
+## Entry conditions
+
+- No task remains silently open: every Task 083–112 is in `work/done/` or has a
+  documented blocker, owner decision and follow-up identifier.
+- Start from a clean identified commit and reproducible dependency/toolchain
+  state. User-owned unrelated worktree changes must not be hidden or discarded.
+- Freeze features and baseline the exact web and packaged-desktop artifacts
+  being assessed.
+
+## Required test pass
+
+- Run boundary/architecture ratchets, formatting/lint where configured, all
+  unit/integration suites, workspace typechecks and production web/desktop
+  builds without relying on stale build output.
+- Run every packaged-app smoke and complete tool interaction journey: open,
+  create, select, paint, text edit, shapes/gradients, paths, masks, transforms,
+  grading, Lens Fx, Layer Styles, history, merge/rasterize, save/reopen/export,
+  recovery and MCP transaction/undo.
+- Re-run native, PSD and PDF corpora, Photoshop visual parity, blend/profile,
+  effects, text/vector fidelity and roundtrip matrices with current thresholds.
+- Exercise the supplied `Save the Date Invitation PSD 6` corpus and the owner
+  acceptance projects; inspect comparison images rather than accepting metrics
+  alone.
+- Run cold/warm startup and document-open profiles, canvas input-to-frame,
+  caret/typing, brush gestures, transform release, layer switching, effect
+  scrubbing, autosave overlap and multi-document behavior.
+- Record p50/p95/p99 latency, first useful frame, main-thread long tasks, worker
+  queues, CPU, heap, GPU residency, cache hit/miss and bytes transferred. Compare
+  to the pre-P0 baseline and explain every material regression or improvement.
+- Run multi-hour soak and repeated open/close/create/dispose cycles. Check for
+  monotonic JS/WASM/native heap, GPU resource, handle, worker, listener, timer,
+  file descriptor, process and recovery-journal growth.
+- Inject renderer/device loss, worker failure, malformed/corrupt files, failed
+  saves, quota/disk errors, forced termination, recovery, update/migration and
+  MCP disconnect/reconnect. No single document may take down other documents.
+- Test on every available supported hardware matrix cell and clearly separate
+  physically verified results from simulated or still-unverified targets.
+
+## Defect and repair rules
+
+- Any crash, data loss, validation error, runaway background work or supported-
+  path semantic loss is a release blocker and must be fixed and retested.
+- Performance and memory changes require before/after measurements and visual
+  parity checks; do not accept an optimization that lowers rendering quality or
+  adds disproportionate architectural complexity.
+- Convert every discovered issue into a minimal durable regression test. Avoid
+  fixture-specific patches, relaxed thresholds and document-name exceptions.
+- After a repair, rerun the focused test plus every affected integration gate;
+  rerun the final complete profile after the last repair.
+
+## Product assessment update
+
+- Update `architecture/LIGHTTABLE_PRODUCT_AND_MARKET_ASSESSMENT_2026-08-06.md`
+  with a clearly dated reassessment section while preserving the original
+  baseline and enough history to compare the scores honestly.
+- Recount current source/tests/contracts where informative and replace stale
+  test counts, corpus results, hotspot sizes and performance claims.
+- Rescore every scorecard area with linked evidence and include a before/after
+  delta plus an explanation for every changed score.
+- Re-evaluate the executive conclusion, strongest product wedge, principal
+  risks, three advertised workflows, hardware floor, compatibility claims,
+  operational readiness and commercial release gate.
+- Separate verified complete, partial/preserved, deferred and unsupported
+  capabilities. Do not convert an implemented control or passing unit test into
+  a product-completion claim without an end-to-end workflow result.
+- Replace completed priorities with the smallest evidence-based next backlog;
+  do not automatically create another large feature wave.
+- Conclude explicitly: paid release candidate, bounded technical preview, or
+  not ready, including the exact evidence and remaining blockers.
+
+## UI exposure
+
+Do not add permanent audit-only UI. Use existing Debug, System Information,
+compatibility, recovery and diagnostic surfaces. Remove or release-gate verbose
+instrumentation before assessing the final user experience.
+
+## Verification and completion
+
+- Store machine-readable raw results, environment manifests, commands, visual
+  comparisons and summarized findings in the established test/report paths.
+- `git diff --check`, complete quality/parity gates and clean rebuilds pass on
+  the final assessed commit.
+- The revised assessment contains direct evidence links, an honest delta from
+  the 6 August baseline and a signed owner go/no-go decision where required.
+- Commit repairs separately by concern; finish with one focused assessment/
+  evidence commit and move Task 113 to `work/done/` only when no required test
+  or reassessment work remains.
+

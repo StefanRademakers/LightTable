@@ -260,13 +260,35 @@ and make “unsupported but preserved” a trust feature.
 - verify one complete prompt-to-editable-design flow through MCP, native save
   and Photoshop PSD roundtrip before expanding the agent tool surface.
 
+##### P4 — stabilization, owner acceptance and release qualification
+
+- freeze feature expansion after P0–P3 and run real-document owner acceptance
+  before creating another broad feature queue;
+- qualify autosave/recovery as invisible background work through destructive
+  fault injection, large-document measurements and desktop/web storage limits;
+- test the complete advertised workflow on a declared hardware, operating
+  system, display-scale and GPU/driver matrix, including modest hardware;
+- turn owner and design-partner sessions into reproducible fixtures and
+  severity-ranked defects without collecting document content by default;
+- rehearse install/update/migration/recovery/support/privacy and commercial
+  entitlement boundaries as one release operation, not isolated demos;
+- publish a signed go/no-go report against the commercial release gate, with
+  explicit deferred capabilities and no silent semantic-loss exceptions.
+- after every queued task is closed, independently rerun the complete quality,
+  memory, crash, performance and parity evidence and reassess this product
+  document from the measured post-work state.
+
+P4 is deliberately a verification and defect-closure phase. New product
+categories, speculative architecture and broad UI additions are out of scope.
+Only changes required to close measured release blockers may enter this phase.
+
 The executable backlog is decomposed under `work/todo/`: P0 Tasks 083–089, P1
-Tasks 090–099, P2 Tasks 100–103 and P3 Tasks 104–106. The complete queue is
-roughly 174–286 focused engineering hours, deliberately enough for repeated
-unattended runs rather than a single superficial pass. Execute in numeric order
-unless an earlier task records a genuine blocker; each task owns its UI
-exposure, measurable verification, architecture update, focused commit and
-move to `work/done/`.
+Tasks 090–099, P2 Tasks 100–103, P3 Tasks 104–106 and P4 Tasks 107–113. The
+complete queue is roughly 231–382 focused engineering hours, deliberately
+enough for repeated unattended runs rather than a single superficial pass.
+Execute in numeric order unless an earlier task records a genuine blocker;
+each task owns its UI exposure, measurable verification, architecture update,
+focused commit and move to `work/done/`.
 
 Deep painting, Smart Object authoring, broad PDF object editing, animation, 3D,
 plugin marketplace and generative breadth come after the core release gates.

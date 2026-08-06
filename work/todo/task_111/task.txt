@@ -1,0 +1,45 @@
+# Task 111 — commercial operations integration rehearsal (P4)
+
+Priority: P4. Depends on Tasks 083–087, 103, 105–106 and 110. Expected effort:
+8–14 focused hours.
+
+## Objective
+
+Exercise installation, entitlement, update, recovery, privacy, support and MCP
+service boundaries as one customer lifecycle without embedding production
+secrets or weakening offline/local-first use.
+
+## Required work
+
+- Document the chosen trial/purchase/activation/offline policy, refund/support
+  path, web advertising boundary and which capabilities require a server.
+- Keep entitlement outside document semantics and rendering; loss of network or
+  license service must never corrupt, lock or silently alter user files.
+- Rehearse clean install, first run, purchase/test entitlement, offline grace,
+  update, rollback, native-format migration, crash recovery, diagnostics and
+  uninstall while preserving user-owned documents.
+- Verify web privacy/consent behavior for advertising, analytics and remote AI;
+  local editing must not upload content unless the user invokes and approves a
+  remote capability.
+- Exercise MCP pairing/revoke and compromised-session recovery alongside the
+  ordinary editor lifecycle.
+- Produce operator runbooks for release rollback, revoked builds, service
+  outage, support escalation and recovery from bad migrations.
+
+## UI exposure
+
+Use the shared account/license, Agent Access, update, privacy and Help surfaces.
+Keep status concise and actionable; no modal on every launch and no permanent
+network requirement for local document work within the declared policy.
+
+## Verification and completion
+
+- Automated staging lifecycle passes without production credentials in source
+  or artifacts; secret absence fails closed with a clear operator message.
+- Offline, server-outage and rollback tests retain editable documents and
+  recovery records.
+- Legal/product copy is marked reviewed or explicitly blocks launch; technical
+  code must not invent policy.
+- Run release packaging, security/privacy suites and smoke tests; commit
+  cohesive changes and move to done.
+

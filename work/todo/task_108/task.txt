@@ -1,0 +1,47 @@
+# Task 108 — feature-freeze owner acceptance program (P4)
+
+Priority: P4. Depends on P0–P3 completion and Task 107. Expected effort: 8–14
+focused hours plus owner review time.
+
+## Objective
+
+Turn the product owner's real design workflow into a reproducible acceptance
+gate. Automation prepares evidence and catches regressions; the owner decides
+whether direct manipulation, visual quality and workflow coherence feel ready.
+
+## Required work
+
+- Declare a feature freeze: only measured release blockers, test infrastructure
+  and documentation changes may land until this task closes.
+- Define 10–20 end-to-end projects spanning photo correction, layered design,
+  text, shapes/gradients, effects, masks/paint, transforms, native save, PSD
+  roundtrip, PDF open/export and one MCP-created design.
+- Include supplied corpus documents and clean-room creations; keep every test
+  action inside the actual document canvas unless off-canvas behavior is the
+  property under test.
+- Provide a recordable checklist for correctness, perceived latency, discover-
+  ability, visual polish, undo trust, recovery confidence and export fidelity.
+- Capture diagnostics, screenshots and minimal reproduction documents without
+  modifying or uploading originals.
+- Convert every observed problem into one deduplicated severity-ranked defect
+  with expected behavior, evidence, ownership and a regression-test route.
+- Close P0/P1 defects and explicitly defer lower-severity findings; do not hide
+  incomplete support behind rasterization or cached previews.
+
+## UI exposure
+
+Add no permanent test-only UI. Reuse Debug capture, compatibility reporting and
+diagnostic bundle actions. Any temporary instrumentation must be gated out of
+release builds or removed before completion.
+
+## Verification and completion
+
+- Produce an owner-readable acceptance report with pass/fail/deferred status
+  per workflow and links to durable fixtures.
+- Require explicit owner sign-off for interaction feel and visual quality; this
+  task cannot be moved to done solely because automated tests pass.
+- Re-run affected workflows after every blocker fix and run the complete gate
+  once at the end.
+- Commit infrastructure and defect fixes cohesively; update release evidence
+  and move to done only after sign-off.
+

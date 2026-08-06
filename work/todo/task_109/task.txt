@@ -1,0 +1,42 @@
+# Task 109 — cross-platform hardware and display qualification (P4)
+
+Priority: P4. Depends on Tasks 086, 089 and 108. Expected effort: 8–14 focused
+hours.
+
+## Objective
+
+Validate the advertised workflows beyond the primary RTX workstation and turn
+the supported hardware floor into measured product policy.
+
+## Required work
+
+- Define a compact matrix covering Windows and macOS targets, discrete and
+  integrated GPUs, minimum/recommended RAM, common display scales, color
+  profiles and web versus packaged Electron hosts.
+- Add a signed probe artifact that records privacy-safe OS/GPU/driver/WebGPU,
+  display scale, limits and benchmark revisions without document content.
+- Run startup, large PSD open, layer/effect interaction, painting, text editing,
+  transform, recovery, save/export and multi-document soak on every available
+  matrix cell.
+- Track warm input-to-frame p50/p95/p99, first useful frame, memory/residency,
+  device-loss recovery, validation errors and visual hashes.
+- Test fallback and honest refusal when required WebGPU limits, storage or
+  memory are unavailable; never silently lower document quality.
+- Fix generic platform defects and document unsupported combinations. Do not
+  add vendor-specific rendering formulas or fixture exceptions.
+
+## UI exposure
+
+System Information and diagnostics show the detected support tier and a concise
+action when below the floor. Ordinary supported users should not see benchmark
+or driver jargon.
+
+## Verification and completion
+
+- Publish a reproducible matrix with raw machine-readable results and a clear
+  minimum/recommended specification.
+- All declared supported cells pass the commercial interaction, fidelity,
+  memory and soak thresholds; missing physical cells remain explicitly open.
+- Run boundary checks, app tests and production web/desktop builds; commit and
+  move to done only when the published support claim matches evidence.
+
