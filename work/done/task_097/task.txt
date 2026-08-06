@@ -35,3 +35,20 @@ operation. Existing controls and searchable font picker remain authoritative.
   roundtrips stay editable.
 - Measure command-to-preview/final latency and worker backpressure.
 - Run text/type/MCP/PSD gates and builds, update docs, commit/move.
+
+## Completion (2026-08-06)
+
+- Added the shared validated `text.create`, `text.replaceRange`, `text.format`
+  and `text.setLayout` contract plus bounded editable-text queries.
+- Type Tool discrete formatting and point/paragraph creation use the same
+  service/executor; local provisional typing remains the latency-only preview.
+- Added Unicode-safe edits, mixed style/paragraph runs, no-fill/stroke, exact
+  font preflight, RTL/vertical settings, frames and affine transforms with one
+  canonical publication/history entry per command.
+- Added focused MCP query/create/edit tools without font bytes or MCP-specific
+  layout data, and extended the reusable automation driver.
+- Packaged Electron measurements: create 79.49 ms, replace 40.64 ms, format
+  42.31 ms and layout 29.73 ms. Native and PSD reopen as editable flow text.
+- Verification passed: full workspace typecheck and 2,026 tests, web build,
+  desktop package, command-driver smoke, Type Tool smoke, PSD roundtrip,
+  boundary/source/docs/third-party audits and `git diff --check`.

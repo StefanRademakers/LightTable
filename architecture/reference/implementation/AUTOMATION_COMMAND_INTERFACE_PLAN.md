@@ -215,6 +215,17 @@ pixels before publishing the canonical snapshot and therefore leaves no layer
 or history entry after decode failure. File > Place, the desktop command smoke,
 the authenticated adapter and the MCP server all consume this same contract.
 
+Semantic point and paragraph text now use the same boundary as the Type Tool:
+`text.create`, `text.replaceRange`, `text.format` and `text.setLayout`. Commands
+validate bounded Unicode ranges and document revisions before mutation, resolve
+fonts before publishing, and commit one canonical document/history update. Run
+and paragraph formatting, no-fill/stroke, writing mode, paragraph frame and
+affine transform remain native flow-text data. Compact `text` queries cap both
+content and run counts and expose font identity/status without font bytes. The
+packaged command smoke verifies exact GPU settling plus editable native and PSD
+roundtrips; provisional interactive typing remains an internal latency path and
+does not create a second text model.
+
 ### Phase D - transactional gestures
 
 - add brush, transform and selection gesture sessions in document coordinates;
@@ -267,6 +278,10 @@ then there is deliberately no remotely reachable endpoint.
 The server tool surface now exposes bounded document creation and can place a
 downloaded PNG/JPEG/WebP artifact into an explicit document. AVIF remains an
 open-only input; private-network and byte limits are enforced before upload.
+It also exposes focused `lighttable_text`, `lighttable_create_text` and
+`lighttable_edit_text` tools. These tools translate only to the shared semantic
+commands and bounded query; they neither manufacture MCP-only glyph runs nor
+receive font binaries.
 
 ## Always-green gates
 
