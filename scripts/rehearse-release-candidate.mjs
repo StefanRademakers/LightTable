@@ -39,6 +39,10 @@ if (checkoutStatus.stdout.trim()) throw new Error('Detached release-candidate ch
 const environment = { ...process.env,
   PATH: `${path.join(root, 'node_modules', '.bin')}${path.delimiter}${process.env.PATH ?? ''}` };
 const stages = [
+  { id: 'dependency-install', command: process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'npm',
+    args: process.platform === 'win32'
+      ? ['/d', '/s', '/c', 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund']
+      : ['ci', '--ignore-scripts', '--no-audit', '--no-fund'] },
   { id: 'full-quality', script: 'run-quality-gates.mjs', args: ['--profile', 'full', '--iterations', argument('iterations', '2'), '--output', path.join(output, 'quality')] },
   { id: 'owner-acceptance-automation', script: 'run-owner-acceptance.mjs', args: ['--skip-package', '--output', path.join(output, 'owner-acceptance')] },
   { id: 'hardware-probe', script: 'probe-hardware-qualification.mjs', args: ['--output', path.join(output, 'hardware')] },
@@ -47,7 +51,9 @@ const stages = [
 const results = [];
 for (const stage of stages) {
   const started = performance.now();
-  const result = await runCapture(process.execPath, [path.join(checkout, 'scripts', stage.script), ...stage.args], {
+  const command = stage.command ?? process.execPath;
+  const args = stage.script ? [path.join(checkout, 'scripts', stage.script), ...stage.args] : stage.args;
+  const result = await runCapture(command, args, {
     cwd: checkout, env: environment
   });
   const logPath = path.join(output, `${stage.id}.log`);
