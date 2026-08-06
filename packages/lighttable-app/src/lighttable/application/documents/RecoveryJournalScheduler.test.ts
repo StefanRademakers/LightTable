@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   RecoveryJournalScheduler,
+  recoveryScheduleForSourceBytes,
   type RecoveryJournalRevision
 } from './RecoveryJournalScheduler';
 
@@ -15,6 +16,10 @@ const revision = (
 });
 
 describe('RecoveryJournalScheduler', () => {
+  it('gives large sources a measured quiet window without exceeding two minutes', () => {
+    expect(recoveryScheduleForSourceBytes(31 * 1024 * 1024)).toEqual({ debounceMs: 5_000, maxDelayMs: 30_000 });
+    expect(recoveryScheduleForSourceBytes(32 * 1024 * 1024)).toEqual({ debounceMs: 30_000, maxDelayMs: 120_000 });
+  });
   it('debounces semantic commits and checkpoints only the newest revision', async () => {
     vi.useFakeTimers();
     const checkpoint = vi.fn(async () => undefined);

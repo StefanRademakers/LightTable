@@ -43,6 +43,21 @@ export interface ExportedLightTableDocument {
   recipe: LightTableRecipe;
 }
 
+export interface ExportLightTableRuntimeOptions {
+  /** Recovery prioritizes canonical layer state over an expensive full-size thumbnail. */
+  readonly lightweightPreview?: boolean;
+}
+
+const lightweightPreview = async (
+  document: ImageDocument,
+  renderer: DocumentExportRenderer
+): Promise<Blob> => {
+  if (typeof OffscreenCanvas === 'undefined') return renderer.exportPng();
+  const canvas = new OffscreenCanvas(document.width, document.height);
+  if (!canvas.getContext('2d')) return renderer.exportPng();
+  return canvas.convertToBlob({ type: 'image/png' });
+};
+
 export const buildLightTableOutputName = (base: string) =>
   `${base.replace(/\.[^.]+$/, '') || 'image'}-lighttable.png`;
 
@@ -66,8 +81,10 @@ export const exportLightTableDocument = async ({
   effectiveLayeredAdjustments,
   preservedSourceAssets,
   fontAssets = []
-}: ExportLightTableDocumentOptions): Promise<ExportedLightTableDocument> => {
-  const preview = await renderer.exportPng();
+}: ExportLightTableDocumentOptions, runtime: ExportLightTableRuntimeOptions = {}): Promise<ExportedLightTableDocument> => {
+  const preview = runtime.lightweightPreview
+    ? await lightweightPreview(document, renderer)
+    : await renderer.exportPng();
   const outputName = buildLightTableOutputName(fileNameBase);
 
   if (canExportAsFlatRecipe(document)) {

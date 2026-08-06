@@ -33,6 +33,12 @@ export interface DesktopRecoveryWriteRequest {
   readonly bytes: Uint8Array;
 }
 
+export type DesktopRecoveryStorePhase = 'serialize' | 'publish' | 'prune';
+export interface DesktopRecoveryStoreDependencies {
+  readonly atomicWrite?: typeof atomicWriteFile;
+  readonly injectFault?: (phase: DesktopRecoveryStorePhase) => void | Promise<void>;
+}
+
 const DEFAULT_LIMITS: DesktopRecoveryStoreLimits = {
   generationsPerDocument: 2,
   documents: 20,
@@ -155,7 +161,8 @@ export class DesktopRecoveryStore {
     private readonly root: string,
     private readonly limits: DesktopRecoveryStoreLimits = DEFAULT_LIMITS,
     private readonly now: () => number = () => Date.now(),
-    private readonly metadataCodec: DesktopRecoveryMetadataCodec = UTF8_METADATA_CODEC
+    private readonly metadataCodec: DesktopRecoveryMetadataCodec = UTF8_METADATA_CODEC,
+    private readonly dependencies: DesktopRecoveryStoreDependencies = {}
   ) {}
 
   write(request: DesktopRecoveryWriteRequest): Promise<LightTableRecoveryWriteResult> {
@@ -163,17 +170,20 @@ export class DesktopRecoveryStore {
       try {
         this.validateWrite(request);
         await mkdir(this.root, { recursive: true, mode: 0o700 });
+        await this.dependencies.injectFault?.('serialize');
         const envelope = encodeEnvelope(request.record, request.bytes, this.metadataCodec);
         if (envelope.byteLength > this.limits.bytes) {
           return { status: 'failed', phase: 'quota', message: 'Recovery exceeds the storage budget.' };
         }
-        await atomicWriteFile({
+        await this.dependencies.injectFault?.('publish');
+        await (this.dependencies.atomicWrite ?? atomicWriteFile)({
           targetPath: this.filePath(request.record.recoveryId),
           bytes: envelope,
           validate: async (temporaryPath) => {
             decodeEnvelope(new Uint8Array(await readFile(temporaryPath)), this.metadataCodec);
           }
         });
+        await this.dependencies.injectFault?.('prune');
         await this.prune();
         return { status: 'committed', byteLength: envelope.byteLength };
       } catch (reason) {

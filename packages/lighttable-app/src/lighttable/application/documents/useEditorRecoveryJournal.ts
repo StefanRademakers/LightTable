@@ -13,7 +13,7 @@ export interface EditorRecoveryJournalOptions {
   readonly active: boolean;
   readonly commandHistory: DocumentCommandHistory;
   readonly getCanonicalRevision: () => number;
-  readonly exportOutput: () => Promise<ExportedLightTableDocument>;
+  readonly exportOutput: (options?: { readonly lightweightPreview?: boolean }) => Promise<ExportedLightTableDocument>;
   readonly setStatus: (message: string) => void;
 }
 
@@ -26,6 +26,7 @@ export const useEditorRecoveryJournal = ({
   sourceFingerprint: `${sourceKey ?? 'unknown'}:${sourceName}`,
   sourceName,
   sourceMediaType: sourceBlob?.type || 'application/octet-stream',
+  sourceByteLength: sourceBlob?.size,
   sourcePath: sourceBlob instanceof File
     ? (sourceBlob as File & { readonly lightTableSourcePath?: string }).lightTableSourcePath
     : undefined,

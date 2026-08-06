@@ -24,6 +24,12 @@ const sameRevision = (
   && left!.savedStateId === right.savedStateId
   && left!.dirty === right.dirty;
 
+export const recoveryScheduleForSourceBytes = (sourceByteLength = 0) => (
+  sourceByteLength >= 32 * 1024 * 1024
+    ? { debounceMs: 30_000, maxDelayMs: 120_000 }
+    : { debounceMs: 5_000, maxDelayMs: 30_000 }
+);
+
 /**
  * Bounded newest-source scheduler. It has no polling interval: semantic
  * revisions are the only input capable of creating work.

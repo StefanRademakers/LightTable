@@ -89,6 +89,25 @@ describe('LayerDocumentAssetService', () => {
     expect(ports.loadPattern).toHaveBeenCalledWith({ patternId, source: pattern });
   });
 
+  it('reuses unchanged encoded native assets and invalidates on pixel revision or load', async () => {
+    const ports = createPorts();
+    const service = new LayerDocumentAssetService(ports);
+    const document = documentWith();
+    const layer = document.layers[0] as RasterLayer;
+
+    await service.export(document);
+    await service.export(document);
+    expect(ports.encodeTexture).toHaveBeenCalledTimes(1);
+
+    layer.pixelRevision += 1;
+    await service.export(document);
+    expect(ports.encodeTexture).toHaveBeenCalledTimes(2);
+
+    await service.load([{ layerId: layer.id, pixels, mask: null }]);
+    await service.export(document);
+    expect(ports.encodeTexture).toHaveBeenCalledTimes(3);
+  });
+
   it('bakes affine raster transforms into tight PSD export bounds', async () => {
     const ports = createPorts();
     const service = new LayerDocumentAssetService(ports);

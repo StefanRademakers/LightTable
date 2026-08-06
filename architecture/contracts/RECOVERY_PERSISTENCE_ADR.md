@@ -52,39 +52,39 @@ TextTest, shapes, EHS-396 and large styled documents. Content-addressed immutabl
 assets or snapshot-plus-bounded-delta may replace it only if those measurements
 miss interaction budgets and canonical roundtrip/fault tests remain equal.
 
-## Measured implementation baseline
+## Release qualification (6 August 2026)
 
-The packaged Windows/Electron build was measured on the production renderer,
-not a mocked serializer:
+The packaged Windows/Electron build now passes the repeatable Task 107 profile
+against native, shapes, TextTest and EHS-396 documents. EHS-396 is a 170 MiB,
+42-layer styled PSD and is the large-document qualification case. During its
+checkpoint, viewport command-to-frame p95 was 57.8 ms versus 53.9 ms while the
+checkpoint was queued and 53.4 ms after publication. Preparation took 2.107 s,
+atomic persistence 316 ms, the artifact was 25.0 MiB and restore in a new
+packaged process took 4.485 s. The three small cases stayed between 17.4 and
+20.7 ms p95 during a checkpoint.
 
-- TextTest plus one new vector layer: 466 KiB; native preparation 359.5 ms;
-  atomic persistence 19.7 ms; no page error. A second run measured 325.3 ms
-  preparation and 20.5 ms persistence.
-- After that checkpoint, verified Ctrl+S wrote the 466 KiB native document and
-  left zero recovery generations, proving save cleanup happens after commit.
-- The packaged recovery smoke force-terminated an edited TextTest session,
-  found recovery before recents after restart, loaded its preview, opened it as
-  a visibly dirty recovered copy, saved it to a new target, observed checkpoint
-  cleanup and reopened the save with an equal canonical layer projection. The
-  smoke also checks keyboard focusability and records four visual checkpoints.
-- The 178,264,877-byte EHS-396 PSD remained interactive during a checkpoint:
-  after import there were zero main-thread tasks above 50 ms. Its complete
-  native snapshot did not finish inside a 150-second observation window. No
-  partial recovery file was published.
-- A clean/unchanged scheduler produced one initial dirty checkpoint and zero
-  additional writes across a simulated two-minute idle interval.
+Recovery uses an exact-size transparent container preview. The preview is not
+canonical document data; avoiding a full-resolution GPU composite/readback
+removed a measured 561-573 ms interaction stall on EHS. Layer pixels, text,
+vectors, styles, masks and preserved assets remain complete. All four restored
+documents matched canvas dimensions and layer count; normalized pre-crash vs
+restored canvas RMSE ranged from 0.01 to 6.33 under the documented threshold of
+8. Zero viewport-only checkpoints and no recovery-phase long task over 50 ms
+were observed. The committed machine-readable baseline is
+`test/baselines/recovery/windows-2026-08-06.json`.
 
-The EHS result is not accepted as a performance target. Snapshot-only remains
-the v1 correctness format because partial command replay is not yet safe, while
-Task 107 owns content-addressed asset reuse/delta measurement and must make the
-large-document path practical before release qualification. Atomic metadata-
-last publication means an interrupted baseline attempt is invisible rather
-than corrupt.
+Raster and derived-preview PNG encoding runs in one lazy worker. Unchanged
+encoded assets are reused in a bounded 128 MiB LRU cache. Artifact hashing for
+files over 4 MiB also runs in a worker and transfers the prepared buffer to the
+desktop bridge, avoiding a second renderer-side file read. These optimizations
+change scheduling and reuse only; they do not change canonical pixels.
 
 ## Scheduling defaults
 
-- debounce after a semantic commit: 5 seconds;
-- maximum dirty age before attempting a checkpoint: 30 seconds;
+- debounce after a semantic commit: 5 seconds for sources below 32 MiB, 30
+  seconds for larger sources;
+- maximum dirty age before attempting a checkpoint: 30 seconds for sources
+  below 32 MiB, 120 seconds for larger sources;
 - at most one in-flight checkpoint per installation;
 - at most two valid generations per document;
 - at most 20 documents, 30 days and 2 GiB per installation;
@@ -106,9 +106,11 @@ recorded p95/p99 interaction and storage results.
   performance/scratch resources. LightTable therefore measures ordinary input
   latency rather than treating asynchronous work as free.
   <https://helpx.adobe.com/photoshop/desktop/troubleshoot/performance-stability-issues/troubleshoot-scratch-disk-full-errors-in-photoshop.html>
-- Electron defines `userData` as per-user application configuration storage and
-  recommends an app-specific subdirectory rather than mixing files with
-  Chromium-owned directories.
+- Electron defines `userData` as per-user application configuration storage,
+  warns that large files there may be backed up to cloud storage, and recommends
+  a different directory for large files. Recovery remains in an app-owned
+  `recovery-v1` subdirectory for v1 isolation and bounded pruning; relocating
+  the root is a host policy option before broad distribution.
   <https://www.electronjs.org/docs/latest/api/app#appgetpathname>
 - Node documents that promise filesystem calls use the threadpool but are not
   synchronized/threadsafe, and that `FileHandle.sync()` flushes queued data.

@@ -3,9 +3,9 @@
   "newFileMaximumLines": 1000,
   "allowedLargeFiles": {
     "packages/lighttable-app/src/lighttable/LightTableEditorOverlay.tsx": 4350,
-    "packages/lighttable-app/src/lighttable/gpu/WebGpuEngine.ts": 2275,
+    "packages/lighttable-app/src/lighttable/gpu/WebGpuEngine.ts": 2290,
     "packages/lighttable-app/src/lighttable/editor/rendering/layerShaders.ts": 1600,
-    "packages/lighttable-app/src/lighttable/text/rendering/TextLayerRenderCoordinator.ts": 1460,
+    "packages/lighttable-app/src/lighttable/text/rendering/TextLayerRenderCoordinator.ts": 1462,
     "packages/lighttable-app/src/lighttable/editor/document/documentCommands.ts": 1330,
     "packages/lighttable-app/src/lighttable/editor/persistence/layeredDocumentFormat.ts": 1210,
     "packages/lighttable-app/src/lighttable/editor/ui/ToolOptionsBar.tsx": 1185,

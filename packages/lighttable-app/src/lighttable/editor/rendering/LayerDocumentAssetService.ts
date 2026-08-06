@@ -47,6 +47,22 @@ export interface LayerDocumentAssetPorts {
   loadPattern: (asset: PatternAssetBlob) => Promise<void>;
 }
 
+interface EncodedAssetCacheEntry {
+  readonly key: string;
+  readonly blob: Blob;
+  readonly usedAt: number;
+}
+
+const MAX_ENCODED_ASSET_CACHE_BYTES = 128 * 1024 * 1024;
+
+const yieldToInteraction = async (): Promise<void> => {
+  const browserScheduler = (globalThis as typeof globalThis & {
+    scheduler?: { yield?: () => Promise<void> };
+  }).scheduler;
+  if (browserScheduler?.yield) await browserScheduler.yield();
+  else await new Promise<void>((resolve) => setTimeout(resolve, 0));
+};
+
 /**
  * Owns layered-document asset transfer policy without owning GPU resources.
  *
@@ -55,21 +71,34 @@ export interface LayerDocumentAssetPorts {
  * persistence orchestration separate from interactive compositing.
  */
 export class LayerDocumentAssetService {
+  private readonly rasterCache = new Map<LayerId, EncodedAssetCacheEntry>();
+  private readonly maskCache = new Map<LayerId, EncodedAssetCacheEntry>();
+  private readonly previewCache = new Map<LayerId, EncodedAssetCacheEntry>();
+  private cacheBytes = 0;
+  private cacheSequence = 0;
+
   constructor(private readonly ports: LayerDocumentAssetPorts) {}
 
   async export(document: ImageDocument): Promise<DocumentAssetBlob[]> {
+    this.pruneDocumentCache(document);
     const assets: DocumentAssetBlob[] = [];
     for (const { layer } of walkRasterLayers(document.layers)) {
       const texture = this.ports.rasterTexture(layer.id);
       if (!texture) throw new Error(`Layer ${layer.name} is not available for saving.`);
       const maskTexture = layer.mask ? this.ports.maskTexture(layer.id) : null;
+      if (!maskTexture) this.drop(this.maskCache, layer.id);
       assets.push({
         layerId: layer.id,
-        pixels: await this.ports.encodeTexture(layer.id, texture, false),
+        pixels: await this.cached(this.rasterCache, layer.id,
+          `${layer.pixelRevision}:${layer.width}:${layer.height}`,
+          () => this.ports.encodeTexture(layer.id, texture, false)),
         mask: maskTexture
-          ? await this.ports.encodeTexture(layer.id, maskTexture, true)
+          ? await this.cached(this.maskCache, layer.id,
+            `${layer.mask!.id}:${layer.mask!.pixelRevision}`,
+            () => this.ports.encodeTexture(layer.id, maskTexture, true))
           : null
       });
+      await yieldToInteraction();
     }
 
     for (const { node } of walkLayerTree(document.layers)) {
@@ -79,19 +108,25 @@ export class LayerDocumentAssetService {
       assets.push({
         layerId: node.id,
         pixels: node.derivedPreview
-          ? await this.encodeDerivedPreview(node.id, node.name)
+          ? await this.encodeDerivedPreview(node.id, node.name,
+            `${node.derivedPreview.dependencyKey}:${node.derivedPreview.width}:${node.derivedPreview.height}`)
           : new Blob(),
-        mask: await this.ports.encodeTexture(node.id, maskTexture, true)
+        mask: await this.cached(this.maskCache, node.id,
+          `${node.mask.id}:${node.mask.pixelRevision}`,
+          () => this.ports.encodeTexture(node.id, maskTexture, true))
       });
+      await yieldToInteraction();
     }
 
     for (const { node } of walkLayerTree(document.layers)) {
       if (node.type === 'raster' || node.mask || !node.derivedPreview) continue;
       assets.push({
         layerId: node.id,
-        pixels: await this.encodeDerivedPreview(node.id, node.name),
+        pixels: await this.encodeDerivedPreview(node.id, node.name,
+          `${node.derivedPreview.dependencyKey}:${node.derivedPreview.width}:${node.derivedPreview.height}`),
         mask: null
       });
+      await yieldToInteraction();
     }
 
     for (const pattern of document.assets.patterns) {
@@ -190,6 +225,7 @@ export class LayerDocumentAssetService {
       }
 
       this.ports.invalidateLayer(asset.layerId);
+      this.invalidateCache(asset.layerId);
       if (asset.pixels.size > 0) {
         const texture = this.ports.rasterTexture(asset.layerId)
           ?? this.ports.derivedPreviewTexture(asset.layerId);
@@ -208,9 +244,68 @@ export class LayerDocumentAssetService {
     }
   }
 
-  private async encodeDerivedPreview(layerId: LayerId, name: string) {
+  private async encodeDerivedPreview(layerId: LayerId, name: string, key: string) {
     const texture = this.ports.derivedPreviewTexture(layerId);
     if (!texture) throw new Error(`Derived preview ${name} is not available for saving.`);
-    return this.ports.encodeTexture(layerId, texture, false);
+    return this.cached(this.previewCache, layerId, key,
+      () => this.ports.encodeTexture(layerId, texture, false));
+  }
+
+  private async cached(
+    cache: Map<LayerId, EncodedAssetCacheEntry>,
+    layerId: LayerId,
+    key: string,
+    encode: () => Promise<Blob>
+  ): Promise<Blob> {
+    const existing = cache.get(layerId);
+    if (existing?.key === key) {
+      cache.set(layerId, { ...existing, usedAt: ++this.cacheSequence });
+      return existing.blob;
+    }
+    const blob = await encode();
+    this.remember(cache, layerId, key, blob);
+    return blob;
+  }
+
+  private remember(cache: Map<LayerId, EncodedAssetCacheEntry>, layerId: LayerId, key: string, blob: Blob): void {
+    const existing = cache.get(layerId);
+    if (existing) this.cacheBytes -= existing.blob.size;
+    cache.set(layerId, { key, blob, usedAt: ++this.cacheSequence });
+    this.cacheBytes += blob.size; this.trimCache();
+  }
+
+  private invalidateCache(layerId: LayerId): void {
+    for (const cache of [this.rasterCache, this.maskCache, this.previewCache]) {
+      this.drop(cache, layerId);
+    }
+  }
+
+  private pruneDocumentCache(document: ImageDocument): void {
+    const nodes = walkLayerTree(document.layers).map(({ node }) => node);
+    const live = new Set(nodes.map(({ id }) => id));
+    for (const cache of [this.rasterCache, this.maskCache, this.previewCache]) {
+      for (const layerId of cache.keys()) if (!live.has(layerId)) this.drop(cache, layerId);
+    }
+    for (const node of nodes) {
+      if (!node.mask) this.drop(this.maskCache, node.id);
+      if (!node.derivedPreview) this.drop(this.previewCache, node.id);
+    }
+  }
+
+  private drop(cache: Map<LayerId, EncodedAssetCacheEntry>, layerId: LayerId): void {
+    const entry = cache.get(layerId);
+    if (entry) this.cacheBytes -= entry.blob.size;
+    cache.delete(layerId);
+  }
+
+  private trimCache(): void {
+    if (this.cacheBytes <= MAX_ENCODED_ASSET_CACHE_BYTES) return;
+    const entries = [this.rasterCache, this.maskCache, this.previewCache]
+      .flatMap((cache) => [...cache].map(([layerId, entry]) => ({ cache, layerId, entry })))
+      .sort((left, right) => left.entry.usedAt - right.entry.usedAt);
+    for (const { cache, layerId, entry } of entries) {
+      if (this.cacheBytes <= MAX_ENCODED_ASSET_CACHE_BYTES) break;
+      cache.delete(layerId); this.cacheBytes -= entry.blob.size;
+    }
   }
 }

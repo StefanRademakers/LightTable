@@ -71,8 +71,11 @@ export class BrowserRecoveryStore implements LightTableRecoveryStore {
       if (typeof this.storage.getDirectory !== 'function') {
         return unavailable('Origin-private recovery storage is unavailable in this browser.');
       }
+      let root: FileSystemDirectoryHandle | null = null;
+      let recoveryId: string | null = null;
       try {
         const record = parseLightTableRecoveryRecord(request.record);
+        recoveryId = record.recoveryId;
         if (record.documentIdHash !== await sha256Hex(request.documentId)) {
           throw new Error('Recovery document identity does not match its record.');
         }
@@ -85,7 +88,7 @@ export class BrowserRecoveryStore implements LightTableRecoveryStore {
           && estimate.usage + request.artifact.size > estimate.quota) {
           return { status: 'failed', phase: 'quota', message: 'Browser recovery quota is exhausted.' };
         }
-        const root = await this.root(true);
+        root = await this.root(true);
         await writeBlob(root, `${record.recoveryId}${ARTIFACT_SUFFIX}`, request.artifact);
         await writeBlob(root, `${record.recoveryId}${METADATA_SUFFIX}`, new Blob(
           [JSON.stringify(record)],
@@ -94,6 +97,7 @@ export class BrowserRecoveryStore implements LightTableRecoveryStore {
         await this.prune(root);
         return { status: 'committed', byteLength: request.artifact.size };
       } catch (reason) {
+        if (root && recoveryId) await this.removeRecordUnsafe(root, recoveryId).catch(() => undefined);
         const quota = reason instanceof DOMException && reason.name === 'QuotaExceededError';
         return {
           status: 'failed',
@@ -181,9 +185,12 @@ export class BrowserRecoveryStore implements LightTableRecoveryStore {
       if (handle.kind !== 'file' || !name.endsWith(METADATA_SUFFIX)) continue;
       const recoveryId = name.slice(0, -METADATA_SUFFIX.length);
       try {
-        records.push(parseLightTableRecoveryRecord(JSON.parse(await (
+        const record = parseLightTableRecoveryRecord(JSON.parse(await (
           await (handle as FileSystemFileHandle).getFile()
-        ).text())));
+        ).text()));
+        const artifact = await (await root.getFileHandle(`${recoveryId}${ARTIFACT_SUFFIX}`)).getFile();
+        if (artifact.size !== record.artifactByteLength) throw new Error('Recovery artifact length does not match its record.');
+        records.push(record);
       } catch (reason) {
         rejections.push({
           recoveryId,
@@ -199,8 +206,15 @@ export class BrowserRecoveryStore implements LightTableRecoveryStore {
   }
 
   private async prune(root: FileSystemDirectoryHandle): Promise<void> {
-    const records = [...(await this.listUnsafe(root)).records]
+    const listing = await this.listUnsafe(root);
+    const records = [...listing.records]
       .sort((a, b) => b.updatedAt - a.updatedAt);
+    const publishedIds = new Set(records.map(({ recoveryId }) => recoveryId));
+    for await (const [name, handle] of (root as IterableDirectoryHandle).entries()) {
+      if (handle.kind !== 'file' || !name.endsWith(ARTIFACT_SUFFIX)) continue;
+      const recoveryId = name.slice(0, -ARTIFACT_SUFFIX.length);
+      if (!publishedIds.has(recoveryId)) await removeEntry(root, name);
+    }
     const documentIds = new Set<string>();
     const generations = new Map<string, number>();
     const minimumTime = this.now() - MAX_AGE_MS;

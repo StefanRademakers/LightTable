@@ -26,6 +26,8 @@ export interface LightTableRecoveryWriteRequest {
   readonly documentId: string;
   readonly record: LightTableRecoveryRecord;
   readonly artifact: File;
+  /** Optional off-main-thread materialization reused by desktop IPC. */
+  readonly preparedBytes?: ArrayBuffer;
 }
 
 export type LightTableRecoveryWriteResult =

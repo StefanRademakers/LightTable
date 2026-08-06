@@ -78,7 +78,7 @@ export interface DocumentFileCommandsOptions {
 
 export interface DocumentFileCommands {
   readonly saving: boolean;
-  exportOutput(): Promise<ExportedLightTableDocument>;
+  exportOutput(options?: { readonly lightweightPreview?: boolean }): Promise<ExportedLightTableDocument>;
   save(): Promise<void>;
   exportPng(): Promise<void>;
   exportPsd(): Promise<void>;
@@ -114,7 +114,7 @@ export const useDocumentFileCommands = (
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
 
-  const exportOutput = useCallback(async () => {
+  const exportOutput = useCallback(async (runtime: { readonly lightweightPreview?: boolean } = {}) => {
     const current = optionsRef.current;
     const renderer = current.getRenderer();
     if (!renderer) throw new Error('LightTable is not ready yet.');
@@ -133,7 +133,7 @@ export const useDocumentFileCommands = (
         current.getEffectiveLayeredAdjustments(imageDocument),
       preservedSourceAssets: current.getPreservedSourceAssets(),
       fontAssets: await current.getFontAssets()
-    });
+    }, runtime);
   }, []);
 
   const save = useCallback(async () => {

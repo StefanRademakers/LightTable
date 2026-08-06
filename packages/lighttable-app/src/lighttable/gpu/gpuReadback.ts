@@ -1,5 +1,35 @@
 export const GPU_COPY_BYTES_PER_ROW_ALIGNMENT = 256;
 
+interface PendingPngEncoding {
+  readonly resolve: (blob: Blob) => void;
+  readonly reject: (error: Error) => void;
+}
+
+let pngWorker: Worker | null = null;
+let pngWorkerSequence = 0;
+const pendingPngEncodings = new Map<number, PendingPngEncoding>();
+
+const getPngWorker = (): Worker | null => {
+  if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null;
+  if (pngWorker) return pngWorker;
+  pngWorker = new Worker(new URL('./pngEncodingWorker.ts', import.meta.url), { type: 'module' });
+  pngWorker.onmessage = ({ data }: MessageEvent<{ id: number; blob?: Blob; error?: string }>) => {
+    const pending = pendingPngEncodings.get(data.id);
+    if (!pending) return;
+    pendingPngEncodings.delete(data.id);
+    if (data.blob) pending.resolve(data.blob);
+    else pending.reject(new Error(data.error ?? 'PNG worker encoding failed.'));
+  };
+  pngWorker.onerror = (event) => {
+    const error = new Error(event.message || 'PNG worker stopped unexpectedly.');
+    for (const pending of pendingPngEncodings.values()) pending.reject(error);
+    pendingPngEncodings.clear();
+    pngWorker?.terminate();
+    pngWorker = null;
+  };
+  return pngWorker;
+};
+
 export const alignGpuBytesPerRow = (
   value: number,
   alignment = GPU_COPY_BYTES_PER_ROW_ALIGNMENT
@@ -104,6 +134,15 @@ export const encodeRgba8Png = async (
   width: number,
   height: number
 ) => {
+  const worker = getPngWorker();
+  if (worker) {
+    const id = ++pngWorkerSequence;
+    const result = new Promise<Blob>((resolve, reject) => {
+      pendingPngEncodings.set(id, { resolve, reject });
+    });
+    worker.postMessage({ id, width, height, pixels: pixels.buffer }, [pixels.buffer]);
+    return result;
+  }
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;

@@ -1,13 +1,14 @@
 import { useEffect, useRef } from 'react';
 import type { DocumentCommandHistory } from '../commands/documentCommandHistory';
 import type { ExportedLightTableDocument } from './exportLightTableDocument';
-import { RecoveryJournalScheduler } from './RecoveryJournalScheduler';
+import { RecoveryJournalScheduler, recoveryScheduleForSourceBytes } from './RecoveryJournalScheduler';
 import {
   LIGHTTABLE_RECOVERY_VERSION,
   sha256Hex,
   type LightTableRecoveryRecord,
   type LightTableRecoveryStore
 } from '../../../platform/LightTableRecoveryStore';
+import { RecoveryArtifactHasher } from './RecoveryArtifactHasher';
 
 export interface DocumentRecoveryJournalOptions {
   readonly store?: LightTableRecoveryStore;
@@ -15,13 +16,14 @@ export interface DocumentRecoveryJournalOptions {
   readonly sourceFingerprint: string;
   readonly sourceName: string;
   readonly sourceMediaType: string;
+  readonly sourceByteLength?: number;
   readonly sourcePath?: string;
   readonly sourceLastModified?: number;
   readonly workspaceOrder: number;
   readonly wasActive: boolean;
   readonly commandHistory: DocumentCommandHistory;
   readonly getCanonicalRevision: () => number;
-  readonly exportOutput: () => Promise<ExportedLightTableDocument>;
+  readonly exportOutput: (options?: { readonly lightweightPreview?: boolean }) => Promise<ExportedLightTableDocument>;
   readonly onStatus?: (status: 'available' | 'failed', message: string) => void;
 }
 
@@ -36,6 +38,7 @@ export const useDocumentRecoveryJournal = ({
   sourceFingerprint,
   sourceName,
   sourceMediaType,
+  sourceByteLength,
   sourcePath,
   sourceLastModified,
   workspaceOrder,
@@ -71,22 +74,25 @@ export const useDocumentRecoveryJournal = ({
   useEffect(() => {
     if (!store) return undefined;
     let disposed = false;
+    const artifactHasher = new RecoveryArtifactHasher();
+    const timing = recoveryScheduleForSourceBytes(sourceByteLength);
     const scheduler = new RecoveryJournalScheduler({
+      ...timing,
       async checkpoint(revision) {
         const startedAt = performance.now();
         console.info(`[Recovery] Preparing revision ${revision.canonicalRevision}.`);
-        const output = await currentRef.current.exportOutput();
+        const output = await currentRef.current.exportOutput({ lightweightPreview: true });
         const preparedAt = performance.now();
         console.info(
           `[Recovery] Revision ${revision.canonicalRevision} prepared in `
           + `${(preparedAt - startedAt).toFixed(1)} ms (${Math.round(output.file.size / 1024)} KiB).`
         );
         if (disposed) return;
-        const [documentIdHash, sourceFingerprintSha256, artifactChecksumSha256] =
+        const [documentIdHash, sourceFingerprintSha256, preparedArtifact] =
           await Promise.all([
             sha256Hex(documentId),
             sha256Hex(sourceFingerprint),
-            sha256Hex(output.file)
+            artifactHasher.prepare(output.file)
           ]);
         if (disposed) return;
         const now = Date.now();
@@ -111,10 +117,11 @@ export const useDocumentRecoveryJournal = ({
           createdAt: now,
           updatedAt: now,
           artifactByteLength: output.file.size,
-          artifactChecksumSha256,
+          artifactChecksumSha256: preparedArtifact.checksumSha256,
           mediaType: output.file.type || 'application/octet-stream'
         };
-        const result = await store.write({ documentId, record, artifact: output.file });
+        const result = await store.write({ documentId, record, artifact: output.file,
+          ...(preparedArtifact.bytes ? { preparedBytes: preparedArtifact.bytes } : {}) });
         if (disposed) return;
         const finishedAt = performance.now();
         if (result.status === 'failed') {
@@ -148,6 +155,7 @@ export const useDocumentRecoveryJournal = ({
       disposed = true;
       unsubscribe();
       scheduler.dispose();
+      artifactHasher.dispose();
     };
-  }, [commandHistory, documentId, sourceFingerprint, store]);
+  }, [commandHistory, documentId, sourceByteLength, sourceFingerprint, store]);
 };

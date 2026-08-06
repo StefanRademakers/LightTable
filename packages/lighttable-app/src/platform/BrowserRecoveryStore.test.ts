@@ -10,6 +10,8 @@ class MemoryFileHandle {
   readonly kind = 'file';
   data = new Blob();
 
+  constructor(private readonly closeError?: DOMException) {}
+
   async getFile(): Promise<File> {
     return new File([this.data], 'memory');
   }
@@ -18,7 +20,7 @@ class MemoryFileHandle {
     let pending = new Blob();
     return {
       write: async (value: unknown) => { pending = value as Blob; },
-      close: async () => { this.data = pending; },
+      close: async () => { if (this.closeError) throw this.closeError; this.data = pending; },
       abort: async () => undefined
     } as unknown as FileSystemWritableFileStream;
   }
@@ -29,11 +31,13 @@ class MemoryDirectoryHandle {
   readonly files = new Map<string, MemoryFileHandle>();
   readonly directories = new Map<string, MemoryDirectoryHandle>();
 
+  constructor(private readonly failName: string | null = null) {}
+
   async getDirectoryHandle(name: string, options?: { create?: boolean }) {
     const existing = this.directories.get(name);
     if (existing) return existing;
     if (!options?.create) throw new DOMException('Missing', 'NotFoundError');
-    const created = new MemoryDirectoryHandle();
+    const created = new MemoryDirectoryHandle(this.failName);
     this.directories.set(name, created);
     return created;
   }
@@ -42,7 +46,8 @@ class MemoryDirectoryHandle {
     const existing = this.files.get(name);
     if (existing) return existing;
     if (!options?.create) throw new DOMException('Missing', 'NotFoundError');
-    const created = new MemoryFileHandle();
+    const created = new MemoryFileHandle(name === this.failName
+      ? new DOMException('Injected quota exhaustion', 'QuotaExceededError') : undefined);
     this.files.set(name, created);
     return created;
   }
@@ -59,8 +64,8 @@ class MemoryDirectoryHandle {
   }
 }
 
-const storageFixture = (quota = 1_000_000) => {
-  const origin = new MemoryDirectoryHandle();
+const storageFixture = (quota = 1_000_000, failName: string | null = null) => {
+  const origin = new MemoryDirectoryHandle(failName);
   const storage = {
     getDirectory: async () => origin,
     estimate: async () => ({ usage: 0, quota })
@@ -134,6 +139,33 @@ describe('BrowserRecoveryStore', () => {
         recoveryId: 'broken-fixture',
         reason: 'malformed'
       })]
+    });
+  });
+
+  it('removes an unpublished artifact when metadata publication exhausts quota', async () => {
+    const artifact = new File(['snapshot'], 'document.lighttable', {
+      type: 'application/x-lighttable-document'
+    });
+    const record = await recoveryFixture('doc-1', 7, artifact);
+    const { origin, storage } = storageFixture(1_000_000, `${record.recoveryId}.json`);
+    await expect(new BrowserRecoveryStore(storage).write({ documentId: 'doc-1', record, artifact }))
+      .resolves.toMatchObject({ status: 'failed', phase: 'quota' });
+    const root = await origin.getDirectoryHandle('lighttable-recovery-v1');
+    expect([...root.files.keys()]).toEqual([]);
+    await expect(new BrowserRecoveryStore(storage).list()).resolves.toEqual({ records: [], rejections: [] });
+  });
+
+  it('does not publish metadata whose artifact is missing or truncated', async () => {
+    const { origin, storage } = storageFixture();
+    const root = await origin.getDirectoryHandle('lighttable-recovery-v1', { create: true });
+    const artifact = new File(['snapshot'], 'document.lighttable');
+    const record = await recoveryFixture('doc-1', 8, artifact);
+    const metadata = await root.getFileHandle(`${record.recoveryId}.json`, { create: true });
+    const writable = await metadata.createWritable();
+    await writable.write(new Blob([JSON.stringify(record)]));
+    await writable.close();
+    await expect(new BrowserRecoveryStore(storage).list()).resolves.toEqual({
+      records: [], rejections: [expect.objectContaining({ recoveryId: record.recoveryId, reason: 'malformed' })]
     });
   });
 });

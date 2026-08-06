@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-06T21:59:00.000Z",
+  "profile": "packaged-desktop-recovery",
+  "hardwareClass": "Windows high-end workstation",
+  "thresholds": {
+    "smallDocumentP95Ms": 33,
+    "maximumRegressionRatio": 1.25,
+    "maximumRecoveryLongTaskMs": 100,
+    "maximumNormalizedRestoreRmse": 8
+  },
+  "cases": [
+    { "name": "agent-release-card.lighttable", "sourceMiB": 1.4, "queuedP95Ms": 17.4, "recoveryP95Ms": 17.4, "postP95Ms": 17.2, "prepareMs": 71.1, "persistMs": 17.8, "artifactMiB": 0.1, "restoreMs": 1412, "restoreRmse": 6.33 },
+    { "name": "shapes.psd", "sourceMiB": 0.2, "queuedP95Ms": 17.1, "recoveryP95Ms": null, "postP95Ms": 17.1, "prepareMs": 41.9, "persistMs": 16.6, "artifactMiB": 0.1, "restoreMs": 1445, "restoreRmse": 0.01 },
+    { "name": "TextTest.psd", "sourceMiB": 0.9, "queuedP95Ms": 17.0, "recoveryP95Ms": 20.7, "postP95Ms": 17.3, "prepareMs": 189.2, "persistMs": 31.5, "artifactMiB": 0.4, "restoreMs": 1418, "restoreRmse": 3.30 },
+    { "name": "EHS-396.psd", "sourceMiB": 170.0, "queuedP95Ms": 53.9, "recoveryP95Ms": 57.8, "postP95Ms": 53.4, "prepareMs": 2107.2, "persistMs": 316.0, "artifactMiB": 25.0, "restoreMs": 4485, "restoreRmse": 6.17 }
+  ]
+}

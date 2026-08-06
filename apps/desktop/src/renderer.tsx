@@ -102,11 +102,11 @@ const desktopHost: LightTableHost = {
       window.lightTableDesktop.restartToInstallUpdate(dirtyDocuments)
   },
   recovery: {
-    async write({ documentId, record, artifact }) {
+    async write({ documentId, record, artifact, preparedBytes }) {
       return window.lightTableDesktop.writeRecovery({
         documentId,
         record,
-        bytes: new Uint8Array(await artifact.arrayBuffer())
+        bytes: new Uint8Array(preparedBytes ?? await artifact.arrayBuffer())
       });
     },
     remove: (documentId, throughRevision) =>
