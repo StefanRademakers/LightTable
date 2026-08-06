@@ -186,6 +186,80 @@ GPU-only effect path.
    hidden-layer eviction has already failed the latency gate.
 3. Only then test cold CPU tile compression and checkpointed stroke replay.
 
+## Remaining experiment decisions — 2026-08-06
+
+The remaining register was re-audited against the production ownership graph
+after the tight-cache and dirty-history changes. The purpose of the register is
+to find safe wins, not to force every proposed mechanism into production.
+
+### Rejected for the current graph: full-frame temporary aliasing
+
+The three Layer Style work surfaces do not have non-overlapping lifetimes.
+`shape` remains an input to every effect pass, while `first` and `second`
+ping-pong as the current input and next output. Blur surfaces can additionally
+be referenced by commands encoded between those passes. WebGPU resource
+lifetime extends through submission, not merely to the end of the TypeScript
+function that encoded a pass. Aliasing any of these textures without a render
+graph and submission-aware transient allocator would therefore be an ownership
+bug rather than an optimization.
+
+Per-submit retirement was already measured and rejected because recreating the
+same surfaces added 11–21 ms to warm restoration. No aliasing implementation is
+retained. Reconsider only after a render graph can prove attachment lifetimes
+and the production A/B gate shows neutral interaction latency.
+
+### Rejected for the current restore contract: inactive-document eviction
+
+Inactive documents already pause scheduling, selection animation and text work;
+they submit no recurring frames. Their editable raster sources intentionally
+remain GPU-authoritative. `setActive(false)` has no lossless CPU backing from
+which it can recreate arbitrary unsaved paint, masks and history. Evicting those
+resources would require either a synchronous readback on deactivation or a
+second canonical CPU copy, and reactivation would add image-sized CPU-to-GPU
+uploads. Both violate the current hot-path and single-authority contracts.
+
+Immediate hidden-cache and work-target eviction already demonstrated the
+expected warm-latency penalty. A memory-pressure policy remains a future model
+change, not a local cache tweak: first define a lossless cold backing store,
+explicit budget, cancellation and deterministic restore state. No misleading
+document-count policy is retained.
+
+### Rejected as premature: cold CPU tile compression
+
+There is currently no accepted cold-tile eviction boundary, so compression has
+no production consumer. Adding encode/decode now would duplicate authoritative
+pixel storage and introduce CPU work without reducing warm GPU residency. The
+measured optional-FX path uploads only 32–64 byte uniforms, making compression
+irrelevant there. Reconsider together with a proven inactive-document or tiled
+source eviction design, outside paint and slider gestures.
+
+### Rejected as the default undo representation: checkpointed paint replay
+
+Localized paint history already captures lossless GPU tiles once per gesture,
+cuts snapshot residency by 89–98.5%, creates one undo command on pointer-up and
+restores in roughly 31–32 ms on the large fixture. A semantic replay journal
+would also need to freeze brush-engine version, color pipeline, randomness,
+source revision and every intervening mutation. Periodic checkpoints would add
+a second representation and variable replay latency for no demonstrated gain.
+The command stream remains useful for automation/MCP, but not as a replacement
+for deterministic pixel undo.
+
+### Accepted: semantic single-channel texture formats
+
+Layer masks, mask-edit intermediates and mask undo snapshots use `r8unorm`.
+Their decode, brush, eraser, fill, gradient, invert, selection conversion,
+readback and history pipelines use the same single-channel contract. The corpus
+measurement saved 82 MiB on EHS-395 and 328 MiB on EHS-402 with no canvas,
+history or persistence regression. Color, text, vector and compositing surfaces
+remain `rgba16float`; reducing those would discard required color/alpha
+precision rather than exploit unused channels.
+
+Decision: close this experiment set with three accepted production changes
+(lazy optional targets, dirty-tile history and tight style caches), the existing
+single-channel mask conversion, and explicit rejections above. Do not add a
+transient allocator, compressed backing store or replay subsystem until an
+actual ownership boundary and an A/B win exist.
+
 ## Render-engine audit extension — 2026-08-05
 
 `npm run audit:desktop:render-engine -- --engine <compositor|vector|text>

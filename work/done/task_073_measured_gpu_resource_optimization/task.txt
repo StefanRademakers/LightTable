@@ -1,0 +1,40 @@
+# Task 073 — measured GPU resource optimization
+
+Status: completed 2026-08-06.
+
+## Outcome
+
+The experiment register is closed with measured decisions instead of adding
+unproven cache infrastructure:
+
+- retained lazy optional effect targets;
+- retained dirty-tile GPU paint/mask history (89–98.5% lower gesture snapshot
+  residency on the measured fixtures);
+- retained tight persistent Layer Style caches (90.5–524.5 MiB lower measured
+  residency on the production fixtures);
+- retained single-channel `r8unorm` mask, mask-edit and mask-history storage
+  (82 MiB saved on EHS-395 and 328 MiB on EHS-402);
+- rejected immediate hidden cache and per-submit work-target eviction because
+  both reproducibly regressed warm interaction latency;
+- rejected full-frame Layer Style aliasing because shape and ping-pong targets
+  overlap through one WebGPU submission;
+- rejected inactive-document eviction until a lossless cold backing/restore
+  contract exists;
+- rejected CPU tile compression without an accepted cold consumer;
+- rejected paint replay as the default undo representation because dirty GPU
+  tiles are already deterministic, bounded and fast.
+
+Canonical effects and editable pixels remain authoritative. No lower-precision
+color surface, CPU readback, compressed hot path or replay subsystem was added.
+
+## Evidence
+
+- `architecture/risks/gpu_resource_optimization_2026-08-04.md` records the A/B
+  timings, memory figures, visual gates and final decisions.
+- Focused resource-format/cache tests: 3 files, 12 tests passed.
+- `@lighttable/app` TypeScript check passed.
+- The complete Layer Style corpus and production interaction audit were rerun
+  immediately before closure in task 081: 40/40 cases executed with zero
+  fidelity gate failures; the active slider audit produced 121 input events,
+  19 GPU submissions at 16.88 Hz, and zero long tasks/runtime errors.
+
