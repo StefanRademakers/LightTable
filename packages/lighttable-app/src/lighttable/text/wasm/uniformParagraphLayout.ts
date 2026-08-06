@@ -22,6 +22,7 @@ const sameLineHeight = (left: ParagraphStyleRun['lineHeight'], right: ParagraphS
 
 const sameSupportedFormatting = (left: ParagraphStyleRun, right: ParagraphStyleRun) => (
   left.alignment === right.alignment
+  && left.direction === right.direction
   && sameLineHeight(left.lineHeight, right.lineHeight)
   && left.firstLineIndent === right.firstLineIndent
   && left.startIndent === right.startIndent
@@ -47,12 +48,10 @@ export const resolveUniformParagraphLayout = (
       spaceAfter: 0
     } };
   }
-  if (paragraph.direction !== 'auto') {
-    return {
-      supported: false,
-      message: 'Explicit paragraph direction requires a later paragraph layout adapter.'
-    };
-  }
+  // Parley/HarfBuzz resolves Unicode bidi order from the paragraph contents.
+  // Retain the authored base direction for interchange and use that exact bidi
+  // result here; a future segmented adapter can additionally force neutral-only
+  // paragraphs without changing the canonical model.
   // The canonical source retains automatic hyphenation. Until the segmented
   // paragraph adapter can insert language-specific breaks, rendering the same
   // text without discretionary hyphens is a safe visual approximation; it

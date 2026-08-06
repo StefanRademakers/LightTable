@@ -3,6 +3,7 @@ import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
 import type { LightTableArtifactMetadata } from './lightTableArtifactRegistry';
+import type { SemanticTextCommand } from './semanticTextCommandContract';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
@@ -10,6 +11,7 @@ export type LightTableCommandId =
   | 'document.create' | 'view.setZoom' | 'layer.createRaster' | 'layer.placeArtifact'
   | 'layer.rename' | 'layer.setVisibility' | 'layer.setFillOpacity'
   | 'layer.style.setEnabled' | 'layer.effect.setEnabled' | 'file.openArtifact'
+  | 'text.create' | 'text.replaceRange' | 'text.format' | 'text.setLayout'
   | 'file.exportNative' | 'file.exportPng' | 'file.exportPsd' | 'history.undo' | 'history.redo';
 
 export type LightTableCommandErrorCode =
@@ -89,6 +91,24 @@ export interface LayerEffectsQueryResult {
   }[];
 }
 
+export interface EditableTextQueryResult {
+  readonly layerId: LayerId;
+  readonly sourceKind: 'flow' | 'positioned';
+  readonly editable: boolean;
+  readonly revision: number;
+  readonly transform: { readonly a: number; readonly b: number; readonly c: number; readonly d: number; readonly tx: number; readonly ty: number };
+  readonly content: { readonly text: string; readonly totalLength: number; readonly truncated: boolean };
+  readonly layout: unknown;
+  readonly styleRuns: readonly {
+    readonly start: number; readonly end: number; readonly fontSize: number;
+    readonly font: { readonly families: readonly string[]; readonly postScriptName?: string;
+      readonly assetId?: string; readonly available: boolean; readonly substituted: boolean };
+    readonly fill: unknown; readonly stroke: unknown; readonly tracking: number;
+  }[];
+  readonly paragraphRuns: readonly unknown[];
+  readonly runsTruncated: boolean;
+}
+
 export interface CommandCapabilitySummary {
   readonly command: LightTableCommandId;
   readonly available: boolean;
@@ -133,6 +153,7 @@ export interface LightTableCommandPorts {
   setLayerFillOpacity(documentId: DocumentSessionId, layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean): void | Promise<void>;
   setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
+  executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPsdArtifact(documentId: DocumentSessionId): File | Promise<File>;
@@ -154,6 +175,7 @@ export interface DocumentLightTableCommandPorts {
   setLayerFillOpacity(layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(layerId: LayerId, enabled: boolean): void | Promise<void>;
   setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
+  executeTextCommand(command: SemanticTextCommand): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>; exportPsdArtifact(): File | Promise<File>;
   beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;

@@ -42,10 +42,10 @@ describe('uniform paragraph WASM adapter', () => {
     });
   });
 
-  it('gates explicit direction but permits retained auto-hyphenation as an unhyphenated approximation', () => {
+  it('retains explicit direction for interchange while Unicode bidi remains authoritative', () => {
     expect(resolveUniformParagraphLayout({
       paragraphRuns: [paragraph({ direction: 'rtl' })]
-    }).supported).toBe(false);
+    }).supported).toBe(true);
     const insertion = paragraph({ start: 0, end: 0, hyphenation: 'auto' });
     const { start: _start, end: _end, ...insertionParagraph } = insertion;
     expect(resolveUniformParagraphLayout({

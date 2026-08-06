@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer } from '../../editor/document/documentCommands';
+import { createRasterLayer, createTextLayer } from '../../editor/document/documentCommands';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
+import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createVectorLiveShape } from '@lighttable/vector-core';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
@@ -33,6 +34,7 @@ const setup = () => {
     setLayerFillOpacity: vi.fn(),
     setLayerStyleEnabled: vi.fn(),
     setLayerEffectEnabled: vi.fn(),
+    executeTextCommand: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
     exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
@@ -140,6 +142,23 @@ describe('LightTableCommandService queries', () => {
     state.service.dispose();
     state.workspace.dispose();
   });
+
+  it('projects bounded editable text without font bytes', () => {
+    const state = setup();
+    const text = createDefaultTextLayerData();
+    const value = 'A'.repeat(5_000);
+    const source = text.source.kind === 'flow' ? { ...text.source, text: value,
+      styleRuns: text.source.styleRuns.map((run) => ({ ...run, end: value.length })),
+      paragraphRuns: text.source.paragraphRuns.map((run) => ({ ...run, end: value.length })) } : text.source;
+    state.session.setDocument(createTextLayer(state.session.getSnapshot().document!, { ...text, source }, 'Long text'));
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    const projected = state.service.queryText(state.session.id, layerId)!;
+    expect(projected).toMatchObject({ editable: true, sourceKind: 'flow',
+      content: { totalLength: 5_000, truncated: true } });
+    expect(projected.content.text).toHaveLength(4_096);
+    expect(JSON.stringify(projected)).not.toContain('byteLength');
+    state.service.dispose(); state.workspace.dispose();
+  });
 });
 
 describe('LightTableCommandService registry', () => {
@@ -154,6 +173,7 @@ describe('LightTableCommandService registry', () => {
       setLayerFillOpacity: vi.fn(),
       setLayerStyleEnabled: vi.fn(),
       setLayerEffectEnabled: vi.fn(),
+      executeTextCommand: vi.fn(),
       exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
       exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
@@ -388,6 +408,28 @@ describe('LightTableCommandService registry', () => {
       .toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(state.ports.placeArtifact).not.toHaveBeenCalled();
     service.dispose(); state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates and routes atomic semantic text commands with stale revision rejection', async () => {
+    const state = setup();
+    const base = state.session.getSnapshot().document!;
+    const withText = createTextLayer(base, createDefaultTextLayerData(), 'Text');
+    state.session.setDocument(withText);
+    const layerId = withText.activeLayerId!;
+    state.ports.executeTextCommand = vi.fn(async () => ({ layerId }));
+    const result = await state.service.execute(request('text.replaceRange', state.session.id,
+      { layerId, start: 0, end: 0, text: 'مرحبا 👋' }));
+    expect(result).toMatchObject({ status: 'completed', value: { layerId } });
+    expect(state.ports.executeTextCommand).toHaveBeenCalledWith(state.session.id,
+      { kind: 'replace', layerId, start: 0, end: 0, text: 'مرحبا 👋' });
+    const stale = await state.service.execute({ ...request('text.format', state.session.id,
+      { layerId, style: { fontSize: 64 } }), expectedDocumentRevision: 999 });
+    expect(stale).toMatchObject({ status: 'rejected', code: 'stale-document-revision' });
+    expect(state.ports.executeTextCommand).toHaveBeenCalledTimes(1);
+    const invalid = await state.service.execute(request('text.replaceRange', state.session.id,
+      { layerId, start: 0, end: 99, text: 'x' }));
+    expect(invalid).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
   });
 
   it('bounds document-coordinate gestures and commits through one owner', async () => {

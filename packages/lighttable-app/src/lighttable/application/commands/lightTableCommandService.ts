@@ -18,12 +18,13 @@ export type { LayerQuerySummary } from './layerQueryProjection';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type AutomationTaskQueryResult, type CommandCapabilitySummary, type DocumentLightTableCommandPorts,
-  type DocumentQueryResult, type LayerEffectsQueryResult, type LightTableArtifactPlacement,
+  type DocumentQueryResult, type EditableTextQueryResult, type LayerEffectsQueryResult, type LightTableArtifactPlacement,
   type LightTableCommandErrorCode, type LightTableCommandId, type LightTableCommandPorts,
   type LightTableCommandRequest, type LightTableCommandResult, type LightTableCreateDocumentOptions,
   type LightTableGestureKind, type LightTableGestureResult, type LightTableGestureSample,
   type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
 } from './lightTableCommandContract';
+import { parseSemanticTextCommand, type SemanticTextCommand } from './semanticTextCommandContract';
 export * from './lightTableCommandContract';
 
 /**
@@ -60,6 +61,10 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement) {
     return this.resolve(documentId).placeArtifact(file, placement);
+  }
+
+  executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand) {
+    return this.resolve(documentId).executeTextCommand(command);
   }
 
   renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string) {
@@ -369,6 +374,32 @@ export class LightTableCommandService {
     };
   }
 
+  queryText(documentId: DocumentSessionId, layerId: LayerId): EditableTextQueryResult | null {
+    const document = this.document(documentId)?.document;
+    const layer = document ? findDocumentLayer(document, layerId) : null;
+    if (!document || layer?.type !== 'text') return null;
+    const source = layer.text.source;
+    const text = source.kind === 'flow' ? source.text : source.extractedText ?? '';
+    const availableAssets = new Set(document.assets.fonts.map(({ assetId }) => assetId));
+    const styleRuns = source.kind === 'flow' ? source.styleRuns.slice(0, 128).map((run) => {
+      const assetId = run.requestedFont.replacement?.replacementAsset.assetId
+        ?? run.requestedFont.preferredAsset?.assetId;
+      return { start: run.start, end: run.end, fontSize: run.fontSize,
+        font: { families: [...run.requestedFont.families],
+          ...(run.requestedFont.postScriptName ? { postScriptName: run.requestedFont.postScriptName } : {}),
+          ...(assetId ? { assetId } : {}), available: Boolean(assetId && availableAssets.has(assetId)),
+          substituted: Boolean(run.requestedFont.replacement) },
+        fill: structuredClone(run.fill ?? null), stroke: structuredClone(run.stroke ?? null), tracking: run.tracking };
+    }) : [];
+    return { layerId, sourceKind: source.kind, editable: source.kind === 'flow', revision: layer.revision,
+      transform: { ...layer.transform }, content: { text: text.slice(0, 4096), totalLength: text.length,
+        truncated: text.length > 4096 }, layout: source.kind === 'flow' ? structuredClone(source.layout) : null,
+      styleRuns, paragraphRuns: source.kind === 'flow'
+        ? structuredClone(source.paragraphRuns.slice(0, 128)) : [],
+      runsTruncated: source.kind === 'flow'
+        && (source.styleRuns.length > 128 || source.paragraphRuns.length > 128) };
+  }
+
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null {
     const snapshot = this.document(documentId);
     if (!snapshot?.document) return null;
@@ -397,6 +428,10 @@ export class LightTableCommandService {
       availability('layer.setFillOpacity', true, ''),
       availability('layer.style.setEnabled', true, ''),
       availability('layer.effect.setEnabled', true, ''),
+      availability('text.create', true, ''),
+      availability('text.replaceRange', true, ''),
+      availability('text.format', true, ''),
+      availability('text.setLayout', true, ''),
       availability('file.exportNative', true, ''),
       availability('file.exportPng', true, ''),
       availability('file.exportPsd', true, ''),
@@ -507,6 +542,34 @@ export class LightTableCommandService {
         if (!placed) return this.reject(value.requestId, 'execution-failed', 'The image could not be placed.', snapshot);
         this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: placed,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
+    }
+
+    if (value.command === 'text.create' || value.command === 'text.replaceRange'
+      || value.command === 'text.format' || value.command === 'text.setLayout') {
+      const kind = value.command === 'text.create' ? 'create'
+        : value.command === 'text.replaceRange' ? 'replace'
+          : value.command === 'text.format' ? 'format' : 'layout';
+      const command = parseSemanticTextCommand(kind, value.parameters);
+      if ('message' in command) return this.reject(value.requestId, 'invalid-parameters', command.message, snapshot);
+      if ('layerId' in command) {
+        const layer = findDocumentLayer(snapshot.document, command.layerId as LayerId);
+        if (layer?.type !== 'text') return this.reject(value.requestId, 'command-unavailable', 'The target text layer does not exist.', snapshot);
+        if (layer.text.source.kind !== 'flow') return this.reject(value.requestId, 'command-unavailable',
+          'Positioned imported text must be recovered as editable flow text before editing.', snapshot);
+        const length = layer.text.source.text.length;
+        const ranged = command.kind === 'replace' || command.kind === 'format';
+        if (ranged && ((command.start ?? 0) > length || (command.end ?? length) > length))
+          return this.reject(value.requestId, 'invalid-parameters', 'The text range exceeds the current content.', snapshot);
+      }
+      try {
+        const result = await this.ports.executeTextCommand(documentRequest.documentId, command);
+        if (!result) return this.reject(value.requestId, 'execution-failed', 'The text command did not change the document.', snapshot);
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
         return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
@@ -750,6 +813,10 @@ export class LightTableCommandService {
       'layer.setFillOpacity',
       'layer.style.setEnabled',
       'layer.effect.setEnabled',
+      'text.create',
+      'text.replaceRange',
+      'text.format',
+      'text.setLayout',
       'file.openArtifact',
       'file.exportNative',
       'file.exportPng',
@@ -862,6 +929,7 @@ export interface LightTableAutomationDriver {
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null;
+  queryText(documentId: DocumentSessionId, layerId: LayerId): EditableTextQueryResult | null;
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;

@@ -10,18 +10,10 @@ import {
   type LightTableGestureKind,
   type LightTableGestureSample
 } from './application/commands/lightTableCommandService';
-import {
-  useDocumentHistoryController,
-  type EditorHistoryEntry
-} from './application/commands/useDocumentHistoryController';
-import type {
-  DocumentSession,
-  DocumentSessionId
-} from './application/documents/documentSession';
+import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
+import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
-import {
-  DocumentRendererLifecycle
-} from './application/rendering/documentRendererLifecycle';
+import { DocumentRendererLifecycle } from './application/rendering/documentRendererLifecycle';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
@@ -38,17 +30,11 @@ import {
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { zoomViewToScaleAtPoint } from './editor/tools/pointer/viewportCoordinates';
-import {
-  steppedZoomPercent,
-  zoomPercentToScale
-} from './editor/tools/zoom/zoomLevels';
+import { steppedZoomPercent, zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
-import {
-  createScopeRendererOptions,
-  useRendererPresentationSync
-} from './editor/hooks/useRendererPresentationSync';
+import { createScopeRendererOptions, useRendererPresentationSync } from './editor/hooks/useRendererPresentationSync';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
@@ -59,10 +45,7 @@ import { TextToShapeCommandController } from './application/text/TextToShapeComm
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPreflight';
 import { buildPdfNativeTextPage } from './application/pdf/buildPdfNativeTextPage';
-import {
-  buildPdfNativeVectorLayerPage,
-  buildPdfNativeVectorExportPage
-} from './application/pdf/buildPdfNativeVectorPage';
+import { buildPdfNativeVectorLayerPage, buildPdfNativeVectorExportPage } from './application/pdf/buildPdfNativeVectorPage';
 import {
   pdfDocumentProcessingActive,
   planHybridPdfPageExport,
@@ -77,10 +60,7 @@ import {
   type HybridPdfNativePageExportReason
 } from './application/pdf/planHybridPdfNativePageExport';
 import { TextSelectionGestureController } from './application/text/TextSelectionGestureController';
-import {
-  textSelectionForGranularity,
-  type TextSelectionGranularity
-} from './application/text/flowTextEditing';
+import { textSelectionForGranularity, type TextSelectionGranularity } from './application/text/flowTextEditing';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
@@ -97,40 +77,18 @@ import {
   summarizeTextFontDiagnostics,
   textLayerFontStatus
 } from './text/fonts/textLayerFontStatus';
-import type {
-  DocumentOpenMode
-} from './application/documents/documentSourceProbe';
-import {
-  useEditorDocumentLifecycleController
-} from './composition/documents/useEditorDocumentLifecycleController';
-import {
-  useEditorDocumentFileController
-} from './composition/documents/useEditorDocumentFileController';
-import {
-  useEditorKeyboardController
-} from './composition/input/useEditorKeyboardController';
-import {
-  createEditorMenuController
-} from './composition/menus/createEditorMenuController';
+import type { DocumentOpenMode } from './application/documents/documentSourceProbe';
+import { useEditorDocumentLifecycleController } from './composition/documents/useEditorDocumentLifecycleController';
+import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
+import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
+import { createEditorMenuController } from './composition/menus/createEditorMenuController';
 import { primaryShortcutLabel } from './application/input/editorShortcutPresentation';
-import {
-  LayersWorkspacePanel
-} from './composition/workspace/LayersWorkspacePanel';
-import {
-  ChannelsWorkspacePanel
-} from './composition/workspace/ChannelsWorkspacePanel';
-import {
-  createEditorWorkspacePanels
-} from './composition/workspace/createEditorWorkspacePanels';
-import {
-  EditorDocumentSurface
-} from './composition/workspace/EditorDocumentSurface';
-import {
-  EditorOverlayLayer
-} from './composition/workspace/EditorOverlayLayer';
-import {
-  type DocumentRendererPort
-} from './infrastructure/rendering/webGpuDocumentRenderer';
+import { LayersWorkspacePanel } from './composition/workspace/LayersWorkspacePanel';
+import { ChannelsWorkspacePanel } from './composition/workspace/ChannelsWorkspacePanel';
+import { createEditorWorkspacePanels } from './composition/workspace/createEditorWorkspacePanels';
+import { EditorDocumentSurface } from './composition/workspace/EditorDocumentSurface';
+import { EditorOverlayLayer } from './composition/workspace/EditorOverlayLayer';
+import { type DocumentRendererPort } from './infrastructure/rendering/webGpuDocumentRenderer';
 import { useLightTableGradeClipboard } from './lightTableGradeClipboard';
 import {
   resolveLightTableEditorSourceKey,
@@ -157,17 +115,15 @@ import {
   textCreationKind
 } from './application/text/pointTextCreation';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
+import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreateCommand,
+  semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
 import { PathTextHandleController } from './application/text/PathTextHandleController';
 import { useMissingFontReplacementActions } from './application/text/useMissingFontReplacementActions';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import { TextLayerMoveGestureController } from './application/text/TextLayerMoveGestureController';
-import {
-  formatFlowTextSource,
-  type ParagraphStylePatch,
-  type TextStylePatch
-} from './application/text/flowTextFormatting';
+import { formatFlowTextSource, type ParagraphStylePatch, type TextStylePatch } from './application/text/flowTextFormatting';
 import {
   buildTextPropertyPresentation,
   textFillEnabledPatch,
@@ -191,19 +147,10 @@ import {
   registerBundledTextFontByAssetId,
   registerBundledTextFontForSettings
 } from './text/fonts/bundledTextFont';
-import {
-  DEFAULT_TEXT_SUBSTITUTION_FAMILIES,
-  documentNeedsFlowFontFallback
-} from './text/fonts/flowFontSelection';
+import { DEFAULT_TEXT_SUBSTITUTION_FAMILIES, documentNeedsFlowFontFallback } from './text/fonts/flowFontSelection';
 import { bindRendererTextFontRuntime } from './composition/documents/bindRendererTextFontRuntime';
-import {
-  LightTableDockWorkspace,
-  type LightTableDockWorkspaceHandle
-} from './editor/workspace/LightTableDockWorkspace';
-import {
-  nextEditorScreenMode,
-  type EditorScreenMode
-} from './editor/workspace/editorScreenMode';
+import { LightTableDockWorkspace, type LightTableDockWorkspaceHandle } from './editor/workspace/LightTableDockWorkspace';
+import { nextEditorScreenMode, type EditorScreenMode } from './editor/workspace/editorScreenMode';
 import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePanelRegistry';
 import {
   createEditorSession,
@@ -217,14 +164,8 @@ import {
   RasterGradientCommandController,
   type RasterGradientDependencies
 } from './application/tools/gradient/RasterGradientCommandController';
-import {
-  browserImageClipboard,
-  type LightTableImageClipboard
-} from '../platform/LightTableImageClipboard';
-import type {
-  LightTableRecentFile,
-  LightTableSaveResult
-} from '../platform/LightTableHost';
+import { browserImageClipboard, type LightTableImageClipboard } from '../platform/LightTableImageClipboard';
+import type { LightTableRecentFile, LightTableSaveResult } from '../platform/LightTableHost';
 import type { LightTableRecoveryStore } from '../platform/LightTableRecoveryStore';
 import { useLensBlurDepthController } from './application/effects/lensBlur/useLensBlurDepthController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
@@ -604,6 +545,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     useDocumentImageState(documentSession);
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
   const [editorSession, setEditorSession] = useDocumentEditorSession(documentSession);
+  const editorSessionRef = useRef(editorSession);
+  editorSessionRef.current = editorSession;
   const fallbackGradientSettingsRef = useRef(createGradientToolSettings());
   const gradientToolSettings = editorSession.gradient ?? fallbackGradientSettingsRef.current;
   useEffect(() => {
@@ -2305,6 +2248,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const pathTarget = pathTextCreationTargetRef.current;
     pathTextCreationTargetRef.current = null;
     if (!request || !before || !font || request.documentId !== before.id) return false;
+    if (!pathTarget && commandService) {
+      const execution = executeRegisteredCommand('text.create', pointTextCreateCommand(request,
+        editorSession.text, font, editorSession.brush.color, editorSession.activeTool === 'text-vertical'));
+      void execution?.then((result) => {
+        if (beginEditing && result.status === 'completed') {
+          const layerId = (result.value as { layerId?: LayerId }).layerId;
+          if (layerId) {
+            textEditingController.begin(layerId); textEditingController.selectAll();
+          }
+        }
+      });
+      return Boolean(execution);
+    }
     const after = pathTarget
       ? createPathTextDocument(
           before, request, pathTarget, editorSession.text, font, editorSession.brush.color
@@ -2401,6 +2357,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const request = paragraphTextController.commit();
     if (!request || !before || !font || request.documentId !== before.id) return false;
     paragraphCanvasCreationPendingRef.current = false;
+    if (commandService) {
+      const execution = executeRegisteredCommand('text.create', paragraphTextCreateCommand(request,
+        editorSession.text, font, editorSession.brush.color, editorSession.activeTool === 'text-vertical'));
+      void execution?.then((result) => {
+        if (beginEditing && result.status === 'completed') {
+          const layerId = (result.value as { layerId?: LayerId }).layerId;
+          if (layerId) {
+            textEditingController.begin(layerId); textEditingController.selectAll();
+          }
+        }
+      });
+      return Boolean(execution);
+    }
     const after = createParagraphTextDocument(
       before,
       request,
@@ -2767,31 +2736,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setLayerFillOpacity: layerPanelController.setFillOpacity,
       setLayerStyleEnabled: layerPanelController.setStyleStackEnabled,
       setLayerEffectEnabled: layerPanelController.setStyleEnabled,
+      executeTextCommand: async (command) => {
+        const result = await executeSemanticTextCommand(command, { fontRegistry: textFontRegistry,
+          getDocument: () => imageDocumentRef.current, getTextSettings: () => editorSessionRef.current.text,
+          getForegroundColor: () => editorSessionRef.current.brush.color,
+          applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory });
+        if (!result) return null;
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+          if (await engineRef.current?.waitForTextSourcesForExport()) return result;
+        }
+        throw new Error('The exact text layout did not settle.');
+      },
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
       exportPsdArtifact: () => exportPsdArtifactRef.current(),
-      beginGesture: (kind, pointerId, parameters, sample) =>
-        beginAutomationGestureRef.current(kind, pointerId, parameters, sample),
-      updateGesture: (kind, pointerId, sample) =>
-        updateAutomationGestureRef.current(kind, pointerId, sample),
-      finishGesture: (kind, pointerId, commit) =>
-        finishAutomationGestureRef.current(kind, pointerId, commit),
+      beginGesture: (kind, pointerId, parameters, sample) => beginAutomationGestureRef.current(kind, pointerId, parameters, sample),
+      updateGesture: (kind, pointerId, sample) => updateAutomationGestureRef.current(kind, pointerId, sample),
+      finishGesture: (kind, pointerId, commit) => finishAutomationGestureRef.current(kind, pointerId, commit),
       undo: applyUndoEditor,
       redo: applyRedoEditor,
       queryRenderTelemetry: () => engineRef.current?.renderTelemetrySnapshot() ?? null,
       resetRenderTelemetry: () => engineRef.current?.resetRenderTelemetry()
     });
-  }, [
-    applyActualZoom,
-    applyExactZoom,
-    applyFitZoom,
-    applyRedoEditor,
-    applyUndoEditor,
-    commandPorts,
-    layerDocumentCommands,
-    layerPanelController,
-    workspaceDocumentId
-  ]);
+  }, [applyActualZoom, applyExactZoom, applyFitZoom, applyRedoEditor, applyUndoEditor,
+    commandPorts, layerDocumentCommands, layerPanelController, workspaceDocumentId]);
   const commandLayerPanelController = useMemo(() => ({
     ...layerPanelController,
     createRasterLayer: () => {
@@ -3664,12 +3633,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     textPropertyGestureRef.current = null;
   };
+  const dispatchDiscreteTextFormat = (stylePatch: TextStylePatch, paragraphPatch: ParagraphStylePatch) => {
+    const document = imageDocumentRef.current; const layerId = document?.activeLayerId;
+    const style = semanticStylePatchFromCanonical(stylePatch);
+    const paragraph = semanticParagraphPatchFromCanonical(paragraphPatch);
+    if (!commandService || !layerId || !style || !paragraph) return false;
+    const editing = textEditingController.getSnapshot();
+    const selection = editing.status === 'editing' && editing.layerId === layerId ? editing.selection : null;
+    if (selection) textEditingController.finish();
+    const execution = executeRegisteredCommand('text.format', { layerId,
+      ...(selection ? { start: selection.anchor, end: selection.focus } : {}), style,
+      paragraph });
+    void execution?.then(() => {
+      if (selection) { textEditingController.begin(layerId, selection.focus); textEditingController.setSelection(selection); }
+    });
+    return Boolean(execution);
+  };
   const applyDiscreteTextProperty = (patch: TextStylePatch) => {
+    if (dispatchDiscreteTextFormat(patch, {})) return;
     if (!beginTextPropertyGesture()) return;
     applyTextPropertyPatch(patch);
     commitTextPropertyGesture();
   };
   const applyDiscreteTextParagraph = (patch: ParagraphStylePatch) => {
+    if (dispatchDiscreteTextFormat({}, patch)) return;
     if (!beginTextPropertyGesture()) return;
     applyTextPropertyPatch({}, patch);
     commitTextPropertyGesture();
@@ -3734,6 +3721,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (layer?.type !== 'text' || layer.text.source.kind !== 'flow'
       || layer.text.source.layout.mode === 'path') return;
     textEditingController.finish();
+    if (commandService) {
+      const execution = executeRegisteredCommand('text.setLayout', { layerId, writingMode });
+      void execution?.then((result) => {
+        if (result.status === 'completed') {
+          activatePersistentTool(writingMode === 'horizontal-tb' ? 'text-point' : 'text-vertical');
+        }
+      });
+      return;
+    }
     const after = setFlowTextLayout(before, layerId, {
       ...layer.text.source.layout,
       writingMode
