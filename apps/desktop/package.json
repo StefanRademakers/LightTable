@@ -1,8 +1,11 @@
 {
   "name": "@lighttable/desktop",
   "productName": "LightTable",
+  "description": "GPU-first professional image editor",
+  "author": "MediaVibe",
+  "license": "UNLICENSED",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",

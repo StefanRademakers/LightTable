@@ -1,0 +1,272 @@
+# LightTable third-party notices
+
+Generated from package-lock.json, Cargo.lock and the checked dependency inventory.
+
+- @emnapi/runtime 1.11.3 — MIT
+- @fontsource/inter 5.3.0 — OFL-1.1
+- @fontsource/jetbrains-mono 5.2.8 — OFL-1.1
+- @fontsource/noto-sans 5.2.8 — OFL-1.1
+- @fontsource/source-serif-4 5.2.8 — OFL-1.1
+- @hono/node-server 1.19.17 — MIT
+- @huggingface/jinja 0.5.9 — MIT
+- @huggingface/transformers 3.8.1 — Apache-2.0
+- @img/colour 1.1.0 — MIT
+- @img/sharp-darwin-arm64 0.34.5 — Apache-2.0
+- @img/sharp-darwin-x64 0.34.5 — Apache-2.0
+- @img/sharp-libvips-darwin-arm64 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-darwin-x64 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-linux-arm 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-linux-arm64 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-linux-ppc64 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-linux-riscv64 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-linux-s390x 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-linux-x64 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-linuxmusl-arm64 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-libvips-linuxmusl-x64 1.2.4 — LGPL-3.0-or-later
+- @img/sharp-linux-arm 0.34.5 — Apache-2.0
+- @img/sharp-linux-arm64 0.34.5 — Apache-2.0
+- @img/sharp-linux-ppc64 0.34.5 — Apache-2.0
+- @img/sharp-linux-riscv64 0.34.5 — Apache-2.0
+- @img/sharp-linux-s390x 0.34.5 — Apache-2.0
+- @img/sharp-linux-x64 0.34.5 — Apache-2.0
+- @img/sharp-linuxmusl-arm64 0.34.5 — Apache-2.0
+- @img/sharp-linuxmusl-x64 0.34.5 — Apache-2.0
+- @img/sharp-wasm32 0.34.5 — Apache-2.0 AND LGPL-3.0-or-later AND MIT
+- @img/sharp-win32-arm64 0.34.5 — Apache-2.0 AND LGPL-3.0-or-later
+- @img/sharp-win32-ia32 0.34.5 — Apache-2.0 AND LGPL-3.0-or-later
+- @img/sharp-win32-x64 0.34.5 — Apache-2.0 AND LGPL-3.0-or-later
+- @isaacs/fs-minipass 4.0.1 — ISC
+- @modelcontextprotocol/core 2.0.0 — MIT
+- @modelcontextprotocol/express 2.0.0 — MIT
+- @modelcontextprotocol/node 2.0.0 — MIT
+- @modelcontextprotocol/server 2.0.0 — MIT
+- @napi-rs/canvas 0.1.100 — MIT
+- @napi-rs/canvas-android-arm64 0.1.100 — MIT
+- @napi-rs/canvas-darwin-arm64 0.1.100 — MIT
+- @napi-rs/canvas-darwin-x64 0.1.100 — MIT
+- @napi-rs/canvas-linux-arm-gnueabihf 0.1.100 — MIT
+- @napi-rs/canvas-linux-arm64-gnu 0.1.100 — MIT
+- @napi-rs/canvas-linux-arm64-musl 0.1.100 — MIT
+- @napi-rs/canvas-linux-riscv64-gnu 0.1.100 — MIT
+- @napi-rs/canvas-linux-x64-gnu 0.1.100 — MIT
+- @napi-rs/canvas-linux-x64-musl 0.1.100 — MIT
+- @napi-rs/canvas-win32-arm64-msvc 0.1.100 — MIT
+- @napi-rs/canvas-win32-x64-msvc 0.1.100 — MIT
+- @pdf-lib/standard-fonts 1.0.0 — MIT
+- @pdf-lib/upng 1.0.1 — MIT
+- @protobufjs/aspromise 1.1.2 — BSD-3-Clause
+- @protobufjs/base64 1.1.2 — BSD-3-Clause
+- @protobufjs/codegen 2.0.5 — BSD-3-Clause
+- @protobufjs/eventemitter 1.1.1 — BSD-3-Clause
+- @protobufjs/fetch 1.1.1 — BSD-3-Clause
+- @protobufjs/float 1.0.2 — BSD-3-Clause
+- @protobufjs/path 1.1.2 — BSD-3-Clause
+- @protobufjs/pool 1.1.0 — BSD-3-Clause
+- @protobufjs/utf8 1.1.2 — BSD-3-Clause
+- accepts 2.0.0 — MIT
+- ag-psd 31.0.2 — MIT
+- alloc-no-stdlib 2.0.4 — BSD-3-Clause
+- alloc-stdlib 0.2.4 — BSD-3-Clause
+- base64-js 1.5.1 — MIT
+- bitflags 2.13.1 — MIT OR Apache-2.0
+- bitvec 1.1.1 — MIT
+- body-parser 2.3.0 — MIT
+- boolean 3.2.0 — MIT
+- brotli 7.0.0 — BSD-3-Clause AND MIT
+- brotli-decompressor 4.0.3 — BSD-3-Clause/MIT
+- brotli-lib 0.0.7 — MIT
+- bumpalo 3.20.3 — MIT OR Apache-2.0
+- bytemuck 1.25.2 — Zlib OR Apache-2.0 OR MIT
+- bytemuck_derive 1.11.0 — Zlib OR Apache-2.0 OR MIT
+- bytes 1.12.1 — MIT
+- bytes 3.1.2 — MIT
+- call-bind-apply-helpers 1.0.2 — MIT
+- call-bound 1.0.4 — MIT
+- cfg-if 1.0.4 — MIT OR Apache-2.0
+- chownr 3.0.0 — BlueOak-1.0.0
+- content-disposition 1.1.0 — MIT
+- content-type 1.0.5 — MIT
+- content-type 2.0.0 — MIT
+- cookie 0.7.2 — MIT
+- cookie-signature 1.2.2 — MIT
+- cors 2.8.6 — MIT
+- debug 4.4.3 — MIT
+- define-data-property 1.1.4 — MIT
+- define-properties 1.2.1 — MIT
+- depd 2.0.0 — MIT
+- detect-libc 2.1.2 — Apache-2.0
+- detect-node 2.1.0 — MIT
+- displaydoc 0.2.7 — MIT OR Apache-2.0
+- dockview 7.0.4 — MIT
+- dockview-core 7.0.4 — MIT
+- dockview-react 7.0.4 — MIT
+- dunder-proto 1.0.1 — MIT
+- ee-first 1.1.1 — MIT
+- encodeurl 2.0.0 — MIT
+- es-define-property 1.0.1 — MIT
+- es-errors 1.3.0 — MIT
+- es-object-atoms 1.1.2 — MIT
+- es6-error 4.1.1 — MIT
+- escape-html 1.0.3 — MIT
+- escape-string-regexp 4.0.0 — MIT
+- etag 1.8.1 — MIT
+- express 5.2.1 — MIT
+- finalhandler 2.1.1 — MIT
+- flatbuffers 25.9.23 — Apache-2.0
+- foldhash 0.2.0 — Zlib
+- font-types 0.12.2 — MIT OR Apache-2.0
+- fontique 0.11.0 — Apache-2.0 OR MIT
+- forwarded 0.2.0 — MIT
+- four-cc 0.4.0 — MIT/Apache-2.0
+- fresh 2.0.0 — MIT
+- function-bind 1.1.2 — MIT
+- funty 2.0.0 — MIT
+- get-intrinsic 1.3.0 — MIT
+- get-proto 1.0.1 — MIT
+- global-agent 3.0.0 — BSD-3-Clause
+- globalthis 1.0.4 — MIT
+- gopd 1.2.0 — MIT
+- guid-typescript 1.0.9 — ISC
+- harfbuzzjs 1.5.0 — MIT
+- harfrust 0.10.0 — MIT
+- has-property-descriptors 1.0.2 — MIT
+- has-symbols 1.1.0 — MIT
+- hashbrown 0.17.1 — MIT OR Apache-2.0
+- hasown 2.0.4 — MIT
+- hono 4.13.0 — MIT
+- http-errors 2.0.1 — MIT
+- iconv-lite 0.7.3 — MIT
+- icu_collections 2.1.1 — Unicode-3.0
+- icu_locale 2.1.1 — Unicode-3.0
+- icu_locale_core 2.2.0 — Unicode-3.0
+- icu_locale_data 2.1.2 — Unicode-3.0
+- icu_normalizer 2.1.1 — Unicode-3.0
+- icu_normalizer_data 2.1.1 — Unicode-3.0
+- icu_properties 2.1.2 — Unicode-3.0
+- icu_properties_data 2.1.2 — Unicode-3.0
+- icu_provider 2.2.0 — Unicode-3.0
+- icu_segmenter 2.1.2 — Unicode-3.0
+- icu_segmenter_data 2.1.1 — Unicode-3.0
+- inherits 2.0.4 — ISC
+- ipaddr.js 1.9.1 — MIT
+- is-promise 4.0.0 — MIT
+- itoa 1.0.18 — MIT OR Apache-2.0
+- json-stringify-safe 5.0.1 — ISC
+- libc 0.2.189 — MIT OR Apache-2.0
+- linebender_resource_handle 0.1.1 — Apache-2.0 OR MIT
+- litemap 0.8.2 — Unicode-3.0
+- long 5.3.2 — Apache-2.0
+- matcher 3.0.0 — MIT
+- math-intrinsics 1.1.0 — MIT
+- media-typer 1.1.1 — MIT
+- memchr 2.8.3 — Unlicense OR MIT
+- memmap2 0.9.11 — MIT OR Apache-2.0
+- merge-descriptors 2.0.0 — MIT
+- mime-db 1.54.0 — MIT
+- mime-types 3.0.2 — MIT
+- minipass 7.1.3 — BlueOak-1.0.0
+- minizlib 3.1.0 — MIT
+- ms 2.1.3 — MIT
+- negotiator 1.0.0 — MIT
+- node-readable-to-web-readable-stream 0.4.2 — MIT
+- object-assign 4.1.1 — MIT
+- object-inspect 1.13.4 — MIT
+- object-keys 1.1.1 — MIT
+- on-finished 2.4.1 — MIT
+- once 1.4.0 — ISC
+- once_cell 1.21.4 — MIT OR Apache-2.0
+- onnxruntime-common 1.21.0 — MIT
+- onnxruntime-common 1.22.0-dev.20250409-89f8206ba4 — MIT
+- onnxruntime-node 1.21.0 — MIT
+- onnxruntime-web 1.22.0-dev.20250409-89f8206ba4 — MIT
+- pako 1.0.11 — (MIT AND Zlib)
+- pako 2.1.0 — (MIT AND Zlib)
+- parlance 0.1.0 — Apache-2.0 OR MIT
+- parley 0.11.0 — Apache-2.0 OR MIT
+- parley_data 0.11.0 — Apache-2.0 OR MIT
+- parseurl 1.3.3 — MIT
+- paste 1.0.15 — MIT OR Apache-2.0
+- path-to-regexp 8.4.2 — MIT
+- pdf-lib 1.17.1 — MIT
+- pdfjs-dist 5.4.624 — Apache-2.0
+- platform 1.3.6 — MIT
+- potential_utf 0.1.5 — Unicode-3.0
+- proc-macro2 1.0.107 — MIT OR Apache-2.0
+- protobufjs 7.6.5 — BSD-3-Clause
+- proxy-addr 2.0.7 — MIT
+- qs 6.15.3 — BSD-3-Clause
+- quote 1.0.47 — MIT OR Apache-2.0
+- radium 0.7.0 — MIT
+- range-parser 1.3.0 — MIT
+- raw-body 3.0.2 — MIT
+- react 19.2.8 — MIT
+- react-dom 19.2.8 — MIT
+- read-fonts 0.40.2 — MIT OR Apache-2.0
+- roarr 2.15.4 — BSD-3-Clause
+- router 2.2.0 — MIT
+- rustversion 1.0.23 — MIT OR Apache-2.0
+- safer-buffer 2.1.2 — MIT
+- safer-bytes 0.2.0 — MIT
+- scheduler 0.27.0 — MIT
+- semver 7.8.5 — ISC
+- semver-compare 1.0.0 — MIT
+- send 1.2.1 — MIT
+- serde 1.0.228 — MIT OR Apache-2.0
+- serde_core 1.0.228 — MIT OR Apache-2.0
+- serde_derive 1.0.228 — MIT OR Apache-2.0
+- serde_json 1.0.149 — MIT OR Apache-2.0
+- serialize-error 7.0.1 — MIT
+- serve-static 2.2.1 — MIT
+- setprototypeof 1.2.0 — ISC
+- side-channel 1.1.1 — MIT
+- side-channel-list 1.0.1 — MIT
+- side-channel-map 1.0.1 — MIT
+- side-channel-weakmap 1.0.2 — MIT
+- skrifa 0.43.2 — MIT OR Apache-2.0
+- smallvec 1.15.2 — MIT OR Apache-2.0
+- sprintf-js 1.1.3 — BSD-3-Clause
+- stable_deref_trait 1.2.1 — MIT OR Apache-2.0
+- statuses 2.0.2 — MIT
+- syn 2.0.119 — MIT OR Apache-2.0
+- syn 3.0.3 — MIT OR Apache-2.0
+- synstructure 0.13.2 — MIT
+- tap 1.0.1 — MIT
+- tar 7.5.22 — BlueOak-1.0.0
+- thiserror 1.0.69 — MIT OR Apache-2.0
+- thiserror-impl 1.0.69 — MIT OR Apache-2.0
+- tinystr 0.8.3 — Unicode-3.0
+- toidentifier 1.0.1 — MIT
+- tslib 1.14.1 — 0BSD
+- tslib 2.8.1 — 0BSD
+- type-fest 0.13.1 — (MIT OR CC0-1.0)
+- type-is 2.1.0 — MIT
+- undici-types 8.3.0 — MIT
+- unicode-ident 1.0.24 — (MIT OR Apache-2.0) AND Unicode-3.0
+- unpipe 1.0.0 — MIT
+- utf8_iter 1.0.4 — Apache-2.0 OR MIT
+- vary 1.1.2 — MIT
+- wasm-bindgen 0.2.126 — MIT OR Apache-2.0
+- wasm-bindgen-macro 0.2.126 — MIT OR Apache-2.0
+- wasm-bindgen-macro-support 0.2.126 — MIT OR Apache-2.0
+- wasm-bindgen-shared 0.2.126 — MIT OR Apache-2.0
+- wasm-vips 0.0.18 — MIT
+- woff-lib 0.0.3 — MIT
+- woff2-patched 0.4.0 — Apache-2.0
+- wrappy 1.0.2 — ISC
+- writeable 0.6.3 — Unicode-3.0
+- wyz 0.5.1 — MIT
+- yallist 5.0.0 — BlueOak-1.0.0
+- yoke 0.8.3 — Unicode-3.0
+- yoke-derive 0.8.2 — Unicode-3.0
+- zeno 0.3.3 — Apache-2.0 OR MIT
+- zerofrom 0.1.8 — Unicode-3.0
+- zerofrom-derive 0.1.7 — Unicode-3.0
+- zerotrie 0.2.4 — Unicode-3.0
+- zerovec 0.11.6 — Unicode-3.0
+- zerovec-derive 0.11.3 — Unicode-3.0
+- zmij 1.0.23 — MIT
+- zod 4.4.3 — MIT
+
+Bundled notice sets:
+- wasm-vips codec bundle: node_modules/wasm-vips/THIRD-PARTY-NOTICES.md
+- Electron and Chromium runtime: node_modules/electron/dist/LICENSES.chromium.html

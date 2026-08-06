@@ -11,7 +11,7 @@ import {
 } from 'electron';
 import { createServer, type Server } from 'node:http';
 import { createHash } from 'node:crypto';
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
@@ -28,6 +28,14 @@ import {
   type PersistedRecentFile
 } from './recentFiles';
 import { WindowsSystemFontCatalog } from './systemFonts';
+import {
+  releaseChannelFor,
+  fetchUpdateManifest,
+  verifyUpdateArtifact,
+  verifyUpdateManifest,
+  type SignedUpdateManifest
+} from './releaseUpdate';
+import type { LightTableUpdateResult } from '@lighttable/app';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -35,6 +43,7 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 let mainWindow: BrowserWindow | null = null;
 let rendererOrigin = '';
 let packagedRendererServer: Server | null = null;
+let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath: string } | null = null;
 
 const automationUserData = process.env.LIGHTTABLE_AUTOMATION_USER_DATA;
 if (automationUserData) app.setPath('userData', path.resolve(automationUserData));
@@ -42,6 +51,21 @@ if (automationUserData) app.setPath('userData', path.resolve(automationUserData)
 const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
+const releaseChannel = releaseChannelFor(
+  app.getVersion(),
+  app.isPackaged,
+  process.env.LIGHTTABLE_RELEASE_CHANNEL
+);
+const releaseInfo = () => ({
+  version: app.getVersion(),
+  channel: releaseChannel,
+  build: process.env.LIGHTTABLE_BUILD_ID || `local-${process.platform}-${process.arch}`,
+  packaged: app.isPackaged,
+  signed: process.env.LIGHTTABLE_RELEASE_SIGNED === 'true',
+  updateConfigured: Boolean(
+    process.env.LIGHTTABLE_UPDATE_MANIFEST_URL && process.env.LIGHTTABLE_UPDATE_PUBLIC_KEY_PEM
+  )
+});
 const recoveryStore = new DesktopRecoveryStore(
   path.join(app.getPath('userData'), 'recovery-v1'),
   undefined,
@@ -536,6 +560,84 @@ void app.whenReady().then(async () => {
       throw new Error('Invalid system-font request.');
     }
     return systemFonts.load(assetId);
+  });
+
+  ipcMain.handle('lighttable:release-info', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return releaseInfo();
+  });
+
+  ipcMain.handle('lighttable:check-updates', async (event): Promise<LightTableUpdateResult> => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const manifestUrl = process.env.LIGHTTABLE_UPDATE_MANIFEST_URL;
+    const publicKeyPem = process.env.LIGHTTABLE_UPDATE_PUBLIC_KEY_PEM?.replaceAll('\\n', '\n');
+    if (!manifestUrl || !publicKeyPem) {
+      return { status: 'unavailable', message: 'No signed update provider is configured for this build.' };
+    }
+    const controller = new AbortController();
+    const timeout = globalThis.setTimeout(() => controller.abort(), 15_000);
+    try {
+      const manifestResponse = await fetchUpdateManifest(manifestUrl, controller.signal);
+      if (!manifestResponse.ok) return manifestResponse;
+      const decision = verifyUpdateManifest({
+        value: manifestResponse.value,
+        publicKeyPem,
+        currentVersion: app.getVersion(),
+        currentChannel: releaseChannel
+      });
+      if (decision.status === 'invalid') return decision;
+      if (decision.status !== 'available') {
+        return { status: decision.status, version: decision.manifest.version };
+      }
+      const artifactResponse = await fetch(decision.manifest.artifact.url, { signal: controller.signal });
+      if (!artifactResponse.ok) {
+        return { status: 'unavailable', message: `Update download returned HTTP ${artifactResponse.status}.` };
+      }
+      const bytes = new Uint8Array(await artifactResponse.arrayBuffer());
+      const checked = verifyUpdateArtifact(decision.manifest, bytes);
+      if (!checked.ok) return { status: 'invalid', message: checked.message };
+      const updatePath = path.join(
+        app.getPath('userData'),
+        'updates',
+        `LightTable-${decision.manifest.version}.update`
+      );
+      await mkdir(path.dirname(updatePath), { recursive: true });
+      await atomicWriteFile({
+        targetPath: updatePath,
+        bytes,
+        validate: async (temporaryPath, expected) => {
+          const prepared = await stat(temporaryPath);
+          if (!prepared.isFile() || prepared.size !== expected.byteLength) {
+            throw new Error('The prepared update length changed before publication.');
+          }
+        }
+      });
+      pendingUpdate = { manifest: decision.manifest, filePath: updatePath };
+      return {
+        status: 'downloaded',
+        version: decision.manifest.version,
+        releaseNotes: decision.manifest.releaseNotes,
+        canInstall: false
+      };
+    } catch (reason) {
+      return controller.signal.aborted
+        ? { status: 'canceled', message: 'The update check was canceled or timed out.' }
+        : { status: 'unavailable', message: reason instanceof Error ? reason.message : String(reason) };
+    } finally {
+      globalThis.clearTimeout(timeout);
+    }
+  });
+
+  ipcMain.handle('lighttable:restart-update', (event, dirtyDocuments: boolean) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (dirtyDocuments) {
+      return { status: 'blocked', message: 'Save or close dirty documents before restarting.' };
+    }
+    if (!pendingUpdate) return { status: 'unavailable', message: 'No verified update is downloaded.' };
+    return {
+      status: 'unavailable',
+      message: `The update is verified at ${pendingUpdate.filePath}, but no production installer provider is configured.`
+    };
   });
 
   ipcMain.handle('lighttable:confirm-discard-changes', async (event, documentTitle: string) => {

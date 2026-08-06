@@ -1,0 +1,66 @@
+# Task 086 — desktop release, update and signing boundary (P0)
+
+Priority: P0. Depends on Task 083. Expected effort: 6–10 focused hours.
+
+## Objective
+
+Produce a repeatable release-candidate desktop artifact with truthful version,
+channel, update and signature verification boundaries. No production secret is
+required for local verification.
+
+## Required work
+
+- Inventory Forge/package outputs, bundled runtime assets and host permissions.
+- Define dev/preview/stable channels, semantic version source and build metadata.
+- Add deterministic installer/package verification and clean-machine smoke.
+- Introduce a signing/notarization capability boundary with unsigned local test
+  mode; never commit certificates, tokens or provider credentials.
+- Define a signed update manifest and verify signature/hash before offering an
+  update. A failed check must leave the running installation untouched.
+- Add rollback/version compatibility rules for native documents and recovery
+  records; do not promise old alpha compatibility.
+- Produce an SBOM/notices artifact from the existing generated inventory.
+
+## UI exposure
+
+Use About/Update surfaces built from existing controls: version, channel,
+Check for updates, downloaded state, release notes and explicit restart action.
+Never force restart while documents are dirty.
+
+## Verification and completion
+
+- Package, install/unpack and launch in a clean temporary user-data directory.
+- Test valid, tampered, older, unavailable and canceled update manifests.
+- Distribution boundary, licenses, CSP and ordinary open/save smoke pass.
+- Document external production signing steps as unavailable until credentials
+  exist; local signature-verification tests must still pass.
+- Commit one cohesive release boundary and move to done.
+
+## Completion evidence (2026-08-06)
+
+- Product/desktop/web now share semantic version `0.1.0-alpha.1`; packaged About
+  reports preview channel, build ID, package/signature state and update config.
+- Forge emits an ASAR-packed unpacked app plus a working Windows Squirrel setup,
+  full NuGet package and RELEASES index. The maker scope-name failure found by
+  the first run was fixed with an explicit product name.
+- Added Ed25519 signed manifest verification, channel/SemVer policy, exact
+  artifact length/SHA-256 validation and atomic private publication. Invalid,
+  tampered, older, channel-blocked, unavailable and canceled/timed-out cases
+  leave the running install untouched.
+- Help > About LightTable and the start page expose the same existing-control
+  About/Update UI. It shows release notes/download state; restart stays disabled
+  without a production installer and is blocked whenever documents are dirty.
+- Local builds are explicitly unsigned. macOS signing/notarization is enabled
+  only through CI secrets; Windows Authenticode and production install handoff
+  remain documented external credential/provider gates. No secrets were added.
+- Generated CycloneDX 1.5 SBOM and notices cover 264 runtime components. Package
+  verification hashed 75 files, verified the 40,788,637-byte ASAR, licenses,
+  maker/version outputs and absence of work queues or credential-shaped files.
+- The packaged clean-user-data smoke opened TextTest, verified sandbox/no Node,
+  cross-origin isolation and strict CSP, exercised launcher and editor About,
+  checked the honest unavailable-provider result, saved/reopened through the
+  ordinary host path and produced no page errors. Final UI screenshot inspected.
+- `npm run quality:agent -- --quick` passed all boundaries, architecture/source
+  audits, workspace typechecks, 316 app files / 1,685 tests, desktop 6 files /
+  30 tests, remaining workspace suites and web production build. Final packaged
+  build, release verifier, release smoke and Squirrel make pass.

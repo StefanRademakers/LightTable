@@ -2,7 +2,7 @@ import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import type { BlendMode } from '../document/blendModes';
 import type { LightTableRecentFile } from '../../../platform/LightTableHost';
 
-export type EditorMenuId = 'file' | 'edit' | 'select' | 'layer' | 'type' | 'view';
+export type EditorMenuId = 'file' | 'edit' | 'select' | 'layer' | 'type' | 'view' | 'help';
 
 export interface EditorMenuLayerState {
   type: 'raster' | 'group' | 'adjustment' | 'vector' | 'text';
@@ -97,6 +97,7 @@ export interface EditorMenuCommands {
   toggleScreenMode: () => void;
   showDebugPanel: () => void;
   resetWorkspaceLayout: () => void;
+  openAbout?: () => void;
 }
 
 const checkedLabel = (label: string, checked: boolean) => checked ? `${label} ✓` : label;
@@ -440,6 +441,10 @@ export const createEditorMenuOptions = (
       onClick: commands.convertTextToShape,
       disabled: !layer || layer.type !== 'text' || layer.locked
     }];
+  }
+
+  if (menu === 'help') {
+    return [{ value: 'about', label: 'About LightTable…', onClick: commands.openAbout }];
   }
 
   return [

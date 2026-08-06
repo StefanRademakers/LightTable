@@ -1,7 +1,7 @@
 {
   "name": "lighttable-workspace",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
   "type": "module",
   "workspaces": [
     "apps/*",
@@ -37,6 +37,8 @@
     "smoke:desktop:commands:build": "npm run package:desktop:verify && npm run smoke:desktop:commands --",
     "smoke:desktop:recovery": "node scripts/smoke-desktop-recovery.mjs",
     "smoke:desktop:recovery:build": "npm run package:desktop:verify && npm run smoke:desktop:recovery --",
+    "smoke:desktop:release": "node scripts/smoke-desktop-release.mjs",
+    "smoke:desktop:release:build": "npm run package:desktop:verify && npm run verify:desktop-release && npm run smoke:desktop:release --",
     "smoke:desktop:psd-roundtrip": "node scripts/smoke-desktop-psd-roundtrip.mjs",
     "smoke:desktop:psd-roundtrip:build": "npm run package:desktop:verify && npm run smoke:desktop:psd-roundtrip --",
     "verify:psd-render-parity": "node scripts/compare-psd-render.mjs",
@@ -86,6 +88,9 @@
     "audit:architecture-docs": "node scripts/audit-architecture-docs.mjs",
     "generate:third-party": "node scripts/generate-third-party-inventory.mjs",
     "verify:third-party": "node scripts/generate-third-party-inventory.mjs --check",
+    "generate:release-artifacts": "node scripts/generate-release-artifacts.mjs",
+    "verify:desktop-release": "node scripts/verify-desktop-release.mjs",
+    "sign:update-manifest": "node scripts/sign-update-manifest.mjs",
     "quality:agent": "node scripts/run-quality-gates.mjs",
     "mcp:server": "npm run start -w @lighttable/mcp-server",
     "mcp:bridge": "node scripts/lighttable-mcp-automation-bridge.mjs",

@@ -36,7 +36,11 @@ const bridge: LightTableDesktopBridge = {
   readClipboardPng: () =>
     ipcRenderer.invoke('lighttable:clipboard-read-png'),
   listSystemFonts: () => ipcRenderer.invoke('lighttable:list-system-fonts'),
-  loadSystemFont: (assetId: string) => ipcRenderer.invoke('lighttable:load-system-font', assetId)
+  loadSystemFont: (assetId: string) => ipcRenderer.invoke('lighttable:load-system-font', assetId),
+  releaseInfo: () => ipcRenderer.invoke('lighttable:release-info'),
+  checkForUpdates: () => ipcRenderer.invoke('lighttable:check-updates'),
+  restartToInstallUpdate: (dirtyDocuments: boolean) =>
+    ipcRenderer.invoke('lighttable:restart-update', dirtyDocuments)
 };
 
 contextBridge.exposeInMainWorld('lightTableDesktop', bridge);

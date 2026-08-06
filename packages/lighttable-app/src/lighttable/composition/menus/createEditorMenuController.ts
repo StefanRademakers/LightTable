@@ -190,7 +190,8 @@ export const createEditorMenuController = ({
       },
       showDebugPanel: workspace.showDebugPanel,
       toggleScreenMode: workspace.toggleScreenMode,
-      resetWorkspaceLayout: workspace.resetLayout
+      resetWorkspaceLayout: workspace.resetLayout,
+      openAbout: dialogs.openAbout
     }
   );
 

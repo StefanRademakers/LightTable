@@ -9,6 +9,8 @@ import { PdfExportPreflightDialog } from '../pdf/PdfExportPreflightDialog';
 import { MissingFontRecoveryDialog } from './MissingFontRecoveryDialog';
 import { FormatSupportDialog } from './FormatSupportDialog';
 import { FillDialog } from './FillDialog';
+import { AboutUpdateDialog } from './AboutUpdateDialog';
+import type { LightTableReleaseService } from '../../../platform/LightTableHost';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -35,6 +37,8 @@ export interface EditorDialogsProps {
   readonly onFlatten: () => void;
   readonly onConvertTextToShape: (layerId: LayerId) => void;
   readonly onError: (message: string) => void;
+  readonly release?: LightTableReleaseService;
+  readonly dirtyDocuments: boolean;
 }
 
 export const EditorDialogs = ({
@@ -52,7 +56,9 @@ export const EditorDialogs = ({
   onFill,
   onFlatten,
   onConvertTextToShape,
-  onError
+  onError,
+  release,
+  dirtyDocuments
 }: EditorDialogsProps) => (
   <>
     <FillDialog
@@ -147,6 +153,12 @@ export const EditorDialogs = ({
     <FormatSupportDialog
       open={controller.formatSupportOpen}
       onClose={controller.closeFormatSupport}
+    />
+    <AboutUpdateDialog
+      open={controller.aboutOpen}
+      release={release}
+      dirtyDocuments={dirtyDocuments}
+      onClose={controller.closeAbout}
     />
   </>
 );

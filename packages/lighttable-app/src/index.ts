@@ -102,6 +102,10 @@ export type {
   LightTableMediaBrowser,
   LightTableMediaItem,
   LightTableRecentFile,
+  LightTableReleaseChannel,
+  LightTableReleaseInfo,
+  LightTableReleaseService,
+  LightTableUpdateResult,
   LightTableSaveRequest
 } from './platform/LightTableHost';
 export {

@@ -26,7 +26,8 @@ const MENU_ITEMS: ReadonlyArray<{
   { id: 'select', label: 'Select' },
   { id: 'layer', label: 'Layer' },
   { id: 'type', label: 'Type' },
-  { id: 'view', label: 'View' }
+  { id: 'view', label: 'View' },
+  { id: 'help', label: 'Help' }
 ];
 
 /**

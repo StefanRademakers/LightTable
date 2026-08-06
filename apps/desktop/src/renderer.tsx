@@ -27,6 +27,12 @@ const desktopFile = (payload: DesktopFilePayload | null) => {
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  release: {
+    info: () => window.lightTableDesktop.releaseInfo(),
+    checkForUpdates: () => window.lightTableDesktop.checkForUpdates(),
+    restartToInstall: ({ dirtyDocuments }) =>
+      window.lightTableDesktop.restartToInstallUpdate(dirtyDocuments)
+  },
   recovery: {
     async write({ documentId, record, artifact }) {
       return window.lightTableDesktop.writeRecovery({

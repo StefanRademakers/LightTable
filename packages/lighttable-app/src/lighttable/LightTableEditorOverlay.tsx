@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
-import {
-  DocumentCommandHistory
-} from './application/commands/documentCommandHistory';
+import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId,
@@ -20,9 +18,7 @@ import type {
   DocumentSession,
   DocumentSessionId
 } from './application/documents/documentSession';
-import {
-  DocumentTaskRegistry
-} from './application/tasks/documentTaskRegistry';
+import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
 import {
   DocumentRendererLifecycle
 } from './application/rendering/documentRendererLifecycle';
@@ -403,6 +399,7 @@ export interface LightTableEditorOverlayProps {
   commandPorts?: LightTableCommandPortRegistry;
   imageClipboard?: LightTableImageClipboard;
   recoveryStore?: LightTableRecoveryStore;
+  releaseService?: import('../platform/LightTableHost').LightTableReleaseService;
   recoveryNotice?: string | null;
   onRecoveryResolved?: () => Promise<void> | void;
 }
@@ -448,6 +445,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   commandPorts,
   imageClipboard: providedImageClipboard,
   recoveryStore,
+  releaseService,
   recoveryNotice = null,
   onRecoveryResolved
 }) => {
@@ -3965,7 +3963,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onFill: fillActiveTarget,
             onFlatten: commitFlattenRequest,
             onConvertTextToShape: commitTextToShape,
-            onError: setError
+            onError: setError,
+            release: releaseService,
+            dirtyDocuments: Boolean(workspaceDocuments?.some(({ dirty }) => dirty))
           }}
           toolOptions={toolOptionsMenu ? {
             x: toolOptionsMenu.x,

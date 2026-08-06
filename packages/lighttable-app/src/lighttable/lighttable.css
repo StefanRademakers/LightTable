@@ -4257,3 +4257,31 @@
   font-size: var(--lt-type-body);
   text-align: center;
 }
+.lighttable-about {
+  width: min(520px, calc(100vw - 32px));
+  height: auto;
+  min-height: 0;
+  max-height: calc(100vh - 32px);
+}
+
+.lighttable-about__body {
+  padding: var(--lt-space-4);
+  display: grid;
+  gap: var(--lt-space-4);
+}
+
+.lighttable-about__body dl,
+.lighttable-about__body dl div {
+  margin: 0;
+}
+
+.lighttable-about__body dl div {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: var(--lt-space-3);
+  padding-block: var(--lt-space-1);
+}
+
+.lighttable-about__body dt { color: var(--lt-text-muted); }
+.lighttable-about__body dd { margin: 0; overflow-wrap: anywhere; }
+.lighttable-about__actions { display: flex; gap: var(--lt-space-2); }

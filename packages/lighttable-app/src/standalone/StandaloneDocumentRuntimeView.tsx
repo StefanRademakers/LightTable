@@ -110,6 +110,7 @@ export function StandaloneDocumentRuntimeView({
         commandPorts={commandPorts}
         imageClipboard={host.clipboard}
         recoveryStore={host.recovery}
+        releaseService={host.release}
         recoveryNotice={document.runtime.recovery
           ? `${document.runtime.recovery.crashLoop ? 'Safe mode: ' : ''}Recovered copy of ${document.runtime.recovery.originalName}. Save creates a new file.`
           : null}

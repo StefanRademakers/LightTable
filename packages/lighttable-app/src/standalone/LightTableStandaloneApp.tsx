@@ -34,6 +34,7 @@ import type {
   LightTableRecoveryListing,
   LightTableRecoveryRecord
 } from '../platform/LightTableRecoveryStore';
+import { AboutUpdateDialog } from '../lighttable/editor/ui/AboutUpdateDialog';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -119,6 +120,7 @@ export function LightTableStandaloneApp({
   const [opening, setOpening] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
   const [recoveryListing, setRecoveryListing] = useState<LightTableRecoveryListing>({
     records: [],
@@ -502,6 +504,9 @@ export function LightTableStandaloneApp({
               </div>
             </section>
           ) : null}
+          <button className="action-button lighttable-launcher__about" type="button" onClick={() => setAboutOpen(true)}>
+            About LightTable
+          </button>
         </div>
         <NewDocumentDialog
           open={newDialogOpen}
@@ -509,6 +514,12 @@ export function LightTableStandaloneApp({
           creating={creating}
           onCancel={() => setNewDialogOpen(false)}
           onCreate={(size) => void createDocument(size)}
+        />
+        <AboutUpdateDialog
+          open={aboutOpen}
+          release={host.release}
+          dirtyDocuments={false}
+          onClose={() => setAboutOpen(false)}
         />
       </main>
     );

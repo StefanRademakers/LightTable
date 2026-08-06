@@ -642,3 +642,6 @@
   display: flex;
   gap: 8px;
 }
+.lighttable-launcher__about {
+  justify-self: start;
+}

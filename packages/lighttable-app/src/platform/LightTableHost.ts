@@ -54,12 +54,43 @@ export interface LightTableRecentFile {
   thumbnailUrl?: string;
 }
 
+export type LightTableReleaseChannel = 'dev' | 'preview' | 'stable';
+
+export interface LightTableReleaseInfo {
+  readonly version: string;
+  readonly channel: LightTableReleaseChannel;
+  readonly build: string;
+  readonly packaged: boolean;
+  readonly signed: boolean;
+  readonly updateConfigured: boolean;
+}
+
+export type LightTableUpdateResult =
+  | { readonly status: 'current' | 'older' | 'channel-blocked'; readonly version: string }
+  | {
+      readonly status: 'downloaded';
+      readonly version: string;
+      readonly releaseNotes: string;
+      readonly canInstall: boolean;
+    }
+  | { readonly status: 'unavailable' | 'invalid' | 'canceled'; readonly message: string };
+
+export interface LightTableReleaseService {
+  info(): Promise<LightTableReleaseInfo>;
+  checkForUpdates(): Promise<LightTableUpdateResult>;
+  restartToInstall(options: { readonly dirtyDocuments: boolean }): Promise<{
+    readonly status: 'restarting' | 'blocked' | 'unavailable';
+    readonly message?: string;
+  }>;
+}
+
 export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
   readonly media?: LightTableMediaBrowser;
   readonly clipboard?: LightTableImageClipboard;
   readonly systemFontProvider?: SystemFontByteProvider;
   readonly recovery?: LightTableRecoveryStore;
+  readonly release?: LightTableReleaseService;
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;

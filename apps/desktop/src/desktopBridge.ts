@@ -1,7 +1,9 @@
 import type {
   LightTableRecoveryListing,
   LightTableRecoveryRecord,
-  LightTableRecoveryWriteResult
+  LightTableRecoveryWriteResult,
+  LightTableReleaseInfo,
+  LightTableUpdateResult
 } from '@lighttable/app';
 
 export interface DesktopFilePayload {
@@ -96,4 +98,10 @@ export interface LightTableDesktopBridge {
   readClipboardPng(): Promise<Uint8Array | null>;
   listSystemFonts(): Promise<readonly DesktopSystemFontAsset[]>;
   loadSystemFont(assetId: string): Promise<Uint8Array | null>;
+  releaseInfo(): Promise<LightTableReleaseInfo>;
+  checkForUpdates(): Promise<LightTableUpdateResult>;
+  restartToInstallUpdate(dirtyDocuments: boolean): Promise<{
+    readonly status: 'restarting' | 'blocked' | 'unavailable';
+    readonly message?: string;
+  }>;
 }
