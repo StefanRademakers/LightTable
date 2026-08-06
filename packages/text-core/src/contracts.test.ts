@@ -134,6 +134,31 @@ describe('text document contracts', () => {
     }
   });
 
+  it('round-trips explicit font replacement provenance without changing the source request', () => {
+    const layer = createDefaultTextLayerData();
+    if (layer.source.kind !== 'flow') throw new Error('Expected flow text.');
+    const run = layer.source.styleRuns[0]!;
+    const candidate = {
+      ...layer,
+      source: { ...layer.source, styleRuns: [{
+        ...run,
+        requestedFont: {
+          families: ['Replacement Sans'],
+          preferredAsset: CONTRACT_FIXTURE_FONT_ASSET,
+          replacement: {
+            original: structuredCloneValue(run.requestedFont),
+            originalStyle: {
+              weight: run.fontWeight, stretch: run.fontStretch, fontStyle: run.fontStyle
+            },
+            replacementAsset: CONTRACT_FIXTURE_FONT_ASSET
+          }
+        }
+      }] }
+    };
+
+    expect(parseTextLayerData(JSON.parse(JSON.stringify(candidate)) as unknown)).toEqual(candidate);
+  });
+
   it('round-trips semantic text warp data and rejects malformed custom meshes', () => {
     const layer = {
       ...createDefaultTextLayerData(),

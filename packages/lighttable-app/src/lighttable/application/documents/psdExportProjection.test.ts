@@ -14,6 +14,8 @@ import { projectDocumentToPsd } from './psdExportProjection';
 import { readPsdColorProfile } from '../../image-io/psdColorProfile';
 import { appendPsdImageResource } from './psdImageResourceWriter';
 import { srgbIccProfileBytes } from '../../editor/color/srgbIccProfile';
+import { replaceMissingTextFont } from '../text/replaceMissingTextFont';
+import type { DocumentFontAsset } from '../../editor/document/documentTypes';
 
 const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -22,6 +24,32 @@ const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
 };
 
 describe('PSD export projection', () => {
+  it('writes an accepted replacement as editable Photoshop text', () => {
+    const document = createImageDocument('Replacement', 320, 240, 'background');
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Recovered text');
+    document.layers.push(text);
+    const replacement: DocumentFontAsset = {
+      assetId: 'replacement-face', faceIndex: 0, fingerprintSha256: 'e'.repeat(64),
+      source: 'system', container: 'sfnt', outline: 'truetype',
+      postScriptName: 'ReplacementSans-Bold',
+      embedding: { level: 'editable', noSubsetting: false, bitmapOnly: false },
+      familyNames: ['Replacement Sans'], styleName: 'Bold', weight: 700,
+      stretch: 100, italic: false, byteLength: 2048
+    };
+    const replaced = replaceMissingTextFont(document, text.id, replacement);
+    const projection = projectDocumentToPsd(
+      replaced, pixels(320, 240), [{ layerId: document.layers[0]!.id, pixels: pixels(320, 240) }]
+    );
+    const decoded = readPsd(writePsdUint8Array(projection.psd, {
+      noBackground: true, trimImageData: true, invalidateTextLayers: false
+    }), { useImageData: true, skipLayerImageData: true, skipCompositeImageData: true, skipThumbnail: true });
+
+    expect(projection.editableTextLayers).toBe(1);
+    expect(decoded.children?.[1]?.text).toMatchObject({
+      text: 'Text', style: { font: { name: 'ReplacementSans-Bold' } }
+    });
+  });
+
   it('roundtrips groups, raster metadata, editable text, vectors and effects through ag-psd', () => {
     const document = createImageDocument('Roundtrip', 320, 240, 'background');
     const raster = document.layers[0]!;

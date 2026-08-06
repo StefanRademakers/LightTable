@@ -160,10 +160,7 @@ import { FlowTextEditingSessionController } from './application/text/flowTextEdi
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
 import { PathTextHandleController } from './application/text/PathTextHandleController';
-import {
-  replaceMissingTextFont,
-  replaceMissingTextFonts
-} from './application/text/replaceMissingTextFont';
+import { useMissingFontReplacementActions } from './application/text/useMissingFontReplacementActions';
 import { hitTestTextEditingLayout } from './application/text/textEditingHitTest';
 import { TextLayerMoveGestureController } from './application/text/TextLayerMoveGestureController';
 import {
@@ -800,6 +797,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const textFontRuntimePort = useMemo(() => ({
     get revision() { return textFontRegistry.availabilityRevision; },
     get assets() { return textFontRegistry.availableAssets; },
+    get loadedByteSize() { return textFontRegistry.byteSize; },
     bytes: (assetId: string) => textFontRegistry.bytes(assetId),
     subscribe: (listener: () => void) => textFontRegistry.subscribeAvailability(listener)
   }), [textFontRegistry]);
@@ -2142,11 +2140,46 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (layer?.type === 'text'
       && layer.text.source.kind === 'flow'
       && unresolved) {
-      editorDialogs.requestMissingFontRecovery({ layerId, offset, affinity });
+      const diagnostic = fontDiagnostics.find((entry) => (
+        entry.layerId === layerId
+        && entry.issue === 'font-missing'
+        && entry.sourceIdentity
+      )) ?? fontDiagnostics.find((entry) => (
+        entry.layerId === layerId && entry.sourceIdentity
+      ));
+      if (!diagnostic?.sourceIdentity) return false;
+      editorDialogs.requestMissingFontRecovery({
+        layerId,
+        sourceIdentity: diagnostic.sourceIdentity,
+        requestedFont: diagnostic.requestedFont,
+        layerName: diagnostic.layerName,
+        metricsChanged: diagnostic.metricsChanged,
+        offset,
+        affinity
+      });
       return false;
     }
     return textEditingController.begin(layerId, offset, affinity);
   };
+
+  const missingFontReplacementActions = useMissingFontReplacementActions({
+    documentId: workspaceDocumentId,
+    documentRef: imageDocumentRef,
+    registry: textFontRegistry,
+    substitutionFamilies: DEFAULT_TEXT_SUBSTITUTION_FAMILIES,
+    applyDocument: applyDocumentSnapshot,
+    recordHistory: pushDocumentHistory,
+    closeRecovery: editorDialogs.closeMissingFontRecovery,
+    requestRecovery: editorDialogs.requestMissingFontRecovery,
+    beginEditing: (layerId, offset, affinity) => {
+      layerPanelController.select(layerId);
+      activatePersistentTool('text-point');
+      textEditingController.begin(layerId, offset, affinity ?? 'downstream');
+      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
+    },
+    setStatus: setGradeStatus,
+    setError
+  });
 
   const beginExistingFlowTextEditing = (
     point: { x: number; y: number },
@@ -3910,52 +3943,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               requestExistingFlowTextEditing(layerId);
               workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
             },
-            onReplaceTextFont: (layerId, assetId, offset, affinity) => {
-              void (async () => {
-                const bundled = await registerBundledTextFontByAssetId(textFontRegistry, assetId);
-                const asset = bundled
-                  ?? textFontRegistry.availableAssets.find((candidate) => candidate.assetId === assetId);
-                if (!asset) throw new Error('The selected replacement font is not available.');
-                const before = imageDocumentRef.current;
-                const layer = before ? findDocumentLayer(before, layerId) : null;
-                if (!before || layer?.type !== 'text' || layer.text.source.kind !== 'flow') return;
-                const requestedFont = fontDiagnostics.find((diagnostic) => (
-                  diagnostic.layerId === layerId && diagnostic.issue === 'font-missing'
-                ))?.requestedFont ?? undefined;
-                const after = replaceMissingTextFont(before, layerId, asset, requestedFont);
-                editorDialogs.closeMissingFontRecovery();
-                if (after !== before) {
-                  applyDocumentSnapshot(after);
-                  pushDocumentHistory(before, after);
-                }
-                layerPanelController.select(layerId);
-                activatePersistentTool('text-point');
-                textEditingController.begin(layerId, offset, affinity ?? 'downstream');
-                workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
-                setGradeStatus(`Replaced the unavailable font with ${asset.familyNames[0] ?? asset.styleName}.`);
-              })().catch((reason: unknown) => {
-                setError(reason instanceof Error ? reason.message : 'The replacement font could not be applied.');
-              });
-            },
-            onReplaceTextFonts: (layerIds, assetId, requestedFont) => {
-              void (async () => {
-                const bundled = await registerBundledTextFontByAssetId(textFontRegistry, assetId);
-                const asset = bundled
-                  ?? textFontRegistry.availableAssets.find((candidate) => candidate.assetId === assetId);
-                if (!asset) throw new Error('The selected replacement font is not available.');
-                const before = imageDocumentRef.current;
-                if (!before) return;
-                const after = replaceMissingTextFonts(before, layerIds, asset, requestedFont);
-                if (after === before) return;
-                applyDocumentSnapshot(after);
-                pushDocumentHistory(before, after);
-                setGradeStatus(
-                  `Replaced ${layerIds.length} ${layerIds.length === 1 ? 'layer' : 'layers'} with ${asset.familyNames[0] ?? asset.styleName}.`
-                );
-              })().catch((reason: unknown) => {
-                setError(reason instanceof Error ? reason.message : 'The document font replacement could not be applied.');
-              });
-            },
+            onPreviewTextFont: missingFontReplacementActions.preview,
+            onCancelTextFontPreview: missingFontReplacementActions.cancelPreview,
+            onReplaceTextFont: missingFontReplacementActions.replace,
+            onReplaceTextFonts: missingFontReplacementActions.replaceDocument,
             onFeather: featherCurrentSelection,
             foregroundColor: editorSession.brush.color,
             backgroundColor: editorSession.brush.backgroundColor,

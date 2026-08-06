@@ -47,6 +47,10 @@ const formatTimestamp = (timestamp: number) => new Date(timestamp).toLocaleTimeS
   { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }
 );
 
+const formatFontBytes = (bytes = 0) => bytes < 100 * 1024
+  ? `${Math.round(bytes / 1024)} KiB loaded`
+  : `${(bytes / (1024 * 1024)).toFixed(1)} MiB loaded`;
+
 export const DebugPanel: React.FC<DebugPanelProps> = ({
   messages,
   onClear,
@@ -288,6 +292,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           Coordinator: {textRenderTelemetry.coordinatorActive ? 'active' : 'suspended'}
           {' · '}{textRenderTelemetry.visibleTextLayerCount} visible text layer{textRenderTelemetry.visibleTextLayerCount === 1 ? '' : 's'}
           {' · '}{textRenderTelemetry.configuredFontCount} font face{textRenderTelemetry.configuredFontCount === 1 ? '' : 's'}
+          {' · '}{formatFontBytes(textRenderTelemetry.loadedFontBytes)}
           {' · '}{textRenderTelemetry.preparationStage}
           {textRenderTelemetry.preparationLayerId ? ` (${textRenderTelemetry.preparationLayerId})` : ''}
         </small>
@@ -298,6 +303,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           Coordinator: {textRenderTelemetry.coordinatorActive ? 'active' : 'suspended'}
           {' · '}{textRenderTelemetry.visibleTextLayerCount} visible text layer{textRenderTelemetry.visibleTextLayerCount === 1 ? '' : 's'}
           {' · '}{textRenderTelemetry.configuredFontCount} font face{textRenderTelemetry.configuredFontCount === 1 ? '' : 's'}
+          {' · '}{formatFontBytes(textRenderTelemetry.loadedFontBytes)}
           {' · '}{textRenderTelemetry.preparationStage}
           {textRenderTelemetry.preparationLayerId ? ` (${textRenderTelemetry.preparationLayerId})` : ''}
         </small>

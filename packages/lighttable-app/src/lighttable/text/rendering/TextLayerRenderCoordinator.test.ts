@@ -373,7 +373,7 @@ describe('TextLayerRenderCoordinator', () => {
 
     state.coordinator.resetDocument();
     expect(state.coordinator.snapshot()).toMatchObject({
-      configuredFontCount: 1,
+      configuredFontCount: 0,
       visibleTextLayerCount: 0,
       preparationStage: 'waiting-document'
     });

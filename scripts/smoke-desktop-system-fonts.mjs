@@ -69,25 +69,27 @@ try {
   await page.keyboard.press('t');
   await page.getByRole('button', { name: 'Type tool (T)', exact: true })
     .waitFor({ state: 'visible' });
-  const fontSelect = page.locator('[aria-label="Text settings"]').getByLabel('Font');
-  await fontSelect.locator(`option[value="${report.selected.family.replaceAll('"', '\\"')}"]`)
-    .waitFor({ state: 'attached', timeout: 30_000 });
-  await fontSelect.selectOption(report.selected.family);
+  const fontPicker = page.locator('.lighttable-tool-options__font-field .lighttable-font-picker__trigger');
+  await fontPicker.click();
+  await page.getByRole('searchbox', { name: 'Search fonts' }).fill(report.selected.family);
+  const fontOption = page.getByRole('option').filter({ hasText: report.selected.family }).first();
+  await fontOption.waitFor({ state: 'visible', timeout: 30_000 });
+  await fontOption.click();
   const viewport = page.locator('.lighttable-viewport');
   const viewportBox = await viewport.boundingBox();
   if (!viewportBox) throw new Error('The system-font smoke viewport has no bounds.');
   await page.mouse.click(viewportBox.x + viewportBox.width * 0.76, viewportBox.y + viewportBox.height * 0.28);
-  const creationDialog = page.getByRole('dialog', { name: 'Create text' });
-  await page.waitForTimeout(1_000);
-  await page.screenshot({ path: path.join(outputDirectory, 'system-font-authoring.png') });
-  await creationDialog.waitFor({ state: 'visible', timeout: 30_000 });
-  await creationDialog.getByLabel('Text').fill('System font via WASM and WebGPU');
-  await creationDialog.getByRole('button', { name: 'Create' }).click();
+  const textInput = page.getByRole('textbox', { name: /^Edit / });
+  await textInput.waitFor({ state: 'attached', timeout: 30_000 });
+  if (await page.getByRole('dialog', { name: 'Create text' }).count()) {
+    throw new Error('System-font authoring opened the legacy text creation dialog.');
+  }
+  await textInput.pressSequentially('System font via WASM and WebGPU');
   await page.locator('.lighttable-layer__text-status', { hasText: 'Flow' })
     .waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(1_000);
-  report.authoredText = await page.locator('.lighttable-layer__name').first().inputValue();
-  report.selectedFamilyInUi = await fontSelect.inputValue();
+  report.authoredText = await textInput.inputValue();
+  report.selectedFamilyInUi = await fontPicker.getAttribute('title');
   report.canvasCount = await page.locator('canvas').count();
   await page.screenshot({ path: path.join(outputDirectory, 'system-font-authoring.png') });
   if (
@@ -96,7 +98,7 @@ try {
     || !report.fingerprintMatches
     || report.loadedByteLength !== report.selected.byteLength
     || !report.authoredText.startsWith('System font via WASM')
-    || report.selectedFamilyInUi !== report.selected.family
+    || !report.selectedFamilyInUi?.startsWith(report.selected.family)
     || report.canvasCount < 1
     || pageErrors.length
   ) throw new Error(`System-font smoke failed: ${JSON.stringify({ report, pageErrors })}`);

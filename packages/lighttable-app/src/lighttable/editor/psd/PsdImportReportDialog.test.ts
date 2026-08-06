@@ -15,6 +15,9 @@ const diagnostic = (
   editable,
   issue: kind === 'missing' ? 'font-missing' : 'font-substituted',
   requestedFont: 'Example-Regular',
+  sourceIdentity: 'example-regular:400:normal',
+  runIndices: [0],
+  metricsChanged: false,
   status: {
     kind,
     label: kind === 'missing' ? 'Missing font' : 'Substituted',
@@ -61,6 +64,7 @@ describe('document compatibility report projection', () => {
       { ...diagnostic('missing', false), layerId: 'positioned' as never },
       diagnostic('substituted')
     ])).toEqual([{
+      sourceIdentity: 'example-regular:400:normal',
       requestedFont: 'Example-Regular',
       layerIds: ['layer-missing', 'layer-second'],
       layerNames: ['missing headline', 'Second headline']

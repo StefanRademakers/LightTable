@@ -13,6 +13,7 @@ import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   documentTextFontDiagnostics,
   summarizeTextFontDiagnostics,
+  textFontSourceIdentity,
   textLayerFontStatus
 } from './textLayerFontStatus';
 
@@ -109,5 +110,43 @@ describe('textLayerFontStatus', () => {
     })]);
     expect(summarizeTextFontDiagnostics(diagnostics))
       .toBe('1 text layer has missing glyphs');
+  });
+
+  it('reports each missing face/style identity in a mixed layer without double-counting layers', () => {
+    const text = createDefaultTextLayerData();
+    if (text.source.kind !== 'flow') throw new Error('Expected flow text.');
+    const run = text.source.styleRuns[0]!;
+    const document = createTextLayer(createImageDocument('Mixed', 32, 24, 'source'), {
+      ...text,
+      source: { ...text.source, styleRuns: [
+        { ...run, start: 0, end: 2, requestedFont: { families: ['Missing'] } },
+        { ...run, start: 2, end: 4, fontWeight: 700, requestedFont: { families: ['Missing'] } }
+      ] }
+    }, 'Mixed styles');
+    const diagnostics = documentTextFontDiagnostics(document, []);
+
+    expect(diagnostics).toHaveLength(2);
+    expect(new Set(diagnostics.map((entry) => entry.sourceIdentity)).size).toBe(2);
+    expect(diagnostics.map((entry) => entry.runIndices)).toEqual([[0], [1]]);
+    expect(summarizeTextFontDiagnostics(diagnostics)).toBe('1 text layer has a missing font');
+  });
+
+  it('keeps source identity stable after an explicit replacement', () => {
+    const input = {
+      requestedFont: { families: ['Original'] },
+      fontWeight: 400, fontStretch: 100, fontStyle: 'normal' as const
+    };
+    const identity = textFontSourceIdentity(input);
+    expect(textFontSourceIdentity({
+      requestedFont: {
+        families: ['Replacement'],
+        replacement: {
+          original: { families: ['Original'] },
+          originalStyle: { weight: 400, stretch: 100, fontStyle: 'normal' },
+          replacementAsset: CONTRACT_FIXTURE_FONT_ASSET
+        }
+      },
+      fontWeight: 700, fontStretch: 90, fontStyle: 'italic'
+    })).toBe(identity);
   });
 });

@@ -85,10 +85,28 @@ export interface FontInstance {
   readonly syntheticItalic: boolean;
 }
 
-export interface RequestedFont {
+export interface FontRequestSource {
   readonly families: readonly string[];
   readonly postScriptName?: string;
   readonly preferredAsset?: FontAssetRef;
+}
+
+/**
+ * Records an explicit user replacement without erasing the imported request.
+ * Passive font discovery must never populate this field.
+ */
+export interface FontReplacementProvenance {
+  readonly original: FontRequestSource;
+  readonly originalStyle: {
+    readonly weight: number;
+    readonly stretch: number;
+    readonly fontStyle: 'normal' | 'italic' | 'oblique';
+  };
+  readonly replacementAsset: FontAssetRef;
+}
+
+export interface RequestedFont extends FontRequestSource {
+  readonly replacement?: FontReplacementProvenance;
 }
 
 export interface TextStyleRun {

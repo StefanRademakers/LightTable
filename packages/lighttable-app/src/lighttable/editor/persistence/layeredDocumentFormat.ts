@@ -1023,9 +1023,9 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   if (!Array.isArray(rawFonts)) {
     throw new Error('The LightTable document font registry is invalid.');
   }
-  if (rawFonts.length > 256) {
-    throw new Error('The LightTable document exceeds the 256 font-face limit.');
-  }
+  if (rawFonts.length > 4_096) throw new Error('The LightTable document exceeds the 4096 font-reference limit.');
+  const portableFaceCount = rawFonts.filter((entry) => !isRecord(entry) || entry.source !== 'system').length;
+  if (portableFaceCount > 256) throw new Error('The LightTable document exceeds the 256 embedded font-face limit.');
   const budgetedFingerprints = new Set<string>();
   let budgetedFontBytes = 0;
   rawFonts.forEach((entry) => {

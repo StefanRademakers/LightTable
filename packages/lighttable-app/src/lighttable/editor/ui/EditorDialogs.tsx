@@ -22,13 +22,23 @@ export interface EditorDialogsProps {
   readonly onReplaceTextFont: (
     layerId: LayerId,
     assetId: string,
+    sourceIdentity: string,
+    requestedFont: string | null,
     offset?: number,
     affinity?: 'upstream' | 'downstream'
   ) => void;
+  readonly onPreviewTextFont: (
+    layerId: LayerId,
+    assetId: string,
+    sourceIdentity: string,
+    requestedFont: string | null
+  ) => void;
+  readonly onCancelTextFontPreview: () => void;
   readonly onReplaceTextFonts: (
     layerIds: readonly LayerId[],
     assetId: string,
-    requestedFont: string
+    requestedFont: string,
+    sourceIdentity: string
   ) => void;
   readonly onFeather: (radius: number) => void;
   readonly foregroundColor: string;
@@ -49,6 +59,8 @@ export const EditorDialogs = ({
   replacementFonts,
   onResolveTextFont,
   onReplaceTextFont,
+  onPreviewTextFont,
+  onCancelTextFontPreview,
   onReplaceTextFonts,
   onFeather,
   foregroundColor,
@@ -130,19 +142,39 @@ export const EditorDialogs = ({
     <MissingFontRecoveryDialog
       request={controller.missingFontRecoveryRequest}
       diagnostic={controller.missingFontRecoveryRequest
-        ? textFontDiagnostics.find(({ layerId }) =>
-            layerId === controller.missingFontRecoveryRequest?.layerId) ?? null
+        ? textFontDiagnostics.find(({ layerId, sourceIdentity }) =>
+            layerId === controller.missingFontRecoveryRequest?.layerId
+            && sourceIdentity === controller.missingFontRecoveryRequest?.sourceIdentity) ?? {
+              layerId: controller.missingFontRecoveryRequest.layerId,
+              layerName: controller.missingFontRecoveryRequest.layerName,
+              editable: true, issue: 'font-missing',
+              requestedFont: controller.missingFontRecoveryRequest.requestedFont,
+              sourceIdentity: controller.missingFontRecoveryRequest.sourceIdentity,
+              runIndices: [], metricsChanged: controller.missingFontRecoveryRequest.metricsChanged,
+              status: { kind: 'missing', label: 'Missing font', detail: 'Font replacement preview.' }
+            }
         : null}
       fonts={replacementFonts}
-      onCancel={controller.closeMissingFontRecovery}
+      onCancel={() => { onCancelTextFontPreview(); controller.closeMissingFontRecovery(); }}
       onManage={() => {
+        onCancelTextFontPreview();
         controller.closeMissingFontRecovery();
         controller.openPsdReport();
+      }}
+      onPreview={(assetId) => {
+        const request = controller.missingFontRecoveryRequest;
+        if (!request) return;
+        onPreviewTextFont(
+          request.layerId, assetId, request.sourceIdentity, request.requestedFont
+        );
       }}
       onReplace={(assetId) => {
         const request = controller.missingFontRecoveryRequest;
         if (!request) return;
-        onReplaceTextFont(request.layerId, assetId, request.offset, request.affinity);
+        onReplaceTextFont(
+          request.layerId, assetId, request.sourceIdentity, request.requestedFont,
+          request.offset, request.affinity
+        );
       }}
     />
     <PdfExportPreflightDialog

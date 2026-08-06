@@ -140,4 +140,43 @@ describe('native missing-font recovery round trip', () => {
     expect(layerDerivedPreviewIsCurrent(replaced)).toBe(false);
     expect(replacedDocument.assets.fonts).toContainEqual(replacement);
   });
+
+  it('persists replacement provenance and a retained fallback for reopen without replacement bytes', async () => {
+    const created = createTextLayer(
+      createImageDocument('Offline replacement', 400, 240, 'source'),
+      missingText(layouts[0]!), 'Offline replacement'
+    );
+    const layer = findDocumentLayer(created, created.activeLayerId!);
+    if (layer?.type !== 'text') throw new Error('Expected text layer.');
+    layer.derivedPreview = {
+      width: 128, height: 48, transform: translationMatrix(4, 6),
+      dependencyKey: semanticLayerDependencyKey(layer)!, source: 'photoshop-layer-preview'
+    };
+    const systemReplacement: DocumentFontAsset = { ...replacement, source: 'system' };
+    const replaced = replaceMissingTextFont(
+      created, layer.id, systemReplacement, missing.postScriptName
+    );
+    const file = buildLayeredDocumentFile(
+      new Blob([new Uint8Array([1])], { type: 'image/png' }), replaced,
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      [
+        { layerId: created.layers[0]!.id, pixels: new Blob([new Uint8Array([5])], { type: 'image/png' }), mask: null },
+        { layerId: layer.id, pixels: new Blob([new Uint8Array([2, 3, 4])], { type: 'image/png' }), mask: null }
+      ],
+      'offline-replacement.png'
+    );
+
+    const reopened = await parseLayeredDocumentFile(file);
+    const reopenedLayer = reopened ? findDocumentLayer(reopened.document, layer.id) : null;
+    if (reopenedLayer?.type !== 'text' || reopenedLayer.text.source.kind !== 'flow') {
+      throw new Error('Expected reopened flow text.');
+    }
+    expect(reopened?.fontAssets).toEqual([]);
+    expect(reopenedLayer.derivedPreview).toBeDefined();
+    expect(reopenedLayer.text.source.styleRuns[0]?.requestedFont.replacement).toMatchObject({
+      original: { postScriptName: missing.postScriptName },
+      replacementAsset: { assetId: replacement.assetId }
+    });
+    expect(textLayerFontStatus(reopenedLayer, [])).toMatchObject({ kind: 'missing' });
+  });
 });

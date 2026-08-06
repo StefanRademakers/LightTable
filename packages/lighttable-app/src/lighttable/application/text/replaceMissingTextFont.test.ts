@@ -64,7 +64,12 @@ describe('replaceMissingTextFont', () => {
       expect.objectContaining({
         requestedFont: expect.objectContaining({
           families: ['Source Serif 4'],
-          preferredAsset: expect.objectContaining({ assetId: 'replacement' })
+          preferredAsset: expect.objectContaining({ assetId: 'replacement' }),
+          replacement: expect.objectContaining({
+            original: expect.objectContaining({ families: expect.arrayContaining(['Inter']) }),
+            originalStyle: { weight: 400, stretch: 100, fontStyle: 'normal' },
+            replacementAsset: expect.objectContaining({ assetId: 'replacement' })
+          })
         })
       })
     ]);
@@ -128,5 +133,27 @@ describe('replaceMissingTextFont', () => {
       .toBe('replacement');
     expect(layer.text.source.styleRuns[1]?.requestedFont).toEqual({ families: ['Inter'] });
     expect(replaced.assets.fonts).toContainEqual(replacement);
+  });
+
+  it('keeps the first authored request when a replacement is replaced again', () => {
+    const document = createTextLayer(
+      createImageDocument('Replacement provenance', 320, 200, 'source'),
+      createDefaultTextLayerData(), 'Text'
+    );
+    const layerId = document.activeLayerId!;
+    const first = replaceMissingTextFont(document, layerId, replacement);
+    const alternative = {
+      ...replacement, assetId: 'alternative', fingerprintSha256: 'b'.repeat(64),
+      familyNames: ['Alternative Sans'], postScriptName: 'AlternativeSans-Bold',
+      styleName: 'Bold', weight: 700
+    };
+    const second = replaceMissingTextFont(first, layerId, alternative);
+    const layer = findDocumentLayer(second, layerId)!;
+    if (layer.type !== 'text' || layer.text.source.kind !== 'flow') throw new Error('Expected flow text.');
+    expect(layer.text.source.styleRuns[0]?.requestedFont.replacement).toMatchObject({
+      original: { families: expect.arrayContaining(['Inter']) },
+      originalStyle: { weight: 400, stretch: 100, fontStyle: 'normal' },
+      replacementAsset: { assetId: 'alternative' }
+    });
   });
 });

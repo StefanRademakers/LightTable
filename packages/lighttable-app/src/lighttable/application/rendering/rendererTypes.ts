@@ -45,6 +45,7 @@ export interface TextRenderPresentationSnapshot {
   readonly lastSourceDecision: string | null;
   readonly coordinatorActive: boolean;
   readonly configuredFontCount: number;
+  readonly loadedFontBytes?: number;
   readonly visibleTextLayerCount: number;
   readonly preparationStage: 'idle' | 'suspended' | 'waiting-document' | 'waiting-font-port' | 'waiting-fonts' | 'loading-runtime' | 'registering-fonts' | 'shaping' | 'rasterizing' | 'publishing' | 'failed';
   readonly preparationLayerId: string | null;

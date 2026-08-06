@@ -314,6 +314,15 @@ export class LayerCompositor {
         }
         const source = this.options.texts?.resolvePresentation(textNode, inheritedTransform) ?? null;
         if (!source) {
+          // A stale imported preview is still the safest visual fallback while an
+          // explicitly replaced font is unavailable or its exact source rebuild
+          // has not landed. Exact semantic text always wins as soon as it exists.
+          if (textNode.derivedPreview && layerResources.derivedPreview(textNode.id)) {
+            return renderDerivedPreview(
+              textNode, background, target, clippingTexture, inheritedTransform,
+              geometryPreview
+            );
+          }
           return renderVectorLayer(
             textPlaceholderVectorLayer(textNode),
             background,

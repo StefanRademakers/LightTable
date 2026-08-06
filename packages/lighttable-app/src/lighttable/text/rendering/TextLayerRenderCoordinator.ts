@@ -51,6 +51,7 @@ import {
 export interface TextFontRuntimePort {
   readonly revision: number;
   readonly assets: readonly DocumentFontAsset[];
+  readonly loadedByteSize?: number;
   bytes(assetId: string): Promise<Uint8Array | null>;
   subscribe(listener: () => void): () => void;
 }
@@ -421,7 +422,10 @@ export class TextLayerRenderCoordinator {
       lastSourceDecision: cost.lastDecision
         ? `${cost.lastDecision.mode}:${cost.lastDecision.reason}` : null,
       coordinatorActive: this.active,
-      configuredFontCount: this.fontPort?.assets.length ?? 0,
+      configuredFontCount: this.document && this.fontPort
+        ? referencedFontAssets(visibleTextLayers(this.document), this.fontPort.assets).length
+        : 0,
+      loadedFontBytes: this.fontPort?.loadedByteSize ?? 0,
       visibleTextLayerCount: this.visibleTextLayerCount,
       preparationStage: this.preparationStage,
       preparationLayerId: this.preparationLayerId,

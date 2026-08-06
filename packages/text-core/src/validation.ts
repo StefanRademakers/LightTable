@@ -199,6 +199,30 @@ const assertRequestedFont = (value: unknown, path: string): void => {
   });
   if (candidate.postScriptName !== undefined) boundedString(candidate.postScriptName, `${path}.postScriptName`);
   if (candidate.preferredAsset !== undefined) assertFontAsset(candidate.preferredAsset, `${path}.preferredAsset`);
+  if (candidate.replacement !== undefined) {
+    const replacement = record(candidate.replacement, `${path}.replacement`);
+    const original = record(replacement.original, `${path}.replacement.original`);
+    const originalFamilies = array(original.families, `${path}.replacement.original.families`, 64);
+    if (originalFamilies.length === 0) {
+      fail(`${path}.replacement.original.families`, 'at least one requested family is required');
+    }
+    originalFamilies.forEach((family, index) => {
+      if (!boundedString(family, `${path}.replacement.original.families[${index}]`, 256)) {
+        fail(`${path}.replacement.original.families[${index}]`, 'must not be empty');
+      }
+    });
+    if (original.postScriptName !== undefined) {
+      boundedString(original.postScriptName, `${path}.replacement.original.postScriptName`);
+    }
+    if (original.preferredAsset !== undefined) {
+      assertFontAsset(original.preferredAsset, `${path}.replacement.original.preferredAsset`);
+    }
+    const originalStyle = record(replacement.originalStyle, `${path}.replacement.originalStyle`);
+    numberInRange(originalStyle.weight, `${path}.replacement.originalStyle.weight`, 1, 1000);
+    numberInRange(originalStyle.stretch, `${path}.replacement.originalStyle.stretch`, 0.01, 10_000);
+    oneOf(originalStyle.fontStyle, `${path}.replacement.originalStyle.fontStyle`, ['normal', 'italic', 'oblique']);
+    assertFontAsset(replacement.replacementAsset, `${path}.replacement.replacementAsset`);
+  }
 };
 
 const assertFontResolution = (value: unknown, path: string): void => {

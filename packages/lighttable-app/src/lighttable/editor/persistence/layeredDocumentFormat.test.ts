@@ -461,6 +461,30 @@ describe('LightTable layered PNG format', () => {
     expect(parsed?.fontAssets).toEqual([]);
   });
 
+  it('allows more than 256 lazy system faces without embedding or loading bytes', async () => {
+    const document = createImageDocument('Large system catalog', 2, 2, 'source');
+    document.assets.fonts.push(...Array.from({ length: 300 }, (_, index): DocumentFontAsset => {
+      const fingerprintSha256 = index.toString(16).padStart(64, '0');
+      return {
+        assetId: `system:${fingerprintSha256}:0`, faceIndex: 0, fingerprintSha256,
+        source: 'system', container: 'sfnt', outline: 'truetype',
+        postScriptName: `SystemFace${index}-Regular`,
+        embedding: { level: 'restricted', noSubsetting: true, bitmapOnly: false },
+        familyNames: [`System Face ${index}`], styleName: 'Regular',
+        weight: 400, stretch: 100, italic: false, byteLength: 1_024
+      };
+    }));
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }), document, defaultStack(),
+      [{ layerId: document.layers[0].id, pixels: new Blob([BACKGROUND_PNG]), mask: null }],
+      'large-system-catalog.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    expect(parsed?.document.assets.fonts).toHaveLength(300);
+    expect(parsed?.fontAssets).toEqual([]);
+  });
+
   it('retains original Photoshop, PDF and Illustrator documents byte-exact', async () => {
     const document = createImageDocument('PSD source', 2, 2, 'source');
     const sourceId = 'source-photoshop-1' as DocumentAssetId;
