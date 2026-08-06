@@ -1,0 +1,36 @@
+# Task 078 — remote LightTable MCP v1
+
+Status: completed 2026-08-06.
+
+Implemented a transport-neutral MCP vertical slice over the existing semantic
+LightTable application command service. The remote Node service provides
+Streamable HTTP, OAuth authorization-code + PKCE, protected-resource metadata,
+dynamic client registration, read/edit scopes, rotating refresh tokens and a
+bounded pairing flow. The desktop side is a bearer-authenticated loopback-only
+bridge; no editor model, renderer or undo implementation was duplicated.
+
+Implemented compact document/layer/effect/capability queries, typed commands,
+bounded gestures, safe public image import, real GPU PNG previews and opaque
+native/PNG/PSD artifacts. Semantic edits and committed gestures now advance
+the canonical document revision synchronously, so stale-write preconditions
+are meaningful through MCP.
+
+The deployment and security model, Hetzner/systemd/reverse-tunnel example,
+current tool inventory, honest limitations and next semantic slices are in
+`architecture/integrations/LIGHTTABLE_MCP_V1.md`.
+
+Verification:
+
+- MCP/OAuth/security integration suite: 6 passed;
+- application command/adapter/artifact suite: 18 passed;
+- app and MCP typechecks passed;
+- desktop production package and distribution-boundary check passed;
+- real MCP → Electron → LightTable smoke passed with zero orphan processes;
+- generated editable test artifacts are in
+  `D:\mediavibe\LightTableTestFiles\mcp` (`.png`, `.lighttable`, `.psd`, report);
+- canonical revision advanced 0 → 3 for create, rename and painted gesture.
+
+The bundled OAuth store is deliberately single-process/in-memory for the
+private v1 trial. A public multi-user service still requires an external
+durable identity/authorization layer, centralized throttling, CSRF/session
+hardening, audit retention and tenant isolation.

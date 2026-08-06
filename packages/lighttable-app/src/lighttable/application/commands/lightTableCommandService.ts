@@ -397,6 +397,11 @@ export class LightTableCommandService {
     return this.artifacts.query(artifactId);
   }
 
+  /** Host-local binary access for the explicitly enabled automation bridge. */
+  resolveArtifact(artifactId: string): File | null {
+    return this.artifacts.resolve(artifactId);
+  }
+
   listArtifacts(): readonly LightTableArtifactMetadata[] {
     return this.artifacts.list();
   }
@@ -470,6 +475,7 @@ export class LightTableCommandService {
     const finished = await this.ports.finishGesture(
       gesture.documentId, gesture.kind, gesture.pointerId, commit
     );
+    if (finished && commit) this.workspace.getDocument(gesture.documentId)?.markChanged();
     return finished
       ? { status: commit ? 'completed' : 'canceled', gestureId, sampleCount: gesture.sampleCount }
       : { status: 'rejected', message: 'The editor could not finish the gesture.' };
@@ -680,6 +686,9 @@ export class LightTableCommandService {
     try {
       const result = await this.executeParsed(documentRequest, snapshot);
       if ('code' in result) return this.reject(value.requestId, result.code, result.message, snapshot);
+      if (value.command !== 'view.setZoom') {
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+      }
       return {
         requestId: value.requestId,
         status: 'completed',
@@ -979,6 +988,7 @@ export interface LightTableAutomationDriver {
   finishGesture(gestureId: string, commit: boolean): Promise<LightTableGestureResult>;
   registerInputArtifact(file: File): LightTableArtifactMetadata;
   queryArtifact(artifactId: string): LightTableArtifactMetadata | null;
+  resolveArtifact(artifactId: string): File | null;
   listArtifacts(): readonly LightTableArtifactMetadata[];
   releaseArtifact(artifactId: string): boolean;
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null;

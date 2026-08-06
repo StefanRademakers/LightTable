@@ -1,0 +1,49 @@
+# LightTable MCP server v0.1
+
+This package is the remote Streamable HTTP adapter for LightTable's semantic
+application command service. It deliberately contains no document model and no
+renderer. A token-protected, loopback-only desktop bridge owns the connection
+to the real editor.
+
+## Local demo
+
+```powershell
+$env:LIGHTTABLE_PAIRING_CODE='replace-with-a-random-code'
+$env:LIGHTTABLE_DEMO_MODE='true'
+$env:LIGHTTABLE_ALLOW_INSECURE_HTTP='true'
+npm run mcp:server
+```
+
+The demo exposes mock state and is only useful for MCP/OAuth client testing.
+Run `npm run smoke:mcp` for the real Electron end-to-end path.
+
+## Real desktop bridge
+
+Terminal 1:
+
+```powershell
+$env:LIGHTTABLE_BRIDGE_TOKEN='<at-least-24-random-characters>'
+npm run mcp:bridge -- --file D:\shapes.psd
+```
+
+Terminal 2:
+
+```powershell
+$env:LIGHTTABLE_PUBLIC_URL='http://127.0.0.1:8787'
+$env:LIGHTTABLE_ALLOW_INSECURE_HTTP='true'
+$env:LIGHTTABLE_PAIRING_CODE='<one-time-code-shown-to-the-user>'
+$env:LIGHTTABLE_BRIDGE_URL='http://127.0.0.1:8790'
+$env:LIGHTTABLE_BRIDGE_TOKEN='<same-bridge-token>'
+npm run mcp:server
+```
+
+HTTP is rejected unless the explicit local-test flag is set. The desktop
+bridge always binds to `127.0.0.1`; never publish it directly.
+
+## Verification
+
+- `npm test -w @lighttable/mcp-server`
+- `npm run smoke:mcp -- D:\shapes.psd D:\mediavibe\LightTableTestFiles\mcp`
+
+The smoke creates a real editable raster layer through MCP, paints a gesture,
+renders through LightTable and writes PNG, native and PSD artifacts.

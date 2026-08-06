@@ -13,6 +13,7 @@ const createDriver = (): LightTableAutomationDriver => ({
   finishGesture: vi.fn(async () => ({ status: 'completed' as const, gestureId: 'gesture-1', sampleCount: 2 })),
   registerInputArtifact: vi.fn(),
   queryArtifact: vi.fn(() => null),
+  resolveArtifact: vi.fn(() => null),
   listArtifacts: vi.fn(() => []),
   releaseArtifact: vi.fn(() => true),
   queryTask: vi.fn(() => null),

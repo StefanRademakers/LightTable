@@ -1,0 +1,53 @@
+import { randomUUID } from 'node:crypto';
+import { createMcpExpressApp, mcpAuthMetadataRouter } from '@modelcontextprotocol/express';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import { createLightTableMcpServer } from './mcp.mjs';
+import { installOAuthRoutes, LightTableOAuthStore } from './oauth.mjs';
+
+export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
+  allowInsecure = false, allowedHosts } = {}) => {
+  const resource = new URL('/mcp', publicUrl);
+  const issuer = new URL('/', publicUrl);
+  if (!allowInsecure && (resource.protocol !== 'https:' || issuer.protocol !== 'https:')) {
+    throw new Error('Public MCP and OAuth URLs must use HTTPS. Set allowInsecure only for localhost tests.');
+  }
+  const app = createMcpExpressApp({ host: '0.0.0.0', allowedHosts,
+    jsonLimit: '1mb' });
+  const oauth = new LightTableOAuthStore({ issuer, resource, pairingCode });
+  const oauthMetadata = {
+    issuer: issuer.href.replace(/\/$/u, ''),
+    authorization_endpoint: new URL('/oauth/authorize', issuer).href,
+    token_endpoint: new URL('/oauth/token', issuer).href,
+    registration_endpoint: new URL('/oauth/register', issuer).href,
+    scopes_supported: ['lighttable:read', 'lighttable:edit', 'offline_access'],
+    response_types_supported: ['code'],
+    response_modes_supported: ['query'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    token_endpoint_auth_methods_supported: ['none'],
+    code_challenge_methods_supported: ['S256']
+  };
+  app.use(mcpAuthMetadataRouter({ oauthMetadata, resourceServerUrl: resource,
+    scopesSupported: oauthMetadata.scopes_supported, resourceName: 'LightTable',
+    dangerouslyAllowInsecureIssuerUrl: allowInsecure }));
+  installOAuthRoutes(app, oauth);
+  app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'lighttable-mcp', version: '0.1.0' }));
+  const authenticate = async (req, res, next) => {
+    const match = req.get('authorization')?.match(/^Bearer\s+(.+)$/iu);
+    try {
+      if (!match) throw new Error('Missing bearer token.');
+      const auth = await oauth.verifyAccessToken(match[1]);
+      if (!auth.scopes.includes('lighttable:read')) throw new Error('The lighttable:read scope is required.');
+      req.auth = auth; next();
+    } catch {
+      const metadata = new URL('/.well-known/oauth-protected-resource/mcp', issuer).href;
+      res.set('WWW-Authenticate', `Bearer resource_metadata="${metadata}", scope="lighttable:read"`)
+        .status(401).json({ error: 'invalid_token' });
+    }
+  };
+  const mcp = createLightTableMcpServer(client);
+  const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined,
+    enableJsonResponse: true });
+  await mcp.connect(transport);
+  app.all('/mcp', authenticate, (req, res) => void transport.handleRequest(req, res, req.body));
+  return { app, oauth, close: () => transport.close(), requestId: randomUUID() };
+};

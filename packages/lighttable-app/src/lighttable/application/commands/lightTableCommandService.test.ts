@@ -153,6 +153,23 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('advances the canonical revision after semantic mutations and committed gestures', async () => {
+    const state = setup();
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
+    await state.service.execute(request('layer.createRaster', state.session.id));
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    const started = await state.service.beginGesture({ documentId: state.session.id,
+      kind: 'brush-stroke', coordinateSpace: 'document', parameters: {},
+      sample: { x: 1, y: 1 } });
+    expect(started.status).toBe('started');
+    if (started.status === 'started' && started.gestureId) {
+      await state.service.finishGesture(started.gestureId, true);
+    }
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(2);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('validates bounded layer visibility mutations', async () => {
     const state = setup();
     const layerId = state.session.getSnapshot().document!.activeLayerId!;
