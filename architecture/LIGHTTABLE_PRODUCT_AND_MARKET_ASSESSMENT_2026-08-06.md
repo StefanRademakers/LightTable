@@ -4,6 +4,97 @@ Status: evidence-based alpha assessment, 6 August 2026. This is a decision
 document, not launch marketing. Scores describe verified product state at this
 date; targets are explicitly labelled.
 
+## Evidence-based reassessment — 7 August 2026
+
+This section preserves the 6 August baseline below and reassesses the integrated
+product at code commit `85fad8d0`. Following commits only record evidence and do
+not change product code. See [the clean release-candidate rehearsal](quality/RELEASE_CANDIDATE_REHEARSAL_2026-08-07.md)
+and [the final integrated audit](quality/FINAL_PRODUCT_AUDIT_2026-08-07.md).
+
+### Current evidence
+
+- A detached clean checkout installed with `npm ci`, built web and packaged
+  desktop, and passed all 40 full-quality gates in both requested iterations.
+- Workspace suites included 334 app test files / 1,787 app tests plus desktop
+  and focused package suites. Current inventory is 987 TypeScript/TSX/Rust/WGSL
+  files, 403 test/spec files, 78 MJS scripts and 123 architecture documents.
+- The 40-case Photoshop Layer Style corpus passed with zero semantic or
+  fidelity-gate failures. The 48-case blend/profile matrix passed at roughly
+  RMSE 0.07–0.79.
+- Native save/recovery, PSD roundtrip, PDF open/export, vector/text authoring,
+  paint, gradients, transforms, Layer Styles, accessibility, diagnostics and
+  an MCP-created editable design passed packaged workflow automation.
+- The supplied EHS-396 Save the Date PSD passed its technical owner-workflow
+  checks; visual and interaction acceptance remains `awaiting-owner-review`.
+- A signed probe and bounded soak passed on the current Windows discrete-GPU
+  Electron cell. Other platform cells have not been physically tested.
+
+The evidence is materially stronger, but remains bounded automation on one
+physical hardware class. It cannot replace a multi-hour real-document soak,
+design-partner use or product-owner judgment.
+
+### Score delta
+
+| Area | 6 Aug | 7 Aug | Delta and reason |
+| --- | ---: | ---: | --- |
+| Product direction | 8.0 | 8.1 | +0.1: release scope and preview boundary are executable policy. |
+| Core architecture | 8.0 | 8.4 | +0.4: shared command, recovery, diagnostics and release boundaries passed the integrated profile. |
+| Rendering and color | 8.2 | 8.8 | +0.6: Photoshop 16-bit quantization and the full blend/effects matrices pass. |
+| Format interchange | 6.8 | 7.5 | +0.7: packaged native, PSD and PDF workflows pass; semantic PDF and advanced PSD constructs remain partial. |
+| Text/vector authoring | 6.5 | 7.3 | +0.8: authoring, fonts, recovery, geometry and roundtrip smokes pass; advanced paths remain incomplete. |
+| Daily interaction quality | 6.0 | 6.9 | +0.9: tool, onboarding, recents and focused UX smokes are stable; owner feel review is open. |
+| Reliability and recovery | 6.3 | 7.7 | +1.4: save/recovery, isolation, diagnostics and bounded endurance pass; no overnight claim is made. |
+| Performance discipline | 7.5 | 8.0 | +0.5: measured gates pass the current cell; modest hardware remains unqualified. |
+| Maintainability | 7.0 | 7.5 | +0.5: reproducible orchestration and 40 gates reduce integration risk; large facades remain. |
+| Accessibility/onboarding | 3.5 | 6.5 | +3.0: packaged flows pass; human assistive-technology coverage is incomplete. |
+| Commercial operations | 3.0 | 4.8 | +1.8: lifecycle rehearsals exist; legal, activation and production distribution remain open. |
+| Differentiation potential | 8.5 | 8.7 | +0.2: MCP-to-editable-design roundtrip validates the wedge, not market demand. |
+
+**Reassessed engineering foundation: 8.4/10. Product alpha: 7.3/10.
+Commercial release readiness: 5.4/10. Overall reassessment: 7.4/10.**
+
+### Capability and workflow disposition
+
+- **Verified in the bounded candidate:** clean builds; automated packaged
+  create/edit/undo/save/reopen/export paths; native recovery; common PSD
+  roundtrip; common Layer Styles; blend/profile parity; local diagnostics;
+  accessibility smoke; one semantic MCP design transaction.
+- **Partial or preserved:** uncommon PSD semantics, advanced text-on-path and
+  vector strokes, Smart Object authoring, broad semantic PDF object editing,
+  exact high-radius style fidelity and some missing-font substitutions.
+- **Deferred:** adjustment-layer parity beyond Grade, deep painting, plugin
+  ecosystem, broad remote AI and new product categories.
+- **Unsupported release claims:** complete Photoshop/PDF parity, an integrated-
+  GPU or Apple Silicon floor, production activation/update service, and
+  commercial-grade recovery across every platform.
+
+The three advertised workflows are credible technical-preview workflows, not
+paid-release promises. Layered interchange and correction/compositing have
+broad automation but need owner corpus acceptance. Semantic agent editing has
+an end-to-end vertical slice, while server operations and permission UX need
+real beta use.
+
+### Smallest next backlog
+
+Do not begin another broad feature wave. Close these existing gates:
+
+1. Product-owner execution and sign-off of Task 108.
+2. Physical integrated-GPU, web-host and Apple Silicon qualification in Task
+   109, followed by a truthful hardware floor.
+3. A small consented design-partner cohort and exit review in Task 110.
+4. Owner/legal commercial decisions plus production activation,
+   installer/update and rollback providers in Task 111.
+5. A genuine multi-hour/overnight soak on the exact candidate, then repeat the
+   signed go/no-go decision in Tasks 112–113.
+
+### Updated conclusion
+
+The correct classification is **bounded technical preview**. LightTable is
+measurably more stable, interoperable and usable than the 6 August baseline,
+and its professional-editor foundation is no longer speculative. It is not a
+paid release candidate: external/human gates and the long soak remain. That
+distinction is part of product quality.
+
 ## Executive conclusion
 
 LightTable has an unusually capable technical foundation for an alpha, but it
