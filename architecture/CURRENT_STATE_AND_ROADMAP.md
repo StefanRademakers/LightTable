@@ -19,6 +19,13 @@ milestone changes those boundaries; feature task details belong in
 - Lazy optional effects/codecs and explicit GPU resource lifecycle.
 - Three-package vector architecture with editable paths and WebGPU fill/overlay
   backends.
+- Semantic point, paragraph, vertical and imported path text with lazy
+  Rust/Wasm shaping, WebGPU realization and bounded inactive-layer caches.
+- PSD export release candidate for the verified 8-bit RGB semantic subset,
+  plus strict Photoshop Layer Style and 48-case color/blend comparison gates.
+- Bounded first-page PDF open and fail-closed one-page flattened/hybrid export.
+- A remote MCP v1 vertical slice over the shared semantic command service;
+  transport and editor command semantics remain separate.
 - Application-owned open/save/export and structured PSD import reporting.
 - Declarative cross-platform keymap and gesture-level undo boundaries.
 
@@ -32,8 +39,8 @@ milestone changes those boundaries; feature task details belong in
   consistently, especially nested groups, masks, bounds and selection tools.
 - Processing is semantically node-based, but not every grade/spatial operation
   has a completely independent generic executor.
-- Smart Objects, Smart Filters, text and full PSD style/adjustment parity are
-  incomplete.
+- Smart Objects, Smart Filters, advanced text recovery/editing and full PSD
+  style/adjustment parity remain incomplete.
 - Local Grade and Lens Fx ownership must remain visible and consistent across
   UI, save, merge, clipboard and PSD import.
 - Warp has a working persistent displacement direction, but smoothing,
@@ -61,13 +68,15 @@ in `PRODUCT_UX_INSPIRATION_AND_GAPS.md`; Photoshop-specific evidence remains in
    adjustment layers, groups and future Smart Filters.
 4. Make Grade/Lens Fx ownership, toggles, masks, rasterization and merge fully
    symmetric.
-5. Harden PSD semantic fixtures and comparison tooling, then add Smart Object,
-   text, adjustment and style mappings incrementally.
+5. Keep the established PSD/color/effects gates strict while adding Smart
+   Object, missing-font, adjustment, pattern and 16-bit export mappings.
 6. Consolidate selection, transform, path and brush overlays on the vector GPU
    primitives and complete stroke quality.
 7. Evolve warp and shared field-processing infrastructure with preview/final
    quality and dirty-region support.
-8. Define the pre-1.0 LightTable file-format contract, precision/export policy
+8. Extend semantic commands for document/text/vector/style creation so UI and
+   MCP remain consumers of one undoable application boundary.
+9. Define the pre-1.0 LightTable file-format contract, precision/export policy
    and migration policy only when the model is solid enough to freeze.
 
 ## Not a goal

@@ -1,6 +1,6 @@
 # Third-party software, licenses and format support
 
-Status: implementation inventory, 2026-08-03. This document records what the
+Status: implementation inventory, updated 2026-08-06. This document records what the
 current repository actually uses and implements. It is not a legal opinion and
 does not turn a planned codec into product support.
 
@@ -16,7 +16,7 @@ npm run generate:third-party
 npm run verify:third-party
 ```
 
-The current snapshot contains 637 npm package/version entries, 80 Cargo crates
+The current snapshot contains 705 npm package/version entries, 80 Cargo crates
 and no unknown license fields. Multiple versions are deliberately separate.
 The inventory separates direct/transitive and runtime/development roles so a
 future About > Licenses view can filter the same data without maintaining a

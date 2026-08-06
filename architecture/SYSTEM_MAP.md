@@ -5,7 +5,14 @@
 ```text
 apps/web                 Browser host and bootstrap
 apps/desktop             Electron main, preload and renderer host
+apps/mcp-server          Remote MCP/OAuth adapter over semantic commands
 packages/lighttable-app  Shared application, editor, UI and WebGPU engine
+packages/paint-core      Host-neutral paint gesture and dab contracts
+packages/pdf-core        Normalized PDF display-list/document contracts
+packages/text-core       Serializable text model and layout contracts
+packages/text-layout-wasm Rust/Wasm shaping and paragraph runtime
+packages/text-rendering  Backend-neutral text realization and caches
+packages/text-webgpu     WebGPU glyph/vector text backends
 packages/vector-core     Serializable vector model, geometry and editing
 packages/vector-rendering Backend-neutral realization and revision caches
 packages/vector-webgpu   WebGPU vector fill and editing-overlay backends

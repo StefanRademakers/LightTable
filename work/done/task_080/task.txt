@@ -1,0 +1,14 @@
+# Task 080 — reconcile architecture documentation with code
+
+Status: completed 2026-08-06.
+
+Reviewed all architecture Markdown documents, reconciled current claims with
+the repository and tests, refreshed the canonical reading route/current state,
+and added a repeatable documentation audit to the quick/full quality profiles.
+The durable audit and next-agent handoff is
+`architecture/ARCHITECTURE_DOCUMENTATION_AUDIT_2026-08-06.md`.
+
+## Original request
+
+Lees nogmaal de architecture md bestanden en check ze met de code en zorg dat alles docs up to date zijn.
+ook voor volgende coding agents.

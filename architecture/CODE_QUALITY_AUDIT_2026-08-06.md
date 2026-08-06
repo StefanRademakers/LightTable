@@ -7,7 +7,7 @@ not a claim that every large integration module has already disappeared.
 
 - Architecture boundary verification passes.
 - All workspace typechecks pass.
-- 311 application test files / 1,656 application tests and every package suite
+- 312 application test files / 1,665 application tests and every package suite
   pass in the production-oriented quick profile.
 - The Web production build passes.
 - Twenty-seven tools survive six complete UI-switch rounds with stable DOM and

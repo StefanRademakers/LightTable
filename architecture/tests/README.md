@@ -21,7 +21,8 @@ new feature smoke automatically joins the desktop and full profiles.
 
 Profiles:
 
-- `quick`: boundaries, all typechecks/tests and the production Web build;
+- `quick`: boundaries, source/documentation audits, all typechecks/tests and
+  the production Web build;
 - `desktop`: production desktop package, every desktop smoke, endurance and
   the high-frequency Layer Style interaction and all-tool switching gates;
 - `parity`: production desktop package plus strict Photoshop Layer Style and

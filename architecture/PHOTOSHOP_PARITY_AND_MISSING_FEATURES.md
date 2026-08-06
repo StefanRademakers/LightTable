@@ -60,7 +60,7 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 | Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v6 save/reopen retains the v4 tight-raster contract and is verified on painted EHS-396 content. |
 | Opacity | Yes | Yes | Yes | Yes | Yes | No | Partial | Nineteen partial-opacity layers occur in seven documents. |
 | Fill opacity | Yes | Yes | Yes | Yes | Yes | No | Weak | Canonical property exists, but this corpus contains only one non-default instance. |
-| Blend modes | Yes | Yes | Yes | Partial | Yes | PSD RC subset | Measured corpus | All 26 exposed modes plus opacity/fill cases have isolated fixtures. Opaque Multiply/Screen are correct; Vivid Light/Hard Mix endpoint behavior and alpha/opacity blend-domain parity remain open. See `PHOTOSHOP_COLOR_AND_BLEND_PARITY.md`. |
+| Blend modes | Yes | Yes | Yes | Yes for measured RGB set | Yes | PSD RC subset | 48-case strict matrix | All 26 exposed modes plus opacity/fill cases have isolated fixtures. The untagged/sRGB/Adobe RGB 8/16-bit matrix passes at RMSE 0.07–0.79, including Adobe RGB Hard Mix at 0.13/0.15. Untested profile classes, 32-bit documents and unsupported PSD semantics remain outside this claim. See `PHOTOSHOP_COLOR_AND_BLEND_PARITY.md`. |
 | Clipping chains | Yes | Yes | Yes | Yes | Yes | No | Separate fixtures | Not exercised by the ten-template corpus. |
 | Raster masks | Yes | Partial | Yes | Yes | Partial | No | Partial | One bitmap-mask slot exists; density/feather calibration remains. |
 | Vector + user mask combination | Yes | **Partial** | Preview | Partial | No | No | Failed architecture | Photoshop can retain both independently; LightTable currently collapses toward one effective raster mask. |
@@ -432,18 +432,17 @@ mask density/feather.
 
 ## Current decision order
 
-1. Fix native tight raster bounds and save/reopen.
-2. Define the shared retained-preview contract.
-3. Define scope/render-island fallback.
-4. Execute missing-font recovery and desktop font discovery.
-5. Complete imported shape and gradient/fill-layer authoring contracts.
-6. Build the automated Photoshop parity lab and implement/calibrate
-   adjustments and Layer Style effects, beginning with Gradient Map and the
-   active corpus effects.
-7. Introduce independent mask semantics.
-8. Add the Smart Object source package.
-9. Complete remaining vector stroke/paint fidelity and cross-feature stacks.
-10. Design PSD/PSB export capability mapping after canonical contracts settle.
+1. Complete retained-preview and scope/render-island fallback contracts.
+2. Complete missing-font recovery for imported and native documents.
+3. Finish imported shape, vector-stroke and gradient/fill-layer authoring.
+4. Calibrate remaining adjustments and Layer Style stacks in the existing
+   automated Photoshop parity lab.
+5. Introduce independent raster/vector mask semantics.
+6. Add the Smart Object source package and non-affine transform contract.
+7. Extend the PSD release candidate only through explicit capability mapping:
+   16-bit write, pattern resources and representative PSB validation.
+8. Keep the 48-case color/blend matrix and effects corpus as release gates
+   while expanding profile, 32-bit and cross-feature coverage.
 
 This order should be changed only with new corpus or product evidence, and the
 reason must be recorded here.
