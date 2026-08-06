@@ -70,8 +70,11 @@ export const useEditorKeyboardController = ({
 }: EditorKeyboardControllerOptions): void => {
   useEditorWindowInput(enabled, {
     onKeyDown: (event) => {
-      if (event.target instanceof HTMLElement
-        && event.target.closest('[data-editor-native-tab-navigation]')) return false;
+      if (event.target instanceof HTMLElement) {
+        const nativeScope = event.target.closest<HTMLElement>('[data-editor-native-tab-navigation]');
+        if (nativeScope && (nativeScope.dataset.editorNativeTabNavigation !== 'tab-only'
+          || event.key === 'Tab')) return false;
+      }
       const command = resolveEditorKeyboardCommand(event, {
         ...getContext(),
         editable: isTextEditingTarget(event.target)

@@ -498,7 +498,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           </div>
         </>
       ) : null}
-      <div className="lighttable-layers__list" role="tree" aria-label="Layer stack" data-editor-native-tab-navigation>
+      <div className="lighttable-layers__list" role="tree" aria-label="Layer stack" data-editor-native-tab-navigation="tab-only">
         {rows.map(({ layer, depth }) => {
           const icon = layerTypeIcon(layer);
           const previews = thumbnails.get(layer.id);

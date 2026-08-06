@@ -425,7 +425,7 @@ try {
   }
 
   if (openCompatibilityReport) {
-    await window.getByRole('button', { name: 'File', exact: true }).click();
+    await window.getByRole('menuitem', { name: 'File', exact: true }).click();
     const option = window.getByRole('button', {
       name: 'Document Compatibility Report...',
       exact: true
@@ -482,7 +482,7 @@ try {
   }
 
   if (openPdfPreflight) {
-    await window.getByRole('button', { name: 'File', exact: true }).click();
+    await window.getByRole('menuitem', { name: 'File', exact: true }).click();
     await window.getByText('PDF Export Preflight...', { exact: true }).click();
     await window.getByRole('dialog', { name: 'PDF export preflight' }).waitFor({
       state: 'visible', timeout: 15_000

@@ -68,6 +68,12 @@ Instrument first frame phases, GPU-owned texture estimates, stage cache hits,
 scope refreshes and interaction frame intervals. Optimize measured ownership,
 not isolated microbenchmarks.
 
+The production hardware/soak gate, provisional Windows targets and physical
+device claim boundary are defined in `SUPPORTED_HARDWARE_AND_SOAK_GATE.md`.
+The 6 August development-system run passed lifecycle and idle-work gates, but
+measured Type Tool input-to-GPU latency of 67.7-117.6 ms remains above the
+direct-manipulation target. A green soak is not a claim of Photoshop parity.
+
 The completed 4 August 2026 implementation audit, measured packaged stress
 evidence and ranked follow-ups are recorded in
 `reference/implementation/RENDERING_PERFORMANCE_AUDIT_2026-08-04.md`.

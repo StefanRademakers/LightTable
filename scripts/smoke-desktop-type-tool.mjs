@@ -13,6 +13,7 @@ const screenshotPath = path.join(outputDirectory, 'type-tool.png');
 const transformScreenshotPath = path.join(outputDirectory, 'text-free-transform.png');
 const verticalScreenshotPath = path.join(outputDirectory, 'vertical-type.png');
 const reportPath = path.join(outputDirectory, 'type-tool.json');
+let performanceTelemetry = null;
 
 await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
 const launchEnvironment = { ...process.env };
@@ -41,6 +42,10 @@ try {
   if (!documentId) throw new Error('No active document.');
   const before = await driver.queryDocument(documentId);
   if (!before) throw new Error('Document projection is unavailable.');
+  await page.evaluate(() => {
+    globalThis.__LIGHTTABLE_TEXT_INPUT_TRACE__ = true;
+    globalThis.__LIGHTTABLE_TEXT_INTERACTION_TRACE__ = true;
+  });
 
   await page.keyboard.press('t');
   const typeButton = page.getByRole('button', { name: 'Type tool (T)', exact: true });
@@ -216,9 +221,26 @@ try {
     || duplicated.history.undoDepth !== repeated.history.undoDepth + 1) {
     throw new Error('Ctrl+Alt+Shift+T did not duplicate and repeat as one command.');
   }
+  await page.getByRole('tab', { name: 'Debug', exact: true }).click();
+  const debugText = await page.locator('.lighttable-debug-panel').innerText();
+  const latency = debugText.match(
+    /Text input:\s*(\d+) samples\D+submit p95\s*([\d.]+) ms\s*\/\s*max\s*([\d.]+) ms\D+GPU p95\s*([\d.]+) ms\s*\/\s*max\s*([\d.]+) ms/i
+  );
+  performanceTelemetry = latency ? {
+    status: 'available',
+    samples: Number(latency[1]),
+    inputToSubmitP95Ms: Number(latency[2]),
+    inputToSubmitMaxMs: Number(latency[3]),
+    inputToGpuP95Ms: Number(latency[4]),
+    inputToGpuMaxMs: Number(latency[5])
+  } : { status: 'unavailable', reason: 'The Debug panel did not expose text latency samples.' };
+  if (performanceTelemetry.status !== 'available' || performanceTelemetry.samples < 1) {
+    throw new Error(`Type Tool latency sample is invalid: ${JSON.stringify(performanceTelemetry)}`);
+  }
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await page.screenshot({ path: screenshotPath });
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
-  await writeFile(reportPath, `${JSON.stringify({ sourceFile, before, after, transformed, repeated, duplicated, pageErrors, screenshotPath, transformScreenshotPath, verticalScreenshotPath }, null, 2)}\n`);
+  await writeFile(reportPath, `${JSON.stringify({ sourceFile, before, after, transformed, repeated, duplicated, performanceTelemetry, pageErrors, screenshotPath, transformScreenshotPath, verticalScreenshotPath }, null, 2)}\n`);
   process.stdout.write(`Type Tool smoke passed. Report: ${reportPath}\n`);
 } finally {
   await app.close().catch(() => {});

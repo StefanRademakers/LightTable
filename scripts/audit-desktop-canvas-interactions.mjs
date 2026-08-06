@@ -202,10 +202,23 @@ try {
   await page.getByLabel('Transform controls').waitFor({ state: 'visible', timeout: 30_000 });
   await measure('transform-cancel', () => page.keyboard.press('Escape'));
 
+  // Exercise mask painting on a stable, unwarped raster owner. The earlier
+  // raster deliberately carries erase/warp history and is not a clean mask
+  // lifecycle fixture.
+  await driver.execute(documentId, 'layer.createRaster', {});
+  await page.keyboard.press('d');
+  await page.keyboard.press('b');
+  await drag(point(0.18, 0.21), point(0.20, 0.22), 4);
   await page.getByRole('button', { name: 'Add layer mask' }).click();
   const activeMask = page.locator('.lighttable-layer--active .lighttable-layer__mask');
   await activeMask.waitFor({ state: 'visible' });
   await activeMask.click();
+  await page.locator('.lighttable-layer--active .lighttable-layer__thumbnail--active-mask')
+    .waitFor({ state: 'visible' });
+  // A fresh mask is opaque white. Reset to Photoshop's black foreground /
+  // white background before painting so this is a real mutation regardless
+  // of colors inherited from the opened document.
+  await page.keyboard.press('d');
   await page.keyboard.press('b');
   await measure(
     'mask-brush-stroke',
@@ -214,6 +227,9 @@ try {
   );
   await measure('mask-brush-undo', () => driver.execute(documentId, 'history.undo'));
   await measure('mask-brush-redo', () => driver.execute(documentId, 'history.redo'));
+  await page.locator('.lighttable-layer--active .lighttable-layer__mask').click();
+  await page.locator('.lighttable-layer--active .lighttable-layer__thumbnail--active-mask')
+    .waitFor({ state: 'visible' });
   await measure(
     'mask-invert',
     () => page.keyboard.press('Control+i'),
@@ -249,7 +265,12 @@ try {
     await drag(point(0.16, 0.18), point(0.21, 0.23), 4);
     await page.keyboard.press('Control+d');
     await settleFrame();
-    report.retentionSamples.push({ round: round + 1, ...(await browserMetrics()) });
+    const retainedDocument = await driver.queryDocument(documentId);
+    report.retentionSamples.push({
+      round: round + 1,
+      ...(await browserMetrics()),
+      estimatedGpuBytes: retainedDocument?.renderer.estimatedGpuBytes ?? null
+    });
   }
 
   await page.screenshot({ path: screenshotPath });
@@ -271,12 +292,15 @@ try {
   report.retentionDelta = {
     heapUsedBytes: stableEnd.heapUsedBytes - stableStart.heapUsedBytes,
     domNodes: stableEnd.domNodes - stableStart.domNodes,
-    eventListeners: stableEnd.eventListeners - stableStart.eventListeners
+    eventListeners: stableEnd.eventListeners - stableStart.eventListeners,
+    estimatedGpuBytes: stableStart.estimatedGpuBytes == null || stableEnd.estimatedGpuBytes == null
+      ? null : stableEnd.estimatedGpuBytes - stableStart.estimatedGpuBytes
   };
   if (
     report.retentionDelta.heapUsedBytes > 5 * 1024 * 1024
     || report.retentionDelta.domNodes > 100
     || report.retentionDelta.eventListeners > 25
+    || (report.retentionDelta.estimatedGpuBytes ?? 0) > 0
   ) {
     throw new Error(`Canvas interaction retention exceeded its budget: ${JSON.stringify(report.retentionDelta)}`);
   }

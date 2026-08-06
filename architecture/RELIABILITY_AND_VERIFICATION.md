@@ -85,6 +85,11 @@ uses existing snapshots and cannot invoke a renderer recomposition or readback.
 7. Electron dev and packaged smoke tests.
 8. Cross-device interaction profiling, especially integrated Mac GPUs.
 
+The desktop/full profiles also run the bounded supported-hardware soak. Its
+`overnight` profile covers at least twelve requested hours; shorter profiles
+must retain their explicit `not-measured` extrapolation. See
+`SUPPORTED_HARDWARE_AND_SOAK_GATE.md`.
+
 Every regression fix should add the narrowest stable test that would have
 caught it. A UI screenshot is evidence, not a replacement for a model,
 planning or pixel test.

@@ -96,7 +96,23 @@ try {
     throw new Error(`PSD semantic layer projection changed. Report: ${reportFile}`);
   }
   if (pageErrors.length) throw new Error(`Renderer errors occurred. Report: ${reportFile}`);
-  await page.getByRole('button', { name: 'File', exact: true }).click();
+  // A semantically reconstructed PSD may surface its compatibility report on
+  // the newly opened artifact. Dismiss that explicit modal before exercising
+  // the application menu; hidden menubar controls are intentionally excluded
+  // from accessibility queries while a dialog owns focus.
+  const reportDialog = page.getByRole('dialog').filter({ hasText: /PSD|compatibility|font/i }).last();
+  if (await reportDialog.count() && await reportDialog.isVisible()) {
+    await reportDialog.getByRole('button', { name: 'Close', exact: true }).click();
+  }
+  const fileMenu = page.getByRole('menuitem', { name: 'File', exact: true });
+  if (!await fileMenu.count()) {
+    throw new Error(`File menu is unavailable after PSD roundtrip: ${JSON.stringify({
+      dialogs: await page.getByRole('dialog').allTextContents(),
+      buttons: (await page.getByRole('button').allTextContents()).slice(0, 30),
+      body: (await page.locator('body').innerText()).slice(0, 1_000)
+    })}`);
+  }
+  await fileMenu.click();
   await page.getByText('Export Photoshop PSD...', { exact: true }).click();
   const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {

@@ -161,6 +161,15 @@ const collectMetrics = async (window, cdp, iteration) => {
         status: document.querySelector('.lighttable-toolbar__status')?.textContent?.trim() ?? '',
         runtimeStopped: /document runtime stopped unexpectedly/i.test(bodyText),
         invalidHookOrder: /hooks conditionally|should have a queue|invalid hook call/i.test(bodyText),
+        environment: {
+          userAgent: navigator.userAgent,
+          devicePixelRatio: window.devicePixelRatio,
+          screen: {
+            width: window.screen.width,
+            height: window.screen.height,
+            colorDepth: window.screen.colorDepth
+          }
+        },
         classCounts
       };
     }, diagnoseDom)
@@ -361,6 +370,35 @@ const runFile = async (sourceFile, fileIndex) => {
     }
 
     result.growth = growthAssessment(result.samples);
+    const firstFrameMatch = result.samples[0]?.metadataTitle.match(/first frame:\s*(\d+(?:\.\d+)?)\s*ms/i);
+    result.firstUsefulFrame = firstFrameMatch
+      ? { status: 'available', milliseconds: Number(firstFrameMatch[1]) }
+      : { status: 'unavailable', reason: 'The ready metadata did not include a first-frame sample.' };
+
+    const debugTab = window.getByRole('tab', { name: 'Debug', exact: true });
+    if (await debugTab.count()) {
+      await debugTab.click();
+      await window.getByRole('button', { name: 'Reset render stats' }).click();
+      await window.waitForTimeout(750);
+      await window.getByRole('button', { name: 'Capture render stats' }).click();
+      const telemetry = window.locator('.lighttable-debug-message')
+        .filter({ hasText: 'Render telemetry' }).last().locator('pre');
+      await telemetry.waitFor({ state: 'visible' });
+      const telemetryText = await telemetry.textContent() ?? '';
+      const counter = (label) => Number(telemetryText.match(new RegExp(`${label}: (\\d+)`, 'i'))?.[1] ?? 0);
+      result.background = {
+        observationMs: 750,
+        renderCalls: counter('Render calls'),
+        submittedFrames: counter('Submitted frames'),
+        correctionFrames: counter('Correction frames'),
+        scopeAnalysisPasses: counter('Scope analysis passes')
+      };
+      if (result.background.submittedFrames !== 0) {
+        result.failures.push(`Unchanged document submitted ${result.background.submittedFrames} background frame(s).`);
+      }
+    } else {
+      result.background = { status: 'unavailable', reason: 'Debug render telemetry was unavailable.' };
+    }
     if (diagnoseDom) result.detachedDom = await collectDetachedDomNodes(cdp);
     if (result.pageErrors.length) {
       result.failures.push(`Page errors: ${result.pageErrors.join(' | ')}`);
@@ -400,7 +438,8 @@ const report = {
     heapGrowthThresholdRatio: 0.5,
     domNodeGrowthThreshold: 64,
     eventListenerGrowthThreshold: 64,
-    gpuGrowthThresholdBytes: 128 * 1024 * 1024
+    gpuGrowthThresholdBytes: 128 * 1024 * 1024,
+    unchangedDocumentSubmittedFrames: 0
   },
   files: []
 };

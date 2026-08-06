@@ -45,6 +45,9 @@ if (profile === 'desktop' || profile === 'full') {
   }
   add('desktop-endurance', node, [path.join(workspace, 'scripts', 'stress-desktop-editor.mjs'),
     '--iterations', argument('iterations', '6')]);
+  add('desktop-supported-hardware-soak', node,
+    [path.join(workspace, 'scripts', 'soak-desktop-release.mjs'), '--profile', 'ci',
+      '--iterations', argument('iterations', '2')]);
   add('desktop-style-interaction', node,
     [path.join(workspace, 'scripts', 'audit-desktop-layer-style-interaction.mjs')]);
   add('desktop-tool-switching', node,

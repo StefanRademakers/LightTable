@@ -13,9 +13,10 @@ paths.
   Text inputs and active Type Tool editing own printable keys and editing
   shortcuts instead of leaking them to the editor router.
 - `Ctrl` on Windows/Linux and `Cmd` on macOS invoke the same document commands.
-- Native Electron application menus remain disabled. Menus, flyouts, dialogs,
-  font pickers and the Layers tree mark their scope as native keyboard UI so
-  the canvas command router cannot consume their keys.
+- Native Electron application menus remain disabled. Menus, flyouts, dialogs
+  and font pickers use an exclusive native-keyboard scope. The Layers tree uses
+  tab-only isolation: local navigation remains native while document commands
+  such as mask invert still work after choosing a layer or channel.
 - `Escape` closes the nearest transient surface and returns focus to its
   opener. `Enter` or `Space` activates buttons and menu entries. Disabled menu
   commands remain discoverable, carry `aria-disabled`, explain their state in

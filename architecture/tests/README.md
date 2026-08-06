@@ -65,6 +65,17 @@ save and quick export, scans visible controls for accessible names, and captures
 forced-colors plus reduced-motion evidence. The manual assistive-technology
 matrix is defined in [Accessibility, keyboard and focus](../ACCESSIBILITY_KEYBOARD_AND_FOCUS.md).
 
+Supported-hardware retention and interaction evidence uses:
+
+```powershell
+npm run soak:desktop:release:build -- --profile ci
+npm run soak:desktop:release:build -- --profile overnight
+```
+
+The first is bounded and joins desktop/full quality. The second requests at
+least twelve hours and must be run on each physical hardware class being
+claimed. Contract and current evidence: [Supported hardware and release soak](../SUPPORTED_HARDWARE_AND_SOAK_GATE.md).
+
 The first gate restores every interaction to its reference state before forced
 GC and checks stable-tail heap, DOM, listeners and renderer-owned GPU bytes. The
 second reaches every toolbar/flyout tool each round, detects stopped document
