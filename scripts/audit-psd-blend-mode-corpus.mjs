@@ -96,6 +96,28 @@ const compare = async (referencePath, candidatePath, differencePath, rawDifferen
   return { ...metrics(reference.data, candidate.data, 400, 400), regions: regionMetrics };
 };
 
+const alignViewportToWholeDocumentPixels = async (app, page, width, height) => {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const viewport = await page.locator('.lighttable-viewport').boundingBox();
+    if (!viewport) throw new Error('Cannot resolve LightTable viewport.');
+    const originX = viewport.x + (viewport.width - width) / 2;
+    const originY = viewport.y + (viewport.height - height) / 2;
+    const delta = {
+      x: Math.abs(originX - Math.round(originX)) > 0.01 ? 1 : 0,
+      y: Math.abs(originY - Math.round(originY)) > 0.01 ? 1 : 0
+    };
+    if (!delta.x && !delta.y) return { viewport, originX, originY };
+    await app.evaluate(({ BrowserWindow }, adjustment) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      const bounds = window?.getBounds();
+      if (window && bounds) window.setBounds({ ...bounds,
+        width: bounds.width + adjustment.x, height: bounds.height + adjustment.y });
+    }, delta);
+    await page.waitForTimeout(150);
+  }
+  throw new Error('Could not align the document origin to whole device pixels.');
+};
+
 const results = [];
 for (const [index, entry] of cases.entries()) {
   const startedAt = performance.now();
@@ -134,12 +156,12 @@ for (const [index, entry] of cases.entries()) {
       && Math.abs(blendLayer.fillOpacity - entry.fillOpacity) <= 1 / 255 + 0.000001;
     await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 100 });
     await page.addStyleTag({ content: '.dv-floating-overlay-host { display: none !important; }' });
+    const geometry = await alignViewportToWholeDocumentPixels(app, page, 400, 400);
     await page.waitForTimeout(350);
-    const viewport = await page.locator('.lighttable-viewport').boundingBox();
-    if (!viewport) throw new Error('Cannot resolve LightTable viewport.');
+    result.captureGeometry = { width: geometry.viewport.width, height: geometry.viewport.height,
+      originX: geometry.originX, originY: geometry.originY };
     await page.screenshot({ path: entry.lightTable, clip: {
-      x: Math.round(viewport.x + (viewport.width - 400) / 2),
-      y: Math.round(viewport.y + (viewport.height - 400) / 2), width: 400, height: 400
+      x: Math.round(geometry.originX), y: Math.round(geometry.originY), width: 400, height: 400
     } });
     result.rawDifference = path.join(root, 'difference-raw', path.basename(entry.difference));
     result.metrics = await compare(entry.reference, entry.lightTable, entry.difference, result.rawDifference);
