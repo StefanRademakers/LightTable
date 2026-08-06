@@ -32,3 +32,20 @@ commands where practical, preserving high-frequency preview controllers.
 - MCP-generated and UI-generated canonical snapshots/pixels must match.
 - Bounds, malformed-input, performance and cache invalidation tests.
 - Run vector/gradient/effects/MCP/parity gates and builds; docs, commit, move.
+
+## Completion (2026-08-06)
+
+- Added validated semantic commands for primitive/live shapes, bounded compound
+  paths, transforms, fill/no-fill, stroke/no-stroke and solid/gradient paints.
+- Added validated Layer Style add/update/remove/reorder/toggle operations with
+  stable effect IDs for all ten supported effects and deterministic history.
+- Reused the canonical vector, gradient and Layer Style models throughout the
+  UI, command service and MCP; high-frequency property previews remain local.
+- Added bounded full-fidelity vector queries plus focused MCP create/edit/style
+  tools without a second geometry, paint, render or effects representation.
+- Packaged Electron measurements: vector create 26.95 ms and effect add
+  16.65 ms. Native and PSD reopen preserve editable vector/style semantics.
+- Verification passed: full workspace tests (321 app files / 1,742 app tests),
+  web build, packaged desktop verification, semantic command-driver smoke,
+  boundary and third-party gates; focused vector, gradient, effects, PSD and MCP
+  suites also passed.

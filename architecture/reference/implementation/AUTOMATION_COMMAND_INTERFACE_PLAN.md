@@ -226,6 +226,18 @@ packaged command smoke verifies exact GPU settling plus editable native and PSD
 roundtrips; provisional interactive typing remains an internal latency path and
 does not create a second text model.
 
+Semantic vector/style commands cover rectangle, ellipse, star, line and
+bounded compound-path creation plus canonical geometry, transform, fill,
+gradient and stroke updates. Full-fidelity vector queries are capped at 128
+elements and 8192 anchors. Layer Style add/update/remove/move and the existing
+toggle command address stable effect IDs and validate the same ten effect
+unions used by native persistence and PSD export. Commands cap effects,
+gradient stops, dash entries and contours at 64 and reject non-finite payloads
+before mutation. Each operation uses the existing document commands and emits
+one document/history publication; interactive vector/gradient previews remain
+in their specialized gesture controllers. Layer-tree effect toggles route back
+through the shared command boundary.
+
 ### Phase D - transactional gestures
 
 - add brush, transform and selection gesture sessions in document coordinates;
@@ -282,6 +294,11 @@ It also exposes focused `lighttable_text`, `lighttable_create_text` and
 `lighttable_edit_text` tools. These tools translate only to the shared semantic
 commands and bounded query; they neither manufacture MCP-only glyph runs nor
 receive font binaries.
+
+The same rule applies to `lighttable_vector`, `lighttable_create_shape`,
+`lighttable_edit_vector` and `lighttable_layer_style`: tools translate display
+colors at the boundary and submit canonical commands, while geometry,
+gradients, Layer Styles, undo and GPU rendering remain editor-owned.
 
 ## Always-green gates
 

@@ -5,6 +5,11 @@ application command service. It deliberately contains no document model and no
 renderer. A token-protected, loopback-only desktop bridge owns the connection
 to the real editor.
 
+Focused tools cover bounded workspace/layer/text/vector inspection, semantic
+document/text/shape creation, text/vector edits and Layer Style mutations.
+They invoke the editor's canonical commands; this package never creates its
+own glyph runs, vector geometry, effects, undo state or pixels.
+
 ## Local demo
 
 ```powershell
@@ -45,5 +50,7 @@ bridge always binds to `127.0.0.1`; never publish it directly.
 - `npm test -w @lighttable/mcp-server`
 - `npm run smoke:mcp -- D:\shapes.psd D:\mediavibe\LightTableTestFiles\mcp`
 
-The smoke creates a real editable raster layer through MCP, paints a gesture,
-renders through LightTable and writes PNG, native and PSD artifacts.
+The command-driver and MCP tests cover editable text, vector/gradient/stroke
+and Layer Style commands. The MCP smoke creates a real editable raster layer,
+paints a gesture, renders through LightTable and writes PNG, native and PSD
+artifacts.
