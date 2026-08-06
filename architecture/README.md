@@ -43,8 +43,9 @@ history still has value. Keep temporary task notes out of this directory.
 19. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
 20. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
 21. [Repeatable quality and parity tests](tests/README.md)
-22. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
-23. [Change rules](CHANGE_RULES.md)
+22. [Current code quality and latency audit](CODE_QUALITY_AUDIT_2026-08-06.md)
+23. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
+24. [Change rules](CHANGE_RULES.md)
 
 ## Directory roles
 

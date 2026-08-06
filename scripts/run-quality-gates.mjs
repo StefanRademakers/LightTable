@@ -27,6 +27,7 @@ const addNpm = (id, args, options = {}) => process.platform === 'win32'
 
 if (profile === 'quick' || profile === 'full') {
   addNpm('boundaries', ['run', 'verify:boundary']);
+  addNpm('source-structure', ['run', 'audit:source-structure']);
   addNpm('typecheck', ['run', 'typecheck']);
   addNpm('unit-tests', ['test']);
   addNpm('web-production-build', ['run', 'build:web']);

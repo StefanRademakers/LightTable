@@ -32,6 +32,11 @@ The parity profile requires the local Photoshop oracle corpora. Override them
 with `--effects-root`, `--blend-root`, and the numeric blend gate with
 `--max-rmse`. A missing oracle is a failure, never a silent skip.
 
+The quick/full profiles also run the source-structure ratchet. Known large
+integration modules have explicit ceilings; new production files above 1,000
+lines and growth above those ceilings fail. Lower exceptions after extraction;
+never raise them simply to admit more behavior.
+
 ## Test-writing contract
 
 For a new tool or feature, add focused unit/contract tests and a packaged smoke

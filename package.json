@@ -80,6 +80,7 @@
     "test": "npm run test:text-wasm && npm run test --workspaces --if-present",
     "typecheck": "npm run ensure:text-wasm && npm run typecheck --workspaces --if-present",
     "verify:boundary": "node scripts/verify-boundary.mjs",
+    "audit:source-structure": "node scripts/audit-source-structure.mjs",
     "generate:third-party": "node scripts/generate-third-party-inventory.mjs",
     "verify:third-party": "node scripts/generate-third-party-inventory.mjs --check",
     "quality:agent": "node scripts/run-quality-gates.mjs",

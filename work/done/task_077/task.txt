@@ -1,0 +1,27 @@
+# Task 077 — complete code-quality and latency scan
+
+Status: completed 2026-08-06.
+
+The current 525 production source files were measured and reviewed against the
+architecture boundaries, physical endurance evidence and hot-path contracts.
+The findings and ranked refactor direction are recorded in
+`architecture/CODE_QUALITY_AUDIT_2026-08-06.md`.
+
+Added an enforceable source-structure ratchet:
+
+- new production files above 1,000 lines fail;
+- the ten existing >1,000-line modules have explicit current ceilings;
+- growth above a ceiling or an obsolete exception fails;
+- machine-readable metrics include imports, React hooks, animation-frame and
+  timer counts for the largest modules.
+
+This does not disguise the two remaining hotspots: the 4,344-line editor
+composition root and 2,266-line GPU facade are explicitly ranked for cohesive,
+tested extraction. No speculative manager, renderer split or line-count-only
+refactor was added.
+
+Verification: source-structure and architecture-boundary audits pass; the full
+quick quality profile, tool switching, retention endurance, Layer Style
+interaction and Photoshop effects corpus evidence immediately preceding this
+scan are green.
+
