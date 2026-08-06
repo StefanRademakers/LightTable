@@ -33,3 +33,22 @@ Access/activity surface; normal History remains authoritative.
 - One MCP batch creates a layered mini-design and one undo restores baseline.
 - Measure publication/render count to prevent N-command recomposition storms.
 - Run command/MCP/desktop/quality gates, update contracts, commit and move.
+
+## Completion (2026-08-06)
+
+- Added a 64-operation/256 KiB/10-second atomic contract with unique operation
+  IDs, ordered result references and one workspace/document precondition.
+- Commands execute on a private canonical snapshot and publish once; failure at
+  every tested position, cancellation and timeout leave the baseline exact.
+- Successful batches create one named History entry. The packaged three-step
+  mini-design measured 28.10 ms, one document-composite execution and two
+  submitted frames including the normal correction frame; undo/redo restored
+  baseline/design exactly.
+- Added bounded queued/running/progress/completed/failed/canceled event cursors,
+  reconnect polling, cancellation and a docked Agent activity panel showing the
+  operation, progress, current step, cancel action and final undo label.
+- Exposed the same contract through authenticated MCP batch/events/cancel tools
+  and the reusable desktop automation driver, with no MCP geometry/render model.
+- Verification passed: focused command/workspace/MCP suites, all workspace
+  typechecks, web build, packaged Electron command smoke, source-structure and
+  diff audits. Native and PSD exports remained green after the batch roundtrip.

@@ -10,6 +10,10 @@ document/text/shape creation, text/vector edits and Layer Style mutations.
 They invoke the editor's canonical commands; this package never creates its
 own glyph runs, vector geometry, effects, undo state or pixels.
 
+Atomic layered design steps use `lighttable_batch`; reconnect-safe progress is
+available through `lighttable_task_events`, and `lighttable_cancel_task` stops
+active work. Successful batches appear as one named undo entry in LightTable.
+
 ## Local demo
 
 ```powershell

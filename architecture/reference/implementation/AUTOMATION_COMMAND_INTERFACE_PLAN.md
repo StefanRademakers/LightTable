@@ -300,6 +300,28 @@ The same rule applies to `lighttable_vector`, `lighttable_create_shape`,
 colors at the boundary and submit canonical commands, while geometry,
 gradients, Layer Styles, undo and GPU rendering remain editor-owned.
 
+### Atomic agent operations
+
+`command.batch` groups at most 64 semantic operations and 256 KiB of validated
+parameters behind one document/workspace revision precondition. Operations run
+against a private canonical snapshot; only the final tree is published and
+recorded as one named History entry. Failure, cancellation, timeout or document
+closure therefore cannot expose an intermediate document to rendering or
+export. Later operations can reference bounded result fields from earlier
+operation IDs, so a newly created semantic layer can be named and styled in the
+same transaction without pre-allocating internal IDs.
+
+Document tasks deliver queued/running/progress/completed/failed/canceled events
+through a bounded reconnect-safe cursor. The docked Agent panel uses that same
+stream for operation name, progress, cancel and the final undo label. MCP maps
+it to `lighttable_batch`, `lighttable_task_events` and
+`lighttable_cancel_task`; it owns no separate transaction or progress model.
+
+The packaged mini-design smoke proves three edits produce one history entry,
+one document-composite execution and two submitted frames including the normal
+correction frame. One undo restores the baseline and one redo restores the
+layered design.
+
 ## Always-green gates
 
 Every phase must preserve web and Electron builds, ordinary UI operation and
