@@ -41,7 +41,10 @@ import type { VectorLayerRenderer } from './VectorLayerRenderer';
 import { textPlaceholderVectorLayer } from './textPlaceholderPresentation';
 import type { DevelopmentTextFixtureRenderer } from '../../text/rendering/DevelopmentTextFixtureRenderer';
 import type { TextLayerRenderer } from '../../text/rendering/TextLayerRenderer';
-import { documentBlendProfileGpuValue } from '../color/documentColorTransform';
+import {
+  documentBlendProfileGpuValue,
+  documentBlendQuantization
+} from '../color/documentColorTransform';
 
 interface LayerCompositorOptions {
   device: GPUDevice;
@@ -104,9 +107,7 @@ export class LayerCompositor {
     } = this.options;
     const { width, height } = this.options.dimensions();
     this.blendProfile = documentBlendProfileGpuValue(document.colorSettings.blendProfile);
-    this.blendQuantization = document.colorSettings.bitDepth === 8
-      ? 255
-      : document.colorSettings.bitDepth === 16 ? 65_535 : 0;
+    this.blendQuantization = documentBlendQuantization(document.colorSettings.bitDepth);
     layerStyles.setBlendProfile?.(this.blendProfile, this.blendQuantization);
     this.options.syncDocument(document);
     const analysis = analyzeDocumentComposite(
