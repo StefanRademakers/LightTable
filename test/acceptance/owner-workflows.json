@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "featureFreezeDeclared": "2026-08-06",
+  "projects": [
+    {
+      "id": "photo-grade",
+      "title": "Photo correction and export",
+      "fixture": "D:/adamus2__0002.png",
+      "requiredFiles": ["D:/adamus2__0002.png"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-release.mjs", "args": ["D:/adamus2__0002.png"] }],
+      "ownerTask": "Open the photo, grade exposure/color, compare before/after, undo/redo, save native and export PNG."
+    },
+    {
+      "id": "layered-design",
+      "title": "Large layered invitation",
+      "fixture": "D:/mediavibe/LightTableTestFiles/psd/templates/Save the Date Invitation PSD 6/EHS-396/EHS-396/EHS-396.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/psd/templates/Save the Date Invitation PSD 6/EHS-396/EHS-396/EHS-396.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-release.mjs", "args": ["D:/mediavibe/LightTableTestFiles/psd/templates/Save the Date Invitation PSD 6/EHS-396/EHS-396/EHS-396.psd"] }],
+      "ownerTask": "Navigate nested layers, change one supported element, undo, save a copy and verify interaction feel."
+    },
+    {
+      "id": "point-text",
+      "title": "Point text creation and editing",
+      "fixture": "D:/shapes.psd",
+      "requiredFiles": ["D:/shapes.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-type-tool.mjs", "args": ["D:/shapes.psd"] }],
+      "ownerTask": "Create point text directly on canvas, edit existing transformed text, select words and verify caret feel."
+    },
+    {
+      "id": "paragraph-text",
+      "title": "Paragraph text and typography",
+      "fixture": "clean-room",
+      "requiredFiles": [],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-paragraph.mjs", "args": [] }],
+      "ownerTask": "Drag a paragraph frame, type/wrap/edit, resize the frame and filter the font list."
+    },
+    {
+      "id": "vector-shapes",
+      "title": "Editable shapes and geometry",
+      "fixture": "D:/shapes.psd",
+      "requiredFiles": ["D:/shapes.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-shape-geometry.mjs", "args": ["D:/shapes.psd"] }],
+      "ownerTask": "Create and edit rectangle/ellipse/star shapes, toggle fill/stroke and transform them."
+    },
+    {
+      "id": "gradients",
+      "title": "Gradient authoring",
+      "fixture": "D:/shapes.psd",
+      "requiredFiles": ["D:/shapes.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-gradient-tool.mjs", "args": ["D:/shapes.psd"] }],
+      "ownerTask": "Create a gradient layer, add/move/remove stops and judge the on-canvas preview and undo."
+    },
+    {
+      "id": "layer-effects",
+      "title": "Layer effects editing",
+      "fixture": "D:/mediavibe/LightTableTestFiles/psd/layer-effects-roundtrip/photoshop-canonical/drop-shadow-size-30.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/psd/layer-effects-roundtrip/photoshop-canonical/drop-shadow-size-30.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "audit-desktop-layer-style-interaction.mjs", "args": ["D:/mediavibe/LightTableTestFiles/psd/layer-effects-roundtrip/photoshop-canonical/drop-shadow-size-30.psd"] }],
+      "ownerTask": "Scrub blur/distance/angle/opacity, toggle/remove the effect and inspect quality at 100% and 200%."
+    },
+    {
+      "id": "paint-mask",
+      "title": "Painting, brush gesture and mask workflow",
+      "fixture": "D:/adamus2__0002.png",
+      "requiredFiles": ["D:/adamus2__0002.png"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-brush-ux.mjs", "args": ["D:/adamus2__0002.png"] }],
+      "ownerTask": "Paint continuous strokes on a new layer, verify one undo per gesture and repeat on a mask."
+    },
+    {
+      "id": "transform-merge",
+      "title": "Transforms, rasterization and merge",
+      "fixture": "D:/mediavibe/LightTableTestFiles/psd/templates/Save the Date Invitation PSD 6/EHS-396/EHS-396/EHS-396.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/psd/templates/Save the Date Invitation PSD 6/EHS-396/EHS-396/EHS-396.psd"],
+      "canvasPolicy": "off-canvas-transform",
+      "automation": [{ "script": "smoke-desktop-tight-merge.mjs", "args": ["D:/mediavibe/LightTableTestFiles/psd/templates/Save the Date Invitation PSD 6/EHS-396/EHS-396/EHS-396.psd"] }],
+      "ownerTask": "Rotate/scale a semantic layer partly off canvas, commit sharp output, merge with raster and undo/redo."
+    },
+    {
+      "id": "native-save-recovery",
+      "title": "Native save, reopen and crash recovery",
+      "fixture": "D:/TextTest.psd",
+      "requiredFiles": ["D:/TextTest.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "profile-desktop-recovery.mjs", "args": ["D:/TextTest.psd", "--output={output}/recovery"] }],
+      "ownerTask": "Edit, wait for recovery, force-close, open recovered copy, save elsewhere and reopen."
+    },
+    {
+      "id": "psd-roundtrip",
+      "title": "Editable Photoshop roundtrip",
+      "fixture": "D:/TextTest.psd",
+      "requiredFiles": ["D:/TextTest.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-psd-roundtrip.mjs", "args": ["D:/TextTest.psd"] }],
+      "ownerTask": "Export PSD, open in Photoshop, edit supported text/vector/effect values and reopen in LightTable."
+    },
+    {
+      "id": "pdf-open-export",
+      "title": "PDF open and export",
+      "fixture": "D:/FormulierPersoneel.pdf",
+      "requiredFiles": ["D:/FormulierPersoneel.pdf", "D:/mediavibe/LightTableTestFiles/PDFJSGIT/test/pdfs"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-pdf-corpus.mjs", "args": ["--dir", "D:/mediavibe/LightTableTestFiles/PDFJSGIT/test/pdfs", "--sample", "12", "--output", "{output}/pdf-corpus.json"] }],
+      "ownerTask": "Open the supplied form, inspect compatibility disclosure, paint on a new layer and export/reopen PDF."
+    },
+    {
+      "id": "mcp-design",
+      "title": "MCP-created editable design",
+      "fixture": "D:/shapes.psd",
+      "requiredFiles": ["D:/shapes.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-mcp-design.mjs", "args": ["D:/shapes.psd"] }],
+      "ownerTask": "Pair a local agent, create/revise/undo a design and verify native plus Photoshop artifacts stay editable."
+    },
+    {
+      "id": "accessibility-diagnostics",
+      "title": "Keyboard access and inspect-before-send diagnostics",
+      "fixture": "clean-room",
+      "requiredFiles": [],
+      "canvasPolicy": "inside",
+      "automation": [
+        { "script": "smoke-desktop-accessibility.mjs", "args": [] },
+        { "script": "smoke-desktop-diagnostics.mjs", "args": [] }
+      ],
+      "ownerTask": "Complete the core workflow by keyboard and inspect a diagnostic bundle before any export."
+    },
+    {
+      "id": "command-roundtrip",
+      "title": "Generic command, artifact and undo roundtrip",
+      "fixture": "D:/shapes.psd",
+      "requiredFiles": ["D:/shapes.psd"],
+      "canvasPolicy": "inside",
+      "automation": [{ "script": "smoke-desktop-command-driver.mjs", "args": ["D:/shapes.psd"] }],
+      "ownerTask": "Run the same create/place/vector/effect/export sequence from the UI and confirm coherent discoverability."
+    }
+  ]
+}

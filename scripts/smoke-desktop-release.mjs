@@ -43,8 +43,8 @@ try {
   if (!isolation.nodeUnavailable || !isolation.isolated || !isolation.csp.includes("script-src 'self'")) {
     throw new Error(`Packaged renderer isolation is incomplete: ${JSON.stringify(isolation)}`);
   }
-  await window.getByRole('button', { name: 'Help' }).click();
-  await window.getByRole('button', { name: 'About LightTable…' }).click();
+  await window.getByRole('menuitem', { name: 'Help' }).click();
+  await window.getByRole('menuitem', { name: 'About LightTable...' }).click();
   await window.getByRole('dialog', { name: 'About LightTable' }).waitFor({ state: 'visible' });
   await window.getByText('0.1.0-alpha.1').waitFor({ state: 'visible' });
   await window.getByText('Unsigned local/test build').waitFor({ state: 'visible' });

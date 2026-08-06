@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-06T21:24:40.000Z",
+  "build": "packaged Windows desktop",
+  "featureFreeze": true,
+  "automationPassed": true,
+  "ownerSignoff": false,
+  "projects": {
+    "photo-grade": "passed",
+    "layered-design": "passed",
+    "point-text": "passed",
+    "paragraph-text": "passed",
+    "vector-shapes": "passed",
+    "gradients": "passed",
+    "layer-effects": "passed",
+    "paint-mask": "passed",
+    "transform-merge": "passed",
+    "native-save-recovery": "passed",
+    "psd-roundtrip": "passed",
+    "pdf-open-export": "passed-12-of-12",
+    "mcp-design": "passed",
+    "accessibility-diagnostics": "passed",
+    "command-roundtrip": "passed"
+  },
+  "automationDefects": []
+}
