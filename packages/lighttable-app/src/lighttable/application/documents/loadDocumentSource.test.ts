@@ -186,6 +186,14 @@ describe('loadDocumentSource', () => {
     ]);
     expect(result?.preservedSourceAssets).toHaveLength(1);
     expect(result?.preservedSourceAssets[0]?.source).toBe(source);
+    expect(result?.document.photoshopImportReport?.compatibility).toEqual([
+      expect.objectContaining({
+        path: 'FormulierPersoneel.pdf',
+        support: 'raster-preview',
+        editable: false,
+        parity: expect.objectContaining({ roundTrip: 'unsupported' })
+      })
+    ]);
   });
 
   it('rejects unsupported signatures before allocating renderer image state', async () => {

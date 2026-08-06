@@ -257,6 +257,23 @@ export const loadDocumentSource = async (
     pdfSourceId = `pdf-source-${crypto.randomUUID()}` as DocumentAssetId;
     document = {
       ...document,
+      photoshopImportReport: {
+        warnings: [],
+        compatibility: [{
+          path: request.name,
+          feature: 'node',
+          support: 'raster-preview',
+          reason: `PDF page ${pdfPreview.pageNumber} is displayed from a ${Math.round(pdfPreview.scalePixelsPerPoint * 72)} ppi raster preview. The original PDF remains preserved; text, vectors and additional pages are not silently presented as editable structure.`,
+          layerId: document.activeLayerId ?? undefined,
+          editable: false,
+          parity: {
+            visual: 'raster-preview',
+            semantic: 'preserved',
+            structural: 'preserved',
+            roundTrip: 'unsupported'
+          }
+        }]
+      },
       assets: {
         ...document.assets,
         preservedSources: [
