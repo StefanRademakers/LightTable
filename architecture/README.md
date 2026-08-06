@@ -42,14 +42,16 @@ history still has value. Keep temporary task notes out of this directory.
 18. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
 19. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
 20. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
-21. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
-22. [Change rules](CHANGE_RULES.md)
+21. [Repeatable quality and parity tests](tests/README.md)
+22. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
+23. [Change rules](CHANGE_RULES.md)
 
 ## Directory roles
 
 - `contracts/`: narrow invariants shared by multiple systems.
 - `features/`: active feature-level architecture and specifications.
 - `integrations/`: host-adapter contracts and verification plans.
+- `tests/`: stable test entry points, oracle ownership and gate interpretation.
 - `ui/`: visual direction for the shared LightTable UI.
 - `ux/`: detailed interaction specifications.
 - `reference/`: useful research and implementation records.

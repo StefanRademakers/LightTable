@@ -80,6 +80,7 @@
     "verify:boundary": "node scripts/verify-boundary.mjs",
     "generate:third-party": "node scripts/generate-third-party-inventory.mjs",
     "verify:third-party": "node scripts/generate-third-party-inventory.mjs --check",
+    "quality:agent": "node scripts/run-quality-gates.mjs",
     "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
   },
   "devDependencies": {

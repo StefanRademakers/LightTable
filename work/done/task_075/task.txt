@@ -1,0 +1,17 @@
+# Task 075 — repeatable architecture quality and parity entry point
+
+Status: completed 2026-08-06.
+
+- Added `architecture/tests/` as the canonical test entry point with fixture
+  ownership, parity interpretation and a contract for new feature smokes.
+- Added `npm run quality:agent -- --profile <quick|desktop|parity|full>`.
+- The runner writes incremental machine-readable results plus individual logs,
+  fails on missing parity corpora, builds desktop once, and auto-discovers new
+  `smoke-desktop-*.mjs` tests.
+- Linked the test contract from the architecture reading order.
+
+Verification: the new quick profile passed boundaries, every workspace
+typecheck, 311 application test files / 1,656 application tests plus all other
+workspace suites, and the production Web build. The report was written under
+`tmp/quality-gates/2026-08-06T00-17-45-346Z/report.json`.
+
