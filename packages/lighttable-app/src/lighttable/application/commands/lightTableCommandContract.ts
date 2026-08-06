@@ -4,6 +4,9 @@ import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../edi
 import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
 import type { LightTableArtifactMetadata } from './lightTableArtifactRegistry';
 import type { SemanticTextCommand } from './semanticTextCommandContract';
+import type { SemanticVectorCommand } from './semanticVectorCommandContract';
+import type { SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
+import type { VectorElement } from '@lighttable/vector-core';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
@@ -12,6 +15,8 @@ export type LightTableCommandId =
   | 'layer.rename' | 'layer.setVisibility' | 'layer.setFillOpacity'
   | 'layer.style.setEnabled' | 'layer.effect.setEnabled' | 'file.openArtifact'
   | 'text.create' | 'text.replaceRange' | 'text.format' | 'text.setLayout'
+  | 'vector.create' | 'vector.update' | 'vector.remove'
+  | 'layer.effect.add' | 'layer.effect.update' | 'layer.effect.remove' | 'layer.effect.move'
   | 'file.exportNative' | 'file.exportPng' | 'file.exportPsd' | 'history.undo' | 'history.redo';
 
 export type LightTableCommandErrorCode =
@@ -109,6 +114,14 @@ export interface EditableTextQueryResult {
   readonly runsTruncated: boolean;
 }
 
+export interface EditableVectorQueryResult {
+  readonly layerId: LayerId;
+  readonly revision: number;
+  readonly totalElements: number;
+  readonly truncated: boolean;
+  readonly elements: readonly VectorElement[];
+}
+
 export interface CommandCapabilitySummary {
   readonly command: LightTableCommandId;
   readonly available: boolean;
@@ -152,8 +165,10 @@ export interface LightTableCommandPorts {
   setLayerVisibility(documentId: DocumentSessionId, layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;
   setLayerFillOpacity(documentId: DocumentSessionId, layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean): void | Promise<void>;
-  setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
+  setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): unknown | Promise<unknown>;
   executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand): unknown | Promise<unknown>;
+  executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand): unknown | Promise<unknown>;
+  executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPsdArtifact(documentId: DocumentSessionId): File | Promise<File>;
@@ -174,8 +189,10 @@ export interface DocumentLightTableCommandPorts {
   setLayerVisibility(layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;
   setLayerFillOpacity(layerId: LayerId, opacity: number): void | Promise<void>;
   setLayerStyleEnabled(layerId: LayerId, enabled: boolean): void | Promise<void>;
-  setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
+  setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): unknown | Promise<unknown>;
   executeTextCommand(command: SemanticTextCommand): unknown | Promise<unknown>;
+  executeVectorCommand(command: SemanticVectorCommand): unknown | Promise<unknown>;
+  executeLayerStyleCommand(command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>; exportPsdArtifact(): File | Promise<File>;
   beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;

@@ -117,6 +117,8 @@ import {
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
 import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreateCommand,
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
+import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
+import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
 import { PathTextHandleController } from './application/text/PathTextHandleController';
@@ -2735,7 +2737,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setLayerVisibility: layerPanelController.setVisibility,
       setLayerFillOpacity: layerPanelController.setFillOpacity,
       setLayerStyleEnabled: layerPanelController.setStyleStackEnabled,
-      setLayerEffectEnabled: layerPanelController.setStyleEnabled,
+      setLayerEffectEnabled: (layerId, effectId, enabled) => executeSemanticLayerStyleCommand(
+        { kind: 'toggle', layerId, effectId, enabled }, { getDocument: () => imageDocumentRef.current,
+          applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeTextCommand: async (command) => {
         const result = await executeSemanticTextCommand(command, { fontRegistry: textFontRegistry,
           getDocument: () => imageDocumentRef.current, getTextSettings: () => editorSessionRef.current.text,
@@ -2748,6 +2752,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
         throw new Error('The exact text layout did not settle.');
       },
+      executeVectorCommand: (command) => executeSemanticVectorCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
+      executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
       exportPsdArtifact: () => exportPsdArtifactRef.current(),
@@ -2763,20 +2769,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commandPorts, layerDocumentCommands, layerPanelController, workspaceDocumentId]);
   const commandLayerPanelController = useMemo(() => ({
     ...layerPanelController,
-    createRasterLayer: () => {
-      if (!executeRegisteredCommand('layer.createRaster', {})) {
-        layerPanelController.createRasterLayer();
-      }
+    createRasterLayer: () => { if (!executeRegisteredCommand('layer.createRaster', {})) layerPanelController.createRasterLayer(); },
+    rename: (layerId: LayerId, name: string) => { if (!executeRegisteredCommand('layer.rename', { layerId, name })) layerPanelController.rename(layerId, name); },
+    setVisibility: (layerIds: LayerId[], visible: boolean) => { if (!executeRegisteredCommand('layer.setVisibility', { layerIds, visible })) layerPanelController.setVisibility(layerIds, visible); },
+    setStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => {
+      if (!executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled })) layerPanelController.setStyleEnabled(layerId, effectId, enabled);
     },
-    rename: (layerId: LayerId, name: string) => {
-      if (!executeRegisteredCommand('layer.rename', { layerId, name })) {
-        layerPanelController.rename(layerId, name);
-      }
-    },
-    setVisibility: (layerIds: LayerId[], visible: boolean) => {
-      if (!executeRegisteredCommand('layer.setVisibility', { layerIds, visible })) {
-        layerPanelController.setVisibility(layerIds, visible);
-      }
+    setStyleStackEnabled: (layerId: LayerId, enabled: boolean) => {
+      if (!executeRegisteredCommand('layer.style.setEnabled', { layerId, enabled })) layerPanelController.setStyleStackEnabled(layerId, enabled);
     }
   }), [executeRegisteredCommand, layerPanelController]);
   selectLayerRef.current = layerPanelController.select;

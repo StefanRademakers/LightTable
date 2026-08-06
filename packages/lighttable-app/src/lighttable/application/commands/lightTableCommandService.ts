@@ -18,13 +18,16 @@ export type { LayerQuerySummary } from './layerQueryProjection';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type AutomationTaskQueryResult, type CommandCapabilitySummary, type DocumentLightTableCommandPorts,
-  type DocumentQueryResult, type EditableTextQueryResult, type LayerEffectsQueryResult, type LightTableArtifactPlacement,
+  type DocumentQueryResult, type EditableTextQueryResult, type EditableVectorQueryResult, type LayerEffectsQueryResult, type LightTableArtifactPlacement,
   type LightTableCommandErrorCode, type LightTableCommandId, type LightTableCommandPorts,
   type LightTableCommandRequest, type LightTableCommandResult, type LightTableCreateDocumentOptions,
   type LightTableGestureKind, type LightTableGestureResult, type LightTableGestureSample,
   type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
 } from './lightTableCommandContract';
 import { parseSemanticTextCommand, type SemanticTextCommand } from './semanticTextCommandContract';
+import { parseSemanticVectorCommand, type SemanticVectorCommand } from './semanticVectorCommandContract';
+import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
+import { projectEditableVectorQuery } from './vectorQueryProjection';
 export * from './lightTableCommandContract';
 
 /**
@@ -65,6 +68,14 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand) {
     return this.resolve(documentId).executeTextCommand(command);
+  }
+
+  executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand) {
+    return this.resolve(documentId).executeVectorCommand(command);
+  }
+
+  executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand) {
+    return this.resolve(documentId).executeLayerStyleCommand(command);
   }
 
   renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string) {
@@ -375,8 +386,7 @@ export class LightTableCommandService {
   }
 
   queryText(documentId: DocumentSessionId, layerId: LayerId): EditableTextQueryResult | null {
-    const document = this.document(documentId)?.document;
-    const layer = document ? findDocumentLayer(document, layerId) : null;
+    const document = this.document(documentId)?.document; const layer = document ? findDocumentLayer(document, layerId) : null;
     if (!document || layer?.type !== 'text') return null;
     const source = layer.text.source;
     const text = source.kind === 'flow' ? source.text : source.extractedText ?? '';
@@ -398,6 +408,12 @@ export class LightTableCommandService {
         ? structuredClone(source.paragraphRuns.slice(0, 128)) : [],
       runsTruncated: source.kind === 'flow'
         && (source.styleRuns.length > 128 || source.paragraphRuns.length > 128) };
+  }
+
+  queryVector(documentId: DocumentSessionId, layerId: LayerId): EditableVectorQueryResult | null {
+    const document = this.document(documentId)?.document; const layer = document ? findDocumentLayer(document, layerId) : null;
+    if (layer?.type !== 'vector') return null;
+    return projectEditableVectorQuery(layer, layerId);
   }
 
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null {
@@ -432,6 +448,13 @@ export class LightTableCommandService {
       availability('text.replaceRange', true, ''),
       availability('text.format', true, ''),
       availability('text.setLayout', true, ''),
+      availability('vector.create', true, ''),
+      availability('vector.update', true, ''),
+      availability('vector.remove', true, ''),
+      availability('layer.effect.add', true, ''),
+      availability('layer.effect.update', true, ''),
+      availability('layer.effect.remove', true, ''),
+      availability('layer.effect.move', true, ''),
       availability('file.exportNative', true, ''),
       availability('file.exportPng', true, ''),
       availability('file.exportPsd', true, ''),
@@ -568,6 +591,37 @@ export class LightTableCommandService {
       try {
         const result = await this.ports.executeTextCommand(documentRequest.documentId, command);
         if (!result) return this.reject(value.requestId, 'execution-failed', 'The text command did not change the document.', snapshot);
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: result,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
+    }
+
+    if (value.command === 'vector.create' || value.command === 'vector.update' || value.command === 'vector.remove') {
+      const kind = value.command === 'vector.create' ? 'create' : value.command === 'vector.update' ? 'update' : 'remove';
+      const command = parseSemanticVectorCommand(kind, value.parameters);
+      if ('message' in command) return this.reject(value.requestId, 'invalid-parameters', command.message, snapshot);
+      try {
+        const result = await this.ports.executeVectorCommand(documentRequest.documentId, command);
+        if (!result) return this.reject(value.requestId, 'execution-failed', 'The vector command did not change the document.', snapshot);
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: result,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
+    }
+
+    if (value.command === 'layer.effect.add' || value.command === 'layer.effect.update'
+      || value.command === 'layer.effect.remove' || value.command === 'layer.effect.move') {
+      const kind = value.command.slice('layer.effect.'.length) as SemanticLayerStyleCommand['kind'];
+      const command = parseSemanticLayerStyleCommand(kind, value.parameters);
+      if ('message' in command) return this.reject(value.requestId, 'invalid-parameters', command.message, snapshot);
+      try {
+        const result = await this.ports.executeLayerStyleCommand(documentRequest.documentId, command);
+        if (!result) return this.reject(value.requestId, 'execution-failed', 'The Layer Style command did not change the document.', snapshot);
         this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
@@ -817,6 +871,13 @@ export class LightTableCommandService {
       'text.replaceRange',
       'text.format',
       'text.setLayout',
+      'vector.create',
+      'vector.update',
+      'vector.remove',
+      'layer.effect.add',
+      'layer.effect.update',
+      'layer.effect.remove',
+      'layer.effect.move',
       'file.openArtifact',
       'file.exportNative',
       'file.exportPng',
@@ -930,6 +991,7 @@ export interface LightTableAutomationDriver {
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null;
   queryText(documentId: DocumentSessionId, layerId: LayerId): EditableTextQueryResult | null;
+  queryVector(documentId: DocumentSessionId, layerId: LayerId): EditableVectorQueryResult | null;
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;

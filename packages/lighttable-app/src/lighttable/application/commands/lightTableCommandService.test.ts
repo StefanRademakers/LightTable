@@ -35,6 +35,8 @@ const setup = () => {
     setLayerStyleEnabled: vi.fn(),
     setLayerEffectEnabled: vi.fn(),
     executeTextCommand: vi.fn(),
+    executeVectorCommand: vi.fn(),
+    executeLayerStyleCommand: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
     exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
@@ -139,6 +141,10 @@ describe('LightTableCommandService queries', () => {
         }
       })]
     });
+    expect(state.service.queryVector(state.session.id, vector.id)).toMatchObject({
+      layerId: vector.id, totalElements: 1, truncated: false,
+      elements: [expect.objectContaining({ id: 'badge', type: 'live-shape' })]
+    });
     state.service.dispose();
     state.workspace.dispose();
   });
@@ -162,6 +168,28 @@ describe('LightTableCommandService queries', () => {
 });
 
 describe('LightTableCommandService registry', () => {
+  it('validates and routes semantic vector and Layer Style mutations', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeVectorCommand).mockResolvedValue({ layerId: 'vector', elementId: 'shape' });
+    vi.mocked(state.ports.executeLayerStyleCommand).mockResolvedValue({ layerId: 'layer', effectId: 'effect' });
+    const vector = await state.service.execute(request('vector.create', state.session.id, {
+      primitive: { kind: 'ellipse', x: 10, y: 20, width: 80, height: 40 },
+      style: { fill: null }
+    }));
+    const effect = await state.service.execute(request('layer.effect.add', state.session.id, {
+      layerId: state.session.getSnapshot().document!.activeLayerId, effectKind: 'drop-shadow',
+      settings: { distance: 12, size: 8 }
+    }));
+    expect(vector.status).toBe('completed'); expect(effect.status).toBe('completed');
+    expect(state.ports.executeVectorCommand).toHaveBeenCalledOnce();
+    expect(state.ports.executeLayerStyleCommand).toHaveBeenCalledOnce();
+    const malformed = await state.service.execute(request('vector.create', state.session.id, {
+      primitive: { kind: 'ellipse', x: 0, y: 0, width: Number.NaN, height: 10 }
+    }));
+    expect(malformed).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('routes mounted document controllers and rejects calls after unmount', async () => {
     const registry = new LightTableCommandPortRegistry();
     const ports = {
@@ -174,6 +202,8 @@ describe('LightTableCommandService registry', () => {
       setLayerStyleEnabled: vi.fn(),
       setLayerEffectEnabled: vi.fn(),
       executeTextCommand: vi.fn(),
+      executeVectorCommand: vi.fn(),
+      executeLayerStyleCommand: vi.fn(),
       exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
       exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),

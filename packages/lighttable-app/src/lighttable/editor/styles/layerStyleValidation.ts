@@ -30,6 +30,7 @@ const isContour = (value: unknown): value is LayerStyleContour =>
   isRecord(value)
   && Array.isArray(value.points)
   && value.points.length >= 2
+  && value.points.length <= 64
   && value.points.every((point) =>
     isRecord(point) && normalized(point.position) && normalized(point.value));
 
@@ -47,6 +48,7 @@ const isGradient = (value: unknown): value is LayerStyleGradient =>
   && normalized(value.smoothness)
   && Array.isArray(value.colorStops)
   && value.colorStops.length >= 2
+  && value.colorStops.length <= 64
   && value.colorStops.every((stop) =>
     isRecord(stop)
     && typeof stop.id === 'string'
@@ -55,6 +57,7 @@ const isGradient = (value: unknown): value is LayerStyleGradient =>
     && isColor(stop.color))
   && Array.isArray(value.opacityStops)
   && value.opacityStops.length >= 2
+  && value.opacityStops.length <= 64
   && value.opacityStops.every((stop) =>
     isRecord(stop)
     && typeof stop.id === 'string'
@@ -170,6 +173,7 @@ export const parseLayerStyleStack = (value: unknown): LayerStyleStack => {
     || !finite(value.globalLight.angle)
     || !finite(value.globalLight.altitude)
     || !Array.isArray(value.effects)
+    || value.effects.length > 64
     || !value.effects.every(isLayerStyle)
     || !Number.isInteger(value.revision)
     || Number(value.revision) < 0
@@ -182,3 +186,8 @@ export const parseLayerStyleStack = (value: unknown): LayerStyleStack => {
   }
   return structuredClone(value) as unknown as LayerStyleStack;
 };
+
+export const parseLayerStyleInstance = (value: unknown): LayerStyleInstance => (
+  parseLayerStyleStack({ enabled: true, scale: 1, globalLight: { angle: 120, altitude: 30 },
+    effects: [value], revision: 0 }).effects[0]!
+);
