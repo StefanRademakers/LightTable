@@ -1,8 +1,8 @@
 # Outbound Agent server pairing
 
-Status: **implemented local TLS release slice**, 2026-08-06. A real Hetzner
-deployment remains an optional credentialed smoke, never a substitute for the
-local integration gate.
+Status: **production single-tenant release candidate**, 2026-08-06. A real
+Hetzner deployment remains a credentialed smoke, never a substitute for the
+local packaged integration gate.
 
 ## Topology and transport
 
@@ -64,7 +64,9 @@ LIGHTTABLE_SERVER_ID=<stable deployment identity>
 
 `LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS=true` exists only for the self-signed local
 test harness and must never be enabled in production. Production still requires
-HTTPS/WSS with a publicly trusted certificate. Pairing-code issuance, durable
-multi-user tunnel state and centralized limits are completed as part of the
-production MCP service milestone; the current server broker is intentionally
-single-process and bounded.
+HTTPS/WSS with a publicly trusted certificate. OAuth/audit state is encrypted
+and durable, requests are centrally bounded and desktop routes remain
+device/client scoped. The current broker remains intentionally single-process
+and in-memory: reconnect is supported, but a server restart requires the
+desktop tunnel to reconnect and a separate service instance/state directory is
+required per tenant.

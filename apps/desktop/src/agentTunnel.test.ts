@@ -121,4 +121,46 @@ describe('AgentTunnelController', () => {
       serverId: 'test-server', deviceId
     }), expect.any(Object));
   });
+
+  it('transfers bounded artifacts over the JSON tunnel without weakening edit scopes', async () => {
+    const now = Date.now(); const test = harness(now); await test.controller.pair('https://agent.example', 'ABC-123');
+    test.message({ type: 'client.request', deviceId, clientId: 'asset-client', name: 'Asset client', scopes: ['read', 'edit'] });
+    await test.controller.approveClient('asset-client', ['read']);
+    test.message({ type: 'invoke', deviceId, clientId: 'asset-client', requestId: 'upload-denied', nonce: 'asset-1',
+      timestamp: now, method: 'artifact.register', parameters: { bytesBase64: 'AQID', name: 'asset.bin' } });
+    await Promise.resolve();
+    expect(test.sent).toContainEqual({ type: 'result', requestId: 'upload-denied', error: 'client-not-approved' });
+    await test.controller.approveClient('asset-client', ['read', 'edit']);
+    test.invoke.mockResolvedValueOnce({ ok: true });
+    test.message({ type: 'invoke', deviceId, clientId: 'asset-client', requestId: 'upload', nonce: 'asset-2',
+      timestamp: now, method: 'artifact.register', parameters: { bytesBase64: 'AQID', name: 'asset.bin' } });
+    await vi.waitFor(() => expect(test.invoke).toHaveBeenCalledWith('artifact.register', expect.objectContaining({
+      bytes: new Uint8Array([1, 2, 3])
+    })));
+  });
+
+  it('surfaces named design progress and offers one-step undo after completion', async () => {
+    const now = Date.now(); const test = harness(now); await test.controller.pair('https://agent.example', 'ABC-123');
+    test.message({ type: 'client.request', deviceId, clientId: 'design-client', name: 'Design client', scopes: ['read', 'edit'] });
+    await test.controller.approveClient('design-client', ['read', 'edit']);
+    test.message({ type: 'invoke', deviceId, clientId: 'design-client', requestId: 'design', nonce: 'design-1',
+      timestamp: now, method: 'command.execute', parameters: { documentId: 'document-1', command: 'command.batch',
+        commandParameters: { name: 'Create launch card', operations: [] } } });
+    await vi.waitFor(() => expect(test.controller.status().activity).toMatchObject({
+      name: 'Create launch card', status: 'completed', progress: 1, documentId: 'document-1'
+    }));
+    test.invoke.mockResolvedValueOnce({ status: 'completed', artifact: {
+      id: 'artifact-preview', name: 'launch-card.png', mediaType: 'image/png'
+    } } as never);
+    test.message({ type: 'invoke', deviceId, clientId: 'design-client', requestId: 'preview', nonce: 'design-2',
+      timestamp: now, method: 'task.query', parameters: { documentId: 'document-1', taskId: 'preview-task' } });
+    await vi.waitFor(() => expect(test.controller.status().activity?.results).toEqual([
+      { id: 'artifact-preview', name: 'launch-card.png', mediaType: 'image/png' }
+    ]));
+    await test.controller.undoActivity();
+    expect(test.invoke).toHaveBeenLastCalledWith('command.execute', expect.objectContaining({
+      documentId: 'document-1', command: 'history.undo'
+    }));
+    expect(test.controller.status().activity).toBeUndefined();
+  });
 });

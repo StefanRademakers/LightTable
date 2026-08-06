@@ -94,6 +94,13 @@ export class MockLightTableClient {
     if (method === 'artifact.list') return [];
     if (method === 'task.events') return { cursor: 0, events: [] };
     if (method === 'command.execute') {
+      if (parameters.command === 'command.batch') {
+        const title = parameters.commandParameters?.operations?.find((operation) => operation.operationId === 'title');
+        if (title?.parameters?.text) this.layers.push({ id: 'layer-agent-title', parentId: null, depth: 0, type: 'text',
+          name: title.parameters.text, visible: true, opacity: 1, fillOpacity: 1, blendMode: 'normal', clipping: false,
+          hasMask: false, hasActiveEffects: true, transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+          rasterSurface: null, textLayout: { mode: 'point' } });
+      }
       this.revision += 1; this.document.canonicalRevision += 1; this.document.dirty = true;
       return { requestId: parameters.commandRequestId, status: 'completed', value: { changed: true },
         revisions: { workspace: this.revision, document: this.document.canonicalRevision } };

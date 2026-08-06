@@ -76,6 +76,8 @@ const bridge: LightTableDesktopBridge = {
   approveAgentClient: (clientId, scopes) => ipcRenderer.invoke('lighttable:agent-client-approve', clientId, scopes),
   revokeAgentClient: (clientId) => ipcRenderer.invoke('lighttable:agent-client-revoke', clientId),
   revokeAgentDevice: () => ipcRenderer.invoke('lighttable:agent-device-revoke'),
+  cancelAgentActivity: () => ipcRenderer.invoke('lighttable:agent-activity-cancel'),
+  undoAgentActivity: () => ipcRenderer.invoke('lighttable:agent-activity-undo'),
   onAgentTunnelStatus: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
     ipcRenderer.on('lighttable:agent-tunnel-changed', handler);

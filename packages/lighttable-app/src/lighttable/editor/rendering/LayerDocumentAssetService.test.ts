@@ -37,6 +37,7 @@ const createPorts = (): LayerDocumentAssetPorts => ({
   derivedPreviewTexture: vi.fn(() => null),
   maskTexture: vi.fn(() => maskTexture),
   encodeTexture: vi.fn(async (_layerId, _texture, maskChannel) => maskChannel ? mask : pixels),
+  encodeSemanticLayer: vi.fn(async () => pixels),
   decodeTexture: vi.fn(async () => undefined),
   invalidateLayer: vi.fn(),
   patternSource: vi.fn(() => pattern),
@@ -140,6 +141,24 @@ describe('LayerDocumentAssetService', () => {
     ]);
     expect(ports.encodeTexture).toHaveBeenCalledWith(text.id, previewTexture, false);
     expect(ports.decodeTexture).toHaveBeenCalledWith(text.id, pixels, previewTexture, false);
+  });
+
+  it('materializes an intrinsic GPU fallback for semantic PSD layers without a preview cache', async () => {
+    const ports = createPorts();
+    const service = new LayerDocumentAssetService(ports);
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Editable text');
+    text.derivedPreview = null;
+    const document = { ...documentWith(), layers: [text], activeLayerId: text.id };
+
+    const assets = await service.exportPsd(document);
+
+    expect(assets).toEqual([{
+      layerId: text.id,
+      bounds: { x: 0, y: 0, width: document.width, height: document.height },
+      pixels,
+      mask: null
+    }]);
+    expect(ports.encodeSemanticLayer).toHaveBeenCalledWith(document, text);
   });
 
   it('fails before silently dropping unavailable raster pixels', async () => {

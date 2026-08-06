@@ -79,6 +79,12 @@ const warp = (value: TextWarp | undefined): Warp | undefined => value ? ({
   } : {})
 }) : undefined;
 
+const translateTextOrigin = (transform: AffineMatrix, x: number, y: number): number[] => ([
+  transform.a, transform.b, transform.c, transform.d,
+  transform.a * x + transform.c * y + transform.tx,
+  transform.b * x + transform.d * y + transform.ty
+]);
+
 /** Converts editable LightTable flow text to Photoshop TySh semantics. */
 export const exportTextLayerToPsd = (
   text: TextLayerData,
@@ -116,10 +122,12 @@ export const exportTextLayerToPsd = (
   if (source.layout.mode === 'paragraph') {
     const frame = source.layout.frame;
     result.shapeType = 'box';
-    result.boxBounds = [frame.x, frame.y, frame.x + frame.width, frame.y + frame.height];
+    result.transform = translateTextOrigin(transform, frame.x, frame.y);
+    result.boxBounds = [0, 0, frame.width, frame.height];
   } else if (source.layout.mode === 'point') {
     result.shapeType = 'point';
-    result.pointBase = [source.layout.origin.x, source.layout.origin.y];
+    result.transform = translateTextOrigin(transform, source.layout.origin.x, source.layout.origin.y);
+    result.pointBase = [0, 0];
   } else {
     // Arc-length editing handles do not carry Photoshop's segment+t range.
     // Merge current editable properties into the retained TextFrameSet so a

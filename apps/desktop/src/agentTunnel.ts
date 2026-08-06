@@ -18,6 +18,11 @@ export interface AgentTunnelEvent {
   readonly kind: string;
   readonly detail: string;
 }
+export interface AgentDesignActivity {
+  readonly name: string; readonly status: 'running' | 'completed' | 'failed' | 'canceled';
+  readonly progress: number; readonly documentId?: string; readonly taskId?: string;
+  readonly results?: readonly { readonly id: string; readonly name: string; readonly mediaType: string }[];
+}
 
 export interface AgentTunnelSession {
   readonly serverUrl: string;
@@ -36,6 +41,7 @@ export interface AgentTunnelStatus {
   readonly deviceId: string;
   readonly clients: readonly AgentTunnelClient[];
   readonly events: readonly AgentTunnelEvent[];
+  readonly activity?: AgentDesignActivity;
   readonly lastActivity?: number;
   readonly error?: string;
 }
@@ -85,6 +91,7 @@ export class AgentTunnelController {
   private reconnectAttempt = 0;
   private reconnectTimer: Timer | null = null;
   private replay = new Set<string>();
+  private activity: AgentDesignActivity | undefined;
   private readonly listeners = new Set<(status: AgentTunnelStatus) => void>();
 
   constructor(
@@ -220,6 +227,22 @@ export class AgentTunnelController {
     return this.publish('revoked', { error: reason });
   }
 
+  async cancelActivity(): Promise<AgentTunnelStatus> {
+    if (!this.activity?.taskId || !this.activity.documentId || this.activity.status !== 'running') return this.current;
+    await this.invoke('command.execute', { documentId: this.activity.documentId, command: 'task.cancel',
+      commandRequestId: `agent-cancel-${this.now()}`, commandParameters: { taskId: this.activity.taskId } });
+    this.activity = { ...this.activity, status: 'canceled' }; this.record('agent-canceled', `${this.activity.name} was canceled.`);
+    return this.publish(this.current.state);
+  }
+
+  async undoActivity(): Promise<AgentTunnelStatus> {
+    if (!this.activity?.documentId || this.activity.status !== 'completed') return this.current;
+    await this.invoke('command.execute', { documentId: this.activity.documentId, command: 'history.undo',
+      commandRequestId: `agent-undo-${this.now()}`, commandParameters: {} });
+    this.record('agent-undo', `Undid ${this.activity.name}.`); this.activity = undefined;
+    return this.publish(this.current.state);
+  }
+
   private async receive(raw: unknown): Promise<void> {
     if (!raw || typeof raw !== 'object') return;
     const message = raw as Record<string, unknown>;
@@ -247,7 +270,8 @@ export class AgentTunnelController {
       || typeof message.requestId !== 'string' || typeof message.nonce !== 'string'
       || typeof message.timestamp !== 'number' || typeof message.method !== 'string') return;
     const client = this.clients.get(message.clientId);
-    const edit = message.method === 'command.execute' || message.method.startsWith('gesture.');
+    const edit = message.method === 'command.execute' || message.method.startsWith('gesture.')
+      || message.method === 'artifact.register' || message.method === 'artifact.release';
     if (!client?.approved || !client.scopes.includes(edit ? 'edit' : 'read')) {
       return this.connection?.send({ type: 'result', requestId: message.requestId, error: 'client-not-approved' });
     }
@@ -257,12 +281,73 @@ export class AgentTunnelController {
     this.replay.add(message.nonce);
     while (this.replay.size > MAX_REPLAY_NONCES) this.replay.delete(this.replay.values().next().value!);
     try {
-      const value = await this.invoke(message.method, message.parameters ?? {});
-      this.connection?.send({ type: 'result', requestId: message.requestId, value });
+      const commandParameters = (message.parameters as { commandParameters?: Record<string, unknown> } | undefined)?.commandParameters;
+      const isNamedBatch = message.method === 'command.execute'
+        && (message.parameters as { command?: unknown } | undefined)?.command === 'command.batch'
+        && typeof commandParameters?.name === 'string';
+      if (isNamedBatch) {
+        this.activity = { name: String(commandParameters?.name).slice(0, 128), status: 'running', progress: 0,
+          documentId: String((message.parameters as { documentId?: unknown }).documentId ?? '') };
+        this.record('agent-started', `${this.activity.name} started.`); this.publish(this.current.state);
+      }
+      const parameters = message.method === 'artifact.register'
+        && typeof (message.parameters as { bytesBase64?: unknown } | undefined)?.bytesBase64 === 'string'
+        ? { ...(message.parameters as Record<string, unknown>),
+          bytes: Uint8Array.from(Buffer.from((message.parameters as { bytesBase64: string }).bytesBase64, 'base64')) }
+        : message.parameters ?? {};
+      const value = await this.invoke(message.method, parameters);
+      if (isNamedBatch && this.activity) {
+        const taskId = value && typeof value === 'object' && typeof (value as { taskId?: unknown }).taskId === 'string'
+          ? (value as { taskId: string }).taskId : undefined;
+        this.activity = { ...this.activity, status: taskId ? 'running' : 'completed', progress: taskId ? 0.1 : 1,
+          ...(taskId ? { taskId } : {}) };
+        this.record(taskId ? 'agent-progress' : 'agent-completed', taskId
+          ? `${this.activity.name} is processing.` : `${this.activity.name} completed.`);
+      }
+      if (message.method === 'task.query' && this.activity?.taskId
+        && (message.parameters as { taskId?: unknown } | undefined)?.taskId === this.activity.taskId
+        && value && typeof value === 'object' && typeof (value as { status?: unknown }).status === 'string'
+        && (value as { status: string }).status !== 'running') {
+        const taskStatus = (value as { status: string }).status;
+        const status = taskStatus === 'completed' ? 'completed' : taskStatus === 'canceled' ? 'canceled' : 'failed';
+        this.activity = { ...this.activity, status, progress: status === 'completed' ? 1 : this.activity.progress };
+        this.record(`agent-${status}`, `${this.activity.name} ${status}.`);
+      }
+      if (message.method === 'task.query' && this.activity && value && typeof value === 'object') {
+        const artifact = (value as { artifact?: unknown }).artifact;
+        const documentId = (message.parameters as { documentId?: unknown } | undefined)?.documentId;
+        if (artifact && typeof artifact === 'object' && documentId === this.activity.documentId) {
+          const candidate = artifact as { id?: unknown; name?: unknown; mediaType?: unknown };
+          if (typeof candidate.id === 'string' && typeof candidate.name === 'string'
+            && typeof candidate.mediaType === 'string') {
+            const results = [...(this.activity.results ?? []).filter((entry) => entry.id !== candidate.id),
+              { id: candidate.id, name: candidate.name.slice(0, 255), mediaType: candidate.mediaType.slice(0, 128) }];
+            this.activity = { ...this.activity, results: results.slice(-6) };
+          }
+        }
+      }
+      const result = message.method === 'artifact.resolve' && value && typeof value === 'object'
+        && (value as { bytes?: unknown }).bytes instanceof Uint8Array
+        ? { ...(value as Record<string, unknown>),
+          bytesBase64: Buffer.from((value as { bytes: Uint8Array }).bytes).toString('base64'), bytes: undefined }
+        : value;
+      if (result && typeof result === 'object' && typeof (result as { bytesBase64?: unknown }).bytesBase64 === 'string'
+        && (result as { bytesBase64: string }).bytesBase64.length > 512 * 1024) {
+        const { bytesBase64, ...metadata } = result as Record<string, unknown> & { bytesBase64: string };
+        const chunks = bytesBase64.match(/.{1,524288}/gu) ?? [];
+        chunks.forEach((data, index) => this.connection?.send({ type: 'result.chunk', requestId: message.requestId,
+          index, total: chunks.length, data }));
+        this.connection?.send({ type: 'result', requestId: message.requestId,
+          value: { ...metadata, bytesChunked: true } });
+      } else this.connection?.send({ type: 'result', requestId: message.requestId, value: result });
       this.clients.set(client.id, { ...client, lastActivity: this.now() });
       this.record('activity', `${client.name} used ${edit ? 'edit' : 'read'} access.`);
       this.publish(this.current.state);
     } catch (reason) {
+      if (this.activity?.status === 'running') {
+        this.activity = { ...this.activity, status: 'failed' };
+        this.record('agent-failed', `${this.activity.name} failed.`); this.publish(this.current.state);
+      }
       this.connection?.send({ type: 'result', requestId: message.requestId,
         error: reason instanceof Error ? reason.message : String(reason) });
     }
@@ -298,7 +383,8 @@ export class AgentTunnelController {
     this.current = {
       state, deviceId: this.deviceId,
       ...(this.session ? { serverUrl: this.session.serverUrl, serverId: this.session.serverId } : {}),
-      ...extra, clients: [...this.clients.values()], events: [...this.events], lastActivity: this.events.at(-1)?.at
+      ...extra, clients: [...this.clients.values()], events: [...this.events],
+      ...(this.activity ? { activity: this.activity } : {}), lastActivity: this.events.at(-1)?.at
     };
     for (const listener of this.listeners) listener(this.current);
     return this.current;

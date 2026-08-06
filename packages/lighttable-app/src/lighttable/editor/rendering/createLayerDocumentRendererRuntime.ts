@@ -29,6 +29,7 @@ import { DocumentImageResourceLifecycle } from './DocumentImageResourceLifecycle
 import { DocumentTextureMemoryEstimator } from './DocumentTextureMemoryEstimator';
 import { ToolPipelineProvider } from './ToolPipelineProvider';
 import { LayerRuntimeCoordinator } from './LayerRuntimeCoordinator';
+import { identityAffineMatrix } from './renderContract';
 import { RenderResourceCoordinator } from './RenderResourceCoordinator';
 import { VectorLayerRenderer } from './VectorLayerRenderer';
 import {
@@ -337,6 +338,64 @@ export const createLayerDocumentRendererRuntime = (
         output?.height ?? height,
         output?.sourceToOutput
       );
+    },
+    encodeSemanticLayer: async (document, layer) => {
+      if (layer.type === 'text') {
+        const source = textLayerRenderer.resolveExact(layer);
+        if (source) {
+          return textureCodec.encode(
+            source.texture,
+            false,
+            document.width,
+            document.height,
+            source.transform
+          );
+        }
+        const texture = textures.createColorSized(
+          `LightTable PSD atlas cache: ${layer.name}`,
+          document.width,
+          document.height
+        );
+        try {
+          const encoder = device.createCommandEncoder({
+            label: `LightTable PSD atlas cache: ${layer.name}`
+          });
+          textures.clear(encoder, texture, { r: 0, g: 0, b: 0, a: 0 });
+          if (!textLayerRenderer.encodeAtlasPresentation(
+            encoder,
+            layer,
+            identityAffineMatrix(),
+            { texture, width: document.width, height: document.height }
+          )) {
+            throw new Error(`Exact text source is unavailable for PSD export: ${layer.name}`);
+          }
+          device.queue.submit([encoder.finish()]);
+          return await textureCodec.encode(texture, false, document.width, document.height);
+        } finally {
+          texture.destroy();
+        }
+      }
+      const encoder = device.createCommandEncoder({
+        label: `LightTable PSD semantic cache: ${layer.name}`
+      });
+      const isolated = {
+        ...layer,
+        visible: true,
+        opacity: 1,
+        fillOpacity: 1,
+        blendMode: 'normal' as const,
+        clipping: false,
+        mask: null,
+        styleStack: { ...layer.styleStack, enabled: false }
+      };
+      const texture = compositor.encode(encoder, {
+        ...document,
+        layers: [isolated],
+        activeLayerId: isolated.id
+      });
+      device.queue.submit([encoder.finish()]);
+      renderResources.releaseAfterSubmit();
+      return textureCodec.encode(texture, false, document.width, document.height);
     },
     decodeTexture: async (layerId, blob, texture, maskChannel) => {
       const generation = resources.generation();

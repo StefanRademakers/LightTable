@@ -41,3 +41,28 @@ approvals, cancel, result preview/export and one-step Undo Agent Action.
   through environment/secret store.
 - Run full quality/parity profiles, document measured limitations, commit
   cohesive implementation slices and move only at release-candidate quality.
+
+## Completion evidence (2026-08-06)
+
+- Durable AES-256-GCM OAuth/audit state, atomic replacement, pruning, PKCE,
+  refresh rotation, CSRF, scoped tenant/user/device/client identity and bounded
+  request/audit/log handling are implemented and covered by restart and hostile
+  input tests.
+- The outbound TLS device tunnel supports explicit approval, revocation,
+  reconnect, artifact chunking, bounded activity, cancel and one-step undo.
+  Its reconnect soak executes 200 commands around a forced pending disconnect
+  without cross-talk or orphaned requests.
+- `lighttable_build_social_design` runs the requested named atomic design,
+  renders a real GPU preview, revises title opacity, performs undo/redo and then
+  produces native and PSD artifacts. Agent Access shows progress and the
+  preview/export result list.
+- The packaged Electron -> GPU -> native/PSD scenario reopens in LightTable and
+  Photoshop with editable point text, paragraph text and gradient shape layers.
+  The final 1080x1350 comparison measures RMSE 9.79; the remaining documented
+  delta is font/gradient/effect fidelity rather than a silent raster fallback.
+- Passing gates: 17 MCP tests, 50 desktop tests, 1776 app tests, app/desktop/MCP
+  typechecks, web build, packaged desktop distribution boundary, Agent Access,
+  outbound tunnel, accessibility and packaged Photoshop roundtrip smokes.
+- Production deployment, TLS, systemd topology, single-process tenancy boundary,
+  backup/restore and release gates are documented in
+  `architecture/integrations/MCP_PRODUCTION_RUNBOOK.md`.

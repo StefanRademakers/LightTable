@@ -1,7 +1,8 @@
 import type {
   DocumentAssetId,
   ImageDocument,
-  LayerId
+  LayerId,
+  LayerNode
 } from '../document/documentTypes';
 import {
   walkLayerTree,
@@ -30,6 +31,10 @@ export interface LayerDocumentAssetPorts {
       height: number;
       sourceToOutput: ReturnType<typeof translationMatrix>;
     }
+  ) => Promise<Blob>;
+  encodeSemanticLayer: (
+    document: ImageDocument,
+    layer: Exclude<LayerNode, { type: 'group' | 'adjustment' }>
   ) => Promise<Blob>;
   decodeTexture: (
     layerId: LayerId,
@@ -128,8 +133,11 @@ export class LayerDocumentAssetService {
           : null
       });
     }
-    for (const { node } of walkLayerTree(document.layers)) {
-      if (node.type === 'raster') continue;
+    const semanticNodes = walkLayerTree(document.layers)
+      .map(({ node }) => node)
+      .filter((node) => node.type !== 'raster')
+      .sort((left, right) => Number(right.type === 'text') - Number(left.type === 'text'));
+    for (const node of semanticNodes) {
       const maskTexture = node.mask ? this.ports.maskTexture(node.id) : null;
       const previewTexture = node.derivedPreview
         ? this.ports.derivedPreviewTexture(node.id) : null;
@@ -152,6 +160,13 @@ export class LayerDocumentAssetService {
             translationMatrix(-left, -top), preview.transform
           )
         });
+      } else if (node.type === 'text' || node.type === 'vector') {
+        // Photoshop keeps the layer bitmap as the immediate visual fallback
+        // for newly-authored TySh/vector descriptors. ag-psd deliberately
+        // does not generate that cache, so materialize our exact GPU source
+        // without effects; Photoshop applies the exported styles itself.
+        pixels = await this.ports.encodeSemanticLayer(document, node);
+        bounds = { x: 0, y: 0, width: document.width, height: document.height };
       }
       if (pixels.size || maskTexture) assets.push({
         layerId: node.id,

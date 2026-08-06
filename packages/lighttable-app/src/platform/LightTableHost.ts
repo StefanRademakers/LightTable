@@ -113,6 +113,11 @@ export interface LightTableAgentClient {
 export interface LightTableAgentTunnelEvent {
   readonly id: number; readonly at: number; readonly kind: string; readonly detail: string;
 }
+export interface LightTableAgentDesignActivity {
+  readonly name: string; readonly status: 'running' | 'completed' | 'failed' | 'canceled';
+  readonly progress: number; readonly documentId?: string; readonly taskId?: string;
+  readonly results?: readonly { readonly id: string; readonly name: string; readonly mediaType: string }[];
+}
 export interface LightTableAgentTunnelStatus {
   readonly state: LightTableAgentTunnelState;
   readonly serverUrl?: string;
@@ -120,6 +125,7 @@ export interface LightTableAgentTunnelStatus {
   readonly deviceId: string;
   readonly clients: readonly LightTableAgentClient[];
   readonly events: readonly LightTableAgentTunnelEvent[];
+  readonly activity?: LightTableAgentDesignActivity;
   readonly lastActivity?: number;
   readonly error?: string;
 }
@@ -138,6 +144,8 @@ export interface LightTableAgentAccessService {
   approveClient(clientId: string, scopes: readonly LightTableAgentClientScope[]): Promise<LightTableAgentTunnelStatus>;
   revokeClient(clientId: string): Promise<LightTableAgentTunnelStatus>;
   revokeDevice(): Promise<LightTableAgentTunnelStatus>;
+  cancelActivity(): Promise<LightTableAgentTunnelStatus>;
+  undoActivity(): Promise<LightTableAgentTunnelStatus>;
   subscribeTunnel(listener: (status: LightTableAgentTunnelStatus) => void): () => void;
 }
 

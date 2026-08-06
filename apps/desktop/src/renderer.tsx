@@ -91,6 +91,8 @@ const desktopHost: LightTableHost = {
     approveClient: (clientId, scopes) => window.lightTableDesktop.approveAgentClient(clientId, scopes),
     revokeClient: (clientId) => window.lightTableDesktop.revokeAgentClient(clientId),
     revokeDevice: () => window.lightTableDesktop.revokeAgentDevice(),
+    cancelActivity: () => window.lightTableDesktop.cancelAgentActivity(),
+    undoActivity: () => window.lightTableDesktop.undoAgentActivity(),
     subscribeTunnel: (listener) => window.lightTableDesktop.onAgentTunnelStatus(listener)
   },
   release: {

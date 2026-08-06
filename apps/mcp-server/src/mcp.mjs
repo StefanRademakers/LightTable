@@ -19,6 +19,30 @@ const withResult = (operation, { edit = false } = {}) => async (input, context) 
     return response(await operation(input));
   } catch (error) { return failure(error); }
 };
+const awaitCommand = async (client, request, timeoutMs = 60_000) => {
+  const result = await client.invoke('command.execute', request);
+  if (result?.status !== 'accepted' || !result.taskId) return result;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const task = await client.invoke('task.query', { documentId: request.documentId, taskId: result.taskId });
+    if (task?.status === 'failed' || task?.status === 'cancelled') {
+      throw new Error(task.error ?? `LightTable task ${result.taskId} ${task.status}.`);
+    }
+    if (task?.status !== 'running') return { ...result, task };
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`LightTable task ${result.taskId} timed out.`);
+};
+
+const awaitDocumentRenderer = async (client, documentId, timeoutMs = 60_000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const document = await client.invoke('document.query', { documentId });
+    if (document?.renderer?.active && document.renderer.status === 'ready') return document;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`LightTable document ${documentId} did not acquire an active renderer.`);
+};
 
 const privateAddress = (address) => address === '::1' || address === '::' || address.startsWith('fc')
   || address.startsWith('fd') || address.startsWith('fe80:') || address.startsWith('127.')
@@ -153,6 +177,70 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       commandParameters: { name, width, height, resolutionPpi, bitDepth: Number(bitDepth), profile,
         background: backgroundColor ? { kind: 'solid', color: backgroundColor } : { kind: 'transparent' } }
     }), { edit: true }));
+  server.registerTool('lighttable_build_social_design', {
+    title: 'Build a layered social design',
+    description: 'Creates a deterministic 1080×1350 editable design with gradient vector, point and paragraph text, optional placed asset and Layer Style, then prepares native and PSD exports.',
+    inputSchema: z.object({ name: z.string().min(1).max(128).default('Agent social design'),
+      assetId: z.string().min(1).max(256).optional(), title: z.string().min(1).max(256).default('MAKE SOMETHING BOLD'),
+      body: z.string().min(1).max(2_000).default('Editable type, vectors, gradients and effects—built as real LightTable layers.') })
+  }, withResult(async ({ name, assetId, title, body }) => {
+    await client.invoke('command.execute', { command: 'document.create', commandRequestId: crypto.randomUUID(),
+      commandParameters: { name, width: 1080, height: 1350, resolutionPpi: 72, bitDepth: 8,
+        profile: 'srgb', background: { kind: 'solid', color: '#101424' } } });
+    const workspace = await client.invoke('workspace.query'); const documentId = workspace.activeDocumentId;
+    if (!documentId) throw new Error('The created design did not become active.');
+    await awaitDocumentRenderer(client, documentId);
+    if (assetId) await client.invoke('command.execute', { documentId, command: 'layer.placeArtifact',
+      commandRequestId: crypto.randomUUID(), commandParameters: { artifactId: assetId,
+        name: 'Placed artwork', x: 690, y: 160 } });
+    const gradient = { kind: 'gradient', asset: { id: 'agent-gradient', name: 'Agent violet', type: 'solid', smoothness: 1,
+      colorStops: [
+        { id: 'violet', position: 0, midpoint: 0.5, color: { r: 0.38, g: 0.18, b: 0.95, a: 1 } },
+        { id: 'pink', position: 1, midpoint: 0.5, color: { r: 1, g: 0.2, b: 0.55, a: 1 } }
+      ], opacityStops: [
+        { id: 'opaque-a', position: 0, midpoint: 0.5, opacity: 1 },
+        { id: 'opaque-b', position: 1, midpoint: 0.5, opacity: 1 }
+      ], roughness: 0, seed: 0 }, shape: 'linear', coordinateSpace: 'object-bounds',
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0.5 }, reverse: false, dither: true,
+      interpolation: 'perceptual' };
+    const operations = [
+      { operationId: 'gradient-card', command: 'vector.create', parameters: { name: 'Gradient card',
+        primitive: { kind: 'rectangle', x: 70, y: 80, width: 940, height: 1190 },
+        style: { fill: gradient, stroke: null, opacity: 1 } } },
+      { operationId: 'title', command: 'text.create', parameters: { mode: 'point', text: title,
+        origin: { x: 130, y: 260 }, writingMode: 'horizontal-tb',
+        style: { font: { assetId: 'lighttable-inter-latin-regular', family: 'Inter', style: 'Regular' }, fontSize: 82,
+          fill: { enabled: true, color: '#ffffff' } } } },
+      { operationId: 'copy', command: 'text.create', parameters: { mode: 'paragraph', text: body,
+        origin: { x: 130, y: 410 }, frame: { width: 720, height: 360 }, writingMode: 'horizontal-tb',
+        style: { font: { assetId: 'lighttable-inter-latin-regular', family: 'Inter', style: 'Regular' }, fontSize: 42,
+          fill: { enabled: true, color: '#f3ecff' } } } },
+      { operationId: 'title-shadow', command: 'layer.effect.add', parameters: {
+        layerId: { resultOf: 'title', field: 'layerId' }, effectKind: 'drop-shadow',
+        settings: { enabled: true, opacity: 0.55, distance: 30, size: 30, angleDegrees: 135 } } }
+    ];
+    const batch = await awaitCommand(client, { documentId, command: 'command.batch', commandRequestId: crypto.randomUUID(),
+      commandParameters: { name, timeoutMs: 10_000, operations } });
+    if (batch?.status === 'rejected' || batch?.task?.status === 'failed') throw new Error(batch.message ?? batch.task?.error ?? 'Design batch failed.');
+    await awaitDocumentRenderer(client, documentId);
+    const preview = await awaitCommand(client, { documentId, command: 'file.exportPng',
+      commandRequestId: crypto.randomUUID(), commandParameters: {} });
+    const layers = await client.invoke('layer.list', { documentId });
+    const titleLayer = Array.isArray(layers) ? layers.find((layer) => layer?.type === 'text' && layer?.name === title) : null;
+    if (!titleLayer?.id) throw new Error('The editable title layer was not published by the design transaction.');
+    const revision = await awaitCommand(client, { documentId, command: 'layer.setFillOpacity',
+      commandRequestId: crypto.randomUUID(), commandParameters: { layerId: titleLayer.id, opacity: 0.98 } });
+    const undo = await awaitCommand(client, { documentId, command: 'history.undo',
+      commandRequestId: crypto.randomUUID(), commandParameters: {} });
+    const redo = await awaitCommand(client, { documentId, command: 'history.redo',
+      commandRequestId: crypto.randomUUID(), commandParameters: {} });
+    await awaitDocumentRenderer(client, documentId);
+    const psd = await awaitCommand(client, { documentId, command: 'file.exportPsd', commandRequestId: crypto.randomUUID(), commandParameters: {} });
+    const native = await awaitCommand(client, { documentId, command: 'file.exportNative', commandRequestId: crypto.randomUUID(), commandParameters: {} });
+    return { documentId, transaction: name, layerKinds: ['asset', 'point-text', 'paragraph-text', 'gradient-vector', 'drop-shadow'],
+      batch, revision, undo, redo, preview: preview?.task?.artifact ?? preview?.value ?? null,
+      native: native?.task?.artifact ?? native?.value ?? null, psd: psd?.task?.artifact ?? psd?.value ?? null };
+  }, { edit: true }));
   server.registerTool('lighttable_create_text', {
     title: 'Create editable text',
     description: 'Creates point or paragraph text through LightTable’s WYSIWYG text model and GPU renderer.',

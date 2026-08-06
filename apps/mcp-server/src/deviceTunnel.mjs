@@ -53,8 +53,12 @@ export class DeviceTunnelBroker {
       const previous = this.connections.get(session.deviceId); previous?.close(4001, 'replaced');
       this.connections.set(session.deviceId, websocket);
       websocket.on('message', (bytes) => this.receive(session.deviceId, bytes));
+      websocket.on('error', () => websocket.close(1009, 'invalid-message'));
       websocket.on('close', () => {
-        if (this.connections.get(session.deviceId) === websocket) this.connections.delete(session.deviceId);
+        if (this.connections.get(session.deviceId) === websocket) {
+          this.connections.delete(session.deviceId);
+          this.rejectPending(session.deviceId, null, 'device-offline');
+        }
       });
     });
     return true;
@@ -108,7 +112,7 @@ export class DeviceTunnelBroker {
     const requestId = randomUUID();
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => { this.pending.delete(requestId); reject(new Error('device-timeout')); }, 15_000);
-      this.pending.set(requestId, { deviceId, clientId, resolve, reject, timeout });
+      this.pending.set(requestId, { deviceId, clientId, resolve, reject, timeout, chunks: new Map(), chunkTotal: null, chunkBytes: 0 });
       socket.send(JSON.stringify({ type: 'invoke', deviceId, clientId, requestId,
         nonce: randomBytes(18).toString('base64url'), timestamp: this.now(), method, parameters }));
     });
@@ -117,12 +121,27 @@ export class DeviceTunnelBroker {
   receive(deviceId, bytes) {
     try {
       const message = JSON.parse(bytes.toString());
+      if (message.type === 'result.chunk' && typeof message.requestId === 'string') {
+        const pending = this.pending.get(message.requestId);
+        if (!pending || pending.deviceId !== deviceId || !Number.isInteger(message.index)
+          || !Number.isInteger(message.total) || message.total < 1 || message.total > 128
+          || message.index < 0 || message.index >= message.total || typeof message.data !== 'string'
+          || message.data.length > 524_288 || (pending.chunkTotal !== null && pending.chunkTotal !== message.total)) return;
+        pending.chunkTotal = message.total;
+        if (!pending.chunks.has(message.index)) { pending.chunks.set(message.index, message.data); pending.chunkBytes += message.data.length; }
+        if (pending.chunkBytes > 48 * 1024 * 1024) { clearTimeout(pending.timeout); this.pending.delete(message.requestId); pending.reject(new Error('artifact-too-large')); }
+        return;
+      }
       if (message.type === 'result' && typeof message.requestId === 'string') {
         const pending = this.pending.get(message.requestId);
         if (!pending || pending.deviceId !== deviceId) return;
         this.pending.delete(message.requestId); clearTimeout(pending.timeout);
         if (typeof message.error === 'string') pending.reject(new Error(message.error));
-        else pending.resolve(message.value);
+        else if (message.value?.bytesChunked === true) {
+          if (pending.chunkTotal === null || pending.chunks.size !== pending.chunkTotal) pending.reject(new Error('artifact-chunks-incomplete'));
+          else pending.resolve({ ...message.value, bytesChunked: undefined,
+            bytesBase64: Array.from({ length: pending.chunkTotal }, (_, index) => pending.chunks.get(index)).join('') });
+        } else pending.resolve(message.value);
         return;
       }
       if (message.deviceId !== deviceId || typeof message.clientId !== 'string') return;

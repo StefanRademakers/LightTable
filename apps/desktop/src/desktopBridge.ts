@@ -122,5 +122,7 @@ export interface LightTableDesktopBridge {
   approveAgentClient(clientId: string, scopes: readonly LightTableAgentClientScope[]): Promise<LightTableAgentTunnelStatus>;
   revokeAgentClient(clientId: string): Promise<LightTableAgentTunnelStatus>;
   revokeAgentDevice(): Promise<LightTableAgentTunnelStatus>;
+  cancelAgentActivity(): Promise<LightTableAgentTunnelStatus>;
+  undoAgentActivity(): Promise<LightTableAgentTunnelStatus>;
   onAgentTunnelStatus(listener: (status: LightTableAgentTunnelStatus) => void): () => void;
 }

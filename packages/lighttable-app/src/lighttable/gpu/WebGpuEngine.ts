@@ -438,6 +438,21 @@ export class WebGpuEngine {
     measure('dirty-scheduling', stageStartedAt);
   }
 
+  /**
+   * Crosses a just-committed automation document into GPU-owned runtimes even
+   * when the application reused the same document object during one event
+   * turn. Normal React publication remains deduplicated by setDocument().
+   */
+  synchronizeDocumentForExport(document: ImageDocument) {
+    if (!this.documentRenderer || !this.imageResources.sourceTexture) {
+      throw new Error('Load an image before exporting its LightTable document.');
+    }
+    this.imageDocument = document;
+    this.documentRenderer.syncDocument(document);
+    this.adjustmentLayerResources.syncDocument(document);
+    this.markDocumentDirty();
+  }
+
   configureTextFonts(port: TextFontRuntimePort | null) {
     this.documentRenderer?.configureTextFonts(port);
   }

@@ -766,3 +766,10 @@
 .lighttable-agent-settings__events { margin: 12px 0; padding: 8px; background: var(--lt-surface-recessed); }
 .lighttable-agent-settings__events p { display: flex; gap: 8px; margin: 4px 0; font-size: var(--lt-type-small); }
 .lighttable-agent-settings__events time { color: var(--color-text-muted); }
+.lighttable-agent-settings__activity { display: grid; gap: 8px; margin: 12px 0; padding: 10px; border: 1px solid var(--lt-border-subtle); background: var(--lt-surface-recessed); }
+.lighttable-agent-settings__activity > span { display: flex; justify-content: space-between; gap: 12px; }
+.lighttable-agent-settings__activity small { color: var(--color-text-muted); }
+.lighttable-agent-settings__activity progress { width: 100%; }
+.lighttable-agent-settings__results { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.lighttable-agent-settings__results li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; color: var(--color-text-muted); }
+.lighttable-agent-settings__results span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

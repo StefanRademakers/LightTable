@@ -465,6 +465,12 @@ void app.whenReady().then(async () => {
   ipcMain.handle('lighttable:agent-device-revoke', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return agentTunnel?.revoke();
   });
+  ipcMain.handle('lighttable:agent-activity-cancel', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return agentTunnel?.cancelActivity();
+  });
+  ipcMain.handle('lighttable:agent-activity-undo', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return agentTunnel?.undoActivity();
+  });
 
   ipcMain.handle('lighttable:open-file', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));

@@ -25,13 +25,17 @@ npm run mcp:server
 
 The demo exposes mock state and is only useful for MCP/OAuth client testing.
 
-Desktop devices can pair over `/agent/pair` and connect outbound over
-`/agent/tunnel`. Configure a one-time `LIGHTTABLE_DEVICE_PAIRING_CODE` and a
-stable `LIGHTTABLE_SERVER_ID`; production requires the same HTTPS origin and a
-WSS-capable reverse proxy. The desktop pins the observed certificate. The
-single-process broker is the bounded trial implementation; durable multi-user
-state is part of the production service milestone.
+Desktop devices pair over `/agent/pair` and connect outbound over
+`/agent/tunnel`. Configure a one-time `LIGHTTABLE_DEVICE_PAIRING_CODE`, stable
+`LIGHTTABLE_SERVER_ID` and explicit `LIGHTTABLE_DEVICE_ID`; production requires
+the same HTTPS origin and a WSS-capable reverse proxy. OAuth and privacy-safe
+audit state are AES-256-GCM encrypted and atomically persisted. The service is
+deliberately one process and one tenant; deploy one isolated state directory
+and service instance per tenant until a transactional shared broker exists.
 Run `npm run smoke:mcp` for the real Electron end-to-end path.
+
+Production deployment, backup/restore and release limitations are documented
+in `architecture/integrations/MCP_PRODUCTION_RUNBOOK.md`.
 
 ## Real desktop bridge
 
@@ -60,6 +64,7 @@ bridge always binds to `127.0.0.1`; never publish it directly.
 
 - `npm test -w @lighttable/mcp-server`
 - `npm run smoke:mcp -- D:\shapes.psd D:\mediavibe\LightTableTestFiles\mcp`
+- `npm run smoke:desktop:mcp-design`
 
 The command-driver and MCP tests cover editable text, vector/gradient/stroke
 and Layer Style commands. The MCP smoke creates a real editable raster layer,

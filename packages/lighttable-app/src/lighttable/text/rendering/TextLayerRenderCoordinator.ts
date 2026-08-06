@@ -577,7 +577,8 @@ export class TextLayerRenderCoordinator {
         openingDocument.id, layer, transform, fontRevision
       );
       if (this.outlineLayerKeys.get(layer.id) === expected
-        && this.isSettledForCurrentGeneration(layer)) continue;
+        && this.isSettledForCurrentGeneration(layer)
+        && this.options.renderer.hasExactSource(layer)) continue;
       this.forcedOutlineLayers.add(layer.id);
       this.settledLayerKeys.delete(layer.id);
       rebuildRequired = true;
@@ -593,7 +594,8 @@ export class TextLayerRenderCoordinator {
         openingDocument.id, layer, transform, fontRevision
       );
       const exactOutline = this.outlineLayerKeys.get(layer.id) === expected
-        && this.isSettledForCurrentGeneration(layer);
+        && this.isSettledForCurrentGeneration(layer)
+        && this.options.renderer.hasExactSource(layer);
       // A current imported preview remains a valid export source when a font or
       // path dependency prevents rebuilding editable outlines.
       return exactOutline || layerDerivedPreviewIsCurrent(layer);

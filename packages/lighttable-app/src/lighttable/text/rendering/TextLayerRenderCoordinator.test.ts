@@ -553,6 +553,11 @@ describe('TextLayerRenderCoordinator', () => {
     await expect(state.coordinator.waitForFinalOutputSources()).resolves.toBe(true);
     expect(state.outlineBackend.encodeTight).toHaveBeenCalledOnce();
     expect(state.submit).toHaveBeenCalledTimes(2);
+
+    state.renderer.hasExactSource.mockReturnValueOnce(false).mockReturnValue(true);
+    await expect(state.coordinator.waitForFinalOutputSources()).resolves.toBe(true);
+    expect(state.outlineBackend.encodeTight).toHaveBeenCalledTimes(2);
+    expect(state.submit).toHaveBeenCalledTimes(3);
   });
 
   it('routes stroked text through cached outline WebGPU geometry instead of coverage masks', async () => {

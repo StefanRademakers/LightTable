@@ -131,6 +131,22 @@ export const AgentAccessSettingsDialog: React.FC<{
                         {client.requestedScopes.includes('edit') ? <ActionButton onClick={() => runTunnel(() => service.approveClient(client.id, ['read', 'edit']))}>Allow edit</ActionButton> : null}</>}
                   </div>)}
                 </div> : null}
+                {tunnel.activity ? <div className="lighttable-agent-settings__activity" aria-label="Current Agent action">
+                  <span><strong>{tunnel.activity.name}</strong><small>{tunnel.activity.status}</small></span>
+                  <progress max={1} value={tunnel.activity.progress}>{Math.round(tunnel.activity.progress * 100)}%</progress>
+                  {tunnel.activity.results?.length ? <ul className="lighttable-agent-settings__results" aria-label="Agent action results">
+                    {tunnel.activity.results.map((result) => <li key={result.id}>
+                      <strong>{result.mediaType === 'image/png' ? 'Preview' : 'Export'}</strong>
+                      <span>{result.name}</span>
+                    </li>)}
+                  </ul> : null}
+                  <div className="lighttable-agent-settings__actions">
+                    <ActionButton disabled={busy || tunnel.activity.status !== 'running' || !tunnel.activity.taskId}
+                      onClick={() => runTunnel(() => service.cancelActivity())}>Cancel</ActionButton>
+                    <ActionButton disabled={busy || tunnel.activity.status !== 'completed'}
+                      onClick={() => runTunnel(() => service.undoActivity())}>Undo Agent Action</ActionButton>
+                  </div>
+                </div> : null}
                 {tunnel.events.length ? <div className="lighttable-agent-settings__events" aria-label="Recent Agent Access activity">
                   {tunnel.events.slice(-5).map((event) => <p key={event.id}><time>{new Date(event.at).toLocaleTimeString()}</time>{event.detail}</p>)}
                 </div> : null}

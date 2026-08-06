@@ -20,14 +20,44 @@ const validRedirect = (value) => {
 };
 
 export class LightTableOAuthStore {
-  constructor({ issuer, resource, pairingCode, now = () => Date.now() }) {
+  constructor({ issuer, resource, pairingCode, now = () => Date.now(), stateStore = null,
+    tenantId = 'default', userId = 'owner' }) {
     this.issuer = new URL(issuer);
     this.resource = new URL(resource);
     this.pairingCode = pairingCode;
     this.now = now;
-    this.clients = new Map(); this.codes = new Map(); this.tokens = new Map(); this.refresh = new Map();
-    this.pairingFailures = new Map();
+    this.stateStore = stateStore; this.tenantId = tenantId; this.userId = userId;
+    const state = stateStore?.load?.() ?? {};
+    this.clients = new Map(state.clients ?? []); this.codes = new Map(state.codes ?? []);
+    this.tokens = new Map(state.tokens ?? []); this.refresh = new Map(state.refresh ?? []); this.csrf = new Map(state.csrf ?? []);
+    this.pairingFailures = new Map(state.pairingFailures ?? []);
     if (!pairingCode || pairingCode.length < 8) throw new Error('LIGHTTABLE_PAIRING_CODE must contain at least 8 characters.');
+    this.prune();
+  }
+
+  persist() {
+    this.stateStore?.save?.({ version: 1, clients: [...this.clients], codes: [...this.codes],
+      tokens: [...this.tokens], refresh: [...this.refresh], csrf: [...this.csrf], pairingFailures: [...this.pairingFailures] });
+  }
+
+  prune() {
+    const now = this.now();
+    for (const records of [this.codes, this.tokens, this.refresh, this.csrf]) {
+      for (const [key, value] of records) if (value.expiresAt <= now) records.delete(key);
+    }
+    for (const [key, value] of this.pairingFailures) if (value.windowEnds <= now && value.blockedUntil <= now) this.pairingFailures.delete(key);
+    this.persist();
+  }
+
+  createCsrf() {
+    const token = base64url(randomBytes(24)); this.csrf.set(hash(token), { expiresAt: this.now() + 10 * 60_000 });
+    this.persist(); return token;
+  }
+
+  consumeCsrf(formToken, cookieToken) {
+    if (!formToken || !cookieToken || !equal(formToken, cookieToken)) throw new Error('The authorization form expired.');
+    const key = hash(formToken); const record = this.csrf.get(key); this.csrf.delete(key); this.persist();
+    if (!record || record.expiresAt <= this.now()) throw new Error('The authorization form expired.');
   }
 
   register(metadata) {
@@ -35,10 +65,11 @@ export class LightTableOAuthStore {
       || metadata.redirect_uris.length > 8) throw new Error('redirect_uris must contain 1-8 URLs.');
     const redirectUris = metadata.redirect_uris.map(validRedirect);
     const clientId = base64url(randomBytes(24));
-    const client = { client_id: clientId, client_name: String(metadata.client_name ?? 'MCP client').slice(0, 128),
+    const client = { client_id: clientId, tenant_id: this.tenantId, user_id: this.userId,
+      client_name: String(metadata.client_name ?? 'MCP client').slice(0, 128),
       redirect_uris: redirectUris, token_endpoint_auth_method: 'none',
       grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] };
-    this.clients.set(clientId, client);
+    this.clients.set(clientId, client); this.persist();
     return client;
   }
 
@@ -55,15 +86,17 @@ export class LightTableOAuthStore {
       this.pairingFailures.set(input.clientId, { count: recent,
         windowEnds: this.now() + 10 * 60_000,
         blockedUntil: recent >= 10 ? this.now() + 10 * 60_000 : 0 });
-      throw new Error('The pairing code is invalid.');
+      this.persist(); throw new Error('The pairing code is invalid.');
     }
     this.pairingFailures.delete(input.clientId);
     const requested = new Set(String(input.scope ?? '').split(/\s+/u).filter(Boolean));
     const allowed = ['lighttable:read', 'lighttable:edit', 'offline_access'];
     if ([...requested].some((scope) => !allowed.includes(scope))) throw new Error('An unsupported scope was requested.');
     const code = base64url(randomBytes(32));
-    this.codes.set(hash(code), { clientId: input.clientId, redirectUri: new URL(input.redirectUri).href,
+    this.codes.set(hash(code), { clientId: input.clientId, tenantId: client.tenant_id, userId: client.user_id,
+      redirectUri: new URL(input.redirectUri).href,
       codeChallenge: input.codeChallenge, scopes: [...requested], expiresAt: this.now() + 5 * 60_000 });
+    this.persist();
     return code;
   }
 
@@ -72,36 +105,39 @@ export class LightTableOAuthStore {
     if (!record || record.expiresAt <= this.now() || record.clientId !== clientId
       || record.redirectUri !== new URL(redirectUri).href
       || base64url(createHash('sha256').update(codeVerifier).digest()) !== record.codeChallenge) {
-      throw new Error('The authorization code or PKCE verifier is invalid.');
+      this.persist(); throw new Error('The authorization code or PKCE verifier is invalid.');
     }
-    return this.issue(record.clientId, record.scopes, true);
+    return this.issue(record.clientId, record.scopes, true, record);
   }
 
   exchangeRefresh({ refreshToken, clientId }) {
     const key = hash(refreshToken); const record = this.refresh.get(key); this.refresh.delete(key);
     if (!record || record.expiresAt <= this.now() || record.clientId !== clientId) {
-      throw new Error('The refresh token is invalid.');
+      this.persist(); throw new Error('The refresh token is invalid.');
     }
-    return this.issue(record.clientId, record.scopes, true);
+    return this.issue(record.clientId, record.scopes, true, record);
   }
 
-  issue(clientId, scopes, includeRefresh) {
+  issue(clientId, scopes, includeRefresh, identity = null) {
+    const client = this.clients.get(clientId); const tenantId = identity?.tenantId ?? client?.tenant_id ?? this.tenantId;
+    const userId = identity?.userId ?? client?.user_id ?? this.userId;
     const accessToken = base64url(randomBytes(32)); const expiresIn = 3600;
-    this.tokens.set(hash(accessToken), { clientId, scopes, expiresAt: this.now() + expiresIn * 1000 });
+    this.tokens.set(hash(accessToken), { clientId, tenantId, userId, scopes, expiresAt: this.now() + expiresIn * 1000 });
     const result = { access_token: accessToken, token_type: 'Bearer', expires_in: expiresIn,
       scope: scopes.join(' ') };
     if (includeRefresh && scopes.includes('offline_access')) {
       const refreshToken = base64url(randomBytes(40));
-      this.refresh.set(hash(refreshToken), { clientId, scopes, expiresAt: this.now() + 30 * 24 * 3600_000 });
+      this.refresh.set(hash(refreshToken), { clientId, tenantId, userId, scopes, expiresAt: this.now() + 30 * 24 * 3600_000 });
       result.refresh_token = refreshToken;
     }
+    this.persist();
     return result;
   }
 
   async verifyAccessToken(token) {
     const record = this.tokens.get(hash(token));
     if (!record || record.expiresAt <= this.now()) throw new Error('Invalid or expired access token.');
-    return { token, clientId: record.clientId, scopes: [...record.scopes],
+    return { token, clientId: record.clientId, tenantId: record.tenantId, userId: record.userId, scopes: [...record.scopes],
       expiresAt: Math.floor(record.expiresAt / 1000), resource: this.resource };
   }
 }
@@ -116,16 +152,22 @@ export const installOAuthRoutes = (app, store) => {
     catch (error) { res.status(400).json({ error: 'invalid_client_metadata', error_description: error.message }); }
   });
   app.get('/oauth/authorize', (req, res) => {
+    const csrf = store.createCsrf();
     const fields = ['client_id', 'redirect_uri', 'response_type', 'scope', 'state',
       'code_challenge', 'code_challenge_method'].map((name) =>
       `<input type="hidden" name="${name}" value="${escapeHtml(first(req.query[name]) ?? '')}">`).join('');
+    res.cookie('lt_oauth_csrf', csrf, { httpOnly: true, sameSite: 'lax', secure: store.issuer.protocol === 'https:',
+      maxAge: 10 * 60_000, path: '/oauth/authorize' });
     res.type('html').send(`<!doctype html><meta charset="utf-8"><title>Pair LightTable</title>
       <style>body{font:16px system-ui;max-width:32rem;margin:4rem auto;background:#20242a;color:#eee}input,button{font:inherit;padding:.65rem}input{width:100%;box-sizing:border-box}button{margin-top:1rem}</style>
       <h1>Pair with LightTable</h1><p>Enter the short-lived pairing code shown by the server owner.</p>
-      <form method="post" action="/oauth/authorize">${fields}<label>Pairing code<input name="pairing_code" type="password" required autocomplete="one-time-code"></label><button>Authorize</button></form>`);
+      <form method="post" action="/oauth/authorize">${fields}<input type="hidden" name="csrf" value="${csrf}"><label>Pairing code<input name="pairing_code" type="password" required autocomplete="one-time-code"></label><button>Authorize</button></form>`);
   });
   app.post('/oauth/authorize', (req, res) => {
     try {
+      const cookie = String(req.headers.cookie ?? '').split(';').map((part) => part.trim())
+        .find((part) => part.startsWith('lt_oauth_csrf='))?.slice('lt_oauth_csrf='.length);
+      store.consumeCsrf(req.body.csrf, cookie);
       const code = store.authorize({ clientId: req.body.client_id, redirectUri: req.body.redirect_uri,
         responseType: req.body.response_type, scope: req.body.scope,
         codeChallenge: req.body.code_challenge, codeChallengeMethod: req.body.code_challenge_method,

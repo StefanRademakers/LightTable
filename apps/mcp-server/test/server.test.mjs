@@ -37,6 +37,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_workspace'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_preview'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_document'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_build_social_design'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_text'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_edit_text'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_text'));
@@ -97,6 +98,13 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     effectKind: 'drop-shadow', settings: { distance: 20, size: 10 }
   } });
   assert.equal(style.isError, undefined);
+  const social = await editor.callTool({ name: 'lighttable_build_social_design', arguments: {
+    name: 'Deterministic social card', title: 'HELLO', body: 'Editable release candidate.'
+  } });
+  assert.equal(social.isError, undefined);
+  assert.equal(social.structuredContent.documentId, 'document-demo');
+  assert.deepEqual(social.structuredContent.layerKinds,
+    ['asset', 'point-text', 'paragraph-text', 'gradient-vector', 'drop-shadow']);
   const batch = await editor.callTool({ name: 'lighttable_batch', arguments: {
     documentId: 'document-demo', name: 'MCP mini design', operations: [
       { operationId: 'rename', command: 'layer.rename', parameters: {
@@ -118,4 +126,31 @@ test('MCP endpoint advertises protected-resource metadata when unauthenticated',
     headers: { 'content-type': 'application/json' }, body: '{}' });
   assert.equal(response.status, 401);
   assert.match(response.headers.get('www-authenticate'), /resource_metadata=/u);
+});
+
+test('OAuth authorization form requires a one-time same-site CSRF token', async (context) => {
+  const service = await createLightTableMcpApp({ publicUrl: 'http://127.0.0.1:8787',
+    pairingCode: 'integration-pairing', client: new MockLightTableClient(),
+    allowInsecure: true, allowedHosts: ['127.0.0.1'] });
+  const http = await listen(service.app);
+  context.after(async () => { await service.close(); await new Promise((resolve) => http.close(resolve)); });
+  const client = service.oauth.register({ redirect_uris: ['http://127.0.0.1/callback'] });
+  const verifier = 'c'.repeat(64); const query = new URLSearchParams({ client_id: client.client_id,
+    redirect_uri: client.redirect_uris[0], response_type: 'code', scope: 'lighttable:read', state: 'state-1',
+    code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' });
+  const base = `http://127.0.0.1:${http.address().port}`;
+  const form = await fetch(`${base}/oauth/authorize?${query}`); const html = await form.text();
+  const csrf = html.match(/name="csrf" value="([^"]+)"/u)?.[1];
+  const cookie = form.headers.get('set-cookie')?.split(';')[0];
+  assert.ok(csrf); assert.ok(cookie);
+  const missing = await fetch(`${base}/oauth/authorize`, { method: 'POST', redirect: 'manual',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: query });
+  assert.equal(missing.status, 400);
+  const body = new URLSearchParams(query); body.set('pairing_code', 'integration-pairing'); body.set('csrf', csrf);
+  const accepted = await fetch(`${base}/oauth/authorize`, { method: 'POST', redirect: 'manual',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie }, body });
+  assert.equal(accepted.status, 303);
+  const replay = await fetch(`${base}/oauth/authorize`, { method: 'POST', redirect: 'manual',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie }, body });
+  assert.equal(replay.status, 400);
 });
