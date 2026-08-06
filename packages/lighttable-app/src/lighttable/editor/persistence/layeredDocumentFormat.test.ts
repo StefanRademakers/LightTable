@@ -219,7 +219,7 @@ describe('LightTable layered PNG format', () => {
       }],
       'versions.png'
     );
-    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 8; });
+    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 9; });
     const futureText = await rewriteManifest(file, (manifest) => {
       const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
       const text = layers.find((layer) => layer.type === 'text')!.text as Record<string, unknown>;
@@ -451,7 +451,7 @@ describe('LightTable layered PNG format', () => {
     );
 
     const manifest = await readManifest(file);
-    expect(manifest.version).toBe(7);
+    expect(manifest.version).toBe(8);
     expect(manifest).toMatchObject({
       document: { colorSettings: document.colorSettings }
     });
@@ -649,6 +649,7 @@ describe('LightTable layered PNG format', () => {
 
   it('round-trips tight and off-canvas raster bounds independently from the document canvas', async () => {
     const source = createImageDocument('Tight raster roundtrip', 640, 360, 'source');
+    source.resolutionPpi = 300;
     const sourceLayer = source.layers[0];
     if (sourceLayer.type !== 'raster') throw new Error('Expected raster fixture.');
     const document = {
@@ -677,7 +678,7 @@ describe('LightTable layered PNG format', () => {
     const parsed = await parseLayeredDocumentFile(file);
     const parsedLayer = parsed && findRasterLayer(parsed.document, sourceLayer.id);
 
-    expect(await readManifest(file)).toMatchObject({ version: 7 });
+    expect(await readManifest(file)).toMatchObject({ version: 8 });
     expect(parsedLayer).toMatchObject({
       width: 900,
       height: 48,
@@ -685,6 +686,7 @@ describe('LightTable layered PNG format', () => {
       offsetY: 342.25,
       transform: translationMatrix(18, -23)
     });
+    expect(parsed?.document.resolutionPpi).toBe(300);
   });
 
   it('rejects invalid native raster bounds', async () => {

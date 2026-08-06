@@ -20,6 +20,7 @@ export interface EditorMenuControllerOptions {
   readonly file: {
     newDocument(): void;
     open(): void;
+    place(): void;
     recentFiles: readonly LightTableRecentFile[];
     openRecent(id: string): void;
     clearRecent(): void;
@@ -111,6 +112,7 @@ export const createEditorMenuController = ({
     {
       newDocument: file.newDocument,
       open: file.open,
+      place: file.place,
       recentFiles: file.recentFiles,
       openRecent: file.openRecent,
       clearRecent: file.clearRecent,

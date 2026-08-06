@@ -14,6 +14,7 @@ import type {
 } from '../../application/documents/publishPreparedDocument';
 import type { GroupVisibility } from '../../application/adjustments/groupVisibility';
 import type { BasicAdjustments, RgbHistogram } from '../../types';
+import type { DocumentCreationSettings } from '../../editor/document/documentTypes';
 import type { WebGpuScopeOptions } from '../../gpu/WebGpuScopeEngine';
 import type {
   DocumentRendererPort
@@ -43,6 +44,7 @@ export interface EditorDocumentLifecycleControllerOptions {
     readonly identity: string;
     readonly decodeMode: DocumentOpenMode;
     readonly initialAdjustments: BasicAdjustments;
+    readonly creationSettings?: DocumentCreationSettings;
   };
   readonly getGroupVisibility: () => GroupVisibility;
   readonly getPublicationPorts: () => PreparedDocumentPublicationPorts;
@@ -69,6 +71,7 @@ export interface EditorDocumentSourceLoad {
   readonly identity: string;
   readonly decodeMode: DocumentOpenMode;
   readonly initialAdjustments: BasicAdjustments;
+  readonly creationSettings?: DocumentCreationSettings;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
 }
@@ -126,6 +129,7 @@ export const useEditorDocumentLifecycleController = ({
       sourceIdentity: `${request.identity}:${request.blob.size}`,
       decodeMode: request.decodeMode,
       initialAdjustments: request.initialAdjustments,
+      creationSettings: request.creationSettings,
       signal: request.signal,
       isCanceled: request.isCanceled
     }),
@@ -144,6 +148,7 @@ export const useEditorDocumentLifecycleController = ({
       identity: source.identity,
       decodeMode: source.decodeMode,
       initialAdjustments: source.initialAdjustments,
+      creationSettings: source.creationSettings,
       signal: task.signal,
       isCanceled: () => !isCurrent() || !task.isCurrent()
     });

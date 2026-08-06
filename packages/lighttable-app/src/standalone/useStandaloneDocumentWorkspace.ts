@@ -19,6 +19,7 @@ import {
 } from './standaloneDocumentRuntime';
 import type { SystemFontByteProvider } from '../lighttable/text/fonts/DocumentFontRegistry';
 import type { LightTableRecoveryRecord } from '../platform/LightTableRecoveryStore';
+import type { DocumentCreationSettings } from '../lighttable/editor/document/documentTypes';
 
 export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
 
@@ -44,7 +45,8 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
 
   const openDocument = useCallback((
     file: File,
-    decodeMode: StandaloneDecodeMode = 'automatic'
+    decodeMode: StandaloneDecodeMode = 'automatic',
+    creationSettings?: DocumentCreationSettings
   ) => controller.open({
     source: {
       id: standaloneSourceIdentity(file, decodeMode),
@@ -53,7 +55,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
       byteLength: file.size
     },
     title: file.name,
-    payload: { file, decodeMode }
+    payload: { file, decodeMode, ...(creationSettings ? { creationSettings } : {}) }
   }), [controller]);
 
   const openRecoveredDocument = useCallback((

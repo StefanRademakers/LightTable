@@ -39,6 +39,7 @@ describe('createEditorMenuController', () => {
       file: {
         newDocument: vi.fn(),
         open: vi.fn(),
+        place: vi.fn(),
         recentFiles: [],
         openRecent: vi.fn(),
         clearRecent: vi.fn(),
@@ -128,7 +129,7 @@ describe('createEditorMenuController', () => {
       },
       labels: { primaryShortcut: (key) => `Ctrl+${key}` },
       file: {
-        newDocument: vi.fn(), open: vi.fn(), recentFiles: [],
+        newDocument: vi.fn(), open: vi.fn(), place: vi.fn(), recentFiles: [],
         openRecent: vi.fn(), clearRecent: vi.fn(), save: vi.fn(), exportPng: vi.fn(), exportPsd: vi.fn(),
         pdfExportPreflight: vi.fn(),
         openCompatibilityReport: vi.fn(),

@@ -59,6 +59,26 @@ const markRecoveryAttempt = (recoveryId: string): void => {
 const clearRecoveryAttempt = (recoveryId: string): void => {
   try { localStorage.removeItem(recoveryAttemptKey(recoveryId)); } catch { /* optional */ }
 };
+const pickBrowserPlacedImage = () => new Promise<File | null>((resolve) => {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp';
+  let settled = false;
+  const finish = (file: File | null) => { if (!settled) { settled = true; resolve(file); } };
+  input.addEventListener('change', () => finish(input.files?.[0] ?? null), { once: true });
+  input.addEventListener('cancel', () => finish(null), { once: true });
+  input.click();
+});
+const waitForReadyDocument = (session: import('../lighttable/application/documents/documentSession').DocumentSession) => new Promise<void>((resolve, reject) => {
+  const inspect = () => {
+    const state = session.getSnapshot();
+    if (state.lifecycle === 'ready') { unsubscribe(); resolve(); }
+    else if (state.lifecycle === 'failed' || state.lifecycle === 'disposed') {
+      unsubscribe(); reject(new Error(state.lifecycleError ?? 'The document could not be decoded.'));
+    }
+  };
+  const unsubscribe = session.subscribe(inspect);
+  inspect();
+});
 export const newestRecoveryRecords = (
   listing: LightTableRecoveryListing
 ): readonly LightTableRecoveryRecord[] => {
@@ -112,6 +132,28 @@ export function LightTableStandaloneApp({
       openArtifact: (file) => {
         const opened = openDocument(file);
         if (!opened.ok) throw new Error(`The artifact could not be opened: ${opened.error.code}.`);
+        return opened.value.id;
+      },
+      createDocument: async (options) => {
+        const file = await createBlankPngFile({
+          width: options.width,
+          height: options.height,
+          resolutionPpi: options.resolutionPpi,
+          name: `${options.name.replace(/\.png$/i, '')}.png`,
+          backgroundColor: options.background.kind === 'solid' ? options.background.color : null
+        });
+        const opened = openDocument(file, 'automatic', {
+          resolutionPpi: options.resolutionPpi,
+          bitDepth: options.bitDepth,
+          profile: options.profile
+        });
+        if (!opened.ok) throw new Error(`The document could not be created: ${opened.error.code}.`);
+        try {
+          await waitForReadyDocument(opened.value);
+        } catch (reason) {
+          controller.close(opened.value.id, { discardChanges: true });
+          throw reason;
+        }
         return opened.value.id;
       }
     }),
@@ -240,20 +282,37 @@ export function LightTableStandaloneApp({
     await refreshRecentFiles();
   }, [host, refreshRecentFiles]);
 
-  const createDocument = useCallback(async ({
-    width,
-    height
-  }: { width: number; height: number }) => {
+  const createDocument = useCallback(async (options: import('../lighttable/application/commands/lightTableCommandService').LightTableCreateDocumentOptions) => {
     setCreating(true);
     try {
-      openDocument(await createBlankPngFile({ width, height, resolutionPpi: 72 }));
-      setNewDialogOpen(false);
+      const result = await commandService.execute({
+        protocolVersion: 1,
+        requestId: `ui-new-${crypto.randomUUID()}`,
+        command: 'document.create',
+        parameters: {
+          ...options
+        }
+      });
+      if (result.status === 'completed') setNewDialogOpen(false);
     } finally {
       setCreating(false);
     }
-  }, [openDocument]);
+  }, [commandService]);
 
   const requestNewDocument = useCallback(() => setNewDialogOpen(true), []);
+
+  const requestPlaceArtifact = useCallback(async (documentId: DocumentSessionId) => {
+    const file = await (host.openFile?.() ?? pickBrowserPlacedImage());
+    if (!file) return;
+    const artifact = commandService.registerInputArtifact(file);
+    await commandService.execute({
+      protocolVersion: 1,
+      requestId: `ui-place-${crypto.randomUUID()}`,
+      command: 'layer.placeArtifact',
+      documentId,
+      parameters: { artifactId: artifact.id }
+    });
+  }, [commandService, host]);
 
   const openRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
     if (!host.recovery) return null;
@@ -557,6 +616,7 @@ export function LightTableStandaloneApp({
           onActivate={activateDocument}
           onClose={closeDocument}
           onRequestOpen={host.openFile ? requestHostDocument : undefined}
+          onRequestPlace={requestPlaceArtifact}
           recentFiles={recentFiles}
           onOpenRecent={openRecentDocument}
           onClearRecent={clearRecentFiles}

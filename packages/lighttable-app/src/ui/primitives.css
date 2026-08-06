@@ -411,6 +411,14 @@
   font-size: var(--lt-type-body-large);
 }
 
+.lighttable-new-document-dialog__fields select {
+  width: 100%;
+}
+
+.lighttable-new-document-dialog__wide-field {
+  grid-column: 1 / -1;
+}
+
 .lighttable-launcher__recovery-section {
   display: grid;
   gap: 12px;

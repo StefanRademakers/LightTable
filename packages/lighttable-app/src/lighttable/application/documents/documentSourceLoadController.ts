@@ -1,6 +1,7 @@
 import type { GroupVisibility } from '../adjustments/groupVisibility';
 import type { DocumentOpenMode } from './documentSourceProbe';
 import type { BasicAdjustments } from '../../types';
+import type { DocumentCreationSettings } from '../../editor/document/documentTypes';
 import type {
   DocumentHydrationRenderer
 } from './hydrateDocumentSource';
@@ -24,6 +25,7 @@ export interface DocumentSourceLoadRequest {
   readonly sourceIdentity: string;
   readonly decodeMode: DocumentOpenMode;
   readonly initialAdjustments: BasicAdjustments;
+  readonly creationSettings?: DocumentCreationSettings;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
 }
@@ -63,6 +65,7 @@ export const createDocumentSourceLoadController = (
       sourceIdentity: request.sourceIdentity,
       decodeMode: request.decodeMode,
       initialAdjustments: request.initialAdjustments,
+      creationSettings: request.creationSettings,
       groupVisibility: port.getGroupVisibility(),
       signal: request.signal,
       isCanceled: request.isCanceled,

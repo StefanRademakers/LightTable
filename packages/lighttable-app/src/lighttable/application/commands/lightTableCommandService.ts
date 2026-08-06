@@ -15,213 +15,16 @@ import {
   type LayerQuerySummary
 } from './layerQueryProjection';
 export type { LayerQuerySummary } from './layerQueryProjection';
-
-export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
-
-export type LightTableCommandId =
-  | 'view.setZoom'
-  | 'layer.createRaster'
-  | 'layer.rename'
-  | 'layer.setVisibility'
-  | 'layer.setFillOpacity'
-  | 'layer.style.setEnabled'
-  | 'layer.effect.setEnabled'
-  | 'file.openArtifact'
-  | 'file.exportNative'
-  | 'file.exportPng'
-  | 'file.exportPsd'
-  | 'history.undo'
-  | 'history.redo';
-
-export type LightTableCommandErrorCode =
-  | 'invalid-request'
-  | 'unsupported-protocol'
-  | 'unknown-command'
-  | 'document-required'
-  | 'document-not-found'
-  | 'document-not-ready'
-  | 'stale-document-revision'
-  | 'command-unavailable'
-  | 'invalid-parameters'
-  | 'execution-failed';
-
-export interface LightTableCommandRequest {
-  readonly protocolVersion: number;
-  readonly requestId: string;
-  readonly command: string;
-  readonly documentId?: string;
-  readonly parameters: unknown;
-  readonly expectedDocumentRevision?: number;
-}
-
-export interface LightTableRevisionSet {
-  readonly workspace: number;
-  readonly document?: number;
-  readonly historyState?: number;
-}
-
-export type LightTableCommandResult =
-  | {
-      readonly requestId: string;
-      readonly status: 'completed';
-      readonly value: unknown;
-      readonly revisions: LightTableRevisionSet;
-    }
-  | {
-      readonly requestId: string;
-      readonly status: 'accepted';
-      readonly taskId: string;
-      readonly revisions: LightTableRevisionSet;
-    }
-  | {
-      readonly requestId: string;
-      readonly status: 'rejected';
-      readonly code: LightTableCommandErrorCode;
-      readonly message: string;
-      readonly revisions: LightTableRevisionSet;
-    };
-
-export interface WorkspaceDocumentSummary {
-  readonly id: DocumentSessionId;
-  readonly title: string;
-  readonly lifecycle: DocumentSessionSnapshot['lifecycle'];
-  readonly dirty: boolean;
-  readonly source: {
-    readonly name: string;
-    readonly mediaType: string;
-    readonly byteLength?: number;
-  };
-}
-
-export interface WorkspaceQueryResult {
-  readonly revision: number;
-  readonly activeDocumentId: DocumentSessionId | null;
-  readonly documents: readonly WorkspaceDocumentSummary[];
-}
-
-export interface DocumentQueryResult {
-  readonly revision: number;
-  readonly id: DocumentSessionId;
-  readonly title: string;
-  readonly lifecycle: DocumentSessionSnapshot['lifecycle'];
-  readonly dirty: boolean;
-  readonly canonicalRevision: number;
-  readonly savedRevision: number;
-  readonly canvas: { readonly width: number; readonly height: number } | null;
-  readonly activeLayerId: LayerId | null;
-  readonly layerCount: number;
-  readonly viewport: DocumentViewport;
-  readonly history: {
-    readonly canUndo: boolean;
-    readonly canRedo: boolean;
-    readonly busy: boolean;
-    readonly undoDepth: number;
-    readonly redoDepth: number;
-    readonly estimatedBytes: number;
-    readonly currentStateId: number;
-  };
-  readonly tasks: {
-    readonly activeCount: number;
-  };
-  readonly renderer: {
-    readonly status: DocumentSessionSnapshot['renderer']['status'];
-    readonly active: boolean;
-    readonly estimatedGpuBytes: number;
-  };
-}
-
-export interface LayerEffectsQueryResult {
-  readonly layerId: LayerId;
-  readonly enabled: boolean;
-  readonly revision: number;
-  readonly effects: readonly {
-    readonly id: LayerStyleId;
-    readonly kind: LayerStyleKind;
-    readonly name: string;
-    readonly enabled: boolean;
-    readonly opacity: number;
-    readonly blendMode: LayerNode['blendMode'];
-    /** Complete transport-safe canonical settings for parity/automation. */
-    readonly settings: LayerStyleInstance;
-  }[];
-}
-
-export interface CommandCapabilitySummary {
-  readonly command: LightTableCommandId;
-  readonly available: boolean;
-  readonly reason: string | null;
-}
-
-export interface AutomationTaskQueryResult {
-  readonly id: string;
-  readonly status: 'running' | 'completed' | 'canceled' | 'failed';
-  readonly progress: number | null;
-  readonly error: string | null;
-  readonly artifact: LightTableArtifactMetadata | null;
-}
-
-export type LightTableGestureKind = 'brush-stroke' | 'selection-rectangle' | 'layer-translate';
-
-export interface LightTableGestureSample {
-  readonly x: number;
-  readonly y: number;
-  readonly pressure?: number;
-}
-
-export interface LightTableGestureResult {
-  readonly status: 'started' | 'updated' | 'completed' | 'canceled' | 'rejected';
-  readonly gestureId?: string;
-  readonly sampleCount?: number;
-  readonly message?: string;
-}
-
-export interface LightTableWorkspaceCommandPorts {
-  openArtifact(file: File): DocumentSessionId | Promise<DocumentSessionId>;
-}
-
-export interface LightTableCommandPorts {
-  setZoom(documentId: DocumentSessionId, viewport: DocumentViewport): void | Promise<void>;
-  createRasterLayer(documentId: DocumentSessionId): void | Promise<void>;
-  renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string): void | Promise<void>;
-  setLayerVisibility(
-    documentId: DocumentSessionId,
-    layerIds: readonly LayerId[],
-    visible: boolean
-  ): void | Promise<void>;
-  setLayerFillOpacity(documentId: DocumentSessionId, layerId: LayerId, opacity: number): void | Promise<void>;
-  setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean): void | Promise<void>;
-  setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
-  exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
-  exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
-  exportPsdArtifact(documentId: DocumentSessionId): File | Promise<File>;
-  beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
-  updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
-  finishGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
-  undo(documentId: DocumentSessionId): boolean | Promise<boolean>;
-  redo(documentId: DocumentSessionId): boolean | Promise<boolean>;
-  queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
-  resetRenderTelemetry?(documentId: DocumentSessionId): void;
-}
-
-export interface DocumentLightTableCommandPorts {
-  setZoom(viewport: DocumentViewport): void | Promise<void>;
-  createRasterLayer(): void | Promise<void>;
-  renameLayer(layerId: LayerId, name: string): void | Promise<void>;
-  setLayerVisibility(layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;
-  setLayerFillOpacity(layerId: LayerId, opacity: number): void | Promise<void>;
-  setLayerStyleEnabled(layerId: LayerId, enabled: boolean): void | Promise<void>;
-  setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void | Promise<void>;
-  exportNativeArtifact(): File | Promise<File>;
-  exportPngArtifact(): File | Promise<File>;
-  exportPsdArtifact(): File | Promise<File>;
-  beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
-  updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
-  finishGesture(kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
-  undo(): boolean | Promise<boolean>;
-  redo(): boolean | Promise<boolean>;
-  queryRenderTelemetry?(): RenderTelemetrySnapshot | null;
-  resetRenderTelemetry?(): void;
-}
+import {
+  LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+  type AutomationTaskQueryResult, type CommandCapabilitySummary, type DocumentLightTableCommandPorts,
+  type DocumentQueryResult, type LayerEffectsQueryResult, type LightTableArtifactPlacement,
+  type LightTableCommandErrorCode, type LightTableCommandId, type LightTableCommandPorts,
+  type LightTableCommandRequest, type LightTableCommandResult, type LightTableCreateDocumentOptions,
+  type LightTableGestureKind, type LightTableGestureResult, type LightTableGestureSample,
+  type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
+} from './lightTableCommandContract';
+export * from './lightTableCommandContract';
 
 /**
  * Routes transport-neutral commands to the mounted controller for one document.
@@ -253,6 +56,10 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   createRasterLayer(documentId: DocumentSessionId) {
     return this.resolve(documentId).createRasterLayer();
+  }
+
+  placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement) {
+    return this.resolve(documentId).placeArtifact(file, placement);
   }
 
   renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string) {
@@ -577,8 +384,10 @@ export class LightTableCommandService {
       reason: !ready ? 'The document is not ready.' : available ? null : reason
     });
     return [
+      availability('document.create', Boolean(this.workspacePorts), 'Document creation is unavailable in this host.'),
       availability('view.setZoom', true, ''),
       availability('layer.createRaster', true, ''),
+      availability('layer.placeArtifact', true, ''),
       availability(
         'layer.rename',
         Boolean(layerCapabilities.activeLayer),
@@ -600,6 +409,27 @@ export class LightTableCommandService {
     const request = this.parseRequest(requestValue);
     if ('rejection' in request) return request.rejection;
     const { value } = request;
+    if (value.expectedWorkspaceRevision !== undefined
+      && value.expectedWorkspaceRevision !== this.workspaceRevision) {
+      return this.reject(
+        value.requestId,
+        'stale-workspace-revision',
+        `Expected workspace revision ${value.expectedWorkspaceRevision}, current revision is ${this.workspaceRevision}.`
+      );
+    }
+    if (value.command === 'document.create') {
+      const options = this.parseCreateDocumentOptions(value.parameters);
+      if ('message' in options) return this.reject(value.requestId, 'invalid-parameters', options.message);
+      if (!this.workspacePorts) {
+        return this.reject(value.requestId, 'command-unavailable', 'Document creation is unavailable in this host.');
+      }
+      try {
+        const documentId = await this.workspacePorts.createDocument(options);
+        return { requestId: value.requestId, status: 'completed', value: { documentId }, revisions: this.revisions() };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason));
+      }
+    }
     if (value.command === 'file.openArtifact') {
       if (!isRecord(value.parameters) || typeof value.parameters.artifactId !== 'string') {
         return this.reject(value.requestId, 'invalid-parameters', 'Open requires an artifactId.');
@@ -648,6 +478,39 @@ export class LightTableCommandService {
         return this.reject(value.requestId, 'invalid-parameters', 'Export parameters must be an empty object.', snapshot);
       }
       return this.startArtifactExport(documentRequest, snapshot);
+    }
+
+    if (value.command === 'layer.placeArtifact') {
+      if (!isRecord(value.parameters) || typeof value.parameters.artifactId !== 'string') {
+        return this.reject(value.requestId, 'invalid-parameters', 'Place requires an artifactId.', snapshot);
+      }
+      const file = this.artifacts.resolve(value.parameters.artifactId);
+      if (!file) return this.reject(value.requestId, 'command-unavailable', 'The input artifact does not exist.', snapshot);
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size < 1
+        || file.size > 512 * 1024 * 1024) {
+        return this.reject(value.requestId, 'invalid-parameters', 'Place supports PNG, JPEG and WebP artifacts up to 512 MiB.', snapshot);
+      }
+      const finiteOptional = (entry: unknown) => entry === undefined
+        || (typeof entry === 'number' && Number.isFinite(entry) && Math.abs(entry) <= 10_000_000);
+      if (!finiteOptional(value.parameters.x) || !finiteOptional(value.parameters.y)
+        || (value.parameters.name !== undefined && (typeof value.parameters.name !== 'string'
+          || !value.parameters.name.trim() || value.parameters.name.trim().length > 255))) {
+        return this.reject(value.requestId, 'invalid-parameters', 'Placement name and coordinates are invalid.', snapshot);
+      }
+      const placement: LightTableArtifactPlacement = {
+        ...(typeof value.parameters.name === 'string' ? { name: value.parameters.name } : {}),
+        ...(typeof value.parameters.x === 'number' ? { x: value.parameters.x } : {}),
+        ...(typeof value.parameters.y === 'number' ? { y: value.parameters.y } : {})
+      };
+      try {
+        const placed = await this.ports.placeArtifact(documentRequest.documentId, file, placement);
+        if (!placed) return this.reject(value.requestId, 'execution-failed', 'The image could not be placed.', snapshot);
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: placed,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
     }
 
     try {
@@ -842,7 +705,7 @@ export class LightTableCommandService {
     if (!this.isCommandId(value.command)) {
       return { rejection: this.reject(requestId, 'unknown-command', `Unknown command: ${value.command}.`) };
     }
-    if (value.command !== 'file.openArtifact'
+    if (value.command !== 'file.openArtifact' && value.command !== 'document.create'
       && (typeof value.documentId !== 'string' || !value.documentId)) {
       return { rejection: this.reject(requestId, 'document-required', 'An explicit documentId is required.') };
     }
@@ -856,6 +719,13 @@ export class LightTableCommandService {
     ) {
       return { rejection: this.reject(requestId, 'invalid-request', 'expectedDocumentRevision must be a non-negative integer.') };
     }
+    if (value.expectedWorkspaceRevision !== undefined && (
+      typeof value.expectedWorkspaceRevision !== 'number'
+      || !Number.isInteger(value.expectedWorkspaceRevision)
+      || value.expectedWorkspaceRevision < 0
+    )) {
+      return { rejection: this.reject(requestId, 'invalid-request', 'expectedWorkspaceRevision must be a non-negative integer.') };
+    }
     return { value: {
       protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
       requestId,
@@ -864,14 +734,17 @@ export class LightTableCommandService {
         ? value.documentId as DocumentSessionId
         : undefined,
       parameters: value.parameters,
-      expectedDocumentRevision: value.expectedDocumentRevision as number | undefined
+      expectedDocumentRevision: value.expectedDocumentRevision as number | undefined,
+      expectedWorkspaceRevision: value.expectedWorkspaceRevision as number | undefined
     } };
   }
 
   private isCommandId(value: string): value is LightTableCommandId {
     return [
+      'document.create',
       'view.setZoom',
       'layer.createRaster',
+      'layer.placeArtifact',
       'layer.rename',
       'layer.setVisibility',
       'layer.setFillOpacity',
@@ -890,6 +763,31 @@ export class LightTableCommandService {
     return value === 'brush-stroke'
       || value === 'selection-rectangle'
       || value === 'layer-translate';
+  }
+
+  private parseCreateDocumentOptions(value: unknown): LightTableCreateDocumentOptions | { message: string } {
+    if (!isRecord(value)) return { message: 'Create document parameters must be an object.' };
+    const { width, height, resolutionPpi, bitDepth, profile, background } = value;
+    if (!Number.isInteger(width) || !Number.isInteger(height)
+      || Number(width) < 1 || Number(height) < 1 || Number(width) > 32_768 || Number(height) > 32_768
+      || Number(width) * Number(height) > 268_435_456) {
+      return { message: 'Document dimensions must be 1-32768 px and at most 268435456 pixels.' };
+    }
+    if (typeof resolutionPpi !== 'number' || !Number.isFinite(resolutionPpi)
+      || resolutionPpi < 1 || resolutionPpi > 2_400) {
+      return { message: 'Document resolution must be between 1 and 2400 ppi.' };
+    }
+    if (bitDepth !== 8 && bitDepth !== 16) return { message: 'Document bitDepth must be 8 or 16.' };
+    if (profile !== 'srgb' && profile !== 'adobe-rgb-1998') return { message: 'Document profile is unsupported.' };
+    if (!isRecord(background) || (background.kind !== 'transparent' && background.kind !== 'solid')
+      || (background.kind === 'solid' && (typeof background.color !== 'string'
+        || !/^#[0-9a-f]{6}$/i.test(background.color)))) {
+      return { message: 'Background must be transparent or a solid #RRGGBB color.' };
+    }
+    const name = typeof value.name === 'string' && value.name.trim() ? value.name.trim() : 'Untitled';
+    if (name.length > 255) return { message: 'Document name must not exceed 255 characters.' };
+    return { name, width: Number(width), height: Number(height), resolutionPpi,
+      bitDepth, profile, background: background as LightTableCreateDocumentOptions['background'] };
   }
 
   private isGestureSample(value: unknown): value is LightTableGestureSample {
@@ -943,6 +841,7 @@ interface ParsedCommandRequest {
   readonly documentId?: DocumentSessionId;
   readonly parameters: unknown;
   readonly expectedDocumentRevision?: number;
+  readonly expectedWorkspaceRevision?: number;
 }
 
 type DocumentParsedCommandRequest = ParsedCommandRequest & {

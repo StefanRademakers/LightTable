@@ -52,17 +52,25 @@ export interface BlankPngDocumentOptions {
   height: number;
   resolutionPpi: number;
   name?: string;
+  backgroundColor?: string | null;
 }
 
 export const createBlankPngFile = async ({
   width,
   height,
   resolutionPpi,
-  name = 'Untitled.png'
+  name = 'Untitled.png',
+  backgroundColor = null
 }: BlankPngDocumentOptions): Promise<File> => {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
+  if (backgroundColor) {
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('LightTable could not create the document background.');
+    context.fillStyle = backgroundColor;
+    context.fillRect(0, 0, width, height);
+  }
   const png = new Uint8Array(await (await canvasToPng(canvas)).arrayBuffer());
   const encoded = addResolutionMetadata(png, resolutionPpi);
   return new File([Uint8Array.from(encoded).buffer], name, {

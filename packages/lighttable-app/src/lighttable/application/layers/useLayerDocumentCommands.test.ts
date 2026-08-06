@@ -33,6 +33,7 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   flattenGroup: vi.fn(() => true),
   flattenImage: vi.fn(() => true),
   prepareRasterDestination: vi.fn(() => true),
+  loadLayerAssets: vi.fn(async () => undefined),
   commitRasterDestination: vi.fn(),
   releaseRasterDestination: vi.fn(() => true),
   rasterizeText: vi.fn(() => true),
@@ -107,6 +108,39 @@ const setup = (initialDocument: ImageDocument) => {
 };
 
 describe('useLayerDocumentCommands', () => {
+  it('places a decoded image atomically as one tight editable layer', async () => {
+    const close = vi.fn();
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 12, height: 8, close })));
+    const state = setup(createImageDocument('Place', 100, 80, 'asset'));
+    const result = await state.commands.placeImageArtifact(
+      new File(['image'], 'badge.png', { type: 'image/png' }), { x: -4, y: 9 }
+    );
+    expect(result).toEqual(expect.objectContaining({ width: 12, height: 8 }));
+    const layer = state.document().layers.at(-1);
+    expect(layer).toMatchObject({ name: 'badge', width: 12, height: 8,
+      transform: { tx: -4, ty: 9 } });
+    expect(state.renderer.loadLayerAssets).toHaveBeenCalledWith([{
+      layerId: layer?.id, pixels: expect.any(File), mask: null
+    }]);
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
+  it('publishes no document or history transition when placed image decode fails', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 12, height: 8, close: vi.fn() })));
+    const state = setup(createImageDocument('Place failure', 100, 80, 'asset'));
+    vi.mocked(state.renderer.loadLayerAssets).mockRejectedValue(new Error('decode failed'));
+    const before = state.document();
+    expect(await state.commands.placeImageArtifact(
+      new File(['bad'], 'bad.webp', { type: 'image/webp' })
+    )).toBeNull();
+    expect(state.document()).toBe(before);
+    expect(state.historyEntries).toHaveLength(0);
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
   it('adds an all-white layer mask without running a selection copy', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const layerId = state.document().activeLayerId!;

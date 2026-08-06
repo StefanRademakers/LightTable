@@ -44,6 +44,12 @@ export interface NormalizedImportProvenance {
 export type DocumentBitDepth = 8 | 16 | 32;
 export type DocumentBlendProfile = 'srgb' | 'adobe-rgb-1998';
 
+export interface DocumentCreationSettings {
+  readonly resolutionPpi: number;
+  readonly bitDepth: 8 | 16;
+  readonly profile: DocumentBlendProfile;
+}
+
 /**
  * Authoritative document color semantics.
  *
@@ -319,6 +325,8 @@ export interface ImageDocument {
   name: string;
   width: number;
   height: number;
+  /** Authored output resolution. Geometry remains expressed in pixels. */
+  resolutionPpi: number;
   /** Root nodes, bottom-most first; groups recursively use the same ordering. */
   layers: LayerNode[];
   activeLayerId: LayerId | null;
@@ -462,6 +470,7 @@ export const createImageDocument = (
     name,
     width,
     height,
+    resolutionPpi: 72,
     layers: [{
       id: backgroundId,
       type: 'raster',

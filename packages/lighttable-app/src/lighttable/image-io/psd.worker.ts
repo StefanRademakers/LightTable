@@ -459,6 +459,14 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
       width: psd.width,
       height: psd.height,
       bitsPerChannel: psd.bitsPerChannel ?? 8,
+      resolutionPpi: (() => {
+        const info = psd.imageResources?.resolutionInfo;
+        if (!info) return 72;
+        const value = info.horizontalResolutionUnit === 'PPCM'
+          ? info.horizontalResolution * 2.54
+          : info.horizontalResolution;
+        return Number.isFinite(value) && value >= 1 && value <= 2400 ? value : 72;
+      })(),
       colorMode: COLOR_MODE_NAMES[psd.colorMode ?? 3] ?? `mode ${psd.colorMode}`,
       colorProfile: {
         disposition: colorProfile.disposition,

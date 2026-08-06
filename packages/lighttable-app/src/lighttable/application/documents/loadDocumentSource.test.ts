@@ -40,6 +40,17 @@ const createRequest = () => ({
 });
 
 describe('loadDocumentSource', () => {
+  it('applies explicit new-document resolution, depth and profile semantics', async () => {
+    const result = await loadDocumentSource({
+      ...createRequest(),
+      creationSettings: { resolutionPpi: 300, bitDepth: 16, profile: 'adobe-rgb-1998' }
+    });
+    expect(result?.document).toMatchObject({
+      resolutionPpi: 300,
+      colorSettings: { bitDepth: 16, blendProfile: 'adobe-rgb-1998', profileState: 'assigned' }
+    });
+  });
+
   it('owns a flat recipe grade on the imported raster layer', async () => {
     const adjustments = createDefaultAdjustments();
     adjustments.exposureEV = 1.25;

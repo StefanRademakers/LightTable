@@ -1,6 +1,7 @@
 import type { GroupVisibility } from '../adjustments/groupVisibility';
 import type { DocumentOpenMode } from './documentSourceProbe';
 import type { BasicAdjustments } from '../../types';
+import type { DocumentCreationSettings } from '../../editor/document/documentTypes';
 import {
   hydrateDocumentSource,
   type DocumentHydrationRenderer,
@@ -24,6 +25,7 @@ export interface PrepareDocumentSourceRequest {
   readonly cacheKey: string;
   readonly decodeMode: DocumentOpenMode;
   readonly initialAdjustments: BasicAdjustments;
+  readonly creationSettings?: DocumentCreationSettings;
   readonly groupVisibility: GroupVisibility;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
@@ -47,6 +49,7 @@ export const prepareDocumentSource = async (
     cacheKey: request.cacheKey,
     decodeMode: request.decodeMode,
     initialAdjustments: request.initialAdjustments,
+    creationSettings: request.creationSettings,
     signal: request.signal,
     isCanceled
   });

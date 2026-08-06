@@ -7,6 +7,7 @@ import {
 import {
   createImageDocument,
   type DocumentAssetId,
+  type DocumentCreationSettings,
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import { setRasterLayerAdjustmentStack } from '../../editor/document/documentCommands';
@@ -110,6 +111,7 @@ export interface LoadDocumentSourceRequest {
    * implicit document-wide creative grade.
    */
   readonly initialAdjustments: BasicAdjustments;
+  readonly creationSettings?: DocumentCreationSettings;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
   /** Test seam; production callers use the default import adapters. */
@@ -238,6 +240,18 @@ export const loadDocumentSource = async (
       normalizedColorSpace: 'linear-srgb'
     }
   );
+  if (request.creationSettings && !layered && !semanticPsd) {
+    document = {
+      ...document,
+      resolutionPpi: request.creationSettings.resolutionPpi,
+      colorSettings: {
+        ...document.colorSettings,
+        bitDepth: request.creationSettings.bitDepth,
+        blendProfile: request.creationSettings.profile,
+        profileState: 'assigned'
+      }
+    };
+  }
   let pdfSourceId: DocumentAssetId | null = null;
   if (pdfPreview) {
     pdfSourceId = `pdf-source-${crypto.randomUUID()}` as DocumentAssetId;

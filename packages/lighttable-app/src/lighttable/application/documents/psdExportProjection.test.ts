@@ -18,6 +18,7 @@ import { replaceMissingTextFont } from '../text/replaceMissingTextFont';
 import type { DocumentFontAsset } from '../../editor/document/documentTypes';
 import { createAdjustmentLayer } from '../../editor/document/documentCommands';
 import { createDefaultAdjustments } from '../../types';
+import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 
 const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
@@ -27,6 +28,33 @@ const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
 };
 
 describe('PSD export projection', () => {
+  it('exports the canonical document resolution resource', () => {
+    const document = createImageDocument('Print', 32, 24, 'background');
+    document.resolutionPpi = 300;
+    const projection = projectDocumentToPsd(
+      document, pixels(32, 24), [{ layerId: document.layers[0]!.id, pixels: pixels(32, 24) }]
+    );
+    expect(projection.psd.imageResources?.resolutionInfo).toMatchObject({
+      horizontalResolution: 300, verticalResolution: 300,
+      horizontalResolutionUnit: 'PPI', verticalResolutionUnit: 'PPI'
+    });
+  });
+
+  it('preserves a placed raster export bounds independently from the canvas', () => {
+    const source = createImageDocument('Placed', 320, 240, 'background');
+    const document = createPlacedRasterLayer(source, {
+      name: 'Logo', width: 64, height: 48, x: -20, y: 36
+    });
+    const placed = document.layers.at(-1)!;
+    const projection = projectDocumentToPsd(document, pixels(320, 240), [
+      { layerId: source.layers[0]!.id, pixels: pixels(320, 240), bounds: { x: 0, y: 0, width: 320, height: 240 } },
+      { layerId: placed.id, pixels: pixels(64, 48), bounds: { x: -20, y: 36, width: 64, height: 48 } }
+    ]);
+    expect(projection.psd.children?.[1]).toMatchObject({
+      name: 'Logo', left: -20, top: 36, imageData: { width: 64, height: 48 }
+    });
+  });
+
   it('writes an accepted replacement as editable Photoshop text', () => {
     const document = createImageDocument('Replacement', 320, 240, 'background');
     const text = createTextLayerNode(createDefaultTextLayerData(), 'Recovered text');

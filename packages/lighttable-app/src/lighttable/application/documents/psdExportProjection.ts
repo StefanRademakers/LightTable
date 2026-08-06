@@ -216,7 +216,17 @@ export const projectDocumentToPsd = (
       ...(document.photoshopDocument?.engineData
         ? { engineData: document.photoshopDocument.engineData }
         : {}),
-      imageResources: { captionDigest: 'LightTable PSD export' }
+      imageResources: {
+        captionDigest: 'LightTable PSD export',
+        resolutionInfo: {
+          horizontalResolution: document.resolutionPpi,
+          horizontalResolutionUnit: 'PPI',
+          widthUnit: 'Inches',
+          verticalResolution: document.resolutionPpi,
+          verticalResolutionUnit: 'PPI',
+          heightUnit: 'Inches'
+        }
+      }
     },
     warnings,
     editableTextLayers,

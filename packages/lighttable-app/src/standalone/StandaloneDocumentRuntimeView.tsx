@@ -38,6 +38,7 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onActivate: (id: DocumentSessionId) => void;
   readonly onClose: (id: DocumentSessionId) => void;
   readonly onRequestOpen?: (decodeMode?: StandaloneDecodeMode) => Promise<void>;
+  readonly onRequestPlace?: (documentId: DocumentSessionId) => Promise<void>;
   readonly recentFiles: readonly LightTableRecentFile[];
   readonly onOpenRecent: (id: string) => Promise<void>;
   readonly onClearRecent: () => Promise<void>;
@@ -69,6 +70,7 @@ export function StandaloneDocumentRuntimeView({
   onActivate,
   onClose,
   onRequestOpen,
+  onRequestPlace,
   recentFiles,
   onOpenRecent,
   onClearRecent,
@@ -79,7 +81,7 @@ export function StandaloneDocumentRuntimeView({
   const {
     id,
     active,
-    runtime: { file, decodeMode },
+    runtime: { file, decodeMode, creationSettings },
     session
   } = document;
 
@@ -98,6 +100,7 @@ export function StandaloneDocumentRuntimeView({
         projectId=""
         sourceBlob={file}
         sourceDecodeMode={decodeMode}
+        documentCreationSettings={creationSettings}
         fileNameBase={titleWithoutExtension(file.name)}
         subjectLabel={file.name}
         workspaceDocumentId={id}
@@ -125,6 +128,7 @@ export function StandaloneDocumentRuntimeView({
           onClose(documentId as DocumentSessionId);
         }}
         onRequestOpenWorkspaceDocument={onRequestOpen}
+        onRequestPlaceWorkspaceArtifact={(documentId) => onRequestPlace?.(documentId as DocumentSessionId)}
         recentFiles={recentFiles}
         onOpenRecentWorkspaceDocument={onOpenRecent}
         onClearRecentWorkspaceDocuments={onClearRecent}

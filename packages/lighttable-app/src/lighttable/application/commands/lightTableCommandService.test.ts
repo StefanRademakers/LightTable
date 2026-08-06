@@ -27,6 +27,7 @@ const setup = () => {
   const ports: LightTableCommandPorts = {
     setZoom: vi.fn((_documentId, viewport) => session.updateViewport(() => viewport)),
     createRasterLayer: vi.fn(),
+    placeArtifact: vi.fn(),
     renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(),
     setLayerFillOpacity: vi.fn(),
@@ -147,6 +148,7 @@ describe('LightTableCommandService registry', () => {
     const ports = {
       setZoom: vi.fn(),
       createRasterLayer: vi.fn(),
+      placeArtifact: vi.fn(),
       renameLayer: vi.fn(),
       setLayerVisibility: vi.fn(),
       setLayerFillOpacity: vi.fn(),
@@ -308,7 +310,10 @@ describe('LightTableCommandService registry', () => {
     const state = setup();
     const openArtifact = vi.fn(async () => state.session.id);
     const service = new LightTableCommandService(
-      state.workspace, state.ports, { openArtifact }
+      state.workspace, state.ports, {
+        openArtifact,
+        createDocument: vi.fn(async () => state.session.id)
+      }
     );
     const artifact = service.registerInputArtifact(new File(
       ['fixture'], 'fixture.psd', { type: 'image/vnd.adobe.photoshop' }
@@ -326,6 +331,63 @@ describe('LightTableCommandService registry', () => {
     service.dispose();
     state.service.dispose();
     state.workspace.dispose();
+  });
+
+  it('creates a semantic document through the workspace port and rejects stale workspace state', async () => {
+    const state = setup();
+    const createDocument = vi.fn(async () => 'created-document' as never);
+    const service = new LightTableCommandService(state.workspace, state.ports, {
+      openArtifact: vi.fn(), createDocument
+    });
+    const parameters = { name: 'Poster', width: 1200, height: 800, resolutionPpi: 300,
+      bitDepth: 16, profile: 'adobe-rgb-1998', background: { kind: 'solid', color: '#112233' } };
+    const completed = await service.execute({
+      protocolVersion: 1, requestId: 'create', command: 'document.create', parameters,
+      expectedWorkspaceRevision: service.queryWorkspace().revision
+    });
+    expect(completed).toMatchObject({ status: 'completed', value: { documentId: 'created-document' } });
+    expect(createDocument).toHaveBeenCalledWith(parameters);
+    const stale = await service.execute({
+      protocolVersion: 1, requestId: 'stale-create', command: 'document.create', parameters,
+      expectedWorkspaceRevision: 999
+    });
+    expect(stale).toMatchObject({ status: 'rejected', code: 'stale-workspace-revision' });
+    expect(createDocument).toHaveBeenCalledTimes(1);
+    service.dispose(); state.service.dispose(); state.workspace.dispose();
+  });
+
+  it.each([
+    ['image/png', 'placed.png'], ['image/jpeg', 'placed.jpg'], ['image/webp', 'placed.webp']
+  ])('places a registered %s artifact through one document command', async (mediaType, name) => {
+    const state = setup();
+    const artifact = state.service.registerInputArtifact(new File(['pixels'], name, { type: mediaType }));
+    state.ports.placeArtifact = vi.fn(async () => ({ layerId: 'layer-placed', width: 4, height: 3 }));
+    const result = await state.service.execute(request('layer.placeArtifact', state.session.id, {
+      artifactId: artifact.id, name: 'Placed asset', x: -12, y: 24
+    }));
+    expect(result).toMatchObject({ status: 'completed', value: { layerId: 'layer-placed' } });
+    expect(state.ports.placeArtifact).toHaveBeenCalledWith(
+      state.session.id, expect.objectContaining({ name }),
+      { name: 'Placed asset', x: -12, y: 24 }
+    );
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('rejects invalid document and placement resources without invoking mutation ports', async () => {
+    const state = setup();
+    const service = new LightTableCommandService(state.workspace, state.ports, {
+      openArtifact: vi.fn(), createDocument: vi.fn()
+    });
+    expect(await service.execute({ protocolVersion: 1, requestId: 'huge', command: 'document.create',
+      parameters: { name: 'Huge', width: 32768, height: 32768, resolutionPpi: 72,
+        bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' } } }))
+      .toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    const artifact = service.registerInputArtifact(new File(['svg'], 'vector.svg', { type: 'image/svg+xml' }));
+    expect(await service.execute(request('layer.placeArtifact', state.session.id, { artifactId: artifact.id })))
+      .toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(state.ports.placeArtifact).not.toHaveBeenCalled();
+    service.dispose(); state.service.dispose(); state.workspace.dispose();
   });
 
   it('bounds document-coordinate gestures and commits through one owner', async () => {

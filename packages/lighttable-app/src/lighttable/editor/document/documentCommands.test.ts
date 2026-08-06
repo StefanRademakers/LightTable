@@ -47,6 +47,7 @@ import {
   setVectorLayerAntiAlias,
   ungroupLayers
 } from './documentCommands';
+import { createPlacedRasterLayer } from './placedRasterLayerCommand';
 import {
   createAnchor,
   createSubpath,
@@ -64,6 +65,23 @@ import { addLayerStyle } from '../styles/layerStyleCommands';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 
 describe('LightTable document commands', () => {
+  it('creates a tight placed raster with document-space placement', () => {
+    const source = createImageDocument('Placement', 320, 180, 'asset');
+    const result = createPlacedRasterLayer(source, {
+      name: 'Logo', width: 64, height: 48, x: -12, y: 73
+    });
+    const layer = findRasterLayer(result, result.activeLayerId!);
+    expect(layer).toMatchObject({
+      name: 'Logo', width: 64, height: 48,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: -12, ty: 73 }
+    });
+    expect(source.layers).toHaveLength(1);
+    const duplicate = createPlacedRasterLayer(result, {
+      name: 'Logo', width: 64, height: 48, x: 0, y: 0
+    });
+    expect(findRasterLayer(duplicate, duplicate.activeLayerId!)?.name).toBe('Logo 2');
+  });
+
   it('creates a full-canvas semantic Gradient Fill above the active layer', () => {
     const source = createImageDocument('Gradient', 320, 180, 'asset');
     const result = createGradientFillLayer(source);

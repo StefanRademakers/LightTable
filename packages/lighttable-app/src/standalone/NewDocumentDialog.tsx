@@ -4,13 +4,14 @@ import type { LightTableImageClipboard } from '../platform/LightTableImageClipbo
 import { ActionButton } from '../ui/ActionButton';
 import { FormInput } from '../ui/FormInput';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
+import type { LightTableCreateDocumentOptions } from '../lighttable/application/commands/lightTableCommandService';
 
 interface NewDocumentDialogProps {
   readonly open: boolean;
   readonly clipboard?: LightTableImageClipboard;
   readonly creating: boolean;
   readonly onCancel: () => void;
-  readonly onCreate: (size: { width: number; height: number }) => void;
+  readonly onCreate: (options: LightTableCreateDocumentOptions) => void;
 }
 
 const DEFAULT_WIDTH = 1920;
@@ -46,6 +47,12 @@ export function NewDocumentDialog({
 }: NewDocumentDialogProps) {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
+  const [name, setName] = useState('Untitled');
+  const [resolutionPpi, setResolutionPpi] = useState(72);
+  const [bitDepth, setBitDepth] = useState<8 | 16>(8);
+  const [profile, setProfile] = useState<'srgb' | 'adobe-rgb-1998'>('srgb');
+  const [backgroundKind, setBackgroundKind] = useState<'transparent' | 'solid'>('transparent');
+  const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const requestRef = useRef(0);
   const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLFormElement>(open, onCancel);
 
@@ -54,6 +61,12 @@ export function NewDocumentDialog({
     const request = ++requestRef.current;
     setWidth(DEFAULT_WIDTH);
     setHeight(DEFAULT_HEIGHT);
+    setName('Untitled');
+    setResolutionPpi(72);
+    setBitDepth(8);
+    setProfile('srgb');
+    setBackgroundKind('transparent');
+    setBackgroundColor('#ffffff');
     void readClipboardDimensions(clipboard)
       .then((dimensions) => {
         if (request !== requestRef.current || !dimensions) return;
@@ -77,6 +90,8 @@ export function NewDocumentDialog({
     && normalizedHeight >= 1
     && normalizedWidth <= MAX_DIMENSION
     && normalizedHeight <= MAX_DIMENSION;
+  const optionsValid = valid && name.trim().length > 0 && name.trim().length <= 255
+    && Number.isFinite(resolutionPpi) && resolutionPpi >= 1 && resolutionPpi <= 2400;
 
   return createPortal(
     <div className="modal-backdrop lighttable-dialog-backdrop">
@@ -91,8 +106,14 @@ export function NewDocumentDialog({
         onKeyDown={onDialogKeyDown}
         onSubmit={(event) => {
           event.preventDefault();
-          if (valid && !creating) {
-            onCreate({ width: normalizedWidth, height: normalizedHeight });
+          if (optionsValid && !creating) {
+            onCreate({
+              name: name.trim(), width: normalizedWidth, height: normalizedHeight,
+              resolutionPpi: Math.round(resolutionPpi), bitDepth, profile,
+              background: backgroundKind === 'solid'
+                ? { kind: 'solid', color: backgroundColor }
+                : { kind: 'transparent' }
+            });
           }
         }}
       >
@@ -100,6 +121,10 @@ export function NewDocumentDialog({
           <h3 className="modal__title">New document</h3>
         </div>
         <div className="lighttable-new-document-dialog__fields">
+          <label className="lighttable-new-document-dialog__wide-field">
+            <span>Name</span>
+            <FormInput value={name} maxLength={255} onChange={(event) => setName(event.currentTarget.value)} />
+          </label>
           <label>
             <span>Width</span>
             <FormInput
@@ -123,10 +148,43 @@ export function NewDocumentDialog({
               onChange={(event) => setHeight(event.currentTarget.valueAsNumber)}
             />
           </label>
+          <label>
+            <span>Resolution (ppi)</span>
+            <FormInput type="number" min="1" max="2400" value={resolutionPpi}
+              onChange={(event) => setResolutionPpi(event.currentTarget.valueAsNumber)} />
+          </label>
+          <label>
+            <span>Bit depth</span>
+            <select className="form-input" value={bitDepth}
+              onChange={(event) => setBitDepth(Number(event.currentTarget.value) as 8 | 16)}>
+              <option value="8">8 bit</option><option value="16">16 bit</option>
+            </select>
+          </label>
+          <label>
+            <span>Color profile</span>
+            <select className="form-input" value={profile}
+              onChange={(event) => setProfile(event.currentTarget.value as typeof profile)}>
+              <option value="srgb">sRGB</option><option value="adobe-rgb-1998">Adobe RGB (1998)</option>
+            </select>
+          </label>
+          <label>
+            <span>Background</span>
+            <select className="form-input" value={backgroundKind}
+              onChange={(event) => setBackgroundKind(event.currentTarget.value as typeof backgroundKind)}>
+              <option value="transparent">Transparent</option><option value="solid">Solid color</option>
+            </select>
+          </label>
+          {backgroundKind === 'solid' ? (
+            <label className="lighttable-new-document-dialog__wide-field">
+              <span>Background color</span>
+              <FormInput type="color" value={backgroundColor}
+                onChange={(event) => setBackgroundColor(event.currentTarget.value)} />
+            </label>
+          ) : null}
         </div>
         <div className="modal__footer">
           <ActionButton onClick={onCancel}>Cancel</ActionButton>
-          <ActionButton type="submit" disabled={!valid || creating}>
+          <ActionButton type="submit" disabled={!optionsValid || creating}>
             {creating ? 'Creating…' : 'Create'}
           </ActionButton>
         </div>

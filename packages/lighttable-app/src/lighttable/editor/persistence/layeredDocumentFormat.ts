@@ -113,13 +113,13 @@ type LayerManifestEntry =
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
-  version: 7;
+  version: 8;
   previewLength: number;
   document: {
     id: string;
     name: string;
     width: number;
-    height: number;
+    height: number; resolutionPpi: number;
     activeLayerId: string | null;
     colorSettings: DocumentColorSettings;
     importProvenance: NormalizedImportProvenance | null;
@@ -424,13 +424,13 @@ export const buildLayeredDocumentFile = (
   });
   const manifest: LayeredDocumentManifest = {
     format: 'lighttable-layered-png',
-    version: 7,
+    version: 8,
     previewLength: preview.size,
     document: {
       id: document.id,
       name: document.name,
       width: document.width,
-      height: document.height,
+      height: document.height, resolutionPpi: document.resolutionPpi,
       activeLayerId: document.activeLayerId,
       colorSettings: structuredClone(document.colorSettings),
       importProvenance: document.importProvenance,
@@ -693,12 +693,12 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   if (
     !isRecord(raw)
     || raw.format !== 'lighttable-layered-png'
-    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4 && raw.version !== 5 && raw.version !== 6 && raw.version !== 7)
+    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4 && raw.version !== 5 && raw.version !== 6 && raw.version !== 7 && raw.version !== 8)
     || !isRecord(raw.document)
   ) {
     throw new Error('This LightTable document format is not supported.');
   }
-  const manifestVersion = raw.version as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  const manifestVersion = raw.version as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   const source = raw.document;
   const width = source.width;
   const height = source.height;
@@ -1185,6 +1185,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     name: typeof source.name === 'string' ? source.name : 'LightTable document',
     width: Number(width),
     height: Number(height),
+    resolutionPpi: manifestVersion >= 8 && typeof source.resolutionPpi === 'number' && Number.isFinite(source.resolutionPpi) && source.resolutionPpi >= 1 && source.resolutionPpi <= 2400 ? source.resolutionPpi : 72,
     layers,
     activeLayerId,
     colorSettings,

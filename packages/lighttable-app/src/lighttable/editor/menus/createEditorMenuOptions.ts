@@ -47,6 +47,7 @@ export interface EditorMenuLabels {
 export interface EditorMenuCommands {
   newDocument: () => void;
   open: () => void;
+  place: () => void;
   recentFiles: readonly LightTableRecentFile[];
   openRecent: (id: string) => void;
   clearRecent: () => void;
@@ -143,6 +144,12 @@ export const createEditorMenuOptions = (
             onClick: commands.clearRecent
           }
         ]
+      },
+      {
+        value: 'place-image',
+        label: 'Place...',
+        onClick: commands.place,
+        disabled: !state.hasDocument || state.saving
       },
       {
         value: 'save-corrected',

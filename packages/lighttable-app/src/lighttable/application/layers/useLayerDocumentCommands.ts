@@ -20,12 +20,14 @@ import {
   mergeLayers as mergeDocumentLayers,
   rasterizeTextLayer
 } from '../../editor/document/documentCommands';
+import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
 import {
   findDocumentLayer,
   findRasterLayer,
   siblingLayers
 } from '../../editor/document/layerTree';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
+import type { DocumentAssetBlob } from '../../editor/persistence/layeredDocumentFormat';
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import { selectionOperationsSupportBounds } from '../../editor/tools/transform/selectionTransform';
@@ -80,6 +82,7 @@ export interface LayerCommandRendererPort {
     blob: Blob,
     position: { x: number; y: number } | null
   ): Promise<boolean>;
+  loadLayerAssets(assets: DocumentAssetBlob[]): Promise<void>;
   pasteSelectionClipboard(layerId: LayerId): boolean;
   hasSelectionClipboard(): boolean;
   finishPixelEdit(): ReversiblePixelEdit | null;
@@ -121,6 +124,11 @@ export interface LayerDocumentCommands {
   copySelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
   copyMergedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
   pasteSelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
+  placeImageArtifact(file: File, placement?: {
+    readonly name?: string;
+    readonly x?: number;
+    readonly y?: number;
+  }): Promise<{ readonly layerId: LayerId; readonly width: number; readonly height: number } | null>;
   layerViaCopy(selection: readonly SelectionOperation[]): boolean;
 }
 
@@ -723,6 +731,52 @@ export const createLayerDocumentCommands = (
     return true;
   };
 
+  const placeImageArtifact: LayerDocumentCommands['placeImageArtifact'] = async (file, placement = {}) => {
+    const dependencies = dependenciesRef.current;
+    const before = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    if (!before || !renderer) return null;
+    let bitmap: ImageBitmap | null = null;
+    let preparedLayerId: LayerId | null = null;
+    try {
+      bitmap = await createImageBitmap(file);
+      const width = bitmap.width;
+      const height = bitmap.height;
+      if (width < 1 || height < 1 || width > 32_768 || height > 32_768
+        || width * height > 268_435_456) {
+        throw new Error('Placed image dimensions exceed the supported resource bounds.');
+      }
+      const x = Number.isFinite(placement.x)
+        ? Math.round(placement.x!)
+        : Math.round((before.width - width) / 2);
+      const y = Number.isFinite(placement.y)
+        ? Math.round(placement.y!)
+        : Math.round((before.height - height) / 2);
+      const name = placement.name?.trim() || file.name.replace(/\.[^.]+$/, '') || 'Placed image';
+      const after = createPlacedRasterLayer(before, { name, width, height, x, y });
+      const layerId = after.activeLayerId;
+      if (!layerId) return null;
+      const layer = findRasterLayer(after, layerId);
+      if (!layer || !renderer.prepareRasterDestination(layer)) return null;
+      preparedLayerId = layerId;
+      await renderer.loadLayerAssets([{ layerId, pixels: file, mask: null }]);
+      renderer.commitRasterDestination(layerId);
+      preparedLayerId = null;
+      dependencies.applyDocumentSnapshot(after);
+      dependencies.pushDocumentHistory(before, after);
+      dependencies.setActiveChannel('pixels');
+      dependencies.setStatus(`Placed ${name}`);
+      dependencies.setError(null);
+      return { layerId, width, height };
+    } catch (reason) {
+      if (preparedLayerId) renderer.releaseRasterDestination(preparedLayerId);
+      dependencies.setError(reason instanceof Error ? reason.message : 'The image could not be placed.');
+      return null;
+    } finally {
+      bitmap?.close();
+    }
+  };
+
   const layerViaCopy = (selection: readonly SelectionOperation[]) => {
     const before = dependenciesRef.current.getDocument();
     const renderer = dependenciesRef.current.getRenderer();
@@ -779,6 +833,7 @@ export const createLayerDocumentCommands = (
     copySelectedContent,
     copyMergedContent,
     pasteSelectedContent,
+    placeImageArtifact,
     layerViaCopy
   };
 };

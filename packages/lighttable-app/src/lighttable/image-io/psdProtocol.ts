@@ -83,6 +83,7 @@ export interface PsdDecodeSuccess {
   width: number;
   height: number;
   bitsPerChannel: number;
+  resolutionPpi?: number;
   colorMode: string;
   colorProfile: {
     disposition: 'untagged' | 'embedded';

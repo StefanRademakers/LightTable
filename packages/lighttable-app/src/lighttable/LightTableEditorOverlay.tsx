@@ -251,6 +251,7 @@ import {
   type LensBlurViewportMode
 } from './editor/config/adjustmentControls';
 import {
+  type DocumentCreationSettings,
   type ImageDocument,
   type LayerId,
   type Rect
@@ -358,6 +359,7 @@ export interface LightTableEditorOverlayProps {
   sourceFileKey?: string | null;
   sourceBlob?: Blob | null;
   sourceDecodeMode?: DocumentOpenMode;
+  documentCreationSettings?: DocumentCreationSettings;
   loadSource?: (request: {
     projectId: string;
     sourceFileKey: string;
@@ -382,7 +384,7 @@ export interface LightTableEditorOverlayProps {
   onActivateWorkspaceDocument?: (documentId: string) => void;
   onCloseWorkspaceDocument?: (documentId: string) => void;
   onRequestNewWorkspaceDocument?: () => void;
-  onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void;
+  onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void; onRequestPlaceWorkspaceArtifact?: (documentId: string) => Promise<void> | void;
   recentFiles?: readonly LightTableRecentFile[];
   onOpenRecentWorkspaceDocument?: (id: string) => Promise<void> | void;
   onClearRecentWorkspaceDocuments?: () => Promise<void> | void;
@@ -414,6 +416,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   sourceFileKey = null,
   sourceBlob: initialSourceBlob = null,
   sourceDecodeMode = 'automatic',
+  documentCreationSettings,
   loadSource,
   initialRecipe = null,
   fileNameBase,
@@ -425,7 +428,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onActivateWorkspaceDocument,
   onCloseWorkspaceDocument,
   onRequestNewWorkspaceDocument,
-  onRequestOpenWorkspaceDocument,
+  onRequestOpenWorkspaceDocument, onRequestPlaceWorkspaceArtifact,
   recentFiles = [],
   onOpenRecentWorkspaceDocument,
   onClearRecentWorkspaceDocuments,
@@ -1573,7 +1576,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     initialSourceName,
     loadSource,
     projectId,
-    sourceDecodeMode
+    sourceDecodeMode,
+    documentCreationSettings
   ]);
 
   const afterDocumentClose = useCallback(() => {
@@ -1605,7 +1609,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       name: initialSourceName,
       identity: editorSourceFileKey ?? initialSourceName,
       decodeMode: sourceDecodeMode,
-      initialAdjustments: initialRecipe?.settings ?? createDefaultAdjustments()
+      initialAdjustments: initialRecipe?.settings ?? createDefaultAdjustments(), creationSettings: documentCreationSettings
     },
     getGroupVisibility: () => groupVisibilityRef.current,
     getPublicationPorts: getDocumentPublicationPorts,
@@ -2757,6 +2761,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         else applyExactZoom(viewport.scale * 100);
       },
       createRasterLayer: layerPanelController.createRasterLayer,
+      placeArtifact: layerDocumentCommands.placeImageArtifact,
       renameLayer: layerPanelController.rename,
       setLayerVisibility: layerPanelController.setVisibility,
       setLayerFillOpacity: layerPanelController.setFillOpacity,
@@ -2783,6 +2788,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyRedoEditor,
     applyUndoEditor,
     commandPorts,
+    layerDocumentCommands,
     layerPanelController,
     workspaceDocumentId
   ]);
@@ -3087,6 +3093,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       // The application probe selects browser-native, wasm-vips, Photoshop or
       // layered-document import after reading the source signature.
       open: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
+      place: () => { finishTextEditingRef.current(); void onRequestPlaceWorkspaceArtifact?.(workspaceDocumentId); },
       recentFiles,
       openRecent: (id) => {
         finishTextEditingRef.current();
