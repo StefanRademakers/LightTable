@@ -1,3 +1,10 @@
+import {
+  classifyWebGpuSupport,
+  snapshotWebGpuLimits,
+  type WebGpuLimitSnapshot,
+  type WebGpuSupportTier
+} from './webGpuSupportTier';
+
 export const TEXTURE_FORMATS_TIER1: GPUFeatureName = 'texture-formats-tier1';
 
 export interface WebGpuAdapterProvider {
@@ -12,6 +19,8 @@ export interface SharedWebGpuDiagnosticSnapshot {
   readonly device: string;
   readonly description: string;
   readonly features: readonly string[];
+  readonly limits: WebGpuLimitSnapshot;
+  readonly support: WebGpuSupportTier;
 }
 
 /**
@@ -53,12 +62,17 @@ export class SharedWebGpuDeviceManager {
       });
       if (!adapter) throw new Error('No compatible WebGPU adapter was found.');
       const info = adapter.info ?? {} as GPUAdapterInfo;
+      const limits = snapshotWebGpuLimits(adapter.limits);
+      const support = classifyWebGpuSupport(limits);
+      if (support.id === 'below-floor') throw new Error(`${support.label}. ${support.action}`);
       this.adapterSnapshot = {
         vendor: info.vendor ?? '',
         architecture: info.architecture ?? '',
         device: info.device ?? '',
         description: info.description ?? '',
-        features: [...adapter.features].map(String).sort()
+        features: [...adapter.features].map(String).sort(),
+        limits,
+        support
       };
       const requiredFeatures = adapter.features.has(TEXTURE_FORMATS_TIER1)
         ? [TEXTURE_FORMATS_TIER1]

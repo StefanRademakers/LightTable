@@ -13,6 +13,7 @@ const renderPanel = (
     messages={messages}
     onClear={vi.fn()}
     onCollectSupportDiagnostics={vi.fn()}
+    gpuSupport={null}
     accessoryWidthConstraintsEnabled
     editorResizeObserversEnabled
     dockResizeActive={false}

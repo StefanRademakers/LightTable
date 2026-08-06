@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "minimumRamGiB": 16,
+  "recommendedRamGiB": 32,
+  "cells": [
+    { "id": "windows-discrete-electron", "os": "Windows 11 x64", "gpu": "discrete D3D12/WebGPU", "host": "packaged Electron", "displayScales": [1, 1.25, 1.5, 2], "state": "physically-measured-development-system" },
+    { "id": "windows-discrete-web", "os": "Windows 11 x64", "gpu": "discrete D3D12/WebGPU", "host": "current Chromium web", "displayScales": [1, 1.25, 1.5, 2], "state": "build-only-not-physically-qualified" },
+    { "id": "windows-integrated-electron", "os": "Windows 11 x64", "gpu": "modern integrated D3D12/WebGPU", "host": "packaged Electron", "displayScales": [1, 1.25, 1.5, 2], "state": "physical-device-required" },
+    { "id": "windows-integrated-web", "os": "Windows 11 x64", "gpu": "modern integrated D3D12/WebGPU", "host": "current Chromium web", "displayScales": [1, 1.25, 1.5, 2], "state": "physical-device-required" },
+    { "id": "apple-silicon-electron", "os": "supported macOS", "gpu": "Apple integrated GPU", "host": "packaged Electron", "displayScales": [1, 2], "state": "physical-device-required" },
+    { "id": "apple-silicon-web", "os": "supported macOS", "gpu": "Apple integrated GPU", "host": "current Chromium web", "displayScales": [1, 2], "state": "physical-device-required" }
+  ],
+  "colorProfiles": ["sRGB", "Display P3", "ICC-tagged import with sRGB working space"],
+  "workflows": ["startup", "large-psd-open", "layer-effects", "paint", "text", "transform", "recovery", "save-export", "multi-document-soak"]
+}

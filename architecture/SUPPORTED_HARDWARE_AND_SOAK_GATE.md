@@ -20,6 +20,22 @@ identified by the bounded diagnostic bundle; merely listing a GPU in the OS is
 not proof that Chromium selected it. Driver, OS, display scale and build mode
 are part of every result's validity metadata.
 
+The renderer now enforces a capability floor before creating a device: at
+least an 8192 pixel 2D texture limit and a 256 MiB maximum buffer. Adapters
+below either limit are refused with an actionable message; LightTable does not
+silently lower document resolution. A 16384 pixel texture limit and 1 GiB
+maximum buffer is classified as candidate-recommended capability. Capability
+is deliberately separate from physical qualification: passing the limit check
+does not claim acceptable latency, memory retention or fidelity on that device.
+
+`npm run probe:hardware -- --output <directory>` opens the packaged build and
+writes `probe.json` plus an Ed25519 `probe.signature.json`. The artifact contains
+bucketed machine/display data, WebGPU limits/features, driver revision and the
+benchmark revision. It excludes names, paths, document content, host/user names
+and network identifiers. Local development probes use a freshly generated key
+and identify their trust as `ephemeral-local`; release evidence must provide a
+controlled PKCS#8 Ed25519 key through `LIGHTTABLE_PROBE_SIGNING_KEY`.
+
 ## Repeatable profiles
 
 ```powershell
@@ -91,3 +107,27 @@ The machine-readable evidence is
 `tmp/quality-audit/release-soak/task-089-longest-practical/report.json`. The
 text latency is not release-quality Photoshop parity and remains a measured
 performance priority; the green lifecycle gate must not conceal it.
+
+## 6 August 2026 Task 109 qualification sample
+
+The current Windows discrete/Electron cell was re-probed against the packaged
+build and passed one complete bounded release-soak cycle. The selected adapter
+was the NVIDIA device (vendor `0x10de`, device `0x2b85`, driver
+32.0.15.9595), at 1920x1080 and device scale 1. Its WebGPU limits were 16384
+pixels, 2 GiB maximum buffer and approximately 2 GiB maximum storage binding,
+therefore its capability tier is `candidate-recommended`.
+
+All document matrix, canvas/transform, text, layer-style, accessibility,
+save/export, PSD roundtrip and bounded-diagnostics steps passed. First useful
+frames were 787 ms for the ordinary image, 425 ms for TextTest, 361 ms for
+shapes, 740 ms for the PDF and 1962 ms for EHS-396. The two text samples
+measured 36.1 ms p95 input-to-submit and 64.1 ms p95 input-to-GPU. No orphaned
+LightTable process remained. This is a bounded functional sample, not an
+overnight claim.
+
+The committed summary is
+`test/baselines/hardware/windows-discrete-electron-2026-08-06.json`; raw probe,
+signature and logs remain below `tmp/hardware-qualification/`. Windows web,
+Windows integrated and Apple Silicon cells remain explicitly unqualified until
+they are exercised on their real host/GPU combinations. Consequently Task 109
+and the public minimum specification remain open.

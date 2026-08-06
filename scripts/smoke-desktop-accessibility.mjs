@@ -89,13 +89,20 @@ try {
   report.journey.push({ id: 'layer-tree-focus', active: layer });
   const originalName = await window.locator('.lighttable-layer:focus .lighttable-layer__name').inputValue();
   await window.keyboard.press('F2');
+  await window.locator('.lighttable-layer__name:focus').waitFor({ state: 'visible', timeout: 5_000 });
   await window.keyboard.press('Control+A');
   await window.keyboard.type(`${originalName} accessibility`);
   await window.keyboard.press('Enter');
-  await window.waitForTimeout(100);
+  // The packaged renderer can still be settling after a preceding stress run.
+  // Do not enqueue undo until the committed rename is observable; otherwise
+  // Ctrl+Z can race the rename transaction and make this gate flaky.
+  await window.waitForFunction((name) => [...document.querySelectorAll('.lighttable-layer__name')]
+    .some((input) => input instanceof HTMLInputElement && input.value === `${name} accessibility`), originalName,
+  { timeout: 5_000 });
   await window.keyboard.press('Control+Z');
   await window.waitForFunction((name) => [...document.querySelectorAll('.lighttable-layer__name')]
-    .some((input) => input instanceof HTMLInputElement && input.value === name), originalName);
+    .some((input) => input instanceof HTMLInputElement && input.value === name), originalName,
+  { timeout: 5_000 });
   report.journey.push({ id: 'layer-rename-undo', restored: originalName });
 
   await window.keyboard.press('Control+S');

@@ -32,6 +32,11 @@ const createProvider = (devices: GPUDevice[], supportsTier1 = true) => {
     features: new Set<GPUFeatureName>(
       supportsTier1 ? [TEXTURE_FORMATS_TIER1] : []
     ),
+    limits: {
+      maxTextureDimension2D: 16384, maxBufferSize: 1024 * 1024 * 1024,
+      maxStorageBufferBindingSize: 128 * 1024 * 1024,
+      maxComputeWorkgroupStorageSize: 32 * 1024
+    },
     requestDevice
   } as unknown as GPUAdapter;
   const provider: WebGpuAdapterProvider = {
@@ -56,7 +61,15 @@ describe('SharedWebGpuDeviceManager', () => {
     expect(requestDevice).toHaveBeenCalledTimes(1);
     expect(manager.diagnostics()).toEqual({
       vendor: 'test-vendor', architecture: 'test-arch', device: 'test-device',
-      description: 'Test GPU', features: [TEXTURE_FORMATS_TIER1]
+      description: 'Test GPU', features: [TEXTURE_FORMATS_TIER1],
+      limits: {
+        maxTextureDimension2D: 16384, maxBufferSize: 1073741824,
+        maxStorageBufferBindingSize: 134217728, maxComputeWorkgroupStorageSize: 32768
+      },
+      support: {
+        id: 'candidate-recommended', label: 'Recommended WebGPU capability',
+        action: 'Large layered documents still require a measured physical-device qualification.'
+      }
     });
   });
 
@@ -107,6 +120,10 @@ describe('SharedWebGpuDeviceManager', () => {
         .mockRejectedValueOnce(new Error('adapter failed'))
         .mockResolvedValueOnce({
           features: new Set(),
+          limits: {
+            maxTextureDimension2D: 8192, maxBufferSize: 268435456,
+            maxStorageBufferBindingSize: 134217728, maxComputeWorkgroupStorageSize: 32768
+          },
           requestDevice: vi.fn(async () => device.device)
         } as unknown as GPUAdapter)
     };

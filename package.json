@@ -42,6 +42,7 @@
     "profile:desktop:recovery": "node scripts/profile-desktop-recovery.mjs",
     "profile:browser:recovery": "node scripts/profile-browser-recovery.mjs",
     "acceptance:owner": "node scripts/run-owner-acceptance.mjs",
+    "probe:hardware": "node scripts/probe-hardware-qualification.mjs",
     "smoke:desktop:recovery:build": "npm run package:desktop:verify && npm run smoke:desktop:recovery --",
     "smoke:desktop:release": "node scripts/smoke-desktop-release.mjs",
     "smoke:desktop:release:build": "npm run package:desktop:verify && npm run verify:desktop-release && npm run smoke:desktop:release --",

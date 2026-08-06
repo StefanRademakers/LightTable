@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "cell": "windows-discrete-electron",
+  "date": "2026-08-06",
+  "build": "production-packaged",
+  "probe": {
+    "benchmarkRevision": 1,
+    "trust": "ephemeral-local",
+    "signatureVerifiedBeforeWrite": true,
+    "platform": "win32-x64",
+    "memoryGiBBucket": 64,
+    "display": { "widthBucket": 1920, "heightBucket": 1080, "scale": 1, "colorDepth": 24 },
+    "gpu": { "vendorId": 4318, "deviceId": 11141, "driverVersion": "32.0.15.9595" },
+    "webGpu": {
+      "supportTier": "candidate-recommended",
+      "maxTextureDimension2D": 16384,
+      "maxBufferSize": 2147483648,
+      "maxStorageBufferBindingSize": 2147483644,
+      "maxComputeWorkgroupStorageSize": 32768
+    }
+  },
+  "boundedSoak": {
+    "passed": true,
+    "cycles": 1,
+    "elapsedMs": 85914,
+    "steps": ["document-matrix", "canvas-and-transform", "text-caret-edit", "layer-styles", "save-export", "psd-roundtrip", "bounded-diagnostics"],
+    "firstUsefulFrameMs": { "ordinaryImage": 787, "textPsd": 425, "shapePsd": 361, "pdf": 740, "largeTemplatePsd": 1962 },
+    "textLatencyMs": { "samples": 2, "inputToSubmitP95": 36.1, "inputToGpuP95": 64.1 },
+    "orphanProcesses": 0
+  },
+  "claim": "Measured development-system sample only; not an overnight, integrated-GPU, web-host or macOS qualification."
+}

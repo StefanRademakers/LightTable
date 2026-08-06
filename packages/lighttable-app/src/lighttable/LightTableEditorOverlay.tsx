@@ -4163,6 +4163,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               debug: {
                 messages: debugMessages,
                 onClear: clearDebugMessages,
+                gpuSupport: sharedWebGpuDiagnostics()?.support ?? null,
                 onCollectSupportDiagnostics: async (options) => createSupportDiagnosticArtifact({ hostKind, release: await releaseService?.info().catch(() => null) ?? null, gpu: sharedWebGpuDiagnostics(), metadata, sourceFileName: initialSourceName, document: imageDocument, startupTimings, gpuMemoryBytes: metadata ? gpuMemoryBytes : null, textRender: metadata ? textRenderPresentation : null, events: debugMessages }, options),
                 onExportSupportDiagnostics: onExportFile,
                 accessoryWidthConstraintsEnabled,

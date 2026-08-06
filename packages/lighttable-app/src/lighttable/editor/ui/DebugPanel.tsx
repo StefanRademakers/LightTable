@@ -7,12 +7,14 @@ import type { TypographyCorpusReport } from '../../text/diagnostics/runTypograph
 import type { TextRendererBakeoffReport } from '../../text/diagnostics/runTextRendererBakeoff';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 import type { SupportDiagnosticArtifact, SupportDiagnosticOptions } from '../../application/diagnostics/supportDiagnosticBundle';
+import type { WebGpuSupportTier } from '../../gpu/webGpuSupportTier';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];
   onClear: () => void;
   onCollectSupportDiagnostics: (options: SupportDiagnosticOptions) => Promise<SupportDiagnosticArtifact>;
   onExportSupportDiagnostics?: (file: File) => Promise<unknown> | unknown;
+  gpuSupport: WebGpuSupportTier | null;
   accessoryWidthConstraintsEnabled: boolean;
   editorResizeObserversEnabled: boolean;
   dockResizeActive: boolean;
@@ -56,6 +58,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   onClear,
   onCollectSupportDiagnostics,
   onExportSupportDiagnostics,
+  gpuSupport,
   accessoryWidthConstraintsEnabled,
   editorResizeObserversEnabled,
   dockResizeActive,
@@ -163,6 +166,9 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         <legend>Support diagnostics</legend>
         <small>
           Built locally from bounded snapshots. No document pixels, text, binary payloads or network upload.
+        </small>
+        <small role="status">
+          WebGPU support: {gpuSupport?.label ?? 'Not initialized'}. {gpuSupport?.action ?? 'Open a document to probe this device.'}
         </small>
         <label>
           <input
