@@ -1204,6 +1204,37 @@ Show:
 - Integrated-GPU regressions are visible before release.
 - New layer types expose their revision and cache behavior in the inspector.
 
+## Measured large-document baseline (2026-08-06, Task 095)
+
+The repeatable desktop audits now cover the ten Save-the-Date PSD templates,
+ordinary raster files, canvas tools, text caret presentation and the compositor,
+vector and text engines. On the current discrete-GPU reference machine:
+
+- the ten PSD first-use samples range from 1,197 to 2,644 ms; EHS-396 is 1,871 ms;
+- the 3000 x 4242 EHS-396 canvas holds about 1.82 GiB before transient Warp resources;
+- a representative PNG reaches first useful frame in 260 ms; the 12.7 MP JPEG in 886 ms;
+- text caret overlay work reaches GPU completion at 15.8 ms median and 18.2 ms p95;
+- settled documents submit zero background frames;
+- six-round corpus interaction samples retain no GPU bytes and no growing listeners.
+
+Large-canvas Warp is intentionally newest-state bounded. Documents up to four
+megapixels stay at display cadence, four to eight megapixels use a 100 ms floor,
+and larger documents use a 500 ms floor while the exact pointer-up state is
+always rendered. On EHS-396 this reduced a fixed gesture from 34 to 16 full
+composites and from 11.1 s to 9.2 s. Packing its two existing half-float
+displacement channels into one `r32uint` texture preserves the same precision
+while reducing transient Warp growth from 305.4 MiB to 203.6 MiB.
+
+Two attractive startup changes were measured and rejected: parallel preview
+and semantic serialization in the same PSD worker worsened first frame from
+1,717 to 1,901 ms, and an early-preview protocol produced no repeatable first-
+use gain. Do not reintroduce either without a new isolated-worker A/B result.
+
+The performance gate remains settled visual equality, zero steady-state GPU
+growth, bounded post-GC heap/DOM/listeners, zero unchanged background frames,
+and per-action render telemetry. Short two-round DOM warm-up spikes must be
+retested over six rounds before being classified as a leak.
+
 ---
 
 # 15. Risk: abstraction grows faster than product needs

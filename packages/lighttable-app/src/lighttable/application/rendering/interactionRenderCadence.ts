@@ -9,3 +9,14 @@ export const warpInteractionFrameIntervalMs = (width: number, height: number) =>
   if (pixels <= 4_000_000) return 0;
   return pixels <= 8_000_000 ? 100 : 500;
 };
+
+export const interactionFrameIntervalMs = (
+  effectIntervalMs: number,
+  warpActive: boolean,
+  dimensions: { readonly width: number; readonly height: number } | null
+) => Math.max(
+  effectIntervalMs,
+  warpActive && dimensions
+    ? warpInteractionFrameIntervalMs(dimensions.width, dimensions.height)
+    : 0
+);

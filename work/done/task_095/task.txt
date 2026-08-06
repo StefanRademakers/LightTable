@@ -1,0 +1,70 @@
+# Task 095 - large-document open and direct-interaction performance (P1)
+
+Status: complete on 2026-08-06.
+
+## Delivered
+
+- Extended the canvas audit with per-action render calls, submitted frames,
+  correction frames and stage execution counts.
+- Added a document-size-aware Warp presentation cadence. It retains every
+  authored sample, renders the newest pending state, leaves <=4 MP documents at
+  display cadence and always submits the exact committed state on pointer-up.
+- Packed Warp XY displacement from two RGBA16F textures into two R32Uint
+  textures using WGSL `pack2x16float`/`unpack2x16float`. Precision is unchanged
+  because the old channels were already half floats.
+- Kept optional text/font/effect systems lazy and confirmed unchanged documents
+  submit no background frames.
+- Added focused unit coverage for cadence thresholds, gesture lifecycle and the
+  packed shader contract.
+
+## Measured result
+
+Reference: EHS-396.psd, 3000 x 4242, fixed 32-step Warp gesture.
+
+| Metric | Before | After | Result |
+|---|---:|---:|---:|
+| Gesture duration | 11,105 ms | 9,175 ms | -17.4% |
+| Full composites | 35 (34 in like-for-like telemetry run) | 16 | -52.9% |
+| Warp GPU growth | 305,430,336 B | 203,619,072 B | -33.3% |
+| Steady retained GPU growth | 0 B | 0 B | unchanged |
+
+The complete ten-template soak passed after one EHS-409 two-round DOM warm-up
+signal was repeated for six rounds. That longer run stabilized at +41,944 bytes
+heap, +37 DOM nodes, zero listeners and zero GPU bytes over its stable tail.
+First-use PSD results ranged from 1,197 to 2,644 ms. EHS-396 measured 1,871 ms.
+PNG/JPEG fast paths passed at 260 ms and 886 ms first useful frame respectively,
+with zero background submissions.
+
+Text caret presentation measured 15.8 ms median / 18.2 ms p95 to GPU complete.
+Compositor, vector and text engine hide/show cycles reproduced identical settled
+screenshot hashes with no material heap or GPU growth.
+
+## Rejected experiments
+
+- Running PSD preview and semantic layer serialization concurrently in the same
+  worker increased worker work from about 1,202 to 1,250 ms and first frame from
+  1,717 to 1,901 ms. Reverted.
+- Sending an early composite preview before semantic hydration added protocol
+  complexity and measured 1,760 ms first frame without a repeatable gain.
+  Reverted.
+- A 100 ms cadence for >8 MP Warp never engaged because each saturated frame
+  already exceeded that interval. Replaced by the measured 500 ms bound.
+
+## Verification
+
+- All workspace typechecks passed.
+- All workspace tests passed; app suite: 318 files / 1,715 tests.
+- Text WASM structural goldens passed.
+- Architecture-doc and source-structure audits passed.
+- Web and packaged desktop production builds passed.
+- Canvas audit passed with zero steady retention and selection-overlay-only
+  invalidation preserved.
+- Ten PSD corpus stress plus the six-round EHS-409 confirmation passed.
+- PNG and JPEG fast-path stress passed.
+- Compositor, vector and text engine audits passed with stable hashes.
+- Photoshop parity profile passed: 40/40 effects and 48/48 blend/color cases.
+
+Commits:
+
+- `068280c3 perf: bound large-canvas warp submissions`
+- `855378cd perf: pack warp displacement fields`

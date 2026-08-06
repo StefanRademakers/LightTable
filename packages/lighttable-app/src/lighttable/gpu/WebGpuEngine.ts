@@ -43,8 +43,7 @@ import type {
   LightTableLoadImageOptions,
   ReferenceDifferenceMetrics
 } from '../application/rendering/rendererTypes';
-import { RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
-import { warpInteractionFrameIntervalMs } from '../application/rendering/interactionRenderCadence';
+import { interactionFrameIntervalMs, RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
 import { SelectionAntsAnimator } from '../application/rendering/SelectionAntsAnimator';
 import {
   RenderDirtyState,
@@ -520,14 +519,12 @@ export class WebGpuEngine {
       this.requestRender();
     }
   }
-
   setWarpInteractionActive(active: boolean) {
     if (this.warpInteractionActive === active) return;
     this.warpInteractionActive = active;
     this.syncInteractiveRenderCadence();
     if (!active) this.requestRender();
   }
-
   beginLayerPixelEdit(layerId: LayerId, channel: PaintChannel = 'pixels') {
     this.documentRenderer?.beginPixelEdit(layerId, channel);
   }
@@ -1578,16 +1575,12 @@ export class WebGpuEngine {
   private requestRender() {
     if (!this.destroyed) this.renderScheduler.invalidate();
   }
-
   private syncInteractiveRenderCadence() {
-    this.renderScheduler.setMinimumFrameInterval(
-      Math.max(
-        this.effectRuntime?.preferredInteractionFrameIntervalMs() ?? 0,
-        this.warpInteractionActive && this.metadata
-          ? warpInteractionFrameIntervalMs(this.metadata.width, this.metadata.height)
-          : 0
-      )
-    );
+    this.renderScheduler.setMinimumFrameInterval(interactionFrameIntervalMs(
+      this.effectRuntime?.preferredInteractionFrameIntervalMs() ?? 0,
+      this.warpInteractionActive,
+      this.metadata
+    ));
   }
 
   /**

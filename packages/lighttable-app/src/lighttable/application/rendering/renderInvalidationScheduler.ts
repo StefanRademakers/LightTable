@@ -142,3 +142,5 @@ export class RenderInvalidationScheduler {
     this.cancelPending();
   }
 }
+
+export { interactionFrameIntervalMs } from './interactionRenderCadence';
