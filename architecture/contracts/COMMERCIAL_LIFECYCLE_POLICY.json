@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "reviewState": "owner-and-legal-review-required",
+  "distribution": {
+    "desktop": "one-time perpetual major-version purchase",
+    "web": "local editor with separately consented advertising boundary",
+    "subscriptionRequiredForLocalEditing": false
+  },
+  "evaluation": {
+    "mode": "technical-preview-builds",
+    "timedTrialDays": null,
+    "note": "No timed trial or enforcement may ship until owner/legal approval."
+  },
+  "offline": {
+    "openEditSaveExportUserDocuments": "always-available",
+    "networkOutageMayAlterDocuments": false,
+    "gracePeriodDays": null
+  },
+  "serverCapabilities": ["signed-activation-receipt", "signed-update-distribution", "optional-mcp-relay", "explicit-remote-ai"],
+  "localCapabilities": ["open", "edit", "save", "export", "recovery", "local-diagnostics"],
+  "unresolvedLaunchPolicy": ["price", "tax", "refund-window", "support-sla", "activation-device-limit", "paid-major-upgrade-policy", "web-ad-provider-and-consent-copy"]
+}
