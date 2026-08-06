@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRasterLayer } from '../../editor/document/documentCommands';
-import { createImageDocument } from '../../editor/document/documentTypes';
+import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
+import { createVectorLiveShape } from '@lighttable/vector-core';
+import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import {
@@ -79,6 +81,39 @@ describe('LightTableCommandService queries', () => {
       command: 'history.undo',
       available: false,
       reason: 'There is nothing to undo.'
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('projects bounded canonical vector paint and stroke semantics for automation', () => {
+    const state = setup();
+    const document = state.session.getSnapshot().document!;
+    const shape = createVectorLiveShape('badge', { kind: 'ellipse', width: 40, height: 20 });
+    shape.style.fill = createDefaultGradientPaint('fill', 'object-bounds');
+    shape.style.stroke = {
+      paint: createDefaultGradientPaint('stroke', 'object-bounds'), opacity: 0.4,
+      width: 200, alignment: 'outside', cap: 'square', join: 'miter',
+      miterLimit: 12, dash: [8, 3], dashOffset: 2
+    };
+    shape.style.opacity = 0.75;
+    const vector = createVectorLayer([shape], 'Badge');
+    state.session.setDocument({
+      ...document,
+      layers: [...document.layers, vector],
+      activeLayerId: vector.id,
+      revision: document.revision + 1
+    });
+
+    expect(state.service.queryLayers(state.session.id)?.at(-1)?.vectorContent).toEqual({
+      elementCount: 1,
+      elements: [expect.objectContaining({
+        id: 'badge', elementType: 'live-shape', fill: 'gradient', opacity: 0.75,
+        stroke: {
+          paint: 'gradient', opacity: 0.4, width: 200, alignment: 'outside',
+          cap: 'square', join: 'miter', miterLimit: 12, dash: [8, 3], dashOffset: 2
+        }
+      })]
     });
     state.service.dispose();
     state.workspace.dispose();

@@ -11,14 +11,14 @@ import {
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import { linearChannelToSrgb } from '../../colorMath';
 
-const rgba = (value: readonly [number, number, number, number]) => ({
+const rgba = (value: readonly [number, number, number, number], opacity = 1) => ({
   r: Math.round(Math.min(1, Math.max(0, linearChannelToSrgb(value[0]))) * 255),
   g: Math.round(Math.min(1, Math.max(0, linearChannelToSrgb(value[1]))) * 255),
   b: Math.round(Math.min(1, Math.max(0, linearChannelToSrgb(value[2]))) * 255),
-  a: Math.round(value[3] * 255)
+  a: Math.round(Math.min(1, Math.max(0, value[3] * opacity)) * 255)
 });
 
-const gradient = (paint: GradientPaintInstance): VectorContent => paint.asset.type === 'noise'
+const gradient = (paint: GradientPaintInstance, opacity = 1): VectorContent => paint.asset.type === 'noise'
   ? ({
     name: paint.asset.name,
     type: 'noise',
@@ -39,15 +39,15 @@ const gradient = (paint: GradientPaintInstance): VectorContent => paint.asset.ty
       location: stop.position, midpoint: stop.midpoint
     })),
     opacityStops: paint.asset.opacityStops.map((stop) => ({
-      opacity: stop.opacity, location: stop.position, midpoint: stop.midpoint
+      opacity: stop.opacity * opacity, location: stop.position, midpoint: stop.midpoint
     })),
     style: paint.shape, reverse: paint.reverse, dither: paint.dither,
     interpolationMethod: paint.interpolation
   });
 
-const content = (paint: VectorPaint): VectorContent => {
-  if ('type' in paint) return { type: 'color', color: rgba(paint.color) };
-  return gradient(paint);
+const content = (paint: VectorPaint, opacity = 1): VectorContent => {
+  if ('type' in paint) return { type: 'color', color: rgba(paint.color, opacity) };
+  return gradient(paint, opacity);
 };
 
 export interface PsdVectorProjection {
@@ -125,7 +125,7 @@ export const exportVectorLayerToPsd = (
     // whose fill is disabled in `vstk`. Keeping a dormant fill descriptor makes
     // the path remain a fully editable Shape layer and lets Fill be enabled later.
     vectorFill: style.fill
-      ? content(style.fill)
+      ? content(style.fill, style.opacity)
       : inactiveFill ?? { type: 'color', color: { r: 0, g: 0, b: 0, a: 255 } },
     vectorStroke: {
       strokeEnabled: Boolean(style.stroke),
@@ -142,7 +142,7 @@ export const exportVectorLayerToPsd = (
         strokeAdjust: preservedStroke?.strokeAdjust,
         content: content(style.stroke.paint)
       } : {}),
-      blendMode: 'normal', opacity: style.opacity,
+      blendMode: 'normal', opacity: style.opacity * (style.stroke?.opacity ?? 1),
       resolution: preservedStroke?.resolution ?? 72
     }
   };

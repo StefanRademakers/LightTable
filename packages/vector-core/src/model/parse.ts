@@ -94,13 +94,16 @@ const parseStroke = (value: unknown, location: string): VectorStroke => {
   }
   if (!Array.isArray(value.dash)) throw new Error(`${location}.dash must be an array.`);
   const width = finiteNumber(value.width, `${location}.width`);
+  const opacity = value.opacity === undefined
+    ? 1 : finiteNumber(value.opacity, `${location}.opacity`);
   const miterLimit = finiteNumber(value.miterLimit, `${location}.miterLimit`);
   const dash = value.dash.map((part, index) => finiteNumber(part, `${location}.dash[${index}]`));
-  if (width < 0 || miterLimit < 0 || dash.some((part) => part < 0)) {
+  if (width < 0 || opacity < 0 || opacity > 1 || miterLimit < 0 || dash.some((part) => part < 0)) {
     throw new Error(`${location} dimensions must not be negative.`);
   }
   return {
     paint: parsePaint(value.paint, `${location}.paint`),
+    ...(value.opacity !== undefined ? { opacity } : {}),
     width,
     alignment: value.alignment ?? 'center',
     cap: value.cap,

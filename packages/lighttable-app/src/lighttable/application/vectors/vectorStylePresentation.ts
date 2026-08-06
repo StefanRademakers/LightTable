@@ -41,6 +41,34 @@ export const cssHexToLinearRgba = (color: string): [number, number, number, numb
   ];
 };
 
+const cloneVectorPaint = (paint: NonNullable<VectorStyle['fill']>) => 'kind' in paint
+  ? cloneGradientPaint(paint)
+  : { ...paint, color: [...paint.color] as [number, number, number, number] };
+
+/** Canonical projection used for every newly authored Pen/live-shape element. */
+export const vectorStyleFromToolSettings = (settings: VectorToolStyleSettings): VectorStyle => ({
+  fill: settings.fillEnabled
+    ? settings.fillPaint
+      ? cloneVectorPaint(settings.fillPaint)
+      : { type: 'solid', color: cssHexToLinearRgba(settings.fillColor) }
+    : null,
+  stroke: settings.strokeEnabled ? {
+    paint: settings.strokePaint
+      ? cloneVectorPaint(settings.strokePaint)
+      : { type: 'solid', color: cssHexToLinearRgba(settings.strokeColor) },
+    opacity: Math.max(0, Math.min(1, settings.strokeOpacity ?? 1)),
+    width: Math.max(0.1, settings.strokeWidth),
+    alignment: settings.strokeAlignment,
+    cap: settings.strokeCap ?? 'round',
+    join: settings.strokeJoin ?? 'round',
+    miterLimit: Math.max(1, settings.strokeMiterLimit ?? 4),
+    dash: settings.strokeStyle === 'dashed' ? [4, 3]
+      : settings.strokeStyle === 'dotted' ? [1, 2] : [],
+    dashOffset: 0
+  } : null,
+  opacity: Math.max(0, Math.min(1, settings.opacity ?? 1))
+});
+
 export const vectorElementStyleSettings = (
   element: VectorElement
 ): VectorToolStyleSettings => ({
@@ -53,40 +81,64 @@ export const vectorElementStyleSettings = (
   } : {}),
   strokeEnabled: element.style.stroke !== null,
   strokeColor: paintCssColor(element.style.stroke?.paint ?? null, '#ffffff'),
+  strokeOpacity: element.style.stroke?.opacity ?? 1,
+  ...(element.style.stroke ? {
+    strokePaint: 'kind' in element.style.stroke.paint
+      ? cloneGradientPaint(element.style.stroke.paint)
+      : { ...element.style.stroke.paint, color: [...element.style.stroke.paint.color] }
+  } : {}),
   strokeWidth: element.style.stroke?.width ?? 3,
   strokeAlignment: element.style.stroke?.alignment ?? 'center',
+  strokeCap: element.style.stroke?.cap ?? 'round',
+  strokeJoin: element.style.stroke?.join ?? 'round',
+  strokeMiterLimit: element.style.stroke?.miterLimit ?? 4,
   strokeStyle: !element.style.stroke?.dash.length
-    ? 'solid' : element.style.stroke.dash[0]! <= 1 ? 'dotted' : 'dashed'
+    ? 'solid' : element.style.stroke.dash[0]! <= 1 ? 'dotted' : 'dashed',
+  opacity: element.style.opacity
 });
 
 export const patchVectorStyle = (
   style: VectorStyle,
   change: Partial<VectorToolStyleSettings>
-): VectorStyle => ({
-  ...style,
-  fill: change.fillEnabled === false ? null
+): VectorStyle => {
+  const wantsStroke = style.stroke !== null || change.strokeEnabled === true
+    || change.strokeColor !== undefined || change.strokePaint !== undefined;
+  return {
+    ...style,
+    opacity: change.opacity ?? style.opacity,
+    fill: change.fillEnabled === false ? null
     : change.fillPaint !== undefined
-      ? ('kind' in change.fillPaint
-          ? cloneGradientPaint(change.fillPaint)
-          : { ...change.fillPaint, color: [...change.fillPaint.color] })
+      ? change.fillPaint === null
+        ? { type: 'solid', color: cssHexToLinearRgba(change.fillColor ?? paintCssColor(style.fill, '#000000')) }
+        : ('kind' in change.fillPaint
+            ? cloneGradientPaint(change.fillPaint)
+            : cloneVectorPaint(change.fillPaint))
     : change.fillColor !== undefined
       ? { type: 'solid', color: cssHexToLinearRgba(change.fillColor) }
       : change.fillEnabled === true && !style.fill
         ? { type: 'solid', color: [0, 0, 0, 1] }
         : style.fill,
-  stroke: change.strokeEnabled === false ? null : {
-    paint: change.strokeColor !== undefined
-      ? { type: 'solid', color: cssHexToLinearRgba(change.strokeColor) }
-      : style.stroke?.paint ?? { type: 'solid', color: [1, 1, 1, 1] },
-    width: change.strokeWidth ?? style.stroke?.width ?? 3,
-    alignment: change.strokeAlignment ?? style.stroke?.alignment ?? 'center',
-    cap: style.stroke?.cap ?? 'round',
-    join: style.stroke?.join ?? 'round',
-    miterLimit: style.stroke?.miterLimit ?? 4,
-    dash: change.strokeStyle === 'solid' ? []
-      : change.strokeStyle === 'dotted' ? [1, 2]
-        : change.strokeStyle === 'dashed' ? [4, 3]
-          : [...(style.stroke?.dash ?? [])],
-    dashOffset: style.stroke?.dashOffset ?? 0
-  }
-});
+    stroke: change.strokeEnabled === false || !wantsStroke ? null : {
+      paint: change.strokePaint !== undefined
+        ? change.strokePaint === null
+          ? { type: 'solid', color: cssHexToLinearRgba(change.strokeColor ?? paintCssColor(style.stroke?.paint ?? null, '#ffffff')) }
+          : ('kind' in change.strokePaint
+              ? cloneGradientPaint(change.strokePaint)
+              : cloneVectorPaint(change.strokePaint))
+        : change.strokeColor !== undefined
+          ? { type: 'solid', color: cssHexToLinearRgba(change.strokeColor) }
+          : style.stroke?.paint ?? { type: 'solid', color: [1, 1, 1, 1] },
+      opacity: change.strokeOpacity ?? style.stroke?.opacity ?? 1,
+      width: change.strokeWidth ?? style.stroke?.width ?? 3,
+      alignment: change.strokeAlignment ?? style.stroke?.alignment ?? 'center',
+      cap: change.strokeCap ?? style.stroke?.cap ?? 'round',
+      join: change.strokeJoin ?? style.stroke?.join ?? 'round',
+      miterLimit: change.strokeMiterLimit ?? style.stroke?.miterLimit ?? 4,
+      dash: change.strokeStyle === 'solid' ? []
+        : change.strokeStyle === 'dotted' ? [1, 2]
+          : change.strokeStyle === 'dashed' ? [4, 3]
+            : [...(style.stroke?.dash ?? [])],
+      dashOffset: style.stroke?.dashOffset ?? 0
+    }
+  };
+};

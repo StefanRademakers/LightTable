@@ -80,15 +80,15 @@ describe('importPsdVectorShape', () => {
     expect(open?.style.stroke?.width).toBe(3);
   });
 
-  it('preserves normalized Photoshop stroke opacity', () => {
+  it('preserves normalized Photoshop stroke opacity independently from fill', () => {
     const result = importPsdVectorShape({
       ...source([path()]),
       vectorStroke: {
         strokeEnabled: true,
-        fillEnabled: false,
+        fillEnabled: true,
         lineWidth: { units: 'Pixels', value: 10 },
         lineAlignment: 'center',
-        opacity: 1,
+        opacity: 0.4,
         content: { type: 'color', color: { r: 255, g: 0, b: 0 } }
       }
     });
@@ -96,9 +96,9 @@ describe('importPsdVectorShape', () => {
     expect(result.status).toBe('native');
     if (result.status !== 'native') throw new Error(result.reason);
     expect(result.elements[0]?.style).toMatchObject({
-      fill: null,
+      fill: { type: 'solid' },
       opacity: 1,
-      stroke: { width: 10 }
+      stroke: { width: 10, opacity: 0.4 }
     });
   });
 

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import type { VectorStyle } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type {
   EditorSession,
@@ -13,6 +12,7 @@ import {
 } from '../../editor/tools/vectorToolCatalog';
 import { VectorToolSessionController } from './VectorToolSessionController';
 import type { VectorElementCreationTransaction } from './VectorDocumentController';
+import { vectorStyleFromToolSettings } from './vectorStylePresentation';
 
 export interface VectorToolSessionHookOptions {
   readonly document: ImageDocument | null;
@@ -21,13 +21,7 @@ export interface VectorToolSessionHookOptions {
   readonly foregroundColor: string;
   readonly gradient: EditorSession['gradient'];
   readonly shape: EditorSession['shape'];
-  readonly fillColor: string;
-  readonly fillEnabled: boolean;
-  readonly strokeColor: string;
-  readonly strokeEnabled: boolean;
-  readonly strokeWidth: number;
-  readonly strokeAlignment: VectorToolStyleSettings['strokeAlignment'];
-  readonly strokeStyle: VectorToolStyleSettings['strokeStyle'];
+  readonly style: VectorToolStyleSettings;
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
@@ -48,13 +42,7 @@ export const useVectorToolSessionController = ({
   foregroundColor,
   gradient,
   shape,
-  fillColor,
-  fillEnabled,
-  strokeColor,
-  strokeEnabled,
-  strokeWidth,
-  strokeAlignment,
-  strokeStyle,
+  style,
   applyDocumentSnapshot,
   pushDocumentHistory,
   publishSelection,
@@ -67,13 +55,7 @@ export const useVectorToolSessionController = ({
     gradient,
     shape,
     activeTool,
-    fillColor,
-    fillEnabled,
-    strokeColor,
-    strokeEnabled,
-    strokeWidth,
-    strokeAlignment,
-    strokeStyle,
+    style,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
@@ -86,13 +68,7 @@ export const useVectorToolSessionController = ({
     gradient,
     shape,
     activeTool,
-    fillColor,
-    fillEnabled,
-    strokeColor,
-    strokeEnabled,
-    strokeWidth,
-    strokeAlignment,
-    strokeStyle,
+    style,
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
@@ -114,23 +90,8 @@ export const useVectorToolSessionController = ({
         portsRef.current.publishSelection(next);
       }
     }, {
-      penStyle: (): VectorStyle => ({
-        fill: portsRef.current.fillEnabled
-          ? { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) } : null,
-        stroke: portsRef.current.strokeEnabled
-          ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth,
-            portsRef.current.strokeAlignment) : null,
-        opacity: 1
-      }),
-      liveShapeStyle: (): VectorStyle => ({
-        fill: portsRef.current.fillEnabled
-          ? { type: 'solid', color: cssHexToLinearRgba(portsRef.current.fillColor) } : null,
-        stroke: portsRef.current.strokeEnabled
-          ? createStroke(portsRef.current.strokeColor, portsRef.current.strokeWidth,
-            portsRef.current.strokeAlignment,
-            portsRef.current.strokeStyle ?? 'solid') : null,
-        opacity: 1
-      }),
+      penStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
+      liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       gradientSettings: () => portsRef.current.gradient,
       rasterizeShape: (transaction) => portsRef.current.rasterizeShape(transaction)
     });
@@ -190,35 +151,4 @@ export const useVectorToolSessionController = ({
   }, []);
 
   return controllerRef.current;
-};
-
-const createStroke = (
-  color: string,
-  width: number,
-  alignment: VectorToolStyleSettings['strokeAlignment'],
-  lineStyle: NonNullable<VectorToolStyleSettings['strokeStyle']> = 'solid'
-): NonNullable<VectorStyle['stroke']> => ({
-  paint: { type: 'solid', color: cssHexToLinearRgba(color) },
-  width: Math.max(0.1, width),
-  alignment,
-  cap: 'round',
-  join: 'round',
-  miterLimit: 4,
-  dash: lineStyle === 'dashed' ? [4, 3] : lineStyle === 'dotted' ? [1, 2] : [],
-  dashOffset: 0
-});
-
-const srgbToLinear = (value: number) => value <= 0.04045
-  ? value / 12.92
-  : ((value + 0.055) / 1.055) ** 2.4;
-
-const cssHexToLinearRgba = (color: string): [number, number, number, number] => {
-  const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(color);
-  if (!match) return [0, 0, 0, 1];
-  return [
-    srgbToLinear(Number.parseInt(match[1]!, 16) / 255),
-    srgbToLinear(Number.parseInt(match[2]!, 16) / 255),
-    srgbToLinear(Number.parseInt(match[3]!, 16) / 255),
-    1
-  ];
 };

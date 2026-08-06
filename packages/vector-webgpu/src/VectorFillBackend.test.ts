@@ -239,6 +239,35 @@ describe('VectorFillBackend', () => {
     backend.dispose();
   });
 
+  it('multiplies stroke-only opacity without fading the fill draw', () => {
+    const { device, encoder } = fixture();
+    const backend = new VectorFillBackend(device as unknown as GPUDevice);
+    const path = pathFixture();
+    path.style.opacity = 0.5;
+    path.style.stroke = {
+      paint: { type: 'solid', color: [1, 0.5, 0.25, 0.5] },
+      opacity: 0.4,
+      width: 10,
+      cap: 'round', join: 'round', miterLimit: 4, dash: [], dashOffset: 0
+    };
+    const target = {
+      colorView: {} as GPUTextureView, resolveView: null,
+      stencilView: {} as GPUTextureView, format: 'rgba16float' as GPUTextureFormat,
+      sampleCount: 1, origin: { x: 0, y: 0 }, width: 200, height: 200
+    };
+
+    backend.encodeFill(encoder as unknown as GPUCommandEncoder, path, realizeVectorPath(path, 0.25), target);
+    backend.encodeStroke(encoder as unknown as GPUCommandEncoder, path, realizeVectorPath(path, 0.25), target);
+    const settings = device.queue.writeBuffer.mock.calls
+      .map((call) => call[2])
+      .filter((value): value is Float32Array => value instanceof Float32Array && value.length === 28);
+
+    expect(settings).toHaveLength(2);
+    expect(settings[0]![15]).toBeCloseTo(0.5);
+    expect(settings[1]![15]).toBeCloseTo(0.1);
+    backend.dispose();
+  });
+
   it('uploads and reuses a shared gradient LUT with object-bounds mapping', () => {
     const { device, encoder, buffers } = fixture();
     const backend = new VectorFillBackend(device as unknown as GPUDevice);

@@ -10,6 +10,10 @@ import {
   type LightTableArtifactKind,
   type LightTableArtifactMetadata
 } from './lightTableArtifactRegistry';
+import {
+  projectVectorContentQuery,
+  type VectorContentQuerySummary
+} from './vectorLayerQueryProjection';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
@@ -150,6 +154,7 @@ export interface LayerQuerySummary {
     readonly mode: 'point' | 'paragraph' | 'path' | 'positioned';
     readonly writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' | null;
   } | null;
+  readonly vectorContent: VectorContentQuerySummary | null;
 }
 
 export interface LayerEffectsQueryResult {
@@ -563,7 +568,8 @@ export class LightTableCommandService {
         sourceKind: 'positioned' as const,
         mode: 'positioned' as const,
         writingMode: null
-      } : null
+      } : null,
+      vectorContent: node.type === 'vector' ? projectVectorContentQuery(node) : null
     }));
   }
 

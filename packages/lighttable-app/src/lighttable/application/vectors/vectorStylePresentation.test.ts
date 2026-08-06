@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createVectorLiveShape } from '@lighttable/vector-core';
+import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import {
   cssHexToLinearRgba,
   linearRgbaToCssHex,
   patchVectorStyle,
-  vectorElementStyleSettings
+  vectorElementStyleSettings,
+  vectorStyleFromToolSettings
 } from './vectorStylePresentation';
+import { createEditorSession } from '../../editor/session/editorSession';
 
 describe('vector style presentation', () => {
   it('round-trips UI colors through the linear document color domain', () => {
@@ -36,9 +39,15 @@ describe('vector style presentation', () => {
       fillPaint: { type: 'solid', color: [0, 0, 0, 1] },
       strokeEnabled: true,
       strokeColor: '#ffffff',
+      strokeOpacity: 1,
+      strokePaint: { type: 'solid', color: [1, 1, 1, 1] },
       strokeWidth: 3,
       strokeAlignment: 'outside',
-      strokeStyle: 'dashed'
+      strokeCap: 'square',
+      strokeJoin: 'bevel',
+      strokeMiterLimit: 7,
+      strokeStyle: 'dashed',
+      opacity: 1
     });
     const style = patchVectorStyle(element.style, {
       fillColor: '#ff0000',
@@ -96,5 +105,64 @@ describe('vector style presentation', () => {
       cap: 'round',
       join: 'round'
     });
+  });
+
+  it('does not invent a stroke when changing fill or opacity on a no-stroke shape', () => {
+    const element = createVectorLiveShape('shape', { kind: 'ellipse', width: 20, height: 10 });
+    const withoutStroke = { ...element.style, stroke: null };
+
+    expect(patchVectorStyle(withoutStroke, { fillColor: '#ff8800' }).stroke).toBeNull();
+    expect(patchVectorStyle(withoutStroke, { opacity: 0.4 }).stroke).toBeNull();
+  });
+
+  it('round-trips gradient stroke paint and every authored stroke property', () => {
+    const gradient = createDefaultGradientPaint('stroke-gradient', 'object-bounds');
+    const element = createVectorLiveShape('shape', { kind: 'ellipse', width: 20, height: 10 });
+    const styled = patchVectorStyle(element.style, {
+      strokeEnabled: true,
+      strokePaint: gradient,
+      strokeWidth: 50,
+      strokeAlignment: 'outside',
+      strokeCap: 'square',
+      strokeJoin: 'miter',
+      strokeMiterLimit: 12,
+      opacity: 0.65
+    });
+
+    expect(styled.stroke).toMatchObject({
+      paint: { kind: 'gradient' }, width: 50, alignment: 'outside',
+      cap: 'square', join: 'miter', miterLimit: 12
+    });
+    expect(styled.opacity).toBe(0.65);
+    expect(vectorElementStyleSettings({ ...element, style: styled })).toMatchObject({
+      strokePaint: { kind: 'gradient' }, strokeWidth: 50, strokeAlignment: 'outside',
+      strokeCap: 'square', strokeJoin: 'miter', strokeMiterLimit: 12, opacity: 0.65
+    });
+  });
+
+  it('authors new shapes from the same solid/gradient and stroke property model', () => {
+    const settings = createEditorSession().vectorStyle;
+    const fill = createDefaultGradientPaint('fill-gradient', 'object-bounds');
+    const stroke = createDefaultGradientPaint('stroke-gradient', 'object-bounds');
+    const style = vectorStyleFromToolSettings({
+      ...settings,
+      fillPaint: fill,
+      strokePaint: stroke,
+      strokeWidth: 200,
+      strokeAlignment: 'inside',
+      strokeCap: 'square',
+      strokeJoin: 'miter',
+      strokeMiterLimit: 16,
+      opacity: 0.5
+    });
+
+    expect(style.fill).toMatchObject({ kind: 'gradient' });
+    expect(style.stroke).toMatchObject({
+      paint: { kind: 'gradient' }, width: 200, alignment: 'inside',
+      cap: 'square', join: 'miter', miterLimit: 16
+    });
+    expect(style.opacity).toBe(0.5);
+    expect(style.fill).not.toBe(fill);
+    expect(style.stroke?.paint).not.toBe(stroke);
   });
 });

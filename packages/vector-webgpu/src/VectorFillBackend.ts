@@ -213,7 +213,7 @@ export class VectorFillBackend {
       resource,
       path,
       stroke.paint,
-      path.style.opacity,
+      path.style.opacity * (stroke.opacity ?? 1),
       target,
       bundle,
       'union',

@@ -1000,6 +1000,17 @@ describe('LightTable layered PNG format', () => {
       transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
       reverse: false, dither: true, interpolation: 'perceptual'
     };
+    shape.style.stroke = {
+      paint: shape.style.fill,
+      opacity: 0.35,
+      width: 200,
+      alignment: 'outside',
+      cap: 'square',
+      join: 'miter',
+      miterLimit: 12,
+      dash: [8, 3],
+      dashOffset: 2
+    };
     shape.styleRevision = 1;
     const vector = createVectorLayer([path, shape], 'Logo shape');
     vector.antiAlias = false;

@@ -218,12 +218,10 @@ const vectorStroke = (
   // ag-psd exposes modern Photoshop stroke opacity as a normalized 0..1
   // value, while older descriptors can still contain a 0..100 percentage.
   const opacity = clamp(sourceOpacity > 1 ? sourceOpacity / 100 : sourceOpacity);
-  // LightTable currently has one opacity for the complete vector style. A
-  // differently translucent stroke and fill would require two semantic nodes.
-  if (fillPaint && opacity < 1) return null;
   return {
     stroke: {
       paint,
+      opacity,
       width: Math.max(0, width),
       alignment: descriptor.lineAlignment ?? 'center',
       cap: descriptor.lineCapType ?? 'butt',
@@ -232,7 +230,7 @@ const vectorStroke = (
       dash: dash.map((entry) => Math.max(0, entry!)),
       dashOffset
     },
-    opacity
+    opacity: 1
   };
 };
 

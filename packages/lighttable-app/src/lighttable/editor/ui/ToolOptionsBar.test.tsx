@@ -261,6 +261,10 @@ describe('vector style tool options', () => {
     expect(markup).toContain('<option value="inside" selected="">Inside</option>');
     expect(markup).toContain('<option value="center">Center</option>');
     expect(markup).toContain('<option value="outside">Outside</option>');
+    expect(markup).toContain('aria-label="Stroke cap"');
+    expect(markup).toContain('aria-label="Stroke join"');
+    expect(markup).toContain('aria-label="Edit stroke gradient"');
+    expect(markup).toContain('<span>Opacity</span>');
   });
 });
 

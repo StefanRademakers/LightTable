@@ -22,6 +22,8 @@ import { MixedNumberInput } from './MixedNumberInput';
 import { ToolOptionColor, ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
 import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
+import { AnchoredGradientPopover } from './AnchoredGradientPopover';
+import { VectorStyleToolOptions } from './VectorStyleToolOptions';
 import type { TextPaint, TextWarp, TextWarpStyle } from '@lighttable/text-core';
 import type { AffineMatrix, TransformSessionState } from '../tools/transform/transformTypes';
 import {
@@ -123,36 +125,6 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'text-paragraph': 'Paragraph text',
   'text-vertical': 'Vertical type tool',
   'text-path': 'Path text'
-};
-
-const AnchoredGradientPopover: React.FC<{
-  anchor: React.RefObject<HTMLElement | null>;
-  ariaLabel: string;
-  children: React.ReactNode;
-  onPointerDownCapture?: () => void;
-  onPointerUpCapture?: () => void;
-}> = ({ anchor, ariaLabel, children, onPointerDownCapture, onPointerUpCapture }) => {
-  const [position, setPosition] = React.useState({ left: 12, top: 84 });
-  React.useLayoutEffect(() => {
-    const update = () => {
-      const bounds = anchor.current?.getBoundingClientRect();
-      if (!bounds) return;
-      setPosition({
-        left: Math.max(8, Math.min(bounds.left, window.innerWidth - 348)),
-        top: bounds.bottom + 7
-      });
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, [anchor]);
-  return createPortal(
-    <div className="lighttable-tool-options__gradient-popover" role="dialog"
-      aria-label={ariaLabel} style={position}
-      onPointerDownCapture={onPointerDownCapture}
-      onPointerUpCapture={onPointerUpCapture}>{children}</div>,
-    document.body
-  );
 };
 
 const TextFontPicker: React.FC<{
@@ -516,10 +488,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
     || activeTool === 'shape-ellipse' || activeTool === 'shape-line' || Boolean(selectedShapeKind);
   const rectangleGeometryActive = selectedShapeKind
     ? selectedShapeKind === 'rectangle' : activeTool === 'shape-rectangle';
-  const presentedGradient = presentedVectorStyle.fillPaint
-    && 'kind' in presentedVectorStyle.fillPaint
-    ? presentedVectorStyle.fillPaint as GradientPaintInstance
-    : null;
   const [gradientEditorOpen, setGradientEditorOpen] = React.useState(false);
   const gradientButtonRef = React.useRef<HTMLButtonElement>(null);
   const presentedTextGradient = textProperties?.fillPaint?.kind === 'value'
@@ -1033,89 +1001,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         </div>
       ) : null}
       {activeTool === 'vector-pen' || activeTool.startsWith('shape-') || editsVectorSelection ? (
-        <div className="lighttable-tool-options__vector-style" aria-label="Vector style">
-          {activeTool !== 'shape-line' ? (
-            <ToolOptionColor label="Fill" value={presentedVectorStyle.fillColor}
-              enabled={presentedVectorStyle.fillEnabled}
-              allowChangeWhenOff
-              onEnabledChange={(fillEnabled) => changeVectorStyle({
-                fillEnabled,
-                ...(fillEnabled ? { fillColor: presentedVectorStyle.fillColor } : {})
-              })}
-              onChange={(fillColor) => changeVectorStyle({ fillEnabled: true, fillColor })}
-              status={presentedGradient ? (
-                <button ref={gradientButtonRef} type="button" className="lighttable-tool-options__gradient-button"
-                  aria-label="Edit fill gradient" title="Edit fill gradient"
-                  onClick={() => setGradientEditorOpen((open) => !open)}>Gradient</button>
-              ) : null} />
-          ) : null}
-          {presentedGradient && gradientEditorOpen ? (
-            <AnchoredGradientPopover anchor={gradientButtonRef} ariaLabel="Fill gradient">
-              <div className="lighttable-tool-options__gradient-header">
-                <strong>Fill gradient</strong>
-                <button type="button" aria-label="Close fill gradient"
-                  onClick={() => setGradientEditorOpen(false)}>×</button>
-              </div>
-              <GradientAssetEditor value={presentedGradient.asset}
-                onChange={(asset) => changeVectorStyle({
-                  fillEnabled: true, fillPaint: { ...presentedGradient, asset }
-                })} />
-              <div className="lighttable-tool-options__gradient-options">
-                <ToolOptionSelect label="Style" value={presentedGradient.shape}
-                  aria-label="Gradient style"
-                  onChange={(event) => changeVectorStyle({ fillPaint: {
-                    ...presentedGradient,
-                    shape: event.currentTarget.value as GradientPaintInstance['shape']
-                  } })}>
-                  <option value="linear">Linear</option>
-                  <option value="radial">Radial</option>
-                  <option value="angle">Angle</option>
-                  <option value="reflected">Reflected</option>
-                  <option value="diamond">Diamond</option>
-                </ToolOptionSelect>
-                <label className="lighttable-tool-options__toggle">
-                  <input type="checkbox" checked={presentedGradient.reverse}
-                    aria-label="Reverse gradient"
-                    onChange={(event) => changeVectorStyle({ fillPaint: {
-                      ...presentedGradient, reverse: event.currentTarget.checked
-                    } })} />
-                  <span>Reverse</span>
-                </label>
-              </div>
-            </AnchoredGradientPopover>
-          ) : null}
-          <ToolOptionColor label="Line" value={presentedVectorStyle.strokeColor}
-            enabled={presentedVectorStyle.strokeEnabled}
-            allowChangeWhenOff
-            onEnabledChange={(strokeEnabled) => changeVectorStyle({
-              strokeEnabled,
-              ...(strokeEnabled ? { strokeColor: presentedVectorStyle.strokeColor } : {})
-            })}
-            onChange={(strokeColor) => changeVectorStyle({ strokeEnabled: true, strokeColor })} />
-          <ToolOptionNumber label="Weight" min={0.1} max={1000} step={0.5}
-            value={presentedVectorStyle.strokeWidth} unit="px"
-            onChange={(value) => changeVectorStyle({ strokeWidth: Math.max(0.1, value || 0.1) })} />
-          <ToolOptionSelect label="Style" value={presentedVectorStyle.strokeStyle ?? 'solid'}
-            disabled={!presentedVectorStyle.strokeEnabled}
-            aria-label="Stroke style"
-            onChange={(event) => changeVectorStyle({
-              strokeStyle: event.currentTarget.value as NonNullable<VectorToolStyleSettings['strokeStyle']>
-            })}>
-            <option value="solid">Solid</option>
-            <option value="dashed">Dashed</option>
-            <option value="dotted">Dotted</option>
-          </ToolOptionSelect>
-          <ToolOptionSelect label="Align" value={presentedVectorStyle.strokeAlignment}
-            disabled={!presentedVectorStyle.strokeEnabled}
-            aria-label="Stroke alignment"
-            onChange={(event) => changeVectorStyle({
-              strokeAlignment: event.currentTarget.value as VectorToolStyleSettings['strokeAlignment']
-            })}>
-            <option value="inside">Inside</option>
-            <option value="center">Center</option>
-            <option value="outside">Outside</option>
-          </ToolOptionSelect>
-        </div>
+        <VectorStyleToolOptions activeTool={activeTool} style={presentedVectorStyle}
+          onChange={changeVectorStyle} />
       ) : null}
       {activeTool === 'brush' || activeTool === 'erase' ? (
         <>

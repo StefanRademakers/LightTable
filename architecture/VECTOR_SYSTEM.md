@@ -48,7 +48,9 @@ should be shared instead of copied into each tool.
 
 ## Current gaps
 
-- Complete stroke semantics and coverage quality need broader fixtures.
+- Stroke coverage is guarded at 1/10/50/200 px and by native/PSD visual
+  roundtrips; custom dash authoring and additional boolean path operations
+  still need broader fixtures.
 - Device-loss recovery and browser/device validation need hardening.
 - All selection/gizmo overlays have not yet migrated to the vector backend.
 - Bounded cover geometry and cache budgets need production measurement.

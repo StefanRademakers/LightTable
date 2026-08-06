@@ -68,6 +68,7 @@
     "smoke:desktop:line-tool": "node scripts/smoke-desktop-line-tool.mjs",
     "smoke:desktop:line-tool:build": "npm run package:desktop:verify && npm run smoke:desktop:line-tool --",
     "smoke:desktop:shape-geometry": "node scripts/smoke-desktop-shape-geometry.mjs",
+    "smoke:desktop:vector-authoring": "node scripts/smoke-desktop-vector-authoring.mjs",
     "smoke:desktop:shape-geometry:build": "npm run package:desktop:verify && npm run smoke:desktop:shape-geometry --",
     "smoke:desktop:tool-context-menu": "node scripts/smoke-desktop-tool-context-menu.mjs",
     "smoke:desktop:tool-context-menu:build": "npm run package:desktop:verify && npm run smoke:desktop:tool-context-menu --",

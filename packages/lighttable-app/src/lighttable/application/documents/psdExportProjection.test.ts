@@ -75,10 +75,11 @@ describe('PSD export projection', () => {
       fill: { type: 'solid', color: [0.1, 0.8, 0.2, 1] },
       stroke: {
         paint: { type: 'solid', color: [1, 0, 0, 1] },
+        opacity: 0.4,
         width: 3, cap: 'round', join: 'round', miterLimit: 4,
         dash: [], dashOffset: 0
       },
-      opacity: 1
+      opacity: 0.5
     };
     const vector = createVectorLayer([shape], 'Editable shape');
     vector.transform = { a: 1, b: 0, c: 0, d: 1, tx: 35, ty: 55 };
@@ -126,7 +127,7 @@ describe('PSD export projection', () => {
     expect(decodedGroup?.children?.[1]?.vectorMask?.paths.length).toBeGreaterThan(0);
     expect(decodedGroup?.children?.[1]?.vectorStroke).toMatchObject({
       strokeEnabled: true, fillEnabled: true,
-      lineWidth: { units: 'Pixels', value: 3 }
+      lineWidth: { units: 'Pixels', value: 3 }, opacity: 0.2
     });
   });
 

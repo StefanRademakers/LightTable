@@ -12,6 +12,7 @@ describe('parseVectorPath', () => {
     ]);
     source.style.stroke = {
       paint: { type: 'solid', color: [0.1, 0.2, 0.3, 1] },
+      opacity: 0.45,
       width: 4,
       alignment: 'center',
       cap: 'round',
@@ -44,6 +45,13 @@ describe('parseVectorPath', () => {
     const invalidOpacity = createVectorPath('path', 'Invalid');
     invalidOpacity.style.opacity = 2;
     expect(() => parseVectorPath(invalidOpacity)).toThrow('must be between 0 and 1');
+
+    const invalidStrokeOpacity = createVectorPath('stroke-path', 'Invalid stroke');
+    invalidStrokeOpacity.style.stroke = {
+      paint: { type: 'solid', color: [0, 0, 0, 1] }, opacity: -0.1,
+      width: 1, cap: 'round', join: 'round', miterLimit: 4, dash: [], dashOffset: 0
+    };
+    expect(() => parseVectorPath(invalidStrokeOpacity)).toThrow('dimensions must not be negative');
   });
 
   it('round-trips a shared gradient paint without sharing nested stop state', () => {

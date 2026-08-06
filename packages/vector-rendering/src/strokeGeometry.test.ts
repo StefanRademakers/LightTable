@@ -4,6 +4,7 @@ import {
   createAnchor,
   createSubpath,
   createVectorPath,
+  multiplyScalar,
   normalize,
   subtract,
   type VectorStroke
@@ -140,4 +141,38 @@ describe('stroke geometry', () => {
     });
     expect(uncovered).toEqual([]);
   });
+
+  it.each([1, 10, 50, 200])(
+    'keeps a connected, finite adaptive mesh for an extreme %d px round stroke',
+    (width) => {
+      const center = { x: 200, y: 180 };
+      const anchors = Array.from({ length: 96 }, (_, index) => {
+        const angle = index / 96 * Math.PI * 2;
+        return createAnchor(`extreme-${width}-${index}`, {
+          x: center.x + Math.cos(angle) * 110,
+          y: center.y + Math.sin(angle) * 70
+        });
+      });
+      const path = realizeVectorPath(createVectorPath(`extreme-${width}`, 'Extreme stroke', [
+        createSubpath(`extreme-contour-${width}`, anchors, true)
+      ]), 0.25);
+      const mesh = buildStrokeTriangleGeometry(path, stroke({
+        width,
+        alignment: 'outside',
+        join: 'round'
+      }));
+
+      expect(mesh.triangleCount).toBeGreaterThan(96 * 2);
+      expect([...mesh.vertices].every(Number.isFinite)).toBe(true);
+      const uncovered = path.subpaths[0]!.points.filter((point, index, points) => {
+        const previous = points[(index - 1 + points.length) % points.length]!;
+        const next = points[(index + 1) % points.length]!;
+        const previousOuter = { x: point.y - previous.y, y: previous.x - point.x };
+        const nextOuter = { x: next.y - point.y, y: point.x - next.x };
+        const bisector = normalize(add(normalize(previousOuter), normalize(nextOuter)));
+        return !meshCovers(mesh.vertices, add(point, multiplyScalar(bisector, width * 0.8)));
+      });
+      expect(uncovered).toEqual([]);
+    }
+  );
 });

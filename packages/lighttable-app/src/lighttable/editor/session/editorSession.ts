@@ -169,12 +169,19 @@ export interface VectorToolStyleSettings {
   fillEnabled: boolean;
   fillColor: string;
   /** Selected/native gradient authority; ordinary solid tool defaults omit it. */
-  fillPaint?: VectorPaint;
+  fillPaint?: VectorPaint | null;
   strokeEnabled: boolean;
   strokeColor: string;
+  /** Selected/native gradient authority; ordinary solid tool defaults omit it. */
+  strokePaint?: VectorPaint | null;
+  strokeOpacity?: number;
   strokeWidth: number;
   strokeAlignment: 'inside' | 'center' | 'outside';
+  strokeCap?: 'butt' | 'round' | 'square';
+  strokeJoin?: 'miter' | 'round' | 'bevel';
+  strokeMiterLimit?: number;
   strokeStyle?: 'solid' | 'dashed' | 'dotted';
+  opacity?: number;
 }
 
 export interface ShapeToolSettings {
@@ -267,9 +274,14 @@ export const createEditorSession = (): EditorSession => ({
     fillColor: '#000000',
     strokeEnabled: true,
     strokeColor: '#ffffff',
+    strokeOpacity: 1,
     strokeWidth: 3,
     strokeAlignment: 'center',
-    strokeStyle: 'solid'
+    strokeCap: 'round',
+    strokeJoin: 'round',
+    strokeMiterLimit: 4,
+    strokeStyle: 'solid',
+    opacity: 1
   },
   pen: {
     autoAddDelete: true,

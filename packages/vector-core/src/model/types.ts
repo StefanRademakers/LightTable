@@ -31,6 +31,8 @@ export type VectorPaint = SolidPaint | GradientPaintInstance;
 
 export interface VectorStroke {
   paint: VectorPaint;
+  /** Stroke-only opacity, multiplied by the owning vector style opacity. */
+  opacity?: number;
   width: number;
   /** Center is the PDF/default stroke model; inside/outside apply to closed contours. */
   alignment?: 'inside' | 'center' | 'outside';
