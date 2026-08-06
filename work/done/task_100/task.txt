@@ -36,3 +36,26 @@ and remaining effects/panels. No new design language or modal property editor.
 - Existing tool/property/effect semantic tests remain unchanged and green.
 - Run UI smokes, quick/desktop builds, update design-system docs, commit coherent
   component slices and move after full inventory reconciliation.
+
+## Completion (2026-08-06)
+
+- Defined one tested Layers geometry contract for row spacing, nesting,
+  clipping, bounded 42 px square thumbnail slots and the fixed status column;
+  transformed evaluated previews remain aspect-contained and cannot resize or
+  escape the row.
+- Added distinct tokenized hover, multi-selection, active-target and keyboard
+  focus presentation. Only canonical masks and present effects are rendered;
+  long names and status badges stay clipped inside their assigned slots.
+- Consolidated Layer Styles onto shared panel select, checkbox, color, slider,
+  angle and Advanced disclosure primitives. Grade/Lens Fx continue to share
+  slider/switch primitives and Text/Shape/Gradient share ToolOptionControls.
+- Added off-screen row paint containment. The 42-row nested EHS-396 stack
+  measured 16.9–17.1 ms p95 across compact/wide windows and 100/200% device
+  scale after settling, down from the initial 167.8 ms failing audit.
+- Added the repeatable `audit:desktop:panel-language` screenshot, geometry,
+  focus, overflow and scroll-performance matrix. All four cases and the full
+  keyboard/accessibility journey passed without page errors or unnamed
+  controls; evidence is generated under `tmp/panel-language-audit/`.
+- Verification passed: 326 app test files / 1,759 tests, app typecheck, web
+  production build, packaged Electron boundary check, panel matrix and desktop
+  accessibility smoke.

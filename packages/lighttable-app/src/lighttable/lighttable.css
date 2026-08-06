@@ -2309,6 +2309,8 @@
   background: var(--lt-surface-layer-row);
   overflow: hidden;
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 48px;
 }
 
 .lighttable-layer:hover { background: var(--lt-surface-layer-row-hover); }
@@ -2485,10 +2487,14 @@
   line-height: 1;
 }
 .lighttable-layer__text-status {
+  min-width: 0;
+  overflow: hidden;
   color: var(--lt-text-tertiary);
   font-size: 9px;
   letter-spacing: 0.02em;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 .lighttable-layer__text-status--missing {
   color: #f0a45d;
@@ -2546,6 +2552,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 3px;
+  overflow: hidden;
 }
 
 .lighttable-layer__local-grade {
@@ -2569,6 +2576,8 @@
   flex-direction: column;
   gap: 1px;
   margin-top: -2px;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 24px;
 }
 
 .lighttable-layer-effect {
