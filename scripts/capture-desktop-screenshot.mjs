@@ -32,6 +32,8 @@ const canvasClickY = Number.parseFloat(argument('canvas-click-y', 'NaN'));
 const nudgeX = Number.parseInt(argument('nudge-x', '0'), 10);
 const nudgeY = Number.parseInt(argument('nudge-y', '0'), 10);
 const waitAfterMs = Math.max(0, Number.parseInt(argument('wait-after-ms', '0'), 10) || 0);
+const viewportWidth = Number.parseInt(argument('viewport-width', '0'), 10);
+const viewportHeight = Number.parseInt(argument('viewport-height', '0'), 10);
 const dragX = Number.parseFloat(argument('drag-x', '0'));
 const dragY = Number.parseFloat(argument('drag-y', '0'));
 const enableFill = argument('enable-fill', '');
@@ -142,6 +144,9 @@ try {
     timeout: 30_000
   });
   window = await electronApp.firstWindow({ timeout: 30_000 });
+  if (viewportWidth > 0 && viewportHeight > 0) {
+    await window.setViewportSize({ width: viewportWidth, height: viewportHeight });
+  }
   await window.evaluate(() => {
     globalThis.__lightTableLongTasks = [];
     if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
@@ -177,7 +182,7 @@ try {
   }
   await window.locator('.lighttable-toolbar__meta')
     .filter({ hasText: /ready/i })
-    .waitFor({ state: 'visible', timeout: 30_000 });
+    .waitFor({ state: 'attached', timeout: 30_000 });
 
   await window.waitForFunction(() => {
     const status = document.querySelector('.lighttable-toolbar__status')?.textContent ?? '';
