@@ -82,6 +82,24 @@ const comparePng = async (leftPath, rightPath, targetPath) => {
   };
 };
 
+const captureDocumentPixels = async (page, driver, documentId, document, targetPath) => {
+  if (!document.canvas) throw new Error(`Document ${documentId} has no canvas metadata.`);
+  await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 100 });
+  await page.waitForTimeout(350);
+  const viewport = await page.locator('.lighttable-viewport:visible').boundingBox();
+  if (!viewport) throw new Error(`Document ${documentId} has no visible viewport.`);
+  const { width, height } = document.canvas;
+  await page.screenshot({
+    path: targetPath,
+    clip: {
+      x: Math.round(viewport.x + (viewport.width - width) / 2),
+      y: Math.round(viewport.y + (viewport.height - height) / 2),
+      width,
+      height
+    }
+  });
+};
+
 try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
@@ -160,16 +178,18 @@ try {
   }
 
   await page.keyboard.press('h');
-  await page.waitForTimeout(250);
-  await viewport.screenshot({ path: originalPath });
+  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+  await page.keyboard.press('f');
+  await page.waitForTimeout(300);
+  await page.keyboard.press('f');
+  await page.locator('.lighttable--canvas-only').waitFor({ state: 'visible' });
+  await captureDocumentPixels(page, driver, documentId, authored, originalPath);
   const nativeStartedAt = performance.now();
   const nativeArtifact = await exportArtifact(driver, documentId, 'file.exportNative');
   const openedNative = await driver.execute(documentId, 'file.openArtifact', { artifactId: nativeArtifact.id });
   const nativeId = openedNative.value.documentId;
   const nativeDocument = await waitReady(driver, nativeId);
-  await page.keyboard.press('h');
-  await page.waitForTimeout(250);
-  await viewport.screenshot({ path: reopenedPath });
+  await captureDocumentPixels(page, driver, nativeId, nativeDocument, reopenedPath);
   const nativeLayers = await driver.queryLayers(nativeId) ?? [];
   const nativeLayer = nativeLayers.find(({ name }) => name === authoredLayer.name);
   const nativeRoundTripMs = performance.now() - nativeStartedAt;
