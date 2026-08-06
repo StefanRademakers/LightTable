@@ -43,3 +43,27 @@ status surface. The recovery chooser belongs to Task 085.
 - Prove inactive unchanged documents perform no recurring work.
 - Run shared typechecks/tests and production builds; update architecture,
   commit independently and move to done.
+
+## Completion evidence (2026-08-06)
+
+- Added the versioned private recovery contract, Electron atomic recovery
+  store, browser OPFS adapter and metadata/checksum validation.
+- Recovery is driven only by semantic history snapshots with a 5 s debounce,
+  30 s maximum age, single-writer/newest-only handoff and no idle polling.
+- Verified cleanup after committed Save and explicit discard; failed/canceled
+  saves retain their checkpoint.
+- Fake-clock, quota, pruning, corrupt-record, checksum, close and roundtrip
+  coverage passes (20 focused recovery tests across app and desktop suites).
+- Full app suite: 315 files / 1683 tests. Desktop suite: 5 files / 24 tests.
+  App/desktop typechecks, boundary verification, web production build and
+  packaged Electron build pass.
+- Packaged TextTest checkpoint: 466 KiB, 325.3-359.5 ms prepare and 19.7-20.5
+  ms atomic persistence; zero page errors. Verified Save removed all recovery
+  generations only after commit.
+- Packaged EHS-396: zero post-import >50 ms main-thread tasks during recovery,
+  but the 178 MB snapshot did not finish within 150 s and published no partial
+  file. This measured large-document baseline is explicitly assigned to Task
+  107's content-addressed/delta optimization gate; it is not accepted as a
+  release-performance target.
+- Design, primary sources, privacy rules, rejected alternatives and measured
+  evidence are recorded in `architecture/contracts/RECOVERY_PERSISTENCE_ADR.md`.

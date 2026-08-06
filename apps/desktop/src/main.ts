@@ -14,6 +14,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
+import { DesktopRecoveryStore } from './recoveryStore';
 import {
   createDesktopOpenDialogFilters,
   desktopMediaTypeForFileName
@@ -40,6 +41,9 @@ if (automationUserData) app.setPath('userData', path.resolve(automationUserData)
 const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
+const recoveryStore = new DesktopRecoveryStore(
+  path.join(app.getPath('userData'), 'recovery-v1')
+);
 const systemFonts = new WindowsSystemFontCatalog(
   [
     path.join(process.env.WINDIR ?? 'C:\\Windows', 'Fonts'),
@@ -420,6 +424,50 @@ void app.whenReady().then(async () => {
         message: failure.message
       };
     }
+  });
+
+  ipcMain.handle('lighttable:recovery-write', async (event, payload) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!payload || typeof payload.documentId !== 'string'
+      || payload.documentId.length > 1024
+      || !(payload.bytes instanceof Uint8Array)
+      || payload.bytes.byteLength > 2_147_483_647) {
+      throw new Error('Invalid LightTable recovery write request.');
+    }
+    return recoveryStore.write(payload);
+  });
+
+  ipcMain.handle('lighttable:recovery-remove', async (
+    event,
+    documentId: string,
+    throughRevision?: number
+  ) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof documentId !== 'string' || documentId.length > 1024
+      || (throughRevision !== undefined && (
+        !Number.isSafeInteger(throughRevision) || throughRevision < 0
+      ))) {
+      throw new Error('Invalid LightTable recovery remove request.');
+    }
+    await recoveryStore.remove(documentId, throughRevision);
+  });
+
+  ipcMain.handle('lighttable:recovery-list', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return recoveryStore.list();
+  });
+
+  ipcMain.handle('lighttable:recovery-read', async (event, recoveryId: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof recoveryId !== 'string' || recoveryId.length > 128) {
+      throw new Error('Invalid LightTable recovery read request.');
+    }
+    const entry = await recoveryStore.read(recoveryId);
+    if (!entry) return null;
+    return {
+      record: entry.record,
+      bytes: new Uint8Array(await entry.artifact.arrayBuffer())
+    };
   });
 
   ipcMain.handle('lighttable:clipboard-write-png', async (event, bytes: Uint8Array) => {

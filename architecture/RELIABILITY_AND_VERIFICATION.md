@@ -14,9 +14,18 @@ does not corrupt the document and does not fail silently.
 - Cancellation is a normal result; partial decode/render output is never
   installed as a successful document.
 
-Autosave, recovery journals and crash restoration are pre-1.0 requirements.
-They must serialize canonical state/assets, not GPU caches or DOM layout
-accidents.
+Crash recovery is a separate, private persistence lane. Version-1 recovery
+stores complete canonical snapshots, never GPU caches or DOM layout accidents,
+after semantic command commits only. A 5-second quiet debounce and 30-second
+maximum dirty age feed a newest-only, single-writer queue; unchanged documents
+have no recovery timer or recurring work. Electron uses private `userData` and
+the atomic writer below. Browsers use OPFS with explicit quota/error results.
+Two generations per document, 20 documents, 30 days and 2 GiB are retained.
+Only a verified Save or explicit discard removes a valid checkpoint.
+
+The schema, source research, privacy boundary, rejection policy and performance
+evidence live in `contracts/RECOVERY_PERSISTENCE_ADR.md`. Crash restoration and
+the recovery chooser are deliberately separate from journal durability.
 
 ## Native save transaction
 

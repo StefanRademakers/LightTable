@@ -31,6 +31,7 @@ const canvasClickX = Number.parseFloat(argument('canvas-click-x', 'NaN'));
 const canvasClickY = Number.parseFloat(argument('canvas-click-y', 'NaN'));
 const nudgeX = Number.parseInt(argument('nudge-x', '0'), 10);
 const nudgeY = Number.parseInt(argument('nudge-y', '0'), 10);
+const waitAfterMs = Math.max(0, Number.parseInt(argument('wait-after-ms', '0'), 10) || 0);
 const dragX = Number.parseFloat(argument('drag-x', '0'));
 const dragY = Number.parseFloat(argument('drag-y', '0'));
 const enableFill = argument('enable-fill', '');
@@ -77,7 +78,10 @@ const exportedPdfFile = path.resolve(argument(
   'pdf-output',
   outputFile.replace(/\.[^.]+$/, '.pdf')
 ));
-const userDataPath = path.join(workspaceRoot, 'tmp', 'playwright-user-data');
+const userDataPath = path.resolve(argument(
+  'user-data',
+  path.join(workspaceRoot, 'tmp', 'playwright-user-data')
+));
 
 await Promise.all([access(sourceFile), access(executablePath)]).catch((error) => {
   throw new Error(
@@ -138,6 +142,17 @@ try {
     timeout: 30_000
   });
   window = await electronApp.firstWindow({ timeout: 30_000 });
+  await window.evaluate(() => {
+    globalThis.__lightTableLongTasks = [];
+    if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
+      new PerformanceObserver((list) => {
+        globalThis.__lightTableLongTasks.push(...list.getEntries().map((entry) => ({
+          startTime: entry.startTime,
+          duration: entry.duration
+        })));
+      }).observe({ type: 'longtask', buffered: true });
+    }
+  });
   window.on('console', (message) => diagnostics.console.push({
     type: message.type(),
     text: message.text()
@@ -573,6 +588,8 @@ try {
     };
   }
 
+  if (waitAfterMs > 0) await window.waitForTimeout(waitAfterMs);
+  diagnostics.longTasks = await window.evaluate(() => globalThis.__lightTableLongTasks ?? []);
   diagnostics.layers = await window.locator('.lighttable-layer').evaluateAll((rows) => rows.map((row) => ({
     name: row.querySelector('.lighttable-layer__name')?.value ?? '',
     type: row.querySelector('.lighttable-layer__thumbnail')?.getAttribute('title') ?? '',

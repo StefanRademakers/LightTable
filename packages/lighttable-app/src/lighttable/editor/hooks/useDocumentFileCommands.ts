@@ -63,6 +63,7 @@ export interface DocumentFileCommandsOptions {
   readonly onExportFile?: (file: File) => Promise<unknown> | unknown;
   readonly getDocumentRevision?: () => number;
   readonly commitSavedRevision?: (revision: number) => void;
+  readonly onSaveCommitted?: () => Promise<void> | void;
   readonly onRequestOpenWorkspaceDocument?: (
     decodeMode: DocumentOpenMode
   ) => Promise<void> | void;
@@ -188,6 +189,11 @@ export const useDocumentFileCommands = (
     } else if (result.value.status === 'canceled') {
       current.setStatus?.('Save canceled');
     } else if (result.value.markedClean) {
+      try {
+        await current.onSaveCommitted?.();
+      } catch (reason) {
+        console.warn('[Recovery] Saved document cleanup failed.', reason);
+      }
       current.setStatus?.('Saved');
     } else {
       current.setStatus?.('Saved revision; newer edits remain unsaved');

@@ -40,14 +40,24 @@ describe('requestWorkspaceDocumentClose', () => {
   it('closes a dirty document with explicit discard permission', async () => {
     const confirmDiscardChanges = vi.fn(async () => true);
     const close = vi.fn(() => ({ ok: true as const }));
+    const remove = vi.fn(async () => undefined);
 
     await expect(requestWorkspaceDocumentClose({
       documentId,
       documents: [{ id: documentId, title: 'Dirty', dirty: true }],
-      host: { confirmDiscardChanges },
+      host: {
+        confirmDiscardChanges,
+        recovery: {
+          remove,
+          write: vi.fn(),
+          list: vi.fn(),
+          read: vi.fn()
+        }
+      },
       close
     })).resolves.toBe(true);
 
     expect(close).toHaveBeenCalledWith(documentId, true);
+    expect(remove).toHaveBeenCalledWith(documentId);
   });
 });

@@ -12,6 +12,29 @@ import './renderer.css';
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  recovery: {
+    async write({ documentId, record, artifact }) {
+      return window.lightTableDesktop.writeRecovery({
+        documentId,
+        record,
+        bytes: new Uint8Array(await artifact.arrayBuffer())
+      });
+    },
+    remove: (documentId, throughRevision) =>
+      window.lightTableDesktop.removeRecovery(documentId, throughRevision),
+    list: () => window.lightTableDesktop.listRecoveries(),
+    async read(recoveryId) {
+      const entry = await window.lightTableDesktop.readRecovery(recoveryId);
+      return entry ? {
+        record: entry.record,
+        artifact: new File(
+          [Uint8Array.from(entry.bytes).buffer],
+          'recovered-lighttable.png',
+          { type: entry.record.mediaType }
+        )
+      } : null;
+    }
+  },
   systemFontProvider: {
     async load(asset) {
       const bytes = await window.lightTableDesktop.loadSystemFont(asset.assetId);

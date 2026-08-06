@@ -104,6 +104,18 @@ export type {
   LightTableRecentFile,
   LightTableSaveRequest
 } from './platform/LightTableHost';
+export {
+  LIGHTTABLE_RECOVERY_VERSION,
+  parseLightTableRecoveryRecord,
+  sha256Hex,
+  type LightTableRecoveryEntry,
+  type LightTableRecoveryListing,
+  type LightTableRecoveryRecord,
+  type LightTableRecoveryRejection,
+  type LightTableRecoveryStore,
+  type LightTableRecoveryWriteRequest,
+  type LightTableRecoveryWriteResult
+} from './platform/LightTableRecoveryStore';
 export type {
   LightTableClipboardImage,
   LightTableClipboardImagePlacement,

@@ -3,6 +3,8 @@ import { browserImageClipboard } from './LightTableImageClipboard';
 import type { LightTableAutomationDriver } from '../lighttable/application/commands/lightTableCommandService';
 import type { DocumentFontAsset } from '../lighttable/editor/document/documentTypes';
 import type { SystemFontByteProvider } from '../lighttable/text/fonts/DocumentFontRegistry';
+import type { LightTableRecoveryStore } from './LightTableRecoveryStore';
+import { createBrowserRecoveryStore } from './BrowserRecoveryStore';
 
 export interface LightTableMediaItem {
   id: string;
@@ -57,6 +59,7 @@ export interface LightTableHost {
   readonly media?: LightTableMediaBrowser;
   readonly clipboard?: LightTableImageClipboard;
   readonly systemFontProvider?: SystemFontByteProvider;
+  readonly recovery?: LightTableRecoveryStore;
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
@@ -78,6 +81,7 @@ export interface LightTableHost {
 
 export const createBrowserHost = (): LightTableHost => ({
   kind: 'web',
+  recovery: createBrowserRecoveryStore(),
   clipboard: browserImageClipboard(),
   async setFullscreen(enabled) {
     if (enabled) {

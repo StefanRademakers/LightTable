@@ -31,6 +31,7 @@ import {
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
+import { useDocumentRecoveryJournal } from './application/documents/useDocumentRecoveryJournal';
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
@@ -232,6 +233,7 @@ import type {
   LightTableRecentFile,
   LightTableSaveResult
 } from '../platform/LightTableHost';
+import type { LightTableRecoveryStore } from '../platform/LightTableRecoveryStore';
 import { useLensBlurDepthController } from './application/effects/lensBlur/useLensBlurDepthController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
@@ -403,6 +405,7 @@ export interface LightTableEditorOverlayProps {
   commandService?: LightTableCommandService;
   commandPorts?: LightTableCommandPortRegistry;
   imageClipboard?: LightTableImageClipboard;
+  recoveryStore?: LightTableRecoveryStore;
 }
 
 export type { EditorScreenMode } from './editor/workspace/editorScreenMode';
@@ -444,7 +447,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   documentSession,
   commandService,
   commandPorts,
-  imageClipboard: providedImageClipboard
+  imageClipboard: providedImageClipboard,
+  recoveryStore
 }) => {
   const imageClipboard = providedImageClipboard ?? browserImageClipboard();
   const standaloneFontRegistryRef = useRef<DocumentFontRegistry | null>(null);
@@ -3006,11 +3010,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (documentSession) documentSession.markSaved(revision);
       else commandHistory.markSaved();
     },
+    onSaveCommitted: recoveryStore
+      ? () => recoveryStore.remove(workspaceDocumentId)
+      : undefined,
     onRequestOpenWorkspaceDocument,
     onOpenWorkspaceDocument,
     setLoading,
     setError,
     setStatus: setGradeStatus
+  });
+  useDocumentRecoveryJournal({
+    store: recoveryStore,
+    documentId: workspaceDocumentId,
+    sourceFingerprint: `${effectiveSourceFileKey ?? 'unknown'}:${initialSourceName}`,
+    commandHistory,
+    getCanonicalRevision: () => documentSession?.getSnapshot().documentRevision
+      ?? commandHistory.getSnapshot().currentStateId,
+    exportOutput,
+    onStatus: (status, message) => {
+      if (status === 'failed') {
+        console.warn(`[Recovery] ${message}`);
+        setGradeStatus('Recovery checkpoint unavailable');
+      } else {
+        setGradeStatus(message);
+      }
+    }
   });
   exportNativeArtifactRef.current = async () => (await exportOutput()).file;
   exportPngArtifactRef.current = async () => {

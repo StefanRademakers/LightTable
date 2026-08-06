@@ -1,3 +1,9 @@
+import type {
+  LightTableRecoveryListing,
+  LightTableRecoveryRecord,
+  LightTableRecoveryWriteResult
+} from '@lighttable/app';
+
 export interface DesktopFilePayload {
   name: string;
   type: string;
@@ -25,6 +31,17 @@ export type DesktopSaveResult =
       readonly phase: string;
       readonly message: string;
     };
+
+export interface DesktopRecoveryWritePayload {
+  readonly documentId: string;
+  readonly record: LightTableRecoveryRecord;
+  readonly bytes: Uint8Array;
+}
+
+export interface DesktopRecoveryReadPayload {
+  readonly record: LightTableRecoveryRecord;
+  readonly bytes: Uint8Array;
+}
 
 export interface DesktopRecentFile {
   id: string;
@@ -69,6 +86,10 @@ export interface LightTableDesktopBridge {
   onFullscreenChange(listener: (enabled: boolean) => void): () => void;
   confirmDiscardChanges(documentTitle: string): Promise<boolean>;
   saveFile(payload: DesktopSavePayload): Promise<DesktopSaveResult>;
+  writeRecovery(payload: DesktopRecoveryWritePayload): Promise<LightTableRecoveryWriteResult>;
+  removeRecovery(documentId: string, throughRevision?: number): Promise<void>;
+  listRecoveries(): Promise<LightTableRecoveryListing>;
+  readRecovery(recoveryId: string): Promise<DesktopRecoveryReadPayload | null>;
   writeClipboardPng(bytes: Uint8Array): Promise<void>;
   readClipboardPng(): Promise<Uint8Array | null>;
   listSystemFonts(): Promise<readonly DesktopSystemFontAsset[]>;

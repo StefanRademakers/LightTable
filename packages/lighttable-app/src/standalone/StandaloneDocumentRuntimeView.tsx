@@ -107,6 +107,7 @@ export function StandaloneDocumentRuntimeView({
         commandService={commandService}
         commandPorts={commandPorts}
         imageClipboard={host.clipboard}
+        recoveryStore={host.recovery}
         onActivateWorkspaceDocument={(documentId) => {
           onActivate(documentId as DocumentSessionId);
         }}

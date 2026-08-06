@@ -11,7 +11,7 @@ import type {
 interface RequestWorkspaceDocumentCloseOptions {
   readonly documentId: DocumentSessionId;
   readonly documents: readonly WorkspaceDocumentTab[];
-  readonly host: Pick<LightTableHost, 'confirmDiscardChanges'>;
+  readonly host: Pick<LightTableHost, 'confirmDiscardChanges' | 'recovery'>;
   readonly close: (
     id: DocumentSessionId,
     discardChanges: boolean
@@ -37,5 +37,13 @@ export const requestWorkspaceDocumentClose = async ({
     return false;
   }
 
-  return close(documentId, document.dirty).ok;
+  const result = close(documentId, document.dirty);
+  if (result.ok && document.dirty) {
+    try {
+      await host.recovery?.remove(documentId);
+    } catch (reason) {
+      console.warn('[Recovery] Explicit discard cleanup failed.', reason);
+    }
+  }
+  return result.ok;
 };
