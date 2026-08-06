@@ -103,7 +103,12 @@ for (const [index, entry] of cases.entries()) {
     const page = await app.firstWindow({ timeout: 30_000 });
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-    await page.getByRole('button', { name: 'Open file' }).click();
+    const openFileButton = page.getByRole('button', { name: 'Open file' });
+    // A 40-case cold-launch corpus can briefly contend with Windows process
+    // teardown and shader-cache I/O. Keep the product readiness gate strict,
+    // but do not inherit Playwright's shorter implicit action timeout here.
+    await openFileButton.waitFor({ state: 'visible', timeout: 60_000 });
+    await openFileButton.click();
     await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: 60_000 });
     result.openReadyMs = performance.now() - caseStartedAt;
