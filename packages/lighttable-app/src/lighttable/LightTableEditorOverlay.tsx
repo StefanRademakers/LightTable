@@ -320,7 +320,7 @@ export interface LightTableEditorOverlayProps {
   }>;
   onActivateWorkspaceDocument?: (documentId: string) => void;
   onCloseWorkspaceDocument?: (documentId: string) => void;
-  onRequestNewWorkspaceDocument?: () => void;
+  onRequestNewWorkspaceDocument?: () => void; onStartGuidedSample?: () => void;
   onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void; onRequestPlaceWorkspaceArtifact?: (documentId: string) => Promise<void> | void;
   recentFiles?: readonly LightTableRecentFile[];
   onOpenRecentWorkspaceDocument?: (id: string) => Promise<void> | void;
@@ -364,7 +364,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   workspaceDocuments,
   onActivateWorkspaceDocument,
   onCloseWorkspaceDocument,
-  onRequestNewWorkspaceDocument,
+  onRequestNewWorkspaceDocument, onStartGuidedSample,
   onRequestOpenWorkspaceDocument, onRequestPlaceWorkspaceArtifact,
   recentFiles = [],
   onOpenRecentWorkspaceDocument,
@@ -3341,7 +3341,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     workspace: {
       showDebugPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.debug),
       toggleScreenMode,
-      resetLayout: () => workspaceRef.current?.resetLayout()
+      resetLayout: () => workspaceRef.current?.resetLayout(), startGuidedSample: onStartGuidedSample
     }
   });
   const createAppMenuOptions = editorMenuController.optionsFor;

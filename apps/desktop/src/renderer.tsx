@@ -4,6 +4,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
   createLightTableImageClipboard,
+  createLocalLightTableFunnelTelemetry,
   LightTableStandaloneApp,
   type LightTableAutomationDriver,
   type LightTableHost
@@ -27,6 +28,7 @@ const desktopFile = (payload: DesktopFilePayload | null) => {
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  funnel: createLocalLightTableFunnelTelemetry(localStorage),
   release: {
     info: () => window.lightTableDesktop.releaseInfo(),
     checkForUpdates: () => window.lightTableDesktop.checkForUpdates(),

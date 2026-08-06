@@ -137,3 +137,8 @@ export type {
   LightTableImageClipboard,
   LightTableImageClipboardTransport
 } from './platform/LightTableImageClipboard';
+export {
+  createLocalLightTableFunnelTelemetry,
+  type LightTableFunnelEvent,
+  type LightTableFunnelTelemetry
+} from './platform/LightTableFunnelTelemetry';

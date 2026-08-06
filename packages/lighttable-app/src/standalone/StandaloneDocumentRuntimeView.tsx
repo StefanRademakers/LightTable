@@ -43,6 +43,7 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onOpenRecent: (id: string) => Promise<void>;
   readonly onClearRecent: () => Promise<void>;
   readonly onRequestNew: () => void;
+  readonly onStartGuidedSample?: () => void;
   readonly onOpen: (
     file: File,
     decodeMode?: StandaloneDecodeMode
@@ -75,6 +76,7 @@ export function StandaloneDocumentRuntimeView({
   onOpenRecent,
   onClearRecent,
   onRequestNew,
+  onStartGuidedSample,
   onOpen,
   onRecoveryResolved
 }: StandaloneDocumentRuntimeViewProps) {
@@ -133,6 +135,7 @@ export function StandaloneDocumentRuntimeView({
         onOpenRecentWorkspaceDocument={onOpenRecent}
         onClearRecentWorkspaceDocuments={onClearRecent}
         onRequestNewWorkspaceDocument={onRequestNew}
+        onStartGuidedSample={onStartGuidedSample}
         onOpenWorkspaceDocument={onOpen}
         onDocumentReady={() => {
           if (session.getSnapshot().lifecycle !== 'ready') session.setReady();

@@ -35,6 +35,10 @@ import type {
   LightTableRecoveryRecord
 } from '../platform/LightTableRecoveryStore';
 import { AboutUpdateDialog } from '../lighttable/editor/ui/AboutUpdateDialog';
+import {
+  GuidedSampleCoach,
+  type GuidedSampleSession
+} from './GuidedSampleCoach';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -226,6 +230,8 @@ export function LightTableStandaloneApp({
   const [creating, setCreating] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [guidedSample, setGuidedSample] = useState<GuidedSampleSession | null>(null);
+  const [telemetryEnabled, setTelemetryEnabled] = useState(() => host.funnel?.enabled() ?? false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
   const [recoveryListing, setRecoveryListing] = useState<LightTableRecoveryListing>({
     records: [],
@@ -238,9 +244,15 @@ export function LightTableStandaloneApp({
   const [recoveriesDeferred, setRecoveriesDeferred] = useState(false);
   const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
   const fileDrop = useStandaloneFileDrop(openDocument);
+  const launcherRecordedRef = useRef(false);
 
   useEffect(() => () => commandService.dispose(), [commandService]);
   useEffect(() => host.installAutomationDriver?.(commandService), [commandService, host]);
+  useEffect(() => {
+    if (snapshot.documentOrder.length > 0 || launcherRecordedRef.current) return;
+    launcherRecordedRef.current = true;
+    host.funnel?.record('launcher.viewed');
+  }, [host, snapshot.documentOrder.length]);
   useEffect(() => {
     let cancelled = false;
     void host.listSystemFonts?.().then((fonts) => {
@@ -362,10 +374,29 @@ export function LightTableStandaloneApp({
         }
       });
       if (result.status === 'completed') setNewDialogOpen(false);
+      return result;
     } finally {
       setCreating(false);
     }
   }, [commandService]);
+
+  const startGuidedSample = useCallback(async () => {
+    host.funnel?.record('guide.started');
+    const result = await createDocument({
+      name: 'LightTable guided sample',
+      width: 960,
+      height: 640,
+      resolutionPpi: 72,
+      bitDepth: 8,
+      profile: 'srgb',
+      background: { kind: 'solid', color: '#f3f5f8' }
+    });
+    if (result?.status !== 'completed') return;
+    const documentId = (result.value as { documentId?: DocumentSessionId }).documentId;
+    if (!documentId || commandService.queryDocument(documentId)?.lifecycle !== 'ready') return;
+    host.funnel?.record('guide.sample-ready');
+    setGuidedSample({ documentId, step: 'shape' });
+  }, [commandService, createDocument, host]);
 
   const requestNewDocument = useCallback(() => setNewDialogOpen(true), []);
 
@@ -613,8 +644,25 @@ export function LightTableStandaloneApp({
               <button className="action-button lighttable-launcher__primary-action" type="button" onClick={requestNewDocument}>
                 New document
               </button>
+              <button className="lighttable-launcher__guide-action" type="button" disabled={creating}
+                onClick={() => void startGuidedSample()}>
+                {creating ? 'Preparing...' : 'Try a guided layered edit'}
+              </button>
             </section>
           </div>
+
+          <section className="lighttable-launcher__local-first" aria-label="Local-first editing">
+            <strong>Your files stay local.</strong>
+            <span>Open PNG, JPEG, WebP, TIFF, PSD/PSB and PDF. Unsupported document features are preserved with a preview and reported before export.</span>
+            {host.funnel ? (
+              <label><input type="checkbox" checked={telemetryEnabled} onChange={(event) => {
+                const enabled = event.currentTarget.checked;
+                host.funnel?.setEnabled(enabled);
+                if (enabled) host.funnel?.record('launcher.viewed');
+                setTelemetryEnabled(enabled);
+              }} /> Store anonymous onboarding progress on this device</label>
+            ) : null}
+          </section>
 
           {recentFiles.length > 0 ? (
             <section className="lighttable-launcher__recent-section">
@@ -691,6 +739,7 @@ export function LightTableStandaloneApp({
           onOpenRecent={openRecentDocument}
           onClearRecent={clearRecentFiles}
           onRequestNew={requestNewDocument}
+          onStartGuidedSample={() => void startGuidedSample()}
           onOpen={openDocument}
           onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
         />
@@ -702,6 +751,17 @@ export function LightTableStandaloneApp({
         onCancel={() => setNewDialogOpen(false)}
         onCreate={(size) => void createDocument(size)}
       />
+      {guidedSample ? (
+        <GuidedSampleCoach
+          session={guidedSample}
+          ready={snapshot.documents[guidedSample.documentId]?.lifecycle === 'ready'
+            && commandPorts.has(guidedSample.documentId)}
+          service={commandService}
+          host={host}
+          onSession={setGuidedSample}
+          onDismiss={() => setGuidedSample(null)}
+        />
+      ) : null}
     </>
   );
 }

@@ -28,6 +28,7 @@ export const useEditorDialogController = () => {
   const [psdReportOpen, setPsdReportOpen] = useState(false);
   const [formatSupportOpen, setFormatSupportOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [commandHelpOpen, setCommandHelpOpen] = useState(false);
   const [textToShapeRequest, setTextToShapeRequest] = useState<TextToShapeRequest | null>(null);
   const [missingFontRecoveryRequest, setMissingFontRecoveryRequest] =
     useState<MissingFontRecoveryRequest | null>(null);
@@ -40,6 +41,7 @@ export const useEditorDialogController = () => {
     setPsdReportOpen(false);
     setFormatSupportOpen(false);
     setAboutOpen(false);
+    setCommandHelpOpen(false);
     setTextToShapeRequest(null);
     setMissingFontRecoveryRequest(null);
     setPdfExportPreflightRequest(null);
@@ -52,6 +54,7 @@ export const useEditorDialogController = () => {
     psdReportOpen,
     formatSupportOpen,
     aboutOpen,
+    commandHelpOpen,
     textToShapeRequest,
     missingFontRecoveryRequest,
     pdfExportPreflightRequest,
@@ -85,6 +88,8 @@ export const useEditorDialogController = () => {
     closeFormatSupport: useCallback(() => setFormatSupportOpen(false), []),
     openAbout: useCallback(() => setAboutOpen(true), []),
     closeAbout: useCallback(() => setAboutOpen(false), []),
+    openCommandHelp: useCallback(() => setCommandHelpOpen(true), []),
+    closeCommandHelp: useCallback(() => setCommandHelpOpen(false), []),
     reset
   };
 };

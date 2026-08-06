@@ -99,6 +99,8 @@ export interface EditorMenuCommands {
   showDebugPanel: () => void;
   resetWorkspaceLayout: () => void;
   openAbout?: () => void;
+  openCommandHelp?: () => void;
+  startGuidedSample?: () => void;
 }
 
 const checkedLabel = (label: string, checked: boolean) => checked ? `${label} ✓` : label;
@@ -451,7 +453,11 @@ export const createEditorMenuOptions = (
   }
 
   if (menu === 'help') {
-    return [{ value: 'about', label: 'About LightTable…', onClick: commands.openAbout }];
+    return [
+      { value: 'command-help', label: 'Commands and Shortcuts...', onClick: commands.openCommandHelp },
+      { value: 'guided-sample', label: 'Start Guided Sample', onClick: commands.startGuidedSample },
+      { value: 'about', label: 'About LightTable...', onClick: commands.openAbout }
+    ];
   }
 
   return [

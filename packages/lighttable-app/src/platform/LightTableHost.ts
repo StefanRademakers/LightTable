@@ -5,6 +5,10 @@ import type { DocumentFontAsset } from '../lighttable/editor/document/documentTy
 import type { SystemFontByteProvider } from '../lighttable/text/fonts/DocumentFontRegistry';
 import type { LightTableRecoveryStore } from './LightTableRecoveryStore';
 import { createBrowserRecoveryStore } from './BrowserRecoveryStore';
+import {
+  createLocalLightTableFunnelTelemetry,
+  type LightTableFunnelTelemetry
+} from './LightTableFunnelTelemetry';
 
 export interface LightTableMediaItem {
   id: string;
@@ -92,6 +96,7 @@ export interface LightTableHost {
   readonly systemFontProvider?: SystemFontByteProvider;
   readonly recovery?: LightTableRecoveryStore;
   readonly release?: LightTableReleaseService;
+  readonly funnel?: LightTableFunnelTelemetry;
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
@@ -115,6 +120,9 @@ export interface LightTableHost {
 
 export const createBrowserHost = (): LightTableHost => ({
   kind: 'web',
+  funnel: typeof localStorage === 'undefined'
+    ? undefined
+    : createLocalLightTableFunnelTelemetry(localStorage),
   recovery: createBrowserRecoveryStore(),
   clipboard: browserImageClipboard(),
   async setFullscreen(enabled) {

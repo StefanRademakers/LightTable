@@ -11,6 +11,7 @@ import { FormatSupportDialog } from './FormatSupportDialog';
 import { FillDialog } from './FillDialog';
 import { AboutUpdateDialog } from './AboutUpdateDialog';
 import type { LightTableReleaseService } from '../../../platform/LightTableHost';
+import { CommandHelpDialog } from './CommandHelpDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -195,5 +196,6 @@ export const EditorDialogs = ({
       dirtyDocuments={dirtyDocuments}
       onClose={controller.closeAbout}
     />
+    <CommandHelpDialog open={controller.commandHelpOpen} onClose={controller.closeCommandHelp} />
   </>
 );
