@@ -426,7 +426,7 @@ try {
 
   if (openCompatibilityReport) {
     await window.getByRole('menuitem', { name: 'File', exact: true }).click();
-    const option = window.getByRole('button', {
+    const option = window.getByRole('menuitem', {
       name: 'Document Compatibility Report...',
       exact: true
     });

@@ -152,8 +152,6 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
     ));
   }, [open, missingFontGroups, sortedReplacementFonts]);
   if (!open || (!report && textFontDiagnostics.length === 0)) return null;
-  const documentReport = textFontDiagnostics.length > 0;
-
   return createPortal(
     <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
       <section
@@ -161,7 +159,7 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
         className="lighttable-psd-report"
         role="dialog"
         aria-modal="true"
-        aria-label={documentReport ? 'Document compatibility report' : 'Photoshop import report'}
+        aria-label="Document compatibility report"
         tabIndex={-1}
         data-editor-native-tab-navigation
         onKeyDown={onDialogKeyDown}
@@ -169,10 +167,8 @@ export const PsdImportReportDialog: React.FC<PsdImportReportDialogProps> = ({
       >
         <header className="lighttable-psd-report__header">
           <div>
-            <h2>{documentReport ? 'Document compatibility report' : 'Photoshop import report'}</h2>
-            <p>{report
-              ? 'Semantic LightTable reconstruction. The embedded composite is reference-only.'
-              : 'Native document features that need attention.'}</p>
+            <h2>Document compatibility report</h2>
+            <p>Imported and current compatibility findings. Preserved source data remains unchanged until an explicit destructive action.</p>
           </div>
           <ActionButton onClick={onClose}>Close</ActionButton>
         </header>

@@ -31,6 +31,7 @@ export interface DocumentCapabilityFinding {
   readonly severity: DocumentCapabilitySeverity;
   readonly message: string;
   readonly editable: boolean;
+  readonly previewBacked: boolean;
   readonly invalidatedByEdit: boolean;
   readonly actions: readonly DocumentRecoveryAction[];
 }
@@ -98,7 +99,8 @@ export const buildDocumentCapabilityFindings = (
       severity: severityFor(status),
       message: sanitizeCompatibilityText(entry.reason),
       editable: entry.editable ?? entry.parity?.semantic === 'editable',
-      invalidatedByEdit: status === 'preview-backed' || status === 'export-blocking',
+      previewBacked: entry.support === 'preserved' || entry.support === 'raster-preview',
+      invalidatedByEdit: entry.support === 'preserved' || entry.support === 'raster-preview',
       actions: recoveryActions(status, entry.feature)
     } satisfies DocumentCapabilityFinding;
   });
@@ -114,6 +116,7 @@ export const buildDocumentCapabilityFindings = (
       severity: severityFor(status),
       message: sanitizeCompatibilityText(diagnostic.status.detail),
       editable: diagnostic.editable,
+      previewBacked: false,
       invalidatedByEdit: false,
       actions: recoveryActions(status, 'text-font')
     } satisfies DocumentCapabilityFinding;
@@ -126,7 +129,7 @@ export const summarizeDocumentCapabilityFindings = (
 ) => ({
   exact: findings.filter(({ status }) => status === 'exact').length,
   approximated: findings.filter(({ status }) => status === 'approximated').length,
-  previewBacked: findings.filter(({ status }) => status === 'preview-backed').length,
+  previewBacked: findings.filter(({ previewBacked }) => previewBacked).length,
   missingAssets: findings.filter(({ status }) => status === 'missing-asset').length,
   exportBlocking: findings.filter(({ status }) => status === 'export-blocking').length,
   attention: findings.filter(({ status }) => status !== 'exact').length
