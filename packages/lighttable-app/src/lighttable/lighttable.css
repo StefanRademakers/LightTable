@@ -581,6 +581,15 @@
   margin: 8px 10px 0;
 }
 
+.lighttable__recovery-notice {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--lt-border);
+  color: var(--color-text-muted);
+  background: var(--lt-surface-panel);
+  font-size: var(--lt-type-label);
+}
+
 .lighttable__body {
   min-height: 0;
   flex: 1 1 auto;

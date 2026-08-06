@@ -9,6 +9,21 @@ import {
   type LightTableHost
 } from '@lighttable/app';
 import './renderer.css';
+import type { DesktopFilePayload } from './desktopBridge';
+
+const desktopFile = (payload: DesktopFilePayload | null) => {
+  if (!payload) return null;
+  const file = new File([Uint8Array.from(payload.bytes).buffer], payload.name, {
+    type: payload.type
+  });
+  if (payload.sourcePath) {
+    Object.defineProperty(file, 'lightTableSourcePath', {
+      value: payload.sourcePath,
+      enumerable: false
+    });
+  }
+  return file;
+};
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
@@ -22,6 +37,8 @@ const desktopHost: LightTableHost = {
     },
     remove: (documentId, throughRevision) =>
       window.lightTableDesktop.removeRecovery(documentId, throughRevision),
+    removeRecord: (recoveryId) =>
+      window.lightTableDesktop.removeRecoveryRecord(recoveryId),
     list: () => window.lightTableDesktop.listRecoveries(),
     async read(recoveryId) {
       const entry = await window.lightTableDesktop.readRecovery(recoveryId);
@@ -57,10 +74,7 @@ const desktopHost: LightTableHost = {
   }),
   async openFile() {
     const payload = await window.lightTableDesktop.openFile();
-    if (!payload) return null;
-    return new File([Uint8Array.from(payload.bytes).buffer], payload.name, {
-      type: payload.type
-    });
+    return desktopFile(payload);
   },
   async listRecentFiles() {
     return (await window.lightTableDesktop.listRecentFiles()).map((entry) => ({
@@ -71,10 +85,7 @@ const desktopHost: LightTableHost = {
   },
   async openRecentFile(id) {
     const payload = await window.lightTableDesktop.openRecentFile(id);
-    if (!payload) return null;
-    return new File([Uint8Array.from(payload.bytes).buffer], payload.name, {
-      type: payload.type
-    });
+    return desktopFile(payload);
   },
   clearRecentFiles() {
     return window.lightTableDesktop.clearRecentFiles();

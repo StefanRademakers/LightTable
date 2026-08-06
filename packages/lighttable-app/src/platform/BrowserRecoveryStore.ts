@@ -113,9 +113,18 @@ export class BrowserRecoveryStore implements LightTableRecoveryStore {
       for (const record of (await this.listUnsafe(root)).records) {
         if (record.documentIdHash === documentIdHash
           && record.canonicalRevision <= throughRevision) {
-          await this.removeRecord(root, record.recoveryId);
+          await this.removeRecordUnsafe(root, record.recoveryId);
         }
       }
+    });
+  }
+
+  removeRecord(recoveryId: string): Promise<void> {
+    return this.serial(async () => {
+      if (!/^[a-zA-Z0-9-]{8,128}$/.test(recoveryId)
+        || typeof this.storage.getDirectory !== 'function') return;
+      const root = await this.existingRoot();
+      if (root) await this.removeRecordUnsafe(root, recoveryId);
     });
   }
 
@@ -208,12 +217,12 @@ export class BrowserRecoveryStore implements LightTableRecoveryStore {
         documentIds.add(record.documentIdHash);
         bytes += record.artifactByteLength;
       } else {
-        await this.removeRecord(root, record.recoveryId);
+          await this.removeRecordUnsafe(root, record.recoveryId);
       }
     }
   }
 
-  private async removeRecord(root: FileSystemDirectoryHandle, recoveryId: string): Promise<void> {
+  private async removeRecordUnsafe(root: FileSystemDirectoryHandle, recoveryId: string): Promise<void> {
     await removeEntry(root, `${recoveryId}${METADATA_SUFFIX}`);
     await removeEntry(root, `${recoveryId}${ARTIFACT_SUFFIX}`);
   }

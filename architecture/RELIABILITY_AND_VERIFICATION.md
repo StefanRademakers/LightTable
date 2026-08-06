@@ -24,8 +24,13 @@ Two generations per document, 20 documents, 30 days and 2 GiB are retained.
 Only a verified Save or explicit discard removes a valid checkpoint.
 
 The schema, source research, privacy boundary, rejection policy and performance
-evidence live in `contracts/RECOVERY_PERSISTENCE_ADR.md`. Crash restoration and
-the recovery chooser are deliberately separate from journal durability.
+evidence live in `contracts/RECOVERY_PERSISTENCE_ADR.md`. On startup the recovery
+chooser appears before recents and offers Preview, Open recovered copy, Discard
+and Later. Recovered documents stay dirty and Save targets a new file. Desktop
+metadata is OS-encrypted; missing/moved and newer originals are reported rather
+than guessed. A crash-attempt marker excludes a repeatedly failing document
+from bulk restore while document-scoped runtime boundaries leave other tabs
+usable. Browsers without durable recovery expose that limitation honestly.
 
 ## Native save transaction
 

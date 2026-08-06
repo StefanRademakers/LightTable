@@ -46,6 +46,7 @@ interface StandaloneDocumentRuntimeViewProps {
     file: File,
     decodeMode?: StandaloneDecodeMode
   ) => unknown;
+  readonly onRecoveryResolved: (recoveryId: string) => void;
 }
 
 const titleWithoutExtension = (name: string) =>
@@ -72,7 +73,8 @@ export function StandaloneDocumentRuntimeView({
   onOpenRecent,
   onClearRecent,
   onRequestNew,
-  onOpen
+  onOpen,
+  onRecoveryResolved
 }: StandaloneDocumentRuntimeViewProps) {
   const {
     id,
@@ -108,6 +110,12 @@ export function StandaloneDocumentRuntimeView({
         commandPorts={commandPorts}
         imageClipboard={host.clipboard}
         recoveryStore={host.recovery}
+        recoveryNotice={document.runtime.recovery
+          ? `${document.runtime.recovery.crashLoop ? 'Safe mode: ' : ''}Recovered copy of ${document.runtime.recovery.originalName}. Save creates a new file.`
+          : null}
+        onRecoveryResolved={document.runtime.recovery
+          ? () => onRecoveryResolved(document.runtime.recovery!.recoveryId)
+          : undefined}
         onActivateWorkspaceDocument={(documentId) => {
           onActivate(documentId as DocumentSessionId);
         }}
@@ -122,12 +130,13 @@ export function StandaloneDocumentRuntimeView({
         onOpenWorkspaceDocument={onOpen}
         onDocumentReady={() => {
           if (session.getSnapshot().lifecycle !== 'ready') session.setReady();
+          if (document.runtime.recovery && !session.getSnapshot().dirty) session.markChanged();
         }}
         onDocumentError={(message) => session.setFailed(message)}
         onDirtyChange={(dirty) => {
           if (dirty) {
             session.markChanged();
-          } else {
+          } else if (!document.runtime.recovery) {
             session.markSaved();
           }
         }}

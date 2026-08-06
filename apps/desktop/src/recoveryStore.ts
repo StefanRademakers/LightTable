@@ -22,6 +22,11 @@ export interface DesktopRecoveryStoreLimits {
   readonly ageMs: number;
 }
 
+export interface DesktopRecoveryMetadataCodec {
+  encode(value: string): Uint8Array;
+  decode(value: Uint8Array): string;
+}
+
 export interface DesktopRecoveryWriteRequest {
   readonly documentId: string;
   readonly record: LightTableRecoveryRecord;
@@ -33,6 +38,11 @@ const DEFAULT_LIMITS: DesktopRecoveryStoreLimits = {
   documents: 20,
   bytes: 2 * 1024 * 1024 * 1024,
   ageMs: THIRTY_DAYS_MS
+};
+
+const UTF8_METADATA_CODEC: DesktopRecoveryMetadataCodec = {
+  encode: (value) => new TextEncoder().encode(value),
+  decode: (value) => new TextDecoder().decode(value)
 };
 
 const sha256 = (value: Uint8Array | string): string => createHash('sha256')
@@ -70,14 +80,31 @@ const parseRecoveryRecord = (value: unknown): LightTableRecoveryRecord => {
   if (typeof record.mediaType !== 'string' || record.mediaType.length > 256) {
     throw new Error('Recovery media type is invalid.');
   }
+  for (const [field, maximum] of [
+    ['sourceName', 512],
+    ['sourceMediaType', 256],
+    ['sourcePath', 32_768]
+  ] as const) {
+    if (record[field] !== undefined
+      && (typeof record[field] !== 'string' || record[field]!.length > maximum)) {
+      throw new Error(`Recovery ${field} is invalid.`);
+    }
+  }
+  if (record.workspaceOrder !== undefined && !isFiniteInteger(record.workspaceOrder)) {
+    throw new Error('Recovery workspaceOrder is invalid.');
+  }
+  if (record.wasActive !== undefined && typeof record.wasActive !== 'boolean') {
+    throw new Error('Recovery wasActive is invalid.');
+  }
   return record as LightTableRecoveryRecord;
 };
 
 const encodeEnvelope = (
   record: LightTableRecoveryRecord,
-  artifact: Uint8Array
+  artifact: Uint8Array,
+  metadataCodec: DesktopRecoveryMetadataCodec
 ): Uint8Array => {
-  const metadata = new TextEncoder().encode(JSON.stringify(record));
+  const metadata = metadataCodec.encode(JSON.stringify(record));
   const output = new Uint8Array(HEADER_SIZE + metadata.byteLength + artifact.byteLength);
   output.set(MAGIC, 0);
   new DataView(output.buffer).setUint32(8, metadata.byteLength, true);
@@ -86,7 +113,10 @@ const encodeEnvelope = (
   return output;
 };
 
-const decodeEnvelope = (bytes: Uint8Array): LightTableRecoveryEntry => {
+const decodeEnvelope = (
+  bytes: Uint8Array,
+  metadataCodec: DesktopRecoveryMetadataCodec
+): LightTableRecoveryEntry => {
   if (bytes.byteLength < HEADER_SIZE) throw new Error('Recovery envelope is truncated.');
   if (!MAGIC.every((byte, index) => bytes[index] === byte)) {
     throw new Error('Recovery envelope magic is invalid.');
@@ -100,7 +130,7 @@ const decodeEnvelope = (bytes: Uint8Array): LightTableRecoveryEntry => {
   if (metadataLength <= 0 || artifactOffset > bytes.byteLength) {
     throw new Error('Recovery metadata boundary is invalid.');
   }
-  const record = parseRecoveryRecord(JSON.parse(new TextDecoder().decode(
+  const record = parseRecoveryRecord(JSON.parse(metadataCodec.decode(
     bytes.subarray(HEADER_SIZE, artifactOffset)
   )));
   const artifact = bytes.subarray(artifactOffset);
@@ -124,7 +154,8 @@ export class DesktopRecoveryStore {
   constructor(
     private readonly root: string,
     private readonly limits: DesktopRecoveryStoreLimits = DEFAULT_LIMITS,
-    private readonly now: () => number = () => Date.now()
+    private readonly now: () => number = () => Date.now(),
+    private readonly metadataCodec: DesktopRecoveryMetadataCodec = UTF8_METADATA_CODEC
   ) {}
 
   write(request: DesktopRecoveryWriteRequest): Promise<LightTableRecoveryWriteResult> {
@@ -132,7 +163,7 @@ export class DesktopRecoveryStore {
       try {
         this.validateWrite(request);
         await mkdir(this.root, { recursive: true, mode: 0o700 });
-        const envelope = encodeEnvelope(request.record, request.bytes);
+        const envelope = encodeEnvelope(request.record, request.bytes, this.metadataCodec);
         if (envelope.byteLength > this.limits.bytes) {
           return { status: 'failed', phase: 'quota', message: 'Recovery exceeds the storage budget.' };
         }
@@ -140,7 +171,7 @@ export class DesktopRecoveryStore {
           targetPath: this.filePath(request.record.recoveryId),
           bytes: envelope,
           validate: async (temporaryPath) => {
-            decodeEnvelope(new Uint8Array(await readFile(temporaryPath)));
+            decodeEnvelope(new Uint8Array(await readFile(temporaryPath)), this.metadataCodec);
           }
         });
         await this.prune();
@@ -168,6 +199,13 @@ export class DesktopRecoveryStore {
     });
   }
 
+  removeRecord(recoveryId: string): Promise<void> {
+    return this.serial(async () => {
+      if (!FILE_PATTERN.test(`${recoveryId}.ltrecovery`)) return;
+      await unlink(this.filePath(recoveryId)).catch(() => undefined);
+    });
+  }
+
   list(): Promise<LightTableRecoveryListing> {
     return this.serial(() => this.listUnsafe());
   }
@@ -176,7 +214,10 @@ export class DesktopRecoveryStore {
     return this.serial(async () => {
       if (!FILE_PATTERN.test(`${recoveryId}.ltrecovery`)) return null;
       try {
-        return decodeEnvelope(new Uint8Array(await readFile(this.filePath(recoveryId))));
+        return decodeEnvelope(
+          new Uint8Array(await readFile(this.filePath(recoveryId))),
+          this.metadataCodec
+        );
       } catch {
         return null;
       }
@@ -231,9 +272,10 @@ export class DesktopRecoveryStore {
       const match = name.match(FILE_PATTERN);
       if (!match) continue;
       try {
-        records.push(decodeEnvelope(new Uint8Array(
-          await readFile(path.join(this.root, name))
-        )).record);
+        records.push(decodeEnvelope(
+          new Uint8Array(await readFile(path.join(this.root, name))),
+          this.metadataCodec
+        ).record);
       } catch (reason) {
         rejections.push({
           recoveryId: match[1] ?? null,

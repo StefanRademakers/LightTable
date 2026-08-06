@@ -18,6 +18,7 @@ import {
   type StandaloneDocumentRuntime
 } from './standaloneDocumentRuntime';
 import type { SystemFontByteProvider } from '../lighttable/text/fonts/DocumentFontRegistry';
+import type { LightTableRecoveryRecord } from '../platform/LightTableRecoveryStore';
 
 export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
 
@@ -55,6 +56,30 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     payload: { file, decodeMode }
   }), [controller]);
 
+  const openRecoveredDocument = useCallback((
+    file: File,
+    record: LightTableRecoveryRecord,
+    crashLoop: boolean
+  ) => {
+    const originalName = record.sourceName || 'Recovered document';
+    const opened = controller.open({
+      source: {
+        id: `recovery:${record.recoveryId}:${file.size}`,
+        name: originalName,
+        mediaType: file.type || record.mediaType,
+        byteLength: file.size
+      },
+      title: `${originalName} (Recovered)`,
+      payload: {
+        file,
+        decodeMode: 'automatic',
+        recovery: { recoveryId: record.recoveryId, originalName, crashLoop }
+      }
+    });
+    if (opened.ok) opened.value.markChanged();
+    return opened;
+  }, [controller]);
+
   const closeDocument = useCallback((
     id: DocumentSessionId,
     discardChanges = false
@@ -69,6 +94,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     snapshot,
     documents,
     openDocument,
+    openRecoveredDocument,
     closeDocument,
     activateDocument
   };

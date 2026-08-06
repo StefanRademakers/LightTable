@@ -49,6 +49,7 @@ describe('requestWorkspaceDocumentClose', () => {
         confirmDiscardChanges,
         recovery: {
           remove,
+          removeRecord: vi.fn(),
           write: vi.fn(),
           list: vi.fn(),
           read: vi.fn()

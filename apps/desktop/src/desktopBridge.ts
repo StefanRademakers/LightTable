@@ -8,6 +8,7 @@ export interface DesktopFilePayload {
   name: string;
   type: string;
   bytes: Uint8Array;
+  sourcePath?: string;
 }
 
 export interface DesktopSavePayload {
@@ -88,6 +89,7 @@ export interface LightTableDesktopBridge {
   saveFile(payload: DesktopSavePayload): Promise<DesktopSaveResult>;
   writeRecovery(payload: DesktopRecoveryWritePayload): Promise<LightTableRecoveryWriteResult>;
   removeRecovery(documentId: string, throughRevision?: number): Promise<void>;
+  removeRecoveryRecord(recoveryId: string): Promise<void>;
   listRecoveries(): Promise<LightTableRecoveryListing>;
   readRecovery(recoveryId: string): Promise<DesktopRecoveryReadPayload | null>;
   writeClipboardPng(bytes: Uint8Array): Promise<void>;

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from 'react';
 import { type DocumentSessionId } from '../lighttable/application/documents/documentSession';
@@ -29,6 +30,10 @@ import {
   LightTableCommandPortRegistry,
   LightTableCommandService
 } from '../lighttable/application/commands/lightTableCommandService';
+import type {
+  LightTableRecoveryListing,
+  LightTableRecoveryRecord
+} from '../platform/LightTableRecoveryStore';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -37,6 +42,49 @@ interface LightTableStandaloneAppProps {
 export const recentFilesForLauncher = (
   recentFiles: readonly LightTableRecentFile[]
 ): readonly LightTableRecentFile[] => recentFiles.slice(0, 15);
+
+const RECOVERY_ATTEMPT_PREFIX = 'lighttable:recovery-attempt:';
+const recoveryAttemptKey = (recoveryId: string) => `${RECOVERY_ATTEMPT_PREFIX}${recoveryId}`;
+const hasRecoveryAttempt = (recoveryId: string): boolean => {
+  try {
+    return localStorage.getItem(recoveryAttemptKey(recoveryId)) !== null;
+  } catch {
+    return false;
+  }
+};
+const markRecoveryAttempt = (recoveryId: string): void => {
+  try { localStorage.setItem(recoveryAttemptKey(recoveryId), new Date().toISOString()); } catch { /* optional */ }
+};
+const clearRecoveryAttempt = (recoveryId: string): void => {
+  try { localStorage.removeItem(recoveryAttemptKey(recoveryId)); } catch { /* optional */ }
+};
+export const newestRecoveryRecords = (
+  listing: LightTableRecoveryListing
+): readonly LightTableRecoveryRecord[] => {
+  const seen = new Set<string>();
+  return [...listing.records]
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .filter((record) => {
+      if (seen.has(record.documentIdHash)) return false;
+      seen.add(record.documentIdHash);
+      return true;
+    });
+};
+
+export const planRecoveryWorkspace = (
+  listing: LightTableRecoveryListing,
+  attempted: (recoveryId: string) => boolean
+): { readonly records: readonly LightTableRecoveryRecord[]; readonly activeRecoveryId: string | null } => {
+  const records = newestRecoveryRecords(listing)
+    .filter((record) => !attempted(record.recoveryId))
+    .sort((left, right) => (left.workspaceOrder ?? 0) - (right.workspaceOrder ?? 0));
+  return {
+    records,
+    activeRecoveryId: records.find((record) => record.wasActive)?.recoveryId
+      ?? records.at(-1)?.recoveryId
+      ?? null
+  };
+};
 
 /**
  * Host-neutral workspace shell.
@@ -53,6 +101,7 @@ export function LightTableStandaloneApp({
     snapshot,
     documents,
     openDocument,
+    openRecoveredDocument,
     closeDocument: closeWorkspaceDocument,
     activateDocument
   } = useStandaloneDocumentWorkspace(host.systemFontProvider);
@@ -71,6 +120,15 @@ export function LightTableStandaloneApp({
   const [creating, setCreating] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
+  const [recoveryListing, setRecoveryListing] = useState<LightTableRecoveryListing>({
+    records: [],
+    rejections: []
+  });
+  const [recoveryPreviews, setRecoveryPreviews] = useState<Record<string, string>>({});
+  const recoveryPreviewsRef = useRef(recoveryPreviews);
+  recoveryPreviewsRef.current = recoveryPreviews;
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveriesDeferred, setRecoveriesDeferred] = useState(false);
   const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
   const fileDrop = useStandaloneFileDrop(openDocument);
 
@@ -85,6 +143,34 @@ export function LightTableStandaloneApp({
     });
     return () => { cancelled = true; };
   }, [controller, host]);
+
+  const refreshRecoveries = useCallback(async () => {
+    if (!host.recovery) {
+      setRecoveryListing({ records: [], rejections: [] });
+      return;
+    }
+    try {
+      const listing = await host.recovery.list();
+      setRecoveryListing(listing);
+      const validIds = new Set(listing.records.map(({ recoveryId }) => recoveryId));
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith(RECOVERY_ATTEMPT_PREFIX)
+          && !validIds.has(key.slice(RECOVERY_ATTEMPT_PREFIX.length))) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch (reason) {
+      setRecoveryError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, [host]);
+
+  useEffect(() => {
+    if (snapshot.documentOrder.length === 0) void refreshRecoveries();
+  }, [refreshRecoveries, snapshot.documentOrder.length]);
+
+  useEffect(() => () => {
+    Object.values(recoveryPreviewsRef.current).forEach((url) => URL.revokeObjectURL(url));
+  }, []);
 
   const changeScreenMode = useCallback((mode: EditorScreenMode) => {
     setScreenMode(mode);
@@ -167,6 +253,82 @@ export function LightTableStandaloneApp({
 
   const requestNewDocument = useCallback(() => setNewDialogOpen(true), []);
 
+  const openRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
+    if (!host.recovery) return null;
+    setOpening(true);
+    setRecoveryError(null);
+    try {
+      const entry = await host.recovery.read(record.recoveryId);
+      if (!entry) throw new Error('The recovery snapshot is missing or failed validation.');
+      const originalName = record.sourceName || 'Recovered document';
+      const base = originalName.replace(/\.[^.]+$/, '') || 'Recovered document';
+      const file = new File(
+        [entry.artifact],
+        `${base}-recovered-lighttable.png`,
+        { type: entry.record.mediaType || 'image/png' }
+      );
+      const crashLoop = hasRecoveryAttempt(record.recoveryId);
+      markRecoveryAttempt(record.recoveryId);
+      const opened = openRecoveredDocument(file, record, crashLoop);
+      if (!opened.ok) {
+        clearRecoveryAttempt(record.recoveryId);
+        throw new Error(`Recovered work could not be opened: ${opened.error.code}.`);
+      }
+      return opened.value.id;
+    } catch (reason) {
+      setRecoveryError(reason instanceof Error ? reason.message : String(reason));
+      return null;
+    } finally {
+      setOpening(false);
+    }
+  }, [host, openRecoveredDocument]);
+
+  const previewRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
+    if (!host.recovery || recoveryPreviews[record.recoveryId]) return;
+    setRecoveryError(null);
+    try {
+      const entry = await host.recovery.read(record.recoveryId);
+      if (!entry) throw new Error('The recovery preview is missing or corrupt.');
+      const url = URL.createObjectURL(entry.artifact);
+      setRecoveryPreviews((current) => ({ ...current, [record.recoveryId]: url }));
+    } catch (reason) {
+      setRecoveryError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, [host, recoveryPreviews]);
+
+  const discardRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
+    if (!host.recovery) return;
+    await host.recovery.removeRecord(record.recoveryId);
+    clearRecoveryAttempt(record.recoveryId);
+    const preview = recoveryPreviews[record.recoveryId];
+    if (preview) URL.revokeObjectURL(preview);
+    setRecoveryPreviews((current) => {
+      const next = { ...current };
+      delete next[record.recoveryId];
+      return next;
+    });
+    await refreshRecoveries();
+  }, [host, recoveryPreviews, refreshRecoveries]);
+
+  const resolveRecovery = useCallback(async (recoveryId: string) => {
+    await host.recovery?.removeRecord(recoveryId);
+    clearRecoveryAttempt(recoveryId);
+    await refreshRecoveries();
+  }, [host, refreshRecoveries]);
+
+  const recoverAll = useCallback(async () => {
+    const plan = planRecoveryWorkspace(recoveryListing, hasRecoveryAttempt);
+    let requestedActive: DocumentSessionId | null = null;
+    let lastOpened: DocumentSessionId | null = null;
+    for (const record of plan.records) {
+      const openedId = await openRecovery(record);
+      if (!openedId) continue;
+      lastOpened = openedId;
+      if (record.recoveryId === plan.activeRecoveryId) requestedActive = openedId;
+    }
+    if (requestedActive ?? lastOpened) activateDocument((requestedActive ?? lastOpened)!);
+  }, [activateDocument, openRecovery, recoveryListing]);
+
   useEffect(() => {
     const handleNewShortcut = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey
@@ -194,11 +356,90 @@ export function LightTableStandaloneApp({
   );
 
   if (snapshot.documentOrder.length === 0) {
+    const recoverableRecords = recoveriesDeferred
+      ? []
+      : newestRecoveryRecords(recoveryListing);
     return (
       <main
         className={`lighttable-launcher${fileDrop.active ? ' lighttable-launcher--drop-active' : ''}`}
       >
         <div className="lighttable-launcher__content">
+          {recoverableRecords.length > 0 ? (
+            <section className="lighttable-launcher__recovery-section" aria-labelledby="recoverable-work-heading">
+              <div className="lighttable-launcher__recovery-heading">
+                <div>
+                  <h2 id="recoverable-work-heading">Recoverable work</h2>
+                  <p>Recovered copies never overwrite their original source.</p>
+                </div>
+                <div className="lighttable-launcher__recovery-actions">
+                  {recoverableRecords.length > 1 ? (
+                    <button className="action-button" type="button" disabled={opening} onClick={() => void recoverAll()}>
+                      Open all
+                    </button>
+                  ) : null}
+                  <button className="action-button" type="button" onClick={() => setRecoveriesDeferred(true)}>
+                    Later
+                  </button>
+                </div>
+              </div>
+              <div className="lighttable-launcher__recoveries">
+                {recoverableRecords.map((record) => {
+                  const crashLoop = hasRecoveryAttempt(record.recoveryId);
+                  const preview = recoveryPreviews[record.recoveryId];
+                  return (
+                    <article className="lighttable-launcher__card lighttable-launcher__recovery-card" key={record.recoveryId}>
+                      <div className="lighttable-launcher__recovery-preview">
+                        {preview ? <img src={preview} alt={`Preview of ${record.sourceName || 'recovered work'}`} /> : <span>No preview loaded</span>}
+                      </div>
+                      <div className="lighttable-launcher__recovery-copy">
+                        <h3>{record.sourceName || 'Recovered document'}</h3>
+                        <p>{record.sourcePath || 'Original source location is unavailable.'}</p>
+                        {record.sourceAvailability === 'missing' ? (
+                          <p className="lighttable-launcher__recovery-warning" role="status">
+                            The original source is missing or moved. This recovered copy remains available.
+                          </p>
+                        ) : null}
+                        {record.sourceAvailability === 'newer' ? (
+                          <p className="lighttable-launcher__recovery-warning" role="status">
+                            The original source is newer. Recovery opens as a separate copy.
+                          </p>
+                        ) : null}
+                        <p>{record.sourceMediaType || record.mediaType} · revision {record.canonicalRevision}</p>
+                        <p>Last edit {new Date(record.updatedAt).toLocaleString()}</p>
+                        {crashLoop ? (
+                          <p className="lighttable-launcher__recovery-warning" role="alert">
+                            This copy was open when LightTable stopped. It will retry in isolated safe mode.
+                          </p>
+                        ) : null}
+                        <div className="lighttable-launcher__recovery-actions">
+                          <button className="action-button" type="button" disabled={opening} onClick={() => void openRecovery(record)}>
+                            {crashLoop ? 'Retry recovered copy' : 'Open recovered copy'}
+                          </button>
+                          <button className="action-button" type="button" onClick={() => void previewRecovery(record)}>
+                            Preview
+                          </button>
+                          <button className="action-button" type="button" onClick={() => void discardRecovery(record)}>
+                            Discard
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+          {recoveryListing.rejections.length > 0 ? (
+            <p className="lighttable-file-drop__error" role="alert">
+              {recoveryListing.rejections.length} recovery record(s) were isolated because they are unreadable or from an unsupported version.
+            </p>
+          ) : null}
+          {recoveryError ? <p className="lighttable-file-drop__error" role="alert">{recoveryError}</p> : null}
+          {!host.recovery ? (
+            <p className="lighttable-launcher__recovery-unavailable" role="status">
+              Durable crash recovery is unavailable in this environment.
+            </p>
+          ) : null}
           <div className="lighttable-launcher__start">
             <section className="lighttable-launcher__card lighttable-launcher__open-card">
               <h1>Open</h1>
@@ -310,6 +551,7 @@ export function LightTableStandaloneApp({
           onClearRecent={clearRecentFiles}
           onRequestNew={requestNewDocument}
           onOpen={openDocument}
+          onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
         />
       ))}
       <NewDocumentDialog

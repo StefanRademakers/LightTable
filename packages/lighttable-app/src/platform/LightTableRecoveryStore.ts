@@ -5,6 +5,13 @@ export interface LightTableRecoveryRecord {
   readonly recoveryId: string;
   readonly documentIdHash: string;
   readonly sourceFingerprintSha256: string;
+  readonly sourceName?: string;
+  readonly sourceMediaType?: string;
+  readonly sourcePath?: string;
+  readonly sourceLastModified?: number;
+  readonly sourceAvailability?: 'available' | 'missing' | 'newer' | 'unavailable';
+  readonly workspaceOrder?: number;
+  readonly wasActive?: boolean;
   readonly canonicalRevision: number;
   readonly historyStateId: number;
   readonly savedStateId: number;
@@ -49,6 +56,7 @@ export interface LightTableRecoveryListing {
 export interface LightTableRecoveryStore {
   write(request: LightTableRecoveryWriteRequest): Promise<LightTableRecoveryWriteResult>;
   remove(documentId: string, throughRevision?: number): Promise<void>;
+  removeRecord(recoveryId: string): Promise<void>;
   list(): Promise<LightTableRecoveryListing>;
   read(recoveryId: string): Promise<LightTableRecoveryEntry | null>;
 }
@@ -92,6 +100,29 @@ export const parseLightTableRecoveryRecord = (
   }
   if (typeof record.mediaType !== 'string' || record.mediaType.length > 256) {
     throw new Error('Recovery media type is invalid.');
+  }
+  for (const [field, maximum] of [
+    ['sourceName', 512],
+    ['sourceMediaType', 256],
+    ['sourcePath', 32_768]
+  ] as const) {
+    if (record[field] !== undefined
+      && (typeof record[field] !== 'string' || record[field]!.length > maximum)) {
+      throw new Error(`Recovery ${field} is invalid.`);
+    }
+  }
+  if (record.workspaceOrder !== undefined && !isFiniteInteger(record.workspaceOrder)) {
+    throw new Error('Recovery workspaceOrder is invalid.');
+  }
+  if (record.wasActive !== undefined && typeof record.wasActive !== 'boolean') {
+    throw new Error('Recovery wasActive is invalid.');
+  }
+  if (record.sourceLastModified !== undefined && !isFiniteInteger(record.sourceLastModified)) {
+    throw new Error('Recovery sourceLastModified is invalid.');
+  }
+  if (record.sourceAvailability !== undefined
+    && !['available', 'missing', 'newer', 'unavailable'].includes(record.sourceAvailability)) {
+    throw new Error('Recovery sourceAvailability is invalid.');
   }
   return record as LightTableRecoveryRecord;
 };

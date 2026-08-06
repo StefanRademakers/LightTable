@@ -16,6 +16,7 @@ export interface LightTableEditorShellProps {
   screenMode: EditorScreenMode;
   active: boolean;
   saving: boolean;
+  recoveryNotice?: string | null;
   onClose: () => void;
   menuOptionsFor: (menuId: EditorMenuId) => Array<ContextMenuOption<string>>;
   activeTool: ToolId;
@@ -101,6 +102,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   screenMode,
   active,
   saving,
+  recoveryNotice,
   onClose,
   menuOptionsFor,
   activeTool,
@@ -255,6 +257,12 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onTextWarpCancel={onTextWarpCancel}
         onTransformCancel={onTransformCancel}
       /> : null}
+
+      {recoveryNotice && screenMode !== 'canvas-only' ? (
+        <div className="lighttable__recovery-notice" role="status">
+          {recoveryNotice}
+        </div>
+      ) : null}
 
       <input
         ref={fileInputRef}

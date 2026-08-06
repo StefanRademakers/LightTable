@@ -26,6 +26,8 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.invoke('lighttable:recovery-write', payload),
   removeRecovery: (documentId: string, throughRevision?: number) =>
     ipcRenderer.invoke('lighttable:recovery-remove', documentId, throughRevision),
+  removeRecoveryRecord: (recoveryId: string) =>
+    ipcRenderer.invoke('lighttable:recovery-remove-record', recoveryId),
   listRecoveries: () => ipcRenderer.invoke('lighttable:recovery-list'),
   readRecovery: (recoveryId: string) =>
     ipcRenderer.invoke('lighttable:recovery-read', recoveryId),

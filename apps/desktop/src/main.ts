@@ -6,6 +6,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  safeStorage,
   session
 } from 'electron';
 import { createServer, type Server } from 'node:http';
@@ -42,7 +43,23 @@ const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
 const recoveryStore = new DesktopRecoveryStore(
-  path.join(app.getPath('userData'), 'recovery-v1')
+  path.join(app.getPath('userData'), 'recovery-v1'),
+  undefined,
+  undefined,
+  {
+    encode(value) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error('OS-protected recovery metadata storage is unavailable.');
+      }
+      return new Uint8Array(safeStorage.encryptString(value));
+    },
+    decode(value) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error('OS-protected recovery metadata storage is unavailable.');
+      }
+      return safeStorage.decryptString(Buffer.from(value));
+    }
+  }
 );
 const systemFonts = new WindowsSystemFontCatalog(
   [
@@ -121,7 +138,8 @@ const forgetRecentFile = (id: string): Promise<void> =>
 const readDesktopFilePayload = async (filePath: string) => ({
   name: path.basename(filePath),
   type: desktopMediaTypeForFileName(filePath),
-  bytes: new Uint8Array(await readFile(filePath))
+  bytes: new Uint8Array(await readFile(filePath)),
+  sourcePath: path.resolve(filePath)
 });
 
 const ISOLATION_HEADERS = {
@@ -454,7 +472,27 @@ void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:recovery-list', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
-    return recoveryStore.list();
+    const listing = await recoveryStore.list();
+    const records = await Promise.all(listing.records.map(async (record) => {
+      if (!record.sourcePath) return { ...record, sourceAvailability: 'unavailable' as const };
+      try {
+        const source = await stat(record.sourcePath);
+        const newer = record.sourceLastModified !== undefined
+          && source.mtimeMs > record.sourceLastModified + 1;
+        return { ...record, sourceAvailability: newer ? 'newer' as const : 'available' as const };
+      } catch {
+        return { ...record, sourceAvailability: 'missing' as const };
+      }
+    }));
+    return { ...listing, records };
+  });
+
+  ipcMain.handle('lighttable:recovery-remove-record', async (event, recoveryId: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof recoveryId !== 'string' || recoveryId.length > 128) {
+      throw new Error('Invalid LightTable recovery removal request.');
+    }
+    await recoveryStore.removeRecord(recoveryId);
   });
 
   ipcMain.handle('lighttable:recovery-read', async (event, recoveryId: string) => {

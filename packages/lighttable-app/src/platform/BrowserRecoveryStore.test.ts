@@ -107,7 +107,7 @@ describe('BrowserRecoveryStore', () => {
       .resolves.toEqual({ status: 'committed', byteLength: artifact.size });
     await expect(store.list()).resolves.toEqual({ records: [record], rejections: [] });
     expect(await (await store.read(record.recoveryId))!.artifact.text()).toBe('snapshot');
-    await store.remove('doc-1');
+    await store.removeRecord(record.recoveryId);
     await expect(store.list()).resolves.toEqual({ records: [], rejections: [] });
   });
 

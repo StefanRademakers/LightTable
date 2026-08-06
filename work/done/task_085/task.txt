@@ -1,0 +1,61 @@
+# Task 085 — recovery and session-restore UX (P0)
+
+Priority: P0. Depends on Tasks 083–084. Expected effort: 5–8 focused hours.
+
+## Objective
+
+Turn verified recovery records into a clear startup workflow without silently
+overwriting originals or reopening broken documents in a crash loop.
+
+## Required work
+
+- Detect recoverable sessions before ordinary recent-file restoration.
+- Present file name, last edit time, source path/type and recoverable revision.
+- Support Preview/Open recovered copy, Discard and Later; recovered work opens
+  dirty and Save As until the user deliberately replaces a source.
+- Restore multiple documents and active-tab order without activating every GPU
+  renderer concurrently.
+- Record a crash-loop/safe-mode marker and isolate the failing document while
+  allowing other documents to open.
+- Reconcile missing source files, moved files, malformed journals and newer
+  successfully saved documents explicitly.
+
+## UI exposure
+
+Use existing start-page cards, menus, buttons and tokens. Add a Recoverable
+work section only when records exist and an in-editor recovery banner only for
+the recovered copy. No custom dialog styling.
+
+## Verification and completion
+
+- Packaged Electron smoke: edit without save, force termination, restart,
+  preview/recover, save, reopen and verify canonical equality.
+- Multi-document and corrupt-record fixtures; no repeated crash loop.
+- Keyboard/focus/accessibility checks for the recovery UI.
+- Web behavior must be honest when durable restoration is unavailable.
+- Run quality quick plus focused packaged smoke, update docs, commit and move.
+
+## Completion evidence (2026-08-06)
+
+- Recovery is listed ahead of recents with source name/path/type, edit time and
+  revision, plus Preview, Open recovered copy, Discard, Later and ordered Open
+  all actions built from the existing launcher cards/buttons/tokens.
+- Recovered copies open dirty with a persistent editor banner and save to a new
+  target. Verified Save and explicit discard remove the exact checkpoint and
+  crash-attempt marker; originals are never overwritten implicitly.
+- Electron encrypts restore metadata with OS `safeStorage`. Startup reconciles
+  available, missing/moved and newer original sources and isolates malformed,
+  unsupported, missing or checksum-invalid records.
+- Recover-all restores workspace order and the requested active tab without
+  activating every renderer. Previously attempted records are excluded from
+  bulk restore and retry through the existing document-scoped error boundary.
+- Focused browser/desktop recovery fixtures pass, including multi-document
+  order/active/crash-loop planning, corrupt records, encryption and removal.
+- Packaged Electron smoke force-terminates TextTest after an edit, restarts to
+  recovery before recents, checks keyboard-focusable actions, previews, opens
+  dirty, saves, verifies cleanup, and reopens with equal canonical layer names
+  and types. Four visual checkpoints were inspected; no page errors occurred.
+- `npm run quality:agent -- --quick`, source-structure/architecture audits,
+  all workspace typechecks, 316 app files / 1,685 tests, all other workspace
+  tests, web production build, packaged desktop build and the repeated packaged
+  recovery smoke pass.

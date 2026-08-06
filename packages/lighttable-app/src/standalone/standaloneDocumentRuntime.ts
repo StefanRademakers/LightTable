@@ -7,6 +7,11 @@ export type StandaloneDecodeMode = DocumentOpenMode;
 export interface StandaloneDocumentRuntime {
   readonly file: File;
   readonly decodeMode: StandaloneDecodeMode;
+  readonly recovery?: {
+    readonly recoveryId: string;
+    readonly originalName: string;
+    readonly crashLoop: boolean;
+  };
 }
 
 export const standaloneSourceIdentity = (

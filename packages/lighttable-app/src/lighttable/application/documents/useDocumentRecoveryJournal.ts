@@ -13,6 +13,12 @@ export interface DocumentRecoveryJournalOptions {
   readonly store?: LightTableRecoveryStore;
   readonly documentId: string;
   readonly sourceFingerprint: string;
+  readonly sourceName: string;
+  readonly sourceMediaType: string;
+  readonly sourcePath?: string;
+  readonly sourceLastModified?: number;
+  readonly workspaceOrder: number;
+  readonly wasActive: boolean;
   readonly commandHistory: DocumentCommandHistory;
   readonly getCanonicalRevision: () => number;
   readonly exportOutput: () => Promise<ExportedLightTableDocument>;
@@ -28,13 +34,39 @@ export const useDocumentRecoveryJournal = ({
   store,
   documentId,
   sourceFingerprint,
+  sourceName,
+  sourceMediaType,
+  sourcePath,
+  sourceLastModified,
+  workspaceOrder,
+  wasActive,
   commandHistory,
   getCanonicalRevision,
   exportOutput,
   onStatus
 }: DocumentRecoveryJournalOptions): void => {
-  const currentRef = useRef({ getCanonicalRevision, exportOutput, onStatus });
-  currentRef.current = { getCanonicalRevision, exportOutput, onStatus };
+  const currentRef = useRef({
+    getCanonicalRevision,
+    exportOutput,
+    onStatus,
+    sourceName,
+    sourceMediaType,
+    sourcePath,
+    sourceLastModified,
+    workspaceOrder,
+    wasActive
+  });
+  currentRef.current = {
+    getCanonicalRevision,
+    exportOutput,
+    onStatus,
+    sourceName,
+    sourceMediaType,
+    sourcePath,
+    sourceLastModified,
+    workspaceOrder,
+    wasActive
+  };
 
   useEffect(() => {
     if (!store) return undefined;
@@ -63,6 +95,16 @@ export const useDocumentRecoveryJournal = ({
           recoveryId: createRecoveryId(),
           documentIdHash,
           sourceFingerprintSha256,
+          sourceName: currentRef.current.sourceName,
+          sourceMediaType: currentRef.current.sourceMediaType,
+          ...(currentRef.current.sourcePath
+            ? { sourcePath: currentRef.current.sourcePath }
+            : {}),
+          ...(currentRef.current.sourceLastModified !== undefined
+            ? { sourceLastModified: currentRef.current.sourceLastModified }
+            : {}),
+          workspaceOrder: currentRef.current.workspaceOrder,
+          wasActive: currentRef.current.wasActive,
           canonicalRevision: revision.canonicalRevision,
           historyStateId: revision.historyStateId,
           savedStateId: revision.savedStateId,

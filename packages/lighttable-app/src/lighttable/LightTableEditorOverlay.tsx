@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
-import {
-  buildParagraphFrameOverlay
-} from '@lighttable/text-rendering';
+import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import {
   DocumentCommandHistory
 } from './application/commands/documentCommandHistory';
@@ -31,7 +29,8 @@ import {
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
-import { useDocumentRecoveryJournal } from './application/documents/useDocumentRecoveryJournal';
+import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
+import { exportEditorPngArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
@@ -109,8 +108,6 @@ import {
 import {
   useEditorDocumentFileController
 } from './composition/documents/useEditorDocumentFileController';
-import { exportPsdDocument } from './application/documents/PsdExportClient';
-import type { LayerAssetBlobs } from './editor/persistence/layeredDocumentFormat';
 import {
   useEditorKeyboardController
 } from './composition/input/useEditorKeyboardController';
@@ -406,6 +403,8 @@ export interface LightTableEditorOverlayProps {
   commandPorts?: LightTableCommandPortRegistry;
   imageClipboard?: LightTableImageClipboard;
   recoveryStore?: LightTableRecoveryStore;
+  recoveryNotice?: string | null;
+  onRecoveryResolved?: () => Promise<void> | void;
 }
 
 export type { EditorScreenMode } from './editor/workspace/editorScreenMode';
@@ -448,7 +447,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   commandService,
   commandPorts,
   imageClipboard: providedImageClipboard,
-  recoveryStore
+  recoveryStore,
+  recoveryNotice = null,
+  onRecoveryResolved
 }) => {
   const imageClipboard = providedImageClipboard ?? browserImageClipboard();
   const standaloneFontRegistryRef = useRef<DocumentFontRegistry | null>(null);
@@ -3011,7 +3012,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       else commandHistory.markSaved();
     },
     onSaveCommitted: recoveryStore
-      ? () => recoveryStore.remove(workspaceDocumentId)
+      ? async () => {
+          await recoveryStore.remove(workspaceDocumentId);
+          await onRecoveryResolved?.();
+        }
       : undefined,
     onRequestOpenWorkspaceDocument,
     onOpenWorkspaceDocument,
@@ -3019,50 +3023,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setError,
     setStatus: setGradeStatus
   });
-  useDocumentRecoveryJournal({
-    store: recoveryStore,
-    documentId: workspaceDocumentId,
-    sourceFingerprint: `${effectiveSourceFileKey ?? 'unknown'}:${initialSourceName}`,
-    commandHistory,
-    getCanonicalRevision: () => documentSession?.getSnapshot().documentRevision
-      ?? commandHistory.getSnapshot().currentStateId,
-    exportOutput,
-    onStatus: (status, message) => {
-      if (status === 'failed') {
-        console.warn(`[Recovery] ${message}`);
-        setGradeStatus('Recovery checkpoint unavailable');
-      } else {
-        setGradeStatus(message);
-      }
-    }
-  });
+  useEditorRecoveryJournal({ store: recoveryStore, documentId: workspaceDocumentId,
+    sourceKey: effectiveSourceFileKey, sourceName: initialSourceName, sourceBlob: initialSourceBlob, active, commandHistory, exportOutput,
+    workspaceOrder: Math.max(0, workspaceDocuments?.findIndex(({ id }) => id === workspaceDocumentId) ?? 0),
+    getCanonicalRevision: () => documentSession?.getSnapshot().documentRevision ?? commandHistory.getSnapshot().currentStateId,
+    setStatus: setGradeStatus });
   exportNativeArtifactRef.current = async () => (await exportOutput()).file;
-  exportPngArtifactRef.current = async () => {
-    const renderer = engineRef.current;
-    if (!renderer || !imageDocumentRef.current) {
-      throw new Error('The document renderer is not ready.');
-    }
-    return new File(
-      [await renderer.exportPng()],
-      `${fileNameBase.replace(/\.[^.]+$/, '') || 'image'}-lighttable.png`,
-      { type: 'image/png' }
-    );
-  };
-  exportPsdArtifactRef.current = async () => {
-    const renderer = engineRef.current;
-    const document = imageDocumentRef.current;
-    if (!renderer || !document) throw new Error('The document renderer is not ready.');
-    const [composite, assets] = await Promise.all([
-      renderer.exportPng(),
-      renderer.exportPsdLayerAssets(document)
-    ]);
-    return (await exportPsdDocument(
-      document,
-      composite,
-      assets.filter((asset): asset is LayerAssetBlobs => 'layerId' in asset),
-      fileNameBase
-    )).file;
-  };
+  exportPngArtifactRef.current = () => exportEditorPngArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
+  exportPsdArtifactRef.current = () => exportEditorPsdArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
 
   const editorMenuController = createEditorMenuController({
     projection: {
@@ -3823,6 +3791,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       screenMode={screenMode}
       active={active}
       saving={saving}
+      recoveryNotice={recoveryNotice}
       onClose={onClose}
       menuOptionsFor={createAppMenuOptions}
       activeTool={visibleTool}

@@ -16,16 +16,27 @@ reports quota/durability failures honestly. Recovery is never uploaded.
 
 Each record contains a random recovery ID, hashed document/source identities,
 canonical revision, history state ID, saved state ID, timestamps, byte length,
-native artifact checksum and schema version. The unencrypted index contains no
-source path, document text, pixels or user-facing filename. The snapshot itself
-necessarily contains document content and receives private per-installation
-filesystem permissions where the host supports them.
+native artifact checksum and schema version. Electron also records the source
+name/path/type and workspace position needed for an intelligible restore UI;
+that metadata envelope is encrypted with Electron `safeStorage` and is never
+written as clear-text index data. The snapshot itself necessarily contains
+document content and receives private per-installation filesystem permissions
+where the host supports them.
 
 Recovery uses the crash-safe prepared-file publication from Task 083. Per
 installation only one write may run. An edit during a running write does not
 queue every intermediate state: at most the newest revision is handed off after
 the current write settles. A verified explicit Save removes records through the
 committed revision; failed/canceled saves do not.
+
+At startup LightTable validates and lists recovery before ordinary recents.
+Preview and Open always operate on a separate dirty recovered copy; they never
+replace the original. The desktop host checks the original source path and
+labels missing/moved or newer originals explicitly. A per-record attempt marker
+prevents bulk restore from repeatedly reopening a document implicated in the
+previous crash; the existing document runtime boundary keeps that failure from
+closing other recovered documents. Saving or explicitly discarding the copy
+removes both its checkpoint and attempt marker.
 
 ## Why snapshot-only v1
 
@@ -51,6 +62,11 @@ not a mocked serializer:
   preparation and 20.5 ms persistence.
 - After that checkpoint, verified Ctrl+S wrote the 466 KiB native document and
   left zero recovery generations, proving save cleanup happens after commit.
+- The packaged recovery smoke force-terminated an edited TextTest session,
+  found recovery before recents after restart, loaded its preview, opened it as
+  a visibly dirty recovered copy, saved it to a new target, observed checkpoint
+  cleanup and reopened the save with an equal canonical layer projection. The
+  smoke also checks keyboard focusability and records four visual checkpoints.
 - The 178,264,877-byte EHS-396 PSD remained interactive during a checkpoint:
   after import there were zero main-thread tasks above 50 ms. Its complete
   native snapshot did not finish inside a 150-second observation window. No

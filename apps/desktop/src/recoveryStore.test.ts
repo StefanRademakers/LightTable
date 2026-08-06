@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -167,5 +167,36 @@ describe('DesktopRecoveryStore', () => {
     expect(await store.write({ documentId: 'wrong-doc', record: metadata, bytes: artifact }))
       .toMatchObject({ status: 'failed', phase: 'write' });
     expect((await store.list()).records).toEqual([]);
+  });
+
+  it('protects source metadata with the host codec and removes by recovery ID', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'lighttable-recovery-protected-'));
+    directories.push(root);
+    const protect = (value: Uint8Array) => Uint8Array.from(value, (byte) => byte ^ 0xa5);
+    const store = new DesktopRecoveryStore(
+      root,
+      undefined,
+      () => 100_000,
+      {
+        encode: (value) => protect(new TextEncoder().encode(value)),
+        decode: (value) => new TextDecoder().decode(protect(value))
+      }
+    );
+    const artifact = bytes('protected snapshot');
+    const metadata = {
+      ...record({ documentId: 'doc-private', revision: 1, artifact, updatedAt: 90_000 }),
+      sourceName: 'private.psd',
+      sourceMediaType: 'image/vnd.adobe.photoshop',
+      sourcePath: 'D:\\private\\client\\private.psd',
+      workspaceOrder: 2,
+      wasActive: true
+    } satisfies LightTableRecoveryRecord;
+    await expect(store.write({ documentId: 'doc-private', record: metadata, bytes: artifact }))
+      .resolves.toMatchObject({ status: 'committed' });
+    const raw = await readFile(path.join(root, `${metadata.recoveryId}.ltrecovery`));
+    expect(raw.includes(Buffer.from(metadata.sourcePath!))).toBe(false);
+    await expect(store.list()).resolves.toEqual({ records: [metadata], rejections: [] });
+    await store.removeRecord(metadata.recoveryId);
+    await expect(store.list()).resolves.toEqual({ records: [], rejections: [] });
   });
 });
