@@ -33,6 +33,11 @@ import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import type { CurvePoint } from '../../curves';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
+import {
+  convertEncodedDocumentColorToSrgb,
+  documentBlendProfileFromIccName
+} from '../color/documentColorTransform';
+import type { DocumentBlendProfile } from '../document/documentTypes';
 
 export interface PsdDocumentImport {
   document: ImageDocument;
@@ -139,22 +144,22 @@ const levelsCurve = (channel: LevelsAdjustmentChannel | undefined): CurvePoint[]
   });
 };
 
-const rgbColor = (value: PsdColor | undefined) => {
+const rgbColor = (value: PsdColor | undefined, sourceProfile: DocumentBlendProfile) => {
   if (!value) return null;
   if ('r' in value && 'g' in value && 'b' in value) {
     const divisor = Math.max(value.r, value.g, value.b) > 1 ? 255 : 1;
-    return {
-      red: clamp(value.r / divisor, 0, 1),
-      green: clamp(value.g / divisor, 0, 1),
-      blue: clamp(value.b / divisor, 0, 1)
-    };
+    const converted = convertEncodedDocumentColorToSrgb({
+      r: clamp(value.r / divisor, 0, 1),
+      g: clamp(value.g / divisor, 0, 1),
+      b: clamp(value.b / divisor, 0, 1)
+    }, sourceProfile);
+    return { red: converted.r, green: converted.g, blue: converted.b };
   }
   if ('fr' in value && 'fg' in value && 'fb' in value) {
-    return {
-      red: clamp(value.fr, 0, 1),
-      green: clamp(value.fg, 0, 1),
-      blue: clamp(value.fb, 0, 1)
-    };
+    const converted = convertEncodedDocumentColorToSrgb({
+      r: clamp(value.fr, 0, 1), g: clamp(value.fg, 0, 1), b: clamp(value.fb, 0, 1)
+    }, sourceProfile);
+    return { red: converted.r, green: converted.g, blue: converted.b };
   }
   return null;
 };
@@ -179,7 +184,8 @@ const importPsdAdjustment = (
   descriptor: unknown,
   warnings: string[],
   compatibility: PsdImportCompatibilityEntry[],
-  path: string
+  path: string,
+  sourceProfile: DocumentBlendProfile = 'srgb'
 ) => {
   const adjustments = createDefaultAdjustments();
   const source = descriptor as PsdAdjustment | null;
@@ -264,7 +270,7 @@ const importPsdAdjustment = (
     case 'black & white':
       adjustments.saturation = -100;
       if (source.useTint) {
-        const tint = rgbColor(source.tintColor);
+        const tint = rgbColor(source.tintColor, sourceProfile);
         if (tint) {
           const mapped = rgbToHueSaturation(tint.red, tint.green, tint.blue);
           adjustments.colorGrading.hue[0] = mapped.hue;
@@ -301,7 +307,7 @@ const importPsdAdjustment = (
       break;
     }
     case 'photo filter': {
-      const filterColor = rgbColor(source.color);
+      const filterColor = rgbColor(source.color, sourceProfile);
       if (filterColor) {
         const mapped = rgbToHueSaturation(filterColor.red, filterColor.green, filterColor.blue);
         adjustments.colorGrading.hue[0] = mapped.hue;
@@ -333,6 +339,7 @@ export const importPsdDocument = (
   const warnings = [...source.warnings];
   const compatibility: PsdImportCompatibilityEntry[] = [];
   const now = Date.now();
+  const blendProfile = documentBlendProfileFromIccName(source.colorProfile.name);
   const patternIds = new Map(
     source.patterns.map((pattern) => [
       pattern.id,
@@ -358,7 +365,8 @@ export const importPsdDocument = (
       });
     }
     const styleImport = importPsdLayerStyles(node.effects as LayerEffectsInfo | undefined, {
-      resolvePatternAsset: (patternId) => patternIds.get(patternId) ?? null
+      resolvePatternAsset: (patternId) => patternIds.get(patternId) ?? null,
+      sourceProfile: blendProfile
     });
     styleImport.compatibility
       .forEach(({ support, reason, path: effectPath }) => {
@@ -460,7 +468,13 @@ export const importPsdDocument = (
       const layer: AdjustmentLayer = {
         ...common,
         type: 'adjustment',
-        adjustmentStack: importPsdAdjustment(node.adjustment, warnings, compatibility, path),
+        adjustmentStack: importPsdAdjustment(
+          node.adjustment,
+          warnings,
+          compatibility,
+          path,
+          blendProfile
+        ),
         mask: node.mask ? {
           id: node.mask.id,
           enabled: node.mask.enabled,
@@ -489,7 +503,7 @@ export const importPsdDocument = (
         vectorFill: node.preserved.vectorFill,
         vectorMask: node.preserved.vectorMask,
         vectorStroke: node.preserved.vectorStroke
-      });
+      }, blendProfile);
       if (vectorImport.status === 'native'
         || (vectorImport.status === 'preview-backed' && node.pixels && node.pixelSummary)) {
         let layer: VectorLayer = {
@@ -558,7 +572,7 @@ export const importPsdDocument = (
         layerId: pathLayerId,
         elementId: pathElementId,
         subpathId: pathSubpathId
-      });
+      }, blendProfile);
       const reason = textImport.reasons.join(' ');
       const previewBacked = node.rasterFallback !== 'transparent-placeholder' && Boolean(node.pixels);
       if (textImport.kind === 'editable-flow') {
@@ -729,6 +743,7 @@ export const importPsdDocument = (
           ? source.bitsPerChannel
           : 16,
         workingProfile: 'srgb',
+        blendProfile,
         profileState: source.colorProfile.disposition === 'embedded' ? 'assigned' : 'assumed'
       },
       importProvenance: {

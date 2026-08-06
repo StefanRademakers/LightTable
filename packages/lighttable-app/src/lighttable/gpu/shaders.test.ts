@@ -54,8 +54,6 @@ import {
   LAYER_EXPORT_WGSL,
   LAYER_FILL_COLOR_WGSL,
   LAYER_INVERT_COLORS_WGSL,
-  LAYER_MASK_DECODE_WGSL,
-  LAYER_SOURCE_DECODE_WGSL,
   LAYER_STYLE_EFFECT_WGSL,
   LAYER_STYLE_GAUSSIAN_BLUR_WGSL,
   LAYER_STYLE_SHAPE_WGSL,
@@ -64,6 +62,10 @@ import {
   SELECTION_RESAMPLE_WGSL,
   SELECTION_SHAPE_WGSL
 } from '../editor/rendering/layerShaders';
+import {
+  LAYER_MASK_DECODE_WGSL,
+  LAYER_SOURCE_DECODE_WGSL
+} from '../editor/rendering/layerSourceDecodeShaders';
 import {
   LAYER_TRANSFORM_WGSL,
   SELECTION_TRANSFORM_WGSL
@@ -261,7 +263,7 @@ describe('LightTable WGSL modules', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('@group(0) @binding(5) var clippingTexture');
     expect(LAYER_COMPOSITE_WGSL).toContain('sampledForeground * settings.opacity * mask * clipping');
     expect(LAYER_COMPOSITE_WGSL).toContain(
-      'return compositeBlend(background, foreground, i32(settings.blendMode + 0.5))'
+      'return compositeBlend(background, foreground, i32(settings.blendMode + 0.5), settings.maskPadding.x, settings.maskPadding.y)'
     );
     expect(LAYER_COMPOSITE_WGSL).toContain(
       'blendedEncoded * background.a * foreground.a'

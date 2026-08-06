@@ -24,6 +24,8 @@ import {
   type VectorPath
 } from '@lighttable/vector-core';
 import type { AffineMatrix } from '../rendering/renderContract';
+import type { DocumentBlendProfile } from '../document/documentTypes';
+import { convertEncodedDocumentColorToSrgb } from '../color/documentColorTransform';
 
 export type PsdTextImportResult =
   | {
@@ -239,24 +241,32 @@ const importTextPath = (
   };
 };
 
-const color = (value: PsdColor | undefined, reasons: string[]): RgbaColor => {
+const color = (
+  value: PsdColor | undefined,
+  reasons: string[],
+  sourceProfile: DocumentBlendProfile
+): RgbaColor => {
   if (value && 'r' in value && 'g' in value && 'b' in value) {
     const divisor = Math.max(value.r, value.g, value.b) > 1 ? 255 : 1;
     const alpha = 'a' in value ? (value.a > 1 ? value.a / 255 : value.a) : 1;
-    return {
-      colorSpace: 'srgb',
+    const converted = convertEncodedDocumentColorToSrgb({
       r: clamp(value.r / divisor, 0, 1),
       g: clamp(value.g / divisor, 0, 1),
-      b: clamp(value.b / divisor, 0, 1),
+      b: clamp(value.b / divisor, 0, 1)
+    }, sourceProfile);
+    return {
+      colorSpace: 'srgb',
+      ...converted,
       a: clamp(alpha, 0, 1)
     };
   }
   if (value && 'fr' in value && 'fg' in value && 'fb' in value) {
+    const converted = convertEncodedDocumentColorToSrgb({
+      r: clamp(value.fr, 0, 1), g: clamp(value.fg, 0, 1), b: clamp(value.fb, 0, 1)
+    }, sourceProfile);
     return {
       colorSpace: 'srgb',
-      r: clamp(value.fr, 0, 1),
-      g: clamp(value.fg, 0, 1),
-      b: clamp(value.fb, 0, 1),
+      ...converted,
       a: 1
     };
   }
@@ -268,12 +278,13 @@ const style = (
   source: TextStyle,
   start: number,
   end: number,
-  reasons: string[]
+  reasons: string[],
+  sourceProfile: DocumentBlendProfile
 ): TextStyleRun => {
-  const fill = color(source.fillColor, reasons);
+  const fill = color(source.fillColor, reasons, sourceProfile);
   const stroke = source.strokeFlag && finite(source.outlineWidth) && source.outlineWidth > 0
     ? {
-      paint: { kind: 'solid' as const, color: color(source.strokeColor, reasons) },
+      paint: { kind: 'solid' as const, color: color(source.strokeColor, reasons, sourceProfile) },
       width: clamp(source.outlineWidth, 0.01, 100_000),
       cap: 'butt' as const,
       join: 'miter' as const,
@@ -396,7 +407,8 @@ const unsupportedEditableSemantics = (source: LayerTextData): string[] => {
 export const importPsdText = (
   value: unknown,
   sourceObjectId?: string,
-  pathTarget?: PsdTextPathTarget
+  pathTarget?: PsdTextPathTarget,
+  sourceProfile: DocumentBlendProfile = 'srgb'
 ): PsdTextImportResult => {
   if (!value || typeof value !== 'object') {
     return { kind: 'preserved', reasons: ['The Photoshop text descriptor is missing or invalid.'] };
@@ -443,7 +455,7 @@ export const importPsdText = (
     ? styleSpans
     : text.length ? [{ start: 0, end: text.length, run: { length: text.length, style: source.style ?? {} } }] : [];
   const styleRuns = effectiveStyleSpans.map(({ start, end, run }) =>
-    style({ ...(source.style ?? {}), ...run.style }, start, end, reasons));
+    style({ ...(source.style ?? {}), ...run.style }, start, end, reasons, sourceProfile));
   const effectiveParagraphSpans = paragraphSpans.length
     ? paragraphSpans
     : text.length ? [{ start: 0, end: text.length, run: { length: text.length, style: source.paragraphStyle ?? {} } }] : [];
@@ -499,7 +511,7 @@ export const importPsdText = (
   if (!importedPath && source.shapeType === 'box' && layout.mode !== 'paragraph') {
     return { kind: 'preserved', reasons: ['The Photoshop paragraph text frame is missing or invalid.'] };
   }
-  const insertionStyle = style({ ...(source.style ?? {}) }, 0, 1, reasons);
+  const insertionStyle = style({ ...(source.style ?? {}) }, 0, 1, reasons, sourceProfile);
   const insertionParagraph = paragraphStyle(source.paragraphStyle ?? {}, source.style, 0, 1);
   const data: TextLayerData = {
     ...createDefaultTextLayerData(),

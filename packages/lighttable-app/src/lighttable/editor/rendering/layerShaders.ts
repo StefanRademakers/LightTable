@@ -1,35 +1,3 @@
-export const LAYER_SOURCE_DECODE_WGSL = /* wgsl */ `
-@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
-@group(0) @binding(1) var sourceSampler: sampler;
-
-fn srgbToLinearChannel(value: f32) -> f32 {
-  return select(value / 12.92, pow((value + 0.055) / 1.055, 2.4), value > 0.04045);
-}
-
-@fragment
-fn main(input: VertexOutput) -> @location(0) vec4f {
-  let encoded = textureSample(sourceTexture, sourceSampler, input.uv);
-  let linear = vec3f(
-    srgbToLinearChannel(encoded.r),
-    srgbToLinearChannel(encoded.g),
-    srgbToLinearChannel(encoded.b)
-  );
-  // Layer textures use premultiplied linear RGBA end-to-end.
-  return vec4f(linear * encoded.a, encoded.a);
-}
-`;
-
-export const LAYER_MASK_DECODE_WGSL = /* wgsl */ `
-@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
-@group(0) @binding(1) var sourceSampler: sampler;
-
-@fragment
-fn main(input: VertexOutput) -> @location(0) vec4f {
-  let value = textureSample(sourceTexture, sourceSampler, input.uv).r;
-  return vec4f(value, value, value, 1.0);
-}
-`;
-
 export const LAYER_EXPORT_WGSL = /* wgsl */ `
 struct ExportSettings {
   maskChannel: f32,
@@ -118,6 +86,30 @@ fn blendToLinearChannel(value: f32) -> f32 {
   return select(value / 12.92, pow((value + 0.055) / 1.055, 2.4), value > 0.04045);
 }
 
+fn linearSrgbToLinearAdobeRgb(color: vec3f) -> vec3f {
+  return vec3f(
+    0.71516271 * color.r + 0.28483729 * color.g,
+    color.g,
+    0.04117054 * color.g + 0.95882946 * color.b
+  );
+}
+
+fn linearAdobeRgbToLinearSrgb(color: vec3f) -> vec3f {
+  return vec3f(
+    1.39835574 * color.r - 0.39835574 * color.g,
+    color.g,
+    -0.0429288 * color.g + 1.0429288 * color.b
+  );
+}
+
+fn linearAdobeRgbToEncoded(color: vec3f) -> vec3f {
+  return pow(max(color, vec3f(0.0)), vec3f(256.0 / 563.0));
+}
+
+fn encodedAdobeRgbToLinear(color: vec3f) -> vec3f {
+  return pow(max(color, vec3f(0.0)), vec3f(563.0 / 256.0));
+}
+
 fn colorDodgeChannel(background: f32, foreground: f32) -> f32 {
   if (background <= 1e-5) { return 0.0; }
   if (foreground >= 1.0 - 1e-5) { return 1.0; }
@@ -156,8 +148,9 @@ fn hardMixChannel(background: f32, foreground: f32) -> f32 {
   // 255. On the exact boundary the backdrop decides the result: 128..255 is
   // white and 0..127 is black. The tolerance preserves that boundary after
   // the encoded values have made a roundtrip through rgba16float storage.
-  if (sum > 1.0 + 1e-3) { return 1.0; }
-  if (sum < 1.0 - 1e-3) { return 0.0; }
+  let boundaryTolerance = 1e-3;
+  if (sum > 1.0 + boundaryTolerance) { return 1.0; }
+  if (sum < 1.0 - boundaryTolerance) { return 0.0; }
   return select(0.0, 1.0, background >= 0.5);
 }
 
@@ -185,7 +178,7 @@ fn colorBurn(background: vec3f, foreground: vec3f) -> vec3f {
   );
 }
 
-fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
+fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32, quantization: f32) -> vec3f {
   if (mode == 1) { return background * foreground; }
   if (mode == 2) { return vec3f(1.0) - (vec3f(1.0) - background) * (vec3f(1.0) - foreground); }
   if (mode == 3) {
@@ -240,29 +233,34 @@ fn blendColorEncoded(background: vec3f, foreground: vec3f, mode: i32) -> vec3f {
   return foreground;
 }
 
-fn linearStraightToBlend(color: vec3f) -> vec3f {
-  return vec3f(
+fn linearStraightToBlend(color: vec3f, profile: f32, quantization: f32) -> vec3f {
+  let srgb = vec3f(
     linearToBlendChannel(color.r),
     linearToBlendChannel(color.g),
     linearToBlendChannel(color.b)
   );
+  let adobeRgb = linearAdobeRgbToEncoded(linearSrgbToLinearAdobeRgb(color));
+  let encoded = select(srgb, adobeRgb, profile > 0.5);
+  return select(encoded, round(clamp(encoded, vec3f(0.0), vec3f(1.0)) * quantization) / quantization, quantization > 0.5);
 }
 
-fn blendStraightToLinear(color: vec3f) -> vec3f {
-  return vec3f(
+fn blendStraightToLinear(color: vec3f, profile: f32) -> vec3f {
+  let srgb = vec3f(
     blendToLinearChannel(color.r),
     blendToLinearChannel(color.g),
     blendToLinearChannel(color.b)
   );
+  let adobeRgb = linearAdobeRgbToLinearSrgb(encodedAdobeRgbToLinear(color));
+  return select(srgb, adobeRgb, profile > 0.5);
 }
 
-fn compositeBlend(background: vec4f, foreground: vec4f, mode: i32) -> vec4f {
+fn compositeBlend(background: vec4f, foreground: vec4f, mode: i32, profile: f32, quantization: f32) -> vec4f {
   let backgroundStraight = background.rgb / max(background.a, 1e-6);
   let foregroundStraight = foreground.rgb / max(foreground.a, 1e-6);
-  let backgroundEncoded = linearStraightToBlend(backgroundStraight);
-  let foregroundEncoded = linearStraightToBlend(foregroundStraight);
+  let backgroundEncoded = linearStraightToBlend(backgroundStraight, profile, quantization);
+  let foregroundEncoded = linearStraightToBlend(foregroundStraight, profile, quantization);
   let blendedEncoded = clamp(
-    blendColorEncoded(backgroundEncoded, foregroundEncoded, mode),
+    blendColorEncoded(backgroundEncoded, foregroundEncoded, mode, quantization),
     vec3f(0.0),
     vec3f(1.0)
   );
@@ -272,7 +270,7 @@ fn compositeBlend(background: vec4f, foreground: vec4f, mode: i32) -> vec4f {
     foregroundEncoded * foreground.a * (1.0 - background.a) +
     blendedEncoded * background.a * foreground.a;
   let outputStraightEncoded = outputPremultipliedEncoded / max(outputAlpha, 1e-6);
-  return vec4f(blendStraightToLinear(outputStraightEncoded) * outputAlpha, outputAlpha);
+  return vec4f(blendStraightToLinear(outputStraightEncoded, profile) * outputAlpha, outputAlpha);
 }
 `;
 
@@ -343,7 +341,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     settings.clippingEnabled > 0.5
   );
   let foreground = sampledForeground * settings.opacity * mask * clipping;
-  return compositeBlend(background, foreground, i32(settings.blendMode + 0.5));
+  return compositeBlend(background, foreground, i32(settings.blendMode + 0.5), settings.maskPadding.x, settings.maskPadding.y);
 }
 `;
 
@@ -438,6 +436,7 @@ struct StyleSettings {
   gradientOpacity: array<vec4f, 8>,
   gradientMidpoints: array<vec4f, 8>,
   contourPoints: array<vec4f, 8>,
+  colorTransform: vec4f,
 }
 
 @group(0) @binding(0) var currentTexture: texture_2d<f32>;
@@ -450,15 +449,20 @@ struct StyleSettings {
 ${LAYER_BLEND_FUNCTIONS_WGSL}
 
 fn over(foreground: vec4f, background: vec4f) -> vec4f {
-  return compositeBlend(background, foreground, 0);
+  return compositeBlend(background, foreground, 0, settings.colorTransform.x, settings.colorTransform.y);
 }
 
 fn styleOverCurrent(current: vec4f, color: vec3f, alpha: f32, mode: i32) -> vec4f {
   let effectAlpha = clamp(alpha, 0.0, 1.0);
   let currentStraight = current.rgb / max(current.a, 1e-6);
-  let currentEncoded = linearStraightToBlend(currentStraight);
-  let colorEncoded = linearStraightToBlend(color);
-  let blendedEncoded = blendColorEncoded(currentEncoded, colorEncoded, mode);
+  let currentEncoded = linearStraightToBlend(currentStraight, settings.colorTransform.x, settings.colorTransform.y);
+  let colorEncoded = linearStraightToBlend(color, settings.colorTransform.x, settings.colorTransform.y);
+  let blendedEncoded = blendColorEncoded(
+    currentEncoded,
+    colorEncoded,
+    mode,
+    settings.colorTransform.y
+  );
   // Interior styles operate inside the source coverage. Using Porter-Duff
   // Porter-Duff over here would make an antialiased edge more opaque every time another
   // overlay is added. Preserve the strongest existing coverage and replace
@@ -466,7 +470,7 @@ fn styleOverCurrent(current: vec4f, color: vec3f, alpha: f32, mode: i32) -> vec4
   let outputAlpha = max(current.a, effectAlpha);
   let mixAmount = effectAlpha / max(outputAlpha, 1e-6);
   let outputEncoded = mix(currentEncoded, blendedEncoded, mixAmount);
-  return vec4f(blendStraightToLinear(outputEncoded) * outputAlpha, outputAlpha);
+  return vec4f(blendStraightToLinear(outputEncoded, settings.colorTransform.x) * outputAlpha, outputAlpha);
 }
 
 fn alphaAt(uv: vec2f, pixelOffset: vec2f) -> f32 {
@@ -1092,16 +1096,17 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let amount = clamp(settings.opacity * mask * clipping, 0.0, 1.0);
   let sourceStraight = source.rgb / max(source.a, 1e-6);
   let adjustedStraight = adjusted.rgb / max(adjusted.a, 1e-6);
-  let sourceEncoded = linearStraightToBlend(sourceStraight);
-  let adjustedEncoded = linearStraightToBlend(adjustedStraight);
+  let sourceEncoded = linearStraightToBlend(sourceStraight, settings.maskPadding.x, settings.maskPadding.y);
+  let adjustedEncoded = linearStraightToBlend(adjustedStraight, settings.maskPadding.x, settings.maskPadding.y);
   let blendedEncoded = blendColorEncoded(
     sourceEncoded,
     adjustedEncoded,
-    i32(settings.blendMode + 0.5)
+    i32(settings.blendMode + 0.5),
+    settings.maskPadding.y
   );
   let outputAlpha = mix(source.a, adjusted.a, amount);
   let outputEncoded = mix(sourceEncoded, blendedEncoded, amount);
-  return vec4f(blendStraightToLinear(outputEncoded) * outputAlpha, outputAlpha);
+  return vec4f(blendStraightToLinear(outputEncoded, settings.maskPadding.x) * outputAlpha, outputAlpha);
 }
 `;
 
@@ -1570,21 +1575,24 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     return mix(source, vec4f(gray, gray, gray, 1.0), amount);
   }
   let sourceStraight = source.rgb / max(source.a, 1e-6);
-  let sourceEncoded = linearStraightToBlend(sourceStraight);
-  let gradientEncoded = linearStraightToBlend(gradient.rgb);
+  let sourceEncoded = linearStraightToBlend(sourceStraight, 0.0, 0.0);
+  let gradientEncoded = linearStraightToBlend(gradient.rgb, 0.0, 0.0);
   let blendedEncoded = blendColorEncoded(
     sourceEncoded,
     gradientEncoded,
-    i32(settings.options.w + 0.5)
+    i32(settings.options.w + 0.5),
+    0.0
   );
   if (settings.channel.x > 0.5) {
     let outputEncoded = mix(sourceEncoded, blendedEncoded, amount);
-    return vec4f(blendStraightToLinear(outputEncoded) * source.a, source.a);
+    return vec4f(blendStraightToLinear(outputEncoded, 0.0) * source.a, source.a);
   }
   return compositeBlend(
     source,
     vec4f(gradient.rgb * amount, amount),
-    i32(settings.options.w + 0.5)
+    i32(settings.options.w + 0.5),
+    0.0,
+    0.0
   );
 }
 `;

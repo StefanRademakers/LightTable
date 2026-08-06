@@ -17,6 +17,11 @@ import {
   type VectorStyle
 } from '@lighttable/vector-core';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
+import type { DocumentBlendProfile } from '../document/documentTypes';
+import {
+  convertEncodedDocumentColorToSrgb,
+  encodedDocumentToLinearSrgb
+} from '../color/documentColorTransform';
 
 interface PsdVectorStrokeDescriptor {
   strokeEnabled?: boolean;
@@ -59,10 +64,6 @@ export type PsdVectorShapeImport =
 const clamp = (value: number, minimum = 0, maximum = 1) =>
   Math.min(maximum, Math.max(minimum, value));
 
-const srgbToLinear = (value: number) => value <= 0.04045
-  ? value / 12.92
-  : ((value + 0.055) / 1.055) ** 2.4;
-
 const colorChannels = (color: PsdColor): [number, number, number, number] | null => {
   if ('r' in color && 'g' in color && 'b' in color) {
     const divisor = Math.max(color.r, color.g, color.b, 'a' in color ? color.a : 0) > 1
@@ -85,20 +86,18 @@ const colorChannels = (color: PsdColor): [number, number, number, number] | null
   return null;
 };
 
-const solidPaint = (content: unknown): SolidPaint | null => {
+const solidPaint = (content: unknown, sourceProfile: DocumentBlendProfile): SolidPaint | null => {
   if (!content || typeof content !== 'object') return null;
   const candidate = content as { type?: unknown; color?: unknown };
   if (candidate.type !== 'color' || !candidate.color) return null;
   const channels = colorChannels(candidate.color as PsdColor);
   if (!channels) return null;
+  const linear = encodedDocumentToLinearSrgb({
+    r: channels[0], g: channels[1], b: channels[2]
+  }, sourceProfile);
   return {
     type: 'solid',
-    color: [
-      srgbToLinear(channels[0]),
-      srgbToLinear(channels[1]),
-      srgbToLinear(channels[2]),
-      channels[3]
-    ]
+    color: [linear.r, linear.g, linear.b, channels[3]]
   };
 };
 
@@ -109,18 +108,25 @@ const signedPercent = (value: number | undefined) => Number.isFinite(value)
   ? clamp(Math.abs(value!) > 1 ? value! / 100 : value!, -1, 1)
   : 0;
 
-const gradientPaint = (content: unknown, idPrefix: string): GradientPaintInstance | null => {
+const gradientPaint = (
+  content: unknown,
+  idPrefix: string,
+  sourceProfile: DocumentBlendProfile
+): GradientPaintInstance | null => {
   if (!content || typeof content !== 'object') return null;
   const source = content as Partial<Extract<VectorContent, { type: 'solid' }>>;
   if (source.type !== 'solid' || !Array.isArray(source.colorStops) || !Array.isArray(source.opacityStops)
     || source.colorStops.length === 0 || source.opacityStops.length === 0) return null;
   const colors = source.colorStops.map((stop, index) => {
     const channels = colorChannels(stop.color);
-    return channels ? {
+    const converted = channels ? convertEncodedDocumentColorToSrgb({
+      r: channels[0], g: channels[1], b: channels[2]
+    }, sourceProfile) : null;
+    return channels && converted ? {
       id: `${idPrefix}:color:${index}`,
       position: clamp(stop.location > 1 ? stop.location / 4096 : stop.location),
       midpoint: normalizedPercent(stop.midpoint, 0.5),
-      color: { r: channels[0], g: channels[1], b: channels[2], a: channels[3] }
+      color: { ...converted, a: channels[3] }
     } : null;
   });
   if (colors.some((stop) => stop === null)) return null;
@@ -162,8 +168,12 @@ const gradientPaint = (content: unknown, idPrefix: string): GradientPaintInstanc
   };
 };
 
-const vectorPaint = (content: unknown, idPrefix: string): VectorPaint | null =>
-  solidPaint(content) ?? gradientPaint(content, idPrefix);
+const vectorPaint = (
+  content: unknown,
+  idPrefix: string,
+  sourceProfile: DocumentBlendProfile
+): VectorPaint | null => solidPaint(content, sourceProfile)
+  ?? gradientPaint(content, idPrefix, sourceProfile);
 
 const isVectorMask = (value: unknown): value is LayerVectorMask => {
   if (!value || typeof value !== 'object') return false;
@@ -193,10 +203,11 @@ const unitPixels = (value: UnitsValue | undefined, resolution = 72): number | nu
 const vectorStroke = (
   descriptor: PsdVectorStrokeDescriptor | null,
   fillPaint: VectorPaint | null,
-  idPrefix: string
+  idPrefix: string,
+  sourceProfile: DocumentBlendProfile
 ): { stroke: VectorStroke | null; opacity: number } | null => {
   if (!descriptor?.strokeEnabled) return { stroke: null, opacity: 1 };
-  const paint = vectorPaint(descriptor.content, `${idPrefix}:stroke-gradient`);
+  const paint = vectorPaint(descriptor.content, `${idPrefix}:stroke-gradient`, sourceProfile);
   const width = unitPixels(descriptor.lineWidth, descriptor.resolution ?? 72);
   const dashOffset = unitPixels(descriptor.lineDashOffset, descriptor.resolution ?? 72);
   if (!paint || width === null || dashOffset === null) return null;
@@ -251,7 +262,8 @@ const mapFillRule = (rule: BezierPath['fillRule']): FillRule =>
   rule === 'even-odd' ? 'evenodd' : 'nonzero';
 
 export const importPsdVectorShape = (
-  source: PsdVectorShapeSource
+  source: PsdVectorShapeSource,
+  sourceProfile: DocumentBlendProfile = 'srgb'
 ): PsdVectorShapeImport => {
   if (!isVectorMask(source.vectorMask)) {
     return { status: 'unsupported', reason: 'Photoshop vector path data is missing or malformed.' };
@@ -277,9 +289,11 @@ export const importPsdVectorShape = (
     : null;
   const fillEnabled = strokeDescriptor?.fillEnabled !== false;
   const idPrefix = source.sourceObjectId?.trim() || 'psd-shape';
-  const fill = fillEnabled ? vectorPaint(source.vectorFill, `${idPrefix}:fill-gradient`) : null;
+  const fill = fillEnabled
+    ? vectorPaint(source.vectorFill, `${idPrefix}:fill-gradient`, sourceProfile)
+    : null;
   const unsupportedFill = Boolean(fillEnabled && source.vectorFill && !fill);
-  const mappedStroke = vectorStroke(strokeDescriptor, fill, idPrefix);
+  const mappedStroke = vectorStroke(strokeDescriptor, fill, idPrefix, sourceProfile);
   const unsupportedStroke = mappedStroke === null;
 
   const elements: VectorElement[] = [];

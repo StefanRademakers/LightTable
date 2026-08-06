@@ -30,6 +30,8 @@ import type {
   LayerStylePatternReference,
   LayerStyleStack
 } from '../styles/layerStyleTypes';
+import type { DocumentBlendProfile } from '../document/documentTypes';
+import { convertEncodedDocumentColorToSrgb } from '../color/documentColorTransform';
 
 export type PsdStyleSupport = 'editable' | 'preserved' | 'rasterized';
 
@@ -48,7 +50,31 @@ export interface PsdLayerStyleImportResult {
 
 export interface PsdLayerStyleAdapterOptions {
   resolvePatternAsset?: (patternId: string) => string | null;
+  sourceProfile?: DocumentBlendProfile;
 }
+
+const normalizeSemanticColors = (value: unknown, sourceProfile: DocumentBlendProfile) => {
+  if (sourceProfile === 'srgb' || !value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((entry) => normalizeSemanticColors(entry, sourceProfile));
+    return;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.r === 'number'
+    && typeof candidate.g === 'number'
+    && typeof candidate.b === 'number'
+  ) {
+    const converted = convertEncodedDocumentColorToSrgb({
+      r: candidate.r, g: candidate.g, b: candidate.b
+    }, sourceProfile);
+    candidate.r = converted.r;
+    candidate.g = converted.g;
+    candidate.b = converted.b;
+    return;
+  }
+  Object.values(candidate).forEach((entry) => normalizeSemanticColors(entry, sourceProfile));
+};
 
 const clamp01 = (value: number | undefined, fallback = 0) =>
   Math.min(1, Math.max(0, Number.isFinite(value) ? value! : fallback));
@@ -499,5 +525,6 @@ export const importPsdLayerStyles = (
       reason: `${stack.effects.length} Photoshop Layer Style effect(s) mapped to the canonical stack.`
     });
   }
+  normalizeSemanticColors(stack, options.sourceProfile ?? 'srgb');
   return { stack, compatibility, preservedDescriptors };
 };

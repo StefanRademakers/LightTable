@@ -7,7 +7,7 @@ import type {
 
 export const MAX_LAYER_STYLE_GRADIENT_STOPS = 8;
 export const MAX_LAYER_STYLE_CONTOUR_POINTS = 8;
-export const LAYER_STYLE_SETTINGS_FLOATS = 152;
+export const LAYER_STYLE_SETTINGS_FLOATS = 156;
 export const LAYER_STYLE_SETTINGS_BYTES = LAYER_STYLE_SETTINGS_FLOATS * 4;
 
 const srgbToLinear = (value: number) =>
@@ -133,11 +133,15 @@ const writeContour = (
 export const baseLayerStyleUniform = (
   fillOpacity: number,
   width: number,
-  height: number
+  height: number,
+  blendProfile = 0,
+  blendQuantization = 0
 ) => {
   const values = empty();
   values.set([0, 1, 0, fillOpacity], 0);
   values.set([width, height, 0, 0], 20);
+  values[152] = blendProfile;
+  values[153] = blendQuantization;
   return values;
 };
 
@@ -150,7 +154,9 @@ export const layerStyleUniform = (
   quality: 'interactive' | 'final' = 'final',
   geometry: { x: number; y: number; width: number; height: number } = {
     x: 0, y: 0, width, height
-  }
+  },
+  blendProfile = 0,
+  blendQuantization = 0
 ) => {
   if (!effect.enabled || effect.opacity <= 0) return null;
   const values = empty();
@@ -313,5 +319,7 @@ export const layerStyleUniform = (
   // shader's complete 64-direction kernel without changing authored geometry.
   values[23] = adaptiveBlurSamples(effect, scale, quality);
   values[95] = values[23];
+  values[152] = blendProfile;
+  values[153] = blendQuantization;
   return values;
 };

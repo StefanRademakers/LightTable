@@ -13,8 +13,8 @@ describe('documentPipelinesFor', () => {
     const second = documentPipelinesFor(gpu);
 
     expect(second).toBe(first);
-    expect(gpu.createRenderPipeline).toHaveBeenCalledTimes(6);
-    expect(gpu.createShaderModule).toHaveBeenCalledTimes(7);
+    expect(gpu.createRenderPipeline).toHaveBeenCalledTimes(7);
+    expect(gpu.createShaderModule).toHaveBeenCalledTimes(8);
   });
 
   it('keeps device pipeline caches isolated', () => {

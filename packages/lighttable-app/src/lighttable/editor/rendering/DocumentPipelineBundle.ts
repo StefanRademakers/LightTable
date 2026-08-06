@@ -3,13 +3,17 @@ import {
   ADJUSTMENT_LAYER_MIX_WGSL,
   LAYER_COMPOSITE_WGSL,
   LAYER_EXPORT_WGSL,
-  LAYER_MASK_DECODE_WGSL,
-  LAYER_SOURCE_DECODE_WGSL,
   LAYER_STYLE_SHAPE_WGSL
 } from './layerShaders';
+import {
+  LAYER_ADOBE_RGB_SOURCE_DECODE_WGSL,
+  LAYER_MASK_DECODE_WGSL,
+  LAYER_SOURCE_DECODE_WGSL
+} from './layerSourceDecodeShaders';
 
 export interface DocumentPipelineBundle {
   decode: GPURenderPipeline;
+  adobeRgbDecode: GPURenderPipeline;
   maskDecode: GPURenderPipeline;
   exportLayer: GPURenderPipeline;
   composite: GPURenderPipeline;
@@ -41,6 +45,11 @@ export const documentPipelinesFor = (device: GPUDevice): DocumentPipelineBundle 
   });
   const bundle: DocumentPipelineBundle = {
     decode: create('LightTable layer source decode', LAYER_SOURCE_DECODE_WGSL, 'rgba16float'),
+    adobeRgbDecode: create(
+      'LightTable Adobe RGB layer source decode',
+      LAYER_ADOBE_RGB_SOURCE_DECODE_WGSL,
+      'rgba16float'
+    ),
     maskDecode: create('LightTable mask source decode', LAYER_MASK_DECODE_WGSL, 'r8unorm'),
     exportLayer: create('LightTable raster layer export', LAYER_EXPORT_WGSL, 'rgba8unorm'),
     composite: create('LightTable layer compositor', LAYER_COMPOSITE_WGSL, 'rgba16float'),

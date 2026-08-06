@@ -37,6 +37,7 @@ export const DocumentColorPanel = ({
               <div><dt>Mode</dt><dd>RGB</dd></div>
               <div><dt>Bit depth</dt><dd>{document.colorSettings.bitDepth} bit/channel</dd></div>
               <div><dt>Working profile</dt><dd>sRGB</dd></div>
+              <div><dt>Blend profile</dt><dd>{document.colorSettings.blendProfile === 'adobe-rgb-1998' ? 'Adobe RGB (1998)' : 'sRGB'}</dd></div>
               <div><dt>Profile state</dt><dd>{document.colorSettings.profileState}</dd></div>
               <div><dt>Source</dt><dd>{sourceProfileLabel(document)}</dd></div>
               <div><dt>GPU working data</dt><dd>Linear 16-bit float</dd></div>

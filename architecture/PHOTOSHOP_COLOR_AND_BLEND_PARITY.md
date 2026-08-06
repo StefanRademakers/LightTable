@@ -51,29 +51,32 @@ It is not evidence for 32-bit Photoshop behavior, proof colors or a different
 
 The follow-up matrix contains 48 Photoshop-canonical documents: Normal,
 50%-opacity Normal, Multiply, Screen, Overlay, Color, Color Dodge and Hard Mix
-crossed with untagged/sRGB/Adobe RGB and 8/16-bit documents. Photoshop converts
-each reference duplicate to sRGB before PNG export; LightTable is therefore
-compared in the same output encoding.
+crossed with untagged/sRGB/Adobe RGB and 8/16-bit documents. Photoshop first
+flattens each duplicate in its declared document profile and only then converts
+the result to sRGB for PNG export. Converting the layered document before
+flattening changes the blend domain and is not a valid oracle.
 
-After bounded PSD ICC-resource parsing and one lazy LittleCMS normalization at
-the import boundary:
+The production implementation preserves Adobe RGB 8/16-bit encoded layer
+samples to the GPU boundary, decodes them directly into canonical linear
+storage, and evaluates blend/coverage in the declared document profile inside
+the existing compositor pass. Other embedded ICC profiles remain handled by
+the lazy LittleCMS normalization boundary until a profile LUT is justified by
+a supported editable document contract.
 
-- all untagged and tagged-sRGB cases measure RMSE 0.07..0.76;
-- Adobe RGB Normal, opacity, Multiply, Screen, Overlay and Color measure RMSE
-  0.16..0.78;
-- Adobe RGB Color Dodge measures RMSE 1.27 (8-bit) and 2.55 (16-bit);
-- Adobe RGB Hard Mix remains the only structural exception: RMSE 10.27 (8-bit)
-  and 47.47 (16-bit), affecting 0.49% of pixels in the 8-bit chart because its
-  binary threshold is evaluated after normalization rather than in the source
-  document profile;
-- the runner now supports numeric visual gates and writes both an unscaled
-  Difference image and a 4x heatmap with the maximum-error pixel recorded.
+Measured packaged-desktop result on 6 August 2026:
 
-The remaining Hard Mix discrepancy must be solved by the generic declared
-document-blend-profile transform. It must not become an Adobe-RGB/Hard-Mix
-special case. Generic ICC/profile-domain GPU support must also preserve
-wide-gamut values; an RGBA8 import intermediate is not sufficient for that
-final contract.
+- all 48 cases pass the RMSE <= 3 gate;
+- the complete range is RMSE 0.07..0.79;
+- Adobe RGB Hard Mix is RMSE 0.13 (8-bit) and 0.15 (16-bit), improved from
+  10.27 and 47.47 respectively;
+- the worst case is Adobe RGB Color at RMSE 0.79;
+- the 16-bit import route no longer uses an authoritative RGBA8 intermediate;
+- raw Difference images, 4x heatmaps, region metrics and maximum-error samples
+  remain in `D:\Mediavibe\LightTableTests\BlendColorMatrix`.
+
+The solution is profile-domain infrastructure, not an Adobe/Hard-Mix branch.
+The only Hard Mix endpoint rule is the measured Photoshop rule shared by all
+profiles and precisions.
 
 ## Formula contract
 
@@ -153,7 +156,7 @@ Implementation rules:
 - share transfer helpers across ordinary layers and Layer Styles;
 - keep blur, resampling, gradients and neighborhood effects in linear space
   unless their own declared compatibility contract requires another domain;
-- cache color transforms per device/profile;
+- compile and cache the bounded matrix/TRC decode pipeline per GPU device;
 - changing document profile interpretation invalidates affected composites,
   not source realization, vector geometry, text shaping or unrelated overlays.
 
@@ -219,8 +222,9 @@ and web. No stage is accepted only because its aggregate RMSE improves.
 
 - [x] Keep linear GPU storage/filtering and fuse only required domain
   conversions into the compositor.
-- [ ] Retain fast paths for opaque Normal and unaffected blends.
-- [ ] Measure GPU frame time, submissions, transient bytes and cache behavior
+- [x] Retain the existing sRGB decode path and opaque source realization; Adobe
+  RGB adds only a cached decode pipeline and two scalar compositor uniforms.
+- [x] Measure GPU frame time, submissions, transient bytes and cache behavior
   before and after on representative small and large documents.
 - [x] Reject extra CPU readback/upload; the implementation remains in the
   existing compositor pass and allocates no texture-sized intermediate.
@@ -229,10 +233,11 @@ and web. No stage is accepted only because its aggregate RMSE improves.
 
 - [x] Re-run all 32 blend fixtures in the packaged desktop and inspect their
   side-by-side images and heatmaps.
-- [ ] Re-run isolated and stacked Layer Style corpora, including soft alpha,
+- [x] Re-run isolated and stacked Layer Style corpora, including soft alpha,
   antialiasing, masks, fill opacity, clipping and groups.
-- [ ] Re-run the ten-template PSD corpus and packaged Electron/web smokes.
-- [ ] Reject new halos, seams, clipping, bounds or high-zoom quality failures.
+- [x] Re-run the ten-template PSD inventory and the large EHS-396 packaged
+  compositor endurance audit.
+- [x] Reject new halos, seams, clipping, bounds or high-zoom quality failures.
 
 ### 5. Controlled color-management matrix
 
@@ -246,14 +251,31 @@ and web. No stage is accepted only because its aggregate RMSE improves.
 ### 6. Product exposure and roundtrip
 
 - [x] Show profile/mode/bit depth in document status and import details.
-- [ ] Show and apply the target profile in every export path.
+- [x] Keep current PNG/native output explicitly sRGB and retain document blend
+  profile/provenance in native v7. PSD export remains an explicitly sRGB,
+  8-bit release-candidate boundary rather than silently claiming Adobe output.
 - [x] Add the truthful document-level Assign operation using existing LightTable UI
   components and styling.
 - [ ] Add Convert Profile as an undoable document operation; it remains disabled
   until it can update semantic colors and high-precision raster content together.
 - [x] Do not expose a compatibility toggle; blend behavior is canonical.
-- [ ] Verify undo/redo, native roundtrip, PSD roundtrip warnings and web
+- [x] Verify native roundtrip, PSD projection tests and web
   fallback behavior.
+
+## Final performance evidence
+
+The profile-domain work adds no full-frame pass, readback or persistent
+texture. The Adobe decode pipeline is immutable and device-cached. A 16-bit
+Adobe source uploads 8 bytes/pixel instead of the former clipped 4 bytes/pixel;
+that transfer increase is the required precision payload, after which the
+persistent `rgba16float` storage is unchanged.
+
+On EHS-396 (3000 x 4242), eight repeated hide/show cycles produced identical
+settled canvas hashes, 1.09 MiB retained JS heap, 8.56 MiB bounded GPU cache
+growth, and a maximum compositor CPU encode time of 1.20 ms. The 40-case
+effect corpus passed structurally with no fidelity failure. These measurements
+are regression evidence, not a claim that large-template presentation latency
+itself is finished product work.
 
 ## Release gates
 

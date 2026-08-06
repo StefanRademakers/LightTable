@@ -92,6 +92,7 @@ export const createLayerDocumentRendererRuntime = (
   });
   const textureCodec = new LayerTextureCodec(device, sampler, {
     decode: pipelines.decode,
+    adobeRgbDecode: pipelines.adobeRgbDecode,
     maskDecode: pipelines.maskDecode,
     exportLayer: pipelines.exportLayer
   });

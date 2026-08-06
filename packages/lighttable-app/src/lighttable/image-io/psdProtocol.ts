@@ -1,4 +1,7 @@
 export const PSD_RAW_RGBA8_MEDIA_TYPE = 'application/x-lighttable-psd-rgba8';
+export const PSD_RAW_RGBA16_MEDIA_TYPE = 'application/x-lighttable-psd-rgba16';
+export const PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE = 'application/x-lighttable-psd-adobe-rgba8';
+export const PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE = 'application/x-lighttable-psd-adobe-rgba16';
 
 export interface PsdFeatureInventory {
   layers: number;

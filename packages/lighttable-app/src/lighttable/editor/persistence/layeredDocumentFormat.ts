@@ -506,6 +506,9 @@ const parseDocumentColorSettings = (
     || value.mode !== 'rgb'
     || (value.bitDepth !== 8 && value.bitDepth !== 16 && value.bitDepth !== 32)
     || value.workingProfile !== 'srgb'
+    || (value.blendProfile !== undefined
+      && value.blendProfile !== 'srgb'
+      && value.blendProfile !== 'adobe-rgb-1998')
     || (value.profileState !== 'assigned' && value.profileState !== 'assumed')
   ) {
     throw new Error('The LightTable document color settings are invalid.');
@@ -514,6 +517,7 @@ const parseDocumentColorSettings = (
     mode: 'rgb',
     bitDepth: value.bitDepth,
     workingProfile: 'srgb',
+    blendProfile: value.blendProfile === 'adobe-rgb-1998' ? 'adobe-rgb-1998' : 'srgb',
     profileState: value.profileState
   };
 };

@@ -42,6 +42,7 @@ export interface NormalizedImportProvenance {
 }
 
 export type DocumentBitDepth = 8 | 16 | 32;
+export type DocumentBlendProfile = 'srgb' | 'adobe-rgb-1998';
 
 /**
  * Authoritative document color semantics.
@@ -55,6 +56,8 @@ export interface DocumentColorSettings {
   mode: 'rgb';
   bitDepth: DocumentBitDepth;
   workingProfile: 'srgb';
+  /** Encoded profile domain used by Photoshop/PDF-compatible blend equations. */
+  blendProfile: DocumentBlendProfile;
   profileState: 'assigned' | 'assumed';
 }
 
@@ -67,6 +70,7 @@ export const createDocumentColorSettings = (
   mode: 'rgb',
   bitDepth: documentBitDepth(provenance?.sourceBitDepth),
   workingProfile: 'srgb',
+  blendProfile: 'srgb',
   profileState: provenance !== null && (
     provenance.sourceProfile === 'no embedded ICC; assumed sRGB'
     || provenance.sourceProfile === null

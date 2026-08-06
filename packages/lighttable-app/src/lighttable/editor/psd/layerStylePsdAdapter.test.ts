@@ -1,10 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import type { LayerEffectsInfo } from 'ag-psd';
 import { importPsdLayerStyles } from './layerStylePsdAdapter';
+import { convertEncodedDocumentColorToSrgb } from '../color/documentColorTransform';
 
 const px = (value: number) => ({ units: 'Pixels', value } as const);
 
 describe('PSD Layer Style adapter', () => {
+  it('normalizes Adobe RGB FX colors and gradient stops into canonical sRGB semantics', () => {
+    const result = importPsdLayerStyles({
+      solidFill: [{ enabled: true, color: { r: 220, g: 40, b: 15 } }],
+      gradientOverlay: [{
+        enabled: true,
+        gradient: {
+          type: 'solid', name: 'Adobe fixture', smoothness: 100,
+          colorStops: [{ color: { r: 20, g: 180, b: 240 }, location: 0, midpoint: 50 }],
+          opacityStops: [{ opacity: 100, location: 0, midpoint: 50 }]
+        }
+      }]
+    }, { sourceProfile: 'adobe-rgb-1998' });
+    const solidExpected = convertEncodedDocumentColorToSrgb(
+      { r: 220 / 255, g: 40 / 255, b: 15 / 255 }, 'adobe-rgb-1998'
+    );
+    const gradientExpected = convertEncodedDocumentColorToSrgb(
+      { r: 20 / 255, g: 180 / 255, b: 240 / 255 }, 'adobe-rgb-1998'
+    );
+    expect(result.stack.effects[0]).toMatchObject({ color: solidExpected });
+    expect(result.stack.effects[1]).toMatchObject({
+      gradient: { colorStops: [{ color: gradientExpected }] }
+    });
+  });
+
   it('imports ordered multiple-instance effects into editable canonical styles', () => {
     const source: LayerEffectsInfo = {
       scale: 100,

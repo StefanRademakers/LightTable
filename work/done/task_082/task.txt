@@ -1,0 +1,95 @@
+# Task 082 — complete wide-gamut Photoshop blend and color roundtrip parity
+
+Status: completed 2026-08-06. The 48-case Photoshop matrix passes at RMSE
+0.07..0.79, including Adobe RGB Hard Mix 8/16-bit at 0.13/0.15. Adobe RGB
+8/16-bit source samples retain their precision to the GPU decode boundary;
+semantic text/vector/gradient/FX colors share the document transform; PSD
+exports embed a compact CC0 sRGB ICC profile. Full quick quality, 40-case FX,
+ten-template inventory and EHS-396 compositor endurance gates pass.
+
+## Objective
+
+Finish the remaining color-management and compositor work discovered by the
+controlled Photoshop profile matrix. Keep LightTable's high-precision linear
+GPU working representation, while evaluating Photoshop/PDF blend semantics in
+the document's declared profile domain without mode-specific patches.
+
+## Current measured baseline
+
+- The original 32-case untagged 8-bit blend corpus passes.
+- 46 of 48 untagged/sRGB/Adobe-RGB, 8/16-bit matrix cases are close to
+  Photoshop (RMSE at or below 2.55).
+- Adobe-RGB Hard Mix remains structurally different:
+  - 8-bit RMSE 10.27;
+  - 16-bit RMSE 47.47.
+- The remaining difference occurs mainly at binary threshold boundaries after
+  per-layer conversion to sRGB.
+- PSD raster previews, patterns and composites are normalized lazily through
+  LittleCMS, but semantic colors and true high-precision/wide-gamut pixel
+  preservation are not yet covered by one complete document transform.
+
+## Required architecture
+
+- Keep these concepts explicit and separate:
+  - source ICC/profile and source precision;
+  - canonical GPU storage/processing space;
+  - declared document blend profile;
+  - display/export profile.
+- Add one reusable document color-transform service. PSD, PDF, native save,
+  semantic text/vector/style colors and the compositor must consume this
+  service instead of implementing private profile conversions.
+- Evaluate blend equations, opacity and coverage in the declared document
+  blend profile inside the existing GPU compositor pass.
+- Support common matrix/TRC profiles such as sRGB and Adobe RGB directly and
+  use a cached GPU LUT generated through LittleCMS for arbitrary ICC profiles.
+- Do not introduce per-mode Adobe-RGB fixes, compatibility branches, CPU
+  readbacks, extra full-frame passes or texture-sized intermediates.
+- Preserve out-of-sRGB and 16-bit information. Remove the current RGBA8 import
+  bottleneck where it would clip or quantize authoritative wide-gamut pixels.
+- Normalize PSD semantic colors as well as raster content:
+  - text runs;
+  - vector fills and strokes;
+  - gradient stops and pattern colors;
+  - Layer Style colors;
+  - supported adjustment color operands.
+- Make Assign Profile and Convert Profile distinct, truthful, undoable document
+  operations. Keep Convert disabled until all authoritative content can be
+  transformed consistently.
+- Apply and embed the selected output profile in PNG/TIFF/native/PSD export as
+  appropriate. Preserve enough source/profile metadata for reliable native and
+  PSD roundtrip.
+
+## Verification
+
+- Keep `D:\Mediavibe\LightTableTests\BlendColorMatrix` as the canonical
+  Photoshop oracle.
+- Run the matrix with an actual visual gate, for example:
+  `npm run audit:psd-blend-corpus -- --root D:\Mediavibe\LightTableTests\BlendColorMatrix --max-rmse 3`
+- Make both Adobe-RGB Hard Mix cases pass through the generic profile-domain
+  implementation.
+- Add semantic text/vector/gradient/FX color fixtures for sRGB and Adobe RGB.
+- Add 16-bit gradient and out-of-sRGB fixtures that detect clipping or an 8-bit
+  intermediate.
+- Roundtrip representative native and PSD documents through LightTable and
+  Photoshop, then compare in one declared output profile.
+- Retain raw Difference images, 4x heatmaps, maximum-error samples and region
+  metrics.
+- Measure before/after GPU frame time, submissions, allocations, VRAM, worker
+  latency and CPU-to-GPU bytes on both small and large documents.
+- Run the complete workspace verification, effects corpus, ten-template PSD
+  corpus and web/desktop production builds.
+
+## Acceptance criteria
+
+- No supported profile is silently treated as sRGB.
+- Adobe-RGB Hard Mix passes the same numeric gate as the rest of the controlled
+  matrix without a mode-specific exception.
+- Semantic and raster colors agree after import, edit, native reopen and PSD
+  roundtrip.
+- 16-bit/wide-gamut source information is not clipped by an RGBA8 authoritative
+  intermediate.
+- Ordinary sRGB interaction and render performance do not materially regress.
+- The compositor remains the single layer-evaluation authority and no new
+  parallel renderer or duplicated color pipeline is introduced.
+- Architecture parity documents are updated with final measurements and the
+  completed task is moved from `work/todo` to `work/done`.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BezierPath } from 'ag-psd';
 import { importPsdVectorShape } from './psdVectorShapeAdapter';
+import { encodedDocumentToLinearSrgb } from '../color/documentColorTransform';
 
 const knot = (x: number, y: number, linked = false) => ({
   linked,
@@ -24,6 +25,20 @@ const source = (paths: BezierPath[]) => ({
 });
 
 describe('importPsdVectorShape', () => {
+  it('normalizes Adobe RGB vector fill colors directly into linear canonical storage', () => {
+    const result = importPsdVectorShape(source([path()]), 'adobe-rgb-1998');
+    expect(result.status).toBe('native');
+    if (result.status !== 'native') return;
+    const expected = encodedDocumentToLinearSrgb(
+      { r: 1, g: 128 / 255, b: 0 },
+      'adobe-rgb-1998'
+    );
+    expect(result.elements[0]?.style.fill).toMatchObject({
+      type: 'solid',
+      color: [expect.closeTo(expected.r, 6), expect.closeTo(expected.g, 6), expect.closeTo(expected.b, 6), 1]
+    });
+  });
+
   it('maps a solid Photoshop Bezier shape to editable linear-light vector geometry', () => {
     const result = importPsdVectorShape(source([path()]));
 

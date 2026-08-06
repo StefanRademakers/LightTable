@@ -11,6 +11,9 @@ import {
 } from '../../editor/document/documentTypes';
 import { createDefaultLayerStyle } from '../../editor/styles/layerStyleDefaults';
 import { projectDocumentToPsd } from './psdExportProjection';
+import { readPsdColorProfile } from '../../image-io/psdColorProfile';
+import { appendPsdImageResource } from './psdImageResourceWriter';
+import { srgbIccProfileBytes } from '../../editor/color/srgbIccProfile';
 
 const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -63,8 +66,15 @@ describe('PSD export projection', () => {
     expect(projection.editableTextLayers).toBe(1);
     expect(projection.editableVectorLayers).toBe(1);
 
-    const encoded = writePsdUint8Array(projection.psd, {
+    const encoded = appendPsdImageResource(writePsdUint8Array(projection.psd, {
       noBackground: true, trimImageData: true, invalidateTextLayers: false
+    }), 1039, srgbIccProfileBytes());
+    const encodedBuffer = encoded.buffer.slice(
+      encoded.byteOffset,
+      encoded.byteOffset + encoded.byteLength
+    ) as ArrayBuffer;
+    expect(readPsdColorProfile(encodedBuffer)).toMatchObject({
+      disposition: 'embedded', name: 'uRGB'
     });
     const decoded = readPsd(encoded, {
       useImageData: true, skipLayerImageData: true,

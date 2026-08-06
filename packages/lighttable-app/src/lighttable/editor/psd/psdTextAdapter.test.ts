@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readPsd, writePsd, type Psd } from 'ag-psd';
 import { assertTextLayerData } from '@lighttable/text-core';
 import { importPsdText } from './psdTextAdapter';
+import { convertEncodedDocumentColorToSrgb } from '../color/documentColorTransform';
 
 const transparentPixels = (width: number, height: number) => ({
   width,
@@ -10,6 +11,22 @@ const transparentPixels = (width: number, height: number) => ({
 });
 
 describe('Photoshop text adapter', () => {
+  it('normalizes Adobe RGB character colors into canonical sRGB semantics', () => {
+    const result = importPsdText({
+      text: 'A', style: { fillColor: { r: 220, g: 40, b: 15 } }
+    }, 'adobe-text', undefined, 'adobe-rgb-1998');
+    expect(result.kind).toBe('editable-flow');
+    if (result.kind !== 'editable-flow' || result.text.source.kind !== 'flow') return;
+    const expected = convertEncodedDocumentColorToSrgb(
+      { r: 220 / 255, g: 40 / 255, b: 15 / 255 },
+      'adobe-rgb-1998'
+    );
+    const fill = result.text.source.styleRuns[0]?.fill;
+    expect(fill?.kind).toBe('solid');
+    if (fill?.kind !== 'solid') return;
+    expect(fill.color).toMatchObject(expected);
+  });
+
   it('maps horizontal point text, transform and character styling into editable flow text', () => {
     const result = importPsdText({
       text: 'Hello',

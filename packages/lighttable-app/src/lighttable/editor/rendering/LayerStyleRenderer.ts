@@ -92,6 +92,8 @@ export class LayerStyleRenderer {
   private readonly pipelineProvider: LayerStylePipelineProvider;
   private readonly textures: LayerStyleTextureStore;
   private interactionLayerId: LayerId | null = null;
+  private blendProfile = 0;
+  private blendQuantization = 0;
 
   constructor(private readonly options: LayerStyleRendererOptions) {
     this.pipelineProvider = new LayerStylePipelineProvider(
@@ -115,6 +117,14 @@ export class LayerStyleRenderer {
   setInteractionLayer(layerId: LayerId | null) {
     if (layerId === this.interactionLayerId) return false;
     this.interactionLayerId = layerId;
+    return true;
+  }
+
+  setBlendProfile(profile: number, quantization = 0) {
+    if (profile === this.blendProfile && quantization === this.blendQuantization) return false;
+    this.blendProfile = profile;
+    this.blendQuantization = quantization;
+    this.releaseCache();
     return true;
   }
 
@@ -271,7 +281,7 @@ export class LayerStyleRenderer {
     encodeStylePass(
       styleTextures.shape,
       styleTextures.first,
-      baseLayerStyleUniform(layer.fillOpacity, width, height),
+      baseLayerStyleUniform(layer.fillOpacity, width, height, this.blendProfile, this.blendQuantization),
       `LightTable Layer Style Fill: ${layer.name}`
     );
     let current = styleTextures.first;
@@ -289,7 +299,9 @@ export class LayerStyleRenderer {
         height,
         !effectRequiresPattern(effect) || Boolean(patternTexture),
         quality,
-        gradientGeometry
+        gradientGeometry,
+        this.blendProfile,
+        this.blendQuantization
       );
       if (!values) return;
       const blurPlan = styleBlurPipeline

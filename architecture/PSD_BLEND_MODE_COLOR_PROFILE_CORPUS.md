@@ -43,9 +43,9 @@ npm run generate:psd-blend-color-matrix
 npm run audit:psd-blend-corpus -- --root D:\Mediavibe\LightTableTests\BlendColorMatrix --max-rmse 3
 ```
 
-That gate currently rejects the two Adobe-RGB Hard Mix cases. It must remain
-red until the compositor evaluates binary thresholds in the declared document
-blend profile; a successful run without a numeric gate is diagnostic only.
+That gate passes all 48 cases. Adobe RGB Hard Mix measures RMSE 0.13 at 8-bit
+and 0.15 at 16-bit. A successful run without a numeric gate remains diagnostic
+only.
 
 ## Coverage and semantic result
 
@@ -62,11 +62,10 @@ The Photoshop reference run records its color context alongside every render:
 - assigned document profile: none (the generated PSDs are untagged);
 - Photoshop Color Settings preset: `North America General Purpose 2`.
 
-Consequently, the conclusions below are measured parity conclusions for this
-specific document context. They must not be generalized silently to tagged
-sRGB or Adobe RGB documents, 16/32-bit documents, proofing, or a Photoshop
-configuration with different RGB blending preferences. A follow-up matrix
-must vary those inputs independently.
+The 48-case follow-up independently covers untagged, tagged sRGB and Adobe RGB
+at 8 and 16 bits/channel. It still does not cover 32-bit Photoshop behavior,
+proofing, or a Photoshop configuration with different RGB blending
+preferences.
 
 ## Findings
 
@@ -85,11 +84,11 @@ also algebraically consistent with the reference. The unresolved issue is not
 those two blend equations themselves, but the color space in which the final
 coverage/opacity terms are evaluated.
 
-### Vivid Light and Hard Mix
+### Vivid Light and Hard Mix (historical diagnosis)
 
-Opaque-color RMSE is 54.39 for Vivid Light and 47.17 for Hard Mix. Hard Mix is
-derived from Vivid Light, so these are one formula family rather than two
-independent failures.
+The initial run measured RMSE 54.39 for Vivid Light and 47.17 for Hard Mix.
+Those values are retained here as the diagnosis baseline, not current output.
+Endpoint handling and the declared-profile path now pass the production gates.
 
 The evidence points to endpoint handling in Color Dodge/Color Burn. The GPU
 implementation replaces zero denominators with epsilon. Photoshop uses
@@ -129,20 +128,15 @@ the softer LightTable bevel appearance, but it does not prove that the current
 bevel height/normal mask is correct; mask fidelity remains an independent
 test dimension.
 
-## Recommended implementation order
+## Implemented architecture
 
-1. Add explicit Photoshop-compatible zero/one branches to Color Dodge and
-   Color Burn, then retest Vivid Light and Hard Mix.
-2. Introduce an explicit document blend-space compositing contract rather
-   than globally changing all alpha math. Validate normal layers, masks,
-   opacity, fill opacity and Layer Styles together.
-3. Preserve the linear GPU storage/filtering pipeline; perform only the blend
-   and coverage interpolation in the required encoded document space, then
-   convert back.
-4. Re-run the complete rendering and effects corpora before accepting the
-   change. A lower RMSE must not introduce halos, alpha seams or performance
-   regressions.
-5. Add a controlled color-management matrix: tagged sRGB, tagged Adobe RGB,
-   untagged RGB, 8/16-bit, and the relevant Photoshop RGB blending preference.
-   Keep source pixels and blend parameters identical so profile conversion is
-   not confused with blend-equation or opacity-compositing behavior.
+1. Explicit Photoshop-compatible zero/one branches cover Color Dodge, Color
+   Burn, Vivid Light and Hard Mix.
+2. One document blend-profile contract drives ordinary layers, adjustments and
+   Layer Styles without changing canonical linear GPU storage.
+3. Adobe RGB 8/16-bit samples remain encoded until the GPU decode boundary;
+   16-bit data is never reduced to RGBA8.
+4. Text, vector, gradient and Layer Style semantic colors normalize through
+   the same document transform service.
+5. Photoshop references flatten in the authored profile before conversion to
+   the common sRGB comparison output.

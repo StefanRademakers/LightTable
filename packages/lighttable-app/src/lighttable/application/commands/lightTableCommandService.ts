@@ -1,15 +1,7 @@
-import type {
-  DocumentSessionId,
-  DocumentSessionSnapshot,
-  DocumentViewport
-} from '../documents/documentSession';
+import type { DocumentSessionId, DocumentSessionSnapshot, DocumentViewport } from '../documents/documentSession';
 import type { WorkspaceSession } from '../workspace/workspaceSession';
 import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
-import type {
-  LayerStyleId,
-  LayerStyleInstance,
-  LayerStyleKind
-} from '../../editor/styles/layerStyleTypes';
+import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
 import { queryLayerCommandCapabilities } from '../layers/layerCommandCapabilities';

@@ -47,6 +47,7 @@ compiled into `wasm-vips`. Any `UNKNOWN` inventory entry blocks a release.
 | Noto Sans | 5.2.8 font package | OFL-1.1 | Bundled fallback face |
 | Source Serif 4 | 5.2.8 font package | OFL-1.1 | Bundled serif face |
 | HarfBuzz `hb-gpu` WGSL | commit `c31bd6797...` | HarfBuzz old-style MIT license | Conditional renderer prototype; notices remain embedded in the generated shader |
+| Compact ICC Profiles `sRGB-v2-micro.icc` | SHA-256 `0a8a33ae...` | CC0-1.0 | Compact sRGB profile embedded in PSD exports so hosts never need to guess their color space |
 
 The direct Rust/WASM text stack is pinned as follows:
 

@@ -64,7 +64,7 @@ const imageMeta = (
   `${metadata.width} × ${metadata.height}`,
   `${Math.round(scale * 100)}%`,
   document
-    ? `RGB / ${document.colorSettings.bitDepth}-bit / sRGB${document.colorSettings.profileState === 'assumed' ? ' (assumed)' : ''}`
+    ? `RGB / ${document.colorSettings.bitDepth}-bit / ${document.colorSettings.blendProfile === 'adobe-rgb-1998' ? 'Adobe RGB (1998)' : 'sRGB'}${document.colorSettings.profileState === 'assumed' ? ' (assumed)' : ''}`
     : null,
   metadata.decoder === 'wasm-vips'
     ? [

@@ -27,6 +27,14 @@
       "license": "HarfBuzz old-style MIT license",
       "noticeLocation": "packages/text-webgpu/src/hbGpuShader.generated.ts",
       "role": "runtime-conditional"
+    },
+    {
+      "name": "Compact ICC Profiles sRGB-v2-micro",
+      "revision": "0a8a33aea66a6f154a5642ebe168ef287e73265d9f7b51c42a45e6eedbacda7a",
+      "license": "CC0-1.0",
+      "noticeLocation": "packages/lighttable-app/src/lighttable/editor/color/srgbIccProfile.ts",
+      "source": "https://github.com/saucecontrol/Compact-ICC-Profiles",
+      "role": "runtime-embedded-asset"
     }
   ],
   "bundledNoticeSets": [

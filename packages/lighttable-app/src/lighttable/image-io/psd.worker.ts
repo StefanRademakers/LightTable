@@ -12,7 +12,12 @@ import type {
   PsdWorkerRequest,
   PsdWorkerResponse
 } from './psdProtocol';
-import { PSD_RAW_RGBA8_MEDIA_TYPE } from './psdProtocol';
+import {
+  PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE,
+  PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE,
+  PSD_RAW_RGBA16_MEDIA_TYPE,
+  PSD_RAW_RGBA8_MEDIA_TYPE
+} from './psdProtocol';
 import { readPsdColorProfile } from './psdColorProfile';
 import {
   createPsdPixelNormalizer,
@@ -178,14 +183,35 @@ const layerImageDataBlob = async (
   data: NonNullable<Layer['imageData']>,
   bitsPerChannel: number,
   normalizer: PsdPixelNormalizer
-) => new Blob(
-  [copyClampedPixels(await normalizer.transform(
-    psdCompositeToPreviewPixels(data.data, bitsPerChannel),
-    data.width,
-    data.height
-  ))],
-  { type: PSD_RAW_RGBA8_MEDIA_TYPE }
-);
+) => {
+  if (bitsPerChannel === 16 && data.data instanceof Uint16Array) {
+    const pixels = normalizer.sourceProfile === 'adobe-rgb-1998'
+      ? new Uint16Array(data.data)
+      : await normalizer.transform(new Uint16Array(data.data), data.width, data.height, 16);
+    if (!(pixels instanceof Uint16Array)) {
+      throw new Error('The PSD color transform returned the wrong 16-bit pixel representation.');
+    }
+    const bytes = new Uint8Array(pixels.byteLength);
+    bytes.set(new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength));
+    return new Blob([bytes.buffer], {
+      type: normalizer.sourceProfile === 'adobe-rgb-1998'
+        ? PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE
+        : PSD_RAW_RGBA16_MEDIA_TYPE
+    });
+  }
+  const source = psdCompositeToPreviewPixels(data.data, bitsPerChannel);
+  const pixels = normalizer.sourceProfile === 'adobe-rgb-1998'
+    ? source
+    : await normalizer.transform(source, data.width, data.height, 8);
+  if (!(pixels instanceof Uint8ClampedArray)) {
+    throw new Error('The PSD color transform returned the wrong 8-bit pixel representation.');
+  }
+  return new Blob([copyClampedPixels(pixels)], {
+    type: normalizer.sourceProfile === 'adobe-rgb-1998'
+      ? PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE
+      : PSD_RAW_RGBA8_MEDIA_TYPE
+  });
+};
 
 const transparentDocumentBlob = async (width: number, height: number) => {
   const canvas = new OffscreenCanvas(width, height);

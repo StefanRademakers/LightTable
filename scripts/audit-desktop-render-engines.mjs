@@ -128,6 +128,18 @@ try {
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await page.waitForTimeout(24);
   };
+  const stableCanvasScreenshot = async () => {
+    let previousHash = null;
+    let screenshot = null;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await settle();
+      screenshot = await canvas.screenshot();
+      const currentHash = hash(screenshot);
+      if (currentHash === previousHash) return screenshot;
+      previousHash = currentHash;
+    }
+    throw new Error('The canvas did not reach two identical presentation frames.');
+  };
   const openDebug = async () => {
     await page.getByRole('tab', { name: 'Debug', exact: true }).click();
     await page.getByRole('region', { name: 'LightTable debug log' }).waitFor({ state: 'visible' });
@@ -147,7 +159,7 @@ try {
     return { raw: details, parsed: parseRenderTelemetry(details) };
   };
 
-  await settle();
+  await stableCanvasScreenshot();
   report.before = { ...(await memory()), ...(await driver.queryDocument(documentId))?.renderer };
   await resetTelemetry();
   let referenceHash = null;
@@ -158,9 +170,8 @@ try {
     const hiddenMs = performance.now() - hideStartedAt;
     const showStartedAt = performance.now();
     await driver.execute(documentId, 'layer.setVisibility', { layerIds: [target.id], visible: true });
-    await settle();
+    const screenshot = await stableCanvasScreenshot();
     const visibleMs = performance.now() - showStartedAt;
-    const screenshot = await canvas.screenshot();
     const screenshotHash = hash(screenshot);
     if (cycle === 0) {
       referenceHash = screenshotHash;

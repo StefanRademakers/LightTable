@@ -43,10 +43,15 @@
       var actualProfile = '';
       try { actualProfile = document.colorProfileName; } catch (_) {}
       var rendered = document.duplicate(document.name + '-srgb-render', false);
+      // Preserve the document's declared blend domain in the oracle. Profile
+      // conversion on a layered document converts every source layer first
+      // and would therefore measure sRGB blending instead of Adobe RGB
+      // blending. Flatten first, then convert only the composite for the
+      // common PNG comparison encoding.
+      rendered.flatten();
       try {
         rendered.convertProfile('sRGB IEC61966-2.1', Intent.RELATIVECOLORIMETRIC, true, false);
       } catch (_) {}
-      rendered.flatten();
       var png = new PNGSaveOptions(); png.compression = 0; png.interlaced = false;
       rendered.saveAs(reference, png, true, Extension.LOWERCASE);
       rendered.close(SaveOptions.DONOTSAVECHANGES);

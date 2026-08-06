@@ -1,5 +1,10 @@
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
-import { PSD_RAW_RGBA8_MEDIA_TYPE } from '../../image-io/psdProtocol';
+import {
+  PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE,
+  PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE,
+  PSD_RAW_RGBA16_MEDIA_TYPE,
+  PSD_RAW_RGBA8_MEDIA_TYPE
+} from '../../image-io/psdProtocol';
 import { encodeRgba8Png, stripTextureRowPadding } from '../../gpu/gpuReadback';
 import { invertMatrix } from '../geometry/affine';
 import type { AffineMatrix } from '../geometry/affine';
@@ -32,8 +37,39 @@ export const rawRgba8UploadLayout = (
   return { bytesPerRow: width * 4, rowsPerImage: height };
 };
 
+export const rawRgba16UploadLayout = (
+  byteLength: number,
+  width: number,
+  height: number
+) => {
+  const expectedByteLength = width * height * 4 * Uint16Array.BYTES_PER_ELEMENT;
+  if (
+    !Number.isInteger(width) || width <= 0
+    || !Number.isInteger(height) || height <= 0
+    || byteLength !== expectedByteLength
+  ) {
+    throw new Error('A 16-bit PSD layer preview does not match its layer-local dimensions.');
+  }
+  return { bytesPerRow: width * 8, rowsPerImage: height };
+};
+
+export const normalizedUint16ToFloat16 = (value: number) => {
+  const normalized = Math.min(1, Math.max(0, value / 65_535));
+  if (normalized === 0) return 0;
+  if (normalized === 1) return 0x3c00;
+  const exponent = Math.floor(Math.log2(normalized));
+  const biasedExponent = exponent + 15;
+  if (biasedExponent <= 0) {
+    return Math.min(0x03ff, Math.round(normalized * 16_777_216));
+  }
+  const mantissa = Math.round((normalized / (2 ** exponent) - 1) * 1024);
+  if (mantissa === 1024) return (biasedExponent + 1) << 10;
+  return (biasedExponent << 10) | mantissa;
+};
+
 export interface LayerTextureCodecPipelines {
   decode: GPURenderPipeline;
+  adobeRgbDecode: GPURenderPipeline;
   maskDecode: GPURenderPipeline;
   exportLayer: GPURenderPipeline;
 }
@@ -64,14 +100,34 @@ export class LayerTextureCodec {
     let encodedTexture: GPUTexture | null = null;
     try {
       if (!isCurrent()) throw new Error('LightTable was closed while restoring its layers.');
+      const isRaw16 = blob.type === PSD_RAW_RGBA16_MEDIA_TYPE
+        || blob.type === PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE;
+      const isAdobeRgb = blob.type === PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE
+        || blob.type === PSD_RAW_ADOBE_RGBA16_MEDIA_TYPE;
       encodedTexture = this.device.createTexture({
         label: 'LightTable persisted layer source',
         size: [width, height],
-        format: 'rgba8unorm',
+        format: isRaw16 ? 'rgba16float' : 'rgba8unorm',
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST |
           GPUTextureUsage.RENDER_ATTACHMENT
       });
-      if (blob.type === PSD_RAW_RGBA8_MEDIA_TYPE) {
+      if (isRaw16) {
+        const source = new Uint16Array(await blob.arrayBuffer());
+        const upload = rawRgba16UploadLayout(source.byteLength, width, height);
+        const pixels = new Uint16Array(source.length);
+        for (let index = 0; index < source.length; index += 1) {
+          pixels[index] = normalizedUint16ToFloat16(source[index]);
+        }
+        this.device.queue.writeTexture(
+          { texture: encodedTexture },
+          pixels,
+          upload,
+          [width, height]
+        );
+      } else if (
+        blob.type === PSD_RAW_RGBA8_MEDIA_TYPE
+        || blob.type === PSD_RAW_ADOBE_RGBA8_MEDIA_TYPE
+      ) {
         const pixels = new Uint8Array(await blob.arrayBuffer());
         const upload = rawRgba8UploadLayout(pixels.byteLength, width, height);
         this.device.queue.writeTexture(
@@ -92,7 +148,9 @@ export class LayerTextureCodec {
           [width, height]
         );
       }
-      const pipeline = maskChannel ? this.pipelines.maskDecode : this.pipelines.decode;
+      const pipeline = maskChannel
+        ? this.pipelines.maskDecode
+        : isAdobeRgb ? this.pipelines.adobeRgbDecode : this.pipelines.decode;
       const bindGroup = this.device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [
