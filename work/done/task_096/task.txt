@@ -1,0 +1,53 @@
+# Task 096 — semantic document creation and asset placement commands (P1/P3)
+
+Status: completed 2026-08-06.
+
+## Objective
+
+Expose document creation and asset placement through the shared application
+command service so UI, automation and MCP consume identical behavior.
+
+## Delivered
+
+- Added transport-neutral `document.create` and `layer.placeArtifact` commands,
+  workspace/document revision guards, capability reporting, strict resource and
+  media validation, stable session IDs, and failure-atomic execution.
+- Added explicit document name, dimensions, resolution, 8/16-bit policy,
+  sRGB/Adobe RGB profile, and transparent/solid background semantics.
+- Added tight local raster bounds, deterministic layer naming, explicit or
+  centered placement transforms, off-canvas preservation, one history entry,
+  and GPU cleanup on decode/upload failure.
+- Routed the existing New dialog and File > Place UI through the same command
+  service in web and Electron hosts.
+- Persisted resolution in native format v8, restored PSD resolution metadata,
+  and projected authored resolution into PSD export.
+- Exposed the contract through the authenticated desktop MCP adapter and MCP
+  server, including document creation and remote PNG/JPEG/WebP placement.
+- Extended the reusable automation driver and desktop command smoke. The smoke
+  creates a 16-bit Adobe RGB document, decodes and places real PNG, JPEG and
+  WebP artifacts, preserves an off-canvas transform, and exports native + PSD.
+- Split the command contract from execution to keep production source within
+  the enforced source-size boundary.
+
+## Verification
+
+- `npm run typecheck` — passed for all workspaces.
+- `npm test` — passed: 318 app files / 1,728 app tests plus all desktop, MCP,
+  paint, PDF, text and vector suites.
+- `npm run build:web` — passed with distribution-boundary verification.
+- `LIGHTTABLE_PACKAGE_OUT=out-verify npm run package:desktop:verify` — passed.
+- `npm run smoke:desktop:commands -- "D:\\shapes.psd"` — passed; PNG/JPEG/WebP
+  placement and native/PSD artifact exports completed.
+- `npm run verify:boundary`, `npm run audit:source-structure`,
+  `npm run audit:architecture-docs`, and `npm run verify:third-party` — passed.
+- `git diff --check` — passed.
+
+## Original requirements
+
+- Create documents with explicit dimensions, resolution, profile, bit depth,
+  background, and stable ID.
+- Place registered artifacts as editable layers with deterministic bounds and
+  transforms.
+- Validate revisions and resource bounds; publish no partial mutations.
+- Share the contract between UI, automation, and MCP.
+- Preserve native/PSD roundtrip semantics and pass web/Electron verification.

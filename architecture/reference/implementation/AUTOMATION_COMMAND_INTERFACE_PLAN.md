@@ -2,7 +2,7 @@
 
 Status: Phases A-F baseline implemented and capability-gated
 
-Last reviewed: 2026-08-03
+Last reviewed: 2026-08-06
 
 ## Outcome
 
@@ -92,6 +92,7 @@ interface LightTableCommandRequest<T = unknown> {
   documentId?: string;
   parameters: T;
   expectedDocumentRevision?: number;
+  expectedWorkspaceRevision?: number;
 }
 
 type LightTableCommandResult<T = unknown> =
@@ -205,6 +206,15 @@ PNG exports return task IDs and publish opaque artifact metadata after the
 existing document task registry completes. Unit coverage proves input open and
 both export paths; the packaged command smoke proves a real GPU PNG export.
 
+The P1 semantic extension adds `document.create` and `layer.placeArtifact`.
+Creation validates pixel/resource bounds and carries authored resolution,
+8/16-bit policy, blend profile and transparent/solid background through the
+same File > New route. Placement consumes only bounded opaque PNG/JPEG/WebP
+artifacts, creates a deterministic tight raster name/bounds/transform, uploads
+pixels before publishing the canonical snapshot and therefore leaves no layer
+or history entry after decode failure. File > Place, the desktop command smoke,
+the authenticated adapter and the MCP server all consume this same contract.
+
 ### Phase D - transactional gestures
 
 - add brush, transform and selection gesture sessions in document coordinates;
@@ -235,6 +245,8 @@ under `tmp/command-driver/`. Reusable orchestration now lives in
 `scripts/lighttable-automation-driver.mjs`; deterministic command/reference
 setup uses it while pointer, focus, shortcut and screenshot behavior stays in
 the physical suite catalogued in `AUTOMATION_TEST_SURFACE_INVENTORY.md`.
+The smoke also creates a semantic document, places an off-canvas PNG and
+exports native and PSD artifacts, checking the stable ID and tight transform.
 
 ### Phase F - optional MCP adapter
 
@@ -251,6 +263,10 @@ comparison, absolute expiry, request limits, revocation, a method/command
 allowlist and a bounded activity projection. A future desktop host may attach
 localhost/named-pipe transport and existing-component consent/status UI; until
 then there is deliberately no remotely reachable endpoint.
+
+The server tool surface now exposes bounded document creation and can place a
+downloaded PNG/JPEG/WebP artifact into an explicit document. AVIF remains an
+open-only input; private-network and byte limits are enforced before upload.
 
 ## Always-green gates
 
