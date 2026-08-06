@@ -1,0 +1,24 @@
+# Task 076 — repeatable leak and tool-switch crash detection
+
+Status: completed 2026-08-06.
+
+Added a packaged Electron audit that reaches every visible toolbar and flyout
+tool through the real UI on every round. It fails on an unreachable/incomplete
+tool set, stopped document runtime, page error, console error, excessive
+post-GC heap/DOM/listener growth, and writes a machine-readable report.
+
+The audit is available directly as
+`npm run audit:desktop:tool-switching:build -- --iterations 10` and is included
+in the `desktop`/`full` agent quality profiles. The architecture test entry
+also documents the existing state-restoring endurance runner for CPU/GPU/DOM
+retention.
+
+Evidence:
+
+- 27 tools × 6 complete switching rounds passed;
+- stable tail: +194,076 bytes heap, 0 DOM nodes, 0 listeners;
+- zero long tasks, page errors, console errors or runtime stops;
+- six-round endurance on `TextTest.psd`, `shapes.psd` and
+  `FormulierPersoneel.pdf` passed; tail heap variation was 55–115 KiB and no
+  suspicious stable-tail CPU/GPU/DOM/listener growth was reported.
+

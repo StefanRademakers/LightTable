@@ -45,6 +45,9 @@ if (profile === 'desktop' || profile === 'full') {
     '--iterations', argument('iterations', '6')]);
   add('desktop-style-interaction', node,
     [path.join(workspace, 'scripts', 'audit-desktop-layer-style-interaction.mjs')]);
+  add('desktop-tool-switching', node,
+    [path.join(workspace, 'scripts', 'audit-desktop-tool-switching.mjs'),
+      '--iterations', argument('iterations', '6')]);
 }
 
 if (profile === 'parity' || profile === 'full') {

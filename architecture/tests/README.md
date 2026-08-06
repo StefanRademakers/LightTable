@@ -23,7 +23,7 @@ Profiles:
 
 - `quick`: boundaries, all typechecks/tests and the production Web build;
 - `desktop`: production desktop package, every desktop smoke, endurance and
-  the high-frequency Layer Style interaction gate;
+  the high-frequency Layer Style interaction and all-tool switching gates;
 - `parity`: production desktop package plus strict Photoshop Layer Style and
   blend/color corpus comparisons;
 - `full`: all of the above.
@@ -40,6 +40,18 @@ command or real UI, verify a semantic state change, watch page/console/runtime
 errors, and close its Electron process in `finally`. Pixel-sensitive work also
 needs a stable reference/difference gate. Performance work records the active
 event count; a test that did not trigger the intended action is a failed test.
+
+Leak and crash triage can be run alone with:
+
+```powershell
+npm run stress:desktop:build -- --iterations 10
+npm run audit:desktop:tool-switching:build -- --iterations 10
+```
+
+The first gate restores every interaction to its reference state before forced
+GC and checks stable-tail heap, DOM, listeners and renderer-owned GPU bytes. The
+second reaches every toolbar/flyout tool each round, detects stopped document
+runtimes, page/console errors and the same CPU-side retention signals.
 
 See [repeatable parity gates](REPEATABLE_PARITY_GATES.md) for fixture ownership
 and interpretation.
