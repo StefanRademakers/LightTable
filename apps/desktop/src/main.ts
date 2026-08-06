@@ -37,6 +37,8 @@ import {
 } from './releaseUpdate';
 import type { LightTableUpdateResult } from '@lighttable/app';
 import { BoundedLruCache } from './boundedLruCache';
+import { AgentAccessBridge } from './agentAccessBridge';
+import { DesktopAgentAccessCredentialStore } from './agentAccessCredentialStore';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -45,6 +47,13 @@ let mainWindow: BrowserWindow | null = null;
 let rendererOrigin = '';
 let packagedRendererServer: Server | null = null;
 let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath: string } | null = null;
+let agentAccessBridge: AgentAccessBridge | null = null;
+let agentRequestSequence = 0;
+const pendingAgentRequests = new Map<string, {
+  readonly resolve: (value: unknown) => void;
+  readonly reject: (reason: Error) => void;
+  readonly timeout: ReturnType<typeof setTimeout>;
+}>();
 
 const automationUserData = process.env.LIGHTTABLE_AUTOMATION_USER_DATA;
 if (automationUserData) app.setPath('userData', path.resolve(automationUserData));
@@ -240,6 +249,27 @@ function reportDesktopStartupFailure(error: unknown): void {
   console.error('[LightTable desktop] Startup failed.', error);
 }
 
+const invokeAgentRenderer = (method: string, parameters: unknown): Promise<unknown> => {
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.reject(new Error('LightTable renderer is unavailable.'));
+  const id = `agent-${Date.now().toString(36)}-${(++agentRequestSequence).toString(36)}`;
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingAgentRequests.delete(id);
+      reject(new Error('LightTable agent request timed out.'));
+    }, 15_000);
+    pendingAgentRequests.set(id, { resolve, reject, timeout });
+    mainWindow?.webContents.send('lighttable:agent-access-request', { id, method, parameters });
+  });
+};
+
+const rejectPendingAgentRequests = (message: string): void => {
+  for (const [id, pending] of pendingAgentRequests) {
+    clearTimeout(pending.timeout);
+    pending.reject(new Error(message));
+    pendingAgentRequests.delete(id);
+  }
+};
+
 async function createWindow(): Promise<void> {
   const window = new BrowserWindow({
     width: 1600,
@@ -272,6 +302,8 @@ async function createWindow(): Promise<void> {
   });
   window.webContents.on('render-process-gone', (_event, details) => {
     console.error(`[LightTable renderer] Process exited: ${details.reason} (${details.exitCode})`);
+    rejectPendingAgentRequests('LightTable renderer stopped.');
+    void agentAccessBridge?.disable();
   });
   window.once('ready-to-show', () => window.show());
   window.on('enter-full-screen', () => {
@@ -326,6 +358,55 @@ void app.whenReady().then(async () => {
 
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);
+  });
+
+  agentAccessBridge = new AgentAccessBridge(
+    new DesktopAgentAccessCredentialStore(
+      path.join(app.getPath('userData'), 'agent-access', 'credentials.bin'),
+      {
+        available: () => safeStorage.isEncryptionAvailable(),
+        protect: (value) => new Uint8Array(safeStorage.encryptString(value)),
+        unprotect: (value) => safeStorage.decryptString(Buffer.from(value))
+      }
+    ),
+    invokeAgentRenderer,
+    app.getVersion(),
+    ['semantic-commands', 'atomic-batches', 'gestures', 'bounded-artifacts']
+  );
+  agentAccessBridge.subscribe((status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('lighttable:agent-access-changed', status);
+    }
+  });
+
+  ipcMain.on('lighttable:agent-access-response', (event, payload: {
+    readonly id?: unknown; readonly value?: unknown; readonly error?: unknown;
+  }) => {
+    if (!isTrustedSender(event.senderFrame?.url ?? '') || typeof payload?.id !== 'string') return;
+    const pending = pendingAgentRequests.get(payload.id);
+    if (!pending) return;
+    pendingAgentRequests.delete(payload.id);
+    clearTimeout(pending.timeout);
+    if (typeof payload.error === 'string') pending.reject(new Error(payload.error));
+    else pending.resolve(payload.value);
+  });
+
+  ipcMain.handle('lighttable:agent-access-status', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return agentAccessBridge?.status() ?? { supported: false, enabled: false, state: 'stopped' };
+  });
+  ipcMain.handle('lighttable:agent-access-enable', (event, port?: number) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return agentAccessBridge?.enable(port ?? 0);
+  });
+  ipcMain.handle('lighttable:agent-access-disable', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    rejectPendingAgentRequests('Agent Access was stopped.');
+    return agentAccessBridge?.disable();
+  });
+  ipcMain.handle('lighttable:agent-access-rotate', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return agentAccessBridge?.rotateCredentials();
   });
 
   ipcMain.handle('lighttable:open-file', async (event) => {
@@ -686,6 +767,8 @@ void app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    rejectPendingAgentRequests('LightTable is closing.');
+    void agentAccessBridge?.disable();
     packagedRendererServer?.close();
     packagedRendererServer = null;
     app.quit();

@@ -50,6 +50,8 @@
     "smoke:desktop:recents:build": "npm run package:desktop:verify && npm run smoke:desktop:recents --",
     "smoke:desktop:onboarding": "node scripts/smoke-desktop-onboarding.mjs",
     "smoke:desktop:onboarding:build": "npm run package:desktop:verify && npm run smoke:desktop:onboarding --",
+    "smoke:desktop:agent-access": "node scripts/smoke-desktop-agent-access.mjs",
+    "smoke:desktop:agent-access:build": "npm run package:desktop:verify && npm run smoke:desktop:agent-access --",
     "audit:desktop:panel-language": "node scripts/audit-desktop-panel-language.mjs",
     "audit:desktop:panel-language:build": "npm run package:desktop:verify && npm run audit:desktop:panel-language --",
     "smoke:desktop:psd-roundtrip": "node scripts/smoke-desktop-psd-roundtrip.mjs",

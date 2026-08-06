@@ -56,9 +56,10 @@ history still has value. Keep temporary task notes out of this directory.
 32. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
 33. [Repeatable quality and parity tests](tests/README.md)
 34. [Current code quality and latency audit](CODE_QUALITY_AUDIT_2026-08-06.md)
-35. [LightTable MCP v1 integration](integrations/LIGHTTABLE_MCP_V1.md)
-36. [Architecture documentation audit and handoff](ARCHITECTURE_DOCUMENTATION_AUDIT_2026-08-06.md)
-37. [Change rules](CHANGE_RULES.md)
+35. [Embedded desktop Agent Access](integrations/EMBEDDED_AGENT_ACCESS.md)
+36. [LightTable MCP v1 integration](integrations/LIGHTTABLE_MCP_V1.md)
+37. [Architecture documentation audit and handoff](ARCHITECTURE_DOCUMENTATION_AUDIT_2026-08-06.md)
+38. [Change rules](CHANGE_RULES.md)
 
 ## Directory roles
 

@@ -699,7 +699,9 @@
   display: flex;
   gap: 8px;
 }
-.lighttable-launcher__about {
+.lighttable-launcher__utility-actions {
+  display: flex;
+  gap: 8px;
   justify-self: start;
 }
 
@@ -734,3 +736,20 @@
 .lighttable-command-help__row small { width: 48px; color: var(--color-text-muted); }
 .lighttable-command-help__row kbd { color: var(--color-text-muted); font: inherit; }
 .lighttable-command-help__empty { color: var(--color-text-muted); }
+
+.lighttable-agent-settings { width: min(560px, calc(100vw - 32px)); }
+.lighttable-agent-settings__body { padding: 16px; }
+.lighttable-agent-settings__body > h3 { margin: 0 0 6px; }
+.lighttable-agent-settings__body > p { color: var(--color-text-muted); line-height: 1.45; }
+.lighttable-agent-settings__toggle { display: flex; align-items: center; gap: 9px; margin: 18px 0; font-weight: 600; }
+.lighttable-agent-settings__port, .lighttable-agent-settings__token { display: grid; gap: 6px; margin: 12px 0; color: var(--color-text-muted); }
+.lighttable-agent-settings__port input { width: 150px; }
+.lighttable-agent-settings__token input { width: 100%; font-family: var(--lt-font-mono); }
+.lighttable-agent-settings input { padding: 7px; }
+.lighttable-agent-settings dl { display: grid; gap: 5px; margin: 14px 0; }
+.lighttable-agent-settings dl > div { display: grid; grid-template-columns: 90px 1fr; gap: 10px; }
+.lighttable-agent-settings dt { color: var(--color-text-muted); }
+.lighttable-agent-settings dd { margin: 0; overflow-wrap: anywhere; }
+.lighttable-agent-settings__actions { display: flex; gap: 8px; margin-top: 14px; }
+.lighttable-agent-settings__error { color: var(--color-danger) !important; }
+.lighttable-agent-settings__note { font-size: var(--lt-type-small); }

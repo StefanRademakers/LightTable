@@ -72,6 +72,7 @@ export interface EditorMenuControllerOptions {
     toggleScreenMode(): void;
     resetLayout(): void;
     startGuidedSample?(): void;
+    openSettings?(): void;
   };
 }
 
@@ -195,6 +196,7 @@ export const createEditorMenuController = ({
       toggleScreenMode: workspace.toggleScreenMode,
       resetWorkspaceLayout: workspace.resetLayout,
       startGuidedSample: workspace.startGuidedSample,
+      openSettings: workspace.openSettings,
       openCommandHelp: dialogs.openCommandHelp,
       openAbout: dialogs.openAbout
     }

@@ -34,13 +34,19 @@ Hetzner: apps/mcp-server
         |
         | bearer-authenticated private/reverse tunnel
         v
-Desktop: loopback automation bridge
+Desktop: embedded, opt-in Agent Access bridge
         |
         v
 LightTable command service -> history/document model -> GPU renderer
 ```
 
-The bridge binds only to `127.0.0.1` and requires a high-entropy shared token.
+The bridge is owned by the normal LightTable Electron main process. It binds
+only to `127.0.0.1`, is disabled by default and requires an OS-protected,
+rotatable high-entropy device token. Enable it in **Settings > Agent Access**;
+the displayed address and token configure the private tunnel. Stopping it
+closes listeners without closing documents. See
+[Embedded desktop Agent Access](EMBEDDED_AGENT_ACCESS.md).
+
 For the Hetzner trial, create an outbound reverse SSH tunnel from the desktop:
 
 ```powershell
@@ -132,7 +138,9 @@ isolation before release.
 
 ## Verification evidence
 
-`npm run smoke:mcp` performs a real protocol-to-desktop test. The 2026-08-06
+`npm run smoke:desktop:agent-access` verifies the product-owned bridge in one
+packaged desktop instance. `npm run smoke:mcp` remains the full remote protocol
+test and currently uses the isolated development bridge fixture. Its 2026-08-06
 run used `D:\shapes.psd`, added and renamed an editable raster layer, painted a
 single undoable stroke, fetched a GPU preview and exported all three artifacts.
 Evidence is under `D:\mediavibe\LightTableTestFiles\mcp`:

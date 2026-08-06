@@ -43,7 +43,32 @@ const bridge: LightTableDesktopBridge = {
   releaseInfo: () => ipcRenderer.invoke('lighttable:release-info'),
   checkForUpdates: () => ipcRenderer.invoke('lighttable:check-updates'),
   restartToInstallUpdate: (dirtyDocuments: boolean) =>
-    ipcRenderer.invoke('lighttable:restart-update', dirtyDocuments)
+    ipcRenderer.invoke('lighttable:restart-update', dirtyDocuments),
+  agentAccessStatus: () => ipcRenderer.invoke('lighttable:agent-access-status'),
+  enableAgentAccess: (port?: number) => ipcRenderer.invoke('lighttable:agent-access-enable', port),
+  disableAgentAccess: () => ipcRenderer.invoke('lighttable:agent-access-disable'),
+  rotateAgentAccessCredentials: () => ipcRenderer.invoke('lighttable:agent-access-rotate'),
+  onAgentAccessStatus: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
+    ipcRenderer.on('lighttable:agent-access-changed', handler);
+    return () => ipcRenderer.removeListener('lighttable:agent-access-changed', handler);
+  },
+  installAgentAccessHandler: (listener) => {
+    const handler = async (_event: Electron.IpcRendererEvent, request: {
+      readonly id: string; readonly method: string; readonly parameters: unknown;
+    }) => {
+      try {
+        const value = await listener(request.method, request.parameters);
+        ipcRenderer.send('lighttable:agent-access-response', { id: request.id, value });
+      } catch (reason) {
+        ipcRenderer.send('lighttable:agent-access-response', {
+          id: request.id, error: reason instanceof Error ? reason.message : String(reason)
+        });
+      }
+    };
+    ipcRenderer.on('lighttable:agent-access-request', handler);
+    return () => ipcRenderer.removeListener('lighttable:agent-access-request', handler);
+  }
 };
 
 contextBridge.exposeInMainWorld('lightTableDesktop', bridge);

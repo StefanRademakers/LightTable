@@ -89,6 +89,26 @@ export interface LightTableReleaseService {
   }>;
 }
 
+export interface LightTableAgentAccessStatus {
+  readonly supported: boolean;
+  readonly enabled: boolean;
+  readonly state: 'stopped' | 'starting' | 'running' | 'error';
+  readonly address?: string;
+  readonly port?: number;
+  readonly deviceId?: string;
+  readonly token?: string;
+  readonly error?: string;
+}
+
+export interface LightTableAgentAccessService {
+  status(): Promise<LightTableAgentAccessStatus>;
+  enable(options?: { readonly port?: number }): Promise<LightTableAgentAccessStatus>;
+  disable(): Promise<LightTableAgentAccessStatus>;
+  rotateCredentials(): Promise<LightTableAgentAccessStatus>;
+  subscribe(listener: (status: LightTableAgentAccessStatus) => void): () => void;
+  installDriver(driver: LightTableAutomationDriver): (() => void) | void;
+}
+
 export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
   readonly media?: LightTableMediaBrowser;
@@ -96,6 +116,7 @@ export interface LightTableHost {
   readonly systemFontProvider?: SystemFontByteProvider;
   readonly recovery?: LightTableRecoveryStore;
   readonly release?: LightTableReleaseService;
+  readonly agentAccess?: LightTableAgentAccessService;
   readonly funnel?: LightTableFunnelTelemetry;
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;

@@ -101,6 +101,7 @@ export interface EditorMenuCommands {
   openAbout?: () => void;
   openCommandHelp?: () => void;
   startGuidedSample?: () => void;
+  openSettings?: () => void;
 }
 
 const checkedLabel = (label: string, checked: boolean) => checked ? `${label} ✓` : label;
@@ -230,6 +231,12 @@ export const createEditorMenuOptions = (
         label: state.copiedGradeName ? `Paste grade: ${state.copiedGradeName}` : 'Paste grade',
         onClick: commands.pasteGrade,
         disabled: !state.hasMetadata || !state.copiedGradeName || state.saving
+      },
+      {
+        value: 'settings',
+        label: 'Settings...',
+        separatorBefore: true,
+        onClick: commands.openSettings
       }
     ];
   }

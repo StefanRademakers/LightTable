@@ -39,6 +39,7 @@ import {
   GuidedSampleCoach,
   type GuidedSampleSession
 } from './GuidedSampleCoach';
+import { AgentAccessSettingsDialog } from './AgentAccessSettingsDialog';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -230,6 +231,7 @@ export function LightTableStandaloneApp({
   const [creating, setCreating] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [guidedSample, setGuidedSample] = useState<GuidedSampleSession | null>(null);
   const [telemetryEnabled, setTelemetryEnabled] = useState(() => host.funnel?.enabled() ?? false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
@@ -248,6 +250,7 @@ export function LightTableStandaloneApp({
 
   useEffect(() => () => commandService.dispose(), [commandService]);
   useEffect(() => host.installAutomationDriver?.(commandService), [commandService, host]);
+  useEffect(() => host.agentAccess?.installDriver(commandService), [commandService, host.agentAccess]);
   useEffect(() => {
     if (snapshot.documentOrder.length > 0 || launcherRecordedRef.current) return;
     launcherRecordedRef.current = true;
@@ -681,9 +684,10 @@ export function LightTableStandaloneApp({
               </div>
             </section>
           ) : null}
-          <button className="action-button lighttable-launcher__about" type="button" onClick={() => setAboutOpen(true)}>
-            About LightTable
-          </button>
+          <div className="lighttable-launcher__utility-actions">
+            <button className="action-button" type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
+            <button className="action-button" type="button" onClick={() => setAboutOpen(true)}>About LightTable</button>
+          </div>
         </div>
         <NewDocumentDialog
           open={newDialogOpen}
@@ -698,6 +702,7 @@ export function LightTableStandaloneApp({
           dirtyDocuments={false}
           onClose={() => setAboutOpen(false)}
         />
+        <AgentAccessSettingsDialog open={settingsOpen} service={host.agentAccess} onClose={() => setSettingsOpen(false)} />
       </main>
     );
   }
@@ -740,6 +745,7 @@ export function LightTableStandaloneApp({
           onClearRecent={clearRecentFiles}
           onRequestNew={requestNewDocument}
           onStartGuidedSample={() => void startGuidedSample()}
+          onOpenSettings={() => setSettingsOpen(true)}
           onOpen={openDocument}
           onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
         />
@@ -751,6 +757,7 @@ export function LightTableStandaloneApp({
         onCancel={() => setNewDialogOpen(false)}
         onCreate={(size) => void createDocument(size)}
       />
+      <AgentAccessSettingsDialog open={settingsOpen} service={host.agentAccess} onClose={() => setSettingsOpen(false)} />
       {guidedSample ? (
         <GuidedSampleCoach
           session={guidedSample}

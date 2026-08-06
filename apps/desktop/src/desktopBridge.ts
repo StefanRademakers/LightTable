@@ -3,7 +3,8 @@ import type {
   LightTableRecoveryRecord,
   LightTableRecoveryWriteResult,
   LightTableReleaseInfo,
-  LightTableUpdateResult
+  LightTableUpdateResult,
+  LightTableAgentAccessStatus
 } from '@lighttable/app';
 
 export interface DesktopFilePayload {
@@ -106,4 +107,10 @@ export interface LightTableDesktopBridge {
     readonly status: 'restarting' | 'blocked' | 'unavailable';
     readonly message?: string;
   }>;
+  agentAccessStatus(): Promise<LightTableAgentAccessStatus>;
+  enableAgentAccess(port?: number): Promise<LightTableAgentAccessStatus>;
+  disableAgentAccess(): Promise<LightTableAgentAccessStatus>;
+  rotateAgentAccessCredentials(): Promise<LightTableAgentAccessStatus>;
+  onAgentAccessStatus(listener: (status: LightTableAgentAccessStatus) => void): () => void;
+  installAgentAccessHandler(handler: (method: string, parameters: unknown) => Promise<unknown>): () => void;
 }

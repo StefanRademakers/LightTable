@@ -116,6 +116,8 @@ export type {
   LightTableReleaseChannel,
   LightTableReleaseInfo,
   LightTableReleaseService,
+  LightTableAgentAccessService,
+  LightTableAgentAccessStatus,
   LightTableUpdateResult,
   LightTableSaveRequest
 } from './platform/LightTableHost';
