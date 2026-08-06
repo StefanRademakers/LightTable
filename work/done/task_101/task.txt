@@ -1,0 +1,54 @@
+# Task 101 — unsupported-feature and recovery UX (P2)
+
+Priority: P2. Depends on Tasks 090–094. Expected effort: 5–9 focused hours.
+
+## Objective
+
+Turn import/export limitations into understandable, actionable recovery instead
+of debug-only warnings, silent rasterization or disabled controls.
+
+## Required work
+
+- Normalize capability findings by document/layer/feature/severity and action:
+  exact, approximated, preview-backed, missing asset/font, export-blocking.
+- Present one compact document summary with navigation to affected layers.
+- Provide only safe actions: keep preview, replace font, rasterize explicit copy,
+  remove unsupported effect, cancel export or export flattened.
+- Show what edit will invalidate a retained preview before it happens.
+- Preserve original metadata/source until an explicit destructive decision.
+- Keep diagnostics copyable and useful without leaking full local paths/content.
+
+## UI exposure
+
+Use a normal inspector/start/import-report surface, layer badges and existing
+dialogs/buttons. Do not flood the Layers tree with dormant or non-actionable rows.
+
+## Verification and completion
+
+- PSD/PDF fixtures for every status/action and cancel/undo/save/reopen.
+- No supported document shows warnings; no unsupported case disappears silently.
+- Keyboard/accessibility and compact-panel tests.
+- Export preflight and retained-preview regressions pass; docs, commit, move.
+
+## Completion (2026-08-06)
+
+- Added one UI-neutral finding projection for exact, approximated,
+  preview-backed, missing-asset and export-blocking states, with document/layer,
+  feature, severity, editability, preview invalidation and bounded safe actions.
+- Reworked the existing Document Compatibility Report into a compact summary,
+  status filters, affected-layer navigation, missing-font replacement and
+  explicit retained-preview warning. Navigation and font replacement now use
+  separate controller paths, preventing accidental text-edit activation.
+- Added compact layer badges only for actionable non-exact findings; no dormant
+  effects or supported-only warnings are added to the Layers tree.
+- PDF first-page raster import now reports its preserved original source,
+  unavailable semantic text/vector structure and editable-export boundary. PDF
+  export remains fail-closed through existing cancel/flattened/native preflight.
+- Sanitized displayed diagnostics by removing absolute local paths/control
+  characters and bounding messages to 500 characters while retaining useful
+  layer/feature reasons. Native save/reopen continues to preserve reports,
+  descriptors, dependency-keyed previews and source assets.
+- Verification passed: 327 app test files / 1,762 tests, targeted PSD/PDF/font/
+  persistence suites, web build, packaged desktop build, missing-font recovery,
+  PDF flattened preflight, PSD roundtrip, desktop accessibility, architecture
+  audit and visually reviewed standard/compact PSD plus PDF report screenshots.
