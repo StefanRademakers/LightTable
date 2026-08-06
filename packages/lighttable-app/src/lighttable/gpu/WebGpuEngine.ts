@@ -44,6 +44,7 @@ import type {
   ReferenceDifferenceMetrics
 } from '../application/rendering/rendererTypes';
 import { RenderInvalidationScheduler } from '../application/rendering/renderInvalidationScheduler';
+import { warpInteractionFrameIntervalMs } from '../application/rendering/interactionRenderCadence';
 import { SelectionAntsAnimator } from '../application/rendering/SelectionAntsAnimator';
 import {
   RenderDirtyState,
@@ -221,6 +222,7 @@ export class WebGpuEngine {
   private destroyed = false;
   private active = true;
   private paintInteractionActive = false;
+  private warpInteractionActive = false;
   private lastReportedGpuBytes = -1;
   private vectorSelection = createVectorEditorSelection();
   private selectionOverlayOperations: SelectionOperation[] = [];
@@ -517,6 +519,13 @@ export class WebGpuEngine {
       this.scopeRuntime.markImageDirty();
       this.requestRender();
     }
+  }
+
+  setWarpInteractionActive(active: boolean) {
+    if (this.warpInteractionActive === active) return;
+    this.warpInteractionActive = active;
+    this.syncInteractiveRenderCadence();
+    if (!active) this.requestRender();
   }
 
   beginLayerPixelEdit(layerId: LayerId, channel: PaintChannel = 'pixels') {
@@ -1572,7 +1581,12 @@ export class WebGpuEngine {
 
   private syncInteractiveRenderCadence() {
     this.renderScheduler.setMinimumFrameInterval(
-      this.effectRuntime?.preferredInteractionFrameIntervalMs() ?? 0
+      Math.max(
+        this.effectRuntime?.preferredInteractionFrameIntervalMs() ?? 0,
+        this.warpInteractionActive && this.metadata
+          ? warpInteractionFrameIntervalMs(this.metadata.width, this.metadata.height)
+          : 0
+      )
     );
   }
 
@@ -2045,6 +2059,7 @@ export class WebGpuEngine {
   destroy() {
     this.destroyed = true;
     this.paintInteractionActive = false;
+    this.warpInteractionActive = false;
     // The isolated mask texture is borrowed from the document renderer. Drop
     // references here, but let the document renderer own its destruction.
     this.isolatedMaskLayerId = null;

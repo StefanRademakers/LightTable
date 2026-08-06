@@ -1982,7 +1982,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocumentSnapshot,
     pushHistoryEntry,
     setError,
-    createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
+    createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`,
+    setInteractionActive: (active) => engineRef.current?.setWarpInteractionActive(active)
   });
 
   const activeDocumentLayer = imageDocument?.activeLayerId

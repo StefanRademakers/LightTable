@@ -52,6 +52,7 @@ export interface WarpSessionDependencies {
   pushHistoryEntry(entry: WarpHistoryEntry): void;
   setError(message: string | null): void;
   createId(kind: 'stack' | 'module' | 'stroke'): string;
+  setInteractionActive?(active: boolean): void;
 }
 
 export interface BeginWarpSession {
@@ -198,6 +199,7 @@ export const createWarpSessionController = (
     previewScheduler.cancel();
     gesture.reset();
     active = null;
+    resolveDependencies().setInteractionActive?.(false);
   };
 
   return {
@@ -230,6 +232,7 @@ export const createWarpSessionController = (
         layerId: layer.id,
         before: document
       };
+      dependencies.setInteractionActive?.(true);
       const stroke = gesture.begin({
         pointerId: request.pointerId,
         strokeId: dependencies.createId('stroke'),
@@ -280,6 +283,7 @@ export const createWarpSessionController = (
       const dependencies = resolveDependencies();
       const after = dependencies.getDocument();
       active = null;
+      dependencies.setInteractionActive?.(false);
       if (!after || after.id !== session.documentId) return false;
       dependencies.pushHistoryEntry({
         label: 'Warp layer',
@@ -308,6 +312,7 @@ export const createWarpSessionController = (
       previewScheduler.cancel();
       restoreBefore();
       active = null;
+      resolveDependencies().setInteractionActive?.(false);
       return true;
     },
     clearActiveLayer: () => {

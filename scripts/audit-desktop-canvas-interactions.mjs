@@ -96,10 +96,12 @@ try {
   }));
   const measure = async (name, action, expectation = null) => {
     const before = await driver.queryDocument(documentId);
+    await driver.resetRenderTelemetry(documentId);
     const startedAt = performance.now();
     await action();
     await settleFrame();
     const after = await driver.queryDocument(documentId);
+    const renderTelemetry = await driver.queryRenderTelemetry(documentId);
     const result = {
       name,
       durationMs: performance.now() - startedAt,
@@ -120,7 +122,8 @@ try {
         ? after.renderer.estimatedGpuBytes - before.renderer.estimatedGpuBytes
         : null,
       zoomBefore: before?.viewport.scale ?? null,
-      zoomAfter: after?.viewport.scale ?? null
+      zoomAfter: after?.viewport.scale ?? null,
+      renderTelemetry
     };
     report.actions.push(result);
     if (expectation && !expectation(result)) {

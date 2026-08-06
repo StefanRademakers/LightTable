@@ -54,6 +54,7 @@ const harness = () => {
     }),
     pushHistoryEntry: vi.fn((entry) => history.push(entry)),
     setError: vi.fn(),
+    setInteractionActive: vi.fn(),
     createId: vi.fn((kind: string) => `${kind}-${++id}`)
   };
   return {
@@ -85,6 +86,7 @@ describe('Warp session controller', () => {
     expect(state.dependencies.pushHistoryEntry).not.toHaveBeenCalled();
     expect(controller.finish(7, 40)).toBe(true);
     expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
+    expect(state.dependencies.setInteractionActive.mock.calls).toEqual([[true], [false]]);
 
     const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
     const settings = readWarpNodeSettings(findWarpModuleInstance(layer.adjustmentStack)!);
@@ -120,6 +122,7 @@ describe('Warp session controller', () => {
     })).toBe(true);
     expect(controller.cancel(2)).toBe(true);
     expect(state.document).toBe(before);
+    expect(state.dependencies.setInteractionActive).toHaveBeenLastCalledWith(false);
 
     expect(controller.begin({
       pointerId: 3,
