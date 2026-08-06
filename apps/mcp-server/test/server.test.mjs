@@ -37,6 +37,9 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_workspace'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_preview'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_document'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_text'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_edit_text'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_text'));
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
@@ -60,6 +63,19 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   } });
   assert.equal(created.isError, undefined);
   assert.equal(created.structuredContent.status, 'completed');
+  const textCreated = await editor.callTool({ name: 'lighttable_create_text', arguments: {
+    documentId: 'document-demo', mode: 'paragraph', text: 'مرحبا 👋', x: 20, y: 30,
+    width: 280, height: 160, family: 'Inter', fontSize: 64, fill: '#ff0088', writingMode: 'horizontal-tb'
+  } });
+  assert.equal(textCreated.isError, undefined);
+  const textEdited = await editor.callTool({ name: 'lighttable_edit_text', arguments: {
+    documentId: 'document-demo', layerId: 'layer-text', operation: 'replace', start: 0, end: 1, text: 'A'
+  } });
+  assert.equal(textEdited.isError, undefined);
+  const textQuery = await reader.callTool({ name: 'lighttable_text', arguments: {
+    documentId: 'document-demo', layerId: 'layer-text'
+  } });
+  assert.equal(textQuery.structuredContent.content.text, 'Text');
 });
 
 test('MCP endpoint advertises protected-resource metadata when unauthenticated', async (context) => {

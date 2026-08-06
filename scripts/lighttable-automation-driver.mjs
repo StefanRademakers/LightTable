@@ -30,6 +30,12 @@ export class LightTableAutomationClient {
     { documentId, layerId });
   }
 
+  queryText(documentId, layerId) {
+    return this.page.evaluate(({ documentId, layerId }) =>
+      window.__lightTableAutomation?.queryText(documentId, layerId) ?? null,
+    { documentId, layerId });
+  }
+
   queryRenderTelemetry(documentId) {
     return this.page.evaluate((id) =>
       window.__lightTableAutomation?.queryRenderTelemetry?.(id) ?? null,
@@ -107,6 +113,31 @@ export class LightTableAutomationClient {
       throw new Error(`Task ${taskId} did not complete: ${JSON.stringify(task)}`);
     }
     return task;
+  }
+
+  async waitForDocument(documentId, timeout = 30_000) {
+    const deadline = Date.now() + timeout;
+    let document = await this.queryDocument(documentId);
+    while (document?.lifecycle !== 'ready' && Date.now() < deadline) {
+      if (document?.lifecycle === 'failed' || document?.lifecycle === 'disposed') break;
+      await this.page.waitForTimeout(50);
+      document = await this.queryDocument(documentId);
+    }
+    if (document?.lifecycle !== 'ready') {
+      throw new Error(`Document ${documentId} did not become ready: ${JSON.stringify(document)}`);
+    }
+    return document;
+  }
+
+  async waitForLayers(documentId, timeout = 30_000) {
+    const deadline = Date.now() + timeout;
+    let layers = await this.queryLayers(documentId);
+    while (!layers && Date.now() < deadline) {
+      await this.page.waitForTimeout(50);
+      layers = await this.queryLayers(documentId);
+    }
+    if (!layers) throw new Error(`Document ${documentId} did not publish its layer projection.`);
+    return layers;
   }
 }
 

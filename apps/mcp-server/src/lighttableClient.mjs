@@ -82,6 +82,10 @@ export class MockLightTableClient {
     if (method === 'document.query') return parameters.documentId === this.document.id ? this.document : null;
     if (method === 'layer.list') return parameters.documentId === this.document.id ? this.layers : null;
     if (method === 'layer.effects') return { layerId: parameters.layerId, enabled: true, revision: 0, effects: [] };
+    if (method === 'text.query') return { layerId: parameters.layerId, sourceKind: 'flow', editable: true,
+      revision: 1, transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      content: { text: 'Text', totalLength: 4, truncated: false }, layout: { mode: 'point' },
+      styleRuns: [], paragraphRuns: [], runsTruncated: false };
     if (method === 'command.capabilities') return ['layer.createRaster', 'layer.rename',
       'layer.setVisibility', 'layer.setFillOpacity', 'history.undo', 'history.redo']
       .map((command) => ({ command, available: true, reason: null }));

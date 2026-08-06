@@ -51,6 +51,7 @@ const invoke = (method, parameters) => page.evaluate(async ({ method, parameters
   if (method === 'document.query') return driver.queryDocument(parameters.documentId);
   if (method === 'layer.list') return driver.queryLayers(parameters.documentId);
   if (method === 'layer.effects') return driver.queryLayerEffects(parameters.documentId, parameters.layerId);
+  if (method === 'text.query') return driver.queryText(parameters.documentId, parameters.layerId);
   if (method === 'command.capabilities') return driver.queryCapabilities(parameters.documentId);
   if (method === 'task.query') return driver.queryTask(parameters.documentId, parameters.taskId);
   if (method === 'artifact.list') return driver.listArtifacts();

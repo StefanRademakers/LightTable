@@ -70,11 +70,66 @@ try {
     && layer.rasterSurface?.width > 0 && layer.transform?.tx === -1)) {
     throw new Error('Placed image media, bounds or transform were not preserved.');
   }
+  const textLatencies = {};
+  const runTextCommand = async (label, command, parameters) => {
+    const startedAt = performance.now();
+    const result = await driver.execute(semanticDocumentId, command, parameters);
+    textLatencies[label] = performance.now() - startedAt;
+    return result;
+  };
+  const textCreated = await runTextCommand('create', 'text.create', {
+    mode: 'paragraph', name: 'Semantic text', text: 'Automation text 👋',
+    origin: { x: 24, y: 64 }, frame: { width: 220, height: 120 }, writingMode: 'horizontal-tb',
+    style: { font: { family: 'Inter', style: 'Regular' }, fontSize: 48,
+      fill: { enabled: true, color: '#ff0088' } },
+    paragraph: { alignment: 'start', direction: 'auto', leading: { value: 58 } }
+  });
+  const textLayerId = textCreated.value?.layerId;
+  if (!textLayerId) throw new Error('Semantic text creation returned no layer ID.');
+  await runTextCommand('replace', 'text.replaceRange', {
+    layerId: textLayerId, start: 0, end: 10, text: 'Semantic'
+  });
+  await runTextCommand('format', 'text.format', {
+    layerId: textLayerId, start: 0, end: 8,
+    style: { fontSize: 54, tracking: 80, stroke: { enabled: true, color: '#112233', width: 2 } },
+    paragraph: { alignment: 'end', direction: 'rtl', startIndent: 4 }
+  });
+  await runTextCommand('layout', 'text.setLayout', {
+    layerId: textLayerId, frame: { x: 0, y: 0, width: 240, height: 130 },
+    transform: { a: 0.9659258, b: 0.258819, c: -0.258819, d: 0.9659258, tx: 30, ty: 70 }
+  });
+  const textProjection = await driver.queryText(semanticDocumentId, textLayerId);
+  if (textProjection?.content.text !== 'Semantic text 👋' || textProjection.styleRuns.length < 2) {
+    throw new Error(`Semantic text projection is incorrect: ${JSON.stringify(textProjection)}`);
+  }
+  if (Math.max(textLatencies.replace, textLatencies.format, textLatencies.layout) > 1_000) {
+    throw new Error(`Semantic text edit latency exceeded 1000 ms: ${JSON.stringify(textLatencies)}`);
+  }
   const nativeExport = await driver.execute(semanticDocumentId, 'file.exportNative', {}, { requireCompleted: false });
   const nativeTask = await driver.waitForTask(semanticDocumentId, nativeExport.taskId);
   const psdExport = await driver.execute(semanticDocumentId, 'file.exportPsd', {}, { requireCompleted: false });
   const psdTask = await driver.waitForTask(semanticDocumentId, psdExport.taskId);
   if (!nativeTask.artifact || !psdTask.artifact) throw new Error('Placed document exports did not complete.');
+  const nativeOpen = await driver.executeWorkspace('file.openArtifact', { artifactId: nativeTask.artifact.id });
+  const nativeDocumentId = nativeOpen.value?.documentId;
+  if (!nativeDocumentId) throw new Error('Native text roundtrip did not return a document ID.');
+  await driver.waitForDocument(nativeDocumentId);
+  const nativeLayers = await driver.waitForLayers(nativeDocumentId);
+  const nativeTextLayer = nativeLayers?.find(({ name }) => name === 'Semantic text');
+  const nativeText = nativeTextLayer ? await driver.queryText(nativeDocumentId, nativeTextLayer.id) : null;
+  if (!nativeTextLayer || nativeText?.content.text !== 'Semantic text 👋') {
+    throw new Error(`Native text roundtrip did not preserve editable content: ${JSON.stringify({ nativeText, nativeLayers })}`);
+  }
+  const psdOpen = await driver.executeWorkspace('file.openArtifact', { artifactId: psdTask.artifact.id });
+  const psdDocumentId = psdOpen.value?.documentId;
+  if (!psdDocumentId) throw new Error('PSD text roundtrip did not return a document ID.');
+  await driver.waitForDocument(psdDocumentId);
+  const psdLayers = await driver.waitForLayers(psdDocumentId);
+  const psdTextLayer = psdLayers?.find(({ name }) => name === 'Semantic text');
+  const psdText = psdTextLayer ? await driver.queryText(psdDocumentId, psdTextLayer.id) : null;
+  if (!psdText?.editable || psdText.content.text !== 'Semantic text 👋') {
+    throw new Error(`PSD text roundtrip lost editable content: ${JSON.stringify({ psdText, psdLayers })}`);
+  }
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.documents.find(({ title }) => title === path.basename(sourceFile))?.id;
   if (!documentId) throw new Error('No active document.');
@@ -121,6 +176,8 @@ try {
   }, [{ x: 90, y: 75, pressure: 0.8 }]);
   const report = {
     workspace, semantic: { create: semanticCreate, placements, layers: placedLayers,
+      text: { created: textCreated, projection: textProjection, latenciesMs: textLatencies,
+        nativeDocumentId, psdDocumentId },
       exports: { native: nativeTask, psd: psdTask } },
     before, layersBefore: layerProjection.length,
     results: { zoom, hidden, shown, created, renamed, undone },

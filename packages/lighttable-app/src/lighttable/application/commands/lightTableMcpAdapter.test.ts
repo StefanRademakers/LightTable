@@ -21,6 +21,7 @@ const createDriver = (): LightTableAutomationDriver => ({
   queryDocument: vi.fn(() => null),
   queryLayers: vi.fn(() => null),
   queryLayerEffects: vi.fn(() => null),
+  queryText: vi.fn(() => null),
   queryCapabilities: vi.fn(() => null),
   execute: vi.fn(async (request: unknown) => ({
     requestId: (request as { requestId: string }).requestId,
@@ -92,6 +93,24 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     expect(driver.execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
       command: 'layer.placeArtifact', documentId: 'document-1', expectedDocumentRevision: 2
     }));
+  });
+
+  it('exposes bounded text queries and semantic text edits', async () => {
+    const driver = createDriver();
+    vi.mocked(driver.queryText).mockReturnValue({ layerId: 'text-1' as never, sourceKind: 'flow',
+      editable: true, revision: 1, transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      content: { text: 'Hello', totalLength: 5, truncated: false }, layout: { mode: 'point' },
+      styleRuns: [], paragraphRuns: [], runsTruncated: false });
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('text.query', { documentId: 'document-1', layerId: 'text-1' })))
+      .toMatchObject({ status: 'completed', value: { content: { text: 'Hello' } } });
+    expect(await adapter.invoke(request('command.execute', { command: 'text.format',
+      documentId: 'document-1', commandRequestId: 'format-1',
+      commandParameters: { layerId: 'text-1', style: { fontSize: 72 } } })))
+      .toMatchObject({ status: 'completed' });
+    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({ command: 'text.format' }));
   });
 
   it('expires and bounds sessions and their activity history', async () => {

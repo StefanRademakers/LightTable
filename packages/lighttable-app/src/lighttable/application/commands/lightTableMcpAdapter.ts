@@ -12,6 +12,7 @@ export type LightTableMcpMethod =
   | 'document.query'
   | 'layer.list'
   | 'layer.effects'
+  | 'text.query'
   | 'command.capabilities'
   | 'command.execute'
   | 'task.query'
@@ -74,6 +75,10 @@ const allowedCommands = new Set<LightTableCommandId>([
   'layer.setFillOpacity',
   'layer.style.setEnabled',
   'layer.effect.setEnabled',
+  'text.create',
+  'text.replaceRange',
+  'text.format',
+  'text.setLayout',
   'file.exportNative',
   'file.exportPng',
   'history.undo',
@@ -169,6 +174,7 @@ export class AuthenticatedLightTableMcpAdapter {
       case 'document.query': return this.options.driver.queryDocument(documentId);
       case 'layer.list': return this.options.driver.queryLayers(documentId);
       case 'layer.effects': return this.options.driver.queryLayerEffects(documentId, parameters.layerId as LayerId);
+      case 'text.query': return this.options.driver.queryText(documentId, parameters.layerId as LayerId);
       case 'command.capabilities': return this.options.driver.queryCapabilities(documentId);
       case 'task.query': return this.options.driver.queryTask(documentId, String(parameters.taskId ?? ''));
       case 'artifact.list': return this.options.driver.listArtifacts();

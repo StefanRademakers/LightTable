@@ -58,6 +58,7 @@ const downloadImage = async (value, fetchImpl = fetch, redirects = 0) => {
 
 const commandIds = ['view.setZoom', 'layer.createRaster', 'layer.placeArtifact', 'layer.rename', 'layer.setVisibility',
   'layer.setFillOpacity', 'layer.style.setEnabled', 'layer.effect.setEnabled',
+  'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
   'file.exportNative', 'file.exportPng', 'file.exportPsd', 'history.undo', 'history.redo'];
 
 export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) => {
@@ -79,6 +80,12 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('layer.effects', input)));
+  server.registerTool('lighttable_text', {
+    title: 'Inspect editable text',
+    description: 'Returns bounded editable content, layout, run summaries and font availability without font bytes.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('text.query', input)));
   server.registerTool('lighttable_capabilities', {
     title: 'List available document commands', description: 'Reports which typed LightTable commands are currently valid and why unavailable commands are disabled.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
@@ -110,6 +117,54 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       commandParameters: { name, width, height, resolutionPpi, bitDepth: Number(bitDepth), profile,
         background: backgroundColor ? { kind: 'solid', color: backgroundColor } : { kind: 'transparent' } }
     }), { edit: true }));
+  server.registerTool('lighttable_create_text', {
+    title: 'Create editable text',
+    description: 'Creates point or paragraph text through LightTable’s WYSIWYG text model and GPU renderer.',
+    inputSchema: z.object({ documentId: z.string().min(1), mode: z.enum(['point', 'paragraph']),
+      text: z.string().max(1_000_000), x: z.number().finite(), y: z.number().finite(),
+      width: z.number().positive().max(10_000_000).optional(), height: z.number().positive().max(10_000_000).optional(),
+      fontAssetId: z.string().min(1).max(255).optional(), family: z.string().min(1).max(255).optional(),
+      fontStyle: z.string().min(1).max(255).optional(), fontSize: z.number().positive().max(100_000).optional(),
+      fill: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      writingMode: z.enum(['horizontal-tb', 'vertical-rl', 'vertical-lr']).default('horizontal-tb'),
+      expectedDocumentRevision: z.number().int().nonnegative().optional() })
+  }, withResult(({ documentId, mode, text, x, y, width, height, fontAssetId, family,
+    fontStyle, fontSize, fill, writingMode, expectedDocumentRevision }) => {
+    if (mode === 'paragraph' && (!width || !height)) throw new Error('Paragraph text requires width and height.');
+    return client.invoke('command.execute', { documentId, command: 'text.create',
+      commandRequestId: crypto.randomUUID(), ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }),
+      commandParameters: { mode, text, origin: { x, y }, writingMode,
+        ...(mode === 'paragraph' ? { frame: { width, height } } : {}),
+        ...((fontAssetId || family || fontStyle || fontSize || fill) ? { style: {
+          ...((fontAssetId || family || fontStyle) ? { font: { ...(fontAssetId ? { assetId: fontAssetId } : {}),
+            ...(family ? { family } : {}), ...(fontStyle ? { style: fontStyle } : {}) } } : {}),
+          ...(fontSize ? { fontSize } : {}), ...(fill ? { fill: { enabled: true, color: fill } } : {})
+        } } : {}) } });
+  }, { edit: true }));
+  server.registerTool('lighttable_edit_text', {
+    title: 'Edit or format text',
+    description: 'Atomically replaces a Unicode-safe range or applies common character and paragraph properties.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1),
+      operation: z.enum(['replace', 'format']), start: z.number().int().nonnegative().optional(),
+      end: z.number().int().nonnegative().optional(), text: z.string().max(1_000_000).optional(),
+      fontAssetId: z.string().min(1).max(255).optional(), fontSize: z.number().positive().max(100_000).optional(),
+      fill: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), tracking: z.number().min(-10_000).max(100_000).optional(),
+      alignment: z.enum(['start', 'center', 'end', 'justify']).optional(),
+      expectedDocumentRevision: z.number().int().nonnegative().optional() })
+  }, withResult(({ documentId, layerId, operation, start, end, text, fontAssetId, fontSize,
+    fill, tracking, alignment, expectedDocumentRevision }) => {
+    if (operation === 'replace' && (start === undefined || end === undefined || text === undefined)) {
+      throw new Error('Range replacement requires start, end and text.');
+    }
+    return client.invoke('command.execute', { documentId,
+      command: operation === 'replace' ? 'text.replaceRange' : 'text.format',
+      commandRequestId: crypto.randomUUID(), ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }),
+      commandParameters: operation === 'replace' ? { layerId, start, end, text } : { layerId,
+        ...(start === undefined || end === undefined ? {} : { start, end }), style: {
+          ...(fontAssetId ? { font: { assetId: fontAssetId } } : {}), ...(fontSize ? { fontSize } : {}),
+          ...(fill ? { fill: { enabled: true, color: fill } } : {}), ...(tracking === undefined ? {} : { tracking })
+        }, ...(alignment ? { paragraph: { alignment } } : {}) } });
+  }, { edit: true }));
   server.registerTool('lighttable_gesture_begin', {
     title: 'Begin one LightTable gesture', description: 'Begins a bounded document-space brush, selection-rectangle or layer-translate gesture. Finish it to create one undo entry.',
     inputSchema: z.object({ documentId: z.string().min(1),
