@@ -7,6 +7,8 @@ import type { SemanticTextCommand } from './semanticTextCommandContract';
 import type { SemanticVectorCommand } from './semanticVectorCommandContract';
 import type { SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import type { VectorElement } from '@lighttable/vector-core';
+import type { AtomicCommandBatch } from './atomicCommandBatchContract';
+import type { AutomationTaskEvent } from './automationTaskEventStore';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
@@ -17,6 +19,7 @@ export type LightTableCommandId =
   | 'text.create' | 'text.replaceRange' | 'text.format' | 'text.setLayout'
   | 'vector.create' | 'vector.update' | 'vector.remove'
   | 'layer.effect.add' | 'layer.effect.update' | 'layer.effect.remove' | 'layer.effect.move'
+  | 'command.batch' | 'task.cancel'
   | 'file.exportNative' | 'file.exportPng' | 'file.exportPsd' | 'history.undo' | 'history.redo';
 
 export type LightTableCommandErrorCode =
@@ -136,6 +139,11 @@ export interface AutomationTaskQueryResult {
   readonly artifact: LightTableArtifactMetadata | null;
 }
 
+export interface AutomationEventQueryResult {
+  readonly cursor: number;
+  readonly events: readonly AutomationTaskEvent[];
+}
+
 export type LightTableGestureKind = 'brush-stroke' | 'selection-rectangle' | 'layer-translate';
 export interface LightTableGestureSample { readonly x: number; readonly y: number; readonly pressure?: number }
 export interface LightTableGestureResult {
@@ -169,6 +177,8 @@ export interface LightTableCommandPorts {
   executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand): unknown | Promise<unknown>;
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
+  executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
+    report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPsdArtifact(documentId: DocumentSessionId): File | Promise<File>;
@@ -193,6 +203,8 @@ export interface DocumentLightTableCommandPorts {
   executeTextCommand(command: SemanticTextCommand): unknown | Promise<unknown>;
   executeVectorCommand(command: SemanticVectorCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
+  executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
+    report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>; exportPsdArtifact(): File | Promise<File>;
   beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;

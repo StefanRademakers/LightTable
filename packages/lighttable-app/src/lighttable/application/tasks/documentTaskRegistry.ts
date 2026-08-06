@@ -6,6 +6,7 @@ export type DocumentTaskKind =
   | 'export'
   | 'import'
   | 'analysis'
+  | 'automation'
   | 'thumbnail';
 
 export type DocumentTaskStatus =

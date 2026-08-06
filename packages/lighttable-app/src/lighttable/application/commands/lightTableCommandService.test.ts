@@ -37,6 +37,7 @@ const setup = () => {
     executeTextCommand: vi.fn(),
     executeVectorCommand: vi.fn(),
     executeLayerStyleCommand: vi.fn(),
+    executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
     exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
@@ -167,6 +168,69 @@ describe('LightTableCommandService queries', () => {
   });
 });
 
+describe('LightTableCommandService atomic batches', () => {
+  it('accepts one bounded task and exposes reconnect-safe progress events', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeAtomicBatch).mockImplementation(async (_documentId, batch, _signal, report) => {
+      report(1, batch.operations[0].operationId);
+      return { operationIds: batch.operations.map(({ operationId }) => operationId) };
+    });
+    const result = await state.service.execute(request('command.batch', state.session.id, {
+      name: 'Build mini design', operations: [
+        { operationId: 'rename', command: 'layer.rename', parameters: { layerId: 'layer', name: 'Hero' } }
+      ]
+    }));
+    expect(result.status).toBe('accepted');
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id,
+      result.status === 'accepted' ? result.taskId : '')?.status).toBe('completed'));
+    const events = state.service.queryTaskEvents(0, 20);
+    expect(events.events.map(({ status }) => status)).toEqual(['queued', 'running', 'progress', 'completed']);
+    expect(events.events[2]).toMatchObject({ operationId: 'rename', progress: 1 });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('cancels a running batch and rejects malformed batches before mutation', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeAtomicBatch).mockImplementation((_documentId, _batch, signal) => (
+      new Promise((_resolve, reject) => signal.addEventListener('abort',
+        () => reject(new DOMException('Canceled', 'AbortError')), { once: true }))
+    ));
+    const invalid = await state.service.execute(request('command.batch', state.session.id,
+      { name: 'Bad', operations: [] }));
+    expect(invalid).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(state.ports.executeAtomicBatch).not.toHaveBeenCalled();
+    const accepted = await state.service.execute(request('command.batch', state.session.id, {
+      name: 'Cancelable', operations: [
+        { operationId: 'rename', command: 'layer.rename', parameters: { layerId: 'layer', name: 'Hero' } }
+      ]
+    }));
+    if (accepted.status !== 'accepted') throw new Error('Batch was not accepted.');
+    await Promise.resolve();
+    expect(await state.service.execute(request('task.cancel', state.session.id,
+      { taskId: accepted.taskId }))).toMatchObject({ status: 'completed' });
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id, accepted.taskId)?.status).toBe('canceled'));
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('times out a batch without publishing a completed event', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeAtomicBatch).mockImplementation((_documentId, _batch, signal) => (
+      new Promise((_resolve, reject) => signal.addEventListener('abort',
+        () => reject(new DOMException('Timed out', 'AbortError')), { once: true }))
+    ));
+    const accepted = await state.service.execute(request('command.batch', state.session.id, {
+      name: 'Timeout', timeoutMs: 100, operations: [
+        { operationId: 'rename', command: 'layer.rename', parameters: { layerId: 'layer', name: 'Hero' } }
+      ]
+    }));
+    if (accepted.status !== 'accepted') throw new Error('Batch was not accepted.');
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id, accepted.taskId)?.status).toBe('canceled'),
+      { timeout: 1000 });
+    expect(state.service.queryTaskEvents().events.some(({ status }) => status === 'completed')).toBe(false);
+    state.service.dispose(); state.workspace.dispose();
+  });
+});
+
 describe('LightTableCommandService registry', () => {
   it('validates and routes semantic vector and Layer Style mutations', async () => {
     const state = setup();
@@ -204,6 +268,7 @@ describe('LightTableCommandService registry', () => {
       executeTextCommand: vi.fn(),
       executeVectorCommand: vi.fn(),
       executeLayerStyleCommand: vi.fn(),
+      executeAtomicBatch: vi.fn(),
       exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
       exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),

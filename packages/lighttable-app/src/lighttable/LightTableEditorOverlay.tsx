@@ -2,14 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
-import {
-  LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
-  type LightTableCommandId,
-  type LightTableCommandPortRegistry,
-  type LightTableCommandService,
-  type LightTableGestureKind,
-  type LightTableGestureSample
-} from './application/commands/lightTableCommandService';
+import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind,
+  type LightTableGestureSample } from './application/commands/lightTableCommandService';
 import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
@@ -22,11 +16,8 @@ import { exportEditorPngArtifact, exportEditorPsdArtifact } from './application/
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
-import {
-  AdjustmentPresentationStore,
-  useAdjustmentPresentationSelector,
-  type AdjustmentPresentationDomain
-} from './application/adjustments/adjustmentPresentationStore';
+import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
+  type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
 import { zoomViewToScaleAtPoint } from './editor/tools/pointer/viewportCoordinates';
@@ -119,6 +110,9 @@ import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreate
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
+import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
+import { useAgentActivity } from './application/commands/useAgentActivity';
+import { waitForExactCommandRender } from './application/rendering/waitForExactCommandRender';
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
 import { ParagraphFrameResizeController } from './application/text/ParagraphFrameResizeController';
 import { PathTextHandleController } from './application/text/PathTextHandleController';
@@ -154,6 +148,7 @@ import { bindRendererTextFontRuntime } from './composition/documents/bindRendere
 import { LightTableDockWorkspace, type LightTableDockWorkspaceHandle } from './editor/workspace/LightTableDockWorkspace';
 import { nextEditorScreenMode, type EditorScreenMode } from './editor/workspace/editorScreenMode';
 import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePanelRegistry';
+
 import {
   createEditorSession,
   createGradientToolSettings,
@@ -502,6 +497,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const agentEvents = useAgentActivity(commandService, workspaceDocumentId);
   const executeRegisteredCommand = useCallback((
     command: LightTableCommandId,
     parameters: unknown
@@ -2741,19 +2737,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         { kind: 'toggle', layerId, effectId, enabled }, { getDocument: () => imageDocumentRef.current,
           applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeTextCommand: async (command) => {
-        const result = await executeSemanticTextCommand(command, { fontRegistry: textFontRegistry,
-          getDocument: () => imageDocumentRef.current, getTextSettings: () => editorSessionRef.current.text,
-          getForegroundColor: () => editorSessionRef.current.brush.color,
-          applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory });
+        const result = await executeSemanticTextCommand(command, {
+          fontRegistry: textFontRegistry, getDocument: () => imageDocumentRef.current,
+          getTextSettings: () => editorSessionRef.current.text, getForegroundColor: () => editorSessionRef.current.brush.color,
+          applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory
+        });
         if (!result) return null;
-        for (let attempt = 0; attempt < 12; attempt += 1) {
-          await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-          if (await engineRef.current?.waitForTextSourcesForExport()) return result;
-        }
-        throw new Error('The exact text layout did not settle.');
+        await waitForExactCommandRender(engineRef.current);
+        return result;
       },
       executeVectorCommand: (command) => executeSemanticVectorCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
+      executeAtomicBatch: async (batch, signal, report) => {
+        const result = await executeAtomicCommandBatch(batch, {
+          fontRegistry: textFontRegistry, getDocument: () => imageDocumentRef.current,
+          getTextSettings: () => editorSessionRef.current.text, getForegroundColor: () => editorSessionRef.current.brush.color,
+          publish: applyDocumentSnapshot, record: (before, after, label) => pushHistoryEntry({
+            type: 'automation.batch', label, undo: () => applyDocumentSnapshot(before), redo: () => applyDocumentSnapshot(after) })
+        }, signal, report);
+        await waitForExactCommandRender(engineRef.current, signal); return result;
+      },
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
       exportPsdArtifact: () => exportPsdArtifactRef.current(),
@@ -4336,7 +4339,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                       });
                 }
               },
-              text: textPropertiesPanel
+              text: textPropertiesPanel,
+              agent: { events: agentEvents,
+                onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } }
             })}
           />
     </LightTableEditorShell>

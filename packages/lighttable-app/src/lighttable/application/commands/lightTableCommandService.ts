@@ -17,7 +17,7 @@ import {
 export type { LayerQuerySummary } from './layerQueryProjection';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
-  type AutomationTaskQueryResult, type CommandCapabilitySummary, type DocumentLightTableCommandPorts,
+  type AutomationEventQueryResult, type AutomationTaskQueryResult, type CommandCapabilitySummary, type DocumentLightTableCommandPorts,
   type DocumentQueryResult, type EditableTextQueryResult, type EditableVectorQueryResult, type LayerEffectsQueryResult, type LightTableArtifactPlacement,
   type LightTableCommandErrorCode, type LightTableCommandId, type LightTableCommandPorts,
   type LightTableCommandRequest, type LightTableCommandResult, type LightTableCreateDocumentOptions,
@@ -28,6 +28,11 @@ import { parseSemanticTextCommand, type SemanticTextCommand } from './semanticTe
 import { parseSemanticVectorCommand, type SemanticVectorCommand } from './semanticVectorCommandContract';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
+import { parseAtomicCommandBatch, type AtomicCommandBatch } from './atomicCommandBatchContract';
+import { AutomationTaskEventStore } from './automationTaskEventStore';
+import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
+import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSample,
+  parseCreateDocumentOptions } from './lightTableCommandValidation';
 export * from './lightTableCommandContract';
 
 /**
@@ -76,6 +81,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand) {
     return this.resolve(documentId).executeLayerStyleCommand(command);
+  }
+
+  executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
+    report: (completed: number, operationId: string) => void) {
+    return this.resolve(documentId).executeAtomicBatch(batch, signal, report);
   }
 
   renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string) {
@@ -176,6 +186,7 @@ export class LightTableCommandService {
     sampleCount: number;
   }>();
   private gestureSequence = 0;
+  private readonly taskEvents = new AutomationTaskEventStore();
 
   constructor(
     private readonly workspace: WorkspaceSession,
@@ -226,6 +237,13 @@ export class LightTableCommandService {
     } : null;
   }
 
+  queryTaskEvents(afterCursor = 0, limit = 100): AutomationEventQueryResult {
+    return this.taskEvents.query(afterCursor, limit);
+  }
+
+  subscribeTaskEvents = (listener: () => void): (() => void) => this.taskEvents.subscribe(listener);
+  taskEventRevision = (): number => this.taskEvents.snapshot();
+
   queryRenderTelemetry(documentId: DocumentSessionId): RenderTelemetrySnapshot | null {
     return this.document(documentId)?.lifecycle === 'ready'
       ? this.ports.queryRenderTelemetry?.(documentId) ?? null
@@ -242,8 +260,8 @@ export class LightTableCommandService {
 
   async beginGesture(request: unknown): Promise<LightTableGestureResult> {
     if (!isRecord(request) || typeof request.documentId !== 'string'
-      || !this.isGestureKind(request.kind) || request.coordinateSpace !== 'document'
-      || !isRecord(request.parameters) || !this.isGestureSample(request.sample)) {
+      || !isLightTableGestureKind(request.kind) || request.coordinateSpace !== 'document'
+      || !isRecord(request.parameters) || !isLightTableGestureSample(request.sample)) {
       return { status: 'rejected', message: 'Gesture begin requires documentId, kind, document coordinates, parameters and a finite sample.' };
     }
     const documentId = request.documentId as DocumentSessionId;
@@ -268,7 +286,7 @@ export class LightTableCommandService {
     const gesture = this.gestures.get(gestureId);
     if (!gesture) return { status: 'rejected', message: 'The gesture does not exist.' };
     if (!Array.isArray(samples) || samples.length < 1 || samples.length > 64
-      || !samples.every((sample) => this.isGestureSample(sample))) {
+      || !samples.every(isLightTableGestureSample)) {
       return { status: 'rejected', message: 'Gesture updates require 1-64 finite samples.' };
     }
     if (gesture.sampleCount + samples.length > 4096) {
@@ -455,6 +473,8 @@ export class LightTableCommandService {
       availability('layer.effect.update', true, ''),
       availability('layer.effect.remove', true, ''),
       availability('layer.effect.move', true, ''),
+      availability('command.batch', true, ''),
+      availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
       availability('file.exportNative', true, ''),
       availability('file.exportPng', true, ''),
       availability('file.exportPsd', true, ''),
@@ -476,7 +496,7 @@ export class LightTableCommandService {
       );
     }
     if (value.command === 'document.create') {
-      const options = this.parseCreateDocumentOptions(value.parameters);
+      const options = parseCreateDocumentOptions(value.parameters);
       if ('message' in options) return this.reject(value.requestId, 'invalid-parameters', options.message);
       if (!this.workspacePorts) {
         return this.reject(value.requestId, 'command-unavailable', 'Document creation is unavailable in this host.');
@@ -528,6 +548,29 @@ export class LightTableCommandService {
         `Expected document revision ${value.expectedDocumentRevision}, current revision is ${snapshot.documentRevision}.`,
         snapshot
       );
+    }
+
+    if (value.command === 'task.cancel') {
+      if (!isRecord(value.parameters) || typeof value.parameters.taskId !== 'string') {
+        return this.reject(value.requestId, 'invalid-parameters', 'Cancel requires a taskId.', snapshot);
+      }
+      const existing = this.queryTask(documentRequest.documentId, value.parameters.taskId);
+      if (!existing || existing.status !== 'running') {
+        return this.reject(value.requestId, 'command-unavailable', 'The task is not running.', snapshot);
+      }
+      this.workspace.getDocument(documentRequest.documentId)?.tasks.cancel(value.parameters.taskId);
+      return { requestId: value.requestId, status: 'completed', value: { taskId: value.parameters.taskId },
+        revisions: this.revisions(snapshot) };
+    }
+
+    if (value.command === 'command.batch') {
+      const batch = parseAtomicCommandBatch(value.parameters);
+      if (!batch) return this.reject(value.requestId, 'invalid-parameters',
+        'Batch name, timeout, operations, identifiers or byte limits are invalid.', snapshot);
+      const session = this.workspace.getDocument(documentRequest.documentId)!;
+      const taskId = startAtomicCommandBatchTask(session, this.ports, batch, this.taskEvents);
+      if (!taskId) return this.reject(value.requestId, 'execution-failed', 'The batch task did not start.', snapshot);
+      return { requestId: value.requestId, status: 'accepted', taskId, revisions: this.revisions(snapshot) };
     }
 
     if (value.command === 'file.exportNative' || value.command === 'file.exportPng'
@@ -819,7 +862,7 @@ export class LightTableCommandService {
     if (!requestId.trim() || typeof value.command !== 'string') {
       return { rejection: this.reject(requestId, 'invalid-request', 'requestId and command are required.') };
     }
-    if (!this.isCommandId(value.command)) {
+    if (!isLightTableCommandId(value.command)) {
       return { rejection: this.reject(requestId, 'unknown-command', `Unknown command: ${value.command}.`) };
     }
     if (value.command !== 'file.openArtifact' && value.command !== 'document.create'
@@ -854,78 +897,6 @@ export class LightTableCommandService {
       expectedDocumentRevision: value.expectedDocumentRevision as number | undefined,
       expectedWorkspaceRevision: value.expectedWorkspaceRevision as number | undefined
     } };
-  }
-
-  private isCommandId(value: string): value is LightTableCommandId {
-    return [
-      'document.create',
-      'view.setZoom',
-      'layer.createRaster',
-      'layer.placeArtifact',
-      'layer.rename',
-      'layer.setVisibility',
-      'layer.setFillOpacity',
-      'layer.style.setEnabled',
-      'layer.effect.setEnabled',
-      'text.create',
-      'text.replaceRange',
-      'text.format',
-      'text.setLayout',
-      'vector.create',
-      'vector.update',
-      'vector.remove',
-      'layer.effect.add',
-      'layer.effect.update',
-      'layer.effect.remove',
-      'layer.effect.move',
-      'file.openArtifact',
-      'file.exportNative',
-      'file.exportPng',
-      'file.exportPsd',
-      'history.undo',
-      'history.redo'
-    ].includes(value);
-  }
-
-  private isGestureKind(value: unknown): value is LightTableGestureKind {
-    return value === 'brush-stroke'
-      || value === 'selection-rectangle'
-      || value === 'layer-translate';
-  }
-
-  private parseCreateDocumentOptions(value: unknown): LightTableCreateDocumentOptions | { message: string } {
-    if (!isRecord(value)) return { message: 'Create document parameters must be an object.' };
-    const { width, height, resolutionPpi, bitDepth, profile, background } = value;
-    if (!Number.isInteger(width) || !Number.isInteger(height)
-      || Number(width) < 1 || Number(height) < 1 || Number(width) > 32_768 || Number(height) > 32_768
-      || Number(width) * Number(height) > 268_435_456) {
-      return { message: 'Document dimensions must be 1-32768 px and at most 268435456 pixels.' };
-    }
-    if (typeof resolutionPpi !== 'number' || !Number.isFinite(resolutionPpi)
-      || resolutionPpi < 1 || resolutionPpi > 2_400) {
-      return { message: 'Document resolution must be between 1 and 2400 ppi.' };
-    }
-    if (bitDepth !== 8 && bitDepth !== 16) return { message: 'Document bitDepth must be 8 or 16.' };
-    if (profile !== 'srgb' && profile !== 'adobe-rgb-1998') return { message: 'Document profile is unsupported.' };
-    if (!isRecord(background) || (background.kind !== 'transparent' && background.kind !== 'solid')
-      || (background.kind === 'solid' && (typeof background.color !== 'string'
-        || !/^#[0-9a-f]{6}$/i.test(background.color)))) {
-      return { message: 'Background must be transparent or a solid #RRGGBB color.' };
-    }
-    const name = typeof value.name === 'string' && value.name.trim() ? value.name.trim() : 'Untitled';
-    if (name.length > 255) return { message: 'Document name must not exceed 255 characters.' };
-    return { name, width: Number(width), height: Number(height), resolutionPpi,
-      bitDepth, profile, background: background as LightTableCreateDocumentOptions['background'] };
-  }
-
-  private isGestureSample(value: unknown): value is LightTableGestureSample {
-    return isRecord(value)
-      && typeof value.x === 'number' && Number.isFinite(value.x) && Math.abs(value.x) <= 10_000_000
-      && typeof value.y === 'number' && Number.isFinite(value.y) && Math.abs(value.y) <= 10_000_000
-      && (value.pressure === undefined || (
-        typeof value.pressure === 'number' && Number.isFinite(value.pressure)
-        && value.pressure >= 0 && value.pressure <= 1
-      ));
   }
 
   private document(documentId: DocumentSessionId): DocumentSessionSnapshot | null {
@@ -986,6 +957,7 @@ export interface LightTableAutomationDriver {
   listArtifacts(): readonly LightTableArtifactMetadata[];
   releaseArtifact(artifactId: string): boolean;
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null;
+  queryTaskEvents(afterCursor?: number, limit?: number): AutomationEventQueryResult;
   queryWorkspace(): WorkspaceQueryResult;
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;
