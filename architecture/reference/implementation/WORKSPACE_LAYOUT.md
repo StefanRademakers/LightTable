@@ -1,6 +1,7 @@
 # LightTable workspace layout
 
-Status: active workspace contract; implementation updated 31 July 2026.
+Status: implementation reference; canonical persistence contract is
+[`../../features/RESOURCES_WORKSPACES_AND_RECENTS.md`](../../features/RESOURCES_WORKSPACES_AND_RECENTS.md).
 
 ## Contract
 
@@ -67,8 +68,10 @@ list fills the available panel height and scrolls independently.
 ## Persistence
 
 The Dockview layout is stored separately from LightTable image documents. The
-current storage key is `lighttable.workspace.layout.v2`. Invalid or incomplete
-layouts fall back to the default workspace.
+current storage key is `lighttable.workspace.layout.v6`. It contains a
+versioned preset/layout envelope and sanitizes panel parameters to content
+keys. Invalid or incomplete layouts fall back to the default workspace; raw
+v5 layouts migrate once.
 
 `View -> Reset workspace layout` discards only this UI layout and recreates the
 current Documents / Scopes / Grade + Lens Fx + Debug / floating Layers

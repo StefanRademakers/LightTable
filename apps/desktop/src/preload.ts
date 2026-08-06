@@ -9,7 +9,10 @@ const bridge: LightTableDesktopBridge = {
   automationEnabled: process.argv.includes('--lighttable-automation'),
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),
   listRecentFiles: () => ipcRenderer.invoke('lighttable:list-recent-files'),
+  loadRecentFileThumbnail: (id: string) =>
+    ipcRenderer.invoke('lighttable:load-recent-file-thumbnail', id),
   openRecentFile: (id: string) => ipcRenderer.invoke('lighttable:open-recent-file', id),
+  removeRecentFile: (id: string) => ipcRenderer.invoke('lighttable:remove-recent-file', id),
   clearRecentFiles: () => ipcRenderer.invoke('lighttable:clear-recent-files'),
   setFullscreen: (enabled: boolean) =>
     ipcRenderer.invoke('lighttable:set-fullscreen', enabled),

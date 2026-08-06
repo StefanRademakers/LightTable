@@ -49,7 +49,7 @@ export interface DesktopRecoveryReadPayload {
 export interface DesktopRecentFile {
   id: string;
   name: string;
-  thumbnailDataUrl?: string;
+  available: boolean;
 }
 
 export interface DesktopSystemFontAsset {
@@ -83,7 +83,9 @@ export interface LightTableDesktopBridge {
   readonly automationEnabled: boolean;
   openFile(): Promise<DesktopFilePayload | null>;
   listRecentFiles(): Promise<readonly DesktopRecentFile[]>;
+  loadRecentFileThumbnail(id: string): Promise<string | null>;
   openRecentFile(id: string): Promise<DesktopFilePayload | null>;
+  removeRecentFile(id: string): Promise<void>;
   clearRecentFiles(): Promise<void>;
   setFullscreen(enabled: boolean): Promise<void>;
   onFullscreenChange(listener: (enabled: boolean) => void): () => void;

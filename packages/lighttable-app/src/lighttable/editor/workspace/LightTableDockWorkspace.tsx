@@ -23,12 +23,17 @@ import {
   LIGHTTABLE_WORKSPACE_PANEL_IDS,
   type LightTableWorkspacePanelRegistration
 } from './workspacePanelRegistry';
+import {
+  clearWorkspaceLayout,
+  persistWorkspaceLayout,
+  readWorkspaceLayout,
+  type LightTableWorkspacePreset
+} from './workspaceLayoutPersistence';
 
 const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 // Increment only when the intended fresh-workspace composition changes. A
 // versioned key prevents a structurally valid older layout from silently
 // overriding the new product default.
-const WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v5';
 const ACCESSORY_PANEL_MINIMUM_WIDTH = 250;
 const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
 const PANEL_TAB_BAR_HEIGHT = 34;
@@ -197,13 +202,15 @@ const isUsableSavedLayout = (
 const restoreLayout = (
   api: DockviewApi,
   panels: LightTableWorkspacePanelRegistration[],
-  widthConstraintsEnabled: boolean
+  widthConstraintsEnabled: boolean,
+  layout: SerializedDockview | undefined
 ) => {
   try {
-    const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY);
-    if (!raw) return false;
-    const layout = JSON.parse(raw) as SerializedDockview;
-    if (!isUsableSavedLayout(layout, panels)) return false;
+    if (!layout) return false;
+    if (!isUsableSavedLayout(layout, panels)) {
+      clearWorkspaceLayout(localStorage);
+      return false;
+    }
     api.fromJSON(layout);
     const documentHost = api.getPanel(DOCUMENT_HOST_PANEL_ID);
     if (!documentHost) return false;
@@ -215,7 +222,7 @@ const restoreLayout = (
       documentHost.group.panels[0]?.id !== DOCUMENT_HOST_PANEL_ID
     ) {
       api.clear();
-      localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+      clearWorkspaceLayout(localStorage);
       return false;
     }
     documentHost.group.header.hidden = true;
@@ -233,7 +240,7 @@ const restoreLayout = (
     applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
     return true;
   } catch {
-    localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    clearWorkspaceLayout(localStorage);
     return false;
   }
 };
@@ -317,6 +324,8 @@ export const LightTableDockWorkspace = forwardRef<
   const layoutListenerRef = useRef<{ dispose: () => void } | null>(null);
   const dropListenerRef = useRef<{ dispose: () => void } | null>(null);
   const saveTimerRef = useRef<number | null>(null);
+  const workspacePresetRef = useRef<LightTableWorkspacePreset>('default');
+  const resettingLayoutRef = useRef(false);
   const lastLayoutChangeAtRef = useRef(0);
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
@@ -354,7 +363,7 @@ export const LightTableDockWorkspace = forwardRef<
       const api = apiRef.current;
       if (!api) return;
       try {
-        localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(api.toJSON()));
+        persistWorkspaceLayout(localStorage, api.toJSON(), workspacePresetRef.current);
       } catch {
         // A workspace remains usable when browser storage is unavailable.
       }
@@ -365,11 +374,21 @@ export const LightTableDockWorkspace = forwardRef<
 
   const onReady = useCallback((event: DockviewReadyEvent) => {
     apiRef.current = event.api;
-    if (!restoreLayout(event.api, panelsRef.current, accessoryWidthConstraintsEnabled)) {
+    const saved = readWorkspaceLayout(localStorage);
+    workspacePresetRef.current = saved?.preset ?? 'default';
+    if (!restoreLayout(
+      event.api,
+      panelsRef.current,
+      accessoryWidthConstraintsEnabled,
+      saved?.layout
+    )) {
       createDefaultLayout(event.api, panelsRef.current, accessoryWidthConstraintsEnabled);
     }
     layoutListenerRef.current?.dispose();
-    layoutListenerRef.current = event.api.onDidLayoutChange(saveLayout);
+    layoutListenerRef.current = event.api.onDidLayoutChange(() => {
+      if (!resettingLayoutRef.current) workspacePresetRef.current = 'custom';
+      saveLayout();
+    });
     dropListenerRef.current?.dispose();
     dropListenerRef.current = event.api.onWillDrop((dropEvent) => {
       const transfer = dropEvent.getData();
@@ -483,10 +502,13 @@ export const LightTableDockWorkspace = forwardRef<
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    resettingLayoutRef.current = true;
+    workspacePresetRef.current = 'default';
+    clearWorkspaceLayout(localStorage);
     api.clear();
     createDefaultLayout(api, panelsRef.current, accessoryWidthConstraintsEnabled);
     saveLayout();
+    window.queueMicrotask(() => { resettingLayoutRef.current = false; });
   }, [accessoryWidthConstraintsEnabled, saveLayout]);
 
   const showPanel = useCallback((panelId: string) => {

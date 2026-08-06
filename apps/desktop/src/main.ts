@@ -21,9 +21,9 @@ import {
   desktopMediaTypeForFileName
 } from './desktopFileFormats';
 import {
+  canonicalRecentFilePath,
   normalizeRecentFiles,
   RecentFileOperationQueue,
-  RECENT_FILE_LIMIT,
   touchRecentFile,
   type PersistedRecentFile
 } from './recentFiles';
@@ -36,6 +36,7 @@ import {
   type SignedUpdateManifest
 } from './releaseUpdate';
 import type { LightTableUpdateResult } from '@lighttable/app';
+import { BoundedLruCache } from './boundedLruCache';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -51,6 +52,8 @@ if (automationUserData) app.setPath('userData', path.resolve(automationUserData)
 const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
+const RECENT_THUMBNAIL_CACHE_LIMIT = 24;
+const recentThumbnailCache = new BoundedLruCache<string>(RECENT_THUMBNAIL_CACHE_LIMIT);
 const releaseChannel = releaseChannelFor(
   app.getVersion(),
   app.isPackaged,
@@ -103,7 +106,7 @@ if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
 }
 
 const recentFileId = (filePath: string): string => createHash('sha256')
-  .update(path.resolve(filePath).toLowerCase())
+  .update(canonicalRecentFilePath(filePath))
   .digest('hex')
   .slice(0, 24);
 
@@ -130,6 +133,7 @@ const saveRecentFiles = async (entries: readonly PersistedRecentFile[]): Promise
 const rememberRecentFile = async (filePath: string): Promise<void> => {
   await recentFileOperations.run(async () => {
     const id = recentFileId(filePath);
+    recentThumbnailCache.delete(id);
     await saveRecentFiles(touchRecentFile(await loadRecentFiles(), {
       id,
       path: filePath,
@@ -138,22 +142,9 @@ const rememberRecentFile = async (filePath: string): Promise<void> => {
   });
 };
 
-const loadExistingRecentFiles = (): Promise<PersistedRecentFile[]> =>
-  recentFileOperations.run(async () => {
-    const existing: PersistedRecentFile[] = [];
-    for (const entry of await loadRecentFiles()) {
-      try {
-        if ((await stat(entry.path)).isFile()) existing.push(entry);
-      } catch {
-        // Missing files disappear from the launcher instead of breaking it.
-      }
-    }
-    await saveRecentFiles(existing);
-    return existing;
-  });
-
 const forgetRecentFile = (id: string): Promise<void> =>
   recentFileOperations.run(async () => {
+    recentThumbnailCache.delete(id);
     await saveRecentFiles(
       (await loadRecentFiles()).filter((candidate) => candidate.id !== id)
     );
@@ -355,8 +346,9 @@ void app.whenReady().then(async () => {
     const selectedPath = result.filePaths[0];
     if (result.canceled || !selectedPath) return null;
 
+    const payload = await readDesktopFilePayload(selectedPath);
     await rememberRecentFile(selectedPath);
-    return readDesktopFilePayload(selectedPath);
+    return payload;
   });
 
   ipcMain.handle('lighttable:set-fullscreen', async (event, enabled: boolean) => {
@@ -367,24 +359,42 @@ void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:list-recent-files', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
-    const existing = await loadExistingRecentFiles();
-    return Promise.all(existing.map(async (entry) => {
-      let thumbnailDataUrl: string | undefined;
+    await recentFileOperations.settled();
+    return Promise.all((await loadRecentFiles()).map(async (entry) => {
+      let available = false;
       try {
-        const thumbnail = await nativeImage.createThumbnailFromPath(entry.path, {
-          width: 320,
-          height: 320
-        });
-        if (!thumbnail.isEmpty()) thumbnailDataUrl = thumbnail.toDataURL();
+        available = (await stat(entry.path)).isFile();
       } catch {
-        // Unsupported thumbnail formats still remain valid recent documents.
+        // Missing files remain visible so the user can identify or remove them.
       }
       return {
         id: entry.id,
         name: path.basename(entry.path),
-        thumbnailDataUrl
+        available
       };
     }));
+  });
+
+  ipcMain.handle('lighttable:load-recent-file-thumbnail', async (event, id: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof id !== 'string' || id.length > 128) throw new Error('Invalid recent-file request.');
+    const cached = recentThumbnailCache.get(id);
+    if (cached) return cached;
+    await recentFileOperations.settled();
+    const entry = (await loadRecentFiles()).find((candidate) => candidate.id === id);
+    if (!entry) return null;
+    try {
+      const thumbnail = await nativeImage.createThumbnailFromPath(entry.path, {
+        width: 320,
+        height: 320
+      });
+      if (thumbnail.isEmpty()) return null;
+      const dataUrl = thumbnail.toDataURL();
+      recentThumbnailCache.set(id, dataUrl);
+      return dataUrl;
+    } catch {
+      return null;
+    }
   });
 
   ipcMain.handle('lighttable:open-recent-file', async (event, id: string) => {
@@ -402,9 +412,14 @@ void app.whenReady().then(async () => {
       await rememberRecentFile(entry.path);
       return payload;
     } catch {
-      await forgetRecentFile(id);
       return null;
     }
+  });
+
+  ipcMain.handle('lighttable:remove-recent-file', async (event, id: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof id !== 'string' || id.length > 128) throw new Error('Invalid recent-file request.');
+    await forgetRecentFile(id);
   });
 
   ipcMain.handle('lighttable:clear-recent-files', async (event) => {

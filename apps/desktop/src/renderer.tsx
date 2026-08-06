@@ -86,12 +86,18 @@ const desktopHost: LightTableHost = {
     return (await window.lightTableDesktop.listRecentFiles()).map((entry) => ({
       id: entry.id,
       name: entry.name,
-      thumbnailUrl: entry.thumbnailDataUrl
+      available: entry.available
     }));
+  },
+  loadRecentFileThumbnail(id) {
+    return window.lightTableDesktop.loadRecentFileThumbnail(id);
   },
   async openRecentFile(id) {
     const payload = await window.lightTableDesktop.openRecentFile(id);
     return desktopFile(payload);
+  },
+  removeRecentFile(id) {
+    return window.lightTableDesktop.removeRecentFile(id);
   },
   clearRecentFiles() {
     return window.lightTableDesktop.clearRecentFiles();

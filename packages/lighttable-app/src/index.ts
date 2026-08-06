@@ -81,6 +81,17 @@ export {
   type DocumentRendererStatus
 } from './lighttable/application/rendering/documentRendererLifecycle';
 export {
+  LIGHTTABLE_RESOURCE_PAGE_SIZE,
+  LIGHTTABLE_RESOURCE_PAGE_SIZE_MAX,
+  LightTableResourceBrowser,
+  type LightTableResourceKind,
+  type LightTableResourcePage,
+  type LightTableResourceProvider,
+  type LightTableResourceQuery,
+  type LightTableResourceSummary
+} from './lighttable/application/resources/resourceBrowser';
+export { createFontResourceProvider } from './lighttable/application/resources/fontResourceProvider';
+export {
   copyLightTableGrade,
   readLightTableGrade,
   useLightTableGradeClipboard,

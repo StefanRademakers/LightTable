@@ -51,6 +51,7 @@ export type LightTableSaveResult =
 export interface LightTableRecentFile {
   id: string;
   name: string;
+  available: boolean;
   thumbnailUrl?: string;
 }
 
@@ -94,7 +95,9 @@ export interface LightTableHost {
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
+  loadRecentFileThumbnail?(id: string): Promise<string | null>;
   openRecentFile?(id: string): Promise<File | null>;
+  removeRecentFile?(id: string): Promise<void>;
   clearRecentFiles?(): Promise<void>;
   /** Enter or leave the host window's native/browser fullscreen presentation. */
   setFullscreen?(enabled: boolean): Promise<void>;

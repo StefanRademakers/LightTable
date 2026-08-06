@@ -4,7 +4,16 @@ export interface PersistedRecentFile {
   openedAt: number;
 }
 
-export const RECENT_FILE_LIMIT = 15;
+/** Keep a useful history while the launcher and menus render only a small window. */
+export const RECENT_FILE_LIMIT = 128;
+
+export const canonicalRecentFilePath = (
+  filePath: string,
+  platform: NodeJS.Platform = process.platform
+): string => {
+  const resolved = path.normalize(path.resolve(filePath));
+  return platform === 'win32' ? resolved.toLocaleLowerCase('en-US') : resolved;
+};
 
 /** Serializes manifest operations while allowing the queue to recover after a failure. */
 export class RecentFileOperationQueue {
@@ -49,3 +58,4 @@ export function touchRecentFile(
     ...entries.filter((entry) => entry.id !== opened.id)
   ], limit);
 }
+import path from 'node:path';

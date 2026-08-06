@@ -103,7 +103,8 @@ describe('createEditorMenuOptions', () => {
     const menuCommands = commands();
     menuCommands.recentFiles = Array.from({ length: 17 }, (_, index) => ({
       id: `recent-${index}`,
-      name: `Document ${index}.psd`
+      name: `Document ${index}.psd`,
+      available: true
     }));
     const options = createEditorMenuOptions('file', state(), labels, menuCommands);
     const recent = options.find(({ value }) => value === 'open-recent');

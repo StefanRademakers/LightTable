@@ -1,21 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalRecentFilePath,
   normalizeRecentFiles,
   RecentFileOperationQueue,
   touchRecentFile
 } from './recentFiles';
 
 describe('desktop recent files', () => {
-  it('keeps the fifteen most recently opened unique files', () => {
-    const result = normalizeRecentFiles(Array.from({ length: 17 }, (_, index) => ({
+  it('uses a stable case-insensitive path identity on Windows', () => {
+    expect(canonicalRecentFilePath('D:\\Work\\Image.PSD', 'win32'))
+      .toBe(canonicalRecentFilePath('d:\\work\\image.psd', 'win32'));
+    expect(canonicalRecentFilePath('/Work/Image.PSD', 'linux'))
+      .not.toBe(canonicalRecentFilePath('/work/image.psd', 'linux'));
+  });
+  it('keeps a bounded history of the 128 most recently opened unique files', () => {
+    const result = normalizeRecentFiles(Array.from({ length: 140 }, (_, index) => ({
       id: String(index + 1),
       path: `${index + 1}.png`,
       openedAt: index + 1
     })));
 
-    expect(result).toHaveLength(15);
-    expect(result[0]?.id).toBe('17');
-    expect(result.at(-1)?.id).toBe('3');
+    expect(result).toHaveLength(128);
+    expect(result[0]?.id).toBe('140');
+    expect(result.at(-1)?.id).toBe('13');
   });
 
   it('moves a reopened file to the front without losing the other entries', () => {

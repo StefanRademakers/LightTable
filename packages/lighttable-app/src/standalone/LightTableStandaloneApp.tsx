@@ -44,6 +44,69 @@ export const recentFilesForLauncher = (
   recentFiles: readonly LightTableRecentFile[]
 ): readonly LightTableRecentFile[] => recentFiles.slice(0, 15);
 
+const RecentFileCard = ({
+  recent,
+  opening,
+  loadThumbnail,
+  onOpen,
+  onRemove
+}: {
+  readonly recent: LightTableRecentFile;
+  readonly opening: boolean;
+  readonly loadThumbnail?: (id: string) => Promise<string | null>;
+  readonly onOpen: (id: string) => void;
+  readonly onRemove?: (id: string) => void;
+}) => {
+  const previewRef = useRef<HTMLSpanElement>(null);
+  const [thumbnail, setThumbnail] = useState(recent.thumbnailUrl);
+
+  useEffect(() => {
+    setThumbnail(recent.thumbnailUrl);
+    if (recent.thumbnailUrl || !recent.available || !loadThumbnail) return undefined;
+    const target = previewRef.current;
+    if (!target) return undefined;
+    let active = true;
+    const load = () => {
+      void loadThumbnail(recent.id).then((url) => {
+        if (active && url) setThumbnail(url);
+      }).catch(() => undefined);
+    };
+    if (typeof IntersectionObserver === 'undefined') {
+      load();
+      return () => { active = false; };
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      load();
+    }, { rootMargin: '120px' });
+    observer.observe(target);
+    return () => { active = false; observer.disconnect(); };
+  }, [loadThumbnail, recent.available, recent.id, recent.thumbnailUrl]);
+
+  return (
+    <article className={`lighttable-launcher__recent${recent.available ? '' : ' lighttable-launcher__recent--missing'}`}>
+      <button type="button" disabled={opening} onClick={() => onOpen(recent.id)}>
+        <span ref={previewRef} className="lighttable-launcher__recent-preview">
+          {thumbnail
+            ? <img src={thumbnail} alt="" />
+            : <span>{recent.available ? 'No preview' : 'File missing'}</span>}
+        </span>
+        <span className="lighttable-launcher__recent-name" title={recent.name}>{recent.name}</span>
+      </button>
+      {!recent.available && onRemove ? (
+        <button
+          className="lighttable-launcher__recent-remove"
+          type="button"
+          aria-label={`Remove missing recent file ${recent.name}`}
+          title="Remove missing recent file"
+          onClick={() => onRemove(recent.id)}
+        >Remove</button>
+      ) : null}
+    </article>
+  );
+};
+
 const RECOVERY_ATTEMPT_PREFIX = 'lighttable:recovery-attempt:';
 const recoveryAttemptKey = (recoveryId: string) => `${RECOVERY_ATTEMPT_PREFIX}${recoveryId}`;
 const hasRecoveryAttempt = (recoveryId: string): boolean => {
@@ -279,6 +342,11 @@ export function LightTableStandaloneApp({
 
   const clearRecentFiles = useCallback(async () => {
     await host.clearRecentFiles?.();
+    await refreshRecentFiles();
+  }, [host, refreshRecentFiles]);
+
+  const removeRecentFile = useCallback(async (id: string) => {
+    await host.removeRecentFile?.(id);
     await refreshRecentFiles();
   }, [host, refreshRecentFiles]);
 
@@ -553,12 +621,14 @@ export function LightTableStandaloneApp({
               <h2>Recent files</h2>
               <div className="lighttable-launcher__recents">
                 {recentFilesForLauncher(recentFiles).map((recent) => (
-                  <button key={recent.id} type="button" disabled={opening} onClick={() => void openRecentDocument(recent.id)}>
-                    <span className="lighttable-launcher__recent-preview">
-                      {recent.thumbnailUrl ? <img src={recent.thumbnailUrl} alt="" /> : <span>No preview</span>}
-                    </span>
-                    <span className="lighttable-launcher__recent-name" title={recent.name}>{recent.name}</span>
-                  </button>
+                  <RecentFileCard
+                    key={recent.id}
+                    recent={recent}
+                    opening={opening}
+                    loadThumbnail={host.loadRecentFileThumbnail}
+                    onOpen={(id) => void openRecentDocument(id)}
+                    onRemove={host.removeRecentFile ? (id) => void removeRecentFile(id) : undefined}
+                  />
                 ))}
               </div>
             </section>
