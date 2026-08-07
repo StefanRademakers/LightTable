@@ -33,6 +33,26 @@ visual polish, undo trust, recovery confidence, export fidelity and disclosure
 of preserved/raster fallbacks. Task 108 remains open until the three sign-off
 boxes in the generated checklist are explicitly approved.
 
+## Exact candidate handoff - 7 August 2026
+
+The automated acceptance for product candidate
+`2643a94cdaa994e868a5a2e91c0afed9d6b85c57` passed 15/15 projects. Review the
+same packaged executable that produced the final evidence, rather than making
+an untracked current-worktree build:
+
+```powershell
+& "tmp\release-candidate\task-112-2643a94c-final3\checkout\apps\desktop\out\LightTable-win32-x64\LightTable.exe"
+```
+
+Record the review in:
+
+`tmp/release-candidate/task-112-2643a94c-final3/owner-acceptance/owner-checklist.md`
+
+The associated machine-readable automation report is `report.json` in the
+same directory. It records `production-packaged`, 15 projects awaiting owner
+review and zero automation defects. A later build requires a new exact-commit
+rehearsal; its checklist must not be mixed with this candidate's sign-off.
+
 Defects use one schema: stable ID, severity, workflow, expected behavior,
 evidence, owner and regression route. Automation failures default to P1 because
 they invalidate a declared launch workflow. Repeated observations must update
