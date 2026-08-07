@@ -252,7 +252,7 @@ and web. No stage is accepted only because its aggregate RMSE improves.
 
 - [x] Show profile/mode/bit depth in document status and import details.
 - [x] Keep current PNG/native output explicitly sRGB and retain document blend
-  profile/provenance in native v7. PSD export remains an explicitly sRGB,
+  profile/provenance in the current native schema. PSD export remains an explicitly sRGB,
   8-bit release-candidate boundary rather than silently claiming Adobe output.
 - [x] Add the truthful document-level Assign operation using existing LightTable UI
   components and styling.

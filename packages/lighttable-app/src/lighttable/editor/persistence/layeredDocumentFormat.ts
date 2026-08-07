@@ -14,7 +14,6 @@ import type {
   PhotoshopLayerMetadata,
   RasterMask
 } from '../document/documentTypes';
-import { createDocumentColorSettings } from '../document/documentTypes';
 import { walkLayerTree } from '../document/layerTree';
 import { parseLightTableSettings } from '../../lightTableRecipe';
 import {
@@ -25,7 +24,7 @@ import {
 } from '../../processing/adjustmentStack';
 import { CURRENT_PROCESSING_MODULES } from '../../processing/moduleDefinitions';
 import type { AffineMatrix } from '../rendering/renderContract';
-import { identityAffineMatrix, isFiniteAffineMatrix } from '../rendering/renderContract';
+import { isFiniteAffineMatrix } from '../rendering/renderContract';
 import type { LayerStyleStack } from '../styles/layerStyleTypes';
 import { cloneLayerStyleStack } from '../styles/layerStyleDefaults';
 import { parseLayerStyleStack } from '../styles/layerStyleValidation';
@@ -42,6 +41,7 @@ import {
 
 const FOOTER_MAGIC = 'LTBLDOC1';
 const FOOTER_SIZE = 12;
+const MANIFEST_VERSION = 1 as const;
 const MAX_FONT_BYTES = 64 * 1024 * 1024;
 const MAX_DOCUMENT_FONT_BYTES = 256 * 1024 * 1024;
 
@@ -63,7 +63,7 @@ interface CommonLayerManifestEntry {
   geometryRevision: number;
   transform: AffineMatrix;
   derivedPreview: (DerivedLayerPreview & { asset: BinaryAssetReference }) | null;
-  photoshop?: PhotoshopLayerMetadata | null;
+  photoshop: PhotoshopLayerMetadata | null;
 }
 
 interface RasterLayerManifestEntry extends CommonLayerManifestEntry {
@@ -92,7 +92,7 @@ interface AdjustmentLayerManifestEntry extends CommonLayerManifestEntry {
 
 interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'vector';
-  role?: 'artwork' | 'gradient-fill';
+  role: 'artwork' | 'gradient-fill';
   antiAlias: boolean;
   elements: VectorElement[];
   mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
@@ -113,7 +113,7 @@ type LayerManifestEntry =
 
 interface LayeredDocumentManifest {
   format: 'lighttable-layered-png';
-  version: 8;
+  version: typeof MANIFEST_VERSION;
   previewLength: number;
   document: {
     id: string;
@@ -124,7 +124,7 @@ interface LayeredDocumentManifest {
     colorSettings: DocumentColorSettings;
     importProvenance: NormalizedImportProvenance | null;
     photoshopImportReport: PhotoshopImportReport | null;
-    photoshopDocument?: { engineData: string | null } | null;
+    photoshopDocument: { engineData: string | null } | null;
     patterns: Array<{
       id: string;
       name: string;
@@ -424,7 +424,7 @@ export const buildLayeredDocumentFile = (
   });
   const manifest: LayeredDocumentManifest = {
     format: 'lighttable-layered-png',
-    version: 8,
+    version: MANIFEST_VERSION,
     previewLength: preview.size,
     document: {
       id: document.id,
@@ -461,7 +461,7 @@ const validAssetReference = (value: unknown, minimum: number, limit: number): va
 };
 
 const parseImportProvenance = (value: unknown): NormalizedImportProvenance | null => {
-  if (value === null || value === undefined) return null;
+  if (value === null) return null;
   if (
     !isRecord(value)
     || (
@@ -496,19 +496,14 @@ const parseImportProvenance = (value: unknown): NormalizedImportProvenance | nul
 };
 
 const parseDocumentColorSettings = (
-  value: unknown,
-  provenance: NormalizedImportProvenance | null,
-  required: boolean
+  value: unknown
 ): DocumentColorSettings => {
-  if (value === undefined && !required) return createDocumentColorSettings(provenance);
   if (
     !isRecord(value)
     || value.mode !== 'rgb'
     || (value.bitDepth !== 8 && value.bitDepth !== 16 && value.bitDepth !== 32)
     || value.workingProfile !== 'srgb'
-    || (value.blendProfile !== undefined
-      && value.blendProfile !== 'srgb'
-      && value.blendProfile !== 'adobe-rgb-1998')
+    || (value.blendProfile !== 'srgb' && value.blendProfile !== 'adobe-rgb-1998')
     || (value.profileState !== 'assigned' && value.profileState !== 'assumed')
   ) {
     throw new Error('The LightTable document color settings are invalid.');
@@ -520,6 +515,13 @@ const parseDocumentColorSettings = (
     blendProfile: value.blendProfile === 'adobe-rgb-1998' ? 'adobe-rgb-1998' : 'srgb',
     profileState: value.profileState
   };
+};
+
+const parseResolutionPpi = (value: unknown) => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 1 || value > 2400) {
+    throw new Error('The LightTable document resolution is invalid.');
+  }
+  return value;
 };
 
 const parsePhotoshopImportReport = (value: unknown): PhotoshopImportReport | null => {
@@ -588,8 +590,18 @@ const parsePhotoshopImportReport = (value: unknown): PhotoshopImportReport | nul
   return { warnings: [...value.warnings], compatibility };
 };
 
+const parsePhotoshopDocument = (value: unknown): ImageDocument['photoshopDocument'] => {
+  if (value === null) return null;
+  if (
+    !isRecord(value)
+    || (value.engineData !== null && typeof value.engineData !== 'string')
+  ) {
+    throw new Error('The LightTable Photoshop document metadata is invalid.');
+  }
+  return { engineData: value.engineData };
+};
+
 const parseLayerTransform = (value: unknown): AffineMatrix => {
-  if (value === null || value === undefined) return identityAffineMatrix();
   if (!isRecord(value)) throw new Error('The LightTable layer transform is invalid.');
   const transform: AffineMatrix = {
     a: Number(value.a),
@@ -693,35 +705,26 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   if (
     !isRecord(raw)
     || raw.format !== 'lighttable-layered-png'
-    || (raw.version !== 1 && raw.version !== 2 && raw.version !== 3 && raw.version !== 4 && raw.version !== 5 && raw.version !== 6 && raw.version !== 7 && raw.version !== 8)
+    || raw.version !== MANIFEST_VERSION
     || !isRecord(raw.document)
   ) {
     throw new Error('This LightTable document format is not supported.');
   }
-  const manifestVersion = raw.version as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   const source = raw.document;
   const width = source.width;
   const height = source.height;
   const previewLength = raw.previewLength;
-  if (!Number.isInteger(width) || !Number.isInteger(height) || Number(width) <= 0 || Number(height) <= 0 ||
+  if (typeof source.id !== 'string' || !source.id || typeof source.name !== 'string'
+    || (source.activeLayerId !== null && typeof source.activeLayerId !== 'string')
+    || !Number.isInteger(width) || !Number.isInteger(height) || Number(width) <= 0 || Number(height) <= 0 ||
     !Number.isInteger(previewLength) || Number(previewLength) <= 0 || Number(previewLength) > manifestStart || !Array.isArray(source.layers)) {
     throw new Error('The LightTable document dimensions or preview are invalid.');
   }
   const adjustmentStack = parseAdjustmentStack(raw.adjustmentStack);
   const importProvenance = parseImportProvenance(source.importProvenance);
-  const colorSettings = parseDocumentColorSettings(
-    source.colorSettings,
-    importProvenance,
-    manifestVersion >= 7
-  );
+  const colorSettings = parseDocumentColorSettings(source.colorSettings);
   const photoshopImportReport = parsePhotoshopImportReport(source.photoshopImportReport);
-  const photoshopDocument = source.photoshopDocument
-    && typeof source.photoshopDocument === 'object'
-    && !Array.isArray(source.photoshopDocument)
-    && ((source.photoshopDocument as Record<string, unknown>).engineData === null
-      || typeof (source.photoshopDocument as Record<string, unknown>).engineData === 'string')
-    ? { engineData: (source.photoshopDocument as { engineData: string | null }).engineData }
-    : null;
+  const photoshopDocument = parsePhotoshopDocument(source.photoshopDocument);
   const now = Date.now();
   const assets: LayerAssetBlobs[] = [];
   const patternAssets: PatternAssetBlob[] = [];
@@ -734,22 +737,31 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       || typeof entry.name !== 'string'
       || typeof entry.visible !== 'boolean'
       || typeof entry.opacity !== 'number'
+      || !Number.isFinite(entry.opacity)
+      || entry.opacity < 0
+      || entry.opacity > 1
       || typeof entry.fillOpacity !== 'number'
+      || !Number.isFinite(entry.fillOpacity)
+      || entry.fillOpacity < 0
+      || entry.fillOpacity > 1
       || typeof entry.clipping !== 'boolean'
       || !isBlendMode(entry.blendMode)
+      || !Number.isInteger(entry.geometryRevision)
+      || Number(entry.geometryRevision) < 0
+      || (entry.photoshop !== null && !isRecord(entry.photoshop))
       || (
         entry.type !== 'raster'
         && entry.type !== 'group'
         && entry.type !== 'adjustment'
         && entry.type !== 'vector'
-        && !(manifestVersion >= 2 && entry.type === 'text')
+        && entry.type !== 'text'
       )
     ) {
       throw new Error(`Layer ${path} in the LightTable document is invalid.`);
     }
     const id = entry.id as LayerId;
     const parseDerivedPreview = (): { value: DerivedLayerPreview | null; blob: Blob | null } => {
-      if (manifestVersion < 5 || entry.derivedPreview === null || entry.derivedPreview === undefined) {
+      if (entry.derivedPreview === null) {
         return { value: null, blob: null };
       }
       const preview = entry.derivedPreview;
@@ -785,15 +797,13 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       name: entry.name,
       visible: entry.visible,
       locks: parseLayerLocks(entry.locks),
-      opacity: Math.min(1, Math.max(0, entry.opacity)),
-      fillOpacity: Math.min(1, Math.max(0, entry.fillOpacity)),
+      opacity: entry.opacity,
+      fillOpacity: entry.fillOpacity,
       blendMode: entry.blendMode,
       clipping: entry.clipping,
       styleStack: parseLayerStyleStack(entry.styleStack),
       revision: 0,
-      geometryRevision: Number.isInteger(entry.geometryRevision) && Number(entry.geometryRevision) >= 0
-        ? Number(entry.geometryRevision)
-        : 0,
+      geometryRevision: Number(entry.geometryRevision),
       createdAt: now,
       modifiedAt: now,
       transform: parseLayerTransform(entry.transform),
@@ -870,6 +880,9 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       if (typeof entry.antiAlias !== 'boolean') {
         throw new Error(`Vector layer ${path} has an invalid anti-alias setting.`);
       }
+      if (entry.role !== 'artwork' && entry.role !== 'gradient-fill') {
+        throw new Error(`Vector layer ${path} has an invalid role.`);
+      }
       const parsedMask = parseMask();
       if (parsedMask.blob || parsedPreview.blob) {
         assets.push({ layerId: id, pixels: parsedPreview.blob ?? new Blob(), mask: parsedMask.blob });
@@ -877,7 +890,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       return {
         ...common,
         type: 'vector',
-        role: entry.role === 'gradient-fill' ? 'gradient-fill' : 'artwork',
+        role: entry.role,
         antiAlias: entry.antiAlias,
         elements: entry.elements.map((candidate, index) =>
           parseVectorElement(candidate, `Layer ${path} element ${index + 1}`)),
@@ -908,10 +921,10 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     if (!validAssetReference(entry.pixel, Number(previewLength), manifestStart)) {
       throw new Error(`Raster layer ${path} in the LightTable document has invalid pixels.`);
     }
-    const rasterWidth = manifestVersion >= 4 ? entry.width : width;
-    const rasterHeight = manifestVersion >= 4 ? entry.height : height;
-    const rasterOffsetX = manifestVersion >= 4 ? entry.offsetX : 0;
-    const rasterOffsetY = manifestVersion >= 4 ? entry.offsetY : 0;
+    const rasterWidth = entry.width;
+    const rasterHeight = entry.height;
+    const rasterOffsetX = entry.offsetX;
+    const rasterOffsetY = entry.offsetY;
     if (
       !Number.isInteger(rasterWidth)
       || Number(rasterWidth) <= 0
@@ -1019,7 +1032,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       byteLength: Number(entry.byteLength)
     };
   });
-  const rawFonts = manifestVersion < 3 || source.fonts === undefined ? [] : source.fonts;
+  const rawFonts = source.fonts;
   if (!Array.isArray(rawFonts)) {
     throw new Error('The LightTable document font registry is invalid.');
   }
@@ -1105,7 +1118,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       || Number(entry.byteLength) < 1
       || Number(entry.byteLength) > MAX_FONT_BYTES
       || !(
-        manifestVersion >= 6 && entry.source === 'system' && entry.asset === null
+        entry.source === 'system' && entry.asset === null
         || validAssetReference(entry.asset, Number(previewLength), manifestStart)
       )
       || (isRecord(entry.asset) && Number(entry.asset.length) !== Number(entry.byteLength))
@@ -1181,11 +1194,11 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     }
   }
   const document: ImageDocument = {
-    id: (typeof source.id === 'string' ? source.id : `document-${crypto.randomUUID()}`) as DocumentId,
-    name: typeof source.name === 'string' ? source.name : 'LightTable document',
+    id: source.id as DocumentId,
+    name: source.name,
     width: Number(width),
     height: Number(height),
-    resolutionPpi: manifestVersion >= 8 && typeof source.resolutionPpi === 'number' && Number.isFinite(source.resolutionPpi) && source.resolutionPpi >= 1 && source.resolutionPpi <= 2400 ? source.resolutionPpi : 72,
+    resolutionPpi: parseResolutionPpi(source.resolutionPpi),
     layers,
     activeLayerId,
     colorSettings,

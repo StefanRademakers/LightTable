@@ -55,9 +55,9 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 
 | Feature | Detect | Preserve | Display | Render | Edit/Create | Export | Verify | Current truth |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Yes native | Native manifest v6 retains the v4 tight-bounds contract. Merge/flatten use a separate full-canvas runtime and retain tight sources for undo/redo; the ten-file corpus and packaged EHS-396 bake smoke pass. |
+| Raster layers | Yes | Yes | Yes | Yes | Yes | No | Yes native | The current native schema retains tight layer-local bounds. Merge/flatten use a separate full-canvas runtime and retain tight sources for undo/redo; the ten-file corpus and packaged EHS-396 bake smoke pass. |
 | Groups and nesting | Yes | Yes | Yes | Yes | Yes | No | Partial | 33 pass-through groups occur in nine corpus files; exact contextual parity is not fully signed off. |
-| Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native v6 save/reopen retains the v4 tight-raster contract and is verified on painted EHS-396 content. |
+| Off-canvas/oversized layers | Yes | Yes | Yes | Yes | Partial | No | Partial | 63 off-canvas and 13 oversized layers import; native save/reopen retains the tight-raster contract and is verified on painted EHS-396 content. |
 | Opacity | Yes | Yes | Yes | Yes | Yes | No | Partial | Nineteen partial-opacity layers occur in seven documents. |
 | Fill opacity | Yes | Yes | Yes | Yes | Yes | No | Weak | Canonical property exists, but this corpus contains only one non-default instance. |
 | Blend modes | Yes | Yes | Yes | Yes for measured RGB set | Yes | PSD RC subset | 48-case strict matrix | All 26 exposed modes plus opacity/fill cases have isolated fixtures. The untagged/sRGB/Adobe RGB 8/16-bit matrix passes at RMSE 0.07–0.79, including Adobe RGB Hard Mix at 0.13/0.15. Untested profile classes, 32-bit documents and unsupported PSD semantics remain outside this claim. See `PHOTOSHOP_COLOR_AND_BLEND_PARITY.md`. |
@@ -69,7 +69,7 @@ Legend: **Yes**, **Partial**, **Preview**, **No**, or **N/A**.
 | Dormant style descriptors | Yes | Yes | Correctly hidden | N/A | Style editor | No | Yes UI | Dormant descriptors remain stored but no longer clutter the compact Layers tree. |
 | Solid vector shapes | Yes | Partial | Partial | Partial | **Partial** | No | Failed authoring parity | Some simple shapes map natively, but observed imported shapes still fall back or expose incomplete editable properties. |
 | Vector strokes | Yes | Yes | Preview/Partial | Partial | Partial | No | Failed | Six strokes expose incomplete alignment, paint, join/cap and opacity semantics. |
-| PSD text descriptors | Yes | Yes descriptor | Preview or native | **Yes where supported** | Partial | No | Partial | Ordinary point/paragraph descriptors now become semantic text with a bounded v5 preview; missing-font Replace/Manage UX and a fresh whole-corpus count remain. Native v6 can persist stable external system-font references without embedding their bytes. |
+| PSD text descriptors | Yes | Yes descriptor | Preview or native | **Yes where supported** | Partial | No | Partial | Ordinary point/paragraph descriptors now become semantic text with a bounded derived preview; missing-font Replace/Manage UX and a fresh whole-corpus count remain. The native schema persists stable external system-font references without embedding their bytes. |
 | Native LightTable text | N/A | Yes | Yes | Yes | Yes | PDF partial | Separate fixtures | The text engine works independently; PSD realization/font recovery is the gap. |
 | Missing fonts | Yes | Partial | Preview | Partial | Partial | No | Partial | Twenty-eight source font families occur. Desktop system discovery is lazy and complete for Windows TTF/OTF/TTC/variable faces; native absent-font reopening and broader recovery coverage remain in Task 048. |
 | Smart Objects | Yes | **Partial descriptor** | Preview | No | No | No | Failed semantic parity | Fifty-seven previews display; embedded/linked object payloads are skipped and cannot be reopened. |
@@ -125,14 +125,14 @@ special editing controls attached to raster previews.
 
 ## Missing-feature register
 
-### PSD-P0-001 - Native tight raster bounds (resolved in native v4, retained by v5)
+### PSD-P0-001 - Native tight raster bounds (resolved)
 
 **Evidence:** 63 off-canvas layers, 13 layers larger than the canvas and the
 originally failed EHS-396 native save/reopen.
 
-**Resolution:** Native manifest v4 serializes local `width`, `height`, offsets
-and the document transform. Readers retain v1-v3 compatibility with their
-historic document-sized raster interpretation. A painted tight EHS-396 layer
+**Resolution:** The native schema serializes local `width`, `height`, offsets
+and the document transform. Pre-release historic schemas are intentionally not
+retained. A painted tight EHS-396 layer
 has been saved and reopened with its pixels and placement intact.
 
 **Verification:** Ordinary, translated, negative-origin and oversized surfaces
@@ -152,7 +152,7 @@ fully on layer-local previews.
 feature-specific fallback paths without a shared contract for semantic source,
 derived preview assets, invalidation or explicit bake.
 
-**Resolution:** Native manifest v5 introduces one bounded semantic derived-preview
+**Resolution:** The native schema contains one bounded semantic derived-preview
 contract for text and vectors. A semantic dependency key decides whether the
 preview remains current; authoritative edits automatically fall through to the
 native renderer. Runtime allocation is bounded, counted and explicitly pruned,

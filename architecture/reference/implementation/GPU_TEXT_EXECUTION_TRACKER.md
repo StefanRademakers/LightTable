@@ -4,6 +4,10 @@ Status: active execution and handoff plan
 
 Last reviewed: 2026-08-03
 
+Persistence note: numbered native-manifest references below describe historical
+alpha implementation steps. They were consolidated into the single current
+internal manifest v1; no pre-release compatibility is retained.
+
 Canonical architecture boundary: [`GPU_TEXT_CONTRACT_BOUNDARIES.md`](GPU_TEXT_CONTRACT_BOUNDARIES.md)
 
 PDF implementation reference: [`PDF_ENGINE_EXTRACTION_SPIKE.md`](PDF_ENGINE_EXTRACTION_SPIKE.md)
@@ -1614,7 +1618,7 @@ Append newest entries at the top. Keep entries factual and link the slice.
 - Fontations: the persistent Rust/WASM worker validates real TrueType, CFF and
   variable fixtures, face indexes, outline kind and complete OS/2 embedding
   policy without DOM, CSS font loading or Node-only APIs.
-- Persistence: native manifest v3 retains multiple collection faces over one
+- Persistence: the then-current alpha persistence retained multiple collection faces over one
   verified binary, migrates v1/v2 documents, rejects corrupt hashes and applies
   64 MiB/256 MiB resource budgets before hashing untrusted blobs.
 - UI: Layers, persistent status and the bounded copyable Debug log use actual
@@ -1720,7 +1724,7 @@ Append newest entries at the top. Keep entries factual and link the slice.
   transform commands with domain-specific revisions; explicit typing,
   composition, deletion, formatting and layout transaction boundaries reject
   external document publication and retain no raster cache for semantic edits.
-- Persistence: layered manifest v2 round-trips flow and positioned text,
+- Persistence: the then-current alpha persistence round-tripped flow and positioned text,
   font/interchange metadata, masks, grouping and compatible unknown payload
   fields; v1 remains readable and future manifest/text schemas fail clearly.
 - Rasterize Type: fixture-only GPU bake preserves the same layer ID and common

@@ -68,8 +68,9 @@ blocked while any document is dirty. Updates never force a restart.
 
 ## Compatibility and rollback
 
-- Native LightTable manifest versions 1–6 remain readable by this build and
-  saves write version 6. Unknown future versions fail explicitly.
+- The native LightTable format has one disposable internal-alpha schema.
+  Saves and reads use version 1 only; every other version fails explicitly.
+  Compatibility and migrations begin with the first public release.
 - Recovery version 1 is accepted; unknown versions are isolated with a reason.
 - The updater never offers an equal/older version. Manual binary rollback is
   supported only when every document/recovery schema is within that binary's

@@ -202,7 +202,7 @@ describe('LightTable layered PNG format', () => {
     expect(manifestText).not.toContain('workerState');
   });
 
-  it('opens legacy v1 files and rejects future manifest or text schema versions', async () => {
+  it('accepts only the current manifest and text schema versions', async () => {
     const document = createTextLayer(
       createImageDocument('Text versioning', 2, 2, 'source'),
       createDefaultTextLayerData(),
@@ -219,7 +219,7 @@ describe('LightTable layered PNG format', () => {
       }],
       'versions.png'
     );
-    const futureManifest = await rewriteManifest(file, (manifest) => { manifest.version = 9; });
+    const unsupportedManifest = await rewriteManifest(file, (manifest) => { manifest.version = 2; });
     const futureText = await rewriteManifest(file, (manifest) => {
       const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
       const text = layers.find((layer) => layer.type === 'text')!.text as Record<string, unknown>;
@@ -229,19 +229,38 @@ describe('LightTable layered PNG format', () => {
       const layers = (manifest.document as { layers: Array<Record<string, unknown>> }).layers;
       layers[1].id = layers[0].id;
     });
-    await expect(parseLayeredDocumentFile(futureManifest)).rejects.toThrow(/not supported/);
+    await expect(parseLayeredDocumentFile(unsupportedManifest)).rejects.toThrow(/not supported/);
     await expect(parseLayeredDocumentFile(futureText)).rejects.toThrow(/schemaVersion/);
     await expect(parseLayeredDocumentFile(duplicateIds)).rejects.toThrow(/duplicate layer IDs/);
-    const legacyDocument = createImageDocument('Legacy', 2, 2, 'source');
-    const legacyFile = buildLayeredDocumentFile(
+    await expect(parseLayeredDocumentFile(file)).resolves.not.toBeNull();
+  });
+
+  it('rejects manifests that omit fields from the current alpha schema', async () => {
+    const document = createImageDocument('Strict schema', 2, 2, 'source');
+    const file = buildLayeredDocumentFile(
       new Blob([PREVIEW_PNG], { type: 'image/png' }),
-      legacyDocument,
+      document,
       defaultStack(),
-      [{ layerId: legacyDocument.layers[0].id, pixels: new Blob([BACKGROUND_PNG]), mask: null }],
-      'legacy.png'
+      [{ layerId: document.layers[0].id, pixels: new Blob([BACKGROUND_PNG]), mask: null }],
+      'strict-schema.png'
     );
-    const v1 = await rewriteManifest(legacyFile, (manifest) => { manifest.version = 1; });
-    await expect(parseLayeredDocumentFile(v1)).resolves.not.toBeNull();
+    const without = (field: string, layerField = false) => rewriteManifest(file, (manifest) => {
+      const documentManifest = manifest.document as Record<string, unknown>;
+      if (layerField) {
+        const [layer] = documentManifest.layers as Array<Record<string, unknown>>;
+        delete layer[field];
+      } else {
+        delete documentManifest[field];
+      }
+    });
+
+    await expect(parseLayeredDocumentFile(await without('resolutionPpi'))).rejects.toThrow(/resolution/);
+    await expect(parseLayeredDocumentFile(await without('colorSettings'))).rejects.toThrow(/color settings/);
+    await expect(parseLayeredDocumentFile(await without('fonts'))).rejects.toThrow(/font registry/);
+    await expect(parseLayeredDocumentFile(await without('importProvenance'))).rejects.toThrow(/provenance/);
+    await expect(parseLayeredDocumentFile(await without('transform', true))).rejects.toThrow(/transform/);
+    await expect(parseLayeredDocumentFile(await without('width', true))).rejects.toThrow(/bounds/);
+    await expect(parseLayeredDocumentFile(await without('derivedPreview', true))).rejects.toThrow(/Derived preview/);
   });
 
   it('round-trips a text-only layered document without inventing raster assets', async () => {
@@ -392,9 +411,6 @@ describe('LightTable layered PNG format', () => {
     const fonts = (manifest.document as { fonts: Array<{ asset: { offset: number; length: number } }> }).fonts;
     expect(fonts[0].asset).toEqual(fonts[1].asset);
 
-    const v2 = await rewriteManifest(file, (current) => { current.version = 2; });
-    expect((await parseLayeredDocumentFile(v2))?.document.assets.fonts).toEqual([]);
-
     const oversized = await rewriteManifest(file, (current) => {
       const [font] = (current.document as { fonts: Array<Record<string, unknown>> }).fonts;
       font.byteLength = 64 * 1024 * 1024 + 1;
@@ -451,7 +467,7 @@ describe('LightTable layered PNG format', () => {
     );
 
     const manifest = await readManifest(file);
-    expect(manifest.version).toBe(8);
+    expect(manifest.version).toBe(1);
     expect(manifest).toMatchObject({
       document: { colorSettings: document.colorSettings }
     });
@@ -678,7 +694,7 @@ describe('LightTable layered PNG format', () => {
     const parsed = await parseLayeredDocumentFile(file);
     const parsedLayer = parsed && findRasterLayer(parsed.document, sourceLayer.id);
 
-    expect(await readManifest(file)).toMatchObject({ version: 8 });
+    expect(await readManifest(file)).toMatchObject({ version: 1 });
     expect(parsedLayer).toMatchObject({
       width: 900,
       height: 48,
