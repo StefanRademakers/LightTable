@@ -982,6 +982,7 @@
 
 .lighttable-toolbox__button:hover { background: var(--lt-surface-control-hover); }
 .lighttable-toolbox__button--active { border-color: var(--lt-accent); background: var(--lt-accent-strong); }
+.lighttable-toolbox__button:focus-visible { outline: none; }
 .lighttable-toolbox__button img { width: 18px; height: 18px; object-fit: contain; }
 
 .lighttable-toolbox__group { position: relative; }
