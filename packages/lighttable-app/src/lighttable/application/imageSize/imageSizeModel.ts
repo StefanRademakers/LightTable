@@ -1,13 +1,19 @@
 import type { ImageDocument, LayerNode } from '../../editor/document/documentTypes';
+import type {
+  ConcreteResampleMethod,
+  ResampleMethod,
+  ResizePlan
+} from '../../editor/document/imageResizeTypes';
 import { multiplyMatrices, scaleMatrix } from '../../editor/geometry/affine';
+
+export type {
+  ConcreteResampleMethod,
+  ResampleMethod,
+  ResizePlan
+} from '../../editor/document/imageResizeTypes';
 
 export type ImageSizeUnit = 'pixels' | 'percent' | 'inches' | 'centimeters' | 'millimeters' | 'points' | 'picas';
 export type ResolutionUnit = 'pixels-per-inch' | 'pixels-per-centimeter';
-export type ResampleMethod =
-  | 'automatic' | 'preserve-details' | 'preserve-details-2'
-  | 'bicubic-smoother' | 'bicubic-sharper' | 'bicubic'
-  | 'nearest' | 'bilinear';
-export type ConcreteResampleMethod = Exclude<ResampleMethod, 'automatic'>;
 
 export interface OriginalImageSizeState {
   readonly widthPx: number;
@@ -24,18 +30,6 @@ export interface ImageSizeRequest {
   readonly method: ResampleMethod;
   readonly preserveDetailsNoiseReduction: number;
   readonly scaleStyles: boolean;
-}
-
-export interface ResizePlan {
-  readonly sourceWidth: number;
-  readonly sourceHeight: number;
-  readonly targetWidth: number;
-  readonly targetHeight: number;
-  readonly scaleX: number;
-  readonly scaleY: number;
-  readonly requestedMethod: ResampleMethod;
-  readonly resolvedMethod: ConcreteResampleMethod | null;
-  readonly passes: readonly { readonly width: number; readonly height: number }[];
 }
 
 export const MAX_IMAGE_SIZE_DIMENSION = 16_384;

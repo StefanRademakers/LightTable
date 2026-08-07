@@ -478,7 +478,7 @@ export class WebGpuEngine {
 
   resizeImagePixels(
     document: ImageDocument,
-    plan: import('../application/imageSize/imageSizeModel').ResizePlan,
+    plan: import('../editor/document/imageResizeTypes').ResizePlan,
     noiseReduction: number
   ) {
     if (!this.documentRenderer) throw new Error('The document renderer is unavailable.');

@@ -36,7 +36,7 @@ import {
   type TextFontRuntimePort,
   type TextRenderPresentationSnapshot
 } from './createLayerDocumentRendererRuntime';
-import type { ResizePlan } from '../../application/imageSize/imageSizeModel';
+import type { ResizePlan } from '../document/imageResizeTypes';
 
 export const projectTextEditingGeometryPreview = (
   presentation: TextLayerEditingLayout,

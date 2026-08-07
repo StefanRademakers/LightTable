@@ -1,4 +1,4 @@
-import type { ResizePlan, ConcreteResampleMethod } from '../../application/imageSize/imageSizeModel';
+import type { ResizePlan, ConcreteResampleMethod } from '../document/imageResizeTypes';
 import type { ImageDocument, LayerId } from '../document/documentTypes';
 import { walkLayerTree, walkRasterLayers } from '../document/layerTree';
 import type { LayerRuntimeStore, RasterLayerRuntime } from './LayerRuntimeStore';

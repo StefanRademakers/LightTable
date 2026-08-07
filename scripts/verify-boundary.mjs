@@ -29,6 +29,7 @@ const rendererFacadePath =
   'packages/lighttable-app/src/lighttable/editor/rendering/LayerDocumentRenderer.ts';
 const rendererFacadeImports = new Set([
   '../document/documentTypes',
+  '../document/imageResizeTypes',
   '../document/layerTree',
   '../history/ReversiblePixelEdit',
   '../persistence/layeredDocumentFormat',
