@@ -5,6 +5,8 @@ import type {
   LayerStyleGradientStop,
   LayerStyleOpacityStop
 } from '../styles/layerStyleTypes';
+import { ActionButton } from '../../../ui/ActionButton';
+import { PanelColorField, PanelNumberSlider } from './PanelControls';
 
 const MAX_STOPS = 8;
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -13,13 +15,6 @@ const channelHex = (value: number) =>
   Math.round(clamp01(value) * 255).toString(16).padStart(2, '0');
 const colorHex = (color: LayerStyleColor) =>
   `#${channelHex(color.r)}${channelHex(color.g)}${channelHex(color.b)}`;
-const parseHex = (value: string, alpha = 1): LayerStyleColor => ({
-  r: Number.parseInt(value.slice(1, 3), 16) / 255,
-  g: Number.parseInt(value.slice(3, 5), 16) / 255,
-  b: Number.parseInt(value.slice(5, 7), 16) / 255,
-  a: alpha
-});
-
 export const gradientStopPosition = (clientX: number, left: number, width: number) =>
   clamp01((clientX - left) / Math.max(1, width));
 
@@ -216,58 +211,48 @@ export const GradientAssetEditor: React.FC<{
 
       <div className="lighttable-style-gradient__toolbar">
         <strong>Color stops</strong>
-        <button type="button" onClick={() => addColor()} disabled={colorStops.length >= MAX_STOPS}>Add</button>
-        <button type="button" disabled={!selectedColor || colorStops.length <= 2}
+        <ActionButton size="compact" onClick={() => addColor()}
+          disabled={colorStops.length >= MAX_STOPS}>Add</ActionButton>
+        <ActionButton size="compact" disabled={!selectedColor || colorStops.length <= 2}
           onClick={() => {
             if (!selectedColor || colorStops.length <= 2) return;
             removeColor(selectedColor.id);
-          }}>Remove</button>
+          }}>Remove</ActionButton>
       </div>
       {selectedColor ? (
         <div className="lighttable-style-gradient__controls">
-          <label><span>Color</span><input type="color" value={colorHex(selectedColor.color)}
-            onChange={(event) => updateColor(selectedColor.id, {
-              color: parseHex(event.currentTarget.value, selectedColor.color.a)
-            })} /></label>
-          <label><span>Location</span><input type="range" min="0" max="100" step="0.1"
-            value={selectedColor.position * 100}
-            onChange={(event) => updateColor(selectedColor.id, {
-              position: Number(event.currentTarget.value) / 100
-            })} /><output>{Math.round(selectedColor.position * 100)}%</output></label>
-          <label><span>Midpoint</span><input type="range" min="5" max="95" step="1"
-            value={selectedColor.midpoint * 100}
-            onChange={(event) => updateColor(selectedColor.id, {
-              midpoint: Number(event.currentTarget.value) / 100
-            })} /><output>{Math.round(selectedColor.midpoint * 100)}%</output></label>
+          <PanelColorField label="Color" value={selectedColor.color}
+            onChange={(color) => updateColor(selectedColor.id, { color })} />
+          <PanelNumberSlider label="Location" value={selectedColor.position * 100}
+            min={0} max={100} step={0.1} suffix="%" resetValue={0}
+            onChange={(position) => updateColor(selectedColor.id, { position: position / 100 })} />
+          <PanelNumberSlider label="Midpoint" value={selectedColor.midpoint * 100}
+            min={5} max={95} suffix="%" resetValue={50}
+            onChange={(midpoint) => updateColor(selectedColor.id, { midpoint: midpoint / 100 })} />
         </div>
       ) : null}
 
       <div className="lighttable-style-gradient__toolbar">
         <strong>Opacity stops</strong>
-        <button type="button" onClick={addOpacity} disabled={opacityStops.length >= MAX_STOPS}>Add</button>
-        <button type="button" disabled={!selectedOpacity || opacityStops.length <= 2}
+        <ActionButton size="compact" onClick={addOpacity}
+          disabled={opacityStops.length >= MAX_STOPS}>Add</ActionButton>
+        <ActionButton size="compact" disabled={!selectedOpacity || opacityStops.length <= 2}
           onClick={() => {
             if (!selectedOpacity || opacityStops.length <= 2) return;
             removeOpacity(selectedOpacity.id);
-          }}>Remove</button>
+          }}>Remove</ActionButton>
       </div>
       {selectedOpacity ? (
         <div className="lighttable-style-gradient__controls">
-          <label><span>Opacity</span><input type="range" min="0" max="100" step="1"
-            value={selectedOpacity.opacity * 100}
-            onChange={(event) => updateOpacity(selectedOpacity.id, {
-              opacity: Number(event.currentTarget.value) / 100
-            })} /><output>{Math.round(selectedOpacity.opacity * 100)}%</output></label>
-          <label><span>Location</span><input type="range" min="0" max="100" step="0.1"
-            value={selectedOpacity.position * 100}
-            onChange={(event) => updateOpacity(selectedOpacity.id, {
-              position: Number(event.currentTarget.value) / 100
-            })} /><output>{Math.round(selectedOpacity.position * 100)}%</output></label>
-          <label><span>Midpoint</span><input type="range" min="5" max="95" step="1"
-            value={selectedOpacity.midpoint * 100}
-            onChange={(event) => updateOpacity(selectedOpacity.id, {
-              midpoint: Number(event.currentTarget.value) / 100
-            })} /><output>{Math.round(selectedOpacity.midpoint * 100)}%</output></label>
+          <PanelNumberSlider label="Opacity" value={selectedOpacity.opacity * 100}
+            min={0} max={100} suffix="%" resetValue={100}
+            onChange={(opacity) => updateOpacity(selectedOpacity.id, { opacity: opacity / 100 })} />
+          <PanelNumberSlider label="Location" value={selectedOpacity.position * 100}
+            min={0} max={100} step={0.1} suffix="%" resetValue={0}
+            onChange={(position) => updateOpacity(selectedOpacity.id, { position: position / 100 })} />
+          <PanelNumberSlider label="Midpoint" value={selectedOpacity.midpoint * 100}
+            min={5} max={95} suffix="%" resetValue={50}
+            onChange={(midpoint) => updateOpacity(selectedOpacity.id, { midpoint: midpoint / 100 })} />
         </div>
       ) : null}
       <small className="lighttable-style-gradient__hint">

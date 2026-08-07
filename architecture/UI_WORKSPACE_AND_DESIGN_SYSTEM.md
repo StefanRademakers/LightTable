@@ -85,6 +85,12 @@ the same panel controls. Common controls stay visible first. Compatibility
 controls remain editable under **Advanced** and are never discarded. Layer
 Styles are a regular dock tab, not a modal property language.
 
+`GradientField` is the canonical compact gradient preview/dropdown trigger in
+toolbars and property rows. The shared gradient editor owns only the
+domain-specific ramp and draggable stops; its buttons, colors and numeric
+controls compose `ActionButton`, `PanelColorField` and `PanelNumberSlider`.
+A gradient feature must not add private range, button or swatch styling.
+
 The repeatable `npm run audit:desktop:panel-language:build` matrix checks compact
 and wide windows at 100% and 200% device scale against a nested PSD. It asserts
 square bounded thumbnails, aspect containment, fixed tree width, visible

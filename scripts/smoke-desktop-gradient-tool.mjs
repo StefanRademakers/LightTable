@@ -11,6 +11,7 @@ const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'gradient-tool-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'gradient-tool.png');
+const editorScreenshotPath = path.join(outputDirectory, 'gradient-editor.png');
 const liveScreenshotPath = path.join(outputDirectory, 'gradient-tool-live.png');
 const selectionToolScreenshotPath = path.join(outputDirectory, 'gradient-tool-selection-tool.png');
 const editedScreenshotPath = path.join(outputDirectory, 'gradient-tool-edited.png');
@@ -115,6 +116,7 @@ try {
   await page.getByRole('button', { name: 'Edit gradient' }).click();
   const editor = page.getByRole('dialog', { name: 'Gradient editor' });
   await editor.waitFor({ state: 'visible' });
+  await page.screenshot({ path: editorScreenshotPath });
   const ramp = editor.locator('.lighttable-style-gradient__preview');
   const colorStops = editor.locator('.lighttable-style-gradient__stop--color');
   if (await colorStops.count() !== 2) throw new Error('The default gradient needs two color stops.');
@@ -373,6 +375,7 @@ try {
     thumbnailBoxes,
     createdLayerId: activeLayer.id,
     screenshotPath,
+    editorScreenshotPath,
     liveScreenshotPath,
     selectionToolScreenshotPath,
     editedScreenshotPath,

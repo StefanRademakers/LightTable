@@ -211,7 +211,8 @@ describe('vector style tool options', () => {
       strokeAlignment: 'center'
     });
     expect(markup).toContain('aria-label="Edit fill gradient"');
-    expect(markup).toContain('>Gradient</button>');
+    expect(markup).toContain('class="gradient-field"');
+    expect(markup).not.toContain('>Gradient</button>');
   });
 
   it('shows an imported selected shape style across the existing vector tool family', () => {

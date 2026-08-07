@@ -24,6 +24,7 @@ import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import { AnchoredGradientPopover } from './AnchoredGradientPopover';
 import { VectorStyleToolOptions } from './VectorStyleToolOptions';
+import { GradientField } from '../../../ui/GradientField';
 import type { TextPaint, TextWarp, TextWarpStyle } from '@lighttable/text-core';
 import type { AffineMatrix, TransformSessionState } from '../tools/transform/transformTypes';
 import {
@@ -618,14 +619,14 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <option value="fill-layer">Fill layer</option>
             <option value="pixels">Pixels</option>
           </ToolOptionSelect>
-          <button
+          <GradientField
             ref={gradientButtonRef}
-            type="button"
-            className="lighttable-tool-options__gradient-button"
-            aria-label="Edit gradient"
+            value={gradient.paint.asset}
+            ariaLabel="Edit gradient"
             title="Edit gradient"
+            expanded={gradientEditorOpen}
             onClick={() => setGradientEditorOpen((open) => !open)}
-          >Gradient</button>
+          />
           {gradientEditorOpen ? (
             <AnchoredGradientPopover anchor={gradientButtonRef} ariaLabel="Gradient editor">
               <div className="lighttable-tool-options__gradient-header">
@@ -903,9 +904,11 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               onBlur={onTextPropertyCommit}
               onCancel={onTextPropertyCancel}
               status={presentedTextGradient ? (
-                <button ref={textGradientButtonRef} type="button" className="lighttable-tool-options__gradient-button"
-                  aria-label="Edit text fill gradient" title="Edit text fill gradient"
-                  onClick={() => setTextGradientEditorOpen((open) => !open)}>Gradient</button>
+                <GradientField ref={textGradientButtonRef}
+                  value={presentedTextGradient.asset}
+                  ariaLabel="Edit text fill gradient" title="Edit text fill gradient"
+                  expanded={textGradientEditorOpen}
+                  onClick={() => setTextGradientEditorOpen((open) => !open)} />
               ) : textProperties && textProperties.fill.kind !== 'value' ? (
                 <em>{textProperties.fill.kind === 'mixed' ? 'Mixed' : 'Non-solid / unsupported'}</em>
               ) : null}

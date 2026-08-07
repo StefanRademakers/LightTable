@@ -4,6 +4,7 @@ import type { ToolId, VectorToolStyleSettings } from '../session/editorSession';
 import { AnchoredGradientPopover } from './AnchoredGradientPopover';
 import { GradientAssetEditor } from './LayerStyleGradientEditor';
 import { ToolOptionColor, ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
+import { GradientField } from '../../../ui/GradientField';
 
 export const VectorStyleToolOptions: React.FC<{
   activeTool: ToolId;
@@ -27,16 +28,18 @@ export const VectorStyleToolOptions: React.FC<{
           fillEnabled, ...(fillEnabled ? { fillColor: style.fillColor } : {})
         })}
         onChange={(fillColor) => onChange({ fillEnabled: true, fillColor, fillPaint: null })}
-        status={<button ref={fillAnchor} type="button"
-          className="lighttable-tool-options__gradient-button"
-          aria-label="Edit fill gradient" title="Edit fill gradient"
+        status={<GradientField ref={fillAnchor}
+          value={(fillGradient ?? createDefaultGradientPaint(
+            'vector-fill-gradient-preview', 'object-bounds'
+          )).asset}
+          ariaLabel="Edit fill gradient" title="Edit fill gradient" expanded={fillOpen}
           onClick={() => {
             if (!fillGradient) onChange({
               fillEnabled: true,
               fillPaint: createDefaultGradientPaint('vector-fill-gradient', 'object-bounds')
             });
             setFillOpen((open) => !open);
-          }}>Gradient</button>} />
+          }} />} />
       {fillGradient && fillOpen ? <AnchoredGradientPopover anchor={fillAnchor} ariaLabel="Fill gradient">
         <div className="lighttable-tool-options__gradient-header">
           <strong>Fill gradient</strong>
@@ -53,16 +56,18 @@ export const VectorStyleToolOptions: React.FC<{
         strokeEnabled, ...(strokeEnabled ? { strokeColor: style.strokeColor } : {})
       })}
       onChange={(strokeColor) => onChange({ strokeEnabled: true, strokeColor, strokePaint: null })}
-      status={<button ref={strokeAnchor} type="button"
-        className="lighttable-tool-options__gradient-button"
-        aria-label="Edit stroke gradient" title="Edit stroke gradient"
+      status={<GradientField ref={strokeAnchor}
+        value={(strokeGradient ?? createDefaultGradientPaint(
+          'vector-stroke-gradient-preview', 'object-bounds'
+        )).asset}
+        ariaLabel="Edit stroke gradient" title="Edit stroke gradient" expanded={strokeOpen}
         onClick={() => {
           if (!strokeGradient) onChange({
             strokeEnabled: true,
             strokePaint: createDefaultGradientPaint('vector-stroke-gradient', 'object-bounds')
           });
           setStrokeOpen((open) => !open);
-        }}>Gradient</button>} />
+        }} />} />
     {strokeGradient && strokeOpen ? <AnchoredGradientPopover anchor={strokeAnchor} ariaLabel="Stroke gradient">
       <div className="lighttable-tool-options__gradient-header">
         <strong>Stroke gradient</strong>

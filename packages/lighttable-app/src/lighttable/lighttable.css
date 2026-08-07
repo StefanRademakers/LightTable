@@ -3328,48 +3328,15 @@
 }
 
 .lighttable-style-gradient__toolbar button {
-  min-height: 23px;
-  padding: 2px 7px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  color: var(--lt-text-secondary);
-  background: var(--lt-surface-control);
-  font: inherit;
-  font-size: var(--lt-type-micro);
+  flex: 0 0 auto;
 }
 
 .lighttable-style-gradient__toolbar button:disabled { opacity: 0.35; }
 
 .lighttable-style-gradient__controls {
   display: grid;
-  gap: 5px;
-  padding: 7px;
-  border: 1px solid var(--lt-border);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-inset);
-}
-
-.lighttable-style-gradient__controls label {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 34px;
-  align-items: center;
-  gap: 6px;
-  color: var(--lt-text-muted);
-  font-size: var(--lt-type-micro);
-}
-
-.lighttable-style-gradient__controls input[type="color"] {
-  width: 40px;
-  height: 22px;
-  padding: 1px;
-  border: 1px solid var(--lt-border-strong);
-  background: var(--lt-surface-panel);
-}
-
-.lighttable-style-gradient__controls input[type="range"] { min-width: 0; }
-.lighttable-style-gradient__controls output {
-  color: var(--lt-text-muted);
-  text-align: right;
+  gap: 9px;
+  padding: 5px 0;
 }
 
 .lighttable-style-gradient__hint {
