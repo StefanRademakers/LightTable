@@ -2,7 +2,11 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import {
+  captureDesktopTestState,
+  resolveDesktopTestLaunch,
+  waitForDesktopLauncher
+} from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
@@ -53,7 +57,26 @@ try {
 
   await page.keyboard.press('t');
   const typeButton = page.getByRole('button', { name: 'Type tool (T)', exact: true });
-  await typeButton.waitFor({ state: 'visible' });
+  try {
+    await typeButton.waitFor({ state: 'visible', timeout: 30_000 });
+  } catch (error) {
+    const diagnosticPath = await captureDesktopTestState({
+      app,
+      page,
+      outputDirectory,
+      sourceFile,
+      pageErrors,
+      label: 'type-tool-unavailable',
+      timeout: 30_000,
+      details: {
+        workspace: await driver.queryWorkspace().catch(() => null),
+        document: await driver.queryDocument(documentId).catch(() => null)
+      }
+    });
+    throw new Error(`Type Tool was unavailable after activation. Diagnostic: ${diagnosticPath}`, {
+      cause: error
+    });
+  }
   if (await typeButton.getAttribute('aria-pressed') !== 'true') {
     throw new Error('T did not activate the unified Type Tool.');
   }
