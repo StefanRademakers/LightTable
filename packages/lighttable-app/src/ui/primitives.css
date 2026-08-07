@@ -161,13 +161,14 @@
   height: 16px;
   display: block;
   border-radius: 50%;
-  background: var(--lt-switch-thumb);
+  background: var(--lt-switch-thumb-off);
   box-shadow: 0 1px 2px rgb(0 0 0 / 35%);
   transform: translateX(0);
   transition: transform 120ms ease;
 }
 
 .switch-control--checked .switch-control__thumb {
+  background: var(--lt-switch-thumb-on);
   transform: translateX(16px);
 }
 

@@ -111,10 +111,11 @@
   --lt-range-track-height: 4px;
   --lt-range-thumb-size: 14px;
   --lt-switch-track-off: #242629;
-  --lt-switch-track-off-hover: #595e64;
-  --lt-switch-track-on: #52555a;
-  --lt-switch-track-on-hover: #424449;
-  --lt-switch-thumb: #919294;
+  --lt-switch-track-off-hover: #242629;
+  --lt-switch-track-on: #455773;
+  --lt-switch-track-on-hover: #455773;
+  --lt-switch-thumb-off: #5a5b5d;
+  --lt-switch-thumb-on: #b4b6b8;
   --lt-scrollbar-track: transparent;
   --lt-scrollbar-thumb: #4a515b;
   --lt-scrollbar-thumb-hover: #626b78;
