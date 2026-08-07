@@ -802,7 +802,7 @@
 .lighttable-preferences__error { color: var(--lt-danger); }
 .lighttable-preferences__page-title { padding-bottom: 14px; border-bottom: 1px solid var(--lt-border-subtle); }
 .lighttable-preferences .lighttable-agent-settings__body { padding: 18px 0 0; }
-.lighttable-preferences__footer { flex: 0 0 auto; border-top: 1px solid var(--lt-border-subtle); }
+.lighttable-preferences__footer { flex: 0 0 auto; padding: 6px; border-top: 1px solid var(--lt-border-subtle); }
 @media (max-width: 620px) {
   .lighttable-preferences__layout { grid-template-columns: 125px minmax(0, 1fr); }
   .lighttable-preferences__content { padding: 18px; }
