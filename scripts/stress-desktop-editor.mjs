@@ -37,7 +37,10 @@ const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'stress', 'desktop-editor-stress.json')
 ));
-const executablePath = path.resolve(argument('executable', defaultExecutable));
+const requestedExecutable = argument('executable', process.env.LIGHTTABLE_TEST_EXECUTABLE ?? defaultExecutable);
+const executablePath = path.resolve(requestedExecutable);
+const packagedLaunch = Boolean(process.env.LIGHTTABLE_TEST_EXECUTABLE)
+  || path.basename(executablePath).toLowerCase() !== 'electron.exe';
 const screenshotDirectory = path.join(path.dirname(outputFile), 'screenshots');
 const userDataPath = path.join(
   workspaceRoot,
@@ -323,7 +326,7 @@ const runFile = async (sourceFile, fileIndex) => {
     await mkdir(fileUserDataPath, { recursive: true });
     electronApp = await electron.launch({
       executablePath,
-      args: [desktopAppPath, '--js-flags=--expose-gc'],
+      args: packagedLaunch ? ['--js-flags=--expose-gc'] : [desktopAppPath, '--js-flags=--expose-gc'],
       cwd: workspaceRoot,
       env: {
         ...launchEnvironment,

@@ -2,12 +2,12 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'type-tool-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'type-tool.png');
@@ -16,12 +16,12 @@ const verticalScreenshotPath = path.join(outputDirectory, 'vertical-type.png');
 const reportPath = path.join(outputDirectory, 'type-tool.json');
 let performanceTelemetry = null;
 
-await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
+await Promise.all([access(sourceFile), mkdir(userDataPath, { recursive: true })]);
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,

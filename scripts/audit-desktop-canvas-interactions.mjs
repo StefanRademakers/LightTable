@@ -2,22 +2,23 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:/shapes.psd');
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'quality-audit', 'canvas-interactions');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const reportPath = path.join(outputDirectory, 'report.json');
 const screenshotPath = path.join(outputDirectory, 'final.png');
 
-await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
+await Promise.all([access(sourceFile), mkdir(userDataPath, { recursive: true })]);
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,
@@ -37,7 +38,10 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
   });
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openFileButton = await waitForDesktopLauncher({
+    app, page, outputDirectory, sourceFile, pageErrors: report.pageErrors, label: 'canvas'
+  });
+  await openFileButton.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const driver = await attachLightTableAutomation(page, 'canvas-interaction-audit');

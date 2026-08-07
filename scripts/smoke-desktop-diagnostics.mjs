@@ -2,10 +2,10 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const executablePath = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
-const appPath = path.join(root, 'apps', 'desktop');
+const launch = await resolveDesktopTestLaunch(root);
 const outputDirectory = path.join(root, 'tmp', 'diagnostic-smoke');
 const fixtures = [
   { kind: 'png', file: path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'area_closed.png') },
@@ -14,7 +14,7 @@ const fixtures = [
 ];
 
 await mkdir(outputDirectory, { recursive: true });
-await Promise.all([access(executablePath), ...fixtures.map(({ file }) => access(file))]);
+await Promise.all(fixtures.map(({ file }) => access(file)));
 const reports = [];
 
 for (const fixture of fixtures) {
@@ -25,8 +25,8 @@ for (const fixture of fixtures) {
   let app;
   try {
     app = await electron.launch({
-      executablePath,
-      args: [appPath],
+      executablePath: launch.executablePath,
+      args: launch.args,
       cwd: root,
       env: {
         ...environment,
@@ -39,7 +39,11 @@ for (const fixture of fixtures) {
     const window = await app.firstWindow({ timeout: 30_000 });
     const pageErrors = [];
     window.on('pageerror', (error) => pageErrors.push(error.message));
-    await window.getByRole('button', { name: 'Open file' }).click();
+    const openFileButton = await waitForDesktopLauncher({
+      app, page: window, outputDirectory, sourceFile: fixture.file,
+      pageErrors, label: `diagnostics-${fixture.kind}`
+    });
+    await openFileButton.click();
     await window.getByRole('tab', { name: new RegExp(path.basename(fixture.file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') })
       .waitFor({ state: 'visible', timeout: 45_000 });
     await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })

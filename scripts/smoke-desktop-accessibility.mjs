@@ -2,15 +2,15 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const fixture = 'D:\\TextTest.psd';
-const appPath = path.join(root, 'apps', 'desktop');
-const executablePath = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(root);
 const evidenceDirectory = path.join(root, 'tmp', 'accessibility-smoke');
 const saveTarget = path.join(evidenceDirectory, 'keyboard-save-export.bin');
 const userData = await mkdtemp(path.join(os.tmpdir(), 'lighttable-accessibility-'));
-await Promise.all([access(fixture), access(executablePath), mkdir(evidenceDirectory, { recursive: true })]);
+await Promise.all([access(fixture), mkdir(evidenceDirectory, { recursive: true })]);
 
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
@@ -45,7 +45,7 @@ const waitForFile = async (file, timeout = 15_000) => {
 };
 
 try {
-  app = await electron.launch({ executablePath, args: [appPath], cwd: root, env: {
+  app = await electron.launch({ executablePath: launch.executablePath, args: launch.args, cwd: root, env: {
     ...environment,
     LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture,
     LIGHTTABLE_AUTOMATION_SAVE_FILE: saveTarget,
@@ -54,7 +54,10 @@ try {
   const window = await app.firstWindow({ timeout: 30_000 });
   window.on('pageerror', (error) => report.pageErrors.push(error.message));
 
-  await window.getByRole('button', { name: 'Open file' }).waitFor({ state: 'visible', timeout: 30_000 });
+  await waitForDesktopLauncher({
+    app, page: window, outputDirectory: evidenceDirectory, sourceFile: fixture,
+    pageErrors: report.pageErrors, label: 'accessibility'
+  });
   await window.locator('body').focus();
   const open = await focusUntil(window, ({ name }) => name.includes('Open file'), 12);
   report.journey.push({ id: 'launcher-open-focus', active: open });

@@ -2,6 +2,7 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { _electron as electron } from 'playwright-core';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
@@ -11,8 +12,8 @@ const label = process.argv[3] ?? 'layer-style-interaction';
 const output = path.join(workspace, 'tmp', 'layer-style-interaction-audit');
 const reportPath = path.join(output, `${label}.json`);
 const userData = path.join(output, `user-data-${process.pid}`);
-const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
-await Promise.all([access(source), access(executable), mkdir(userData, { recursive: true })]);
+const launch = await resolveDesktopTestLaunch(workspace);
+await Promise.all([access(source), mkdir(userData, { recursive: true })]);
 
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
@@ -30,8 +31,8 @@ const parseInteger = (text, label) => Number(
 );
 
 const app = await electron.launch({
-  executablePath: executable,
-  args: [path.join(workspace, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspace,
   env: {
     ...environment,
@@ -47,7 +48,11 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
   });
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openFileButton = await waitForDesktopLauncher({
+    app, page, outputDirectory: output, sourceFile: source,
+    pageErrors: report.pageErrors, label: 'layer-style'
+  });
+  await openFileButton.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const driver = await attachLightTableAutomation(page, 'layer-style-interaction');

@@ -1,6 +1,19 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+
+export const resolveDesktopTestLaunch = async (workspaceRoot) => {
+  const packagedExecutable = process.env.LIGHTTABLE_TEST_EXECUTABLE;
+  const executablePath = packagedExecutable
+    ? path.resolve(packagedExecutable)
+    : path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+  await access(executablePath);
+  return {
+    executablePath,
+    args: packagedExecutable ? [] : [path.join(workspaceRoot, 'apps', 'desktop')],
+    mode: packagedExecutable ? 'production-packaged' : 'development-electron'
+  };
+};
 
 export const waitForDesktopLauncher = async ({
   app,

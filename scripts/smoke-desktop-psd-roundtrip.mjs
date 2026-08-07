@@ -2,11 +2,12 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const source = path.resolve(process.argv[2] ?? 'D:\\TextTest.psd');
-const executable = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(root);
 const output = path.join(root, 'tmp', 'psd-roundtrip');
 const userData = path.join(output, `user-data-${process.pid}`);
 const reportFile = path.join(output, 'report.json');
@@ -14,13 +15,13 @@ const exportedFile = path.join(
   output,
   `${path.basename(source, path.extname(source))}-lighttable-${process.pid}.psd`
 );
-await Promise.all([access(source), access(executable), mkdir(userData, { recursive: true })]);
+await Promise.all([access(source), mkdir(userData, { recursive: true })]);
 
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath: executable,
-  args: [path.join(root, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: root,
   env: {
     ...environment,
@@ -35,7 +36,10 @@ try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openFileButton = await waitForDesktopLauncher({
+    app, page, outputDirectory: output, sourceFile: source, pageErrors, label: 'psd-roundtrip'
+  });
+  await openFileButton.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 45_000 });
   const driver = await attachLightTableAutomation(page, 'psd-roundtrip');

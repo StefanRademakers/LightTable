@@ -23,6 +23,8 @@ const stamp = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')
 const output = path.resolve(argument('output') ?? path.join(workspace, 'tmp', 'quality-audit', 'release-soak', stamp));
 const work = path.join(output, 'work');
 const reportPath = path.join(output, 'report.json');
+const packagedExecutable = path.resolve(argument('packaged-executable')
+  ?? path.join(workspace, 'apps', 'desktop', 'out', 'LightTable-win32-x64', 'LightTable.exe'));
 const fixtures = [
   { kind: 'ordinary-image', path: 'D:\\adamus2__0002.png' },
   { kind: 'text-psd', path: 'D:\\TextTest.psd' },
@@ -44,7 +46,10 @@ const runNode = (step, logPath) => new Promise((resolve) => {
   const started = performance.now();
   let log = '';
   const child = spawn(process.execPath, [step.script, ...step.args], {
-    cwd: workspace, env: { ...process.env }, windowsHide: true, shell: false
+    cwd: workspace,
+    env: { ...process.env, LIGHTTABLE_TEST_EXECUTABLE: packagedExecutable },
+    windowsHide: true,
+    shell: false
   });
   child.stdout.on('data', (chunk) => { log += chunk; process.stdout.write(chunk); });
   child.stderr.on('data', (chunk) => { log += chunk; process.stderr.write(chunk); });
@@ -77,6 +82,9 @@ const lightTableProcesses = async () => {
 };
 
 await Promise.all([mkdir(output, { recursive: true }), mkdir(work, { recursive: true })]);
+await access(packagedExecutable).catch((error) => {
+  throw new Error(`Packaged LightTable executable is missing: ${packagedExecutable}\n${error}`);
+});
 for (const fixture of fixtures) await access(fixture.path).catch((error) => {
   throw new Error(`Required release-soak fixture is missing: ${fixture.kind} (${fixture.path})\n${error}`);
 });
@@ -98,6 +106,7 @@ const report = {
   generatedAt: new Date(startedAt).toISOString(),
   validity: {
     buildMode: 'production-packaged',
+    executable: packagedExecutable,
     workspaceVersion: packageJson.version,
     electronVersion: desktopPackage.devDependencies?.electron ?? null,
     commit: await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: workspace, windowsHide: true })
