@@ -1,27 +1,15 @@
-# Task 109 progress — 6 August 2026
+# Task 109 progress - 7 August 2026
 
-Implemented and verified:
+The six-cell policy matrix, capability classifier, honest below-floor refusal,
+bounded diagnostics and privacy-safe signed probe are implemented. Product
+candidate `2643a94c` passed the complete 70-cycle, 2 h 1 min 38 s packaged soak
+on the measured Windows 11 / NVIDIA RTX 5090 / Electron / DPR 1 cell. It had
+zero failed cycles, suspicious stable tails, validation errors, invalid
+screenshots, settled background submissions or orphan processes.
 
-- compact six-cell Windows/macOS, discrete/integrated and Electron/web matrix;
-- deterministic WebGPU capability classifier and an honest below-floor refusal;
-- always-visible concise support tier/action in bounded diagnostics;
-- privacy-safe Ed25519-signed packaged-hardware probe with local signature verification;
-- production Windows discrete/Electron probe and complete bounded release soak;
-- committed machine-readable evidence summary and updated support policy;
-- fixed an accessibility-soak race by waiting for actual F2 edit focus and rename commit (5/5 repeated journeys plus full soak pass).
-
-Current measured cell: Windows discrete/Electron at scale 1, candidate-recommended
-WebGPU limits. All seven soak stages and all five document classes passed.
-
-Task remains open by design. Required physical evidence is still unavailable
-for Windows integrated Electron/web and Apple Silicon Electron/web; Windows
-discrete web also needs a real browser-host run. Common 125%, 150% and 200%
-display scales, sRGB/Display-P3 displays, controlled device-loss, constrained
-storage/memory refusal and the configured release signing key remain to be
-qualified. No support claim is made from missing hardware.
-
-## Candidate rerun — 7 August 2026
-
-The signed probe, classifier, refusal paths and bounded Windows/discrete-GPU
-soak pass on clean candidate `85fad8d0`. Physical matrix blockers and the
-Task 109 follow-up remain unchanged.
+**Open physical gate:** Windows integrated Electron/web, Windows discrete web
+and Apple Silicon Electron/web still need real-device qualification. Common
+125%, 150% and 200% display scales, sRGB/Display-P3 displays, controlled device
+loss, constrained storage/memory refusal and the configured production signing
+key also remain unqualified. No unsupported hardware claim is inferred from
+the available workstation, so Task 109 remains in `work/todo/`.

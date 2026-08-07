@@ -1,58 +1,91 @@
-# Release-candidate rehearsal — 7 August 2026
+# Release-candidate rehearsal - 7 August 2026
 
-Status: automated release rehearsal passed; declared outcome is **bounded
-technical preview**, not a paid release candidate.
+Status: the reproducible automated release rehearsal passed. The declared
+outcome is **bounded technical preview**, not a paid release candidate.
 
-## Candidate and reproducibility
+## Candidate and evidence identity
 
-- Candidate commit: `85fad8d0af2b99d931f597384839e0f1295b44f8`.
+- Product candidate: `2643a94cdaa994e868a5a2e91c0afed9d6b85c57`.
 - Version: `0.1.0-alpha.1`.
-- The runner created a clean detached checkout and installed dependencies with
-  `npm ci` before building or testing.
-- Local raw evidence: `tmp/release-candidate/task-112-85fad8d0/`.
-- The top-level report is covered by an ephemeral local Ed25519 signature. Its
-  SHA-256 payload digest is
-  `6ba7088c3bc2d3ec1be1fb3ec65909ea503e386f286163b76116940e6d418765`.
+- Build source: clean detached checkout followed by deterministic `npm ci`.
+- Final rehearsal: `tmp/release-candidate/task-112-2643a94c-final3/`.
+- Two-hour soak: `tmp/release-candidate/task-113-2643a94c-packaged-two-hour-soak/`.
+- Acceptance-runner correction: `bff744a5`.
+- Exact persisted-evidence signing correction: `51b59d13`.
 
-The `tmp` evidence is intentionally not a release artifact or long-term trust
-root. It is reproducible local evidence tied to the exact commit above.
+The top-level `report.json` is covered byte-for-byte by its ephemeral local
+Ed25519 signature. Independent readback verification passed. Its payload
+SHA-256 is
+`35750f964a77e3424fbd70bdc6b09ada2c4b36413a1dfd78327a0467259a1dee`.
+The ephemeral key is local evidence, not a production release trust root.
 
 ## Automated result
 
 | Stage | Result | Duration |
 | --- | --- | ---: |
-| Clean dependency install | passed | 17.7 s |
-| Full quality profile | passed, 40/40 gates | 13 min 53 s |
-| Owner-workflow automation | passed | 1 min 50 s |
-| Signed hardware probe | passed on the current Windows/discrete-GPU cell | 2.6 s |
-| Commercial lifecycle technical rehearsal | passed | 27.2 s |
+| Clean dependency install | passed | 11.9 s |
+| Full quality profile | passed, 40/40 gates | 13 min 0 s |
+| Packaged owner-workflow automation | passed, 15/15 projects, 0 defects | 1 min 50 s |
+| Signed hardware probe | passed on measured Windows/discrete Electron cell | 2.6 s |
+| Commercial lifecycle technical rehearsal | passed, production policy still blocked | 28.3 s |
+| Exact-candidate endurance | passed, 70/70 cycles and 0 orphan processes | 7,298,230 ms |
 
-The full profile covered boundaries, architecture ratchets, workspace
-typechecks and tests, production web and desktop builds, packaged interaction
-smokes, recovery, accessibility, MCP, native/PSD roundtrip, vector and text
-authoring, endurance, the bounded hardware soak, the 40-case Photoshop effects
-corpus and the 48-case blend/profile matrix. Both requested iterations passed.
+The full profile covered boundaries, architecture ratchets, workspace tests
+and typechecks, production web/desktop builds, packaged UI interactions,
+recovery, accessibility, MCP, native/PSD roundtrip, PDF, vector/text authoring,
+Photoshop effects and blend/profile parity. The final report records a clean
+checkout, all five stages passed and acceptance of the exact-commit soak.
 
-The previous rehearsal correctly failed on one stalled cold Electron startup in
-the 40-process effects corpus. Commit `85fad8d0` added one bounded retry only at
-the pre-document readiness boundary. Import, render, semantic and fidelity
-failures are never retried. The formerly affected `outer-glow-size-30` case
-then passed independently at RMSE 5.31 and passed in the complete clean run.
+## Endurance and interaction evidence
+
+The packaged soak ran for 2 h 1 min 38 s and completed 70 cycles. Every cycle
+passed the five-document matrix, canvas/transform, text/caret editing, Layer
+Styles, save/export and PSD roundtrip. Bounded diagnostics ran once. Results:
+
+- failed cycles: 0;
+- invalid screenshots: 0 of 350;
+- suspicious stable memory/GPU tails: 0;
+- background GPU submissions while settled: 0;
+- orphan processes after completion: 0;
+- text input-to-submit: median 36.1 ms, p95 56.8 ms, max 58.7 ms;
+- text input-to-GPU: median 61.2 ms, p95 75.5 ms, max 82.3 ms;
+- first useful frame across 350 opens: median 941 ms, p95 2,356 ms,
+  max 2,402 ms.
+
+These measurements apply only to the recorded Windows 11, RTX 5090,
+device-pixel-ratio 1 packaged-Electron cell. They do not establish a modest
+hardware floor.
+
+## Defects found by the evidence pass
+
+The long run caught one transient packaged renderer navigation failure. The
+product now performs one bounded retry only before document readiness;
+document import, rendering, semantics and fidelity failures are not retried.
+
+The first final owner run then exposed that seven older automation scripts
+ignored the selected packaged executable and silently launched development
+Electron. All seven were moved to the shared launch/readiness contract. A
+focused rerun passed 7/7 and the complete packaged acceptance passed 15/15.
+
+Independent verification finally found that the original rehearsal signed a
+compact in-memory JSON representation rather than the pretty-printed bytes
+written to disk. Signing now covers the exact persisted bytes and fails closed
+for formatting, content, hash, key or signature changes. The final3 evidence
+was re-signed and independently read back successfully.
 
 ## Go/no-go disposition
 
-The technical automation supports a bounded technical preview. It does not
-support a paid public release claim. The following gates need real people,
-platforms or production infrastructure and remain open:
+Automated release blocker count: zero on the assessed candidate.
 
-1. The product owner has not signed the acceptance checklist.
-2. Integrated-GPU, hosted-web and Apple Silicon hardware cells have not been
-   physically qualified.
-3. The external design-partner beta and exit review have not happened.
-4. Commercial policy/legal review, signed activation receipts, production
-   installer/update providers and rollback infrastructure remain open.
-5. This bounded rehearsal did not run the required multi-hour/overnight soak.
+Paid-release decision: **no-go**. Bounded technical preview: **go** on the
+measured hardware cell. Four gates require an external state change:
 
-No task is marked complete merely because its automatable portion passed. These
-are release-decision blockers, not code failures that can be truthfully closed
-by another local test run.
+1. Product-owner visual, interaction and release-classification sign-off.
+2. Physical integrated-GPU, web-host and Apple Silicon qualification.
+3. A consented external design-partner beta and exit review.
+4. Owner/legal commercial policy, activation receipts, signed production
+   installer/update and exercised production rollback infrastructure.
+
+The multi-hour soak is no longer a blocker. Tasks 108-111 remain the explicit
+owners of the four unresolved gates; Tasks 112-113 remain open while those
+dependencies prevent a paid-RC and signed owner go/no-go closure.

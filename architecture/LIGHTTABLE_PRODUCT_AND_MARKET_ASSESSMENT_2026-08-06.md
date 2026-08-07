@@ -4,7 +4,71 @@ Status: evidence-based alpha assessment, 6 August 2026. This is a decision
 document, not launch marketing. Scores describe verified product state at this
 date; targets are explicitly labelled.
 
-## Evidence-based reassessment — 7 August 2026
+## Final post-backlog reassessment - 7 August 2026
+
+This final section supersedes the earlier 7 August interim reassessment below
+without deleting its history. The assessed product commit is `2643a94c`; see
+[the final signed rehearsal](quality/RELEASE_CANDIDATE_REHEARSAL_2026-08-07.md)
+and [the integrated audit](quality/FINAL_PRODUCT_AUDIT_2026-08-07.md).
+
+New evidence since the interim assessment is material but narrow:
+
+- a clean detached candidate passed the complete 40-gate profile;
+- all 15 packaged owner workflows passed with zero automation defects;
+- an exact-commit packaged soak passed 70/70 full cycles over 2 h 1 min 38 s,
+  with zero crashes, invalid screenshots, suspicious stable memory/GPU tails,
+  settled background submissions or orphan processes;
+- first useful frame across 350 representative opens measured 941 ms median
+  and 2,356 ms p95 on the recorded RTX 5090 cell;
+- text input-to-submit measured 36.1 ms median / 56.8 ms p95 and input-to-GPU
+  61.2 ms median / 75.5 ms p95;
+- byte-for-byte Ed25519 report verification now fails closed for any persisted
+  content, formatting, hash, key or signature change.
+
+This closes the prior long-duration-soak gap and strengthens reliability
+evidence. It does not provide owner judgment, modest-hardware qualification,
+external user validation or commercial production infrastructure.
+
+### Final score delta from the 6 August baseline
+
+| Area | 6 Aug | Final 7 Aug | Evidence-based reason |
+| --- | ---: | ---: | --- |
+| Product direction | 8.0 | 8.1 | Scope and preview boundary are executable policy. |
+| Core architecture | 8.0 | 8.4 | Shared command, recovery, diagnostics and release boundaries pass together. |
+| Rendering and color | 8.2 | 8.8 | Current Photoshop effects and blend/profile matrices pass. |
+| Format interchange | 6.8 | 7.5 | Declared native/PSD/PDF routes pass; uncommon semantics remain partial. |
+| Text/vector authoring | 6.5 | 7.3 | Packaged authoring/roundtrip passes; advanced paths remain incomplete. |
+| Daily interaction quality | 6.0 | 6.9 | Workflows are stable, but perceived-feel owner review remains open. |
+| Reliability and recovery | 6.3 | 8.0 | Recovery plus 70/70 two-hour cycles with clean stable tails. |
+| Performance discipline | 7.5 | 8.0 | Measured interaction evidence passes one high-end cell only. |
+| Maintainability | 7.0 | 7.5 | Reproducible gates and shared launch contracts reduce integration ambiguity. |
+| Accessibility/onboarding | 3.5 | 6.5 | Packaged keyboard/accessibility routes pass; human AT coverage is incomplete. |
+| Commercial operations | 3.0 | 4.8 | Fail-closed rehearsal exists; policy, activation and distribution are open. |
+| Differentiation potential | 8.5 | 8.7 | MCP editable-design roundtrip works; market demand is unproven. |
+
+**Final engineering foundation: 8.4/10. Product alpha: 7.4/10.
+Commercial release readiness: 5.4/10. Overall reassessment: 7.5/10.**
+
+The only score raised from the interim reassessment is reliability/recovery
+because the required multi-hour evidence now exists. No passing automation is
+used to inflate product breadth, hardware support or market readiness.
+
+### Final smallest backlog
+
+Do not begin another feature wave. Close only the four evidence gates already
+owned by Tasks 108-111:
+
+1. owner visual/interaction acceptance and signed release classification;
+2. physical integrated-GPU, web-host and Apple Silicon qualification;
+3. consented external design-partner beta and exit review;
+4. commercial/legal decisions, activation receipts and production
+   installer/update/rollback infrastructure.
+
+After those external gates, rerun the signed go/no-go wrapper rather than
+rebuilding the product backlog. The correct present classification remains
+**bounded technical preview**; the paid-release decision remains **no-go**.
+
+## Interim evidence-based reassessment - 7 August 2026 (superseded)
 
 This section preserves the 6 August baseline below and reassesses the integrated
 product at code commit `85fad8d0`. Following commits only record evidence and do
@@ -87,12 +151,12 @@ Do not begin another broad feature wave. Close these existing gates:
 5. A genuine multi-hour/overnight soak on the exact candidate, then repeat the
    signed go/no-go decision in Tasks 112–113.
 
-### Updated conclusion
+### Interim conclusion before the exact-candidate two-hour soak
 
-The correct classification is **bounded technical preview**. LightTable is
+At this interim checkpoint the correct classification was **bounded technical preview**. LightTable was
 measurably more stable, interoperable and usable than the 6 August baseline,
 and its professional-editor foundation is no longer speculative. It is not a
-paid release candidate: external/human gates and the long soak remain. That
+paid release candidate: external/human gates and the long soak still remained at that checkpoint. That
 distinction is part of product quality.
 
 ## Executive conclusion

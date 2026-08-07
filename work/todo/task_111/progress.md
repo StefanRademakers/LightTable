@@ -1,22 +1,13 @@
-# Task 111 progress — 6 August 2026
+# Task 111 progress - 7 August 2026
 
-Implemented the staging operations rehearsal and fail-closed policy boundary:
+The fail-closed staging lifecycle, local-first entitlement boundary, offline
+document safety, update/recovery/privacy/MCP rehearsal and operator failure
+paths are implemented. Candidate `2643a94c` passed the commercial technical
+rehearsal without production credentials or embedded secrets. The report
+correctly remains `commercialReady: false`.
 
-- one-time/perpetual-major, local-first direction recorded without inventing a timed trial;
-- unresolved price/tax/refund/support/device-limit/legal decisions named as launch blockers;
-- entitlement explicitly outside document semantics and rendering;
-- repeatable update/offline/recovery/privacy/MCP/save/export lifecycle rehearsal;
-- operator paths for outage, revoked/bad build, rollback, migration failure, MCP compromise, support and uninstall;
-- no production credential required or embedded; missing installer/activation providers remain explicit.
-
-Task remains open because Task 110 has no cohort exit review, commercial/legal
-copy has no owner approval, activation receipt verification is not implemented
-and the production installer/rollback provider is not configured. The rehearsal
-must report `commercialReady: false` until those blockers are actually removed.
-
-## Candidate rerun — 7 August 2026
-
-Contract tests and packaged save/export/accessibility, private diagnostics and
-recovery rehearsals pass on clean candidate `85fad8d0` without production
-credentials. Owner/legal review, activation receipts, production distribution,
-hardware qualification and the beta exit review remain explicit blockers.
+**Open owner/provider gate:** price/tax/refund/support/device policy and legal
+copy need owner approval; signed activation receipt verification and production
+installer/update/rollback providers are not configured; Task 110 has no beta
+exit review. Task 111 remains in `work/todo/` until those production decisions
+and integrations exist.

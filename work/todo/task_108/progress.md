@@ -1,20 +1,19 @@
-# Task 108 progress
+# Task 108 progress - 7 August 2026
 
-- Feature freeze declared and documented.
-- Fifteen-project canonical acceptance manifest committed.
-- Reproducible packaged runner, fixture preflight, per-project logs, defect
-  schema and recordable owner checklist implemented.
-- Focused repair reruns passed.
-- Final full automation run passed 15/15 on 6 August 2026.
-- P0/P1 automation defects: none.
+Feature freeze, the fifteen-project manifest, packaged runner, fixture
+preflight, per-project evidence, severity schema and owner checklist are
+implemented. The exact candidate `2643a94c` passed all 15 packaged automation
+projects with zero defects in
+`tmp/release-candidate/task-112-2643a94c-final3/owner-acceptance/`.
 
-Blocking completion condition: explicit product-owner sign-off for interaction
-feel, visual quality and documented release classification. The task must remain
-in `work/todo/` until that human judgment is recorded; automation cannot supply
-it.
+The final pass includes photo correction, EHS-396, point/paragraph text,
+editable vectors and gradients, Layer Styles, paint/masks, transforms/merge,
+native recovery, PSD roundtrip, PDF, MCP design, accessibility/diagnostics and
+the generic command roundtrip. Seven legacy smokes that silently launched
+development Electron were corrected and then passed 7/7 focused plus 15/15
+complete packaged reruns.
 
-## Candidate rerun — 7 August 2026
-
-The same 15/15 automation passed on clean candidate `85fad8d0`; evidence is in
-`tmp/release-candidate/task-112-85fad8d0/owner-acceptance/`. The disposition is
-unchanged: owner execution and sign-off remain the follow-up in Task 108.
+**Open external gate:** the product owner must perform and record the supplied
+correctness, perceived-latency, discoverability, visual-polish, undo,
+recovery and export review and sign the release classification. Automation
+cannot supply this judgment, so Task 108 remains in `work/todo/`.

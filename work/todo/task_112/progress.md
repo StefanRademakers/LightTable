@@ -1,14 +1,19 @@
-# Progress — 7 August 2026
+# Task 112 progress - 7 August 2026
 
-The clean detached release-candidate rehearsal passed for commit `85fad8d0`:
-40/40 full-quality gates plus owner-workflow automation, hardware probe and
-commercial lifecycle technical rehearsal. The report and ephemeral local
-Ed25519 signature are under
-`tmp/release-candidate/task-112-85fad8d0/`.
+The final reproducible rehearsal assessed clean product candidate `2643a94c`.
+It passed dependency installation, 40/40 full-quality gates, 15/15 packaged
+owner workflows, the signed measured-cell hardware probe and commercial
+technical rehearsal. The exact candidate's 7,298,230 ms soak was accepted with
+70/70 cycles and zero orphan processes.
 
-Declared outcome: **bounded technical preview**. See
-`architecture/quality/RELEASE_CANDIDATE_REHEARSAL_2026-08-07.md`.
+Final evidence is under
+`tmp/release-candidate/task-112-2643a94c-final3/`. `report.json` verifies
+byte-for-byte against `report.signature.json`; payload SHA-256 is
+`35750f964a77e3424fbd70bdc6b09ada2c4b36413a1dfd78327a0467259a1dee`.
+The declared outcome is **bounded technical preview** and `paidReleaseCandidate`
+is false.
 
-**Disposition:** open until owner sign-off and the physical, external-beta,
-commercial-production and multi-hour soak gates listed in the report are
-resolved. It is deliberately not moved to `work/done/` as a paid RC.
+**Disposition:** open because Tasks 108-111 are declared dependencies and the
+paid-RC/go-no-go completion conditions still lack owner sign-off, remaining
+physical hardware, an external beta and production commercial infrastructure.
+The multi-hour soak is complete and is no longer a blocker.
