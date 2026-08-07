@@ -104,7 +104,8 @@ describe('buildEditorStatus', () => {
     });
 
     expect(status.meta).toContain('8-bit PSD · RGB · Photoshop composite');
-    expect(status.meta).toContain('RGB / 8-bit / sRGB (assumed)');
+    expect(status.meta).toContain('RGB / 8-bit / sRGB');
+    expect(status.meta).not.toContain('assumed');
     expect(status.title).toContain('5 layers; 1 groups; 2 masks');
     expect(status.title).toContain('Semantic import support: 9 native; 1 preview-backed.');
     expect(status.title).toContain('0.125% above 2/255');

@@ -16,7 +16,7 @@ const sourceProfileLabel = (document: ImageDocument) => {
   if (source === 'embedded ICC -> sRGB') {
     return `${document.importProvenance?.sourceProfileName ?? 'Embedded ICC'}, converted to sRGB`;
   }
-  if (source === 'no embedded ICC; assumed sRGB') return 'Untagged, assumed sRGB';
+  if (source === 'no embedded ICC; assumed sRGB') return 'Untagged source';
   return document.importProvenance ? 'No profile information' : 'New sRGB document';
 };
 
@@ -42,13 +42,13 @@ export const DocumentColorPanel = ({
               <div><dt>Bit depth</dt><dd>{document.colorSettings.bitDepth} bit/channel</dd></div>
               <div><dt>Working profile</dt><dd>sRGB</dd></div>
               <div><dt>Blend compatibility</dt><dd title={documentBlendProfileDescription(document.colorSettings.blendProfile)}>{documentBlendProfileDisplayName(document.colorSettings.blendProfile)}</dd></div>
-              <div><dt>Profile state</dt><dd>{document.colorSettings.profileState}</dd></div>
+              <div><dt>Profile state</dt><dd>{document.colorSettings.profileState === 'assigned' ? 'Assigned' : 'sRGB working space'}</dd></div>
               <div><dt>Source</dt><dd>{sourceProfileLabel(document)}</dd></div>
               <div><dt>GPU working data</dt><dd>Linear 16-bit float</dd></div>
             </dl>
             {document.colorSettings.profileState === 'assumed' ? (
               <p className="lighttable-document-color__notice">
-                Pixel values are currently interpreted as sRGB because the source supplied no usable profile.
+                This source has no embedded profile. LightTable uses the document&apos;s sRGB working space.
               </p>
             ) : null}
             <div className="lighttable-document-color__actions">
