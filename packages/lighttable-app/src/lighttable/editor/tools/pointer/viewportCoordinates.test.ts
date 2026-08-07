@@ -5,6 +5,7 @@ import {
   panViewFromGesture,
   panViewFromWheel,
   pointInsideRect,
+  resolveWheelPanDeltas,
   zoomViewAtPoint,
   zoomViewToViewportRect,
   zoomViewToScaleAtPoint
@@ -110,6 +111,15 @@ describe('viewportCoordinates', () => {
       shiftKey: true,
       deltaMultiplier: 16
     })).toEqual({ panX: -12, panY: 10 });
+  });
+
+  it('normalizes modern and legacy horizontal mouse wheels', () => {
+    expect(resolveWheelPanDeltas({ deltaX: 12, deltaY: 0, legacyWheelDeltaX: -40 }))
+      .toEqual({ deltaX: 12, deltaY: 0 });
+    expect(resolveWheelPanDeltas({ deltaX: 0, deltaY: 0, legacyWheelDeltaX: -40 }))
+      .toEqual({ deltaX: 40, deltaY: 0 });
+    expect(resolveWheelPanDeltas({ deltaX: 0, deltaY: 9, shiftKey: true }))
+      .toEqual({ deltaX: 9, deltaY: 0 });
   });
 
   it('targets an exact zoom while preserving the point under the cursor', () => {

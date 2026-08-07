@@ -38,6 +38,7 @@ import {
   panViewFromWheel,
   panViewFromGesture,
   pointInsideRect,
+  resolveWheelPanDeltas,
   zoomViewAtPoint,
   zoomViewToScaleAtPoint,
   zoomViewToViewportRect
@@ -393,11 +394,19 @@ export const useViewportInteractionController = ({
           : event.deltaMode === 2 ? viewportSize.height : 1;
         const pendingPan = panFrameRef.current?.pending();
         const basePan = pendingPan ?? { panX: view.panX, panY: view.panY };
-        panFrameRef.current?.schedule(panViewFromWheel({
-          initialView: basePan,
+        const nativeWheel = event.nativeEvent as globalThis.WheelEvent & {
+          readonly wheelDeltaX?: number;
+        };
+        const wheelDelta = resolveWheelPanDeltas({
           deltaX: event.deltaX,
           deltaY: event.deltaY,
-          shiftKey: event.shiftKey,
+          legacyWheelDeltaX: nativeWheel.wheelDeltaX,
+          shiftKey: event.shiftKey
+        });
+        panFrameRef.current?.schedule(panViewFromWheel({
+          initialView: basePan,
+          deltaX: wheelDelta.deltaX,
+          deltaY: wheelDelta.deltaY,
           deltaMultiplier
         }));
         return;

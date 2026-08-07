@@ -171,3 +171,23 @@ export const panViewFromWheel = ({
     panY: initialView.panY - verticalDelta * deltaMultiplier
   };
 };
+
+export const resolveWheelPanDeltas = ({
+  deltaX,
+  deltaY,
+  legacyWheelDeltaX = 0,
+  shiftKey = false
+}: {
+  deltaX: number;
+  deltaY: number;
+  legacyWheelDeltaX?: number;
+  shiftKey?: boolean;
+}) => {
+  // Chromium normally exposes horizontal wheels as deltaX. Some desktop
+  // mouse drivers still populate only the legacy wheelDeltaX field.
+  const horizontalDelta = deltaX !== 0 ? deltaX : -legacyWheelDeltaX;
+  if (shiftKey && horizontalDelta === 0) {
+    return { deltaX: deltaY, deltaY: 0 };
+  }
+  return { deltaX: horizontalDelta, deltaY };
+};
