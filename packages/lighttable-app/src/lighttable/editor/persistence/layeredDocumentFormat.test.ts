@@ -29,6 +29,7 @@ import {
   moveLayerIntoGroup,
   replaceTextLayerWithVectorPaths,
   setLayerClipping,
+  setLayerBlendMode,
   setLayerFillOpacity,
   setLayerLock,
   setLayerMaskProperties,
@@ -1062,7 +1063,13 @@ describe('LightTable layered PNG format', () => {
   });
 
   it('round-trips a semantic Gradient Fill role and editable paint', async () => {
-    const document = createGradientFillLayer(createImageDocument('Gradient Fill', 320, 180, 'source'));
+    const created = createGradientFillLayer(createImageDocument('Gradient Fill', 320, 180, 'source'));
+    const gradientLayerId = created.activeLayerId!;
+    const document = setLayerClipping(
+      setLayerFillOpacity(setLayerBlendMode(created, gradientLayerId, 'multiply'), gradientLayerId, 0.65),
+      gradientLayerId,
+      true
+    );
     const file = buildLayeredDocumentFile(
       new Blob([PREVIEW_PNG], { type: 'image/png' }),
       document,
@@ -1073,7 +1080,9 @@ describe('LightTable layered PNG format', () => {
 
     const parsed = await parseLayeredDocumentFile(file);
     const layer = parsed?.document.layers.find(({ id }) => id === document.activeLayerId);
-    expect(layer).toMatchObject({ type: 'vector', role: 'gradient-fill' });
+    expect(layer).toMatchObject({
+      type: 'vector', role: 'gradient-fill', blendMode: 'multiply', fillOpacity: 0.65, clipping: true
+    });
     expect(layer?.type === 'vector' ? layer.elements[0] : null).toMatchObject({
       type: 'live-shape',
       geometry: { kind: 'rectangle', width: 320, height: 180 },

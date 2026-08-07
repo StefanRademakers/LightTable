@@ -294,6 +294,11 @@ export const layerSupportsLayerStyles = (layer: LayerNode): boolean => (
   || layer.type === 'text' || layer.type === 'group'
 );
 
+/** Layers whose authored content can use ordinary blend and fill-opacity controls. */
+export const layerSupportsContentCompositing = (layer: LayerNode): boolean => (
+  layer.type === 'raster' || layer.type === 'vector' || layer.type === 'text'
+);
+
 export const layerSupportsRasterMask = (_layer: LayerNode): boolean => true;
 
 export const createDefaultLayerLocks = (): LayerLocks => ({

@@ -2,7 +2,10 @@ import React from 'react';
 import { ContextMenu, type ContextMenuOption } from '../../../ui/ContextMenu';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
-import { layerSupportsLayerStyles } from '../document/documentTypes';
+import {
+  layerSupportsContentCompositing,
+  layerSupportsLayerStyles
+} from '../document/documentTypes';
 import type { ImageDocument, DocumentFontAsset, LayerId, LayerLocks, LayerNode }
   from '../document/documentTypes';
 import { findLayerNode, siblingLayers } from '../document/layerTree';
@@ -433,7 +436,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               className="lighttable-layers__blend-mode"
               aria-label="Layer blend mode"
               value={activeLayer.type === 'group' ? 'pass-through' : activeLayer.blendMode}
-              disabled={activeLayer.type !== 'raster'}
+              disabled={!layerSupportsContentCompositing(activeLayer)}
               title={
                 activeLayer.type === 'group'
                   ? 'Pass-through group compositing'
@@ -489,7 +492,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 max={100}
                 format={(value) => `${Math.round(value)}%`}
                 resetValue={100}
-                disabled={activeLayer.type !== 'raster'}
+                disabled={!layerSupportsContentCompositing(activeLayer)}
                 onReset={() => onFillOpacity(activeLayer.id, 1)}
                 onChange={(value) => onFillOpacity(activeLayer.id, value / 100)}
                 onInteractionStart={onOpacityInteractionStart}

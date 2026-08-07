@@ -16,7 +16,13 @@ import { appendPsdImageResource } from './psdImageResourceWriter';
 import { srgbIccProfileBytes } from '../../editor/color/srgbIccProfile';
 import { replaceMissingTextFont } from '../text/replaceMissingTextFont';
 import type { DocumentFontAsset } from '../../editor/document/documentTypes';
-import { createAdjustmentLayer } from '../../editor/document/documentCommands';
+import {
+  createAdjustmentLayer,
+  createGradientFillLayer,
+  setLayerBlendMode,
+  setLayerClipping,
+  setLayerFillOpacity
+} from '../../editor/document/documentCommands';
 import { createDefaultAdjustments } from '../../types';
 import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
@@ -200,6 +206,31 @@ describe('PSD export projection', () => {
     });
     expect(outline?.vectorMask?.paths.length).toBeGreaterThan(0);
     expect(outline?.usingAlignedRendering).toBe(true);
+  });
+
+  it('exports Gradient Fill layer compositing and clipping metadata to Photoshop', () => {
+    const created = createGradientFillLayer(
+      createImageDocument('Gradient compositing', 100, 100, 'background')
+    );
+    const gradientId = created.activeLayerId!;
+    const document = setLayerClipping(
+      setLayerFillOpacity(setLayerBlendMode(created, gradientId, 'multiply'), gradientId, 0.55),
+      gradientId,
+      true
+    );
+    const projection = projectDocumentToPsd(document, pixels(100, 100), []);
+    const decoded = readPsd(writePsdUint8Array(projection.psd, {
+      noBackground: true, trimImageData: true, invalidateTextLayers: false
+    }), {
+      useImageData: true, skipLayerImageData: true,
+      skipCompositeImageData: true, skipThumbnail: true
+    });
+    const gradient = decoded.children?.[1];
+    expect(gradient).toMatchObject({
+      name: 'Gradient Fill', blendMode: 'multiply', clipping: true
+    });
+    expect(gradient?.fillOpacity).toBeCloseTo(0.55, 2);
+    expect(gradient?.vectorFill).toMatchObject({ type: 'solid' });
   });
 
   it('reports Smart Objects instead of silently claiming editable parity', () => {

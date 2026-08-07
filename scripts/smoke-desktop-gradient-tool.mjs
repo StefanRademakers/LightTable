@@ -209,6 +209,40 @@ try {
     })}`);
   }
 
+  const layerBlendMode = page.getByRole('combobox', { name: 'Layer blend mode' });
+  if (await layerBlendMode.isDisabled()) {
+    throw new Error('The active Gradient Fill does not expose its layer blend mode.');
+  }
+  await layerBlendMode.selectOption('multiply');
+  const blendedLayers = await driver.queryLayers(documentId) ?? [];
+  const blendedGradient = blendedLayers.find(({ id }) => id === after.activeLayerId);
+  if (blendedGradient?.blendMode !== 'multiply') {
+    throw new Error(`The Gradient Fill blend mode did not update: ${JSON.stringify(blendedGradient)}`);
+  }
+  const layerFillOpacity = page.locator(
+    '.lighttable-layers__opacity-controls .lighttable-adjustment input[type="range"]'
+  ).nth(1);
+  if (await layerFillOpacity.isDisabled()) {
+    throw new Error('The active Gradient Fill does not expose its layer fill opacity.');
+  }
+  const activeLayerRow = page.locator('.lighttable-layer--active');
+  await activeLayerRow.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Create Clipping Mask' }).click();
+  const clippedLayers = await driver.queryLayers(documentId) ?? [];
+  const clippedGradient = clippedLayers.find(({ id }) => id === after.activeLayerId);
+  if (!clippedGradient?.clipping) {
+    throw new Error(`The Gradient Fill clipping mask did not update: ${JSON.stringify(clippedGradient)}`);
+  }
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  const compositingUndone = await driver.queryLayers(documentId) ?? [];
+  const restoredGradient = compositingUndone.find(({ id }) => id === after.activeLayerId);
+  if (restoredGradient?.blendMode !== 'normal'
+    || restoredGradient.fillOpacity !== 1
+    || restoredGradient.clipping) {
+    throw new Error(`Gradient Fill compositing did not undo cleanly: ${JSON.stringify(restoredGradient)}`);
+  }
+
   await page.getByRole('combobox', { name: 'Gradient type' }).selectOption('radial');
   await captureHistory('active-gradient-type-changed');
   const typeChanged = await driver.queryDocument(documentId);
