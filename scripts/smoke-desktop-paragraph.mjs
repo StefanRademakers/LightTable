@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const desktopAppPath = path.join(workspaceRoot, 'apps', 'desktop');
@@ -17,7 +18,9 @@ const outputFile = path.resolve(argument(
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-paragraph-smoke.png')
 ));
 const reportFile = outputFile.replace(/\.[^.]+$/, '.json');
-const executablePath = path.resolve(argument('executable', defaultExecutable));
+const executablePath = path.resolve(argument(
+  'executable', process.env.LIGHTTABLE_TEST_EXECUTABLE ?? defaultExecutable
+));
 const packagedApplication = /LightTable\.exe$/i.test(executablePath);
 const requestedSizeBeforeCreate = Number.parseFloat(argument('size-before-create', ''));
 const sizeBeforeCreate = Number.isFinite(requestedSizeBeforeCreate)
@@ -96,6 +99,9 @@ try {
   }));
   window.on('pageerror', (error) => diagnostics.pageErrors.push(error.stack ?? error.message));
 
+  await waitForDesktopLauncher({ app: electronApp, page: window,
+    outputDirectory: path.dirname(outputFile), sourceFile: 'clean-room',
+    pageErrors: diagnostics.pageErrors, label: 'paragraph' });
   await window.getByRole('button', { name: 'New document' }).click();
   const dialog = window.getByRole('heading', { name: 'New document' }).locator('..').locator('..');
   await dialog.getByLabel('Width').fill(String(documentSize.width));

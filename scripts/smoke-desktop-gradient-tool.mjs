@@ -3,22 +3,23 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'gradient-tool-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'gradient-tool.png');
 const pixelScreenshotPath = path.join(outputDirectory, 'gradient-tool-pixels.png');
 const reportPath = path.join(outputDirectory, 'gradient-tool.json');
 
-await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
+await Promise.all([access(sourceFile), mkdir(userDataPath, { recursive: true })]);
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,
@@ -32,7 +33,9 @@ try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openFile = await waitForDesktopLauncher({ app, page, outputDirectory,
+    sourceFile, pageErrors, label: 'gradient-tool' });
+  await openFile.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const driver = await attachLightTableAutomation(page, 'gradient-tool-smoke');

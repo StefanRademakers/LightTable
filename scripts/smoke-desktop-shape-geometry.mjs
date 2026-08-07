@@ -3,18 +3,19 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
 const output = path.join(root, 'tmp', 'shape-geometry-smoke');
-const executablePath = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(root);
 const screenshotPath = path.join(output, 'ellipse-pixels.png');
-await Promise.all([access(sourceFile), access(executablePath), mkdir(output, { recursive: true })]);
+await Promise.all([access(sourceFile), mkdir(output, { recursive: true })]);
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(root, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: root,
   env: {
     ...env,
@@ -28,7 +29,9 @@ try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.stack ?? error.message));
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openFile = await waitForDesktopLauncher({ app, page, outputDirectory: output,
+    sourceFile, pageErrors: errors, label: 'shape-geometry' });
+  await openFile.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const driver = await attachLightTableAutomation(page, 'shape-geometry');

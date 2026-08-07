@@ -11,9 +11,9 @@ const argument = (name, fallback) => {
 const output = path.resolve(argument('output', path.join(workspace, 'tmp', 'owner-acceptance')));
 const selected = new Set(argument('projects', '').split(',').map((value) => value.trim()).filter(Boolean));
 const skipPackage = process.argv.includes('--skip-package');
-const packagedExecutable = path.join(
+const packagedExecutable = path.resolve(argument('packaged-executable', path.join(
   workspace, 'apps', 'desktop', 'out', 'LightTable-win32-x64', 'LightTable.exe'
-);
+)));
 const manifest = JSON.parse(await readFile(path.join(workspace, 'test', 'acceptance', 'owner-workflows.json'), 'utf8'));
 const projects = manifest.projects.filter(({ id }) => selected.size === 0 || selected.has(id));
 await mkdir(output, { recursive: true });

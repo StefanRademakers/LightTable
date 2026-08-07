@@ -11,6 +11,7 @@ import selfsigned from 'selfsigned';
 import sharp from 'sharp';
 import { createLightTableMcpApp } from '../apps/mcp-server/src/server.mjs';
 import { DeviceTunnelLightTableClient } from '../apps/mcp-server/src/deviceTunnelClient.mjs';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 class DynamicDeviceClient {
   constructor(broker) { this.broker = broker; this.client = null; }
@@ -29,8 +30,7 @@ class DynamicDeviceClient {
 }
 
 const root = path.resolve(import.meta.dirname, '..');
-const desktop = path.join(root, 'apps', 'desktop');
-const executable = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(root);
 const output = path.join(root, 'tmp', 'mcp-design-smoke');
 const userData = path.join(output, 'author-user-data');
 const reopenUserData = path.join(output, 'reopen-user-data');
@@ -58,11 +58,13 @@ const environment = { ...process.env }; delete environment.ELECTRON_RUN_AS_NODE;
 const previousTls = process.env.NODE_TLS_REJECT_UNAUTHORIZED; process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 let app; let reopened; let mcp;
 try {
-  app = await electron.launch({ executablePath: executable, args: [desktop], cwd: root,
+  app = await electron.launch({ executablePath: launch.executablePath, args: launch.args, cwd: root,
     env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: userData,
       LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture, LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS: 'true' }, timeout: 30_000 });
   const window = await app.firstWindow({ timeout: 30_000 });
-  await window.getByRole('button', { name: 'Open file' }).click();
+  const openFile = await waitForDesktopLauncher({ app, page: window, outputDirectory: output,
+    sourceFile: fixture, label: 'mcp-design' });
+  await openFile.click();
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i }).waitFor({ timeout: 60_000 });
   await window.getByRole('menuitem', { name: 'Edit' }).click(); await window.getByRole('menuitem', { name: 'Settings...' }).click();
   const settings = window.getByRole('dialog', { name: 'Settings' });
@@ -114,11 +116,13 @@ try {
   await window.screenshot({ path: path.join(output, 'agent-access-result.png') });
   await app.close(); app = null;
 
-  reopened = await electron.launch({ executablePath: executable, args: [desktop], cwd: root,
+  reopened = await electron.launch({ executablePath: launch.executablePath, args: launch.args, cwd: root,
     env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: reopenUserData,
       LIGHTTABLE_AUTOMATION_OPEN_FILE: psdPath }, timeout: 30_000 });
   const reopenWindow = await reopened.firstWindow({ timeout: 30_000 });
-  await reopenWindow.getByRole('button', { name: 'Open file' }).click();
+  const reopenFile = await waitForDesktopLauncher({ app: reopened, page: reopenWindow,
+    outputDirectory: output, sourceFile: psdPath, label: 'mcp-design-reopen' });
+  await reopenFile.click();
   await reopenWindow.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i }).waitFor({ timeout: 90_000 });
   await reopenWindow.getByRole('treeitem', { name: /LIGHTTABLE.*text layer/i }).waitFor({ timeout: 30_000 });
   await reopenWindow.getByRole('treeitem', { name: /Gradient card.*vector layer/i }).waitFor({ timeout: 30_000 });

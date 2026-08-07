@@ -45,7 +45,10 @@ const stages = [
       ? ['/d', '/s', '/c', 'npm', 'ci', '--no-audit', '--no-fund']
       : ['ci', '--no-audit', '--no-fund'] },
   { id: 'full-quality', script: 'run-quality-gates.mjs', args: ['--profile', 'full', '--iterations', argument('iterations', '2'), '--output', path.join(output, 'quality')] },
-  { id: 'owner-acceptance-automation', script: 'run-owner-acceptance.mjs', args: ['--skip-package', '--output', path.join(output, 'owner-acceptance')] },
+  { id: 'owner-acceptance-automation', script: 'run-owner-acceptance.mjs', scriptRoot: root,
+    args: ['--skip-package', '--packaged-executable',
+      path.join(checkout, 'apps', 'desktop', 'out', 'LightTable-win32-x64', 'LightTable.exe'),
+      '--output', path.join(output, 'owner-acceptance')] },
   { id: 'hardware-probe', script: 'probe-hardware-qualification.mjs', args: ['--output', path.join(output, 'hardware')] },
   { id: 'commercial-lifecycle', script: 'rehearse-commercial-lifecycle.mjs', args: ['--output', path.join(output, 'commercial')] }
 ];
@@ -53,7 +56,8 @@ const results = [];
 for (const stage of stages) {
   const started = performance.now();
   const command = stage.command ?? process.execPath;
-  const args = stage.script ? [path.join(checkout, 'scripts', stage.script), ...stage.args] : stage.args;
+  const args = stage.script
+    ? [path.join(stage.scriptRoot ?? checkout, 'scripts', stage.script), ...stage.args] : stage.args;
   const result = await runCapture(command, args, {
     cwd: checkout, env: environment
   });
