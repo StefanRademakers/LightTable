@@ -25,7 +25,7 @@
     "stress:desktop:build": "npm run package:desktop:verify && npm run stress:desktop --",
     "soak:desktop:release": "node scripts/soak-desktop-release.mjs",
     "soak:desktop:release:build": "npm run package:desktop:verify && npm run soak:desktop:release --",
-    "test:release-soak-policy": "node --test scripts/release-soak-policy.test.mjs scripts/release-candidate-policy.test.mjs",
+    "test:release-soak-policy": "node --test scripts/release-soak-policy.test.mjs scripts/release-candidate-policy.test.mjs scripts/release-evidence-signature.test.mjs",
     "audit:desktop:canvas": "node scripts/audit-desktop-canvas-interactions.mjs",
     "audit:desktop:style-cache": "node scripts/audit-desktop-style-cache-lifecycle.mjs",
     "audit:desktop:style-interaction": "node scripts/audit-desktop-layer-style-interaction.mjs",

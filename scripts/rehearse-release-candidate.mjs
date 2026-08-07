@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
-import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { assessMultiHourSoakEvidence } from './release-candidate-policy.mjs';
+import { serializeReleaseEvidence, signReleaseEvidence } from './release-evidence-signature.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const argument = (name, fallback) => {
@@ -94,18 +94,11 @@ const report = {
   paidReleaseCandidate: automatedPass && blockers.length === 0,
   blockers, stages: results
 };
-const payload = Buffer.from(JSON.stringify(report));
-const keys = generateKeyPairSync('ed25519');
-const signature = sign(null, payload, keys.privateKey);
-if (!verify(null, payload, keys.publicKey, signature)) throw new Error('RC evidence signature self-verification failed.');
-const publicKey = createPublicKey(keys.privateKey).export({ format: 'der', type: 'spki' });
+const payload = serializeReleaseEvidence(report);
+const signatureEvidence = signReleaseEvidence(payload);
 await Promise.all([
-  writeFile(path.join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8'),
-  writeFile(path.join(output, 'report.signature.json'), `${JSON.stringify({
-    algorithm: 'Ed25519', trust: 'ephemeral-local-evidence',
-    payloadSha256: createHash('sha256').update(payload).digest('hex'),
-    publicKeySpkiBase64: publicKey.toString('base64'), signatureBase64: signature.toString('base64')
-  }, null, 2)}\n`, 'utf8')
+  writeFile(path.join(output, 'report.json'), payload),
+  writeFile(path.join(output, 'report.signature.json'), `${JSON.stringify(signatureEvidence, null, 2)}\n`, 'utf8')
 ]);
 process.stdout.write(`Release-candidate rehearsal ${automatedPass ? 'passed' : 'failed'}: ${path.join(output, 'report.json')}\n`);
 if (!automatedPass) process.exitCode = 1;
