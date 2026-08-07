@@ -273,7 +273,7 @@
   align-items: center;
   gap: 10px;
   border: 0;
-  border-radius: var(--lt-radius-lg);
+  border-radius: var(--lt-radius-xs);
   background: transparent;
   color: var(--color-text);
   text-align: left;
@@ -281,6 +281,12 @@
 
 .context-menu__item:hover {
   background: var(--lt-hover-overlay);
+}
+
+.context-menu .context-menu__item:focus-visible {
+  outline: none;
+  color: var(--lt-text-on-accent);
+  background: var(--lt-accent-selected);
 }
 
 .context-menu__item:disabled,

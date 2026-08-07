@@ -42,8 +42,10 @@ const gradientHandleOverlays = (
       p0: start, p1: start, p2: end, p3: end
     }],
     anchors: [
-      { subpathId: 'gradient-axis', anchorId: 'start', point: start, markerSizePx: 8, selected: true, active: false },
-      { subpathId: 'gradient-axis', anchorId: 'end', point: end, markerSizePx: 8, selected: true, active: true }
+      { subpathId: 'gradient-axis', anchorId: 'start', point: start,
+        markerKind: 'circle', markerSizePx: 10, selected: false, active: false },
+      { subpathId: 'gradient-axis', anchorId: 'end', point: end,
+        markerKind: 'circle', markerSizePx: 14, selected: false, active: true }
     ],
     handles: []
   }];

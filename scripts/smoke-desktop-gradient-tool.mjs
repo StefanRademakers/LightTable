@@ -11,6 +11,8 @@ const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'gradient-tool-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'gradient-tool.png');
+const liveScreenshotPath = path.join(outputDirectory, 'gradient-tool-live.png');
+const editedScreenshotPath = path.join(outputDirectory, 'gradient-tool-edited.png');
 const pixelScreenshotPath = path.join(outputDirectory, 'gradient-tool-pixels.png');
 const reportPath = path.join(outputDirectory, 'gradient-tool.json');
 
@@ -128,8 +130,10 @@ try {
   await page.mouse.down();
   await page.mouse.move(rampBounds.x + rampBounds.width * 0.35, addedBounds.y + addedBounds.height / 2, { steps: 5 });
   await page.mouse.up();
-  if (await addedStop.getAttribute('aria-label') !== 'Color stop 35%') {
-    throw new Error('Dragging did not update the gradient-stop location.');
+  const draggedStopLabel = await addedStop.getAttribute('aria-label');
+  const draggedStopPercent = Number(/(\d+)%/.exec(draggedStopLabel ?? '')?.[1]);
+  if (!Number.isFinite(draggedStopPercent) || Math.abs(draggedStopPercent - 35) > 1) {
+    throw new Error(`Dragging did not update the gradient-stop location: ${draggedStopLabel}.`);
   }
   await addedStop.click({ button: 'right' });
   if (await colorStops.count() !== 2) throw new Error('Right-click did not remove the gradient stop.');
@@ -151,7 +155,22 @@ try {
   await page.keyboard.down('Shift');
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(end.x, end.y, { steps: 6 });
+  const liveEnd = {
+    x: start.x + (end.x - start.x) * 0.6,
+    y: start.y + (end.y - start.y) * 0.6
+  };
+  await page.mouse.move(liveEnd.x, liveEnd.y, { steps: 3 });
+  await page.waitForTimeout(50);
+  const live = await driver.queryDocument(documentId);
+  if (!live || live.layerCount !== before.layerCount + 1
+    || live.history.undoDepth !== before.history.undoDepth) {
+    throw new Error(`The live gradient preview was not published before pointer-up: ${JSON.stringify({
+      before,
+      live
+    })}`);
+  }
+  await page.screenshot({ path: liveScreenshotPath });
+  await page.mouse.move(end.x, end.y, { steps: 3 });
   await page.mouse.up();
   await page.keyboard.up('Shift');
   await captureHistory('gradient-dragged');
@@ -194,6 +213,7 @@ try {
   await page.mouse.move(editEnd.x, editEnd.y, { steps: 6 });
   await page.mouse.up();
   await captureHistory('active-gradient-edited');
+  await page.screenshot({ path: editedScreenshotPath });
   const edited = await driver.queryDocument(documentId);
   if (!edited
     || edited.layerCount !== typeChanged.layerCount
@@ -260,6 +280,8 @@ try {
     thumbnailBoxes,
     createdLayerId: activeLayer.id,
     screenshotPath,
+    liveScreenshotPath,
+    editedScreenshotPath,
     pixelScreenshotPath,
     pageErrors
   }, null, 2)}\n`);

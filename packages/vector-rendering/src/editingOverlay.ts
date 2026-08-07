@@ -42,6 +42,8 @@ export interface VectorOverlayAnchor {
   point: Vec2;
   selected: boolean;
   active: boolean;
+  /** Presentation shape; gradient handles use circles while path anchors stay square. */
+  markerKind?: 'square' | 'circle' | 'diamond';
   /** Marker diameter is interpreted in screen pixels by the overlay backend. */
   markerSizePx: number;
 }

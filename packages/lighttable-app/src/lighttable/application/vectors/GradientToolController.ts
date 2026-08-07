@@ -33,9 +33,11 @@ interface EditableGradientTarget extends GradientToolSelectionTarget {
   readonly documentToPaintParent: AffineMatrix;
   readonly openingStart: Vec2;
   readonly openingEnd: Vec2;
+  readonly openingStartInDocument: Vec2;
+  readonly openingEndInDocument: Vec2;
 }
 
-type GradientEditHandle = 'axis' | 'start' | 'end';
+type GradientEditHandle = 'axis' | 'replace' | 'start' | 'end';
 
 export const constrainedGradientEnd = (start: Vec2, end: Vec2, constrained: boolean): Vec2 => {
   if (!constrained) return { ...end };
@@ -54,8 +56,6 @@ export const gradientPaintFromDrag = (
   transparency: boolean
 ): GradientPaintInstance => {
   const cloned = cloneGradientPaint(source);
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
   const asset = transparency ? cloned.asset : {
     ...cloned.asset,
     opacityStops: cloned.asset.opacityStops.map((stop) => ({ ...stop, opacity: 1 }))
@@ -64,8 +64,29 @@ export const gradientPaintFromDrag = (
     ...cloned,
     asset,
     coordinateSpace: 'document',
-    transform: { a: dx, b: dy, c: -dy, d: dx, tx: start.x, ty: start.y }
+    transform: gradientTransformFromAxis(start, end)
   };
+};
+
+/** Builds the orthogonal gradient basis expected by every GPU gradient shape. */
+export const gradientTransformFromAxis = (start: Vec2, end: Vec2): AffineMatrix => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  return { a: dx, b: dy, c: -dy, d: dx, tx: start.x, ty: start.y };
+};
+
+const distanceToSegmentSquared = (point: Vec2, start: Vec2, end: Vec2) => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared <= Number.EPSILON) {
+    return (point.x - start.x) ** 2 + (point.y - start.y) ** 2;
+  }
+  const amount = Math.max(0, Math.min(1,
+    ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared
+  ));
+  const closest = { x: start.x + dx * amount, y: start.y + dy * amount };
+  return (point.x - closest.x) ** 2 + (point.y - closest.y) ** 2;
 };
 
 const editableGradientTarget = (
@@ -86,18 +107,22 @@ const editableGradientTarget = (
   const distanceSquared = (point: Vec2) =>
     (point.x - position.x) ** 2 + (point.y - position.y) ** 2;
   const radiusSquared = hitRadius ** 2;
-  const handle = distanceSquared(geometry.startInDocument) <= radiusSquared
+  const handle: GradientEditHandle = distanceSquared(geometry.startInDocument) <= radiusSquared
     ? 'start'
     : distanceSquared(geometry.endInDocument) <= radiusSquared
       ? 'end'
-      : 'axis';
+      : distanceToSegmentSquared(position, geometry.startInDocument, geometry.endInDocument) <= radiusSquared
+        ? 'axis'
+        : 'replace';
   return {
     target: {
       layerId: resolved.layerId,
       elementId: resolved.elementId,
       documentToPaintParent: geometry.documentToPaintParent,
       openingStart: geometry.startInPaintParent,
-      openingEnd: geometry.endInPaintParent
+      openingEnd: geometry.endInPaintParent,
+      openingStartInDocument: geometry.startInDocument,
+      openingEndInDocument: geometry.endInDocument
     },
     handle
   };
@@ -128,7 +153,13 @@ export class GradientToolController {
 
   pointerMove(position: Vec2, constrainAngle = false) {
     if (!this.start) return false;
-    const end = constrainedGradientEnd(this.start, position, constrainAngle);
+    const end = this.edit?.handle === 'start'
+      ? constrainedGradientEnd(this.edit.target.openingEndInDocument, position, constrainAngle)
+      : this.edit?.handle === 'end'
+        ? constrainedGradientEnd(this.edit.target.openingStartInDocument, position, constrainAngle)
+        : this.edit?.handle === 'axis'
+          ? position
+          : constrainedGradientEnd(this.start, position, constrainAngle);
     if (!this.shape && !this.mutationStarted
       && Math.hypot(end.x - this.start.x, end.y - this.start.y) < this.minimumDragDistance) {
       return false;
@@ -151,29 +182,37 @@ export class GradientToolController {
         this.edit.target.documentToPaintParent,
         this.start
       );
+      const translation = this.edit.handle === 'axis' ? {
+        x: positionInPaintParent.x - gestureStart.x,
+        y: positionInPaintParent.y - gestureStart.y
+      } : null;
       const gradientStart = this.edit.handle === 'start'
         ? positionInPaintParent
         : this.edit.handle === 'end'
           ? this.edit.target.openingStart
-          : gestureStart;
+          : this.edit.handle === 'axis'
+            ? {
+                x: this.edit.target.openingStart.x + translation!.x,
+                y: this.edit.target.openingStart.y + translation!.y
+              }
+            : gestureStart;
       const gradientEnd = this.edit.handle === 'end'
         ? positionInPaintParent
         : this.edit.handle === 'start'
           ? this.edit.target.openingEnd
-          : positionInPaintParent;
+          : this.edit.handle === 'axis'
+            ? {
+                x: this.edit.target.openingEnd.x + translation!.x,
+                y: this.edit.target.openingEnd.y + translation!.y
+              }
+            : positionInPaintParent;
       return this.documents.previewElementMutation((openingElement) => {
         const fill = openingElement.style.fill;
         if (!fill || !('kind' in fill)) return openingElement;
         const next = cloneVectorElement(openingElement);
         next.style.fill = {
           ...cloneGradientPaint(fill),
-          transform: {
-            ...fill.transform,
-            a: gradientEnd.x - gradientStart.x,
-            b: gradientEnd.y - gradientStart.y,
-            tx: gradientStart.x,
-            ty: gradientStart.y
-          }
+          transform: gradientTransformFromAxis(gradientStart, gradientEnd)
         };
         next.styleRevision += 1;
         return next;
@@ -212,6 +251,12 @@ export class GradientToolController {
       }
       this.documentToLayer = { ...placement.documentToLayer };
       this.shape = cloneVectorLiveShape(placement.element);
+      // The preview document already owns this element. Selecting it here
+      // makes the GPU gizmo visible during creation instead of after commit.
+      const previewDocument = this.documents.currentDocument();
+      if (previewDocument?.activeLayerId) {
+        this.selectTarget({ layerId: previewDocument.activeLayerId, elementId: placement.element.id });
+      }
       return true;
     }
 
@@ -242,12 +287,6 @@ export class GradientToolController {
       return false;
     }
     const committed = this.documents.commitElementCreation();
-    if (committed && this.shape) {
-      const document = this.documents.currentDocument();
-      if (document?.activeLayerId) {
-        this.selectTarget({ layerId: document.activeLayerId, elementId: this.shape.id });
-      }
-    }
     this.reset();
     return committed;
   }

@@ -169,9 +169,11 @@ describe('vector document editing overlays', () => {
 
     const handles = buildVectorDocumentEditingSceneOverlay(document, selection).gradientHandles;
     expect(handles).toHaveLength(1);
-    expect(handles[0]?.anchors.map(({ anchorId, point }) => ({ anchorId, point }))).toEqual([
-      { anchorId: 'start', point: { x: 30, y: 35 } },
-      { anchorId: 'end', point: { x: 110, y: 35 } }
+    expect(handles[0]?.anchors.map(({ anchorId, point, markerKind, markerSizePx, active }) => ({
+      anchorId, point, markerKind, markerSizePx, active
+    }))).toEqual([
+      { anchorId: 'start', point: { x: 30, y: 35 }, markerKind: 'circle', markerSizePx: 10, active: false },
+      { anchorId: 'end', point: { x: 110, y: 35 }, markerKind: 'circle', markerSizePx: 14, active: true }
     ]);
   });
 });

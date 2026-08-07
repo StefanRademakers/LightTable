@@ -239,12 +239,15 @@ fn markerVertex(
 
 @fragment
 fn markerFragment(input: MarkerOutput) -> @location(0) vec4f {
-  let circular = input.state >= 3.0;
-  let distance = select(max(abs(input.local.x), abs(input.local.y)), length(input.local), circular);
+  let shape = floor(input.state / 3.0);
+  let visualState = input.state - shape * 3.0;
+  var distance = max(abs(input.local.x), abs(input.local.y));
+  if (shape == 1.0) { distance = length(input.local); }
+  if (shape == 2.0) { distance = abs(input.local.x) + abs(input.local.y); }
   if (distance > 1.0) { discard; }
   let border = distance >= 0.64;
-  let selected = input.state >= 1.0 && input.state < 3.0;
-  let isActive = input.state >= 2.0 && input.state < 3.0;
+  let selected = visualState >= 1.0;
+  let isActive = visualState >= 2.0;
   let interior = select(vec4f(0.08, 0.09, 0.11, 1.0), settings.color, selected);
   let activeInterior = select(interior, vec4f(1.0, 1.0, 1.0, 1.0), isActive);
   return select(activeInterior, settings.color, border);

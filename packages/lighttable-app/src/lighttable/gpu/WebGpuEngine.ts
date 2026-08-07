@@ -81,6 +81,7 @@ import { documentRenderStatesEqual } from '../application/rendering/documentRend
 import type { WarpDebugView } from '../effects/warp/warpTypes';
 import {
   BRUSH_CURSOR_THEME,
+  GRADIENT_GIZMO_THEME,
   SELECTION_OUTLINE_THEME,
   VectorEditingOverlayBackend,
   type VectorEditingOverlayTarget
@@ -2219,7 +2220,7 @@ export class WebGpuEngine {
       this.vectorEditingOverlayBackend.encode(encoder, overlayScene.paths[index]!, target);
     }
     for (const overlay of overlayScene.gradientHandles) {
-      this.vectorEditingOverlayBackend.encode(encoder, overlay, target);
+      this.vectorEditingOverlayBackend.encode(encoder, overlay, target, GRADIENT_GIZMO_THEME);
     }
     if (this.penRubberBand) {
       const rubberBand: VectorEditingOverlay = {

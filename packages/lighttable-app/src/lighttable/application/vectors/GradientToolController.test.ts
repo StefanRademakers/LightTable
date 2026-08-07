@@ -6,7 +6,8 @@ import { VectorDocumentController } from './VectorDocumentController';
 import {
   constrainedGradientEnd,
   GradientToolController,
-  gradientPaintFromDrag
+  gradientPaintFromDrag,
+  gradientTransformFromAxis
 } from './GradientToolController';
 
 describe('GradientToolController', () => {
@@ -31,6 +32,12 @@ describe('GradientToolController', () => {
     });
     expect(result.asset.opacityStops.every(({ opacity }) => opacity === 1)).toBe(true);
     expect(source.asset.opacityStops[0]!.opacity).toBe(0.2);
+  });
+
+  it('always constructs the orthogonal basis consumed by every gradient shader', () => {
+    expect(gradientTransformFromAxis({ x: 40, y: 50 }, { x: 300, y: 80 })).toEqual({
+      a: 260, b: 30, c: -30, d: 260, tx: 40, ty: 50
+    });
   });
 
   it('previews and commits one semantic editable Gradient Fill layer', () => {
@@ -84,6 +91,7 @@ describe('GradientToolController', () => {
 
     controller.pointerDown({ x: 20, y: 30 }, 6);
     controller.pointerMove({ x: 220, y: 30 });
+    expect(selected).toEqual([{ layerId: document.activeLayerId, elementId: expect.any(String) }]);
     expect(controller.pointerUp({ x: 250, y: 30 })).toBe(true);
     const gradientLayerId = document.activeLayerId;
     const layerCount = document.layers.length;
@@ -113,6 +121,64 @@ describe('GradientToolController', () => {
     const fillAfterEndpointEdit = endpointLayer.elements[0]?.style.fill;
     expect(fillAfterEndpointEdit && 'kind' in fillAfterEndpointEdit
       ? fillAfterEndpointEdit.transform
-      : null).toMatchObject({ a: 260, b: 30, tx: 40, ty: 50 });
+      : null).toEqual({ a: 260, b: 30, c: -30, d: 260, tx: 40, ty: 50 });
+  });
+
+  it('translates the complete gradient when dragging its line body', () => {
+    let document = createImageDocument('Gradient', 320, 180, 'asset');
+    const history: Array<{ before: typeof document; after: typeof document }> = [];
+    const documents = new VectorDocumentController(() => ({
+      getDocument: () => document,
+      applyDocumentSnapshot: (next) => { document = next; },
+      pushDocumentHistory: (before, after) => history.push({ before, after })
+    }));
+    const controller = new GradientToolController(documents, () => ({
+      paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
+      blendMode: 'normal', transparency: true
+    }));
+
+    controller.pointerDown({ x: 20, y: 30 }, 8);
+    controller.pointerMove({ x: 250, y: 30 });
+    controller.pointerUp({ x: 250, y: 30 });
+    controller.pointerDown({ x: 100, y: 30 }, 8);
+    controller.pointerMove({ x: 110, y: 50 });
+    expect(controller.pointerUp({ x: 110, y: 50 })).toBe(true);
+
+    const layer = findDocumentLayer(document, document.activeLayerId);
+    if (layer?.type !== 'vector') throw new Error('Expected Gradient Fill layer.');
+    const fill = layer.elements[0]?.style.fill;
+    expect(fill && 'kind' in fill ? fill.transform : null).toEqual({
+      a: 230, b: 0, c: -0, d: 230, tx: 30, ty: 50
+    });
+    expect(history).toHaveLength(2);
+  });
+
+  it('redraws the selected fill without creating a second layer when dragging away from its gizmo', () => {
+    let document = createImageDocument('Gradient', 320, 180, 'asset');
+    const documents = new VectorDocumentController(() => ({
+      getDocument: () => document,
+      applyDocumentSnapshot: (next) => { document = next; },
+      pushDocumentHistory: () => undefined
+    }));
+    const controller = new GradientToolController(documents, () => ({
+      paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
+      blendMode: 'normal', transparency: true
+    }));
+
+    controller.pointerDown({ x: 20, y: 30 }, 8);
+    controller.pointerMove({ x: 250, y: 30 });
+    controller.pointerUp({ x: 250, y: 30 });
+    const layerCount = document.layers.length;
+    controller.pointerDown({ x: 40, y: 70 }, 8);
+    controller.pointerMove({ x: 100, y: 100 });
+    expect(controller.pointerUp({ x: 100, y: 100 })).toBe(true);
+
+    expect(document.layers).toHaveLength(layerCount);
+    const layer = findDocumentLayer(document, document.activeLayerId);
+    if (layer?.type !== 'vector') throw new Error('Expected Gradient Fill layer.');
+    const fill = layer.elements[0]?.style.fill;
+    expect(fill && 'kind' in fill ? fill.transform : null).toEqual({
+      a: 60, b: 30, c: -30, d: 60, tx: 40, ty: 70
+    });
   });
 });

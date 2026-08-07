@@ -61,6 +61,16 @@ const DEFAULT_THEME: VectorEditingOverlayTheme = {
   handleWidthPx: 1
 };
 
+/** High-contrast, screen-space presentation for an editable gradient axis. */
+export const GRADIENT_GIZMO_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.96, 0.97, 1, 1],
+  handleColor: [0.18, 0.55, 1, 1],
+  pathWidthPx: 1.25,
+  handleWidthPx: 1,
+  underlayColor: [0.04, 0.05, 0.07, 0.9],
+  underlayWidthPx: 2.5
+};
+
 const SELECTION_FRAME_THEME: VectorEditingOverlayTheme = {
   pathColor: [0.9, 0.94, 1, 0.95],
   handleColor: [0.9, 0.94, 1, 0.95],
@@ -199,8 +209,9 @@ const handleData = (overlay: VectorEditingOverlay) => cubicData({
 });
 
 const markerData = (overlay: VectorEditingOverlay) => new Float32Array([
-  ...overlay.anchors.flatMap(({ point, markerSizePx, selected, active }) => [
-    point.x, point.y, markerSizePx, active ? 2 : selected ? 1 : 0
+  ...overlay.anchors.flatMap(({ point, markerSizePx, markerKind = 'square', selected, active }) => [
+    point.x, point.y, markerSizePx,
+    ({ square: 0, circle: 3, diamond: 6 })[markerKind] + (active ? 2 : selected ? 1 : 0)
   ]),
   ...overlay.handles.flatMap(({ point, markerSizePx }) => [
     point.x, point.y, markerSizePx, 3
