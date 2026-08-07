@@ -636,25 +636,12 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.lighttable-dock-workspace--canvas-only {
-  /* Presentation-only mode: keep Dockview components mounted so their layout,
-     GPU runtimes and document state survive the F-key toggle. */
-  position: relative;
-}
-
-.lighttable-dock-workspace--canvas-only .dv-groupview:not(:has(.lighttable-document-host)),
+/* Dockview's native maximized-group state lets the document own the full grid
+ * without unmounting panels or retaining their grid columns. Floating panels
+ * remain mounted as well, but do not cover the canvas presentation. */
 .lighttable-dock-workspace--canvas-only .dv-resize-container {
   visibility: hidden;
   pointer-events: none;
-}
-
-.lighttable-dock-workspace--canvas-only .dv-groupview:has(.lighttable-document-host) {
-  position: absolute !important;
-  inset: 0 !important;
-  z-index: 20;
-  width: auto !important;
-  height: auto !important;
-  visibility: visible;
 }
 
 .lighttable-dock-workspace--canvas-only

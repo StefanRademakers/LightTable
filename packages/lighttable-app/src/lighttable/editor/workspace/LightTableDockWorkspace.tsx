@@ -369,6 +369,7 @@ export const LightTableDockWorkspace = forwardRef<
   const saveTimerRef = useRef<number | null>(null);
   const workspacePresetRef = useRef<LightTableWorkspacePreset>('default');
   const resettingLayoutRef = useRef(false);
+  const canvasOnlyMaximizedRef = useRef(false);
   const lastLayoutChangeAtRef = useRef(0);
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
@@ -429,7 +430,8 @@ export const LightTableDockWorkspace = forwardRef<
     }
     layoutListenerRef.current?.dispose();
     layoutListenerRef.current = event.api.onDidLayoutChange(() => {
-      if (!resettingLayoutRef.current) workspacePresetRef.current = 'custom';
+      if (resettingLayoutRef.current) return;
+      workspacePresetRef.current = 'custom';
       saveLayout();
     });
     dropListenerRef.current?.dispose();
@@ -582,6 +584,26 @@ export const LightTableDockWorkspace = forwardRef<
       documentHost.group.locked = false;
     }
   }, [accessoryWidthConstraintsEnabled, panelLayoutSignature, ready]);
+
+  useLayoutEffect(() => {
+    if (!ready) return;
+    const api = apiRef.current;
+    const documentHost = api?.getPanel(DOCUMENT_HOST_PANEL_ID);
+    if (!api || !documentHost) return;
+
+    resettingLayoutRef.current = true;
+    if (canvasOnly) {
+      if (api.hasMaximizedGroup()) api.exitMaximizedGroup();
+      api.maximizeGroup(documentHost);
+      canvasOnlyMaximizedRef.current = true;
+    } else if (canvasOnlyMaximizedRef.current) {
+      if (api.hasMaximizedGroup()) api.exitMaximizedGroup();
+      canvasOnlyMaximizedRef.current = false;
+    }
+    window.queueMicrotask(() => {
+      resettingLayoutRef.current = false;
+    });
+  }, [canvasOnly, ready]);
 
   useEffect(() => {
     const workspaceElement = workspaceElementRef.current;
