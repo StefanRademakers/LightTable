@@ -84,7 +84,7 @@ describe('canonical text layer integration', () => {
     expect(findDocumentLayer(ungrouped, textId)?.id).toBe(textId);
   });
 
-  it('keeps incompatible commands isolated while allowing explicit text flattening', () => {
+  it('keeps vector-only commands isolated while allowing text merge and flattening', () => {
     const document = createTextLayer(
       createImageDocument('Protected text', 128, 96, 'background'),
       createDefaultTextLayerData()
@@ -94,12 +94,16 @@ describe('canonical text layer integration', () => {
     const groupId = withGroup.activeLayerId!;
     const grouped = moveLayerIntoGroup(withGroup, textId, groupId);
 
-    expect(mergeLayerDown(document, textId)).toBe(document);
+    expect(mergeLayerDown(document, textId).layers).toEqual([
+      expect.objectContaining({ type: 'raster', name: 'Text' })
+    ]);
     expect(flattenImage(document).layers).toEqual([
       expect.objectContaining({ type: 'raster', name: 'Protected text' })
     ]);
-    // A text-only group has no raster destination to own the baked pixels.
-    expect(flattenGroup(grouped, groupId)).toBe(grouped);
+    expect(flattenGroup(grouped, groupId).layers).toEqual([
+      expect.objectContaining({ type: 'raster', name: 'Background' }),
+      expect.objectContaining({ type: 'raster', name: 'Group' })
+    ]);
     expect(replaceVectorLayerElements(document, textId, [])).toBe(document);
 
     const deleted = deleteLayer(document, textId);

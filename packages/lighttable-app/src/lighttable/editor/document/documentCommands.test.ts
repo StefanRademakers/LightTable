@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createImageDocument } from './documentTypes';
+import { createImageDocument, type ImageDocument, type LayerId } from './documentTypes';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import { createDefaultAdjustments } from '../../types';
 import {
@@ -487,7 +487,118 @@ describe('LightTable document commands', () => {
 
     expect(mergeLayers(document, [background.id, top.id])).toBe(document);
     const grouped = createGroupLayer(document, 'Group');
-    expect(mergeLayers(grouped, [top.id, grouped.activeLayerId!])).toBe(grouped);
+    const mergedWithGroup = mergeLayers(grouped, [top.id, grouped.activeLayerId!]);
+    expect(mergedWithGroup).not.toBe(grouped);
+    expect(mergedWithGroup.layers.at(-1)).toMatchObject({ type: 'raster', name: 'Group' });
+  });
+
+  it('merges every ordered pair and three-layer combination through one semantic contract', () => {
+    type Kind = 'raster' | 'shape' | 'gradient' | 'adjustment' | 'text' | 'group';
+    const kinds: readonly Kind[] = [
+      'raster', 'shape', 'gradient', 'adjustment', 'text', 'group'
+    ];
+    const append = (source: ImageDocument, kind: Kind, name: string): ImageDocument => {
+      if (kind === 'raster') return createRasterLayer(source, name);
+      if (kind === 'shape') return createVectorLayer(source, [
+        createVectorLiveShape(`shape-${crypto.randomUUID()}`, {
+          kind: 'rectangle', width: 12, height: 9,
+          cornerRadii: [0, 0, 0, 0], linkedCorners: true
+        }, name)
+      ], name);
+      if (kind === 'gradient') return createGradientFillLayer(source, undefined, name);
+      if (kind === 'adjustment') return createAdjustmentLayer(
+        source,
+        createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+        name
+      );
+      if (kind === 'text') return createTextLayer(source, createDefaultTextLayerData(), name);
+      const withChild = createRasterLayer(source, `${name} content`);
+      return groupLayers(withChild, [withChild.activeLayerId!], name);
+    };
+    const selectedRootIds = (document: ImageDocument, count: number): LayerId[] =>
+      document.layers.slice(-count).map(({ id }) => id);
+
+    for (const bottomKind of kinds) {
+      for (const topKind of kinds) {
+        let pair = createImageDocument('Pair', 48, 32, 'background');
+        pair = append(pair, bottomKind, `Bottom ${bottomKind}`);
+        pair = append(pair, topKind, `Top ${topKind}`);
+        const [bottomId, topId] = selectedRootIds(pair, 2);
+        const plan = getMergeLayersPlan(pair, [topId, bottomId]);
+        expect(plan, `${bottomKind} below ${topKind}`).toMatchObject({
+          layerIds: [bottomId, topId], destinationId: bottomId, name: `Top ${topKind}`
+        });
+        const merged = mergeLayers(pair, [topId, bottomId]);
+        expect(merged.layers, `${bottomKind} below ${topKind}`).toHaveLength(2);
+        expect(merged.layers.at(-1), `${bottomKind} below ${topKind}`).toMatchObject({
+          type: 'raster', name: `Top ${topKind}`, width: 48, height: 32
+        });
+        expect(mergeLayerDown(pair, topId), `${bottomKind} below ${topKind}`).not.toBe(pair);
+
+        for (const thirdKind of kinds) {
+          const triple = append(pair, thirdKind, `Topmost ${thirdKind}`);
+          const ids = selectedRootIds(triple, 3);
+          const triplePlan = getMergeLayersPlan(triple, [...ids].reverse());
+          expect(triplePlan, `${bottomKind}/${topKind}/${thirdKind}`).toMatchObject({
+            layerIds: ids, destinationId: ids[0], name: `Topmost ${thirdKind}`
+          });
+          const tripleMerged = mergeLayers(triple, [...ids].reverse());
+          expect(tripleMerged.layers, `${bottomKind}/${topKind}/${thirdKind}`).toHaveLength(2);
+          expect(tripleMerged.layers.at(-1)?.type).toBe('raster');
+          const flattened = flattenImage(triple);
+          expect(flattened.layers, `${bottomKind}/${topKind}/${thirdKind} flatten`).toHaveLength(1);
+          expect(flattened.layers[0]).toMatchObject({
+            type: 'raster', width: 48, height: 32, opacity: 1, blendMode: 'normal'
+          });
+        }
+      }
+    }
+  });
+
+  it('merges and flattens every ordered layer pair inside the same group', () => {
+    type Kind = 'raster' | 'shape' | 'gradient' | 'adjustment' | 'text';
+    const kinds: readonly Kind[] = ['raster', 'shape', 'gradient', 'adjustment', 'text'];
+    const append = (source: ImageDocument, kind: Kind, name: string) => {
+      if (kind === 'raster') return createRasterLayer(source, name);
+      if (kind === 'shape') return createVectorLayer(source, [
+        createVectorLiveShape(`nested-${crypto.randomUUID()}`, {
+          kind: 'ellipse', width: 10, height: 8
+        }, name)
+      ], name);
+      if (kind === 'gradient') return createGradientFillLayer(source, undefined, name);
+      if (kind === 'adjustment') return createAdjustmentLayer(
+        source,
+        createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+        name
+      );
+      return createTextLayer(source, createDefaultTextLayerData(), name);
+    };
+
+    for (const bottomKind of kinds) {
+      for (const topKind of kinds) {
+        let document = createImageDocument('Nested', 40, 30, 'background');
+        document = append(document, bottomKind, `Bottom ${bottomKind}`);
+        const bottomId = document.activeLayerId!;
+        document = append(document, topKind, `Top ${topKind}`);
+        const topId = document.activeLayerId!;
+        document = groupLayers(document, [bottomId, topId], 'Pair');
+        const groupId = document.activeLayerId!;
+        const plan = getMergeLayersPlan(document, [topId, bottomId]);
+        expect(plan, `${bottomKind} below ${topKind} in group`).toMatchObject({
+          layerIds: [bottomId, topId], destinationId: bottomId
+        });
+        const merged = mergeLayers(document, [topId, bottomId]);
+        const mergedGroup = findDocumentLayer(merged, groupId);
+        expect(mergedGroup?.type).toBe('group');
+        if (mergedGroup?.type !== 'group') throw new Error('Expected the pair group.');
+        expect(mergedGroup.children).toHaveLength(1);
+        expect(mergedGroup.children[0]?.type).toBe('raster');
+
+        const flattened = flattenGroup(document, groupId);
+        expect(findDocumentLayer(flattened, flattened.activeLayerId)?.type).toBe('raster');
+        expect(findDocumentLayer(flattened, groupId)).toBeNull();
+      }
+    }
   });
 
   it('plans multi-layer merges in document order regardless of selection order', () => {

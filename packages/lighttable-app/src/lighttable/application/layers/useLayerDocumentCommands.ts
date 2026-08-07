@@ -116,7 +116,7 @@ export interface LayerDocumentCommands {
   duplicateActiveLayer(): boolean;
   createAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
-  mergeSelectedRasterLayers(selectedLayerIds: LayerId[]): boolean;
+  mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
   rasterizeActiveTextLayer(): boolean;
@@ -307,14 +307,14 @@ export const createLayerDocumentCommands = (
   const createGradeAdjustmentLayer = () => createProcessingLayer('grade');
   const createLensFxLayer = () => createProcessingLayer('lens-fx');
 
-  const mergeSelectedRasterLayers = (selectedLayerIds: LayerId[]) => {
+  const mergeSelectedLayers = (selectedLayerIds: LayerId[]) => {
     const current = dependenciesRef.current.getDocument();
     const renderer = dependenciesRef.current.getRenderer();
     if (!current || !renderer) return false;
     const plan = getMergeLayersPlan(current, selectedLayerIds);
     if (!plan) {
       dependenciesRef.current.setError(
-        'Merge Selected requires at least two contiguous drawable or processing layers in the same group.'
+        'Merge Selected requires at least two contiguous layers in the same group.'
       );
       return false;
     }
@@ -361,17 +361,11 @@ export const createLayerDocumentCommands = (
     }
     const top = siblings[index];
     const bottom = siblings[index - 1];
-    if (top?.type === 'text') {
-      dependenciesRef.current.setError('Rasterize Type before merging this text layer down.');
+    if (!top || !bottom) {
+      dependenciesRef.current.setError('The active layer has no layer below it to merge with.');
       return false;
     }
-    if (top?.type === 'group' || bottom?.type !== 'raster') {
-      dependenciesRef.current.setError(
-        'Merge Down requires a raster layer directly below the active raster, Shape, Grade, or Lens Fx layer.'
-      );
-      return false;
-    }
-    const merged = mergeSelectedRasterLayers([bottom.id, top.id]);
+    const merged = mergeSelectedLayers([bottom.id, top.id]);
     if (merged) dependenciesRef.current.setStatus('Layers merged');
     return merged;
   };
@@ -386,8 +380,8 @@ export const createLayerDocumentCommands = (
     if (!plan) {
       dependenciesRef.current.setError(
         request.kind === 'group'
-          ? 'This group cannot be flattened until its live text or adjustment layers are rasterized.'
-          : 'This image cannot be flattened until its live text or adjustment layers are rasterized.'
+          ? 'This group has no layers to flatten.'
+          : 'This image has no layers to flatten.'
       );
       return false;
     }
@@ -825,7 +819,7 @@ export const createLayerDocumentCommands = (
     duplicateActiveLayer,
     createAdjustmentLayer: createGradeAdjustmentLayer,
     createLensFxLayer,
-    mergeSelectedRasterLayers,
+    mergeSelectedLayers,
     mergeActiveLayerDown,
     flatten,
     rasterizeActiveTextLayer,

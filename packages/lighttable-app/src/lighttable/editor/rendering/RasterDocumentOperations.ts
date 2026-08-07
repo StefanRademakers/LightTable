@@ -4,10 +4,9 @@ import type {
   LayerId,
   LayerNode,
   RasterLayer,
-  TextLayer,
-  VectorLayer
+  TextLayer
 } from '../document/documentTypes';
-import { findLayerNode } from '../document/layerTree';
+import { findLayerNode, walkLayerTree } from '../document/layerTree';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 
@@ -25,6 +24,13 @@ const findContributingTextLayers = (
   if (node.type === 'group') return findContributingTextLayers(node.children, visible);
   return node.type === 'text' && visible ? [node] : [];
 });
+
+const hasMissingRasterRuntime = (
+  nodes: readonly LayerNode[],
+  layerResources: LayerRuntimeStore
+) => walkLayerTree(nodes).some(
+  ({ node }) => node.type === 'raster' && !layerResources.raster(node.id)
+);
 
 interface RasterDocumentOperationsOptions {
   device: GPUDevice;
@@ -143,19 +149,15 @@ export class RasterDocumentOperations {
     const layers = layerIds.map(
       (layerId) => findLayerNode(document.layers, layerId)?.node ?? null
     );
+    const selectedTree = layers.filter((layer): layer is LayerNode => layer !== null);
     if (
       !destination
       || layers.length < 2
       || layers.some((layer) => !layer)
-      || layers.some((layer) => layer?.type === 'group')
-      || layers.some(
-        (layer) => layer?.type === 'raster' && !layerResources.raster(layer.id)
-      )
-      || layers.some(
-        (layer) => layer?.type === 'text' && layer.visible && layer.opacity > 0
-          && this.options.textSourceReady
-          && !this.options.textSourceReady(layer)
-      )
+      || hasMissingRasterRuntime(selectedTree, layerResources)
+      || (this.options.textSourceReady && findContributingTextLayers(selectedTree).some(
+        (layer) => !this.options.textSourceReady!(layer)
+      ))
     ) return false;
     const { width, height } = this.options.dimensions();
     if (destination.width !== width || destination.height !== height) return false;
@@ -166,7 +168,7 @@ export class RasterDocumentOperations {
       encoder,
       {
         ...document,
-        layers: layers as Array<RasterLayer | AdjustmentLayer | TextLayer | VectorLayer>
+        layers: selectedTree
       },
       encodeAdjustment
     );
@@ -191,6 +193,7 @@ export class RasterDocumentOperations {
     const group = findLayerNode(document.layers, groupId)?.node;
     const destination = layerResources.raster(destinationId);
     if (!group || group.type !== 'group' || !destination) return false;
+    if (hasMissingRasterRuntime(group.children, layerResources)) return false;
     if (this.options.textSourceReady && findContributingTextLayers(group.children).some(
       (layer) => !this.options.textSourceReady!(layer)
     )) return false;
@@ -224,6 +227,7 @@ export class RasterDocumentOperations {
     const { device, layerResources } = this.options;
     const destination = layerResources.raster(destinationId);
     if (!destination) return false;
+    if (hasMissingRasterRuntime(document.layers, layerResources)) return false;
     if (this.options.textSourceReady && findContributingTextLayers(document.layers).some(
       (layer) => !this.options.textSourceReady!(layer)
     )) return false;

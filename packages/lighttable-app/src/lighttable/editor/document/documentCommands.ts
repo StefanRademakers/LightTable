@@ -877,12 +877,12 @@ export const duplicateLayer = (document: ImageDocument, layerId: LayerId): Image
 
 export const mergeLayerDown = (document: ImageDocument, layerId: LayerId): ImageDocument => {
   const entry = findLayerNode(document.layers, layerId);
-  if (!entry || entry.node.type === 'group' || entry.node.type === 'text') return document;
+  if (!entry) return document;
   const siblings = siblingLayers(document, layerId);
   const index = siblings.findIndex((layer) => layer.id === layerId);
   const top = siblings[index];
   const bottom = siblings[index - 1];
-  if (index <= 0 || !top || bottom?.type !== 'raster') return document;
+  if (index <= 0 || !top || !bottom) return document;
   return mergeLayers(document, [bottom.id, top.id]);
 };
 
@@ -901,10 +901,8 @@ export interface FlattenLayersPlan {
   targetGroupId: LayerId | null;
 }
 
-const rasterIdsIn = (nodes: readonly LayerNode[]) =>
-  walkLayerTree(nodes)
-    .filter((entry) => entry.node.type === 'raster')
-    .map((entry) => entry.node.id);
+const layerIdsIn = (nodes: readonly LayerNode[]) =>
+  walkLayerTree(nodes).map((entry) => entry.node.id);
 
 export const getFlattenGroupPlan = (
   document: ImageDocument,
@@ -912,26 +910,22 @@ export const getFlattenGroupPlan = (
 ): FlattenLayersPlan | null => {
   const entry = findLayerNode(document.layers, groupId);
   if (!entry || entry.node.type !== 'group') return null;
-  // Until adjustment layers participate in the recursive compositor, flatten
-  // must not silently discard them.
-  if (walkLayerTree(entry.node.children).some(({ node }) => node.type === 'adjustment')) return null;
-  const layerIds = rasterIdsIn(entry.node.children);
+  const layerIds = layerIdsIn(entry.node.children);
   if (!layerIds.length) return null;
   return {
     layerIds,
-    destinationId: layerIds[0],
+    destinationId: entry.node.children[0]!.id,
     name: entry.node.name,
     targetGroupId: groupId
   };
 };
 
 export const getFlattenImagePlan = (document: ImageDocument): FlattenLayersPlan | null => {
-  if (walkLayerTree(document.layers).some(({ node }) => node.type === 'adjustment')) return null;
-  const layerIds = rasterIdsIn(document.layers);
+  const layerIds = layerIdsIn(document.layers);
   if (!layerIds.length) return null;
   return {
     layerIds,
-    destinationId: layerIds[0],
+    destinationId: document.layers[0]!.id,
     name: document.name,
     targetGroupId: null
   };
@@ -939,15 +933,16 @@ export const getFlattenImagePlan = (document: ImageDocument): FlattenLayersPlan 
 
 const flattenedRaster = (
   document: ImageDocument,
-  source: RasterLayer,
+  source: LayerNode,
   name: string
 ): RasterLayer => {
   const id = createLayerId();
   return {
-    ...source,
     id,
+    type: 'raster',
     name,
     visible: true,
+    locks: { ...source.locks },
     opacity: 1,
     fillOpacity: 1,
     blendMode: 'normal',
@@ -956,13 +951,14 @@ const flattenedRaster = (
     adjustmentStack: null,
     transform: identityAffineMatrix(),
     mask: null,
+    createdAt: source.createdAt,
     width: document.width,
     height: document.height,
     offsetX: 0,
     offsetY: 0,
     pixelSource: { kind: 'runtime-raster', runtimeId: id },
     geometryRevision: source.geometryRevision + 1,
-    pixelRevision: source.pixelRevision + 1,
+    pixelRevision: source.type === 'raster' ? source.pixelRevision + 1 : 1,
     revision: source.revision + 1,
     modifiedAt: Date.now(),
     dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
@@ -974,7 +970,7 @@ export const flattenGroup = (
   groupId: LayerId
 ): ImageDocument => {
   const plan = getFlattenGroupPlan(document, groupId);
-  const destination = plan ? findRasterLayer(document, plan.destinationId) : null;
+  const destination = plan ? findLayerNode(document.layers, plan.destinationId)?.node : null;
   const group = findLayerNode(document.layers, groupId)?.node;
   if (!plan || !destination || group?.type !== 'group') return document;
   const replacement = {
@@ -993,7 +989,7 @@ export const flattenGroup = (
 
 export const flattenImage = (document: ImageDocument): ImageDocument => {
   const plan = getFlattenImagePlan(document);
-  const destination = plan ? findRasterLayer(document, plan.destinationId) : null;
+  const destination = plan ? findLayerNode(document.layers, plan.destinationId)?.node : null;
   if (!plan || !destination) return document;
   const replacement = flattenedRaster(document, destination, plan.name);
   return updateDocument(document, [replacement], replacement.id);
@@ -1034,7 +1030,8 @@ export const rasterizeTextLayer = (
 /**
  * Returns a lossless merge plan for a Layers-panel selection.
  *
- * Selected layers must be contiguous drawable/processing siblings. The
+ * Selected layers must be contiguous siblings. Every semantic layer type is
+ * composited through the same recursive renderer before replacement. The
  * destination is always a newly allocated full-canvas raster, so the
  * bottom-most selected layer does not itself need to be raster content.
  * Allowing gaps would
@@ -1048,10 +1045,8 @@ export const getMergeLayersPlan = (
   const selected = new Set(selectedLayerIds);
   if (selected.size < 2) return null;
   const entries = [...selected].map((id) => findLayerNode(document.layers, id));
-  if (
-    entries.some((entry) => !entry || entry.node.type === 'group')
-    || entries.some((entry) => entry!.parentId !== entries[0]!.parentId)
-  ) return null;
+  if (entries.some((entry) => !entry)
+    || entries.some((entry) => entry!.parentId !== entries[0]!.parentId)) return null;
 
   const siblings = siblingLayers(document, entries[0]!.node.id);
   const indexes = siblings
@@ -1065,7 +1060,7 @@ export const getMergeLayersPlan = (
   const layers = siblings.slice(indexes[0], indexes[indexes.length - 1] + 1);
   // The GPU compositor evaluates each selected layer's realized presentation
   // in document order and writes it to a fresh raster destination.
-  if (!layers[0] || layers.some((layer) => layer.type === 'group')) return null;
+  if (!layers[0]) return null;
   return {
     layerIds: layers.map((layer) => layer.id),
     destinationId: layers[0].id,
@@ -1080,15 +1075,18 @@ export const mergeLayers = (
   const plan = getMergeLayersPlan(document, selectedLayerIds);
   if (!plan) return document;
   const destination = findLayerNode(document.layers, plan.destinationId)?.node;
-  if (!destination || destination.type === 'group') return document;
+  if (!destination) return document;
   const now = Date.now();
   const id = createLayerId();
   const merged: RasterLayer = {
     id,
     type: 'raster',
     name: plan.name,
-    visible: destination.visible,
-    locks: destination.locks,
+    visible: plan.layerIds.some((layerId) => {
+      const layer = findLayerNode(document.layers, layerId)?.node;
+      return Boolean(layer?.visible && layer.opacity > 0);
+    }),
+    locks: { ...destination.locks },
     opacity: 1,
     fillOpacity: 1,
     blendMode: 'normal',

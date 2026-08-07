@@ -3,10 +3,15 @@ import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { createRasterLayer, createTextLayer, setLayerLocked } from '../../editor/document/documentCommands';
 import {
+  createAdjustmentLayer as createAdjustmentLayerNode,
+  createGroupLayer as createGroupLayerNode,
   createImageDocument,
+  createTextLayerNode,
   createVectorLayer,
-  type ImageDocument
+  type ImageDocument,
+  type LayerNode
 } from '../../editor/document/documentTypes';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
 import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEdit';
 import {
   createFeatherSelectionOperation,
@@ -414,7 +419,7 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(createRasterLayer(first, 'Top'));
     const layerIds = state.document().layers.map((layer) => layer.id);
 
-    expect(state.commands.mergeSelectedRasterLayers(layerIds)).toBe(true);
+    expect(state.commands.mergeSelectedLayers(layerIds)).toBe(true);
 
     expect(state.document().layers).toHaveLength(1);
     const mergedId = state.document().layers[0]!.id;
@@ -497,7 +502,7 @@ describe('useLayerDocumentCommands', () => {
     const pixels = withRaster.layers[2]!;
     const state = setup(withRaster);
 
-    expect(state.commands.mergeSelectedRasterLayers([pixels.id, shape.id])).toBe(true);
+    expect(state.commands.mergeSelectedLayers([pixels.id, shape.id])).toBe(true);
 
     const merged = state.document().layers[1]!;
     expect(state.renderer.mergeLayers).toHaveBeenCalledWith(
@@ -505,6 +510,46 @@ describe('useLayerDocumentCommands', () => {
     );
     expect(merged).toMatchObject({ type: 'raster', name: 'Pixels', width: 32, height: 24 });
     expect(state.historyEntries).toHaveLength(1);
+  });
+
+  it('executes every ordered semantic layer pair without a type-specific merge error', () => {
+    type Kind = 'raster' | 'vector' | 'text' | 'adjustment' | 'group';
+    const kinds: readonly Kind[] = ['raster', 'vector', 'text', 'adjustment', 'group'];
+    const node = (kind: Kind, name: string): LayerNode => {
+      if (kind === 'raster') {
+        const layer = createImageDocument(name, 32, 24, `asset-${crypto.randomUUID()}`).layers[0]!;
+        return { ...layer, name };
+      }
+      if (kind === 'vector') return { ...createVectorLayer([], name), name };
+      if (kind === 'text') return createTextLayerNode(createDefaultTextLayerData(), name);
+      if (kind === 'adjustment') return createAdjustmentLayerNode(
+        createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()), name
+      );
+      const group = createGroupLayerNode(name);
+      group.children = [node('raster', `${name} content`)];
+      return group;
+    };
+
+    for (const bottomKind of kinds) {
+      for (const topKind of kinds) {
+        const document = createImageDocument('Pair', 32, 24, 'unused');
+        const bottom = node(bottomKind, `Bottom ${bottomKind}`);
+        const top = node(topKind, `Top ${topKind}`);
+        document.layers = [bottom, top];
+        document.activeLayerId = top.id;
+        const state = setup(document);
+
+        expect(
+          state.commands.mergeSelectedLayers([top.id, bottom.id]),
+          `${bottomKind} below ${topKind}`
+        ).toBe(true);
+        expect(state.document().layers).toHaveLength(1);
+        expect(state.document().layers[0]).toMatchObject({
+          type: 'raster', name: `Top ${topKind}`
+        });
+        expect(state.dependencies.setError).toHaveBeenLastCalledWith(null);
+      }
+    }
   });
 
   it('bakes an active Grade layer into the raster layer below with Ctrl+E semantics', () => {

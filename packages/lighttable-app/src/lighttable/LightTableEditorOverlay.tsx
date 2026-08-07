@@ -2816,14 +2816,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   const duplicateActiveLayer = layerDocumentCommands.duplicateActiveLayer;
   const rasterizeActiveTextLayer = layerDocumentCommands.rasterizeActiveTextLayer;
-  const mergeSelectedRasterLayers = layerDocumentCommands.mergeSelectedRasterLayers;
+  const mergeSelectedLayers = layerDocumentCommands.mergeSelectedLayers;
   const mergeActiveLayerDown = layerDocumentCommands.mergeActiveLayerDown;
   const mergeSelectionOrActiveDown = useCallback(() => {
     const selectedLayerIds = selectedLayerIdsRef.current;
     return selectedLayerIds.length > 1
-      ? mergeSelectedRasterLayers(selectedLayerIds)
+      ? mergeSelectedLayers(selectedLayerIds)
       : mergeActiveLayerDown();
-  }, [mergeActiveLayerDown, mergeSelectedRasterLayers]);
+  }, [mergeActiveLayerDown, mergeSelectedLayers]);
   const handleLayerSelectionChange = useCallback((layerIds: LayerId[]) => {
     selectedLayerIdsRef.current = layerIds;
   }, []);
@@ -2907,7 +2907,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     loadLayerMaskSelection: selectionSessionController.selectLayerMask,
     loadLayerTransparencySelection: selectionSessionController.selectLayerTransparency,
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
-    mergeSelectedRasterLayers,
+    mergeSelectedLayers,
     requestFlattenGroup: (groupId) =>
       editorDialogs.requestFlatten({ kind: 'group', groupId }),
     requestFlattenImage: () => editorDialogs.requestFlatten({ kind: 'image' }),

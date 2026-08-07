@@ -78,9 +78,7 @@ export const queryLayerCommandCapabilities = (
       && selectedEntries.every((entry) => entry.parentId === selectedEntries[0]!.parentId),
     canUngroupSelection: selectedEntries.some((entry) => entry.node.type === 'group'),
     canToggleActiveClipping: Boolean(activeLayer?.clipping || activeIndex > 0),
-    canMergeDown: activeIndex > 0
-      && activeSiblings[activeIndex]?.type !== 'group'
-      && activeSiblings[activeIndex - 1]?.type === 'raster',
+    canMergeDown: activeIndex > 0,
     canMergeSelected: Boolean(getMergeLayersPlan(document, selectedLayerIds)),
     canFlattenActiveGroup: activeLayer?.type === 'group'
       && Boolean(getFlattenGroupPlan(document, activeLayer.id)),

@@ -49,7 +49,7 @@ const setup = (initialDocument: ImageDocument) => {
     loadLayerMaskSelection: vi.fn(),
     loadLayerTransparencySelection: vi.fn(),
     mergeActiveLayerDown: vi.fn(),
-    mergeSelectedRasterLayers: vi.fn(),
+    mergeSelectedLayers: vi.fn(),
     requestFlattenGroup: vi.fn(),
     requestFlattenImage: vi.fn(),
     editStyles: vi.fn(),
@@ -327,7 +327,7 @@ describe('createLayerPanelController', () => {
     harness.controller.flattenImage();
 
     expect(harness.dependencies.mergeActiveLayerDown).toHaveBeenCalledOnce();
-    expect(harness.dependencies.mergeSelectedRasterLayers)
+    expect(harness.dependencies.mergeSelectedLayers)
       .toHaveBeenCalledWith(layerIds);
     expect(harness.dependencies.requestFlattenGroup).toHaveBeenCalledWith(groupId);
     expect(harness.dependencies.requestFlattenImage).toHaveBeenCalledOnce();

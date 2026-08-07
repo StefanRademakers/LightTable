@@ -61,7 +61,7 @@ export interface LayerPanelControllerDependencies {
   loadLayerMaskSelection(layerId: LayerId): void;
   loadLayerTransparencySelection(layerId: LayerId): void;
   mergeActiveLayerDown(): void;
-  mergeSelectedRasterLayers(layerIds: LayerId[]): void;
+  mergeSelectedLayers(layerIds: LayerId[]): void;
   requestFlattenGroup(groupId: LayerId): void;
   requestFlattenImage(): void;
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
@@ -256,7 +256,7 @@ export const createLayerPanelController = (
     mergeSelected: (layerIds) => {
       const dependencies = resolveDependencies();
       dependencies.finishTextEditing?.();
-      dependencies.mergeSelectedRasterLayers(layerIds);
+      dependencies.mergeSelectedLayers(layerIds);
     },
     flattenGroup: (groupId) => {
       const dependencies = resolveDependencies();

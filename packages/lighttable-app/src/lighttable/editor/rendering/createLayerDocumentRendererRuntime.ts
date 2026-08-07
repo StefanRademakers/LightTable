@@ -17,6 +17,7 @@ import { LayerStyleRenderer } from './LayerStyleRenderer';
 import { LayerCompositor } from './LayerCompositor';
 import { TransformRasterizer } from './TransformRasterizer';
 import { PixelEditHistoryService } from './PixelEditHistoryService';
+import { layerDerivedPreviewIsCurrent } from '../document/documentTypes';
 import { RasterPaintService } from './RasterPaintService';
 export type RasterGradientPaint = Parameters<RasterPaintService['fillGradient']>[2];
 export type RasterGradientBlendMode = Parameters<RasterPaintService['fillGradient']>[4];
@@ -324,6 +325,7 @@ export const createLayerDocumentRendererRuntime = (
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId),
     releaseSubmittedResources: () => renderResources.releaseAfterSubmit(),
     textSourceReady: (layer) => textLayerCoordinator.isSettledForCurrentGeneration(layer)
+      || (layerDerivedPreviewIsCurrent(layer) && Boolean(layerResources.derivedPreview(layer.id)))
   });
   const documentAssets = new LayerDocumentAssetService({
     rasterTexture: (layerId) => layerResources.raster(layerId)?.texture ?? null,
