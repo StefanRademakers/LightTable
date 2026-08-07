@@ -21,6 +21,14 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.on('lighttable:fullscreen-changed', handler);
     return () => ipcRenderer.removeListener('lighttable:fullscreen-changed', handler);
   },
+  onHorizontalWheel: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      input: Parameters<typeof listener>[0]
+    ) => listener(input);
+    ipcRenderer.on('lighttable:horizontal-wheel', handler);
+    return () => ipcRenderer.removeListener('lighttable:horizontal-wheel', handler);
+  },
   confirmDiscardChanges: (documentTitle: string) =>
     ipcRenderer.invoke('lighttable:confirm-discard-changes', documentTitle),
   saveFile: (payload: DesktopSavePayload) =>

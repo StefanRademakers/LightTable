@@ -56,6 +56,12 @@ export interface DesktopRecentFile {
   available: boolean;
 }
 
+export interface DesktopHorizontalWheelInput {
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly deltaX: number;
+}
+
 export interface DesktopSystemFontAsset {
   readonly assetId: string;
   readonly faceIndex: number;
@@ -93,6 +99,7 @@ export interface LightTableDesktopBridge {
   clearRecentFiles(): Promise<void>;
   setFullscreen(enabled: boolean): Promise<void>;
   onFullscreenChange(listener: (enabled: boolean) => void): () => void;
+  onHorizontalWheel(listener: (input: DesktopHorizontalWheelInput) => void): () => void;
   confirmDiscardChanges(documentTitle: string): Promise<boolean>;
   saveFile(payload: DesktopSavePayload): Promise<DesktopSaveResult>;
   writeRecovery(payload: DesktopRecoveryWritePayload): Promise<LightTableRecoveryWriteResult>;

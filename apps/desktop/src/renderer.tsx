@@ -13,6 +13,13 @@ import {
 import './renderer.css';
 import type { DesktopFilePayload } from './desktopBridge';
 
+const removeHorizontalWheelBridge = window.lightTableDesktop.onHorizontalWheel((input) => {
+  window.dispatchEvent(new CustomEvent('lighttable:desktop-horizontal-wheel', {
+    detail: input
+  }));
+});
+window.addEventListener('beforeunload', removeHorizontalWheelBridge, { once: true });
+
 const desktopFile = (payload: DesktopFilePayload | null) => {
   if (!payload) return null;
   const file = new File([Uint8Array.from(payload.bytes).buffer], payload.name, {

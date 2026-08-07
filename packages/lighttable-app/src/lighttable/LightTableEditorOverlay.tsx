@@ -2558,6 +2558,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       engineRef.current?.setPenRubberBandOverlay(band);
     }
   });
+  const desktopHorizontalWheelRef = useRef(viewportInteraction.onHorizontalWheel);
+  desktopHorizontalWheelRef.current = viewportInteraction.onHorizontalWheel;
+
+  useEffect(() => {
+    const onDesktopHorizontalWheel = (event: Event) => {
+      if (!active) return;
+      const detail = (event as CustomEvent<{
+        readonly clientX?: number;
+        readonly clientY?: number;
+        readonly deltaX?: number;
+      }>).detail;
+      const viewport = viewportRef.current;
+      if (!viewport || !detail
+        || !Number.isFinite(detail.clientX) || !Number.isFinite(detail.clientY)
+        || !Number.isFinite(detail.deltaX)) return;
+      const bounds = viewport.getBoundingClientRect();
+      if (detail.clientX! < bounds.left || detail.clientX! > bounds.right
+        || detail.clientY! < bounds.top || detail.clientY! > bounds.bottom) return;
+      desktopHorizontalWheelRef.current({ deltaX: detail.deltaX! });
+    };
+    window.addEventListener('lighttable:desktop-horizontal-wheel', onDesktopHorizontalWheel);
+    return () => window.removeEventListener(
+      'lighttable:desktop-horizontal-wheel',
+      onDesktopHorizontalWheel
+    );
+  }, [active]);
 
   const applyDocumentChange = (
     change: (current: ImageDocument) => ImageDocument,

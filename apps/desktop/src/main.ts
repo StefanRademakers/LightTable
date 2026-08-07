@@ -351,6 +351,22 @@ async function createWindow(): Promise<void> {
   mainWindow = window;
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.on('before-mouse-event', (event, mouse) => {
+    if (mouse.type !== 'mouseWheel') return;
+    const wheel = mouse as Electron.MouseWheelInputEvent;
+    const deltaX = wheel.deltaX ?? 0;
+    const wheelTicksX = wheel.wheelTicksX ?? 0;
+    if (deltaX === 0 && wheelTicksX === 0) return;
+    // Windows mouse drivers do not consistently expose a horizontal wheel to
+    // Chromium's DOM WheelEvent. Forward it once from Electron's native input
+    // boundary and suppress the duplicate page event when Chromium does emit it.
+    event.preventDefault();
+    window.webContents.send('lighttable:horizontal-wheel', {
+      clientX: wheel.x,
+      clientY: wheel.y,
+      deltaX: deltaX || wheelTicksX * 40
+    });
+  });
   window.webContents.on('will-navigate', (event, url) => {
     if (!isTrustedSender(url)) event.preventDefault();
   });

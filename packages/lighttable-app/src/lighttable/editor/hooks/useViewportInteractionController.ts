@@ -130,6 +130,7 @@ interface ViewportInteractionOptions {
 export interface ViewportInteractionController {
   dragging: boolean;
   onWheel(event: WheelEvent<HTMLDivElement>): void;
+  onHorizontalWheel(input: { readonly deltaX: number }): void;
   onPointerDown(event: PointerEvent<HTMLDivElement>): void;
   onPointerMove(event: PointerEvent<HTMLDivElement>): void;
   onPointerUp(event: PointerEvent<HTMLDivElement>): void;
@@ -382,6 +383,27 @@ export const useViewportInteractionController = ({
     dragRef.current = null;
   };
 
+  const scheduleWheelPan = (deltaX: number, deltaY: number, deltaMode: number) => {
+    if (!metadata) return;
+    const deltaMultiplier = deltaMode === 1
+      ? 16
+      : deltaMode === 2 ? viewportSize.height : 1;
+    setZoomMode('custom');
+    const pendingView = zoomFrameRef.current?.pending();
+    const baseView = pendingView ?? {
+      scale: activeScale,
+      panX: view.panX,
+      panY: view.panY
+    };
+    const pan = panViewFromWheel({
+      initialView: baseView,
+      deltaX,
+      deltaY,
+      deltaMultiplier
+    });
+    zoomFrameRef.current?.schedule({ ...baseView, ...pan });
+  };
+
   return {
     dragging: Boolean(dragRef.current),
     hideBrushCursor,
@@ -389,19 +411,6 @@ export const useViewportInteractionController = ({
       if (!metadata) return;
       event.preventDefault();
       if (!zoomWithScrollWheel && !event.ctrlKey && !event.metaKey) {
-        const deltaMultiplier = event.deltaMode === 1
-          ? 16
-          : event.deltaMode === 2 ? viewportSize.height : 1;
-        // Leaving fit/100% mode must preserve the effective scale. Publishing
-        // only panX/panY here would revive the stale custom scale on the next
-        // render, which makes horizontal wheel input appear to snap or stall.
-        setZoomMode('custom');
-        const pendingView = zoomFrameRef.current?.pending();
-        const baseView = pendingView ?? {
-          scale: activeScale,
-          panX: view.panX,
-          panY: view.panY
-        };
         const nativeWheel = event.nativeEvent as globalThis.WheelEvent & {
           readonly wheelDeltaX?: number;
         };
@@ -411,13 +420,7 @@ export const useViewportInteractionController = ({
           legacyWheelDeltaX: nativeWheel.wheelDeltaX,
           shiftKey: event.shiftKey
         });
-        const pan = panViewFromWheel({
-          initialView: baseView,
-          deltaX: wheelDelta.deltaX,
-          deltaY: wheelDelta.deltaY,
-          deltaMultiplier
-        });
-        zoomFrameRef.current?.schedule({ ...baseView, ...pan });
+        scheduleWheelPan(wheelDelta.deltaX, wheelDelta.deltaY, event.deltaMode);
         return;
       }
       const bounds = event.currentTarget.getBoundingClientRect();
@@ -436,6 +439,10 @@ export const useViewportInteractionController = ({
         maxScale
       });
       zoomFrameRef.current?.schedule(nextView);
+    },
+    onHorizontalWheel: ({ deltaX }) => {
+      if (zoomWithScrollWheel || !Number.isFinite(deltaX) || deltaX === 0) return;
+      scheduleWheelPan(deltaX, 0, 0);
     },
     onPointerDown: (event) => {
       // A bounding-client-rect read may force layout. Snapshot it once for all

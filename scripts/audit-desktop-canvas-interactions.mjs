@@ -39,6 +39,14 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
   });
+  await page.evaluate(() => {
+    localStorage.setItem('lighttable:preferences', JSON.stringify({
+      version: 1,
+      autosave: { enabled: true, intervalMs: 30_000 },
+      tools: { zoomWithScrollWheel: false, openMaskEditingOnDoubleClick: true }
+    }));
+  });
+  await page.reload();
   const openFileButton = await waitForDesktopLauncher({
     app, page, outputDirectory, sourceFile, pageErrors: report.pageErrors, label: 'canvas'
   });
@@ -147,6 +155,33 @@ try {
       .getByRole('button', { name, exact: true });
     await button.click();
   };
+
+  const horizontalWheelBefore = await driver.queryDocument(documentId);
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await app.evaluate(({ BrowserWindow }, input) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('lighttable:horizontal-wheel', input);
+  }, {
+    clientX: Math.round(bounds.x + bounds.width / 2),
+    clientY: Math.round(bounds.y + bounds.height / 2),
+    deltaX: 120
+  });
+  await settleFrame();
+  const horizontalWheelAfter = await driver.queryDocument(documentId);
+  const horizontalWheelResult = {
+    name: 'desktop-horizontal-wheel-pan',
+    panXBefore: horizontalWheelBefore?.viewport.panX ?? null,
+    panXAfter: horizontalWheelAfter?.viewport.panX ?? null,
+    panYBefore: horizontalWheelBefore?.viewport.panY ?? null,
+    panYAfter: horizontalWheelAfter?.viewport.panY ?? null
+  };
+  report.actions.push(horizontalWheelResult);
+  if (horizontalWheelResult.panXBefore === null || horizontalWheelResult.panXAfter === null
+    || horizontalWheelResult.panXAfter === horizontalWheelResult.panXBefore
+    || horizontalWheelResult.panYAfter !== horizontalWheelResult.panYBefore) {
+    throw new Error(`Desktop horizontal wheel did not pan only the x-axis: ${JSON.stringify(
+      horizontalWheelResult
+    )}`);
+  }
 
   await page.keyboard.press('h');
   await measure('pan-drag', () => drag(point(0.18, 0.20), point(0.26, 0.27), 24));
