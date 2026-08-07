@@ -58,11 +58,12 @@ const sampleOpacity = (stops: LayerStyleOpacityStop[], position: number) => {
 export const GradientAssetEditor: React.FC<{
   value: LayerStyleGradient;
   onChange: (value: LayerStyleGradient) => void;
-}> = ({ value, onChange }) => {
+  initialColorStop?: 'first' | 'last';
+}> = ({ value, onChange, initialColorStop = 'first' }) => {
   const colorStops = [...value.colorStops].sort((a, b) => a.position - b.position);
   const opacityStops = [...value.opacityStops].sort((a, b) => a.position - b.position);
   const [selectedColorId, setSelectedColorId] = React.useState<string | null>(
-    colorStops[0]?.id ?? null
+    (initialColorStop === 'last' ? colorStops.at(-1) : colorStops[0])?.id ?? null
   );
   const [selectedOpacityId, setSelectedOpacityId] = React.useState<string | null>(
     opacityStops[0]?.id ?? null

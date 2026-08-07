@@ -1167,6 +1167,7 @@
 .lighttable-viewport--select-ellipse,
 .lighttable-viewport--select-free { cursor: crosshair; }
 .lighttable-viewport--transform { cursor: default; }
+.lighttable-viewport--gradient { cursor: default; }
 .lighttable-viewport--zoom { cursor: zoom-in; }
 .lighttable-viewport--zoom-out { cursor: zoom-out; }
 .lighttable-viewport--precise-brush,

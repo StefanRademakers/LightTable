@@ -153,6 +153,31 @@ describe('GradientToolController', () => {
     expect(history).toHaveLength(2);
   });
 
+  it('opens the corresponding color stop without creating history when an endpoint is clicked', () => {
+    let document = createImageDocument('Gradient', 320, 180, 'asset');
+    const history: Array<{ before: typeof document; after: typeof document }> = [];
+    const requested: Array<'start' | 'end'> = [];
+    const documents = new VectorDocumentController(() => ({
+      getDocument: () => document,
+      applyDocumentSnapshot: (next) => { document = next; },
+      pushDocumentHistory: (before, after) => history.push({ before, after })
+    }));
+    const controller = new GradientToolController(documents, () => ({
+      paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
+      blendMode: 'normal', transparency: true
+    }), () => undefined, (endpoint) => requested.push(endpoint));
+
+    controller.pointerDown({ x: 20, y: 30 }, 8);
+    controller.pointerMove({ x: 250, y: 30 });
+    controller.pointerUp({ x: 250, y: 30 });
+    expect(history).toHaveLength(1);
+
+    expect(controller.pointerDown({ x: 250, y: 30 }, 8)).toBe(true);
+    expect(controller.pointerUp({ x: 250, y: 30 })).toBe(true);
+    expect(requested).toEqual(['end']);
+    expect(history).toHaveLength(1);
+  });
+
   it('redraws the selected fill without creating a second layer when dragging away from its gizmo', () => {
     let document = createImageDocument('Gradient', 320, 180, 'asset');
     const documents = new VectorDocumentController(() => ({

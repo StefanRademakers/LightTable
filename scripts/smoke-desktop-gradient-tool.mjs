@@ -13,6 +13,7 @@ const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'gradient-tool.png');
 const liveScreenshotPath = path.join(outputDirectory, 'gradient-tool-live.png');
 const editedScreenshotPath = path.join(outputDirectory, 'gradient-tool-edited.png');
+const outsideScreenshotPath = path.join(outputDirectory, 'gradient-tool-outside.png');
 const pixelScreenshotPath = path.join(outputDirectory, 'gradient-tool-pixels.png');
 const reportPath = path.join(outputDirectory, 'gradient-tool.json');
 
@@ -176,6 +177,22 @@ try {
   await captureHistory('gradient-dragged');
   await page.screenshot({ path: screenshotPath });
 
+  const dragDx = end.x - start.x;
+  const dragDy = end.y - start.y;
+  const dragLength = Math.hypot(dragDx, dragDy);
+  const snappedAngle = Math.round(Math.atan2(dragDy, dragDx) / (Math.PI / 4)) * (Math.PI / 4);
+  const displayedEnd = {
+    x: start.x + Math.cos(snappedAngle) * dragLength,
+    y: start.y + Math.sin(snappedAngle) * dragLength
+  };
+  await page.mouse.click(displayedEnd.x, displayedEnd.y);
+  const endpointEditor = page.getByRole('dialog', { name: 'Gradient editor' });
+  await endpointEditor.waitFor({ state: 'visible' });
+  if (await viewport.evaluate((element) => getComputedStyle(element).cursor) !== 'default') {
+    throw new Error('The Gradient tool still presents an imprecise hand cursor.');
+  }
+  await page.getByRole('button', { name: 'Close gradient' }).click();
+
   const after = await driver.queryDocument(documentId);
   const layers = await driver.queryLayers(documentId) ?? [];
   const activeLayer = layers.find(({ id }) => id === after?.activeLayerId);
@@ -246,6 +263,37 @@ try {
     throw new Error('Ctrl+Z did not remove the Gradient Fill layer.');
   }
 
+  const zoomLabel = await page.locator('.lighttable-toolbar__meta').innerText();
+  const zoomPercent = Number(/(\d+(?:\.\d+)?)%\s*·\s*(?:RGB|CMYK|Gray)/.exec(zoomLabel)?.[1]);
+  if (!Number.isFinite(zoomPercent) || !before.canvas) {
+    throw new Error(`Could not resolve fitted canvas geometry: ${zoomLabel}`);
+  }
+  const scale = zoomPercent / 100;
+  const imageTop = bounds.y + (bounds.height - before.canvas.height * scale) / 2;
+  const outsideStart = { x: bounds.x + bounds.width * 0.35, y: imageTop + 100 };
+  const outsideEnd = { x: outsideStart.x + 180, y: imageTop - 24 };
+  await page.mouse.move(outsideStart.x, outsideStart.y);
+  await page.mouse.down();
+  await page.mouse.move(outsideEnd.x, outsideEnd.y, { steps: 6 });
+  await page.mouse.up();
+  await page.screenshot({ path: outsideScreenshotPath });
+  const createdOutside = await driver.queryDocument(documentId);
+  if (!createdOutside || createdOutside.layerCount !== before.layerCount + 1) {
+    throw new Error('A Gradient Fill with a pasteboard endpoint was not created.');
+  }
+  await page.mouse.move(outsideEnd.x, outsideEnd.y);
+  await page.mouse.down();
+  await page.mouse.move(outsideEnd.x, imageTop + 60, { steps: 6 });
+  await page.mouse.up();
+  const movedFromOutside = await driver.queryDocument(documentId);
+  if (!movedFromOutside
+    || movedFromOutside.layerCount !== createdOutside.layerCount
+    || movedFromOutside.history.undoDepth !== createdOutside.history.undoDepth + 1) {
+    throw new Error('The pasteboard endpoint could not be picked up and moved back over the canvas.');
+  }
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+
   const backgroundLayer = page.locator('.lighttable-layer').filter({
     has: page.locator('.lighttable-layer__name[value="Background"]')
   }).first();
@@ -282,6 +330,7 @@ try {
     screenshotPath,
     liveScreenshotPath,
     editedScreenshotPath,
+    outsideScreenshotPath,
     pixelScreenshotPath,
     pageErrors
   }, null, 2)}\n`);

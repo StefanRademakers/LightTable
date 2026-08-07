@@ -140,6 +140,7 @@ export class GradientToolController {
     private readonly documents: VectorDocumentController,
     private readonly settings: () => GradientToolSettingsSnapshot,
     private readonly selectTarget: (target: GradientToolSelectionTarget) => void = () => {},
+    private readonly requestColorEditor: (endpoint: 'start' | 'end') => void = () => {},
     private readonly minimumDragDistance = 0.5
   ) {}
 
@@ -271,6 +272,15 @@ export class GradientToolController {
 
   pointerUp(position: Vec2, constrainAngle = false) {
     if (!this.start) return false;
+    if (this.edit
+      && (this.edit.handle === 'start' || this.edit.handle === 'end')
+      && Math.hypot(position.x - this.start.x, position.y - this.start.y) < this.minimumDragDistance) {
+      const endpoint = this.edit.handle;
+      this.selectTarget({ layerId: this.edit.target.layerId, elementId: this.edit.target.elementId });
+      this.requestColorEditor(endpoint);
+      this.reset();
+      return true;
+    }
     this.pointerMove(position, constrainAngle);
     if (this.mutationStarted && this.edit) {
       const target = {

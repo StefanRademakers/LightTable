@@ -26,6 +26,7 @@ export interface VectorToolSessionHookOptions {
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
   readonly rasterizeShape: (transaction: VectorElementCreationTransaction) => boolean;
+  readonly requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
 }
 
 /**
@@ -46,7 +47,8 @@ export const useVectorToolSessionController = ({
   applyDocumentSnapshot,
   pushDocumentHistory,
   publishSelection,
-  rasterizeShape
+  rasterizeShape,
+  requestGradientColorEditor
 }: VectorToolSessionHookOptions): VectorToolSessionController => {
   const portsRef = useRef({
     document,
@@ -59,7 +61,8 @@ export const useVectorToolSessionController = ({
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
-    rasterizeShape
+    rasterizeShape,
+    requestGradientColorEditor
   });
   portsRef.current = {
     document,
@@ -72,7 +75,8 @@ export const useVectorToolSessionController = ({
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
-    rasterizeShape
+    rasterizeShape,
+    requestGradientColorEditor
   };
 
   const controllerRef = useRef<VectorToolSessionController | null>(null);
@@ -93,6 +97,7 @@ export const useVectorToolSessionController = ({
       penStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       gradientSettings: () => portsRef.current.gradient,
+      requestGradientColorEditor: (endpoint) => portsRef.current.requestGradientColorEditor?.(endpoint),
       rasterizeShape: (transaction) => portsRef.current.rasterizeShape(transaction)
     });
   }

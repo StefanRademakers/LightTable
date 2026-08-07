@@ -555,6 +555,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   editorSessionRef.current = editorSession;
   const fallbackGradientSettingsRef = useRef(createGradientToolSettings());
   const gradientToolSettings = editorSession.gradient ?? fallbackGradientSettingsRef.current;
+  const [gradientEditorRequest, setGradientEditorRequest] = useState<{
+    revision: number;
+    endpoint: 'start' | 'end';
+  } | null>(null);
   useEffect(() => {
     if (editorSession.gradient) return;
     setEditorSession((current) => ({
@@ -2017,6 +2021,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushDocumentHistory,
     publishSelection: (vectorSelection) => {
       setEditorSession((current) => ({ ...current, vectorSelection }));
+    },
+    requestGradientColorEditor: (endpoint) => {
+      setGradientEditorRequest((current) => ({
+        revision: (current?.revision ?? 0) + 1,
+        endpoint
+      }));
     },
     rasterizeShape: (transaction) => rasterizeShapeRef.current(transaction)
   });
@@ -4041,6 +4051,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       textWarp={activeTextPropertyLayer?.type === 'text'
         ? activeTextPropertyLayer.text.warp ?? null
         : undefined}
+      gradientEditorRequest={gradientEditorRequest}
       onBrushChange={updateBrush}
       onGradientChange={updateGradientSettings}
       onShapeChange={(change) => setEditorSession((current) => ({

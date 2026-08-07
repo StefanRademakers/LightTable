@@ -12,7 +12,7 @@ import {
 
 const SETTINGS_BYTES = 80;
 const CUBIC_BYTES = 48;
-const MARKER_BYTES = 16;
+const MARKER_BYTES = 32;
 const CURVE_SUBDIVISIONS = 24;
 
 interface CachedOverlayBuffers {
@@ -52,6 +52,8 @@ export interface VectorEditingOverlayTheme {
   /** Optional solid backing stroke, useful for selection visibility. */
   underlayColor?: readonly [number, number, number, number];
   underlayWidthPx?: number;
+  /** Straight utility axes can bypass curve subdivision and its segment seams. */
+  curveSubdivisions?: number;
 }
 
 const DEFAULT_THEME: VectorEditingOverlayTheme = {
@@ -68,7 +70,8 @@ export const GRADIENT_GIZMO_THEME: VectorEditingOverlayTheme = {
   pathWidthPx: 1.25,
   handleWidthPx: 1,
   underlayColor: [0.04, 0.05, 0.07, 0.9],
-  underlayWidthPx: 2.5
+  underlayWidthPx: 2.5,
+  curveSubdivisions: 1
 };
 
 const SELECTION_FRAME_THEME: VectorEditingOverlayTheme = {
@@ -209,12 +212,16 @@ const handleData = (overlay: VectorEditingOverlay) => cubicData({
 });
 
 const markerData = (overlay: VectorEditingOverlay) => new Float32Array([
-  ...overlay.anchors.flatMap(({ point, markerSizePx, markerKind = 'square', selected, active }) => [
+  ...overlay.anchors.flatMap(({
+    point, markerSizePx, markerKind = 'square', markerColor, selected, active
+  }) => [
     point.x, point.y, markerSizePx,
-    ({ square: 0, circle: 3, diamond: 6 })[markerKind] + (active ? 2 : selected ? 1 : 0)
+    ({ square: 0, circle: 3, diamond: 6 })[markerKind] + (active ? 2 : selected ? 1 : 0),
+    ...(markerColor ?? [0, 0, 0, -1])
   ]),
   ...overlay.handles.flatMap(({ point, markerSizePx }) => [
-    point.x, point.y, markerSizePx, 3
+    point.x, point.y, markerSizePx, 3,
+    0, 0, 0, -1
   ])
 ]);
 
@@ -280,7 +287,7 @@ export class VectorEditingOverlayBackend {
       pass,
       resource.curves,
       resource.curveCount,
-      CURVE_SUBDIVISIONS,
+      theme.curveSubdivisions ?? CURVE_SUBDIVISIONS,
       theme.pathWidthPx,
       theme.pathColor,
       target,
@@ -299,7 +306,7 @@ export class VectorEditingOverlayBackend {
       theme
     );
     if (resource.markers) {
-      const settings = this.createSettings(target, 0, 0, theme.pathColor);
+      const settings = this.createSettings(target, 0, 0, theme.handleColor);
       pass.setPipeline(pipelines.markers);
       pass.setBindGroup(0, this.bindGroup(settings, resource.markers));
       pass.draw(6, resource.markerCount);

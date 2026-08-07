@@ -58,6 +58,7 @@ export interface ToolOptionsProps {
   transformState?: TransformSessionState | null;
   /** Undefined for non-text transforms; null is editable text without a warp. */
   textWarp?: TextWarp | null;
+  gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
@@ -440,6 +441,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   zoomPercent,
   transformState,
   textWarp,
+  gradientEditorRequest,
   onBrushChange,
   onGradientChange,
   onShapeChange,
@@ -493,6 +495,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
     ? selectedShapeKind === 'rectangle' : activeTool === 'shape-rectangle';
   const [gradientEditorOpen, setGradientEditorOpen] = React.useState(false);
   const gradientButtonRef = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    if (gradientEditorRequest) setGradientEditorOpen(true);
+  }, [gradientEditorRequest]);
   const presentedTextGradient = textProperties?.fillPaint?.kind === 'value'
     && textProperties.fillPaint.value?.kind === 'gradient'
     ? textProperties.fillPaint.value : null;
@@ -629,7 +634,12 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                   onClick={() => setGradientEditorOpen(false)}>×</button>
               </div>
               <GradientAssetEditor
+                key={gradientEditorRequest?.revision ?? 'toolbar'}
                 value={gradient.paint.asset}
+                initialColorStop={gradientEditorRequest
+                  && (gradientEditorRequest.endpoint === 'end') !== gradient.paint.reverse
+                  ? 'last'
+                  : 'first'}
                 onChange={(asset) => onGradientChange({
                   paint: { ...gradient.paint, asset }
                 })}

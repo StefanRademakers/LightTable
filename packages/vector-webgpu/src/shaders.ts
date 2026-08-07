@@ -120,6 +120,7 @@ struct CubicData {
 struct LineOutput {
   @builtin(position) position: vec4f,
   @location(0) distancePx: f32,
+  @location(1) edgeDistancePx: f32,
 };
 
 @group(0) @binding(0) var<uniform> settings: OverlaySettings;
@@ -163,13 +164,16 @@ fn lineVertex(
   let normal = vec2f(-delta.y, delta.x) / segmentLength;
   var endpoints = array<f32, 6>(0.0, 1.0, 0.0, 0.0, 1.0, 1.0);
   var sides = array<f32, 6>(-1.0, -1.0, 1.0, 1.0, -1.0, 1.0);
+  let halfWidth = settings.style.x * 0.5;
+  let antialiasExtent = halfWidth + 1.0;
   let point = mix(start, end, endpoints[vertexIndex])
-    + normal * sides[vertexIndex] * settings.style.x * 0.5;
+    + normal * sides[vertexIndex] * antialiasExtent;
   let viewportScale = length(vec2f(settings.transform.x, settings.transform.y));
   var output: LineOutput;
   output.position = pixelToClip(point);
   output.distancePx = (curve.lengthData.x
     + curve.lengthData.y * mix(t0, t1, endpoints[vertexIndex])) * viewportScale;
+  output.edgeDistancePx = sides[vertexIndex] * antialiasExtent;
   return output;
 }
 
@@ -183,7 +187,9 @@ fn lineFragment(input: LineOutput) -> @location(0) vec4f {
       discard;
     }
   }
-  return settings.color;
+  let halfWidth = settings.style.x * 0.5;
+  let coverage = 1.0 - smoothstep(halfWidth, halfWidth + 1.0, abs(input.edgeDistancePx));
+  return vec4f(settings.color.rgb, settings.color.a * coverage);
 }
 `;
 
@@ -199,6 +205,7 @@ struct OverlaySettings {
 struct MarkerData {
   point: vec2f,
   sizeState: vec2f,
+  color: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> settings: OverlaySettings;
@@ -208,6 +215,7 @@ struct MarkerOutput {
   @builtin(position) position: vec4f,
   @location(0) local: vec2f,
   @location(1) @interpolate(flat) state: f32,
+  @location(2) @interpolate(flat) color: vec4f,
 };
 
 fn documentToPixel(point: vec2f) -> vec2f {
@@ -234,6 +242,7 @@ fn markerVertex(
   output.position = vec4f(pixel.x / viewport.x * 2.0 - 1.0, 1.0 - pixel.y / viewport.y * 2.0, 0.0, 1.0);
   output.local = local;
   output.state = marker.sizeState.y;
+  output.color = marker.color;
   return output;
 }
 
@@ -248,8 +257,14 @@ fn markerFragment(input: MarkerOutput) -> @location(0) vec4f {
   let border = distance >= 0.64;
   let selected = visualState >= 1.0;
   let isActive = visualState >= 2.0;
-  let interior = select(vec4f(0.08, 0.09, 0.11, 1.0), settings.color, selected);
+  let swatch = select(vec4f(1.0, 1.0, 1.0, 1.0), input.color, input.color.a >= 0.0);
+  let neutralBorder = vec4f(0.68, 0.71, 0.75, 1.0);
+  let borderColor = select(neutralBorder, settings.color, selected || isActive);
+  let interior = select(swatch, settings.color, selected);
   let activeInterior = select(interior, vec4f(1.0, 1.0, 1.0, 1.0), isActive);
-  return select(activeInterior, settings.color, border);
+  let color = select(activeInterior, borderColor, border);
+  let edgeWidth = max(fwidth(distance), 0.001);
+  let coverage = 1.0 - smoothstep(1.0 - edgeWidth, 1.0, distance);
+  return vec4f(color.rgb, color.a * coverage);
 }
 `;

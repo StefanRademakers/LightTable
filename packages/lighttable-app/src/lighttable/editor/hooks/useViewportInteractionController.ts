@@ -282,8 +282,15 @@ export const useViewportInteractionController = ({
       capturedGestureUsesUnboundedDocumentPoint({
         selectionGestureMatches: selection.owns(event.pointerId),
         warpGestureMatches: warp.owns(event.pointerId),
-        paintGestureMatches: paint.owns(event.pointerId)
-      }) || isSelectionTool(editorSession.activeTool)
+        paintGestureMatches: paint.owns(event.pointerId),
+        vectorGestureMatches: vector.ownsPointer(event.pointerId),
+        textGestureMatches: textGesture.owns(event.pointerId),
+        rasterGradientGestureMatches: rasterGradient.owns(event.pointerId)
+      })
+        || isSelectionTool(editorSession.activeTool)
+        || isVectorEditorTool(
+          vectorMoveActive && effectiveTool === 'transform' ? 'vector-select' : effectiveTool
+        )
     );
     if (
       !point

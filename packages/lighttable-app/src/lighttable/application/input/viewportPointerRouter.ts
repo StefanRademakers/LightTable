@@ -48,11 +48,17 @@ export interface ViewportPointerMoveContext {
   hasStrokeBuilder: boolean;
 }
 
-export interface ViewportPointerEndContext {
+export interface CapturedDocumentGestureContext {
   selectionGestureMatches: boolean;
   warpGestureMatches: boolean;
   paintGestureMatches: boolean;
+  vectorGestureMatches?: boolean;
+  textGestureMatches?: boolean;
+  rasterGradientGestureMatches?: boolean;
 }
+
+export type ViewportPointerEndContext = Pick<CapturedDocumentGestureContext,
+  'selectionGestureMatches' | 'warpGestureMatches' | 'paintGestureMatches'>;
 
 /**
  * Captured drag gestures keep an unbounded document-space pointer so a fast
@@ -60,10 +66,13 @@ export interface ViewportPointerEndContext {
  * remain responsible for clipping the actual edit to document pixels.
  */
 export const capturedGestureUsesUnboundedDocumentPoint = (
-  context: ViewportPointerEndContext
+  context: CapturedDocumentGestureContext
 ) => context.selectionGestureMatches
   || context.warpGestureMatches
-  || context.paintGestureMatches;
+  || context.paintGestureMatches
+  || Boolean(context.vectorGestureMatches)
+  || Boolean(context.textGestureMatches)
+  || Boolean(context.rasterGradientGestureMatches);
 
 /**
  * Assigns a pointer-down gesture to exactly one editor subsystem.

@@ -203,4 +203,25 @@ describe('capturedGestureUsesUnboundedDocumentPoint', () => {
       paintGestureMatches: false
     })).toBe(false);
   });
+
+  it('keeps every captured on-canvas widget projected on the pasteboard', () => {
+    expect(capturedGestureUsesUnboundedDocumentPoint({
+      selectionGestureMatches: false,
+      warpGestureMatches: false,
+      paintGestureMatches: false,
+      vectorGestureMatches: true
+    })).toBe(true);
+    expect(capturedGestureUsesUnboundedDocumentPoint({
+      selectionGestureMatches: false,
+      warpGestureMatches: false,
+      paintGestureMatches: false,
+      textGestureMatches: true
+    })).toBe(true);
+    expect(capturedGestureUsesUnboundedDocumentPoint({
+      selectionGestureMatches: false,
+      warpGestureMatches: false,
+      paintGestureMatches: false,
+      rasterGradientGestureMatches: true
+    })).toBe(true);
+  });
 });

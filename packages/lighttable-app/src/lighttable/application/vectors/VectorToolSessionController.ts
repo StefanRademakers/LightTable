@@ -57,6 +57,7 @@ export interface VectorToolSessionOptions {
   layerName?: string;
   pathName?: string;
   rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean;
+  requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
 }
 
 export interface VectorPointerDownOptions extends LiveShapeDragOptions {
@@ -133,7 +134,8 @@ export class VectorToolSessionController {
         paths: [],
         anchors: [],
         active: null
-      })
+      }),
+      options.requestGradientColorEditor
     );
     this.selectionCommands = options.ids
       ? new VectorSelectionCommandController(this.documents, dependencies, options.ids)

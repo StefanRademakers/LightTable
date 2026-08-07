@@ -30,6 +30,13 @@ const gradientHandleOverlays = (
     layerId === resolved.layerId && elementId === resolved.elementId)) return [];
   const geometry = resolveVectorGradientGeometry(resolved);
   if (!geometry) return [];
+  const fill = resolved.element.style.fill;
+  if (!fill || !('kind' in fill)) return [];
+  const colorStops = [...fill.asset.colorStops].sort((a, b) => a.position - b.position);
+  const firstColor = colorStops[0]?.color ?? { r: 0, g: 0, b: 0, a: 1 };
+  const lastColor = colorStops.at(-1)?.color ?? { r: 1, g: 1, b: 1, a: 1 };
+  const startColor = fill.reverse ? lastColor : firstColor;
+  const endColor = fill.reverse ? firstColor : lastColor;
   const start = geometry.startInDocument;
   const end = geometry.endInDocument;
   return [{
@@ -43,9 +50,11 @@ const gradientHandleOverlays = (
     }],
     anchors: [
       { subpathId: 'gradient-axis', anchorId: 'start', point: start,
-        markerKind: 'circle', markerSizePx: 10, selected: false, active: false },
+        markerKind: 'circle', markerColor: [startColor.r, startColor.g, startColor.b, startColor.a],
+        markerSizePx: 14, selected: false, active: false },
       { subpathId: 'gradient-axis', anchorId: 'end', point: end,
-        markerKind: 'circle', markerSizePx: 14, selected: false, active: true }
+        markerKind: 'circle', markerColor: [endColor.r, endColor.g, endColor.b, endColor.a],
+        markerSizePx: 18, selected: false, active: true }
     ],
     handles: []
   }];

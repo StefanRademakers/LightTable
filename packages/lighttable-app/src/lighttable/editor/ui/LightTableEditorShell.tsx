@@ -40,6 +40,7 @@ export interface LightTableEditorShellProps {
   zoomPercent: number;
   transformState?: TransformSessionState | null;
   textWarp?: TextWarp | null;
+  gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
@@ -126,6 +127,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   zoomPercent,
   transformState,
   textWarp,
+  gradientEditorRequest,
   onBrushChange,
   onGradientChange,
   onShapeChange,
@@ -220,6 +222,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         zoomPercent={zoomPercent}
         transformState={transformState}
         textWarp={textWarp}
+        gradientEditorRequest={gradientEditorRequest}
         onBrushChange={onBrushChange}
         onGradientChange={onGradientChange}
         onShapeChange={onShapeChange}
