@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const desktopAppPath = path.join(workspaceRoot, 'apps', 'desktop');
@@ -318,6 +319,8 @@ const runFile = async (sourceFile, fileIndex) => {
   let electronApp;
   let window;
   try {
+    const fileUserDataPath = path.join(userDataPath, String(fileIndex));
+    await mkdir(fileUserDataPath, { recursive: true });
     electronApp = await electron.launch({
       executablePath,
       args: [desktopAppPath, '--js-flags=--expose-gc'],
@@ -325,7 +328,7 @@ const runFile = async (sourceFile, fileIndex) => {
       env: {
         ...launchEnvironment,
         LIGHTTABLE_AUTOMATION_OPEN_FILE: sourceFile,
-        LIGHTTABLE_AUTOMATION_USER_DATA: userDataPath
+        LIGHTTABLE_AUTOMATION_USER_DATA: fileUserDataPath
       },
       timeout: 30_000
     });
@@ -337,7 +340,15 @@ const runFile = async (sourceFile, fileIndex) => {
     });
     window.on('pageerror', (error) => result.pageErrors.push(error.stack ?? error.message));
 
-    await window.getByRole('button', { name: 'Open file' }).click();
+    const openFileButton = await waitForDesktopLauncher({
+      app: electronApp,
+      page: window,
+      outputDirectory: screenshotDirectory,
+      sourceFile,
+      pageErrors: result.pageErrors,
+      label: `stress-${fileIndex}`
+    });
+    await openFileButton.click();
     const escapedName = path.basename(sourceFile).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     await window.getByRole('tab', { name: new RegExp(escapedName, 'i') }).waitFor({
       state: 'visible',

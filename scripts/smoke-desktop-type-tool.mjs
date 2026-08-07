@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
@@ -34,40 +35,9 @@ try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-  const openFileButton = page.getByRole('button', { name: 'Open file' });
-  try {
-    await openFileButton.waitFor({ state: 'visible', timeout: 30_000 });
-  } catch (error) {
-    const diagnosticPath = path.join(outputDirectory, `startup-failure-${process.pid}.json`);
-    const screenshot = path.join(outputDirectory, `startup-failure-${process.pid}.png`);
-    const windows = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((window) => ({
-      bounds: window.getBounds(),
-      destroyed: window.isDestroyed(),
-      visible: window.isVisible(),
-      webContents: {
-        crashed: window.webContents.isCrashed(),
-        destroyed: window.webContents.isDestroyed(),
-        loading: window.webContents.isLoading(),
-        url: window.webContents.getURL()
-      }
-    }))).catch((reason) => ({ diagnosticError: String(reason) }));
-    await page.screenshot({ path: screenshot }).catch(() => {});
-    await writeFile(diagnosticPath, `${JSON.stringify({
-      generatedAt: new Date().toISOString(),
-      sourceFile,
-      page: {
-        url: page.url(),
-        title: await page.title().catch(() => ''),
-        bodyText: (await page.locator('body').innerText().catch(() => '')).slice(0, 8_000)
-      },
-      pageErrors,
-      windows,
-      screenshot
-    }, null, 2)}\n`, 'utf8');
-    throw new Error(`LightTable launcher was not ready within 30 seconds. Diagnostic: ${diagnosticPath}`, {
-      cause: error
-    });
-  }
+  const openFileButton = await waitForDesktopLauncher({
+    app, page, outputDirectory, sourceFile, pageErrors, label: 'type-tool'
+  });
   await openFileButton.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
