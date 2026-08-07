@@ -39,6 +39,49 @@ const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
 const PANEL_TAB_BAR_HEIGHT = 34;
 const TAB_MERGE_PRIORITY_EXTENSION = 18;
 
+type FloatingFrameBounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+type DockviewFloatingGroupBridge = {
+  overlay: { element: HTMLElement };
+  position: (bounds: FloatingFrameBounds) => void;
+};
+
+type DockviewApiFloatingGroupsBridge = {
+  component?: { floatingGroups?: readonly DockviewFloatingGroupBridge[] };
+};
+
+const normalizeFloatingFrameBounds = (
+  api: DockviewApi | null,
+  frame: HTMLElement,
+  workspaceElement: HTMLElement
+) => {
+  if (!api) return;
+  // Dockview currently exposes floating-group positioning only on its
+  // component bridge. Keep that private integration isolated here.
+  const floatingGroups = (api as unknown as DockviewApiFloatingGroupsBridge)
+    .component?.floatingGroups;
+  const floatingGroup = floatingGroups?.find((candidate) => candidate.overlay.element === frame);
+  if (!floatingGroup) return;
+
+  const workspaceBounds = workspaceElement.getBoundingClientRect();
+  const frameBounds = frame.getBoundingClientRect();
+  frame.style.removeProperty('left');
+  frame.style.removeProperty('right');
+  frame.style.removeProperty('top');
+  frame.style.removeProperty('bottom');
+  floatingGroup.position({
+    left: frameBounds.left - workspaceBounds.left,
+    top: frameBounds.top - workspaceBounds.top,
+    width: frameBounds.width,
+    height: frameBounds.height
+  });
+};
+
 type WorkspaceContentKey = 'documentHost' | string;
 
 export interface LightTableWorkspaceDocument {
@@ -542,13 +585,16 @@ export const LightTableDockWorkspace = forwardRef<
 
   useEffect(() => {
     const workspaceElement = workspaceElementRef.current;
-    if (!workspaceElement || !onResizeInteractionChange) return;
+    if (!workspaceElement) return;
     let resizing = false;
+    let floatingResizeCleanup: (() => void) | null = null;
 
     const finishResize = () => {
       if (!resizing) return;
       resizing = false;
-      onResizeInteractionChange(false);
+      floatingResizeCleanup?.();
+      floatingResizeCleanup = null;
+      onResizeInteractionChange?.(false);
       document.removeEventListener('pointerup', finishResize, true);
       document.removeEventListener('pointercancel', finishResize, true);
       document.removeEventListener('contextmenu', finishResize, true);
@@ -561,7 +607,54 @@ export const LightTableDockWorkspace = forwardRef<
       if (!resizeHandle || !workspaceElement.contains(resizeHandle)) return;
       if (resizing) return;
       resizing = true;
-      onResizeInteractionChange(true);
+      onResizeInteractionChange?.(true);
+
+      const floatingFrame = resizeHandle.closest<HTMLElement>('.dv-resize-container');
+      if (floatingFrame) {
+        const direction = Array.from(resizeHandle.classList)
+          .find((className) => className.startsWith('dv-resize-handle-'))
+          ?.slice('dv-resize-handle-'.length);
+        const workspaceBounds = workspaceElement.getBoundingClientRect();
+        const frameBounds = floatingFrame.getBoundingClientRect();
+        const fixedLeft = frameBounds.left - workspaceBounds.left;
+        const fixedRight = workspaceBounds.right - frameBounds.right;
+        const fixedTop = frameBounds.top - workspaceBounds.top;
+        const fixedBottom = workspaceBounds.bottom - frameBounds.bottom;
+
+        const lockStyle = (property: string, value: string) => {
+          if (
+            floatingFrame.style.getPropertyValue(property) === value
+            && floatingFrame.style.getPropertyPriority(property) === 'important'
+          ) return;
+          floatingFrame.style.setProperty(property, value, 'important');
+        };
+
+        const maintainOppositeEdge = () => {
+          if (direction?.includes('right')) {
+            lockStyle('left', `${fixedLeft}px`);
+            lockStyle('right', 'auto');
+          } else if (direction?.includes('left')) {
+            lockStyle('right', `${fixedRight}px`);
+            lockStyle('left', 'auto');
+          }
+          if (direction?.includes('bottom')) {
+            lockStyle('top', `${fixedTop}px`);
+            lockStyle('bottom', 'auto');
+          } else if (direction?.includes('top')) {
+            lockStyle('bottom', `${fixedBottom}px`);
+            lockStyle('top', 'auto');
+          }
+        };
+
+        maintainOppositeEdge();
+        const observer = new MutationObserver(maintainOppositeEdge);
+        observer.observe(floatingFrame, { attributes: true, attributeFilter: ['style'] });
+        floatingResizeCleanup = () => {
+          observer.disconnect();
+          normalizeFloatingFrameBounds(apiRef.current, floatingFrame, workspaceElement);
+        };
+      }
+
       document.addEventListener('pointerup', finishResize, true);
       document.addEventListener('pointercancel', finishResize, true);
       document.addEventListener('contextmenu', finishResize, true);
@@ -579,7 +672,9 @@ export const LightTableDockWorkspace = forwardRef<
       document.removeEventListener('pointerup', finishResize, true);
       document.removeEventListener('pointercancel', finishResize, true);
       document.removeEventListener('contextmenu', finishResize, true);
-      if (resizing) onResizeInteractionChange(false);
+      floatingResizeCleanup?.();
+      floatingResizeCleanup = null;
+      if (resizing) onResizeInteractionChange?.(false);
     };
   }, [onResizeInteractionChange]);
 

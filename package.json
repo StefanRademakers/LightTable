@@ -62,6 +62,7 @@
     "smoke:desktop:mcp-design": "node scripts/smoke-desktop-mcp-design.mjs",
     "smoke:desktop:agent-tunnel:build": "npm run package:desktop:verify && npm run smoke:desktop:agent-tunnel --",
     "audit:desktop:panel-language": "node scripts/audit-desktop-panel-language.mjs",
+    "audit:desktop:floating-panel-resize": "node scripts/audit-desktop-floating-panel-resize.mjs",
     "audit:desktop:panel-language:build": "npm run package:desktop:verify && npm run audit:desktop:panel-language --",
     "smoke:desktop:psd-roundtrip": "node scripts/smoke-desktop-psd-roundtrip.mjs",
     "smoke:desktop:psd-roundtrip:build": "npm run package:desktop:verify && npm run smoke:desktop:psd-roundtrip --",
