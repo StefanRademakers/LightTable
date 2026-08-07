@@ -65,4 +65,54 @@ describe('GradientToolController', () => {
       style: { fill: { kind: 'gradient', coordinateSpace: 'document' }, opacity: 1 }
     });
   });
+
+  it('keeps the active Gradient Fill selected and edits it instead of adding layers', () => {
+    let document = createImageDocument('Gradient', 320, 180, 'asset');
+    const history: Array<{ before: typeof document; after: typeof document }> = [];
+    const selected: Array<{ layerId: string; elementId: string }> = [];
+    const documents = new VectorDocumentController(() => ({
+      getDocument: () => document,
+      applyDocumentSnapshot: (next) => { document = next; },
+      pushDocumentHistory: (before, after) => history.push({ before, after })
+    }));
+    const controller = new GradientToolController(documents, () => ({
+      paint: createDefaultGradientPaint('gesture', 'document'),
+      opacity: 1,
+      blendMode: 'normal',
+      transparency: true
+    }), (target) => selected.push(target));
+
+    controller.pointerDown({ x: 20, y: 30 }, 6);
+    controller.pointerMove({ x: 220, y: 30 });
+    expect(controller.pointerUp({ x: 250, y: 30 })).toBe(true);
+    const gradientLayerId = document.activeLayerId;
+    const layerCount = document.layers.length;
+    expect(selected).toEqual([{ layerId: gradientLayerId, elementId: expect.any(String) }]);
+
+    controller.pointerDown({ x: 40, y: 50 }, 6);
+    controller.pointerMove({ x: 260, y: 50 });
+    expect(controller.pointerUp({ x: 280, y: 50 })).toBe(true);
+    expect(document.layers).toHaveLength(layerCount);
+    expect(document.activeLayerId).toBe(gradientLayerId);
+    expect(history).toHaveLength(2);
+
+    const layer = findDocumentLayer(document, gradientLayerId);
+    if (layer?.type !== 'vector') throw new Error('Expected Gradient Fill layer.');
+    const fillAfterAxisEdit = layer.elements[0]?.style.fill;
+    expect(fillAfterAxisEdit && 'kind' in fillAfterAxisEdit
+      ? fillAfterAxisEdit.transform
+      : null).toMatchObject({ a: 240, b: 0, tx: 40, ty: 50 });
+
+    controller.pointerDown({ x: 280, y: 50 }, 8);
+    controller.pointerMove({ x: 300, y: 80 });
+    expect(controller.pointerUp({ x: 300, y: 80 })).toBe(true);
+    expect(document.layers).toHaveLength(layerCount);
+    expect(history).toHaveLength(3);
+    const endpointLayer = findDocumentLayer(document, gradientLayerId);
+    if (endpointLayer?.type !== 'vector') throw new Error('Expected Gradient Fill layer.');
+    const fillAfterEndpointEdit = endpointLayer.elements[0]?.style.fill;
+    expect(fillAfterEndpointEdit && 'kind' in fillAfterEndpointEdit
+      ? fillAfterEndpointEdit.transform
+      : null).toMatchObject({ a: 260, b: 30, tx: 40, ty: 50 });
+  });
 });

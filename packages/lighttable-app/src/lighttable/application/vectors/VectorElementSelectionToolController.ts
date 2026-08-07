@@ -2,7 +2,6 @@ import {
   cloneVectorElement,
   invertMatrix,
   multiplyMatrices,
-  pathBounds,
   transformPoint,
   transformVectorElement,
   translationMatrix,
@@ -36,6 +35,7 @@ import {
   type VectorElementRotationGesture,
   type VectorElementScaleGesture
 } from './vectorElementTransformGesture';
+import { resolveVectorGradientGeometry } from './vectorGradientGeometry';
 
 export interface VectorElementSelectionDependencies {
   getDocument(): ImageDocument | null;
@@ -318,33 +318,19 @@ export class VectorElementSelectionToolController {
     let closest: (Omit<ActiveGradientDrag, 'documentId' | 'moved'> & { distanceSquared: number }) | null = null;
     for (const resolved of vectorElementsTopmostFirst(document)) {
       if (!selected.has(`${resolved.layerId}\0${resolved.elementId}`)) continue;
-      const paint = resolved.element.style.fill;
-      if (!paint || !('kind' in paint)) continue;
-      let paintParentToDocument = paint.coordinateSpace !== 'object-bounds'
-        ? { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
-        : resolved.layerToDocument;
-      if (paint.coordinateSpace === 'object-bounds') {
-        const bounds = pathBounds(resolved.documentPath);
-        if (!bounds || bounds.width <= 0 || bounds.height <= 0) continue;
-        paintParentToDocument = multiplyMatrices(resolved.documentPath.transform, {
-          a: bounds.width, b: 0, c: 0, d: bounds.height, tx: bounds.x, ty: bounds.y
-        });
-      }
-      const documentToPaintParent = invertMatrix(paintParentToDocument);
-      if (!documentToPaintParent) continue;
-      const start = transformPoint(paintParentToDocument, transformPoint(paint.transform, { x: 0, y: 0 }));
-      const end = transformPoint(paintParentToDocument, transformPoint(paint.transform, { x: 1, y: 0 }));
+      const geometry = resolveVectorGradientGeometry(resolved);
+      if (!geometry) continue;
       for (const handle of ['start', 'end'] as const) {
-        const target = handle === 'start' ? start : end;
+        const target = handle === 'start' ? geometry.startInDocument : geometry.endInDocument;
         const distanceSquared = (target.x - point.x) ** 2 + (target.y - point.y) ** 2;
         if (distanceSquared > radius ** 2 || (closest && distanceSquared >= closest.distanceSquared)) continue;
         closest = {
           layerId: resolved.layerId,
           elementId: resolved.elementId,
           handle,
-          documentToPaintParent,
-          openingStart: transformPoint(paint.transform, { x: 0, y: 0 }),
-          openingEnd: transformPoint(paint.transform, { x: 1, y: 0 }),
+          documentToPaintParent: geometry.documentToPaintParent,
+          openingStart: geometry.startInPaintParent,
+          openingEnd: geometry.endInPaintParent,
           distanceSquared
         };
       }

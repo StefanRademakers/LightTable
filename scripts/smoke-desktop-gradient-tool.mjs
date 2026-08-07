@@ -173,10 +173,34 @@ try {
     })}`);
   }
 
+  const editStart = { x: bounds.x + bounds.width * 0.24, y: bounds.y + bounds.height * 0.30 };
+  const editEnd = { x: bounds.x + bounds.width * 0.62, y: bounds.y + bounds.height * 0.30 };
+  await page.mouse.move(editStart.x, editStart.y);
+  await page.mouse.down();
+  await page.mouse.move(editEnd.x, editEnd.y, { steps: 6 });
+  await page.mouse.up();
+  await captureHistory('active-gradient-edited');
+  const edited = await driver.queryDocument(documentId);
+  if (!edited
+    || edited.layerCount !== after.layerCount
+    || edited.activeLayerId !== after.activeLayerId
+    || edited.history.undoDepth !== after.history.undoDepth + 1) {
+    throw new Error(`A second Gradient-tool drag did not edit the active fill in place: ${JSON.stringify({
+      after,
+      edited,
+      historyCheckpoints
+    })}`);
+  }
+
   await page.keyboard.press('Shift+g');
   await page.getByRole('button', { name: 'Paint bucket', exact: true }).waitFor({ state: 'visible' });
   await page.keyboard.press('g');
   await gradientButton.waitFor({ state: 'visible' });
+  await page.keyboard.press('Control+z');
+  const editUndone = await driver.queryDocument(documentId);
+  if (!editUndone || editUndone.layerCount !== after.layerCount) {
+    throw new Error('Ctrl+Z did not undo the in-place gradient edit first.');
+  }
   await page.keyboard.press('Control+z');
   const undone = await driver.queryDocument(documentId);
   if (!undone || undone.layerCount !== before.layerCount) {

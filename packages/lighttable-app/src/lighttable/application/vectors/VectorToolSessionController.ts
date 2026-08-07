@@ -127,6 +127,12 @@ export class VectorToolSessionController {
       this.documents,
       options.gradientSettings ?? (() => {
         throw new Error('Gradient tool settings are unavailable.');
+      }),
+      ({ layerId, elementId }) => this.dependencies.setSelection({
+        elements: [{ layerId, elementId }],
+        paths: [],
+        anchors: [],
+        active: null
       })
     );
     this.selectionCommands = options.ids
@@ -241,7 +247,7 @@ export class VectorToolSessionController {
         snapToPixels: options.snapToPixels
       })) return false;
     } else if (this.activeMode === 'gradient') {
-      if (!this.gradient.pointerDown(documentPoint)) return false;
+      if (!this.gradient.pointerDown(documentPoint, options.hitRadius)) return false;
     } else {
       const result = this.pointTools.pointerDown(
         this.activeMode,

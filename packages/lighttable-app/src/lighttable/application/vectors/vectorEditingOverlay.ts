@@ -4,13 +4,13 @@ import {
   type VectorSelectionFrame,
   type VectorEditingOverlay
 } from '@lighttable/vector-rendering';
-import { multiplyMatrices, pathBounds, transformPoint } from '@lighttable/vector-core';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { VectorEditorSelection } from '../../editor/session/editorSession';
 import {
   vectorElementsDocumentBounds,
   vectorElementsTopmostFirst
 } from './vectorSceneQueries';
+import { resolveVectorGradientGeometry } from './vectorGradientGeometry';
 
 export interface VectorDocumentEditingOverlay extends VectorEditingOverlay {
   layerId: string;
@@ -28,18 +28,10 @@ const gradientHandleOverlays = (
 ): VectorEditingOverlay[] => vectorElementsTopmostFirst(document).flatMap((resolved) => {
   if (!selection.elements.some(({ layerId, elementId }) =>
     layerId === resolved.layerId && elementId === resolved.elementId)) return [];
-  const paint = resolved.element.style.fill;
-  if (!paint || !('kind' in paint)) return [];
-  let mapping = paint.transform;
-  if (paint.coordinateSpace === 'object-bounds') {
-    const bounds = pathBounds(resolved.documentPath);
-    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return [];
-    mapping = multiplyMatrices(resolved.documentPath.transform, multiplyMatrices({
-      a: bounds.width, b: 0, c: 0, d: bounds.height, tx: bounds.x, ty: bounds.y
-    }, paint.transform));
-  }
-  const start = transformPoint(mapping, { x: 0, y: 0 });
-  const end = transformPoint(mapping, { x: 1, y: 0 });
+  const geometry = resolveVectorGradientGeometry(resolved);
+  if (!geometry) return [];
+  const start = geometry.startInDocument;
+  const end = geometry.endInDocument;
   return [{
     pathId: `gradient:${resolved.elementId}`,
     resourceKey: `gradient:${resolved.elementId}:${resolved.element.styleRevision}:${document.revision}`,
