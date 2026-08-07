@@ -6,7 +6,7 @@ import type {
   RasterLayer,
   TextLayer
 } from '../document/documentTypes';
-import { findLayerNode, walkLayerTree } from '../document/layerTree';
+import { findLayerNode } from '../document/layerTree';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 
@@ -25,12 +25,18 @@ const findContributingTextLayers = (
   return node.type === 'text' && visible ? [node] : [];
 });
 
-const hasMissingRasterRuntime = (
+const hasMissingContributingRasterRuntime = (
   nodes: readonly LayerNode[],
-  layerResources: LayerRuntimeStore
-) => walkLayerTree(nodes).some(
-  ({ node }) => node.type === 'raster' && !layerResources.raster(node.id)
-);
+  layerResources: LayerRuntimeStore,
+  inheritedVisible = true
+): boolean => nodes.some((node) => {
+  const visible = inheritedVisible && node.visible && node.opacity > 0;
+  if (!visible) return false;
+  if (node.type === 'group') {
+    return hasMissingContributingRasterRuntime(node.children, layerResources, visible);
+  }
+  return node.type === 'raster' && !layerResources.raster(node.id);
+});
 
 interface RasterDocumentOperationsOptions {
   device: GPUDevice;
@@ -154,7 +160,7 @@ export class RasterDocumentOperations {
       !destination
       || layers.length < 2
       || layers.some((layer) => !layer)
-      || hasMissingRasterRuntime(selectedTree, layerResources)
+      || hasMissingContributingRasterRuntime(selectedTree, layerResources)
       || (this.options.textSourceReady && findContributingTextLayers(selectedTree).some(
         (layer) => !this.options.textSourceReady!(layer)
       ))
@@ -193,7 +199,7 @@ export class RasterDocumentOperations {
     const group = findLayerNode(document.layers, groupId)?.node;
     const destination = layerResources.raster(destinationId);
     if (!group || group.type !== 'group' || !destination) return false;
-    if (hasMissingRasterRuntime(group.children, layerResources)) return false;
+    if (hasMissingContributingRasterRuntime(group.children, layerResources)) return false;
     if (this.options.textSourceReady && findContributingTextLayers(group.children).some(
       (layer) => !this.options.textSourceReady!(layer)
     )) return false;
@@ -227,7 +233,7 @@ export class RasterDocumentOperations {
     const { device, layerResources } = this.options;
     const destination = layerResources.raster(destinationId);
     if (!destination) return false;
-    if (hasMissingRasterRuntime(document.layers, layerResources)) return false;
+    if (hasMissingContributingRasterRuntime(document.layers, layerResources)) return false;
     if (this.options.textSourceReady && findContributingTextLayers(document.layers).some(
       (layer) => !this.options.textSourceReady!(layer)
     )) return false;

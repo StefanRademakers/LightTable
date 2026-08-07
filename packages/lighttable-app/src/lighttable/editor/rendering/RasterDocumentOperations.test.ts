@@ -285,6 +285,44 @@ describe('RasterDocumentOperations', () => {
     expect(createCommandEncoder).not.toHaveBeenCalled();
   });
 
+  it('does not require GPU runtimes for hidden raster branches that cannot contribute', () => {
+    const document = createImageDocument('Lazy hidden content', 64, 32, 'background');
+    const hiddenChild = document.layers[0]!;
+    hiddenChild.visible = false;
+    const group = createGroupLayer('Lazy group');
+    group.children = [hiddenChild];
+    const vector = createVectorLayer([
+      createVectorLiveShape('visible-shape', {
+        kind: 'ellipse', width: 20, height: 12
+      }, 'Visible shape')
+    ], 'Shape');
+    document.layers = [group, vector];
+    const destinationId = layerId('destination');
+    const destination = {
+      texture: texture('destination'), width: 64, height: 32, maskTexture: null, maskId: null
+    };
+    const composite = texture('composite');
+    const copyTextureToTexture = vi.fn();
+    const operations = new RasterDocumentOperations({
+      device: {
+        createCommandEncoder: () => ({ copyTextureToTexture, finish: () => 'commands' }),
+        queue: { submit: vi.fn() }
+      } as unknown as GPUDevice,
+      layerResources: {
+        raster: (id: LayerId) => id === destinationId ? destination : null
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      encodeComposite: vi.fn(() => composite),
+      invalidateLayer: vi.fn(),
+      releaseSubmittedResources: vi.fn()
+    });
+
+    expect(operations.merge(document, [group.id, vector.id], destinationId)).toBe(true);
+    expect(operations.flattenGroup(document, group.id, destinationId)).toBe(true);
+    expect(operations.flattenImage(document, destinationId)).toBe(true);
+    expect(copyTextureToTexture).toHaveBeenCalledTimes(3);
+  });
+
   it('renders isolated normalized text into its prepared same-ID raster destination', () => {
     const document = createTextLayer(
       createImageDocument('Text', 64, 32, 'background'),
