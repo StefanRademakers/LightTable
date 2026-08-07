@@ -45,6 +45,7 @@ import {
   ProtectedAgentTunnelSessionStore,
   WebSocketAgentTunnelTransport
 } from './agentTunnelAdapters';
+import { loadRendererUrlWithRetry } from './rendererNavigation';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -321,13 +322,12 @@ async function createWindow(): Promise<void> {
     window.webContents.send('lighttable:fullscreen-changed', false);
   });
 
-  try {
-    await window.loadURL(`${rendererOrigin}/`);
-  } catch (error) {
-    const aborted = error instanceof Error && error.message.includes('ERR_ABORTED');
-    if (aborted) return;
-    throw error;
-  }
+  const navigation = await loadRendererUrlWithRetry(window, `${rendererOrigin}/`, {
+    onRetry: (attempt, reason) => {
+      console.warn(`[LightTable renderer] Local navigation attempt ${attempt} failed; retrying.`, reason);
+    }
+  });
+  if (navigation === 'superseded') return;
 
   const isolation = await window.webContents.executeJavaScript(`({
     href: location.href,
