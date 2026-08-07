@@ -78,6 +78,7 @@ const blockers = [
   ...(!owner?.ownerSignoff ? ['Owner acceptance sign-off is pending.'] : []),
   ...(!commercial?.commercialReady ? ['Commercial policy/activation/installer gates are open.'] : []),
   'Integrated-GPU, web-host and Apple Silicon physical qualification is open.',
+  'External design-partner beta and exit review are open.',
   ...(!multiHourSoak.accepted ? multiHourSoak.reasons : [])
 ];
 const report = {
