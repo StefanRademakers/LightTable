@@ -101,6 +101,19 @@ const sourceHash = () => {
   return hash.digest('hex');
 };
 
+const generatedOutputHash = (file) => {
+  const hash = createHash('sha256');
+  if (file.endsWith('.js') || file.endsWith('.d.ts')) {
+    // Git can materialize generated text with CRLF on Windows while the
+    // committed manifest records the canonical LF output from wasm-bindgen.
+    // Do not rebuild the binary solely because of that checkout conversion.
+    hash.update(readFileSync(file, 'utf8').replaceAll('\r\n', '\n'));
+  } else {
+    hash.update(readFileSync(file));
+  }
+  return hash.digest('hex');
+};
+
 const generatedOutputIsCurrent = (hash) => {
   if (!generatedFiles.every(existsSync) || !existsSync(buildManifest)) return false;
   try {
@@ -110,7 +123,7 @@ const generatedOutputIsCurrent = (hash) => {
       && manifest.rustTarget === rustTarget
       && generatedFiles.every((file) => {
         const name = file.slice(generatedRoot.length + 1).replaceAll('\\', '/');
-        const outputHash = createHash('sha256').update(readFileSync(file)).digest('hex');
+        const outputHash = generatedOutputHash(file);
         return manifest.outputs?.[name] === outputHash;
       });
   } catch {
@@ -216,7 +229,7 @@ const build = (hash = sourceHash()) => {
     }
     const outputs = Object.fromEntries(generatedFiles.map((file) => [
       file.slice(generatedRoot.length + 1).replaceAll('\\', '/'),
-      createHash('sha256').update(readFileSync(file)).digest('hex')
+      generatedOutputHash(file)
     ]));
     writeFileSync(buildManifest, `${JSON.stringify({
       schemaVersion: 1,
