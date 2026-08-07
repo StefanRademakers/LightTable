@@ -1,6 +1,9 @@
 export const RELEASE_SOAK_PROFILES = Object.freeze({
   ci: Object.freeze({ durationMinutes: 0, maximumCycles: 1, stressIterations: 2 }),
-  local: Object.freeze({ durationMinutes: 60, maximumCycles: Infinity, stressIterations: 3 }),
+  // Six repetitions provide a real stable tail after one mutating warm-up;
+  // three samples are too short to distinguish React/GC oscillation from
+  // monotonic retained growth on large documents.
+  local: Object.freeze({ durationMinutes: 60, maximumCycles: Infinity, stressIterations: 6 }),
   overnight: Object.freeze({ durationMinutes: 12 * 60, maximumCycles: Infinity, stressIterations: 6 })
 });
 

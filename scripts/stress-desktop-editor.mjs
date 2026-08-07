@@ -148,6 +148,10 @@ const collectMetrics = async (window, cdp, iteration) => {
     window.evaluate((includeClassCounts) => {
       const metadata = document.querySelector('.lighttable-toolbar__meta');
       const bodyText = document.body.innerText;
+      const workspace = window.__lightTableAutomation?.queryWorkspace() ?? null;
+      const activeDocument = workspace?.activeDocumentId
+        ? window.__lightTableAutomation?.queryDocument(workspace.activeDocumentId) ?? null
+        : null;
       const classCounts = {};
       if (includeClassCounts) {
         document.querySelectorAll('[class]').forEach((element) => {
@@ -165,6 +169,8 @@ const collectMetrics = async (window, cdp, iteration) => {
         status: document.querySelector('.lighttable-toolbar__status')?.textContent?.trim() ?? '',
         runtimeStopped: /document runtime stopped unexpectedly/i.test(bodyText),
         invalidHookOrder: /hooks conditionally|should have a queue|invalid hook call/i.test(bodyText),
+        history: activeDocument?.history ?? null,
+        rendererGpuBytes: activeDocument?.renderer?.estimatedGpuBytes ?? null,
         environment: {
           userAgent: navigator.userAgent,
           devicePixelRatio: window.devicePixelRatio,
@@ -185,7 +191,9 @@ const collectMetrics = async (window, cdp, iteration) => {
     documents: domCounters.documents,
     domNodes: domCounters.nodes,
     eventListeners: domCounters.jsEventListeners,
-    gpuBytes: gpuBytesFrom(`${runtime.metadata} ${runtime.metadataTitle}`),
+    gpuBytes: Number.isFinite(runtime.rendererGpuBytes)
+      ? runtime.rendererGpuBytes
+      : gpuBytesFrom(`${runtime.metadata} ${runtime.metadataTitle}`),
     ...runtime
   };
 };
@@ -219,7 +227,11 @@ const exerciseDocument = async (window, iteration, actions) => {
   const activeLayerId = await activeLayer.getAttribute('data-layer-id');
 
   if (actionSet.has('layers') || actionSet.has('select') || actionSet.has('visibility')) {
-    const selectedIndex = iteration % baselineLayerCount;
+    // Retention samples must repeat the same workload. Walking a different
+    // layer every iteration measures legitimate lazy UI/resource realization
+    // for previously unseen layer kinds instead of steady-state retention.
+    // Dedicated layer feature smokes own breadth; this soak owns repetition.
+    const selectedIndex = baselineLayerCount > 1 ? 1 : 0;
     const selected = layers.nth(selectedIndex);
     if (actionSet.has('layers') || actionSet.has('select')) {
       await selected.click();
@@ -276,7 +288,12 @@ const exerciseDocument = async (window, iteration, actions) => {
     actions.push({ iteration, action: 'pan-roundtrip' });
   }
 
-  if (!skipPaint && actionSet.has('paint')) {
+  // Exercise the mutating paint/delete route once per fresh application.
+  // Repeating it would intentionally retain full-canvas raster resources in
+  // Undo and turn the stable-tail leak measurement into a history-growth test.
+  // Every soak cycle launches a fresh app, so this route still repeats over
+  // the duration of the soak while later iterations measure steady state.
+  if (!skipPaint && actionSet.has('paint') && iteration === 1) {
     await window.getByRole('button', { name: 'New raster layer' }).click();
     await window.waitForFunction(
       (expected) => document.querySelectorAll('.lighttable-layer').length === expected,
