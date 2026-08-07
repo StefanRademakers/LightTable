@@ -2,6 +2,7 @@ import type { ReferenceDifferenceMetrics } from '../rendering/rendererTypes';
 import type { PsdDecodeSuccess } from '../../image-io/psdProtocol';
 import type { LightTableImageMetadata } from '../../types';
 import type { ImageDocument } from '../../editor/document/documentTypes';
+import { documentBlendProfileDisplayName } from '../../editor/color/documentColorTransform';
 import {
   formatGpuMemory,
   formatStartupTimings,
@@ -64,7 +65,7 @@ const imageMeta = (
   `${metadata.width} × ${metadata.height}`,
   `${Math.round(scale * 100)}%`,
   document
-    ? `RGB / ${document.colorSettings.bitDepth}-bit / ${document.colorSettings.blendProfile === 'adobe-rgb-1998' ? 'Adobe RGB (1998)' : 'sRGB'}${document.colorSettings.profileState === 'assumed' ? ' (assumed)' : ''}`
+    ? `RGB / ${document.colorSettings.bitDepth}-bit / ${documentBlendProfileDisplayName(document.colorSettings.blendProfile)}${document.colorSettings.profileState === 'assumed' ? ' (assumed)' : ''}`
     : null,
   metadata.decoder === 'wasm-vips'
     ? [

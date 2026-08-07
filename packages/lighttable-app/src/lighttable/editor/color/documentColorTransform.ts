@@ -11,6 +11,9 @@ const ADOBE_RGB_GAMMA = 563 / 256;
 
 export interface RgbTriplet { readonly r: number; readonly g: number; readonly b: number }
 
+export const documentBlendProfileDisplayName = (profile: DocumentBlendProfile) =>
+  profile === 'adobe-rgb-1998' ? 'Compatible with Adobe RGB (1998) ICC profile' : 'sRGB';
+
 /**
  * One document-scoped matrix/TRC color transform contract shared by import,
  * semantic colors and the GPU compositor. Canonical storage stays linear sRGB;
