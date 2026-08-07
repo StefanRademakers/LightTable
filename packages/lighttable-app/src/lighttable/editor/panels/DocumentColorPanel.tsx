@@ -1,7 +1,10 @@
 import React from 'react';
 import { ActionButton } from '../../../ui/ActionButton';
 import type { ImageDocument } from '../document/documentTypes';
-import { documentBlendProfileDisplayName } from '../color/documentColorTransform';
+import {
+  documentBlendProfileDescription,
+  documentBlendProfileDisplayName
+} from '../color/documentColorTransform';
 
 export interface DocumentColorPanelProps {
   readonly document: ImageDocument | null;
@@ -38,7 +41,7 @@ export const DocumentColorPanel = ({
               <div><dt>Mode</dt><dd>RGB</dd></div>
               <div><dt>Bit depth</dt><dd>{document.colorSettings.bitDepth} bit/channel</dd></div>
               <div><dt>Working profile</dt><dd>sRGB</dd></div>
-              <div><dt>Blend compatibility</dt><dd>{documentBlendProfileDisplayName(document.colorSettings.blendProfile)}</dd></div>
+              <div><dt>Blend compatibility</dt><dd title={documentBlendProfileDescription(document.colorSettings.blendProfile)}>{documentBlendProfileDisplayName(document.colorSettings.blendProfile)}</dd></div>
               <div><dt>Profile state</dt><dd>{document.colorSettings.profileState}</dd></div>
               <div><dt>Source</dt><dd>{sourceProfileLabel(document)}</dd></div>
               <div><dt>GPU working data</dt><dd>Linear 16-bit float</dd></div>

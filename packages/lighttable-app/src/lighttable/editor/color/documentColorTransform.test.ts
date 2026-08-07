@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  documentBlendProfileDescription,
   documentBlendProfileDisplayName,
   documentBlendProfileFromIccName,
   documentBlendQuantization,
@@ -10,7 +11,9 @@ import {
 describe('document color transform', () => {
   it('uses a referential compatibility label for the third-party profile', () => {
     expect(documentBlendProfileDisplayName('adobe-rgb-1998'))
-      .toBe('Compatible with Adobe RGB (1998) ICC profile');
+      .toBe('Adobe RGB (1998) compatible');
+    expect(documentBlendProfileDescription('adobe-rgb-1998'))
+      .toBe('Compatible with the Adobe RGB (1998) ICC profile');
     expect(documentBlendProfileDisplayName('srgb')).toBe('sRGB');
   });
 

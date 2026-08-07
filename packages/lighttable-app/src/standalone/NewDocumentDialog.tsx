@@ -5,7 +5,10 @@ import { ActionButton } from '../ui/ActionButton';
 import { FormInput } from '../ui/FormInput';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import type { LightTableCreateDocumentOptions } from '../lighttable/application/commands/lightTableCommandService';
-import { documentBlendProfileDisplayName } from '../lighttable/editor/color/documentColorTransform';
+import {
+  documentBlendProfileDescription,
+  documentBlendProfileDisplayName
+} from '../lighttable/editor/color/documentColorTransform';
 
 interface NewDocumentDialogProps {
   readonly open: boolean;
@@ -164,6 +167,7 @@ export function NewDocumentDialog({
           <label>
             <span>Blend compatibility</span>
             <select className="form-input" value={profile}
+              title={documentBlendProfileDescription(profile)}
               onChange={(event) => setProfile(event.currentTarget.value as typeof profile)}>
               <option value="srgb">{documentBlendProfileDisplayName('srgb')}</option>
               <option value="adobe-rgb-1998">{documentBlendProfileDisplayName('adobe-rgb-1998')}</option>
