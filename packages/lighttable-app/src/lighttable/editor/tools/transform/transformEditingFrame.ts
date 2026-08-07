@@ -61,6 +61,7 @@ export const buildTransformEditingFrame = (
     resourceKey: [
       'transform-frame',
       state.layerId,
+      ...Object.values(state.sourceMatrix).map(finite),
       ...Object.values(state.matrix).map(finite),
       ...(state.projectiveQuad ?? []).flatMap((point) => [finite(point.x), finite(point.y)]),
       finite(state.sourceContentBounds.x),

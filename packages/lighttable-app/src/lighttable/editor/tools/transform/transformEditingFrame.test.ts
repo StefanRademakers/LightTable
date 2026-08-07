@@ -40,6 +40,29 @@ describe('buildTransformEditingFrame', () => {
     expect(frame.edges).toHaveLength(5);
     expect(frame.edges[4]?.start).toEqual({ x: 45, y: 47 });
   });
+
+  it('invalidates the GPU overlay cache when the layer transform changes', () => {
+    const state: TransformSessionState = {
+      layerId: 'layer-1' as LayerId,
+      sourceBounds: { x: 0, y: 0, width: 40, height: 30 },
+      supportBounds: { x: 0, y: 0, width: 40, height: 30 },
+      sourceContentBounds: { x: 0, y: 0, width: 40, height: 30 },
+      sourceMatrix: translationMatrix(10, 20),
+      matrix: translationMatrix(0, 0),
+      projectiveQuad: null,
+      sourceKind: 'layer',
+      previewKind: 'raster'
+    };
+
+    const first = buildTransformEditingFrame(state, 1);
+    const moved = buildTransformEditingFrame({
+      ...state,
+      sourceMatrix: translationMatrix(35, 55)
+    }, 1);
+
+    expect(moved.resourceKey).not.toBe(first.resourceKey);
+    expect(moved.bounds).toEqual({ x: 35, y: 55, width: 40, height: 30 });
+  });
 });
 
 describe('transformCornerRotationTargets', () => {
