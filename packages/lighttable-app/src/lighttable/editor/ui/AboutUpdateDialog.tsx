@@ -29,10 +29,10 @@ export const AboutUpdateDialog: React.FC<{
   if (!open) return null;
   const downloaded = update?.status === 'downloaded' ? update : null;
   return createPortal(
-    <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop lighttable-dialog-backdrop" onMouseDown={onClose}>
       <section
         ref={dialogRef}
-        className="lighttable-psd-report lighttable-about"
+        className="modal lighttable-about"
         role="dialog"
         aria-modal="true"
         aria-label="About LightTable"
@@ -41,9 +41,8 @@ export const AboutUpdateDialog: React.FC<{
         onKeyDown={onDialogKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="lighttable-psd-report__header">
-          <div><h2>LightTable</h2><p>Desktop release and update status</p></div>
-          <ActionButton onClick={onClose}>Close</ActionButton>
+        <header className="modal__header lighttable-about__header">
+          <div><h2 className="modal__title">LightTable</h2><p>Desktop release and update status</p></div>
         </header>
         <div className="lighttable-about__body">
           <dl>
@@ -62,6 +61,12 @@ export const AboutUpdateDialog: React.FC<{
                     : <p>{'message' in update ? update.message : 'No update is available.'}</p>}
             </div>
           ) : null}
+          {!release ? <p className="muted">Updates are unavailable in this host.</p> : null}
+          {downloaded && !downloaded.canInstall ? (
+            <p className="muted">The update was verified, but this build has no production installer provider.</p>
+          ) : null}
+        </div>
+        <footer className="modal__footer lighttable-about__footer">
           <div className="lighttable-about__actions">
             <ActionButton
               disabled={checking || !release}
@@ -79,11 +84,8 @@ export const AboutUpdateDialog: React.FC<{
               >Restart to update</ActionButton>
             ) : null}
           </div>
-          {!release ? <p>Updates are unavailable in this host.</p> : null}
-          {downloaded && !downloaded.canInstall ? (
-            <p>The update was verified, but this build has no production installer provider.</p>
-          ) : null}
-        </div>
+          <ActionButton onClick={onClose}>Close</ActionButton>
+        </footer>
       </section>
     </div>,
     document.body

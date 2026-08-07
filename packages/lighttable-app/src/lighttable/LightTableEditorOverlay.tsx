@@ -323,8 +323,12 @@ export interface LightTableEditorOverlayProps {
   }>;
   onActivateWorkspaceDocument?: (documentId: string) => void;
   onCloseWorkspaceDocument?: (documentId: string) => void;
-  onRequestNewWorkspaceDocument?: () => void; onStartGuidedSample?: () => void; onOpenSettings?: () => void;
-  onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void; onRequestPlaceWorkspaceArtifact?: (documentId: string) => Promise<void> | void;
+  onRequestNewWorkspaceDocument?: () => void;
+  onStartGuidedSample?: () => void;
+  onOpenSettings?: () => void;
+  onOpenStyleGuide?: () => void;
+  onRequestOpenWorkspaceDocument?: (decodeMode: DocumentOpenMode) => Promise<void> | void;
+  onRequestPlaceWorkspaceArtifact?: (documentId: string) => Promise<void> | void;
   recentFiles?: readonly LightTableRecentFile[];
   onOpenRecentWorkspaceDocument?: (id: string) => Promise<void> | void;
   onClearRecentWorkspaceDocuments?: () => Promise<void> | void;
@@ -372,8 +376,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   workspaceDocuments,
   onActivateWorkspaceDocument,
   onCloseWorkspaceDocument,
-  onRequestNewWorkspaceDocument, onStartGuidedSample, onOpenSettings,
-  onRequestOpenWorkspaceDocument, onRequestPlaceWorkspaceArtifact,
+  onRequestNewWorkspaceDocument,
+  onStartGuidedSample,
+  onOpenSettings,
+  onOpenStyleGuide,
+  onRequestOpenWorkspaceDocument,
+  onRequestPlaceWorkspaceArtifact,
   recentFiles = [],
   onOpenRecentWorkspaceDocument,
   onClearRecentWorkspaceDocuments,
@@ -3541,8 +3549,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     workspace: {
       showDebugPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.debug),
+      openStyleGuide: onOpenStyleGuide,
       toggleScreenMode,
-      resetLayout: () => workspaceRef.current?.resetLayout(), startGuidedSample: onStartGuidedSample, openSettings: onOpenSettings
+      resetLayout: () => workspaceRef.current?.resetLayout(),
+      startGuidedSample: onStartGuidedSample,
+      openSettings: onOpenSettings
     }
   });
   const createAppMenuOptions = editorMenuController.optionsFor;

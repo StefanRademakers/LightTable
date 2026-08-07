@@ -91,6 +91,23 @@ domain-specific ramp and draggable stops; its buttons, colors and numeric
 controls compose `ActionButton`, `PanelColorField` and `PanelNumberSlider`.
 A gradient feature must not add private range, button or swatch styling.
 
+The live catalog is available from **View > UI Style Guide...**. It uses the
+production components themselves and groups them into Typography, Actions,
+Inputs, Paint, Panel controls and Dialogs. Actions execute commands; persistent
+choices such as checkboxes, switches and segmented controls belong to Inputs.
+Every new shared control or canonical dialog
+composition must be added there. The catalog is also a visual regression target:
+it documents heading/body/help/error hierarchy, control states, keyboard focus,
+and the standard dialog order of header, content, then right-aligned secondary
+and primary actions.
+
+The first combined catalog review exposed a remaining typography-system gap:
+panel titles, section headings and control-group headings are not yet distinct
+enough, while ordinary documentation text is often too heavy. A focused token
+pass must rationalize those roles and then audit existing screens against the
+catalog; feature-local font-size or font-weight fixes are not an acceptable
+substitute.
+
 The repeatable `npm run audit:desktop:panel-language:build` matrix checks compact
 and wide windows at 100% and 200% device scale against a nested PSD. It asserts
 square bounded thumbnails, aspect containment, fixed tree width, visible

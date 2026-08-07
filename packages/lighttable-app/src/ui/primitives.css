@@ -37,7 +37,7 @@
   width: 100%;
   min-height: 36px;
   padding: 8px 12px;
-  border: 0;
+  border: 1px solid var(--lt-control-border);
   border-radius: var(--lt-radius-lg);
   background: var(--lt-surface-control);
   color: var(--color-text);
@@ -953,8 +953,38 @@ select.form-input {
 .lighttable-preferences__option .switch-control { flex: 0 0 auto; margin-top: 1px; }
 .lighttable-preferences .lighttable-agent-settings__body { padding: 18px 0 0; }
 .lighttable-preferences__footer { flex: 0 0 auto; padding: 6px; border-top: 1px solid var(--lt-border-subtle); }
+.lighttable-ui-guide { width: min(1120px, calc(100vw - 32px)); height: min(780px, calc(100vh - 32px)); }
+.lighttable-ui-guide__content .lighttable-preferences__page-title p { margin: 6px 0 0; color: var(--color-text-muted); }
+.lighttable-ui-guide__samples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.lighttable-ui-guide__sample { min-width: 0; padding: 16px; border: 1px solid var(--lt-border-subtle); background: var(--lt-surface-panel-subtle); }
+.lighttable-ui-guide__sample h5 { margin: 0 0 14px; font-size: var(--lt-type-body); }
+.lighttable-ui-guide__sample-content { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 10px; }
+.lighttable-ui-guide__sample-content > .lighttable-style-field,
+.lighttable-ui-guide__sample-content > .lighttable-style-angle,
+.lighttable-ui-guide__sample-content > .lighttable-style-advanced { width: 100%; }
+.lighttable-ui-guide__sample-content > span { color: var(--color-text-muted); font-size: var(--lt-type-small); }
+.lighttable-ui-guide__type-stack { display: grid; gap: 10px; width: 100%; }
+.lighttable-ui-guide__type-stack > * { margin: 0; }
+.lighttable-ui-guide__type-stack h1 { font-size: var(--lt-type-title); }
+.lighttable-ui-guide__type-stack h2 { font-size: var(--lt-type-heading); }
+.lighttable-ui-guide__type-stack h3,
+.lighttable-ui-guide__type-stack h4 { font-size: var(--lt-type-body); }
+.lighttable-ui-guide__body-large { font-size: var(--lt-type-body-large); }
+.lighttable-ui-guide__field-stack { display: grid; gap: 12px; width: 100%; }
+.lighttable-ui-guide__field-stack label,
+.lighttable-ui-guide__dialog-field { display: grid; gap: 6px; color: var(--color-text-muted); }
+.lighttable-ui-guide__dialog-specimen { width: 100%; max-height: none; overflow: visible; }
+.lighttable-ui-guide__dialog-specimen > p { margin: 0; color: var(--color-text-muted); line-height: 1.45; }
+.lighttable-ui-guide__dialog-specimen .modal__footer { padding-top: 4px; }
+.lighttable-ui-guide__dialog-specimen .modal__header p { margin: 5px 0 0; }
+.lighttable-ui-guide__definition-list { display: grid; gap: 6px; margin: 0; }
+.lighttable-ui-guide__definition-list div { display: grid; grid-template-columns: 90px 1fr; gap: 12px; }
+.lighttable-ui-guide__definition-list dt { color: var(--color-text-muted); }
+.lighttable-ui-guide__definition-list dd { margin: 0; }
+.lighttable-ui-guide__split-footer { justify-content: space-between; }
 @media (max-width: 620px) {
   .lighttable-preferences__layout { grid-template-columns: 125px minmax(0, 1fr); }
   .lighttable-preferences__content { padding: 18px; }
   .lighttable-preferences__fields > label { grid-template-columns: 1fr; gap: 7px; }
+  .lighttable-ui-guide__samples { grid-template-columns: 1fr; }
 }

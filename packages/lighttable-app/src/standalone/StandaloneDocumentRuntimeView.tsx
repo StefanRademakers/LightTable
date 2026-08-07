@@ -46,6 +46,7 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onRequestNew: () => void;
   readonly onStartGuidedSample?: () => void;
   readonly onOpenSettings?: () => void;
+  readonly onOpenStyleGuide?: () => void;
   readonly preferences: ApplicationPreferences;
   readonly onOpen: (
     file: File,
@@ -81,6 +82,7 @@ export function StandaloneDocumentRuntimeView({
   onRequestNew,
   onStartGuidedSample,
   onOpenSettings,
+  onOpenStyleGuide,
   preferences,
   onOpen,
   onRecoveryResolved
@@ -144,6 +146,7 @@ export function StandaloneDocumentRuntimeView({
         onRequestNewWorkspaceDocument={onRequestNew}
         onStartGuidedSample={onStartGuidedSample}
         onOpenSettings={onOpenSettings}
+        onOpenStyleGuide={onOpenStyleGuide}
         onOpenWorkspaceDocument={onOpen}
         onDocumentReady={() => {
           if (session.getSnapshot().lifecycle !== 'ready') session.setReady();

@@ -13,8 +13,8 @@ components under `src/ui`, `src/lighttable/editor/ui/ToolOptionControls.tsx` and
   radius, typography, focus, hover, active or disabled language.
 - If a required control does not exist, add one generic primitive under
   `src/ui`, test all relevant states, and use that primitive from the feature.
-- A new shared control must also be represented in the UI Style Guide/catalog
-  once that catalog exists.
+- A new shared control or canonical dialog composition must also be represented
+  in the live **View > UI Style Guide...** catalog.
 - Do not add a raw private `input[type=range]`, dropdown, button skin, switch or
   paint field when an existing LightTable primitive covers the interaction.
 - Validate UI changes with the relevant desktop smoke/audit at production

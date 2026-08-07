@@ -85,6 +85,8 @@
     "smoke:desktop:zoom:build": "npm run package:desktop:verify && npm run smoke:desktop:zoom --",
     "smoke:desktop:screen-modes": "node scripts/smoke-desktop-screen-modes.mjs",
     "smoke:desktop:screen-modes:build": "npm run package:desktop:verify && npm run smoke:desktop:screen-modes --",
+    "smoke:desktop:ui-style-guide": "node scripts/smoke-desktop-ui-style-guide.mjs",
+    "smoke:desktop:ui-style-guide:build": "npm run package:desktop:verify && npm run smoke:desktop:ui-style-guide --",
     "smoke:desktop:line-tool": "node scripts/smoke-desktop-line-tool.mjs",
     "smoke:desktop:line-tool:build": "npm run package:desktop:verify && npm run smoke:desktop:line-tool --",
     "smoke:desktop:shape-geometry": "node scripts/smoke-desktop-shape-geometry.mjs",

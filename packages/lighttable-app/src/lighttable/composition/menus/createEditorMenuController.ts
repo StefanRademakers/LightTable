@@ -72,6 +72,7 @@ export interface EditorMenuControllerOptions {
   };
   readonly workspace: {
     showDebugPanel(): void;
+    openStyleGuide?(): void;
     toggleScreenMode(): void;
     resetLayout(): void;
     startGuidedSample?(): void;
@@ -198,6 +199,7 @@ export const createEditorMenuController = ({
         viewport.setShowDifference((current) => !current);
       },
       showDebugPanel: workspace.showDebugPanel,
+      openStyleGuide: workspace.openStyleGuide,
       toggleScreenMode: workspace.toggleScreenMode,
       resetWorkspaceLayout: workspace.resetLayout,
       startGuidedSample: workspace.startGuidedSample,

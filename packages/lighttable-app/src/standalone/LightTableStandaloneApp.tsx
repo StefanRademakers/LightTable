@@ -40,6 +40,7 @@ import {
   type GuidedSampleSession
 } from './GuidedSampleCoach';
 import { PreferencesDialog } from './PreferencesDialog';
+import { UiStyleGuideDialog } from './UiStyleGuideDialog';
 import {
   DEFAULT_APPLICATION_PREFERENCES,
   loadApplicationPreferences,
@@ -237,6 +238,7 @@ export function LightTableStandaloneApp({
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [styleGuideOpen, setStyleGuideOpen] = useState(false);
   const [preferences, setPreferences] = useState(() => typeof localStorage === 'undefined'
     ? DEFAULT_APPLICATION_PREFERENCES
     : loadApplicationPreferences());
@@ -719,6 +721,7 @@ export function LightTableStandaloneApp({
             setPreferences(next);
             setSettingsOpen(false);
           }} />
+        <UiStyleGuideDialog open={styleGuideOpen} onClose={() => setStyleGuideOpen(false)} />
       </main>
     );
   }
@@ -762,6 +765,7 @@ export function LightTableStandaloneApp({
           onRequestNew={requestNewDocument}
           onStartGuidedSample={() => void startGuidedSample()}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenStyleGuide={() => setStyleGuideOpen(true)}
           preferences={preferences}
           onOpen={openDocument}
           onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
@@ -780,6 +784,7 @@ export function LightTableStandaloneApp({
           setPreferences(next);
           setSettingsOpen(false);
         }} />
+      <UiStyleGuideDialog open={styleGuideOpen} onClose={() => setStyleGuideOpen(false)} />
       {guidedSample ? (
         <GuidedSampleCoach
           session={guidedSample}

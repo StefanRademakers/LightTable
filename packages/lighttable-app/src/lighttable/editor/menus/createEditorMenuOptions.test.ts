@@ -235,11 +235,12 @@ describe('createEditorMenuOptions', () => {
   });
 
   it('keeps view state mutually represented in its labels', () => {
+    const menuCommands = commands();
     const options = createEditorMenuOptions(
       'view',
       state({ zoomMode: '100', showOriginal: true, showDifference: false }),
       labels,
-      commands()
+      menuCommands
     );
 
     expect(options.find((option) => option.value === 'actual-size')?.label).toBe('100% (current)');
@@ -248,5 +249,9 @@ describe('createEditorMenuOptions', () => {
     expect(options.find((option) => option.value === 'show-original')?.label).toBe('Show corrected');
     expect(options.find((option) => option.value === 'toggle-screen-mode'))
       .toMatchObject({ label: 'Toggle screen mode', shortcut: 'F' });
+    expect(options.find((option) => option.value === 'ui-style-guide'))
+      .toMatchObject({ label: 'UI Style Guide...' });
+    options.find((option) => option.value === 'ui-style-guide')?.onClick?.();
+    expect(menuCommands.openStyleGuide).toHaveBeenCalledOnce();
   });
 });

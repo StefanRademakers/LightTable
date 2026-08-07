@@ -98,6 +98,7 @@ export interface EditorMenuCommands {
   toggleDifference: () => void;
   toggleScreenMode: () => void;
   showDebugPanel: () => void;
+  openStyleGuide?: () => void;
   resetWorkspaceLayout: () => void;
   openAbout?: () => void;
   openCommandHelp?: () => void;
@@ -512,6 +513,11 @@ export const createEditorMenuOptions = (
       label: 'Debug panel',
       separatorBefore: true,
       onClick: commands.showDebugPanel
+    },
+    {
+      value: 'ui-style-guide',
+      label: 'UI Style Guide...',
+      onClick: commands.openStyleGuide
     },
     {
       value: 'toggle-screen-mode',
