@@ -392,8 +392,16 @@ export const useViewportInteractionController = ({
         const deltaMultiplier = event.deltaMode === 1
           ? 16
           : event.deltaMode === 2 ? viewportSize.height : 1;
-        const pendingPan = panFrameRef.current?.pending();
-        const basePan = pendingPan ?? { panX: view.panX, panY: view.panY };
+        // Leaving fit/100% mode must preserve the effective scale. Publishing
+        // only panX/panY here would revive the stale custom scale on the next
+        // render, which makes horizontal wheel input appear to snap or stall.
+        setZoomMode('custom');
+        const pendingView = zoomFrameRef.current?.pending();
+        const baseView = pendingView ?? {
+          scale: activeScale,
+          panX: view.panX,
+          panY: view.panY
+        };
         const nativeWheel = event.nativeEvent as globalThis.WheelEvent & {
           readonly wheelDeltaX?: number;
         };
@@ -403,12 +411,13 @@ export const useViewportInteractionController = ({
           legacyWheelDeltaX: nativeWheel.wheelDeltaX,
           shiftKey: event.shiftKey
         });
-        panFrameRef.current?.schedule(panViewFromWheel({
-          initialView: basePan,
+        const pan = panViewFromWheel({
+          initialView: baseView,
           deltaX: wheelDelta.deltaX,
           deltaY: wheelDelta.deltaY,
           deltaMultiplier
-        }));
+        });
+        zoomFrameRef.current?.schedule({ ...baseView, ...pan });
         return;
       }
       const bounds = event.currentTarget.getBoundingClientRect();
