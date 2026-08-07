@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { cloneGradientPaint } from '@lighttable/paint-core';
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
@@ -2033,6 +2034,34 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       (style) => patchVectorStyle(style, change)
     );
   };
+  const updateGradientSettings = (change: Partial<EditorSession['gradient']>) => {
+    const paintChange = change.paint;
+    setEditorSession((current) => ({
+      ...current,
+      gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }
+    }));
+    if (!paintChange
+      || editorSession.activeTool !== 'gradient'
+      || gradientToolSettings.application !== 'fill-layer') return;
+    const reference = editorSession.vectorSelection.elements[0];
+    const activeGradientLayer = reference && imageDocument?.activeLayerId === reference.layerId
+      ? findDocumentLayer(imageDocument, reference.layerId)
+      : null;
+    if (activeGradientLayer?.type !== 'vector'
+      || activeGradientLayer.role !== 'gradient-fill') return;
+    vectorToolSessionController.editSelectedElementStyles((style) => {
+      const fill = style.fill;
+      if (!fill || !('kind' in fill)) return style;
+      return {
+        ...style,
+        fill: {
+          ...cloneGradientPaint(paintChange),
+          coordinateSpace: fill.coordinateSpace,
+          transform: { ...fill.transform }
+        }
+      };
+    });
+  };
   const updateSelectedShapeGeometry = (change: Partial<EditorSession['shape']>) => {
     vectorToolSessionController.editSelectedLiveShapes((shape) => {
       if (shape.geometry.kind === 'rectangle') {
@@ -3961,10 +3990,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ? activeTextPropertyLayer.text.warp ?? null
         : undefined}
       onBrushChange={updateBrush}
-      onGradientChange={(change) => setEditorSession((current) => ({
-        ...current,
-        gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }
-      }))}
+      onGradientChange={updateGradientSettings}
       onShapeChange={(change) => setEditorSession((current) => ({
         ...current, shape: { ...current.shape, ...change }
       }))}

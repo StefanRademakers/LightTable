@@ -173,6 +173,20 @@ try {
     })}`);
   }
 
+  await page.getByRole('combobox', { name: 'Gradient type' }).selectOption('radial');
+  await captureHistory('active-gradient-type-changed');
+  const typeChanged = await driver.queryDocument(documentId);
+  if (!typeChanged
+    || typeChanged.layerCount !== after.layerCount
+    || typeChanged.activeLayerId !== after.activeLayerId
+    || typeChanged.history.undoDepth !== after.history.undoDepth + 1) {
+    throw new Error(`Changing Gradient Type did not update the active fill layer: ${JSON.stringify({
+      after,
+      typeChanged,
+      historyCheckpoints
+    })}`);
+  }
+
   const editStart = { x: bounds.x + bounds.width * 0.24, y: bounds.y + bounds.height * 0.30 };
   const editEnd = { x: bounds.x + bounds.width * 0.62, y: bounds.y + bounds.height * 0.30 };
   await page.mouse.move(editStart.x, editStart.y);
@@ -182,9 +196,9 @@ try {
   await captureHistory('active-gradient-edited');
   const edited = await driver.queryDocument(documentId);
   if (!edited
-    || edited.layerCount !== after.layerCount
-    || edited.activeLayerId !== after.activeLayerId
-    || edited.history.undoDepth !== after.history.undoDepth + 1) {
+    || edited.layerCount !== typeChanged.layerCount
+    || edited.activeLayerId !== typeChanged.activeLayerId
+    || edited.history.undoDepth !== typeChanged.history.undoDepth + 1) {
     throw new Error(`A second Gradient-tool drag did not edit the active fill in place: ${JSON.stringify({
       after,
       edited,
@@ -198,8 +212,13 @@ try {
   await gradientButton.waitFor({ state: 'visible' });
   await page.keyboard.press('Control+z');
   const editUndone = await driver.queryDocument(documentId);
-  if (!editUndone || editUndone.layerCount !== after.layerCount) {
+  if (!editUndone || editUndone.layerCount !== typeChanged.layerCount) {
     throw new Error('Ctrl+Z did not undo the in-place gradient edit first.');
+  }
+  await page.keyboard.press('Control+z');
+  const typeUndone = await driver.queryDocument(documentId);
+  if (!typeUndone || typeUndone.layerCount !== after.layerCount) {
+    throw new Error('Ctrl+Z did not undo the Gradient Type change second.');
   }
   await page.keyboard.press('Control+z');
   const undone = await driver.queryDocument(documentId);
