@@ -2563,6 +2563,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const desktopHorizontalWheelRef = useRef(viewportInteraction.onHorizontalWheel);
   desktopHorizontalWheelRef.current = viewportInteraction.onHorizontalWheel;
+  const wheelInputProbeCountRef = useRef(0);
 
   useEffect(() => {
     const onDesktopHorizontalWheel = (event: Event) => {
@@ -2579,6 +2580,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const bounds = viewport.getBoundingClientRect();
       if (detail.clientX! < bounds.left || detail.clientX! > bounds.right
         || detail.clientY! < bounds.top || detail.clientY! > bounds.bottom) return;
+      if (wheelInputProbeCountRef.current < 20) {
+        wheelInputProbeCountRef.current += 1;
+        appendDebugMessage(
+          'info',
+          'Viewport input',
+          'Electron horizontal wheel bridge received.',
+          `sample=${wheelInputProbeCountRef.current} deltaX=${detail.deltaX} `
+            + `client=(${detail.clientX},${detail.clientY})`
+        );
+      }
       desktopHorizontalWheelRef.current({ deltaX: detail.deltaX! });
     };
     window.addEventListener('lighttable:desktop-horizontal-wheel', onDesktopHorizontalWheel);
@@ -2586,7 +2597,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       'lighttable:desktop-horizontal-wheel',
       onDesktopHorizontalWheel
     );
-  }, [active]);
+  }, [active, appendDebugMessage]);
 
   useEffect(() => {
     if (!active || (toolPreferences?.zoomWithScrollWheel ?? true)) return undefined;
@@ -2604,8 +2615,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const viewport = viewportRef.current;
       if (!viewport) return;
       const bounds = viewport.getBoundingClientRect();
-      if (event.clientX < bounds.left || event.clientX > bounds.right
-        || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
+      const insideViewport = event.clientX >= bounds.left && event.clientX <= bounds.right
+        && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+      if (insideViewport && wheelInputProbeCountRef.current < 20) {
+        wheelInputProbeCountRef.current += 1;
+        const legacyWheel = event as globalThis.WheelEvent & {
+          readonly wheelDeltaX?: number;
+          readonly wheelDeltaY?: number;
+        };
+        appendDebugMessage(
+          'info',
+          'Viewport input',
+          'Renderer wheel event captured.',
+          `sample=${wheelInputProbeCountRef.current} delta=(${event.deltaX},${event.deltaY}) `
+            + `legacy=(${legacyWheel.wheelDeltaX ?? 0},${legacyWheel.wheelDeltaY ?? 0}) `
+            + `resolved=(${wheelDelta.deltaX},${wheelDelta.deltaY}) mode=${event.deltaMode} `
+            + `shift=${event.shiftKey} ctrl=${event.ctrlKey} meta=${event.metaKey} `
+            + `trusted=${event.isTrusted} target=${event.target instanceof Element
+              ? event.target.className : 'unknown'}`
+        );
+      }
+      if (!insideViewport) return;
       event.preventDefault();
       desktopHorizontalWheelRef.current(wheelDelta);
     };
@@ -2614,7 +2644,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       passive: false
     });
     return () => window.removeEventListener('wheel', onRendererWheelCapture, true);
-  }, [active, toolPreferences?.zoomWithScrollWheel]);
+  }, [active, appendDebugMessage, toolPreferences?.zoomWithScrollWheel]);
 
   const applyDocumentChange = (
     change: (current: ImageDocument) => ImageDocument,

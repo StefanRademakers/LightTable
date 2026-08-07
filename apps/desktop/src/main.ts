@@ -351,9 +351,24 @@ async function createWindow(): Promise<void> {
   mainWindow = window;
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  let wheelProbeCount = 0;
   window.webContents.on('before-mouse-event', (event, mouse) => {
     if (mouse.type !== 'mouseWheel') return;
     const wheel = mouse as Electron.MouseWheelInputEvent;
+    if (!app.isPackaged && wheelProbeCount < 20) {
+      wheelProbeCount += 1;
+      console.info('[LightTable desktop wheel input]', {
+        sample: wheelProbeCount,
+        x: wheel.x,
+        y: wheel.y,
+        deltaX: wheel.deltaX ?? 0,
+        deltaY: wheel.deltaY ?? 0,
+        wheelTicksX: wheel.wheelTicksX ?? 0,
+        wheelTicksY: wheel.wheelTicksY ?? 0,
+        precise: wheel.hasPreciseScrollingDeltas ?? false,
+        modifiers: wheel.modifiers ?? []
+      });
+    }
     const deltaX = wheel.deltaX ?? 0;
     const wheelTicksX = wheel.wheelTicksX ?? 0;
     if (deltaX === 0 && wheelTicksX === 0) return;
