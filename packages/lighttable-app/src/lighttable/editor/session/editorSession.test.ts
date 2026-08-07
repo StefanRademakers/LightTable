@@ -13,6 +13,16 @@ describe('LightTable editor session', () => {
     expect(session.selectionColumnWidth).toBe(1);
   });
 
+  it('starts Magic Wand with Photoshop-style authoring defaults', () => {
+    expect(createEditorSession().magicWand).toEqual({
+      sampleSize: 1,
+      tolerance: 20,
+      antiAlias: true,
+      contiguous: true,
+      sampleAllLayers: false
+    });
+  });
+
   it('starts the shared paint and erase brush at five percent spacing', () => {
     expect(createEditorSession().brush.spacing).toBe(0.05);
   });

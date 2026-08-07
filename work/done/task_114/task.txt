@@ -1,0 +1,9 @@
+Read the available `magic_wand_gpu_agent.md` document in this directory for the task.
+
+## LightTable tool integration
+
+- Place Magic Wand in the existing selection-tool subgroup/flyout. It must use
+  the same remembered active-tool behavior, mouse-down flyout behavior and
+  selected-state styling as the other selection tools.
+- `W` belongs to Magic Wand. Warp deliberately has no shortcut; do not
+  register an ambiguous duplicate binding.

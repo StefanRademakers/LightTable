@@ -37,6 +37,7 @@ export interface LightTableEditorShellProps {
   selectionCombineMode: EditorSession['selectionCombineMode'];
   selectionRowHeight: number;
   selectionColumnWidth: number;
+  magicWand: EditorSession['magicWand'];
   zoomPercent: number;
   transformState?: TransformSessionState | null;
   textWarp?: TextWarp | null;
@@ -68,6 +69,7 @@ export interface LightTableEditorShellProps {
   onSelectionCombineModeChange: (mode: EditorSession['selectionCombineMode']) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
+  onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
   onTransformChange?: (matrix: AffineMatrix) => void;
@@ -124,6 +126,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectionCombineMode,
   selectionRowHeight,
   selectionColumnWidth,
+  magicWand,
   zoomPercent,
   transformState,
   textWarp,
@@ -155,6 +158,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onSelectionCombineModeChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
+  onMagicWandChange,
   onZoomPreset,
   onZoomFit,
   onTransformChange,
@@ -219,6 +223,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectionCombineMode={selectionCombineMode}
         selectionRowHeight={selectionRowHeight}
         selectionColumnWidth={selectionColumnWidth}
+        magicWand={magicWand}
         zoomPercent={zoomPercent}
         transformState={transformState}
         textWarp={textWarp}
@@ -250,6 +255,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectionCombineModeChange={onSelectionCombineModeChange}
         onSelectionRowHeightChange={onSelectionRowHeightChange}
         onSelectionColumnWidthChange={onSelectionColumnWidthChange}
+        onMagicWandChange={onMagicWandChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}
         onTransformChange={onTransformChange}

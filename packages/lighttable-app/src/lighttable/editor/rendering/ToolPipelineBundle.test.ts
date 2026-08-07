@@ -21,17 +21,20 @@ describe('toolPipelinesFor', () => {
     let pipelineId = 0;
     const createShaderModule = vi.fn(() => ({}));
     const createRenderPipeline = vi.fn(() => ({ id: ++pipelineId }));
+    const createComputePipeline = vi.fn(() => ({ id: ++pipelineId }));
     const device = {
       createShaderModule,
-      createRenderPipeline
+      createRenderPipeline,
+      createComputePipeline
     } as unknown as GPUDevice;
 
     const first = toolPipelinesFor(device);
     const second = toolPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(24);
-    expect(Object.keys(first)).toHaveLength(24);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(25);
+    expect(createComputePipeline).toHaveBeenCalledTimes(4);
+    expect(Object.keys(first)).toHaveLength(29);
     const calls = createRenderPipeline.mock.calls as unknown as [GPURenderPipelineDescriptor][];
     const descriptor = (label: string) => calls
       .map(([value]) => value)
@@ -54,7 +57,8 @@ describe('toolPipelinesFor', () => {
   it('does not share pipelines across GPU devices', () => {
     const device = () => ({
       createShaderModule: vi.fn(() => ({})),
-      createRenderPipeline: vi.fn(() => ({}))
+      createRenderPipeline: vi.fn(() => ({})),
+      createComputePipeline: vi.fn(() => ({}))
     }) as unknown as GPUDevice;
 
     expect(toolPipelinesFor(device())).not.toBe(toolPipelinesFor(device()));

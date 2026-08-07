@@ -3,7 +3,7 @@ import {
   type SelectionCombineMode,
   type SelectionPoint,
   type SelectionShape,
-  type SelectionToolId
+  type GeometricSelectionToolId
 } from '../../selection/selectionTypes';
 import { selectionKindForTool } from '../toolCapabilities';
 
@@ -85,7 +85,7 @@ export class SelectionGestureController {
 
   begin(
     pointerId: number,
-    tool: SelectionToolId,
+    tool: GeometricSelectionToolId,
     point: SelectionPoint,
     mode: SelectionCombineMode,
     stripOptions?: SelectionStripOptions

@@ -569,6 +569,21 @@ export const useViewportInteractionController = ({
       if (
         intent === 'selection'
         && point
+        && activeTool === 'select-magic-wand'
+      ) {
+        const selectionCombineMode = resolveSelectionCombineMode(
+          editorSession.selectionCombineMode,
+          event.shiftKey,
+          event.altKey
+        );
+        if (selection.magicWand(point, selectionCombineMode, editorSession.magicWand)) {
+          event.preventDefault();
+        }
+        return;
+      }
+      if (
+        intent === 'selection'
+        && point
         && activeTool === 'select-polygonal'
       ) {
         const selectionCombineMode = resolveSelectionCombineMode(
@@ -587,7 +602,12 @@ export const useViewportInteractionController = ({
         }
         return;
       }
-      if (intent === 'selection' && point && isSelectionTool(activeTool)) {
+      if (
+        intent === 'selection'
+        && point
+        && isSelectionTool(activeTool)
+        && activeTool !== 'select-magic-wand'
+      ) {
         const selectionCombineMode = resolveSelectionCombineMode(
           editorSession.selectionCombineMode,
           event.shiftKey,

@@ -43,6 +43,7 @@ const renderOptions = (
     selectionCombineMode: session.selectionCombineMode,
     selectionRowHeight: rowHeight,
     selectionColumnWidth: columnWidth,
+    magicWand: session.magicWand,
     zoomPercent: 100,
     transformState,
     textWarp,
@@ -70,6 +71,7 @@ const renderOptions = (
     onSelectionCombineModeChange: vi.fn(),
     onSelectionRowHeightChange: vi.fn(),
     onSelectionColumnWidthChange: vi.fn(),
+    onMagicWandChange: vi.fn(),
     onZoomPreset: vi.fn(),
     onZoomFit: vi.fn(),
     onTransformChange: vi.fn(),
@@ -272,6 +274,20 @@ describe('vector style tool options', () => {
 });
 
 describe('selection strip tool options', () => {
+  it('surfaces every Magic Wand parameter through shared compact controls', () => {
+    const markup = renderOptions('select-magic-wand');
+    expect(markup).toContain('aria-label="Magic Wand settings"');
+    expect(markup).toContain('aria-label="Magic Wand sample size"');
+    for (const size of [1, 3, 5, 11, 31, 51, 101]) {
+      expect(markup).toContain(`<option value="${size}"`);
+    }
+    expect(markup).toContain('<span>Tolerance</span>');
+    expect(markup).toContain('value="20"');
+    expect(markup).toContain('checked=""/>Anti-alias');
+    expect(markup).toContain('checked=""/>Contiguous');
+    expect(markup).toContain('/>Sample All Layers');
+  });
+
   it('shows a pixel height for horizontal selections', () => {
     const markup = renderOptions('select-horizontal', 3, 7);
     expect(markup).toContain('Horizontal selection');

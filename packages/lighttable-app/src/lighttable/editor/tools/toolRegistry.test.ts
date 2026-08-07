@@ -19,6 +19,7 @@ describe('toolRegistry', () => {
       'select-ellipse',
       'select-free',
       'select-polygonal',
+      'select-magic-wand',
       'select-horizontal',
       'select-vertical'
     ]);
@@ -76,7 +77,8 @@ describe('toolRegistry', () => {
       'select-horizontal',
       'select-vertical',
       'select-free',
-      'select-polygonal'
+      'select-polygonal',
+      'select-magic-wand'
     ];
     expect(new Set(TOOL_DEFINITIONS.map(({ id }) => id))).toEqual(new Set(expected));
     expect(TOOL_DEFINITIONS).toHaveLength(expected.length);
@@ -103,7 +105,8 @@ describe('toolRegistry', () => {
     expect(toolForShortcut('b', false)).toBe('brush');
     expect(toolForShortcut('b', true)).toBe('brush');
     expect(toolForShortcut('v', false)).toBe('transform');
-    expect(toolForShortcut('w', false)).toBe('warp');
+    expect(toolForShortcut('w', false)).toBe('select-magic-wand');
+    expect(toolDefinition('warp').shortcutKey).toBeUndefined();
     expect(toolForShortcut('z', false)).toBe('zoom');
     expect(toolForShortcutCycle('g', 'view', false)).toBe('gradient');
     expect(toolForShortcut('a', false)).toBe('vector-select');

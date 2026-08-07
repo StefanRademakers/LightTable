@@ -24,6 +24,7 @@ import type { PaintChannel } from '../editor/session/editorSession';
 import type { BlendMode } from '../editor/document/blendModes';
 import type {
   CompositeColorChannel,
+  SelectionCombineMode,
   SelectionMode,
   SelectionOperation,
   SelectionShape
@@ -561,6 +562,10 @@ export class WebGpuEngine {
     this.documentRenderer?.preparePaintTool();
   }
 
+  prepareMagicWandTool() {
+    return this.documentRenderer?.prepareMagicWandTool() ?? Promise.resolve();
+  }
+
   /**
    * Keeps direct paint feedback responsive without silently lowering the
    * committed result. Optional analysis and expensive effects enter preview
@@ -850,6 +855,79 @@ export class WebGpuEngine {
     return task;
   }
 
+  private async applyMagicWandNow(operation: SelectionOperation) {
+    const source = operation.source;
+    if (source?.kind !== 'magic-wand' || !this.imageDocument || !this.documentRenderer) {
+      return false;
+    }
+    if (
+      source.documentRevision !== this.imageDocument.revision
+      || !findDocumentLayer(this.imageDocument, source.layerId)
+    ) return false;
+    // Tool activation normally finishes this work while the pointer travels
+    // to the canvas. Awaiting the same isolated promise closes the fast-click
+    // race without compiling a second pipeline set or touching document state.
+    await this.documentRenderer.prepareMagicWandTool();
+    const traceTarget = (
+      globalThis as typeof globalThis & {
+        __LIGHTTABLE_MAGIC_WAND_TRACE__?: Array<{
+          encodeMs: number;
+          gpuCompleteMs: number;
+          width: number;
+          height: number;
+          contiguous: boolean;
+          sampleAllLayers: boolean;
+          mode: SelectionCombineMode;
+        }>;
+      }
+    ).__LIGHTTABLE_MAGIC_WAND_TRACE__;
+    const traceStartedAt = traceTarget ? performance.now() : 0;
+    this.device.pushErrorScope('validation');
+    let changed = false;
+    if (source.options.sampleAllLayers) {
+      this.settleInteractiveRenderQuality();
+      this.renderScheduler.flush();
+      await this.device.queue.onSubmittedWorkDone();
+      const composite = this.imageResources.finalTexture;
+      changed = Boolean(composite) && this.documentRenderer.applyMagicWandToTexture(
+        composite!, source.point, source.options, operation.mode as SelectionCombineMode
+      );
+    } else {
+      changed = this.documentRenderer.applyMagicWandToActiveLayer(
+        this.imageDocument,
+        source.layerId,
+        source.point,
+        source.options,
+        operation.mode as SelectionCombineMode
+      );
+    }
+    const encodedAt = traceTarget ? performance.now() : 0;
+    const validationError = await this.device.popErrorScope();
+    if (validationError) {
+      this.callbacks.onDeviceLost?.(`LightTable Magic Wand validation failed: ${validationError.message}`);
+      return false;
+    }
+    if (traceTarget && changed) {
+      await this.device.queue.onSubmittedWorkDone();
+      traceTarget.push({
+        encodeMs: encodedAt - traceStartedAt,
+        gpuCompleteMs: performance.now() - traceStartedAt,
+        width: this.imageDocument.width,
+        height: this.imageDocument.height,
+        contiguous: source.options.contiguous,
+        sampleAllLayers: source.options.sampleAllLayers,
+        mode: operation.mode as SelectionCombineMode
+      });
+    }
+    return changed;
+  }
+
+  applyMagicWand(operation: SelectionOperation) {
+    const task = this.selectionQueue.then(() => this.applyMagicWandNow(operation));
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {
     const task = this.selectionQueue.then(() => (
       this.documentRenderer?.transformSelection(matrix) ?? false
@@ -905,6 +983,8 @@ export class WebGpuEngine {
             this.imageResources.finalTexture,
             operation.source.channel
           )) return false;
+        } else if (operation.source?.kind === 'magic-wand') {
+          if (!await this.applyMagicWandNow(operation)) return false;
         } else if (operation.mode === 'feather') {
           if (!this.documentRenderer?.featherSelection(operation.amount ?? 0)) return false;
         } else if (operation.mode === 'transform') {

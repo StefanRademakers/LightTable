@@ -24,7 +24,8 @@ const setup = () => {
     replaceSelection: vi.fn(async () => true),
     setSelection: vi.fn(async () => true),
     clearSelection: vi.fn(),
-    transformSelection: vi.fn(async () => true)
+    transformSelection: vi.fn(async () => true),
+    applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true)
   };
   const dependencies: SelectionSessionDependencies = {
     getDocument: () => activeDocument,
@@ -237,5 +238,86 @@ describe('selection session controller', () => {
     expect(state.selection).toHaveLength(1);
     expect(state.history).toHaveLength(1);
     expect(state.controller.polygonActive).toBe(false);
+  });
+
+  it('commits one replayable Magic Wand operation through shared selection history', async () => {
+    const state = setup();
+    expect(state.controller.magicWand(
+      { x: 12.5, y: 8.25 },
+      'replace',
+      { sampleSize: 5, tolerance: 20, antiAlias: true, contiguous: true, sampleAllLayers: false }
+    )).toBe(true);
+    await Promise.resolve();
+
+    expect(state.renderer.applyMagicWand).toHaveBeenCalledOnce();
+    const operation = state.renderer.applyMagicWand.mock.calls[0]![0];
+    expect(operation).toMatchObject({
+      mode: 'replace',
+      source: {
+        kind: 'magic-wand',
+        point: { x: 12.5, y: 8.25 },
+        options: { sampleSize: 5, tolerance: 20, contiguous: true }
+      }
+    });
+    expect(state.selection).toEqual([operation]);
+    expect(state.history).toHaveLength(1);
+
+    await state.history[0]!.undo();
+    await state.history[0]!.redo();
+    expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(1, []);
+    expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(2, [operation]);
+  });
+
+  it('publishes only the newest Magic Wand result while preserving queued add operations', async () => {
+    const state = setup();
+    let resolveFirst!: (applied: boolean) => void;
+    let resolveSecond!: (applied: boolean) => void;
+    state.renderer.applyMagicWand
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => { resolveSecond = resolve; }));
+    const options = {
+      sampleSize: 1 as const,
+      tolerance: 20,
+      antiAlias: true,
+      contiguous: true,
+      sampleAllLayers: false
+    };
+
+    state.controller.magicWand({ x: 10, y: 10 }, 'replace', options);
+    state.controller.magicWand({ x: 20, y: 20 }, 'add', options);
+    resolveFirst(true);
+    await Promise.resolve();
+    expect(state.selection).toEqual([]);
+    resolveSecond(true);
+    await Promise.resolve();
+
+    expect(state.selection).toHaveLength(2);
+    expect(state.selection.map((operation) => operation.source?.kind === 'magic-wand'
+      ? operation.source.point
+      : null)).toEqual([{ x: 10, y: 10 }, { x: 20, y: 20 }]);
+    expect(state.history).toHaveLength(2);
+  });
+
+  it('invalidates and restores the selection when Magic Wand work is cancelled', async () => {
+    const state = setup();
+    let resolveWand!: (applied: boolean) => void;
+    state.renderer.applyMagicWand.mockImplementationOnce(
+      () => new Promise<boolean>((resolve) => { resolveWand = resolve; })
+    );
+    state.controller.magicWand({ x: 10, y: 10 }, 'replace', {
+      sampleSize: 1,
+      tolerance: 20,
+      antiAlias: true,
+      contiguous: true,
+      sampleAllLayers: false
+    });
+
+    state.controller.reset();
+    expect(state.renderer.replaceSelection).toHaveBeenCalledWith([]);
+    resolveWand(true);
+    await Promise.resolve();
+
+    expect(state.selection).toEqual([]);
+    expect(state.history).toEqual([]);
   });
 });

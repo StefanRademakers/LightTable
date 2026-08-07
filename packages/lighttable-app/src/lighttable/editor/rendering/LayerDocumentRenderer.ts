@@ -10,6 +10,9 @@ import type { BrushDab } from '../tools/brush/strokeBuilder';
 import type { PaintChannel } from '../session/editorSession';
 import type {
   CompositeSelectionChannel,
+  MagicWandOptions,
+  SelectionCombineMode,
+  SelectionPoint,
   SelectionMode,
   SelectionShape
 } from '../selection/selectionTypes';
@@ -352,6 +355,10 @@ export class LayerDocumentRenderer {
     this.runtime.rasterPaint.prepareBrushResources();
   }
 
+  prepareMagicWandTool() {
+    return this.runtime.selectionRasterizer.prepareMagicWand();
+  }
+
   beginPixelEdit(layerId: LayerId, channel: PaintChannel) {
     return this.runtime.pixelEditHistory.begin(layerId, channel);
   }
@@ -497,6 +504,38 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.loadColorChannel(source, 'composite');
   }
 
+  applyMagicWandToTexture(
+    source: GPUTexture,
+    point: SelectionPoint,
+    options: MagicWandOptions,
+    mode: SelectionCombineMode
+  ) {
+    return this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
+  }
+
+  applyMagicWandToActiveLayer(
+    document: ImageDocument,
+    layerId: LayerId,
+    point: SelectionPoint,
+    options: MagicWandOptions,
+    mode: SelectionCombineMode
+  ) {
+    const layer = findDocumentLayer(document, layerId);
+    if (!layer) return false;
+    const encoder = this.device.createCommandEncoder({
+      label: 'LightTable isolate active layer for Magic Wand'
+    });
+    const source = this.encodeComposite(encoder, {
+      ...document,
+      layers: [layer],
+      activeLayerId: layer.id
+    });
+    this.device.queue.submit([encoder.finish()]);
+    const applied = this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
+    this.releaseSubmittedResources();
+    return applied;
+  }
+
   setSelection(shape: SelectionShape, requestedMode: SelectionMode) {
     return this.runtime.selectionRasterizer.set(shape, requestedMode);
   }
@@ -574,6 +613,7 @@ export class LayerDocumentRenderer {
     this.destroyImageResources();
     this.runtime.textLayerCoordinator.dispose();
     this.runtime.rasterPaint.destroy();
+    this.runtime.selectionRasterizer.destroy();
     this.runtime.renderResources.destroyPending();
   }
 }

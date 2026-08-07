@@ -6,7 +6,9 @@ export type SelectionToolId =
   | 'select-horizontal'
   | 'select-vertical'
   | 'select-free'
-  | 'select-polygonal';
+  | 'select-polygonal'
+  | 'select-magic-wand';
+export type GeometricSelectionToolId = Exclude<SelectionToolId, 'select-magic-wand'>;
 export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
 export type SelectionMode = SelectionCombineMode | 'invert' | 'feather' | 'transform';
 export type CompositeColorChannel = 'red' | 'green' | 'blue';
@@ -22,6 +24,24 @@ export interface SelectionShape {
   points: SelectionPoint[];
 }
 
+export type MagicWandSampleSize = 1 | 3 | 5 | 11 | 31 | 51 | 101;
+
+export interface MagicWandOptions {
+  sampleSize: MagicWandSampleSize;
+  tolerance: number;
+  antiAlias: boolean;
+  contiguous: boolean;
+  sampleAllLayers: boolean;
+}
+
+export const createDefaultMagicWandOptions = (): MagicWandOptions => ({
+  sampleSize: 1,
+  tolerance: 20,
+  antiAlias: true,
+  contiguous: true,
+  sampleAllLayers: false
+});
+
 export interface SelectionOperation {
   mode: SelectionMode;
   shape: SelectionShape;
@@ -29,7 +49,14 @@ export interface SelectionOperation {
   source?:
     | { kind: 'layer-mask'; layerId: LayerId; pixelRevision: number }
     | { kind: 'layer-transparency'; layerId: LayerId; pixelRevision: number }
-    | { kind: 'composite-channel'; channel: CompositeSelectionChannel; documentRevision: number };
+    | { kind: 'composite-channel'; channel: CompositeSelectionChannel; documentRevision: number }
+    | {
+        kind: 'magic-wand';
+        point: SelectionPoint;
+        options: MagicWandOptions;
+        layerId: LayerId;
+        documentRevision: number;
+      };
   /** Document-space feather radius. Only used by the feather operation. */
   amount?: number;
   /** Replayable affine edit for raster-backed and geometric selections alike. */
@@ -42,6 +69,29 @@ export interface SelectionOperation {
     ty: number;
   };
 }
+
+export const createMagicWandSelectionOperation = (
+  layerId: LayerId,
+  documentRevision: number,
+  width: number,
+  height: number,
+  point: SelectionPoint,
+  options: MagicWandOptions,
+  mode: SelectionCombineMode
+): SelectionOperation => ({
+  mode,
+  source: {
+    kind: 'magic-wand',
+    point: { ...point },
+    options: {
+      ...options,
+      tolerance: Math.max(0, Math.min(255, Math.round(options.tolerance)))
+    },
+    layerId,
+    documentRevision
+  },
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
 
 export const createTranslateSelectionOperation = (
   width: number,

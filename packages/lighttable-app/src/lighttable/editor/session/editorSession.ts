@@ -1,8 +1,10 @@
 import type {
   SelectionCombineMode,
+  MagicWandOptions,
   SelectionOperation,
   SelectionToolId
 } from '../selection/selectionTypes';
+import { createDefaultMagicWandOptions } from '../selection/selectionTypes';
 import type { WarpToolSettings } from '../../effects/warp/warpTypes';
 import type { PathSelectionTarget, VectorPaint } from '@lighttable/vector-core';
 import type { LayerId } from '../document/documentTypes';
@@ -240,6 +242,7 @@ export interface EditorSession {
   selectionPixelSnap: boolean;
   selectionRowHeight: number;
   selectionColumnWidth: number;
+  magicWand: MagicWandOptions;
   brush: BrushSettings;
   gradient: GradientToolSettings;
   vectorStyle: VectorToolStyleSettings;
@@ -259,6 +262,7 @@ export const createEditorSession = (): EditorSession => ({
   selectionPixelSnap: true,
   selectionRowHeight: 1,
   selectionColumnWidth: 1,
+  magicWand: createDefaultMagicWandOptions(),
   brush: {
     size: 48,
     hardness: 0.75,

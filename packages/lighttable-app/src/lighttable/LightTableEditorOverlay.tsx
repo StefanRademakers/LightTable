@@ -867,6 +867,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         : 'The paint engine could not be prepared.');
     }
   }, [editorSession.activeTool, thumbnailDocumentReadyId]);
+  useEffect(() => {
+    if (editorSession.activeTool !== 'select-magic-wand') return;
+    let current = true;
+    void engineRef.current?.prepareMagicWandTool().catch((reason) => {
+      if (!current) return;
+      setError(reason instanceof Error
+        ? `The Magic Wand engine could not be prepared: ${reason.message}`
+        : 'The Magic Wand engine could not be prepared.');
+    });
+    return () => { current = false; };
+  }, [editorSession.activeTool, thumbnailDocumentReadyId]);
   const [developmentTextFixture, setDevelopmentTextFixture] = useState<{
     enabled: boolean;
     status: 'off' | 'preparing' | 'ready' | 'error';
@@ -3140,7 +3151,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (plan.finishTransform) transformSession.commit();
     if (plan.nextTool) {
       if (
-        selectionSessionController.draft
+        (selectionSessionController.draft || editorSession.activeTool === 'select-magic-wand')
         && editorSession.activeTool !== plan.nextTool
       ) {
         selectionSessionController.reset();
@@ -4059,6 +4070,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionCombineMode={editorSession.selectionCombineMode}
       selectionRowHeight={editorSession.selectionRowHeight}
       selectionColumnWidth={editorSession.selectionColumnWidth}
+      magicWand={editorSession.magicWand}
       zoomPercent={activeScale * 100}
       transformState={transformState}
       textWarp={activeTextPropertyLayer?.type === 'text'
@@ -4110,6 +4122,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onSelectionColumnWidthChange={(selectionColumnWidth) => {
         setEditorSession((current) => ({ ...current, selectionColumnWidth }));
+      }}
+      onMagicWandChange={(change) => {
+        setEditorSession((current) => ({
+          ...current,
+          magicWand: { ...current.magicWand, ...change }
+        }));
       }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
@@ -4196,6 +4214,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             selectionCombineMode: editorSession.selectionCombineMode,
             selectionRowHeight: editorSession.selectionRowHeight,
             selectionColumnWidth: editorSession.selectionColumnWidth,
+            magicWand: editorSession.magicWand,
             zoomPercent: activeScale * 100,
             transformState,
             textWarp: activeTextPropertyLayer?.type === 'text'
@@ -4250,6 +4269,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onSelectionColumnWidthChange: (selectionColumnWidth) => {
               setEditorSession((current) => ({ ...current, selectionColumnWidth }));
+            },
+            onMagicWandChange: (change) => {
+              setEditorSession((current) => ({
+                ...current,
+                magicWand: { ...current.magicWand, ...change }
+              }));
             },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,

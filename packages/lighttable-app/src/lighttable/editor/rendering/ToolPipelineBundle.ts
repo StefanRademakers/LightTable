@@ -18,6 +18,13 @@ import {
   LAYER_TRANSFORM_WGSL,
   SELECTION_TRANSFORM_WGSL
 } from './transformShaders';
+import {
+  MAGIC_WAND_COMPRESS_WGSL,
+  MAGIC_WAND_FINAL_WGSL,
+  MAGIC_WAND_INITIALIZE_WGSL,
+  MAGIC_WAND_RELAX_WGSL,
+  MAGIC_WAND_SAMPLE_WGSL
+} from './magicWandShaders';
 
 export interface BrushPipelineBundle {
   brush: GPURenderPipeline;
@@ -47,6 +54,11 @@ export interface ToolPipelineBundle extends BrushPipelineBundle {
   channelToSelection: GPURenderPipeline;
   transform: GPURenderPipeline;
   selectionTransform: GPURenderPipeline;
+  magicWandSample: GPUComputePipeline;
+  magicWandInitialize: GPUComputePipeline;
+  magicWandRelax: GPUComputePipeline;
+  magicWandCompress: GPUComputePipeline;
+  magicWandFinal: GPURenderPipeline;
 }
 
 const brushCache = new WeakMap<GPUDevice, BrushPipelineBundle>();
@@ -139,6 +151,11 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     },
     primitive: { topology: 'triangle-list' }
   });
+  const computePipeline = (label: string, code: string) => device.createComputePipeline({
+    label,
+    layout: 'auto',
+    compute: { module: device.createShaderModule({ code }), entryPoint: 'main' }
+  });
   const bundle: ToolPipelineBundle = {
     ...brushPipelinesFor(device),
     fillColor: fullscreenPipeline('LightTable fill layer color', LAYER_FILL_COLOR_WGSL),
@@ -158,7 +175,12 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     maskToSelection: fullscreenPipeline('LightTable layer mask to selection', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
     channelToSelection: fullscreenPipeline('LightTable composite channel to selection', COLOR_CHANNEL_COPY_WGSL, 'r8unorm'),
     transform: fullscreenPipeline('LightTable layer transform preview', LAYER_TRANSFORM_WGSL),
-    selectionTransform: fullscreenPipeline('LightTable selection transform preview', SELECTION_TRANSFORM_WGSL, 'r8unorm')
+    selectionTransform: fullscreenPipeline('LightTable selection transform preview', SELECTION_TRANSFORM_WGSL, 'r8unorm'),
+    magicWandSample: computePipeline('LightTable Magic Wand reference sample', MAGIC_WAND_SAMPLE_WGSL),
+    magicWandInitialize: computePipeline('LightTable Magic Wand candidates', MAGIC_WAND_INITIALIZE_WGSL),
+    magicWandRelax: computePipeline('LightTable Magic Wand component relaxation', MAGIC_WAND_RELAX_WGSL),
+    magicWandCompress: computePipeline('LightTable Magic Wand component compression', MAGIC_WAND_COMPRESS_WGSL),
+    magicWandFinal: fullscreenPipeline('LightTable Magic Wand mask', MAGIC_WAND_FINAL_WGSL, 'r8unorm')
   };
   cache.set(device, bundle);
   return bundle;

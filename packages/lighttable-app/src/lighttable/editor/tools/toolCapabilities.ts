@@ -1,4 +1,4 @@
-import type { SelectionToolId } from '../selection/selectionTypes';
+import type { GeometricSelectionToolId, SelectionToolId } from '../selection/selectionTypes';
 import type { ToolId } from '../session/editorSession';
 import { toolDefinition } from './toolRegistry';
 
@@ -38,7 +38,7 @@ export const isWarpTool = (tool: ToolId): tool is 'warp' =>
 export const usesBrushSize = (tool: ToolId): tool is 'brush' | 'erase' | 'warp' =>
   isPaintTool(tool) || isWarpTool(tool);
 
-export const selectionKindForTool = (tool: SelectionToolId): SelectionShapeKind => {
+export const selectionKindForTool = (tool: GeometricSelectionToolId): SelectionShapeKind => {
   switch (tool) {
     case 'select-rectangle':
       return 'rectangle';

@@ -8,14 +8,16 @@ import {
   createInvertSelectionOperation,
   createLayerMaskSelectionOperation,
   createLayerTransparencySelectionOperation,
+  createMagicWandSelectionOperation,
   createTranslateSelectionOperation,
   type CompositeSelectionChannel,
+  type MagicWandOptions,
   type SelectionCombineMode,
   type SelectionMode,
   type SelectionOperation,
   type SelectionPoint,
   type SelectionShape,
-  type SelectionToolId
+  type GeometricSelectionToolId
 } from '../../../editor/selection/selectionTypes';
 import {
   SelectionGestureController
@@ -35,6 +37,7 @@ export interface SelectionRendererPort {
   setSelection(shape: SelectionShape, mode: SelectionMode): Promise<boolean>;
   clearSelection(): void;
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
+  applyMagicWand(operation: SelectionOperation): Promise<boolean>;
 }
 
 export interface SelectionSessionDependencies {
@@ -54,7 +57,7 @@ export interface SelectionSessionController {
   owns(pointerId: number): boolean;
   begin(
     pointerId: number,
-    tool: SelectionToolId,
+    tool: GeometricSelectionToolId,
     point: SelectionPoint,
     mode: SelectionCombineMode,
     stripSize?: number
@@ -81,6 +84,7 @@ export interface SelectionSessionController {
   selectLayerTransparency(layerId: LayerId): void;
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
   translate(x: number, y: number): void;
+  magicWand(point: SelectionPoint, mode: SelectionCombineMode, options: MagicWandOptions): boolean;
 }
 
 export const cloneSelectionOperations = (
@@ -89,7 +93,13 @@ export const cloneSelectionOperations = (
   mode: operation.mode,
   amount: operation.amount,
   transform: operation.transform ? { ...operation.transform } : undefined,
-  source: operation.source ? { ...operation.source } : undefined,
+  source: operation.source?.kind === 'magic-wand'
+    ? {
+        ...operation.source,
+        point: { ...operation.source.point },
+        options: { ...operation.source.options }
+      }
+    : operation.source ? { ...operation.source } : undefined,
   shape: {
     ...operation.shape,
     points: operation.shape.points.map((point) => ({ ...point }))
@@ -172,6 +182,8 @@ export const createSelectionSessionController = (
   gesture = new SelectionGestureController(),
   polygonGesture = new PolygonalSelectionGestureController()
 ): SelectionSessionController => {
+  let magicWandRequestId = 0;
+  let pendingMagicWandSnapshot: SelectionOperation[] | null = null;
   let translation: {
     pointerId: number;
     document: ImageDocument;
@@ -425,6 +437,54 @@ export const createSelectionSessionController = (
       resolveDependencies().publishDraft(draft);
       return true;
     },
+    magicWand: (point, mode, options) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      const renderer = dependencies.getRenderer();
+      if (!document || !renderer || !document.activeLayerId) return false;
+      const before = cloneSelectionOperations(
+        pendingMagicWandSnapshot ?? dependencies.getSelection()
+      );
+      const operation = createMagicWandSelectionOperation(
+        document.activeLayerId,
+        document.revision,
+        document.width,
+        document.height,
+        point,
+        options,
+        mode
+      );
+      const after = mode === 'replace' ? [operation] : [...before, operation];
+      const requestId = ++magicWandRequestId;
+      pendingMagicWandSnapshot = cloneSelectionOperations(after);
+      void renderer.applyMagicWand(operation)
+        .then((applied) => {
+          if (!applied || !isCurrent(document, renderer)) {
+            if (requestId === magicWandRequestId && isCurrent(document, renderer)) {
+              pendingMagicWandSnapshot = null;
+              resolveDependencies().setError('The Magic Wand selection could not be applied.');
+            }
+            return;
+          }
+          if (requestId !== magicWandRequestId) {
+            if (pendingMagicWandSnapshot) pushHistory(document, before, after);
+            return;
+          }
+          pushHistory(document, before, after);
+          const latest = resolveDependencies();
+          pendingMagicWandSnapshot = null;
+          latest.publishSelection(after, null);
+          latest.setError(null);
+        })
+        .catch((reason) => {
+          if (requestId !== magicWandRequestId || !isCurrent(document, renderer)) return;
+          pendingMagicWandSnapshot = null;
+          resolveDependencies().setError(
+            reason instanceof Error ? reason.message : 'The Magic Wand selection could not be applied.'
+          );
+        });
+      return true;
+    },
     finishPolygon: () => (
       polygonGesture.active
         ? applyGestureResult(polygonGesture.finish())
@@ -438,12 +498,28 @@ export const createSelectionSessionController = (
       return true;
     },
     reset: () => {
+      const restoreSelectionAfterMagicWand = pendingMagicWandSnapshot !== null;
+      magicWandRequestId += 1;
+      pendingMagicWandSnapshot = null;
       translation = null;
       gesture.reset();
       polygonGesture.reset();
       const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
       dependencies.publishSelection(dependencies.getSelection(), null);
+      if (restoreSelectionAfterMagicWand) {
+        const document = dependencies.getDocument();
+        const renderer = dependencies.getRenderer();
+        const snapshot = cloneSelectionOperations(dependencies.getSelection());
+        if (document && renderer) {
+          void renderer.replaceSelection(snapshot).catch((reason) => {
+            if (!isCurrent(document, renderer)) return;
+            resolveDependencies().setError(
+              reason instanceof Error ? reason.message : 'The selection could not be restored.'
+            );
+          });
+        }
+      }
     },
     selectAll: () => {
       const document = resolveDependencies().getDocument();

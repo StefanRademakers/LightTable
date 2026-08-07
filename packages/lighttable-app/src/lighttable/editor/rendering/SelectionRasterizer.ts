@@ -1,4 +1,11 @@
-import type { CompositeSelectionChannel, SelectionMode, SelectionShape } from '../selection/selectionTypes';
+import type {
+  CompositeSelectionChannel,
+  MagicWandOptions,
+  SelectionCombineMode,
+  SelectionMode,
+  SelectionPoint,
+  SelectionShape
+} from '../selection/selectionTypes';
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { ToolPipelineBundle } from './ToolPipelineBundle';
 
@@ -114,7 +121,312 @@ interface SelectionRasterizerOptions {
  * owns the command details or temporary-buffer lifecycle.
  */
 export class SelectionRasterizer {
+  private magicWandWarmup: Promise<void> | null = null;
+  private magicWandLabels: GPUBuffer | null = null;
+  private magicWandLabelCapacity = 0;
+  private magicWandSettings: GPUBuffer | null = null;
+  private magicWandReference: GPUBuffer | null = null;
+
   constructor(private readonly options: SelectionRasterizerOptions) {}
+
+  private ensureMagicWandBuffers(pixelCount: number) {
+    const { device } = this.options;
+    if (!this.magicWandSettings) {
+      this.magicWandSettings = device.createBuffer({
+        label: 'LightTable Magic Wand settings',
+        size: 48,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+    }
+    if (!this.magicWandReference) {
+      this.magicWandReference = device.createBuffer({
+        label: 'LightTable Magic Wand reference color',
+        size: 16,
+        usage: GPUBufferUsage.STORAGE
+      });
+    }
+    if (!this.magicWandLabels || this.magicWandLabelCapacity < pixelCount) {
+      this.magicWandLabels?.destroy();
+      this.magicWandLabelCapacity = Math.max(pixelCount, 1);
+      this.magicWandLabels = device.createBuffer({
+        label: 'LightTable Magic Wand component labels',
+        size: this.magicWandLabelCapacity * Uint32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.STORAGE
+      });
+    }
+    return {
+      labels: this.magicWandLabels,
+      settings: this.magicWandSettings,
+      reference: this.magicWandReference
+    };
+  }
+
+  private combineShapeMask(
+    encoder: GPUCommandEncoder,
+    mode: SelectionCombineMode,
+    combineBuffer: GPUBuffer
+  ) {
+    const { textures, device } = this.options;
+    if (!textures.mask || !textures.result || !textures.shape) return false;
+    const pipeline = this.options.pipelines().selectionCombine;
+    device.queue.writeBuffer(
+      combineBuffer,
+      0,
+      new Float32Array([selectionModeValue[mode], 0, 0, 0])
+    );
+    const bindGroup = device.createBindGroup({
+      label: 'LightTable selection combine bindings',
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: textures.mask.createView() },
+        { binding: 1, resource: textures.shape.createView() },
+        { binding: 2, resource: { buffer: combineBuffer } }
+      ]
+    });
+    this.options.drawFullscreen(
+      encoder,
+      pipeline,
+      bindGroup,
+      textures.result.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    return true;
+  }
+
+  magicWand(
+    source: GPUTexture,
+    point: SelectionPoint,
+    wandOptions: MagicWandOptions,
+    requestedMode: SelectionCombineMode
+  ) {
+    this.options.ensureTargets();
+    const { textures, device } = this.options;
+    if (!textures.mask || !textures.result || !textures.shape) return false;
+    const { width, height } = this.options.dimensions();
+    if (width < 1 || height < 1) return false;
+    const mode = effectiveSelectionMode(textures.active, requestedMode);
+    if (!mode || mode === 'invert' || mode === 'feather' || mode === 'transform') return false;
+    const seedX = Math.max(0, Math.min(width - 1, Math.floor(point.x)));
+    const seedY = Math.max(0, Math.min(height - 1, Math.floor(point.y)));
+    const buffers = this.ensureMagicWandBuffers(width * height);
+    const settingsData = new ArrayBuffer(48);
+    const settingsUint = new Uint32Array(settingsData);
+    const settingsFloat = new Float32Array(settingsData);
+    settingsUint.set([
+      width, height, seedX, seedY,
+      Math.floor((wandOptions.sampleSize - 1) / 2),
+      wandOptions.contiguous ? 1 : 0,
+      wandOptions.antiAlias ? 1 : 0,
+      0
+    ], 0);
+    settingsFloat[8] = Math.max(0, Math.min(255, wandOptions.tolerance));
+    device.queue.writeBuffer(buffers.settings, 0, settingsData);
+    const pipelines = this.options.pipelines();
+    const sampleBindings = device.createBindGroup({
+      label: 'LightTable Magic Wand sample bindings',
+      layout: pipelines.magicWandSample.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: { buffer: buffers.settings } },
+        { binding: 2, resource: { buffer: buffers.reference } }
+      ]
+    });
+    const initializeBindings = device.createBindGroup({
+      label: 'LightTable Magic Wand candidate bindings',
+      layout: pipelines.magicWandInitialize.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: { buffer: buffers.settings } },
+        { binding: 2, resource: { buffer: buffers.reference } },
+        { binding: 3, resource: { buffer: buffers.labels } }
+      ]
+    });
+    const componentBindings = (pipeline: GPUComputePipeline, label: string) => device.createBindGroup({
+      label,
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: buffers.settings } },
+        { binding: 1, resource: { buffer: buffers.labels } }
+      ]
+    });
+    const relaxBindings = componentBindings(
+      pipelines.magicWandRelax,
+      'LightTable Magic Wand relaxation bindings'
+    );
+    const compressBindings = componentBindings(
+      pipelines.magicWandCompress,
+      'LightTable Magic Wand compression bindings'
+    );
+    const finalBindings = device.createBindGroup({
+      label: 'LightTable Magic Wand final mask bindings',
+      layout: pipelines.magicWandFinal.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: { buffer: buffers.settings } },
+        { binding: 2, resource: { buffer: buffers.reference } },
+        { binding: 3, resource: { buffer: buffers.labels } }
+      ]
+    });
+    const combineBuffer = device.createBuffer({
+      label: 'LightTable Magic Wand combine settings',
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const encoder = device.createCommandEncoder({ label: 'LightTable GPU Magic Wand selection' });
+    const dispatch = (
+      pipeline: GPUComputePipeline,
+      bindGroup: GPUBindGroup,
+      x: number,
+      y = 1
+    ) => {
+      const pass = encoder.beginComputePass();
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.dispatchWorkgroups(x, y);
+      pass.end();
+    };
+    dispatch(pipelines.magicWandSample, sampleBindings, 1);
+    const groupsX = Math.ceil(width / 8);
+    const groupsY = Math.ceil(height / 8);
+    dispatch(pipelines.magicWandInitialize, initializeBindings, groupsX, groupsY);
+    if (wandOptions.contiguous) {
+      const convergencePasses = Math.ceil(Math.log2(Math.max(1, width * height))) + 4;
+      for (let iteration = 0; iteration < convergencePasses; iteration += 1) {
+        dispatch(pipelines.magicWandRelax, relaxBindings, groupsX, groupsY);
+        dispatch(pipelines.magicWandCompress, compressBindings, groupsX, groupsY);
+      }
+    }
+    this.options.drawFullscreen(
+      encoder,
+      pipelines.magicWandFinal,
+      finalBindings,
+      textures.shape.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    if (!this.combineShapeMask(encoder, mode, combineBuffer)) {
+      combineBuffer.destroy();
+      return false;
+    }
+    device.queue.submit([encoder.finish()]);
+    textures.swapMaskAndResult();
+    textures.active = true;
+    void device.queue.onSubmittedWorkDone().then(() => combineBuffer.destroy());
+    return true;
+  }
+
+  /**
+   * Compiles every Magic Wand pipeline against isolated 1×1 resources.
+   * No document texture or selection mask is touched, so tool activation can
+   * hide Dawn's lazy shader compilation without creating history or dirtiness.
+   */
+  prepareMagicWand() {
+    if (this.magicWandWarmup) return this.magicWandWarmup;
+    const { device } = this.options;
+    const pipelines = this.options.pipelines();
+    const source = device.createTexture({
+      label: 'LightTable Magic Wand warmup source',
+      size: [1, 1],
+      format: 'rgba16float',
+      usage: GPUTextureUsage.TEXTURE_BINDING
+    });
+    const target = device.createTexture({
+      label: 'LightTable Magic Wand warmup target',
+      size: [1, 1],
+      format: 'r8unorm',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT
+    });
+    const settings = device.createBuffer({
+      label: 'LightTable Magic Wand warmup settings',
+      size: 48,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const reference = device.createBuffer({
+      label: 'LightTable Magic Wand warmup reference',
+      size: 16,
+      usage: GPUBufferUsage.STORAGE
+    });
+    const labels = device.createBuffer({
+      label: 'LightTable Magic Wand warmup labels',
+      size: 4,
+      usage: GPUBufferUsage.STORAGE
+    });
+    const settingsData = new ArrayBuffer(48);
+    new Uint32Array(settingsData).set([1, 1, 0, 0, 0, 1, 1, 0], 0);
+    new Float32Array(settingsData)[8] = 20;
+    device.queue.writeBuffer(settings, 0, settingsData);
+    const sample = device.createBindGroup({
+      layout: pipelines.magicWandSample.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: { buffer: settings } },
+        { binding: 2, resource: { buffer: reference } }
+      ]
+    });
+    const initialize = device.createBindGroup({
+      layout: pipelines.magicWandInitialize.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: { buffer: settings } },
+        { binding: 2, resource: { buffer: reference } },
+        { binding: 3, resource: { buffer: labels } }
+      ]
+    });
+    const componentBindings = (pipeline: GPUComputePipeline) => device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: settings } },
+        { binding: 1, resource: { buffer: labels } }
+      ]
+    });
+    const relax = componentBindings(pipelines.magicWandRelax);
+    const compress = componentBindings(pipelines.magicWandCompress);
+    const final = device.createBindGroup({
+      layout: pipelines.magicWandFinal.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: { buffer: settings } },
+        { binding: 2, resource: { buffer: reference } },
+        { binding: 3, resource: { buffer: labels } }
+      ]
+    });
+    const encoder = device.createCommandEncoder({ label: 'LightTable Magic Wand pipeline warmup' });
+    for (const [pipeline, bindings] of [
+      [pipelines.magicWandSample, sample],
+      [pipelines.magicWandInitialize, initialize],
+      [pipelines.magicWandRelax, relax],
+      [pipelines.magicWandCompress, compress]
+    ] as const) {
+      const pass = encoder.beginComputePass();
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindings);
+      pass.dispatchWorkgroups(1);
+      pass.end();
+    }
+    this.options.drawFullscreen(
+      encoder,
+      pipelines.magicWandFinal,
+      final,
+      target.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    device.queue.submit([encoder.finish()]);
+    this.magicWandWarmup = device.queue.onSubmittedWorkDone().then(() => {
+      source.destroy();
+      target.destroy();
+      settings.destroy();
+      reference.destroy();
+      labels.destroy();
+    }, (reason) => {
+      source.destroy();
+      target.destroy();
+      settings.destroy();
+      reference.destroy();
+      labels.destroy();
+      this.magicWandWarmup = null;
+      throw reason;
+    });
+    return this.magicWandWarmup;
+  }
 
   private copyRedChannel(
     source: GPUTexture,
@@ -282,6 +594,16 @@ export class SelectionRasterizer {
       combineBuffer.destroy();
     });
     return true;
+  }
+
+  destroy() {
+    this.magicWandLabels?.destroy();
+    this.magicWandSettings?.destroy();
+    this.magicWandReference?.destroy();
+    this.magicWandLabels = null;
+    this.magicWandSettings = null;
+    this.magicWandReference = null;
+    this.magicWandLabelCapacity = 0;
   }
 
   transform(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {

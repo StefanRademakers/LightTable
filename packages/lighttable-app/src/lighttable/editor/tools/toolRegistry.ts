@@ -40,8 +40,6 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     id: 'warp',
     label: 'Warp',
-    shortcutLabel: 'W',
-    shortcutKey: 'w',
     iconName: 'warp_tool.svg',
     role: 'warp'
   },
@@ -79,6 +77,14 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     shortcutKey: 'l',
     shortcutShift: true,
     iconName: 'tool_polygonal_selection.png',
+    role: 'selection'
+  },
+  {
+    id: 'select-magic-wand',
+    label: 'Magic Wand',
+    shortcutLabel: 'W',
+    shortcutKey: 'w',
+    iconName: 'tool_magic_wand.png',
     role: 'selection'
   },
   {

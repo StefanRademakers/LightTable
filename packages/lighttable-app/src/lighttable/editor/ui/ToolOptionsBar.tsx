@@ -55,6 +55,7 @@ export interface ToolOptionsProps {
   selectionCombineMode: SelectionCombineMode;
   selectionRowHeight: number;
   selectionColumnWidth: number;
+  magicWand: EditorSession['magicWand'];
   zoomPercent: number;
   transformState?: TransformSessionState | null;
   /** Undefined for non-text transforms; null is editable text without a warp. */
@@ -87,6 +88,7 @@ export interface ToolOptionsProps {
   onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
+  onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
   onTransformChange?: (matrix: AffineMatrix) => void;
@@ -107,6 +109,7 @@ const TOOL_LABELS: Record<ToolId, string> = {
   'select-vertical': 'Vertical selection',
   'select-free': 'Free selection',
   'select-polygonal': 'Polygonal selection',
+  'select-magic-wand': 'Magic Wand',
   gradient: 'Gradient',
   fill: 'Paint bucket',
   brush: 'Brush',
@@ -439,6 +442,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectionCombineMode,
   selectionRowHeight,
   selectionColumnWidth,
+  magicWand,
   zoomPercent,
   transformState,
   textWarp,
@@ -470,6 +474,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectionCombineModeChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
+  onMagicWandChange,
   onZoomPreset,
   onZoomFit,
   onTransformChange,
@@ -608,6 +613,51 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           />
           <span>px</span>
         </label>
+      ) : null}
+      {activeTool === 'select-magic-wand' ? (
+        <div className="lighttable-tool-options__vector-style" aria-label="Magic Wand settings">
+          <ToolOptionSelect
+            label="Sample size"
+            value={magicWand.sampleSize}
+            aria-label="Magic Wand sample size"
+            onChange={(event) => onMagicWandChange({
+              sampleSize: Number(event.currentTarget.value) as EditorSession['magicWand']['sampleSize']
+            })}
+          >
+            <option value={1}>Point Sample</option>
+            <option value={3}>3 by 3 Average</option>
+            <option value={5}>5 by 5 Average</option>
+            <option value={11}>11 by 11 Average</option>
+            <option value={31}>31 by 31 Average</option>
+            <option value={51}>51 by 51 Average</option>
+            <option value={101}>101 by 101 Average</option>
+          </ToolOptionSelect>
+          <ToolOptionNumber
+            label="Tolerance"
+            value={magicWand.tolerance}
+            min={0}
+            max={255}
+            step={1}
+            onChange={(tolerance) => onMagicWandChange({
+              tolerance: Math.max(0, Math.min(255, Math.round(tolerance || 0)))
+            })}
+          />
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={magicWand.antiAlias}
+              onChange={(event) => onMagicWandChange({ antiAlias: event.currentTarget.checked })} />
+            Anti-alias
+          </label>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={magicWand.contiguous}
+              onChange={(event) => onMagicWandChange({ contiguous: event.currentTarget.checked })} />
+            Contiguous
+          </label>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={magicWand.sampleAllLayers}
+              onChange={(event) => onMagicWandChange({ sampleAllLayers: event.currentTarget.checked })} />
+            Sample All Layers
+          </label>
+        </div>
       ) : null}
       {activeTool === 'gradient' ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Gradient settings">
