@@ -13,6 +13,7 @@ const outputDirectory = path.join(workspaceRoot, 'tmp', 'image-size-smoke', fixt
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'image-size.png');
 const resizedScreenshotPath = path.join(outputDirectory, 'image-size-resized.png');
+const menuScreenshotPath = path.join(outputDirectory, 'menu-flyout.png');
 const reportPath = path.join(outputDirectory, 'image-size.json');
 await Promise.all([access(sourceFile), mkdir(userDataPath, { recursive: true })]);
 const launchEnvironment = { ...process.env }; delete launchEnvironment.ELECTRON_RUN_AS_NODE;
@@ -34,15 +35,55 @@ try {
   const beforeLayers = documentId ? await driver.queryLayers(documentId) : null;
   if (!documentId || !before?.canvas) throw new Error('The opening document is unavailable.');
 
+  const layerMenuButton = page.getByRole('menuitem', { name: 'Layer', exact: true });
+  await layerMenuButton.click();
+  const topMenu = page.locator('.context-menu:not(.context-menu--submenu)');
+  await topMenu.waitFor({ state: 'visible' });
+  const [menuButtonBox, menuBox, menuRadius] = await Promise.all([
+    layerMenuButton.boundingBox(),
+    topMenu.boundingBox(),
+    topMenu.evaluate((element) => getComputedStyle(element).borderRadius)
+  ]);
+  if (!menuButtonBox || !menuBox || Math.abs(menuBox.y - (menuButtonBox.y + menuButtonBox.height)) > 1) {
+    throw new Error(`Top-menu flyout is not flush with the menu bar: ${JSON.stringify({ menuButtonBox, menuBox })}`);
+  }
+  if (menuRadius !== '4px') throw new Error(`Unexpected menu radius: ${menuRadius}.`);
+  await page.screenshot({ path: menuScreenshotPath });
+  await page.keyboard.press('Escape');
+
   await page.keyboard.press('Control+Alt+i');
   const dialog = page.getByRole('dialog', { name: 'Image Size' });
   await dialog.waitFor({ state: 'visible' });
-  await page.screenshot({ path: screenshotPath });
   const width = dialog.getByLabel('Width', { exact: true });
   const height = dialog.getByLabel('Height', { exact: true });
-  await width.fill(String(Math.max(1, Math.round(before.canvas.width / 2))));
-  const linkedHeight = Number(await height.inputValue());
-  if (linkedHeight !== Math.max(1, Math.round(before.canvas.height / 2))) {
+  if (Number(await width.inputValue()) !== before.canvas.width
+    || Number(await height.inputValue()) !== before.canvas.height) {
+    throw new Error(`Image Size opened with stale dimensions: ${JSON.stringify({
+      expected: before.canvas, width: await width.inputValue(), height: await height.inputValue()
+    })}`);
+  }
+  const dialogSelectStyle = await dialog.getByRole('combobox', { name: 'Resampling method' }).evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      height: style.height,
+      paddingLeft: style.paddingLeft,
+      paddingRight: style.paddingRight,
+      borderRadius: style.borderRadius
+    };
+  });
+  if (JSON.stringify(dialogSelectStyle) !== JSON.stringify({
+    height: '25px', paddingLeft: '4px', paddingRight: '4px', borderRadius: '3px'
+  })) throw new Error(`Dialog selects diverged from compact editor controls: ${JSON.stringify(dialogSelectStyle)}`);
+  await page.screenshot({ path: screenshotPath });
+  await width.fill(`${before.canvas.width}/2`);
+  await width.press('Enter');
+  const expectedLinkedHeight = Math.max(1, Math.round(before.canvas.height / 2));
+  let linkedHeight = Number(await height.inputValue());
+  for (let attempt = 0; attempt < 40 && linkedHeight !== expectedLinkedHeight; attempt += 1) {
+    await page.waitForTimeout(25);
+    linkedHeight = Number(await height.inputValue());
+  }
+  if (linkedHeight !== expectedLinkedHeight) {
     throw new Error(`Linked dimensions are incorrect: ${linkedHeight}.`);
   }
   await dialog.getByRole('combobox', { name: 'Resampling method' }).selectOption('bilinear');
@@ -98,10 +139,40 @@ try {
     throw new Error(`Scriptable Image Size did not use the canonical resize path: ${JSON.stringify(commanded)}`);
   }
   await driver.execute(documentId, 'history.undo', {});
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const restored = await driver.queryDocument(documentId);
+    if (restored?.canvas?.width === before.canvas.width && restored.canvas.height === before.canvas.height) break;
+    await page.waitForTimeout(25);
+  }
+
+  // Exercise the real keyboard race: Image Size briefly republishes the
+  // document surface, but local history must already accept Ctrl+Z.
+  await page.keyboard.press('Control+Alt+i');
+  await dialog.waitFor({ state: 'visible' });
+  await width.fill(`${before.canvas.width}/2`);
+  await width.press('Enter');
+  await dialog.getByRole('button', { name: 'OK' }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  await page.keyboard.press('Control+z');
+  let immediateUndone = null;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    immediateUndone = await driver.queryDocument(documentId);
+    if (immediateUndone?.canvas?.width === before.canvas.width
+      && immediateUndone.canvas.height === before.canvas.height) break;
+    await page.waitForTimeout(25);
+  }
+  if (!immediateUndone?.canvas || immediateUndone.canvas.width !== before.canvas.width
+    || immediateUndone.canvas.height !== before.canvas.height) {
+    throw new Error(`Immediate Image Size undo did not restore dimensions: ${JSON.stringify({ before, immediateUndone })}`);
+  }
+  const readinessError = page.getByText('The target document is not ready.', { exact: true });
+  if (await readinessError.isVisible().catch(() => false)) {
+    throw new Error('Immediate Image Size undo was incorrectly gated by document readiness.');
+  }
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
   await writeFile(reportPath, `${JSON.stringify({
-    sourceFile, before, after, undone, commanded, beforeLayers, afterLayers, undoneLayers,
-    screenshotPath, resizedScreenshotPath
+    sourceFile, before, after, undone, commanded, immediateUndone, beforeLayers, afterLayers, undoneLayers,
+    screenshotPath, resizedScreenshotPath, menuScreenshotPath
   }, null, 2)}\n`);
   process.stdout.write(`Image Size smoke passed. Report: ${reportPath}\n`);
 } finally {

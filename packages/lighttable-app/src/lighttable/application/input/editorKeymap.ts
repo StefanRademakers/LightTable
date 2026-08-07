@@ -199,7 +199,9 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     ),
     command('image.size', { key: 'i', primary: true, alt: true, shift: false }, 'open-image-size', {
       allowWhileEditing: true,
-      when: (context) => !context.saving && context.hasActiveLayer
+      // Image Size is document-scoped, not layer-scoped. Requiring an active
+      // layer made the shortcut silently fail while the same menu item worked.
+      when: (context) => !context.saving
     }),
     command('history.undo', { key: 'z', primary: true, alt: false, shift: false }, 'undo', {
       allowWhileEditing: true

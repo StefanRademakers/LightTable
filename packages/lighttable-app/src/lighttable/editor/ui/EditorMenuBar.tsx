@@ -44,7 +44,7 @@ export const EditorMenuBar = ({
   const options = openMenu ? optionsFor(openMenu.id) : [];
   const openFromButton = (id: EditorMenuId, button: HTMLButtonElement) => {
     const rect = button.getBoundingClientRect();
-    setOpenMenu({ id, x: rect.left, y: rect.bottom + 6 });
+    setOpenMenu({ id, x: rect.left, y: rect.bottom });
   };
 
   useEffect(() => {

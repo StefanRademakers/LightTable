@@ -252,7 +252,7 @@
 .lighttable-tool-options__field select {
   min-width: 0;
   height: 25px;
-  padding: 2px 24px 2px 7px;
+  padding: 2px 4px;
   border: 1px solid var(--lt-border-strong);
   border-radius: var(--lt-radius-sm);
   background: var(--lt-surface-control);
@@ -1690,7 +1690,7 @@
 .lighttable-scopes select,
 .lighttable-scope__select-row select {
   min-height: 26px;
-  padding: 3px 25px 3px 7px;
+  padding: 3px 4px;
   border: 1px solid var(--lt-border-strong);
   border-radius: var(--lt-radius-sm);
   color: var(--lt-text-secondary);
@@ -2696,6 +2696,7 @@
   width: 50%;
   min-width: 0;
   height: 25px;
+  padding: 2px 4px;
   border: 1px solid var(--lt-border-strong);
   border-radius: var(--lt-radius-sm);
   color: var(--lt-text-secondary);
@@ -2997,6 +2998,7 @@
 .lighttable-style-field select {
   min-width: 0;
   height: 28px;
+  padding: 2px 4px;
   border: 1px solid var(--lt-border-strong);
   border-radius: var(--lt-radius-sm);
   color: var(--lt-text-secondary);
@@ -4173,7 +4175,7 @@
   width: 100%;
   min-width: 0;
   height: 25px;
-  padding: 2px 24px 2px 7px;
+  padding: 2px 4px;
   border: 1px solid var(--lt-border-strong);
   border-radius: var(--lt-radius-sm);
   color: var(--lt-text-secondary);

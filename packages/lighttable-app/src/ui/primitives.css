@@ -236,7 +236,7 @@
   padding: 6px;
   overflow: visible;
   border: 1px solid var(--lt-border-overlay);
-  border-radius: 10px;
+  border-radius: 4px;
   background: var(--lt-surface-panel-raised);
   box-shadow: var(--lt-shadow-panel);
 }
@@ -542,6 +542,17 @@
 
 .lighttable-launcher__recovery-heading h2 {
   font-size: var(--lt-type-body-large);
+}
+
+/* Dialog selects use the same compact control language as editor panels. */
+select.form-input {
+  min-height: 25px;
+  height: 25px;
+  padding: 2px 4px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-label);
 }
 
 .lighttable-launcher__recovery-heading p,

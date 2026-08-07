@@ -68,6 +68,14 @@ describe('editor keymap', () => {
     )).toBe('quick-export-png');
   });
 
+  it('routes Photoshop Image Size without requiring an active layer', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'i', code: 'KeyI', ctrlKey: true, altKey: true }),
+      context({ hasActiveLayer: false, editable: true })
+    )).toBe('open-image-size');
+  });
+
   it('routes Photoshop-compatible primary+T to Free Transform', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

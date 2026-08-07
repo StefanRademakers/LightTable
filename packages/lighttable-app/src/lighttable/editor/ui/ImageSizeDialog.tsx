@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionButton } from '../../../ui/ActionButton';
-import { FormInput } from '../../../ui/FormInput';
+import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
 import { SwitchControl } from '../../../ui/SwitchControl';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import type { ImageDocument } from '../document/documentTypes';
@@ -71,7 +71,7 @@ export const ImageSizeDialog = ({
   const [preset, setPreset] = useState<'original' | 'custom'>('original');
   const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLFormElement>(open, onCancel);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !original) return;
     setWidthPx(original.widthPx); setHeightPx(original.heightPx);
     setResolutionPpi(original.resolutionPpi);
@@ -141,14 +141,18 @@ export const ImageSizeDialog = ({
             }}><option value="original">Original Size</option><option value="custom">Custom</option></select>
           </label>
           <div className="image-size-dialog__dimensions">
-            <label><span>Width</span><FormInput autoFocus type="number" min="0.001" step="any" disabled={!resample}
-              value={displayedNumber(widthValue, widthUnit)} onChange={(event) => changeDimension('width', event.currentTarget.valueAsNumber)} /></label>
+            <label><span>Width</span><NumericExpressionInput min={0.001} step={1} disabled={!resample}
+              kind={widthUnit === 'pixels' ? 'integer' : 'float'} value={widthValue}
+              formatValue={(value) => displayedNumber(value, widthUnit)}
+              onValueChange={(value) => changeDimension('width', value)} /></label>
             <select aria-label="Width unit" className="form-input" value={widthUnit}
               onChange={(event) => setWidthUnit(event.currentTarget.value as ImageSizeUnit)}>
               {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
             </select>
-            <label><span>Height</span><FormInput type="number" min="0.001" step="any" disabled={!resample}
-              value={displayedNumber(heightValue, heightUnit)} onChange={(event) => changeDimension('height', event.currentTarget.valueAsNumber)} /></label>
+            <label><span>Height</span><NumericExpressionInput min={0.001} step={1} disabled={!resample}
+              kind={heightUnit === 'pixels' ? 'integer' : 'float'} value={heightValue}
+              formatValue={(value) => displayedNumber(value, heightUnit)}
+              onValueChange={(value) => changeDimension('height', value)} /></label>
             <select aria-label="Height unit" className="form-input" value={heightUnit}
               onChange={(event) => setHeightUnit(event.currentTarget.value as ImageSizeUnit)}>
               {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
@@ -160,10 +164,11 @@ export const ImageSizeDialog = ({
           </div>
           <label className="image-size-dialog__row">
             <span>Resolution</span>
-            <FormInput type="number" min="1" max="2400" step="any"
-              value={Number(resolutionFromPpi(resolutionPpi, resolutionUnit).toFixed(3))}
-              onChange={(event) => {
-                const next = resolutionToPpi(event.currentTarget.valueAsNumber, resolutionUnit);
+            <NumericExpressionInput min={resolutionFromPpi(1, resolutionUnit)} max={resolutionFromPpi(2400, resolutionUnit)} step={1}
+              value={resolutionFromPpi(resolutionPpi, resolutionUnit)}
+              formatValue={(value) => String(Number(value.toFixed(3)))}
+              onValueChange={(value) => {
+                const next = resolutionToPpi(value, resolutionUnit);
                 if (Number.isFinite(next)) { setResolutionPpi(next); setPreset('custom'); }
               }} />
             <select className="form-input" value={resolutionUnit}
