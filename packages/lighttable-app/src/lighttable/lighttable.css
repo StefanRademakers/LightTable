@@ -64,9 +64,10 @@
   -webkit-user-drag: none;
 }
 
-/* Mouse focus stays quiet. Focus styling belongs to the control itself so a
- * generic outline cannot introduce a second, offset shape around app chrome. */
-.lighttable :focus:not(:focus-visible) {
+/* Desktop chrome never uses Chromium's generic focus outline. Controls that
+ * need keyboard focus expose it through their existing border or component
+ * state instead of an offset browser ring. */
+.lighttable :focus {
   outline: none;
 }
 
@@ -710,6 +711,20 @@
   --dv-drag-over-background-color: var(--lt-accent-drop);
   --dv-drag-over-border-color: var(--lt-accent);
   --dv-tabs-and-actions-container-font-size: calc(var(--lt-type-label) - 2px);
+}
+
+/* Dockview injects full-pane ::before focus frames for keyboard-oriented pane
+ * navigation. In an image editor that frame sits directly over the document
+ * and reads as a stray white canvas border. LightTable already communicates
+ * the active panel and tab through their selected surfaces. */
+.lighttable-dock-workspace .dv-pane-container .dv-pane .dv-pane-header:focus::before,
+.lighttable-dock-workspace .dv-pane-container .dv-pane .dv-pane-header:focus-within::before,
+.lighttable-dock-workspace .dv-pane-container .dv-pane .dv-pane-body:focus::before,
+.lighttable-dock-workspace .dv-pane-container .dv-pane .dv-pane-body:focus-within::before,
+.lighttable-dock-workspace .dv-tab:focus::after,
+.lighttable-dock-workspace .dv-tab:focus-within::after {
+  content: none;
+  outline: none;
 }
 
 /* Keep the semantic LightTable tab surfaces authoritative. Dockview applies
