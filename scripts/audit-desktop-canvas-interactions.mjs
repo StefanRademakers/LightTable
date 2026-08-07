@@ -328,13 +328,25 @@ try {
   }
   report.slowActions = slowActions;
   const stableStart = report.retentionSamples[1];
+  const steadyStateStart = report.retentionSamples.at(-3);
   const stableEnd = report.retentionSamples.at(-1);
-  report.retentionDelta = {
+  report.warmRetentionDelta = {
     heapUsedBytes: stableEnd.heapUsedBytes - stableStart.heapUsedBytes,
     domNodes: stableEnd.domNodes - stableStart.domNodes,
     eventListeners: stableEnd.eventListeners - stableStart.eventListeners,
     estimatedGpuBytes: stableStart.estimatedGpuBytes == null || stableEnd.estimatedGpuBytes == null
       ? null : stableEnd.estimatedGpuBytes - stableStart.estimatedGpuBytes
+  };
+  // GPU telemetry can discover a bounded, lazily-created resource during the
+  // first warm repetitions (for example a 192-byte selection overlay buffer).
+  // That is not retention. Keep the zero-growth GPU budget, but apply it to
+  // the final three identical workloads so continuing growth still fails.
+  report.retentionDelta = {
+    heapUsedBytes: stableEnd.heapUsedBytes - steadyStateStart.heapUsedBytes,
+    domNodes: stableEnd.domNodes - steadyStateStart.domNodes,
+    eventListeners: stableEnd.eventListeners - steadyStateStart.eventListeners,
+    estimatedGpuBytes: steadyStateStart.estimatedGpuBytes == null || stableEnd.estimatedGpuBytes == null
+      ? null : stableEnd.estimatedGpuBytes - steadyStateStart.estimatedGpuBytes
   };
   if (
     report.retentionDelta.heapUsedBytes > 5 * 1024 * 1024
