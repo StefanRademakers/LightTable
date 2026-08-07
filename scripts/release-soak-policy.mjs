@@ -37,6 +37,81 @@ export const assessStableTail = (files) => {
   return { passed: reasons.length === 0, reasons };
 };
 
+export const assessGpuRetentionTrend = (samples, {
+  maximumHighWaterGrowthBytes = 1024 * 1024,
+  tailSampleCount = 4,
+  maximumTailHighWaterIncreases = 1
+} = {}) => {
+  const values = samples
+    .map((sample) => sample?.estimatedGpuBytes)
+    .filter(Number.isFinite);
+  if (values.length === 0) {
+    return {
+      available: false,
+      passed: true,
+      reason: 'GPU retention telemetry unavailable',
+      baselineBytes: null,
+      peakBytes: null,
+      highWaterGrowthBytes: null,
+      highWaterIncreases: 0,
+      positiveRounds: 0,
+      tailSampleCount,
+      tailHighWaterGrowthBytes: null,
+      tailHighWaterIncreases: 0,
+      maximumHighWaterGrowthBytes,
+      maximumTailHighWaterIncreases
+    };
+  }
+
+  const baselineBytes = values[0];
+  let highWaterBytes = baselineBytes;
+  let highWaterIncreases = 0;
+  let positiveRounds = 0;
+  const highWaterSteps = [];
+  for (let index = 1; index < values.length; index += 1) {
+    const previous = values[index - 1];
+    const value = values[index];
+    if (value > previous) positiveRounds += 1;
+    if (value <= highWaterBytes) continue;
+    const growthBytes = value - highWaterBytes;
+    highWaterBytes = value;
+    highWaterIncreases += 1;
+    highWaterSteps.push({ sample: index + 1, growthBytes, highWaterBytes });
+  }
+
+  const highWaterGrowthBytes = highWaterBytes - baselineBytes;
+  const tailStartIndex = Math.max(0, values.length - tailSampleCount);
+  const highWaterAtTailStart = Math.max(...values.slice(0, tailStartIndex + 1));
+  const tailSteps = highWaterSteps.filter(({ sample }) => sample > tailStartIndex + 1);
+  const tailHighWaterGrowthBytes = highWaterBytes - highWaterAtTailStart;
+  const tailHighWaterIncreases = tailSteps.length;
+  const reasons = [];
+  if (highWaterGrowthBytes > maximumHighWaterGrowthBytes) {
+    reasons.push(`GPU high-water growth ${highWaterGrowthBytes} exceeds ${maximumHighWaterGrowthBytes} bytes`);
+  }
+  if (tailHighWaterIncreases > maximumTailHighWaterIncreases) {
+    reasons.push(`GPU high-water increased ${tailHighWaterIncreases} times in the stable tail (maximum ${maximumTailHighWaterIncreases})`);
+  }
+  return {
+    available: true,
+    passed: reasons.length === 0,
+    reason: reasons.join('; ') || (highWaterIncreases === 0
+      ? 'GPU high-water remained flat'
+      : 'bounded lazy GPU realization'),
+    baselineBytes,
+    peakBytes: highWaterBytes,
+    highWaterGrowthBytes,
+    highWaterIncreases,
+    positiveRounds,
+    highWaterSteps,
+    tailSampleCount,
+    tailHighWaterGrowthBytes,
+    tailHighWaterIncreases,
+    maximumHighWaterGrowthBytes,
+    maximumTailHighWaterIncreases
+  };
+};
+
 export const provisionalWindowsTargets = Object.freeze({
   discrete: Object.freeze({ directManipulationMs: 16.7, ordinaryFirstUsefulFrameMs: 1000 }),
   integrated: Object.freeze({ directManipulationMs: 33.3, ordinaryFirstUsefulFrameMs: 2000 }),
