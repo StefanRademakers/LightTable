@@ -64,18 +64,18 @@
   -webkit-user-drag: none;
 }
 
-/* Mouse focus stays quiet; keyboard focus must remain unambiguous. */
+/* Mouse focus stays quiet. Focus styling belongs to the control itself so a
+ * generic outline cannot introduce a second, offset shape around app chrome. */
 .lighttable :focus:not(:focus-visible) {
   outline: none;
 }
 
-.lighttable :focus-visible,
-.lighttable-launcher :focus-visible,
-.context-menu :focus-visible,
-.modal-backdrop :focus-visible,
-.lighttable-psd-report__backdrop :focus-visible {
-  outline: 2px solid var(--lt-accent, #4d9cff);
-  outline-offset: 2px;
+.lighttable :is(button, [role='button']):focus-visible,
+.lighttable-launcher :is(button, [role='button']):focus-visible,
+.context-menu :is(button, [role='button']):focus-visible,
+.modal-backdrop :is(button, [role='button']):focus-visible,
+.lighttable-psd-report__backdrop :is(button, [role='button']):focus-visible {
+  outline: none;
 }
 
 /* Selects already own a one-pixel control border. Recolor that border for
@@ -2272,6 +2272,11 @@
 
 .lighttable-layers__footer button:hover:not(:disabled) {
   border-color: var(--lt-border-strong);
+  background: var(--lt-surface-control-hover);
+}
+
+.lighttable-layers__footer button:focus-visible:not(:disabled) {
+  border-color: var(--lt-focus-ring);
   background: var(--lt-surface-control-hover);
 }
 

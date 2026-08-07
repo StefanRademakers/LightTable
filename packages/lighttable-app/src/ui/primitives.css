@@ -23,6 +23,10 @@
   background: var(--lt-surface-control-hover);
 }
 
+.action-button:focus-visible {
+  border-color: var(--lt-focus-ring);
+}
+
 .action-button:disabled {
   opacity: 0.42;
   cursor: not-allowed;
@@ -125,6 +129,10 @@
   background: var(--lt-surface-control-hover);
 }
 
+.square-icon-button:focus-visible {
+  border-color: var(--lt-focus-ring);
+}
+
 .square-icon-button--active {
   color: var(--lt-text-on-accent);
   background: var(--lt-accent-selected);
@@ -154,6 +162,10 @@
 
 .switch-control--checked {
   background: var(--lt-switch-track-on);
+}
+
+.switch-control:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--lt-focus-ring);
 }
 
 .switch-control__thumb {
@@ -931,7 +943,8 @@ select.form-input {
 .lighttable-preferences__layout { display: grid; grid-template-columns: 170px minmax(0, 1fr); min-height: 0; flex: 1; }
 .lighttable-preferences__navigation { padding: 12px 10px; border-right: 1px solid var(--lt-border-subtle); background: var(--lt-surface-panel-subtle); }
 .lighttable-preferences__navigation button { width: 100%; padding: 9px 12px; border: 0; border-radius: var(--lt-radius-md); color: var(--color-text-muted); background: transparent; text-align: left; cursor: pointer; }
-.lighttable-preferences__navigation button:hover { color: var(--color-text); background: var(--lt-surface-control-hover); }
+.lighttable-preferences__navigation button:hover,
+.lighttable-preferences__navigation button:focus-visible { color: var(--color-text); background: var(--lt-surface-control-hover); }
 .lighttable-preferences__navigation button.is-active { color: var(--color-text); background: var(--lt-surface-control); font-weight: 600; }
 .lighttable-preferences__content { min-width: 0; padding: 24px; overflow: auto; }
 .lighttable-preferences__content h4 { margin: 0; font-size: var(--lt-type-heading); }
