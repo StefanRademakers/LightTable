@@ -3,6 +3,7 @@ import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from '
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { assessMultiHourSoakEvidence } from './release-candidate-policy.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const argument = (name, fallback) => {
@@ -67,17 +68,23 @@ const owner = await readFile(path.join(output, 'owner-acceptance', 'report.json'
   .then(JSON.parse).catch(() => null);
 const commercial = await readFile(path.join(output, 'commercial', 'report.json'), 'utf8')
   .then(JSON.parse).catch(() => null);
+const soakReportPath = argument('soak-report', '');
+const soakReport = soakReportPath
+  ? await readFile(path.resolve(soakReportPath), 'utf8').then(JSON.parse).catch(() => null)
+  : null;
+const multiHourSoak = assessMultiHourSoakEvidence(soakReport, commit);
 const automatedPass = results.length === stages.length && results.every(({ status }) => status === 'passed');
 const blockers = [
   ...(!owner?.ownerSignoff ? ['Owner acceptance sign-off is pending.'] : []),
   ...(!commercial?.commercialReady ? ['Commercial policy/activation/installer gates are open.'] : []),
   'Integrated-GPU, web-host and Apple Silicon physical qualification is open.',
-  'A multi-hour soak was not executed by this bounded rehearsal.'
+  ...(!multiHourSoak.accepted ? multiHourSoak.reasons : [])
 ];
 const report = {
   schemaVersion: 1, generatedAt: new Date().toISOString(), candidateCommit: commit,
   candidateVersion: JSON.parse(await readFile(path.join(checkout, 'package.json'), 'utf8')).version,
   cleanDetachedCheckout: true, automatedPass, ownerSignoff: owner?.ownerSignoff === true,
+  multiHourSoak: { source: soakReportPath ? path.resolve(soakReportPath) : null, ...multiHourSoak },
   releaseClassification: automatedPass ? 'bounded-technical-preview' : 'no-release',
   paidReleaseCandidate: automatedPass && blockers.length === 0,
   blockers, stages: results
