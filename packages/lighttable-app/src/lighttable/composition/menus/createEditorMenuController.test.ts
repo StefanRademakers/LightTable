@@ -100,6 +100,10 @@ describe('createEditorMenuController', () => {
       [document.activeLayerId],
       false
     );
+    expect(findOption(controller.optionsFor('edit'), 'settings')).toMatchObject({
+      label: 'Preferences...',
+      shortcut: 'Ctrl+K'
+    });
   });
 
   it('forwards the Type menu conversion command through the controller', () => {

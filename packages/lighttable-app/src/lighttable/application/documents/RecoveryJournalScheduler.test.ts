@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   RecoveryJournalScheduler,
+  recoveryScheduleForPreferences,
   recoveryScheduleForSourceBytes,
   type RecoveryJournalRevision
 } from './RecoveryJournalScheduler';
@@ -19,6 +20,12 @@ describe('RecoveryJournalScheduler', () => {
   it('gives large sources a measured quiet window without exceeding two minutes', () => {
     expect(recoveryScheduleForSourceBytes(31 * 1024 * 1024)).toEqual({ debounceMs: 5_000, maxDelayMs: 30_000 });
     expect(recoveryScheduleForSourceBytes(32 * 1024 * 1024)).toEqual({ debounceMs: 30_000, maxDelayMs: 120_000 });
+  });
+  it('uses the selected interval as the hard checkpoint bound', () => {
+    expect(recoveryScheduleForPreferences(1_000, 120_000))
+      .toEqual({ debounceMs: 5_000, maxDelayMs: 120_000 });
+    expect(recoveryScheduleForPreferences(64 * 1024 * 1024, 10_000))
+      .toEqual({ debounceMs: 10_000, maxDelayMs: 10_000 });
   });
   it('debounces semantic commits and checkpoints only the newest revision', async () => {
     vi.useFakeTimers();

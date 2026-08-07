@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { DocumentCommandHistory } from '../commands/documentCommandHistory';
 import type { ExportedLightTableDocument } from './exportLightTableDocument';
-import { RecoveryJournalScheduler, recoveryScheduleForSourceBytes } from './RecoveryJournalScheduler';
+import { RecoveryJournalScheduler, recoveryScheduleForPreferences } from './RecoveryJournalScheduler';
 import {
   LIGHTTABLE_RECOVERY_VERSION,
   sha256Hex,
@@ -12,6 +12,8 @@ import { RecoveryArtifactHasher } from './RecoveryArtifactHasher';
 
 export interface DocumentRecoveryJournalOptions {
   readonly store?: LightTableRecoveryStore;
+  readonly enabled?: boolean;
+  readonly intervalMs?: number;
   readonly documentId: string;
   readonly sourceFingerprint: string;
   readonly sourceName: string;
@@ -34,6 +36,8 @@ const createRecoveryId = (): string => typeof crypto.randomUUID === 'function'
 /** Connects semantic history changes to recovery without polling clean files. */
 export const useDocumentRecoveryJournal = ({
   store,
+  enabled = true,
+  intervalMs,
   documentId,
   sourceFingerprint,
   sourceName,
@@ -72,10 +76,10 @@ export const useDocumentRecoveryJournal = ({
   };
 
   useEffect(() => {
-    if (!store) return undefined;
+    if (!store || !enabled) return undefined;
     let disposed = false;
     const artifactHasher = new RecoveryArtifactHasher();
-    const timing = recoveryScheduleForSourceBytes(sourceByteLength);
+    const timing = recoveryScheduleForPreferences(sourceByteLength, intervalMs);
     const scheduler = new RecoveryJournalScheduler({
       ...timing,
       async checkpoint(revision) {
@@ -157,5 +161,5 @@ export const useDocumentRecoveryJournal = ({
       scheduler.dispose();
       artifactHasher.dispose();
     };
-  }, [commandHistory, documentId, sourceByteLength, sourceFingerprint, store]);
+  }, [commandHistory, documentId, enabled, intervalMs, sourceByteLength, sourceFingerprint, store]);
 };

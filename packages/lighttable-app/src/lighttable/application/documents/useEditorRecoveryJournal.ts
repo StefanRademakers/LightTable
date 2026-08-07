@@ -5,6 +5,8 @@ import type { LightTableRecoveryStore } from '../../../platform/LightTableRecove
 
 export interface EditorRecoveryJournalOptions {
   readonly store?: LightTableRecoveryStore;
+  readonly enabled?: boolean;
+  readonly intervalMs?: number;
   readonly documentId: string;
   readonly sourceKey: string | null;
   readonly sourceName: string;
@@ -18,10 +20,12 @@ export interface EditorRecoveryJournalOptions {
 }
 
 export const useEditorRecoveryJournal = ({
-  store, documentId, sourceKey, sourceName, sourceBlob, workspaceOrder, active,
+  store, enabled, intervalMs, documentId, sourceKey, sourceName, sourceBlob, workspaceOrder, active,
   commandHistory, getCanonicalRevision, exportOutput, setStatus
 }: EditorRecoveryJournalOptions): void => useDocumentRecoveryJournal({
   store,
+  enabled,
+  intervalMs,
   documentId,
   sourceFingerprint: `${sourceKey ?? 'unknown'}:${sourceName}`,
   sourceName,

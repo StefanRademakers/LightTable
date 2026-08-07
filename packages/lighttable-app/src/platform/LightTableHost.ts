@@ -155,6 +155,7 @@ export interface LightTableHost {
   readonly clipboard?: LightTableImageClipboard;
   readonly systemFontProvider?: SystemFontByteProvider;
   readonly recovery?: LightTableRecoveryStore;
+  readonly recoveryLocation?: import('./LightTableRecoveryStore').LightTableRecoveryLocationService;
   readonly release?: LightTableReleaseService;
   readonly agentAccess?: LightTableAgentAccessService;
   readonly funnel?: LightTableFunnelTelemetry;
@@ -185,6 +186,12 @@ export const createBrowserHost = (): LightTableHost => ({
     ? undefined
     : createLocalLightTableFunnelTelemetry(localStorage),
   recovery: createBrowserRecoveryStore(),
+  recoveryLocation: {
+    current: async () => ({ label: 'Private browser storage (OPFS)', custom: false, canChoose: false }),
+    choose: async () => null,
+    reset: async () => ({ label: 'Private browser storage (OPFS)', custom: false, canChoose: false }),
+    apply: async () => ({ label: 'Private browser storage (OPFS)', custom: false, canChoose: false })
+  },
   clipboard: browserImageClipboard(),
   async setFullscreen(enabled) {
     if (enabled) {

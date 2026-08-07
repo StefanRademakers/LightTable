@@ -30,6 +30,17 @@ export const recoveryScheduleForSourceBytes = (sourceByteLength = 0) => (
     : { debounceMs: 5_000, maxDelayMs: 30_000 }
 );
 
+export const recoveryScheduleForPreferences = (
+  sourceByteLength = 0,
+  intervalMs?: number
+) => {
+  const adaptive = recoveryScheduleForSourceBytes(sourceByteLength);
+  return intervalMs === undefined ? adaptive : {
+    debounceMs: Math.min(adaptive.debounceMs, intervalMs),
+    maxDelayMs: Math.max(0, intervalMs)
+  };
+};
+
 /**
  * Bounded newest-source scheduler. It has no polling interval: semantic
  * revisions are the only input capable of creating work.

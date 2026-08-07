@@ -158,12 +158,21 @@ export class DesktopRecoveryStore {
   private tail: Promise<void> = Promise.resolve();
 
   constructor(
-    private readonly root: string,
+    private root: string,
     private readonly limits: DesktopRecoveryStoreLimits = DEFAULT_LIMITS,
     private readonly now: () => number = () => Date.now(),
     private readonly metadataCodec: DesktopRecoveryMetadataCodec = UTF8_METADATA_CODEC,
     private readonly dependencies: DesktopRecoveryStoreDependencies = {}
   ) {}
+
+  /** Switches future recovery operations to another validated application root. */
+  setRoot(root: string): Promise<void> {
+    return this.serial(async () => { this.root = root; });
+  }
+
+  getRoot(): string {
+    return this.root;
+  }
 
   write(request: DesktopRecoveryWriteRequest): Promise<LightTableRecoveryWriteResult> {
     return this.serial(async () => {

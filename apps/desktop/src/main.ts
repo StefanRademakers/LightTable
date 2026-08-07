@@ -11,7 +11,7 @@ import {
 } from 'electron';
 import { createServer, type Server } from 'node:http';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
@@ -86,8 +86,10 @@ const releaseInfo = () => ({
     process.env.LIGHTTABLE_UPDATE_MANIFEST_URL && process.env.LIGHTTABLE_UPDATE_PUBLIC_KEY_PEM
   )
 });
+const defaultRecoveryRoot = () => path.join(app.getPath('userData'), 'recovery-v1');
+const recoveryLocationPath = () => path.join(app.getPath('userData'), 'recovery-location.json');
 const recoveryStore = new DesktopRecoveryStore(
-  path.join(app.getPath('userData'), 'recovery-v1'),
+  defaultRecoveryRoot(),
   undefined,
   undefined,
   {
@@ -105,6 +107,58 @@ const recoveryStore = new DesktopRecoveryStore(
     }
   }
 );
+const validRecoveryRoot = (value: unknown): value is string => typeof value === 'string'
+  && value.length <= 32_768
+  && path.isAbsolute(value)
+  && path.resolve(value) === value;
+const recoveryRootReady = (async () => {
+  try {
+    const parsed = JSON.parse(await readFile(recoveryLocationPath(), 'utf8')) as {
+      readonly version?: unknown;
+      readonly root?: unknown;
+    };
+    if (parsed.version === 1 && validRecoveryRoot(parsed.root)) {
+      await recoveryStore.setRoot(parsed.root);
+    }
+  } catch {
+    // The default application-data location needs no preference file.
+  }
+})();
+const recoveryLocation = async () => {
+  await recoveryRootReady;
+  const root = recoveryStore.getRoot();
+  const custom = root !== defaultRecoveryRoot();
+  return {
+    label: custom ? root : 'LightTable application data · recovery-v1',
+    path: root,
+    custom,
+    canChoose: true
+  };
+};
+const defaultRecoveryLocation = () => ({
+  label: 'LightTable application data · recovery-v1',
+  path: defaultRecoveryRoot(),
+  custom: false,
+  canChoose: true
+});
+const persistRecoveryRoot = async (root: string | null) => {
+  const next = root ?? defaultRecoveryRoot();
+  if (!validRecoveryRoot(next)) throw new Error('Invalid recovery folder.');
+  if (root) {
+    await atomicWriteFile({
+      targetPath: recoveryLocationPath(),
+      bytes: new TextEncoder().encode(JSON.stringify({ version: 1, root }, null, 2))
+    });
+  } else {
+    try {
+      await unlink(recoveryLocationPath());
+    } catch (reason) {
+      if (!(reason && typeof reason === 'object' && 'code' in reason && reason.code === 'ENOENT')) throw reason;
+    }
+  }
+  await recoveryStore.setRoot(next);
+  return recoveryLocation();
+};
 const systemFonts = new WindowsSystemFontCatalog(
   [
     path.join(process.env.WINDIR ?? 'C:\\Windows', 'Fonts'),
@@ -629,6 +683,7 @@ void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:recovery-write', async (event, payload) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    await recoveryRootReady;
     if (!payload || typeof payload.documentId !== 'string'
       || payload.documentId.length > 1024
       || !(payload.bytes instanceof Uint8Array)
@@ -644,6 +699,7 @@ void app.whenReady().then(async () => {
     throughRevision?: number
   ) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    await recoveryRootReady;
     if (typeof documentId !== 'string' || documentId.length > 1024
       || (throughRevision !== undefined && (
         !Number.isSafeInteger(throughRevision) || throughRevision < 0
@@ -655,6 +711,7 @@ void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:recovery-list', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    await recoveryRootReady;
     const listing = await recoveryStore.list();
     const records = await Promise.all(listing.records.map(async (record) => {
       if (!record.sourcePath) return { ...record, sourceAvailability: 'unavailable' as const };
@@ -672,6 +729,7 @@ void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:recovery-remove-record', async (event, recoveryId: string) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    await recoveryRootReady;
     if (typeof recoveryId !== 'string' || recoveryId.length > 128) {
       throw new Error('Invalid LightTable recovery removal request.');
     }
@@ -680,6 +738,7 @@ void app.whenReady().then(async () => {
 
   ipcMain.handle('lighttable:recovery-read', async (event, recoveryId: string) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    await recoveryRootReady;
     if (typeof recoveryId !== 'string' || recoveryId.length > 128) {
       throw new Error('Invalid LightTable recovery read request.');
     }
@@ -689,6 +748,43 @@ void app.whenReady().then(async () => {
       record: entry.record,
       bytes: new Uint8Array(await entry.artifact.arrayBuffer())
     };
+  });
+
+  ipcMain.handle('lighttable:recovery-location', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return recoveryLocation();
+  });
+
+  ipcMain.handle('lighttable:recovery-location-choose', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const current = await recoveryLocation();
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, {
+          title: 'Choose autosave location',
+          defaultPath: current.path,
+          properties: ['openDirectory', 'createDirectory']
+        })
+      : await dialog.showOpenDialog({
+          title: 'Choose autosave location',
+          defaultPath: current.path,
+          properties: ['openDirectory', 'createDirectory']
+        });
+    const selected = result.filePaths[0];
+    if (result.canceled || !selected) return null;
+    const root = path.resolve(selected, 'LightTable Recovery');
+    return { label: root, path: root, custom: true, canChoose: true };
+  });
+
+  ipcMain.handle('lighttable:recovery-location-reset', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return defaultRecoveryLocation();
+  });
+
+  ipcMain.handle('lighttable:recovery-location-apply', async (event, root?: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (root !== undefined && !validRecoveryRoot(root)) throw new Error('Invalid recovery folder.');
+    if (root) await mkdir(root, { recursive: true, mode: 0o700 });
+    return persistRecoveryRoot(root ?? null);
   });
 
   ipcMain.handle('lighttable:clipboard-write-png', async (event, bytes: Uint8Array) => {

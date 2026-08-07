@@ -9,6 +9,7 @@ const executable = path.join(root, 'node_modules', 'electron', 'dist', 'electron
 const userData = path.join(root, 'tmp', 'smoke-agent-access-user-data');
 const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
 const screenshot = path.join(root, 'tmp', 'screenshots', 'agent-access-settings.png');
+const preferencesScreenshot = path.join(root, 'tmp', 'screenshots', 'preferences-file-handling.png');
 await Promise.all([rm(userData, { recursive: true, force: true }), mkdir(path.dirname(screenshot), { recursive: true })]);
 
 const environment = { ...process.env };
@@ -35,12 +36,18 @@ try {
   if ((await app.windows()).length !== 1) throw new Error('Agent Access launched another Electron window.');
 
   await window.getByRole('menuitem', { name: 'Edit' }).click();
-  await window.getByRole('menuitem', { name: 'Settings...' }).click();
-  const settings = window.getByRole('dialog', { name: 'Settings' });
+  await window.getByRole('menuitem', { name: 'Preferences...' }).click();
+  const settings = window.getByRole('dialog', { name: 'Preferences' });
+  await settings.getByRole('heading', { name: 'Autosave & recovery' }).waitFor();
+  await settings.getByLabel(/Autosave location:/).waitFor();
+  await window.screenshot({ path: preferencesScreenshot });
+  await settings.getByRole('button', { name: 'Agent Access' }).click();
   const toggle = settings.getByRole('checkbox');
   await toggle.click();
   await settings.getByText(/running|error/, { exact: true }).waitFor({ timeout: 15_000 });
-  const initialError = await settings.getByRole('alert').textContent().catch(() => null);
+  const initialError = await settings.getByRole('alert').count()
+    ? await settings.getByRole('alert').textContent()
+    : null;
   if (initialError) throw new Error(`Agent Access enable failed: ${initialError}`);
   const tokenInput = settings.getByLabel('Connection token');
   const address = (await settings.locator('dd').nth(1).textContent())?.trim();

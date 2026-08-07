@@ -55,6 +55,19 @@ afterEach(async () => {
 });
 
 describe('DesktopRecoveryStore', () => {
+  it('switches recovery roots without mixing their records', async () => {
+    const { root, store } = await fixture();
+    const alternate = await mkdtemp(path.join(os.tmpdir(), 'lighttable-recovery-alternate-'));
+    directories.push(alternate);
+    const artifact = bytes('alternate snapshot');
+    const metadata = record({ documentId: 'doc-location', revision: 1, artifact });
+    await store.setRoot(alternate);
+    expect(store.getRoot()).toBe(alternate);
+    await store.write({ documentId: 'doc-location', record: metadata, bytes: artifact });
+    await expect(access(path.join(alternate, `${metadata.recoveryId}.ltrecovery`))).resolves.toBeUndefined();
+    await expect(access(path.join(root, `${metadata.recoveryId}.ltrecovery`))).rejects.toThrow();
+  });
+
   it('roundtrips a checksummed private recovery envelope', async () => {
     const { store } = await fixture();
     const artifact = bytes('canonical document snapshot');

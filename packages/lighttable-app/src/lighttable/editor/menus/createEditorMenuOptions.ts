@@ -234,7 +234,8 @@ export const createEditorMenuOptions = (
       },
       {
         value: 'settings',
-        label: 'Settings...',
+        label: 'Preferences...',
+        shortcut: labels.primaryShortcut('K'),
         separatorBefore: true,
         onClick: commands.openSettings
       }

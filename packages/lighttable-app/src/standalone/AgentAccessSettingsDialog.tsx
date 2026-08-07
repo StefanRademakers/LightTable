@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type {
   LightTableAgentAccessService,
   LightTableAgentAccessStatus,
   LightTableAgentTunnelStatus
 } from '../platform/LightTableHost';
 import { ActionButton } from '../ui/ActionButton';
-import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 
 const unavailable: LightTableAgentAccessStatus = {
   supported: false, enabled: false, state: 'stopped'
@@ -15,12 +13,10 @@ const tunnelUnavailable: LightTableAgentTunnelStatus = {
   state: 'offline', deviceId: 'unavailable', clients: [], events: []
 };
 
-export const AgentAccessSettingsDialog: React.FC<{
-  readonly open: boolean;
+export const AgentAccessSettingsPanel: React.FC<{
   readonly service?: LightTableAgentAccessService;
-  readonly onClose: () => void;
-}> = ({ open, service, onClose }) => {
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLElement>(open, onClose);
+  readonly active: boolean;
+}> = ({ service, active }) => {
   const [status, setStatus] = useState<LightTableAgentAccessStatus>(unavailable);
   const [port, setPort] = useState('');
   const [serverUrl, setServerUrl] = useState('');
@@ -29,7 +25,7 @@ export const AgentAccessSettingsDialog: React.FC<{
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!open || !service) return;
+    if (!active || !service) return;
     let canceled = false;
     void service.status().then((value) => { if (!canceled) setStatus(value); });
     void service.tunnelStatus().then((value) => {
@@ -40,9 +36,9 @@ export const AgentAccessSettingsDialog: React.FC<{
       if (!canceled) { setTunnel(value); if (value.serverUrl) setServerUrl(value.serverUrl); }
     });
     return () => { canceled = true; unsubscribe(); unsubscribeTunnel(); };
-  }, [open, service]);
+  }, [active, service]);
 
-  if (!open) return null;
+  if (!active) return null;
   const run = (operation: () => Promise<LightTableAgentAccessStatus>) => {
     setBusy(true);
     void operation().then(setStatus).finally(() => setBusy(false));
@@ -50,16 +46,7 @@ export const AgentAccessSettingsDialog: React.FC<{
   const runTunnel = (operation: () => Promise<LightTableAgentTunnelStatus>) => {
     setBusy(true); void operation().then(setTunnel).finally(() => setBusy(false));
   };
-  return createPortal(
-    <div className="lighttable-psd-report__backdrop" onMouseDown={onClose}>
-      <section ref={dialogRef} className="lighttable-psd-report lighttable-agent-settings"
-        role="dialog" aria-modal="true" aria-label="Settings" tabIndex={-1}
-        data-editor-native-tab-navigation onKeyDown={onDialogKeyDown}
-        onMouseDown={(event) => event.stopPropagation()}>
-        <header className="lighttable-psd-report__header">
-          <div><h2>Settings</h2><p>Agent Access</p></div>
-          <ActionButton onClick={onClose}>Close</ActionButton>
-        </header>
+  return (
         <div className="lighttable-agent-settings__body">
           <h3>Local Agent Access</h3>
           <p>Allow an authenticated agent on this computer to use LightTable's real commands. Access is off by default and binds only to 127.0.0.1.</p>
@@ -155,8 +142,5 @@ export const AgentAccessSettingsDialog: React.FC<{
             </>
           )}
         </div>
-      </section>
-    </div>,
-    document.body
   );
 };

@@ -20,6 +20,7 @@ import type {
   LightTableCommandPortRegistry,
   LightTableCommandService
 } from '../lighttable/application/commands/lightTableCommandService';
+import type { ApplicationPreferences } from './applicationPreferences';
 
 export interface WorkspaceDocumentTab {
   readonly id: DocumentSessionId;
@@ -45,6 +46,7 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onRequestNew: () => void;
   readonly onStartGuidedSample?: () => void;
   readonly onOpenSettings?: () => void;
+  readonly preferences: ApplicationPreferences;
   readonly onOpen: (
     file: File,
     decodeMode?: StandaloneDecodeMode
@@ -79,6 +81,7 @@ export function StandaloneDocumentRuntimeView({
   onRequestNew,
   onStartGuidedSample,
   onOpenSettings,
+  preferences,
   onOpen,
   onRecoveryResolved
 }: StandaloneDocumentRuntimeViewProps) {
@@ -117,6 +120,7 @@ export function StandaloneDocumentRuntimeView({
         commandPorts={commandPorts}
         imageClipboard={host.clipboard}
         recoveryStore={host.recovery}
+        recoveryPreferences={preferences.autosave}
         releaseService={host.release}
         hostKind={host.kind}
         recoveryNotice={document.runtime.recovery

@@ -63,6 +63,20 @@ export interface LightTableRecoveryStore {
   read(recoveryId: string): Promise<LightTableRecoveryEntry | null>;
 }
 
+export interface LightTableRecoveryLocation {
+  readonly label: string;
+  readonly path?: string;
+  readonly custom: boolean;
+  readonly canChoose: boolean;
+}
+
+export interface LightTableRecoveryLocationService {
+  current(): Promise<LightTableRecoveryLocation>;
+  choose(): Promise<LightTableRecoveryLocation | null>;
+  reset(): Promise<LightTableRecoveryLocation>;
+  apply(location: LightTableRecoveryLocation): Promise<LightTableRecoveryLocation>;
+}
+
 export const sha256Hex = async (value: Blob | string): Promise<string> => {
   const bytes = typeof value === 'string'
     ? new TextEncoder().encode(value)

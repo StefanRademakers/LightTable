@@ -34,6 +34,10 @@ const bridge: LightTableDesktopBridge = {
   listRecoveries: () => ipcRenderer.invoke('lighttable:recovery-list'),
   readRecovery: (recoveryId: string) =>
     ipcRenderer.invoke('lighttable:recovery-read', recoveryId),
+  recoveryLocation: () => ipcRenderer.invoke('lighttable:recovery-location'),
+  chooseRecoveryLocation: () => ipcRenderer.invoke('lighttable:recovery-location-choose'),
+  resetRecoveryLocation: () => ipcRenderer.invoke('lighttable:recovery-location-reset'),
+  applyRecoveryLocation: (path?: string) => ipcRenderer.invoke('lighttable:recovery-location-apply', path),
   writeClipboardPng: (bytes: Uint8Array) =>
     ipcRenderer.invoke('lighttable:clipboard-write-png', bytes),
   readClipboardPng: () =>

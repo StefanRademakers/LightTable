@@ -334,6 +334,7 @@ export interface LightTableEditorOverlayProps {
   commandPorts?: LightTableCommandPortRegistry;
   imageClipboard?: LightTableImageClipboard;
   recoveryStore?: LightTableRecoveryStore;
+  recoveryPreferences?: { readonly enabled: boolean; readonly intervalMs: number };
   releaseService?: import('../platform/LightTableHost').LightTableReleaseService; hostKind?: import('../platform/LightTableHost').LightTableHost['kind'];
   recoveryNotice?: string | null;
   onRecoveryResolved?: () => Promise<void> | void;
@@ -378,6 +379,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   commandPorts,
   imageClipboard: providedImageClipboard,
   recoveryStore,
+  recoveryPreferences,
   releaseService, hostKind = 'web',
   recoveryNotice = null,
   onRecoveryResolved
@@ -3039,7 +3041,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setError,
     setStatus: setGradeStatus
   });
-  useEditorRecoveryJournal({ store: recoveryStore, documentId: workspaceDocumentId,
+  useEditorRecoveryJournal({ store: recoveryStore,
+    enabled: recoveryPreferences?.enabled ?? true,
+    intervalMs: recoveryPreferences?.intervalMs,
+    documentId: workspaceDocumentId,
     sourceKey: effectiveSourceFileKey, sourceName: initialSourceName, sourceBlob: initialSourceBlob, active, commandHistory, exportOutput,
     workspaceOrder: Math.max(0, workspaceDocuments?.findIndex(({ id }) => id === workspaceDocumentId) ?? 0),
     getCanonicalRevision: () => documentSession?.getSnapshot().documentRevision ?? commandHistory.getSnapshot().currentStateId,

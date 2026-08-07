@@ -126,6 +126,12 @@ const desktopHost: LightTableHost = {
       } : null;
     }
   },
+  recoveryLocation: {
+    current: () => window.lightTableDesktop.recoveryLocation(),
+    choose: () => window.lightTableDesktop.chooseRecoveryLocation(),
+    reset: () => window.lightTableDesktop.resetRecoveryLocation(),
+    apply: (location) => window.lightTableDesktop.applyRecoveryLocation(location.custom ? location.path : undefined)
+  },
   systemFontProvider: {
     async load(asset) {
       const bytes = await window.lightTableDesktop.loadSystemFont(asset.assetId);

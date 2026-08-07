@@ -39,7 +39,12 @@ import {
   GuidedSampleCoach,
   type GuidedSampleSession
 } from './GuidedSampleCoach';
-import { AgentAccessSettingsDialog } from './AgentAccessSettingsDialog';
+import { PreferencesDialog } from './PreferencesDialog';
+import {
+  DEFAULT_APPLICATION_PREFERENCES,
+  loadApplicationPreferences,
+  saveApplicationPreferences
+} from './applicationPreferences';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -232,6 +237,9 @@ export function LightTableStandaloneApp({
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [preferences, setPreferences] = useState(() => typeof localStorage === 'undefined'
+    ? DEFAULT_APPLICATION_PREFERENCES
+    : loadApplicationPreferences());
   const [guidedSample, setGuidedSample] = useState<GuidedSampleSession | null>(null);
   const [telemetryEnabled, setTelemetryEnabled] = useState(() => host.funnel?.enabled() ?? false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
@@ -493,14 +501,17 @@ export function LightTableStandaloneApp({
   }, [activateDocument, openRecovery, recoveryListing]);
 
   useEffect(() => {
-    const handleNewShortcut = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey
-        || event.key.toLowerCase() !== 'n') return;
+    const handleApplicationShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key !== 'n' && key !== 'k') return;
       event.preventDefault();
-      requestNewDocument();
+      event.stopImmediatePropagation();
+      if (key === 'n') requestNewDocument();
+      else setSettingsOpen(true);
     };
-    window.addEventListener('keydown', handleNewShortcut, true);
-    return () => window.removeEventListener('keydown', handleNewShortcut, true);
+    window.addEventListener('keydown', handleApplicationShortcut, true);
+    return () => window.removeEventListener('keydown', handleApplicationShortcut, true);
   }, [requestNewDocument]);
 
   const closeDocument = useCallback((documentId: string) => {
@@ -685,7 +696,7 @@ export function LightTableStandaloneApp({
             </section>
           ) : null}
           <div className="lighttable-launcher__utility-actions">
-            <button className="action-button" type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
+            <button className="action-button" type="button" onClick={() => setSettingsOpen(true)}>Preferences</button>
             <button className="action-button" type="button" onClick={() => setAboutOpen(true)}>About LightTable</button>
           </div>
         </div>
@@ -702,7 +713,12 @@ export function LightTableStandaloneApp({
           dirtyDocuments={false}
           onClose={() => setAboutOpen(false)}
         />
-        <AgentAccessSettingsDialog open={settingsOpen} service={host.agentAccess} onClose={() => setSettingsOpen(false)} />
+        <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
+          onCancel={() => setSettingsOpen(false)} onSave={(next) => {
+            saveApplicationPreferences(next);
+            setPreferences(next);
+            setSettingsOpen(false);
+          }} />
       </main>
     );
   }
@@ -746,6 +762,7 @@ export function LightTableStandaloneApp({
           onRequestNew={requestNewDocument}
           onStartGuidedSample={() => void startGuidedSample()}
           onOpenSettings={() => setSettingsOpen(true)}
+          preferences={preferences}
           onOpen={openDocument}
           onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
         />
@@ -757,7 +774,12 @@ export function LightTableStandaloneApp({
         onCancel={() => setNewDialogOpen(false)}
         onCreate={(size) => void createDocument(size)}
       />
-      <AgentAccessSettingsDialog open={settingsOpen} service={host.agentAccess} onClose={() => setSettingsOpen(false)} />
+      <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
+        onCancel={() => setSettingsOpen(false)} onSave={(next) => {
+          saveApplicationPreferences(next);
+          setPreferences(next);
+          setSettingsOpen(false);
+        }} />
       {guidedSample ? (
         <GuidedSampleCoach
           session={guidedSample}

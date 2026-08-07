@@ -131,6 +131,8 @@ export {
   sha256Hex,
   type LightTableRecoveryEntry,
   type LightTableRecoveryListing,
+  type LightTableRecoveryLocation,
+  type LightTableRecoveryLocationService,
   type LightTableRecoveryRecord,
   type LightTableRecoveryRejection,
   type LightTableRecoveryStore,

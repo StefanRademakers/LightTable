@@ -8,6 +8,7 @@ import type {
   LightTableAgentClientScope,
   LightTableAgentTunnelStatus
 } from '@lighttable/app';
+import type { LightTableRecoveryLocation } from '@lighttable/app';
 
 export interface DesktopFilePayload {
   name: string;
@@ -99,6 +100,10 @@ export interface LightTableDesktopBridge {
   removeRecoveryRecord(recoveryId: string): Promise<void>;
   listRecoveries(): Promise<LightTableRecoveryListing>;
   readRecovery(recoveryId: string): Promise<DesktopRecoveryReadPayload | null>;
+  recoveryLocation(): Promise<LightTableRecoveryLocation>;
+  chooseRecoveryLocation(): Promise<LightTableRecoveryLocation | null>;
+  resetRecoveryLocation(): Promise<LightTableRecoveryLocation>;
+  applyRecoveryLocation(path?: string): Promise<LightTableRecoveryLocation>;
   writeClipboardPng(bytes: Uint8Array): Promise<void>;
   readClipboardPng(): Promise<Uint8Array | null>;
   listSystemFonts(): Promise<readonly DesktopSystemFontAsset[]>;

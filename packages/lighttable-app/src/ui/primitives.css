@@ -773,3 +773,38 @@
 .lighttable-agent-settings__results { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .lighttable-agent-settings__results li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; color: var(--color-text-muted); }
 .lighttable-agent-settings__results span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.lighttable-preferences {
+  width: min(760px, calc(100vw - 32px));
+  height: min(590px, calc(100vh - 32px));
+  max-width: none;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.lighttable-preferences__header { padding: 15px 18px; border-bottom: 1px solid var(--lt-border-subtle); }
+.lighttable-preferences__layout { display: grid; grid-template-columns: 170px minmax(0, 1fr); min-height: 0; flex: 1; }
+.lighttable-preferences__navigation { padding: 12px 10px; border-right: 1px solid var(--lt-border-subtle); background: var(--lt-surface-panel-subtle); }
+.lighttable-preferences__navigation button { width: 100%; padding: 9px 12px; border: 0; border-radius: var(--lt-radius-md); color: var(--color-text-muted); background: transparent; text-align: left; cursor: pointer; }
+.lighttable-preferences__navigation button:hover { color: var(--color-text); background: var(--lt-surface-control-hover); }
+.lighttable-preferences__navigation button.is-active { color: var(--color-text); background: var(--lt-surface-control); font-weight: 600; }
+.lighttable-preferences__content { min-width: 0; padding: 24px; overflow: auto; }
+.lighttable-preferences__content h4 { margin: 0; font-size: var(--lt-type-heading); }
+.lighttable-preferences__section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--lt-border-subtle); }
+.lighttable-preferences__section-heading p { margin: 6px 0 0; color: var(--color-text-muted); line-height: 1.45; }
+.lighttable-preferences__fields { display: grid; gap: 18px; margin-top: 20px; }
+.lighttable-preferences__fields > label { display: grid; grid-template-columns: minmax(130px, 0.45fr) minmax(220px, 1fr); align-items: center; gap: 16px; }
+.lighttable-preferences__fields > label > span { color: var(--color-text-muted); }
+.lighttable-preferences__location { min-height: 34px; padding: 8px 10px; overflow: hidden; border: 1px solid var(--lt-border-subtle); border-radius: var(--lt-radius-md); color: var(--color-text-muted); background: var(--lt-surface-panel-subtle); text-overflow: ellipsis; white-space: nowrap; }
+.lighttable-preferences__location-row { display: flex; min-width: 0; gap: 7px; }
+.lighttable-preferences__location-row .lighttable-preferences__location { min-width: 0; flex: 1; }
+.lighttable-preferences__note { margin: 18px 0 0; color: var(--color-text-muted); font-size: var(--lt-type-caption); line-height: 1.45; }
+.lighttable-preferences__error { color: var(--lt-danger); }
+.lighttable-preferences__page-title { padding-bottom: 14px; border-bottom: 1px solid var(--lt-border-subtle); }
+.lighttable-preferences .lighttable-agent-settings__body { padding: 18px 0 0; }
+.lighttable-preferences__footer { flex: 0 0 auto; border-top: 1px solid var(--lt-border-subtle); }
+@media (max-width: 620px) {
+  .lighttable-preferences__layout { grid-template-columns: 125px minmax(0, 1fr); }
+  .lighttable-preferences__content { padding: 18px; }
+  .lighttable-preferences__fields > label { grid-template-columns: 1fr; gap: 7px; }
+}
