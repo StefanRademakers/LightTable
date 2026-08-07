@@ -605,7 +605,7 @@ export const LightTableDockWorkspace = forwardRef<
     <WorkspaceContentContext.Provider value={content}>
       <div
         ref={workspaceElementRef}
-        className={`lighttable-dock-workspace dockview-theme-dark${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}`}
+        className={`lighttable-dock-workspace dockview-theme-dark${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}`}
       >
         <DockviewReact
           components={components}

@@ -784,13 +784,15 @@
  * their normal dimensions.
  */
 .lighttable-dock-workspace .dv-resize-container {
-  /*
-   * Match the accessory-panel constraint at the actual floating-window
-   * boundary. Dockview must not shrink the outer frame below the inner grid,
-   * otherwise the panel content appears to escape its window.
-   */
-  min-width: 250px;
   box-sizing: border-box;
+}
+
+/* Dockview applies panel constraints to the inner group, but its floating
+ * resize frame otherwise keeps growing independently. Constrain the owning
+ * frame as well so frame, grid and panel always remain one visual plane. */
+.lighttable-dock-workspace--accessory-width-constrained .dv-resize-container {
+  min-width: 250px;
+  max-width: 520px;
 }
 
 .lighttable-dock-workspace .dv-resize-container > .dv-grid-view,
