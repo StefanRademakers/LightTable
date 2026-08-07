@@ -172,6 +172,7 @@ import { useSelectionSessionController } from './application/tools/selection/use
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
+import { isVectorEditorTool } from './editor/tools/vectorToolCatalog';
 import type { VectorElementCreationTransaction } from './application/vectors/VectorDocumentController';
 import {
   patchVectorStyle,
@@ -1689,6 +1690,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     lensBlurViewportMode,
     warpDebugView: editorSession.warp.debugView,
     vectorSelection: editorSession.vectorSelection,
+    vectorEditingOverlayVisible: isVectorEditorTool(editorSession.activeTool),
     selection: editorSession.selection,
     selectionDraft,
     selectionOverlayVisible: editorSession.activeTool !== 'view',

@@ -83,7 +83,7 @@ describe('vector document editing overlays', () => {
     expect(buildVectorDocumentEditingOverlays(document, selection)).toEqual([]);
   });
 
-  it('outlines a selected live shape without exposing realized anchors', () => {
+  it('does not duplicate a whole-element selection through the path overlay', () => {
     const document = createImageDocument('document', 100, 100, 'asset');
     const shape = createVectorLiveShape('shape', {
       kind: 'ellipse',
@@ -94,6 +94,23 @@ describe('vector document editing overlays', () => {
     document.layers = [layer];
     const selection = createVectorEditorSelection();
     selection.elements = [{ layerId: layer.id, elementId: shape.id }];
+
+    const overlays = buildVectorDocumentEditingOverlays(document, selection);
+    expect(overlays).toEqual([]);
+  });
+
+  it('keeps an explicitly selected path visible when its element is also selected', () => {
+    const document = createImageDocument('document', 100, 100, 'asset');
+    const shape = createVectorLiveShape('shape', {
+      kind: 'ellipse',
+      width: 30,
+      height: 20
+    });
+    const layer = createVectorLayer([shape]);
+    document.layers = [layer];
+    const selection = createVectorEditorSelection();
+    selection.elements = [{ layerId: layer.id, elementId: shape.id }];
+    selection.paths = [{ layerId: layer.id, pathId: shape.id }];
 
     const overlays = buildVectorDocumentEditingOverlays(document, selection);
     expect(overlays).toHaveLength(1);
@@ -128,7 +145,7 @@ describe('vector document editing overlays', () => {
     ];
 
     const scene = buildVectorDocumentEditingSceneOverlay(document, selection);
-    expect(scene.paths).toHaveLength(2);
+    expect(scene.paths).toEqual([]);
     expect(scene.selectionFrame).toMatchObject({
       bounds: { x: 10, y: 15, width: 50, height: 40 },
       pivot: { x: 35, y: 35 }

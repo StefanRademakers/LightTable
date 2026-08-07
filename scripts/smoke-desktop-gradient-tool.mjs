@@ -12,6 +12,7 @@ const outputDirectory = path.join(workspaceRoot, 'tmp', 'gradient-tool-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'gradient-tool.png');
 const liveScreenshotPath = path.join(outputDirectory, 'gradient-tool-live.png');
+const selectionToolScreenshotPath = path.join(outputDirectory, 'gradient-tool-selection-tool.png');
 const editedScreenshotPath = path.join(outputDirectory, 'gradient-tool-edited.png');
 const outsideScreenshotPath = path.join(outputDirectory, 'gradient-tool-outside.png');
 const pixelScreenshotPath = path.join(outputDirectory, 'gradient-tool-pixels.png');
@@ -176,6 +177,16 @@ try {
   await page.keyboard.up('Shift');
   await captureHistory('gradient-dragged');
   await page.screenshot({ path: screenshotPath });
+
+  // Vector selection remains semantic state, but its path/frame/gizmo chrome
+  // must not leak into unrelated raster-selection tools.
+  await page.keyboard.press('m');
+  await page.getByRole('button', { name: 'Rectangular selection (M)', exact: true })
+    .waitFor({ state: 'visible' });
+  await page.waitForTimeout(50);
+  await page.screenshot({ path: selectionToolScreenshotPath });
+  await page.keyboard.press('g');
+  await gradientButton.waitFor({ state: 'visible' });
 
   const dragDx = end.x - start.x;
   const dragDy = end.y - start.y;
@@ -363,6 +374,7 @@ try {
     createdLayerId: activeLayer.id,
     screenshotPath,
     liveScreenshotPath,
+    selectionToolScreenshotPath,
     editedScreenshotPath,
     outsideScreenshotPath,
     pixelScreenshotPath,

@@ -3,7 +3,10 @@ import type { WebGpuScopeOptions } from '../../gpu/WebGpuScopeEngine';
 import type { ScopeSettings, ScopeVisibility } from '../../scopes';
 import type { LensBlurViewportMode } from '../config/adjustmentControls';
 import type { WarpDebugView } from '../../effects/warp/warpTypes';
-import type { VectorEditorSelection } from '../session/editorSession';
+import {
+  createVectorEditorSelection,
+  type VectorEditorSelection
+} from '../session/editorSession';
 import type {
   CompositeColorChannel,
   SelectionOperation,
@@ -56,6 +59,7 @@ interface RendererPresentationSyncOptions<
   readonly lensBlurViewportMode: LensBlurViewportMode;
   readonly warpDebugView: WarpDebugView;
   readonly vectorSelection: VectorEditorSelection;
+  readonly vectorEditingOverlayVisible: boolean;
   readonly selection: readonly SelectionOperation[];
   readonly selectionDraft: SelectionShape | null;
   readonly selectionOverlayVisible: boolean;
@@ -80,6 +84,7 @@ export const useRendererPresentationSync = <
   lensBlurViewportMode,
   warpDebugView,
   vectorSelection,
+  vectorEditingOverlayVisible,
   selection,
   selectionDraft,
   selectionOverlayVisible,
@@ -112,8 +117,10 @@ export const useRendererPresentationSync = <
   }, [rendererRef, warpDebugView]);
 
   useEffect(() => {
-    rendererRef.current?.setVectorEditingSelection(vectorSelection);
-  }, [rendererRef, vectorSelection]);
+    rendererRef.current?.setVectorEditingSelection(
+      presentedVectorEditingSelection(vectorSelection, vectorEditingOverlayVisible)
+    );
+  }, [rendererRef, vectorEditingOverlayVisible, vectorSelection]);
 
   useEffect(() => {
     rendererRef.current?.setSelectionEditingOverlay(
@@ -138,3 +145,9 @@ export const useRendererPresentationSync = <
     scopeVisibilityRef
   ]);
 };
+
+/** Keeps semantic vector selection alive while hiding tool-specific GPU chrome. */
+export const presentedVectorEditingSelection = (
+  selection: VectorEditorSelection,
+  visible: boolean
+): VectorEditorSelection => visible ? selection : createVectorEditorSelection();

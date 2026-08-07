@@ -77,9 +77,7 @@ export const buildVectorDocumentEditingOverlays = (
   document: Pick<ImageDocument, 'layers' | 'revision'>,
   selection: VectorEditorSelection
 ): VectorDocumentEditingOverlay[] => vectorElementsTopmostFirst(document)
-  .filter(({ layerId, elementId }) => selection.elements.some(
-    (reference) => reference.layerId === layerId && reference.elementId === elementId
-  ) || selection.paths.some(
+  .filter(({ layerId, elementId }) => selection.paths.some(
     (reference) => samePath(reference, layerId, elementId)
   ) || selection.anchors.some(
     (reference) => samePath(reference, layerId, elementId)
@@ -119,9 +117,10 @@ export const buildVectorDocumentEditingOverlays = (
 /**
  * Builds the complete transient vector-editing scene.
  *
- * Path outlines and the shared whole-element frame remain separate resources:
- * selecting multiple elements creates one transform frame without coupling
- * their live geometry or invalidating artwork caches.
+ * Direct/path selection owns path outlines. Whole-element selection owns one
+ * shared transform frame instead of redundantly drawing every realized path;
+ * this keeps simple Gradient Fill layers from replaying their document-sized
+ * rectangle through the path-editing overlay.
  */
 export const buildVectorDocumentEditingSceneOverlay = (
   document: Pick<ImageDocument, 'layers' | 'revision'>,
