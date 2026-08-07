@@ -683,7 +683,7 @@
   --dv-active-sash-color: var(--lt-accent);
   --dv-drag-over-background-color: var(--lt-accent-drop);
   --dv-drag-over-border-color: var(--lt-accent);
-  --dv-tabs-and-actions-container-font-size: var(--lt-type-label);
+  --dv-tabs-and-actions-container-font-size: calc(var(--lt-type-label) - 2px);
 }
 
 /* Keep the semantic LightTable tab surfaces authoritative. Dockview applies
