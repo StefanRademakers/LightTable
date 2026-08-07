@@ -6,9 +6,14 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import {
+  captureDesktopTestState,
+  resolveDesktopTestLaunch,
+  waitForDesktopLauncher
+} from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
-const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspace);
 const args = process.argv.slice(2);
 const quick = args.includes('--quick');
 const output = path.resolve(args.find((value) => value.startsWith('--output='))?.slice(9)
@@ -57,7 +62,7 @@ const hideFloatingLayersPanel = (page) => page.evaluate(() => {
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 
-await Promise.all([access(executable), mkdir(output, { recursive: true })]);
+await Promise.all([access(launch.executablePath), mkdir(output, { recursive: true })]);
 const report = {
   generatedAt: new Date().toISOString(), platform: process.platform, architecture: process.arch,
   hardware: { cpu: os.cpus()[0]?.model ?? 'unknown', logicalCpus: os.cpus().length,
@@ -73,7 +78,7 @@ for (const [index, sourceFile] of sources.entries()) {
     source.bytes = (await stat(sourceFile)).size;
     const userData = path.join(output, `user-data-${index}`);
     await mkdir(userData, { recursive: true });
-    app = await electron.launch({ executablePath: executable, args: [path.join(workspace, 'apps', 'desktop')],
+    app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
       cwd: workspace, env: { ...environment, LIGHTTABLE_AUTOMATION_OPEN_FILE: sourceFile,
         LIGHTTABLE_AUTOMATION_USER_DATA: userData }, timeout: 30_000 });
     const page = await app.firstWindow({ timeout: 30_000 });
@@ -92,7 +97,11 @@ for (const [index, sourceFile] of sources.entries()) {
       }).observe({ type: 'longtask', buffered: true });
     });
     const openedAt = performance.now();
-    await page.getByRole('button', { name: 'Open file' }).click();
+    const openFileButton = await waitForDesktopLauncher({
+      app, page, outputDirectory: output, sourceFile, pageErrors: source.pageErrors,
+      label: `recovery-open-${index}`
+    });
+    await openFileButton.click();
     await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: source.bytes > 100_000_000 ? 180_000 : 60_000 });
     source.openMs = performance.now() - openedAt;
@@ -188,11 +197,28 @@ for (const [index, sourceFile] of sources.entries()) {
     app = undefined;
 
     const restoreStarted = performance.now();
-    app = await electron.launch({ executablePath: executable, args: [path.join(workspace, 'apps', 'desktop')],
+    app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
       cwd: workspace, env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: userData }, timeout: 30_000 });
     const restoredPage = await app.firstWindow({ timeout: 30_000 });
+    restoredPage.on('pageerror', (error) => source.pageErrors.push(error.stack ?? error.message));
+    restoredPage.on('console', (message) => {
+      if (message.type() === 'error') source.consoleErrors.push(message.text());
+    });
+    await waitForDesktopLauncher({
+      app, page: restoredPage, outputDirectory: output, sourceFile,
+      pageErrors: source.pageErrors, label: `recovery-restore-launcher-${index}`
+    });
     const recoverButton = restoredPage.getByRole('button', { name: /Open recovered copy|Retry recovered copy/ });
-    await recoverButton.waitFor({ state: 'visible', timeout: 30_000 });
+    try {
+      await recoverButton.waitFor({ state: 'visible', timeout: 30_000 });
+    } catch (error) {
+      const diagnosticPath = await captureDesktopTestState({
+        app, page: restoredPage, outputDirectory: output, sourceFile,
+        pageErrors: source.pageErrors, label: `recovery-restore-missing-${index}`, timeout: 30_000,
+        details: { recoveryFiles: source.recoveryFiles }
+      });
+      throw new Error(`Recovery action was unavailable. Diagnostic: ${diagnosticPath}`, { cause: error });
+    }
     await recoverButton.click();
     await restoredPage.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: source.bytes > 100_000_000 ? 180_000 : 60_000 });

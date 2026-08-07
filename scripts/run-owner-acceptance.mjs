@@ -11,13 +11,16 @@ const argument = (name, fallback) => {
 const output = path.resolve(argument('output', path.join(workspace, 'tmp', 'owner-acceptance')));
 const selected = new Set(argument('projects', '').split(',').map((value) => value.trim()).filter(Boolean));
 const skipPackage = process.argv.includes('--skip-package');
+const packagedExecutable = path.join(
+  workspace, 'apps', 'desktop', 'out', 'LightTable-win32-x64', 'LightTable.exe'
+);
 const manifest = JSON.parse(await readFile(path.join(workspace, 'test', 'acceptance', 'owner-workflows.json'), 'utf8'));
 const projects = manifest.projects.filter(({ id }) => selected.size === 0 || selected.has(id));
 await mkdir(output, { recursive: true });
 
-const run = (command, args, logPath, timeoutMs = 240_000) => new Promise((resolve) => {
+const run = (command, args, logPath, timeoutMs = 240_000, environment = process.env) => new Promise((resolve) => {
   const started = performance.now(); let log = ''; let timedOut = false;
-  const child = spawn(command, args, { cwd: workspace, windowsHide: true });
+  const child = spawn(command, args, { cwd: workspace, env: environment, windowsHide: true });
   child.stdout.on('data', (chunk) => { log += chunk; process.stdout.write(chunk); });
   child.stderr.on('data', (chunk) => { log += chunk; process.stderr.write(chunk); });
   const timeout = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMs);
@@ -41,6 +44,15 @@ if (!skipPackage) {
   const packaged = await run(npm, args, path.join(output, 'package.log'), 300_000);
   if (!packaged.passed) throw new Error('Owner acceptance packaging failed.');
 }
+await access(packagedExecutable).catch(() => {
+  throw new Error(`Owner acceptance requires the packaged executable: ${packagedExecutable}`);
+});
+const automationEnvironment = {
+  ...process.env,
+  LIGHTTABLE_TEST_EXECUTABLE: packagedExecutable
+};
+report.buildMode = 'production-packaged';
+report.executable = packagedExecutable;
 
 for (const project of projects) {
   const result = { id: project.id, title: project.title, fixture: project.fixture,
@@ -65,7 +77,7 @@ for (const project of projects) {
     await mkdir(projectOutput, { recursive: true });
     const args = automation.args.map((value) => value.replaceAll('{output}', projectOutput));
     const execution = await run(process.execPath, [path.join(workspace, 'scripts', automation.script), ...args],
-      path.join(projectOutput, `${index}-${automation.script}.log`));
+      path.join(projectOutput, `${index}-${automation.script}.log`), 240_000, automationEnvironment);
     result.automation.push({ script: automation.script, args, ...execution });
     if (!execution.passed) report.defects.push({ id: `acceptance-${project.id}-${automation.script}`,
       severity: 'P1', workflow: project.id, expected: `${automation.script} completes without errors.`,
