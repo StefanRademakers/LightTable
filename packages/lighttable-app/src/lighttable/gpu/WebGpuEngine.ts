@@ -90,6 +90,7 @@ import {
 } from '@lighttable/vector-webgpu';
 import type { VectorEditingOverlay, VectorSelectionFrame } from '@lighttable/vector-rendering';
 import { buildVectorDocumentEditingSceneOverlay } from '../application/vectors/vectorEditingOverlay';
+import { vectorLayerLocalPaintBounds } from '../application/vectors/vectorSceneQueries';
 import {
   cloneVectorEditorSelection,
   createVectorEditorSelection,
@@ -653,6 +654,15 @@ export class WebGpuEngine {
   }
 
   async measureSemanticLayerContent(layer: LayerNode) {
+    if (layer.type === 'vector') {
+      const bounds = vectorLayerLocalPaintBounds(layer);
+      if (!bounds || bounds.width <= 0 || bounds.height <= 0) return null;
+      return {
+        coreBounds: { ...bounds },
+        supportBounds: { ...bounds },
+        peakCoverage: 1
+      };
+    }
     if (layer.type !== 'text') return null;
     const realized = this.documentRenderer?.textEditingLayout(layer.id)?.layout;
     const bounds = realized?.paragraphFrame?.bounds ?? realized?.logicalBounds;

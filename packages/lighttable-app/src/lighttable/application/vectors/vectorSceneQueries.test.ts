@@ -22,7 +22,8 @@ import {
   vectorElementsTopmostFirst,
   vectorPathDocumentBounds,
   vectorPathsTopmostFirst,
-  vectorLayerHitsAtDocumentPoint
+  vectorLayerHitsAtDocumentPoint,
+  vectorLayerLocalPaintBounds
 } from './vectorSceneQueries';
 
 const square = (id: string, size = 10) => createVectorPath(id, id, [
@@ -178,6 +179,41 @@ describe('vector scene queries', () => {
       y: 40,
       width: 10,
       height: 20
+    });
+  });
+
+  it('measures newly created live shapes in layer-local space for Transform', () => {
+    const shape = createVectorLiveShape('rectangle', {
+      kind: 'rectangle', width: 80, height: 45,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    shape.transform = translationMatrix(12, 18);
+    const layer = createVectorLayer([shape]);
+    layer.transform = translationMatrix(200, 100);
+
+    expect(vectorLayerLocalPaintBounds(layer)).toMatchObject({
+      x: 12, y: 18, width: 80, height: 45
+    });
+  });
+
+  it('includes transformed stroke width when measuring open vector artwork', () => {
+    const line = createVectorPath('line', 'Line', [createSubpath('line-subpath', [
+      createAnchor('start', { x: 0, y: 0 }),
+      createAnchor('end', { x: 50, y: 0 })
+    ])]);
+    line.style = {
+      fill: null,
+      opacity: 1,
+      stroke: {
+        paint: { type: 'solid', color: [1, 0, 0, 1] },
+        width: 10, cap: 'butt', join: 'miter', miterLimit: 4,
+        dash: [], dashOffset: 0
+      }
+    };
+    line.transform = scaleMatrix(2, 2);
+
+    expect(vectorLayerLocalPaintBounds(createVectorLayer([line]))).toMatchObject({
+      x: -10, y: -10, width: 120, height: 20
     });
   });
 

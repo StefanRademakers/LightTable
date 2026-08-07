@@ -220,7 +220,7 @@ export const vectorAnchorsInDocumentRect = (
   );
 };
 
-const bakeDocumentTransform = (path: VectorPath): VectorPath => ({
+const bakePathTransform = (path: VectorPath): VectorPath => ({
   ...cloneVectorPath(path),
   transform: identityAffineMatrix(),
   subpaths: path.subpaths.map((subpath) => ({
@@ -243,7 +243,7 @@ export const vectorPathDocumentBounds = (
   const resolved = vectorPathsTopmostFirst(document).find(
     (entry) => entry.layerId === layerId && entry.pathId === pathId
   );
-  return resolved ? pathBounds(bakeDocumentTransform(resolved.documentPath)) : null;
+  return resolved ? pathBounds(bakePathTransform(resolved.documentPath)) : null;
 };
 
 
@@ -256,7 +256,7 @@ export const vectorElementDocumentBounds = (
   const resolved = vectorElementsTopmostFirst(document).find(
     (entry) => entry.layerId === layerId && entry.elementId === elementId
   );
-  return resolved ? pathBounds(bakeDocumentTransform(resolved.documentPath)) : null;
+  return resolved ? pathBounds(bakePathTransform(resolved.documentPath)) : null;
 };
 
 /** Exact union of selected element geometry in document space. */
@@ -268,8 +268,29 @@ export const vectorElementsDocumentBounds = (
   const selected = new Set(references.map(({ layerId, elementId }) => `${layerId}\u0000${elementId}`));
   return vectorElementsTopmostFirst(document).reduce<VectorRect | null>(
     (bounds, resolved) => selected.has(`${resolved.layerId}\u0000${resolved.elementId}`)
-      ? unionRects(bounds, pathBounds(bakeDocumentTransform(resolved.documentPath)))
+      ? unionRects(bounds, pathBounds(bakePathTransform(resolved.documentPath)))
       : bounds,
     null
   );
 };
+
+/** Exact painted bounds in vector-layer-local space, including transformed strokes. */
+export const vectorLayerLocalPaintBounds = (layer: VectorLayer): VectorRect | null =>
+  layer.elements.reduce<VectorRect | null>((bounds, element) => {
+    const path = element.type === 'path' ? cloneVectorPath(element) : realizeLiveShape(element);
+    const { fill, stroke, opacity } = path.style;
+    if (opacity <= 0 || (!fill && !stroke)) return bounds;
+    const geometry = pathBounds(bakePathTransform(path));
+    if (!geometry) return bounds;
+    const strokeRadius = stroke ? stroke.width * 0.5 * Math.max(
+      Math.hypot(path.transform.a, path.transform.b),
+      Math.hypot(path.transform.c, path.transform.d)
+    ) : 0;
+    const painted = {
+      x: geometry.x - strokeRadius,
+      y: geometry.y - strokeRadius,
+      width: geometry.width + strokeRadius * 2,
+      height: geometry.height + strokeRadius * 2
+    };
+    return unionRects(bounds, painted);
+  }, null);
