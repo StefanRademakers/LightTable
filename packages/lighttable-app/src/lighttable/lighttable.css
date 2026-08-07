@@ -965,7 +965,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 1px;
 }
 
 .lighttable-toolbox__button {
