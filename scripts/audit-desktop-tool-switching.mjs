@@ -44,6 +44,23 @@ try {
   await page.getByRole('button', { name: 'Open file' }).click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
+  const activeToolStyle = async () => page
+    .locator('.lighttable-toolbox__button[aria-pressed="true"]')
+    .first()
+    .evaluate((button) => ({
+      background: getComputedStyle(button).backgroundColor,
+      border: getComputedStyle(button).borderColor
+    }));
+  const activeStyleAtRest = await activeToolStyle();
+  await page.locator('.lighttable-toolbox__button[aria-pressed="true"]').first().hover();
+  const activeStyleOnHover = await activeToolStyle();
+  if (activeStyleOnHover.background !== activeStyleAtRest.background
+    || activeStyleOnHover.border !== activeStyleAtRest.border) {
+    throw new Error(`Active tool styling changed on hover: ${JSON.stringify({
+      activeStyleAtRest,
+      activeStyleOnHover
+    })}`);
+  }
   const cdp = await page.context().newCDPSession(page);
   await Promise.all([cdp.send('Performance.enable'), cdp.send('HeapProfiler.enable')]);
   await page.evaluate(() => {
