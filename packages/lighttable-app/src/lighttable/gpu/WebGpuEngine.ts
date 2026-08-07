@@ -510,6 +510,10 @@ export class WebGpuEngine {
     this.documentRenderer?.beginStroke(layer, channel);
   }
 
+  preparePaintTool() {
+    this.documentRenderer?.preparePaintTool();
+  }
+
   /**
    * Keeps direct paint feedback responsive without silently lowering the
    * committed result. Optional analysis and expensive effects enter preview

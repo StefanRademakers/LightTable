@@ -256,6 +256,7 @@ export const createLayerDocumentRendererRuntime = (
     layerResources,
     selectionTextures,
     dimensions: resources.dimensions,
+    brushPipelines: toolPipelines.getBrush,
     pipelines: toolPipelines.get,
     ensureSelectionTargets,
     createTextureSized: (label, width, height) =>

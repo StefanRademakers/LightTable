@@ -8,13 +8,14 @@ import type { AffineMatrix } from '../tools/transform/transformTypes';
 import { identityAffineMatrix } from './renderContract';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
-import type { ToolPipelineBundle } from './ToolPipelineBundle';
+import type { BrushPipelineBundle, ToolPipelineBundle } from './ToolPipelineBundle';
 
 interface RasterPaintServiceOptions {
   device: GPUDevice;
   layerResources: LayerRuntimeStore;
   selectionTextures: SelectionTextureStore;
   dimensions: () => { width: number; height: number };
+  brushPipelines: () => BrushPipelineBundle;
   pipelines: () => ToolPipelineBundle;
   ensureSelectionTargets: () => void;
   createTextureSized: (label: string, width: number, height: number) => GPUTexture;
@@ -49,6 +50,17 @@ export class RasterPaintService {
 
   constructor(private readonly options: RasterPaintServiceOptions) {}
 
+  /**
+   * Moves the lazy paint-only GPU setup out of the first pointer gesture.
+   * This is deliberately allocation-bounded and does not encode commands,
+   * capture history, invalidate a layer or modify document pixels.
+   */
+  prepareBrushResources() {
+    this.options.brushPipelines();
+    this.options.ensureSelectionTargets();
+    this.ensureBrushCanvasBuffer();
+  }
+
   paintDabs(
     layerId: LayerId,
     channel: PaintChannel,
@@ -62,7 +74,7 @@ export class RasterPaintService {
     preserveTransparency = false
   ) {
     if (!dabs.length) return;
-    const pipelines = this.options.pipelines();
+    const pipelines = this.options.brushPipelines();
     this.options.ensureSelectionTargets();
     const runtime = this.options.layerResources.raster(layerId);
     if (channel === 'pixels' && !runtime) {

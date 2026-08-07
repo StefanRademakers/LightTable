@@ -829,6 +829,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
     return () => { activeRegistration = false; };
   }, [editorSession.activeTool, textEngineDiagnostic.probe, textFontRegistry, thumbnailDocumentReadyId]);
+  useEffect(() => {
+    if (
+      editorSession.activeTool !== 'brush'
+      && editorSession.activeTool !== 'erase'
+    ) return;
+    try {
+      engineRef.current?.preparePaintTool();
+    } catch (reason) {
+      setError(reason instanceof Error
+        ? `The paint engine could not be prepared: ${reason.message}`
+        : 'The paint engine could not be prepared.');
+    }
+  }, [editorSession.activeTool, thumbnailDocumentReadyId]);
   const [developmentTextFixture, setDevelopmentTextFixture] = useState<{
     enabled: boolean;
     status: 'off' | 'preparing' | 'ready' | 'error';

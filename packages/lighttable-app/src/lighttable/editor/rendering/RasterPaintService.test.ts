@@ -30,6 +30,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     maskFillGradient: { getBindGroupLayout: vi.fn(() => ({})) },
     maskInvertColors: { getBindGroupLayout: vi.fn(() => ({})) }
   };
+  const brushPipelines = vi.fn(() => pipelineSet);
   const pipelines = vi.fn(() => pipelineSet);
   const ensureSelectionTargets = vi.fn();
   const createBuffer = vi.fn(() => ({ destroy: vi.fn() }));
@@ -64,6 +65,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     } as never,
     selectionTextures: { mask: selection } as never,
     dimensions: () => ({ width: 64, height: 32 }),
+    brushPipelines: brushPipelines as never,
     pipelines: pipelines as never,
     ensureSelectionTargets,
     createTextureSized: () => {
@@ -86,6 +88,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   return {
     service,
     pipelineSet,
+    brushPipelines,
     pipelines,
     ensureSelectionTargets,
     createBuffer,
@@ -106,6 +109,23 @@ afterEach(() => {
 });
 
 describe('RasterPaintService', () => {
+  it('prepares lazy brush resources without touching pixels or history', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+
+    test.service.prepareBrushResources();
+    test.service.prepareBrushResources();
+
+    expect(test.brushPipelines).toHaveBeenCalledTimes(2);
+    expect(test.pipelines).not.toHaveBeenCalled();
+    expect(test.ensureSelectionTargets).toHaveBeenCalledTimes(2);
+    expect(test.createBuffer).toHaveBeenCalledTimes(1);
+    expect(test.captureHistoryRegions).not.toHaveBeenCalled();
+    expect(test.captureAllHistory).not.toHaveBeenCalled();
+    expect(test.submit).not.toHaveBeenCalled();
+    expect(test.invalidateLayer).not.toHaveBeenCalled();
+  });
+
   it('keeps an empty brush batch as an allocation-free exact no-op', () => {
     const test = harness();
 
@@ -119,6 +139,7 @@ describe('RasterPaintService', () => {
       1
     );
 
+    expect(test.brushPipelines).not.toHaveBeenCalled();
     expect(test.pipelines).not.toHaveBeenCalled();
     expect(test.ensureSelectionTargets).not.toHaveBeenCalled();
     expect(test.createBuffer).not.toHaveBeenCalled();
@@ -155,6 +176,8 @@ describe('RasterPaintService', () => {
     );
     expect(test.captureHistoryRegions.mock.invocationCallOrder[0])
       .toBeLessThan(test.submit.mock.invocationCallOrder[0]!);
+    expect(test.brushPipelines).toHaveBeenCalledOnce();
+    expect(test.pipelines).not.toHaveBeenCalled();
   });
 
   it('uses alpha-preserving paint and eraser pipelines for locked transparency', () => {

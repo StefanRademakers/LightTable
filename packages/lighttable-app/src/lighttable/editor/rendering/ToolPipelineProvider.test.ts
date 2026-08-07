@@ -16,4 +16,18 @@ describe('ToolPipelineProvider', () => {
     expect(compile).toHaveBeenCalledOnce();
     expect(compile).toHaveBeenCalledWith(device);
   });
+
+  it('prepares only brush pipelines without initializing the general bundle', () => {
+    const bundle = { brush: {} } as ToolPipelineBundle;
+    const brushBundle = { brush: {} } as never;
+    const compile = vi.fn(() => bundle);
+    const compileBrush = vi.fn(() => brushBundle);
+    const device = {} as GPUDevice;
+    const provider = new ToolPipelineProvider(device, compile, compileBrush);
+
+    expect(provider.getBrush()).toBe(brushBundle);
+    expect(provider.isInitialized()).toBe(false);
+    expect(compile).not.toHaveBeenCalled();
+    expect(compileBrush).toHaveBeenCalledWith(device);
+  });
 });

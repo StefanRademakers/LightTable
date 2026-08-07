@@ -339,6 +339,10 @@ export class LayerDocumentRenderer {
     this.beginPixelEdit(layer.id, channel);
   }
 
+  preparePaintTool() {
+    this.runtime.rasterPaint.prepareBrushResources();
+  }
+
   beginPixelEdit(layerId: LayerId, channel: PaintChannel) {
     return this.runtime.pixelEditHistory.begin(layerId, channel);
   }

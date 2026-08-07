@@ -19,13 +19,16 @@ import {
   SELECTION_TRANSFORM_WGSL
 } from './transformShaders';
 
-export interface ToolPipelineBundle {
+export interface BrushPipelineBundle {
   brush: GPURenderPipeline;
   brushPreserveTransparency: GPURenderPipeline;
   erase: GPURenderPipeline;
   erasePreserveTransparency: GPURenderPipeline;
   maskBrush: GPURenderPipeline;
   maskErase: GPURenderPipeline;
+}
+
+export interface ToolPipelineBundle extends BrushPipelineBundle {
   fillColor: GPURenderPipeline;
   fillGradient: GPURenderPipeline;
   invertColors: GPURenderPipeline;
@@ -46,32 +49,13 @@ export interface ToolPipelineBundle {
   selectionTransform: GPURenderPipeline;
 }
 
+const brushCache = new WeakMap<GPUDevice, BrushPipelineBundle>();
 const cache = new WeakMap<GPUDevice, ToolPipelineBundle>();
 
-/**
- * Compiles the optional editing pipelines on first tool use and shares the
- * immutable pipeline bundle between document renderers on the same device.
- * Basic image open/composite never crosses this boundary.
- */
-export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
-  const cached = cache.get(device);
+/** Compiles only the pipelines that can occur in a live brush gesture. */
+export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
+  const cached = brushCache.get(device);
   if (cached) return cached;
-  const fullscreenModule = device.createShaderModule({ code: FULLSCREEN_VERTEX_WGSL });
-  const fullscreenPipeline = (
-    label: string,
-    code: string,
-    format: GPUTextureFormat = 'rgba16float'
-  ) => device.createRenderPipeline({
-    label,
-    layout: 'auto',
-    vertex: { module: fullscreenModule, entryPoint: 'fullscreenVertex' },
-    fragment: {
-      module: device.createShaderModule({ code: `${FULLSCREEN_VERTEX_WGSL}\n${code}` }),
-      entryPoint: 'main',
-      targets: [{ format }]
-    },
-    primitive: { topology: 'triangle-list' }
-  });
   const brushModule = device.createShaderModule({ code: BRUSH_DAB_WGSL });
   const brushPipeline = (
     label: string,
@@ -85,14 +69,11 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     fragment: {
       module: brushModule,
       entryPoint: 'brushFragment',
-      targets: [{
-        format,
-        blend: { color, alpha }
-      }]
+      targets: [{ format, blend: { color, alpha } }]
     },
     primitive: { topology: 'triangle-list' }
   });
-  const bundle: ToolPipelineBundle = {
+  const bundle: BrushPipelineBundle = {
     brush: brushPipeline(
       'LightTable round brush',
       { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
@@ -128,7 +109,38 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       'r8unorm'
-    ),
+    )
+  };
+  brushCache.set(device, bundle);
+  return bundle;
+};
+
+/**
+ * Compiles the optional editing pipelines on first tool use and shares the
+ * immutable pipeline bundle between document renderers on the same device.
+ * Basic image open/composite never crosses this boundary.
+ */
+export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
+  const cached = cache.get(device);
+  if (cached) return cached;
+  const fullscreenModule = device.createShaderModule({ code: FULLSCREEN_VERTEX_WGSL });
+  const fullscreenPipeline = (
+    label: string,
+    code: string,
+    format: GPUTextureFormat = 'rgba16float'
+  ) => device.createRenderPipeline({
+    label,
+    layout: 'auto',
+    vertex: { module: fullscreenModule, entryPoint: 'fullscreenVertex' },
+    fragment: {
+      module: device.createShaderModule({ code: `${FULLSCREEN_VERTEX_WGSL}\n${code}` }),
+      entryPoint: 'main',
+      targets: [{ format }]
+    },
+    primitive: { topology: 'triangle-list' }
+  });
+  const bundle: ToolPipelineBundle = {
+    ...brushPipelinesFor(device),
     fillColor: fullscreenPipeline('LightTable fill layer color', LAYER_FILL_COLOR_WGSL),
     fillGradient: fullscreenPipeline('LightTable fill layer gradient', LAYER_FILL_GRADIENT_WGSL),
     invertColors: fullscreenPipeline('LightTable invert layer colors', LAYER_INVERT_COLORS_WGSL),

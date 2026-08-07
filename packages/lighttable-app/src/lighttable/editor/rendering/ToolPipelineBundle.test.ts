@@ -1,7 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { toolPipelinesFor } from './ToolPipelineBundle';
+import { brushPipelinesFor, toolPipelinesFor } from './ToolPipelineBundle';
 
 describe('toolPipelinesFor', () => {
+  it('can compile the gesture-critical brush subset without compiling other tools', () => {
+    const createRenderPipeline = vi.fn(() => ({}));
+    const device = {
+      createShaderModule: vi.fn(() => ({})),
+      createRenderPipeline
+    } as unknown as GPUDevice;
+
+    const first = brushPipelinesFor(device);
+    const second = brushPipelinesFor(device);
+
+    expect(second).toBe(first);
+    expect(Object.keys(first)).toHaveLength(6);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(6);
+  });
+
   it('compiles optional tool pipelines once per shared GPU device', () => {
     let pipelineId = 0;
     const createShaderModule = vi.fn(() => ({}));
