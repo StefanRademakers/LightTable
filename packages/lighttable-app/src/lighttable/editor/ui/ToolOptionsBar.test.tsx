@@ -173,16 +173,18 @@ describe('vector style tool options', () => {
     expect(markup).toContain('Arrow L');
   });
 
-  it('surfaces native Gradient Tool geometry and quality controls', () => {
+  it('keeps the Gradient Tool strip compact and separate from shape geometry', () => {
     const markup = renderOptions('gradient');
     expect(markup).toContain('aria-label="Edit gradient"');
     expect(markup).toContain('aria-label="Gradient application"');
     expect(markup).toContain('value="fill-layer"');
     expect(markup).toContain('value="pixels"');
     expect(markup).toContain('aria-label="Gradient type"');
-    expect(markup).toContain('aria-label="Gradient blend mode"');
     expect(markup).toContain('aria-label="Gradient interpolation"');
-    expect(markup).toContain('aria-label="Use gradient transparency"');
+    expect(markup).not.toContain('aria-label="Gradient blend mode"');
+    expect(markup).not.toContain('aria-label="Use gradient transparency"');
+    expect(markup).not.toContain('aria-label="Shape geometry"');
+    expect(markup).not.toContain('Editable fill layer');
   });
 
   it('surfaces the shared compact gradient editor entry for gradient artwork', () => {

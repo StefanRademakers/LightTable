@@ -486,7 +486,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   const changeShape = selectedShape && onSelectedShapeChange
     ? onSelectedShapeChange : onShapeChange;
   const shapeGeometryActive = activeTool === 'shape-rectangle'
-    || activeTool === 'shape-ellipse' || activeTool === 'shape-line' || Boolean(selectedShapeKind);
+    || activeTool === 'shape-ellipse'
+    || activeTool === 'shape-line'
+    || (activeTool !== 'gradient' && Boolean(selectedShapeKind));
   const rectangleGeometryActive = selectedShapeKind
     ? selectedShapeKind === 'rectangle' : activeTool === 'shape-rectangle';
   const [gradientEditorOpen, setGradientEditorOpen] = React.useState(false);
@@ -646,24 +648,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <option value="reflected">Reflected</option>
             <option value="diamond">Diamond</option>
           </ToolOptionSelect>
-          <AdjustmentSlider label="Opacity" value={gradient.opacity * 100}
-            min={1} max={100} resetValue={100}
-            format={(value) => `${Math.round(value)}%`}
-            onReset={() => onGradientChange({ opacity: 1 })}
-            onChange={(opacity) => onGradientChange({ opacity: opacity / 100 })} />
-          <ToolOptionSelect label="Mode" value={gradient.blendMode}
-            aria-label="Gradient blend mode"
-            onChange={(event) => onGradientChange({
-              blendMode: event.currentTarget.value as EditorSession['gradient']['blendMode']
-            })}>
-            <option value="normal">Normal</option>
-            <option value="multiply">Multiply</option>
-            <option value="screen">Screen</option>
-            <option value="overlay">Overlay</option>
-            <option value="soft-light">Soft Light</option>
-            <option value="hard-light">Hard Light</option>
-            <option value="difference">Difference</option>
-          </ToolOptionSelect>
           <label className="lighttable-tool-options__toggle">
             <input type="checkbox" checked={gradient.paint.reverse}
               aria-label="Reverse gradient"
@@ -680,12 +664,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               } })} />
             <span>Dither</span>
           </label>
-          <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={gradient.transparency}
-              aria-label="Use gradient transparency"
-              onChange={(event) => onGradientChange({ transparency: event.currentTarget.checked })} />
-            <span>Transparency</span>
-          </label>
           <ToolOptionSelect label="Method" value={gradient.paint.interpolation}
             aria-label="Gradient interpolation"
             onChange={(event) => onGradientChange({ paint: {
@@ -697,9 +675,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <option value="classic">Classic</option>
             <option value="smooth">Smooth</option>
           </ToolOptionSelect>
-          <span className="lighttable-tool-options__status">
-            {gradient.application === 'fill-layer' ? 'Editable fill layer' : 'Active raster target'}
-          </span>
         </div>
       ) : null}
       {shapeGeometryActive ? (
