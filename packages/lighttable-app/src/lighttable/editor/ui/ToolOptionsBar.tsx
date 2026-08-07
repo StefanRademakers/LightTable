@@ -362,7 +362,8 @@ const TransformToolOptions: React.FC<{
         onChange={(value) => setSkewAxis('x', value)} />
       <ToolOptionNumber label="Skew Y" unit="deg" step={0.1} value={skew.y}
         onChange={(value) => setSkewAxis('y', value)} />
-      <ToolOptionSelect label="Interpolation" value="automatic" aria-label="Transform interpolation" disabled={state.previewKind === 'semantic'}>
+      <ToolOptionSelect label="Interpolation" defaultValue="automatic"
+        aria-label="Transform interpolation" disabled={state.previewKind === 'semantic'}>
         <option value="automatic">Automatic</option>
       </ToolOptionSelect>
       {textWarp !== undefined ? <>
@@ -974,7 +975,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           ) : null}
           <label className="lighttable-tool-options__field">
             <span>Antialias</span>
-            <select value={text.antiAlias} disabled aria-label="Text antialias mode">
+            <select defaultValue={text.antiAlias} disabled aria-label="Text antialias mode">
               <option value="smooth">Smooth</option>
             </select>
           </label>

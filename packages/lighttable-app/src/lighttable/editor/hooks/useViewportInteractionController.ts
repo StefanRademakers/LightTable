@@ -130,7 +130,7 @@ interface ViewportInteractionOptions {
 export interface ViewportInteractionController {
   dragging: boolean;
   onWheel(event: WheelEvent<HTMLDivElement>): void;
-  onHorizontalWheel(input: { readonly deltaX: number }): void;
+  onHorizontalWheel(input: { readonly deltaX: number; readonly deltaY?: number }): void;
   onPointerDown(event: PointerEvent<HTMLDivElement>): void;
   onPointerMove(event: PointerEvent<HTMLDivElement>): void;
   onPointerUp(event: PointerEvent<HTMLDivElement>): void;
@@ -409,6 +409,7 @@ export const useViewportInteractionController = ({
     hideBrushCursor,
     onWheel: (event) => {
       if (!metadata) return;
+      if (event.defaultPrevented) return;
       event.preventDefault();
       if (!zoomWithScrollWheel && !event.ctrlKey && !event.metaKey) {
         const nativeWheel = event.nativeEvent as globalThis.WheelEvent & {
@@ -440,9 +441,9 @@ export const useViewportInteractionController = ({
       });
       zoomFrameRef.current?.schedule(nextView);
     },
-    onHorizontalWheel: ({ deltaX }) => {
+    onHorizontalWheel: ({ deltaX, deltaY = 0 }) => {
       if (zoomWithScrollWheel || !Number.isFinite(deltaX) || deltaX === 0) return;
-      scheduleWheelPan(deltaX, 0, 0);
+      scheduleWheelPan(deltaX, Number.isFinite(deltaY) ? deltaY : 0, 0);
     },
     onPointerDown: (event) => {
       // A bounding-client-rect read may force layout. Snapshot it once for all

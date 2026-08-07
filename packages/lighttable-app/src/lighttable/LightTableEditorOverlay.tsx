@@ -19,7 +19,10 @@ import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
   type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
 import { useViewportInteractionController } from './editor/hooks/useViewportInteractionController';
-import { zoomViewToScaleAtPoint } from './editor/tools/pointer/viewportCoordinates';
+import {
+  resolveWheelPanDeltas,
+  zoomViewToScaleAtPoint
+} from './editor/tools/pointer/viewportCoordinates';
 import { steppedZoomPercent, zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
@@ -2584,6 +2587,34 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onDesktopHorizontalWheel
     );
   }, [active]);
+
+  useEffect(() => {
+    if (!active || (toolPreferences?.zoomWithScrollWheel ?? true)) return undefined;
+    const onRendererWheelCapture = (event: globalThis.WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) return;
+      const wheelDelta = resolveWheelPanDeltas({
+        deltaX: event.deltaX,
+        deltaY: event.deltaY,
+        legacyWheelDeltaX: (event as globalThis.WheelEvent & {
+          readonly wheelDeltaX?: number;
+        }).wheelDeltaX,
+        shiftKey: event.shiftKey
+      });
+      if (wheelDelta.deltaX === 0) return;
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      const bounds = viewport.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right
+        || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
+      event.preventDefault();
+      desktopHorizontalWheelRef.current(wheelDelta);
+    };
+    window.addEventListener('wheel', onRendererWheelCapture, {
+      capture: true,
+      passive: false
+    });
+    return () => window.removeEventListener('wheel', onRendererWheelCapture, true);
+  }, [active, toolPreferences?.zoomWithScrollWheel]);
 
   const applyDocumentChange = (
     change: (current: ImageDocument) => ImageDocument,

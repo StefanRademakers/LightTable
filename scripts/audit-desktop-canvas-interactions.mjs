@@ -183,6 +183,27 @@ try {
     )}`);
   }
 
+  const rendererWheelBefore = await driver.queryDocument(documentId);
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.wheel(80, 0);
+  await settleFrame();
+  const rendererWheelAfter = await driver.queryDocument(documentId);
+  const rendererWheelResult = {
+    name: 'renderer-horizontal-wheel-pan',
+    panXBefore: rendererWheelBefore?.viewport.panX ?? null,
+    panXAfter: rendererWheelAfter?.viewport.panX ?? null,
+    panYBefore: rendererWheelBefore?.viewport.panY ?? null,
+    panYAfter: rendererWheelAfter?.viewport.panY ?? null
+  };
+  report.actions.push(rendererWheelResult);
+  if (rendererWheelResult.panXBefore === null || rendererWheelResult.panXAfter === null
+    || rendererWheelResult.panXAfter === rendererWheelResult.panXBefore
+    || rendererWheelResult.panYAfter !== rendererWheelResult.panYBefore) {
+    throw new Error(`Renderer horizontal wheel did not pan only the x-axis: ${JSON.stringify(
+      rendererWheelResult
+    )}`);
+  }
+
   await page.keyboard.press('h');
   await measure('pan-drag', () => drag(point(0.18, 0.20), point(0.26, 0.27), 24));
   await page.keyboard.press('Control+0');
