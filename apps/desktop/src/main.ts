@@ -351,6 +351,12 @@ async function createWindow(): Promise<void> {
   mainWindow = window;
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.on('before-input-event', (event, input) => {
+    if (app.isPackaged || input.type !== 'keyDown' || input.key !== 'F12') return;
+    event.preventDefault();
+    if (window.webContents.isDevToolsOpened()) window.webContents.closeDevTools();
+    else window.webContents.openDevTools({ mode: 'detach', activate: true });
+  });
   let wheelProbeCount = 0;
   window.webContents.on('before-mouse-event', (event, mouse) => {
     if (mouse.type !== 'mouseWheel') return;
