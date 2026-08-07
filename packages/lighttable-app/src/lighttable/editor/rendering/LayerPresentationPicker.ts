@@ -184,21 +184,27 @@ export class LayerPresentationPicker {
       size: stride * copies.length,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
-    const encoder = this.options.device.createCommandEncoder({
-      label: 'LightTable Move tool layer picking'
-    });
-    copies.forEach((copy, index) => {
-      if (copy.role === 'source') copy.candidate.sourceOffset = index;
-      else copy.candidate.maskOffsets.push(index);
-      encoder.copyTextureToBuffer(
-        { texture: copy.texture, origin: { x: copy.x, y: copy.y } },
-        { buffer: readback, offset: index * stride, bytesPerRow: stride, rowsPerImage: 1 },
-        { width: 1, height: 1, depthOrArrayLayers: 1 }
-      );
-    });
-
+    this.options.device.pushErrorScope('validation');
+    let validationScopeOpen = true;
     try {
+      const encoder = this.options.device.createCommandEncoder({
+        label: 'LightTable Move tool layer picking'
+      });
+      copies.forEach((copy, index) => {
+        if (copy.role === 'source') copy.candidate.sourceOffset = index;
+        else copy.candidate.maskOffsets.push(index);
+        encoder.copyTextureToBuffer(
+          { texture: copy.texture, origin: { x: copy.x, y: copy.y } },
+          { buffer: readback, offset: index * stride, bytesPerRow: stride, rowsPerImage: 1 },
+          { width: 1, height: 1, depthOrArrayLayers: 1 }
+        );
+      });
       this.options.device.queue.submit([encoder.finish()]);
+      const validationError = await this.options.device.popErrorScope();
+      validationScopeOpen = false;
+      if (validationError) {
+        throw new Error(`Move tool layer picking failed: ${validationError.message}`);
+      }
       await readback.mapAsync(GPUMapMode.READ);
       const readView = new DataView(readback.getMappedRange());
       const intrinsicHits = new Map<LayerId, boolean>();
@@ -218,6 +224,9 @@ export class LayerPresentationPicker {
       }
       return resolveTopHit(intrinsicHits);
     } finally {
+      if (validationScopeOpen) {
+        await this.options.device.popErrorScope().catch(() => null);
+      }
       if (readback.mapState === 'mapped') readback.unmap();
       readback.destroy();
     }

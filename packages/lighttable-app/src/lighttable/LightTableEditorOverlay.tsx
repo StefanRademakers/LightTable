@@ -424,6 +424,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererLifecycle: providedRendererLifecycle,
     onLocalDirtyChange: onDirtyChange
   });
+  const historySnapshot = useSyncExternalStore(
+    commandHistory.subscribe,
+    commandHistory.getSnapshot,
+    commandHistory.getSnapshot
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const commandRequestSequenceRef = useRef(0);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1783,7 +1788,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
       hasSelection: editorSession.selection.length > 0,
       hasSelectionClipboard: selectionClipboardAvailable,
-      transforming: transformActiveRef.current()
+      transforming: transformActiveRef.current(),
+      editingBlocked: historySnapshot.busy
     }),
     commands: {
       openFile: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
@@ -2245,7 +2251,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus,
     setError
   });
-
   const beginExistingFlowTextEditing = (
     point: { x: number; y: number },
     mode: 'point' | 'paragraph' | 'any' = 'any',
@@ -2537,7 +2542,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   cancelParagraphTextRef.current = cancelParagraphTextCreation;
 
   const pickTransformAtPoint = (point: { x: number; y: number }) => {
-    if (!editorSession.transformAutoSelectLayer || !imageDocument) return;
+    if (historySnapshot.busy || !editorSession.transformAutoSelectLayer || !imageDocument) return;
     const renderer = engineRef.current;
     const sourceDocument = imageDocument;
     if (!renderer) return;
@@ -2671,6 +2676,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     minScale: MIN_SCALE,
     maxScale: MAX_SCALE,
     zoomWithScrollWheel: toolPreferences?.zoomWithScrollWheel ?? true,
+    editingBlocked: historySnapshot.busy,
     onBrushCursorChange: (cursor) => {
       engineRef.current?.setBrushCursorOverlay(cursor);
     },

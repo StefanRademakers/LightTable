@@ -415,7 +415,7 @@ export class LayerCompositor {
         activeTransform && activeTransform.previewMode !== 'none'
       );
       const ungradedForegroundTexture = transformUsesPreview && activeTransform
-        ? activeTransform.previewTexture
+        ? activeTransform.previewTexture ?? runtime.texture
         : runtime.texture;
       const foregroundTexture = layer.adjustmentStack && encodeAdjustment
         ? encodeAdjustment(encoder, ungradedForegroundTexture, layer)

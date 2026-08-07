@@ -152,7 +152,6 @@ export function StandaloneDocumentRuntimeView({
           if (session.getSnapshot().lifecycle !== 'ready') session.setReady();
           if (document.runtime.recovery && !session.getSnapshot().dirty) session.markChanged();
         }}
-        onDocumentError={(message) => session.setFailed(message)}
         onDirtyChange={(dirty) => {
           if (dirty) {
             session.markChanged();

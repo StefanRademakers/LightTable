@@ -19,6 +19,7 @@ export interface EditorKeyboardControllerContext {
   readonly hasSelection: boolean;
   readonly hasSelectionClipboard: boolean;
   readonly transforming: boolean;
+  readonly editingBlocked: boolean;
 }
 
 export interface EditorKeyboardControllerOptions {
@@ -75,11 +76,13 @@ export const useEditorKeyboardController = ({
         if (nativeScope && (nativeScope.dataset.editorNativeTabNavigation !== 'tab-only'
           || event.key === 'Tab')) return false;
       }
+      const context = getContext();
       const command = resolveEditorKeyboardCommand(event, {
-        ...getContext(),
+        ...context,
         editable: isTextEditingTarget(event.target)
       }, keymap);
       if (!command) return false;
+      if (context.editingBlocked) return true;
       executeEditorKeyboardCommand(command, commands);
       return true;
     },

@@ -45,16 +45,20 @@ const gpuTexture = () => ({
   destroy: vi.fn()
 }) as unknown as GPUTexture;
 
-const createHarness = () => {
+const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
   const copyTextureToTexture = vi.fn();
   const submit = vi.fn();
   const createTexture = vi.fn(() => gpuTexture());
-  const pipelines = vi.fn();
+  const pipelines = vi.fn(() => ({
+    transform: { getBindGroupLayout: vi.fn(() => ({})) },
+    selectionTransform: { getBindGroupLayout: vi.fn(() => ({})) }
+  }));
   const sourceTexture = gpuTexture();
   const sessions = new TransformSessionStore();
   const rasterizer = new TransformRasterizer({
     device: {
       createBuffer: vi.fn(() => ({ destroy: vi.fn() })),
+      createBindGroup: vi.fn(() => ({})),
       createCommandEncoder: vi.fn(() => ({
         copyTextureToTexture,
         finish: () => 'commands'
@@ -67,7 +71,13 @@ const createHarness = () => {
     sampler: {} as GPUSampler,
     layerResources: {
       raster: (id: LayerId) => id === layerId
-        ? { texture: sourceTexture, maskTexture: null, maskId: null }
+        ? {
+            texture: sourceTexture,
+            width: runtimeDimensions.width,
+            height: runtimeDimensions.height,
+            maskTexture: null,
+            maskId: null
+          }
         : null
     } as never,
     selectionTextures: {
@@ -81,6 +91,7 @@ const createHarness = () => {
     ensureSelectionTargets: vi.fn(),
     createTexture,
     createSelectionTexture: vi.fn(() => gpuTexture()),
+    clearTexture: vi.fn(),
     invalidateLayer: vi.fn(),
     drawFullscreen: vi.fn()
   });
@@ -115,8 +126,45 @@ describe('TransformRasterizer', () => {
 
     expect(harness.sessions.current?.usesSelection).toBe(false);
     expect(harness.pipelines).not.toHaveBeenCalled();
-    expect(harness.copyTextureToTexture).toHaveBeenCalledTimes(1);
-    expect(harness.submit).toHaveBeenCalledTimes(1);
+    expect(harness.copyTextureToTexture).not.toHaveBeenCalled();
+    expect(harness.submit).not.toHaveBeenCalled();
+    expect(harness.createTexture).not.toHaveBeenCalled();
+  });
+
+  it('starts an off-canvas tight runtime transform without a GPU snapshot', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const harness = createHarness({ width: 23, height: 17 });
+    const layer = rasterLayer({ width: 23, height: 17 });
+
+    harness.rasterizer.begin(layer, false);
+
+    expect(harness.sessions.current).toMatchObject({
+      sourceTexture: null,
+      previewTexture: null,
+      usesSelection: false,
+      previewMode: 'none'
+    });
+    expect(harness.copyTextureToTexture).not.toHaveBeenCalled();
+  });
+
+  it('allocates the raster snapshot lazily when a whole-layer projective preview starts', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const harness = createHarness({ width: 23, height: 17 });
+    harness.rasterizer.begin(rasterLayer({ width: 23, height: 17 }), false);
+
+    expect(harness.rasterizer.updateProjective(
+      [{ x: 0, y: 0 }, { x: 23, y: 0 }, { x: 23, y: 17 }, { x: 0, y: 17 }],
+      [{ x: 1, y: 2 }, { x: 24, y: 1 }, { x: 22, y: 19 }, { x: 0, y: 17 }]
+    )).toBe(true);
+
+    expect(harness.createTexture).toHaveBeenCalledTimes(2);
+    expect(harness.copyTextureToTexture).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      [23, 17]
+    );
+    expect(harness.submit).toHaveBeenCalledTimes(2);
+    expect(harness.sessions.current?.previewMode).toBe('projective');
   });
 
   it('rejects hidden or position-locked layers before allocating GPU resources', () => {
@@ -150,9 +198,9 @@ describe('TransformRasterizer', () => {
     const session = harness.sessions.current!;
 
     expect(harness.rasterizer.cancel()).toBe(true);
-    expect(session.sourceTexture.destroy).toHaveBeenCalledOnce();
-    expect(session.previewTexture.destroy).toHaveBeenCalledOnce();
-    expect(session.settingsBuffer.destroy).toHaveBeenCalledOnce();
+    expect(session.sourceTexture).toBeNull();
+    expect(session.previewTexture).toBeNull();
+    expect(session.settingsBuffer).toBeNull();
     expect(harness.sessions.current).toBeNull();
   });
 });

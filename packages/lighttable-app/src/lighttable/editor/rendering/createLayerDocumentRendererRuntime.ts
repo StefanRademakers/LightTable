@@ -248,6 +248,7 @@ export const createLayerDocumentRendererRuntime = (
     ensureSelectionTargets,
     createTexture: (label) => textures.createColor(label),
     createSelectionTexture: (label) => textures.createSelection(label),
+    clearTexture: (encoder, texture) => textures.clear(encoder, texture),
     invalidateLayer: (layerId) => renderResources.invalidateLayer(layerId),
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
@@ -305,7 +306,8 @@ export const createLayerDocumentRendererRuntime = (
     pipelines: toolPipelines.get,
     ensureTargets: ensureSelectionTargets,
     rasterRuntime: (layerId) => layerResources.raster(layerId),
-    createCoverageTexture: (label) => textures.createSelection(label),
+    createCoverageTexture: (label, width, height) =>
+      textures.createMaskSized(label, width, height),
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
   });

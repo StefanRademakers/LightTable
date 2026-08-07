@@ -116,6 +116,8 @@ interface ViewportInteractionOptions {
   minScale: number;
   maxScale: number;
   zoomWithScrollWheel: boolean;
+  /** Undo/redo owns document publication while true; no edit gesture may start. */
+  editingBlocked: boolean;
   onBrushCursorChange: (cursor: {
     center: { x: number; y: number };
     diameter: number;
@@ -177,6 +179,7 @@ export const useViewportInteractionController = ({
   minScale,
   maxScale,
   zoomWithScrollWheel,
+  editingBlocked,
   onBrushCursorChange,
   onZoomDraftChange,
   onPenRubberBandChange
@@ -488,6 +491,10 @@ export const useViewportInteractionController = ({
         return;
       }
       const point = documentPoint(event, bounds);
+      if (editingBlocked && !temporaryPan) {
+        event.preventDefault();
+        return;
+      }
       if (eyedropperActive && point && event.button === 0) {
         onColorPickRef.current(point);
         event.preventDefault();

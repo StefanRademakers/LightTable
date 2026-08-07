@@ -4,11 +4,11 @@ import type { AffineMatrix } from '../tools/transform/transformTypes';
 export interface TransformGpuSession {
   layerId: LayerId;
   matrix: AffineMatrix;
-  sourceTexture: GPUTexture;
+  sourceTexture: GPUTexture | null;
   selectionTexture: GPUTexture | null;
-  previewTexture: GPUTexture;
+  previewTexture: GPUTexture | null;
   selectionPreview: GPUTexture | null;
-  settingsBuffer: GPUBuffer;
+  settingsBuffer: GPUBuffer | null;
   usesSelection: boolean;
   previewMode: 'none' | 'selection' | 'projective';
   duplicateSelection: boolean;
@@ -45,9 +45,10 @@ export class TransformSessionStore {
     const session = this.activeSession;
     if (!session) return null;
     this.activeSession = null;
-    session.previewTexture.destroy();
+    session.previewTexture?.destroy();
     session.selectionPreview?.destroy();
-    session.settingsBuffer.destroy();
+    session.settingsBuffer?.destroy();
+    if (!session.sourceTexture) return null;
     return {
       layerId: session.layerId,
       sourceTexture: session.sourceTexture,
@@ -60,17 +61,18 @@ export class TransformSessionStore {
     const session = this.activeSession;
     if (!session) return false;
     this.activeSession = null;
-    session.sourceTexture.destroy();
+    session.sourceTexture?.destroy();
     session.selectionTexture?.destroy();
-    session.previewTexture.destroy();
+    session.previewTexture?.destroy();
     session.selectionPreview?.destroy();
-    session.settingsBuffer.destroy();
+    session.settingsBuffer?.destroy();
     return true;
   }
 
   estimatedTextureBytes(rgba16Bytes: number, r8Bytes: number) {
     if (!this.activeSession) return 0;
-    return rgba16Bytes * 2
+    return (this.activeSession.sourceTexture ? rgba16Bytes : 0)
+      + (this.activeSession.previewTexture ? rgba16Bytes : 0)
       + (this.activeSession.selectionTexture ? r8Bytes : 0)
       + (this.activeSession.selectionPreview ? r8Bytes : 0);
   }

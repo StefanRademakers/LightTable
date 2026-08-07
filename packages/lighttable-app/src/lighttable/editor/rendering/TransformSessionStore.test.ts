@@ -39,11 +39,11 @@ describe('TransformSessionStore', () => {
 
     expect(history?.sourceTexture).toBe(active.sourceTexture);
     expect(history?.selectionTexture).toBe(active.selectionTexture);
-    expect(active.sourceTexture.destroy).not.toHaveBeenCalled();
+    expect(active.sourceTexture!.destroy).not.toHaveBeenCalled();
     expect(active.selectionTexture?.destroy).not.toHaveBeenCalled();
-    expect(active.previewTexture.destroy).toHaveBeenCalledOnce();
+    expect(active.previewTexture!.destroy).toHaveBeenCalledOnce();
     expect(active.selectionPreview?.destroy).toHaveBeenCalledOnce();
-    expect(active.settingsBuffer.destroy).toHaveBeenCalledOnce();
+    expect(active.settingsBuffer!.destroy).toHaveBeenCalledOnce();
     expect(store.current).toBeNull();
   });
 

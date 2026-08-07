@@ -91,6 +91,53 @@ describe('DocumentCommandHistory', () => {
     expect(history.getSnapshot().busy).toBe(false);
   });
 
+  it('queues edits recorded during async undo as the new history branch', async () => {
+    let resolveUndo: (() => void) | undefined;
+    const disposeUndone = vi.fn();
+    const history = new DocumentCommandHistory(documentId);
+    history.record(command('async', {
+      undo: () => new Promise<void>((resolve) => { resolveUndo = resolve; })
+    }, { dispose: disposeUndone }));
+
+    const undo = history.undo();
+    history.record({
+      ...command('replacement'),
+      byteSize: 32,
+      resourceIds: ['replacement-runtime']
+    });
+
+    expect(history.getSnapshot()).toMatchObject({ busy: true, estimatedBytes: 32 });
+    expect(history.getRetainedResourceIds().has('replacement-runtime')).toBe(true);
+    resolveUndo?.();
+    await undo;
+
+    expect(disposeUndone).toHaveBeenCalledOnce();
+    expect(history.getSnapshot()).toMatchObject({
+      busy: false,
+      undoDepth: 1,
+      redoDepth: 0,
+      canUndo: true,
+      canRedo: false
+    });
+  });
+
+  it('disposes queued commands when history is cleared during an operation', async () => {
+    let resolveUndo: (() => void) | undefined;
+    const disposePending = vi.fn();
+    const history = new DocumentCommandHistory(documentId);
+    history.record(command('async', {
+      undo: () => new Promise<void>((resolve) => { resolveUndo = resolve; })
+    }));
+    const undo = history.undo();
+    history.record(command('pending', {}, { dispose: disposePending }));
+
+    history.clear();
+    expect(disposePending).toHaveBeenCalledOnce();
+    resolveUndo?.();
+    await undo;
+    expect(history.getSnapshot()).toMatchObject({ undoDepth: 0, redoDepth: 0, busy: false });
+  });
+
   it('disposes abandoned redo and budget-evicted resources', async () => {
     const disposeFirst = vi.fn();
     const disposeSecond = vi.fn();

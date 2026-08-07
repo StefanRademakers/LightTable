@@ -15,7 +15,7 @@ interface SelectionContentAnalyzerOptions {
   pipelines: () => ToolPipelineBundle;
   ensureTargets: () => void;
   rasterRuntime: (layerId: RasterLayer['id']) => RasterLayerRuntime | null;
-  createCoverageTexture: (label: string) => GPUTexture;
+  createCoverageTexture: (label: string, width: number, height: number) => GPUTexture;
   drawFullscreen: (
     encoder: GPUCommandEncoder,
     pipeline: GPURenderPipeline,
@@ -51,12 +51,19 @@ export class SelectionContentAnalyzer {
     const runtime = rasterRuntime(layer.id);
     if (!runtime) return null;
 
-    const { width, height } = this.options.dimensions();
+    // Coverage is layer-local. Tight raster runtimes must never be expanded to
+    // the document surface here: the old full-canvas target clamped every
+    // fragment beyond the source edge to the final source texel, which could
+    // turn one opaque edge pixel into a document-sized transform cage.
+    const width = runtime.width;
+    const height = runtime.height;
     const generation = this.options.generation();
     const coverageTexture = createCoverageTexture(
       selectionEnabled
         ? 'LightTable selected content coverage'
-        : 'LightTable layer content coverage'
+        : 'LightTable layer content coverage',
+      width,
+      height
     );
     const bytesPerRow = Math.ceil(width / 256) * 256;
     const readBuffer = device.createBuffer({

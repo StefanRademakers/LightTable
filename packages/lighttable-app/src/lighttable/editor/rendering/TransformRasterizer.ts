@@ -20,6 +20,7 @@ interface TransformRasterizerOptions {
   ensureSelectionTargets: () => void;
   createTexture: (label: string) => GPUTexture;
   createSelectionTexture: (label: string) => GPUTexture;
+  clearTexture: (encoder: GPUCommandEncoder, texture: GPUTexture) => void;
   invalidateLayer: (layerId: LayerId) => void;
   drawFullscreen: (
     encoder: GPUCommandEncoder,
@@ -57,6 +58,21 @@ export class TransformRasterizer {
       throw new Error('The active selection is not available on the GPU.');
     }
     const { width, height } = this.options.dimensions();
+    if (!useSelection) {
+      this.options.sessions.begin({
+        layerId: layer.id,
+        matrix: identityAffineMatrix(),
+        sourceTexture: null,
+        selectionTexture: null,
+        previewTexture: null,
+        selectionPreview: null,
+        settingsBuffer: null,
+        usesSelection: false,
+        previewMode: 'none',
+        duplicateSelection: false
+      });
+      return;
+    }
     const sourceTexture = this.options.createTexture('LightTable transform source snapshot');
     const selectionTexture = useSelection
       ? this.options.createSelectionTexture('LightTable transform selection snapshot')
@@ -73,10 +89,15 @@ export class TransformRasterizer {
     const encoder = this.options.device.createCommandEncoder({
       label: 'LightTable begin transform'
     });
+    // Snapshot destinations remain document-sized because selection and
+    // projective previews operate in document coordinates. Clear before the
+    // tight source copy so pixels outside the runtime have deterministic zero
+    // alpha instead of uninitialized GPU memory.
+    this.options.clearTexture(encoder, sourceTexture);
     encoder.copyTextureToTexture(
       { texture: runtime.texture },
       { texture: sourceTexture },
-      [width, height]
+      [Math.min(runtime.width, width), Math.min(runtime.height, height)]
     );
     if (selectionTexture && selectionTextures.mask) {
       encoder.copyTextureToTexture(
@@ -120,7 +141,8 @@ export class TransformRasterizer {
 
   updateProjective(source: TransformQuad, destination: TransformQuad) {
     const session = this.options.sessions.current;
-    if (!session) return false;
+    if (!session || !this.ensureProjectiveResources(session.layerId)) return false;
+    if (!session.sourceTexture || !session.previewTexture || !session.settingsBuffer) return false;
     const inverse = solveProjectiveTransform(destination, source);
     if (!inverse) return false;
     session.previewMode = 'projective';
@@ -129,6 +151,36 @@ export class TransformRasterizer {
       inverse[3], inverse[4], inverse[5], 0,
       inverse[6], inverse[7], inverse[8], 0
     ], session.usesSelection);
+  }
+
+  private ensureProjectiveResources(layerId: LayerId): boolean {
+    const session = this.options.sessions.current;
+    if (!session) return false;
+    if (session.sourceTexture && session.previewTexture && session.settingsBuffer) return true;
+    const runtime = this.options.layerResources.raster(layerId);
+    if (!runtime) return false;
+    const { width, height } = this.options.dimensions();
+    const sourceTexture = this.options.createTexture('LightTable transform source snapshot');
+    const previewTexture = this.options.createTexture('LightTable transform preview');
+    const settingsBuffer = this.options.device.createBuffer({
+      label: 'LightTable transform settings',
+      size: 64,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const encoder = this.options.device.createCommandEncoder({
+      label: 'LightTable prepare projective transform'
+    });
+    this.options.clearTexture(encoder, sourceTexture);
+    encoder.copyTextureToTexture(
+      { texture: runtime.texture },
+      { texture: sourceTexture },
+      [Math.min(runtime.width, width), Math.min(runtime.height, height)]
+    );
+    this.options.device.queue.submit([encoder.finish()]);
+    session.sourceTexture = sourceTexture;
+    session.previewTexture = previewTexture;
+    session.settingsBuffer = settingsBuffer;
+    return true;
   }
 
   setDuplicateSelection(duplicate: boolean) {
@@ -140,7 +192,7 @@ export class TransformRasterizer {
 
   private renderPreview(inverseRows: readonly number[], selectionActive: boolean) {
     const session = this.options.sessions.current;
-    if (!session) return false;
+    if (!session?.sourceTexture || !session.previewTexture || !session.settingsBuffer) return false;
     const { width, height } = this.options.dimensions();
     const { device, sampler, selectionTextures } = this.options;
     device.queue.writeBuffer(session.settingsBuffer, 0, new Float32Array([
@@ -192,7 +244,7 @@ export class TransformRasterizer {
 
   commit(): ReversiblePixelEdit | null {
     const session = this.options.sessions.current;
-    if (!session) return null;
+    if (!session?.previewTexture) return null;
     const runtime = this.options.layerResources.raster(session.layerId);
     if (!runtime) {
       this.cancel();
