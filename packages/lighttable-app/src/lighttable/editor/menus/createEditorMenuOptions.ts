@@ -2,7 +2,7 @@ import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import type { BlendMode } from '../document/blendModes';
 import type { LightTableRecentFile } from '../../../platform/LightTableHost';
 
-export type EditorMenuId = 'file' | 'edit' | 'select' | 'layer' | 'type' | 'view' | 'help';
+export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'layer' | 'type' | 'view' | 'help';
 
 export interface EditorMenuLayerState {
   type: 'raster' | 'group' | 'adjustment' | 'vector' | 'text';
@@ -73,6 +73,7 @@ export interface EditorMenuCommands {
   layerViaCopy: () => void;
   renameLayer: () => void;
   invertLayerColors: () => void;
+  openImageSize: () => void;
   beginAutoAlign: () => void;
   applyAutoAlign: () => void;
   cancelAutoAlign: () => void;
@@ -281,6 +282,16 @@ export const createEditorMenuOptions = (
         disabled: !state.hasSelection || state.saving
       }
     ];
+  }
+
+  if (menu === 'image') {
+    return [{
+      value: 'image-size',
+      label: 'Image Size...',
+      shortcut: labels.primaryShortcut('Alt+I'),
+      onClick: commands.openImageSize,
+      disabled: !state.hasDocument || state.saving
+    }];
   }
 
   if (menu === 'layer') {

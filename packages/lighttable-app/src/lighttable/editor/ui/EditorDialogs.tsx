@@ -1,7 +1,8 @@
 import { ConfirmDialog } from '../../../ui/ConfirmDialog';
 import { TextInputDialog } from '../../../ui/TextInputDialog';
 import type { ReferenceDifferenceMetrics } from '../../application/rendering/rendererTypes';
-import type { DocumentFontAsset, LayerId, PhotoshopImportReport } from '../document/documentTypes';
+import type { DocumentFontAsset, ImageDocument, LayerId, PhotoshopImportReport } from '../document/documentTypes';
+import type { ImageSizeRequest } from '../../application/imageSize/imageSizeModel';
 import { PsdImportReportDialog } from '../psd/PsdImportReportDialog';
 import type { EditorDialogController } from './useEditorDialogController';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
@@ -12,6 +13,7 @@ import { FillDialog } from './FillDialog';
 import { AboutUpdateDialog } from './AboutUpdateDialog';
 import type { LightTableReleaseService } from '../../../platform/LightTableHost';
 import { CommandHelpDialog } from './CommandHelpDialog';
+import { ImageSizeDialog } from './ImageSizeDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -51,6 +53,9 @@ export interface EditorDialogsProps {
   readonly onError: (message: string) => void;
   readonly release?: LightTableReleaseService;
   readonly dirtyDocuments: boolean;
+  readonly document: ImageDocument | null;
+  readonly imageSizeBusy?: boolean;
+  readonly onResizeImage: (request: ImageSizeRequest) => void;
 }
 
 export const EditorDialogs = ({
@@ -73,9 +78,19 @@ export const EditorDialogs = ({
   onConvertTextToShape,
   onError,
   release,
-  dirtyDocuments
+  dirtyDocuments,
+  document,
+  imageSizeBusy,
+  onResizeImage
 }: EditorDialogsProps) => (
   <>
+    <ImageSizeDialog
+      open={controller.imageSizeOpen}
+      document={document}
+      busy={imageSizeBusy}
+      onCancel={controller.closeImageSize}
+      onCommit={onResizeImage}
+    />
     <FillDialog
       open={controller.fillOpen}
       foregroundColor={foregroundColor}

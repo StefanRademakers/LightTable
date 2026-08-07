@@ -30,6 +30,17 @@ const photoshopImport = {
 } as PsdDecodeSuccess;
 
 describe('buildEditorStatus', () => {
+  it('shows current canvas dimensions instead of stale source dimensions', () => {
+    const document = createImageDocument('resized.psd', 501, 299, 'source');
+    const status = buildEditorStatus({
+      metadata: { name: 'resized.psd', width: 1001, height: 598, contentType: 'image/vnd.adobe.photoshop' },
+      document, scale: 1, startupTimings: null, gpuMemoryBytes: 0,
+      photoshopImport: null, photoshopCompatibilitySummary: '', referenceDifference: null,
+      reportAvailable: false
+    });
+    expect(status.meta).toContain('501 × 299');
+  });
+
   it('formats precision, scale, readiness and owned GPU memory', () => {
     const document = createImageDocument('flowers.tiff', 960, 640, 'source', {
       decoder: 'wasm-vips', sourceBitDepth: 16, sourceFormat: 'TIFF',

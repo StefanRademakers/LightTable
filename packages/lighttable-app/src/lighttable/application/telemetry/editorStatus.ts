@@ -62,7 +62,7 @@ const imageMeta = (
   startupTimings: LightTableStartupTimings | null,
   gpuMemoryBytes: number
 ): string => [
-  `${metadata.width} × ${metadata.height}`,
+  `${document?.width ?? metadata.width} × ${document?.height ?? metadata.height}`,
   `${Math.round(scale * 100)}%`,
   document
     ? `RGB / ${document.colorSettings.bitDepth}-bit / ${documentBlendProfileDisplayName(document.colorSettings.blendProfile)}`

@@ -9,6 +9,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   openFile: vi.fn(),
   saveFile: vi.fn(),
   quickExportPng: vi.fn(),
+  openImageSize: vi.fn(),
   isTransformActive: vi.fn(() => false),
   commitTransform: vi.fn(),
   repeatTransform: vi.fn(),

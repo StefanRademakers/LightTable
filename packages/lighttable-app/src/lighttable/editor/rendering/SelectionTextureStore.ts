@@ -34,6 +34,17 @@ export class SelectionTextureStore {
     [this.mask, this.result] = [this.result, this.mask];
   }
 
+  exchangeTargets(replacement: { mask: GPUTexture; result: GPUTexture; shape: GPUTexture }) {
+    if (!this.mask || !this.result || !this.shape) {
+      throw new Error('Selection targets are unavailable.');
+    }
+    const current = { mask: this.mask, result: this.result, shape: this.shape };
+    this.mask = replacement.mask;
+    this.result = replacement.result;
+    this.shape = replacement.shape;
+    return current;
+  }
+
   replaceClipboard() {
     this.clipboard?.destroy();
     this.clipboard = this.options.createClipboardTexture('LightTable selection clipboard');

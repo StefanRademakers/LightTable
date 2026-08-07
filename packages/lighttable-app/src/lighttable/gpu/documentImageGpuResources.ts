@@ -56,6 +56,14 @@ export class DocumentImageGpuResources {
     this.clearBindGroups();
   }
 
+  /** Recreates viewport/compositing targets while retaining the decoded source. */
+  resetDerived(): void {
+    const sourceTexture = this.sourceTexture;
+    this.sourceTexture = null;
+    this.reset();
+    this.sourceTexture = sourceTexture;
+  }
+
   clearBindGroups(): void {
     this.downsampleBindGroup = null;
     this.blurHorizontalBindGroup = null;

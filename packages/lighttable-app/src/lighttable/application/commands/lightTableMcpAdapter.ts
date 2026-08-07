@@ -69,6 +69,7 @@ export interface AuthenticatedLightTableMcpAdapterOptions {
 
 const allowedCommands = new Set<LightTableCommandId>([
   'document.create',
+  'document.resizeImage',
   'view.setZoom',
   'layer.createRaster',
   'layer.placeArtifact',

@@ -23,6 +23,7 @@ export interface MissingFontRecoveryRequest {
 export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
   const [fillOpen, setFillOpen] = useState(false);
+  const [imageSizeOpen, setImageSizeOpen] = useState(false);
   const [flattenRequest, setFlattenRequest] =
     useState<FlattenRequest | null>(null);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
@@ -37,6 +38,7 @@ export const useEditorDialogController = () => {
   const reset = useCallback(() => {
     setFeatherOpen(false);
     setFillOpen(false);
+    setImageSizeOpen(false);
     setFlattenRequest(null);
     setPsdReportOpen(false);
     setFormatSupportOpen(false);
@@ -50,6 +52,7 @@ export const useEditorDialogController = () => {
   return {
     featherOpen,
     fillOpen,
+    imageSizeOpen,
     flattenRequest,
     psdReportOpen,
     formatSupportOpen,
@@ -62,6 +65,8 @@ export const useEditorDialogController = () => {
     closeFeather: useCallback(() => setFeatherOpen(false), []),
     openFill: useCallback(() => setFillOpen(true), []),
     closeFill: useCallback(() => setFillOpen(false), []),
+    openImageSize: useCallback(() => setImageSizeOpen(true), []),
+    closeImageSize: useCallback(() => setImageSizeOpen(false), []),
     requestFlatten: useCallback(
       (request: FlattenRequest) => setFlattenRequest(request),
       []

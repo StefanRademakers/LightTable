@@ -33,6 +33,7 @@ import { AutomationTaskEventStore } from './automationTaskEventStore';
 import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
 import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSample,
   parseCreateDocumentOptions } from './lightTableCommandValidation';
+import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
 export * from './lightTableCommandContract';
 
 /**
@@ -61,6 +62,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport) {
     return this.resolve(documentId).setZoom(viewport);
+  }
+
+  resizeImage(documentId: DocumentSessionId, request: Parameters<NonNullable<DocumentLightTableCommandPorts['resizeImage']>>[0]) {
+    const resize = this.resolve(documentId).resizeImage;
+    if (!resize) throw new Error('Image Size is unavailable in the target document.');
+    return resize(request);
   }
 
   createRasterLayer(documentId: DocumentSessionId) {
@@ -450,6 +457,7 @@ export class LightTableCommandService {
     });
     return [
       availability('document.create', Boolean(this.workspacePorts), 'Document creation is unavailable in this host.'),
+      availability('document.resizeImage', Boolean(this.ports.resizeImage), 'Image Size is unavailable in this host.'),
       availability('view.setZoom', true, ''),
       availability('layer.createRaster', true, ''),
       availability('layer.placeArtifact', true, ''),
@@ -571,6 +579,25 @@ export class LightTableCommandService {
       const taskId = startAtomicCommandBatchTask(session, this.ports, batch, this.taskEvents);
       if (!taskId) return this.reject(value.requestId, 'execution-failed', 'The batch task did not start.', snapshot);
       return { requestId: value.requestId, status: 'accepted', taskId, revisions: this.revisions(snapshot) };
+    }
+
+    if (value.command === 'document.resizeImage') {
+      const resize = parseImageSizeRequest(value.parameters);
+      if ('message' in resize) {
+        return this.reject(value.requestId, 'invalid-parameters', resize.message, snapshot);
+      }
+      if (!this.ports.resizeImage) {
+        return this.reject(value.requestId, 'command-unavailable', 'Image Size is unavailable in this host.', snapshot);
+      }
+      try {
+        await this.ports.resizeImage(documentRequest.documentId, resize);
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: {
+          width: resize.width, height: resize.height, resolutionPpi: resize.resolutionPpi
+        }, revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
     }
 
     if (value.command === 'file.exportNative' || value.command === 'file.exportPng'

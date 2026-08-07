@@ -92,6 +92,7 @@ import {
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
+import { createResizePlan, resizeImageDocumentSemantics, type ImageSizeRequest } from './application/imageSize/imageSizeModel';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import {
   ParagraphTextCreationController,
@@ -988,6 +989,48 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pushDocumentHistory = documentMutationController.record;
   const beginDocumentTransaction = documentMutationController.begin;
   const endDocumentTransaction = documentMutationController.end;
+  const applyImageSizeSnapshot = (snapshot: ImageDocument) => {
+    engineRef.current?.resizeDocumentSurface(snapshot);
+    applyDocumentSnapshot(snapshot);
+  };
+  const commitImageSize = (request: ImageSizeRequest, reportError = true) => {
+    finishOpenHistoryTransactions();
+    const before = imageDocumentRef.current;
+    if (!before) return;
+    let gpuResize: ReturnType<DocumentRendererPort['resizeImagePixels']> | null = null;
+    try {
+      const plan = createResizePlan(before, request);
+      const after = resizeImageDocumentSemantics(before, request);
+      if (after === before) {
+        editorDialogs.closeImageSize();
+        return;
+      }
+      gpuResize = engineRef.current?.resizeImagePixels(
+        before,
+        plan,
+        request.preserveDetailsNoiseReduction
+      ) ?? null;
+      applyImageSizeSnapshot(after);
+      pushHistoryEntry({
+        type: 'document.image-size',
+        label: 'Image Size',
+        documentMutation: true,
+        undo: () => { gpuResize?.apply('before'); applyImageSizeSnapshot(before); },
+        redo: () => { gpuResize?.apply('after'); applyImageSizeSnapshot(after); },
+        dispose: () => gpuResize?.dispose()
+      });
+      editorDialogs.closeImageSize();
+      setZoomMode('fit');
+      setView({ scale: 1, panX: 0, panY: 0 });
+    } catch (reason) {
+      if (gpuResize) {
+        gpuResize.apply('before');
+        applyImageSizeSnapshot(before);
+      }
+      if (!reportError) throw reason;
+      setError(reason instanceof Error ? reason.message : 'The image could not be resized.');
+    }
+  };
   const textToShapeControllerRef = useRef<TextToShapeCommandController | null>(null);
   textToShapeControllerRef.current ??= new TextToShapeCommandController(() => ({
     getDocument: () => imageDocumentRef.current,
@@ -1715,6 +1758,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       openFile: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
       saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
+      openImageSize: editorDialogs.openImageSize,
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       repeatTransform: (duplicate) => repeatTransformRef.current(duplicate),
@@ -2855,6 +2899,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => {
     if (!commandPorts) return;
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
+      resizeImage: (request) => commitImageSize(request, false),
       setZoom: (viewport) => {
         if (viewport.zoomMode === 'fit') applyFitZoom();
         else if (viewport.zoomMode === '100') applyActualZoom();
@@ -3447,6 +3492,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectAll: selectAllContent,
       clear: clearCurrentSelection,
       invert: invertCurrentSelection
+    },
+    image: {
+      openSize: editorDialogs.openImageSize
     },
     layers: {
       panel: commandLayerPanelController,
@@ -4095,7 +4143,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onConvertTextToShape: commitTextToShape,
             onError: setError,
             release: releaseService,
-            dirtyDocuments: Boolean(workspaceDocuments?.some(({ dirty }) => dirty))
+            dirtyDocuments: Boolean(workspaceDocuments?.some(({ dirty }) => dirty)),
+            document: imageDocument,
+            onResizeImage: commitImageSize
           }}
           toolOptions={toolOptionsMenu ? {
             x: toolOptionsMenu.x,

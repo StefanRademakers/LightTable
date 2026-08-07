@@ -29,6 +29,7 @@ export type EditorKeyboardCommand =
   | 'open-file'
   | 'save-file'
   | 'quick-export-png'
+  | 'open-image-size'
   | 'undo'
   | 'redo'
   | 'temporary-pan-start'
@@ -196,6 +197,10 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
         when: (context) => !context.saving && context.hasActiveLayer
       }
     ),
+    command('image.size', { key: 'i', primary: true, alt: true, shift: false }, 'open-image-size', {
+      allowWhileEditing: true,
+      when: (context) => !context.saving && context.hasActiveLayer
+    }),
     command('history.undo', { key: 'z', primary: true, alt: false, shift: false }, 'undo', {
       allowWhileEditing: true
     }),

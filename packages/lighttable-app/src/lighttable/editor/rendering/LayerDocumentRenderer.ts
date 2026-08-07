@@ -36,6 +36,7 @@ import {
   type TextFontRuntimePort,
   type TextRenderPresentationSnapshot
 } from './createLayerDocumentRendererRuntime';
+import type { ResizePlan } from '../../application/imageSize/imageSizeModel';
 
 export const projectTextEditingGeometryPreview = (
   presentation: TextLayerEditingLayout,
@@ -93,6 +94,14 @@ export class LayerDocumentRenderer {
     // All cached runtimes are released when the image/editor is destroyed.
     this.runtime.layerRuntimeCoordinator.sync(document);
     this.runtime.textLayerCoordinator.sync(document);
+  }
+
+  resizeSurface(width: number, height: number) {
+    this.runtime.resizeSurface(width, height);
+  }
+
+  resizeImagePixels(document: ImageDocument, plan: ResizePlan, noiseReduction: number) {
+    return this.runtime.imageResize.resize(document, plan, noiseReduction);
   }
 
   configureTextFonts(port: TextFontRuntimePort | null) {

@@ -147,6 +147,13 @@ export class LayerRuntimeStore {
     return this.rasterRuntimes.get(layerId) ?? null;
   }
 
+  exchangeRaster(layerId: LayerId, replacement: RasterLayerRuntime) {
+    const current = this.rasterRuntimes.get(layerId);
+    if (!current) throw new Error(`Raster runtime ${layerId} is unavailable.`);
+    this.rasterRuntimes.set(layerId, replacement);
+    return current;
+  }
+
   derivedPreview(layerId: LayerId) {
     return this.derivedPreviews.get(layerId) ?? null;
   }
@@ -212,6 +219,20 @@ export class LayerRuntimeStore {
     return this.rasterRuntimes.get(layerId)?.maskTexture
       ?? this.nodeMasks.get(layerId)?.texture
       ?? null;
+  }
+
+  exchangeMaskTexture(layerId: LayerId, replacement: GPUTexture) {
+    const raster = this.rasterRuntimes.get(layerId);
+    if (raster?.maskTexture) {
+      const current = raster.maskTexture;
+      raster.maskTexture = replacement;
+      return current;
+    }
+    const node = this.nodeMasks.get(layerId);
+    if (!node) throw new Error(`Mask runtime ${layerId} is unavailable.`);
+    const current = node.texture;
+    node.texture = replacement;
+    return current;
   }
 
   pruneDetached(

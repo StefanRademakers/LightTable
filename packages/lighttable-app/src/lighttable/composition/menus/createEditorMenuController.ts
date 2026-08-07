@@ -43,6 +43,9 @@ export interface EditorMenuControllerOptions {
     clear(): void;
     invert(): void;
   };
+  readonly image: {
+    openSize(): void;
+  };
   readonly layers: {
     panel: LayerPanelController;
     duplicate(): void;
@@ -95,6 +98,7 @@ export const createEditorMenuController = ({
   file,
   edit,
   selection,
+  image,
   layers,
   autoAlign,
   dialogs,
@@ -140,6 +144,7 @@ export const createEditorMenuController = ({
       layerViaCopy: layers.layerViaCopy,
       renameLayer: layers.rename,
       invertLayerColors: layers.invertColors,
+      openImageSize: image.openSize,
       beginAutoAlign: autoAlign.begin,
       applyAutoAlign: autoAlign.apply,
       cancelAutoAlign: autoAlign.cancel,

@@ -439,6 +439,52 @@ export class WebGpuEngine {
   }
 
   /**
+   * Reconfigures document-sized GPU targets without discarding layer runtimes.
+   * Raster sources therefore stay on the GPU and semantic layers remain native.
+   */
+  resizeDocumentSurface(document: ImageDocument) {
+    if (!this.metadata || !this.documentRenderer || !this.imageResources.sourceTexture) {
+      throw new Error('Load an image before resizing its document.');
+    }
+    const dimensionsChanged = document.width !== this.metadata.width
+      || document.height !== this.metadata.height;
+    if (!dimensionsChanged) {
+      this.setDocument(document);
+      return;
+    }
+    this.documentRenderer.resizeSurface(document.width, document.height);
+    this.adjustmentLayerRenderer.reset();
+    this.adjustmentLayerResources.reset();
+    this.documentCompositeTexture = null;
+    this.sourceGeometryTexture = null;
+    this.linearSpatialTexture = null;
+    this.displayPostTexture = null;
+    this.scopeRuntime.clearTextures();
+    this.histogramRuntime?.clear();
+    this.effectRuntime?.destroyImageResources();
+    this.layerEffectRenderer?.destroyImageResources();
+    this.imageResources.resetDerived();
+    this.metadata = { ...this.metadata, width: document.width, height: document.height };
+    this.createImageResources(document.width, document.height);
+    this.imageDocument = document;
+    this.documentRenderer.syncDocument(document);
+    this.adjustmentLayerResources.syncDocument(document);
+    this.initializeLayerStylesIfNeeded(document);
+    this.writeAdjustments();
+    this.writeOutputSettings();
+    this.markDocumentDirty();
+  }
+
+  resizeImagePixels(
+    document: ImageDocument,
+    plan: import('../application/imageSize/imageSizeModel').ResizePlan,
+    noiseReduction: number
+  ) {
+    if (!this.documentRenderer) throw new Error('The document renderer is unavailable.');
+    return this.documentRenderer.resizeImagePixels(document, plan, noiseReduction);
+  }
+
+  /**
    * Crosses a just-committed automation document into GPU-owned runtimes even
    * when the application reused the same document object during one event
    * turn. Normal React publication remains deduplicated by setDocument().

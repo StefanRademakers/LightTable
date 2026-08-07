@@ -38,6 +38,7 @@ import {
 } from '../../text/rendering/DevelopmentTextFixtureRenderer';
 import { TextLayerRenderer } from '../../text/rendering/TextLayerRenderer';
 import { TextLayerRenderCoordinator } from '../../text/rendering/TextLayerRenderCoordinator';
+import { ImageResizeGpuService } from './ImageResizeGpuService';
 export type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 import { walkLayerTree } from '../document/layerTree';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
@@ -68,6 +69,8 @@ export interface LayerDocumentRendererRuntime {
   developmentTextFixture: DevelopmentTextFixtureRenderer;
   textLayerRenderer: TextLayerRenderer;
   textLayerCoordinator: TextLayerRenderCoordinator;
+  resizeSurface(width: number, height: number): void;
+  imageResize: ImageResizeGpuService;
 }
 
 /**
@@ -456,6 +459,15 @@ export const createLayerDocumentRendererRuntime = (
         transformSessions.estimatedTextureBytes(rgba16Bytes, r8Bytes)
     ]
   });
+  const imageResize = new ImageResizeGpuService({
+    device,
+    layers: layerResources,
+    selection: selectionTextures,
+    invalidateAll: () => {
+      renderResources.invalidateAllStyles();
+      compositeTargets.destroy();
+    }
+  });
 
   return {
     layerResources,
@@ -481,6 +493,14 @@ export const createLayerDocumentRendererRuntime = (
     renderResources,
     developmentTextFixture,
     textLayerRenderer,
-    textLayerCoordinator
+    textLayerCoordinator,
+    imageResize,
+    resizeSurface: (width, height) => {
+      resources.setDimensions(width, height);
+      compositeTargets.destroy();
+      renderResources.invalidateAllStyles();
+      renderResources.releaseStyleTargets();
+      geometryPreviews.clear();
+    }
   };
 };

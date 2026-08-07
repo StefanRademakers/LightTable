@@ -26,6 +26,7 @@ const setup = () => {
   session.setDocument(createRasterLayer(createImageDocument('Fixture', 80, 60, 'source-1')));
   session.setReady();
   const ports: LightTableCommandPorts = {
+    resizeImage: vi.fn(),
     setZoom: vi.fn((_documentId, viewport) => session.updateViewport(() => viewport)),
     createRasterLayer: vi.fn(),
     placeArtifact: vi.fn(),
@@ -232,6 +233,20 @@ describe('LightTableCommandService atomic batches', () => {
 });
 
 describe('LightTableCommandService registry', () => {
+  it('routes Image Size through the mounted document command port', async () => {
+    const state = setup();
+    const parameters = {
+      width: 40, height: 30, resolutionPpi: 300, resample: true,
+      method: 'automatic', preserveDetailsNoiseReduction: 0, scaleStyles: true
+    };
+    const result = await state.service.execute(request(
+      'document.resizeImage', state.session.id, parameters
+    ));
+    expect(result).toMatchObject({ status: 'completed', value: { width: 40, height: 30, resolutionPpi: 300 } });
+    expect(state.ports.resizeImage).toHaveBeenCalledWith(state.session.id, parameters);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('validates and routes semantic vector and Layer Style mutations', async () => {
     const state = setup();
     vi.mocked(state.ports.executeVectorCommand).mockResolvedValue({ layerId: 'vector', elementId: 'shape' });

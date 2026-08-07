@@ -95,6 +95,8 @@
     "smoke:desktop:fill-ux": "node scripts/smoke-desktop-fill-ux.mjs",
     "smoke:desktop:fill-ux:build": "npm run package:desktop:verify && npm run smoke:desktop:fill-ux --",
     "smoke:desktop:gradient-tool": "node scripts/smoke-desktop-gradient-tool.mjs",
+    "smoke:desktop:image-size": "node scripts/smoke-desktop-image-size.mjs",
+    "smoke:desktop:image-size:build": "npm run package:desktop:verify && npm run smoke:desktop:image-size --",
     "smoke:desktop:gradient-tool:build": "npm run package:desktop:verify && npm run smoke:desktop:gradient-tool --",
     "smoke:desktop:pen-tools": "node scripts/smoke-desktop-pen-tools.mjs",
     "smoke:desktop:pen-tools:build": "npm run package:desktop:verify && npm run smoke:desktop:pen-tools --",

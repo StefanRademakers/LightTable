@@ -5,6 +5,7 @@ export interface EditorKeyboardCommandPorts {
   openFile(): void;
   saveFile(): void;
   quickExportPng(): void;
+  openImageSize(): void;
   isTransformActive(): boolean;
   commitTransform(): void;
   repeatTransform(duplicate?: boolean): void;
@@ -82,6 +83,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'quick-export-png':
       ports.quickExportPng();
+      return;
+    case 'open-image-size':
+      ports.openImageSize();
       return;
     case 'undo':
       if (!ports.undoPenAnchor()) ports.undo();

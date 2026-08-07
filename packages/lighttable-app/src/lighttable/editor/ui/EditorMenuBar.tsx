@@ -23,9 +23,10 @@ const MENU_ITEMS: ReadonlyArray<{
 }> = [
   { id: 'file', label: 'File' },
   { id: 'edit', label: 'Edit' },
-  { id: 'select', label: 'Select' },
+  { id: 'image', label: 'Image' },
   { id: 'layer', label: 'Layer' },
   { id: 'type', label: 'Type' },
+  { id: 'select', label: 'Select' },
   { id: 'view', label: 'View' },
   { id: 'help', label: 'Help' }
 ];
