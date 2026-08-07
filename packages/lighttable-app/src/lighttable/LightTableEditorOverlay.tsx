@@ -335,6 +335,10 @@ export interface LightTableEditorOverlayProps {
   imageClipboard?: LightTableImageClipboard;
   recoveryStore?: LightTableRecoveryStore;
   recoveryPreferences?: { readonly enabled: boolean; readonly intervalMs: number };
+  toolPreferences?: {
+    readonly zoomWithScrollWheel: boolean;
+    readonly openMaskEditingOnDoubleClick: boolean;
+  };
   releaseService?: import('../platform/LightTableHost').LightTableReleaseService; hostKind?: import('../platform/LightTableHost').LightTableHost['kind'];
   recoveryNotice?: string | null;
   onRecoveryResolved?: () => Promise<void> | void;
@@ -380,6 +384,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   imageClipboard: providedImageClipboard,
   recoveryStore,
   recoveryPreferences,
+  toolPreferences,
   releaseService, hostKind = 'web',
   recoveryNotice = null,
   onRecoveryResolved
@@ -2542,6 +2547,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rasterGradient: rasterGradientController,
     minScale: MIN_SCALE,
     maxScale: MAX_SCALE,
+    zoomWithScrollWheel: toolPreferences?.zoomWithScrollWheel ?? true,
     onBrushCursorChange: (cursor) => {
       engineRef.current?.setBrushCursorOverlay(cursor);
     },
@@ -3368,6 +3374,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       thumbnails={layerThumbnails}
       activeChannel={editorSession.activeChannel}
       isolatedMaskLayerId={isolatedMaskLayerId}
+      openMaskEditingOnDoubleClick={toolPreferences?.openMaskEditingOnDoubleClick ?? true}
       controller={commandLayerPanelController}
       editingTextLayerId={textEditing.layerId}
       onEditText={(layerId) => {

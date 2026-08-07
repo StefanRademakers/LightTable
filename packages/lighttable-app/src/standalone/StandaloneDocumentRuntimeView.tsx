@@ -121,6 +121,7 @@ export function StandaloneDocumentRuntimeView({
         imageClipboard={host.clipboard}
         recoveryStore={host.recovery}
         recoveryPreferences={preferences.autosave}
+        toolPreferences={preferences.tools}
         releaseService={host.release}
         hostKind={host.kind}
         recoveryNotice={document.runtime.recovery

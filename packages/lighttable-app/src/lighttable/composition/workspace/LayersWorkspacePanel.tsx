@@ -23,6 +23,7 @@ export interface LayersWorkspacePanelProps {
   thumbnails: ReadonlyMap<LayerId, LayerThumbnailSet>;
   activeChannel: PaintChannel;
   isolatedMaskLayerId: LayerId | null;
+  openMaskEditingOnDoubleClick: boolean;
   onMaskIsolationChange: (layerId: LayerId | null) => void;
   controller: LayerPanelController;
   onSelectionChange?: (layerIds: LayerId[]) => void;
@@ -45,6 +46,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   thumbnails,
   activeChannel,
   isolatedMaskLayerId,
+  openMaskEditingOnDoubleClick,
   onMaskIsolationChange,
   controller,
   onSelectionChange,
@@ -70,6 +72,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         thumbnails={thumbnails}
         activeChannel={activeChannel}
         isolatedMaskLayerId={isolatedMaskLayerId}
+        openMaskEditingOnDoubleClick={openMaskEditingOnDoubleClick}
         onMaskIsolationChange={onMaskIsolationChange}
         onSelect={controller.select}
         onChannelChange={controller.changeChannel}

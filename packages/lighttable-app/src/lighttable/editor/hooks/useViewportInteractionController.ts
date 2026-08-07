@@ -35,6 +35,7 @@ import type { TemporaryToolController } from '../tools/temporaryToolController';
 import {
   clientToLocalPoint,
   localToDocumentPointer,
+  panViewFromWheel,
   panViewFromGesture,
   pointInsideRect,
   zoomViewAtPoint,
@@ -113,6 +114,7 @@ interface ViewportInteractionOptions {
   rasterGradient: RasterGradientCommandController;
   minScale: number;
   maxScale: number;
+  zoomWithScrollWheel: boolean;
   onBrushCursorChange: (cursor: {
     center: { x: number; y: number };
     diameter: number;
@@ -172,6 +174,7 @@ export const useViewportInteractionController = ({
   rasterGradient,
   minScale,
   maxScale,
+  zoomWithScrollWheel,
   onBrushCursorChange,
   onZoomDraftChange,
   onPenRubberBandChange
@@ -384,6 +387,21 @@ export const useViewportInteractionController = ({
     onWheel: (event) => {
       if (!metadata) return;
       event.preventDefault();
+      if (!zoomWithScrollWheel && !event.ctrlKey && !event.metaKey) {
+        const deltaMultiplier = event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2 ? viewportSize.height : 1;
+        const pendingPan = panFrameRef.current?.pending();
+        const basePan = pendingPan ?? { panX: view.panX, panY: view.panY };
+        panFrameRef.current?.schedule(panViewFromWheel({
+          initialView: basePan,
+          deltaX: event.deltaX,
+          deltaY: event.deltaY,
+          shiftKey: event.shiftKey,
+          deltaMultiplier
+        }));
+        return;
+      }
       const bounds = event.currentTarget.getBoundingClientRect();
       const cursor = clientToLocalPoint(
         { x: event.clientX, y: event.clientY },

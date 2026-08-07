@@ -34,6 +34,7 @@ interface LayerPanelProps {
   thumbnails: ReadonlyMap<LayerId, LayerThumbnailSet>;
   activeChannel: PaintChannel;
   isolatedMaskLayerId: LayerId | null;
+  openMaskEditingOnDoubleClick: boolean;
   onMaskIsolationChange: (layerId: LayerId | null) => void;
   onSelect: (layerId: LayerId) => void;
   onChannelChange: (channel: PaintChannel) => void;
@@ -132,6 +133,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   thumbnails,
   activeChannel,
   isolatedMaskLayerId,
+  openMaskEditingOnDoubleClick,
   onMaskIsolationChange,
   onSelect,
   onChannelChange,
@@ -790,7 +792,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     onMaskIsolationChange(null);
                     selectLayer(event, layer.id, 'mask');
                   }}
-                  onDoubleClick={(event) => { event.stopPropagation(); onToggleMask(); }}
+                  onDoubleClick={(event) => {
+                    event.stopPropagation();
+                    if (!openMaskEditingOnDoubleClick) {
+                      onToggleMask();
+                      return;
+                    }
+                    selectLayer(event, layer.id, 'mask');
+                    onMaskIsolationChange(layer.id);
+                  }}
                   onDragStart={(event) => {
                     event.stopPropagation();
                     window.getSelection()?.removeAllRanges();
@@ -801,9 +811,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     event.dataTransfer.setData('application/x-lighttable-layer-mask-id', layer.id);
                   }}
                   onDragEnd={() => setTrashDropActive(false)}
-                  title={layer.mask.enabled
-                    ? 'Edit mask; Alt-click to isolate; Ctrl/Cmd-click to load selection; double-click to disable'
-                    : 'Edit mask; Alt-click to isolate; Ctrl/Cmd-click to load selection; double-click to enable'}
+                  title={openMaskEditingOnDoubleClick
+                    ? 'Edit mask; double-click to show it for editing; Alt-click to isolate; Ctrl/Cmd-click to load selection'
+                    : layer.mask.enabled
+                      ? 'Edit mask; Alt-click to isolate; Ctrl/Cmd-click to load selection; double-click to disable'
+                      : 'Edit mask; Alt-click to isolate; Ctrl/Cmd-click to load selection; double-click to enable'}
                 >
                   {previews?.mask ? (
                     <img

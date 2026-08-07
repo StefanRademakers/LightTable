@@ -8,7 +8,7 @@ import { AgentAccessSettingsPanel } from './AgentAccessSettingsDialog';
 import type { ApplicationPreferences } from './applicationPreferences';
 import type { LightTableRecoveryLocation } from '../platform/LightTableRecoveryStore';
 
-type PreferencesPage = 'file-handling' | 'agent-access';
+type PreferencesPage = 'file-handling' | 'tools' | 'agent-access';
 
 export interface PreferencesDialogProps {
   readonly open: boolean;
@@ -84,6 +84,9 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
             <button type="button" className={page === 'file-handling' ? 'is-active' : undefined}
               aria-current={page === 'file-handling' ? 'page' : undefined}
               onClick={() => setPage('file-handling')}>File Handling</button>
+            <button type="button" className={page === 'tools' ? 'is-active' : undefined}
+              aria-current={page === 'tools' ? 'page' : undefined}
+              onClick={() => setPage('tools')}>Tools</button>
             <button type="button" className={page === 'agent-access' ? 'is-active' : undefined}
               aria-current={page === 'agent-access' ? 'page' : undefined}
               onClick={() => setPage('agent-access')}>Agent Access</button>
@@ -142,6 +145,34 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                   Recovery copies are removed after a successful save. Turning autosave off or changing its location does not delete existing recovery copies.
                 </p>
                 {saveError ? <p className="lighttable-preferences__error" role="alert">{saveError}</p> : null}
+              </section>
+            ) : page === 'tools' ? (
+              <section aria-labelledby="preferences-tools-heading">
+                <h4 id="preferences-tools-heading" className="lighttable-preferences__page-title">Tools</h4>
+                <div className="lighttable-preferences__option-list">
+                  <div className="lighttable-preferences__option">
+                    <div>
+                      <strong>Zoom with scroll wheel</strong>
+                      <p>Use the mouse wheel to zoom around the pointer. When off, the wheel pans the canvas.</p>
+                    </div>
+                    <SwitchControl checked={draft.tools.zoomWithScrollWheel}
+                      label="Zoom with scroll wheel"
+                      onCheckedChange={(zoomWithScrollWheel) => setDraft({ ...draft, tools: {
+                        ...draft.tools, zoomWithScrollWheel
+                      } })} />
+                  </div>
+                  <div className="lighttable-preferences__option">
+                    <div>
+                      <strong>Open mask editing on double-click</strong>
+                      <p>Double-click a layer-mask thumbnail to make it active and show the mask for direct editing.</p>
+                    </div>
+                    <SwitchControl checked={draft.tools.openMaskEditingOnDoubleClick}
+                      label="Open mask editing on double-click"
+                      onCheckedChange={(openMaskEditingOnDoubleClick) => setDraft({ ...draft, tools: {
+                        ...draft.tools, openMaskEditingOnDoubleClick
+                      } })} />
+                  </div>
+                </div>
               </section>
             ) : (
               <section aria-labelledby="preferences-agent-heading">

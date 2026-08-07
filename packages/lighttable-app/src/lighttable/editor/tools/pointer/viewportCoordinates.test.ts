@@ -3,6 +3,7 @@ import {
   clientToLocalPoint,
   localToDocumentPointer,
   panViewFromGesture,
+  panViewFromWheel,
   pointInsideRect,
   zoomViewAtPoint,
   zoomViewToViewportRect,
@@ -94,6 +95,21 @@ describe('viewportCoordinates', () => {
       current: { x: 30, y: 15 },
       initialView: { panX: 4, panY: 8 }
     })).toEqual({ panX: 24, panY: 3 });
+  });
+
+  it('pans with a scroll wheel and maps Shift-wheel to horizontal movement', () => {
+    expect(panViewFromWheel({
+      initialView: { panX: 20, panY: 10 },
+      deltaX: 3,
+      deltaY: 8
+    })).toEqual({ panX: 17, panY: 2 });
+    expect(panViewFromWheel({
+      initialView: { panX: 20, panY: 10 },
+      deltaX: 0,
+      deltaY: 2,
+      shiftKey: true,
+      deltaMultiplier: 16
+    })).toEqual({ panX: -12, panY: 10 });
   });
 
   it('targets an exact zoom while preserving the point under the cursor', () => {

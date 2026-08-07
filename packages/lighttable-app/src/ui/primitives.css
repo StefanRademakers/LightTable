@@ -801,6 +801,11 @@
 .lighttable-preferences__note { margin: 18px 0 0; color: var(--color-text-muted); font-size: var(--lt-type-caption); line-height: 1.45; }
 .lighttable-preferences__error { color: var(--lt-danger); }
 .lighttable-preferences__page-title { padding-bottom: 14px; border-bottom: 1px solid var(--lt-border-subtle); }
+.lighttable-preferences__option-list { display: grid; margin-top: 6px; }
+.lighttable-preferences__option { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--lt-border-subtle); }
+.lighttable-preferences__option strong { font-size: var(--lt-type-body); }
+.lighttable-preferences__option p { margin: 5px 0 0; color: var(--color-text-muted); line-height: 1.45; }
+.lighttable-preferences__option .switch-control { flex: 0 0 auto; margin-top: 1px; }
 .lighttable-preferences .lighttable-agent-settings__body { padding: 18px 0 0; }
 .lighttable-preferences__footer { flex: 0 0 auto; padding: 6px; border-top: 1px solid var(--lt-border-subtle); }
 @media (max-width: 620px) {

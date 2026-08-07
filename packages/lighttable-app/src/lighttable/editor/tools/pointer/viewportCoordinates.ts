@@ -150,3 +150,24 @@ export const panViewFromGesture = ({
   panX: initialView.panX + current.x - origin.x,
   panY: initialView.panY + current.y - origin.y
 });
+
+export const panViewFromWheel = ({
+  initialView,
+  deltaX,
+  deltaY,
+  shiftKey = false,
+  deltaMultiplier = 1
+}: {
+  initialView: Pick<ViewTransform, 'panX' | 'panY'>;
+  deltaX: number;
+  deltaY: number;
+  shiftKey?: boolean;
+  deltaMultiplier?: number;
+}) => {
+  const horizontalDelta = shiftKey && deltaX === 0 ? deltaY : deltaX;
+  const verticalDelta = shiftKey && deltaX === 0 ? 0 : deltaY;
+  return {
+    panX: initialView.panX - horizontalDelta * deltaMultiplier,
+    panY: initialView.panY - verticalDelta * deltaMultiplier
+  };
+};

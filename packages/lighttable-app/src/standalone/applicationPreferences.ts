@@ -6,6 +6,10 @@ export interface ApplicationPreferences {
     readonly enabled: boolean;
     readonly intervalMs: number;
   };
+  readonly tools: {
+    readonly zoomWithScrollWheel: boolean;
+    readonly openMaskEditingOnDoubleClick: boolean;
+  };
 }
 
 export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
@@ -13,6 +17,10 @@ export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
   autosave: {
     enabled: true,
     intervalMs: 30_000
+  },
+  tools: {
+    zoomWithScrollWheel: true,
+    openMaskEditingOnDoubleClick: true
   }
 };
 
@@ -23,7 +31,13 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
   const candidate = value as Partial<ApplicationPreferences>;
   if (candidate.version !== 1 || !candidate.autosave
     || typeof candidate.autosave.enabled !== 'boolean'
-    || !AUTOSAVE_INTERVALS.has(candidate.autosave.intervalMs)) {
+    || !AUTOSAVE_INTERVALS.has(candidate.autosave.intervalMs)
+    || (candidate.tools !== undefined && (
+      !candidate.tools
+      || typeof candidate.tools !== 'object'
+      || typeof candidate.tools.zoomWithScrollWheel !== 'boolean'
+      || typeof candidate.tools.openMaskEditingOnDoubleClick !== 'boolean'
+    ))) {
     return DEFAULT_APPLICATION_PREFERENCES;
   }
   return {
@@ -31,6 +45,10 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
     autosave: {
       enabled: candidate.autosave.enabled,
       intervalMs: candidate.autosave.intervalMs
+    },
+    tools: {
+      zoomWithScrollWheel: candidate.tools?.zoomWithScrollWheel ?? true,
+      openMaskEditingOnDoubleClick: candidate.tools?.openMaskEditingOnDoubleClick ?? true
     }
   };
 };
