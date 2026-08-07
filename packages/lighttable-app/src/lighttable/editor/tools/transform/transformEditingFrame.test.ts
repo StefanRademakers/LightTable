@@ -37,6 +37,8 @@ describe('buildTransformEditingFrame', () => {
         edge.end.y
       ]).toEqual(expected[index].map((value) => expect.closeTo(value)));
     });
+    expect(frame.edges).toHaveLength(5);
+    expect(frame.edges[4]?.start).toEqual({ x: 45, y: 47 });
   });
 });
 

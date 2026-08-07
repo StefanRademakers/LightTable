@@ -81,8 +81,6 @@ export const buildTransformEditingFrame = (
       { start: northEast, end: southEast },
       { start: southEast, end: southWest },
       { start: southWest, end: northWest },
-      { start: northWest, end: southEast },
-      { start: northEast, end: southWest },
       { start: north, end: rotation }
     ],
     handles: [
