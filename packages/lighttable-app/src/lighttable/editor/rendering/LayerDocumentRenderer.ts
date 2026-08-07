@@ -203,6 +203,17 @@ export class LayerDocumentRenderer {
     );
   }
 
+  /** Resolves the top painted layer from retained presentation sources. */
+  pickTopLayerAtPoint(
+    document: ImageDocument,
+    layerIds: readonly LayerId[],
+    point: SelectionPoint,
+    knownOpaqueLayerIds: ReadonlySet<LayerId> = new Set()
+  ) {
+    return this.runtime.layerPresentationPicker.pickTopLayerAtPoint(
+      document, layerIds, point, knownOpaqueLayerIds
+    );
+  }
   setDevelopmentTextFixtureEnabled(enabled: boolean) {
     return this.runtime.developmentTextFixture.setEnabled(enabled);
   }

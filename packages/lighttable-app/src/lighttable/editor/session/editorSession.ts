@@ -243,6 +243,8 @@ export interface EditorSession {
   selectionRowHeight: number;
   selectionColumnWidth: number;
   magicWand: MagicWandOptions;
+  /** Photoshop-style Move/Transform picking of the top visible painted layer. */
+  transformAutoSelectLayer: boolean;
   brush: BrushSettings;
   gradient: GradientToolSettings;
   vectorStyle: VectorToolStyleSettings;
@@ -263,6 +265,7 @@ export const createEditorSession = (): EditorSession => ({
   selectionRowHeight: 1,
   selectionColumnWidth: 1,
   magicWand: createDefaultMagicWandOptions(),
+  transformAutoSelectLayer: true,
   brush: {
     size: 48,
     hardness: 0.75,

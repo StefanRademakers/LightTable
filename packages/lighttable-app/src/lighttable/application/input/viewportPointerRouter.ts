@@ -8,6 +8,7 @@ import {
 export type ViewportPointerDownIntent =
   | 'temporary-pan'
   | 'selection'
+  | 'transform-pick'
   | 'fill'
   | 'text-create'
   | 'warp'
@@ -90,6 +91,12 @@ export const resolveViewportPointerDownIntent = (
   if (isSelectionTool(context.activeTool) && !context.focusPickerActive) {
     return context.primaryButton && context.hasMetadata && context.hasDocumentPoint
       ? 'selection'
+      : 'ignore';
+  }
+
+  if (context.activeTool === 'transform' && !context.focusPickerActive) {
+    return context.primaryButton && context.hasDocument && context.hasDocumentPoint
+      ? 'transform-pick'
       : 'ignore';
   }
 

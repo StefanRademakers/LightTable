@@ -75,7 +75,7 @@ interface ViewportInteractionOptions {
   setEditorSession: Dispatch<SetStateAction<EditorSession>>;
   temporaryTools: TemporaryToolController;
   temporaryZoomOut: boolean;
-  vectorMoveActive: boolean;
+  onTransformPick: (point: { x: number; y: number }) => void;
   preciseBrushCursor: boolean;
   eyedropperActive: boolean;
   onColorPick: (point: { x: number; y: number }) => void;
@@ -159,7 +159,7 @@ export const useViewportInteractionController = ({
   setEditorSession,
   temporaryTools,
   temporaryZoomOut,
-  vectorMoveActive,
+  onTransformPick,
   preciseBrushCursor,
   eyedropperActive,
   onColorPick,
@@ -288,9 +288,7 @@ export const useViewportInteractionController = ({
         rasterGradientGestureMatches: rasterGradient.owns(event.pointerId)
       })
         || isSelectionTool(editorSession.activeTool)
-        || isVectorEditorTool(
-          vectorMoveActive && effectiveTool === 'transform' ? 'vector-select' : effectiveTool
-        )
+        || isVectorEditorTool(effectiveTool)
     );
     if (
       !point
@@ -495,9 +493,7 @@ export const useViewportInteractionController = ({
         event.preventDefault();
         return;
       }
-      const activeTool = vectorMoveActive && effectiveTool === 'transform'
-        ? 'vector-select'
-        : effectiveTool;
+      const activeTool = effectiveTool;
       if (
         activeTool === 'gradient'
         && editorSession.gradient.application === 'pixels'
@@ -563,6 +559,11 @@ export const useViewportInteractionController = ({
 
       if (intent === 'temporary-pan') {
         beginPan(event, true);
+        event.preventDefault();
+        return;
+      }
+      if (intent === 'transform-pick' && point) {
+        onTransformPick(point);
         event.preventDefault();
         return;
       }

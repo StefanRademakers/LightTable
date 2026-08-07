@@ -150,6 +150,31 @@ export const hitTestVectorElementDocument = (
   return null;
 };
 
+/** Exact painted vector-layer hits used by mixed layer-stack picking. */
+export const vectorLayerHitsAtDocumentPoint = (
+  document: Pick<ImageDocument, 'layers'>,
+  documentPoint: Vec2,
+  radius = 0.5
+): ReadonlySet<LayerId> => new Set(
+  vectorElementsTopmostFirst(document)
+    .filter(({ documentPath }) => {
+      const { fill, stroke, opacity } = documentPath.style;
+      if (opacity <= 0 || (!fill && !stroke)) return false;
+      const strokeScale = Math.max(
+        Math.hypot(documentPath.transform.a, documentPath.transform.b),
+        Math.hypot(documentPath.transform.c, documentPath.transform.d)
+      );
+      const target = hitTestVectorPath(documentPath, {
+        documentPoint,
+        radius: Math.max(radius, (stroke?.width ?? 0) * strokeScale / 2),
+        includeHandles: false,
+        includeFill: Boolean(fill)
+      });
+      return Boolean(target && target.kind !== 'handle-in' && target.kind !== 'handle-out');
+    })
+    .map(({ layerId }) => layerId)
+);
+
 export const hitTestVectorDocument = (
   document: Pick<ImageDocument, 'layers'>,
   options: PathHitTestOptions

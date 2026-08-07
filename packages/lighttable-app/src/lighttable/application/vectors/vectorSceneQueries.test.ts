@@ -21,7 +21,8 @@ import {
   vectorElementsDocumentBounds,
   vectorElementsTopmostFirst,
   vectorPathDocumentBounds,
-  vectorPathsTopmostFirst
+  vectorPathsTopmostFirst,
+  vectorLayerHitsAtDocumentPoint
 } from './vectorSceneQueries';
 
 const square = (id: string, size = 10) => createVectorPath(id, id, [
@@ -34,6 +35,18 @@ const square = (id: string, size = 10) => createVectorPath(id, id, [
 ]);
 
 describe('vector scene queries', () => {
+  it('reports every painted vector layer at a point for mixed stack picking', () => {
+    const document = createImageDocument('hits', 100, 100, 'asset');
+    const bottom = createVectorLayer([square('bottom')], 'Bottom');
+    const top = createVectorLayer([square('top')], 'Top');
+    top.transform = translationMatrix(4, 0);
+    document.layers = [bottom, top];
+
+    expect(vectorLayerHitsAtDocumentPoint(document, { x: 6, y: 5 }))
+      .toEqual(new Set([top.id, bottom.id]));
+    expect(vectorLayerHitsAtDocumentPoint(document, { x: 20, y: 20 }).size).toBe(0);
+  });
+
   it('resolves nested layer and path transforms into document space', () => {
     const document = createImageDocument('scene', 200, 200, 'asset');
     const path = square('nested');

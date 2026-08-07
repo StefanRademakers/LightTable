@@ -132,6 +132,10 @@ export class LayerStyleRenderer {
     return layerId === this.interactionLayerId ? 'interactive' : 'final';
   }
 
+  cachedPresentation(layerId: LayerId) {
+    return this.textures.latest(layerId);
+  }
+
   estimatedTextureBytes(width: number, height: number) {
     return this.textures.estimatedTextureBytes(width, height);
   }

@@ -170,6 +170,7 @@ import { usePaintSessionController } from './application/tools/paint/usePaintSes
 import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
+import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
 import { isVectorEditorTool } from './editor/tools/vectorToolCatalog';
@@ -460,6 +461,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const selectionGestureRef = useRef(new SelectionGestureController());
   const commitTransformRef = useRef<() => void>(() => undefined);
   const cancelTransformRef = useRef<() => void>(() => undefined);
+  const transformPickRevisionRef = useRef(0);
   const resetTransformRef = useRef<() => void>(() => undefined);
   const transformActiveRef = useRef<() => boolean>(() => false);
   const repeatTransformRef = useRef<(duplicate?: boolean) => void>(() => undefined);
@@ -2024,16 +2026,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setInteractionActive: (active) => engineRef.current?.setWarpInteractionActive(active)
   });
 
-  const activeDocumentLayer = imageDocument?.activeLayerId
-    ? findDocumentLayer(imageDocument, imageDocument.activeLayerId)
-    : null;
-  const vectorMoveActive = editorSession.activeTool === 'transform'
-    && activeDocumentLayer?.type === 'vector';
-
   const vectorToolSessionController = useVectorToolSessionController({
     document: imageDocument,
     selection: editorSession.vectorSelection,
-    activeTool: vectorMoveActive ? 'vector-select' : editorSession.activeTool,
+    activeTool: editorSession.activeTool,
     foregroundColor: editorSession.brush.color,
     gradient: gradientToolSettings,
     shape: editorSession.shape,
@@ -2540,6 +2536,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   commitParagraphCanvasTextRef.current = () => commitParagraphTextCreation(true);
   cancelParagraphTextRef.current = cancelParagraphTextCreation;
 
+  const pickTransformAtPoint = (point: { x: number; y: number }) => {
+    if (!editorSession.transformAutoSelectLayer || !imageDocument) return;
+    const renderer = engineRef.current;
+    const sourceDocument = imageDocument;
+    if (!renderer) return;
+    const revision = ++transformPickRevisionRef.current;
+    void pickTransformLayer(sourceDocument, point, renderer).then((pick) => {
+      if (revision !== transformPickRevisionRef.current
+        || !pick || imageDocumentRef.current !== sourceDocument) return;
+      if (sourceDocument.activeLayerId !== pick.layerId) commitTransformRef.current();
+      selectLayerRef.current(pick.layerId);
+    }).catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : 'The layer could not be selected.');
+    });
+  };
+
   const viewportInteraction = useViewportInteractionController({
     metadata,
     document: imageDocument,
@@ -2553,7 +2565,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setEditorSession,
     temporaryTools: temporaryToolRef.current,
     temporaryZoomOut: temporaryZoomOutActive,
-    vectorMoveActive,
+    onTransformPick: pickTransformAtPoint,
     preciseBrushCursor,
     eyedropperActive: (editorSession.activeTool === 'brush'
       || editorSession.activeTool === 'fill'
@@ -2998,7 +3010,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   selectLayerRef.current = layerPanelController.select;
 
   const transformSession = useTransformSessionController({
-    activeTool: vectorMoveActive ? 'view' : editorSession.activeTool,
+    activeTool: editorSession.activeTool,
     activeDocument: imageDocument,
     activeLayerId: imageDocument?.activeLayerId ?? null,
     selection: editorSession.selection,
@@ -3015,13 +3027,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     pushDocumentHistory,
     pushHistoryEntry,
-    activateViewTool: () => {
-      setEditorSession((current) => ({
-        ...current,
-        pointerId: null,
-        activeTool: 'view'
-      }));
-    },
     setError,
     setStatus: setGradeStatus
   });
@@ -4067,15 +4072,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectedShape={selectedShapeGeometry?.settings ?? null}
       selectedShapeKind={selectedShapeGeometry?.kind ?? null}
       selectionPixelSnap={editorSession.selectionPixelSnap}
+      transformAutoSelectLayer={editorSession.transformAutoSelectLayer}
       selectionCombineMode={editorSession.selectionCombineMode}
       selectionRowHeight={editorSession.selectionRowHeight}
       selectionColumnWidth={editorSession.selectionColumnWidth}
       magicWand={editorSession.magicWand}
       zoomPercent={activeScale * 100}
-      transformState={transformState}
-      textWarp={activeTextPropertyLayer?.type === 'text'
-        ? activeTextPropertyLayer.text.warp ?? null
-        : undefined}
       gradientEditorRequest={gradientEditorRequest}
       onBrushChange={updateBrush}
       onGradientChange={updateGradientSettings}
@@ -4114,6 +4116,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onSelectionPixelSnapChange={(selectionPixelSnap) => {
         setEditorSession((current) => ({ ...current, selectionPixelSnap }));
       }}
+      onTransformAutoSelectLayerChange={(transformAutoSelectLayer) => {
+        setEditorSession((current) => ({ ...current, transformAutoSelectLayer }));
+      }}
       onSelectionCombineModeChange={(selectionCombineMode) => {
         setEditorSession((current) => ({ ...current, selectionCombineMode }));
       }}
@@ -4131,13 +4136,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
-      onTransformChange={updateTransformMatrix}
-      onTransformCommit={transformSession.commit}
-      onTransformCancel={transformSession.cancel}
-      onTextWarpChange={applyTextWarp}
-      onTextWarpBegin={beginTextWarpGesture}
-      onTextWarpCommit={commitTextWarpGesture}
-      onTextWarpCancel={cancelTextWarpGesture}
       onToolChange={activatePersistentTool}
       onForegroundColorChange={(color) => updateBrush({ color })}
       onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}
@@ -4211,15 +4209,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             selectedShape: selectedShapeGeometry?.settings ?? null,
             selectedShapeKind: selectedShapeGeometry?.kind ?? null,
             selectionPixelSnap: editorSession.selectionPixelSnap,
+            transformAutoSelectLayer: editorSession.transformAutoSelectLayer,
             selectionCombineMode: editorSession.selectionCombineMode,
             selectionRowHeight: editorSession.selectionRowHeight,
             selectionColumnWidth: editorSession.selectionColumnWidth,
             magicWand: editorSession.magicWand,
             zoomPercent: activeScale * 100,
-            transformState,
-            textWarp: activeTextPropertyLayer?.type === 'text'
-              ? activeTextPropertyLayer.text.warp ?? null
-              : undefined,
             onBrushChange: updateBrush,
             onGradientChange: (change) => setEditorSession((current) => ({
               ...current,
@@ -4261,6 +4256,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onSelectionPixelSnapChange: (selectionPixelSnap) => {
               setEditorSession((current) => ({ ...current, selectionPixelSnap }));
             },
+            onTransformAutoSelectLayerChange: (transformAutoSelectLayer) => {
+              setEditorSession((current) => ({ ...current, transformAutoSelectLayer }));
+            },
             onSelectionCombineModeChange: (selectionCombineMode) => {
               setEditorSession((current) => ({ ...current, selectionCombineMode }));
             },
@@ -4278,13 +4276,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,
-            onTransformChange: updateTransformMatrix,
-            onTransformCommit: transformSession.commit,
-            onTransformCancel: transformSession.cancel,
-            onTextWarpChange: applyTextWarp,
-            onTextWarpBegin: beginTextWarpGesture,
-            onTextWarpCommit: commitTextWarpGesture,
-            onTextWarpCancel: cancelTextWarpGesture,
             onToolChange: activatePersistentTool,
             onClose: () => setToolOptionsMenu(null)
           } : null}
@@ -4363,7 +4354,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     },
                     onTransformChange: updateTransformMatrix,
                     onTransformProjectiveChange: updateTransformProjective,
-                    onTransformDuplicateChange: transformSession.setDuplicate
+                    onTransformDuplicateChange: transformSession.setDuplicate,
+                    onTransformPick: pickTransformAtPoint
                   }}
                   status={{
                     status: error ?? gradeStatus ?? fontDiagnosticStatus,

@@ -42,6 +42,7 @@ export interface DocumentViewportSurfaceProps {
   onTransformChange: (matrix: AffineMatrix) => void;
   onTransformProjectiveChange: (quad: TransformQuad) => void;
   onTransformDuplicateChange: (duplicate: boolean) => void;
+  onTransformPick: (point: { x: number; y: number }) => void;
   inputBridge?: React.ReactNode;
 }
 
@@ -81,6 +82,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onTransformChange,
   onTransformProjectiveChange,
   onTransformDuplicateChange,
+  onTransformPick,
   inputBridge
 }) => {
   const effectiveTool = temporaryPanActive
@@ -122,6 +124,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           onChange={onTransformChange}
           onProjectiveChange={onTransformProjectiveChange}
           onDuplicateChange={onTransformDuplicateChange}
+          onPickLayer={onTransformPick}
         />
       ) : null}
       {loading ? (

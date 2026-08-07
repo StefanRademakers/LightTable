@@ -40,6 +40,7 @@ import {
 import { TextLayerRenderer } from '../../text/rendering/TextLayerRenderer';
 import { TextLayerRenderCoordinator } from '../../text/rendering/TextLayerRenderCoordinator';
 import { ImageResizeGpuService } from './ImageResizeGpuService';
+import { LayerPresentationPicker } from './LayerPresentationPicker';
 export type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 import { walkLayerTree } from '../document/layerTree';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
@@ -72,6 +73,7 @@ export interface LayerDocumentRendererRuntime {
   textLayerCoordinator: TextLayerRenderCoordinator;
   resizeSurface(width: number, height: number): void;
   imageResize: ImageResizeGpuService;
+  layerPresentationPicker: LayerPresentationPicker;
 }
 
 /**
@@ -140,6 +142,13 @@ export const createLayerDocumentRendererRuntime = (
     requestRender: () => onDevelopmentTextFixtureChanged(developmentTextFixture.snapshot),
     onChanged: onTextRenderPresentation,
     onError: onTextRenderError
+  });
+  const layerPresentationPicker = new LayerPresentationPicker({
+    device,
+    layers: layerResources,
+    styles: layerStyleRenderer,
+    texts: textLayerRenderer,
+    textCoordinator: textLayerCoordinator
   });
   const renderResources = new RenderResourceCoordinator({
     layerStyles: layerStyleRenderer,
@@ -497,6 +506,7 @@ export const createLayerDocumentRendererRuntime = (
     textLayerRenderer,
     textLayerCoordinator,
     imageResize,
+    layerPresentationPicker,
     resizeSurface: (width, height) => {
       resources.setDimensions(width, height);
       compositeTargets.destroy();

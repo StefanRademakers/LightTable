@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type {
-  ImageDocument,
-  LayerId
+import {
+  layerIsLocked,
+  type ImageDocument,
+  type LayerId
 } from '../../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
@@ -45,7 +46,6 @@ export interface TransformSessionDependencies {
   ): void;
   pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
   pushHistoryEntry(entry: TransformHistoryEntry): void;
-  activateViewTool(): void;
   setError(message: string | null): void;
   setStatus(message: string): void;
 }
@@ -148,7 +148,6 @@ export const useTransformSessionController = (
     );
     controllerDocumentIdRef.current = null;
     setState(null);
-    current.activateViewTool();
     if (commit && result.kind === 'layer' && transformDelta
       && !matrixApproximatelyEqual(transformDelta, identityMatrix())) {
       lastLayerTransformRef.current = { ...transformDelta };
@@ -173,7 +172,12 @@ export const useTransformSessionController = (
     const renderer = current.getRenderer();
     if (!document || !renderer) {
       current.setError('Select a raster layer before transforming.');
-      current.activateViewTool();
+      return;
+    }
+    const layer = findDocumentLayer(document, document.activeLayerId);
+    if (!layer || layerIsLocked(layer, 'position')) {
+      current.setError(null);
+      setState(null);
       return;
     }
     const controller = controllerRef.current ?? new TransformController(renderer);
@@ -188,7 +192,6 @@ export const useTransformSessionController = (
     }
     if (result.code === 'stale' || result.code === 'already-active') return;
     if (result.message) current.setError(result.message);
-    current.activateViewTool();
   }, []);
 
   const update = useCallback((matrix: AffineMatrix) => {

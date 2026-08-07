@@ -107,6 +107,19 @@ describe('resolveViewportPointerDownIntent', () => {
       .toBe('text-create');
   });
 
+  it('routes transform auto-selection only for primary in-document clicks', () => {
+    expect(resolveViewportPointerDownIntent(down({ activeTool: 'transform' })))
+      .toBe('transform-pick');
+    expect(resolveViewportPointerDownIntent(down({
+      activeTool: 'transform',
+      primaryButton: false
+    }))).toBe('ignore');
+    expect(resolveViewportPointerDownIntent(down({
+      activeTool: 'transform',
+      hasDocumentPoint: false
+    }))).toBe('ignore');
+  });
+
   it('only starts paint with a document, projected point and editable target', () => {
     expect(resolveViewportPointerDownIntent(down({ activeTool: 'erase' }))).toBe('paint');
     expect(resolveViewportPointerDownIntent(down({

@@ -27,6 +27,7 @@ import type {
   SelectionCombineMode,
   SelectionMode,
   SelectionOperation,
+  SelectionPoint,
   SelectionShape
 } from '../editor/selection/selectionTypes';
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
@@ -853,6 +854,17 @@ export class WebGpuEngine {
     const task = this.selectionQueue.then(() => this.setSelectionNow(shape, mode));
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
+  }
+
+  pickTopLayerAtPoint(
+    layerIds: readonly LayerId[],
+    point: SelectionPoint,
+    knownOpaqueLayerIds?: ReadonlySet<LayerId>
+  ) {
+    if (!this.imageDocument || !this.documentRenderer) return Promise.resolve(null);
+    return this.documentRenderer.pickTopLayerAtPoint(
+      this.imageDocument, layerIds, point, knownOpaqueLayerIds
+    );
   }
 
   private async applyMagicWandNow(operation: SelectionOperation) {

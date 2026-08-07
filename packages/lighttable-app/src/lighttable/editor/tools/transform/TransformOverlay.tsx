@@ -23,6 +23,7 @@ interface TransformOverlayProps {
   onChange: (matrix: AffineMatrix) => void;
   onProjectiveChange: (quad: TransformQuad) => void;
   onDuplicateChange: (duplicate: boolean) => void;
+  onPickLayer?: (point: TransformPoint) => void;
 }
 
 interface DragState {
@@ -77,7 +78,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   height,
   onChange,
   onProjectiveChange,
-  onDuplicateChange
+  onDuplicateChange,
+  onPickLayer
 }) => {
   const dragRef = useRef<DragState | null>(null);
   const toScreen = (point: TransformPoint) => ({
@@ -247,7 +249,13 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   };
 
   const end = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
+    const drag = dragRef.current;
+    if (drag?.pointerId !== event.pointerId) return;
+    if (drag.handle === 'body' && onPickLayer) {
+      const point = toDocument(event);
+      const movedPixels = Math.hypot(point.x - drag.start.x, point.y - drag.start.y) * scale;
+      if (movedPixels <= 3) onPickLayer(point);
+    }
     dragRef.current = null;
     event.currentTarget.releasePointerCapture(event.pointerId);
     event.preventDefault();

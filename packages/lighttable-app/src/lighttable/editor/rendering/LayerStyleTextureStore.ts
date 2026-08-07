@@ -66,6 +66,11 @@ export class LayerStyleTextureStore {
     return cached?.key === key ? cached : null;
   }
 
+  /** Last valid final presentation, for read-only tools such as layer picking. */
+  latest(layerId: LayerId) {
+    return this.cache.get(layerId) ?? null;
+  }
+
   writeCache(
     encoder: GPUCommandEncoder,
     layerId: LayerId,

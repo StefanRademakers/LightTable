@@ -9,8 +9,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { ToolOptionsBar } from './ToolOptionsBar';
 import type { EditorScreenMode } from '../workspace/editorScreenMode';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
-import type { TextPaint, TextWarp } from '@lighttable/text-core';
-import type { AffineMatrix, TransformSessionState } from '../tools/transform/transformTypes';
+import type { TextPaint } from '@lighttable/text-core';
 
 export interface LightTableEditorShellProps {
   screenMode: EditorScreenMode;
@@ -38,9 +37,8 @@ export interface LightTableEditorShellProps {
   selectionRowHeight: number;
   selectionColumnWidth: number;
   magicWand: EditorSession['magicWand'];
+  transformAutoSelectLayer: boolean;
   zoomPercent: number;
-  transformState?: TransformSessionState | null;
-  textWarp?: TextWarp | null;
   gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
@@ -70,15 +68,9 @@ export interface LightTableEditorShellProps {
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
+  onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
-  onTransformChange?: (matrix: AffineMatrix) => void;
-  onTransformCommit?: () => void;
-  onTransformCancel?: () => void;
-  onTextWarpChange?: (warp: TextWarp | null) => void;
-  onTextWarpBegin?: () => void;
-  onTextWarpCommit?: () => void;
-  onTextWarpCancel?: () => void;
   onToolChange: (tool: ToolId) => void;
   onForegroundColorChange: (color: string) => void;
   onBackgroundColorChange: (color: string) => void;
@@ -127,9 +119,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectionRowHeight,
   selectionColumnWidth,
   magicWand,
+  transformAutoSelectLayer,
   zoomPercent,
-  transformState,
-  textWarp,
   gradientEditorRequest,
   onBrushChange,
   onGradientChange,
@@ -159,15 +150,9 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
   onMagicWandChange,
+  onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
-  onTransformChange,
-  onTransformCommit,
-  onTransformCancel,
-  onTextWarpChange,
-  onTextWarpBegin,
-  onTextWarpCommit,
-  onTextWarpCancel,
   onToolChange,
   onForegroundColorChange,
   onBackgroundColorChange,
@@ -224,9 +209,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectionRowHeight={selectionRowHeight}
         selectionColumnWidth={selectionColumnWidth}
         magicWand={magicWand}
+        transformAutoSelectLayer={transformAutoSelectLayer}
         zoomPercent={zoomPercent}
-        transformState={transformState}
-        textWarp={textWarp}
         gradientEditorRequest={gradientEditorRequest}
         onBrushChange={onBrushChange}
         onGradientChange={onGradientChange}
@@ -256,15 +240,9 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectionRowHeightChange={onSelectionRowHeightChange}
         onSelectionColumnWidthChange={onSelectionColumnWidthChange}
         onMagicWandChange={onMagicWandChange}
+        onTransformAutoSelectLayerChange={onTransformAutoSelectLayerChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}
-        onTransformChange={onTransformChange}
-        onTransformCommit={onTransformCommit}
-        onTextWarpChange={onTextWarpChange}
-        onTextWarpBegin={onTextWarpBegin}
-        onTextWarpCommit={onTextWarpCommit}
-        onTextWarpCancel={onTextWarpCancel}
-        onTransformCancel={onTransformCancel}
       /> : null}
 
       {recoveryNotice && screenMode !== 'canvas-only' ? (
