@@ -11,6 +11,7 @@ const stroke = (delta: readonly [number, number]): WarpStroke => ({
     hardness: 0.75,
     flow: 0.8,
     spacing: 0.25,
+    smooth: 0,
     pressureSize: false,
     pressureStrength: false
   },

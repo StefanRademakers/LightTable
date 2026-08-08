@@ -2,6 +2,7 @@ import React from 'react';
 import { AdjustmentSlider } from '../../../AdjustmentSlider';
 import type { EditorSession } from '../../../editor/session/editorSession';
 import type { WarpBrushMode } from '../../../effects/warp/warpTypes';
+import { MAX_STROKE_SMOOTH } from '../../../editor/tools/brush/strokeSmoother';
 
 export interface WarpToolOptionsProps {
   readonly warp: EditorSession['warp'];
@@ -93,6 +94,16 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       format={(value) => `${Math.round(value)}%`}
       onReset={() => onChange({ spacing: 0.04 })}
       onChange={(value) => onChange({ spacing: value / 100 })}
+    />
+    <AdjustmentSlider
+      label="Smooth"
+      value={warp.smooth * 100}
+      min={0}
+      max={MAX_STROKE_SMOOTH * 100}
+      resetValue={0}
+      format={(value) => `${Math.round(value)}%`}
+      onReset={() => onChange({ smooth: 0 })}
+      onChange={(value) => onChange({ smooth: value / 100 })}
     />
     <label className="lighttable-tool-options__toggle">
       <input

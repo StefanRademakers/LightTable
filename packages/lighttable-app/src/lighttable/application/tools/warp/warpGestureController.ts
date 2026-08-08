@@ -4,6 +4,7 @@ import type {
   WarpInputSample,
   WarpStroke
 } from '../../../effects/warp/warpTypes';
+import { StrokeSmoother } from '../../../editor/tools/brush/strokeSmoother';
 
 export interface WarpGesturePoint {
   readonly x: number;
@@ -53,6 +54,7 @@ export class WarpGestureController {
   private strokeId = '';
   private startedAtMs = 0;
   private previousPoint: WarpGesturePoint | null = null;
+  private smoother: StrokeSmoother<WarpGesturePoint> | null = null;
   private samples: WarpInputSample[] = [];
 
   get active(): boolean {
@@ -70,18 +72,21 @@ export class WarpGestureController {
     this.settings = cloneSettings(request.settings);
     this.strokeId = request.strokeId;
     this.startedAtMs = request.point.timeMs;
-    this.previousPoint = { ...request.point };
-    this.samples = [sample(request.point)];
+    this.smoother = new StrokeSmoother(request.settings.smooth, request.settings.diameterPx);
+    const openingPoint = this.smoother.begin(request.point);
+    this.previousPoint = { ...openingPoint };
+    this.samples = [sample(openingPoint)];
     return this.snapshot(request.point.timeMs);
   }
 
   move(pointerId: number, point: WarpGesturePoint): WarpStroke | null {
     if (!this.owns(pointerId) || !this.previousPoint) return null;
-    const deltaX = point.x - this.previousPoint.x;
-    const deltaY = point.y - this.previousPoint.y;
+    const filteredPoint = this.smoother?.add(point) ?? point;
+    const deltaX = filteredPoint.x - this.previousPoint.x;
+    const deltaY = filteredPoint.y - this.previousPoint.y;
     if (Math.hypot(deltaX, deltaY) < 0.01) return this.snapshot(point.timeMs);
-    this.samples.push(sample(point, this.previousPoint));
-    this.previousPoint = { ...point };
+    this.samples.push(sample(filteredPoint, this.previousPoint));
+    this.previousPoint = { ...filteredPoint };
     return this.snapshot(point.timeMs);
   }
 
@@ -97,6 +102,14 @@ export class WarpGestureController {
 
   finish(pointerId: number, timeMs: number): WarpStroke | null {
     if (!this.owns(pointerId)) return null;
+    for (const point of this.smoother?.finish() ?? []) {
+      if (!this.previousPoint || Math.hypot(
+        point.x - this.previousPoint.x,
+        point.y - this.previousPoint.y
+      ) < 0.01) continue;
+      this.samples.push(sample({ ...point, timeMs }, this.previousPoint));
+      this.previousPoint = { ...point, timeMs };
+    }
     const result = this.samples.length > 1 || this.mode !== 'push'
       ? this.snapshot(timeMs)
       : null;
@@ -116,6 +129,7 @@ export class WarpGestureController {
     this.strokeId = '';
     this.startedAtMs = 0;
     this.previousPoint = null;
+    this.smoother = null;
     this.samples = [];
   }
 

@@ -6,6 +6,7 @@ import {
   type GeometricSelectionToolId
 } from '../../selection/selectionTypes';
 import { selectionKindForTool } from '../toolCapabilities';
+import { StrokeSmoother } from '../brush/strokeSmoother';
 
 export type SelectionGestureFinish =
   | { kind: 'apply'; mode: SelectionCombineMode; shape: SelectionShape }
@@ -70,6 +71,7 @@ export class SelectionGestureController {
   private activeDraft: SelectionShape | null = null;
   private activeMode: SelectionCombineMode = 'replace';
   private activeStrip: { tool: StripSelectionTool; options: SelectionStripOptions } | null = null;
+  private freeSmoother: StrokeSmoother<SelectionPoint & { pressure: number }> | null = null;
 
   get pointerId(): number | null {
     return this.activePointerId;
@@ -88,7 +90,9 @@ export class SelectionGestureController {
     tool: GeometricSelectionToolId,
     point: SelectionPoint,
     mode: SelectionCombineMode,
-    stripOptions?: SelectionStripOptions
+    stripOptions?: SelectionStripOptions,
+    smooth = 0,
+    smoothingScale = 48
   ): SelectionShape {
     const start = clonePoint(point);
     this.activePointerId = pointerId;
@@ -99,6 +103,10 @@ export class SelectionGestureController {
     this.activeStrip = stripTool && stripOptions
       ? { tool: stripTool, options: { ...stripOptions } }
       : null;
+    this.freeSmoother = tool === 'select-free'
+      ? new StrokeSmoother(smooth, smoothingScale)
+      : null;
+    if (this.freeSmoother) this.freeSmoother.begin({ ...start, pressure: 1 });
     this.activeDraft = this.activeStrip
       ? selectionStripShape(this.activeStrip.tool, start, this.activeStrip.options)
       : {
@@ -118,13 +126,17 @@ export class SelectionGestureController {
         this.activeStrip.options
       );
     } else if (this.activeDraft.kind === 'free') {
+      const filtered = this.freeSmoother?.add({ ...nextPoint, pressure: 1 });
+      const sampledPoint = filtered
+        ? { x: filtered.x, y: filtered.y }
+        : nextPoint;
       const last = this.activeDraft.points[this.activeDraft.points.length - 1];
-      const dx = nextPoint.x - last.x;
-      const dy = nextPoint.y - last.y;
+      const dx = sampledPoint.x - last.x;
+      const dy = sampledPoint.y - last.y;
       if (dx * dx + dy * dy < 4) return null;
       this.activeDraft = {
         ...this.activeDraft,
-        points: [...this.activeDraft.points, nextPoint]
+        points: [...this.activeDraft.points, sampledPoint]
       };
     } else {
       this.activeDraft = {
@@ -137,6 +149,16 @@ export class SelectionGestureController {
 
   finish(pointerId: number): SelectionGestureFinish | null {
     if (!this.owns(pointerId)) return null;
+    if (this.activeDraft?.kind === 'free') {
+      const tail = (this.freeSmoother?.finish() ?? []).map(({ x, y }) => ({ x, y }));
+      const last = this.activeDraft.points.at(-1);
+      const distinctTail = tail.filter((point) => !last
+        || Math.hypot(point.x - last.x, point.y - last.y) >= 0.01);
+      if (distinctTail.length) this.activeDraft = {
+        ...this.activeDraft,
+        points: [...this.activeDraft.points, ...distinctTail]
+      };
+    }
     const shape = this.activeDraft;
     const mode = this.activeMode;
     this.reset();
@@ -162,5 +184,6 @@ export class SelectionGestureController {
     this.activeDraft = null;
     this.activeMode = 'replace';
     this.activeStrip = null;
+    this.freeSmoother = null;
   }
 }

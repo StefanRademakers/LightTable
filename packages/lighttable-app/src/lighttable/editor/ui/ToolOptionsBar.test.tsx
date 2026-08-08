@@ -39,6 +39,7 @@ const renderOptions = (
     selectionCombineMode: session.selectionCombineMode,
     selectionRowHeight: rowHeight,
     selectionColumnWidth: columnWidth,
+    selectionSmooth: 0,
     magicWand: session.magicWand,
     transformAutoSelectLayer: session.transformAutoSelectLayer,
     zoomPercent: 100,
@@ -66,6 +67,7 @@ const renderOptions = (
     onSelectionCombineModeChange: vi.fn(),
     onSelectionRowHeightChange: vi.fn(),
     onSelectionColumnWidthChange: vi.fn(),
+    onSelectionSmoothChange: vi.fn(),
     onMagicWandChange: vi.fn(),
     onTransformAutoSelectLayerChange: vi.fn(),
     onZoomPreset: vi.fn(),
@@ -253,6 +255,13 @@ describe('selection strip tool options', () => {
     expect(markup).toContain('Vertical selection');
     expect(markup).toContain('<span>Width</span>');
     expect(markup).toContain('value="7"');
+  });
+
+  it('exposes the extended smoothing range for free selections', () => {
+    const markup = renderOptions('select-free');
+    expect(markup).toContain('Free selection');
+    expect(markup).toContain('Smooth');
+    expect(markup).toContain('max="200"');
   });
 });
 

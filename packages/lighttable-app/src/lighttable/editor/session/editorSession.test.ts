@@ -11,6 +11,7 @@ describe('LightTable editor session', () => {
     const session = createEditorSession();
     expect(session.selectionRowHeight).toBe(1);
     expect(session.selectionColumnWidth).toBe(1);
+    expect(session.selectionSmooth).toBe(0);
   });
 
   it('starts Magic Wand with Photoshop-style authoring defaults', () => {

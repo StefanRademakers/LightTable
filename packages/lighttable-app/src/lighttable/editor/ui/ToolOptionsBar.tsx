@@ -32,6 +32,7 @@ import {
   resolveBrushPreset,
   type BrushPresetId
 } from '../tools/brush/brushPresets';
+import { MAX_STROKE_SMOOTH } from '../tools/brush/strokeSmoother';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
@@ -52,6 +53,7 @@ export interface ToolOptionsProps {
   selectionCombineMode: SelectionCombineMode;
   selectionRowHeight: number;
   selectionColumnWidth: number;
+  selectionSmooth: number;
   magicWand: EditorSession['magicWand'];
   transformAutoSelectLayer: boolean;
   zoomPercent: number;
@@ -83,6 +85,7 @@ export interface ToolOptionsProps {
   onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
+  onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
@@ -233,6 +236,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectionCombineMode,
   selectionRowHeight,
   selectionColumnWidth,
+  selectionSmooth,
   magicWand,
   transformAutoSelectLayer,
   zoomPercent,
@@ -264,6 +268,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectionCombineModeChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
+  onSelectionSmoothChange,
   onMagicWandChange,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
@@ -388,6 +393,18 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           />
           <span>px</span>
         </label>
+      ) : null}
+      {activeTool === 'select-free' ? (
+        <AdjustmentSlider
+          label="Smooth"
+          value={selectionSmooth * 100}
+          min={0}
+          max={MAX_STROKE_SMOOTH * 100}
+          resetValue={0}
+          format={(value) => `${Math.round(value)}%`}
+          onReset={() => onSelectionSmoothChange(0)}
+          onChange={(value) => onSelectionSmoothChange(value / 100)}
+        />
       ) : null}
       {activeTool === 'select-magic-wand' ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Magic Wand settings">
@@ -882,7 +899,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           label="Smooth"
           value={brush.smooth * 100}
           min={0}
-          max={100}
+          max={MAX_STROKE_SMOOTH * 100}
           resetValue={0}
           format={(value) => `${Math.round(value)}%`}
           onReset={() => onBrushChange({ smooth: 0 })}

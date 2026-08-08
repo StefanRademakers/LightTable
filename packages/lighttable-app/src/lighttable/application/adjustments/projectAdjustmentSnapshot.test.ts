@@ -85,6 +85,7 @@ describe('adjustment snapshot projection', () => {
           strength: 0.75,
           flow: 1,
           spacing: 0.2,
+          smooth: 0,
           pressureSize: true,
           pressureStrength: true
         },

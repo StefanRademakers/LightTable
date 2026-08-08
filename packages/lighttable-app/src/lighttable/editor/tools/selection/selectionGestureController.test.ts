@@ -34,6 +34,26 @@ describe('SelectionGestureController', () => {
     });
   });
 
+  it('smooths free selections and still closes on the last raw pointer point', () => {
+    const controller = new SelectionGestureController();
+    controller.begin(
+      5,
+      'select-free',
+      { x: 0, y: 0 },
+      'replace',
+      undefined,
+      2,
+      128
+    );
+    const draft = controller.move(5, { x: 300, y: 0 });
+    expect(draft?.points.at(-1)?.x).toBeLessThan(100);
+    const result = controller.finish(5);
+    expect(result).toMatchObject({
+      kind: 'apply',
+      shape: { points: expect.arrayContaining([{ x: 300, y: 0 }]) }
+    });
+  });
+
   it('clears on an invalid unmodified gesture but preserves on modified gestures', () => {
     const controller = new SelectionGestureController();
     controller.begin(3, 'select-ellipse', { x: 1, y: 1 }, 'replace');

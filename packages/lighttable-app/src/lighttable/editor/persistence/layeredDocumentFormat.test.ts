@@ -748,6 +748,7 @@ describe('LightTable layered PNG format', () => {
             hardness: 0.7,
             flow: 0.55,
             spacing: 0.08,
+            smooth: 0.35,
             pressureSize: true,
             pressureStrength: true
           },

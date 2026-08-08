@@ -43,4 +43,26 @@ describe('StrokeSmoother', () => {
     const finePoint = fine.add({ x: 30, y: 0, pressure: 1 });
     expect(finePoint.x).toBeCloseTo(coarsePoint.x, 5);
   });
+
+  it('extends beyond the former maximum without changing the zero-to-one range', () => {
+    const formerMaximum = new StrokeSmoother(1, 128);
+    formerMaximum.begin({ x: 0, y: 0, pressure: 1 });
+    const formerPoint = formerMaximum.add({ x: 300, y: 0, pressure: 1 });
+
+    const extended = new StrokeSmoother(2, 128);
+    extended.begin({ x: 0, y: 0, pressure: 1 });
+    const extendedPoint = extended.add({ x: 300, y: 0, pressure: 1 });
+
+    expect(extendedPoint.x).toBeLessThan(formerPoint.x);
+    expect(extended.finish().at(-1)).toEqual({ x: 300, y: 0, pressure: 1 });
+  });
+
+  it('preserves tool-specific point metadata', () => {
+    const smoother = new StrokeSmoother<{
+      x: number; y: number; pressure: number; timeMs: number; tiltX: number;
+    }>(0.5, 40);
+    smoother.begin({ x: 0, y: 0, pressure: 1, timeMs: 10, tiltX: 0 });
+    expect(smoother.add({ x: 50, y: 0, pressure: 0.5, timeMs: 20, tiltX: 12 }))
+      .toMatchObject({ timeMs: 20, tiltX: 12 });
+  });
 });

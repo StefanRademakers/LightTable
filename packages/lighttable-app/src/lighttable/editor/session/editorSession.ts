@@ -245,6 +245,7 @@ export interface EditorSession {
   selectionPixelSnap: boolean;
   selectionRowHeight: number;
   selectionColumnWidth: number;
+  selectionSmooth: number;
   magicWand: MagicWandOptions;
   /** Photoshop-style Move/Transform picking of the top visible painted layer. */
   transformAutoSelectLayer: boolean;
@@ -267,6 +268,7 @@ export const createEditorSession = (): EditorSession => ({
   selectionPixelSnap: true,
   selectionRowHeight: 1,
   selectionColumnWidth: 1,
+  selectionSmooth: 0,
   magicWand: createDefaultMagicWandOptions(),
   transformAutoSelectLayer: true,
   brush: {
@@ -330,6 +332,7 @@ export const createEditorSession = (): EditorSession => ({
     hardness: 0.5,
     flow: 1,
     spacing: 0.04,
+    smooth: 0,
     pressureSize: true,
     pressureStrength: true
   }

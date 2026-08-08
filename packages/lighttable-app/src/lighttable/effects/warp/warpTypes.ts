@@ -30,6 +30,7 @@ export interface WarpBrushSettingsSnapshot {
   readonly hardness: number;
   readonly flow: number;
   readonly spacing: number;
+  readonly smooth: number;
   readonly pressureSize: boolean;
   readonly pressureStrength: boolean;
 }

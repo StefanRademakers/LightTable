@@ -36,6 +36,7 @@ export interface LightTableEditorShellProps {
   selectionCombineMode: EditorSession['selectionCombineMode'];
   selectionRowHeight: number;
   selectionColumnWidth: number;
+  selectionSmooth: number;
   magicWand: EditorSession['magicWand'];
   transformAutoSelectLayer: boolean;
   zoomPercent: number;
@@ -67,6 +68,7 @@ export interface LightTableEditorShellProps {
   onSelectionCombineModeChange: (mode: EditorSession['selectionCombineMode']) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
+  onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
@@ -118,6 +120,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectionCombineMode,
   selectionRowHeight,
   selectionColumnWidth,
+  selectionSmooth,
   magicWand,
   transformAutoSelectLayer,
   zoomPercent,
@@ -149,6 +152,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onSelectionCombineModeChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
+  onSelectionSmoothChange,
   onMagicWandChange,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
@@ -208,6 +212,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectionCombineMode={selectionCombineMode}
         selectionRowHeight={selectionRowHeight}
         selectionColumnWidth={selectionColumnWidth}
+        selectionSmooth={selectionSmooth}
         magicWand={magicWand}
         transformAutoSelectLayer={transformAutoSelectLayer}
         zoomPercent={zoomPercent}
@@ -239,6 +244,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectionCombineModeChange={onSelectionCombineModeChange}
         onSelectionRowHeightChange={onSelectionRowHeightChange}
         onSelectionColumnWidthChange={onSelectionColumnWidthChange}
+        onSelectionSmoothChange={onSelectionSmoothChange}
         onMagicWandChange={onMagicWandChange}
         onTransformAutoSelectLayerChange={onTransformAutoSelectLayerChange}
         onZoomPreset={onZoomPreset}

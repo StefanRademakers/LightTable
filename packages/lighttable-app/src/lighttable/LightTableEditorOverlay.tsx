@@ -4086,6 +4086,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionCombineMode={editorSession.selectionCombineMode}
       selectionRowHeight={editorSession.selectionRowHeight}
       selectionColumnWidth={editorSession.selectionColumnWidth}
+      selectionSmooth={editorSession.selectionSmooth}
       magicWand={editorSession.magicWand}
       zoomPercent={activeScale * 100}
       gradientEditorRequest={gradientEditorRequest}
@@ -4137,6 +4138,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onSelectionColumnWidthChange={(selectionColumnWidth) => {
         setEditorSession((current) => ({ ...current, selectionColumnWidth }));
+      }}
+      onSelectionSmoothChange={(selectionSmooth) => {
+        setEditorSession((current) => ({ ...current, selectionSmooth }));
       }}
       onMagicWandChange={(change) => {
         setEditorSession((current) => ({
@@ -4223,6 +4227,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             selectionCombineMode: editorSession.selectionCombineMode,
             selectionRowHeight: editorSession.selectionRowHeight,
             selectionColumnWidth: editorSession.selectionColumnWidth,
+            selectionSmooth: editorSession.selectionSmooth,
             magicWand: editorSession.magicWand,
             zoomPercent: activeScale * 100,
             onBrushChange: updateBrush,
@@ -4277,6 +4282,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onSelectionColumnWidthChange: (selectionColumnWidth) => {
               setEditorSession((current) => ({ ...current, selectionColumnWidth }));
+            },
+            onSelectionSmoothChange: (selectionSmooth) => {
+              setEditorSession((current) => ({ ...current, selectionSmooth }));
             },
             onMagicWandChange: (change) => {
               setEditorSession((current) => ({

@@ -19,6 +19,7 @@ const brush = {
   hardness: 0.6,
   flow: 1,
   spacing: 0.1,
+  smooth: 0,
   pressureSize: true,
   pressureStrength: true
 };
@@ -108,6 +109,26 @@ describe('Warp session controller', () => {
     expect(findWarpModuleInstance(
       findRasterLayer(state.document, state.document.activeLayerId)?.adjustmentStack
     )).not.toBeNull();
+  });
+
+  it('smooths Warp input in source space and catches up exactly on commit', () => {
+    const state = harness();
+    const controller = createWarpSessionController(() => state.dependencies);
+    expect(controller.begin({
+      pointerId: 17,
+      mode: 'push',
+      settings: { ...brush, diameterPx: 128, smooth: 2 },
+      point: point(80, 40, 10)
+    })).toBe(true);
+    expect(controller.move(17, point(80, 640, 20))).toBe(true);
+    expect(controller.finish(17, 30)).toBe(true);
+
+    const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    const settings = readWarpNodeSettings(findWarpModuleInstance(layer.adjustmentStack)!);
+    const positions = settings.strokes[0]!.samples.map(({ positionPx }) => positionPx);
+    expect(positions[1]![0]).toBeLessThan(100);
+    expect(positions.at(-1)).toEqual([310, 10]);
+    expect(settings.strokes[0]?.settings.smooth).toBe(2);
   });
 
   it('restores the exact document when a gesture is cancelled or never moves', () => {

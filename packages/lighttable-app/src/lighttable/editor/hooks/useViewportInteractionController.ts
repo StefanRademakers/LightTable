@@ -634,7 +634,9 @@ export const useViewportInteractionController = ({
           activeTool,
           point,
           selectionCombineMode,
-          stripSize
+          stripSize,
+          activeTool === 'select-free' ? editorSession.selectionSmooth : 0,
+          48 / Math.max(activeScale, 0.0001)
         )) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();
@@ -704,6 +706,7 @@ export const useViewportInteractionController = ({
           hardness: editorSession.brush.hardness,
           flow: editorSession.brush.flow,
           spacing: editorSession.brush.spacing,
+          smooth: editorSession.brush.smooth,
           pressureSize: false,
           pressureStrength: true
         } : {
@@ -712,6 +715,7 @@ export const useViewportInteractionController = ({
           hardness: editorSession.warp.hardness,
           flow: editorSession.warp.flow,
           spacing: editorSession.warp.spacing,
+          smooth: editorSession.warp.smooth,
           pressureSize: editorSession.warp.pressureSize,
           pressureStrength: editorSession.warp.pressureStrength
         };

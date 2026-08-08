@@ -60,7 +60,9 @@ export interface SelectionSessionController {
     tool: GeometricSelectionToolId,
     point: SelectionPoint,
     mode: SelectionCombineMode,
-    stripSize?: number
+    stripSize?: number,
+    smooth?: number,
+    smoothingScale?: number
   ): boolean;
   move(pointerId: number, point: SelectionPoint): boolean;
   finish(pointerId: number): boolean;
@@ -339,7 +341,7 @@ export const createSelectionSessionController = (
       return polygonGesture.draft ?? gesture.draft;
     },
     owns: (pointerId) => gesture.owns(pointerId) || translation?.pointerId === pointerId,
-    begin: (pointerId, tool, point, mode, stripSize) => {
+    begin: (pointerId, tool, point, mode, stripSize, smooth, smoothingScale) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       const renderer = dependencies.getRenderer();
@@ -354,7 +356,7 @@ export const createSelectionSessionController = (
         documentWidth: document.width,
         documentHeight: document.height,
         size: stripSize ?? 1
-      });
+      }, smooth, smoothingScale);
       dependencies.publishDraft(draft);
       dependencies.publishSelection(dependencies.getSelection(), pointerId);
       return true;
