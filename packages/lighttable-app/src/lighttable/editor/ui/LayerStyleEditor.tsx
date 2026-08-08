@@ -178,7 +178,7 @@ const ShadowControls: React.FC<{
           label="Angle"
           value={effect.angle}
           resetValue={120}
-          onChange={(angle) => patch({ angle })}
+          onChange={(angle) => patch({ angle, useGlobalLight: false })}
         />
       </div>
     </div>
