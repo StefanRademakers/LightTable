@@ -72,12 +72,12 @@ export class PaintGestureController {
   begin(
     pointerId: number,
     target: PaintGestureTarget,
-    brush: { size: number; spacing: number; smooth: number },
+    brush: { size: number; spacing: number; smooth: number; maximumSpacingPx?: number },
     point: BrushPoint
   ): PaintGestureUpdate {
     this.activePointerId = pointerId;
     this.target = cloneTarget(target);
-    this.builder = new StrokeBuilder(brush.size, brush.spacing);
+    this.builder = new StrokeBuilder(brush.size, brush.spacing, brush.maximumSpacingPx);
     this.smoother = new StrokeSmoother(brush.smooth, brush.size);
     this.dirtyBounds = null;
     return this.update(this.builder.begin(this.smoother.begin(point)));

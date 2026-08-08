@@ -1115,6 +1115,7 @@ export const BRUSH_DAB_WGSL = /* wgsl */ `
 struct BrushDab {
   centerSizeHardness: vec4f,
   colorOpacity: vec4f,
+  tip: vec4f,
 }
 
 struct BrushCanvas {
@@ -1130,6 +1131,7 @@ struct BrushVertexOutput {
   @builtin(position) position: vec4f,
   @location(0) centerSizeHardness: vec4f,
   @location(1) colorOpacity: vec4f,
+  @location(2) tip: vec4f,
 }
 
 @group(0) @binding(0) var<storage, read> dabs: array<BrushDab>;
@@ -1160,6 +1162,7 @@ fn brushVertex(@builtin(vertex_index) vertexIndex: u32, @builtin(instance_index)
   output.position = vec4f(clip, 0.0, 1.0);
   output.centerSizeHardness = dab.centerSizeHardness;
   output.colorOpacity = dab.colorOpacity;
+  output.tip = dab.tip;
   return output;
 }
 
@@ -1174,7 +1177,17 @@ fn brushFragment(input: BrushVertexOutput) -> @location(0) vec4f {
     dot(canvas.forwardRow1.xyz, vec3f(localPixel, 1.0))
   );
   let radius = max(input.centerSizeHardness.z * 0.5, 0.0001);
-  let distance = length((documentPixel - input.centerSizeHardness.xy) / radius);
+  let delta = (documentPixel - input.centerSizeHardness.xy) / radius;
+  let c = cos(input.tip.y);
+  let s = sin(input.tip.y);
+  var oriented = vec2f(c * delta.x + s * delta.y, -s * delta.x + c * delta.y);
+  oriented.y /= max(input.tip.x, 0.05);
+  let angle = atan2(oriented.y, oriented.x);
+  let roughNoise = sin(angle * 7.0 + input.tip.w * 2.39996)
+    * 0.55 + sin(angle * 13.0 + input.tip.w * 1.61803) * 0.3
+    + sin(angle * 23.0 + input.tip.w * 0.75488) * 0.15;
+  let roughRadius = max(0.55, 1.0 + roughNoise * input.tip.z);
+  let distance = length(oriented) / roughRadius;
   if (distance >= 1.0) { discard; }
   let coverage = 1.0 - smoothstep(
     clamp(input.centerSizeHardness.w, 0.0, 0.995),

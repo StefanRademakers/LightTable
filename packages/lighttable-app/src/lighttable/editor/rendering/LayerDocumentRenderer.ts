@@ -6,7 +6,7 @@ import {
   type Rect,
   type RasterLayer
 } from '../document/documentTypes';
-import type { BrushDab } from '../tools/brush/strokeBuilder';
+import type { BrushDab, BrushTipDefinition } from '../tools/brush/strokeBuilder';
 import type { PaintChannel } from '../session/editorSession';
 import type {
   CompositeSelectionChannel,
@@ -412,7 +412,8 @@ export class LayerDocumentRenderer {
     flow: number,
     erase = false,
     transform: AffineMatrix = identityAffineMatrix(),
-    preserveTransparency = false
+    preserveTransparency = false,
+    tip?: BrushTipDefinition
   ) {
     return this.runtime.rasterPaint.paintDabs(
       layerId,
@@ -424,7 +425,8 @@ export class LayerDocumentRenderer {
       flow,
       erase,
       transform,
-      preserveTransparency
+      preserveTransparency,
+      tip
     );
   }
 

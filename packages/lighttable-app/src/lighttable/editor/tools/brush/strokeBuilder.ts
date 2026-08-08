@@ -8,23 +8,40 @@ export interface BrushPoint {
 
 export interface BrushDab extends BrushPoint {
   size: number;
+  /** Fraction of one user-requested spacing interval represented by this dab. */
+  flowScale: number;
 }
+
+/** Compact analytic tip contract consumed by the instanced paint renderer. */
+export interface BrushTipDefinition {
+  readonly roundness: number;
+  readonly angleDegrees: number;
+  readonly roughness: number;
+}
+
+export const DEFAULT_BRUSH_TIP: BrushTipDefinition = {
+  roundness: 1,
+  angleDegrees: 0,
+  roughness: 0
+};
 
 export class StrokeBuilder {
   private previous: BrushPoint | null = null;
   private carry = 0;
   private readonly size: number;
   private readonly spacingRatio: number;
+  private readonly maximumSpacingPx: number;
 
-  constructor(size: number, spacingRatio: number) {
+  constructor(size: number, spacingRatio: number, maximumSpacingPx = 1.5) {
     this.size = size;
     this.spacingRatio = spacingRatio;
+    this.maximumSpacingPx = Math.max(0.25, maximumSpacingPx);
   }
 
   begin(point: BrushPoint): BrushDab[] {
     this.previous = point;
     this.carry = 0;
-    return [{ ...point, size: this.size }];
+    return [{ ...point, size: this.size, flowScale: 1 }];
   }
 
   add(point: BrushPoint): BrushDab[] {
@@ -34,7 +51,9 @@ export class StrokeBuilder {
     const dy = point.y - previous.y;
     const distance = Math.hypot(dx, dy);
     if (distance <= 0.0001) return [];
-    const spacing = Math.max(1, this.size * Math.max(0.01, this.spacingRatio));
+    const requestedSpacing = Math.max(1, this.size * Math.max(0.01, this.spacingRatio));
+    const spacing = Math.min(this.maximumSpacingPx, requestedSpacing);
+    const flowScale = Math.min(1, spacing / requestedSpacing);
     const dabs: BrushDab[] = [];
     let travelled = spacing - this.carry;
     while (travelled <= distance) {
@@ -43,7 +62,8 @@ export class StrokeBuilder {
         x: previous.x + dx * t,
         y: previous.y + dy * t,
         pressure: previous.pressure + (point.pressure - previous.pressure) * t,
-        size: this.size
+        size: this.size,
+        flowScale
       });
       travelled += spacing;
     }

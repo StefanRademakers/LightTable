@@ -26,6 +26,11 @@ import { AnchoredGradientPopover } from './AnchoredGradientPopover';
 import { VectorStyleToolOptions } from './VectorStyleToolOptions';
 import { GradientField } from '../../../ui/GradientField';
 import type { TextPaint } from '@lighttable/text-core';
+import {
+  BASIC_BRUSH_PRESETS,
+  brushPresetChange,
+  type BrushPresetId
+} from '../tools/brush/brushPresets';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
@@ -814,6 +819,20 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {activeTool === 'brush' || activeTool === 'erase' ? (
         <>
+          <ToolOptionSelect
+            label="Preset"
+            value={brush.presetId}
+            aria-label="Brush preset"
+            onChange={(event) => onBrushChange(
+              brushPresetChange(event.currentTarget.value as BrushPresetId)
+            )}
+          >
+            <optgroup label="Basic">
+              {BASIC_BRUSH_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id}>{preset.name}</option>
+              ))}
+            </optgroup>
+          </ToolOptionSelect>
           <AdjustmentSlider
           label="Size"
           value={brush.size}

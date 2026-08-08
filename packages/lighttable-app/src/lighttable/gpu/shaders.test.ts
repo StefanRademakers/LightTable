@@ -355,8 +355,10 @@ describe('LightTable WGSL modules', () => {
       'dot(canvas.forwardRow1.xyz, vec3f(localPixel, 1.0))',
     );
     expect(BRUSH_DAB_WGSL).toContain(
-      'let distance = length((documentPixel - input.centerSizeHardness.xy) / radius)',
+      'let delta = (documentPixel - input.centerSizeHardness.xy) / radius',
     );
+    expect(BRUSH_DAB_WGSL).toContain('oriented.y /= max(input.tip.x, 0.05)');
+    expect(BRUSH_DAB_WGSL).toContain('let distance = length(oriented) / roughRadius');
   });
 
   it('fills through selection coverage and preserves premultiplied transparency when requested', () => {

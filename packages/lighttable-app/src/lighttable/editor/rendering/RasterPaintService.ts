@@ -2,7 +2,11 @@ import { sampleGradientAsset, type GradientPaintInstance } from '@lighttable/pai
 import { blendModeGpuValue, type BlendMode } from '../document/blendModes';
 import type { LayerId, Rect } from '../document/documentTypes';
 import type { PaintChannel } from '../session/editorSession';
-import type { BrushDab } from '../tools/brush/strokeBuilder';
+import {
+  DEFAULT_BRUSH_TIP,
+  type BrushDab,
+  type BrushTipDefinition
+} from '../tools/brush/strokeBuilder';
 import { invertMatrix } from '../tools/transform/affine';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import { identityAffineMatrix } from './renderContract';
@@ -71,7 +75,8 @@ export class RasterPaintService {
     flow: number,
     erase = false,
     transform: AffineMatrix = identityAffineMatrix(),
-    preserveTransparency = false
+    preserveTransparency = false,
+    tip: BrushTipDefinition = DEFAULT_BRUSH_TIP
   ) {
     if (!dabs.length) return;
     const pipelines = this.options.brushPipelines();
@@ -128,13 +133,21 @@ export class RasterPaintService {
       return { x: left, y: top, width: right - left, height: bottom - top };
     });
     this.options.captureHistoryRegions(layerId, channel, localRegions);
-    const values = new Float32Array(dabs.length * 8);
+    const values = new Float32Array(dabs.length * 12);
     dabs.forEach((dab, index) => {
       const pressure = Math.min(1, Math.max(0.05, dab.pressure || 1));
+      const requestedAlpha = Math.min(1, Math.max(0, opacity * flow * pressure));
+      // Dense resampling removes large-tip scallops. Preserve the requested
+      // flow over distance instead of making the stroke darker merely because
+      // more sub-dabs were needed: N source-over samples combine as
+      // 1 - (1 - alpha)^N.
+      const dabAlpha = 1 - Math.pow(1 - requestedAlpha, Math.max(0, dab.flowScale));
+      const seed = Math.abs(Math.sin(dab.x * 12.9898 + dab.y * 78.233) * 43758.5453) % 1;
       values.set([
         dab.x, dab.y, dab.size * (0.2 + pressure * 0.8), hardness,
-        paintColor[0], paintColor[1], paintColor[2], opacity * flow * pressure
-      ], index * 8);
+        paintColor[0], paintColor[1], paintColor[2], dabAlpha,
+        tip.roundness, tip.angleDegrees * Math.PI / 180, tip.roughness, seed
+      ], index * 12);
     });
     const dabBuffer = this.options.device.createBuffer({
       label: 'LightTable brush dab batch',

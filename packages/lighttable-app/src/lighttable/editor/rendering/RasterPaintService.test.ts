@@ -34,6 +34,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const pipelines = vi.fn(() => pipelineSet);
   const ensureSelectionTargets = vi.fn();
   const createBuffer = vi.fn(() => ({ destroy: vi.fn() }));
+  const writeBuffer = vi.fn();
   const copyTextureToTexture = vi.fn();
   const submit = vi.fn();
   const invalidateLayer = vi.fn();
@@ -53,7 +54,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
         finish: () => 'commands'
       })),
       queue: {
-        writeBuffer: vi.fn(),
+        writeBuffer,
         submit,
         onSubmittedWorkDone: () => Promise.resolve()
       }
@@ -92,6 +93,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     pipelines,
     ensureSelectionTargets,
     createBuffer,
+    writeBuffer,
     createdTextures,
     createdMaskTextures,
     copyTextureToTexture,
@@ -160,7 +162,7 @@ describe('RasterPaintService', () => {
     test.service.paintDabs(
       layerId,
       'pixels',
-      [{ x: 30, y: 20, size: 12, pressure: 1 }],
+      [{ x: 30, y: 20, size: 12, pressure: 1, flowScale: 1 }],
       [1, 0, 0],
       0.5,
       1,
@@ -180,18 +182,65 @@ describe('RasterPaintService', () => {
     expect(test.pipelines).not.toHaveBeenCalled();
   });
 
+  it('packs analytic Basic brush tip parameters into each instanced dab', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+
+    test.service.paintDabs(
+      layerId,
+      'pixels',
+      [{ x: 30, y: 20, size: 12, pressure: 1, flowScale: 1 }],
+      [1, 0, 0],
+      0.5,
+      1,
+      1,
+      false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      false,
+      { roundness: 0.2, angleDegrees: 45, roughness: 0.18 }
+    );
+
+    expect(test.createBuffer).toHaveBeenCalledWith(expect.objectContaining({ size: 48 }));
+    const dabValues = test.writeBuffer.mock.calls
+      .map((call) => call[2])
+      .find((value): value is Float32Array => value instanceof Float32Array && value.length === 12);
+    expect(dabValues?.[8]).toBeCloseTo(0.2);
+    expect(dabValues?.[9]).toBeCloseTo(Math.PI / 4);
+    expect(dabValues?.[10]).toBeCloseTo(0.18);
+  });
+
+  it('normalizes flow when dense resampling splits one requested spacing interval', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+
+    test.service.paintDabs(
+      layerId,
+      'pixels',
+      [{ x: 30, y: 20, size: 400, pressure: 1, flowScale: 0.25 }],
+      [1, 0, 0],
+      1,
+      1,
+      0.5
+    );
+
+    const dabValues = test.writeBuffer.mock.calls
+      .map((call) => call[2])
+      .find((value): value is Float32Array => value instanceof Float32Array && value.length === 12);
+    expect(dabValues?.[7]).toBeCloseTo(1 - Math.pow(0.5, 0.25));
+  });
+
   it('uses alpha-preserving paint and eraser pipelines for locked transparency', () => {
     vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
     const painted = harness();
     const erased = harness();
 
     painted.service.paintDabs(
-      layerId, 'pixels', [{ x: 10, y: 10, size: 8, pressure: 1 }],
+      layerId, 'pixels', [{ x: 10, y: 10, size: 8, pressure: 1, flowScale: 1 }],
       [1, 0, 0], 1, 1, 1, false,
       { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, true
     );
     erased.service.paintDabs(
-      layerId, 'pixels', [{ x: 10, y: 10, size: 8, pressure: 1 }],
+      layerId, 'pixels', [{ x: 10, y: 10, size: 8, pressure: 1, flowScale: 1 }],
       [1, 0, 0], 1, 1, 1, true,
       { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, true
     );

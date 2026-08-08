@@ -742,7 +742,8 @@ export const useViewportInteractionController = ({
           )
         },
         brush: editorSession.brush,
-        point: paintPoint
+        point: paintPoint,
+        displayScale: activeScale
       });
       if (started) {
         if (paintPoint !== point) paint.move(event.pointerId, point);

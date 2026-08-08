@@ -15,6 +15,7 @@ import type {
   PaintChannel
 } from '../../../editor/session/editorSession';
 import type { BrushPoint } from '../../../editor/tools/brush/strokeBuilder';
+import { resolveBrushPreset } from '../../../editor/tools/brush/brushPresets';
 import {
   PaintGestureController,
   type PaintGestureTarget,
@@ -48,7 +49,8 @@ export interface PaintSessionRendererPort {
     opacity: number,
     flow: number,
     erase: boolean,
-    sourceToDocument: PaintGestureTarget['sourceToDocument']
+    sourceToDocument: PaintGestureTarget['sourceToDocument'],
+    tip: ReturnType<typeof resolveBrushPreset>['tip']
   ): void;
   finishPixelEdit(): ReversiblePixelEdit | null;
   cancelPixelEdit(): void;
@@ -69,6 +71,8 @@ export interface BeginPaintSession {
   target: PaintGestureTarget;
   brush: BrushSettings;
   point: BrushPoint;
+  /** Document-to-screen scale used to keep large-tip spacing visually continuous. */
+  displayScale?: number;
 }
 
 export interface PaintSessionController {
@@ -122,7 +126,8 @@ export const createPaintSessionController = (
       activeBrush.opacity,
       activeBrush.flow,
       update.target.erase,
-      update.target.sourceToDocument
+      update.target.sourceToDocument,
+      resolveBrushPreset(activeBrush.presetId).tip
     );
   };
   const paintScheduler: PaintDabScheduler = frame
@@ -143,7 +148,7 @@ export const createPaintSessionController = (
       return gesture.active;
     },
     owns: (pointerId) => gesture.owns(pointerId),
-    begin: ({ pointerId, layer, target, brush, point }) => {
+    begin: ({ pointerId, layer, target, brush, point, displayScale = 1 }) => {
       const dependencies = resolveDependencies();
       const renderer = dependencies.getRenderer();
       if (!renderer) return false;
@@ -151,7 +156,10 @@ export const createPaintSessionController = (
         renderer.setPaintInteractionActive(true);
         renderer.beginBrushStroke(layer, target.channel);
         activeBrush = cloneBrush(brush);
-        paintScheduler.schedule(gesture.begin(pointerId, target, activeBrush, point));
+        paintScheduler.schedule(gesture.begin(pointerId, target, {
+          ...activeBrush,
+          maximumSpacingPx: Math.max(0.5, 1.5 / Math.max(displayScale, 0.01))
+        }, point));
         dependencies.setError(null);
         return true;
       } catch (reason) {

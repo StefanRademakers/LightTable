@@ -32,7 +32,7 @@ describe('PaintGestureController', () => {
 
   it('accumulates dirty bounds and returns them exactly once', () => {
     const controller = new PaintGestureController();
-    controller.begin(8, target(), { size: 10, spacing: 1, smooth: 0 }, {
+    controller.begin(8, target(), { size: 10, spacing: 1, smooth: 0, maximumSpacingPx: 10 }, {
       x: 10,
       y: 10,
       pressure: 1

@@ -11,6 +11,7 @@ import type { LayerId } from '../document/documentTypes';
 import type { BlendMode } from '../document/blendModes';
 import type { VectorEditorToolId } from '../tools/vectorToolCatalog';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
+import type { BrushPresetId } from '../tools/brush/brushPresets';
 
 export type ToolId =
   | 'view'
@@ -157,6 +158,7 @@ export const vectorEditorSelectionsEqual = (
   );
 
 export interface BrushSettings {
+  presetId: BrushPresetId;
   size: number;
   hardness: number;
   opacity: number;
@@ -268,6 +270,7 @@ export const createEditorSession = (): EditorSession => ({
   magicWand: createDefaultMagicWandOptions(),
   transformAutoSelectLayer: true,
   brush: {
+    presetId: 'round',
     size: 48,
     hardness: 0.75,
     opacity: 1,

@@ -11,7 +11,7 @@ const update = (x: number): PaintGestureUpdate => ({
     erase: false,
     sourceToDocument: identityMatrix()
   },
-  dabs: [{ x, y: 5, pressure: 1, size: 10 }]
+  dabs: [{ x, y: 5, pressure: 1, size: 10, flowScale: 1 }]
 });
 
 describe('PaintDabScheduler', () => {
