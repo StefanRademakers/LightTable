@@ -37,6 +37,28 @@ describe('PaintDabScheduler', () => {
       .toEqual([1, 2, 3]);
   });
 
+  it('does not rewrite caller-owned update arrays while appending pending dabs', () => {
+    let callback: (() => void) | null = null;
+    const deliver = vi.fn();
+    const first = update(1);
+    const second = update(2);
+    const scheduler = createPaintDabScheduler({
+      request: (next) => {
+        callback = next;
+        return 7;
+      },
+      cancel: vi.fn()
+    }, deliver);
+
+    scheduler.schedule(first);
+    scheduler.schedule(second);
+    expect(first.dabs).toHaveLength(1);
+    expect(second.dabs).toHaveLength(1);
+
+    (callback as (() => void) | null)?.();
+    expect(deliver.mock.calls[0]?.[0].dabs).toHaveLength(2);
+  });
+
   it('flushes before commit and can discard unapplied input', () => {
     const cancel = vi.fn();
     const deliver = vi.fn();

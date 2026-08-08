@@ -38,6 +38,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const writeBuffer = vi.fn();
   const copyTextureToTexture = vi.fn();
   const submit = vi.fn();
+  const onSubmittedWorkDone = vi.fn(() => Promise.resolve());
   const invalidateLayer = vi.fn();
   const captureHistoryRegions = vi.fn();
   const captureAllHistory = vi.fn();
@@ -57,7 +58,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
       queue: {
         writeBuffer,
         submit,
-        onSubmittedWorkDone: () => Promise.resolve()
+        onSubmittedWorkDone
       }
     } as unknown as GPUDevice,
     sampler: {} as GPUSampler,
@@ -100,6 +101,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     createdMaskTextures,
     copyTextureToTexture,
     submit,
+    onSubmittedWorkDone,
     invalidateLayer,
     captureHistoryRegions,
     captureAllHistory,
@@ -231,6 +233,24 @@ describe('RasterPaintService', () => {
     expect(dabValues?.[7]).toBeCloseTo(1 - Math.pow(0.5, 0.25));
   });
 
+  it('reuses and grows the ordered brush upload buffer without a fence per batch', async () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+    const dab = { x: 30, y: 20, size: 12, pressure: 1, flowScale: 1 };
+
+    test.service.paintDabs(layerId, 'pixels', [dab], [1, 0, 0], 1, 1, 1);
+    test.service.paintDabs(layerId, 'pixels', [dab], [1, 0, 0], 1, 1, 1);
+
+    // One lazy canvas uniform plus one reusable storage buffer.
+    expect(test.createBuffer).toHaveBeenCalledTimes(2);
+    expect(test.onSubmittedWorkDone).not.toHaveBeenCalled();
+
+    test.service.paintDabs(layerId, 'pixels', [dab, dab], [1, 0, 0], 1, 1, 1);
+    expect(test.createBuffer).toHaveBeenCalledTimes(3);
+    expect(test.onSubmittedWorkDone).toHaveBeenCalledOnce();
+    await Promise.resolve();
+  });
+
   it('reuses one immutable Blur source snapshot and invalidates only the edited layer', () => {
     vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
     const test = harness();
@@ -259,13 +279,31 @@ describe('RasterPaintService', () => {
 
     expect(test.createdTextures).toHaveLength(1);
     expect(test.copyTextureToTexture).toHaveBeenCalledWith(
-      expect.objectContaining({ texture: expect.anything() }),
-      { texture: test.createdTextures[0] },
+      expect.objectContaining({ texture: expect.anything(), origin: { x: 0, y: 0 } }),
+      { texture: test.createdTextures[0], origin: { x: 0, y: 0 } },
       [64, 32]
     );
     expect(test.pipelineSet.blur.getBindGroupLayout).toHaveBeenCalledTimes(2);
     expect(test.invalidateLayer).toHaveBeenCalledWith(layerId);
-    expect(test.releaseSubmittedResources).toHaveBeenCalledTimes(2);
+    expect(test.releaseSubmittedResources).not.toHaveBeenCalled();
+  });
+
+  it('copies only the Blur Brush sample support on a large raster surface', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness(true, { width: 4096, height: 4096 });
+
+    test.service.paintDabs(
+      layerId, 'pixels',
+      [{ x: 300, y: 200, size: 80, pressure: 1, flowScale: 1 }],
+      [0, 0, 0], 0.25, 0.35, 0.5, false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, false, undefined, 'blur'
+    );
+
+    expect(test.copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: expect.anything(), origin: { x: 254, y: 154 } },
+      { texture: test.createdTextures[0], origin: { x: 254, y: 154 } },
+      [92, 92]
+    );
   });
 
   it('uses alpha-preserving paint and eraser pipelines for locked transparency', () => {
@@ -286,6 +324,21 @@ describe('RasterPaintService', () => {
 
     expect(painted.pipelineSet.brushPreserveTransparency.getBindGroupLayout).toHaveBeenCalled();
     expect(erased.pipelineSet.erasePreserveTransparency.getBindGroupLayout).toHaveBeenCalled();
+  });
+
+  it('invalidates only the painted layer presentation after a normal batch', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+
+    test.service.paintDabs(
+      layerId, 'pixels',
+      [{ x: 10, y: 10, size: 8, pressure: 1, flowScale: 1 }],
+      [1, 0, 0], 1, 1, 1
+    );
+
+    expect(test.invalidateLayer).toHaveBeenCalledOnce();
+    expect(test.invalidateLayer).toHaveBeenCalledWith(layerId);
+    expect(test.releaseSubmittedResources).not.toHaveBeenCalled();
   });
 
   it('routes mask fills through a single-channel result pipeline', () => {

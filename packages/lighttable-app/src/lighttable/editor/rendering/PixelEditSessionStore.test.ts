@@ -12,7 +12,7 @@ const snapshot = (layerId = 'layer-1'): PixelEditSnapshot => ({
   width: 20,
   height: 10,
   tiles: [{ x: 0, y: 0, width: 20, height: 10, texture: texture() }],
-  capturedTileKeys: new Set(['0:0'])
+  capturedTileKeys: new Set([0])
 });
 
 describe('PixelEditSessionStore', () => {

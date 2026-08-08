@@ -33,9 +33,14 @@ export const createPaintDabScheduler = (
   return {
     schedule: (update) => {
       if (!update.dabs.length) return;
-      pending = pending
-        ? { target: pending.target, dabs: [...pending.dabs, ...update.dabs] }
-        : { target: update.target, dabs: [...update.dabs] };
+      if (pending) {
+        // Pointer devices can contribute many coalesced updates before the
+        // next presentation frame. Append once instead of copying the entire
+        // accumulated stroke for every event (quadratic work in a hot path).
+        for (const dab of update.dabs) pending.dabs.push(dab);
+      } else {
+        pending = { target: update.target, dabs: [...update.dabs] };
+      }
       if (handle === null) handle = frame.request(run);
     },
     flush: () => {

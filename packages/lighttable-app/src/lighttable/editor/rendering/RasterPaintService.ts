@@ -14,6 +14,7 @@ import { identityAffineMatrix } from './renderContract';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { BrushPipelineBundle, ToolPipelineBundle } from './ToolPipelineBundle';
+import { blurBrushSourceBounds, brushHistoryRegions } from './brushHistoryRegions';
 
 interface RasterPaintServiceOptions {
   device: GPUDevice;
@@ -53,6 +54,7 @@ interface RasterPaintServiceOptions {
  */
 export class RasterPaintService {
   private brushCanvasBuffer: GPUBuffer | null = null;
+  private brushDabBuffer: { readonly buffer: GPUBuffer; readonly capacity: number } | null = null;
   private blurSource: {
     readonly layerId: LayerId;
     readonly width: number;
@@ -100,6 +102,9 @@ export class RasterPaintService {
     if (!target) {
       throw new Error('The active paint channel is not available on the GPU.');
     }
+    if (engine === 'blur' && (channel !== 'pixels' || !runtime)) {
+      throw new Error('Blur Brush requires an editable raster pixel layer.');
+    }
     const selection = this.options.selectionTextures.mask;
     if (!selection) {
       throw new Error('The LightTable selection mask is not initialized.');
@@ -123,25 +128,12 @@ export class RasterPaintService {
     const paintColor: [number, number, number] = channel === 'mask'
       ? [luminance, luminance, luminance]
       : color;
-    const localRegions = dabs.map((dab) => {
-      const radius = dab.size * 0.5;
-      const corners = [
-        [dab.x - radius, dab.y - radius],
-        [dab.x + radius, dab.y - radius],
-        [dab.x - radius, dab.y + radius],
-        [dab.x + radius, dab.y + radius]
-      ] as const;
-      const projected = corners.map(([x, y]) => ({
-        x: inverse.a * x + inverse.c * y + inverse.tx,
-        y: inverse.b * x + inverse.d * y + inverse.ty
-      }));
-      const left = Math.min(...projected.map(({ x }) => x)) - 2;
-      const top = Math.min(...projected.map(({ y }) => y)) - 2;
-      const right = Math.max(...projected.map(({ x }) => x)) + 2;
-      const bottom = Math.max(...projected.map(({ y }) => y)) + 2;
-      return { x: left, y: top, width: right - left, height: bottom - top };
-    });
+    const localRegions = brushHistoryRegions(dabs, inverse);
     this.options.captureHistoryRegions(layerId, channel, localRegions);
+    const blurSourceBounds = engine === 'blur'
+      ? blurBrushSourceBounds(dabs, inverse, width, height)
+      : null;
+    if (engine === 'blur' && !blurSourceBounds) return;
     const values = new Float32Array(dabs.length * 12);
     dabs.forEach((dab, index) => {
       const pressure = Math.min(1, Math.max(0.05, dab.pressure || 1));
@@ -158,17 +150,9 @@ export class RasterPaintService {
         tip.roundness, tip.angleDegrees * Math.PI / 180, tip.roughness, seed
       ], index * 12);
     });
-    const dabBuffer = this.options.device.createBuffer({
-      label: 'LightTable brush dab batch',
-      size: values.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
+    const dabBuffer = this.ensureBrushDabBuffer(values.byteLength);
     this.options.device.queue.writeBuffer(dabBuffer, 0, values);
     if (engine === 'blur') {
-      if (channel !== 'pixels' || !runtime) {
-        dabBuffer.destroy();
-        throw new Error('Blur Brush requires an editable raster pixel layer.');
-      }
       const source = this.ensureBlurSource(layerId, width, height);
       const pipeline = pipelines.blur;
       const bindGroup = this.options.device.createBindGroup({
@@ -184,7 +168,11 @@ export class RasterPaintService {
       const encoder = this.options.device.createCommandEncoder({
         label: 'LightTable blur brush dabs'
       });
-      encoder.copyTextureToTexture({ texture: target }, { texture: source }, [width, height]);
+      encoder.copyTextureToTexture(
+        { texture: target, origin: { x: blurSourceBounds!.x, y: blurSourceBounds!.y } },
+        { texture: source, origin: { x: blurSourceBounds!.x, y: blurSourceBounds!.y } },
+        [blurSourceBounds!.width, blurSourceBounds!.height]
+      );
       const pass = encoder.beginRenderPass({
         colorAttachments: [{ view: target.createView(), loadOp: 'load', storeOp: 'store' }]
       });
@@ -194,8 +182,6 @@ export class RasterPaintService {
       pass.end();
       this.options.device.queue.submit([encoder.finish()]);
       this.options.invalidateLayer(layerId);
-      this.options.releaseSubmittedResources();
-      void this.options.device.queue.onSubmittedWorkDone().then(() => dabBuffer.destroy());
       return;
     }
     const pipeline = channel === 'mask'
@@ -226,8 +212,10 @@ export class RasterPaintService {
     pass.draw(6, dabs.length);
     pass.end();
     this.options.device.queue.submit([encoder.finish()]);
-    void this.options.device.queue.onSubmittedWorkDone()
-      .then(() => dabBuffer.destroy());
+    // Styled presentations cache their source pixels. Invalidate only this
+    // layer so live paint remains visible while the interaction-quality cache
+    // avoids recomputing unrelated layers and the full document.
+    this.options.invalidateLayer(layerId);
   }
 
   fillColor(
@@ -431,6 +419,8 @@ export class RasterPaintService {
   destroy() {
     this.brushCanvasBuffer?.destroy();
     this.brushCanvasBuffer = null;
+    this.brushDabBuffer?.buffer.destroy();
+    this.brushDabBuffer = null;
     this.blurSource?.texture.destroy();
     this.blurSource = null;
   }
@@ -461,5 +451,29 @@ export class RasterPaintService {
       });
     }
     return this.brushCanvasBuffer;
+  }
+
+  private ensureBrushDabBuffer(requiredBytes: number) {
+    const current = this.brushDabBuffer;
+    if (current && current.capacity >= requiredBytes) return current.buffer;
+    const capacity = current
+      ? Math.max(requiredBytes, current.capacity * 2)
+      : requiredBytes;
+    const buffer = this.options.device.createBuffer({
+      label: 'LightTable brush dab batches',
+      size: capacity,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    this.brushDabBuffer = { buffer, capacity };
+    if (current) {
+      // queue.writeBuffer and submit share one ordered queue timeline. The
+      // active buffer can therefore be rewritten for the next submitted
+      // batch; only a replaced, smaller allocation needs deferred retirement.
+      void this.options.device.queue.onSubmittedWorkDone().then(
+        () => current.buffer.destroy(),
+        () => current.buffer.destroy()
+      );
+    }
+    return buffer;
   }
 }

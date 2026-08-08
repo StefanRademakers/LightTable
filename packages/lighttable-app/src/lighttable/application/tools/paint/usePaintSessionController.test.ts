@@ -78,7 +78,8 @@ describe('PaintSessionController', () => {
     expect(vi.mocked(fixture.renderer.paintBrushDabs).mock.calls[1]?.[3]).toEqual([0, 0, 0]);
     expect((fixture.getDocument().layers[0] as RasterLayer).pixelRevision).toBe(1);
     expect(fixture.history).toHaveLength(1);
-    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenNthCalledWith(1, true);
+    expect(fixture.renderer.setPaintInteractionActive)
+      .toHaveBeenNthCalledWith(1, true, fixture.layer.id);
     expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
 
     fixture.history[0]?.undo();
@@ -114,7 +115,8 @@ describe('PaintSessionController', () => {
     );
     expect(fixture.pixelEdit.destroy).toHaveBeenCalledOnce();
     expect(fixture.history).toHaveLength(0);
-    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenNthCalledWith(1, true);
+    expect(fixture.renderer.setPaintInteractionActive)
+      .toHaveBeenNthCalledWith(1, true, fixture.layer.id);
     expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
   });
 
@@ -162,7 +164,8 @@ describe('PaintSessionController', () => {
     })).toBe(false);
 
     expect(fixture.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
-    expect(fixture.renderer.setPaintInteractionActive).toHaveBeenNthCalledWith(1, true);
+    expect(fixture.renderer.setPaintInteractionActive)
+      .toHaveBeenNthCalledWith(1, true, fixture.layer.id);
     expect(fixture.renderer.setPaintInteractionActive).toHaveBeenLastCalledWith(false);
     expect(fixture.dependencies.setError).toHaveBeenCalledWith('GPU edit unavailable');
   });

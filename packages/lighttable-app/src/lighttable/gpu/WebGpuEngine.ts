@@ -578,14 +578,14 @@ export class WebGpuEngine {
    * committed result. Optional analysis and expensive effects enter preview
    * quality for the gesture; releasing it schedules one final-quality pass.
    */
-  setPaintInteractionActive(active: boolean) {
+  setPaintInteractionActive(active: boolean, layerId?: LayerId) {
     if (this.paintInteractionActive === active) return;
     this.paintInteractionActive = active;
     this.histogramRuntime?.setInteractionActive(active);
     this.scopeRuntime.setInteractionActive(active);
     const effectQualityChanged = this.effectRuntime?.setInteractionActive(active) ?? false;
     this.syncInteractiveRenderCadence();
-    const layerStyleQualityChanged = this.documentRenderer?.setLayerStyleInteractionActive(active) ?? false;
+    const layerStyleQualityChanged = this.documentRenderer?.setLayerStyleInteractionActive(active, layerId) ?? false;
     if (!active) {
       if (layerStyleQualityChanged) {
         this.renderDirty.invalidate('document');

@@ -52,6 +52,7 @@ export class PixelEditHistoryService {
     const target = channel === 'mask' ? this.options.maskTextureFor(layerId) : runtime?.texture;
     if (!target) return 0;
     const missing: PixelEditSnapshotTile[] = [];
+    const tilesAcross = Math.ceil(snapshot.width / HISTORY_TILE_SIZE);
     for (const region of regions) {
       const clipped = clippedIntegerRect(region, snapshot.width, snapshot.height);
       if (!clipped) continue;
@@ -61,7 +62,7 @@ export class PixelEditHistoryService {
       const lastY = Math.floor((clipped.y + clipped.height - 1) / HISTORY_TILE_SIZE);
       for (let tileY = firstY; tileY <= lastY; tileY += 1) {
         for (let tileX = firstX; tileX <= lastX; tileX += 1) {
-          const key = `${tileX}:${tileY}`;
+          const key = tileY * tilesAcross + tileX;
           if (snapshot.capturedTileKeys.has(key)) continue;
           snapshot.capturedTileKeys.add(key);
           const x = tileX * HISTORY_TILE_SIZE;

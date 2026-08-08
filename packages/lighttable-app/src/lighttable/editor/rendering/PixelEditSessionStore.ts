@@ -7,7 +7,7 @@ export interface PixelEditSnapshot {
   width: number;
   height: number;
   tiles: PixelEditSnapshotTile[];
-  capturedTileKeys: Set<string>;
+  capturedTileKeys: Set<number>;
 }
 
 export interface PixelEditSnapshotTile {

@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { LatestFrameValueScheduler } from '../../application/input/latestFrameValueScheduler';
 import { PointerClickCounter } from '../../application/input/pointerClickCounter';
+import { coalescedPointerSamples } from '../../application/input/coalescedPointerSamples';
 import type { PaintSessionController } from '../../application/tools/paint/usePaintSessionController';
 import type { SelectionSessionController } from '../../application/tools/selection/useSelectionSessionController';
 import type { WarpSessionController } from '../../application/tools/warp/warpSessionController';
@@ -269,27 +270,27 @@ export const useViewportInteractionController = ({
     onZoomDraftChangeRef.current(null);
   }, []);
 
-  const documentPoint = (
-    event: PointerEvent<HTMLDivElement>,
-    bounds: ViewportBounds = event.currentTarget.getBoundingClientRect()
+  const documentPointFromSample = (
+    sample: Pick<globalThis.PointerEvent, 'clientX' | 'clientY' | 'pressure' | 'pointerId'>,
+    bounds: ViewportBounds
   ) => {
     if (!metadata) return null;
     const point = localToDocumentPointer(
       clientToLocalPoint(
-        { x: event.clientX, y: event.clientY },
+        { x: sample.clientX, y: sample.clientY },
         { x: bounds.left, y: bounds.top }
       ),
       imageRect,
       activeScale,
       metadata,
-      event.pressure,
+      sample.pressure,
       capturedGestureUsesUnboundedDocumentPoint({
-        selectionGestureMatches: selection.owns(event.pointerId),
-        warpGestureMatches: warp.owns(event.pointerId),
-        paintGestureMatches: paint.owns(event.pointerId),
-        vectorGestureMatches: vector.ownsPointer(event.pointerId),
-        textGestureMatches: textGesture.owns(event.pointerId),
-        rasterGradientGestureMatches: rasterGradient.owns(event.pointerId)
+        selectionGestureMatches: selection.owns(sample.pointerId),
+        warpGestureMatches: warp.owns(sample.pointerId),
+        paintGestureMatches: paint.owns(sample.pointerId),
+        vectorGestureMatches: vector.ownsPointer(sample.pointerId),
+        textGestureMatches: textGesture.owns(sample.pointerId),
+        rasterGradientGestureMatches: rasterGradient.owns(sample.pointerId)
       })
         || isSelectionTool(editorSession.activeTool)
         || isVectorEditorTool(effectiveTool)
@@ -307,6 +308,9 @@ export const useViewportInteractionController = ({
       y: Math.round(point.y)
     };
   };
+
+  const documentPoint = (event: PointerEvent<HTMLDivElement>, bounds: ViewportBounds =
+    event.currentTarget.getBoundingClientRect()) => documentPointFromSample(event.nativeEvent, bounds);
 
   const hideBrushCursor = () => {
     brushCursorCenterRef.current = null;
@@ -870,8 +874,13 @@ export const useViewportInteractionController = ({
         event.preventDefault();
         return;
       }
-      if (intent === 'paint' && point && paint.move(event.pointerId, point)) {
-        event.preventDefault();
+      if (intent === 'paint') {
+        let moved = false;
+        for (const sample of coalescedPointerSamples(event.nativeEvent)) {
+          const samplePoint = documentPointFromSample(sample, bounds);
+          if (samplePoint && paint.move(event.pointerId, samplePoint)) moved = true;
+        }
+        if (moved) event.preventDefault();
       }
     },
     onPointerUp: (event) => {

@@ -38,7 +38,7 @@ export interface PaintHistoryEntry {
 }
 
 export interface PaintSessionRendererPort {
-  setPaintInteractionActive(active: boolean): void;
+  setPaintInteractionActive(active: boolean, layerId?: LayerId): void;
   beginBrushStroke(layer: LayerNode, channel: PaintChannel): void;
   paintBrushDabs(
     layerId: LayerId,
@@ -156,7 +156,7 @@ export const createPaintSessionController = (
       const renderer = dependencies.getRenderer();
       if (!renderer) return false;
       try {
-        renderer.setPaintInteractionActive(true);
+        renderer.setPaintInteractionActive(true, layer.id);
         renderer.beginBrushStroke(layer, target.channel);
         activeBrush = cloneBrush(brush);
         paintScheduler.schedule(gesture.begin(pointerId, target, {
