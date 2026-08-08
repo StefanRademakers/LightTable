@@ -1920,6 +1920,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       fitZoom,
       actualZoom,
       cancelOrClose: () => {
+        if (toolOptionsMenu) {
+          setToolOptionsMenu(null);
+          return;
+        }
         if (textEditingController.getSnapshot().status === 'editing') {
           textEditingController.finish();
           return;
