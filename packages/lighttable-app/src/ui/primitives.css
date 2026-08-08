@@ -1107,9 +1107,11 @@ select.form-input {
 }
 .lighttable-color-picker-prototype__fields {
   display: grid;
-  grid-template-columns: 1.35fr repeat(3, minmax(0, 1fr));
+  grid-template-columns: 36px 1.35fr repeat(3, minmax(0, 1fr));
   gap: 6px;
+  align-items: start;
 }
+.lighttable-color-picker-prototype__sampler { flex: none; }
 .lighttable-color-picker-prototype__fields label {
   min-width: 0;
   display: grid;

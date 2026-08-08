@@ -1,5 +1,8 @@
 import React from 'react';
+import { lightTableIcon } from '../assets/icons';
+import { sampleScreenColor } from '../ui/ColorSwatchField';
 import { FormInput } from '../ui/FormInput';
+import { SquareIconButton } from '../ui/SquareIconButton';
 
 export interface UiColorPickerColor {
   readonly r: number;
@@ -71,6 +74,7 @@ export const UiColorPickerPrototype: React.FC<{
   const [hexDraft, setHexDraft] = React.useState(() => colorPickerHex(value));
   const [rgbDraft, setRgbDraft] = React.useState(() =>
     [byte(value.r), byte(value.g), byte(value.b)].map(String));
+  const [sampling, setSampling] = React.useState(false);
   const saturationPointer = React.useRef<number | null>(null);
   const huePointer = React.useRef<number | null>(null);
 
@@ -101,6 +105,15 @@ export const UiColorPickerPrototype: React.FC<{
     const channels = [value.r, value.g, value.b];
     channels[channel] = next / 255;
     onChange({ r: channels[0], g: channels[1], b: channels[2], a: value.a });
+  };
+  const sample = async () => {
+    if (sampling) return;
+    setSampling(true);
+    const sampled = await sampleScreenColor();
+    setSampling(false);
+    if (!sampled) return;
+    const color = parseHex(sampled, value.a);
+    if (color) onChange(color);
   };
 
   return (
@@ -160,6 +173,10 @@ export const UiColorPickerPrototype: React.FC<{
           style={{ left: `${hsv.h / 360 * 100}%` }} />
       </div>
       <div className="lighttable-color-picker-prototype__fields">
+        <SquareIconButton className="lighttable-color-picker-prototype__sampler"
+          icon={<img src={lightTableIcon('tool_sample_color.png')} alt="" aria-hidden="true" />}
+          aria-label="Sample color from screen" title="Sample color from screen"
+          disabled={sampling} onClick={() => void sample()} />
         <label><FormInput value={hexDraft} aria-label="Hex color" spellCheck={false}
           onChange={(event) => {
             const next = event.currentTarget.value;

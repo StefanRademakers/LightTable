@@ -27,6 +27,9 @@ describe('UI color picker prototype', () => {
     expect(markup).toContain('class="lighttable-color-picker-prototype"');
     expect(markup).toContain('aria-label="Saturation and brightness"');
     expect(markup).toContain('aria-label="Hue"');
+    expect(markup).toContain('aria-label="Sample color from screen"');
+    expect(markup).toContain('tool_sample_color');
+    expect(markup).toContain('lighttable-color-picker-prototype__sampler');
     expect(markup.match(/class="form-input"/g)).toHaveLength(4);
     expect(markup).toContain('value="#007ACC"');
   });
