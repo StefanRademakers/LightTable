@@ -116,7 +116,7 @@ const DirectionControls: React.FC<{
       max={359}
       suffix="°"
       resetValue={120}
-      onChange={(angle) => patch({ angle })}
+      onChange={(angle) => patch({ angle, useGlobalLight: false })}
     />
     <NumberSlider
       label="Distance"
@@ -424,7 +424,7 @@ const EffectControls: React.FC<{
           <ToggleField label="Use global light" checked={effect.useGlobalLight}
             onChange={(useGlobalLight) => patch({ useGlobalLight })} />
           <NumberSlider label="Angle" value={effect.angle} min={0} max={359} suffix="°"
-            resetValue={120} onChange={(angle) => patch({ angle })} />
+            resetValue={120} onChange={(angle) => patch({ angle, useGlobalLight: false })} />
           <NumberSlider label="Altitude" value={effect.altitude} min={0} max={90} suffix="°"
             resetValue={30} onChange={(altitude) => patch({ altitude })} />
           <ColorSwatch label="Highlight" value={effect.highlightColor}

@@ -92,7 +92,7 @@ export const createDefaultLayerStyle = (kind: LayerStyleKind): LayerStyleInstanc
       return {
         ...common(kind, 'Inner Shadow', 'multiply', 0.35),
         color: layerStyleColor(0, 0, 0),
-        useGlobalLight: true,
+        useGlobalLight: false,
         angle: 120,
         distance: 3,
         choke: 0,
@@ -139,7 +139,7 @@ export const createDefaultLayerStyle = (kind: LayerStyleKind): LayerStyleInstanc
         direction: 'up',
         size: 5,
         soften: 0,
-        useGlobalLight: true,
+        useGlobalLight: false,
         angle: 120,
         altitude: 30,
         contour: structuredClone(LINEAR_CONTOUR),

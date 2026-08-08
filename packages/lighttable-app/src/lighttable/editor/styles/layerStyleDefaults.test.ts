@@ -21,13 +21,17 @@ const kinds: LayerStyleKind[] = [
 ];
 
 describe('LightTable Layer Style model', () => {
-  it('creates a locally directed, visible Drop Shadow for the compact editor', () => {
+  it('creates every directional effect with independently editable local light', () => {
     const shadow = createDefaultLayerStyle('drop-shadow');
     expect(shadow).toMatchObject({
       useGlobalLight: false,
       distance: 30,
       size: 30
     });
+    for (const kind of kinds) {
+      const effect = createDefaultLayerStyle(kind);
+      if ('useGlobalLight' in effect) expect(effect.useGlobalLight).toBe(false);
+    }
   });
 
   it('creates and validates every Photoshop-compatible style family', () => {
