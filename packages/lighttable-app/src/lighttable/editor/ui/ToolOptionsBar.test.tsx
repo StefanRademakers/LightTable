@@ -84,6 +84,15 @@ describe('Free Transform tool options', () => {
   });
 });
 
+describe('brush tool options', () => {
+  it('keeps Basic and GPU effect brushes in one compact preset control', () => {
+    const markup = renderOptions('brush');
+    expect(markup).toContain('<optgroup label="Basic">');
+    expect(markup).toContain('<optgroup label="Effects">');
+    expect(markup).toContain('<option value="liquify">Liquify</option>');
+  });
+});
+
 describe('vector style tool options', () => {
   it('surfaces Pen Auto Add/Delete and GPU Rubber Band controls', () => {
     const markup = renderOptions('vector-pen');

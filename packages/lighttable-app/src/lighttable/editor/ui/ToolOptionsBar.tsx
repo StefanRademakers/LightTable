@@ -27,8 +27,9 @@ import { VectorStyleToolOptions } from './VectorStyleToolOptions';
 import { GradientField } from '../../../ui/GradientField';
 import type { TextPaint } from '@lighttable/text-core';
 import {
-  BASIC_BRUSH_PRESETS,
+  BRUSH_PRESETS,
   brushPresetChange,
+  resolveBrushPreset,
   type BrushPresetId
 } from '../tools/brush/brushPresets';
 
@@ -828,7 +829,12 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             )}
           >
             <optgroup label="Basic">
-              {BASIC_BRUSH_PRESETS.map((preset) => (
+              {BRUSH_PRESETS.filter(({ category }) => category === 'Basic').map((preset) => (
+                <option key={preset.id} value={preset.id}>{preset.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Effects">
+              {BRUSH_PRESETS.filter(({ category }) => category === 'Effects').map((preset) => (
                 <option key={preset.id} value={preset.id}>{preset.name}</option>
               ))}
             </optgroup>
@@ -853,7 +859,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={(value) => onBrushChange({ hardness: value / 100 })}
           />
           <AdjustmentSlider
-          label="Opacity"
+          label={resolveBrushPreset(brush.presetId).engine === 'warp' ? 'Strength' : 'Opacity'}
           value={brush.opacity * 100}
           min={1}
           max={100}

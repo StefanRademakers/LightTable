@@ -26,6 +26,7 @@ import {
 } from '../selection/selectionTypes';
 import { paintTargetSourceToDocument } from '../tools/paint/paintCoordinates';
 import type { BrushPoint } from '../tools/brush/strokeBuilder';
+import { resolveBrushPreset } from '../tools/brush/brushPresets';
 import {
   isPaintTool,
   isSelectionTool,
@@ -501,6 +502,8 @@ export const useViewportInteractionController = ({
         return;
       }
       const activeTool = effectiveTool;
+      const activeBrushPreset = resolveBrushPreset(editorSession.brush.presetId);
+      const liquifyBrushActive = activeTool === 'brush' && activeBrushPreset.engine === 'warp';
       if (
         activeTool === 'gradient'
         && editorSession.gradient.application === 'pixels'
@@ -551,7 +554,7 @@ export const useViewportInteractionController = ({
           : findRasterLayer(document, document.activeLayerId)
         : null;
       const intent = resolveViewportPointerDownIntent({
-        activeTool,
+        activeTool: liquifyBrushActive ? 'warp' : activeTool,
         temporaryPan,
         focusPickerActive,
         primaryButton: event.button === 0,
@@ -695,18 +698,27 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent === 'warp' && point) {
+        const warpSettings = liquifyBrushActive ? {
+          diameterPx: editorSession.brush.size,
+          strength: editorSession.brush.opacity,
+          hardness: editorSession.brush.hardness,
+          flow: editorSession.brush.flow,
+          spacing: editorSession.brush.spacing,
+          pressureSize: false,
+          pressureStrength: true
+        } : {
+          diameterPx: editorSession.warp.diameterPx,
+          strength: editorSession.warp.strength,
+          hardness: editorSession.warp.hardness,
+          flow: editorSession.warp.flow,
+          spacing: editorSession.warp.spacing,
+          pressureSize: editorSession.warp.pressureSize,
+          pressureStrength: editorSession.warp.pressureStrength
+        };
         const started = warp.begin({
           pointerId: event.pointerId,
-          mode: editorSession.warp.mode,
-          settings: {
-            diameterPx: editorSession.warp.diameterPx,
-            strength: editorSession.warp.strength,
-            hardness: editorSession.warp.hardness,
-            flow: editorSession.warp.flow,
-            spacing: editorSession.warp.spacing,
-            pressureSize: editorSession.warp.pressureSize,
-            pressureStrength: editorSession.warp.pressureStrength
-          },
+          mode: liquifyBrushActive ? 'push' : editorSession.warp.mode,
+          settings: warpSettings,
           point: {
             ...point,
             tiltX: event.tiltX,
