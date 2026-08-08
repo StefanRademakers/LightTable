@@ -8,6 +8,7 @@ import { SegmentedControl } from '../ui/SegmentedControl';
 import { SquareIconButton } from '../ui/SquareIconButton';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
+import { UiColorPickerPrototype } from './UiColorPickerPrototype';
 import {
   PanelAdvancedDisclosure,
   PanelAngleControl,
@@ -161,6 +162,9 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
               {category === 'paint' ? <>
                 <Sample title="Color swatch">
                   <PanelColorSwatch label="Shadow color" value={color} onChange={setColor} />
+                </Sample>
+                <Sample title="Color picker prototype">
+                  <UiColorPickerPrototype value={color} onChange={setColor} />
                 </Sample>
                 <Sample title="Gradient field">
                   <GradientField value={DEMO_GRADIENT} ariaLabel="Edit gradient"
