@@ -231,6 +231,69 @@
   background-size: auto, 8px 8px, 8px 8px, 8px 8px, 8px 8px;
 }
 
+.color-swatch-field {
+  width: 104px;
+  height: 28px;
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  overflow: hidden;
+  border: 1px solid var(--lt-control-border);
+  border-radius: var(--ui-control-radius);
+  background: var(--lt-surface-control);
+}
+
+.color-swatch-field--compact {
+  width: 72px;
+  height: 24px;
+  grid-template-columns: minmax(0, 1fr) 26px;
+}
+
+.color-swatch-field__well {
+  min-width: 0;
+  position: relative;
+  cursor: pointer;
+}
+
+.color-swatch-field__well input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.color-swatch-field__sampler {
+  min-width: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid var(--lt-control-border);
+  background: var(--lt-surface-control-hover);
+  cursor: pointer;
+}
+
+.color-swatch-field__sampler:hover:not(:disabled) {
+  background: var(--lt-accent-selected);
+}
+
+.color-swatch-field__sampler img {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
+
+.color-swatch-field:focus-within {
+  border-color: var(--lt-focus-ring);
+}
+
+.color-swatch-field:has(:disabled) {
+  opacity: 0.45;
+}
+
 .gradient-field__arrow {
   width: 0;
   height: 0;

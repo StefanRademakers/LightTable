@@ -40,7 +40,7 @@ try {
     Actions: ['.action-button', '.square-icon-button'],
     Inputs: ['.form-input', '.lighttable-style-field', '.lighttable-style-toggle',
       '.switch-control', '.segmented-control'],
-    Paint: ['.lighttable-style-color', '.lighttable-style-shadow-color', '.gradient-field'],
+    Paint: ['.lighttable-style-color', '.color-swatch-field', '.gradient-field'],
     'Panel controls': ['.lighttable-adjustment', '.lighttable-style-angle', '.lighttable-style-advanced'],
     Dialogs: ['.lighttable-ui-guide__dialog-specimen', '.modal__header', '.modal__footer']
   };

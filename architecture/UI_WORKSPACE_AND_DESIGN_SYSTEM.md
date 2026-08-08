@@ -73,8 +73,9 @@ Panels use these primitives rather than feature-local visual copies:
 - `AdjustmentSlider` / `PanelNumberSlider` for continuous numeric values and
   `MixedNumberInput` or `ToolOptionNumber` for precise/mixed values;
 - `PanelSelectField` or `ToolOptionSelect` for finite choices;
-- `PanelColorField`, `PanelColorSwatch`, `ToolOptionColor` and the shared
-  gradient editor for paint values;
+- `ColorSwatchField` as the shared manual/sampled solid-color value,
+  projected by `PanelColorSwatch` and `ToolOptionColor`, plus the shared
+  gradient editor for gradient paint values;
 - `PanelAngleControl` for dial, keyboard and numeric angle input;
 - `PanelAdvancedDisclosure` for Photoshop/interchange parameters that are
   preserved but are not part of the frequent editing path.

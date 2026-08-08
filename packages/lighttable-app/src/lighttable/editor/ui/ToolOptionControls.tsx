@@ -1,4 +1,5 @@
 import React from 'react';
+import { ColorSwatchField } from '../../../ui/ColorSwatchField';
 
 export interface ToolOptionSelectProps
   extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'children'> {
@@ -60,20 +61,15 @@ export const ToolOptionColor: React.FC<ToolOptionColorProps> = ({
         />
       </label>
     ) : null}
-    <input
-      type="color"
+    <ColorSwatchField
       value={value}
       disabled={!enabled && !allowChangeWhenOff}
-      aria-label={ariaLabel}
-      onFocus={onFocus}
-      onChange={(event) => onChange(event.currentTarget.value)}
-      onBlur={onBlur}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !onCancel) return;
-        event.preventDefault();
-        onCancel();
-        event.currentTarget.blur();
-      }}
+      ariaLabel={ariaLabel}
+      size="compact"
+      onInteractionStart={onFocus}
+      onChange={onChange}
+      onInteractionCommit={onBlur}
+      onInteractionCancel={onCancel}
     />
     {status}
   </div>

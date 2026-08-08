@@ -525,15 +525,6 @@
   white-space: nowrap;
 }
 
-.lighttable-tool-options__color-field input[type='color'] {
-  width: 30px;
-  height: 24px;
-  padding: 2px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-control);
-}
-
 .lighttable-tool-options__weight-field input {
   width: 54px;
   height: 24px;
@@ -3158,21 +3149,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.lighttable-style-shadow-color {
-  display: flex;
-  align-items: center;
-}
-
-.lighttable-style-shadow-color input {
-  width: 66px;
-  height: 28px;
-  padding: 2px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-panel);
-  cursor: pointer;
 }
 
 .lighttable-style-angle__controls,

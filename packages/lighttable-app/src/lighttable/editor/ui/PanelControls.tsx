@@ -1,5 +1,6 @@
 import React from 'react';
 import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { ColorSwatchField } from '../../../ui/ColorSwatchField';
 
 export interface PanelColor {
   readonly r: number;
@@ -73,10 +74,8 @@ export const PanelColorSwatch = <T extends PanelColor>({
   value: T;
   onChange: (color: T) => void;
 }) => (
-  <label className="lighttable-style-shadow-color" title={label}>
-    <input type="color" value={panelColorHex(value)} aria-label={label}
-      onChange={(event) => onChange(parsePanelHexColor<T>(event.currentTarget.value, value.a))} />
-  </label>
+  <ColorSwatchField value={panelColorHex(value)} ariaLabel={label}
+    onChange={(color) => onChange(parsePanelHexColor<T>(color, value.a))} />
 );
 
 export const PanelNumberSlider: React.FC<{
