@@ -232,6 +232,92 @@ const ShadowControls: React.FC<{
   </>;
 };
 
+type StrokeStyle = Extract<LayerStyleInstance, { kind: 'stroke' }>;
+
+const StrokeControls: React.FC<{
+  effect: StrokeStyle;
+  patch: (patch: Partial<LayerStyleInstance>) => void;
+}> = ({ effect, patch }) => {
+  const gradientFill = effect.fill.type === 'gradient' ? effect.fill : null;
+  const changeFillType = (fillType: string) => {
+    if (fillType === effect.fill.type) return;
+    if (fillType === 'color') {
+      patch({ fill: { type: 'color', color: { r: 1, g: 1, b: 1, a: 1 } } });
+    } else if (fillType === 'gradient') {
+      patch({ fill: {
+        type: 'gradient',
+        gradient: createDefaultLayerStyleGradient(),
+        dither: false,
+        reverse: false,
+        style: 'linear',
+        alignWithLayer: true,
+        angle: 90,
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        method: 'perceptual'
+      } });
+    } else {
+      patch({ fill: { type: 'pattern', pattern: null, scale: 1, angle: 0 } });
+    }
+  };
+
+  return <>
+    <div className="lighttable-style-section">
+      <h4>Stroke</h4>
+      <SelectField label="Fill" value={effect.fill.type} options={[
+        { value: 'color', label: 'Color' }, { value: 'gradient', label: 'Gradient' },
+        { value: 'pattern', label: 'Pattern' }
+      ]} onChange={changeFillType} />
+      <SelectField label="Position" value={effect.position} options={[
+        { value: 'inside', label: 'Inside' }, { value: 'center', label: 'Center' },
+        { value: 'outside', label: 'Outside' }
+      ]} onChange={(position) => patch({ position: position as typeof effect.position })} />
+      <NumberSlider label="Size" value={effect.size} min={1} max={250} suffix=" px"
+        resetValue={3} onChange={(size) => patch({ size })} />
+      {effect.fill.type === 'color' ? (
+        <ColorSwatch label="Color" value={effect.fill.color}
+          onChange={(color) => patch({ fill: { type: 'color', color } })} />
+      ) : effect.fill.type === 'gradient' ? (
+        <LayerStyleGradientEditor value={effect.fill.gradient}
+          onChange={(gradient) => gradientFill && patch({ fill: { ...gradientFill, gradient } })} />
+      ) : (
+        <div className="lighttable-style-notice">
+          Pattern Stroke is preserved but remains inactive until its asset is
+          resolved by the document registry.
+        </div>
+      )}
+      <NumberSlider label="Opacity" value={effect.opacity * 100} min={0} max={100}
+        suffix="%" resetValue={100} onChange={(opacity) => patch({ opacity: opacity / 100 })} />
+    </div>
+    <PanelAdvancedDisclosure>
+      <SelectField label="Blend mode" value={effect.blendMode}
+        options={BLEND_MODES.map((mode) => ({ value: mode.id, label: mode.label }))}
+        onChange={(blendMode) => patch({ blendMode: blendMode as BlendMode })} />
+      {gradientFill ? <>
+        <SelectField label="Style" value={gradientFill.style} options={[
+          { value: 'linear', label: 'Linear' }, { value: 'radial', label: 'Radial' },
+          { value: 'angle', label: 'Angle' }, { value: 'reflected', label: 'Reflected' },
+          { value: 'diamond', label: 'Diamond' }
+        ]} onChange={(style) => patch({
+          fill: { ...gradientFill, style: style as typeof gradientFill.style }
+        })} />
+        <NumberSlider label="Angle" value={gradientFill.angle} min={0} max={359} suffix="°"
+          resetValue={90} onChange={(angle) => patch({ fill: { ...gradientFill, angle } })} />
+        <NumberSlider label="Scale" value={gradientFill.scale * 100} min={10} max={500}
+          suffix="%" resetValue={100}
+          onChange={(scale) => patch({ fill: { ...gradientFill, scale: scale / 100 } })} />
+        <ToggleField label="Reverse" checked={gradientFill.reverse}
+          onChange={(reverse) => patch({ fill: { ...gradientFill, reverse } })} />
+        <ToggleField label="Dither" checked={gradientFill.dither}
+          onChange={(dither) => patch({ fill: { ...gradientFill, dither } })} />
+      </> : null}
+      <ToggleField label="Overprint" checked={effect.overprint}
+        onChange={(overprint) => patch({ overprint })} />
+    </PanelAdvancedDisclosure>
+  </>;
+};
+
 const EffectControls: React.FC<{
   effect: LayerStyleInstance;
   patch: (patch: Partial<LayerStyleInstance>) => void;
@@ -284,80 +370,8 @@ const EffectControls: React.FC<{
         </div>
         <QualityControls effect={effect} patch={patch} />
       </>;
-    case 'stroke': {
-      const gradientFill = effect.fill.type === 'gradient' ? effect.fill : null;
-      return <>{common}
-        <div className="lighttable-style-section"><h4>Stroke</h4>
-          <NumberSlider label="Size" value={effect.size} min={1} max={250} suffix=" px"
-            resetValue={3} onChange={(size) => patch({ size })} />
-          <SelectField label="Position" value={effect.position} options={[
-            { value: 'inside', label: 'Inside' }, { value: 'center', label: 'Center' },
-            { value: 'outside', label: 'Outside' }
-          ]} onChange={(position) => patch({ position: position as typeof effect.position })} />
-          <SelectField label="Fill" value={effect.fill.type} options={[
-            { value: 'color', label: 'Color' }, { value: 'gradient', label: 'Gradient' },
-            { value: 'pattern', label: 'Pattern' }
-          ]} onChange={(fillType) => {
-            if (fillType === effect.fill.type) return;
-            if (fillType === 'color') {
-              patch({ fill: { type: 'color', color: { r: 1, g: 1, b: 1, a: 1 } } });
-            } else if (fillType === 'gradient') {
-              patch({ fill: {
-                type: 'gradient',
-                gradient: createDefaultLayerStyleGradient(),
-                dither: false,
-                reverse: false,
-                style: 'linear',
-                alignWithLayer: true,
-                angle: 90,
-                scale: 1,
-                offsetX: 0,
-                offsetY: 0,
-                method: 'perceptual'
-              } });
-            } else {
-              patch({ fill: { type: 'pattern', pattern: null, scale: 1, angle: 0 } });
-            }
-          }} />
-          {effect.fill.type === 'color' ? (
-            <ColorSwatch label="Color" value={effect.fill.color}
-              onChange={(color) => patch({ fill: { type: 'color', color } })} />
-          ) : effect.fill.type === 'gradient' ? (
-            <LayerStyleGradientEditor
-              value={effect.fill.gradient}
-              onChange={(gradient) => gradientFill && patch({ fill: { ...gradientFill, gradient } })}
-            />
-          ) : (
-            <div className="lighttable-style-notice">
-              Pattern Stroke is preserved but remains inactive until its asset is
-              resolved by the document registry.
-            </div>
-          )}
-          {gradientFill ? (
-            <>
-              <SelectField label="Style" value={gradientFill.style} options={[
-                { value: 'linear', label: 'Linear' }, { value: 'radial', label: 'Radial' },
-                { value: 'angle', label: 'Angle' }, { value: 'reflected', label: 'Reflected' },
-                { value: 'diamond', label: 'Diamond' }
-              ]} onChange={(style) => patch({
-                fill: { ...gradientFill, style: style as typeof gradientFill.style }
-              })} />
-              <NumberSlider label="Angle" value={gradientFill.angle} min={0} max={359} suffix="°"
-                resetValue={90} onChange={(angle) => patch({ fill: { ...gradientFill, angle } })} />
-              <NumberSlider label="Scale" value={gradientFill.scale * 100} min={10} max={500}
-                suffix="%" resetValue={100}
-                onChange={(scale) => patch({ fill: { ...gradientFill, scale: scale / 100 } })} />
-              <ToggleField label="Reverse" checked={gradientFill.reverse}
-                onChange={(reverse) => patch({ fill: { ...gradientFill, reverse } })} />
-              <ToggleField label="Dither" checked={gradientFill.dither}
-                onChange={(dither) => patch({ fill: { ...gradientFill, dither } })} />
-            </>
-          ) : null}
-          <ToggleField label="Overprint" checked={effect.overprint}
-            onChange={(overprint) => patch({ overprint })} />
-        </div>
-      </>;
-    }
+    case 'stroke':
+      return <StrokeControls effect={effect} patch={patch} />;
     case 'gradient-overlay': {
       return <>{common}
         <div className="lighttable-style-section"><h4>Gradient</h4>

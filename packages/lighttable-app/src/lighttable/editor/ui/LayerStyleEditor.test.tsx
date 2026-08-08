@@ -79,4 +79,24 @@ describe('LayerStyleEditor', () => {
     expect(markup).not.toContain('<h4>Structure</h4>');
     expect(markup).not.toContain('<h4>Quality</h4>');
   });
+
+  it('keeps the common Stroke controls visible and compatibility controls advanced', () => {
+    const initialStack = createDefaultLayerStyleStack();
+    initialStack.effects = [createDefaultLayerStyle('stroke')];
+    const markup = renderToStaticMarkup(
+      <LayerStyleEditor mode="panel" layerName="Shape" initialStack={initialStack}
+        onPreview={vi.fn()} />
+    );
+
+    expect(markup).toContain('<h4>Stroke</h4>');
+    expect(markup).toContain('<span>Fill</span>');
+    expect(markup).toContain('<span>Position</span>');
+    expect(markup).toContain('title="Size"');
+    expect(markup).toContain('aria-label="Color"');
+    expect(markup).toContain('title="Opacity"');
+    expect(markup).toContain('<summary>Advanced</summary>');
+    expect(markup).toContain('<span>Blend mode</span>');
+    expect(markup).toContain('<span>Overprint</span>');
+    expect(markup).not.toContain('<h4>Blend</h4>');
+  });
 });
