@@ -12,7 +12,6 @@ import {
   PanelAdvancedDisclosure,
   PanelAngleControl,
   PanelCheckboxField,
-  PanelColorField,
   PanelColorSwatch,
   PanelNumberSlider,
   PanelSelectField,
@@ -160,10 +159,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                 </Sample>
               </> : null}
               {category === 'paint' ? <>
-                <Sample title="Color field">
-                  <PanelColorField label="Color" value={color} onChange={setColor} />
-                </Sample>
-                <Sample title="Compact color swatch">
+                <Sample title="Color swatch">
                   <PanelColorSwatch label="Shadow color" value={color} onChange={setColor} />
                 </Sample>
                 <Sample title="Gradient field">

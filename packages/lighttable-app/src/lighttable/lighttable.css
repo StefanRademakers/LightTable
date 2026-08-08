@@ -3230,29 +3230,6 @@
   font-size: var(--lt-type-label);
 }
 
-.lighttable-style-color {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lighttable-style-color input {
-  width: 42px;
-  height: 26px;
-  padding: 2px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  background: var(--lt-surface-panel);
-  cursor: pointer;
-}
-
-.lighttable-style-color output {
-  color: var(--lt-text-subtle);
-  font-family: var(--lt-font-mono);
-  font-size: var(--lt-type-caption);
-}
-
 .lighttable-style-notice {
   padding: 8px 9px;
   border-left: 2px solid #59779f;

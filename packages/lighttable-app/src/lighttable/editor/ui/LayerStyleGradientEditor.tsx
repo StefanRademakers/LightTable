@@ -6,7 +6,7 @@ import type {
   LayerStyleOpacityStop
 } from '../styles/layerStyleTypes';
 import { ActionButton } from '../../../ui/ActionButton';
-import { PanelColorField, PanelNumberSlider } from './PanelControls';
+import { PanelColorSwatch, PanelNumberSlider } from './PanelControls';
 
 const MAX_STOPS = 8;
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -221,7 +221,7 @@ export const GradientAssetEditor: React.FC<{
       </div>
       {selectedColor ? (
         <div className="lighttable-style-gradient__controls">
-          <PanelColorField label="Color" value={selectedColor.color}
+          <PanelColorSwatch label="Color" value={selectedColor.color}
             onChange={(color) => updateColor(selectedColor.id, { color })} />
           <PanelNumberSlider label="Location" value={selectedColor.position * 100}
             min={0} max={100} step={0.1} suffix="%" resetValue={0}

@@ -50,33 +50,25 @@ export const PanelCheckboxField: React.FC<{
   </label>
 );
 
-export const PanelColorField = <T extends PanelColor>({
-  label, value, onChange
-}: {
-  label: string;
-  value: T;
-  onChange: (color: T) => void;
-}) => (
-  <label className="lighttable-style-field">
-    <span>{label}</span>
-    <span className="lighttable-style-color">
-      <input type="color" value={panelColorHex(value)}
-        onChange={(event) => onChange(parsePanelHexColor<T>(event.currentTarget.value, value.a))} />
-      <output>{panelColorHex(value).toUpperCase()}</output>
-    </span>
-  </label>
-);
-
 export const PanelColorSwatch = <T extends PanelColor>({
-  label, value, onChange
+  label, value, inline = false, onChange
 }: {
   label: string;
   value: T;
+  inline?: boolean;
   onChange: (color: T) => void;
-}) => (
-  <ColorSwatchField value={panelColorHex(value)} ariaLabel={label}
-    onChange={(color) => onChange(parsePanelHexColor<T>(color, value.a))} />
-);
+}) => {
+  const swatch = (
+    <ColorSwatchField value={panelColorHex(value)} ariaLabel={label}
+      onChange={(color) => onChange(parsePanelHexColor<T>(color, value.a))} />
+  );
+  return inline ? swatch : (
+    <div className="lighttable-style-field">
+      <span>{label}</span>
+      {swatch}
+    </div>
+  );
+};
 
 export const PanelNumberSlider: React.FC<{
   label: string;

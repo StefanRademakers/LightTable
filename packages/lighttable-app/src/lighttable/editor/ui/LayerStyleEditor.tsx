@@ -21,7 +21,6 @@ import {
   PanelAdvancedDisclosure,
   PanelAngleControl as AngleField,
   PanelCheckboxField as ToggleField,
-  PanelColorField as ColorField,
   PanelColorSwatch as ColorSwatch,
   PanelNumberSlider as NumberSlider,
   PanelSelectField as SelectField
@@ -169,6 +168,7 @@ const DropShadowControls: React.FC<{
         <ColorSwatch
           label="Shadow color"
           value={effect.color}
+          inline
           onChange={(color) => patch({ color })}
         />
         <AngleField
@@ -233,14 +233,14 @@ const EffectControls: React.FC<{
   switch (effect.kind) {
     case 'color-overlay':
       return <>{common}<div className="lighttable-style-section"><h4>Color</h4>
-        <ColorField label="Color" value={effect.color} onChange={(color) => patch({ color })} />
+        <ColorSwatch label="Color" value={effect.color} onChange={(color) => patch({ color })} />
       </div></>;
     case 'drop-shadow':
       return <DropShadowControls effect={effect} patch={patch} />;
     case 'inner-shadow':
       return <>{common}
         <div className="lighttable-style-section"><h4>Color</h4>
-          <ColorField label="Color" value={effect.color} onChange={(color) => patch({ color })} />
+          <ColorSwatch label="Color" value={effect.color} onChange={(color) => patch({ color })} />
         </div>
         <DirectionControls effect={effect} patch={patch} />
         <div className="lighttable-style-section"><h4>Structure</h4>
@@ -272,7 +272,7 @@ const EffectControls: React.FC<{
               onChange={(gradient) => patch({ gradient })}
             />
           ) : (
-            <ColorField label="Color" value={effect.color} onChange={(color) => patch({ color })} />
+            <ColorSwatch label="Color" value={effect.color} onChange={(color) => patch({ color })} />
           )}
           <SelectField label="Technique" value={effect.technique} options={[
             { value: 'softer', label: 'Softer' }, { value: 'precise', label: 'Precise' }
@@ -332,7 +332,7 @@ const EffectControls: React.FC<{
             }
           }} />
           {effect.fill.type === 'color' ? (
-            <ColorField label="Color" value={effect.fill.color}
+            <ColorSwatch label="Color" value={effect.fill.color}
               onChange={(color) => patch({ fill: { type: 'color', color } })} />
           ) : effect.fill.type === 'gradient' ? (
             <LayerStyleGradientEditor
@@ -398,7 +398,7 @@ const EffectControls: React.FC<{
     case 'satin':
       return <>{common}
         <div className="lighttable-style-section"><h4>Satin</h4>
-          <ColorField label="Color" value={effect.color} onChange={(color) => patch({ color })} />
+          <ColorSwatch label="Color" value={effect.color} onChange={(color) => patch({ color })} />
           <DirectionControls effect={effect} patch={patch} />
           <NumberSlider label="Size" value={effect.size} min={1} max={250} suffix=" px"
             resetValue={60} onChange={(size) => patch({ size })} />
@@ -439,12 +439,12 @@ const EffectControls: React.FC<{
             resetValue={120} onChange={(angle) => patch({ angle })} />
           <NumberSlider label="Altitude" value={effect.altitude} min={0} max={90} suffix="°"
             resetValue={30} onChange={(altitude) => patch({ altitude })} />
-          <ColorField label="Highlight" value={effect.highlightColor}
+          <ColorSwatch label="Highlight" value={effect.highlightColor}
             onChange={(highlightColor) => patch({ highlightColor })} />
           <NumberSlider label="Highlight opacity" value={effect.highlightOpacity * 100}
             min={0} max={100} suffix="%" resetValue={75}
             onChange={(highlightOpacity) => patch({ highlightOpacity: highlightOpacity / 100 })} />
-          <ColorField label="Shadow" value={effect.shadowColor}
+          <ColorSwatch label="Shadow" value={effect.shadowColor}
             onChange={(shadowColor) => patch({ shadowColor })} />
           <NumberSlider label="Shadow opacity" value={effect.shadowOpacity * 100}
             min={0} max={100} suffix="%" resetValue={75}
