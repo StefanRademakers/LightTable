@@ -130,11 +130,14 @@ const DirectionControls: React.FC<{
   </div>
 );
 
-const DropShadowControls: React.FC<{
-  effect: Extract<LayerStyleInstance, { kind: 'drop-shadow' }>;
+type ShadowStyle = Extract<LayerStyleInstance, { kind: 'drop-shadow' | 'inner-shadow' }>;
+
+const ShadowControls: React.FC<{
+  effect: ShadowStyle;
   patch: (patch: Partial<LayerStyleInstance>) => void;
-}> = ({ effect, patch }) => (
-  <>
+}> = ({ effect, patch }) => {
+  const dropShadow = effect.kind === 'drop-shadow';
+  return <>
     <div className="lighttable-style-section">
       <h4>Shadow</h4>
       <NumberSlider
@@ -143,7 +146,7 @@ const DropShadowControls: React.FC<{
         min={0}
         max={250}
         suffix=" px"
-        resetValue={30}
+        resetValue={dropShadow ? 30 : 7}
         onChange={(size) => patch({ size })}
       />
       <NumberSlider
@@ -152,7 +155,7 @@ const DropShadowControls: React.FC<{
         min={0}
         max={250}
         suffix=" px"
-        resetValue={30}
+        resetValue={dropShadow ? 30 : 3}
         onChange={(distance) => patch({ distance })}
       />
       <NumberSlider
@@ -166,7 +169,7 @@ const DropShadowControls: React.FC<{
       />
       <div className="lighttable-style-shadow-appearance">
         <ColorSwatch
-          label="Shadow color"
+          label={dropShadow ? 'Shadow color' : 'Inner shadow color'}
           value={effect.color}
           inline
           onChange={(color) => patch({ color })}
@@ -187,23 +190,27 @@ const DropShadowControls: React.FC<{
           onChange={(blendMode) => patch({ blendMode: blendMode as BlendMode })}
         />
         <NumberSlider
-          label="Spread"
-          value={effect.spread * 100}
+          label={dropShadow ? 'Spread' : 'Choke'}
+          value={(dropShadow ? effect.spread : effect.choke) * 100}
           min={0}
           max={100}
           suffix="%"
-          onChange={(spread) => patch({ spread: spread / 100 })}
+          onChange={(amount) => patch(dropShadow
+            ? { spread: amount / 100 }
+            : { choke: amount / 100 })}
         />
         <ToggleField
           label="Use global light"
           checked={effect.useGlobalLight}
           onChange={(useGlobalLight) => patch({ useGlobalLight })}
         />
-        <ToggleField
-          label="Layer knocks out shadow"
-          checked={effect.layerKnocksOut}
-          onChange={(layerKnocksOut) => patch({ layerKnocksOut })}
-        />
+        {dropShadow ? (
+          <ToggleField
+            label="Layer knocks out shadow"
+            checked={effect.layerKnocksOut}
+            onChange={(layerKnocksOut) => patch({ layerKnocksOut })}
+          />
+        ) : null}
         <ToggleField
           label="Anti-alias"
           checked={effect.antiAlias}
@@ -222,8 +229,8 @@ const DropShadowControls: React.FC<{
           onChange={(contour) => patch({ contour })}
         />
     </PanelAdvancedDisclosure>
-  </>
-);
+  </>;
+};
 
 const EffectControls: React.FC<{
   effect: LayerStyleInstance;
@@ -236,27 +243,8 @@ const EffectControls: React.FC<{
         <ColorSwatch label="Color" value={effect.color} onChange={(color) => patch({ color })} />
       </div></>;
     case 'drop-shadow':
-      return <DropShadowControls effect={effect} patch={patch} />;
     case 'inner-shadow':
-      return <>{common}
-        <div className="lighttable-style-section"><h4>Color</h4>
-          <ColorSwatch label="Color" value={effect.color} onChange={(color) => patch({ color })} />
-        </div>
-        <DirectionControls effect={effect} patch={patch} />
-        <div className="lighttable-style-section"><h4>Structure</h4>
-          <NumberSlider
-            label="Choke"
-            value={effect.choke * 100}
-            min={0}
-            max={100}
-            suffix="%"
-            onChange={(choke) => patch({ choke: choke / 100 })}
-          />
-          <NumberSlider label="Size" value={effect.size} min={0} max={250} suffix=" px"
-            resetValue={8} onChange={(size) => patch({ size })} />
-        </div>
-        <QualityControls effect={effect} patch={patch} />
-      </>;
+      return <ShadowControls effect={effect} patch={patch} />;
     case 'outer-glow':
     case 'inner-glow':
       return <>{common}

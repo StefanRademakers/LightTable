@@ -53,4 +53,30 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('<summary>Advanced</summary>');
     expect(markup).toContain('title="Spread"');
   });
+
+  it('uses the compact shadow layout for Inner Shadow and keeps compatibility controls advanced', () => {
+    const initialStack = createDefaultLayerStyleStack();
+    initialStack.effects = [createDefaultLayerStyle('inner-shadow')];
+    const markup = renderToStaticMarkup(
+      <LayerStyleEditor
+        mode="panel"
+        layerName="Shape"
+        initialStack={initialStack}
+        onPreview={vi.fn()}
+      />
+    );
+
+    expect(markup).toContain('title="Blur"');
+    expect(markup).toContain('title="Distance"');
+    expect(markup).toContain('title="Opacity"');
+    expect(markup).toContain('aria-label="Inner shadow color"');
+    expect(markup).toContain('aria-label="Angle"');
+    expect(markup).toContain('<summary>Advanced</summary>');
+    expect(markup).toContain('title="Choke"');
+    expect(markup).toContain('<span>Blend mode</span>');
+    expect(markup).not.toContain('<h4>Color</h4>');
+    expect(markup).not.toContain('<h4>Position</h4>');
+    expect(markup).not.toContain('<h4>Structure</h4>');
+    expect(markup).not.toContain('<h4>Quality</h4>');
+  });
 });
