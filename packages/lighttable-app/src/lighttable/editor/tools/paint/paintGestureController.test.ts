@@ -17,7 +17,7 @@ describe('PaintGestureController', () => {
     const source = target({
       sourceToDocument: { a: 0, b: 1, c: -1, d: 0, tx: 30, ty: 40 }
     });
-    const first = controller.begin(4, source, { size: 10, spacing: 0.5 }, {
+    const first = controller.begin(4, source, { size: 10, spacing: 0.5, smooth: 0 }, {
       x: 20,
       y: 30,
       pressure: 1
@@ -32,7 +32,7 @@ describe('PaintGestureController', () => {
 
   it('accumulates dirty bounds and returns them exactly once', () => {
     const controller = new PaintGestureController();
-    controller.begin(8, target(), { size: 10, spacing: 1 }, {
+    controller.begin(8, target(), { size: 10, spacing: 1, smooth: 0 }, {
       x: 10,
       y: 10,
       pressure: 1
@@ -49,7 +49,7 @@ describe('PaintGestureController', () => {
 
   it('ignores foreign pointers without losing the active gesture', () => {
     const controller = new PaintGestureController();
-    controller.begin(2, target(), { size: 4, spacing: 0.5 }, {
+    controller.begin(2, target(), { size: 4, spacing: 0.5, smooth: 0 }, {
       x: 0,
       y: 0,
       pressure: 1

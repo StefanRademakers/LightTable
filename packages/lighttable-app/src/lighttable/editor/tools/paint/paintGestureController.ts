@@ -7,6 +7,7 @@ import {
   type BrushDab,
   type BrushPoint
 } from '../brush/strokeBuilder';
+import { StrokeSmoother } from '../brush/strokeSmoother';
 
 export interface PaintGestureTarget {
   layerId: LayerId;
@@ -23,6 +24,7 @@ export interface PaintGestureUpdate {
 export interface FinishedPaintGesture {
   target: PaintGestureTarget;
   dirtyBounds: Rect | null;
+  dabs: BrushDab[];
 }
 
 const cloneTarget = (target: PaintGestureTarget): PaintGestureTarget => ({
@@ -52,6 +54,7 @@ export class PaintGestureController {
   private activePointerId: number | null = null;
   private target: PaintGestureTarget | null = null;
   private builder: StrokeBuilder | null = null;
+  private smoother: StrokeSmoother | null = null;
   private dirtyBounds: Rect | null = null;
 
   get pointerId(): number | null {
@@ -69,26 +72,30 @@ export class PaintGestureController {
   begin(
     pointerId: number,
     target: PaintGestureTarget,
-    brush: { size: number; spacing: number },
+    brush: { size: number; spacing: number; smooth: number },
     point: BrushPoint
   ): PaintGestureUpdate {
     this.activePointerId = pointerId;
     this.target = cloneTarget(target);
     this.builder = new StrokeBuilder(brush.size, brush.spacing);
+    this.smoother = new StrokeSmoother(brush.smooth, brush.size);
     this.dirtyBounds = null;
-    return this.update(this.builder.begin(point));
+    return this.update(this.builder.begin(this.smoother.begin(point)));
   }
 
   move(pointerId: number, point: BrushPoint): PaintGestureUpdate | null {
-    if (!this.owns(pointerId) || !this.builder || !this.target) return null;
-    return this.update(this.builder.add(point));
+    if (!this.owns(pointerId) || !this.builder || !this.smoother || !this.target) return null;
+    return this.update(this.builder.add(this.smoother.add(point)));
   }
 
   finish(pointerId: number): FinishedPaintGesture | null {
-    if (!this.owns(pointerId) || !this.target) return null;
+    if (!this.owns(pointerId) || !this.target || !this.builder || !this.smoother) return null;
+    const dabs = this.smoother.finish().flatMap((point) => this.builder?.add(point) ?? []);
+    this.dirtyBounds = mergeBounds(this.dirtyBounds, boundsForDabs(dabs));
     const result = {
       target: cloneTarget(this.target),
-      dirtyBounds: this.dirtyBounds ? { ...this.dirtyBounds } : null
+      dirtyBounds: this.dirtyBounds ? { ...this.dirtyBounds } : null,
+      dabs
     };
     this.reset();
     return result;
@@ -102,7 +109,8 @@ export class PaintGestureController {
     }
     const result = {
       target: cloneTarget(this.target),
-      dirtyBounds: this.dirtyBounds ? { ...this.dirtyBounds } : null
+      dirtyBounds: this.dirtyBounds ? { ...this.dirtyBounds } : null,
+      dabs: []
     };
     this.reset();
     return result;
@@ -112,6 +120,7 @@ export class PaintGestureController {
     this.activePointerId = null;
     this.target = null;
     this.builder = null;
+    this.smoother = null;
     this.dirtyBounds = null;
   }
 

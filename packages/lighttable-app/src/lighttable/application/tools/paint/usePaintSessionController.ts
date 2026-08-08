@@ -175,6 +175,10 @@ export const createPaintSessionController = (
     finish: (pointerId) => {
       const finished = gesture.finish(pointerId);
       if (!finished) return false;
+      if (finished.dabs.length) paintScheduler.schedule({
+        target: finished.target,
+        dabs: finished.dabs
+      });
       paintScheduler.flush();
       activeBrush = null;
       const dependencies = resolveDependencies();

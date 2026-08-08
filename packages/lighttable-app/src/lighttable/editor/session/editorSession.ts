@@ -162,6 +162,7 @@ export interface BrushSettings {
   opacity: number;
   flow: number;
   spacing: number;
+  smooth: number;
   color: string;
   backgroundColor: string;
 }
@@ -272,6 +273,7 @@ export const createEditorSession = (): EditorSession => ({
     opacity: 1,
     flow: 0.35,
     spacing: 0.05,
+    smooth: 0,
     color: '#000000',
     backgroundColor: '#ffffff'
   },

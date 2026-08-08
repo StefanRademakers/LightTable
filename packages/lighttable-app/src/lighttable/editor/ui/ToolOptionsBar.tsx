@@ -854,14 +854,14 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={(value) => onBrushChange({ flow: value / 100 })}
           />
           <AdjustmentSlider
-          label="Spacing"
-          value={brush.spacing * 100}
-          min={1}
+          label="Smooth"
+          value={brush.smooth * 100}
+          min={0}
           max={100}
-          resetValue={5}
+          resetValue={0}
           format={(value) => `${Math.round(value)}%`}
-          onReset={() => onBrushChange({ spacing: 0.05 })}
-          onChange={(value) => onBrushChange({ spacing: value / 100 })}
+          onReset={() => onBrushChange({ smooth: 0 })}
+          onChange={(value) => onBrushChange({ smooth: value / 100 })}
           />
         </>
       ) : null}
