@@ -1,6 +1,7 @@
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import {
   BRUSH_DAB_WGSL,
+  BLUR_BRUSH_DAB_WGSL,
   COLOR_CHANNEL_COPY_WGSL,
   LAYER_FILL_COLOR_WGSL,
   LAYER_FILL_GRADIENT_WGSL,
@@ -28,6 +29,7 @@ import {
 
 export interface BrushPipelineBundle {
   brush: GPURenderPipeline;
+  blur: GPURenderPipeline;
   brushPreserveTransparency: GPURenderPipeline;
   erase: GPURenderPipeline;
   erasePreserveTransparency: GPURenderPipeline;
@@ -69,6 +71,7 @@ export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
   const cached = brushCache.get(device);
   if (cached) return cached;
   const brushModule = device.createShaderModule({ code: BRUSH_DAB_WGSL });
+  const blurBrushModule = device.createShaderModule({ code: BLUR_BRUSH_DAB_WGSL });
   const brushPipeline = (
     label: string,
     color: GPUBlendComponent,
@@ -91,6 +94,24 @@ export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
       { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
     ),
+    blur: device.createRenderPipeline({
+      label: 'LightTable blur brush',
+      layout: 'auto',
+      vertex: { module: blurBrushModule, entryPoint: 'brushVertex' },
+      fragment: {
+        module: blurBrushModule,
+        entryPoint: 'brushFragment',
+        targets: [{
+          format: 'rgba16float',
+          blend: {
+            color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            // Blur changes color, not layer coverage.
+            alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
+          }
+        }]
+      },
+      primitive: { topology: 'triangle-list' }
+    }),
     brushPreserveTransparency: brushPipeline(
       'LightTable round brush with transparency lock',
       // Premultiplied result: paint * coverage * destination alpha plus the

@@ -50,7 +50,8 @@ export interface PaintSessionRendererPort {
     flow: number,
     erase: boolean,
     sourceToDocument: PaintGestureTarget['sourceToDocument'],
-    tip: ReturnType<typeof resolveBrushPreset>['tip']
+    tip: ReturnType<typeof resolveBrushPreset>['tip'],
+    engine: ReturnType<typeof resolveBrushPreset>['engine']
   ): void;
   finishPixelEdit(): ReversiblePixelEdit | null;
   cancelPixelEdit(): void;
@@ -117,6 +118,7 @@ export const createPaintSessionController = (
     if (!update.dabs.length || !activeBrush) return;
     const renderer = resolveDependencies().getRenderer();
     if (!renderer) return;
+    const preset = resolveBrushPreset(activeBrush.presetId);
     renderer.paintBrushDabs(
       update.target.layerId,
       update.target.channel,
@@ -127,7 +129,8 @@ export const createPaintSessionController = (
       activeBrush.flow,
       update.target.erase,
       update.target.sourceToDocument,
-      resolveBrushPreset(activeBrush.presetId).tip
+      preset.tip,
+      preset.engine
     );
   };
   const paintScheduler: PaintDabScheduler = frame

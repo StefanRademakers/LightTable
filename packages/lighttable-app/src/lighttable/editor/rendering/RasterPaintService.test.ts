@@ -18,6 +18,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
   const createdMaskTextures: GPUTexture[] = [];
   const pipelineSet = {
     brush: { getBindGroupLayout: vi.fn(() => ({})) },
+    blur: { getBindGroupLayout: vi.fn(() => ({})) },
     brushPreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
     erase: { getBindGroupLayout: vi.fn(() => ({})) },
     erasePreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
@@ -59,6 +60,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
         onSubmittedWorkDone: () => Promise.resolve()
       }
     } as unknown as GPUDevice,
+    sampler: {} as GPUSampler,
     layerResources: {
       raster: (id: LayerId) => hasRaster && id === layerId
         ? { texture: source, maskTexture: null, maskId: null, ...rasterSize }
@@ -227,6 +229,43 @@ describe('RasterPaintService', () => {
       .map((call) => call[2])
       .find((value): value is Float32Array => value instanceof Float32Array && value.length === 12);
     expect(dabValues?.[7]).toBeCloseTo(1 - Math.pow(0.5, 0.25));
+  });
+
+  it('reuses one immutable Blur source snapshot and invalidates only the edited layer', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+
+    test.service.paintDabs(
+      layerId,
+      'pixels',
+      [{ x: 30, y: 20, size: 80, pressure: 1, flowScale: 1 }],
+      [0, 0, 0],
+      0.25,
+      0.35,
+      0.5,
+      false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      false,
+      undefined,
+      'blur'
+    );
+    test.service.paintDabs(
+      layerId,
+      'pixels',
+      [{ x: 32, y: 20, size: 80, pressure: 1, flowScale: 1 }],
+      [0, 0, 0], 0.25, 0.35, 0.5, false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, false, undefined, 'blur'
+    );
+
+    expect(test.createdTextures).toHaveLength(1);
+    expect(test.copyTextureToTexture).toHaveBeenCalledWith(
+      expect.objectContaining({ texture: expect.anything() }),
+      { texture: test.createdTextures[0] },
+      [64, 32]
+    );
+    expect(test.pipelineSet.blur.getBindGroupLayout).toHaveBeenCalledTimes(2);
+    expect(test.invalidateLayer).toHaveBeenCalledWith(layerId);
+    expect(test.releaseSubmittedResources).toHaveBeenCalledTimes(2);
   });
 
   it('uses alpha-preserving paint and eraser pipelines for locked transparency', () => {

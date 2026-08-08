@@ -22,6 +22,13 @@ describe('brush presets', () => {
     });
   });
 
+  it('keeps Blur on its dedicated raster scratch engine', () => {
+    expect(resolveBrushPreset('blur')).toMatchObject({
+      category: 'Effects',
+      engine: 'blur'
+    });
+  });
+
   it('applies preset defaults as one tool-state change', () => {
     expect(brushPresetChange('calligraphy')).toMatchObject({
       presetId: 'calligraphy', hardness: 0.9, smooth: 0.6

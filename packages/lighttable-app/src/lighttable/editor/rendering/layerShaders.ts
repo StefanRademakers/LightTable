@@ -1205,6 +1205,123 @@ fn brushFragment(input: BrushVertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/**
+ * GPU blur brush. The renderer snapshots the current layer texture once per
+ * display-frame batch, then these instanced quads sample that immutable copy
+ * while blending back into the live layer. Source and destination are never
+ * the same texture, which keeps the pass WebGPU-valid and deterministic.
+ */
+export const BLUR_BRUSH_DAB_WGSL = /* wgsl */ `
+struct BrushDab {
+  centerSizeHardness: vec4f,
+  colorOpacity: vec4f,
+  tip: vec4f,
+}
+
+struct BrushCanvas {
+  size: vec2f,
+  padding: vec2f,
+  inverseRow0: vec4f,
+  inverseRow1: vec4f,
+  forwardRow0: vec4f,
+  forwardRow1: vec4f,
+}
+
+struct BrushVertexOutput {
+  @builtin(position) position: vec4f,
+  @location(0) centerSizeHardness: vec4f,
+  @location(1) colorOpacity: vec4f,
+}
+
+@group(0) @binding(0) var<storage, read> dabs: array<BrushDab>;
+@group(0) @binding(1) var<uniform> canvas: BrushCanvas;
+@group(0) @binding(2) var selectionMask: texture_2d<f32>;
+@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(4) var sourceSampler: sampler;
+
+@vertex
+fn brushVertex(@builtin(vertex_index) vertexIndex: u32, @builtin(instance_index) instanceIndex: u32) -> BrushVertexOutput {
+  let corners = array<vec2f, 6>(
+    vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
+    vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0)
+  );
+  let dab = dabs[instanceIndex];
+  let documentPixel = dab.centerSizeHardness.xy
+    + corners[vertexIndex] * dab.centerSizeHardness.z * 0.5;
+  let localPixel = vec2f(
+    dot(canvas.inverseRow0.xyz, vec3f(documentPixel, 1.0)),
+    dot(canvas.inverseRow1.xyz, vec3f(documentPixel, 1.0))
+  );
+  let clip = vec2f(
+    localPixel.x / canvas.size.x * 2.0 - 1.0,
+    1.0 - localPixel.y / canvas.size.y * 2.0
+  );
+  var output: BrushVertexOutput;
+  output.position = vec4f(clip, 0.0, 1.0);
+  output.centerSizeHardness = dab.centerSizeHardness;
+  output.colorOpacity = dab.colorOpacity;
+  return output;
+}
+
+fn sourceAt(localUv: vec2f, documentOffset: vec2f) -> vec4f {
+  let localOffset = vec2f(
+    dot(canvas.inverseRow0.xy, documentOffset),
+    dot(canvas.inverseRow1.xy, documentOffset)
+  );
+  return textureSampleLevel(
+    sourceTexture,
+    sourceSampler,
+    clamp(localUv + localOffset / canvas.size, vec2f(0.0), vec2f(1.0)),
+    0.0
+  );
+}
+
+@fragment
+fn brushFragment(input: BrushVertexOutput) -> @location(0) vec4f {
+  let localPixel = input.position.xy;
+  let documentPixel = vec2f(
+    dot(canvas.forwardRow0.xyz, vec3f(localPixel, 1.0)),
+    dot(canvas.forwardRow1.xyz, vec3f(localPixel, 1.0))
+  );
+  let radius = max(input.centerSizeHardness.z * 0.5, 0.0001);
+  let distance = length(documentPixel - input.centerSizeHardness.xy) / radius;
+  if (distance >= 1.0) { discard; }
+  let coverage = 1.0 - smoothstep(
+    clamp(input.centerSizeHardness.w, 0.0, 0.995),
+    1.0,
+    distance
+  );
+  let selectionPixel = clamp(
+    vec2i(documentPixel),
+    vec2i(0),
+    vec2i(textureDimensions(selectionMask)) - vec2i(1)
+  );
+  let amount = clamp(
+    input.colorOpacity.a * coverage * textureLoad(selectionMask, selectionPixel, 0).r,
+    0.0,
+    1.0
+  );
+  let uv = localPixel / canvas.size;
+  // Radius grows with the brush but is bounded so ordinary small brushes stay
+  // cheap and very large cursors cannot explode the fixed per-fragment budget.
+  let blurRadius = clamp(radius * 0.08, 0.75, 32.0);
+  let directions = array<vec2f, 12>(
+    vec2f(1.0, 0.0), vec2f(0.8660254, 0.5), vec2f(0.5, 0.8660254),
+    vec2f(0.0, 1.0), vec2f(-0.5, 0.8660254), vec2f(-0.8660254, 0.5),
+    vec2f(-1.0, 0.0), vec2f(-0.8660254, -0.5), vec2f(-0.5, -0.8660254),
+    vec2f(0.0, -1.0), vec2f(0.5, -0.8660254), vec2f(0.8660254, -0.5)
+  );
+  var blurred = sourceAt(uv, vec2f(0.0)) * 4.0;
+  for (var index = 0u; index < 12u; index += 1u) {
+    blurred += sourceAt(uv, directions[index] * blurRadius);
+  }
+  blurred /= 16.0;
+  // Color blends source-over with coverage while alpha is preserved by the
+  // pipeline's separate alpha blend component.
+  return vec4f(blurred.rgb * amount, amount);
+}
+`;
+
 export const SELECTION_SHAPE_WGSL = /* wgsl */ `
 struct SelectionSettings {
   canvasSize: vec2f,

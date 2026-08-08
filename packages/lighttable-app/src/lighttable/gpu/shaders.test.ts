@@ -49,6 +49,7 @@ import {
 } from './scopeShaders';
 import {
   ADJUSTMENT_LAYER_MIX_WGSL,
+  BLUR_BRUSH_DAB_WGSL,
   BRUSH_DAB_WGSL,
   LAYER_COMPOSITE_WGSL,
   LAYER_EXPORT_WGSL,
@@ -245,7 +246,8 @@ describe('LightTable WGSL modules', () => {
     ['selection transform', `${FULLSCREEN_VERTEX_WGSL}\n${SELECTION_TRANSFORM_WGSL}`],
     ['alignment reprojection', `${FULLSCREEN_VERTEX_WGSL}\n${ALIGNMENT_REPROJECT_WGSL}`],
     ['alignment gradient', `${FULLSCREEN_VERTEX_WGSL}\n${ALIGNMENT_GRADIENT_WGSL}`],
-    ['brush dabs', BRUSH_DAB_WGSL]
+    ['brush dabs', BRUSH_DAB_WGSL],
+    ['blur brush dabs', BLUR_BRUSH_DAB_WGSL]
   ])('parses the %s editor module', (_name, shader) => {
     expect(() => new WgslReflect(shader)).not.toThrow();
   });
@@ -335,13 +337,19 @@ describe('LightTable WGSL modules', () => {
   });
 
   it('avoids Dawn-reserved target identifiers in editor shaders', () => {
-    const editorShaders = [LAYER_COMPOSITE_WGSL, LAYER_STYLE_SHAPE_WGSL, LAYER_STYLE_EFFECT_WGSL, LAYER_EXPORT_WGSL, LAYER_INVERT_COLORS_WGSL, BRUSH_DAB_WGSL, SELECTION_SHAPE_WGSL, SELECTION_COMBINE_WGSL].join('\n');
+    const editorShaders = [LAYER_COMPOSITE_WGSL, LAYER_STYLE_SHAPE_WGSL, LAYER_STYLE_EFFECT_WGSL, LAYER_EXPORT_WGSL, LAYER_INVERT_COLORS_WGSL, BRUSH_DAB_WGSL, BLUR_BRUSH_DAB_WGSL, SELECTION_SHAPE_WGSL, SELECTION_COMBINE_WGSL].join('\n');
     expect(editorShaders).not.toMatch(/\btarget\b/);
   });
 
   it('limits brush coverage with the active selection mask', () => {
     expect(BRUSH_DAB_WGSL).toContain('var selectionMask: texture_2d<f32>');
     expect(BRUSH_DAB_WGSL).toContain('coverage * selectionCoverage');
+  });
+
+  it('keeps Blur Brush source and destination textures separated', () => {
+    expect(BLUR_BRUSH_DAB_WGSL).toContain('var sourceTexture: texture_2d<f32>');
+    expect(BLUR_BRUSH_DAB_WGSL).toContain('textureSampleLevel(');
+    expect(BLUR_BRUSH_DAB_WGSL).toContain('textureLoad(selectionMask');
   });
 
   it('projects brush fragments from layer-local into document space', () => {

@@ -22,6 +22,7 @@ import { layerStyleStackIsActive } from '../editor/styles/layerStyleDefaults';
 import {
   DEFAULT_BRUSH_TIP,
   type BrushDab,
+  type BrushEngine,
   type BrushTipDefinition
 } from '../editor/tools/brush/strokeBuilder';
 import type { PaintChannel } from '../editor/session/editorSession';
@@ -774,7 +775,8 @@ export class WebGpuEngine {
     flow: number,
     erase = false,
     sourceToDocument?: AffineMatrix,
-    tip: BrushTipDefinition = DEFAULT_BRUSH_TIP
+    tip: BrushTipDefinition = DEFAULT_BRUSH_TIP,
+    engine: BrushEngine = 'paint'
   ) {
     const layer = this.imageDocument
       ? findDocumentLayer(this.imageDocument, layerId)
@@ -790,7 +792,8 @@ export class WebGpuEngine {
       erase,
       sourceToDocument ?? (channel === 'mask' && layer ? layer.transform : undefined),
       channel === 'pixels' && Boolean(layer?.locks.transparency),
-      tip
+      tip,
+      engine
     );
     this.markDocumentDirty();
   }

@@ -19,6 +19,9 @@ export interface BrushTipDefinition {
   readonly roughness: number;
 }
 
+/** Rendering backend selected by a brush preset. */
+export type BrushEngine = 'paint' | 'blur' | 'warp';
+
 export const DEFAULT_BRUSH_TIP: BrushTipDefinition = {
   roundness: 1,
   angleDegrees: 0,

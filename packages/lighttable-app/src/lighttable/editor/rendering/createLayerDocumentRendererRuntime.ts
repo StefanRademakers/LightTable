@@ -267,6 +267,7 @@ export const createLayerDocumentRendererRuntime = (
   });
   const rasterPaint = new RasterPaintService({
     device,
+    sampler,
     layerResources,
     selectionTextures,
     dimensions: resources.dimensions,

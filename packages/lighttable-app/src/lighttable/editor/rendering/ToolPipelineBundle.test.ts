@@ -13,8 +13,8 @@ describe('toolPipelinesFor', () => {
     const second = brushPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(Object.keys(first)).toHaveLength(6);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(6);
+    expect(Object.keys(first)).toHaveLength(7);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(7);
   });
 
   it('compiles optional tool pipelines once per shared GPU device', () => {
@@ -32,9 +32,9 @@ describe('toolPipelinesFor', () => {
     const second = toolPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(25);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(26);
     expect(createComputePipeline).toHaveBeenCalledTimes(4);
-    expect(Object.keys(first)).toHaveLength(29);
+    expect(Object.keys(first)).toHaveLength(30);
     const calls = createRenderPipeline.mock.calls as unknown as [GPURenderPipelineDescriptor][];
     const descriptor = (label: string) => calls
       .map(([value]) => value)
@@ -52,6 +52,9 @@ describe('toolPipelinesFor', () => {
         color: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' },
         alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
       });
+    expect(blend('LightTable blur brush')?.alpha).toEqual({
+      srcFactor: 'zero', dstFactor: 'one', operation: 'add'
+    });
   });
 
   it('does not share pipelines across GPU devices', () => {

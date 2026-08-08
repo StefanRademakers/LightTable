@@ -5,6 +5,7 @@ import type { PaintChannel } from '../session/editorSession';
 import {
   DEFAULT_BRUSH_TIP,
   type BrushDab,
+  type BrushEngine,
   type BrushTipDefinition
 } from '../tools/brush/strokeBuilder';
 import { invertMatrix } from '../tools/transform/affine';
@@ -16,6 +17,7 @@ import type { BrushPipelineBundle, ToolPipelineBundle } from './ToolPipelineBund
 
 interface RasterPaintServiceOptions {
   device: GPUDevice;
+  sampler: GPUSampler;
   layerResources: LayerRuntimeStore;
   selectionTextures: SelectionTextureStore;
   dimensions: () => { width: number; height: number };
@@ -51,6 +53,12 @@ interface RasterPaintServiceOptions {
  */
 export class RasterPaintService {
   private brushCanvasBuffer: GPUBuffer | null = null;
+  private blurSource: {
+    readonly layerId: LayerId;
+    readonly width: number;
+    readonly height: number;
+    readonly texture: GPUTexture;
+  } | null = null;
 
   constructor(private readonly options: RasterPaintServiceOptions) {}
 
@@ -76,7 +84,8 @@ export class RasterPaintService {
     erase = false,
     transform: AffineMatrix = identityAffineMatrix(),
     preserveTransparency = false,
-    tip: BrushTipDefinition = DEFAULT_BRUSH_TIP
+    tip: BrushTipDefinition = DEFAULT_BRUSH_TIP,
+    engine: BrushEngine = 'paint'
   ) {
     if (!dabs.length) return;
     const pipelines = this.options.brushPipelines();
@@ -155,6 +164,40 @@ export class RasterPaintService {
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
     this.options.device.queue.writeBuffer(dabBuffer, 0, values);
+    if (engine === 'blur') {
+      if (channel !== 'pixels' || !runtime) {
+        dabBuffer.destroy();
+        throw new Error('Blur Brush requires an editable raster pixel layer.');
+      }
+      const source = this.ensureBlurSource(layerId, width, height);
+      const pipeline = pipelines.blur;
+      const bindGroup = this.options.device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: dabBuffer } },
+          { binding: 1, resource: { buffer: canvasBuffer } },
+          { binding: 2, resource: selection.createView() },
+          { binding: 3, resource: source.createView() },
+          { binding: 4, resource: this.options.sampler }
+        ]
+      });
+      const encoder = this.options.device.createCommandEncoder({
+        label: 'LightTable blur brush dabs'
+      });
+      encoder.copyTextureToTexture({ texture: target }, { texture: source }, [width, height]);
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [{ view: target.createView(), loadOp: 'load', storeOp: 'store' }]
+      });
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(6, dabs.length);
+      pass.end();
+      this.options.device.queue.submit([encoder.finish()]);
+      this.options.invalidateLayer(layerId);
+      this.options.releaseSubmittedResources();
+      void this.options.device.queue.onSubmittedWorkDone().then(() => dabBuffer.destroy());
+      return;
+    }
     const pipeline = channel === 'mask'
       ? erase ? pipelines.maskErase : pipelines.maskBrush
       : preserveTransparency
@@ -388,6 +431,25 @@ export class RasterPaintService {
   destroy() {
     this.brushCanvasBuffer?.destroy();
     this.brushCanvasBuffer = null;
+    this.blurSource?.texture.destroy();
+    this.blurSource = null;
+  }
+
+  private ensureBlurSource(layerId: LayerId, width: number, height: number) {
+    const current = this.blurSource;
+    if (current && current.layerId === layerId
+      && current.width === width && current.height === height) return current.texture;
+    const texture = this.options.createTextureSized(
+      'LightTable blur brush source snapshot', width, height
+    );
+    this.blurSource = { layerId, width, height, texture };
+    if (current) {
+      // A new stroke can target another layer while the previous queue submit
+      // is still completing. Retire the old scratch only after that work is done.
+      void this.options.device.queue.onSubmittedWorkDone()
+        .then(() => current.texture.destroy());
+    }
+    return texture;
   }
 
   private ensureBrushCanvasBuffer() {

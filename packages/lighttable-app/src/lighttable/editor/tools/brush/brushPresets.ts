@@ -1,4 +1,8 @@
-import { DEFAULT_BRUSH_TIP, type BrushTipDefinition } from './strokeBuilder';
+import {
+  DEFAULT_BRUSH_TIP,
+  type BrushEngine,
+  type BrushTipDefinition
+} from './strokeBuilder';
 
 export const BRUSH_PRESET_IDS = [
   'round',
@@ -6,6 +10,7 @@ export const BRUSH_PRESET_IDS = [
   'ink-pen',
   'calligraphy',
   'rough-ink',
+  'blur',
   'liquify'
 ] as const;
 
@@ -15,7 +20,7 @@ export interface BrushPresetDefinition {
   readonly id: BrushPresetId;
   readonly name: string;
   readonly category: 'Basic' | 'Effects';
-  readonly engine: 'paint' | 'warp';
+  readonly engine: BrushEngine;
   readonly tip: BrushTipDefinition;
   readonly defaults: {
     readonly hardness: number;
@@ -56,6 +61,12 @@ export const BRUSH_PRESETS: readonly BrushPresetDefinition[] = [
     engine: 'paint',
     tip: { roundness: 1, angleDegrees: 0, roughness: 0.18 },
     defaults: { hardness: 0.9, opacity: 1, flow: 0.75, spacing: 0.035, smooth: 0.55 }
+  },
+  {
+    id: 'blur', name: 'Blur', category: 'Effects',
+    engine: 'blur',
+    tip: DEFAULT_BRUSH_TIP,
+    defaults: { hardness: 0.25, opacity: 0.35, flow: 0.5, spacing: 0.08, smooth: 0.25 }
   },
   {
     id: 'liquify', name: 'Liquify', category: 'Effects',

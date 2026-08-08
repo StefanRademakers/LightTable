@@ -859,7 +859,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={(value) => onBrushChange({ hardness: value / 100 })}
           />
           <AdjustmentSlider
-          label={resolveBrushPreset(brush.presetId).engine === 'warp' ? 'Strength' : 'Opacity'}
+          label={resolveBrushPreset(brush.presetId).engine === 'paint' ? 'Opacity' : 'Strength'}
           value={brush.opacity * 100}
           min={1}
           max={100}

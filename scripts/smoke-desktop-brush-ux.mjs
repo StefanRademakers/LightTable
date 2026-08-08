@@ -79,6 +79,41 @@ try {
     throw new Error(`Shift-click did not commit a connected brush stroke: ${JSON.stringify({ afterFirst, after })}`);
   }
 
+  const presetControl = page.getByLabel('Brush preset');
+  const sizeControl = page.getByRole('slider', { name: 'Size' });
+  for (const presetId of ['round', 'airbrush', 'ink-pen', 'calligraphy', 'rough-ink', 'blur', 'liquify']) {
+    await presetControl.selectOption(presetId);
+    await page.evaluate(() => document.activeElement instanceof HTMLElement
+      && document.activeElement.blur());
+    const initialSize = Number(await sizeControl.inputValue());
+    await page.keyboard.press('BracketRight');
+    const enlargedSize = Number(await sizeControl.inputValue());
+    if (!(enlargedSize > initialSize)) {
+      throw new Error(`] did not enlarge the ${presetId} brush: ${initialSize} -> ${enlargedSize}`);
+    }
+    await page.keyboard.press('BracketLeft');
+  }
+
+  const commitPresetGesture = async (presetId) => {
+    await presetControl.selectOption(presetId);
+    await page.evaluate(() => document.activeElement instanceof HTMLElement
+      && document.activeElement.blur());
+    const beforeGesture = await driver.queryDocument(documentId);
+    await page.mouse.move(first.x, first.y);
+    await page.mouse.down();
+    await page.mouse.move(second.x, second.y, { steps: 8 });
+    await page.mouse.up();
+    const afterGesture = await driver.queryDocument(documentId);
+    if (!beforeGesture || !afterGesture
+      || afterGesture.history.undoDepth !== beforeGesture.history.undoDepth + 1) {
+      throw new Error(`${presetId} did not commit one gesture: ${JSON.stringify({
+        beforeGesture, afterGesture
+      })}`);
+    }
+  };
+  await commitPresetGesture('blur');
+  await commitPresetGesture('liquify');
+
   await page.evaluate(() => {
     const event = new KeyboardEvent('keydown', { key: 'CapsLock', bubbles: true });
     Object.defineProperty(event, 'getModifierState', { value: (key) => key === 'CapsLock' });
