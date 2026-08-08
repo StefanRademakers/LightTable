@@ -99,4 +99,37 @@ describe('LayerStyleEditor', () => {
     expect(markup).toContain('<span>Overprint</span>');
     expect(markup).not.toContain('<h4>Blend</h4>');
   });
+
+  it('keeps only the common Glow controls visible and compatibility controls advanced', () => {
+    for (const kind of ['outer-glow', 'inner-glow'] as const) {
+      const initialStack = createDefaultLayerStyleStack();
+      initialStack.effects = [createDefaultLayerStyle(kind)];
+      const markup = renderToStaticMarkup(
+        <LayerStyleEditor mode="panel" layerName="Shape" initialStack={initialStack}
+          onPreview={vi.fn()} />
+      );
+
+      expect(markup).toContain('<h4>Glow</h4>');
+      expect(markup).toContain('title="Opacity"');
+      expect(markup).toContain('<span>Fill</span>');
+      expect(markup).toContain('aria-label="Color"');
+      expect(markup).toContain('title="Size"');
+      expect(markup).toContain('<summary>Advanced</summary>');
+      expect(markup).toContain('<span>Blend mode</span>');
+      expect(markup).toContain('<span>Technique</span>');
+      expect(markup).toContain('title="Range"');
+      expect(markup).toContain('title="Jitter"');
+      expect(markup).not.toContain('<h4>Blend</h4>');
+      expect(markup).not.toContain('<h4>Structure</h4>');
+      expect(markup).not.toContain('<h4>Quality</h4>');
+      expect(markup.indexOf('<span>Fill</span>')).toBeGreaterThan(markup.indexOf('<summary>Advanced</summary>'));
+      if (kind === 'inner-glow') {
+        expect(markup).toContain('<span>Source</span>');
+        expect(markup).toContain('title="Choke"');
+      } else {
+        expect(markup).not.toContain('<span>Source</span>');
+        expect(markup).toContain('title="Spread"');
+      }
+    }
+  });
 });

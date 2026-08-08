@@ -112,7 +112,7 @@ export const createDefaultLayerStyle = (kind: LayerStyleKind): LayerStyleInstanc
         contour: structuredClone(LINEAR_CONTOUR),
         antiAlias: true,
         noise: 0,
-        range: 0.5,
+        range: 1,
         jitter: 0
       } satisfies OuterGlowStyle;
     case 'inner-glow':
@@ -127,7 +127,7 @@ export const createDefaultLayerStyle = (kind: LayerStyleKind): LayerStyleInstanc
         contour: structuredClone(LINEAR_CONTOUR),
         antiAlias: true,
         noise: 0,
-        range: 0.5,
+        range: 1,
         jitter: 0
       } satisfies InnerGlowStyle;
     case 'bevel-emboss':

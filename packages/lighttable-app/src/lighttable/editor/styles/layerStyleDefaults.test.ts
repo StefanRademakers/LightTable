@@ -34,6 +34,15 @@ describe('LightTable Layer Style model', () => {
     }
   });
 
+  it('creates glows with full range and no spread or choke', () => {
+    for (const kind of ['outer-glow', 'inner-glow'] as const) {
+      expect(createDefaultLayerStyle(kind)).toMatchObject({
+        choke: 0,
+        range: 1
+      });
+    }
+  });
+
   it('creates and validates every Photoshop-compatible style family', () => {
     const stack = createDefaultLayerStyleStack();
     stack.effects = kinds.map(createDefaultLayerStyle);

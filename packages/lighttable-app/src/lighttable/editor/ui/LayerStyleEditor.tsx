@@ -234,6 +234,62 @@ const ShadowControls: React.FC<{
 
 type StrokeStyle = Extract<LayerStyleInstance, { kind: 'stroke' }>;
 
+type GlowStyle = Extract<LayerStyleInstance, { kind: 'outer-glow' | 'inner-glow' }>;
+
+const GlowControls: React.FC<{
+  effect: GlowStyle;
+  patch: (patch: Partial<LayerStyleInstance>) => void;
+}> = ({ effect, patch }) => {
+  const innerGlow = effect.kind === 'inner-glow';
+  return <>
+    <div className="lighttable-style-section">
+      <h4>Glow</h4>
+      <NumberSlider label="Opacity" value={effect.opacity * 100} min={0} max={100}
+        suffix="%" resetValue={35} onChange={(opacity) => patch({ opacity: opacity / 100 })} />
+      {effect.gradient ? (
+        <LayerStyleGradientEditor value={effect.gradient}
+          onChange={(gradient) => patch({ gradient })} />
+      ) : (
+        <ColorSwatch label="Color" value={effect.color}
+          onChange={(color) => patch({ color })} />
+      )}
+      <NumberSlider label="Size" value={effect.size} min={0} max={250} suffix=" px"
+        resetValue={7} onChange={(size) => patch({ size })} />
+      {innerGlow ? (
+        <SelectField label="Source" value={effect.source} options={[
+          { value: 'edge', label: 'Edge' }, { value: 'center', label: 'Center' }
+        ]} onChange={(source) => patch({ source: source as typeof effect.source })} />
+      ) : null}
+    </div>
+    <PanelAdvancedDisclosure>
+      <SelectField label="Fill" value={effect.gradient ? 'gradient' : 'color'} options={[
+        { value: 'color', label: 'Color' }, { value: 'gradient', label: 'Gradient' }
+      ]} onChange={(fill) => patch({
+        gradient: fill === 'gradient' ? effect.gradient ?? createDefaultLayerStyleGradient() : null
+      })} />
+      <SelectField label="Blend mode" value={effect.blendMode}
+        options={BLEND_MODES.map((mode) => ({ value: mode.id, label: mode.label }))}
+        onChange={(blendMode) => patch({ blendMode: blendMode as BlendMode })} />
+      <SelectField label="Technique" value={effect.technique} options={[
+        { value: 'softer', label: 'Softer' }, { value: 'precise', label: 'Precise' }
+      ]} onChange={(technique) => patch({ technique: technique as typeof effect.technique })} />
+      <NumberSlider label={innerGlow ? 'Choke' : 'Spread'} value={effect.choke * 100}
+        min={0} max={100} suffix="%" resetValue={0}
+        onChange={(choke) => patch({ choke: choke / 100 })} />
+      <NumberSlider label="Range" value={effect.range * 100} min={1} max={100}
+        suffix="%" resetValue={100} onChange={(range) => patch({ range: range / 100 })} />
+      <NumberSlider label="Jitter" value={effect.jitter * 100} min={0} max={100}
+        suffix="%" resetValue={0} onChange={(jitter) => patch({ jitter: jitter / 100 })} />
+      <ToggleField label="Anti-alias" checked={effect.antiAlias}
+        onChange={(antiAlias) => patch({ antiAlias })} />
+      <NumberSlider label="Noise" value={effect.noise * 100} min={0} max={100}
+        suffix="%" resetValue={0} onChange={(noise) => patch({ noise: noise / 100 })} />
+      <LayerStyleContourEditor value={effect.contour}
+        onChange={(contour) => patch({ contour })} />
+    </PanelAdvancedDisclosure>
+  </>;
+};
+
 const StrokeControls: React.FC<{
   effect: StrokeStyle;
   patch: (patch: Partial<LayerStyleInstance>) => void;
@@ -333,43 +389,7 @@ const EffectControls: React.FC<{
       return <ShadowControls effect={effect} patch={patch} />;
     case 'outer-glow':
     case 'inner-glow':
-      return <>{common}
-        <div className="lighttable-style-section"><h4>Color</h4>
-          <SelectField label="Source" value={effect.gradient ? 'gradient' : 'color'} options={[
-            { value: 'color', label: 'Color' }, { value: 'gradient', label: 'Gradient' }
-          ]} onChange={(source) => patch({
-            gradient: source === 'gradient' ? effect.gradient ?? createDefaultLayerStyleGradient() : null
-          })} />
-          {effect.gradient ? (
-            <LayerStyleGradientEditor
-              value={effect.gradient}
-              onChange={(gradient) => patch({ gradient })}
-            />
-          ) : (
-            <ColorSwatch label="Color" value={effect.color} onChange={(color) => patch({ color })} />
-          )}
-          <SelectField label="Technique" value={effect.technique} options={[
-            { value: 'softer', label: 'Softer' }, { value: 'precise', label: 'Precise' }
-          ]} onChange={(technique) => patch({ technique: technique as 'softer' | 'precise' })} />
-          {effect.kind === 'inner-glow' ? (
-            <SelectField label="Source" value={effect.source} options={[
-              { value: 'edge', label: 'Edge' }, { value: 'center', label: 'Center' }
-            ]} onChange={(source) => patch({ source: source as 'edge' | 'center' })} />
-          ) : null}
-        </div>
-        <div className="lighttable-style-section"><h4>Structure</h4>
-          <NumberSlider label={effect.kind === 'outer-glow' ? 'Spread' : 'Choke'}
-            value={effect.choke * 100} min={0} max={100} suffix="%"
-            onChange={(choke) => patch({ choke: choke / 100 })} />
-          <NumberSlider label="Size" value={effect.size} min={0} max={250} suffix=" px"
-            resetValue={7} onChange={(size) => patch({ size })} />
-          <NumberSlider label="Range" value={effect.range * 100} min={1} max={100} suffix="%"
-            resetValue={50} onChange={(range) => patch({ range: range / 100 })} />
-          <NumberSlider label="Jitter" value={effect.jitter * 100} min={0} max={100} suffix="%"
-            onChange={(jitter) => patch({ jitter: jitter / 100 })} />
-        </div>
-        <QualityControls effect={effect} patch={patch} />
-      </>;
+      return <GlowControls effect={effect} patch={patch} />;
     case 'stroke':
       return <StrokeControls effect={effect} patch={patch} />;
     case 'gradient-overlay': {
