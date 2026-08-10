@@ -138,10 +138,40 @@ describe('PenToolController', () => {
       state.controller.pointerUp(point);
     }
 
-    expect(state.controller.tryClose({ x: 12, y: 11 }, 3)).toBe(true);
+    expect(state.controller.beginClose({ x: 12, y: 11 }, 3)).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.pointerUp({ x: 12, y: 11 })).toBe(true);
     expect(state.history).toHaveLength(1);
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
     expect(layer?.type === 'vector' && layer.elements[0]?.type === 'path' ? layer.elements[0].subpaths[0]?.closed : false).toBe(true);
+  });
+
+  it('previews and commits symmetric handles while dragging the closing anchor', () => {
+    const state = setup();
+    for (const point of [{ x: 10, y: 10 }, { x: 80, y: 10 }, { x: 40, y: 70 }]) {
+      state.controller.pointerDown(point);
+      state.controller.pointerUp(point);
+    }
+
+    expect(state.controller.beginClose({ x: 10, y: 10 }, 3)).toBe(true);
+    expect(state.controller.pointerMove({ x: 30, y: 10 })).toBe(true);
+    const previewAnchor = state.controller.snapshot().path?.subpaths[0]?.anchors[0];
+    expect(state.controller.snapshot().path?.subpaths[0]?.closed).toBe(true);
+    expect(previewAnchor).toMatchObject({
+      handleIn: { x: -10, y: 10 },
+      handleOut: { x: 30, y: 10 },
+      mode: 'symmetric'
+    });
+    expect(state.history).toHaveLength(0);
+
+    expect(state.controller.pointerUp({ x: 30, y: 10 })).toBe(true);
+    expect(state.history).toHaveLength(1);
+    const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    const path = layer?.type === 'vector' && layer.elements[0]?.type === 'path'
+      ? layer.elements[0]
+      : null;
+    expect(path?.subpaths[0]?.closed).toBe(true);
+    expect(path?.subpaths[0]?.anchors[0]?.handleOut).toEqual({ x: 30, y: 10 });
   });
 
   it('cancels the complete provisional layer without history', () => {

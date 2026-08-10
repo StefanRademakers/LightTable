@@ -34,6 +34,27 @@ describe('PenPathBuilder', () => {
     });
   });
 
+  it('previews and commits a curved close without mutating before commit', () => {
+    const builder = PenPathBuilder.start(ids());
+    builder.place({ x: 10, y: 10 });
+    builder.place({ x: 80, y: 10 });
+    builder.place({ x: 40, y: 70 });
+
+    const preview = builder.previewClose({ dragTo: { x: 30, y: 10 } });
+    expect(preview.subpaths[0]?.closed).toBe(true);
+    expect(preview.subpaths[0]?.anchors[0]).toMatchObject({
+      handleIn: { x: -10, y: 10 },
+      handleOut: { x: 30, y: 10 },
+      mode: 'symmetric'
+    });
+    expect(builder.snapshot().subpaths[0]?.closed).toBe(false);
+    expect(builder.snapshot().subpaths[0]?.anchors[0]?.handleOut).toBeNull();
+
+    const closed = builder.close({ dragTo: { x: 30, y: 10 } });
+    expect(closed.subpaths[0]?.closed).toBe(true);
+    expect(closed.subpaths[0]?.anchors[0]?.handleOut).toEqual({ x: 30, y: 10 });
+  });
+
   it('resumes either endpoint of an existing open path without duplicating it', () => {
     const source = createVectorPath('path', 'Path', [createSubpath('subpath', [
       createAnchor('first', { x: 10, y: 10 }),

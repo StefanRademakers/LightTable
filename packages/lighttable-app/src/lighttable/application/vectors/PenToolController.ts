@@ -35,9 +35,19 @@ const defaultPenStyle = (): VectorStyle => ({
   opacity: 1
 });
 
-interface AnchorGesture {
+interface PlaceAnchorGesture {
+  kind: 'place';
   position: Vec2;
 }
+
+interface ClosePathGesture {
+  kind: 'close';
+  pointerDown: Vec2;
+  anchorPosition: Vec2;
+  anchorId: string;
+}
+
+type AnchorGesture = PlaceAnchorGesture | ClosePathGesture;
 
 const constrainDirection = (origin: Vec2, point: Vec2): Vec2 => {
   const dx = point.x - origin.x;
@@ -63,6 +73,7 @@ export interface PenToolSnapshot {
   activeEndpoint: PenPathDirection | null;
   presentationRevision: number;
   anchorGestureActive: boolean;
+  closingAnchorId: string | null;
 }
 
 export interface PenRubberBand {
@@ -109,41 +120,66 @@ export class PenToolController {
   pointerDown(position: Vec2) {
     if (this.gesture) return false;
     if (!this.builder && !this.openPath()) return false;
-    this.gesture = { position: transformPoint(this.documentToPath, position) };
+    this.gesture = {
+      kind: 'place',
+      position: transformPoint(this.documentToPath, position)
+    };
     return true;
   }
 
   pointerMove(position: Vec2, constrain = false) {
     if (!this.builder || !this.gesture) return false;
     const local = transformPoint(this.documentToPath, position);
-    this.presentedPath = this.builder.previewPlace(this.gesture.position, {
-      dragTo: constrain ? constrainDirection(this.gesture.position, local) : local
-    });
+    if (this.gesture.kind === 'close') {
+      const dragTo = constrain
+        ? constrainDirection(this.gesture.anchorPosition, local)
+        : local;
+      this.presentedPath = this.builder.previewClose({ dragTo });
+    } else {
+      this.presentedPath = this.builder.previewPlace(this.gesture.position, {
+        dragTo: constrain ? constrainDirection(this.gesture.position, local) : local
+      });
+    }
     this.presentationRevision += 1;
     return true;
   }
 
   pointerUp(position: Vec2, constrain = false) {
     if (!this.builder || !this.gesture) return false;
-    const start = this.gesture.position;
+    const gesture = this.gesture;
     this.gesture = null;
     const rawLocal = transformPoint(this.documentToPath, position);
-    const local = constrain ? constrainDirection(start, rawLocal) : rawLocal;
-    const dragTo = distanceSquared(start, local) > 0
-      ? local
-      : undefined;
-    return this.preview(this.builder.place(start, { dragTo }));
+    if (gesture.kind === 'close') {
+      const local = constrain
+        ? constrainDirection(gesture.anchorPosition, rawLocal)
+        : rawLocal;
+      const dragTo = distanceSquared(gesture.pointerDown, rawLocal) > 1e-6
+        ? local
+        : undefined;
+      const closed = this.restoreAuthoredStyle(this.builder.close({ dragTo }));
+      if (!this.preview(closed)) return false;
+      return this.commit();
+    }
+    const local = constrain ? constrainDirection(gesture.position, rawLocal) : rawLocal;
+    const dragTo = distanceSquared(gesture.position, local) > 0 ? local : undefined;
+    return this.preview(this.builder.place(gesture.position, { dragTo }));
   }
 
-  /** Closes when the pointer is near the first anchor in document space. */
-  tryClose(position: Vec2, tolerance: number) {
+  /** Begins a close gesture; the path is finalized only when the pointer is released. */
+  beginClose(position: Vec2, tolerance: number) {
     const first = this.builder?.firstAnchor();
-    if (!first || !this.builder || this.builder.anchorCount() < 3) return false;
+    if (this.gesture || !first || !this.builder || this.builder.anchorCount() < 3) return false;
     const firstDocument = transformPoint(this.pathToDocument, first.position);
     if (distanceSquared(firstDocument, position) > tolerance * tolerance) return false;
-    const closed = this.restoreAuthoredStyle(this.builder.close());
-    if (!this.preview(closed)) return false;
-    return this.commit();
+    this.gesture = {
+      kind: 'close',
+      pointerDown: transformPoint(this.documentToPath, position),
+      anchorPosition: { ...first.position },
+      anchorId: first.id
+    };
+    this.presentedPath = this.builder.previewClose();
+    this.presentationRevision += 1;
+    return true;
   }
 
   connectPath(
@@ -240,6 +276,8 @@ export class PenToolController {
   cancelPointerGesture() {
     if (!this.gesture) return false;
     this.gesture = null;
+    this.presentedPath = this.builder?.snapshot() ?? null;
+    this.presentationRevision += 1;
     return true;
   }
 
@@ -251,7 +289,8 @@ export class PenToolController {
       activeSubpathId: this.builder?.activeSubpathId() ?? null,
       activeEndpoint: this.builder?.activeEndpoint() ?? null,
       presentationRevision: this.presentationRevision,
-      anchorGestureActive: Boolean(this.gesture)
+      anchorGestureActive: Boolean(this.gesture),
+      closingAnchorId: this.gesture?.kind === 'close' ? this.gesture.anchorId : null
     };
   }
 

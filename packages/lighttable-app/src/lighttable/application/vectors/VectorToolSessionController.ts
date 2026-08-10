@@ -224,10 +224,13 @@ export class VectorToolSessionController {
       if (!this.pen.isActive() && this.tryResumePenPath(documentPoint, options.hitRadius)) {
         return true;
       }
-      if (this.pen.tryClose(
+      if (this.pen.beginClose(
         documentPoint,
         options.closeTolerance ?? options.hitRadius
-      )) return true;
+      )) {
+        this.capturedPointer = { id: pointerId, mode: 'pen', documentId };
+        return true;
+      }
       if (this.pen.isActive() && this.tryConnectPenPath(documentPoint, options.hitRadius)) {
         return true;
       }
@@ -360,9 +363,11 @@ export class VectorToolSessionController {
     const subpathId = snapshot.activeSubpathId;
     if (!path || !subpathId) return null;
     const subpath = path.subpaths.find(({ id }) => id === subpathId);
-    const anchor = snapshot.activeEndpoint === 'prepend'
-      ? subpath?.anchors[0]
-      : subpath?.anchors.at(-1);
+    const anchor = snapshot.closingAnchorId
+      ? subpath?.anchors.find(({ id }) => id === snapshot.closingAnchorId)
+      : snapshot.activeEndpoint === 'prepend'
+        ? subpath?.anchors[0]
+        : subpath?.anchors.at(-1);
     const activeAnchor = anchor ? { subpathId, anchorId: anchor.id } : null;
     const overlay = buildVectorEditingOverlay({
       ...path,

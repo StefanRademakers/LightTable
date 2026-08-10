@@ -2,7 +2,13 @@ import { createAnchor, createSubpath, createVectorPath } from '../model/factorie
 import { cloneVectorAnchor, cloneVectorPath, cloneVectorStyle } from '../model/clone';
 import type { VectorAnchor, VectorPath, VectorStyle } from '../model/types';
 import type { Vec2 } from '../math/vector';
-import { appendAnchor, closeSubpath, deleteAnchors, prependAnchor } from './pathMutations';
+import {
+  appendAnchor,
+  closeSubpath,
+  deleteAnchors,
+  prependAnchor,
+  setSymmetricAnchorHandles
+} from './pathMutations';
 
 export interface VectorIdSource {
   next(kind: 'path' | 'subpath' | 'anchor' | 'live-shape'): string;
@@ -100,9 +106,23 @@ export class PenPathBuilder {
       : prependAnchor(this.path, this.subpathId, anchor);
   }
 
-  close() {
+  /** Returns a provisional closed path without finishing or mutating the builder. */
+  previewClose(options: PlaceAnchorOptions = {}) {
     this.assertOpen();
-    this.path = closeSubpath(this.path, this.subpathId);
+    let path = this.path;
+    const anchor = this.firstAnchor();
+    if (options.dragTo && anchor) {
+      path = setSymmetricAnchorHandles(path, {
+        subpathId: this.subpathId,
+        anchorId: anchor.id
+      }, options.dragTo);
+    }
+    return closeSubpath(path, this.subpathId);
+  }
+
+  close(options: PlaceAnchorOptions = {}) {
+    this.assertOpen();
+    this.path = this.previewClose(options);
     this.finished = true;
     return this.snapshot();
   }

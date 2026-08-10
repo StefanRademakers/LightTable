@@ -168,7 +168,7 @@ describe('VectorToolSessionController', () => {
     expect(state.history).toHaveLength(2);
   });
 
-  it('closes a pen path through the first-anchor hit without capturing the pointer', () => {
+  it('captures a closing Pen drag and commits it at pointer-up', () => {
     const state = setup();
     state.controller.activate('pen');
     for (const [index, point] of [
@@ -184,10 +184,19 @@ describe('VectorToolSessionController', () => {
       hitRadius: 3,
       closeTolerance: 3
     })).toBe(true);
+    expect(state.controller.ownsPointer(9)).toBe(true);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.pointerMove(9, { x: 30, y: 10 })).toBe(true);
+    const overlay = state.controller.penEditingOverlay();
+    expect(overlay?.handles).toHaveLength(2);
+    expect(overlay?.anchors.find(({ anchorId }) => anchorId === overlay.handles[0]?.anchorId))
+      .toMatchObject({ selected: true, active: true });
+    expect(state.controller.pointerUp(9, { x: 30, y: 10 })).toBe(true);
     expect(state.controller.ownsPointer(9)).toBe(false);
     expect(state.history).toHaveLength(1);
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
     expect(layerPaths(layer)[0]?.subpaths[0]?.closed ?? false).toBe(true);
+    expect(layerPaths(layer)[0]?.subpaths[0]?.anchors[0]?.handleOut).toEqual({ x: 30, y: 10 });
   });
 
   it('rejects a competing pointer and releases ownership at pointer-up', () => {
