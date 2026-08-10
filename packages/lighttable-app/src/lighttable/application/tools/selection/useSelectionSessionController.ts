@@ -9,9 +9,11 @@ import {
   createLayerMaskSelectionOperation,
   createLayerTransparencySelectionOperation,
   createMagicWandSelectionOperation,
+  createRasterMaskSelectionOperation,
   createTranslateSelectionOperation,
   type CompositeSelectionChannel,
   type MagicWandOptions,
+  type RasterSelectionMask,
   type SelectionCombineMode,
   type SelectionMode,
   type SelectionOperation,
@@ -38,6 +40,7 @@ export interface SelectionRendererPort {
   clearSelection(): void;
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
   applyMagicWand(operation: SelectionOperation): Promise<boolean>;
+  applyRasterSelection(operation: SelectionOperation): Promise<boolean>;
 }
 
 export interface SelectionSessionDependencies {
@@ -88,6 +91,7 @@ export interface SelectionSessionController {
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
   translate(x: number, y: number): void;
   magicWand(point: SelectionPoint, mode: SelectionCombineMode, options: MagicWandOptions): boolean;
+  rasterMask(mask: RasterSelectionMask, mode: SelectionCombineMode): boolean;
 }
 
 export const cloneSelectionOperations = (
@@ -102,7 +106,9 @@ export const cloneSelectionOperations = (
         point: { ...operation.source.point },
         options: { ...operation.source.options }
       }
-    : operation.source ? { ...operation.source } : undefined,
+    : operation.source?.kind === 'raster-mask'
+      ? { ...operation.source, mask: operation.source.mask }
+      : operation.source ? { ...operation.source } : undefined,
   shape: {
     ...operation.shape,
     points: operation.shape.points.map((point) => ({ ...point }))
@@ -491,6 +497,36 @@ export const createSelectionSessionController = (
             reason instanceof Error ? reason.message : 'The Magic Wand selection could not be applied.'
           );
         });
+      return true;
+    },
+    rasterMask: (mask, mode) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      const renderer = dependencies.getRenderer();
+      if (!document || !renderer
+        || mask.width !== document.width || mask.height !== document.height
+        || mask.data.byteLength !== document.width * document.height) return false;
+      const before = cloneSelectionOperations(dependencies.getSelection());
+      const operation = createRasterMaskSelectionOperation(
+        document.revision,
+        document.width,
+        document.height,
+        mask,
+        mode
+      );
+      const after = mode === 'replace' ? [operation] : [...before, operation];
+      void renderer.applyRasterSelection(operation).then((applied) => {
+        if (!applied || !isCurrent(document, renderer)) return;
+        const latest = resolveDependencies();
+        latest.publishSelection(after, null);
+        pushHistory(document, before, after);
+        latest.setError(null);
+      }).catch((reason) => {
+        if (!isCurrent(document, renderer)) return;
+        resolveDependencies().setError(
+          reason instanceof Error ? reason.message : 'The object selection could not be applied.'
+        );
+      });
       return true;
     },
     finishPolygon: () => (

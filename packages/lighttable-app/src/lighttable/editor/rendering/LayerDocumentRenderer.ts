@@ -579,6 +579,13 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionRasterizer.magicWand(source, point, options, mode);
   }
 
+  applyRasterSelectionMask(
+    mask: import('../selection/selectionTypes').RasterSelectionMask,
+    mode: SelectionCombineMode
+  ) {
+    return this.runtime.selectionRasterizer.applyRasterMask(mask, mode);
+  }
+
   applyMagicWandToActiveLayer(
     document: ImageDocument,
     layerId: LayerId,

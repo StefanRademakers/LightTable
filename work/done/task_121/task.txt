@@ -1,0 +1,5 @@
+Smart object selection, read and implement:
+Lighttable_Smart_Object_Selection_Spec.md
+
+Kijk naar wat we al hebben staan aan transformers.js en ook de zaken voor onze face warp...
+voor zulke modellen ai zaken dat we 1 backend gaan maken ipv super verschillende paden die in de basis soortgelijke zaken nodig hebben.

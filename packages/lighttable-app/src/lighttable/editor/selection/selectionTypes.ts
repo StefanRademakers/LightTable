@@ -7,8 +7,9 @@ export type SelectionToolId =
   | 'select-vertical'
   | 'select-free'
   | 'select-polygonal'
+  | 'select-object'
   | 'select-magic-wand';
-export type GeometricSelectionToolId = Exclude<SelectionToolId, 'select-magic-wand'>;
+export type GeometricSelectionToolId = Exclude<SelectionToolId, 'select-magic-wand' | 'select-object'>;
 export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
 export type SelectionMode = SelectionCombineMode | 'invert' | 'feather' | 'transform';
 export type CompositeColorChannel = 'red' | 'green' | 'blue';
@@ -34,12 +35,31 @@ export interface MagicWandOptions {
   sampleAllLayers: boolean;
 }
 
+export interface SmartSelectionOptions {
+  mode: 'object-finder' | 'rectangle' | 'lasso';
+  sampleAllLayers: boolean;
+  hardEdge: boolean;
+}
+
+/** Immutable document-sized alpha produced by a raster selection source. */
+export interface RasterSelectionMask {
+  readonly width: number;
+  readonly height: number;
+  readonly data: Uint8Array<ArrayBuffer>;
+}
+
 export const createDefaultMagicWandOptions = (): MagicWandOptions => ({
   sampleSize: 1,
   tolerance: 20,
   antiAlias: true,
   contiguous: true,
   sampleAllLayers: false
+});
+
+export const createDefaultSmartSelectionOptions = (): SmartSelectionOptions => ({
+  mode: 'object-finder',
+  sampleAllLayers: false,
+  hardEdge: false
 });
 
 export interface SelectionOperation {
@@ -55,6 +75,11 @@ export interface SelectionOperation {
         point: SelectionPoint;
         options: MagicWandOptions;
         layerId: LayerId;
+        documentRevision: number;
+      }
+    | {
+        kind: 'raster-mask';
+        mask: RasterSelectionMask;
         documentRevision: number;
       };
   /** Document-space feather radius. Only used by the feather operation. */
@@ -90,6 +115,18 @@ export const createMagicWandSelectionOperation = (
     layerId,
     documentRevision
   },
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
+
+export const createRasterMaskSelectionOperation = (
+  documentRevision: number,
+  width: number,
+  height: number,
+  mask: RasterSelectionMask,
+  mode: SelectionCombineMode
+): SelectionOperation => ({
+  mode,
+  source: { kind: 'raster-mask', mask, documentRevision },
   shape: createFullCanvasSelection(width, height)[0].shape
 });
 

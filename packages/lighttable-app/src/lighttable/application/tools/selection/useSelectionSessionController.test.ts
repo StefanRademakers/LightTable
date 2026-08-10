@@ -26,7 +26,8 @@ const setup = () => {
     setSelection: vi.fn(async () => true),
     clearSelection: vi.fn(),
     transformSelection: vi.fn(async () => true),
-    applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true)
+    applyMagicWand: vi.fn(async (_operation: SelectionOperation) => true),
+    applyRasterSelection: vi.fn(async (_operation: SelectionOperation) => true)
   };
   const dependencies: SelectionSessionDependencies = {
     getDocument: () => activeDocument,
@@ -274,6 +275,32 @@ describe('selection session controller', () => {
         point: { x: 12.5, y: 8.25 },
         options: { sampleSize: 5, tolerance: 20, contiguous: true }
       }
+    });
+    expect(state.selection).toEqual([operation]);
+    expect(state.history).toHaveLength(1);
+
+    await state.history[0]!.undo();
+    await state.history[0]!.redo();
+    expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(1, []);
+    expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(2, [operation]);
+  });
+
+  it('commits an immutable raster mask through the normal selection history path', async () => {
+    const state = setup();
+    const mask = {
+      width: document.width,
+      height: document.height,
+      data: new Uint8Array(document.width * document.height)
+    };
+    mask.data[12] = 255;
+    expect(state.controller.rasterMask(mask, 'replace')).toBe(true);
+    await Promise.resolve();
+
+    expect(state.renderer.applyRasterSelection).toHaveBeenCalledOnce();
+    const operation = state.renderer.applyRasterSelection.mock.calls[0]![0];
+    expect(operation).toMatchObject({
+      mode: 'replace',
+      source: { kind: 'raster-mask', documentRevision: document.revision, mask }
     });
     expect(state.selection).toEqual([operation]);
     expect(state.history).toHaveLength(1);

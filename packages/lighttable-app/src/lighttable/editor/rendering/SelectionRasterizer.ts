@@ -1,6 +1,7 @@
 import type {
   CompositeSelectionChannel,
   MagicWandOptions,
+  RasterSelectionMask,
   SelectionCombineMode,
   SelectionMode,
   SelectionPoint,
@@ -515,6 +516,39 @@ export class SelectionRasterizer {
     device.queue.submit([encoder.finish()]);
     textures.active = true;
     void device.queue.onSubmittedWorkDone().then(() => settings.destroy());
+    return true;
+  }
+
+  applyRasterMask(mask: RasterSelectionMask, requestedMode: SelectionCombineMode) {
+    this.options.ensureTargets();
+    const { textures, device } = this.options;
+    const dimensions = this.options.dimensions();
+    if (!textures.mask || !textures.result || !textures.shape
+      || mask.width !== dimensions.width || mask.height !== dimensions.height
+      || mask.data.byteLength !== mask.width * mask.height) return false;
+    const mode = effectiveSelectionMode(textures.active, requestedMode);
+    if (!mode || mode === 'invert' || mode === 'feather' || mode === 'transform') return false;
+
+    device.queue.writeTexture(
+      { texture: textures.shape },
+      mask.data,
+      { bytesPerRow: mask.width, rowsPerImage: mask.height },
+      { width: mask.width, height: mask.height }
+    );
+    const combineBuffer = device.createBuffer({
+      label: 'LightTable raster selection combine settings',
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const encoder = device.createCommandEncoder({ label: 'LightTable apply raster selection mask' });
+    if (!this.combineShapeMask(encoder, mode, combineBuffer)) {
+      combineBuffer.destroy();
+      return false;
+    }
+    device.queue.submit([encoder.finish()]);
+    textures.swapMaskAndResult();
+    textures.active = true;
+    void device.queue.onSubmittedWorkDone().then(() => combineBuffer.destroy());
     return true;
   }
 
