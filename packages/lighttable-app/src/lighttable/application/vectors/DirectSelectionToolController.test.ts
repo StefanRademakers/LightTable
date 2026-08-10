@@ -70,6 +70,38 @@ const transformedPath = () => {
 };
 
 describe('DirectSelectionToolController', () => {
+  it('publishes the final drag sample with a fresh geometry cache revision', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const start = transformPoint(scene.localToDocument, { x: 2, y: 3 });
+    const middle = transformPoint(scene.localToDocument, { x: 5, y: 5 });
+    const end = transformPoint(scene.localToDocument, { x: 12, y: 9 });
+
+    expect(state.controller.pointerDown(start, { radius: 2 })).toBe(true);
+    expect(state.controller.pointerMove(middle)).toBe(true);
+    const middleLayer = findDocumentLayer(state.document, scene.layer.id);
+    const middleRevision = middleLayer?.type === 'vector'
+      ? middleLayer.elements[0]?.geometryRevision ?? -1
+      : -1;
+    expect(state.controller.pointerMove(end)).toBe(true);
+    const endLayer = findDocumentLayer(state.document, scene.layer.id);
+    const endRevision = endLayer?.type === 'vector'
+      ? endLayer.elements[0]?.geometryRevision ?? -1
+      : -1;
+
+    expect(endRevision).toBeGreaterThan(middleRevision);
+    expect(state.controller.pointerUp(end)).toBe(true);
+    const committedLayer = findDocumentLayer(state.document, scene.layer.id);
+    const committedPath = committedLayer?.type === 'vector' && committedLayer.elements[0]?.type === 'path'
+      ? committedLayer.elements[0]
+      : null;
+    expect(committedPath?.subpaths[0]?.anchors[0]?.position.x).toBeCloseTo(12, 10);
+    expect(committedPath?.subpaths[0]?.anchors[0]?.position.y).toBeCloseTo(9, 10);
+    expect(committedPath?.geometryRevision).toBeGreaterThan(endRevision);
+    expect(state.history).toHaveLength(1);
+  });
+
   it('moves an anchor in path-local coordinates under nested scale and rotation', () => {
     const state = setup();
     const scene = transformedPath();

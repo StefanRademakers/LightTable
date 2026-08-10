@@ -6,6 +6,14 @@ export interface PathMutationCommit {
   after: VectorPath;
 }
 
+const previewRevision = (
+  opening: number,
+  current: number,
+  candidate: number
+) => candidate === opening
+  ? opening
+  : Math.max(candidate, current + 1);
+
 /**
  * One pointer gesture owns one session. Preview updates always derive from the
  * opening snapshot; commit publishes at most one reversible mutation.
@@ -22,7 +30,28 @@ export class PathMutationSession {
 
   update(mutate: (openingSnapshot: VectorPath) => VectorPath) {
     this.assertOpen();
-    this.preview = cloneVectorPath(mutate(cloneVectorPath(this.before)));
+    const candidate = cloneVectorPath(mutate(cloneVectorPath(this.before)));
+    // Preview functions intentionally derive geometry from the immutable
+    // opening snapshot so pointer deltas never accumulate. Their ordinary
+    // `opening + 1` revision is therefore identical for every drag sample.
+    // Promote changed preview revisions monotonically so GPU geometry/style
+    // caches cannot retain the first sample until another edit occurs.
+    candidate.geometryRevision = previewRevision(
+      this.before.geometryRevision,
+      this.preview.geometryRevision,
+      candidate.geometryRevision
+    );
+    candidate.transformRevision = previewRevision(
+      this.before.transformRevision,
+      this.preview.transformRevision,
+      candidate.transformRevision
+    );
+    candidate.styleRevision = previewRevision(
+      this.before.styleRevision,
+      this.preview.styleRevision,
+      candidate.styleRevision
+    );
+    this.preview = candidate;
     return this.current();
   }
 
