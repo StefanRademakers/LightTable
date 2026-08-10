@@ -60,4 +60,15 @@ describe('EditorToolbar', () => {
     expect(markup).not.toContain('aria-label="Paragraph text"');
     expect(markup).toContain('aria-pressed="true"');
   });
+
+  it('places the shared expand-all action after Zoom and before the color controls', () => {
+    const markup = renderToolbar('brush');
+    const zoom = markup.indexOf('aria-label="Zoom (Z)"');
+    const expand = markup.indexOf('aria-label="Expand all tool submenus"');
+    const colors = markup.indexOf('aria-label="Foreground and background colors"');
+    expect(zoom).toBeGreaterThan(-1);
+    expect(expand).toBeGreaterThan(zoom);
+    expect(colors).toBeGreaterThan(expand);
+    expect(markup).toContain('more_horizontal.png');
+  });
 });

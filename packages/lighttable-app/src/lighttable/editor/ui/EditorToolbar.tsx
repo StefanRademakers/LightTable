@@ -58,14 +58,18 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
 interface ToolFamilySlotProps {
   activeTool: ToolId;
   definitions: readonly ToolDefinition[];
+  expanded: boolean;
   label: string;
+  onExpandedToolChosen: () => void;
   onToolChange: (tool: ToolId) => void;
 }
 
 const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
   activeTool,
   definitions,
+  expanded,
   label,
+  onExpandedToolChosen,
   onToolChange
 }) => {
   const activeDefinition = definitions.find(({ id }) => id === activeTool);
@@ -81,12 +85,17 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
   }, [activeDefinition]);
 
   React.useEffect(() => {
-    if (!open) return undefined;
+    if (!open || expanded) return undefined;
     const timeout = window.setTimeout(() => setOpen(false), 3_000);
     return () => window.clearTimeout(timeout);
-  }, [generation, open]);
+  }, [expanded, generation, open]);
+
+  React.useEffect(() => {
+    if (!expanded) setOpen(false);
+  }, [expanded]);
 
   const master = activeDefinition ?? rememberedDefinition;
+  const flyoutVisible = expanded || open;
   const showFlyout = () => {
     setOpen(true);
     setGeneration((value) => value + 1);
@@ -102,7 +111,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
       <ToolButton
         tool={master}
         active={Boolean(activeDefinition)}
-        popupOpen={open}
+        popupOpen={flyoutVisible}
         onMouseDown={showFlyout}
         onKeyDown={(event) => {
           if (event.key !== 'ArrowDown') return;
@@ -124,17 +133,18 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
         className="lighttable-toolbox__group-menu-button"
         aria-label={`Show ${label.toLowerCase()}`}
         aria-haspopup="true"
-        aria-expanded={open}
+        aria-expanded={flyoutVisible}
         aria-controls={flyoutId}
         title={`Show ${label.toLowerCase()}`}
         onMouseDown={showFlyout}
         onClick={showFlyout}
       ><span aria-hidden="true" /></button>
-      {open ? (
+      {flyoutVisible ? (
         <div
           id={flyoutId}
-          className="lighttable-toolbox__flyout"
+          className={`lighttable-toolbox__flyout${expanded ? ' lighttable-toolbox__flyout--expanded' : ''}`}
           role="toolbar"
+          aria-orientation={expanded ? 'horizontal' : 'vertical'}
           data-editor-native-tab-navigation
           aria-label={label}
           onKeyDown={(event) => {
@@ -146,11 +156,13 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
               event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(':scope > .lighttable-toolbox__button')?.focus();
               return;
             }
-            if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+            const previousKey = expanded ? 'ArrowLeft' : 'ArrowUp';
+            const nextKey = expanded ? 'ArrowRight' : 'ArrowDown';
+            if (![previousKey, nextKey, 'Home', 'End'].includes(event.key)) return;
             event.preventDefault();
             const next = event.key === 'Home' ? 0
               : event.key === 'End' ? buttons.length - 1
-                : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+                : (index + (event.key === nextKey ? 1 : -1) + buttons.length) % buttons.length;
             buttons[next]?.focus();
           }}
         >
@@ -162,6 +174,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
               onClick={() => {
                 setRememberedDefinition(tool);
                 setOpen(false);
+                if (expanded) onExpandedToolChosen();
                 onToolChange(tool.id);
               }}
             />
@@ -203,9 +216,32 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onBackgroundColorChange,
   onSwapColors,
   onResetColors
-}) => (
-  <nav className="lighttable-toolbox" aria-label="Image tools">
-    <div className="lighttable-toolbox__content">
+}) => {
+  const [expanded, setExpanded] = React.useState(false);
+  const toolbarRef = React.useRef<HTMLElement>(null);
+
+  React.useEffect(() => {
+    if (!expanded) return undefined;
+    const closeOnOutsidePointer = (event: globalThis.PointerEvent) => {
+      if (!toolbarRef.current?.contains(event.target as Node)) setExpanded(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setExpanded(false);
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer, true);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer, true);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [expanded]);
+
+  return (
+    <nav ref={toolbarRef} className="lighttable-toolbox" aria-label="Image tools">
+      <div className={`lighttable-toolbox__content${expanded ? ' lighttable-toolbox__content--expanded' : ''}`}>
       {TOOL_DEFINITIONS.map((tool) => {
         const family = toolFamilyFor(tool);
         if (!family) {
@@ -224,11 +260,23 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             key={family.label}
             activeTool={activeTool}
             definitions={family.definitions}
+            expanded={expanded}
             label={family.label}
+            onExpandedToolChosen={() => setExpanded(false)}
             onToolChange={onToolChange}
           />
         );
       })}
+      <button
+        type="button"
+        className={`lighttable-toolbox__button lighttable-toolbox__expand-all${expanded ? ' lighttable-toolbox__button--active' : ''}`}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Collapse all tool submenus' : 'Expand all tool submenus'}
+        title={expanded ? 'Collapse all tool submenus' : 'Expand all tool submenus'}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <img src={lightTableIcon('more_horizontal.png')} alt="" aria-hidden="true" />
+      </button>
       <div className="lighttable-toolbox__colors" aria-label="Foreground and background colors">
         <button
           type="button"
@@ -275,5 +323,6 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         </label>
       </div>
     </div>
-  </nav>
-);
+    </nav>
+  );
+};
