@@ -16,6 +16,7 @@ const renderOptions = (
   const props: ToolOptionsProps = {
     activeTool,
     brush: session.brush,
+    sampledBrush: session.sampledBrush,
     gradient: session.gradient,
     shape: session.shape,
     pen: session.pen,
@@ -44,6 +45,7 @@ const renderOptions = (
     transformAutoSelectLayer: session.transformAutoSelectLayer,
     zoomPercent: 100,
     onBrushChange: vi.fn(),
+    onSampledBrushChange: vi.fn(),
     onGradientChange: vi.fn(),
     onShapeChange: vi.fn(),
     onPenChange: vi.fn(),
@@ -92,6 +94,19 @@ describe('brush tool options', () => {
     expect(markup).toContain('<optgroup label="Basic">');
     expect(markup).toContain('<optgroup label="Effects">');
     expect(markup).toContain('<option value="liquify">Liquify</option>');
+  });
+
+  it('uses the shared sampled-brush controls without exposing effect engines', () => {
+    for (const tool of ['clone-stamp', 'healing-brush'] as const) {
+      const markup = renderOptions(tool);
+      expect(markup).toContain('aria-label="Sample layers"');
+      expect(markup).toContain('<option value="current">Current Layer</option>');
+      expect(markup).toContain('<option value="current-and-below" selected="">Current &amp; Below</option>');
+      expect(markup).toContain('<option value="all">All Layers</option>');
+      expect(markup).toContain('checked=""/><span>Aligned</span>');
+      expect(markup).not.toContain('<optgroup label="Effects">');
+      expect(markup).not.toContain('value="liquify"');
+    }
   });
 });
 

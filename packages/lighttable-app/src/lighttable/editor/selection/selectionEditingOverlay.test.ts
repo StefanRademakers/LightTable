@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildBrushCursorEditingOverlay,
+  buildSampledBrushSourceEditingOverlay,
   buildSelectionEditingOverlay,
   directSelectionShape
 } from './selectionEditingOverlay';
@@ -42,6 +43,14 @@ describe('selection editing overlays', () => {
     expect(overlay.cubics).toHaveLength(4);
     expect(overlay.cubics[0]?.p0).toEqual({ x: 62, y: 70 });
     expect(overlay.cubics[2]?.p0).toEqual({ x: 38, y: 70 });
+  });
+
+  it('builds the sampled source marker in the shared GPU vector overlay', () => {
+    const overlay = buildSampledBrushSourceEditingOverlay({ x: 50, y: 70 }, 24, 10);
+    expect(overlay.cubics).toHaveLength(6);
+    expect(overlay.cubics[0]?.p0).toEqual({ x: 62, y: 70 });
+    expect(overlay.cubics[4]?.p0).toEqual({ x: 45, y: 70 });
+    expect(overlay.cubics[5]?.p3).toEqual({ x: 50, y: 75 });
   });
 
   it('only exposes a single replace operation as direct geometry', () => {

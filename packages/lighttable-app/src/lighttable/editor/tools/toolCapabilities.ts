@@ -28,14 +28,18 @@ export const steppedBrushHardness = (current: number, direction: -1 | 1): number
 export const isSelectionTool = (tool: ToolId): tool is SelectionToolId =>
   toolDefinition(tool).role === 'selection';
 
-export const isPaintTool = (tool: ToolId): tool is 'brush' | 'erase' =>
+export const isPaintTool = (
+  tool: ToolId
+): tool is 'brush' | 'clone-stamp' | 'healing-brush' | 'erase' =>
   toolDefinition(tool).role === 'paint';
 
 export const isWarpTool = (tool: ToolId): tool is 'warp' =>
   toolDefinition(tool).role === 'warp';
 
 /** Tools whose on-canvas interaction is driven by a brush diameter. */
-export const usesBrushSize = (tool: ToolId): tool is 'brush' | 'erase' | 'warp' =>
+export const usesBrushSize = (
+  tool: ToolId
+): tool is 'brush' | 'clone-stamp' | 'healing-brush' | 'erase' | 'warp' =>
   isPaintTool(tool) || isWarpTool(tool);
 
 export const selectionKindForTool = (tool: GeometricSelectionToolId): SelectionShapeKind => {

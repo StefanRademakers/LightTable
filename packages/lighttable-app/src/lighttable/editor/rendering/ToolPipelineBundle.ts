@@ -2,6 +2,7 @@ import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import {
   BRUSH_DAB_WGSL,
   BLUR_BRUSH_DAB_WGSL,
+  SAMPLED_BRUSH_DAB_WGSL,
   COLOR_CHANNEL_COPY_WGSL,
   LAYER_FILL_COLOR_WGSL,
   LAYER_FILL_GRADIENT_WGSL,
@@ -35,6 +36,10 @@ export interface BrushPipelineBundle {
   erasePreserveTransparency: GPURenderPipeline;
   maskBrush: GPURenderPipeline;
   maskErase: GPURenderPipeline;
+  clone: GPURenderPipeline;
+  clonePreserveTransparency: GPURenderPipeline;
+  healing: GPURenderPipeline;
+  healingPreserveTransparency: GPURenderPipeline;
 }
 
 export interface ToolPipelineBundle extends BrushPipelineBundle {
@@ -72,6 +77,7 @@ export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
   if (cached) return cached;
   const brushModule = device.createShaderModule({ code: BRUSH_DAB_WGSL });
   const blurBrushModule = device.createShaderModule({ code: BLUR_BRUSH_DAB_WGSL });
+  const sampledBrushModule = device.createShaderModule({ code: SAMPLED_BRUSH_DAB_WGSL });
   const brushPipeline = (
     label: string,
     color: GPUBlendComponent,
@@ -85,6 +91,30 @@ export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
       module: brushModule,
       entryPoint: 'brushFragment',
       targets: [{ format, blend: { color, alpha } }]
+    },
+    primitive: { topology: 'triangle-list' }
+  });
+  const sampledBrushPipeline = (
+    label: string,
+    entryPoint: 'cloneFragment' | 'healingFragment',
+    preserveTransparency: boolean
+  ) => device.createRenderPipeline({
+    label,
+    layout: 'auto',
+    vertex: { module: sampledBrushModule, entryPoint: 'brushVertex' },
+    fragment: {
+      module: sampledBrushModule,
+      entryPoint,
+      targets: [{
+        format: 'rgba16float',
+        blend: preserveTransparency ? {
+          color: { srcFactor: 'dst-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+          alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
+        } : {
+          color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+          alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+        }
+      }]
     },
     primitive: { topology: 'triangle-list' }
   });
@@ -142,6 +172,14 @@ export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       'r8unorm'
+    ),
+    clone: sampledBrushPipeline('LightTable Clone Stamp', 'cloneFragment', false),
+    clonePreserveTransparency: sampledBrushPipeline(
+      'LightTable Clone Stamp with transparency lock', 'cloneFragment', true
+    ),
+    healing: sampledBrushPipeline('LightTable Healing Brush', 'healingFragment', false),
+    healingPreserveTransparency: sampledBrushPipeline(
+      'LightTable Healing Brush with transparency lock', 'healingFragment', true
     )
   };
   brushCache.set(device, bundle);

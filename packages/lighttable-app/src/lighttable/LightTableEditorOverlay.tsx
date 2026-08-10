@@ -31,7 +31,9 @@ import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnost
 import { createScopeRendererOptions, useRendererPresentationSync } from './editor/hooks/useRendererPresentationSync';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { toolShortcutGroupFor } from './editor/tools/toolRegistry';
+import { brushPresetChange, resolveBrushPreset } from './editor/tools/brush/brushPresets';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
+import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
@@ -866,10 +868,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return () => { activeRegistration = false; };
   }, [editorSession.activeTool, textEngineDiagnostic.probe, textFontRegistry, thumbnailDocumentReadyId]);
   useEffect(() => {
-    if (
-      editorSession.activeTool !== 'brush'
-      && editorSession.activeTool !== 'erase'
-    ) return;
+    if (!isPaintTool(editorSession.activeTool)) return;
     try {
       engineRef.current?.preparePaintTool();
     } catch (reason) {
@@ -2032,6 +2031,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushHistoryEntry,
     setError
   }, paintGestureRef.current);
+  const sampledBrushSourceController = useMemo(
+    () => new SampledBrushSourceController(),
+    [workspaceDocumentId]
+  );
 
   const warpSessionController = useWarpSessionController({
     getDocument: () => imageDocumentRef.current,
@@ -2596,6 +2599,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     eyedropperActive: (editorSession.activeTool === 'brush'
       || editorSession.activeTool === 'fill'
       || editorSession.activeTool === 'gradient') && altPressed,
+    sampleSourceActive: (editorSession.activeTool === 'clone-stamp'
+      || editorSession.activeTool === 'healing-brush') && altPressed,
     onColorPick: (point) => {
       void engineRef.current?.sampleDisplayColor(point).then((color) => {
         updateBrush({ color: rgba8ToHex(color) });
@@ -2691,6 +2696,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     selection: selectionSessionController,
     paint: paintSessionController,
+    sampledBrushSource: sampledBrushSourceController,
+    onSampledBrushError: setError,
+    onSampledBrushSourceSet: ({ x, y }) => {
+      setGradeStatus(`Sample source set at ${Math.round(x)}, ${Math.round(y)}.`);
+    },
     warp: warpSessionController,
     vector: vectorToolSessionController,
     rasterGradient: rasterGradientController,
@@ -3226,11 +3236,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       ) {
         selectionSessionController.reset();
       }
-      setEditorSession((current) => (
-        current.activeTool === plan.nextTool
-          ? current
-          : { ...current, activeTool: plan.nextTool as ToolId }
-      ));
+      setEditorSession((current) => {
+        const nextTool = plan.nextTool as ToolId;
+        const sampledBrushRequiresPaintTip = (
+          nextTool === 'clone-stamp' || nextTool === 'healing-brush'
+        ) && resolveBrushPreset(current.brush.presetId).engine !== 'paint';
+        if (current.activeTool === nextTool && !sampledBrushRequiresPaintTip) return current;
+        return {
+          ...current,
+          activeTool: nextTool,
+          brush: sampledBrushRequiresPaintTip
+            ? { ...current.brush, ...brushPresetChange('round') }
+            : current.brush
+        };
+      });
     }
   };
   activateToolRef.current = activatePersistentTool;
@@ -4124,6 +4143,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       menuOptionsFor={createAppMenuOptions}
       activeTool={visibleTool}
       brush={editorSession.brush}
+      sampledBrush={editorSession.sampledBrush}
       gradient={gradientToolSettings}
       shape={editorSession.shape}
       pen={editorSession.pen}
@@ -4146,6 +4166,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       zoomPercent={activeScale * 100}
       gradientEditorRequest={gradientEditorRequest}
       onBrushChange={updateBrush}
+      onSampledBrushChange={(change) => setEditorSession((current) => ({
+        ...current,
+        sampledBrush: { ...current.sampledBrush, ...change }
+      }))}
       onGradientChange={updateGradientSettings}
       onShapeChange={(change) => setEditorSession((current) => ({
         ...current, shape: { ...current.shape, ...change }
@@ -4265,6 +4289,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             y: toolOptionsMenu.y,
             activeTool: visibleTool,
             brush: editorSession.brush,
+            sampledBrush: editorSession.sampledBrush,
             gradient: gradientToolSettings,
             shape: editorSession.shape,
             pen: editorSession.pen,
@@ -4286,6 +4311,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             magicWand: editorSession.magicWand,
             zoomPercent: activeScale * 100,
             onBrushChange: updateBrush,
+            onSampledBrushChange: (change) => setEditorSession((current) => ({
+              ...current,
+              sampledBrush: { ...current.sampledBrush, ...change }
+            })),
             onGradientChange: (change) => setEditorSession((current) => ({
               ...current,
               gradient: { ...(current.gradient ?? fallbackGradientSettingsRef.current), ...change }

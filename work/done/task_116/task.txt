@@ -1,0 +1,2 @@
+Healing brush... maar kijk ook goed naar hoe de clone stamp brush werkt, kan wrsch een geshared systeem zijn?
+lees lighttable-healing-brush-implementation.md 

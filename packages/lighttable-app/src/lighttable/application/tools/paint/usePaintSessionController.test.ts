@@ -26,6 +26,8 @@ const createFixture = () => {
   const renderer: PaintSessionRendererPort = {
     setPaintInteractionActive: vi.fn(),
     beginBrushStroke: vi.fn(),
+    beginSampledBrushStroke: vi.fn(),
+    endSampledBrushStroke: vi.fn(),
     paintBrushDabs: vi.fn(),
     finishPixelEdit: vi.fn(() => pixelEdit),
     cancelPixelEdit: vi.fn(),
@@ -53,6 +55,67 @@ const createFixture = () => {
 };
 
 describe('PaintSessionController', () => {
+  const sampledPlan = {
+    operator: 'clone' as const,
+    source: {
+      documentId: 'document-sampled',
+      anchorLayerId: 'source-layer' as RasterLayer['id'],
+      point: { x: 72, y: 18 }
+    },
+    sampleMode: 'current-and-below' as const,
+    sourceOffset: { x: 62, y: 8 }
+  };
+
+  it('keeps one immutable sampled source active for the whole stroke and one undo entry', () => {
+    const fixture = createFixture();
+    expect(fixture.controller.begin({
+      pointerId: 14,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: identityMatrix()
+      },
+      brush: createEditorSession().brush,
+      point: { x: 10, y: 10, pressure: 1 },
+      operator: sampledPlan
+    })).toBe(true);
+
+    fixture.controller.move(14, { x: 20, y: 10, pressure: 1 });
+    expect(fixture.controller.finish(14)).toBe(true);
+
+    expect(fixture.renderer.beginSampledBrushStroke).toHaveBeenCalledOnce();
+    expect(fixture.renderer.beginSampledBrushStroke).toHaveBeenCalledWith(sampledPlan);
+    expect(fixture.renderer.paintBrushDabs).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(fixture.renderer.paintBrushDabs).mock.calls) {
+      expect(call[11]).toBe(sampledPlan);
+    }
+    expect(fixture.renderer.endSampledBrushStroke).toHaveBeenCalledOnce();
+    expect(fixture.history).toHaveLength(1);
+  });
+
+  it('releases a sampled source when its paint gesture is cancelled', () => {
+    const fixture = createFixture();
+    fixture.controller.begin({
+      pointerId: 15,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: identityMatrix()
+      },
+      brush: createEditorSession().brush,
+      point: { x: 10, y: 10, pressure: 1 },
+      operator: { ...sampledPlan, operator: 'healing' }
+    });
+
+    expect(fixture.controller.cancel(15)).toBe(true);
+    expect(fixture.renderer.endSampledBrushStroke).toHaveBeenCalledOnce();
+    expect(fixture.history).toHaveLength(0);
+  });
+
   it('locks brush settings and commits one document/history transaction', () => {
     const fixture = createFixture();
     const brush = createEditorSession().brush;

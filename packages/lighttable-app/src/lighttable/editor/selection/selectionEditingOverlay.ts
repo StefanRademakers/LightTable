@@ -116,3 +116,45 @@ export const buildBrushCursorEditingOverlay = (
     handles: []
   };
 };
+
+export const buildSampledBrushSourceEditingOverlay = (
+  center: { x: number; y: number },
+  diameter: number,
+  markerSize: number
+): VectorEditingOverlay => {
+  const radius = Math.max(1e-3, diameter * 0.5);
+  const halfMarker = Math.max(1, markerSize * 0.5);
+  const shape: SelectionShape = {
+    kind: 'ellipse',
+    points: [
+      { x: center.x - radius, y: center.y - radius },
+      { x: center.x + radius, y: center.y + radius }
+    ]
+  };
+  const circle = shapeCubics(shape, true).map((cubic) => ({
+    ...cubic,
+    subpathId: 'sample-source-ring'
+  }));
+  const cross = [
+    line(
+      { x: center.x - halfMarker, y: center.y },
+      { x: center.x + halfMarker, y: center.y },
+      0
+    ),
+    line(
+      { x: center.x, y: center.y - halfMarker },
+      { x: center.x, y: center.y + halfMarker },
+      0
+    )
+  ].map((cubic, index) => ({ ...cubic, subpathId: `sample-source-cross-${index}` }));
+  const key = [geometryKey(shape, true), markerSize.toFixed(3)].join(':');
+  return {
+    pathId: 'sampled-brush-source',
+    resourceKey: `sampled-brush-source:${key}`,
+    geometryRevision: 0,
+    transformRevision: 0,
+    cubics: [...circle, ...cross],
+    anchors: [],
+    handles: []
+  };
+};

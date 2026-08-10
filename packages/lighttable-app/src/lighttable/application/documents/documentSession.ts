@@ -98,6 +98,7 @@ const cloneEditorSession = (session: EditorSession): EditorSession => ({
   },
   text: { ...session.text },
   brush: { ...session.brush },
+  sampledBrush: { ...session.sampledBrush },
   warp: { ...session.warp }
 });
 

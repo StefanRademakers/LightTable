@@ -10,6 +10,10 @@ import { LatestFrameValueScheduler } from '../../application/input/latestFrameVa
 import { PointerClickCounter } from '../../application/input/pointerClickCounter';
 import { coalescedPointerSamples } from '../../application/input/coalescedPointerSamples';
 import type { PaintSessionController } from '../../application/tools/paint/usePaintSessionController';
+import {
+  isSampledBrushTool,
+  type SampledBrushSourceController
+} from '../../application/tools/paint/sampledBrush';
 import type { SelectionSessionController } from '../../application/tools/selection/useSelectionSessionController';
 import type { WarpSessionController } from '../../application/tools/warp/warpSessionController';
 import {
@@ -82,6 +86,7 @@ interface ViewportInteractionOptions {
   onTransformPick: (point: { x: number; y: number }) => void;
   preciseBrushCursor: boolean;
   eyedropperActive: boolean;
+  sampleSourceActive: boolean;
   onColorPick: (point: { x: number; y: number }) => void;
   focusPickerActive: boolean;
   onFocusPick: (normalizedPoint: { x: number; y: number }) => void;
@@ -114,6 +119,9 @@ interface ViewportInteractionOptions {
   };
   selection: SelectionSessionController;
   paint: PaintSessionController;
+  sampledBrushSource: SampledBrushSourceController;
+  onSampledBrushError: (message: string | null) => void;
+  onSampledBrushSourceSet: (point: { x: number; y: number }) => void;
   warp: WarpSessionController;
   vector: VectorToolSessionController;
   rasterGradient: RasterGradientCommandController;
@@ -125,6 +133,8 @@ interface ViewportInteractionOptions {
   onBrushCursorChange: (cursor: {
     center: { x: number; y: number };
     diameter: number;
+    sourceCenter?: { x: number; y: number };
+    sourceMarkerSize?: number;
   } | null) => void;
   onZoomDraftChange: (draft: SelectionShape | null) => void;
   onPenRubberBandChange: (band: {
@@ -169,6 +179,7 @@ export const useViewportInteractionController = ({
   onTransformPick,
   preciseBrushCursor,
   eyedropperActive,
+  sampleSourceActive,
   onColorPick,
   focusPickerActive,
   onFocusPick,
@@ -178,6 +189,9 @@ export const useViewportInteractionController = ({
   textGesture,
   selection,
   paint,
+  sampledBrushSource,
+  onSampledBrushError,
+  onSampledBrushSourceSet,
   warp,
   vector,
   rasterGradient,
@@ -271,7 +285,17 @@ export const useViewportInteractionController = ({
     const diameterPx = isWarpTool(effectiveTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
-    onBrushCursorChangeRef.current({ center, diameter: diameterPx });
+    const sourceCenter = document && isSampledBrushTool(effectiveTool)
+      ? sampledBrushSource.sourceMarkerFor(document.id, center)
+      : null;
+    onBrushCursorChangeRef.current({
+      center,
+      diameter: diameterPx,
+      ...(sourceCenter ? {
+        sourceCenter,
+        sourceMarkerSize: 10 / Math.max(activeScale, 1e-6)
+      } : {})
+    });
   }, [effectiveTool, editorSession.brush.size, editorSession.warp.diameterPx]);
 
   useEffect(() => () => {
@@ -358,7 +382,17 @@ export const useViewportInteractionController = ({
       y: (point.y - imageRect.y) / Math.max(activeScale, 1e-6)
     };
     brushCursorCenterRef.current = center;
-    onBrushCursorChangeRef.current({ center, diameter: diameterPx });
+    const sourceCenter = document && isSampledBrushTool(effectiveTool)
+      ? sampledBrushSource.sourceMarkerFor(document.id, center)
+      : null;
+    onBrushCursorChangeRef.current({
+      center,
+      diameter: diameterPx,
+      ...(sourceCenter ? {
+        sourceCenter,
+        sourceMarkerSize: 10 / Math.max(activeScale, 1e-6)
+      } : {})
+    });
   };
 
   const beginPan = (event: PointerEvent<HTMLDivElement>, forcePan = false) => {
@@ -515,6 +549,33 @@ export const useViewportInteractionController = ({
         return;
       }
       const activeTool = effectiveTool;
+      if (
+        isSampledBrushTool(activeTool)
+        && (event.altKey || sampleSourceActive)
+        && point
+        && event.button === 0
+        && document
+        && !temporaryPan
+      ) {
+        const sourceLayer = findDocumentLayer(document, document.activeLayerId);
+        if (!sourceLayer || !sourceLayer.visible) {
+          onSampledBrushError('Choose a visible source layer before sampling.');
+          event.preventDefault();
+          return;
+        }
+        sampledBrushSource.setSource(document, sourceLayer, point);
+        onSampledBrushError(null);
+        onSampledBrushSourceSet(point);
+        const center = brushCursorCenterRef.current ?? { x: point.x, y: point.y };
+        onBrushCursorChangeRef.current({
+          center,
+          diameter: editorSession.brush.size,
+          sourceCenter: { x: point.x, y: point.y },
+          sourceMarkerSize: 10 / Math.max(activeScale, 1e-6)
+        });
+        event.preventDefault();
+        return;
+      }
       const activeBrushPreset = resolveBrushPreset(editorSession.brush.presetId);
       const liquifyBrushActive = activeTool === 'brush' && activeBrushPreset.engine === 'warp';
       if (
@@ -757,6 +818,28 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent !== 'paint' || !point || !paintTarget) return;
+      const sampledOperation = isSampledBrushTool(activeTool) && document
+        ? sampledBrushSource.beginStroke(
+            activeTool,
+            document,
+            point,
+            editorSession.sampledBrush
+          )
+        : null;
+      if (isSampledBrushTool(activeTool) && !sampledOperation) {
+        onSampledBrushError('Alt-click the document to choose a sample source first.');
+        event.preventDefault();
+        return;
+      }
+      if (sampledOperation
+        && sampledOperation.sampleMode !== 'all'
+        && !findDocumentLayer(document!, sampledOperation.source.anchorLayerId)) {
+        sampledBrushSource.clear();
+        onSampledBrushError('The sampled source layer no longer exists. Choose a new source.');
+        event.preventDefault();
+        return;
+      }
+      if (sampledOperation) onSampledBrushError(null);
       const paintPoint = activeTool === 'brush' && event.shiftKey && lastBrushPointRef.current
         ? lastBrushPointRef.current
         : point;
@@ -774,7 +857,8 @@ export const useViewportInteractionController = ({
         },
         brush: editorSession.brush,
         point: paintPoint,
-        displayScale: activeScale
+        displayScale: activeScale,
+        operator: sampledOperation ?? undefined
       });
       if (started) {
         if (paintPoint !== point) paint.move(event.pointerId, point);

@@ -12,6 +12,7 @@ import type { BlendMode } from '../document/blendModes';
 import type { VectorEditorToolId } from '../tools/vectorToolCatalog';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
 import type { BrushPresetId } from '../tools/brush/brushPresets';
+import type { SampledBrushSettings } from '../tools/paint/sampledBrushTypes';
 
 export type ToolId =
   | 'view'
@@ -20,6 +21,8 @@ export type ToolId =
   | 'warp'
   | 'fill'
   | 'brush'
+  | 'clone-stamp'
+  | 'healing-brush'
   | 'erase'
   | 'text-point'
   | 'text-paragraph'
@@ -250,6 +253,7 @@ export interface EditorSession {
   /** Photoshop-style Move/Transform picking of the top visible painted layer. */
   transformAutoSelectLayer: boolean;
   brush: BrushSettings;
+  sampledBrush: SampledBrushSettings;
   gradient: GradientToolSettings;
   vectorStyle: VectorToolStyleSettings;
   pen: PenToolSettings;
@@ -281,6 +285,10 @@ export const createEditorSession = (): EditorSession => ({
     smooth: 0,
     color: '#000000',
     backgroundColor: '#ffffff'
+  },
+  sampledBrush: {
+    aligned: true,
+    sampleMode: 'current-and-below'
   },
   gradient: createGradientToolSettings(),
   vectorStyle: {

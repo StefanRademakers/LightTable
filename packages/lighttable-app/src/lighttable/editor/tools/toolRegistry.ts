@@ -208,6 +208,22 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'paint'
   },
   {
+    id: 'healing-brush',
+    label: 'Healing Brush',
+    shortcutLabel: 'J',
+    shortcutKey: 'j',
+    iconName: 'tool_spot_healing_brush.png',
+    role: 'paint'
+  },
+  {
+    id: 'clone-stamp',
+    label: 'Clone Stamp',
+    shortcutLabel: 'S',
+    shortcutKey: 's',
+    iconName: 'tool_clone_stamp.png',
+    role: 'paint'
+  },
+  {
     id: 'erase',
     label: 'Erase',
     shortcutLabel: 'E',

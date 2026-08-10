@@ -66,6 +66,8 @@ describe('toolRegistry', () => {
       'gradient',
       'fill',
       'brush',
+      'healing-brush',
+      'clone-stamp',
       'erase',
       'vector-select',
       'vector-direct-select',

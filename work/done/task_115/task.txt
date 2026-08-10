@@ -1,0 +1,7 @@
+Clone stamp, onderzoek online hoe de photoshop clone stamp werkt.
+We willen denk ik gewoon een normale brush engine gebruiken.
+
+Er is een ai document gemaakt voor een mogelijke clone stamp implementatie... hij moet super snel kunnen werken..
+Dus eigenlijk alleen maar een soort layer offset en paint alpha truucje om te applyen op de huidige layer?
+
+lighttable-clone-stamp-implementation.md

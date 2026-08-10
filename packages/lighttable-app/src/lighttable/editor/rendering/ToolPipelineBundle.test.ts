@@ -13,8 +13,8 @@ describe('toolPipelinesFor', () => {
     const second = brushPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(Object.keys(first)).toHaveLength(7);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(7);
+    expect(Object.keys(first)).toHaveLength(11);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(11);
   });
 
   it('compiles optional tool pipelines once per shared GPU device', () => {
@@ -32,9 +32,9 @@ describe('toolPipelinesFor', () => {
     const second = toolPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(26);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(30);
     expect(createComputePipeline).toHaveBeenCalledTimes(4);
-    expect(Object.keys(first)).toHaveLength(30);
+    expect(Object.keys(first)).toHaveLength(34);
     const calls = createRenderPipeline.mock.calls as unknown as [GPURenderPipelineDescriptor][];
     const descriptor = (label: string) => calls
       .map(([value]) => value)

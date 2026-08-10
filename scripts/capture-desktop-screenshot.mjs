@@ -50,6 +50,10 @@ const createRasterLayerForPaint = argument('create-raster-layer', '') === 'true'
 const paintStroke = argument('paint-stroke', '') === 'true';
 const paintExistingLayer = argument('paint-existing-layer', '') === 'true';
 const paintColor = argument('paint-color', '#ff0000');
+const paintTool = argument('paint-tool', 'brush');
+const sampleLayer = argument('sample-layer', '');
+const sampleX = Number.parseFloat(argument('sample-x', '0.35'));
+const sampleY = Number.parseFloat(argument('sample-y', '0.35'));
 const paintX = Number.parseFloat(argument('paint-x', '0.2'));
 const paintY = Number.parseFloat(argument('paint-y', '0.25'));
 const saveLightTableArgument = argument('save-lighttable', '');
@@ -104,7 +108,8 @@ const diagnostics = {
     selectLayer, openLayerEffects, canvasClickX, canvasClickY, nudgeX, nudgeY, dragX, dragY,
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
     createGradientFill, openGradientEditor, dragGradientEnd,
-    createRasterLayerForPaint, paintStroke, paintExistingLayer, paintColor, paintX, paintY,
+    createRasterLayerForPaint, paintStroke, paintExistingLayer, paintColor, paintTool,
+    sampleLayer, sampleX, sampleY, paintX, paintY,
     saveLightTableFile, expectLayer, expectNonemptyLayer, openCompatibilityReport,
     editTextLayer, replacementFont,
     targetZoomPercent, zoomFocusX, zoomFocusY,
@@ -237,12 +242,18 @@ try {
       thumbnailBefore: await activeLayer.locator('.lighttable-layer__thumbnail-preview')
         .getAttribute('src').catch(() => null)
     };
+    activeLayer = window.locator('.lighttable-layer').filter({
+      has: window.locator(`.lighttable-layer__name[value="${diagnostics.paint.layerName.replaceAll('"', '\\"')}"]`)
+    }).first();
 
     if (paintStroke) {
       if (!/^#[\da-f]{6}$/i.test(paintColor)) {
         throw new Error('--paint-color must be a six-digit hex colour.');
       }
-      await window.getByRole('button', { name: 'Brush (B)' }).click();
+      const paintToolLabel = paintTool === 'clone-stamp'
+        ? 'Clone Stamp (S)'
+        : paintTool === 'healing-brush' ? 'Healing Brush (J)' : 'Brush (B)';
+      await window.getByRole('button', { name: paintToolLabel }).click();
       await window.locator('input[type="color"][aria-label="Foreground color"]').fill(paintColor);
       const viewport = window.locator('.lighttable-viewport');
       const box = await viewport.boundingBox();
@@ -257,6 +268,24 @@ try {
       const documentTop = box.y + (box.height - displayHeight) / 2;
       const startX = documentLeft + displayWidth * paintX;
       const startY = documentTop + displayHeight * paintY;
+      if (paintTool !== 'brush') {
+        if (!sampleLayer) throw new Error('--sample-layer is required for sampled paint tools.');
+        const sourceLayer = window.locator('.lighttable-layer').filter({
+          has: window.locator(`.lighttable-layer__name[value="${sampleLayer.replaceAll('"', '\\"')}"]`)
+        }).first();
+        await sourceLayer.click();
+        await window.keyboard.down('Alt');
+        await window.waitForTimeout(40);
+        await window.mouse.move(
+          documentLeft + displayWidth * sampleX,
+          documentTop + displayHeight * sampleY
+        );
+        await window.mouse.down();
+        await window.mouse.up();
+        await window.keyboard.up('Alt');
+        diagnostics.paint.sampleStatus = await window.locator('.lighttable-toolbar__status').textContent();
+        await activeLayer.click();
+      }
       await window.mouse.move(startX, startY);
       await window.mouse.down();
       await window.mouse.move(startX + displayWidth * 0.2, startY, { steps: 16 });

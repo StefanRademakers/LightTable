@@ -1206,6 +1206,162 @@ fn brushFragment(input: BrushVertexOutput) -> @location(0) vec4f {
 `;
 
 /**
+ * Clone/Healing brush source compositor. The sampled document is an immutable
+ * rgba16float GPU snapshot captured at pointer-down, so a stroke can never
+ * feed its own output back into later dabs and never requires CPU readback.
+ */
+export const SAMPLED_BRUSH_DAB_WGSL = /* wgsl */ `
+struct BrushDab {
+  centerSizeHardness: vec4f,
+  colorOpacity: vec4f,
+  tip: vec4f,
+}
+
+struct BrushCanvas {
+  size: vec2f,
+  padding: vec2f,
+  inverseRow0: vec4f,
+  inverseRow1: vec4f,
+  forwardRow0: vec4f,
+  forwardRow1: vec4f,
+}
+
+struct SampledSourceSettings {
+  size: vec2f,
+  offset: vec2f,
+}
+
+struct BrushVertexOutput {
+  @builtin(position) position: vec4f,
+  @location(0) centerSizeHardness: vec4f,
+  @location(1) colorOpacity: vec4f,
+  @location(2) tip: vec4f,
+}
+
+@group(0) @binding(0) var<storage, read> dabs: array<BrushDab>;
+@group(0) @binding(1) var<uniform> canvas: BrushCanvas;
+@group(0) @binding(2) var selectionMask: texture_2d<f32>;
+@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(4) var sourceSampler: sampler;
+@group(0) @binding(5) var<uniform> sourceSettings: SampledSourceSettings;
+
+@vertex
+fn brushVertex(@builtin(vertex_index) vertexIndex: u32, @builtin(instance_index) instanceIndex: u32) -> BrushVertexOutput {
+  let corners = array<vec2f, 6>(
+    vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
+    vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0)
+  );
+  let dab = dabs[instanceIndex];
+  let documentPixel = dab.centerSizeHardness.xy
+    + corners[vertexIndex] * dab.centerSizeHardness.z * 0.5;
+  let localPixel = vec2f(
+    dot(canvas.inverseRow0.xyz, vec3f(documentPixel, 1.0)),
+    dot(canvas.inverseRow1.xyz, vec3f(documentPixel, 1.0))
+  );
+  let clip = vec2f(
+    localPixel.x / canvas.size.x * 2.0 - 1.0,
+    1.0 - localPixel.y / canvas.size.y * 2.0
+  );
+  var output: BrushVertexOutput;
+  output.position = vec4f(clip, 0.0, 1.0);
+  output.centerSizeHardness = dab.centerSizeHardness;
+  output.colorOpacity = dab.colorOpacity;
+  output.tip = dab.tip;
+  return output;
+}
+
+fn documentPoint(input: BrushVertexOutput) -> vec2f {
+  return vec2f(
+    dot(canvas.forwardRow0.xyz, vec3f(input.position.xy, 1.0)),
+    dot(canvas.forwardRow1.xyz, vec3f(input.position.xy, 1.0))
+  );
+}
+
+fn dabCoverage(input: BrushVertexOutput, documentPixel: vec2f) -> f32 {
+  let radius = max(input.centerSizeHardness.z * 0.5, 0.0001);
+  let delta = (documentPixel - input.centerSizeHardness.xy) / radius;
+  let c = cos(input.tip.y);
+  let s = sin(input.tip.y);
+  var oriented = vec2f(c * delta.x + s * delta.y, -s * delta.x + c * delta.y);
+  oriented.y /= max(input.tip.x, 0.05);
+  let angle = atan2(oriented.y, oriented.x);
+  let roughNoise = sin(angle * 7.0 + input.tip.w * 2.39996) * 0.55
+    + sin(angle * 13.0 + input.tip.w * 1.61803) * 0.3
+    + sin(angle * 23.0 + input.tip.w * 0.75488) * 0.15;
+  let distance = length(oriented) / max(0.55, 1.0 + roughNoise * input.tip.z);
+  if (distance >= 1.0) { return 0.0; }
+  return 1.0 - smoothstep(
+    clamp(input.centerSizeHardness.w, 0.0, 0.995), 1.0, distance
+  );
+}
+
+fn sampleDocument(point: vec2f) -> vec4f {
+  if (any(point < vec2f(0.0)) || any(point >= sourceSettings.size)) {
+    return vec4f(0.0);
+  }
+  return textureSampleLevel(
+    sourceTexture,
+    sourceSampler,
+    (point + vec2f(0.5)) / sourceSettings.size,
+    0.0
+  );
+}
+
+fn straightColor(pixel: vec4f) -> vec3f {
+  return select(vec3f(0.0), pixel.rgb / max(pixel.a, 0.00001), pixel.a > 0.00001);
+}
+
+fn lowFrequency(point: vec2f, radius: f32) -> vec4f {
+  let diagonal = radius * 0.70710678;
+  let offsets = array<vec2f, 9>(
+    vec2f(0.0), vec2f(radius, 0.0), vec2f(-radius, 0.0),
+    vec2f(0.0, radius), vec2f(0.0, -radius),
+    vec2f(diagonal, diagonal), vec2f(-diagonal, diagonal),
+    vec2f(diagonal, -diagonal), vec2f(-diagonal, -diagonal)
+  );
+  var sum = vec4f(0.0);
+  for (var index = 0; index < 9; index += 1) {
+    sum += sampleDocument(point + offsets[index]);
+  }
+  return sum / 9.0;
+}
+
+fn outputCoverage(input: BrushVertexOutput, documentPixel: vec2f) -> f32 {
+  let coverage = dabCoverage(input, documentPixel);
+  if (coverage <= 0.0) { discard; }
+  let selectionPixel = clamp(
+    vec2i(documentPixel), vec2i(0), vec2i(textureDimensions(selectionMask)) - vec2i(1)
+  );
+  return input.colorOpacity.a * coverage
+    * textureLoad(selectionMask, selectionPixel, 0).r;
+}
+
+@fragment
+fn cloneFragment(input: BrushVertexOutput) -> @location(0) vec4f {
+  let destination = documentPoint(input);
+  let amount = outputCoverage(input, destination);
+  let sampled = sampleDocument(destination + sourceSettings.offset);
+  return vec4f(sampled.rgb * amount, sampled.a * amount);
+}
+
+@fragment
+fn healingFragment(input: BrushVertexOutput) -> @location(0) vec4f {
+  let destination = documentPoint(input);
+  let source = destination + sourceSettings.offset;
+  let amount = outputCoverage(input, destination);
+  let sampled = sampleDocument(source);
+  let radius = clamp(input.centerSizeHardness.z * 0.08, 1.0, 32.0);
+  let sourceLow = lowFrequency(source, radius);
+  let destinationLow = lowFrequency(destination, radius);
+  let healed = clamp(
+    straightColor(sampled) + straightColor(destinationLow) - straightColor(sourceLow),
+    vec3f(0.0), vec3f(16.0)
+  );
+  return vec4f(healed * sampled.a * amount, sampled.a * amount);
+}
+`;
+
+/**
  * GPU blur brush. The renderer snapshots the current layer texture once per
  * display-frame batch, then these instanced quads sample that immutable copy
  * while blending back into the live layer. Source and destination are never

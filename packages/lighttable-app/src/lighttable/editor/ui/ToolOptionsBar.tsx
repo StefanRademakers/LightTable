@@ -13,7 +13,7 @@ import type {
 } from '../session/editorSession';
 import { WarpToolOptions } from '../../application/tools/warp/WarpToolOptions';
 import { toolDefinition } from '../tools/toolRegistry';
-import { isSelectionTool } from '../tools/toolCapabilities';
+import { isPaintTool, isSelectionTool } from '../tools/toolCapabilities';
 import type { SelectionCombineMode } from '../selection/selectionTypes';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 import type { DocumentFontAsset } from '../document/documentTypes';
@@ -33,10 +33,12 @@ import {
   type BrushPresetId
 } from '../tools/brush/brushPresets';
 import { MAX_STROKE_SMOOTH } from '../tools/brush/strokeSmoother';
+import { isSampledBrushTool } from '../tools/paint/sampledBrushTypes';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
   brush: BrushSettings;
+  sampledBrush: EditorSession['sampledBrush'];
   gradient: EditorSession['gradient'];
   shape: EditorSession['shape'];
   pen: EditorSession['pen'];
@@ -59,6 +61,7 @@ export interface ToolOptionsProps {
   zoomPercent: number;
   gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
   onBrushChange: (change: Partial<BrushSettings>) => void;
+  onSampledBrushChange: (change: Partial<EditorSession['sampledBrush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
   onPenChange: (change: Partial<EditorSession['pen']>) => void;
@@ -105,6 +108,8 @@ const TOOL_LABELS: Record<ToolId, string> = {
   gradient: 'Gradient',
   fill: 'Paint bucket',
   brush: 'Brush',
+  'clone-stamp': 'Clone Stamp',
+  'healing-brush': 'Healing Brush',
   erase: 'Erase',
   view: 'Move canvas',
   zoom: 'Zoom',
@@ -220,6 +225,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
 }> = ({
   activeTool,
   brush,
+  sampledBrush,
   gradient,
   shape,
   pen,
@@ -242,6 +248,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   zoomPercent,
   gradientEditorRequest,
   onBrushChange,
+  onSampledBrushChange,
   onGradientChange,
   onShapeChange,
   onPenChange,
@@ -835,8 +842,29 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         <VectorStyleToolOptions activeTool={activeTool} style={presentedVectorStyle}
           onChange={changeVectorStyle} />
       ) : null}
-      {activeTool === 'brush' || activeTool === 'erase' ? (
+      {isPaintTool(activeTool) ? (
         <>
+          {isSampledBrushTool(activeTool) ? (
+            <>
+              <ToolOptionSelect
+                label="Sample"
+                value={sampledBrush.sampleMode}
+                aria-label="Sample layers"
+                onChange={(event) => onSampledBrushChange({
+                  sampleMode: event.currentTarget.value as EditorSession['sampledBrush']['sampleMode']
+                })}
+              >
+                <option value="current">Current Layer</option>
+                <option value="current-and-below">Current &amp; Below</option>
+                <option value="all">All Layers</option>
+              </ToolOptionSelect>
+              <label className="lighttable-tool-options__toggle">
+                <input type="checkbox" checked={sampledBrush.aligned}
+                  onChange={(event) => onSampledBrushChange({ aligned: event.currentTarget.checked })} />
+                <span>Aligned</span>
+              </label>
+            </>
+          ) : null}
           <ToolOptionSelect
             label="Preset"
             value={brush.presetId}
@@ -850,11 +878,13 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 <option key={preset.id} value={preset.id}>{preset.name}</option>
               ))}
             </optgroup>
-            <optgroup label="Effects">
-              {BRUSH_PRESETS.filter(({ category }) => category === 'Effects').map((preset) => (
-                <option key={preset.id} value={preset.id}>{preset.name}</option>
-              ))}
-            </optgroup>
+            {!isSampledBrushTool(activeTool) ? (
+              <optgroup label="Effects">
+                {BRUSH_PRESETS.filter(({ category }) => category === 'Effects').map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.name}</option>
+                ))}
+              </optgroup>
+            ) : null}
           </ToolOptionSelect>
           <AdjustmentSlider
           label="Size"
@@ -876,7 +906,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={(value) => onBrushChange({ hardness: value / 100 })}
           />
           <AdjustmentSlider
-          label={resolveBrushPreset(brush.presetId).engine === 'paint' ? 'Opacity' : 'Strength'}
+          label={isSampledBrushTool(activeTool) || resolveBrushPreset(brush.presetId).engine === 'paint'
+            ? 'Opacity' : 'Strength'}
           value={brush.opacity * 100}
           min={1}
           max={100}

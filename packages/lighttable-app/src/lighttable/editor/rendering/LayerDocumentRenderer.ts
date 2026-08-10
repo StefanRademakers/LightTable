@@ -40,6 +40,8 @@ import {
   type TextRenderPresentationSnapshot
 } from './createLayerDocumentRendererRuntime';
 import type { ResizePlan } from '../document/imageResizeTypes';
+import type { SampledBrushStrokePlan } from '../tools/paint/sampledBrushTypes';
+import { sampledBrushSourceDocument } from '../document/sampledBrushSourceDocument';
 
 export const projectTextEditingGeometryPreview = (
   presentation: TextLayerEditingLayout,
@@ -402,6 +404,51 @@ export class LayerDocumentRenderer {
     return this.runtime.transformRasterizer.cancel();
   }
 
+  beginSampledBrushStroke(
+    document: ImageDocument,
+    plan: SampledBrushStrokePlan,
+    encodeAdjustment?: EncodeAdjustment
+  ) {
+    const sourceDocument = sampledBrushSourceDocument(
+      document,
+      plan.source,
+      plan.sampleMode
+    );
+    if (!sourceDocument) {
+      throw new Error('The sampled source layer is no longer available.');
+    }
+    const encoder = this.device.createCommandEncoder({
+      label: `LightTable ${plan.operator} source snapshot`
+    });
+    const composite = this.encodeComposite(encoder, sourceDocument, encodeAdjustment);
+    const snapshot = this.device.createTexture({
+      label: `LightTable ${plan.operator} immutable source`,
+      size: [document.width, document.height],
+      format: 'rgba16float',
+      usage: GPUTextureUsage.TEXTURE_BINDING
+        | GPUTextureUsage.COPY_DST
+        | GPUTextureUsage.COPY_SRC
+        | GPUTextureUsage.RENDER_ATTACHMENT
+    });
+    encoder.copyTextureToTexture(
+      { texture: composite },
+      { texture: snapshot },
+      [document.width, document.height]
+    );
+    this.device.queue.submit([encoder.finish()]);
+    this.runtime.rasterPaint.beginSampledStroke(
+      snapshot,
+      document.width,
+      document.height,
+      plan
+    );
+    this.releaseSubmittedResources();
+  }
+
+  endSampledBrushStroke() {
+    this.runtime.rasterPaint.endSampledStroke();
+  }
+
   paintDabs(
     layerId: LayerId,
     channel: PaintChannel,
@@ -414,7 +461,8 @@ export class LayerDocumentRenderer {
     transform: AffineMatrix = identityAffineMatrix(),
     preserveTransparency = false,
     tip?: BrushTipDefinition,
-    engine: BrushEngine = 'paint'
+    engine: BrushEngine = 'paint',
+    operator?: SampledBrushStrokePlan
   ) {
     return this.runtime.rasterPaint.paintDabs(
       layerId,
@@ -428,7 +476,8 @@ export class LayerDocumentRenderer {
       transform,
       preserveTransparency,
       tip,
-      engine
+      engine,
+      operator
     );
   }
 

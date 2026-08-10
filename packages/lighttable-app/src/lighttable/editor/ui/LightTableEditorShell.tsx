@@ -20,6 +20,7 @@ export interface LightTableEditorShellProps {
   menuOptionsFor: (menuId: EditorMenuId) => Array<ContextMenuOption<string>>;
   activeTool: ToolId;
   brush: EditorSession['brush'];
+  sampledBrush: EditorSession['sampledBrush'];
   gradient: EditorSession['gradient'];
   shape: EditorSession['shape'];
   pen: EditorSession['pen'];
@@ -42,6 +43,7 @@ export interface LightTableEditorShellProps {
   zoomPercent: number;
   gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
+  onSampledBrushChange: (change: Partial<EditorSession['sampledBrush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
   onPenChange: (change: Partial<EditorSession['pen']>) => void;
@@ -104,6 +106,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   menuOptionsFor,
   activeTool,
   brush,
+  sampledBrush,
   gradient,
   shape,
   pen,
@@ -126,6 +129,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   zoomPercent,
   gradientEditorRequest,
   onBrushChange,
+  onSampledBrushChange,
   onGradientChange,
   onShapeChange,
   onPenChange,
@@ -196,6 +200,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
       {screenMode !== 'canvas-only' ? <ToolOptionsBar
         activeTool={activeTool}
         brush={brush}
+        sampledBrush={sampledBrush}
         gradient={gradient}
         shape={shape}
         pen={pen}
@@ -218,6 +223,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         zoomPercent={zoomPercent}
         gradientEditorRequest={gradientEditorRequest}
         onBrushChange={onBrushChange}
+        onSampledBrushChange={onSampledBrushChange}
         onGradientChange={onGradientChange}
         onShapeChange={onShapeChange}
         onPenChange={onPenChange}

@@ -26,6 +26,7 @@ import {
   type BrushTipDefinition
 } from '../editor/tools/brush/strokeBuilder';
 import type { PaintChannel } from '../editor/session/editorSession';
+import type { SampledBrushStrokePlan } from '../editor/tools/paint/sampledBrushTypes';
 import type { BlendMode } from '../editor/document/blendModes';
 import type {
   CompositeColorChannel,
@@ -104,6 +105,7 @@ import {
 } from '../editor/session/editorSession';
 import {
   buildBrushCursorEditingOverlay,
+  buildSampledBrushSourceEditingOverlay,
   buildSelectionEditingOverlay,
   directSelectionShape
 } from '../editor/selection/selectionEditingOverlay';
@@ -240,6 +242,8 @@ export class WebGpuEngine {
   private brushCursorOverlay: {
     center: { x: number; y: number };
     diameter: number;
+    sourceCenter?: { x: number; y: number };
+    sourceMarkerSize?: number;
   } | null = null;
   private penEditingOverlay: VectorEditingOverlay | null = null;
   private penRubberBand: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
@@ -566,6 +570,23 @@ export class WebGpuEngine {
     this.documentRenderer?.beginStroke(layer, channel);
   }
 
+  beginSampledBrushStroke(plan: SampledBrushStrokePlan) {
+    const document = this.imageDocument;
+    const renderer = this.documentRenderer;
+    if (!document || !renderer) {
+      throw new Error('The sampled brush document is not ready.');
+    }
+    renderer.beginSampledBrushStroke(
+      document,
+      plan,
+      (encoder, source, layer) => this.encodeLayerProcessing(encoder, source, layer)
+    );
+  }
+
+  endSampledBrushStroke() {
+    this.documentRenderer?.endSampledBrushStroke();
+  }
+
   preparePaintTool() {
     this.documentRenderer?.preparePaintTool();
   }
@@ -777,7 +798,8 @@ export class WebGpuEngine {
     erase = false,
     sourceToDocument?: AffineMatrix,
     tip: BrushTipDefinition = DEFAULT_BRUSH_TIP,
-    engine: BrushEngine = 'paint'
+    engine: BrushEngine = 'paint',
+    operator?: SampledBrushStrokePlan
   ) {
     const layer = this.imageDocument
       ? findDocumentLayer(this.imageDocument, layerId)
@@ -794,7 +816,8 @@ export class WebGpuEngine {
       sourceToDocument ?? (channel === 'mask' && layer ? layer.transform : undefined),
       channel === 'pixels' && Boolean(layer?.locks.transparency),
       tip,
-      engine
+      engine,
+      operator
     );
     this.markDocumentDirty();
   }
@@ -1562,6 +1585,8 @@ export class WebGpuEngine {
   setBrushCursorOverlay(cursor: {
     center: { x: number; y: number };
     diameter: number;
+    sourceCenter?: { x: number; y: number };
+    sourceMarkerSize?: number;
   } | null) {
     const current = this.brushCursorOverlay;
     if (
@@ -1570,10 +1595,17 @@ export class WebGpuEngine {
         && current.center.x === cursor.center.x
         && current.center.y === cursor.center.y
         && current.diameter === cursor.diameter
+        && current.sourceCenter?.x === cursor.sourceCenter?.x
+        && current.sourceCenter?.y === cursor.sourceCenter?.y
+        && current.sourceMarkerSize === cursor.sourceMarkerSize
     ) return;
     this.brushCursorOverlay = cursor ? {
       center: { ...cursor.center },
-      diameter: cursor.diameter
+      diameter: cursor.diameter,
+      ...(cursor.sourceCenter ? { sourceCenter: { ...cursor.sourceCenter } } : {}),
+      ...(cursor.sourceMarkerSize !== undefined
+        ? { sourceMarkerSize: cursor.sourceMarkerSize }
+        : {})
     } : null;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
@@ -2425,6 +2457,18 @@ export class WebGpuEngine {
         target,
         BRUSH_CURSOR_THEME
       );
+      if (this.brushCursorOverlay.sourceCenter) {
+        this.vectorEditingOverlayBackend.encode(
+          encoder,
+          buildSampledBrushSourceEditingOverlay(
+            this.brushCursorOverlay.sourceCenter,
+            this.brushCursorOverlay.diameter,
+            this.brushCursorOverlay.sourceMarkerSize ?? 10
+          ),
+          target,
+          BRUSH_CURSOR_THEME
+        );
+      }
     }
     if (this.textEditingOverlay) {
       this.textEditingOverlayBackend ??= new TextEditingOverlayBackend(this.device);

@@ -22,6 +22,7 @@ import {
   type PaintGestureUpdate
 } from '../../../editor/tools/paint/paintGestureController';
 import { srgbHexToLinearRgb } from '../fill/fillOperation';
+import type { SampledBrushStrokePlan } from '../../../editor/tools/paint/sampledBrushTypes';
 import {
   createImmediatePaintDabScheduler,
   createPaintDabScheduler,
@@ -40,6 +41,8 @@ export interface PaintHistoryEntry {
 export interface PaintSessionRendererPort {
   setPaintInteractionActive(active: boolean, layerId?: LayerId): void;
   beginBrushStroke(layer: LayerNode, channel: PaintChannel): void;
+  beginSampledBrushStroke(plan: SampledBrushStrokePlan): void;
+  endSampledBrushStroke(): void;
   paintBrushDabs(
     layerId: LayerId,
     channel: PaintChannel,
@@ -51,7 +54,8 @@ export interface PaintSessionRendererPort {
     erase: boolean,
     sourceToDocument: PaintGestureTarget['sourceToDocument'],
     tip: ReturnType<typeof resolveBrushPreset>['tip'],
-    engine: ReturnType<typeof resolveBrushPreset>['engine']
+    engine: ReturnType<typeof resolveBrushPreset>['engine'],
+    operator?: SampledBrushStrokePlan
   ): void;
   finishPixelEdit(): ReversiblePixelEdit | null;
   cancelPixelEdit(): void;
@@ -74,6 +78,7 @@ export interface BeginPaintSession {
   point: BrushPoint;
   /** Document-to-screen scale used to keep large-tip spacing visually continuous. */
   displayScale?: number;
+  operator?: SampledBrushStrokePlan;
 }
 
 export interface PaintSessionController {
@@ -113,6 +118,7 @@ export const createPaintSessionController = (
   frame?: PaintFramePort
 ): PaintSessionController => {
   let activeBrush: BrushSettings | null = null;
+  let activeOperator: SampledBrushStrokePlan | null = null;
 
   const paint = (update: PaintGestureUpdate) => {
     if (!update.dabs.length || !activeBrush) return;
@@ -130,7 +136,8 @@ export const createPaintSessionController = (
       update.target.erase,
       update.target.sourceToDocument,
       preset.tip,
-      preset.engine
+      preset.engine,
+      activeOperator ?? undefined
     );
   };
   const paintScheduler: PaintDabScheduler = frame
@@ -144,6 +151,8 @@ export const createPaintSessionController = (
     gesture.reset();
     paintScheduler.cancel();
     activeBrush = null;
+    activeOperator = null;
+    resolveDependencies().getRenderer()?.endSampledBrushStroke();
   };
 
   return {
@@ -151,14 +160,16 @@ export const createPaintSessionController = (
       return gesture.active;
     },
     owns: (pointerId) => gesture.owns(pointerId),
-    begin: ({ pointerId, layer, target, brush, point, displayScale = 1 }) => {
+    begin: ({ pointerId, layer, target, brush, point, displayScale = 1, operator }) => {
       const dependencies = resolveDependencies();
       const renderer = dependencies.getRenderer();
       if (!renderer) return false;
       try {
         renderer.setPaintInteractionActive(true, layer.id);
         renderer.beginBrushStroke(layer, target.channel);
+        if (operator) renderer.beginSampledBrushStroke(operator);
         activeBrush = cloneBrush(brush);
+        activeOperator = operator ?? null;
         paintScheduler.schedule(gesture.begin(pointerId, target, {
           ...activeBrush,
           maximumSpacingPx: Math.max(0.5, 1.5 / Math.max(displayScale, 0.01))
@@ -192,17 +203,20 @@ export const createPaintSessionController = (
       });
       paintScheduler.flush();
       activeBrush = null;
+      activeOperator = null;
       const dependencies = resolveDependencies();
       const renderer = dependencies.getRenderer();
       const before = dependencies.getDocument();
       if (!renderer || !before || !finished.dirtyBounds) {
         renderer?.cancelPixelEdit();
+        renderer?.endSampledBrushStroke();
         renderer?.setPaintInteractionActive(false);
         return true;
       }
       const dirtyBounds = clipDirtyBoundsToDocument(finished.dirtyBounds, before);
       if (!dirtyBounds) {
         renderer.cancelPixelEdit();
+        renderer.endSampledBrushStroke();
         renderer.setPaintInteractionActive(false);
         return true;
       }
@@ -218,6 +232,7 @@ export const createPaintSessionController = (
             dirtyBounds
           );
       const pixelEdit = renderer.finishPixelEdit();
+      renderer.endSampledBrushStroke();
       if (!pixelEdit) {
         renderer.cancelPixelEdit();
         renderer.setPaintInteractionActive(false);
@@ -250,6 +265,7 @@ export const createPaintSessionController = (
       if (!gesture.cancel(pointerId)) return false;
       paintScheduler.cancel();
       activeBrush = null;
+      activeOperator = null;
       const renderer = resolveDependencies().getRenderer();
       const pixelEdit = renderer?.finishPixelEdit();
       if (pixelEdit) {
@@ -259,6 +275,7 @@ export const createPaintSessionController = (
         renderer?.cancelPixelEdit();
       }
       renderer?.setPaintInteractionActive(false);
+      renderer?.endSampledBrushStroke();
       return true;
     },
     reset,

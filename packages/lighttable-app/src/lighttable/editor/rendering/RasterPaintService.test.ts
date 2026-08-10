@@ -24,6 +24,10 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     erasePreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
     maskBrush: { getBindGroupLayout: vi.fn(() => ({})) },
     maskErase: { getBindGroupLayout: vi.fn(() => ({})) },
+    clone: { getBindGroupLayout: vi.fn(() => ({})) },
+    clonePreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
+    healing: { getBindGroupLayout: vi.fn(() => ({})) },
+    healingPreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
     fillColor: { getBindGroupLayout: vi.fn(() => ({})) },
     fillGradient: { getBindGroupLayout: vi.fn(() => ({})) },
     invertColors: { getBindGroupLayout: vi.fn(() => ({})) },
@@ -304,6 +308,43 @@ describe('RasterPaintService', () => {
       { texture: test.createdTextures[0], origin: { x: 254, y: 154 } },
       [92, 92]
     );
+  });
+
+  it('routes Clone and Healing through one immutable sampled texture per stroke', async () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+    const sampledTexture = texture();
+    const source = {
+      documentId: 'document-1',
+      anchorLayerId: layerId,
+      point: { x: 50, y: 12 }
+    };
+    const clone = {
+      operator: 'clone' as const,
+      source,
+      sampleMode: 'current-and-below' as const,
+      sourceOffset: { x: 40, y: 2 }
+    };
+    const healing = { ...clone, operator: 'healing' as const };
+    const dab = { x: 10, y: 10, size: 12, pressure: 1, flowScale: 1 };
+
+    test.service.beginSampledStroke(sampledTexture, 64, 32, clone);
+    test.service.paintDabs(
+      layerId, 'pixels', [dab], [0, 0, 0], 1, 1, 1, false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, false, undefined, 'paint', clone
+    );
+    expect(test.pipelineSet.clone.getBindGroupLayout).toHaveBeenCalledOnce();
+    expect(test.pipelineSet.healing.getBindGroupLayout).not.toHaveBeenCalled();
+
+    test.service.beginSampledStroke(sampledTexture, 64, 32, healing);
+    test.service.paintDabs(
+      layerId, 'pixels', [dab], [0, 0, 0], 1, 1, 1, false,
+      { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, false, undefined, 'paint', healing
+    );
+    expect(test.pipelineSet.healing.getBindGroupLayout).toHaveBeenCalledOnce();
+    test.service.endSampledStroke();
+    await Promise.resolve();
+    expect(test.onSubmittedWorkDone).toHaveBeenCalledTimes(2);
   });
 
   it('uses alpha-preserving paint and eraser pipelines for locked transparency', () => {
