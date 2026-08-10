@@ -85,6 +85,18 @@ const CREATIVE_GRADE_SCOPES = [
 
 export const CURRENT_PROCESSING_MODULES = [
   {
+    type: 'lt.face-warp',
+    label: 'Face Warp',
+    category: 'geometry',
+    settingsPaths: [],
+    allowedScopes: ['layer', 'smart-filter'],
+    inputDomain: 'linear-rgb',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'preserve',
+    coordinateSpace: 'source',
+    notes: 'Semantic face parameters compiled into the shared GPU deformation field.'
+  },
+  {
     type: 'lt.warp',
     label: 'Warp',
     category: 'geometry',

@@ -9,6 +9,8 @@ import { LensDistortionEffect } from './lensDistortion/LensDistortionEffect';
 import { WarpEffect } from './warp/WarpEffect';
 import { readWarpNodeSettings } from './warp/warpTypes';
 import type { WarpDebugView } from './warp/warpTypes';
+import { FaceWarpEffect } from './faceWarp/FaceWarpEffect';
+import { readFaceWarpNodeSettings } from './faceWarp/faceWarpTypes';
 import type {
   LightTableEffectRuntimeCallbacks,
   LightTableEffectStage
@@ -87,6 +89,18 @@ const definition = <Effect extends DocumentGpuEffect>(
 });
 
 export const DOCUMENT_EFFECT_NODE_DEFINITIONS = [
+  definition(
+    'lt.face-warp',
+    'source-geometry',
+    (context, instance) => new FaceWarpEffect(
+      context.device,
+      context.sampler,
+      context.vertexModule,
+      readFaceWarpNodeSettings(instance),
+      context.callbacks
+    ),
+    (effect, instance) => effect.setSettings(readFaceWarpNodeSettings(instance))
+  ),
   definition(
     'lt.warp',
     'source-geometry',
