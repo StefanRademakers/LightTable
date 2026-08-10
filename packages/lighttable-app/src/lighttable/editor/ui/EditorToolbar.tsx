@@ -241,7 +241,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
   return (
     <nav ref={toolbarRef} className="lighttable-toolbox" aria-label="Image tools">
-      <div className={`lighttable-toolbox__content${expanded ? ' lighttable-toolbox__content--expanded' : ''}`}>
+      <div className="lighttable-toolbox__content">
       {TOOL_DEFINITIONS.map((tool) => {
         const family = toolFamilyFor(tool);
         if (!family) {

@@ -1002,8 +1002,6 @@
   gap: 1px;
 }
 
-.lighttable-toolbox__content--expanded { gap: 5px; }
-
 .lighttable-toolbox__button {
   width: 34px;
   height: 34px;
@@ -1071,10 +1069,16 @@
 }
 
 .lighttable-toolbox__flyout--expanded {
-  top: -2px;
+  top: 0;
   flex-direction: row;
   gap: 1px;
-  padding: 1px 5px;
+  padding: 0 5px;
+  border-top: 0;
+  border-bottom: 0;
+  box-shadow:
+    inset 0 1px var(--lt-border-strong),
+    inset 0 -1px var(--lt-border-strong),
+    var(--lt-shadow-panel);
 }
 
 .lighttable-toolbox__colors {
