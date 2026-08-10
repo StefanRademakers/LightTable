@@ -9,6 +9,8 @@ export interface RasterLayerRuntime {
   maskId: string | null;
 }
 
+export type RasterPixelSurface = Pick<RasterLayerRuntime, 'texture' | 'width' | 'height'>;
+
 interface NodeMaskRuntime {
   texture: GPUTexture;
   maskId: string;
@@ -152,6 +154,25 @@ export class LayerRuntimeStore {
     if (!current) throw new Error(`Raster runtime ${layerId} is unavailable.`);
     this.rasterRuntimes.set(layerId, replacement);
     return current;
+  }
+
+  /**
+   * Exchanges only a raster's color surface while retaining its mask ownership.
+   * Projective edits can promote a tight placed image to a document-sized
+   * surface without duplicating or transferring the independent layer mask.
+   */
+  exchangeRasterPixels(layerId: LayerId, replacement: RasterPixelSurface): RasterPixelSurface {
+    const current = this.rasterRuntimes.get(layerId);
+    if (!current) throw new Error(`Raster runtime ${layerId} is unavailable.`);
+    const displaced = {
+      texture: current.texture,
+      width: current.width,
+      height: current.height
+    };
+    current.texture = replacement.texture;
+    current.width = replacement.width;
+    current.height = replacement.height;
+    return displaced;
   }
 
   derivedPreview(layerId: LayerId) {

@@ -54,6 +54,13 @@ const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
     selectionTransform: { getBindGroupLayout: vi.fn(() => ({})) }
   }));
   const sourceTexture = gpuTexture();
+  const runtime = {
+    texture: sourceTexture,
+    width: runtimeDimensions.width,
+    height: runtimeDimensions.height,
+    maskTexture: null,
+    maskId: null
+  };
   const sessions = new TransformSessionStore();
   const rasterizer = new TransformRasterizer({
     device: {
@@ -70,15 +77,19 @@ const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
     } as unknown as GPUDevice,
     sampler: {} as GPUSampler,
     layerResources: {
-      raster: (id: LayerId) => id === layerId
-        ? {
-            texture: sourceTexture,
-            width: runtimeDimensions.width,
-            height: runtimeDimensions.height,
-            maskTexture: null,
-            maskId: null
-          }
-        : null
+      raster: (id: LayerId) => id === layerId ? runtime : null,
+      exchangeRasterPixels: (id: LayerId, replacement: Pick<typeof runtime, 'texture' | 'width' | 'height'>) => {
+        if (id !== layerId) throw new Error('unknown layer');
+        const displaced = {
+          texture: runtime.texture,
+          width: runtime.width,
+          height: runtime.height
+        };
+        runtime.texture = replacement.texture;
+        runtime.width = replacement.width;
+        runtime.height = replacement.height;
+        return displaced;
+      }
     } as never,
     selectionTextures: {
       active: false,
@@ -101,7 +112,9 @@ const createHarness = (runtimeDimensions = { width: 64, height: 32 }) => {
     pipelines,
     createTexture,
     copyTextureToTexture,
-    submit
+    submit,
+    runtime,
+    sourceTexture
   };
 };
 
@@ -165,6 +178,35 @@ describe('TransformRasterizer', () => {
     );
     expect(harness.submit).toHaveBeenCalledTimes(2);
     expect(harness.sessions.current?.previewMode).toBe('projective');
+  });
+
+  it('promotes a tight placed raster to the document surface and swaps exact undo geometry', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const harness = createHarness({ width: 23, height: 17 });
+    harness.rasterizer.begin(rasterLayer({ width: 23, height: 17 }), false);
+    expect(harness.rasterizer.updateProjective(
+      [{ x: 0, y: 0 }, { x: 23, y: 0 }, { x: 23, y: 17 }, { x: 0, y: 17 }],
+      [{ x: 11, y: 4 }, { x: 42, y: 2 }, { x: 38, y: 28 }, { x: 8, y: 25 }]
+    )).toBe(true);
+
+    const edit = harness.rasterizer.commit();
+    expect(edit).not.toBeNull();
+    expect(harness.runtime).toMatchObject({ width: 64, height: 32 });
+    expect(harness.runtime.texture).not.toBe(harness.sourceTexture);
+    expect(harness.copyTextureToTexture).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ texture: harness.sourceTexture }),
+      [64, 32]
+    );
+
+    expect(edit?.undo()).toBe(true);
+    expect(harness.runtime).toMatchObject({
+      width: 23,
+      height: 17,
+      texture: harness.sourceTexture
+    });
+    expect(edit?.redo()).toBe(true);
+    expect(harness.runtime).toMatchObject({ width: 64, height: 32 });
   });
 
   it('rejects hidden or position-locked layers before allocating GPU resources', () => {

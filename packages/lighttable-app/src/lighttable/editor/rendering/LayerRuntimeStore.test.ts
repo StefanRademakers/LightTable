@@ -135,6 +135,41 @@ describe('LayerRuntimeStore', () => {
     expect(store.estimatedTextureBytes(100, 80)).toBe(12 * 7 * 8);
   });
 
+  it('exchanges tight and document pixel surfaces without disturbing the layer mask', () => {
+    const store = new LayerRuntimeStore({
+      createRasterTexture: texture,
+      createMaskTexture: texture
+    });
+    const document = createImageDocument('test', 100, 80, 'source');
+    const raster = document.layers[0] as RasterLayer;
+    raster.width = 12;
+    raster.height = 7;
+    raster.mask = {
+      id: 'mask', enabled: true, density: 1, feather: 0,
+      revision: 0, pixelRevision: 0, dirtyBounds: null
+    };
+    store.sync([raster]);
+    const before = store.raster(raster.id)!;
+    const beforeTexture = before.texture;
+    const beforeMask = before.maskTexture;
+    const replacement = texture();
+
+    const displaced = store.exchangeRasterPixels(raster.id, {
+      texture: replacement,
+      width: 100,
+      height: 80
+    });
+
+    expect(displaced).toEqual({ texture: beforeTexture, width: 12, height: 7 });
+    expect(store.raster(raster.id)).toMatchObject({
+      texture: replacement,
+      width: 100,
+      height: 80,
+      maskTexture: beforeMask,
+      maskId: 'mask'
+    });
+  });
+
   it('retains bounded semantic previews until the explicit history prune boundary', () => {
     const allocations: Array<{ width: number; height: number; texture: GPUTexture }> = [];
     const store = new LayerRuntimeStore({

@@ -253,11 +253,6 @@ export class TransformRasterizer {
     const { width, height } = this.options.dimensions();
     const { device, selectionTextures } = this.options;
     const encoder = device.createCommandEncoder({ label: 'LightTable commit transform' });
-    encoder.copyTextureToTexture(
-      { texture: session.previewTexture },
-      { texture: runtime.texture },
-      [width, height]
-    );
     if (
       session.selectionPreview
       && selectionTextures.mask
@@ -276,24 +271,40 @@ export class TransformRasterizer {
       selectionTextures.active = true;
     }
     device.queue.submit([encoder.finish()]);
+    // The preview is document-sized, while a placed raster is commonly tight.
+    // Promote the completed preview atomically instead of issuing an invalid
+    // document-sized copy into the smaller texture. The displaced tight surface
+    // becomes the exact undo snapshot without a readback or another GPU copy.
+    const committedPixels = {
+      texture: session.previewTexture,
+      width,
+      height
+    };
+    session.previewTexture = null;
+    let detachedPixels = this.options.layerResources.exchangeRasterPixels(
+      session.layerId,
+      committedPixels
+    );
     const historySeed = this.options.sessions.complete();
-    if (!historySeed) return null;
+    if (!historySeed) {
+      const livePixels = this.options.layerResources.exchangeRasterPixels(
+        session.layerId,
+        detachedPixels
+      );
+      livePixels.texture.destroy();
+      return null;
+    }
+    historySeed.sourceTexture.destroy();
 
-    let undoPixels: GPUTexture | null = historySeed.sourceTexture;
     let undoSelection: GPUTexture | null = historySeed.selectionTexture;
-    let redoPixels: GPUTexture | null = null;
     let redoSelection: GPUTexture | null = null;
     let applied = true;
     const { usesSelection, layerId } = historySeed;
     const swap = (direction: 'undo' | 'redo') => {
-      const sourcePixels = direction === 'undo' ? undoPixels : redoPixels;
       const sourceSelection = direction === 'undo' ? undoSelection : redoSelection;
-      if (!sourcePixels || applied !== (direction === 'undo')) return false;
+      if (applied !== (direction === 'undo')) return false;
       const targetRuntime = this.options.layerResources.raster(layerId);
       if (!targetRuntime) return false;
-      const inversePixels = this.options.createTexture(
-        `LightTable ${direction} transform history`
-      );
       const inverseSelection = usesSelection
         ? this.options.createSelectionTexture(
             `LightTable ${direction} selection transform history`
@@ -302,16 +313,6 @@ export class TransformRasterizer {
       const historyEncoder = device.createCommandEncoder({
         label: `LightTable ${direction} transform`
       });
-      historyEncoder.copyTextureToTexture(
-        { texture: targetRuntime.texture },
-        { texture: inversePixels },
-        [width, height]
-      );
-      historyEncoder.copyTextureToTexture(
-        { texture: sourcePixels },
-        { texture: targetRuntime.texture },
-        [width, height]
-      );
       if (
         usesSelection
         && sourceSelection
@@ -336,18 +337,14 @@ export class TransformRasterizer {
         );
       }
       device.queue.submit([historyEncoder.finish()]);
-      sourcePixels.destroy();
+      detachedPixels = this.options.layerResources.exchangeRasterPixels(layerId, detachedPixels);
       sourceSelection?.destroy();
       if (direction === 'undo') {
-        undoPixels = null;
         undoSelection = null;
-        redoPixels = inversePixels;
         redoSelection = inverseSelection;
         applied = false;
       } else {
-        redoPixels = null;
         redoSelection = null;
-        undoPixels = inversePixels;
         undoSelection = inverseSelection;
         applied = true;
       }
@@ -355,17 +352,15 @@ export class TransformRasterizer {
       return true;
     };
     return {
-      byteSize: width * height * 8 * (usesSelection ? 2 : 1),
+      byteSize: Math.max(width * height, detachedPixels.width * detachedPixels.height) * 8
+        + (usesSelection ? width * height : 0),
       undo: () => swap('undo'),
       redo: () => swap('redo'),
       destroy: () => {
-        undoPixels?.destroy();
+        detachedPixels.texture.destroy();
         undoSelection?.destroy();
-        redoPixels?.destroy();
         redoSelection?.destroy();
-        undoPixels = null;
         undoSelection = null;
-        redoPixels = null;
         redoSelection = null;
       }
     };

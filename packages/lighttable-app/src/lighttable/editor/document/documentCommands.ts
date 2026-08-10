@@ -728,6 +728,35 @@ export const setLayerTransform = (document: ImageDocument, layerId: LayerId, tra
     };
   });
 
+/** Records a raster surface whose pixels now live directly in document space. */
+export const setRasterLayerDocumentSurface = (
+  document: ImageDocument,
+  layerId: LayerId,
+  width: number,
+  height: number
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster' || width <= 0 || height <= 0) return layer;
+  const transform = identityAffineMatrix();
+  if (
+    layer.width === width
+    && layer.height === height
+    && layer.offsetX === 0
+    && layer.offsetY === 0
+    && affineMatrixEquals(layer.transform, transform)
+  ) return layer;
+  return {
+    ...layer,
+    width,
+    height,
+    offsetX: 0,
+    offsetY: 0,
+    transform,
+    geometryRevision: layer.geometryRevision + 1,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
 export const applyTranslationAlignment = (
   document: ImageDocument,
   result: TranslationAlignmentResult

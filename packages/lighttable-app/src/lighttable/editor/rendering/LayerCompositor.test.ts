@@ -59,6 +59,64 @@ describe('LayerCompositor', () => {
     expect(layerStyles.releaseCache).toHaveBeenCalledOnce();
   });
 
+  it('composites a tight placed raster projective preview at document dimensions', () => {
+    const document = createImageDocument('Placed transform', 1280, 720, 'source');
+    const layer = document.layers[0];
+    if (layer.type !== 'raster') throw new Error('fixture raster missing');
+    layer.width = 400;
+    layer.height = 400;
+    layer.transform = translationMatrix(440, 160);
+    const source = texture();
+    const preview = texture();
+    const compositeA = texture();
+    const compositeB = texture();
+    const writeBuffer = vi.fn();
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: {
+        raster: vi.fn(() => ({
+          texture: source,
+          width: 400,
+          height: 400,
+          maskTexture: null,
+          maskId: null
+        }))
+      } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: {
+        current: {
+          layerId: layer.id,
+          previewMode: 'projective',
+          previewTexture: preview,
+          matrix: translationMatrix(440, 160)
+        }
+      } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: vi.fn() } as never,
+      dimensions: () => ({ width: 1280, height: 720 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(texture),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+
+    compositor.encode({} as GPUCommandEncoder, document);
+
+    const settings = writeBuffer.mock.calls[0]?.[2] as Float32Array;
+    expect(Array.from(settings.slice(12, 16))).toEqual([1280, 720, 1280, 720]);
+  });
+
   it('uses one transparent target for a document without visible layers', () => {
     const document = createImageDocument('Empty', 64, 32, 'source');
     document.layers = [];

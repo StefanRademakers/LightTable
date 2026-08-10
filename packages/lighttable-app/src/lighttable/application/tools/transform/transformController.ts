@@ -1,5 +1,6 @@
 import {
   markLayerPixelsChanged,
+  setRasterLayerDocumentSurface,
   setLayerTransform
 } from '../../../editor/document/documentCommands';
 import type {
@@ -339,13 +340,12 @@ export class TransformController {
             transform: { ...state.matrix }
           }
         ];
-    const afterDocument = state.projectiveQuad
-      ? setLayerTransform(
-          markLayerPixelsChanged(document, state.layerId, dirtyBounds),
-          state.layerId,
-          identityMatrix()
-        )
-      : markLayerPixelsChanged(document, state.layerId, dirtyBounds);
+    const afterDocument = setRasterLayerDocumentSurface(
+      markLayerPixelsChanged(document, state.layerId, dirtyBounds),
+      state.layerId,
+      document.width,
+      document.height
+    );
     return {
       kind: 'selection',
       beforeDocument: document,

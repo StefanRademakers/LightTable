@@ -201,8 +201,11 @@ describe('TransformController', () => {
     const result = controller.finish(document, [], true);
     expect(result.kind).toBe('selection');
     if (result.kind === 'selection') {
-      expect((result.afterDocument.layers[0] as RasterLayer).transform).toEqual(identityMatrix());
-      expect((result.afterDocument.layers[0] as RasterLayer).pixelRevision).toBe(1);
+      const afterLayer = result.afterDocument.layers[0] as RasterLayer;
+      expect(afterLayer.transform).toEqual(identityMatrix());
+      expect(afterLayer.pixelRevision).toBe(1);
+      expect(afterLayer.width).toBe(document.width);
+      expect(afterLayer.height).toBe(document.height);
     }
     expect(port.commitLayerTransform).toHaveBeenCalledOnce();
   });

@@ -421,6 +421,13 @@ export class LayerCompositor {
         ? encodeAdjustment(encoder, ungradedForegroundTexture, layer)
         : ungradedForegroundTexture;
       const renderContract = rasterRenderContract(layer, foregroundTexture);
+      // Transform previews are rendered into a document-sized texture. A tight
+      // placed layer can have completely different source dimensions; feeding
+      // those dimensions to the compositor remaps the correct projective image
+      // into the old tight rectangle and visibly detaches it from its gizmo.
+      const foregroundDimensions = transformUsesPreview
+        ? { width, height }
+        : { width: runtime.width, height: runtime.height };
       const geometryPreview = geometryPreviews.resolve(
         layer.id,
         layer.geometryRevision
@@ -436,11 +443,13 @@ export class LayerCompositor {
       const inverse = invertMatrix(sourceToDocument);
 
       if (layerStyleStackIsActive(layer.styleStack) && inverse) {
-        const styleBounds = layerStyleDocumentBounds(
-          layer,
-          { width, height },
-          sourceToDocument
-        );
+        const styleBounds = transformUsesPreview
+          ? { x: 0, y: 0, width, height }
+          : layerStyleDocumentBounds(
+              layer,
+              { width, height },
+              sourceToDocument
+            );
         if (styleBounds.width <= 0 || styleBounds.height <= 0) {
           return [background, target];
         }
@@ -459,7 +468,7 @@ export class LayerCompositor {
           foregroundTexture,
           runtime.maskTexture,
           inverse,
-          renderContract.dimensions,
+          foregroundDimensions,
           styleBounds,
           styleCacheKey
         );
@@ -482,7 +491,7 @@ export class LayerCompositor {
         blendModeGpuValue(layer.blendMode),
         Boolean(clippingTexture),
         inverse ?? identityAffineMatrix(),
-        renderContract.dimensions,
+        foregroundDimensions,
         layer.mask
       );
       const bindGroup = this.options.device.createBindGroup({
