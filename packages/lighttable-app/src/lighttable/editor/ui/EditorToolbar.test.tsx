@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { EditorToolbar } from './EditorToolbar';
 
-const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 'text-point' | 'vector-add-anchor') => renderToStaticMarkup(
+const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 'text-point' | 'vector-add-anchor' | 'vector-direct-select') => renderToStaticMarkup(
   <EditorToolbar
     activeTool={activeTool}
     foregroundColor="#000000"
@@ -17,28 +17,30 @@ const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 
 );
 
 describe('EditorToolbar', () => {
-  it('collapses selection tools into one master slot', () => {
+  it('splits selection tools into Photoshop-compatible M, L and W slots', () => {
     const markup = renderToolbar('brush');
     expect(markup).toContain('aria-label="Rectangular selection (M)"');
-    expect(markup).toContain('aria-label="Show selection tools"');
-    expect(markup).toContain('aria-haspopup="true"');
-    expect(markup).not.toContain('aria-label="Elliptical selection (Shift+M)"');
+    expect(markup).toContain('aria-label="Show marquee tools"');
+    expect(markup).toContain('aria-label="Free selection (L)"');
+    expect(markup).toContain('aria-label="Show lasso tools"');
+    expect(markup).toContain('aria-label="Magic Wand (W)"');
+    expect(markup).not.toContain('aria-label="Elliptical selection (M)"');
   });
 
-  it('projects the active selection tool into the master slot', () => {
+  it('projects the active lasso without replacing the marquee slot', () => {
     const markup = renderToolbar('select-free');
     expect(markup).toContain('aria-label="Free selection (L)"');
-    expect(markup).not.toContain('aria-label="Rectangular selection (M)"');
+    expect(markup).toContain('aria-label="Rectangular selection (M)"');
   });
 
   it('collapses shapes and projects the active shape into their master slot', () => {
     const defaultMarkup = renderToolbar('brush');
     expect(defaultMarkup).toContain('aria-label="Rectangle (U)"');
     expect(defaultMarkup).toContain('aria-label="Show shape tools"');
-    expect(defaultMarkup).not.toContain('aria-label="Ellipse (Shift+U)"');
+    expect(defaultMarkup).not.toContain('aria-label="Ellipse (U)"');
 
     const activeMarkup = renderToolbar('shape-triangle');
-    expect(activeMarkup).toContain('aria-label="Triangle"');
+    expect(activeMarkup).toContain('aria-label="Triangle (U)"');
     expect(activeMarkup).not.toContain('aria-label="Rectangle (U)"');
   });
 
@@ -51,6 +53,28 @@ describe('EditorToolbar', () => {
     const activeMarkup = renderToolbar('vector-add-anchor');
     expect(activeMarkup).toContain('aria-label="Add anchor point"');
     expect(activeMarkup).not.toContain('aria-label="Pen (P)"');
+  });
+
+  it('collapses Path and Direct Selection into one A slot', () => {
+    const defaultMarkup = renderToolbar('brush');
+    expect(defaultMarkup).toContain('aria-label="Path selection (A)"');
+    expect(defaultMarkup).toContain('aria-label="Show path selection tools"');
+    expect(defaultMarkup).not.toContain('aria-label="Direct selection (A)"');
+
+    const activeMarkup = renderToolbar('vector-direct-select');
+    expect(activeMarkup).toContain('aria-label="Direct selection (A)"');
+    expect(activeMarkup).not.toContain('aria-label="Path selection (A)"');
+  });
+
+  it('orders the drawing families as Pen, Type, Path Selection and Shapes', () => {
+    const markup = renderToolbar('brush');
+    const pen = markup.indexOf('aria-label="Pen (P)"');
+    const type = markup.indexOf('aria-label="Type tool (T)"');
+    const path = markup.indexOf('aria-label="Path selection (A)"');
+    const shape = markup.indexOf('aria-label="Rectangle (U)"');
+    expect(pen).toBeLessThan(type);
+    expect(type).toBeLessThan(path);
+    expect(path).toBeLessThan(shape);
   });
 
   it('exposes one Type Tool for click-created point and drag-created paragraph text', () => {

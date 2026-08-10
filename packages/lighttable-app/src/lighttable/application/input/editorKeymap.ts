@@ -3,7 +3,7 @@ import { usesBrushSize } from '../../editor/tools/toolCapabilities';
 import {
   TOOL_DEFINITIONS,
   TOOL_SHORTCUT_GROUPS,
-  toolForShortcutCycle
+  toolForShortcutFamily
 } from '../../editor/tools/toolRegistry';
 
 export interface EditorKeyboardInput {
@@ -19,6 +19,7 @@ export interface EditorKeyboardContext {
   readonly editable: boolean;
   readonly saving: boolean;
   readonly activeTool: ToolId;
+  readonly preferredTools?: Readonly<Partial<Record<string, ToolId>>>;
   readonly hasActiveLayer: boolean;
   readonly hasSelection: boolean;
   readonly hasSelectionClipboard: boolean;
@@ -120,8 +121,7 @@ const toolBindings: readonly EditorKeyBinding[] = TOOL_DEFINITIONS
     chord: {
       key: tool.shortcutKey!,
       primary: false,
-      alt: false,
-      shift: tool.shortcutShift
+      alt: false
     },
     resolve: (context) =>
       tool.id === 'transform' && context.activeTool === 'transform'
@@ -130,17 +130,21 @@ const toolBindings: readonly EditorKeyBinding[] = TOOL_DEFINITIONS
   }));
 
 const toolGroupBindings: readonly EditorKeyBinding[] = TOOL_SHORTCUT_GROUPS
-  .flatMap((group) => [false, true].map((reverse) => ({
-    id: `tool-group.${group.key}.${reverse ? 'reverse' : 'forward'}`,
+  .flatMap((group) => [false, true].map((advance) => ({
+    id: `tool-group.${group.key}.${advance ? 'next' : 'current'}`,
     chord: {
       key: group.key,
       primary: false,
       alt: false,
-      shift: reverse
+      shift: advance
     },
     resolve: (context: EditorKeyboardContext): EditorKeyboardCommand => ({
       type: 'activate-tool',
-      tool: toolForShortcutCycle(group.key, context.activeTool, reverse)
+      tool: toolForShortcutFamily(
+        group.key,
+        context.preferredTools?.[group.key] ?? context.activeTool,
+        advance
+      )
         ?? context.activeTool
     })
   })));

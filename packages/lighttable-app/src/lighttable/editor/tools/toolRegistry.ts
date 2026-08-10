@@ -16,7 +16,6 @@ export interface ToolDefinition {
   readonly label: string;
   readonly shortcutLabel?: string;
   readonly shortcutKey?: string;
-  readonly shortcutShift?: boolean;
   readonly iconName: string;
   readonly role: ToolRole;
 }
@@ -24,8 +23,6 @@ export interface ToolDefinition {
 export interface ToolShortcutGroup {
   readonly key: string;
   readonly tools: readonly ToolId[];
-  /** Photoshop-compatible first alternate when Shift is used from outside the group. */
-  readonly shiftedEntry?: ToolId;
 }
 
 export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
@@ -38,27 +35,32 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'transform'
   },
   {
-    id: 'warp',
-    label: 'Warp',
-    iconName: 'warp_tool.svg',
-    role: 'warp'
-  },
-  {
     id: 'select-rectangle',
     label: 'Rectangular selection',
     shortcutLabel: 'M',
     shortcutKey: 'm',
-    shortcutShift: false,
     iconName: 'select_rectangle.png',
     role: 'selection'
   },
   {
     id: 'select-ellipse',
     label: 'Elliptical selection',
-    shortcutLabel: 'Shift+M',
-    shortcutKey: 'm',
-    shortcutShift: true,
+    shortcutLabel: 'M',
     iconName: 'select_elipse.png',
+    role: 'selection'
+  },
+  {
+    id: 'select-horizontal',
+    label: 'Horizontal selection',
+    shortcutLabel: 'M',
+    iconName: 'select_horizontal_line.png',
+    role: 'selection'
+  },
+  {
+    id: 'select-vertical',
+    label: 'Vertical selection',
+    shortcutLabel: 'M',
+    iconName: 'select_vertical_line.png',
     role: 'selection'
   },
   {
@@ -66,16 +68,13 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     label: 'Free selection',
     shortcutLabel: 'L',
     shortcutKey: 'l',
-    shortcutShift: false,
     iconName: 'select_free_shape.png',
     role: 'selection'
   },
   {
     id: 'select-polygonal',
     label: 'Polygonal selection',
-    shortcutLabel: 'Shift+L',
-    shortcutKey: 'l',
-    shortcutShift: true,
+    shortcutLabel: 'L',
     iconName: 'tool_polygonal_selection.png',
     role: 'selection'
   },
@@ -86,36 +85,6 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     shortcutKey: 'w',
     iconName: 'tool_magic_wand.png',
     role: 'selection'
-  },
-  {
-    id: 'select-horizontal',
-    label: 'Horizontal selection',
-    iconName: 'select_horizontal_line.png',
-    role: 'selection'
-  },
-  {
-    id: 'select-vertical',
-    label: 'Vertical selection',
-    iconName: 'select_vertical_line.png',
-    role: 'selection'
-  },
-  {
-    id: 'vector-select',
-    label: 'Path selection',
-    shortcutLabel: 'A',
-    shortcutKey: 'a',
-    shortcutShift: false,
-    iconName: 'tool_path_select_tool.png',
-    role: 'vector'
-  },
-  {
-    id: 'vector-direct-select',
-    label: 'Direct selection',
-    shortcutLabel: 'Shift+A',
-    shortcutKey: 'a',
-    shortcutShift: true,
-    iconName: 'tool_direct_select_tool.png',
-    role: 'vector'
   },
   {
     id: 'vector-pen',
@@ -144,36 +113,6 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'vector'
   },
   {
-    id: 'shape-rectangle',
-    label: 'Rectangle',
-    shortcutLabel: 'U',
-    shortcutKey: 'u',
-    shortcutShift: false,
-    iconName: 'tool_shape_rectangle.png',
-    role: 'vector'
-  },
-  {
-    id: 'shape-ellipse',
-    label: 'Ellipse',
-    shortcutLabel: 'Shift+U',
-    shortcutKey: 'u',
-    shortcutShift: true,
-    iconName: 'tool_shape_ellipse.png',
-    role: 'vector'
-  },
-  {
-    id: 'shape-triangle',
-    label: 'Triangle',
-    iconName: 'tool_shape_triangle.png',
-    role: 'vector'
-  },
-  {
-    id: 'shape-line',
-    label: 'Line',
-    iconName: 'tool_shape_line.png',
-    role: 'vector'
-  },
-  {
     id: 'text-point',
     label: 'Type tool',
     shortcutLabel: 'T',
@@ -190,15 +129,60 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     id: 'text-vertical',
     label: 'Vertical type tool',
-    shortcutLabel: 'Shift+T',
+    shortcutLabel: 'T',
     iconName: 'tool_text_vertical.png',
     role: 'text'
   },
   {
     id: 'text-path',
     label: 'Path text',
+    shortcutLabel: 'T',
     iconName: 'tool_text_on_path.png',
     role: 'text'
+  },
+  {
+    id: 'vector-select',
+    label: 'Path selection',
+    shortcutLabel: 'A',
+    shortcutKey: 'a',
+    iconName: 'tool_path_select_tool.png',
+    role: 'vector'
+  },
+  {
+    id: 'vector-direct-select',
+    label: 'Direct selection',
+    shortcutLabel: 'A',
+    iconName: 'tool_direct_select_tool.png',
+    role: 'vector'
+  },
+  {
+    id: 'shape-rectangle',
+    label: 'Rectangle',
+    shortcutLabel: 'U',
+    shortcutKey: 'u',
+    iconName: 'tool_shape_rectangle.png',
+    role: 'vector'
+  },
+  {
+    id: 'shape-ellipse',
+    label: 'Ellipse',
+    shortcutLabel: 'U',
+    iconName: 'tool_shape_ellipse.png',
+    role: 'vector'
+  },
+  {
+    id: 'shape-triangle',
+    label: 'Triangle',
+    shortcutLabel: 'U',
+    iconName: 'tool_shape_triangle.png',
+    role: 'vector'
+  },
+  {
+    id: 'shape-line',
+    label: 'Line',
+    shortcutLabel: 'U',
+    iconName: 'tool_shape_line.png',
+    role: 'vector'
   },
   {
     id: 'gradient',
@@ -211,6 +195,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     id: 'fill',
     label: 'Paint bucket',
+    shortcutLabel: 'G',
     iconName: 'tool_fill_color.png',
     role: 'fill'
   },
@@ -231,6 +216,12 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'paint'
   },
   {
+    id: 'warp',
+    label: 'Warp',
+    iconName: 'warp_tool.svg',
+    role: 'warp'
+  },
+  {
     id: 'view',
     label: 'Move canvas',
     shortcutLabel: 'H',
@@ -248,9 +239,15 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   }
 ];
 
-/** Selection tools share one toolbar slot while retaining their own shortcuts. */
-export const SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
-  TOOL_DEFINITIONS.filter(({ role }) => role === 'selection');
+/** Photoshop-compatible marquee tools share the M toolbar slot. */
+export const MARQUEE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  ['select-rectangle', 'select-ellipse', 'select-horizontal', 'select-vertical']
+    .map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
+
+/** Free and polygonal selections share Photoshop's L toolbar slot. */
+export const LASSO_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  ['select-free', 'select-polygonal']
+    .map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
 /** Live shapes share one toolbar slot while retaining their individual presets. */
 export const SHAPE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
@@ -265,25 +262,40 @@ export const PEN_TOOL_DEFINITIONS: readonly ToolDefinition[] =
     'vector-convert-anchor'
   ].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
+/** Whole-path and point editing share Photoshop's A toolbar slot. */
+export const PATH_SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  ['vector-select', 'vector-direct-select']
+    .map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
+
 /** User-facing Type modes share one slot; point/paragraph is gesture-derived. */
 export const TEXT_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   ['text-point', 'text-vertical', 'text-path'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
 /** Gradient and Paint Bucket share Photoshop's G toolbar slot. */
 export const FILL_TOOL_DEFINITIONS: readonly ToolDefinition[] =
-  ['fill', 'gradient'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
+  ['gradient', 'fill'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
 /**
- * Photoshop-style tool families. The ordering is user-facing: repeatedly
- * pressing the family key walks forward, while Shift walks backward once a
- * member is active. Keeping this beside the registry prevents the keymap and
- * toolbar from inventing different notions of the same family.
+ * Photoshop-style tool families. The plain family key restores its remembered
+ * member; Shift+key advances to the next member. Keeping this beside the
+ * registry prevents the keymap and toolbar from inventing different families.
  */
 export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   {
+    key: 'm',
+    tools: ['select-rectangle', 'select-ellipse', 'select-horizontal', 'select-vertical']
+  },
+  {
+    key: 'l',
+    tools: ['select-free', 'select-polygonal']
+  },
+  {
+    key: 'w',
+    tools: ['select-magic-wand']
+  },
+  {
     key: 'a',
-    tools: ['vector-select', 'vector-direct-select'],
-    shiftedEntry: 'vector-direct-select'
+    tools: ['vector-select', 'vector-direct-select']
   },
   {
     key: 'p',
@@ -296,18 +308,15 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   },
   {
     key: 'g',
-    tools: ['gradient', 'fill'],
-    shiftedEntry: 'fill'
+    tools: ['gradient', 'fill']
   },
   {
     key: 't',
-    tools: ['text-point', 'text-vertical'],
-    shiftedEntry: 'text-vertical'
+    tools: ['text-point', 'text-vertical', 'text-path']
   },
   {
     key: 'u',
-    tools: ['shape-rectangle', 'shape-ellipse', 'shape-triangle', 'shape-line'],
-    shiftedEntry: 'shape-ellipse'
+    tools: ['shape-rectangle', 'shape-ellipse', 'shape-triangle', 'shape-line']
   }
 ];
 
@@ -321,30 +330,20 @@ export const toolDefinition = (tool: ToolId): ToolDefinition => {
   return definition;
 };
 
-export const toolForShortcut = (key: string, shiftKey: boolean): ToolId | null =>
-  TOOL_DEFINITIONS.find((definition) =>
-    definition.shortcutKey !== undefined
-    && definition.shortcutKey === key.toLowerCase()
-    && (definition.shortcutShift === undefined || definition.shortcutShift === shiftKey)
-  )?.id ?? null;
-
-export const toolForShortcutCycle = (
+export const toolForShortcutFamily = (
   key: string,
-  activeTool: ToolId,
-  reverse: boolean
+  preferredTool: ToolId,
+  advance: boolean
 ): ToolId | null => {
   const group = TOOL_SHORTCUT_GROUPS.find(
     (candidate) => candidate.key === key.toLowerCase()
   );
   if (!group) return null;
-  const currentIndex = group.tools.indexOf(activeTool);
-  if (currentIndex < 0) {
-    return reverse && group.shiftedEntry
-      ? group.shiftedEntry
-      : group.tools[0] ?? null;
-  }
-  const offset = reverse ? -1 : 1;
-  return group.tools[
-    (currentIndex + offset + group.tools.length) % group.tools.length
-  ] ?? null;
+  const currentIndex = group.tools.indexOf(preferredTool);
+  const preferredIndex = currentIndex < 0 ? 0 : currentIndex;
+  if (!advance || group.tools.length === 1) return group.tools[preferredIndex] ?? null;
+  return group.tools[(preferredIndex + 1) % group.tools.length] ?? null;
 };
+
+export const toolShortcutGroupFor = (tool: ToolId): ToolShortcutGroup | null =>
+  TOOL_SHORTCUT_GROUPS.find((group) => group.tools.includes(tool)) ?? null;

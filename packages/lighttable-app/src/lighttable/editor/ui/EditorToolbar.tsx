@@ -3,8 +3,10 @@ import { lightTableIcon } from '../../../assets/icons';
 import type { ToolId } from '../session/editorSession';
 import {
   FILL_TOOL_DEFINITIONS,
+  LASSO_TOOL_DEFINITIONS,
+  MARQUEE_TOOL_DEFINITIONS,
+  PATH_SELECTION_TOOL_DEFINITIONS,
   PEN_TOOL_DEFINITIONS,
-  SELECTION_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
@@ -186,8 +188,11 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
 };
 
 export const toolFamilyFor = (tool: ToolDefinition) => {
-  if (tool.role === 'selection') {
-    return { definitions: SELECTION_TOOL_DEFINITIONS, label: 'Selection tools' };
+  if (MARQUEE_TOOL_DEFINITIONS.some(({ id }) => id === tool.id)) {
+    return { definitions: MARQUEE_TOOL_DEFINITIONS, label: 'Marquee tools' };
+  }
+  if (LASSO_TOOL_DEFINITIONS.some(({ id }) => id === tool.id)) {
+    return { definitions: LASSO_TOOL_DEFINITIONS, label: 'Lasso tools' };
   }
   if (tool.id.startsWith('shape-')) {
     return { definitions: SHAPE_TOOL_DEFINITIONS, label: 'Shape tools' };
@@ -197,6 +202,9 @@ export const toolFamilyFor = (tool: ToolDefinition) => {
     || tool.id === 'vector-delete-anchor'
     || tool.id === 'vector-convert-anchor') {
     return { definitions: PEN_TOOL_DEFINITIONS, label: 'Pen tools' };
+  }
+  if (PATH_SELECTION_TOOL_DEFINITIONS.some(({ id }) => id === tool.id)) {
+    return { definitions: PATH_SELECTION_TOOL_DEFINITIONS, label: 'Path selection tools' };
   }
   if (tool.role === 'text') {
     return { definitions: TEXT_TOOL_DEFINITIONS, label: 'Text tools' };

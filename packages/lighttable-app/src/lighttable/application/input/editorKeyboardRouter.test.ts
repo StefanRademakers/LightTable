@@ -107,18 +107,18 @@ describe('resolveEditorKeyboardCommand', () => {
     )).toEqual({ type: 'activate-tool', tool: tool as ToolId });
   });
 
-  it('cycles vector tool families from the active family member', () => {
+  it('restores remembered family tools and advances them with Shift', () => {
     expect(resolveEditorKeyboardCommand(
       input({ key: 'a' }),
-      context({ activeTool: 'vector-select' })
+      context({ activeTool: 'brush', preferredTools: { a: 'vector-direct-select' } })
     )).toEqual({ type: 'activate-tool', tool: 'vector-direct-select' });
     expect(resolveEditorKeyboardCommand(
-      input({ key: 'u' }),
-      context({ activeTool: 'shape-ellipse' })
+      input({ key: 'u', shiftKey: true }),
+      context({ activeTool: 'shape-ellipse', preferredTools: { u: 'shape-ellipse' } })
     )).toEqual({ type: 'activate-tool', tool: 'shape-triangle' });
     expect(resolveEditorKeyboardCommand(
       input({ key: 'p', shiftKey: true }),
-      context({ activeTool: 'vector-pen' })
-    )).toEqual({ type: 'activate-tool', tool: 'vector-convert-anchor' });
+      context({ activeTool: 'vector-pen', preferredTools: { p: 'vector-pen' } })
+    )).toEqual({ type: 'activate-tool', tool: 'vector-add-anchor' });
   });
 });

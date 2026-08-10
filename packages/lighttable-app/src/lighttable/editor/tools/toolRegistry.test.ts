@@ -1,28 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolId } from '../session/editorSession';
 import {
-  SELECTION_TOOL_DEFINITIONS,
   FILL_TOOL_DEFINITIONS,
+  LASSO_TOOL_DEFINITIONS,
+  MARQUEE_TOOL_DEFINITIONS,
+  PATH_SELECTION_TOOL_DEFINITIONS,
   PEN_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
   toolDefinition,
-  toolForShortcut,
-  toolForShortcutCycle
+  toolForShortcutFamily,
+  toolShortcutGroupFor
 } from './toolRegistry';
 
 describe('toolRegistry', () => {
-  it('defines all selection tools as one toolbar family', () => {
-    expect(SELECTION_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
+  it('uses Photoshop-compatible M, L and W selection families', () => {
+    expect(MARQUEE_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
       'select-rectangle',
       'select-ellipse',
-      'select-free',
-      'select-polygonal',
-      'select-magic-wand',
       'select-horizontal',
       'select-vertical'
     ]);
+    expect(LASSO_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
+      'select-free',
+      'select-polygonal'
+    ]);
+    expect(toolShortcutGroupFor('select-magic-wand')?.key).toBe('w');
   });
   it('defines the four live-shape tools as one toolbar family', () => {
     expect(SHAPE_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
@@ -40,13 +44,18 @@ describe('toolRegistry', () => {
       'vector-convert-anchor'
     ]);
   });
+  it('defines whole-path and direct selection as one A family', () => {
+    expect(PATH_SELECTION_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
+      'vector-select', 'vector-direct-select'
+    ]);
+  });
   it('keeps point/paragraph gesture-derived and exposes horizontal, vertical and Path modes', () => {
     expect(TEXT_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
       'text-point', 'text-vertical', 'text-path'
     ]);
   });
   it('defines Gradient and Paint Bucket as one toolbar family', () => {
-    expect(FILL_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual(['fill', 'gradient']);
+    expect(FILL_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual(['gradient', 'fill']);
   });
   it('defines every editor tool exactly once', () => {
     const expected: ToolId[] = [
@@ -84,41 +93,35 @@ describe('toolRegistry', () => {
     expect(TOOL_DEFINITIONS).toHaveLength(expected.length);
   });
 
-  it('cycles Photoshop-style vector tool groups without leaking state', () => {
-    expect(toolForShortcutCycle('a', 'view', false)).toBe('vector-select');
-    expect(toolForShortcutCycle('a', 'vector-select', false)).toBe('vector-direct-select');
-    expect(toolForShortcutCycle('a', 'vector-direct-select', true)).toBe('vector-select');
-    expect(toolForShortcutCycle('u', 'view', true)).toBe('shape-ellipse');
-    expect(toolForShortcutCycle('u', 'shape-ellipse', false)).toBe('shape-triangle');
-    expect(toolForShortcutCycle('p', 'vector-pen', false)).toBe('vector-add-anchor');
-    expect(toolForShortcutCycle('p', 'vector-pen', true)).toBe('vector-convert-anchor');
-    expect(toolForShortcutCycle('g', 'view', false)).toBe('gradient');
-    expect(toolForShortcutCycle('g', 'gradient', false)).toBe('fill');
-    expect(toolForShortcutCycle('g', 'fill', true)).toBe('gradient');
+  it('restores a family preference with the plain key and advances with Shift', () => {
+    expect(toolForShortcutFamily('a', 'view', false)).toBe('vector-select');
+    expect(toolForShortcutFamily('a', 'vector-select', false)).toBe('vector-select');
+    expect(toolForShortcutFamily('a', 'vector-select', true)).toBe('vector-direct-select');
+    expect(toolForShortcutFamily('a', 'vector-direct-select', true)).toBe('vector-select');
+    expect(toolForShortcutFamily('u', 'shape-ellipse', false)).toBe('shape-ellipse');
+    expect(toolForShortcutFamily('u', 'shape-ellipse', true)).toBe('shape-triangle');
+    expect(toolForShortcutFamily('p', 'vector-pen', false)).toBe('vector-pen');
+    expect(toolForShortcutFamily('p', 'vector-pen', true)).toBe('vector-add-anchor');
+    expect(toolForShortcutFamily('g', 'view', false)).toBe('gradient');
+    expect(toolForShortcutFamily('g', 'gradient', false)).toBe('gradient');
+    expect(toolForShortcutFamily('g', 'gradient', true)).toBe('fill');
+    expect(toolForShortcutFamily('g', 'fill', true)).toBe('gradient');
   });
 
-  it('resolves modifier-sensitive shortcuts', () => {
-    expect(toolForShortcut('m', false)).toBe('select-rectangle');
-    expect(toolForShortcut('M', true)).toBe('select-ellipse');
-    expect(toolForShortcut('l', false)).toBe('select-free');
-    expect(toolForShortcut('L', true)).toBe('select-polygonal');
-    expect(toolForShortcut('b', false)).toBe('brush');
-    expect(toolForShortcut('b', true)).toBe('brush');
-    expect(toolForShortcut('v', false)).toBe('transform');
-    expect(toolForShortcut('w', false)).toBe('select-magic-wand');
+  it('exposes Photoshop-compatible shortcut families', () => {
+    expect(toolShortcutGroupFor('select-rectangle')?.key).toBe('m');
+    expect(toolShortcutGroupFor('select-free')?.key).toBe('l');
+    expect(toolShortcutGroupFor('select-magic-wand')?.key).toBe('w');
+    expect(toolShortcutGroupFor('vector-select')?.key).toBe('a');
+    expect(toolShortcutGroupFor('vector-pen')?.key).toBe('p');
+    expect(toolShortcutGroupFor('shape-rectangle')?.key).toBe('u');
+    expect(toolShortcutGroupFor('text-point')?.key).toBe('t');
+    expect(toolShortcutGroupFor('gradient')?.key).toBe('g');
     expect(toolDefinition('warp').shortcutKey).toBeUndefined();
-    expect(toolForShortcut('z', false)).toBe('zoom');
-    expect(toolForShortcutCycle('g', 'view', false)).toBe('gradient');
-    expect(toolForShortcut('a', false)).toBe('vector-select');
-    expect(toolForShortcut('A', true)).toBe('vector-direct-select');
-    expect(toolForShortcut('p', false)).toBe('vector-pen');
-    expect(toolForShortcut('u', false)).toBe('shape-rectangle');
-    expect(toolForShortcut('U', true)).toBe('shape-ellipse');
-    expect(toolForShortcutCycle('t', 'view', false)).toBe('text-point');
-    expect(toolForShortcutCycle('t', 'text-point', true)).toBe('text-vertical');
-    expect(toolForShortcutCycle('t', 'text-vertical', true)).toBe('text-point');
-    expect(toolForShortcutCycle('t', 'text-paragraph', false)).toBe('text-point');
-    expect(toolForShortcutCycle('t', 'text-path', false)).toBe('text-point');
+    expect(toolForShortcutFamily('t', 'view', false)).toBe('text-point');
+    expect(toolForShortcutFamily('t', 'text-point', true)).toBe('text-vertical');
+    expect(toolForShortcutFamily('t', 'text-vertical', true)).toBe('text-path');
+    expect(toolForShortcutFamily('t', 'text-path', true)).toBe('text-point');
   });
 
   it('keeps visible vector tools without dedicated shortcuts out of key dispatch', () => {

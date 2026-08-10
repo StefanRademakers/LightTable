@@ -30,6 +30,7 @@ import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailCon
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
 import { createScopeRendererOptions, useRendererPresentationSync } from './editor/hooks/useRendererPresentationSync';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
+import { toolShortcutGroupFor } from './editor/tools/toolRegistry';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import type { LayerStyleId } from './editor/styles/layerStyleTypes';
@@ -475,6 +476,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const cancelPenPathRef = useRef<() => boolean>(() => false);
   const undoPenAnchorRef = useRef<() => boolean>(() => false);
   const activateToolRef = useRef<(tool: ToolId) => void>(() => undefined);
+  const preferredToolByShortcutRef = useRef<Partial<Record<string, ToolId>>>({});
   const cancelAutoAlignRef = useRef<() => void>(() => undefined);
   const copySelectedContentRef = useRef<() => void>(() => undefined);
   const copyMergedContentRef = useRef<() => void>(() => undefined);
@@ -1785,6 +1787,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getContext: () => ({
       saving,
       activeTool: editorSession.activeTool,
+      preferredTools: preferredToolByShortcutRef.current,
       hasActiveLayer: Boolean(imageDocumentRef.current?.activeLayerId),
       hasSelection: editorSession.selection.length > 0,
       hasSelectionClipboard: selectionClipboardAvailable,
@@ -3146,6 +3149,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
 
   const activatePersistentTool = (requestedTool: ToolId) => {
+    const shortcutGroup = toolShortcutGroupFor(requestedTool);
+    if (shortcutGroup) {
+      preferredToolByShortcutRef.current[shortcutGroup.key] = requestedTool;
+    }
     if (requestedTool !== 'text-point' && requestedTool !== 'text-vertical') {
       pointTextCapabilityGenerationRef.current += 1;
       commitPointTextCreation();
