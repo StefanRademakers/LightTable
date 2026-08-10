@@ -1311,19 +1311,46 @@ fn straightColor(pixel: vec4f) -> vec3f {
   return select(vec3f(0.0), pixel.rgb / max(pixel.a, 0.00001), pixel.a > 0.00001);
 }
 
-fn lowFrequency(point: vec2f, radius: f32) -> vec4f {
-  let diagonal = radius * 0.70710678;
-  let offsets = array<vec2f, 9>(
-    vec2f(0.0), vec2f(radius, 0.0), vec2f(-radius, 0.0),
-    vec2f(0.0, radius), vec2f(0.0, -radius),
-    vec2f(diagonal, diagonal), vec2f(-diagonal, diagonal),
-    vec2f(diagonal, -diagonal), vec2f(-diagonal, -diagonal)
+/**
+ * Reconstructs the destination/source colour difference inside a circular
+ * dab from samples immediately outside its painted boundary. This is the
+ * harmonic first approximation described by Georgiev: source detail remains
+ * intact while the boundary constrains its tone and illumination to the
+ * destination. The discrete Poisson kernel keeps this GPU-only and costs
+ * fewer texture reads than the former pair of 9-tap low-frequency filters.
+ */
+fn harmonicBoundaryCorrection(input: BrushVertexOutput, destination: vec2f) -> vec3f {
+  let radius = max(input.centerSizeHardness.z * 0.5, 1.0);
+  let local = (destination - input.centerSizeHardness.xy) / radius;
+  let localLength = length(local);
+  let radial = min(localLength, 0.96);
+  let direction = select(vec2f(1.0, 0.0), local / max(localLength, 0.00001), localLength > 0.00001);
+  let boundaryRadius = radius + 1.0;
+  let directions = array<vec2f, 8>(
+    vec2f(1.0, 0.0), vec2f(0.70710678, 0.70710678),
+    vec2f(0.0, 1.0), vec2f(-0.70710678, 0.70710678),
+    vec2f(-1.0, 0.0), vec2f(-0.70710678, -0.70710678),
+    vec2f(0.0, -1.0), vec2f(0.70710678, -0.70710678)
   );
-  var sum = vec4f(0.0);
-  for (var index = 0; index < 9; index += 1) {
-    sum += sampleDocument(point + offsets[index]);
+  var correction = vec3f(0.0);
+  var totalWeight = 0.0;
+  let radialSquared = radial * radial;
+  for (var index = 0; index < 8; index += 1) {
+    let boundaryPoint = input.centerSizeHardness.xy + directions[index] * boundaryRadius;
+    let destinationBoundary = sampleDocument(boundaryPoint);
+    let sourceBoundary = sampleDocument(boundaryPoint + sourceSettings.offset);
+    let valid = min(destinationBoundary.a, sourceBoundary.a);
+    let denominator = max(
+      1.0 - 2.0 * radial * dot(direction, directions[index]) + radialSquared,
+      0.001
+    );
+    let weight = valid * (1.0 - radialSquared) / denominator;
+    correction += (
+      straightColor(destinationBoundary) - straightColor(sourceBoundary)
+    ) * weight;
+    totalWeight += weight;
   }
-  return sum / 9.0;
+  return correction / max(totalWeight, 0.00001);
 }
 
 fn outputCoverage(input: BrushVertexOutput, documentPixel: vec2f) -> f32 {
@@ -1350,11 +1377,8 @@ fn healingFragment(input: BrushVertexOutput) -> @location(0) vec4f {
   let source = destination + sourceSettings.offset;
   let amount = outputCoverage(input, destination);
   let sampled = sampleDocument(source);
-  let radius = clamp(input.centerSizeHardness.z * 0.08, 1.0, 32.0);
-  let sourceLow = lowFrequency(source, radius);
-  let destinationLow = lowFrequency(destination, radius);
   let healed = clamp(
-    straightColor(sampled) + straightColor(destinationLow) - straightColor(sourceLow),
+    straightColor(sampled) + harmonicBoundaryCorrection(input, destination),
     vec3f(0.0), vec3f(16.0)
   );
   return vec4f(healed * sampled.a * amount, sampled.a * amount);

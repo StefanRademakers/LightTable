@@ -58,6 +58,7 @@ import {
   LAYER_STYLE_EFFECT_WGSL,
   LAYER_STYLE_GAUSSIAN_BLUR_WGSL,
   LAYER_STYLE_SHAPE_WGSL,
+  SAMPLED_BRUSH_DAB_WGSL,
   SELECTION_COMBINE_WGSL,
   SELECTION_FEATHER_WGSL,
   SELECTION_RESAMPLE_WGSL,
@@ -247,6 +248,7 @@ describe('LightTable WGSL modules', () => {
     ['alignment reprojection', `${FULLSCREEN_VERTEX_WGSL}\n${ALIGNMENT_REPROJECT_WGSL}`],
     ['alignment gradient', `${FULLSCREEN_VERTEX_WGSL}\n${ALIGNMENT_GRADIENT_WGSL}`],
     ['brush dabs', BRUSH_DAB_WGSL],
+    ['sampled brush dabs', SAMPLED_BRUSH_DAB_WGSL],
     ['blur brush dabs', BLUR_BRUSH_DAB_WGSL]
   ])('parses the %s editor module', (_name, shader) => {
     expect(() => new WgslReflect(shader)).not.toThrow();
@@ -350,6 +352,14 @@ describe('LightTable WGSL modules', () => {
     expect(BLUR_BRUSH_DAB_WGSL).toContain('var sourceTexture: texture_2d<f32>');
     expect(BLUR_BRUSH_DAB_WGSL).toContain('textureSampleLevel(');
     expect(BLUR_BRUSH_DAB_WGSL).toContain('textureLoad(selectionMask');
+  });
+
+  it('constrains Healing Brush colour adaptation at the dab boundary', () => {
+    expect(SAMPLED_BRUSH_DAB_WGSL).toContain('fn harmonicBoundaryCorrection');
+    expect(SAMPLED_BRUSH_DAB_WGSL).toContain(
+      'straightColor(destinationBoundary) - straightColor(sourceBoundary)',
+    );
+    expect(SAMPLED_BRUSH_DAB_WGSL).not.toContain('fn lowFrequency');
   });
 
   it('projects brush fragments from layer-local into document space', () => {

@@ -56,6 +56,8 @@ const sampleX = Number.parseFloat(argument('sample-x', '0.35'));
 const sampleY = Number.parseFloat(argument('sample-y', '0.35'));
 const paintX = Number.parseFloat(argument('paint-x', '0.2'));
 const paintY = Number.parseFloat(argument('paint-y', '0.25'));
+const brushSize = Number.parseFloat(argument('brush-size', '48'));
+const paintStrokeLength = Number.parseFloat(argument('paint-stroke-length', '0.2'));
 const saveLightTableArgument = argument('save-lighttable', '');
 const saveLightTableFile = saveLightTableArgument ? path.resolve(saveLightTableArgument) : null;
 const expectLayer = argument('expect-layer', '');
@@ -109,7 +111,7 @@ const diagnostics = {
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
     createGradientFill, openGradientEditor, dragGradientEnd,
     createRasterLayerForPaint, paintStroke, paintExistingLayer, paintColor, paintTool,
-    sampleLayer, sampleX, sampleY, paintX, paintY,
+    sampleLayer, sampleX, sampleY, paintX, paintY, brushSize, paintStrokeLength,
     saveLightTableFile, expectLayer, expectNonemptyLayer, openCompatibilityReport,
     editTextLayer, replacementFont,
     targetZoomPercent, zoomFocusX, zoomFocusY,
@@ -254,6 +256,12 @@ try {
         ? 'Clone Stamp (S)'
         : paintTool === 'healing-brush' ? 'Healing Brush (J)' : 'Brush (B)';
       await window.getByRole('button', { name: paintToolLabel }).click();
+      const sizeControl = window.getByLabel('Size', { exact: true });
+      await sizeControl.focus();
+      await sizeControl.press('Home');
+      for (let value = 1; value < Math.round(brushSize); value += 1) {
+        await sizeControl.press('ArrowRight');
+      }
       await window.locator('input[type="color"][aria-label="Foreground color"]').fill(paintColor);
       const viewport = window.locator('.lighttable-viewport');
       const box = await viewport.boundingBox();
@@ -288,7 +296,13 @@ try {
       }
       await window.mouse.move(startX, startY);
       await window.mouse.down();
-      await window.mouse.move(startX + displayWidth * 0.2, startY, { steps: 16 });
+      if (paintStrokeLength !== 0) {
+        await window.mouse.move(
+          startX + displayWidth * paintStrokeLength,
+          startY,
+          { steps: 16 }
+        );
+      }
       await window.mouse.up();
       const thumbnail = activeLayer.locator('.lighttable-layer__thumbnail-preview');
       await thumbnail.waitFor({ state: 'visible', timeout: 15_000 });
