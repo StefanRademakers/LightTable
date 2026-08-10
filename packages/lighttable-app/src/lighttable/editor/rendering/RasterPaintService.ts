@@ -223,7 +223,8 @@ export class RasterPaintService {
     channel: PaintChannel,
     color: [number, number, number],
     preserveTransparency: boolean,
-    transform: AffineMatrix = identityAffineMatrix()
+    transform: AffineMatrix = identityAffineMatrix(),
+    opacity = 1
   ) {
     const pipelines = this.options.pipelines();
     this.options.ensureSelectionTargets();
@@ -247,7 +248,7 @@ export class RasterPaintService {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     this.options.device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
-      color[0], color[1], color[2], 1,
+      color[0], color[1], color[2], opacity,
       preserveTransparency ? 1 : 0,
       channel === 'mask' ? 1 : 0,
       0, 0,

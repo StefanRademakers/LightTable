@@ -42,6 +42,7 @@ export type EditorKeyboardCommand =
   | 'fill-foreground-preserve'
   | 'fill-background-preserve'
   | 'open-fill-dialog'
+  | 'delete-active-target'
   | 'select-all'
   | 'select-none'
   | 'select-invert'
@@ -239,6 +240,12 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('fill.foreground-preserve', { key: 'delete', primary: false, alt: true, shift: true }, 'fill-foreground-preserve'),
     command('fill.background-preserve', { key: 'delete', primary: true, alt: false, shift: true }, 'fill-background-preserve'),
     command('fill.dialog', { key: 'f5', primary: false, alt: false, shift: true }, 'open-fill-dialog'),
+    command(
+      'edit.delete-active-target',
+      { key: 'delete', primary: false, alt: false, shift: false },
+      'delete-active-target',
+      { when: (context) => !context.saving && context.hasActiveLayer }
+    ),
     command('selection.all', { key: 'a', primary: true, alt: false, shift: false }, 'select-all'),
     command('selection.none', { key: 'd', primary: true, alt: false, shift: false }, 'select-none'),
     command('selection.invert', { key: 'i', primary: true, alt: false, shift: true }, 'select-invert'),

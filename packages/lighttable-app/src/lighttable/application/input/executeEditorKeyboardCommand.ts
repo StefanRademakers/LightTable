@@ -20,6 +20,7 @@ export interface EditorKeyboardCommandPorts {
   fillForeground(preserveTransparency?: boolean): void;
   fillBackground(preserveTransparency?: boolean): void;
   openFillDialog(): void;
+  deleteActiveTarget(): void;
   selectAll(): void;
   selectNone(): void;
   invertSelection(): void;
@@ -119,6 +120,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'open-fill-dialog':
       ports.openFillDialog();
+      return;
+    case 'delete-active-target':
+      ports.deleteActiveTarget();
       return;
     case 'select-all':
       ports.selectAll();

@@ -53,6 +53,38 @@ describe('createFillCommandController', () => {
     expect(renderer.applyPixelHistory).toHaveBeenCalledWith(edit, 'redo');
   });
 
+  it('uses the same reversible GPU transaction for clearing selected pixels', () => {
+    let document: ImageDocument = createImageDocument('Clear', 16, 12, 'asset');
+    const history: FillHistoryEntry[] = [];
+    const renderer = {
+      beginBrushStroke: vi.fn(),
+      fillLayerColor: vi.fn(() => true),
+      finishPixelEdit: vi.fn(() => pixelEdit()),
+      cancelPixelEdit: vi.fn(),
+      applyPixelHistory: vi.fn(() => true)
+    };
+    const dependencies = {
+      getDocument: () => document,
+      getRenderer: () => renderer,
+      getChannel: () => 'pixels' as const,
+      applyDocumentSnapshot: vi.fn((next: ImageDocument) => { document = next; }),
+      pushHistoryEntry: vi.fn((entry: FillHistoryEntry) => history.push(entry)),
+      setStatus: vi.fn(),
+      setError: vi.fn()
+    };
+
+    expect(createFillCommandController(() => dependencies).clearSelection()).toBe(true);
+    expect(renderer.fillLayerColor).toHaveBeenCalledWith(
+      document.activeLayerId,
+      'pixels',
+      [0, 0, 0],
+      false,
+      0
+    );
+    expect(history).toHaveLength(1);
+    expect(dependencies.setStatus).toHaveBeenCalledWith('Background selection cleared');
+  });
+
   it('does not publish history when the renderer rejects the fill', () => {
     const document = createImageDocument('Fill', 16, 12, 'asset');
     const dependencies = {

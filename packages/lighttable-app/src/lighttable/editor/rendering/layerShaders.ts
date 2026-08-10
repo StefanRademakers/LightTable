@@ -1633,8 +1633,9 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   }
 
   // Raster pixels are stored as premultiplied linear RGBA. Transparency lock
-  // retains source alpha; otherwise Photoshop-style fill writes opaque color.
-  let alpha = select(1.0, source.a, settings.preserveTransparency > 0.5);
+  // retains source alpha; otherwise the command supplies the target alpha.
+  // A zero target alpha is also the shared GPU path for clearing a selection.
+  let alpha = select(settings.color.a, source.a, settings.preserveTransparency > 0.5);
   let filled = vec4f(settings.color.rgb * alpha, alpha);
   return mix(source, filled, selection);
 }

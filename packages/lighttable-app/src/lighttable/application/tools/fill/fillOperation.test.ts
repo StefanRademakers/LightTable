@@ -53,7 +53,8 @@ describe('executeFillOperation', () => {
       fixture.layer.id,
       'pixels',
       [1, 0, 0],
-      true
+      true,
+      1
     );
     if (result.ok) {
       expect((result.document.layers[0] as RasterLayer).pixelRevision).toBe(1);
@@ -69,16 +70,56 @@ describe('executeFillOperation', () => {
       renderer,
       'pixels',
       '#ff0000',
-      true
+      { preserveTransparency: true }
     );
     expect(result.ok).toBe(true);
     expect(renderer.fillLayerColor).toHaveBeenCalledWith(
       fixture.layer.id,
       'pixels',
       [1, 0, 0],
-      true
+      true,
+      1
     );
     expect(fixture.layer.locks.transparency).toBe(false);
+  });
+
+  it('clears selected raster pixels by writing transparent premultiplied color', () => {
+    const fixture = createFixture();
+    const renderer = createRenderer();
+
+    const result = executeFillOperation(
+      fixture.document,
+      renderer,
+      'pixels',
+      '#000000',
+      { opacity: 0 }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(renderer.fillLayerColor).toHaveBeenCalledWith(
+      fixture.layer.id,
+      'pixels',
+      [0, 0, 0],
+      false,
+      0
+    );
+  });
+
+  it('does not clear pixels through transparency or pixel locks', () => {
+    const fixture = createFixture();
+    fixture.layer.locks.transparency = true;
+    const renderer = createRenderer();
+
+    const result = executeFillOperation(
+      fixture.document,
+      renderer,
+      'pixels',
+      '#000000',
+      { opacity: 0 }
+    );
+
+    expect(result).toMatchObject({ ok: false, code: 'invalid-target' });
+    expect(renderer.beginBrushStroke).not.toHaveBeenCalled();
   });
 
   it('requires and revisions an explicit mask target', () => {

@@ -21,7 +21,8 @@ export interface FillRendererPort {
     layerId: LayerId,
     channel: PaintChannel,
     color: readonly [number, number, number],
-    preserveTransparency: boolean
+    preserveTransparency: boolean,
+    opacity?: number
   ): boolean;
   finishPixelEdit(): ReversiblePixelEdit | null;
   cancelPixelEdit(): void;
@@ -82,7 +83,10 @@ export const executeFillOperation = (
   renderer: FillRendererPort,
   channel: PaintChannel,
   color: string,
-  preserveTransparencyOverride = false
+  options: {
+    readonly preserveTransparency?: boolean;
+    readonly opacity?: number;
+  } = {}
 ): FillOperationResult => {
   if (!document.activeLayerId) {
     return {
@@ -111,6 +115,19 @@ export const executeFillOperation = (
         : 'Select a raster layer before filling.'
     };
   }
+  const opacity = Math.max(0, Math.min(1, options.opacity ?? 1));
+  if (opacity === 0 && (
+    layer.locks.all
+    || (channel === 'pixels' && (layer.locks.pixels || layer.locks.transparency))
+  )) {
+    return {
+      ok: false,
+      code: 'invalid-target',
+      message: channel === 'mask'
+        ? 'Unlock the layer before clearing its mask.'
+        : 'Unlock pixels and transparency before clearing selected pixels.'
+    };
+  }
 
   let transactionOpen = false;
   try {
@@ -118,12 +135,13 @@ export const executeFillOperation = (
     transactionOpen = true;
     const preserveTransparency = channel === 'pixels'
       && layer.type === 'raster'
-      && (layer.locks.transparency || preserveTransparencyOverride);
+      && (layer.locks.transparency || options.preserveTransparency === true);
     if (!renderer.fillLayerColor(
       layer.id,
       channel,
       linearColor,
-      preserveTransparency
+      preserveTransparency,
+      opacity
     )) {
       renderer.cancelPixelEdit();
       transactionOpen = false;

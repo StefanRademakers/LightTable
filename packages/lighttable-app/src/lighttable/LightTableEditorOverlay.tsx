@@ -73,6 +73,7 @@ import type { DocumentOpenMode } from './application/documents/documentSourcePro
 import { useEditorDocumentLifecycleController } from './composition/documents/useEditorDocumentLifecycleController';
 import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
+import { resolveDeleteTarget } from './application/input/resolveDeleteTarget';
 import { createEditorMenuController } from './composition/menus/createEditorMenuController';
 import { primaryShortcutLabel } from './application/input/editorShortcutPresentation';
 import { LayersWorkspacePanel } from './composition/workspace/LayersWorkspacePanel';
@@ -492,6 +493,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     color: string,
     preserveTransparency?: boolean
   ) => void>(() => undefined);
+  const deleteActiveTargetRef = useRef<() => void>(() => undefined);
   const temporaryToolRef = useRef(new TemporaryToolController());
   const groupVisibilityRef = useRef<GroupVisibility>(createDefaultGroupVisibility());
   const scopeSettingsRef = useRef<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
@@ -1827,6 +1829,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       fillBackground: (preserveTransparency) =>
         fillActiveTargetRef.current(editorSession.brush.backgroundColor, preserveTransparency),
       openFillDialog: editorDialogs.openFill,
+      deleteActiveTarget: () => deleteActiveTargetRef.current(),
       selectAll: selectAllContent,
       selectNone: clearCurrentSelection,
       invertSelection: invertCurrentSelection,
@@ -2956,6 +2959,37 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     finishTextEditing: () => { textEditingController.finish(); }
   });
+  deleteActiveTargetRef.current = () => {
+    const document = imageDocumentRef.current;
+    const session = editorSessionRef.current;
+    const vectorSelection = session.vectorSelection;
+    const target = resolveDeleteTarget({
+      activeTool: session.activeTool,
+      hasVectorSelection: vectorSelection.elements.length > 0
+        || vectorSelection.paths.length > 0
+        || vectorSelection.anchors.length > 0,
+      hasPixelSelection: session.selection.length > 0,
+      hasActiveLayer: Boolean(document?.activeLayerId)
+    });
+    if (!target) return;
+
+    if (target === 'vector-selection') {
+      vectorToolSessionController.deleteSelection();
+      return;
+    }
+    if (transformActiveRef.current()) cancelTransformRef.current();
+    if (target === 'pixel-selection') {
+      fillCommandController.clearSelection();
+      return;
+    }
+
+    const layerIds = selectedLayerIdsRef.current.length > 0
+      ? selectedLayerIdsRef.current
+      : document?.activeLayerId
+        ? [document.activeLayerId]
+        : [];
+    if (layerIds.length > 0) layerPanelController.deleteSelection(layerIds);
+  };
   useEffect(() => {
     if (!commandPorts) return;
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {

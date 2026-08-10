@@ -802,7 +802,8 @@ export class WebGpuEngine {
     layerId: LayerId,
     channel: PaintChannel,
     color: [number, number, number],
-    preserveTransparency: boolean
+    preserveTransparency: boolean,
+    opacity = 1
   ) {
     const layer = this.imageDocument
       ? findDocumentLayer(this.imageDocument, layerId)
@@ -814,7 +815,8 @@ export class WebGpuEngine {
       preserveTransparency,
       channel === 'pixels' && layer?.type === 'raster'
         ? layer.transform
-        : undefined
+        : undefined,
+      opacity
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;

@@ -371,7 +371,7 @@ describe('LightTable WGSL modules', () => {
 
   it('fills through selection coverage and preserves premultiplied transparency when requested', () => {
     expect(LAYER_FILL_COLOR_WGSL).toContain('textureLoad(selectionTexture');
-    expect(LAYER_FILL_COLOR_WGSL).toContain('source.a, settings.preserveTransparency > 0.5');
+    expect(LAYER_FILL_COLOR_WGSL).toContain('settings.color.a, source.a, settings.preserveTransparency > 0.5');
     expect(LAYER_FILL_COLOR_WGSL).toContain('settings.color.rgb * alpha');
     expect(LAYER_FILL_COLOR_WGSL).toContain('return mix(source, filled, selection)');
     expect(LAYER_FILL_COLOR_WGSL).toContain('settings.maskChannel > 0.5');

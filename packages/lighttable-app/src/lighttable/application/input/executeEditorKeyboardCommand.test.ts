@@ -24,6 +24,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   fillForeground: vi.fn(),
   fillBackground: vi.fn(),
   openFillDialog: vi.fn(),
+  deleteActiveTarget: vi.fn(),
   selectAll: vi.fn(),
   selectNone: vi.fn(),
   invertSelection: vi.fn(),
@@ -132,6 +133,14 @@ describe('executeEditorKeyboardCommand', () => {
     expect(target.fillForeground).toHaveBeenCalledWith(true);
     expect(target.fillBackground).toHaveBeenCalledWith(true);
     expect(target.openFillDialog).toHaveBeenCalledOnce();
+  });
+
+  it('routes contextual deletion through one editor-owned command', () => {
+    const target = ports();
+
+    executeEditorKeyboardCommand('delete-active-target', target);
+
+    expect(target.deleteActiveTarget).toHaveBeenCalledOnce();
   });
 
   it('opens the shared Brush settings surface', () => {

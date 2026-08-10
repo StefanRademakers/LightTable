@@ -437,14 +437,16 @@ export class LayerDocumentRenderer {
     channel: PaintChannel,
     color: [number, number, number],
     preserveTransparency: boolean,
-    transform: AffineMatrix = identityAffineMatrix()
+    transform: AffineMatrix = identityAffineMatrix(),
+    opacity = 1
   ) {
     return this.runtime.rasterPaint.fillColor(
       layerId,
       channel,
       color,
       preserveTransparency,
-      transform
+      transform,
+      opacity
     );
   }
 

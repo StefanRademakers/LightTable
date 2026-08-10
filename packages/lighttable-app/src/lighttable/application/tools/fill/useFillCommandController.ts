@@ -32,13 +32,18 @@ export interface FillCommandDependencies {
 
 export interface FillCommandController {
   fill(color: string, preserveTransparency?: boolean): boolean;
+  clearSelection(): boolean;
 }
 
 /** Owns one fill command from renderer mutation through reversible history. */
 export const createFillCommandController = (
   resolveDependencies: () => FillCommandDependencies
-): FillCommandController => ({
-  fill: (color, preserveTransparency = false) => {
+): FillCommandController => {
+  const execute = (
+    color: string,
+    options: { readonly preserveTransparency?: boolean; readonly opacity?: number },
+    status: (targetLabel: string) => string
+  ) => {
     const dependencies = resolveDependencies();
     const before = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
@@ -48,7 +53,7 @@ export const createFillCommandController = (
       renderer,
       dependencies.getChannel(),
       color,
-      preserveTransparency
+      options
     );
     if (!result.ok) {
       dependencies.setError(result.message);
@@ -76,12 +81,22 @@ export const createFillCommandController = (
       dispose: result.pixelEdit.destroy
     });
     dependencies.setError(null);
-    dependencies.setStatus(
-      `${result.targetLabel} filled with ${color.toUpperCase()}`
-    );
+    dependencies.setStatus(status(result.targetLabel));
     return true;
-  }
-});
+  };
+  return {
+    fill: (color, preserveTransparency = false) => execute(
+      color,
+      { preserveTransparency },
+      (targetLabel) => `${targetLabel} filled with ${color.toUpperCase()}`
+    ),
+    clearSelection: () => execute(
+      '#000000',
+      { opacity: 0 },
+      (targetLabel) => `${targetLabel} selection cleared`
+    )
+  };
+};
 
 export const useFillCommandController = (
   dependencies: FillCommandDependencies

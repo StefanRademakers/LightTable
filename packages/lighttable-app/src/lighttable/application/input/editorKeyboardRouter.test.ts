@@ -46,7 +46,9 @@ describe('resolveEditorKeyboardCommand', () => {
     [{ ctrlKey: true, key: ' ', code: 'Space' }, 'temporary-zoom-in-start'],
     [{ altKey: true, key: ' ', code: 'Space' }, 'temporary-zoom-out-start'],
     [{ altKey: true, key: 'Backspace' }, 'fill-foreground'],
-    [{ metaKey: true, key: 'Delete' }, 'fill-background']
+    [{ metaKey: true, key: 'Delete' }, 'fill-background'],
+    [{ key: 'Delete' }, 'delete-active-target'],
+    [{ key: 'Backspace' }, 'delete-active-target']
   ] as const)('normalizes %o to %s', (keys, expected) => {
     expect(resolveEditorKeyboardCommand(input(keys), context())).toBe(expected);
   });
@@ -54,6 +56,10 @@ describe('resolveEditorKeyboardCommand', () => {
   it('does not route document shortcuts from text editing controls', () => {
     expect(resolveEditorKeyboardCommand(
       input({ ctrlKey: true, key: 'a' }),
+      context({ editable: true })
+    )).toBeNull();
+    expect(resolveEditorKeyboardCommand(
+      input({ key: 'Backspace' }),
       context({ editable: true })
     )).toBeNull();
   });
