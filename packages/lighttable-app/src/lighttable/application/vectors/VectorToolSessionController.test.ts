@@ -101,6 +101,24 @@ describe('VectorToolSessionController', () => {
     expect(layerPaths(layer)[0]?.subpaths[0]?.anchors).toHaveLength(2);
   });
 
+  it('presents the active Pen curve, endpoint and direction handles through the GPU overlay contract', () => {
+    const state = setup();
+    state.controller.activate('pen');
+    state.controller.pointerDown(1, { x: 20, y: 20 }, { hitRadius: 3 });
+    state.controller.pointerMove(1, { x: 35, y: 20 });
+    state.controller.pointerUp(1, { x: 35, y: 20 });
+    state.controller.pointerDown(2, { x: 90, y: 60 }, { hitRadius: 3 });
+    const documentBeforeDrag = state.document;
+    state.controller.pointerMove(2, { x: 110, y: 70 });
+
+    const overlay = state.controller.penEditingOverlay();
+    expect(state.document).toBe(documentBeforeDrag);
+    expect(overlay?.cubics).toHaveLength(1);
+    expect(overlay?.anchors).toHaveLength(2);
+    expect(overlay?.anchors.at(-1)).toMatchObject({ active: true, selected: true });
+    expect(overlay?.handles).toHaveLength(2);
+  });
+
   it('finishes an active open Pen path when Ctrl-clicking away from vector geometry', () => {
     const state = setup();
     state.controller.activate('pen');

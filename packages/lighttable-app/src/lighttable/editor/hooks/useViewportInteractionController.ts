@@ -34,6 +34,7 @@ import {
   isWarpTool
 } from '../tools/toolCapabilities';
 import type { TemporaryToolController } from '../tools/temporaryToolController';
+import type { VectorEditingOverlay } from '@lighttable/vector-rendering';
 import {
   clientToLocalPoint,
   localToDocumentPointer,
@@ -130,6 +131,7 @@ interface ViewportInteractionOptions {
     from: { x: number; y: number };
     to: { x: number; y: number };
   } | null) => void;
+  onPenEditingOverlayChange: (overlay: VectorEditingOverlay | null) => void;
 }
 
 export interface ViewportInteractionController {
@@ -185,7 +187,8 @@ export const useViewportInteractionController = ({
   editingBlocked,
   onBrushCursorChange,
   onZoomDraftChange,
-  onPenRubberBandChange
+  onPenRubberBandChange,
+  onPenEditingOverlayChange
 }: ViewportInteractionOptions): ViewportInteractionController => {
   const effectiveTool = temporaryTools.effectiveTool(editorSession.activeTool);
   const temporaryPan = temporaryTools.activeTool === 'view';
@@ -216,8 +219,13 @@ export const useViewportInteractionController = ({
   onZoomDraftChangeRef.current = onZoomDraftChange;
   const onPenRubberBandChangeRef = useRef(onPenRubberBandChange);
   onPenRubberBandChangeRef.current = onPenRubberBandChange;
+  const onPenEditingOverlayChangeRef = useRef(onPenEditingOverlayChange);
+  onPenEditingOverlayChangeRef.current = onPenEditingOverlayChange;
   const onColorPickRef = useRef(onColorPick);
   onColorPickRef.current = onColorPick;
+  useEffect(() => {
+    if (effectiveTool !== 'vector-pen') onPenEditingOverlayChangeRef.current(null);
+  }, [effectiveTool]);
   const panFrameRef = useRef<LatestFrameValueScheduler<{
     panX: number;
     panY: number;
@@ -528,7 +536,7 @@ export const useViewportInteractionController = ({
         && event.button === 0
         && !temporaryPan
       ) {
-        if (vector.pointerDown(event.pointerId, point, {
+        const handled = vector.pointerDown(event.pointerId, point, {
           // A 24 px target remains comfortably usable with a mouse or trackpad
           // while staying below the 30 px upper limit for dense vector paths.
           hitRadius: 12 / Math.max(activeScale, 0.0001),
@@ -547,7 +555,9 @@ export const useViewportInteractionController = ({
             : undefined,
           snapToPixels: editorSession.shape.snapToPixels,
           rasterize: activeTool.startsWith('shape-') && editorSession.shape.mode === 'pixels'
-        })) {
+        });
+        onPenEditingOverlayChangeRef.current(vector.penEditingOverlay());
+        if (handled) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();
         }
@@ -812,7 +822,7 @@ export const useViewportInteractionController = ({
       }
       if (point && vector.ownsPointer(event.pointerId)) {
         onPenRubberBandChangeRef.current(null);
-        if (vector.pointerMove(event.pointerId, point, {
+        const handled = vector.pointerMove(event.pointerId, point, {
           preserveAspect: event.shiftKey,
           fromCenter: event.altKey || editorSession.shape.fromCenter,
           fixedSize: editorSession.shape.geometry === 'fixed'
@@ -825,7 +835,9 @@ export const useViewportInteractionController = ({
           rasterize: (temporaryTools.activeTool ?? editorSession.activeTool).startsWith('shape-')
             && editorSession.shape.mode === 'pixels',
           moveOrigin: temporaryTools.activeTool === 'view'
-        })) event.preventDefault();
+        });
+        onPenEditingOverlayChangeRef.current(vector.penEditingOverlay());
+        if (handled) event.preventDefault();
         return;
       }
       if (effectiveTool === 'vector-pen') {
@@ -933,6 +945,7 @@ export const useViewportInteractionController = ({
           moveOrigin: temporaryTools.activeTool === 'view'
         });
         else vector.pointerCancel(event.pointerId);
+        onPenEditingOverlayChangeRef.current(vector.penEditingOverlay());
         event.preventDefault();
         return;
       }
@@ -972,6 +985,7 @@ export const useViewportInteractionController = ({
       }
       rasterGradient.cancel(event.pointerId);
       vector.pointerCancel(event.pointerId);
+      onPenEditingOverlayChangeRef.current(vector.penEditingOverlay());
       selection.cancel(event.pointerId);
       warp.cancel(event.pointerId);
       paint.cancel(event.pointerId);

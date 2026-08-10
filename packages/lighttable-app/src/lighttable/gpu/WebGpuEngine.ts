@@ -241,6 +241,7 @@ export class WebGpuEngine {
     center: { x: number; y: number };
     diameter: number;
   } | null = null;
+  private penEditingOverlay: VectorEditingOverlay | null = null;
   private penRubberBand: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
   private transformEditingFrame: VectorSelectionFrame | null = null;
   private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
@@ -1595,6 +1596,13 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setPenEditingOverlay(overlay: VectorEditingOverlay | null) {
+    if (this.penEditingOverlay?.resourceKey === overlay?.resourceKey) return;
+    this.penEditingOverlay = overlay;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   async sampleDisplayColor(point: { x: number; y: number }) {
     const texture = this.imageResources.finalTexture;
     const metadata = this.metadata;
@@ -2304,6 +2312,7 @@ export class WebGpuEngine {
       && !selectionMask
       && !this.transformEditingFrame
       && !this.brushCursorOverlay
+      && !this.penEditingOverlay
       && !this.penRubberBand
       && !this.textEditingOverlay
     ) return;
@@ -2334,6 +2343,9 @@ export class WebGpuEngine {
     }
     for (const overlay of overlayScene.gradientHandles) {
       this.vectorEditingOverlayBackend.encode(encoder, overlay, target, GRADIENT_GIZMO_THEME);
+    }
+    if (this.penEditingOverlay) {
+      this.vectorEditingOverlayBackend.encode(encoder, this.penEditingOverlay, target);
     }
     if (this.penRubberBand) {
       const rubberBand: VectorEditingOverlay = {
@@ -2439,6 +2451,7 @@ export class WebGpuEngine {
     this.isolatedCompositeChannel = null;
     this.brushCursorOverlay = null;
     this.penRubberBand = null;
+    this.penEditingOverlay = null;
     this.transformEditingFrame = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;

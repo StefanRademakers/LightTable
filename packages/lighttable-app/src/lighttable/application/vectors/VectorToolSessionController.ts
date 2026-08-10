@@ -15,6 +15,10 @@ import {
   type VectorEditorSelection
 } from '../../editor/session/editorSession';
 import {
+  buildVectorEditingOverlay,
+  type VectorEditingOverlay
+} from '@lighttable/vector-rendering';
+import {
   DirectSelectionToolController,
   type DirectSelectionPointerOptions
 } from './DirectSelectionToolController';
@@ -276,7 +280,9 @@ export class VectorToolSessionController {
   ) {
     const capture = this.validCapture(pointerId);
     if (!capture) return false;
-    if (capture.mode === 'pen') return this.pen.pointerMove(documentPoint, options.preserveAspect);
+    if (capture.mode === 'pen') {
+      return this.pen.pointerMove(documentPoint, options.preserveAspect);
+    }
     if (capture.mode === 'element-selection') return this.elementSelection.pointerMove(documentPoint);
     if (capture.mode === 'direct-selection') return this.directSelection.pointerMove(documentPoint);
     if (capture.mode === 'live-shape') return this.liveShape.pointerMove(documentPoint, options);
@@ -345,6 +351,32 @@ export class VectorToolSessionController {
   penRubberBand(documentPoint: Vec2): PenRubberBand | null {
     if (!this.assertAvailable() || this.activeMode !== 'pen' || this.capturedPointer) return null;
     return this.pen.rubberBand(documentPoint);
+  }
+
+  penEditingOverlay(): VectorEditingOverlay | null {
+    if (!this.assertAvailable() || this.activeMode !== 'pen') return null;
+    const snapshot = this.pen.snapshot();
+    const path = snapshot.path;
+    const subpathId = snapshot.activeSubpathId;
+    if (!path || !subpathId) return null;
+    const subpath = path.subpaths.find(({ id }) => id === subpathId);
+    const anchor = snapshot.activeEndpoint === 'prepend'
+      ? subpath?.anchors[0]
+      : subpath?.anchors.at(-1);
+    const activeAnchor = anchor ? { subpathId, anchorId: anchor.id } : null;
+    const overlay = buildVectorEditingOverlay({
+      ...path,
+      transform: { ...snapshot.pathToDocument }
+    }, {
+      selection: {
+        anchors: activeAnchor ? [activeAnchor] : [],
+        activeAnchor
+      }
+    });
+    return {
+      ...overlay,
+      resourceKey: `${overlay.resourceKey}:pen-presentation-${snapshot.presentationRevision}`
+    };
   }
 
   cancelPenPath() {

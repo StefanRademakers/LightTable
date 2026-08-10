@@ -2063,9 +2063,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     rasterizeShape: (transaction) => rasterizeShapeRef.current(transaction)
   });
-  finishPenPathRef.current = () => { vectorToolSessionController.finishPenPath(); };
-  cancelPenPathRef.current = () => vectorToolSessionController.cancelPenPath();
-  undoPenAnchorRef.current = () => vectorToolSessionController.undoPenAnchor();
+  finishPenPathRef.current = () => {
+    vectorToolSessionController.finishPenPath();
+    engineRef.current?.setPenEditingOverlay(vectorToolSessionController.penEditingOverlay());
+  };
+  cancelPenPathRef.current = () => {
+    const changed = vectorToolSessionController.cancelPenPath();
+    engineRef.current?.setPenEditingOverlay(vectorToolSessionController.penEditingOverlay());
+    return changed;
+  };
+  undoPenAnchorRef.current = () => {
+    const changed = vectorToolSessionController.undoPenAnchor();
+    engineRef.current?.setPenEditingOverlay(vectorToolSessionController.penEditingOverlay());
+    return changed;
+  };
   const selectedVectorStyle = useMemo(() => {
     const reference = editorSession.vectorSelection.elements[0];
     if (!reference || !imageDocument) return null;
@@ -2695,6 +2706,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     onPenRubberBandChange: (band) => {
       engineRef.current?.setPenRubberBandOverlay(band);
+    },
+    onPenEditingOverlayChange: (overlay) => {
+      engineRef.current?.setPenEditingOverlay(overlay);
     }
   });
   const desktopHorizontalWheelRef = useRef(viewportInteraction.onHorizontalWheel);

@@ -4,6 +4,7 @@ import {
   scaleMatrix,
   transformPoint,
   translationMatrix,
+  type VectorStyle,
   type VectorIdSource
 } from '@lighttable/vector-core';
 import {
@@ -20,7 +21,7 @@ const ids = (): VectorIdSource => {
   return { next: (kind) => `${kind}-${++value}` };
 };
 
-const setup = () => {
+const setup = (style?: VectorStyle) => {
   let document = createImageDocument('Pen', 200, 100, 'asset');
   const history: Array<{ before: typeof document; after: typeof document }> = [];
   const documentController = new VectorDocumentController(() => ({
@@ -29,13 +30,45 @@ const setup = () => {
     pushDocumentHistory: (before, after) => history.push({ before, after })
   }));
   return {
-    controller: new PenToolController(documentController, { ids: ids() }),
+    controller: new PenToolController(documentController, {
+      ids: ids(),
+      ...(style ? { style: () => style } : {})
+    }),
     history,
     get document() { return document; }
   };
 };
 
 describe('PenToolController', () => {
+  it('keeps pointer-move geometry overlay-only and defers authored paint until completion', () => {
+    const style: VectorStyle = {
+      fill: { type: 'solid', color: [1, 0, 0, 1] },
+      stroke: {
+        paint: { type: 'solid', color: [0, 0, 1, 1] }, width: 5,
+        cap: 'round', join: 'round', miterLimit: 4, dash: [], dashOffset: 0
+      },
+      opacity: 1
+    };
+    const state = setup(style);
+    state.controller.pointerDown({ x: 10, y: 10 });
+    state.controller.pointerUp({ x: 10, y: 10 });
+    state.controller.pointerDown({ x: 80, y: 30 });
+    const documentBeforeHandleDrag = state.document;
+
+    expect(state.controller.pointerMove({ x: 90, y: 45 })).toBe(true);
+    expect(state.document).toBe(documentBeforeHandleDrag);
+    expect(state.controller.snapshot().path?.subpaths[0]?.anchors).toHaveLength(2);
+    const provisionalLayer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    const provisional = provisionalLayer?.type === 'vector' ? provisionalLayer.elements[0] : null;
+    expect(provisional?.style).toMatchObject({ fill: null, stroke: null });
+
+    state.controller.pointerUp({ x: 90, y: 45 });
+    expect(state.controller.finishOpen()).toBe(true);
+    const finalLayer = findDocumentLayer(state.document, state.document.activeLayerId!);
+    const finalPath = finalLayer?.type === 'vector' ? finalLayer.elements[0] : null;
+    expect(finalPath?.style).toMatchObject(style);
+  });
+
   it('exposes a document-space rubber band without mutating the preview document', () => {
     const state = setup();
     state.controller.pointerDown({ x: 12, y: 18 });

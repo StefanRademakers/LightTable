@@ -2,6 +2,7 @@ import {
   identityAffineMatrix,
   invertMatrix,
   joinVectorPathEndpoints,
+  cloneVectorStyle,
   PenPathBuilder,
   transformPoint,
   type AffineMatrix,
@@ -57,6 +58,10 @@ export interface PenToolControllerOptions {
 export interface PenToolSnapshot {
   layerId: LayerId | null;
   path: VectorPath | null;
+  pathToDocument: AffineMatrix;
+  activeSubpathId: string | null;
+  activeEndpoint: PenPathDirection | null;
+  presentationRevision: number;
   anchorGestureActive: boolean;
 }
 
@@ -87,6 +92,9 @@ export class PenToolController {
   private documentToPath: AffineMatrix = identityAffineMatrix();
   private pathToDocument: AffineMatrix = identityAffineMatrix();
   private transaction: 'creation' | 'mutation' | null = null;
+  private authoredStyle: VectorStyle | null = null;
+  private presentedPath: VectorPath | null = null;
+  private presentationRevision = 0;
 
   constructor(
     private readonly documents: VectorDocumentController,
@@ -108,9 +116,11 @@ export class PenToolController {
   pointerMove(position: Vec2, constrain = false) {
     if (!this.builder || !this.gesture) return false;
     const local = transformPoint(this.documentToPath, position);
-    return this.preview(this.builder.previewPlace(this.gesture.position, {
+    this.presentedPath = this.builder.previewPlace(this.gesture.position, {
       dragTo: constrain ? constrainDirection(this.gesture.position, local) : local
-    }));
+    });
+    this.presentationRevision += 1;
+    return true;
   }
 
   pointerUp(position: Vec2, constrain = false) {
@@ -131,7 +141,7 @@ export class PenToolController {
     if (!first || !this.builder || this.builder.anchorCount() < 3) return false;
     const firstDocument = transformPoint(this.pathToDocument, first.position);
     if (distanceSquared(firstDocument, position) > tolerance * tolerance) return false;
-    const closed = this.builder.close();
+    const closed = this.restoreAuthoredStyle(this.builder.close());
     if (!this.preview(closed)) return false;
     return this.commit();
   }
@@ -143,7 +153,7 @@ export class PenToolController {
     targetEndpoint: 'start' | 'end'
   ) {
     if (!this.builder || !this.layerId || this.gesture) return false;
-    const active = this.builder.snapshot();
+    const active = this.restoreAuthoredStyle(this.builder.snapshot());
     if (
       active.id === targetPath.id
       && this.builder.activeSubpathId() === targetSubpathId
@@ -173,7 +183,7 @@ export class PenToolController {
 
   finishOpen() {
     if (!this.builder || this.builder.anchorCount() < 2) return false;
-    const finished = this.builder.finishOpen();
+    const finished = this.restoreAuthoredStyle(this.builder.finishOpen());
     if (!this.preview(finished)) return false;
     return this.commit();
   }
@@ -206,11 +216,14 @@ export class PenToolController {
     if (!documentToPath) return false;
     if (!this.documents.beginPathMutation(layerId, path.id)) return false;
     try {
-      this.builder = PenPathBuilder.resume(path, subpathId, this.ids, direction);
+      this.authoredStyle = cloneVectorStyle(path.style);
+      const draft = this.withoutArtworkPaint(path);
+      this.builder = PenPathBuilder.resume(draft, subpathId, this.ids, direction);
       this.layerId = layerId;
       this.documentToPath = { ...documentToPath };
       this.pathToDocument = { ...pathToDocument };
       this.transaction = 'mutation';
+      if (!this.preview(draft)) throw new Error('The open path could not enter Pen editing mode.');
       return true;
     } catch (error) {
       this.documents.cancelPathMutation();
@@ -233,7 +246,11 @@ export class PenToolController {
   snapshot(): PenToolSnapshot {
     return {
       layerId: this.layerId,
-      path: this.builder?.snapshot() ?? null,
+      path: this.presentedPath ?? this.builder?.snapshot() ?? null,
+      pathToDocument: { ...this.pathToDocument },
+      activeSubpathId: this.builder?.activeSubpathId() ?? null,
+      activeEndpoint: this.builder?.activeEndpoint() ?? null,
+      presentationRevision: this.presentationRevision,
       anchorGestureActive: Boolean(this.gesture)
     };
   }
@@ -257,7 +274,12 @@ export class PenToolController {
   }
 
   private openPath() {
-    const builder = PenPathBuilder.start(this.ids, this.pathName, this.style());
+    this.authoredStyle = cloneVectorStyle(this.style());
+    const builder = PenPathBuilder.start(
+      this.ids,
+      this.pathName,
+      { ...cloneVectorStyle(this.authoredStyle), fill: null, stroke: null }
+    );
     const placement = this.documents.beginPathCreation(builder.snapshot(), this.layerName);
     if (!placement) return false;
     this.builder = new PenPathBuilder(
@@ -269,6 +291,8 @@ export class PenToolController {
     this.documentToPath = { ...placement.documentToPath };
     this.pathToDocument = { ...placement.pathToDocument };
     this.transaction = 'creation';
+    this.presentedPath = this.builder.snapshot();
+    this.presentationRevision += 1;
     return true;
   }
 
@@ -276,7 +300,11 @@ export class PenToolController {
     const previewed = this.transaction === 'mutation'
       ? this.documents.previewPathMutation(() => path)
       : this.documents.previewPathCreation(path);
-    if (previewed) return true;
+    if (previewed) {
+      this.presentedPath = path;
+      this.presentationRevision += 1;
+      return true;
+    }
     this.reset();
     return false;
   }
@@ -296,5 +324,25 @@ export class PenToolController {
     this.documentToPath = identityAffineMatrix();
     this.pathToDocument = identityAffineMatrix();
     this.transaction = null;
+    this.authoredStyle = null;
+    this.presentedPath = null;
+  }
+
+  /** Keeps provisional Pen geometry in the GPU editing overlay, not in artwork paint. */
+  private withoutArtworkPaint(path: VectorPath): VectorPath {
+    return {
+      ...path,
+      style: { ...cloneVectorStyle(path.style), fill: null, stroke: null },
+      styleRevision: path.styleRevision + 1
+    };
+  }
+
+  private restoreAuthoredStyle(path: VectorPath): VectorPath {
+    if (!this.authoredStyle) return path;
+    return {
+      ...path,
+      style: cloneVectorStyle(this.authoredStyle),
+      styleRevision: path.styleRevision + 1
+    };
   }
 }
