@@ -35,6 +35,7 @@ import type {
   LightTableRecoveryRecord
 } from '../platform/LightTableRecoveryStore';
 import { AboutUpdateDialog } from '../lighttable/editor/ui/AboutUpdateDialog';
+import { ThirdPartyLicensesDialog } from '../lighttable/editor/ui/ThirdPartyLicensesDialog';
 import {
   GuidedSampleCoach,
   type GuidedSampleSession
@@ -237,6 +238,7 @@ export function LightTableStandaloneApp({
   const [creating, setCreating] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [thirdPartyLicensesOpen, setThirdPartyLicensesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [styleGuideOpen, setStyleGuideOpen] = useState(false);
   const [preferences, setPreferences] = useState(() => typeof localStorage === 'undefined'
@@ -699,6 +701,7 @@ export function LightTableStandaloneApp({
           ) : null}
           <div className="lighttable-launcher__utility-actions">
             <button className="action-button" type="button" onClick={() => setSettingsOpen(true)}>Preferences</button>
+            <button className="action-button" type="button" onClick={() => setThirdPartyLicensesOpen(true)}>Third-party Licenses</button>
             <button className="action-button" type="button" onClick={() => setAboutOpen(true)}>About LightTable</button>
           </div>
         </div>
@@ -714,6 +717,11 @@ export function LightTableStandaloneApp({
           release={host.release}
           dirtyDocuments={false}
           onClose={() => setAboutOpen(false)}
+        />
+        <ThirdPartyLicensesDialog
+          open={thirdPartyLicensesOpen}
+          includeDesktopRuntime={Boolean(host.release)}
+          onClose={() => setThirdPartyLicensesOpen(false)}
         />
         <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
           onCancel={() => setSettingsOpen(false)} onSave={(next) => {

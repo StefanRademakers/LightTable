@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +8,31 @@ const outputPath = resolve(
   repositoryRoot,
   'architecture/reference/implementation/THIRD_PARTY_DEPENDENCY_INVENTORY.json'
 );
+const productDisclosurePath = resolve(
+  repositoryRoot,
+  'packages/lighttable-app/src/lighttable/application/compliance/thirdPartyDisclosures.generated.ts'
+);
+
+// This is deliberately a product-facing selection rather than a dependency dump.
+// Versions and licenses are still projected from the lockfiles below, so the UI
+// cannot silently drift from the software that is actually shipped.
+const productDisclosureDefinitions = [
+  { category: 'Application', name: 'React', packages: ['react'], description: 'Application interface runtime.' },
+  { category: 'Application', name: 'Dockview', packages: ['dockview-react'], description: 'Dockable panel and workspace layout.' },
+  { category: 'Documents and imaging', name: 'ag-psd', packages: ['ag-psd'], description: 'Photoshop document reading and writing.' },
+  { category: 'Documents and imaging', name: 'PDF.js', packages: ['pdfjs-dist'], description: 'PDF document loading and rendering.' },
+  { category: 'Documents and imaging', name: 'pdf-lib', packages: ['pdf-lib'], description: 'PDF document creation and editing.' },
+  { category: 'Text and fonts', name: 'HarfBuzz.js', packages: ['harfbuzzjs'], description: 'OpenType text shaping.' },
+  { category: 'Text and fonts', name: 'Parley', packages: ['parley'], description: 'Text layout engine.' },
+  { category: 'Text and fonts', name: 'Fontique', packages: ['fontique'], description: 'Font discovery and fallback.' },
+  { category: 'Text and fonts', name: 'Skrifa', packages: ['skrifa'], description: 'Font outline and metrics processing.' },
+  { category: 'Text and fonts', name: 'Zeno', packages: ['zeno'], description: 'Glyph outline rasterization.' },
+  { category: 'Bundled fonts', name: 'Inter', packages: ['@fontsource/inter'], description: 'Bundled sans-serif typeface.' },
+  { category: 'Bundled fonts', name: 'Noto Sans', packages: ['@fontsource/noto-sans'], description: 'Bundled multilingual sans-serif typeface.' },
+  { category: 'Bundled fonts', name: 'Source Serif 4', packages: ['@fontsource/source-serif-4'], description: 'Bundled serif typeface.' },
+  { category: 'Bundled fonts', name: 'JetBrains Mono', packages: ['@fontsource/jetbrains-mono'], description: 'Bundled monospaced typeface.' },
+  { category: 'AI and automation', name: 'Transformers.js', packages: ['@huggingface/transformers'], description: 'Local machine-learning model runtime.' }
+];
 
 const readJson = (path) => JSON.parse(readFileSync(resolve(repositoryRoot, path), 'utf8'));
 const packageLock = readJson('package-lock.json');
@@ -102,12 +127,14 @@ const inventory = {
     {
       component: 'wasm-vips codec bundle',
       packageVersion: npm.find((entry) => entry.name === 'wasm-vips')?.version ?? 'UNKNOWN',
+      licenseSummary: 'LGPL-3.0 and bundled licenses',
       noticeLocation: 'node_modules/wasm-vips/THIRD-PARTY-NOTICES.md',
       releaseRequirement: 'Ship the upstream notice set with distributions that contain vips.wasm.'
     },
     {
       component: 'Electron and Chromium runtime',
       packageVersion: npm.find((entry) => entry.name === 'electron')?.version ?? 'UNKNOWN',
+      licenseSummary: 'MIT and bundled licenses',
       noticeLocation: 'node_modules/electron/dist/LICENSES.chromium.html',
       releaseRequirement: 'Retain Electron LICENSE and Chromium third-party notices in desktop distributions.'
     }
@@ -122,15 +149,71 @@ const inventory = {
   cargo
 };
 
+const dependencyByName = new Map([...npm, ...cargo].map((entry) => [entry.name, entry]));
+const productDisclosures = productDisclosureDefinitions.map((definition) => {
+  const dependencies = definition.packages.map((name) => {
+    const dependency = dependencyByName.get(name);
+    if (!dependency) throw new Error(`Product disclosure dependency is missing: ${name}`);
+    if (!dependency.role.endsWith('runtime')) {
+      throw new Error(`Product disclosure dependency is not a runtime dependency: ${name}`);
+    }
+    return dependency;
+  });
+  return {
+    category: definition.category,
+    name: definition.name,
+    version: [...new Set(dependencies.map(({ version }) => version))].join(', '),
+    license: [...new Set(dependencies.map(({ license }) => license))].join(' / '),
+    description: definition.description,
+    platform: 'all'
+  };
+});
+productDisclosures.push(
+  ...inventory.bundledNoticeSets.map((entry) => ({
+    category: entry.component.startsWith('wasm-vips') ? 'Documents and imaging' : 'Application',
+    name: entry.component,
+    version: entry.packageVersion,
+    license: entry.licenseSummary,
+    description: entry.component.startsWith('wasm-vips')
+      ? 'Native image codecs included in the WebAssembly image runtime.'
+      : 'Desktop application and browser runtime.',
+    platform: entry.component.startsWith('wasm-vips') ? 'all' : 'desktop'
+  })),
+  ...inventory.vendored.map((entry) => ({
+    category: entry.name.includes('ICC') ? 'Documents and imaging' : 'Text and fonts',
+    name: entry.name,
+    version: entry.revision.slice(0, 12),
+    license: entry.license,
+    description: entry.role === 'runtime-embedded-asset'
+      ? 'Embedded product asset.'
+      : 'Runtime component used by the GPU text pipeline.',
+    platform: 'all'
+  })),
+  ...inventory.externalAssets.map((entry) => ({
+    category: 'AI and automation',
+    name: entry.name,
+    version: 'Loaded on demand',
+    license: entry.license,
+    description: entry.loading,
+    platform: 'all'
+  }))
+);
+
+const disclosureOutput = `// Generated by scripts/generate-third-party-inventory.mjs. Do not edit.\n`
+  + `export const LIGHTTABLE_PRODUCT_DISCLOSURES = ${JSON.stringify(productDisclosures, null, 2)} as const;\n`;
+
 const output = `${JSON.stringify(inventory, null, 2)}\n`;
 if (process.argv.includes('--check')) {
   const current = readFileSync(outputPath, 'utf8');
-  if (current !== output) {
+  const currentDisclosures = readFileSync(productDisclosurePath, 'utf8');
+  if (current !== output || currentDisclosures !== disclosureOutput) {
     console.error('Third-party dependency inventory is stale. Run npm run generate:third-party.');
     process.exit(1);
   }
   console.log(`Third-party dependency inventory is current (${npm.length} npm, ${cargo.length} Cargo).`);
 } else {
   writeFileSync(outputPath, output);
+  mkdirSync(dirname(productDisclosurePath), { recursive: true });
+  writeFileSync(productDisclosurePath, disclosureOutput);
   console.log(`Wrote ${outputPath} (${npm.length} npm, ${cargo.length} Cargo).`);
 }

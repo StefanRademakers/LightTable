@@ -254,4 +254,22 @@ describe('createEditorMenuOptions', () => {
     options.find((option) => option.value === 'ui-style-guide')?.onClick?.();
     expect(menuCommands.openStyleGuide).toHaveBeenCalledOnce();
   });
+
+  it('exposes concise third-party license information from Help', () => {
+    const menuCommands = commands();
+    const options = createEditorMenuOptions('help', state(), labels, menuCommands);
+
+    expect(options.map(({ value }) => value)).toEqual([
+      'command-help',
+      'guided-sample',
+      'third-party-licenses',
+      'about'
+    ]);
+    expect(options.find(({ value }) => value === 'third-party-licenses')).toMatchObject({
+      label: 'Third-party Licenses...',
+      separatorBefore: true
+    });
+    options.find(({ value }) => value === 'third-party-licenses')?.onClick?.();
+    expect(menuCommands.openThirdPartyLicenses).toHaveBeenCalledOnce();
+  });
 });

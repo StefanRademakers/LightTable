@@ -14,6 +14,7 @@ import { AboutUpdateDialog } from './AboutUpdateDialog';
 import type { LightTableReleaseService } from '../../../platform/LightTableHost';
 import { CommandHelpDialog } from './CommandHelpDialog';
 import { ImageSizeDialog } from './ImageSizeDialog';
+import { ThirdPartyLicensesDialog } from './ThirdPartyLicensesDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -204,6 +205,11 @@ export const EditorDialogs = ({
     <FormatSupportDialog
       open={controller.formatSupportOpen}
       onClose={controller.closeFormatSupport}
+    />
+    <ThirdPartyLicensesDialog
+      open={controller.thirdPartyLicensesOpen}
+      includeDesktopRuntime={Boolean(release)}
+      onClose={controller.closeThirdPartyLicenses}
     />
     <AboutUpdateDialog
       open={controller.aboutOpen}

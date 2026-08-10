@@ -101,6 +101,7 @@ export interface EditorMenuCommands {
   openStyleGuide?: () => void;
   resetWorkspaceLayout: () => void;
   openAbout?: () => void;
+  openThirdPartyLicenses?: () => void;
   openCommandHelp?: () => void;
   startGuidedSample?: () => void;
   openSettings?: () => void;
@@ -476,6 +477,12 @@ export const createEditorMenuOptions = (
     return [
       { value: 'command-help', label: 'Commands and Shortcuts...', onClick: commands.openCommandHelp },
       { value: 'guided-sample', label: 'Start Guided Sample', onClick: commands.startGuidedSample },
+      {
+        value: 'third-party-licenses',
+        label: 'Third-party Licenses...',
+        separatorBefore: true,
+        onClick: commands.openThirdPartyLicenses
+      },
       { value: 'about', label: 'About LightTable...', onClick: commands.openAbout }
     ];
   }

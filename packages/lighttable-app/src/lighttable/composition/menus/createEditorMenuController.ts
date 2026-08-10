@@ -205,6 +205,7 @@ export const createEditorMenuController = ({
       startGuidedSample: workspace.startGuidedSample,
       openSettings: workspace.openSettings,
       openCommandHelp: dialogs.openCommandHelp,
+      openThirdPartyLicenses: dialogs.openThirdPartyLicenses,
       openAbout: dialogs.openAbout
     }
   );

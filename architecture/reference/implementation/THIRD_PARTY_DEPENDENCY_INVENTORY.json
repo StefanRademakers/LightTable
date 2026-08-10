@@ -41,12 +41,14 @@
     {
       "component": "wasm-vips codec bundle",
       "packageVersion": "0.0.18",
+      "licenseSummary": "LGPL-3.0 and bundled licenses",
       "noticeLocation": "node_modules/wasm-vips/THIRD-PARTY-NOTICES.md",
       "releaseRequirement": "Ship the upstream notice set with distributions that contain vips.wasm."
     },
     {
       "component": "Electron and Chromium runtime",
       "packageVersion": "39.8.10",
+      "licenseSummary": "MIT and bundled licenses",
       "noticeLocation": "node_modules/electron/dist/LICENSES.chromium.html",
       "releaseRequirement": "Retain Electron LICENSE and Chromium third-party notices in desktop distributions."
     }

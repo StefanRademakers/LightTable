@@ -1,6 +1,6 @@
 # Third-party software, licenses and format support
 
-Status: implementation inventory, updated 2026-08-06. This document records what the
+Status: implementation inventory, updated 2026-08-10. This document records what the
 current repository actually uses and implements. It is not a legal opinion and
 does not turn a planned codec into product support.
 
@@ -18,9 +18,16 @@ npm run verify:third-party
 
 The current snapshot contains 709 npm package/version entries, 80 Cargo crates
 and no unknown license fields. Multiple versions are deliberately separate.
-The inventory separates direct/transitive and runtime/development roles so a
-future About > Licenses view can filter the same data without maintaining a
-second handwritten list.
+The inventory separates direct/transitive and runtime/development roles. The
+Help > Third-party Licenses view is generated from that inventory and a small,
+product-owned disclosure selection, so versions and licenses cannot drift into
+a second handwritten list.
+
+LightTable itself is proprietary software. End-user disclosure of separately
+licensed components does not represent LightTable as an open-source product.
+The product view intentionally highlights meaningful engines, runtimes, fonts
+and assets instead of exposing every implementation utility. The exhaustive
+inventory and release notices remain the legal/release-review layer.
 
 Release review must still collect the complete license and notice texts from
 the artifacts that are actually distributed. In particular, package metadata
@@ -117,18 +124,20 @@ runtime and Chromium notices are part of the packaged desktop release review.
   support is the bounded first-page raster preview in the matrix; exact object
   import and PDF export remain separately gated.
 
-## Future UI exposure
+## UI exposure
 
 Use this data in two existing UI patterns rather than inventing editor controls:
 
-1. **About > Third-party software** reads runtime entries from the generated
-   inventory and links/copies the full notices shipped with that build.
+1. **Help > Third-party Licenses** reads a concise generated projection of the
+   runtime inventory. It clearly distinguishes proprietary LightTable code from
+   separately licensed components and omits low-level utility dependencies from
+   the primary product UI.
 2. **Open/Export > Format support** reads a small product-owned capability
    projection of the matrix: Open, Editable subset, Preserved/report-only,
    Export and Planned. It must show bit-depth and structure limits beside the
    relevant codec.
 
-The UI source should be generated or tested against the same capability
+The UI source is generated or tested against the same capability
 registries used by the file picker and exporters. This Markdown document is the
 human contract; it must not become a second hard-coded runtime truth source.
 

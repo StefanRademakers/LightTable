@@ -28,6 +28,7 @@ export const useEditorDialogController = () => {
     useState<FlattenRequest | null>(null);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
   const [formatSupportOpen, setFormatSupportOpen] = useState(false);
+  const [thirdPartyLicensesOpen, setThirdPartyLicensesOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [commandHelpOpen, setCommandHelpOpen] = useState(false);
   const [textToShapeRequest, setTextToShapeRequest] = useState<TextToShapeRequest | null>(null);
@@ -42,6 +43,7 @@ export const useEditorDialogController = () => {
     setFlattenRequest(null);
     setPsdReportOpen(false);
     setFormatSupportOpen(false);
+    setThirdPartyLicensesOpen(false);
     setAboutOpen(false);
     setCommandHelpOpen(false);
     setTextToShapeRequest(null);
@@ -56,6 +58,7 @@ export const useEditorDialogController = () => {
     flattenRequest,
     psdReportOpen,
     formatSupportOpen,
+    thirdPartyLicensesOpen,
     aboutOpen,
     commandHelpOpen,
     textToShapeRequest,
@@ -91,6 +94,8 @@ export const useEditorDialogController = () => {
     closePsdReport: useCallback(() => setPsdReportOpen(false), []),
     openFormatSupport: useCallback(() => setFormatSupportOpen(true), []),
     closeFormatSupport: useCallback(() => setFormatSupportOpen(false), []),
+    openThirdPartyLicenses: useCallback(() => setThirdPartyLicensesOpen(true), []),
+    closeThirdPartyLicenses: useCallback(() => setThirdPartyLicensesOpen(false), []),
     openAbout: useCallback(() => setAboutOpen(true), []),
     closeAbout: useCallback(() => setAboutOpen(false), []),
     openCommandHelp: useCallback(() => setCommandHelpOpen(true), []),
