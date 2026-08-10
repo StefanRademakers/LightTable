@@ -1,6 +1,8 @@
 # Owner acceptance automation report — 6 August 2026
 
-Status: automation passed; direct owner sign-off pending.
+Historical status: automation passed for candidate `2643a94c`, but direct owner
+sign-off did not occur before that candidate was superseded. This is reusable
+procedure and historical evidence, not current release evidence.
 
 The final packaged batch ran all 15 projects from
 `test/acceptance/owner-workflows.json`. Every deterministic route passed after
@@ -35,5 +37,5 @@ screenshots and reports are linked from those logs and remain under established
 There are zero open automation defects and no P0/P1 finding from this run. This
 does not approve perceived latency or visual quality. The owner must execute the
 recorded task for each project and sign the final three declarations in
-`owner-checklist.md`. Task 108 intentionally remains in `work/todo/` until that
-explicit decision exists.
+`owner-checklist.md`. That sign-off was not recorded before the assessed
+candidate was superseded.

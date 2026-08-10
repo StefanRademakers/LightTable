@@ -1,5 +1,9 @@
 # Supported hardware and release soak
 
+Status note (10 August 2026): the recorded qualification sample belongs to
+historical candidate `2643a94c`. Its probe and policy remain reusable, but
+current support claims require fresh physical measurements on a new candidate.
+
 LightTable does not infer hardware support from a fast development machine.
 The current public minimum-performance claim is **unavailable** until the same
 production soak passes on physical machines representing every claimed class.
@@ -129,5 +133,5 @@ The committed summary is
 `test/baselines/hardware/windows-discrete-electron-2026-08-06.json`; raw probe,
 signature and logs remain below `tmp/hardware-qualification/`. Windows web,
 Windows integrated and Apple Silicon cells remain explicitly unqualified until
-they are exercised on their real host/GPU combinations. Consequently Task 109
-and the public minimum specification remain open.
+they are exercised on their real host/GPU combinations. Consequently the old
+candidate never established a public minimum specification.

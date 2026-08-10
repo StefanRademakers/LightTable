@@ -1,5 +1,8 @@
 # Release-candidate rehearsal - 7 August 2026
 
+Historical status (10 August 2026): candidate `2643a94c` was superseded by
+continued feature development. This report is evidence for that build only.
+
 Status: the reproducible automated release rehearsal passed. The declared
 outcome is **bounded technical preview**, not a paid release candidate.
 
@@ -86,6 +89,6 @@ measured hardware cell. Four gates require an external state change:
 4. Owner/legal commercial policy, activation receipts, signed production
    installer/update and exercised production rollback infrastructure.
 
-The multi-hour soak is no longer a blocker. Tasks 108-111 remain the explicit
-owners of the four unresolved gates; Tasks 112-113 remain open while those
-dependencies prevent a paid-RC and signed owner go/no-go closure.
+The multi-hour soak was not a blocker for this build. The four unresolved gates
+prevented a paid-RC and signed owner go/no-go closure before the candidate was
+superseded.

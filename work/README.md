@@ -15,6 +15,11 @@ Product and engineering contracts do not live here. Durable system knowledge
 belongs in [`architecture/`](../architecture/README.md); this directory records
 concrete work and its evidence.
 
+Candidate-specific or superseded task packages are removed from the active
+queue once their reusable knowledge is captured in `architecture/`. Git history
+retains the original package; `done/` is reserved for work that actually met
+its completion contract.
+
 ## Autonomous queue command
 
 When the project owner says **"werk alle openstaande tasks uit"**, or gives an

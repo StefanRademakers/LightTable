@@ -1,5 +1,9 @@
 # Design-partner beta privacy and defect triage
 
+Status note (10 August 2026): the technical controls remain reusable, but no
+external cohort was run for candidate `2643a94c`. Cohort recruitment and exit
+review are future release activities rather than an autonomous coding task.
+
 LightTable's design-partner beta is bounded research, not silent telemetry or
 an open-ended feature programme. Local editing works without an account,
 network connection or diagnostic consent.
@@ -60,5 +64,5 @@ links the resulting test and commit.
 The beta exits only after the cohort window closes, aggregate enum counts are
 published without user content, all supported-path corruption/crash reports
 are closed, and every remaining report has an explicit owner disposition.
-Task 110 remains open until this human cohort exit review has happened. The
-current implementation and automated privacy soak establish readiness only.
+No cohort exit review occurred for the historical candidate. The implementation
+and automated privacy soak established technical readiness only.

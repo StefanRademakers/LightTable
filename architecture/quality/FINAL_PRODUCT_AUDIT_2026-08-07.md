@@ -1,5 +1,9 @@
 # Final integrated product audit - 7 August 2026
 
+Historical status (10 August 2026): this audit covers candidate `2643a94c`.
+Subsequent product changes invalidate it as a final assessment of the current
+build; its procedures remain reusable for a fresh audit.
+
 Status: the complete automatable post-backlog audit passed. The product is a
 **bounded technical preview**. Paid release remains blocked by four human,
 physical-hardware, external-beta and production-operations gates.

@@ -1,8 +1,11 @@
 # Feature freeze and owner acceptance
 
-Status: feature freeze active from 6 August 2026; automation ready, owner sign-off pending.
+Historical status: this freeze applied only to candidate `2643a94c`. Continued
+feature development superseded that candidate, so the freeze is no longer
+active. A future release freeze must identify a new exact commit and rerun this
+acceptance programme.
 
-Until Task 108 closes, only measured P0/P1 release blockers, regression-test
+During a newly declared release freeze, only measured P0/P1 release blockers, regression-test
 infrastructure and release documentation may land. P2/P3 findings are recorded
 and explicitly deferred; they do not become opportunistic feature work.
 
@@ -30,8 +33,8 @@ targets.
 Automated success means **ready for owner review**, not product approval. The
 owner must directly judge correctness, perceived latency, discoverability,
 visual polish, undo trust, recovery confidence, export fidelity and disclosure
-of preserved/raster fallbacks. Task 108 remains open until the three sign-off
-boxes in the generated checklist are explicitly approved.
+of preserved/raster fallbacks. The three sign-off boxes were not approved for
+the historical candidate; a future candidate must generate a fresh checklist.
 
 ## Exact candidate handoff - 7 August 2026
 
