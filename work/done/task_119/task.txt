@@ -1,0 +1,9 @@
+Escape key is nog verbonden aan document afsluiten, dit moet verwijderd worden.
+Escape wordt alleen nog gebruikt om een actie af te sluiten. Bekijk waar photoshop escape voor gebruikt.
+En check onze tool modes ook. (niet te uitgebreid maar gewoon een quick checkup)
+
+Resultaat
+- Escape is nu uitsluitend een contextuele cancel-opdracht. Zonder actieve transformatie, tekstbewerking, pad, selectie-draft, auto-align-preview of contextmenu gebeurt niets.
+- Documenten sluiten alleen nog via de expliciete documentcommando's (Ctrl/Cmd+W en Ctrl/Cmd+F4).
+- De bestaande toolmodi behouden hun eigen cancellation flow; dialoog- en menu-Escape blijven lokaal afgehandeld.
+- Geverifieerd met de input-router- en command-port-tests.

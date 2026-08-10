@@ -1924,7 +1924,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       fitZoom,
       actualZoom,
-      cancelOrClose: () => {
+      cancelActiveOperation: () => {
         if (toolOptionsMenu) {
           setToolOptionsMenu(null);
           return;
@@ -1952,7 +1952,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           selectionSessionController.clear();
           return;
         }
-        onClose();
       }
     },
     temporaryPanActive: () => temporaryToolRef.current.activeTool === 'view',

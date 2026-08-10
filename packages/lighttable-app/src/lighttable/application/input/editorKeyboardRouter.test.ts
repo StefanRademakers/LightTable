@@ -48,7 +48,8 @@ describe('resolveEditorKeyboardCommand', () => {
     [{ altKey: true, key: 'Backspace' }, 'fill-foreground'],
     [{ metaKey: true, key: 'Delete' }, 'fill-background'],
     [{ key: 'Delete' }, 'delete-active-target'],
-    [{ key: 'Backspace' }, 'delete-active-target']
+    [{ key: 'Backspace' }, 'delete-active-target'],
+    [{ key: 'Escape' }, 'cancel-active-operation']
   ] as const)('normalizes %o to %s', (keys, expected) => {
     expect(resolveEditorKeyboardCommand(input(keys), context())).toBe(expected);
   });

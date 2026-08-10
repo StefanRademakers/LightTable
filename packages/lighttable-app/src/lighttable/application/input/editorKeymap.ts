@@ -74,7 +74,7 @@ export type EditorKeyboardCommand =
   | 'zoom-out'
   | 'zoom-fit'
   | 'zoom-actual'
-  | 'cancel-or-close'
+  | 'cancel-active-operation'
   | { readonly type: 'activate-tool'; readonly tool: ToolId }
   | { readonly type: 'set-brush-percent'; readonly target: 'opacity' | 'flow'; readonly digit: number }
   | { readonly type: 'nudge'; readonly x: number; readonly y: number };
@@ -346,7 +346,7 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('editor.commit-context', { key: 'enter' }, 'commit-active-operation', {
       when: (context) => context.transforming || context.activeTool === 'vector-pen'
     }),
-    command('editor.cancel-or-close', { key: 'escape' }, 'cancel-or-close', {
+    command('editor.cancel-active-operation', { key: 'escape' }, 'cancel-active-operation', {
       when: (context) => !context.saving
     })
   ]

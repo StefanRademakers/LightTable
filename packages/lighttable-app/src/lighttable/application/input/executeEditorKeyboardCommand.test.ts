@@ -49,7 +49,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   changeZoom: vi.fn(),
   fitZoom: vi.fn(),
   actualZoom: vi.fn(),
-  cancelOrClose: vi.fn()
+  cancelActiveOperation: vi.fn()
 });
 
 describe('executeEditorKeyboardCommand', () => {
@@ -163,6 +163,15 @@ describe('executeEditorKeyboardCommand', () => {
     expect(target.activateAdjacentDocument).toHaveBeenCalledWith(-1);
     expect(target.closeActiveDocument).toHaveBeenCalledOnce();
     expect(target.toggleScreenMode).toHaveBeenCalledOnce();
+  });
+
+  it('routes Escape only to operation cancellation', () => {
+    const target = ports();
+
+    executeEditorKeyboardCommand('cancel-active-operation', target);
+
+    expect(target.cancelActiveOperation).toHaveBeenCalledOnce();
+    expect(target.closeActiveDocument).not.toHaveBeenCalled();
   });
 
   it('routes browser zoom chords to the active document viewport', () => {

@@ -45,7 +45,7 @@ export interface EditorKeyboardCommandPorts {
   changeZoom(direction: -1 | 1): void;
   fitZoom(): void;
   actualZoom(): void;
-  cancelOrClose(): void;
+  cancelActiveOperation(): void;
 }
 
 /**
@@ -217,7 +217,7 @@ export const executeEditorKeyboardCommand = (
     case 'zoom-actual':
       ports.actualZoom();
       return;
-    case 'cancel-or-close':
-      ports.cancelOrClose();
+    case 'cancel-active-operation':
+      ports.cancelActiveOperation();
   }
 };
