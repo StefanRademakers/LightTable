@@ -1229,6 +1229,8 @@ struct BrushCanvas {
 struct SampledSourceSettings {
   size: vec2f,
   offset: vec2f,
+  // One complete vec4 keeps this uniform 32-byte portable on Dawn and wgpu.
+  tuning: vec4f,
 }
 
 struct BrushVertexOutput {
@@ -1319,13 +1321,20 @@ fn straightColor(pixel: vec4f) -> vec3f {
  * destination. The discrete Poisson kernel keeps this GPU-only and costs
  * fewer texture reads than the former pair of 9-tap low-frequency filters.
  */
-fn harmonicBoundaryCorrection(input: BrushVertexOutput, destination: vec2f) -> vec3f {
+fn biharmonicBoundaryCorrection(input: BrushVertexOutput, destination: vec2f) -> vec3f {
   let radius = max(input.centerSizeHardness.z * 0.5, 1.0);
   let local = (destination - input.centerSizeHardness.xy) / radius;
   let localLength = length(local);
   let radial = min(localLength, 0.96);
   let direction = select(vec2f(1.0, 0.0), local / max(localLength, 0.00001), localLength > 0.00001);
+  let diffusion = clamp(sourceSettings.tuning.x, 1.0, 7.0);
   let boundaryRadius = radius + 1.0;
+  // A wider derivative baseline is more stable on smooth areas. Diffusion
+  // deliberately controls adaptation scale, not a post-process blur.
+  let derivativeStep = mix(1.0, 4.0, (diffusion - 1.0) / 6.0);
+  let adaptationReach = mix(0.15, 0.65, (diffusion - 1.0) / 6.0);
+  let boundaryInfluence = smoothstep(1.0 - adaptationReach, 1.0, radial);
+  let needsDerivative = boundaryInfluence > 0.0001;
   let directions = array<vec2f, 8>(
     vec2f(1.0, 0.0), vec2f(0.70710678, 0.70710678),
     vec2f(0.0, 1.0), vec2f(-0.70710678, 0.70710678),
@@ -1333,24 +1342,41 @@ fn harmonicBoundaryCorrection(input: BrushVertexOutput, destination: vec2f) -> v
     vec2f(0.0, -1.0), vec2f(0.70710678, -0.70710678)
   );
   var correction = vec3f(0.0);
+  var derivativeCorrection = vec3f(0.0);
   var totalWeight = 0.0;
   let radialSquared = radial * radial;
   for (var index = 0; index < 8; index += 1) {
     let boundaryPoint = input.centerSizeHardness.xy + directions[index] * boundaryRadius;
     let destinationBoundary = sampleDocument(boundaryPoint);
     let sourceBoundary = sampleDocument(boundaryPoint + sourceSettings.offset);
-    let valid = min(destinationBoundary.a, sourceBoundary.a);
+    var valid = min(destinationBoundary.a, sourceBoundary.a);
+    let boundaryDifference = straightColor(destinationBoundary)
+      - straightColor(sourceBoundary);
+    var outerDifference = boundaryDifference;
+    if (needsDerivative) {
+      let outerPoint = boundaryPoint + directions[index] * derivativeStep;
+      let destinationOuter = sampleDocument(outerPoint);
+      let sourceOuter = sampleDocument(outerPoint + sourceSettings.offset);
+      valid = min(valid, min(destinationOuter.a, sourceOuter.a));
+      outerDifference = straightColor(destinationOuter) - straightColor(sourceOuter);
+    }
     let denominator = max(
       1.0 - 2.0 * radial * dot(direction, directions[index]) + radialSquared,
       0.001
     );
     let weight = valid * (1.0 - radialSquared) / denominator;
-    correction += (
-      straightColor(destinationBoundary) - straightColor(sourceBoundary)
-    ) * weight;
+    correction += boundaryDifference * weight;
+    derivativeCorrection += ((outerDifference - boundaryDifference) / derivativeStep) * weight;
     totalWeight += weight;
   }
-  return correction / max(totalWeight, 0.00001);
+  let harmonic = correction / max(totalWeight, 0.00001);
+  let normalDerivative = derivativeCorrection / max(totalWeight, 0.00001);
+  let inwardDistance = (1.0 - radial) * radius;
+  // Match the outward derivative at the boundary, then quickly hand the
+  // interior back to the harmonic first approximation. This follows the
+  // practical Georgiev strategy: biharmonic where seams form, harmonic deep
+  // inside the patch.
+  return harmonic - normalDerivative * inwardDistance * boundaryInfluence;
 }
 
 fn outputCoverage(input: BrushVertexOutput, documentPixel: vec2f) -> f32 {
@@ -1378,7 +1404,7 @@ fn healingFragment(input: BrushVertexOutput) -> @location(0) vec4f {
   let amount = outputCoverage(input, destination);
   let sampled = sampleDocument(source);
   let healed = clamp(
-    straightColor(sampled) + harmonicBoundaryCorrection(input, destination),
+    straightColor(sampled) + biharmonicBoundaryCorrection(input, destination),
     vec3f(0.0), vec3f(16.0)
   );
   return vec4f(healed * sampled.a * amount, sampled.a * amount);

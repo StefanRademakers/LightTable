@@ -104,6 +104,10 @@ describe('brush tool options', () => {
       expect(markup).toContain('<option value="current-and-below" selected="">Current &amp; Below</option>');
       expect(markup).toContain('<option value="all">All Layers</option>');
       expect(markup).toContain('checked=""/><span>Aligned</span>');
+      if (tool === 'healing-brush') expect(markup).toContain('Diffusion');
+      else expect(markup).not.toContain('Diffusion');
+      if (tool === 'healing-brush') expect(markup).not.toContain('>Flow<');
+      else expect(markup).toContain('>Flow<');
       expect(markup).not.toContain('<optgroup label="Effects">');
       expect(markup).not.toContain('value="liquify"');
     }

@@ -33,7 +33,10 @@ import {
   type BrushPresetId
 } from '../tools/brush/brushPresets';
 import { MAX_STROKE_SMOOTH } from '../tools/brush/strokeSmoother';
-import { isSampledBrushTool } from '../tools/paint/sampledBrushTypes';
+import {
+  clampHealingDiffusion,
+  isSampledBrushTool
+} from '../tools/paint/sampledBrushTypes';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
@@ -863,6 +866,18 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                   onChange={(event) => onSampledBrushChange({ aligned: event.currentTarget.checked })} />
                 <span>Aligned</span>
               </label>
+              {activeTool === 'healing-brush' ? (
+                <ToolOptionNumber
+                  label="Diffusion"
+                  value={sampledBrush.diffusion}
+                  min={1}
+                  max={7}
+                  step={1}
+                  onChange={(value) => onSampledBrushChange({
+                    diffusion: clampHealingDiffusion(value)
+                  })}
+                />
+              ) : null}
             </>
           ) : null}
           <ToolOptionSelect
@@ -897,35 +912,47 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           />
           <AdjustmentSlider
           label={resolveBrushPreset(brush.presetId).engine === 'warp' ? 'Density' : 'Hardness'}
-          value={brush.hardness * 100}
+          value={(activeTool === 'healing-brush'
+            ? sampledBrush.healingHardness : brush.hardness) * 100}
           min={0}
           max={100}
           resetValue={75}
           format={(value) => `${Math.round(value)}%`}
-          onReset={() => onBrushChange({ hardness: 0.75 })}
-          onChange={(value) => onBrushChange({ hardness: value / 100 })}
+          onReset={() => activeTool === 'healing-brush'
+            ? onSampledBrushChange({ healingHardness: 0 })
+            : onBrushChange({ hardness: 0.75 })}
+          onChange={(value) => activeTool === 'healing-brush'
+            ? onSampledBrushChange({ healingHardness: value / 100 })
+            : onBrushChange({ hardness: value / 100 })}
           />
           <AdjustmentSlider
           label={isSampledBrushTool(activeTool) || resolveBrushPreset(brush.presetId).engine === 'paint'
             ? 'Opacity' : 'Strength'}
-          value={brush.opacity * 100}
+          value={(activeTool === 'healing-brush'
+            ? sampledBrush.healingOpacity : brush.opacity) * 100}
           min={1}
           max={100}
           resetValue={100}
           format={(value) => `${Math.round(value)}%`}
-          onReset={() => onBrushChange({ opacity: 1 })}
-          onChange={(value) => onBrushChange({ opacity: value / 100 })}
+          onReset={() => activeTool === 'healing-brush'
+            ? onSampledBrushChange({ healingOpacity: 1 })
+            : onBrushChange({ opacity: 1 })}
+          onChange={(value) => activeTool === 'healing-brush'
+            ? onSampledBrushChange({ healingOpacity: value / 100 })
+            : onBrushChange({ opacity: value / 100 })}
           />
-          <AdjustmentSlider
-          label="Flow"
-          value={brush.flow * 100}
-          min={1}
-          max={100}
-          resetValue={35}
-          format={(value) => `${Math.round(value)}%`}
-          onReset={() => onBrushChange({ flow: 0.35 })}
-          onChange={(value) => onBrushChange({ flow: value / 100 })}
-          />
+          {activeTool !== 'healing-brush' ? (
+            <AdjustmentSlider
+            label="Flow"
+            value={brush.flow * 100}
+            min={1}
+            max={100}
+            resetValue={35}
+            format={(value) => `${Math.round(value)}%`}
+            onReset={() => onBrushChange({ flow: 0.35 })}
+            onChange={(value) => onBrushChange({ flow: value / 100 })}
+            />
+          ) : null}
           <AdjustmentSlider
           label="Smooth"
           value={brush.smooth * 100}

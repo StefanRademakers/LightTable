@@ -6,6 +6,7 @@ import {
 } from '../../../editor/document/documentTypes';
 import { SampledBrushSourceController } from './sampledBrush';
 import { sampledBrushSourceDocument } from '../../../editor/document/sampledBrushSourceDocument';
+import { clampHealingDiffusion } from '../../../editor/tools/paint/sampledBrushTypes';
 
 describe('SampledBrushSourceController', () => {
   const raster = (name: string): RasterLayer => ({
@@ -21,7 +22,10 @@ describe('SampledBrushSourceController', () => {
     controller.setSource(document, sourceLayer, { x: 12, y: 18 });
     const plan = controller.beginStroke('clone-stamp', document, { x: 40, y: 50 }, {
       aligned: true,
-      sampleMode: 'current'
+      sampleMode: 'current',
+      diffusion: 5,
+      healingHardness: 0,
+      healingOpacity: 1
     });
     expect(plan).toMatchObject({
       source: { anchorLayerId: sourceLayer.id },
@@ -35,14 +39,26 @@ describe('SampledBrushSourceController', () => {
     const controller = new SampledBrushSourceController();
     controller.setSource(document, layer, { x: 10, y: 20 });
     expect(controller.beginStroke('clone-stamp', document, { x: 30, y: 40 }, {
-      aligned: true, sampleMode: 'current'
+      aligned: true, sampleMode: 'current', diffusion: 5,
+      healingHardness: 0, healingOpacity: 1
     })?.sourceOffset).toEqual({ x: -20, y: -20 });
     expect(controller.beginStroke('clone-stamp', document, { x: 70, y: 60 }, {
-      aligned: true, sampleMode: 'current'
+      aligned: true, sampleMode: 'current', diffusion: 5,
+      healingHardness: 0, healingOpacity: 1
     })?.sourceOffset).toEqual({ x: -20, y: -20 });
     expect(controller.beginStroke('clone-stamp', document, { x: 70, y: 60 }, {
-      aligned: false, sampleMode: 'current'
+      aligned: false, sampleMode: 'current', diffusion: 5,
+      healingHardness: 0, healingOpacity: 1
     })?.sourceOffset).toEqual({ x: -60, y: -40 });
+  });
+});
+
+describe('Healing Brush diffusion', () => {
+  it('keeps the public control on the discrete Photoshop-compatible 1-7 scale', () => {
+    expect(clampHealingDiffusion(-10)).toBe(1);
+    expect(clampHealingDiffusion(4.6)).toBe(5);
+    expect(clampHealingDiffusion(99)).toBe(7);
+    expect(clampHealingDiffusion(Number.NaN)).toBe(5);
   });
 });
 

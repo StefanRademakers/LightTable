@@ -93,13 +93,16 @@ export class RasterPaintService {
     this.sampledSource = { texture, width, height, plan };
     this.sampledSourceSettingsBuffer ??= this.options.device.createBuffer({
       label: 'LightTable sampled brush source settings',
-      size: 16,
+      size: 32,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     this.options.device.queue.writeBuffer(
       this.sampledSourceSettingsBuffer,
       0,
-      new Float32Array([width, height, plan.sourceOffset.x, plan.sourceOffset.y])
+      new Float32Array([
+        width, height, plan.sourceOffset.x, plan.sourceOffset.y,
+        plan.diffusion, 0, 0, 0
+      ])
     );
   }
 

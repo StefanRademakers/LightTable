@@ -1,5 +1,6 @@
 import type { ImageDocument, LayerNode } from '../../../editor/document/documentTypes';
 import {
+  clampHealingDiffusion,
   sampledBrushOperatorFor,
   type SampledBrushSettings,
   type SampledBrushSource,
@@ -78,7 +79,8 @@ export class SampledBrushSourceController {
         point: { ...source.point }
       },
       sampleMode: settings.sampleMode,
-      sourceOffset: { ...sourceOffset }
+      sourceOffset: { ...sourceOffset },
+      diffusion: clampHealingDiffusion(settings.diffusion)
     };
   }
 

@@ -855,7 +855,13 @@ export const useViewportInteractionController = ({
             editorSession.activeChannel
           )
         },
-        brush: editorSession.brush,
+        brush: activeTool === 'healing-brush'
+          ? {
+              ...editorSession.brush,
+              hardness: editorSession.sampledBrush.healingHardness,
+              opacity: editorSession.sampledBrush.healingOpacity
+            }
+          : editorSession.brush,
         point: paintPoint,
         displayScale: activeScale,
         operator: sampledOperation ?? undefined

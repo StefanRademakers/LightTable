@@ -323,12 +323,18 @@ describe('RasterPaintService', () => {
       operator: 'clone' as const,
       source,
       sampleMode: 'current-and-below' as const,
-      sourceOffset: { x: 40, y: 2 }
+      sourceOffset: { x: 40, y: 2 },
+      diffusion: 5
     };
     const healing = { ...clone, operator: 'healing' as const };
     const dab = { x: 10, y: 10, size: 12, pressure: 1, flowScale: 1 };
 
     test.service.beginSampledStroke(sampledTexture, 64, 32, clone);
+    expect(test.createBuffer).toHaveBeenCalledWith(expect.objectContaining({ size: 32 }));
+    expect(test.writeBuffer).toHaveBeenCalledWith(
+      expect.anything(), 0,
+      expect.objectContaining({ 0: 64, 1: 32, 2: 40, 3: 2, 4: 5 })
+    );
     test.service.paintDabs(
       layerId, 'pixels', [dab], [0, 0, 0], 1, 1, 1, false,
       { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, false, undefined, 'paint', clone

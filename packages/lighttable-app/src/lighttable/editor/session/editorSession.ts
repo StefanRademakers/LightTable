@@ -288,7 +288,10 @@ export const createEditorSession = (): EditorSession => ({
   },
   sampledBrush: {
     aligned: true,
-    sampleMode: 'current-and-below'
+    sampleMode: 'current-and-below',
+    diffusion: 5,
+    healingHardness: 0,
+    healingOpacity: 1
   },
   gradient: createGradientToolSettings(),
   vectorStyle: {

@@ -360,11 +360,14 @@ describe('LightTable WGSL modules', () => {
     expect(WARP_FIELD_COMPUTE_WGSL).not.toContain('let exponent = mix(2.75, 0.65');
   });
 
-  it('constrains Healing Brush colour adaptation at the dab boundary', () => {
-    expect(SAMPLED_BRUSH_DAB_WGSL).toContain('fn harmonicBoundaryCorrection');
+  it('matches Healing Brush colour and derivative adaptation at the dab boundary', () => {
+    expect(() => new WgslReflect(SAMPLED_BRUSH_DAB_WGSL)).not.toThrow();
+    expect(SAMPLED_BRUSH_DAB_WGSL).toContain('fn biharmonicBoundaryCorrection');
     expect(SAMPLED_BRUSH_DAB_WGSL).toContain(
-      'straightColor(destinationBoundary) - straightColor(sourceBoundary)',
+      'let boundaryDifference = straightColor(destinationBoundary)',
     );
+    expect(SAMPLED_BRUSH_DAB_WGSL).toContain('outerDifference - boundaryDifference');
+    expect(SAMPLED_BRUSH_DAB_WGSL).toContain('sourceSettings.tuning.x');
     expect(SAMPLED_BRUSH_DAB_WGSL).not.toContain('fn lowFrequency');
   });
 

@@ -132,7 +132,10 @@ export const createPaintSessionController = (
       srgbHexToLinearRgb(activeBrush.color) ?? [0, 0, 0],
       activeBrush.hardness,
       activeBrush.opacity,
-      activeBrush.flow,
+      // Healing is a patch replacement operation rather than accumulating
+      // paint. A single dab at full opacity must be able to remove a defect;
+      // ordinary Brush and Clone Stamp retain their user-controlled flow.
+      activeOperator?.operator === 'healing' ? 1 : activeBrush.flow,
       update.target.erase,
       update.target.sourceToDocument,
       preset.tip,

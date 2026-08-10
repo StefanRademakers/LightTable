@@ -63,7 +63,8 @@ describe('PaintSessionController', () => {
       point: { x: 72, y: 18 }
     },
     sampleMode: 'current-and-below' as const,
-    sourceOffset: { x: 62, y: 8 }
+    sourceOffset: { x: 62, y: 8 },
+    diffusion: 5
   };
 
   it('keeps one immutable sampled source active for the whole stroke and one undo entry', () => {
@@ -114,6 +115,29 @@ describe('PaintSessionController', () => {
     expect(fixture.controller.cancel(15)).toBe(true);
     expect(fixture.renderer.endSampledBrushStroke).toHaveBeenCalledOnce();
     expect(fixture.history).toHaveLength(0);
+  });
+
+  it('treats Healing as one full patch while Clone retains brush flow', () => {
+    const healing = createFixture();
+    const clone = createFixture();
+    const brush = { ...createEditorSession().brush, flow: 0.12 };
+    const begin = (fixture: ReturnType<typeof createFixture>, operator: 'clone' | 'healing') =>
+      fixture.controller.begin({
+        pointerId: 16,
+        layer: fixture.layer,
+        target: {
+          layerId: fixture.layer.id,
+          channel: 'pixels', erase: false, sourceToDocument: identityMatrix()
+        },
+        brush,
+        point: { x: 10, y: 10, pressure: 1 },
+        operator: { ...sampledPlan, operator }
+      });
+
+    expect(begin(healing, 'healing')).toBe(true);
+    expect(begin(clone, 'clone')).toBe(true);
+    expect(vi.mocked(healing.renderer.paintBrushDabs).mock.calls[0]?.[6]).toBe(1);
+    expect(vi.mocked(clone.renderer.paintBrushDabs).mock.calls[0]?.[6]).toBe(0.12);
   });
 
   it('locks brush settings and commits one document/history transaction', () => {

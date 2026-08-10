@@ -7,6 +7,10 @@ export type SampledBrushMode = 'current' | 'current-and-below' | 'all';
 export interface SampledBrushSettings {
   readonly aligned: boolean;
   readonly sampleMode: SampledBrushMode;
+  /** Photoshop-compatible adaptation scale: 1 preserves detail, 7 adapts smooth areas. */
+  readonly diffusion: number;
+  readonly healingHardness: number;
+  readonly healingOpacity: number;
 }
 
 export interface SampledBrushSource {
@@ -21,7 +25,11 @@ export interface SampledBrushStrokePlan {
   readonly sampleMode: SampledBrushMode;
   /** Added to a destination document point to resolve its source point. */
   readonly sourceOffset: { readonly x: number; readonly y: number };
+  readonly diffusion: number;
 }
+
+export const clampHealingDiffusion = (value: number): number =>
+  Math.round(Math.min(7, Math.max(1, Number.isFinite(value) ? value : 5)));
 
 export const isSampledBrushTool = (tool: string): tool is SampledBrushToolId =>
   tool === 'clone-stamp' || tool === 'healing-brush';

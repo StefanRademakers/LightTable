@@ -57,6 +57,7 @@ const sampleY = Number.parseFloat(argument('sample-y', '0.35'));
 const paintX = Number.parseFloat(argument('paint-x', '0.2'));
 const paintY = Number.parseFloat(argument('paint-y', '0.25'));
 const brushSize = Number.parseFloat(argument('brush-size', '48'));
+const healingDiffusion = Number.parseInt(argument('healing-diffusion', '5'), 10);
 const paintStrokeLength = Number.parseFloat(argument('paint-stroke-length', '0.2'));
 const saveLightTableArgument = argument('save-lighttable', '');
 const saveLightTableFile = saveLightTableArgument ? path.resolve(saveLightTableArgument) : null;
@@ -111,7 +112,8 @@ const diagnostics = {
     enableFill, fillColor, strokeColor, strokeWidth, strokeAlignment, mergeDown, createRectangle,
     createGradientFill, openGradientEditor, dragGradientEnd,
     createRasterLayerForPaint, paintStroke, paintExistingLayer, paintColor, paintTool,
-    sampleLayer, sampleX, sampleY, paintX, paintY, brushSize, paintStrokeLength,
+    sampleLayer, sampleX, sampleY, paintX, paintY, brushSize, healingDiffusion,
+    paintStrokeLength,
     saveLightTableFile, expectLayer, expectNonemptyLayer, openCompatibilityReport,
     editTextLayer, replacementFont,
     targetZoomPercent, zoomFocusX, zoomFocusY,
@@ -261,6 +263,12 @@ try {
       await sizeControl.press('Home');
       for (let value = 1; value < Math.round(brushSize); value += 1) {
         await sizeControl.press('ArrowRight');
+      }
+      if (paintTool === 'healing-brush') {
+        if (healingDiffusion < 1 || healingDiffusion > 7) {
+          throw new Error('--healing-diffusion must be an integer from 1 through 7.');
+        }
+        await window.getByLabel('Diffusion', { exact: true }).fill(String(healingDiffusion));
       }
       await window.locator('input[type="color"][aria-label="Foreground color"]').fill(paintColor);
       const viewport = window.locator('.lighttable-viewport');
@@ -716,6 +724,14 @@ try {
   }
   if (diagnostics.pageErrors.length > 0) {
     throw new Error(`Desktop screenshot reported page errors: ${diagnostics.pageErrors.join('\n')}`);
+  }
+  if (paintStroke) {
+    const gpuDiagnostics = diagnostics.console
+      .map(({ text }) => text)
+      .filter((text) => /invalid (bindgroup|commandbuffer)|binding size|webgpu runtime error/i.test(text));
+    if (/webgpu runtime error/i.test(diagnostics.status) || gpuDiagnostics.length > 0) {
+      throw new Error(`Paint smoke reported WebGPU validation errors:\n${gpuDiagnostics.join('\n')}`);
+    }
   }
   if (saveLightTableFile) {
     await window.screenshot({ path: outputFile });
