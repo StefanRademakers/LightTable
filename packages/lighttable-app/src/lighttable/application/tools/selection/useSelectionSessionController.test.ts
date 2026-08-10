@@ -19,6 +19,7 @@ const setup = () => {
   let selection: SelectionOperation[] = [];
   let pointerId: number | null = null;
   let draft: SelectionShape | null = null;
+  let draftPublications = 0;
   const history: SelectionHistoryEntry[] = [];
   const renderer = {
     replaceSelection: vi.fn(async () => true),
@@ -37,6 +38,7 @@ const setup = () => {
     },
     publishDraft: (next) => {
       draft = next;
+      draftPublications += 1;
     },
     pushHistoryEntry: (entry) => history.push(entry),
     setError: vi.fn()
@@ -49,6 +51,7 @@ const setup = () => {
     get selection() { return selection; },
     get pointerId() { return pointerId; },
     get draft() { return draft; },
+    get draftPublications() { return draftPublications; },
     switchDocument: (next: ImageDocument | null) => {
       activeDocument = next;
     }
@@ -69,6 +72,19 @@ describe('selection session controller', () => {
     expect(state.history[0].documentMutation).toBe(false);
     expect(state.pointerId).toBeNull();
     expect(state.draft).toBeNull();
+  });
+
+  it('publishes one draft for a coalesced free-selection batch', () => {
+    const state = setup();
+    expect(state.controller.begin(9, 'select-free', { x: 0, y: 0 }, 'replace')).toBe(true);
+    const initialDraft = state.draftPublications;
+    expect(state.controller.moveMany(9, [
+      { x: 3, y: 0 },
+      { x: 6, y: 1 },
+      { x: 9, y: 2 }
+    ])).toBe(true);
+    expect(state.draftPublications).toBe(initialDraft + 1);
+    expect(state.draft?.points).toHaveLength(4);
   });
 
   it('uses the configured strip thickness against the current document bounds', async () => {

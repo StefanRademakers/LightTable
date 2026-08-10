@@ -54,6 +54,24 @@ describe('SelectionGestureController', () => {
     });
   });
 
+  it('retains an ordered free-selection input batch in one draft update', () => {
+    const controller = new SelectionGestureController();
+    controller.begin(6, 'select-free', { x: 0, y: 0 }, 'replace');
+    expect(controller.moveMany(6, [
+      { x: 3, y: 0 },
+      { x: 6, y: 1 },
+      { x: 9, y: 2 }
+    ])).toEqual({
+      kind: 'free',
+      points: [
+        { x: 0, y: 0 },
+        { x: 3, y: 0 },
+        { x: 6, y: 1 },
+        { x: 9, y: 2 }
+      ]
+    });
+  });
+
   it('clears on an invalid unmodified gesture but preserves on modified gestures', () => {
     const controller = new SelectionGestureController();
     controller.begin(3, 'select-ellipse', { x: 1, y: 1 }, 'replace');

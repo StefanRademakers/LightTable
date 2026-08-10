@@ -80,14 +80,25 @@ export class WarpGestureController {
   }
 
   move(pointerId: number, point: WarpGesturePoint): WarpStroke | null {
-    if (!this.owns(pointerId) || !this.previousPoint) return null;
-    const filteredPoint = this.smoother?.add(point) ?? point;
-    const deltaX = filteredPoint.x - this.previousPoint.x;
-    const deltaY = filteredPoint.y - this.previousPoint.y;
-    if (Math.hypot(deltaX, deltaY) < 0.01) return this.snapshot(point.timeMs);
-    this.samples.push(sample(filteredPoint, this.previousPoint));
-    this.previousPoint = { ...filteredPoint };
-    return this.snapshot(point.timeMs);
+    return this.moveMany(pointerId, [point]);
+  }
+
+  /**
+   * Consumes one ordered host-input batch and publishes one immutable stroke.
+   * This preserves every coalesced tablet sample without repeatedly cloning
+   * the complete stroke for samples delivered in the same pointer event.
+   */
+  moveMany(pointerId: number, points: readonly WarpGesturePoint[]): WarpStroke | null {
+    if (!this.owns(pointerId) || !this.previousPoint || !points.length) return null;
+    for (const point of points) {
+      const filteredPoint = this.smoother?.add(point) ?? point;
+      const deltaX = filteredPoint.x - this.previousPoint.x;
+      const deltaY = filteredPoint.y - this.previousPoint.y;
+      if (Math.hypot(deltaX, deltaY) < 0.01) continue;
+      this.samples.push(sample(filteredPoint, this.previousPoint));
+      this.previousPoint = { ...filteredPoint };
+    }
+    return this.snapshot(points[points.length - 1].timeMs);
   }
 
   tick(pointerId: number, timeMs: number): WarpStroke | null {

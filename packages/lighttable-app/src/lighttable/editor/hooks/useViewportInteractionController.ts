@@ -53,6 +53,7 @@ import type { LightTableImageMetadata, LightTableViewState } from '../../types';
 import type { VectorToolSessionController } from '../../application/vectors/VectorToolSessionController';
 import type { RasterGradientCommandController } from '../../application/tools/gradient/RasterGradientCommandController';
 import { isVectorEditorTool } from '../tools/vectorToolCatalog';
+import { routeFreehandPointerMove } from './routeFreehandPointerMove';
 
 interface ViewportSize {
   width: number;
@@ -857,30 +858,12 @@ export const useViewportInteractionController = ({
         movePan(event);
         return;
       }
-      if (intent === 'selection' && point) {
-        if (selection.move(event.pointerId, point)) event.preventDefault();
-        return;
-      }
-      if (
-        intent === 'warp'
-        && point
-        && warp.move(event.pointerId, {
-          ...point,
-          tiltX: event.tiltX,
-          tiltY: event.tiltY,
-          timeMs: event.timeStamp
-        })
-      ) {
-        event.preventDefault();
-        return;
-      }
-      if (intent === 'paint') {
-        let moved = false;
-        for (const sample of coalescedPointerSamples(event.nativeEvent)) {
-          const samplePoint = documentPointFromSample(sample, bounds);
-          if (samplePoint && paint.move(event.pointerId, samplePoint)) moved = true;
-        }
-        if (moved) event.preventDefault();
+      if (point && (intent === 'selection' || intent === 'warp' || intent === 'paint')) {
+        if (routeFreehandPointerMove({
+          intent, activeTool: editorSession.activeTool, pointerId: event.pointerId,
+          currentPoint: point, samples: coalescedPointerSamples(event.nativeEvent),
+          project: (sample) => documentPointFromSample(sample, bounds), selection, warp, paint
+        })) event.preventDefault();
       }
     },
     onPointerUp: (event) => {

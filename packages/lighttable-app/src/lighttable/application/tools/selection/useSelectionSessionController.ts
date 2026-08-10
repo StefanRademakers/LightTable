@@ -65,6 +65,7 @@ export interface SelectionSessionController {
     smoothingScale?: number
   ): boolean;
   move(pointerId: number, point: SelectionPoint): boolean;
+  moveMany(pointerId: number, points: readonly SelectionPoint[]): boolean;
   finish(pointerId: number): boolean;
   cancel(pointerId: number): boolean;
   polygonClick(
@@ -330,6 +331,33 @@ export const createSelectionSessionController = (
     return true;
   };
 
+  const moveMany = (pointerId: number, points: readonly SelectionPoint[]): boolean => {
+    if (!points.length) return false;
+    const point = points[points.length - 1];
+    if (translation?.pointerId === pointerId) {
+      const dx = point.x - translation.last.x;
+      const dy = point.y - translation.last.y;
+      translation.last = point;
+      translation.x += dx;
+      translation.y += dy;
+      if (dx || dy) void translation.renderer.transformSelection({
+        a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
+      });
+      const operation = createTranslateSelectionOperation(
+        translation.document.width,
+        translation.document.height,
+        translation.x,
+        translation.y
+      );
+      resolveDependencies().publishSelection([...translation.before, operation], pointerId);
+      return true;
+    }
+    const draft = gesture.moveMany(pointerId, points);
+    if (!draft) return false;
+    resolveDependencies().publishDraft(draft);
+    return true;
+  };
+
   return {
     get active() {
       return gesture.pointerId !== null || polygonGesture.active || translation !== null;
@@ -361,30 +389,8 @@ export const createSelectionSessionController = (
       dependencies.publishSelection(dependencies.getSelection(), pointerId);
       return true;
     },
-    move: (pointerId, point) => {
-      if (translation?.pointerId === pointerId) {
-        const dx = point.x - translation.last.x;
-        const dy = point.y - translation.last.y;
-        translation.last = point;
-        translation.x += dx;
-        translation.y += dy;
-        if (dx || dy) void translation.renderer.transformSelection({
-          a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
-        });
-        const operation = createTranslateSelectionOperation(
-          translation.document.width,
-          translation.document.height,
-          translation.x,
-          translation.y
-        );
-        resolveDependencies().publishSelection([...translation.before, operation], pointerId);
-        return true;
-      }
-      const draft = gesture.move(pointerId, point);
-      if (!draft) return false;
-      resolveDependencies().publishDraft(draft);
-      return true;
-    },
+    move: (pointerId, point) => moveMany(pointerId, [point]),
+    moveMany,
     finish: (pointerId) => {
       if (translation?.pointerId === pointerId) {
         const current = translation;

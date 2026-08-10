@@ -117,8 +117,13 @@ export class SelectionGestureController {
   }
 
   move(pointerId: number, point: SelectionPoint): SelectionShape | null {
-    if (!this.owns(pointerId) || !this.activeDraft) return null;
-    const nextPoint = clonePoint(point);
+    return this.moveMany(pointerId, [point]);
+  }
+
+  /** Retains every freehand sample while cloning the public draft only once. */
+  moveMany(pointerId: number, points: readonly SelectionPoint[]): SelectionShape | null {
+    if (!this.owns(pointerId) || !this.activeDraft || !points.length) return null;
+    const nextPoint = clonePoint(points[points.length - 1]);
     if (this.activeStrip) {
       this.activeDraft = selectionStripShape(
         this.activeStrip.tool,
@@ -126,17 +131,24 @@ export class SelectionGestureController {
         this.activeStrip.options
       );
     } else if (this.activeDraft.kind === 'free') {
-      const filtered = this.freeSmoother?.add({ ...nextPoint, pressure: 1 });
-      const sampledPoint = filtered
-        ? { x: filtered.x, y: filtered.y }
-        : nextPoint;
-      const last = this.activeDraft.points[this.activeDraft.points.length - 1];
-      const dx = sampledPoint.x - last.x;
-      const dy = sampledPoint.y - last.y;
-      if (dx * dx + dy * dy < 4) return null;
+      const appended: SelectionPoint[] = [];
+      let last = this.activeDraft.points[this.activeDraft.points.length - 1];
+      for (const point of points) {
+        const rawPoint = clonePoint(point);
+        const filtered = this.freeSmoother?.add({ ...rawPoint, pressure: 1 });
+        const sampledPoint = filtered
+          ? { x: filtered.x, y: filtered.y }
+          : rawPoint;
+        const dx = sampledPoint.x - last.x;
+        const dy = sampledPoint.y - last.y;
+        if (dx * dx + dy * dy < 4) continue;
+        appended.push(sampledPoint);
+        last = sampledPoint;
+      }
+      if (!appended.length) return null;
       this.activeDraft = {
         ...this.activeDraft,
-        points: [...this.activeDraft.points, sampledPoint]
+        points: [...this.activeDraft.points, ...appended]
       };
     } else {
       this.activeDraft = {

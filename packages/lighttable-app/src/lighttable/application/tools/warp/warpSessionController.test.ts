@@ -131,6 +131,34 @@ describe('Warp session controller', () => {
     expect(settings.strokes[0]?.settings.smooth).toBe(2);
   });
 
+  it('retains a coalesced Warp batch in order with one scheduled preview', () => {
+    const state = harness();
+    const schedule = vi.fn((task: () => void) => task());
+    const controller = createWarpSessionController(
+      () => state.dependencies,
+      undefined,
+      { schedule, flush: vi.fn(), cancel: vi.fn() }
+    );
+    expect(controller.begin({
+      pointerId: 18,
+      mode: 'push',
+      settings: { ...brush, smooth: 0 },
+      point: point(80, 40, 10)
+    })).toBe(true);
+    expect(controller.moveMany(18, [
+      point(100, 60, 20),
+      point(120, 80, 21),
+      point(140, 100, 22)
+    ])).toBe(true);
+    expect(schedule).toHaveBeenCalledOnce();
+    const layer = findRasterLayer(state.document, state.document.activeLayerId)!;
+    const settings = readWarpNodeSettings(findWarpModuleInstance(layer.adjustmentStack)!);
+    const stroke = settings.strokes[0]!;
+    expect(stroke.samples).toHaveLength(4);
+    expect(stroke.samples.map(({ timeMs }) => timeMs))
+      .toEqual([10, 20, 21, 22]);
+  });
+
   it('restores the exact document when a gesture is cancelled or never moves', () => {
     const state = harness();
     const before = state.document;

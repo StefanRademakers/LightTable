@@ -68,6 +68,7 @@ export interface WarpSessionController {
   owns(pointerId: number): boolean;
   begin(request: BeginWarpSession): boolean;
   move(pointerId: number, point: WarpGesturePoint): boolean;
+  moveMany(pointerId: number, points: readonly WarpGesturePoint[]): boolean;
   finish(pointerId: number, timeMs: number): boolean;
   cancel(pointerId: number): boolean;
   clearActiveLayer(): boolean;
@@ -138,6 +139,18 @@ const toLayerSourcePoint = (
   return { ...point, x: source.x, y: source.y };
 };
 
+const toLayerSourcePoints = (
+  layer: RasterLayer,
+  points: readonly WarpGesturePoint[]
+): WarpGesturePoint[] => {
+  const documentToSource = invertMatrix(layer.transform);
+  if (!documentToSource) return [];
+  return points.map((point) => {
+    const source = transformPoint(documentToSource, point);
+    return { ...point, x: source.x, y: source.y };
+  });
+};
+
 /**
  * Owns one non-destructive Warp gesture and its document transaction.
  *
@@ -202,6 +215,18 @@ export const createWarpSessionController = (
     resolveDependencies().setInteractionActive?.(false);
   };
 
+  const moveMany = (pointerId: number, points: readonly WarpGesturePoint[]): boolean => {
+    const target = currentTarget();
+    if (!target) {
+      reset();
+      return false;
+    }
+    const sourcePoints = toLayerSourcePoints(target.layer, points);
+    if (!sourcePoints.length) return false;
+    const stroke = gesture.moveMany(pointerId, sourcePoints);
+    return stroke ? scheduleStroke(stroke) : false;
+  };
+
   return {
     get active() {
       return active !== null;
@@ -254,17 +279,8 @@ export const createWarpSessionController = (
       dependencies.setError(null);
       return true;
     },
-    move: (pointerId, point) => {
-      const target = currentTarget();
-      if (!target) {
-        reset();
-        return false;
-      }
-      const sourcePoint = toLayerSourcePoint(target.layer, point);
-      if (!sourcePoint) return false;
-      const stroke = gesture.move(pointerId, sourcePoint);
-      return stroke ? scheduleStroke(stroke) : false;
-    },
+    move: (pointerId, point) => moveMany(pointerId, [point]),
+    moveMany,
     finish: (pointerId, timeMs) => {
       holdScheduler.stop();
       const session = active;

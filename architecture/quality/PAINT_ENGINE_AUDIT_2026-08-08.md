@@ -68,3 +68,14 @@ Primary platform contracts checked during the audit:
 
 - [W3C Pointer Events — coalesced events](https://www.w3.org/TR/pointerevents3/)
 - [W3C WebGPU — queue and submitted-work ordering](https://www.w3.org/TR/webgpu/)
+
+## Freehand input follow-up — 2026-08-10
+
+The same ordered coalesced-pointer contract now feeds Raster Paint, Warp and
+Free Selection. Warp and Free Selection expose batch entry points so all raw
+tablet samples survive while each host pointer event produces only one
+immutable Warp preview or selection-draft publication. Warp also projects a
+whole batch through one inverse layer transform. The GPU executors remain
+separate because raster dabs, non-destructive deformation and selection masks
+have different output and history contracts; only their input-quality path is
+shared.
