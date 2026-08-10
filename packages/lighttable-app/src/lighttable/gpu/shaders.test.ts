@@ -354,6 +354,12 @@ describe('LightTable WGSL modules', () => {
     expect(BLUR_BRUSH_DAB_WGSL).toContain('textureLoad(selectionMask');
   });
 
+  it('uses a derivative-continuous Density feather for Warp stamps', () => {
+    expect(WARP_FIELD_COMPUTE_WGSL).toContain('fn smootherstep01');
+    expect(WARP_FIELD_COMPUTE_WGSL).toContain('let coreRadius = density * 0.75');
+    expect(WARP_FIELD_COMPUTE_WGSL).not.toContain('let exponent = mix(2.75, 0.65');
+  });
+
   it('constrains Healing Brush colour adaptation at the dab boundary', () => {
     expect(SAMPLED_BRUSH_DAB_WGSL).toContain('fn harmonicBoundaryCorrection');
     expect(SAMPLED_BRUSH_DAB_WGSL).toContain(

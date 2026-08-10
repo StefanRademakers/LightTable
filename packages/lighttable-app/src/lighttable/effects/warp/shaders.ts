@@ -32,6 +32,14 @@ fn samplePreviousDisplacement(pixel: vec2f) -> vec2f {
   );
 }
 
+// Quintic smootherstep has zero first and second derivatives at both ends.
+// That matters for a displacement field: a power falloff leaves a visible
+// cusp at each stamp centre even when the pointer path itself is smooth.
+fn smootherstep01(value: f32) -> f32 {
+  let t = clamp(value, 0.0, 1.0);
+  return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) invocation: vec3u) {
   if (invocation.x >= u32(settings.canvasSize.x) || invocation.y >= u32(settings.canvasSize.y)) {
@@ -47,9 +55,14 @@ fn main(@builtin(global_invocation_id) invocation: vec3u) {
     let stamp = stamps[index];
     let radius = max(stamp.radiusStrengthHardness.x, 0.5);
     let normalizedDistance = distance(source, stamp.centerDelta.xy) / radius;
-    let radial = clamp(1.0 - normalizedDistance, 0.0, 1.0);
-    let exponent = mix(2.75, 0.65, clamp(stamp.radiusStrengthHardness.z, 0.0, 1.0));
-    let influence = pow(radial, exponent) * stamp.radiusStrengthHardness.y;
+    // Adobe-style Density controls edge feathering, independently from
+    // Pressure/Strength. At zero density the whole radius feathers smoothly;
+    // increasing density grows a fully effective core while retaining a
+    // narrow, derivative-continuous edge transition at 100%.
+    let density = clamp(stamp.radiusStrengthHardness.z, 0.0, 1.0);
+    let coreRadius = density * 0.75;
+    let feather = (normalizedDistance - coreRadius) / max(1.0 - coreRadius, 0.001);
+    let influence = (1.0 - smootherstep01(feather)) * stamp.radiusStrengthHardness.y;
     let mode = u32(round(stamp.radiusStrengthHardness.w));
     if (mode == 0u) {
       source -= stamp.centerDelta.zw * influence;

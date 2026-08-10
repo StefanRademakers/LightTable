@@ -66,7 +66,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       onChange={(value) => onChange({ strength: value / 100 })}
     />
     <AdjustmentSlider
-      label="Hardness"
+      label="Density"
       value={warp.hardness * 100}
       min={0}
       max={100}
