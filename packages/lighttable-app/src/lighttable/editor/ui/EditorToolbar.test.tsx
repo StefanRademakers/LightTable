@@ -23,7 +23,8 @@ describe('EditorToolbar', () => {
     expect(markup).toContain('aria-label="Show marquee tools"');
     expect(markup).toContain('aria-label="Free selection (L)"');
     expect(markup).toContain('aria-label="Show lasso tools"');
-    expect(markup).toContain('aria-label="Magic Wand (W)"');
+    expect(markup).toContain('aria-label="Object Selection (W)"');
+    expect(markup).toContain('aria-label="Show smart selection tools"');
     expect(markup).not.toContain('aria-label="Elliptical selection (M)"');
   });
 

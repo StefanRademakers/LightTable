@@ -1,0 +1,31 @@
+# Task 132 — Native GenAI reference publication relay
+
+## Objective
+
+Allow locally authored LightTable project assets and current document composites
+to be used as OpenArt visual references without exposing local paths or silently
+dropping references.
+
+## Required architecture
+
+- Keep React limited to opaque project asset IDs.
+- Resolve and validate files only in the desktop host.
+- Publish through a configured first-party service that returns short-lived,
+  revocable HTTPS URLs; never submit `file:`, localhost or `data:` URLs.
+- Reuse a still-valid provider/relay link and persist it only in the private
+  derived project index, not in the LightTable document format.
+- Stream uploads and downloads with explicit size/content-type limits.
+- Make publication an explicit, observable pre-submit stage. A failure must
+  happen before the paid generation request.
+- Provide a web-host adapter with the same provider-neutral contract.
+
+## Verification
+
+- Unit-test path/URL rejection, expiry, reuse, revocation and project isolation.
+- Integration-test one local project image and one current-document composite.
+- Confirm tokens, absolute paths and relay credentials never cross renderer IPC.
+- Confirm failed publication creates no remote generation job.
+
+This is deliberately separate from task 128. OpenArt's MCP
+`openart_upload_pick` tool is host-widget based and cannot accept native file
+bytes; implementing a fake local upload path would be unsafe and misleading.

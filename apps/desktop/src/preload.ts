@@ -14,6 +14,15 @@ const bridge: LightTableDesktopBridge = {
   openRecentFile: (id: string) => ipcRenderer.invoke('lighttable:open-recent-file', id),
   removeRecentFile: (id: string) => ipcRenderer.invoke('lighttable:remove-recent-file', id),
   clearRecentFiles: () => ipcRenderer.invoke('lighttable:clear-recent-files'),
+  chooseProjectParent: () => ipcRenderer.invoke('lighttable:project-choose-parent'),
+  createProject: (request) => ipcRenderer.invoke('lighttable:project-create', request),
+  openProject: () => ipcRenderer.invoke('lighttable:project-open'),
+  listRecentProjects: () => ipcRenderer.invoke('lighttable:project-list-recent'),
+  openRecentProject: (recentId) => ipcRenderer.invoke('lighttable:project-open-recent', recentId),
+  revealProject: (manifestPath) => ipcRenderer.invoke('lighttable:project-reveal', manifestPath),
+  closeProject: () => ipcRenderer.invoke('lighttable:project-close'),
+  removeRecentProject: (recentId) => ipcRenderer.invoke('lighttable:project-remove-recent', recentId),
+  clearRecentProjects: () => ipcRenderer.invoke('lighttable:project-clear-recent'),
   setFullscreen: (enabled: boolean) =>
     ipcRenderer.invoke('lighttable:set-fullscreen', enabled),
   onFullscreenChange: (listener) => {
@@ -94,6 +103,43 @@ const bridge: LightTableDesktopBridge = {
     const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
     ipcRenderer.on('lighttable:agent-tunnel-changed', handler);
     return () => ipcRenderer.removeListener('lighttable:agent-tunnel-changed', handler);
+  },
+  genAiProviderSnapshots: () => ipcRenderer.invoke('lighttable:genai-provider-snapshots'),
+  connectGenAiProvider: (providerId) =>
+    ipcRenderer.invoke('lighttable:genai-provider-connect', providerId),
+  disconnectGenAiProvider: (providerId) =>
+    ipcRenderer.invoke('lighttable:genai-provider-disconnect', providerId),
+  listGenAiModels: (providerId) =>
+    ipcRenderer.invoke('lighttable:genai-model-list', providerId),
+  loadGenAiWorkflow: (providerId, modelId, mode) =>
+    ipcRenderer.invoke('lighttable:genai-workflow-load', providerId, modelId, mode),
+  estimateGenAiCost: (providerId, modelId, mode, fields) =>
+    ipcRenderer.invoke('lighttable:genai-cost-estimate', providerId, modelId, mode, fields),
+  submitGenAiGeneration: (projectId, request) =>
+    ipcRenderer.invoke('lighttable:genai-generation-submit', projectId, request),
+  listGenAiJobs: (projectId) => ipcRenderer.invoke('lighttable:genai-jobs-list', projectId),
+  stopGenAiJobTracking: (projectId, jobId) =>
+    ipcRenderer.invoke('lighttable:genai-job-stop-tracking', projectId, jobId),
+  resumeGenAiJobTracking: (projectId, jobId) =>
+    ipcRenderer.invoke('lighttable:genai-job-resume-tracking', projectId, jobId),
+  listGenAiProjectAssets: (projectId) =>
+    ipcRenderer.invoke('lighttable:genai-project-assets', projectId),
+  loadGenAiProjectAssetPreview: (projectId, assetId) =>
+    ipcRenderer.invoke('lighttable:genai-project-asset-preview', projectId, assetId),
+  loadGenAiProjectAsset: (projectId, assetId) =>
+    ipcRenderer.invoke('lighttable:genai-project-asset-load', projectId, assetId),
+  loadGenAiProjectSetup: (projectId) => ipcRenderer.invoke('lighttable:genai-project-setup-load', projectId),
+  saveGenAiProjectSetup: (projectId, setup) => ipcRenderer.invoke('lighttable:genai-project-setup-save', projectId, setup),
+  onGenAiProviderStatus: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, snapshot: Parameters<typeof listener>[0]) =>
+      listener(snapshot);
+    ipcRenderer.on('lighttable:genai-provider-changed', handler);
+    return () => ipcRenderer.removeListener('lighttable:genai-provider-changed', handler);
+  },
+  onGenAiJobChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, jobEvent: Parameters<typeof listener>[0]) => listener(jobEvent);
+    ipcRenderer.on('lighttable:genai-job-changed', handler);
+    return () => ipcRenderer.removeListener('lighttable:genai-job-changed', handler);
   }
 };
 

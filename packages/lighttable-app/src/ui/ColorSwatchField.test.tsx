@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ColorSwatchField, sampleScreenColor } from './ColorSwatchField';
+import { ColorSwatchField, colorPickerPopoverPosition, sampleScreenColor } from './ColorSwatchField';
 
 const originalEyeDropper = Object.getOwnPropertyDescriptor(globalThis, 'EyeDropper');
 
@@ -17,10 +17,17 @@ describe('ColorSwatchField', () => {
     );
 
     expect(markup).toContain('class="color-swatch-field color-swatch-field--regular"');
-    expect(markup).toContain('type="color"');
-    expect(markup).toContain('value="#123456"');
+    expect(markup).toContain('aria-haspopup="dialog"');
+    expect(markup).toContain('background-color:#123456');
     expect(markup).toContain('aria-label="Sample fill color"');
     expect(markup).toContain('tool_sample_color');
+  });
+
+  it('keeps the picker inside the viewport and away from the trigger where possible', () => {
+    expect(colorPickerPopoverPosition(
+      { left: 760, right: 780, top: 580, bottom: 600 } as DOMRect,
+      { width: 320, height: 300 }, { width: 800, height: 600 }
+    )).toEqual({ left: 434, top: 294 });
   });
 
   it('normalizes a sampled color for the same value callback', async () => {

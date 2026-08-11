@@ -10,17 +10,21 @@ import { ToolOptionsBar } from './ToolOptionsBar';
 import type { EditorScreenMode } from '../workspace/editorScreenMode';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 import type { TextPaint } from '@lighttable/text-core';
+import type { FaceWarpToolOptionsProps } from '../../application/tools/faceWarp/FaceWarpToolOptions';
 
 export interface LightTableEditorShellProps {
   screenMode: EditorScreenMode;
   active: boolean;
   saving: boolean;
   recoveryNotice?: string | null;
+  projectName?: string;
+  onRevealProject?: () => void;
   onClose: () => void;
   menuOptionsFor: (menuId: EditorMenuId) => Array<ContextMenuOption<string>>;
   activeTool: ToolId;
   brush: EditorSession['brush'];
   sampledBrush: EditorSession['sampledBrush'];
+  toneBrush: EditorSession['toneBrush'];
   gradient: EditorSession['gradient'];
   shape: EditorSession['shape'];
   pen: EditorSession['pen'];
@@ -39,11 +43,13 @@ export interface LightTableEditorShellProps {
   selectionColumnWidth: number;
   selectionSmooth: number;
   magicWand: EditorSession['magicWand'];
+  smartSelection: EditorSession['smartSelection'];
   transformAutoSelectLayer: boolean;
   zoomPercent: number;
   gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
   onBrushChange: (change: Partial<EditorSession['brush']>) => void;
   onSampledBrushChange: (change: Partial<EditorSession['sampledBrush']>) => void;
+  onToneBrushChange: (change: Partial<EditorSession['toneBrush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
   onPenChange: (change: Partial<EditorSession['pen']>) => void;
@@ -66,12 +72,15 @@ export interface LightTableEditorShellProps {
   onSelectedVectorStyleChange: (change: Partial<EditorSession['vectorStyle']>) => void;
   onSelectedShapeChange: (change: Partial<EditorSession['shape']>) => void;
   onWarpReset: () => void;
+  faceWarp: FaceWarpToolOptionsProps;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: EditorSession['selectionCombineMode']) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
   onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
+  onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
+  onSelectSubject: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -102,11 +111,14 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   active,
   saving,
   recoveryNotice,
+  projectName,
+  onRevealProject,
   onClose,
   menuOptionsFor,
   activeTool,
   brush,
   sampledBrush,
+  toneBrush,
   gradient,
   shape,
   pen,
@@ -125,11 +137,13 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectionColumnWidth,
   selectionSmooth,
   magicWand,
+  smartSelection,
   transformAutoSelectLayer,
   zoomPercent,
   gradientEditorRequest,
   onBrushChange,
   onSampledBrushChange,
+  onToneBrushChange,
   onGradientChange,
   onShapeChange,
   onPenChange,
@@ -152,12 +166,15 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onSelectedVectorStyleChange,
   onSelectedShapeChange,
   onWarpReset,
+  faceWarp,
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
   onSelectionSmoothChange,
   onMagicWandChange,
+  onSmartSelectionChange,
+  onSelectSubject,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
@@ -185,7 +202,8 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
     >
       {screenMode !== 'canvas-only' ? <div className="modal__header concept-art-editor__header lighttable__header">
         <div className="lighttable__header-left">
-          <EditorMenuBar optionsFor={menuOptionsFor} />
+          <EditorMenuBar optionsFor={menuOptionsFor} projectName={projectName}
+            onRevealProject={onRevealProject} />
         </div>
         <SquareIconButton
           className="lighttable__close-button"
@@ -201,6 +219,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         activeTool={activeTool}
         brush={brush}
         sampledBrush={sampledBrush}
+        toneBrush={toneBrush}
         gradient={gradient}
         shape={shape}
         pen={pen}
@@ -219,11 +238,13 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectionColumnWidth={selectionColumnWidth}
         selectionSmooth={selectionSmooth}
         magicWand={magicWand}
+        smartSelection={smartSelection}
         transformAutoSelectLayer={transformAutoSelectLayer}
         zoomPercent={zoomPercent}
         gradientEditorRequest={gradientEditorRequest}
         onBrushChange={onBrushChange}
         onSampledBrushChange={onSampledBrushChange}
+        onToneBrushChange={onToneBrushChange}
         onGradientChange={onGradientChange}
         onShapeChange={onShapeChange}
         onPenChange={onPenChange}
@@ -246,12 +267,15 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectedVectorStyleChange={onSelectedVectorStyleChange}
         onSelectedShapeChange={onSelectedShapeChange}
         onWarpReset={onWarpReset}
+        faceWarp={faceWarp}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}
         onSelectionCombineModeChange={onSelectionCombineModeChange}
         onSelectionRowHeightChange={onSelectionRowHeightChange}
         onSelectionColumnWidthChange={onSelectionColumnWidthChange}
         onSelectionSmoothChange={onSelectionSmoothChange}
         onMagicWandChange={onMagicWandChange}
+        onSmartSelectionChange={onSmartSelectionChange}
+        onSelectSubject={onSelectSubject}
         onTransformAutoSelectLayerChange={onTransformAutoSelectLayerChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}

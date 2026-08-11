@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import {
   LightTableEditorOverlay,
   type EditorScreenMode
@@ -7,7 +8,9 @@ import type {
 } from '../lighttable/application/documents/documentSession';
 import type {
   LightTableHost,
-  LightTableRecentFile
+  LightTableRecentFile,
+  LightTableProjectSummary,
+  LightTableRecentProject
 } from '../platform/LightTableHost';
 import { DocumentRuntimeErrorBoundary } from './DocumentRuntimeErrorBoundary';
 import type {
@@ -21,11 +24,13 @@ import type {
   LightTableCommandService
 } from '../lighttable/application/commands/lightTableCommandService';
 import type { ApplicationPreferences } from './applicationPreferences';
+import type { GenAiGenerationJob } from '@lighttable/genai-core';
 
 export interface WorkspaceDocumentTab {
   readonly id: DocumentSessionId;
   readonly title: string;
   readonly dirty: boolean;
+  readonly thumbnailUrl?: string;
 }
 
 interface StandaloneDocumentRuntimeViewProps {
@@ -43,6 +48,14 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly recentFiles: readonly LightTableRecentFile[];
   readonly onOpenRecent: (id: string) => Promise<void>;
   readonly onClearRecent: () => Promise<void>;
+  readonly activeProject: LightTableProjectSummary | null;
+  readonly recentProjects: readonly LightTableRecentProject[];
+  readonly onRequestNewProject: () => void;
+  readonly onRequestOpenProject: () => void;
+  readonly onOpenRecentProject: (recentId: string) => void;
+  readonly onClearRecentProjects: () => void;
+  readonly onCloseProject: () => void;
+  readonly onRevealProject: () => void;
   readonly onRequestNew: () => void;
   readonly onStartGuidedSample?: () => void;
   readonly onOpenSettings?: () => void;
@@ -53,6 +66,7 @@ interface StandaloneDocumentRuntimeViewProps {
     decodeMode?: StandaloneDecodeMode
   ) => unknown;
   readonly onRecoveryResolved: (recoveryId: string) => void;
+  readonly onDocumentThumbnailChange: (documentId: DocumentSessionId, thumbnail: Blob) => void;
 }
 
 const titleWithoutExtension = (name: string) =>
@@ -79,13 +93,22 @@ export function StandaloneDocumentRuntimeView({
   recentFiles,
   onOpenRecent,
   onClearRecent,
+  activeProject,
+  recentProjects,
+  onRequestNewProject,
+  onRequestOpenProject,
+  onOpenRecentProject,
+  onClearRecentProjects,
+  onCloseProject,
+  onRevealProject,
   onRequestNew,
   onStartGuidedSample,
   onOpenSettings,
   onOpenStyleGuide,
   preferences,
   onOpen,
-  onRecoveryResolved
+  onRecoveryResolved,
+  onDocumentThumbnailChange
 }: StandaloneDocumentRuntimeViewProps) {
   const {
     id,
@@ -93,6 +116,33 @@ export function StandaloneDocumentRuntimeView({
     runtime: { file, decodeMode, creationSettings },
     session
   } = document;
+
+  const importGeneratedResult = useCallback(async (job: GenAiGenerationJob, forceOpen = false) => {
+    const result = job.results[0];
+    if (!result || !activeProject || !host.genAi) return;
+    const payload = await host.genAi.loadProjectAsset(activeProject.id, result.assetId);
+    if (!payload) return;
+    const file = new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType });
+    const imageEdit = String(job.request.workflowId).toLocaleLowerCase('en-US').includes('image2image');
+    if (forceOpen || !imageEdit) {
+      onOpen(file);
+      return;
+    }
+    const artifact = commandService.registerInputArtifact(file);
+    await commandService.execute({
+      protocolVersion: 1,
+      requestId: `genai-place-${crypto.randomUUID()}`,
+      command: 'layer.placeArtifact',
+      documentId: id,
+      parameters: { artifactId: artifact.id }
+    });
+  }, [activeProject, commandService, host.genAi, id, onOpen]);
+  const handleGeneratedResult = useCallback((job: GenAiGenerationJob) => {
+    void importGeneratedResult(job);
+  }, [importGeneratedResult]);
+  const handleOpenGeneratedResult = useCallback((job: GenAiGenerationJob) => {
+    void importGeneratedResult(job, true);
+  }, [importGeneratedResult]);
 
   return (
     <DocumentRuntimeErrorBoundary
@@ -125,6 +175,9 @@ export function StandaloneDocumentRuntimeView({
         recoveryPreferences={preferences.autosave}
         toolPreferences={preferences.tools}
         releaseService={host.release}
+        genAiService={host.genAi}
+        onGenAiGenerationSucceeded={handleGeneratedResult}
+        onGenAiOpenResult={handleOpenGeneratedResult}
         hostKind={host.kind}
         recoveryNotice={document.runtime.recovery
           ? `${document.runtime.recovery.crashLoop ? 'Safe mode: ' : ''}Recovered copy of ${document.runtime.recovery.originalName}. Save creates a new file.`
@@ -143,6 +196,14 @@ export function StandaloneDocumentRuntimeView({
         recentFiles={recentFiles}
         onOpenRecentWorkspaceDocument={onOpenRecent}
         onClearRecentWorkspaceDocuments={onClearRecent}
+        activeProject={activeProject}
+        recentProjects={recentProjects}
+        onRequestNewProject={onRequestNewProject}
+        onRequestOpenProject={onRequestOpenProject}
+        onOpenRecentProject={onOpenRecentProject}
+        onClearRecentProjects={onClearRecentProjects}
+        onCloseProject={onCloseProject}
+        onRevealProject={onRevealProject}
         onRequestNewWorkspaceDocument={onRequestNew}
         onStartGuidedSample={onStartGuidedSample}
         onOpenSettings={onOpenSettings}
@@ -152,6 +213,7 @@ export function StandaloneDocumentRuntimeView({
           if (session.getSnapshot().lifecycle !== 'ready') session.setReady();
           if (document.runtime.recovery && !session.getSnapshot().dirty) session.markChanged();
         }}
+        onDocumentThumbnailChange={(thumbnail) => onDocumentThumbnailChange(id, thumbnail)}
         onDirtyChange={(dirty) => {
           if (dirty) {
             session.markChanged();
@@ -163,6 +225,7 @@ export function StandaloneDocumentRuntimeView({
         onSave={(output, recipe, transaction) => host.save({
           file: output,
           recipe,
+          projectManifestPath: activeProject?.manifestPath,
           transaction
         })}
         onExportFile={(file) => host.save({ file, recipe: null })}

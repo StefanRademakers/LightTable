@@ -30,7 +30,7 @@ export const isSelectionTool = (tool: ToolId): tool is SelectionToolId =>
 
 export const isPaintTool = (
   tool: ToolId
-): tool is 'brush' | 'clone-stamp' | 'healing-brush' | 'erase' =>
+): tool is 'brush' | 'clone-stamp' | 'healing-brush' | 'erase' | 'dodge' | 'burn' | 'sponge' =>
   toolDefinition(tool).role === 'paint';
 
 export const isWarpTool = (tool: ToolId): tool is 'warp' =>
@@ -39,8 +39,8 @@ export const isWarpTool = (tool: ToolId): tool is 'warp' =>
 /** Tools whose on-canvas interaction is driven by a brush diameter. */
 export const usesBrushSize = (
   tool: ToolId
-): tool is 'brush' | 'clone-stamp' | 'healing-brush' | 'erase' | 'warp' =>
-  isPaintTool(tool) || isWarpTool(tool);
+): tool is 'brush' | 'clone-stamp' | 'healing-brush' | 'erase' | 'dodge' | 'burn' | 'sponge' | 'warp' | 'face-warp' =>
+  isPaintTool(tool) || isWarpTool(tool) || tool === 'face-warp';
 
 export const selectionKindForTool = (tool: GeometricSelectionToolId): SelectionShapeKind => {
   switch (tool) {

@@ -1,0 +1,8 @@
+GenAI Panel
+
+Build a native, maintainable LightTable GenAI bounded context. Start by
+surfacing the panel and a real OpenArt connection flow, then add catalog,
+generation and history capabilities in small verified slices.
+
+Execution checklist: `execution_plan.md`
+StoryBuilder research reference: `genai_panel_electron.md`

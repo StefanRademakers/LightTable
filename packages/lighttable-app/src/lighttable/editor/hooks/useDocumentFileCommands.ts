@@ -81,6 +81,7 @@ export interface DocumentFileCommands {
   exportOutput(options?: { readonly lightweightPreview?: boolean }): Promise<ExportedLightTableDocument>;
   save(): Promise<void>;
   exportPng(): Promise<void>;
+  exportJpeg(): Promise<void>;
   exportPsd(): Promise<void>;
   openLocalFile(
     file: File | null,
@@ -98,6 +99,21 @@ const downloadOutput = (file: File): void => {
   anchor.download = file.name;
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+const encodeJpegFromPng = async (png: Blob): Promise<Blob> => {
+  const bitmap = await createImageBitmap(png);
+  try {
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('JPEG export canvas is unavailable.');
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, bitmap.width, bitmap.height);
+    context.drawImage(bitmap, 0, 0);
+    return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+  } finally {
+    bitmap.close();
+  }
 };
 
 /**
@@ -227,6 +243,26 @@ export const useDocumentFileCommands = (
     }
   }, []);
 
+  const exportJpeg = useCallback(async () => {
+    const current = optionsRef.current;
+    current.setError(null);
+    const result = await current.taskRegistry.run(
+      'export',
+      'Export JPEG',
+      async (task) => {
+        const renderer = current.getRenderer();
+        if (!renderer || !current.hasMetadata) throw new Error('LightTable is not ready yet.');
+        const blob = await encodeJpegFromPng(await renderer.exportPng());
+        task.throwIfCanceled();
+        const name = `${current.fileNameBase.replace(/\.[^.]+$/, '') || 'image'}-lighttable.jpg`;
+        const file = new File([blob], name, { type: 'image/jpeg' });
+        if (current.onExportFile) await current.onExportFile(file);
+        else downloadOutput(file);
+      }
+    );
+    if (result.status === 'failed') current.setError(result.error.message || 'JPEG export failed.');
+  }, []);
+
   const exportPsd = useCallback(async () => {
     const current = optionsRef.current;
     current.setError(null);
@@ -349,6 +385,7 @@ export const useDocumentFileCommands = (
     exportOutput,
     save,
     exportPng,
+    exportJpeg,
     exportPsd,
     openLocalFile,
     handleFastFileInput: (event) => handleFileInput(event, 'fast'),

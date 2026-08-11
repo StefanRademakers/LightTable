@@ -1,13 +1,21 @@
 import type {
   SelectionCombineMode,
   MagicWandOptions,
+  SmartSelectionOptions,
   SelectionOperation,
   SelectionToolId
 } from '../selection/selectionTypes';
-import { createDefaultMagicWandOptions } from '../selection/selectionTypes';
+import {
+  createDefaultMagicWandOptions,
+  createDefaultSmartSelectionOptions
+} from '../selection/selectionTypes';
 import type { WarpToolSettings } from '../../effects/warp/warpTypes';
 import type { PathSelectionTarget, VectorPaint } from '@lighttable/vector-core';
 import type { LayerId } from '../document/documentTypes';
+import {
+  createDefaultToneBrushSettings,
+  type ToneBrushSettings
+} from '../tools/paint/toneBrushTypes';
 import type { BlendMode } from '../document/blendModes';
 import type { VectorEditorToolId } from '../tools/vectorToolCatalog';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
@@ -19,10 +27,14 @@ export type ToolId =
   | 'zoom'
   | 'transform'
   | 'warp'
+  | 'face-warp'
   | 'fill'
   | 'brush'
   | 'clone-stamp'
   | 'healing-brush'
+  | 'dodge'
+  | 'burn'
+  | 'sponge'
   | 'erase'
   | 'text-point'
   | 'text-paragraph'
@@ -250,10 +262,12 @@ export interface EditorSession {
   selectionColumnWidth: number;
   selectionSmooth: number;
   magicWand: MagicWandOptions;
+  smartSelection: SmartSelectionOptions;
   /** Photoshop-style Move/Transform picking of the top visible painted layer. */
   transformAutoSelectLayer: boolean;
   brush: BrushSettings;
   sampledBrush: SampledBrushSettings;
+  toneBrush: ToneBrushSettings;
   gradient: GradientToolSettings;
   vectorStyle: VectorToolStyleSettings;
   pen: PenToolSettings;
@@ -274,6 +288,7 @@ export const createEditorSession = (): EditorSession => ({
   selectionColumnWidth: 1,
   selectionSmooth: 0,
   magicWand: createDefaultMagicWandOptions(),
+  smartSelection: createDefaultSmartSelectionOptions(),
   transformAutoSelectLayer: true,
   brush: {
     presetId: 'round',
@@ -293,6 +308,7 @@ export const createEditorSession = (): EditorSession => ({
     healingHardness: 0,
     healingOpacity: 1
   },
+  toneBrush: createDefaultToneBrushSettings(),
   gradient: createGradientToolSettings(),
   vectorStyle: {
     fillEnabled: true,

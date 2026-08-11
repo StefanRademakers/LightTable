@@ -121,6 +121,14 @@ export const LIGHTTABLE_PRODUCT_DISCLOSURES = [
     "platform": "all"
   },
   {
+    "category": "AI and automation",
+    "name": "MediaPipe Tasks Vision",
+    "version": "1.0.1",
+    "license": "Apache-2.0",
+    "description": "On-device face landmark detection runtime.",
+    "platform": "all"
+  },
+  {
     "category": "Documents and imaging",
     "name": "wasm-vips codec bundle",
     "version": "0.0.18",
@@ -158,6 +166,22 @@ export const LIGHTTABLE_PRODUCT_DISCLOSURES = [
     "version": "Loaded on demand",
     "license": "Apache-2.0",
     "description": "Downloaded lazily when depth estimation is requested.",
+    "platform": "all"
+  },
+  {
+    "category": "AI and automation",
+    "name": "Xenova/slimsam-77-uniform",
+    "version": "Loaded on demand",
+    "license": "Apache-2.0",
+    "description": "Downloaded lazily when Object Selection is first requested.",
+    "platform": "all"
+  },
+  {
+    "category": "AI and automation",
+    "name": "MediaPipe Face Landmarker model",
+    "version": "Loaded on demand",
+    "license": "Apache-2.0",
+    "description": "Bundled locally and loaded lazily when face detection is requested.",
     "platform": "all"
   }
 ] as const;

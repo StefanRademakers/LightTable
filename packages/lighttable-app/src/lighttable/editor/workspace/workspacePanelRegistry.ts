@@ -11,7 +11,9 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   layers: 'lighttable.layers',
   channels: 'lighttable.channels',
   debug: 'lighttable.debug',
-  agent: 'lighttable.agent-activity'
+  agent: 'lighttable.agent-activity',
+  genAi: 'lighttable.genai',
+  aiHistory: 'lighttable.ai-history'
 } as const;
 
 export type LightTableWorkspacePanelId =
@@ -51,6 +53,8 @@ export interface DefaultLightTableWorkspacePanelContent {
   channels: ReactNode;
   debug: ReactNode;
   agent: ReactNode;
+  genAi: ReactNode;
+  aiHistory: ReactNode;
 }
 
 /**
@@ -183,6 +187,30 @@ export const createDefaultLightTableWorkspacePanels = (
     content: content.agent,
     defaultPosition: {
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
+    contentKey: 'genAi',
+    title: 'GenAI',
+    content: content.genAi,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
+    contentKey: 'aiHistory',
+    title: 'AI History',
+    content: content.aiHistory,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
       direction: 'within'
     },
     initiallyInactive: true,

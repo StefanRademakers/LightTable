@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clientToLocalPoint,
   localToDocumentPointer,
+  normalizePointerPressure,
   panViewFromGesture,
   panViewFromWheel,
   pointInsideRect,
@@ -12,6 +13,12 @@ import {
 } from './viewportCoordinates';
 
 describe('viewportCoordinates', () => {
+  it('does not mistake Chromium mouse-down pressure for tablet pressure', () => {
+    expect(normalizePointerPressure(0.5, 'mouse')).toBe(1);
+    expect(normalizePointerPressure(0.5, 'pen')).toBe(0.5);
+    expect(normalizePointerPressure(0, 'pen')).toBe(1);
+  });
+
   it('projects client coordinates into document space', () => {
     const local = clientToLocalPoint(
       { x: 350, y: 240 },

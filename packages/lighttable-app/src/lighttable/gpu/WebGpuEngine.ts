@@ -26,7 +26,10 @@ import {
   type BrushTipDefinition
 } from '../editor/tools/brush/strokeBuilder';
 import type { PaintChannel } from '../editor/session/editorSession';
-import type { SampledBrushStrokePlan } from '../editor/tools/paint/sampledBrushTypes';
+import type {
+  PaintBrushStrokePlan,
+  SampledBrushStrokePlan
+} from '../editor/tools/paint/sampledBrushTypes';
 import type { BlendMode } from '../editor/document/blendModes';
 import type {
   CompositeColorChannel,
@@ -34,6 +37,7 @@ import type {
   SelectionMode,
   SelectionOperation,
   SelectionPoint,
+  RasterSelectionMask,
   SelectionShape
 } from '../editor/selection/selectionTypes';
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
@@ -74,6 +78,7 @@ import {
   subscribeSharedWebGpuDeviceLost
 } from './sharedWebGpuDevice';
 import { getCorePipelineBundle } from './corePipelineLibrary';
+import { DOCUMENT_THUMBNAIL_WGSL, FULLSCREEN_VERTEX_WGSL } from './shaders';
 import { DocumentCoreGpuResources } from './documentCoreGpuResources';
 import { encodeRgba8Png, readRgba8Texture, readRgba8TexturePixel } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
@@ -92,6 +97,7 @@ import {
   GRADIENT_GIZMO_THEME,
   SELECTION_OUTLINE_THEME,
   VectorEditingOverlayBackend,
+  type VectorEditingOverlayTheme,
   type VectorEditingOverlayTarget
 } from '@lighttable/vector-webgpu';
 import type { VectorEditingOverlay, VectorSelectionFrame } from '@lighttable/vector-rendering';
@@ -110,9 +116,18 @@ import {
   directSelectionShape
 } from '../editor/selection/selectionEditingOverlay';
 import { SelectionContourOverlayBackend } from '../editor/rendering/SelectionContourOverlayBackend';
+import { SmartSelectionOverlayBackend } from '../editor/rendering/SmartSelectionOverlayBackend';
 import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoordinator';
 import type { TextEditingOverlay } from '@lighttable/text-rendering';
 import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
+
+const FACE_WARP_MESH_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.1, 0.82, 0.95, 1],
+  handleColor: [0.92, 0.98, 1, 1],
+  pathWidthPx: 1,
+  handleWidthPx: 1,
+  curveSubdivisions: 1
+};
 
 export interface WebGpuPngExportOptions {
   readonly excludedLayerIds?: readonly LayerId[];
@@ -209,6 +224,7 @@ export class WebGpuEngine {
   private layerProcessingRenderer: LayerProcessingRenderer | null = null;
   private displayResolvePipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
+  private thumbnailPipeline: GPURenderPipeline | null = null;
   private maskBlitPipeline: GPURenderPipeline | null = null;
   private channelBlitPipeline: GPURenderPipeline | null = null;
   private differencePipeline: GPURenderPipeline | null = null;
@@ -246,6 +262,7 @@ export class WebGpuEngine {
     sourceMarkerSize?: number;
   } | null = null;
   private penEditingOverlay: VectorEditingOverlay | null = null;
+  private faceWarpEditingOverlay: VectorEditingOverlay | null = null;
   private penRubberBand: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
   private transformEditingFrame: VectorSelectionFrame | null = null;
   private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
@@ -253,6 +270,7 @@ export class WebGpuEngine {
   private textEditingOverlay: TextEditingOverlay | null = null;
   private textCaretVisible = true;
   private selectionContourOverlayBackend: SelectionContourOverlayBackend | null = null;
+  private smartSelectionOverlayBackend: SmartSelectionOverlayBackend | null = null;
 
   static async create(
     canvas: HTMLCanvasElement,
@@ -799,7 +817,7 @@ export class WebGpuEngine {
     sourceToDocument?: AffineMatrix,
     tip: BrushTipDefinition = DEFAULT_BRUSH_TIP,
     engine: BrushEngine = 'paint',
-    operator?: SampledBrushStrokePlan
+    operator?: PaintBrushStrokePlan
   ) {
     const layer = this.imageDocument
       ? findDocumentLayer(this.imageDocument, layerId)
@@ -979,8 +997,31 @@ export class WebGpuEngine {
     return changed;
   }
 
+  private async applyRasterSelectionNow(operation: SelectionOperation) {
+    const source = operation.source;
+    if (source?.kind !== 'raster-mask' || !this.imageDocument || !this.documentRenderer
+      || source.documentRevision !== this.imageDocument.revision) return false;
+    this.device.pushErrorScope('validation');
+    const changed = this.documentRenderer.applyRasterSelectionMask(
+      source.mask,
+      operation.mode as SelectionCombineMode
+    );
+    const validationError = await this.device.popErrorScope();
+    if (validationError) {
+      this.callbacks.onDeviceLost?.(`LightTable raster selection validation failed: ${validationError.message}`);
+      return false;
+    }
+    return changed;
+  }
+
   applyMagicWand(operation: SelectionOperation) {
     const task = this.selectionQueue.then(() => this.applyMagicWandNow(operation));
+    this.selectionQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
+  applyRasterSelection(operation: SelectionOperation) {
+    const task = this.selectionQueue.then(() => this.applyRasterSelectionNow(operation));
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }
@@ -1042,6 +1083,8 @@ export class WebGpuEngine {
           )) return false;
         } else if (operation.source?.kind === 'magic-wand') {
           if (!await this.applyMagicWandNow(operation)) return false;
+        } else if (operation.source?.kind === 'raster-mask') {
+          if (!await this.applyRasterSelectionNow(operation)) return false;
         } else if (operation.mode === 'feather') {
           if (!this.documentRenderer?.featherSelection(operation.amount ?? 0)) return false;
         } else if (operation.mode === 'transform') {
@@ -1127,11 +1170,21 @@ export class WebGpuEngine {
     return this.documentRenderer.exportPsdDocumentAssets(document);
   }
 
-  exportLayerThumbnail(layerId: LayerId, maskChannel = false) {
+  exportLayerThumbnail(
+    layerId: LayerId,
+    maskChannel = false,
+    maximumWidth = 80,
+    maximumHeight = 80
+  ) {
     if (!this.documentRenderer) {
       throw new Error('The LightTable layer renderer is unavailable.');
     }
-    return this.documentRenderer.exportLayerThumbnail(layerId, maskChannel);
+    return this.documentRenderer.exportLayerThumbnail(
+      layerId,
+      maskChannel,
+      maximumWidth,
+      maximumHeight
+    );
   }
 
   async loadLayerAssets(assets: DocumentAssetBlob[]) {
@@ -1635,6 +1688,24 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setFaceWarpEditingOverlay(overlay: VectorEditingOverlay | null) {
+    if (this.faceWarpEditingOverlay?.resourceKey === overlay?.resourceKey) return;
+    this.faceWarpEditingOverlay = overlay;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  setSmartSelectionPreview(mask: RasterSelectionMask | null) {
+    if (!mask && !this.smartSelectionOverlayBackend) return;
+    this.smartSelectionOverlayBackend ??= new SmartSelectionOverlayBackend(
+      this.device,
+      this.canvasFormat
+    );
+    this.smartSelectionOverlayBackend.setMask(mask);
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   async sampleDisplayColor(point: { x: number; y: number }) {
     const texture = this.imageResources.finalTexture;
     const metadata = this.metadata;
@@ -2085,6 +2156,7 @@ export class WebGpuEngine {
       scopePasses.displayPasses
     );
     this.device.queue.submit([encoder.finish()]);
+    if (renderedCorrection) this.callbacks.onCompositeRendered?.();
     if (textInteractionTrace) {
       this.pendingTextInteractionTrace = null;
       recordTextInteractionTrace(textInteractionTrace, 'queue-submit');
@@ -2173,6 +2245,63 @@ export class WebGpuEngine {
       'LightTable PNG export readback'
     );
     return encodeRgba8Png(pixels, this.metadata.width, this.metadata.height);
+  }
+
+  /**
+   * Reads a small snapshot from the already rendered final composite. This is
+   * one filtered GPU pass and a tiny readback; it never recomposites layers or
+   * wakes scopes/effects.
+   */
+  async exportThumbnailPng(maxEdge = 256) {
+    if (!this.metadata || !this.imageResources.finalTexture || !this.coreResources) {
+      throw new Error('No processed image is available for thumbnail export.');
+    }
+    this.renderScheduler.flush();
+    await this.device.queue.onSubmittedWorkDone();
+    const scale = Math.min(1, Math.max(1, maxEdge) / Math.max(this.metadata.width, this.metadata.height));
+    const width = Math.max(1, Math.round(this.metadata.width * scale));
+    const height = Math.max(1, Math.round(this.metadata.height * scale));
+    if (!this.thumbnailPipeline) {
+      const vertex = this.device.createShaderModule({
+        label: 'LightTable document thumbnail vertex shader',
+        code: FULLSCREEN_VERTEX_WGSL
+      });
+      const fragment = this.device.createShaderModule({
+        label: 'LightTable document thumbnail fragment shader',
+        code: `${FULLSCREEN_VERTEX_WGSL}\n${DOCUMENT_THUMBNAIL_WGSL}`
+      });
+      this.thumbnailPipeline = this.device.createRenderPipeline({
+        label: 'LightTable document thumbnail',
+        layout: 'auto',
+        vertex: { module: vertex, entryPoint: 'fullscreenVertex' },
+        fragment: { module: fragment, entryPoint: 'main', targets: [{ format: 'rgba8unorm' }] },
+        primitive: { topology: 'triangle-list' }
+      });
+    }
+    const texture = this.device.createTexture({
+      label: 'LightTable document thumbnail result',
+      size: [width, height],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+    });
+    try {
+      const bindGroup = this.device.createBindGroup({
+        layout: this.thumbnailPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.imageResources.finalTexture.createView() },
+          { binding: 1, resource: this.coreResources.sampler }
+        ]
+      });
+      const encoder = this.device.createCommandEncoder({ label: 'LightTable document thumbnail export' });
+      this.drawFullscreenPass(encoder, this.thumbnailPipeline, bindGroup, texture.createView());
+      this.device.queue.submit([encoder.finish()]);
+      const pixels = await readRgba8Texture(
+        this.device, texture, width, height, 'LightTable document thumbnail readback'
+      );
+      return encodeRgba8Png(pixels, width, height);
+    } finally {
+      texture.destroy();
+    }
   }
 
   waitForTextSourcesForExport() { return this.documentRenderer?.waitForTextSourcesForExport() ?? Promise.resolve(true); }
@@ -2304,6 +2433,8 @@ export class WebGpuEngine {
     this.textEditingOverlayBackend = null;
     this.selectionContourOverlayBackend?.dispose();
     this.selectionContourOverlayBackend = null;
+    this.smartSelectionOverlayBackend?.dispose();
+    this.smartSelectionOverlayBackend = null;
     this.textEditingOverlay = null;
   }
 
@@ -2342,9 +2473,11 @@ export class WebGpuEngine {
       && !selectionDraft
       && !this.zoomOverlayDraft
       && !selectionMask
+      && !this.smartSelectionOverlayBackend?.visible
       && !this.transformEditingFrame
       && !this.brushCursorOverlay
       && !this.penEditingOverlay
+      && !this.faceWarpEditingOverlay
       && !this.penRubberBand
       && !this.textEditingOverlay
     ) return;
@@ -2378,6 +2511,15 @@ export class WebGpuEngine {
     }
     if (this.penEditingOverlay) {
       this.vectorEditingOverlayBackend.encode(encoder, this.penEditingOverlay, target);
+    }
+    if (this.faceWarpEditingOverlay) {
+      this.vectorEditingOverlayBackend.encodeIsolated(
+        encoder,
+        this.faceWarpEditingOverlay,
+        target,
+        FACE_WARP_MESH_THEME,
+        0.5
+      );
     }
     if (this.penRubberBand) {
       const rubberBand: VectorEditingOverlay = {
@@ -2429,6 +2571,14 @@ export class WebGpuEngine {
         this.coreResources.sampler,
         this.coreResources.viewBuffer,
         this.selectionAntsAnimator.phasePx
+      );
+    }
+    if (this.smartSelectionOverlayBackend?.visible && this.coreResources) {
+      this.smartSelectionOverlayBackend.encode(
+        encoder,
+        canvasView,
+        this.coreResources.sampler,
+        this.coreResources.viewBuffer
       );
     }
     if (selectionDraft) {
@@ -2496,6 +2646,7 @@ export class WebGpuEngine {
     this.brushCursorOverlay = null;
     this.penRubberBand = null;
     this.penEditingOverlay = null;
+    this.faceWarpEditingOverlay = null;
     this.transformEditingFrame = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;

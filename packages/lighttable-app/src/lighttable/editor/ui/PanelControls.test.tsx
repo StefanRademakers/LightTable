@@ -26,7 +26,7 @@ describe('shared panel controls', () => {
 
     expect(markup).toContain('<span>Mode</span>');
     expect(markup).toContain('<span>Enabled</span>');
-    expect(markup).toContain('value="#ff0000"');
+    expect(markup).toContain('background-color:#ff0000');
     expect(markup).toContain('aria-label="Sample color"');
     expect(markup).toContain('title="Opacity"');
     expect(markup).toContain('aria-label="Angle"');

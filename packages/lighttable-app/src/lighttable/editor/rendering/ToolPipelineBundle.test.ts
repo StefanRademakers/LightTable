@@ -13,8 +13,8 @@ describe('toolPipelinesFor', () => {
     const second = brushPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(Object.keys(first)).toHaveLength(11);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(11);
+    expect(Object.keys(first)).toHaveLength(12);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(12);
   });
 
   it('compiles optional tool pipelines once per shared GPU device', () => {
@@ -32,9 +32,9 @@ describe('toolPipelinesFor', () => {
     const second = toolPipelinesFor(device);
 
     expect(second).toBe(first);
-    expect(createRenderPipeline).toHaveBeenCalledTimes(30);
+    expect(createRenderPipeline).toHaveBeenCalledTimes(31);
     expect(createComputePipeline).toHaveBeenCalledTimes(4);
-    expect(Object.keys(first)).toHaveLength(34);
+    expect(Object.keys(first)).toHaveLength(35);
     const calls = createRenderPipeline.mock.calls as unknown as [GPURenderPipelineDescriptor][];
     const descriptor = (label: string) => calls
       .map(([value]) => value)
@@ -53,6 +53,9 @@ describe('toolPipelinesFor', () => {
         alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
       });
     expect(blend('LightTable blur brush')?.alpha).toEqual({
+      srcFactor: 'zero', dstFactor: 'one', operation: 'add'
+    });
+    expect(blend('LightTable tone adjustment brush')?.alpha).toEqual({
       srcFactor: 'zero', dstFactor: 'one', operation: 'add'
     });
   });

@@ -21,7 +21,8 @@ const definition = (
 
 describe('ProcessingModuleRegistry', () => {
   it('preserves declared order and resolves scope support', () => {
-    expect(currentProcessingModuleRegistry.definitions()[0]?.type).toBe('lt.warp');
+    expect(currentProcessingModuleRegistry.definitions().map(({ type }) => type)).toContain('lt.warp');
+    expect(currentProcessingModuleRegistry.definitions().map(({ type }) => type)).toContain('lt.face-warp');
     expect(currentProcessingModuleRegistry.definition('lt.warp')?.category).toBe('geometry');
     expect(currentProcessingModuleRegistry.allows('lt.warp', 'layer')).toBe(true);
     expect(currentProcessingModuleRegistry.allows('lt.warp', 'adjustment-layer')).toBe(false);

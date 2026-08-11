@@ -34,6 +34,7 @@ import { toolShortcutGroupFor } from './editor/tools/toolRegistry';
 import { brushPresetChange, resolveBrushPreset } from './editor/tools/brush/brushPresets';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
+import { SmartSelectionToolController } from './application/tools/smartSelection/SmartSelectionToolController';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
@@ -153,6 +154,9 @@ import { bindRendererTextFontRuntime } from './composition/documents/bindRendere
 import { LightTableDockWorkspace, type LightTableDockWorkspaceHandle } from './editor/workspace/LightTableDockWorkspace';
 import { nextEditorScreenMode, type EditorScreenMode } from './editor/workspace/editorScreenMode';
 import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePanelRegistry';
+import { useGenAiSetupController } from '../genai/application/useGenAiSetupController';
+import { useGenAiJobsController } from '../genai/application/useGenAiJobsController';
+import type { GenAiGenerationJob } from '@lighttable/genai-core';
 
 import {
   createEditorSession,
@@ -167,11 +171,42 @@ import {
   type RasterGradientDependencies
 } from './application/tools/gradient/RasterGradientCommandController';
 import { browserImageClipboard, type LightTableImageClipboard } from '../platform/LightTableImageClipboard';
-import type { LightTableRecentFile, LightTableSaveResult } from '../platform/LightTableHost';
+import type {
+  LightTableProjectSummary,
+  LightTableRecentFile,
+  LightTableRecentProject,
+  LightTableSaveResult
+} from '../platform/LightTableHost';
 import type { LightTableRecoveryStore } from '../platform/LightTableRecoveryStore';
 import { useLensBlurDepthController } from './application/effects/lensBlur/useLensBlurDepthController';
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
+import { FaceWarpDetector } from './effects/faceWarp/FaceWarpDetector';
+import {
+  MEDIAPIPE_FACE_CANONICAL_POSITIONS,
+  MEDIAPIPE_FACE_CANONICAL_UVS,
+  MEDIAPIPE_FACE_TOPOLOGY_ID,
+  MEDIAPIPE_FACE_TRIANGLE_INDICES,
+  MEDIAPIPE_FACE_VERTEX_COUNT
+} from './effects/faceWarp/canonicalFaceTopology';
+import { semanticLandmarksFromMesh } from './effects/faceWarp/faceWarpLandmarks';
+import { buildFaceWarpMeshOverlay } from './effects/faceWarp/faceWarpMeshOverlay';
+import {
+  applyFaceWarpParameterChange,
+  applyFaceWarpBrush,
+  findDeformedFaceHit,
+  relaxFaceWarpBrush
+} from './effects/faceWarp/faceWarpDeformer';
+import {
+  addFaceWarpNodeToStack,
+  createDefaultFaceWarpParameters,
+  createFaceWarpModuleInstance,
+  findFaceWarpModuleInstance,
+  readFaceWarpNodeSettings,
+  setFaceWarpNodeSettings,
+  type FaceWarpFace,
+  type FaceWarpParameters
+} from './effects/faceWarp/faceWarpTypes';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
@@ -196,6 +231,7 @@ import {
   type LensBlurViewportMode
 } from './editor/config/adjustmentControls';
 import {
+  layerIsLocked,
   type DocumentCreationSettings,
   type ImageDocument,
   type LayerId,
@@ -220,8 +256,10 @@ import { PaintGestureController } from './editor/tools/paint/paintGestureControl
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
 import {
   mergeLayers as mergeDocumentLayers,
+  setRasterLayerAdjustmentStack,
   setLayerTransform
 } from './editor/document/documentCommands';
+import { invertMatrix, transformPoint, transformedBounds } from './editor/geometry/affine';
 import {
   isPaintTool,
   isWarpTool,
@@ -325,6 +363,7 @@ export interface LightTableEditorOverlayProps {
     id: string;
     title: string;
     dirty?: boolean;
+    thumbnailUrl?: string;
   }>;
   onActivateWorkspaceDocument?: (documentId: string) => void;
   onCloseWorkspaceDocument?: (documentId: string) => void;
@@ -337,8 +376,17 @@ export interface LightTableEditorOverlayProps {
   recentFiles?: readonly LightTableRecentFile[];
   onOpenRecentWorkspaceDocument?: (id: string) => Promise<void> | void;
   onClearRecentWorkspaceDocuments?: () => Promise<void> | void;
+  activeProject?: LightTableProjectSummary | null;
+  recentProjects?: readonly LightTableRecentProject[];
+  onRequestNewProject?: () => void;
+  onRequestOpenProject?: () => void;
+  onOpenRecentProject?: (recentId: string) => void;
+  onClearRecentProjects?: () => void;
+  onCloseProject?: () => void;
+  onRevealProject?: () => void;
   onOpenWorkspaceDocument?: (file: File, decodeMode: DocumentOpenMode) => void;
   onDocumentReady?: () => void;
+  onDocumentThumbnailChange?: (thumbnail: Blob) => void;
   onDocumentError?: (message: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
   history?: DocumentCommandHistory;
@@ -355,6 +403,9 @@ export interface LightTableEditorOverlayProps {
     readonly openMaskEditingOnDoubleClick: boolean;
   };
   releaseService?: import('../platform/LightTableHost').LightTableReleaseService; hostKind?: import('../platform/LightTableHost').LightTableHost['kind'];
+  genAiService?: import('../platform/LightTableHost').LightTableGenAiService;
+  onGenAiGenerationSucceeded?: (job: GenAiGenerationJob) => void;
+  onGenAiOpenResult?: (job: GenAiGenerationJob) => void;
   recoveryNotice?: string | null;
   onRecoveryResolved?: () => Promise<void> | void;
 }
@@ -390,8 +441,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   recentFiles = [],
   onOpenRecentWorkspaceDocument,
   onClearRecentWorkspaceDocuments,
+  activeProject = null,
+  recentProjects = [],
+  onRequestNewProject,
+  onRequestOpenProject,
+  onOpenRecentProject,
+  onClearRecentProjects,
+  onCloseProject,
+  onRevealProject,
   onOpenWorkspaceDocument,
   onDocumentReady,
+  onDocumentThumbnailChange,
   onDocumentError,
   onDirtyChange,
   history,
@@ -404,10 +464,42 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   recoveryStore,
   recoveryPreferences,
   toolPreferences,
-  releaseService, hostKind = 'web',
+  releaseService, genAiService, onGenAiGenerationSucceeded, onGenAiOpenResult, hostKind = 'web',
   recoveryNotice = null,
   onRecoveryResolved
 }) => {
+  const openArtProviderId = 'openart' as import('@lighttable/genai-core').GenAiProviderId;
+  const [openArtProvider, setOpenArtProvider] = React.useState<import('@lighttable/genai-core').GenAiProviderSnapshot>({
+    id: openArtProviderId,
+    label: 'OpenArt',
+    status: 'disconnected'
+  });
+  React.useEffect(() => {
+    if (!genAiService) return;
+    let active = true;
+    void genAiService.getProviderSnapshots().then((snapshots) => {
+      const snapshot = snapshots.find((entry) => entry.id === openArtProviderId);
+      if (active && snapshot) setOpenArtProvider(snapshot);
+    }).catch((reason) => {
+      if (active) setOpenArtProvider((current) => ({
+        ...current,
+        status: 'error',
+        message: reason instanceof Error ? reason.message : String(reason)
+      }));
+    });
+    const unsubscribe = genAiService.subscribe((snapshot) => {
+      if (active && snapshot.id === openArtProviderId) setOpenArtProvider(snapshot);
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [genAiService]);
+  const activeGenAiProjectId = active ? activeProject?.id : undefined;
+  const genAiSetup = useGenAiSetupController(genAiService, openArtProvider, activeGenAiProjectId);
+  const genAiJobs = useGenAiJobsController(
+    genAiService,
+    activeGenAiProjectId,
+    onGenAiGenerationSucceeded,
+    openArtProvider.status
+  );
   const imageClipboard = providedImageClipboard ?? browserImageClipboard();
   const standaloneFontRegistryRef = useRef<DocumentFontRegistry | null>(null);
   if (!documentSession && !standaloneFontRegistryRef.current) {
@@ -443,6 +535,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scopesColumnRef = useRef<HTMLElement | null>(null);
   const engineRef = useRef<DocumentRendererPort | null>(null);
+  const thumbnailTimerRef = useRef<number | null>(null);
+  const thumbnailGenerationRef = useRef(0);
+  const publishCompositeRendered = useCallback(() => {
+    if (!onDocumentThumbnailChange) return;
+    if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
+    const generation = ++thumbnailGenerationRef.current;
+    thumbnailTimerRef.current = window.setTimeout(() => {
+      thumbnailTimerRef.current = null;
+      const renderer = engineRef.current;
+      if (!renderer) return;
+      void renderer.exportThumbnailPng(256).then((thumbnail) => {
+        if (generation === thumbnailGenerationRef.current) onDocumentThumbnailChange(thumbnail);
+      }).catch(() => undefined);
+    }, 180);
+  }, [onDocumentThumbnailChange]);
+  useEffect(() => () => {
+    thumbnailGenerationRef.current += 1;
+    if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
+  }, []);
   const adjustmentsRef = useRef<BasicAdjustments>(createDefaultAdjustments());
   const adjustmentPresentationStoreRef = useRef<AdjustmentPresentationStore | null>(null);
   if (!adjustmentPresentationStoreRef.current) {
@@ -571,6 +682,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
+  const faceWarpDetectorRef = useRef<FaceWarpDetector | null>(null);
+  const faceWarpDetectionGenerationRef = useRef(0);
+  const [faceWarpBusy, setFaceWarpBusy] = useState(false);
+  const [faceWarpMeshVisible, setFaceWarpMeshVisible] = useState(false);
+  const [faceWarpSelectedFaceId, setFaceWarpSelectedFaceId] = useState<string | null>(null);
+  const faceWarpGestureRef = useRef<{
+    pointerId: number;
+    faceId: string;
+    seedSource: { x: number; y: number };
+    startPointerSource: { x: number; y: number };
+    originalDisplacements: FaceWarpFace['displacements'];
+  } | null>(null);
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
   const [editorSession, setEditorSession] = useDocumentEditorSession(documentSession);
   const editorSessionRef = useRef(editorSession);
@@ -1023,6 +1146,306 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pushDocumentHistory = documentMutationController.record;
   const beginDocumentTransaction = documentMutationController.begin;
   const endDocumentTransaction = documentMutationController.end;
+
+  const activeFaceWarpLayer = imageDocument
+    ? findRasterLayer(imageDocument, imageDocument.activeLayerId)
+    : null;
+  const activeFaceWarpInstance = activeFaceWarpLayer
+    ? findFaceWarpModuleInstance(activeFaceWarpLayer.adjustmentStack)
+    : null;
+  const activeFaceWarpSettings = activeFaceWarpInstance
+    ? readFaceWarpNodeSettings(activeFaceWarpInstance)
+    : null;
+  const activeFaceWarpFaces = activeFaceWarpSettings?.faces ?? [];
+  const effectiveFaceWarpFaceId = activeFaceWarpFaces.some(({ id }) => id === faceWarpSelectedFaceId)
+    ? faceWarpSelectedFaceId
+    : activeFaceWarpFaces[0]?.id ?? null;
+  const updateFaceWarpParameters = useCallback((change: Partial<FaceWarpParameters>) => {
+    const faceId = faceWarpSelectedFaceId
+      ?? (() => {
+        const document = imageDocumentRef.current;
+        const layer = document ? findRasterLayer(document, document.activeLayerId) : null;
+        const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
+        return instance ? readFaceWarpNodeSettings(instance).faces[0]?.id ?? null : null;
+      })();
+    if (!faceId) return;
+    documentMutationController.change((document) => {
+      const layer = findRasterLayer(document, document.activeLayerId);
+      const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
+      if (!layer?.adjustmentStack || !instance) return document;
+      const current = readFaceWarpNodeSettings(instance);
+      const faces = current.faces.map((face) => face.id === faceId
+        ? applyFaceWarpParameterChange(face, current.topology.triangleIndices, change)
+        : face);
+      return setRasterLayerAdjustmentStack(
+        document,
+        layer.id,
+        setFaceWarpNodeSettings(layer.adjustmentStack, { ...current, faces })
+      );
+    });
+  }, [documentMutationController, faceWarpSelectedFaceId, imageDocumentRef]);
+
+  const detectFacesForActiveLayer = useCallback(async () => {
+    const document = imageDocumentRef.current;
+    const renderer = engineRef.current;
+    const layer = document ? findRasterLayer(document, document.activeLayerId) : null;
+    if (!document || !renderer || !layer) {
+      setError('Face Warp requires an active pixel layer.');
+      return;
+    }
+    if (layerIsLocked(layer)) {
+      setError('Unlock the pixel layer before using Face Warp.');
+      return;
+    }
+    setFaceWarpBusy(true);
+    setError(null);
+    const generation = ++faceWarpDetectionGenerationRef.current;
+    const sourceDocumentId = document.id;
+    const sourcePixelRevision = layer.pixelRevision;
+    const sourceTransform = JSON.stringify(layer.transform);
+    try {
+      const preview = await renderer.exportLayerThumbnail(layer.id, false, 1024, 1024);
+      if (generation !== faceWarpDetectionGenerationRef.current) return;
+      if (!preview) throw new Error('The active layer has no image pixels to analyze.');
+      const detector = faceWarpDetectorRef.current ??= new FaceWarpDetector();
+      const detection = await detector.detect({
+        blob: preview.blob,
+        sourceWidth: preview.width,
+        sourceHeight: preview.height
+      });
+      if (generation !== faceWarpDetectionGenerationRef.current) return;
+      const currentDocument = imageDocumentRef.current;
+      const currentLayer = currentDocument ? findRasterLayer(currentDocument, layer.id) : null;
+      if (currentDocument?.id !== sourceDocumentId
+        || !currentLayer
+        || currentLayer.pixelRevision !== sourcePixelRevision
+        || JSON.stringify(currentLayer.transform) !== sourceTransform) {
+        throw new Error('The layer changed while faces were being detected. Detect faces again.');
+      }
+      if (detection.meshes.length === 0) throw new Error('No face was detected in the active layer.');
+      const bounds = transformedBounds(layer.transform, {
+        x: 0, y: 0, width: layer.width, height: layer.height
+      });
+      const documentToSource = invertMatrix(layer.transform);
+      if (!documentToSource || bounds.width <= 0 || bounds.height <= 0) {
+        throw new Error('The active layer transform cannot be analyzed.');
+      }
+      const scaleX = preview.width / bounds.width;
+      const scaleY = preview.height / bounds.height;
+      const faces: FaceWarpFace[] = detection.meshes.map((mesh, index) => {
+        const sourceMesh = mesh.slice(0, 468).map((point) => ({
+          ...transformPoint(documentToSource, {
+            x: point.x / scaleX + bounds.x,
+            y: point.y / scaleY + bounds.y
+          }),
+          z: point.z === undefined ? undefined : point.z / Math.sqrt(scaleX * scaleY)
+        }));
+        return {
+          id: `face-${index + 1}`,
+          confidence: 1,
+          landmarks: semanticLandmarksFromMesh(sourceMesh),
+          parameters: createDefaultFaceWarpParameters(),
+          poseMatrix: detection.poseMatrices[index]
+        };
+      });
+      const settings = {
+        version: 2 as const,
+        opacity: 1,
+        sourceRevision: layer.pixelRevision,
+        detector: { id: 'mediapipe-face-landmarker', version: '1.0.1' },
+        topology: {
+          id: MEDIAPIPE_FACE_TOPOLOGY_ID,
+          vertexCount: MEDIAPIPE_FACE_VERTEX_COUNT,
+          triangleIndices: MEDIAPIPE_FACE_TRIANGLE_INDICES,
+          canonicalPositions: MEDIAPIPE_FACE_CANONICAL_POSITIONS,
+          canonicalUvs: MEDIAPIPE_FACE_CANONICAL_UVS
+        },
+        faces
+      };
+      documentMutationController.change((currentDocument) => {
+        const currentLayer = findRasterLayer(currentDocument, layer.id);
+        if (!currentLayer || layerIsLocked(currentLayer)) return currentDocument;
+        let stack = currentLayer.adjustmentStack
+          ? structuredClone(currentLayer.adjustmentStack)
+          : { id: `stack-${crypto.randomUUID()}`, revision: 0, modules: [] };
+        const existing = findFaceWarpModuleInstance(stack);
+        stack = existing
+          ? setFaceWarpNodeSettings(stack, settings)
+          : addFaceWarpNodeToStack(stack, createFaceWarpModuleInstance(
+            `module-${crypto.randomUUID()}`,
+            settings
+          ));
+        return setRasterLayerAdjustmentStack(currentDocument, layer.id, stack);
+      });
+      setFaceWarpSelectedFaceId(faces[0]!.id);
+      setFaceWarpMeshVisible(true);
+      setGradeStatus(`${faces.length} face${faces.length === 1 ? '' : 's'} detected.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (generation === faceWarpDetectionGenerationRef.current) setFaceWarpBusy(false);
+    }
+  }, [documentMutationController, imageDocumentRef]);
+
+  const resetSelectedFaceWarp = useCallback(() => {
+    const faceId = effectiveFaceWarpFaceId;
+    if (!faceId) return;
+    documentMutationController.change((document) => {
+      const layer = findRasterLayer(document, document.activeLayerId);
+      const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
+      if (!layer?.adjustmentStack || !instance) return document;
+      const current = readFaceWarpNodeSettings(instance);
+      const faces = current.faces.map((face) => face.id === faceId ? {
+        ...face,
+        parameters: createDefaultFaceWarpParameters(),
+        displacements: []
+      } : face);
+      return setRasterLayerAdjustmentStack(document, layer.id,
+        setFaceWarpNodeSettings(layer.adjustmentStack, { ...current, faces }));
+    });
+  }, [documentMutationController, effectiveFaceWarpFaceId]);
+
+  const changeFaceWarpMeshVisible = useCallback((visible: boolean) => {
+    setFaceWarpMeshVisible(visible);
+  }, []);
+
+  useEffect(() => () => {
+    faceWarpDetectionGenerationRef.current += 1;
+    faceWarpDetectorRef.current?.dispose();
+  }, []);
+
+  useEffect(() => {
+    const renderer = engineRef.current;
+    if (!renderer) return;
+    if (
+      editorSession.activeTool !== 'face-warp'
+      || !faceWarpMeshVisible
+      || !activeFaceWarpLayer
+      || activeFaceWarpFaces.length === 0
+    ) {
+      renderer.setFaceWarpEditingOverlay(null);
+      return;
+    }
+    renderer.setFaceWarpEditingOverlay(buildFaceWarpMeshOverlay(
+      activeFaceWarpFaces,
+      activeFaceWarpLayer.transform,
+      activeFaceWarpSettings?.topology.triangleIndices ?? [],
+      effectiveFaceWarpFaceId
+    ));
+  }, [
+    activeFaceWarpFaces,
+    activeFaceWarpLayer,
+    activeFaceWarpSettings,
+    editorSession.activeTool,
+    effectiveFaceWarpFaceId,
+    faceWarpMeshVisible
+  ]);
+
+  const beginFaceWarpGesture = (pointerId: number, documentPoint: { x: number; y: number }) => {
+    const document = imageDocumentRef.current;
+    const layer = document ? findRasterLayer(document, document.activeLayerId) : null;
+    const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
+    const inverse = layer ? invertMatrix(layer.transform) : null;
+    if (!layer || !instance || !inverse || layerIsLocked(layer)) return false;
+    const settings = readFaceWarpNodeSettings(instance);
+    const sourcePoint = transformPoint(inverse, documentPoint);
+    const orderedFaces = [
+      ...settings.faces.filter(({ id }) => id === effectiveFaceWarpFaceId),
+      ...settings.faces.filter(({ id }) => id !== effectiveFaceWarpFaceId)
+    ];
+    const hit = orderedFaces
+      .map((face) => ({
+        face,
+        hit: findDeformedFaceHit(face, settings.topology.triangleIndices, sourcePoint)
+      }))
+      .find((candidate) => candidate.hit !== null);
+    if (!hit?.hit || !beginDocumentTransaction()) return false;
+    faceWarpGestureRef.current = {
+      pointerId,
+      faceId: hit.face.id,
+      seedSource: hit.hit.sourcePoint,
+      startPointerSource: sourcePoint,
+      originalDisplacements: hit.face.displacements
+    };
+    setFaceWarpSelectedFaceId(hit.face.id);
+    return true;
+  };
+
+  const moveFaceWarpGesture = (
+    pointerId: number,
+    documentPoint: { x: number; y: number },
+    relax: boolean
+  ) => {
+    const gesture = faceWarpGestureRef.current;
+    if (!gesture || gesture.pointerId !== pointerId) return false;
+    return documentMutationController.change((document) => {
+      const layer = findRasterLayer(document, document.activeLayerId);
+      const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
+      const inverse = layer ? invertMatrix(layer.transform) : null;
+      if (!layer?.adjustmentStack || !instance || !inverse) return document;
+      const settings = readFaceWarpNodeSettings(instance);
+      const sourcePoint = transformPoint(inverse, documentPoint);
+      const sourceScale = Math.sqrt(Math.max(1e-8, Math.abs(
+        layer.transform.a * layer.transform.d - layer.transform.b * layer.transform.c
+      )));
+      const radius = editorSession.brush.size * 0.5 / sourceScale;
+      const faces = settings.faces.map((face) => {
+        if (face.id !== gesture.faceId) return face;
+        return {
+          ...face,
+          displacements: relax
+            ? relaxFaceWarpBrush(face, settings.topology.triangleIndices, sourcePoint, radius, 0.35)
+            : applyFaceWarpBrush(
+                { ...face, displacements: gesture.originalDisplacements },
+                settings.topology.triangleIndices,
+                gesture.seedSource,
+                {
+                  x: sourcePoint.x - gesture.startPointerSource.x,
+                  y: sourcePoint.y - gesture.startPointerSource.y
+                },
+                radius,
+                editorSession.brush.opacity
+              )
+        };
+      });
+      return setRasterLayerAdjustmentStack(
+        document,
+        layer.id,
+        setFaceWarpNodeSettings(layer.adjustmentStack, { ...settings, faces })
+      );
+    });
+  };
+
+  const finishFaceWarpGesture = (pointerId: number) => {
+    const gesture = faceWarpGestureRef.current;
+    if (!gesture || gesture.pointerId !== pointerId) return false;
+    // The last interactive preview is already fold-safe and is the authored
+    // result. Re-solving with a different iteration count here made pointer-up
+    // visibly jump to a second mesh even though the pointer had not moved.
+    faceWarpGestureRef.current = null;
+    endDocumentTransaction();
+    return true;
+  };
+
+  const cancelFaceWarpGesture = (pointerId: number) => {
+    const gesture = faceWarpGestureRef.current;
+    if (!gesture || gesture.pointerId !== pointerId) return false;
+    documentMutationController.change((document) => {
+      const layer = findRasterLayer(document, document.activeLayerId);
+      const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
+      if (!layer?.adjustmentStack || !instance) return document;
+      const settings = readFaceWarpNodeSettings(instance);
+      const faces = settings.faces.map((face) => face.id === gesture.faceId
+        ? { ...face, displacements: gesture.originalDisplacements }
+        : face);
+      return setRasterLayerAdjustmentStack(document, layer.id,
+        setFaceWarpNodeSettings(layer.adjustmentStack, { ...settings, faces }));
+    }, false);
+    faceWarpGestureRef.current = null;
+    documentMutationController.reset();
+    return true;
+  };
+
   const applyImageSizeSnapshot = (snapshot: ImageDocument) => {
     engineRef.current?.resizeDocumentSurface(snapshot);
     applyDocumentSnapshot(snapshot);
@@ -1250,6 +1673,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushHistoryEntry,
     setError
   }, selectionGestureRef.current);
+  const smartSelectionControllerRef = useRef<SmartSelectionToolController | null>(null);
+  smartSelectionControllerRef.current ??= new SmartSelectionToolController({
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    getOptions: () => editorSessionRef.current.smartSelection,
+    selection: selectionSessionController,
+    setStatus: setGradeStatus,
+    setDraft: setSelectionDraft
+  });
+  const smartSelectionController = smartSelectionControllerRef.current;
+  useEffect(() => () => smartSelectionController.dispose(), [smartSelectionController]);
+  useEffect(() => {
+    smartSelectionController.invalidate();
+    if (editorSession.activeTool !== 'select-object') return;
+    void smartSelectionController.prepare();
+    return () => smartSelectionController.clearPreview();
+  }, [
+    editorSession.activeTool,
+    editorSession.smartSelection.sampleAllLayers,
+    imageDocument?.activeLayerId,
+    imageDocument?.id,
+    imageDocument?.revision,
+    smartSelectionController,
+    thumbnailDocumentReadyId
+  ]);
 
   const adjustmentTransactionController = useAdjustmentTransactionController({
     getDocumentId: () => imageDocumentRef.current?.id ?? null,
@@ -1659,6 +2107,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishHistogram: setHistogram,
     publishGpuMemory: setGpuMemoryBytes,
     publishTextRenderPresentation,
+    publishCompositeRendered,
     publishError: setError,
     publishScopeError: setScopeError,
     publishFeatureError: (featureId, message) => {
@@ -2694,6 +3143,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         || (paragraphTextController.owns(pointerId) ? paragraphTextController.cancel() : false)
     },
     selection: selectionSessionController,
+    smartSelection: smartSelectionController,
     paint: paintSessionController,
     sampledBrushSource: sampledBrushSourceController,
     onSampledBrushError: setError,
@@ -2701,6 +3151,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setGradeStatus(`Sample source set at ${Math.round(x)}, ${Math.round(y)}.`);
     },
     warp: warpSessionController,
+    faceWarp: {
+      begin: beginFaceWarpGesture,
+      owns: (pointerId) => faceWarpGestureRef.current?.pointerId === pointerId,
+      move: moveFaceWarpGesture,
+      finish: finishFaceWarpGesture,
+      cancel: cancelFaceWarpGesture
+    },
     vector: vectorToolSessionController,
     rasterGradient: rasterGradientController,
     minScale: MIN_SCALE,
@@ -3279,6 +3736,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     exportOutput,
     save: handleSave,
     exportPng: handleExportPng,
+    exportJpeg: handleExportJpeg,
     exportPsd: handleExportPsd,
     handleFastFileInput: handleLocalFile,
     handlePrecisionFileInput: handleAdvancedLocalFile,
@@ -3344,6 +3802,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   exportPsdArtifactRef.current = () => exportEditorPsdArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
 
   const editorMenuController = createEditorMenuController({
+    aiProviders: {
+      openArt: openArtProvider.status === 'connected' ? 'connected' : 'disconnected'
+    },
     projection: {
       document: imageDocumentRef.current,
       saving,
@@ -3376,10 +3837,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         void onOpenRecentWorkspaceDocument?.(id);
       },
       clearRecent: () => { void onClearRecentWorkspaceDocuments?.(); },
+      projectsAvailable: Boolean(onRequestNewProject && onRequestOpenProject),
+      activeProject,
+      recentProjects,
+      newProject: () => onRequestNewProject?.(),
+      openProject: () => onRequestOpenProject?.(),
+      openRecentProject: (recentId) => onOpenRecentProject?.(recentId),
+      clearRecentProjects: () => onClearRecentProjects?.(),
+      closeProject: () => onCloseProject?.(),
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
+      exportJpeg: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportJpeg(); },
       exportPsd: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsd(); },
-      openCompatibilityReport: editorDialogs.openPsdReport,
       openFormatSupport: editorDialogs.openFormatSupport,
       pdfExportPreflight: () => {
         finishTextEditingRef.current();
@@ -3648,6 +4117,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     workspace: {
       showDebugPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.debug),
+      showGenAiPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi),
+      showAiHistoryPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory),
+      connectOpenArtProvider: () => {
+        workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi);
+        if (genAiService && openArtProvider.status !== 'connecting') {
+          void genAiService.connectProvider(openArtProviderId).then(setOpenArtProvider);
+        }
+      },
+      disconnectOpenArtProvider: () => {
+        if (genAiService) {
+          void genAiService.disconnectProvider(openArtProviderId).then(setOpenArtProvider);
+        }
+      },
       openStyleGuide: onOpenStyleGuide,
       toggleScreenMode,
       resetLayout: () => workspaceRef.current?.resetLayout(),
@@ -4127,6 +4609,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
     } : {})
   } : null;
+  const faceWarpToolOptions = {
+    faces: activeFaceWarpFaces,
+    selectedFaceId: effectiveFaceWarpFaceId,
+    busy: faceWarpBusy,
+    meshVisible: faceWarpMeshVisible,
+    brushSize: editorSession.brush.size,
+    brushStrength: editorSession.brush.opacity,
+    onDetect: () => { void detectFacesForActiveLayer(); },
+    onSelectFace: setFaceWarpSelectedFaceId,
+    onMeshVisibleChange: changeFaceWarpMeshVisible,
+    onBrushChange: ({ size, strength }: { size?: number; strength?: number }) => {
+      setEditorSession((current) => ({
+        ...current,
+        brush: {
+          ...current.brush,
+          ...(size === undefined ? {} : { size }),
+          ...(strength === undefined ? {} : { opacity: strength })
+        }
+      }));
+    },
+    onParametersChange: updateFaceWarpParameters,
+    onInteractionStart: beginDocumentTransaction,
+    onInteractionEnd: endDocumentTransaction,
+    onReset: resetSelectedFaceWarp
+  };
   useEffect(() => {
     if (activeTextPropertyLayer?.type === 'text') {
       workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
@@ -4138,11 +4645,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       active={active}
       saving={saving}
       recoveryNotice={recoveryNotice}
+      projectName={activeProject?.name}
+      onRevealProject={onRevealProject}
       onClose={onClose}
       menuOptionsFor={createAppMenuOptions}
       activeTool={visibleTool}
       brush={editorSession.brush}
       sampledBrush={editorSession.sampledBrush}
+      toneBrush={editorSession.toneBrush}
       gradient={gradientToolSettings}
       shape={editorSession.shape}
       pen={editorSession.pen}
@@ -4162,12 +4672,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionColumnWidth={editorSession.selectionColumnWidth}
       selectionSmooth={editorSession.selectionSmooth}
       magicWand={editorSession.magicWand}
+      smartSelection={editorSession.smartSelection}
       zoomPercent={activeScale * 100}
       gradientEditorRequest={gradientEditorRequest}
       onBrushChange={updateBrush}
       onSampledBrushChange={(change) => setEditorSession((current) => ({
         ...current,
         sampledBrush: { ...current.sampledBrush, ...change }
+      }))}
+      onToneBrushChange={(change) => setEditorSession((current) => ({
+        ...current,
+        toneBrush: { ...current.toneBrush, ...change }
       }))}
       onGradientChange={updateGradientSettings}
       onShapeChange={(change) => setEditorSession((current) => ({
@@ -4202,6 +4717,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onWarpReset={() => {
         warpSessionController.clearActiveLayer();
       }}
+      faceWarp={faceWarpToolOptions}
       onSelectionPixelSnapChange={(selectionPixelSnap) => {
         setEditorSession((current) => ({ ...current, selectionPixelSnap }));
       }}
@@ -4226,6 +4742,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           magicWand: { ...current.magicWand, ...change }
         }));
       }}
+      onSmartSelectionChange={(change) => {
+        setEditorSession((current) => ({
+          ...current,
+          smartSelection: { ...current.smartSelection, ...change }
+        }));
+      }}
+      onSelectSubject={() => { void smartSelectionController.selectSubject(); }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
       onToolChange={activatePersistentTool}
@@ -4307,12 +4830,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             selectionRowHeight: editorSession.selectionRowHeight,
             selectionColumnWidth: editorSession.selectionColumnWidth,
             selectionSmooth: editorSession.selectionSmooth,
+            toneBrush: editorSession.toneBrush,
             magicWand: editorSession.magicWand,
+            smartSelection: editorSession.smartSelection,
             zoomPercent: activeScale * 100,
             onBrushChange: updateBrush,
             onSampledBrushChange: (change) => setEditorSession((current) => ({
               ...current,
               sampledBrush: { ...current.sampledBrush, ...change }
+            })),
+            onToneBrushChange: (change) => setEditorSession((current) => ({
+              ...current,
+              toneBrush: { ...current.toneBrush, ...change }
             })),
             onGradientChange: (change) => setEditorSession((current) => ({
               ...current,
@@ -4351,6 +4880,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               warpSessionController.clearActiveLayer();
               setToolOptionsMenu(null);
             },
+            faceWarp: faceWarpToolOptions,
             onSelectionPixelSnapChange: (selectionPixelSnap) => {
               setEditorSession((current) => ({ ...current, selectionPixelSnap }));
             },
@@ -4375,6 +4905,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 magicWand: { ...current.magicWand, ...change }
               }));
             },
+            onSmartSelectionChange: (change) => {
+              setEditorSession((current) => ({
+                ...current,
+                smartSelection: { ...current.smartSelection, ...change }
+              }));
+            },
+            onSelectSubject: () => { void smartSelectionController.selectSubject(); },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,
             onToolChange: activatePersistentTool,
@@ -4441,6 +4978,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     onPointerUp: viewportInteraction.onPointerUp,
                     onPointerCancel: viewportInteraction.onPointerCancel,
                     onPointerLeave: () => {
+                      if (editorSessionRef.current.activeTool === 'select-object') {
+                        smartSelectionController.clearPreview();
+                      }
                       if (
                         !paintSessionController.active
                         && !warpSessionController.active
@@ -4673,7 +5213,52 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               },
               text: textPropertiesPanel,
               agent: { events: agentEvents,
-                onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } }
+                onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } },
+              genAi: {
+                providerName: openArtProvider.label,
+                status: openArtProvider.status,
+                message: openArtProvider.message,
+                projectName: activeProject?.name,
+                models: genAiSetup.models,
+                workflow: genAiSetup.workflow,
+                selectedModelId: genAiSetup.selectedModelId,
+                onModelChange: genAiSetup.setModel,
+                selectedMode: genAiSetup.selectedMode,
+                onModeChange: genAiSetup.setMode,
+                loading: genAiSetup.loading,
+                setupError: genAiSetup.error,
+                values: genAiSetup.values,
+                onFieldChange: genAiSetup.setValue,
+                assets: genAiSetup.assets,
+                mentionOptions: genAiSetup.mentionOptions,
+                assetPreviews: genAiSetup.assetPreviews,
+                onRequestAssetPreview: genAiSetup.requestAssetPreview,
+                generating: genAiSetup.generating,
+                generationError: genAiSetup.generationError,
+                costEstimate: genAiSetup.costEstimate,
+                submission: genAiSetup.submission,
+                canGenerate: genAiSetup.canGenerate,
+                onGenerate: () => { void genAiSetup.generate(); },
+                onConnect: genAiService ? () => {
+                  void genAiService.connectProvider(openArtProviderId).then(setOpenArtProvider);
+                } : undefined
+              },
+              aiHistory: {
+                ...genAiJobs,
+                previews: genAiSetup.assetPreviews,
+                onRequestPreview: genAiSetup.requestAssetPreview,
+                onOpenResult: onGenAiOpenResult,
+                onStopTracking: genAiService && activeGenAiProjectId ? async (job) => {
+                  await genAiService.stopTracking(activeGenAiProjectId, job.id);
+                } : undefined,
+                onResumeTracking: genAiService && activeGenAiProjectId ? async (job) => {
+                  await genAiService.resumeTracking(activeGenAiProjectId, job.id);
+                } : undefined,
+                onRestoreSetup: (job) => {
+                  genAiSetup.restoreRequest(job.request);
+                  workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi);
+                }
+              }
             })}
           />
     </LightTableEditorShell>

@@ -55,6 +55,7 @@ export interface EditorDocumentLifecycleControllerOptions {
   readonly publishHistogram: (histogram: RgbHistogram) => void;
   readonly publishGpuMemory: (bytes: number) => void;
   readonly publishTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void;
+  readonly publishCompositeRendered?: () => void;
   readonly publishError: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
   readonly publishFeatureError: (featureId: string, message: string) => void;
@@ -103,6 +104,7 @@ export const useEditorDocumentLifecycleController = ({
   publishHistogram,
   publishGpuMemory,
   publishTextRenderPresentation,
+  publishCompositeRendered,
   publishError,
   publishScopeError,
   publishFeatureError,
@@ -171,6 +173,7 @@ export const useEditorDocumentLifecycleController = ({
     publishHistogram,
     publishGpuMemory,
     publishTextRenderPresentation,
+    publishCompositeRendered,
     publishError,
     publishScopeError,
     publishFeatureError,

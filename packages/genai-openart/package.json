@@ -1,0 +1,22 @@
+{
+  "name": "@lighttable/genai-openart",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "files": ["src"],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lighttable/genai-core": "0.0.1",
+    "@modelcontextprotocol/client": "2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

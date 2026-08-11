@@ -1,0 +1,72 @@
+{
+  "model": "nano-banana-2",
+  "mode": "image2image",
+  "media": "image",
+  "schemaCore": {
+    "type": "object",
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "minLength": 1
+      },
+      "imageCount": {
+        "default": 2,
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 4
+      },
+      "aspectRatio": {
+        "type": "string",
+        "enum": [
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16"
+        ]
+      },
+      "resolution": {
+        "default": "1K",
+        "type": "string",
+        "enum": [
+          "1K",
+          "2K",
+          "4K"
+        ]
+      },
+      "autoEnhancePrompt": {
+        "default": false,
+        "type": "boolean"
+      },
+      "visualReferences": {
+        "default": [],
+        "maxItems": 14,
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/__schema0"
+        }
+      }
+    },
+    "required": [
+      "prompt",
+      "imageCount",
+      "aspectRatio",
+      "resolution",
+      "autoEnhancePrompt",
+      "visualReferences"
+    ],
+    "additionalProperties": false
+  },
+  "defaults": {
+    "imageCount": 1,
+    "aspectRatio": "1:1",
+    "resolution": "1K",
+    "autoEnhancePrompt": false
+  },
+  "note": "Shared $defs include image, character, video, element, text and audio reference object shapes. Fetch the live schema before rendering controls."
+}

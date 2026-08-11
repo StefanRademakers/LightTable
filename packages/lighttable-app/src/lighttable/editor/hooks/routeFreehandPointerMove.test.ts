@@ -9,6 +9,7 @@ const sample = (x: number, timeStamp: number) => ({
   clientY: 0,
   pressure: 0.5,
   pointerId: 7,
+  pointerType: 'mouse',
   tiltX: x,
   tiltY: -x,
   timeStamp

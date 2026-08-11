@@ -1,0 +1,7 @@
+De laatste tab is het actieve document.
+Maar bij on hover over de tabbladen zou je eigenlijk een thumbnail preview willen kunnen zien van het document wat niet open is.
+Zonder delay... 
+
+Deze thumbnail zou up to date moeten zijn en geen extra processing moeten kosten in de pipeline, op de laatste composite van de lagen als eindresultaat zouden we een 256 longest edge versie moeten opslaan (correct aspect ratio)... 
+
+Dit is later ook heel makkelijker om zo actieve documenten als elementen te openen in het genai panel.

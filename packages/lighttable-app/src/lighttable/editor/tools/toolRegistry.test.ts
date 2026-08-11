@@ -7,7 +7,9 @@ import {
   PATH_SELECTION_TOOL_DEFINITIONS,
   PEN_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
+  SMART_SELECTION_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
+  TONE_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
   toolDefinition,
   toolForShortcutFamily,
@@ -25,6 +27,9 @@ describe('toolRegistry', () => {
     expect(LASSO_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
       'select-free',
       'select-polygonal'
+    ]);
+    expect(SMART_SELECTION_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
+      'select-object', 'select-magic-wand'
     ]);
     expect(toolShortcutGroupFor('select-magic-wand')?.key).toBe('w');
   });
@@ -57,18 +62,27 @@ describe('toolRegistry', () => {
   it('defines Gradient and Paint Bucket as one toolbar family', () => {
     expect(FILL_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual(['gradient', 'fill']);
   });
+  it('defines Dodge, Burn and Sponge as Photoshop-compatible O tools', () => {
+    expect(TONE_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual(['dodge', 'burn', 'sponge']);
+    expect(toolForShortcutFamily('o', 'dodge', true)).toBe('burn');
+    expect(toolForShortcutFamily('o', 'burn', true)).toBe('sponge');
+  });
   it('defines every editor tool exactly once', () => {
     const expected: ToolId[] = [
       'view',
       'zoom',
       'transform',
       'warp',
+      'face-warp',
       'gradient',
       'fill',
       'brush',
       'healing-brush',
       'clone-stamp',
       'erase',
+      'dodge',
+      'burn',
+      'sponge',
       'vector-select',
       'vector-direct-select',
       'vector-pen',
@@ -89,6 +103,7 @@ describe('toolRegistry', () => {
       'select-vertical',
       'select-free',
       'select-polygonal',
+      'select-object',
       'select-magic-wand'
     ];
     expect(new Set(TOOL_DEFINITIONS.map(({ id }) => id))).toEqual(new Set(expected));
@@ -119,6 +134,7 @@ describe('toolRegistry', () => {
     expect(toolShortcutGroupFor('shape-rectangle')?.key).toBe('u');
     expect(toolShortcutGroupFor('text-point')?.key).toBe('t');
     expect(toolShortcutGroupFor('gradient')?.key).toBe('g');
+    expect(toolShortcutGroupFor('dodge')?.key).toBe('o');
     expect(toolDefinition('warp').shortcutKey).toBeUndefined();
     expect(toolForShortcutFamily('t', 'view', false)).toBe('text-point');
     expect(toolForShortcutFamily('t', 'text-point', true)).toBe('text-vertical');

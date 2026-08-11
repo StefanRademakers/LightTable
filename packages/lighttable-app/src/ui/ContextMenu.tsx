@@ -4,11 +4,13 @@ import { createPortal } from 'react-dom';
 export interface ContextMenuOption<T extends string> {
   value: T;
   label: string;
+  description?: string;
   shortcut?: string;
   onClick?: () => void;
   disabled?: boolean;
   disabledReason?: string;
   icon?: ReactNode;
+  status?: 'connected' | 'disconnected';
   separatorBefore?: boolean;
   children?: Array<ContextMenuOption<T>>;
 }
@@ -259,8 +261,17 @@ export function ContextMenu<T extends string>({
                 option.onClick?.();
               }}
             >
-              {option.icon ? <span className="context-menu__item-icon">{option.icon}</span> : null}
-              <span className="context-menu__item-label">{option.label}</span>
+              {option.status ? (
+                <span
+                  className={`context-menu__status context-menu__status--${option.status}`}
+                  aria-label={option.status === 'connected' ? 'Connected' : 'Not connected'}
+                  title={option.status === 'connected' ? 'Connected' : 'Not connected'}
+                />
+              ) : option.icon ? <span className="context-menu__item-icon">{option.icon}</span> : null}
+              <span className="context-menu__item-label">
+                <span>{option.label}</span>
+                {option.description ? <small>{option.description}</small> : null}
+              </span>
               {option.shortcut ? (
                 <span className="context-menu__item-shortcut" aria-hidden="true">
                   {option.shortcut}

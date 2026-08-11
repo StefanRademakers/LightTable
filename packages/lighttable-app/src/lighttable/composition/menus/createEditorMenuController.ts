@@ -4,6 +4,7 @@ import type { EditorDialogController } from '../../editor/ui/useEditorDialogCont
 import {
   createEditorMenuOptions,
   type EditorMenuId,
+  type EditorAiProviderState,
   type EditorMenuLabels
 } from '../../editor/menus/createEditorMenuOptions';
 import {
@@ -12,11 +13,12 @@ import {
 } from '../../editor/menus/projectEditorMenuState';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import type { LightTableViewState } from '../../types';
-import type { LightTableRecentFile } from '../../../platform/LightTableHost';
+import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
 
 export interface EditorMenuControllerOptions {
   readonly projection: EditorMenuProjectionInput;
   readonly labels: EditorMenuLabels;
+  readonly aiProviders?: EditorAiProviderState;
   readonly file: {
     newDocument(): void;
     open(): void;
@@ -24,11 +26,19 @@ export interface EditorMenuControllerOptions {
     recentFiles: readonly LightTableRecentFile[];
     openRecent(id: string): void;
     clearRecent(): void;
+    projectsAvailable?: boolean;
+    activeProject?: LightTableProjectSummary | null;
+    recentProjects?: readonly LightTableRecentProject[];
+    newProject?(): void;
+    openProject?(): void;
+    openRecentProject?(recentId: string): void;
+    clearRecentProjects?(): void;
+    closeProject?(): void;
     save(): void;
     exportPng(): void;
+    exportJpeg(): void;
     exportPsd(): void;
     pdfExportPreflight(): void;
-    openCompatibilityReport(): void;
     openFormatSupport(): void;
   };
   readonly edit: {
@@ -72,6 +82,10 @@ export interface EditorMenuControllerOptions {
   };
   readonly workspace: {
     showDebugPanel(): void;
+    showGenAiPanel(): void;
+    showAiHistoryPanel?(): void;
+    connectOpenArtProvider?(): void;
+    disconnectOpenArtProvider?(): void;
     openStyleGuide?(): void;
     toggleScreenMode(): void;
     resetLayout(): void;
@@ -96,6 +110,7 @@ export interface EditorMenuController {
 export const createEditorMenuController = ({
   projection,
   labels,
+  aiProviders,
   file,
   edit,
   selection,
@@ -123,11 +138,19 @@ export const createEditorMenuController = ({
       recentFiles: file.recentFiles,
       openRecent: file.openRecent,
       clearRecent: file.clearRecent,
+      projectsAvailable: file.projectsAvailable ?? false,
+      activeProject: file.activeProject ?? null,
+      recentProjects: file.recentProjects ?? [],
+      newProject: file.newProject ?? (() => undefined),
+      openProject: file.openProject ?? (() => undefined),
+      openRecentProject: file.openRecentProject ?? (() => undefined),
+      clearRecentProjects: file.clearRecentProjects ?? (() => undefined),
+      closeProject: file.closeProject ?? (() => undefined),
       save: file.save,
       exportPng: file.exportPng,
+      exportJpeg: file.exportJpeg,
       exportPsd: file.exportPsd,
       pdfExportPreflight: file.pdfExportPreflight,
-      openCompatibilityReport: file.openCompatibilityReport,
       openFormatSupport: file.openFormatSupport,
       copySelectedContent: edit.copySelectedContent,
       copyMergedContent: edit.copyMergedContent,
@@ -199,6 +222,10 @@ export const createEditorMenuController = ({
         viewport.setShowDifference((current) => !current);
       },
       showDebugPanel: workspace.showDebugPanel,
+      showGenAiPanel: workspace.showGenAiPanel,
+      showAiHistoryPanel: workspace.showAiHistoryPanel,
+      connectOpenArtProvider: workspace.connectOpenArtProvider,
+      disconnectOpenArtProvider: workspace.disconnectOpenArtProvider,
       openStyleGuide: workspace.openStyleGuide,
       toggleScreenMode: workspace.toggleScreenMode,
       resetWorkspaceLayout: workspace.resetLayout,
@@ -207,7 +234,8 @@ export const createEditorMenuController = ({
       openCommandHelp: dialogs.openCommandHelp,
       openThirdPartyLicenses: dialogs.openThirdPartyLicenses,
       openAbout: dialogs.openAbout
-    }
+    },
+    aiProviders
   );
 
   return { optionsFor };

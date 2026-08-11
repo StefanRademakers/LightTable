@@ -7,14 +7,24 @@ import {
   Menu,
   nativeImage,
   safeStorage,
-  session
+  session,
+  shell
 } from 'electron';
 import { createServer, type Server } from 'node:http';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
+import {
+  activateProjectAssetCatalog,
+  deactivateProjectAssetCatalog,
+  readProjectAsset,
+  readProjectAssetIndex,
+  readProjectAssetPreview,
+  recordSavedProjectAsset,
+  scheduleSavedProjectAsset
+} from './projectAssetService';
 import { DesktopRecoveryStore } from './recoveryStore';
 import {
   createDesktopOpenDialogFilters,
@@ -27,6 +37,12 @@ import {
   touchRecentFile,
   type PersistedRecentFile
 } from './recentFiles';
+import {
+  createProjectOnDisk,
+  openProjectManifest,
+  resolveProjectStoragePath,
+  type DesktopProjectSummary
+} from './projectService';
 import { WindowsSystemFontCatalog } from './systemFonts';
 import {
   releaseChannelFor,
@@ -46,6 +62,22 @@ import {
   WebSocketAgentTunnelTransport
 } from './agentTunnelAdapters';
 import { loadRendererUrlWithRetry } from './rendererNavigation';
+import { DesktopOpenArtCredentialStore } from './genai/openArtCredentialStore';
+import { createLoopbackOAuthSession } from './genai/loopbackOAuthSession';
+import { OpenArtConnectionController } from './genai/openArtConnectionController';
+import { OpenArtCatalogStore } from './genai/openArtCatalogStore';
+import {
+  recordProjectAssetRemoteLink,
+  resolveProjectAssetRemoteLinks
+} from './genai/projectAssetRemoteLinks';
+import {
+  listProjectGenerationJobs,
+  updateProjectGenerationJob,
+  upsertProjectGenerationJob
+} from './genai/projectGenerationJobStore';
+import { loadProjectGenAiSetup, saveProjectGenAiSetup } from './genai/projectGenAiSetupStore';
+import { generationRecoveryAction } from './genai/generationRecovery';
+import { OPENART_PROVIDER_ID } from '@lighttable/genai-openart';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -56,6 +88,8 @@ let packagedRendererServer: Server | null = null;
 let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath: string } | null = null;
 let agentAccessBridge: AgentAccessBridge | null = null;
 let agentTunnel: AgentTunnelController | null = null;
+let openArtConnection: OpenArtConnectionController | null = null;
+let activeProjectManifestPath: string | null = null;
 let agentRequestSequence = 0;
 const pendingAgentRequests = new Map<string, {
   readonly resolve: (value: unknown) => void;
@@ -69,6 +103,8 @@ if (automationUserData) app.setPath('userData', path.resolve(automationUserData)
 const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
+const recentProjectsPath = (): string => path.join(app.getPath('userData'), 'recent-projects.json');
+const recentProjectOperations = new RecentFileOperationQueue();
 const RECENT_THUMBNAIL_CACHE_LIMIT = 24;
 const recentThumbnailCache = new BoundedLruCache<string>(RECENT_THUMBNAIL_CACHE_LIMIT);
 const releaseChannel = releaseChannelFor(
@@ -220,6 +256,43 @@ const forgetRecentFile = (id: string): Promise<void> =>
       (await loadRecentFiles()).filter((candidate) => candidate.id !== id)
     );
   });
+
+interface PersistedRecentProject extends PersistedRecentFile {
+  readonly name: string;
+}
+
+const recentProjectId = (manifestPath: string): string => createHash('sha256')
+  .update(canonicalRecentFilePath(manifestPath))
+  .digest('hex')
+  .slice(0, 24);
+
+const loadRecentProjects = async (): Promise<PersistedRecentProject[]> => {
+  try {
+    const parsed: unknown = JSON.parse(await readFile(recentProjectsPath(), 'utf8'));
+    if (!Array.isArray(parsed)) return [];
+    return normalizeRecentFiles(parsed.filter((entry): entry is PersistedRecentProject => Boolean(
+      entry && typeof entry === 'object'
+      && typeof (entry as PersistedRecentProject).id === 'string'
+      && typeof (entry as PersistedRecentProject).path === 'string'
+      && typeof (entry as PersistedRecentProject).name === 'string'
+      && typeof (entry as PersistedRecentProject).openedAt === 'number'
+    )));
+  } catch {
+    return [];
+  }
+};
+
+const saveRecentProjects = async (entries: readonly PersistedRecentProject[]): Promise<void> => {
+  await writeFile(recentProjectsPath(), JSON.stringify(normalizeRecentFiles(entries), null, 2));
+};
+
+const rememberRecentProject = (project: DesktopProjectSummary): Promise<void> =>
+  recentProjectOperations.run(async () => saveRecentProjects(touchRecentFile(await loadRecentProjects(), {
+    id: recentProjectId(project.manifestPath),
+    path: project.manifestPath,
+    name: project.name,
+    openedAt: Date.now()
+  })));
 
 const readDesktopFilePayload = async (filePath: string) => ({
   name: path.basename(filePath),
@@ -464,6 +537,25 @@ void app.whenReady().then(async () => {
     protect: (value: string) => new Uint8Array(safeStorage.encryptString(value)),
     unprotect: (value: Uint8Array) => safeStorage.decryptString(Buffer.from(value))
   };
+  const openArtCredentialStore = new DesktopOpenArtCredentialStore(
+    path.join(app.getPath('userData'), 'genai', 'openart-credentials.bin'),
+    credentialProtector
+  );
+  openArtConnection = new OpenArtConnectionController({
+    version: app.getVersion(),
+    store: openArtCredentialStore,
+    catalogStore: new OpenArtCatalogStore(path.join(app.getPath('userData'), 'genai-openart-catalog-v1.json')),
+    host: {
+      createAuthorizationSession: (state) => createLoopbackOAuthSession(state),
+      openExternal: async (url) => { await shell.openExternal(url); }
+    }
+  });
+  openArtConnection.subscribe((snapshot) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('lighttable:genai-provider-changed', snapshot);
+    }
+  });
+  void openArtConnection.restore();
   const credentialStore = new DesktopAgentAccessCredentialStore(
     path.join(app.getPath('userData'), 'agent-access', 'credentials.bin'), credentialProtector
   );
@@ -512,6 +604,311 @@ void app.whenReady().then(async () => {
   ipcMain.handle('lighttable:agent-access-status', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     return agentAccessBridge?.status() ?? { supported: false, enabled: false, state: 'stopped' };
+  });
+  ipcMain.handle('lighttable:genai-provider-snapshots', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return openArtConnection ? [openArtConnection.snapshot()] : [];
+  });
+  ipcMain.handle('lighttable:genai-provider-connect', (event, providerId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (providerId !== OPENART_PROVIDER_ID || !openArtConnection) {
+      throw new Error('Unsupported GenAI provider.');
+    }
+    return openArtConnection.connect();
+  });
+  ipcMain.handle('lighttable:genai-provider-disconnect', (event, providerId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (providerId !== OPENART_PROVIDER_ID || !openArtConnection) {
+      throw new Error('Unsupported GenAI provider.');
+    }
+    return openArtConnection.disconnect();
+  });
+  ipcMain.handle('lighttable:genai-model-list', (event, providerId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (providerId !== OPENART_PROVIDER_ID || !openArtConnection) {
+      throw new Error('Unsupported GenAI provider.');
+    }
+    return openArtConnection.listModels();
+  });
+  ipcMain.handle('lighttable:genai-workflow-load', (
+    event,
+    providerId: unknown,
+    modelId: unknown,
+    mode: unknown
+  ) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (providerId !== OPENART_PROVIDER_ID || !openArtConnection
+      || typeof modelId !== 'string' || typeof mode !== 'string') {
+      throw new Error('Unsupported GenAI workflow request.');
+    }
+    return openArtConnection.loadWorkflow(modelId as import('@lighttable/genai-core').GenAiModelId, mode);
+  });
+  ipcMain.handle('lighttable:genai-cost-estimate', (event, providerId: unknown, modelId: unknown,
+    mode: unknown, fields: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (providerId !== OPENART_PROVIDER_ID || !openArtConnection || typeof modelId !== 'string'
+      || typeof mode !== 'string' || !fields || typeof fields !== 'object' || Array.isArray(fields)) {
+      throw new Error('Invalid GenAI cost request.');
+    }
+    return openArtConnection.estimateCost(
+      modelId as import('@lighttable/genai-core').GenAiModelId,
+      mode,
+      fields as Readonly<Record<string, unknown>>
+    );
+  });
+  const completingGenAiJobs = new Set<string>();
+  const genAiJobAbortControllers = new Map<string, AbortController>();
+  const publishGenAiJob = (
+    projectId: string,
+    job: import('@lighttable/genai-core').GenAiGenerationJob
+  ) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('lighttable:genai-job-changed', { projectId, job });
+    }
+  };
+  const finishOpenArtGeneration = async (
+    manifestPath: string,
+    project: Awaited<ReturnType<typeof openProjectManifest>>,
+    jobId: import('@lighttable/genai-core').GenAiJobId,
+    providerJobId: string
+  ): Promise<void> => {
+    if (!openArtConnection || openArtConnection.snapshot().status !== 'connected') return;
+    const completionKey = `${manifestPath}\0${jobId}`;
+    if (completingGenAiJobs.has(completionKey)) return;
+    completingGenAiJobs.add(completionKey);
+    const abortController = new AbortController();
+    genAiJobAbortControllers.set(completionKey, abortController);
+    try {
+      const remote = await openArtConnection.waitForGeneration(providerJobId, abortController.signal);
+      const response = await fetch(remote.url);
+      if (!response.ok) throw new Error(`OpenArt output download failed (${response.status}).`);
+      const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLocaleLowerCase('en-US') ?? remote.mediaType;
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(contentType)) {
+        throw new Error(`OpenArt returned an unsupported output type (${contentType}).`);
+      }
+      const declaredLength = Number(response.headers.get('content-length') ?? 0);
+      if (declaredLength > 256 * 1024 * 1024) throw new Error('OpenArt output exceeds the 256 MiB safety limit.');
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (!bytes.length || bytes.byteLength > 256 * 1024 * 1024) throw new Error('OpenArt returned an invalid output file.');
+      const extension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/webp' ? 'webp' : 'png';
+      const safeProviderId = providerJobId.replace(/[^A-Za-z0-9_-]/gu, '-').slice(0, 96) || String(jobId);
+      const fileName = `OpenArt-${safeProviderId}.${extension}`;
+      const historyDirectory = resolveProjectStoragePath(project.summary.rootPath, project.manifest, 'aiHistory');
+      await mkdir(historyDirectory, { recursive: true });
+      const outputPath = path.join(historyDirectory, fileName);
+      await atomicWriteFile({ targetPath: outputPath, bytes });
+      await recordSavedProjectAsset({ manifestPath, filePath: outputPath });
+      const { index } = await readProjectAssetIndex(manifestPath);
+      const indexed = index.assets.find((asset) => asset.path.endsWith(`/History/${fileName}`) || asset.name === fileName);
+      if (!indexed) throw new Error('The generated image was saved but could not be indexed.');
+      await recordProjectAssetRemoteLink(manifestPath, {
+        assetId: indexed.id, providerId: OPENART_PROVIDER_ID,
+        providerJobId, url: remote.url, mediaType: contentType
+      });
+      const result = {
+        assetId: indexed.id as import('@lighttable/genai-core').GenAiAssetId,
+        mediaType: contentType,
+        fileName,
+        ...(indexed.thumbnail ? { previewId: indexed.id } : {})
+      };
+      const complete = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+        ...job, status: 'succeeded', updatedAt: Date.now(), results: [result]
+      }));
+      publishGenAiJob(project.summary.id, complete);
+    } catch (reason) {
+      if (abortController.signal.aborted) return;
+      const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+        ...job, status: 'failed', updatedAt: Date.now(),
+        error: reason instanceof Error ? reason.message : String(reason)
+      }));
+      publishGenAiJob(project.summary.id, failed);
+    } finally {
+      if (genAiJobAbortControllers.get(completionKey) === abortController) {
+        genAiJobAbortControllers.delete(completionKey);
+      }
+      completingGenAiJobs.delete(completionKey);
+    }
+  };
+  ipcMain.handle('lighttable:genai-generation-submit', async (
+    event,
+    projectId: unknown,
+    request: unknown
+  ) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!openArtConnection || !request || typeof request !== 'object' || !activeProjectManifestPath
+      || (request as { providerId?: unknown }).providerId !== OPENART_PROVIDER_ID
+      || typeof projectId !== 'string') {
+      throw new Error('Invalid GenAI generation request.');
+    }
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    const generationRequest = request as import('@lighttable/genai-core').GenAiGenerationRequest;
+    const manifestPath = activeProjectManifestPath;
+    const now = Date.now();
+    const jobId = `genai-${randomUUID()}` as import('@lighttable/genai-core').GenAiJobId;
+    const remoteReferences = await resolveProjectAssetRemoteLinks(
+      manifestPath,
+      generationRequest.references.map((reference) => reference.id),
+      OPENART_PROVIDER_ID
+    );
+    const requestedReferenceIds = new Set(generationRequest.references.map((reference) => reference.id));
+    if (remoteReferences.length !== requestedReferenceIds.size) {
+      throw new Error('One or more visual references are local-only. Publish them to OpenArt before generation.');
+    }
+    await upsertProjectGenerationJob(manifestPath, {
+      id: jobId,
+      request: generationRequest,
+      status: 'submitting',
+      createdAt: now,
+      updatedAt: now,
+      results: []
+    });
+    let submission: import('@lighttable/genai-core').GenAiGenerationSubmission;
+    try {
+      submission = await openArtConnection.submitGeneration(generationRequest, remoteReferences.map((link) => ({
+        assetId: link.assetId,
+        url: link.url,
+        mediaType: link.mediaType
+      })), jobId);
+    } catch (reason) {
+      const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+        ...job, status: 'unknown-submit', updatedAt: Date.now(),
+        error: reason instanceof Error ? reason.message : String(reason)
+      }));
+      publishGenAiJob(project.summary.id, failed);
+      throw reason;
+    }
+    const running = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+      ...job, status: 'running', providerJobId: submission.providerJobId, updatedAt: Date.now()
+    }));
+    publishGenAiJob(project.summary.id, running);
+    void finishOpenArtGeneration(manifestPath, project, jobId, submission.providerJobId);
+    return submission;
+  });
+  ipcMain.handle('lighttable:genai-jobs-list', async (event, projectId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof projectId !== 'string' || !activeProjectManifestPath) return [];
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    let jobs = await listProjectGenerationJobs(activeProjectManifestPath);
+    for (const job of jobs) {
+      const recovery = generationRecoveryAction(job);
+      if (recovery === 'resume-known-job' && job.providerJobId) {
+        void finishOpenArtGeneration(activeProjectManifestPath, project, job.id, job.providerJobId);
+      } else if (recovery === 'mark-ambiguous-submit') {
+        const ambiguous = await updateProjectGenerationJob(activeProjectManifestPath, job.id, (current) => ({
+          ...current,
+          status: 'unknown-submit',
+          updatedAt: Date.now(),
+          error: 'LightTable restarted before the provider job identifier was stored. This job will not be retried automatically.'
+        }));
+        publishGenAiJob(project.summary.id, ambiguous);
+      }
+    }
+    jobs = await listProjectGenerationJobs(activeProjectManifestPath);
+    return jobs;
+  });
+  const activeGenAiProject = async (projectId: unknown) => {
+    if (typeof projectId !== 'string' || !activeProjectManifestPath) {
+      throw new Error('A matching active project is required.');
+    }
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    return { project, manifestPath: activeProjectManifestPath };
+  };
+  ipcMain.handle('lighttable:genai-job-stop-tracking', async (event, projectId: unknown, jobId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof jobId !== 'string') throw new Error('Invalid GenAI job.');
+    const { project, manifestPath } = await activeGenAiProject(projectId);
+    genAiJobAbortControllers.get(`${manifestPath}\0${jobId}`)?.abort(new DOMException('Tracking stopped.', 'AbortError'));
+    const cancelled = await updateProjectGenerationJob(manifestPath, jobId as import('@lighttable/genai-core').GenAiJobId, (job) => ({
+      ...job, status: 'cancelled', updatedAt: Date.now(),
+      error: job.providerJobId
+        ? 'Local tracking stopped. The provider job may still complete and can be resumed without submitting again.'
+        : 'Tracking stopped before a provider job identifier was available.'
+    }));
+    publishGenAiJob(project.summary.id, cancelled);
+    return cancelled;
+  });
+  ipcMain.handle('lighttable:genai-job-resume-tracking', async (event, projectId: unknown, jobId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof jobId !== 'string') throw new Error('Invalid GenAI job.');
+    const { project, manifestPath } = await activeGenAiProject(projectId);
+    const jobs = await listProjectGenerationJobs(manifestPath);
+    const current = jobs.find((job) => job.id === jobId);
+    if (!current?.providerJobId) throw new Error('This job has no provider identifier and cannot be resumed safely.');
+    if (current.status === 'succeeded') return current;
+    const running = await updateProjectGenerationJob(manifestPath, current.id, (job) => ({
+      ...job, status: 'running', updatedAt: Date.now(), error: undefined
+    }));
+    publishGenAiJob(project.summary.id, running);
+    void finishOpenArtGeneration(manifestPath, project, running.id, current.providerJobId);
+    return running;
+  });
+  ipcMain.handle('lighttable:genai-project-assets', async (event, projectId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof projectId !== 'string' || !activeProjectManifestPath) return [];
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    const { index } = await readProjectAssetIndex(activeProjectManifestPath);
+    const remoteLinks = await resolveProjectAssetRemoteLinks(
+      activeProjectManifestPath,
+      index.assets.map((asset) => asset.id),
+      OPENART_PROVIDER_ID
+    );
+    const publishedIds = new Set(remoteLinks.map((link) => link.assetId));
+    return index.assets.map((asset) => ({
+      id: asset.id,
+      projectId,
+      label: asset.name,
+      mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream',
+      ...(asset.thumbnail ? { previewId: asset.id } : {}),
+      ...(publishedIds.has(asset.id) ? { publishedProviderIds: [OPENART_PROVIDER_ID] } : {})
+    }));
+  });
+  ipcMain.handle('lighttable:genai-project-asset-preview', async (
+    event,
+    projectId: unknown,
+    assetId: unknown
+  ) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof projectId !== 'string' || typeof assetId !== 'string' || !activeProjectManifestPath) return null;
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    const bytes = await readProjectAssetPreview(activeProjectManifestPath, assetId);
+    return bytes ? `data:image/png;base64,${Buffer.from(bytes).toString('base64')}` : null;
+  });
+  ipcMain.handle('lighttable:genai-project-asset-load', async (
+    event,
+    projectId: unknown,
+    assetId: unknown
+  ) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof projectId !== 'string' || typeof assetId !== 'string' || !activeProjectManifestPath) return null;
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    const asset = await readProjectAsset(activeProjectManifestPath, assetId);
+    return asset ? {
+      name: asset.name,
+      mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream',
+      bytes: asset.bytes
+    } : null;
+  });
+  ipcMain.handle('lighttable:genai-project-setup-load', async (event, projectId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof projectId !== 'string' || !activeProjectManifestPath) return null;
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    return loadProjectGenAiSetup(activeProjectManifestPath);
+  });
+  ipcMain.handle('lighttable:genai-project-setup-save', async (event, projectId: unknown, setup: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof projectId !== 'string' || !setup || typeof setup !== 'object' || !activeProjectManifestPath) {
+      throw new Error('Invalid GenAI setup save request.');
+    }
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    await saveProjectGenAiSetup(activeProjectManifestPath, setup as import('@lighttable/genai-core').GenAiProjectSetup);
   });
   ipcMain.handle('lighttable:agent-access-enable', (event, port?: number) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
@@ -662,6 +1059,128 @@ void app.whenReady().then(async () => {
     await recentFileOperations.run(() => saveRecentFiles([]));
   });
 
+  ipcMain.handle('lighttable:project-choose-parent', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const automationParent = process.env.LIGHTTABLE_AUTOMATION_PROJECT_PARENT;
+    if (automationParent && process.env.LIGHTTABLE_AUTOMATION_USER_DATA) {
+      const resolved = path.resolve(automationParent);
+      const details = await stat(resolved);
+      if (!details.isDirectory()) throw new Error('The automated project parent is not a directory.');
+      return { path: resolved, label: resolved };
+    }
+    const options: Electron.OpenDialogOptions = {
+      title: 'Choose project location',
+      properties: ['openDirectory', 'createDirectory']
+    };
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
+    const selectedPath = result.filePaths[0];
+    return result.canceled || !selectedPath
+      ? null
+      : { path: path.resolve(selectedPath), label: path.resolve(selectedPath) };
+  });
+
+  ipcMain.handle('lighttable:project-create', async (event, request: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!request || typeof request !== 'object'
+      || typeof (request as { name?: unknown }).name !== 'string'
+      || typeof (request as { parentPath?: unknown }).parentPath !== 'string'
+      || (request as { parentPath: string }).parentPath.length > 32_768) {
+      throw new Error('Invalid project creation request.');
+    }
+    const project = await createProjectOnDisk(request as { name: string; parentPath: string });
+    await rememberRecentProject(project);
+    activateProjectAssetCatalog(project.manifestPath);
+    activeProjectManifestPath = project.manifestPath;
+    return project;
+  });
+
+  ipcMain.handle('lighttable:project-open', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const options: Electron.OpenDialogOptions = {
+      title: 'Open LightTable Project',
+      properties: ['openFile'],
+      filters: [{ name: 'LightTable Project', extensions: ['ltproject'] }]
+    };
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
+    const manifestPath = result.filePaths[0];
+    if (result.canceled || !manifestPath) return null;
+    const project = (await openProjectManifest(manifestPath)).summary;
+    await rememberRecentProject(project);
+    activateProjectAssetCatalog(project.manifestPath);
+    activeProjectManifestPath = project.manifestPath;
+    return project;
+  });
+
+  ipcMain.handle('lighttable:project-list-recent', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    await recentProjectOperations.settled();
+    return Promise.all((await loadRecentProjects()).map(async (entry) => {
+      try {
+        const project = (await openProjectManifest(entry.path)).summary;
+        return { ...project, recentId: entry.id, available: true };
+      } catch {
+        return {
+          id: entry.id,
+          name: entry.name,
+          rootPath: path.dirname(entry.path),
+          manifestPath: entry.path,
+          recentId: entry.id,
+          available: false
+        };
+      }
+    }));
+  });
+
+  ipcMain.handle('lighttable:project-open-recent', async (event, recentId: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof recentId !== 'string' || recentId.length > 128) throw new Error('Invalid recent-project request.');
+    await recentProjectOperations.settled();
+    const entry = (await loadRecentProjects()).find((candidate) => candidate.id === recentId);
+    if (!entry) return null;
+    try {
+      const project = (await openProjectManifest(entry.path)).summary;
+      await rememberRecentProject(project);
+      activateProjectAssetCatalog(project.manifestPath);
+      activeProjectManifestPath = project.manifestPath;
+      return project;
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('lighttable:project-reveal', async (event, manifestPath: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof manifestPath !== 'string' || manifestPath.length > 32_768) {
+      throw new Error('Invalid project-location request.');
+    }
+    const project = await openProjectManifest(manifestPath);
+    const error = await shell.openPath(project.summary.rootPath);
+    if (error) throw new Error(error);
+  });
+
+  ipcMain.handle('lighttable:project-close', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    deactivateProjectAssetCatalog();
+    activeProjectManifestPath = null;
+  });
+
+  ipcMain.handle('lighttable:project-remove-recent', async (event, recentId: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof recentId !== 'string' || recentId.length > 128) throw new Error('Invalid recent-project request.');
+    await recentProjectOperations.run(async () => saveRecentProjects(
+      (await loadRecentProjects()).filter((candidate) => candidate.id !== recentId)
+    ));
+  });
+
+  ipcMain.handle('lighttable:project-clear-recent', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    await recentProjectOperations.run(() => saveRecentProjects([]));
+  });
+
   ipcMain.handle('lighttable:save-file', async (event, payload: DesktopSavePayload) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     if (
@@ -669,6 +1188,10 @@ void app.whenReady().then(async () => {
       typeof payload.suggestedName !== 'string' ||
       !(payload.bytes instanceof Uint8Array) ||
       payload.bytes.byteLength > 2_147_483_647 ||
+      (payload.projectManifestPath !== undefined && (
+        typeof payload.projectManifestPath !== 'string'
+        || payload.projectManifestPath.length > 32_768
+      )) ||
       (payload.transaction !== undefined && (
         !payload.transaction ||
         typeof payload.transaction.id !== 'string' ||
@@ -700,6 +1223,12 @@ void app.whenReady().then(async () => {
         await rememberRecentFile(result.filePath);
       } catch (reason) {
         console.warn('[LightTable desktop] Saved the document but could not update recents.', reason);
+      }
+      if (payload.projectManifestPath) {
+        scheduleSavedProjectAsset({
+          manifestPath: payload.projectManifestPath,
+          filePath: result.filePath
+        });
       }
       return { status: 'committed', durability: committed.durability };
     } catch (reason) {
@@ -960,6 +1489,10 @@ void app.whenReady().then(async () => {
     }
   });
 }).catch(reportDesktopStartupFailure);
+
+app.on('before-quit', () => {
+  deactivateProjectAssetCatalog();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

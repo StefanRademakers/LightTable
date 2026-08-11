@@ -1,0 +1,1 @@
+Doe een uitgebreide code quality check, memory leak check soak test etc etc.. Zodat we zaken rondom de nieuwe geimplementeerde features, bugs e.d. kunnen fixen of detecteren.

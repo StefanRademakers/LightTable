@@ -464,6 +464,23 @@ plugin marketplace and generative breadth come after the core release gates.
 7. Freeze/version the native format only when semantics and migration policy
    are release-worthy.
 
+### 2026-08-11 GenAI vertical-slice update
+
+The first native OpenArt image workflow now follows the same architectural
+rule as MCP: provider-neutral commands and durable project assets are the
+boundary, while OAuth, credentials, provider transport and filesystem writes
+remain desktop-owned. The native panel supports runtime-discovered Nano Banana
+Pro and GPT Image 2 forms, stable `@asset` bindings, persistent jobs and a
+separate project Queue & History panel. Generated output is saved before it is
+opened or inserted into a document, so editor placement cannot lose a paid
+render.
+
+This improves the differentiation evidence, but it is not broad AI-provider
+parity. Locally authored reference images still require the separately scoped
+short-lived HTTPS publication relay; until then LightTable blocks those
+references before provider submission. Higgsfield, ComfyUI and video remain
+deliberately unavailable rather than simulated.
+
 ## Commercial release gate
 
 A paid public release is justified when:

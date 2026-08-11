@@ -92,6 +92,21 @@ export {
 } from './lighttable/application/resources/resourceBrowser';
 export { createFontResourceProvider } from './lighttable/application/resources/fontResourceProvider';
 export {
+  LIGHTTABLE_PROJECT_FORMAT,
+  LIGHTTABLE_PROJECT_VERSION,
+  LIGHTTABLE_PROJECT_MANIFEST_NAME,
+  PROJECT_STORAGE_LOCATIONS,
+  DEFAULT_PROJECT_FOLDER_MAPPINGS,
+  createLightTableProjectManifest,
+  parseLightTableProjectManifest,
+  normalizeProjectUserFolders,
+  projectStorageRelativePath,
+  type LightTableProjectManifest,
+  type ProjectFolderMappings,
+  type ProjectUserFolder,
+  type ProjectStorageLocation
+} from './lighttable/application/projects/projectManifest';
+export {
   copyLightTableGrade,
   readLightTableGrade,
   useLightTableGradeClipboard,
@@ -113,6 +128,10 @@ export type {
   LightTableMediaBrowser,
   LightTableMediaItem,
   LightTableRecentFile,
+  LightTableProjectSummary,
+  LightTableRecentProject,
+  LightTableProjectLocation,
+  LightTableProjectService,
   LightTableReleaseChannel,
   LightTableReleaseInfo,
   LightTableReleaseService,

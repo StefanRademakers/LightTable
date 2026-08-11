@@ -30,6 +30,11 @@ import {
   type SelectionShape
 } from '../selection/selectionTypes';
 import { paintTargetSourceToDocument } from '../tools/paint/paintCoordinates';
+import {
+  calibratedToneExposure,
+  isToneBrushTool,
+  type ToneBrushStrokePlan
+} from '../tools/paint/toneBrushTypes';
 import type { BrushPoint } from '../tools/brush/strokeBuilder';
 import { resolveBrushPreset } from '../tools/brush/brushPresets';
 import {
@@ -42,6 +47,7 @@ import type { VectorEditingOverlay } from '@lighttable/vector-rendering';
 import {
   clientToLocalPoint,
   localToDocumentPointer,
+  normalizePointerPressure,
   panViewFromWheel,
   panViewFromGesture,
   pointInsideRect,
@@ -118,11 +124,27 @@ interface ViewportInteractionOptions {
     cancel(pointerId: number): boolean;
   };
   selection: SelectionSessionController;
+  smartSelection: {
+    hover(point: { x: number; y: number }): void;
+    commitPoint(point: { x: number; y: number }, mode: EditorSession['selectionCombineMode']): void;
+    owns(pointerId: number): boolean;
+    beginRegion(pointerId: number, point: { x: number; y: number }, mode: EditorSession['selectionCombineMode']): boolean;
+    moveRegion(pointerId: number, point: { x: number; y: number }): boolean;
+    finishRegion(pointerId: number): boolean;
+    cancelRegion(pointerId: number): boolean;
+  };
   paint: PaintSessionController;
   sampledBrushSource: SampledBrushSourceController;
   onSampledBrushError: (message: string | null) => void;
   onSampledBrushSourceSet: (point: { x: number; y: number }) => void;
   warp: WarpSessionController;
+  faceWarp: {
+    begin(pointerId: number, point: { x: number; y: number }): boolean;
+    owns(pointerId: number): boolean;
+    move(pointerId: number, point: { x: number; y: number }, relax: boolean): boolean;
+    finish(pointerId: number): boolean;
+    cancel(pointerId: number): boolean;
+  };
   vector: VectorToolSessionController;
   rasterGradient: RasterGradientCommandController;
   minScale: number;
@@ -188,11 +210,13 @@ export const useViewportInteractionController = ({
   onPointTextCreate,
   textGesture,
   selection,
+  smartSelection,
   paint,
   sampledBrushSource,
   onSampledBrushError,
   onSampledBrushSourceSet,
   warp,
+  faceWarp,
   vector,
   rasterGradient,
   minScale,
@@ -277,7 +301,7 @@ export const useViewportInteractionController = ({
   useEffect(() => {
     const center = brushCursorCenterRef.current;
     if (!center) return;
-    if (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool)) {
+    if (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool) && effectiveTool !== 'face-warp') {
       brushCursorCenterRef.current = null;
       onBrushCursorChangeRef.current(null);
       return;
@@ -304,7 +328,7 @@ export const useViewportInteractionController = ({
   }, []);
 
   const documentPointFromSample = (
-    sample: Pick<globalThis.PointerEvent, 'clientX' | 'clientY' | 'pressure' | 'pointerId'>,
+    sample: Pick<globalThis.PointerEvent, 'clientX' | 'clientY' | 'pressure' | 'pointerId' | 'pointerType'>,
     bounds: ViewportBounds
   ) => {
     if (!metadata) return null;
@@ -316,7 +340,7 @@ export const useViewportInteractionController = ({
       imageRect,
       activeScale,
       metadata,
-      sample.pressure,
+      normalizePointerPressure(sample.pressure, sample.pointerType),
       capturedGestureUsesUnboundedDocumentPoint({
         selectionGestureMatches: selection.owns(sample.pointerId),
         warpGestureMatches: warp.owns(sample.pointerId),
@@ -356,7 +380,7 @@ export const useViewportInteractionController = ({
     bounds: ViewportBounds = event.currentTarget.getBoundingClientRect()
   ) => {
     if (
-      (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool))
+      (!isPaintTool(effectiveTool) && !isWarpTool(effectiveTool) && effectiveTool !== 'face-warp')
       || temporaryPan
       || focusPickerActive
       || preciseBrushCursor
@@ -629,6 +653,13 @@ export const useViewportInteractionController = ({
           ? findDocumentLayer(document, document.activeLayerId)
           : findRasterLayer(document, document.activeLayerId)
         : null;
+      if (activeTool === 'face-warp' && point && event.button === 0 && !temporaryPan) {
+        if (faceWarp.begin(event.pointerId, point)) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
+        event.preventDefault();
+        return;
+      }
       const intent = resolveViewportPointerDownIntent({
         activeTool: liquifyBrushActive ? 'warp' : activeTool,
         temporaryPan,
@@ -651,6 +682,29 @@ export const useViewportInteractionController = ({
       if (intent === 'transform-pick' && point) {
         onTransformPick(point);
         event.preventDefault();
+        return;
+      }
+      if (
+        intent === 'selection'
+        && point
+        && activeTool === 'select-object'
+      ) {
+        const selectionCombineMode = resolveSelectionCombineMode(
+          editorSession.selectionCombineMode,
+          event.shiftKey,
+          event.altKey
+        );
+        if (editorSession.smartSelection.mode === 'object-finder') {
+          smartSelection.commitPoint(point, selectionCombineMode);
+          event.preventDefault();
+        } else if (smartSelection.beginRegion(
+          event.pointerId,
+          point,
+          selectionCombineMode
+        )) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }
         return;
       }
       if (
@@ -694,6 +748,7 @@ export const useViewportInteractionController = ({
         && point
         && isSelectionTool(activeTool)
         && activeTool !== 'select-magic-wand'
+        && activeTool !== 'select-object'
       ) {
         const selectionCombineMode = resolveSelectionCombineMode(
           editorSession.selectionCombineMode,
@@ -840,6 +895,16 @@ export const useViewportInteractionController = ({
         return;
       }
       if (sampledOperation) onSampledBrushError(null);
+      const toneOperation: ToneBrushStrokePlan | null = isToneBrushTool(activeTool)
+        ? {
+            operator: 'tone',
+            mode: activeTool,
+            range: editorSession.toneBrush.range,
+            spongeMode: editorSession.toneBrush.spongeMode,
+            protectTones: editorSession.toneBrush.protectTones,
+            vibrance: editorSession.toneBrush.vibrance
+          }
+        : null;
       const paintPoint = activeTool === 'brush' && event.shiftKey && lastBrushPointRef.current
         ? lastBrushPointRef.current
         : point;
@@ -855,7 +920,24 @@ export const useViewportInteractionController = ({
             editorSession.activeChannel
           )
         },
-        brush: activeTool === 'healing-brush'
+        brush: toneOperation
+          ? {
+              ...editorSession.brush,
+              presetId: 'round',
+              opacity: 1,
+              // Photoshop's default round tone-brush stroke spaces requested
+              // dabs at 25% of the diameter. Dense GPU resampling remains in
+              // place; RasterPaintService preserves the requested buildup.
+              spacing: 0.25,
+              flow: activeTool === 'sponge'
+                ? editorSession.toneBrush.spongeFlow
+                : calibratedToneExposure(
+                    activeTool === 'burn' ? 'burn' : 'dodge',
+                    editorSession.toneBrush.exposure,
+                    editorSession.toneBrush.protectTones
+                  )
+            }
+          : activeTool === 'healing-brush'
           ? {
               ...editorSession.brush,
               hardness: editorSession.sampledBrush.healingHardness,
@@ -864,7 +946,7 @@ export const useViewportInteractionController = ({
           : editorSession.brush,
         point: paintPoint,
         displayScale: activeScale,
-        operator: sampledOperation ?? undefined
+        operator: sampledOperation ?? toneOperation ?? undefined
       });
       if (started) {
         if (paintPoint !== point) paint.move(event.pointerId, point);
@@ -901,6 +983,19 @@ export const useViewportInteractionController = ({
         return;
       }
       const point = documentPoint(event, bounds);
+      if (point && smartSelection.owns(event.pointerId)) {
+        if (smartSelection.moveRegion(event.pointerId, point)) event.preventDefault();
+        return;
+      }
+      if (point && effectiveTool === 'select-object'
+        && editorSession.smartSelection.mode === 'object-finder'
+        && event.buttons === 0) {
+        smartSelection.hover(point);
+      }
+      if (point && faceWarp.owns(event.pointerId)) {
+        if (faceWarp.move(event.pointerId, point, event.shiftKey)) event.preventDefault();
+        return;
+      }
       if (textGesture.owns(event.pointerId)) {
         textClickCounterRef.current?.moved(event.clientX, event.clientY);
         if (point && textGesture.move(event.pointerId, point)) event.preventDefault();
@@ -964,11 +1059,22 @@ export const useViewportInteractionController = ({
         if (routeFreehandPointerMove({
           intent, activeTool: editorSession.activeTool, pointerId: event.pointerId,
           currentPoint: point, samples: coalescedPointerSamples(event.nativeEvent),
+          // PointerEvent coordinates live on the native event prototype and
+          // disappear when the event is object-spread. Preserve the native
+          // sample so drag interpolation receives its real coordinates.
           project: (sample) => documentPointFromSample(sample, bounds), selection, warp, paint
         })) event.preventDefault();
       }
     },
     onPointerUp: (event) => {
+      if (smartSelection.owns(event.pointerId)) {
+        if (smartSelection.finishRegion(event.pointerId)) event.preventDefault();
+        return;
+      }
+      if (faceWarp.owns(event.pointerId)) {
+        if (faceWarp.finish(event.pointerId)) event.preventDefault();
+        return;
+      }
       const zoomDrag = zoomDragRef.current;
       if (zoomDrag?.pointerId === event.pointerId) {
         zoomDragRef.current = null;
@@ -1064,6 +1170,14 @@ export const useViewportInteractionController = ({
       endPan(event);
     },
     onPointerCancel: (event) => {
+      if (smartSelection.owns(event.pointerId)) {
+        if (smartSelection.cancelRegion(event.pointerId)) event.preventDefault();
+        return;
+      }
+      if (faceWarp.owns(event.pointerId)) {
+        if (faceWarp.cancel(event.pointerId)) event.preventDefault();
+        return;
+      }
       if (zoomDragRef.current?.pointerId === event.pointerId) {
         zoomDragRef.current = null;
         onZoomDraftChangeRef.current(null);

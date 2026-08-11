@@ -61,7 +61,7 @@ const copyFor = (step: GuidedSampleStep) => ({
   undo: ['Undo the edit', 'LightTable keeps one semantic history entry for the shape.'],
   redo: ['Redo the edit', 'Restore the same editable vector layer.'],
   png: ['Quick export PNG', 'Render the document and save a flattened PNG.'],
-  psd: ['Export Photoshop PSD', 'Run the layered PSD exporter; unsupported details are reported, never hidden.'],
+  psd: ['File → Export → Photoshop PSD', 'Run the layered PSD exporter; unsupported details are reported, never hidden.'],
   complete: ['First edit complete', 'You created, undid, restored and exported a layered document.']
 })[step];
 

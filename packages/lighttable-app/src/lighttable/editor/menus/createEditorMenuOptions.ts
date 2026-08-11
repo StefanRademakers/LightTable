@@ -1,8 +1,8 @@
 import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import type { BlendMode } from '../document/blendModes';
-import type { LightTableRecentFile } from '../../../platform/LightTableHost';
+import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
 
-export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'layer' | 'type' | 'view' | 'help';
+export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'layer' | 'type' | 'ai' | 'view' | 'help';
 
 export interface EditorMenuLayerState {
   type: 'raster' | 'group' | 'adjustment' | 'vector' | 'text';
@@ -44,6 +44,10 @@ export interface EditorMenuLabels {
   primaryShortcut: (key: string, shift?: boolean) => string;
 }
 
+export interface EditorAiProviderState {
+  readonly openArt: 'connected' | 'disconnected';
+}
+
 export interface EditorMenuCommands {
   newDocument: () => void;
   open: () => void;
@@ -51,11 +55,19 @@ export interface EditorMenuCommands {
   recentFiles: readonly LightTableRecentFile[];
   openRecent: (id: string) => void;
   clearRecent: () => void;
+  projectsAvailable: boolean;
+  activeProject: LightTableProjectSummary | null;
+  recentProjects: readonly LightTableRecentProject[];
+  newProject: () => void;
+  openProject: () => void;
+  openRecentProject: (recentId: string) => void;
+  clearRecentProjects: () => void;
+  closeProject: () => void;
   save: () => void;
   exportPng: () => void;
+  exportJpeg: () => void;
   exportPsd: () => void;
   pdfExportPreflight: () => void;
-  openCompatibilityReport: () => void;
   openFormatSupport: () => void;
   copySelectedContent: () => void;
   copyMergedContent: () => void;
@@ -98,6 +110,10 @@ export interface EditorMenuCommands {
   toggleDifference: () => void;
   toggleScreenMode: () => void;
   showDebugPanel: () => void;
+  showGenAiPanel: () => void;
+  showAiHistoryPanel?: () => void;
+  connectOpenArtProvider?: () => void;
+  disconnectOpenArtProvider?: () => void;
   openStyleGuide?: () => void;
   resetWorkspaceLayout: () => void;
   openAbout?: () => void;
@@ -113,7 +129,8 @@ export const createEditorMenuOptions = (
   menu: EditorMenuId,
   state: EditorMenuState,
   labels: EditorMenuLabels,
-  commands: EditorMenuCommands
+  commands: EditorMenuCommands,
+  aiProviders: EditorAiProviderState = { openArt: 'disconnected' }
 ): Array<ContextMenuOption<string>> => {
   const layer = state.layer;
 
@@ -134,6 +151,12 @@ export const createEditorMenuOptions = (
         disabled: state.saving
       },
       {
+        value: 'place-image',
+        label: 'Open place...',
+        onClick: commands.place,
+        disabled: !state.hasDocument || state.saving
+      },
+      {
         value: 'open-recent',
         label: 'Open Recent',
         disabled: state.saving || commands.recentFiles.length === 0,
@@ -152,50 +175,63 @@ export const createEditorMenuOptions = (
         ]
       },
       {
-        value: 'place-image',
-        label: 'Place...',
-        onClick: commands.place,
-        disabled: !state.hasDocument || state.saving
-      },
-      {
         value: 'save-corrected',
-        label: state.saving ? 'Saving...' : 'Save LightTable',
+        label: state.saving ? 'Saving...' : 'Save',
         shortcut: labels.primaryShortcut('S'),
         onClick: commands.save,
         disabled: !state.hasMetadata || !state.hasSourceKey || state.saving
       },
       {
-        value: 'export-psd',
-        label: 'Export Photoshop PSD...',
-        onClick: commands.exportPsd,
-        disabled: !state.hasDocument || state.saving
-      },
-      {
         value: 'export-png',
-        label: 'Quick Export PNG',
+        label: 'Export PNG',
+        separatorBefore: true,
         shortcut: labels.primaryShortcut('S', true),
         onClick: commands.exportPng,
         disabled: !state.hasMetadata || state.saving
       },
       {
-        value: 'pdf-export-preflight',
-        label: 'PDF Export Preflight...',
+        value: 'export',
+        label: 'Export',
+        children: [
+          { value: 'export-jpeg', label: 'JPG...', disabled: !state.hasMetadata || state.saving, onClick: commands.exportJpeg },
+          { value: 'export-psd', label: 'Photoshop PSD...', disabled: !state.hasDocument || state.saving, onClick: commands.exportPsd },
+          { value: 'export-pdf', label: 'PDF...', disabled: !state.hasDocument || state.saving, onClick: commands.pdfExportPreflight },
+          { value: 'format-support', label: 'Format Support...', separatorBefore: true, onClick: commands.openFormatSupport }
+        ]
+      },
+      ...(commands.projectsAvailable ? [{
+        value: 'new-project',
+        label: 'New Project...',
         separatorBefore: true,
-        onClick: commands.pdfExportPreflight,
-        disabled: !state.hasDocument || state.saving
+        onClick: commands.newProject,
+        disabled: state.saving
+      },
+      { value: 'open-project', label: 'Open Project...', onClick: commands.openProject, disabled: state.saving },
+      {
+        value: 'open-recent-project',
+        label: 'Recent Projects',
+        disabled: state.saving || commands.recentProjects.length === 0,
+        children: [
+          ...commands.recentProjects.slice(0, 15).map((project) => ({
+            value: `open-recent-project-${project.recentId}`,
+            label: project.name,
+            disabled: !project.available,
+            onClick: () => commands.openRecentProject(project.recentId)
+          })),
+          {
+            value: 'clear-recent-projects',
+            label: 'Clear list',
+            separatorBefore: true,
+            onClick: commands.clearRecentProjects
+          }
+        ]
       },
       {
-        value: 'document-compatibility-report',
-        label: 'Document Compatibility Report...',
-        onClick: commands.openCompatibilityReport,
-        disabled: !state.hasCompatibilityReport || state.saving
-      },
-      {
-        value: 'format-support',
-        label: 'Format Support...',
-        separatorBefore: true,
-        onClick: commands.openFormatSupport
-      }
+        value: 'close-project',
+        label: commands.activeProject ? `Close Project (${commands.activeProject.name})` : 'Close Project',
+        disabled: state.saving || !commands.activeProject,
+        onClick: commands.closeProject
+      }] : []),
     ];
   }
 
@@ -243,6 +279,40 @@ export const createEditorMenuOptions = (
         onClick: commands.openSettings
       }
     ];
+  }
+
+  if (menu === 'ai') {
+    return [{
+      value: 'ai-providers',
+      label: 'Providers',
+      children: [
+        {
+          value: 'ai-provider-openart',
+          label: 'OpenArt',
+          status: aiProviders.openArt,
+          onClick: aiProviders.openArt === 'connected'
+            ? (commands.disconnectOpenArtProvider ?? commands.showGenAiPanel)
+            : (commands.connectOpenArtProvider ?? commands.showGenAiPanel)
+        },
+        {
+          value: 'ai-provider-higgsfield',
+          label: 'Higgsfield',
+          disabled: true,
+          disabledReason: 'Higgsfield support is planned.'
+        },
+        {
+          value: 'ai-provider-comfyui',
+          label: 'ComfyUI',
+          disabled: true,
+          disabledReason: 'ComfyUI support is planned.'
+        }
+      ]
+    }, {
+      value: 'ai-history',
+      label: 'Queue & History',
+      separatorBefore: true,
+      onClick: commands.showAiHistoryPanel ?? commands.showGenAiPanel
+    }];
   }
 
   if (menu === 'select') {
@@ -516,9 +586,19 @@ export const createEditorMenuOptions = (
       disabled: !state.hasMetadata
     },
     {
+      value: 'show-genai-panel',
+      label: 'GenAI panel',
+      separatorBefore: true,
+      onClick: commands.showGenAiPanel
+    },
+    {
+      value: 'show-ai-history-panel',
+      label: 'AI History panel',
+      onClick: commands.showAiHistoryPanel ?? commands.showGenAiPanel
+    },
+    {
       value: 'show-debug-panel',
       label: 'Debug panel',
-      separatorBefore: true,
       onClick: commands.showDebugPanel
     },
     {

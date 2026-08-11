@@ -81,6 +81,43 @@ const invokeAgentDriver = async (
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  genAi: {
+    getProviderSnapshots: () => window.lightTableDesktop.genAiProviderSnapshots(),
+    connectProvider: (providerId) => window.lightTableDesktop.connectGenAiProvider(providerId),
+    disconnectProvider: (providerId) => window.lightTableDesktop.disconnectGenAiProvider(providerId),
+    listModels: (providerId) => window.lightTableDesktop.listGenAiModels(providerId),
+    loadWorkflow: (providerId, modelId, mode) =>
+      window.lightTableDesktop.loadGenAiWorkflow(providerId, modelId, mode),
+    estimateCost: (providerId, modelId, mode, fields) =>
+      window.lightTableDesktop.estimateGenAiCost(providerId, modelId, mode, fields),
+    submitGeneration: (projectId, request) =>
+      window.lightTableDesktop.submitGenAiGeneration(projectId, request),
+    listJobs: (projectId) => window.lightTableDesktop.listGenAiJobs(projectId),
+    stopTracking: (projectId, jobId) => window.lightTableDesktop.stopGenAiJobTracking(projectId, jobId),
+    resumeTracking: (projectId, jobId) => window.lightTableDesktop.resumeGenAiJobTracking(projectId, jobId),
+    listProjectAssets: (projectId) => window.lightTableDesktop.listGenAiProjectAssets(projectId),
+    loadProjectAssetPreview: (projectId, assetId) =>
+      window.lightTableDesktop.loadGenAiProjectAssetPreview(projectId, assetId),
+    loadProjectAsset: (projectId, assetId) =>
+      window.lightTableDesktop.loadGenAiProjectAsset(projectId, assetId),
+    loadProjectSetup: (projectId) => window.lightTableDesktop.loadGenAiProjectSetup(projectId),
+    saveProjectSetup: (projectId, setup) => window.lightTableDesktop.saveGenAiProjectSetup(projectId, setup),
+    subscribe: (listener) => window.lightTableDesktop.onGenAiProviderStatus(listener),
+    subscribeJobs: (projectId, listener) => window.lightTableDesktop.onGenAiJobChanged((event) => {
+      if (event.projectId === projectId) listener(event.job);
+    })
+  },
+  projects: {
+    chooseParentLocation: () => window.lightTableDesktop.chooseProjectParent(),
+    create: (request) => window.lightTableDesktop.createProject(request),
+    open: () => window.lightTableDesktop.openProject(),
+    listRecent: () => window.lightTableDesktop.listRecentProjects(),
+    openRecent: (recentId) => window.lightTableDesktop.openRecentProject(recentId),
+    reveal: (project) => window.lightTableDesktop.revealProject(project.manifestPath),
+    close: () => window.lightTableDesktop.closeProject(),
+    removeRecent: (recentId) => window.lightTableDesktop.removeRecentProject(recentId),
+    clearRecent: () => window.lightTableDesktop.clearRecentProjects()
+  },
   funnel: createLocalLightTableFunnelTelemetry(localStorage),
   agentAccess: {
     status: () => window.lightTableDesktop.agentAccessStatus(),
@@ -192,10 +229,11 @@ const desktopHost: LightTableHost = {
   confirmDiscardChanges(documentTitle) {
     return window.lightTableDesktop.confirmDiscardChanges(documentTitle);
   },
-  async save({ file, transaction }) {
+  async save({ file, transaction, projectManifestPath }) {
     return window.lightTableDesktop.saveFile({
       suggestedName: file.name,
       bytes: new Uint8Array(await file.arrayBuffer()),
+      projectManifestPath,
       transaction
     });
   },

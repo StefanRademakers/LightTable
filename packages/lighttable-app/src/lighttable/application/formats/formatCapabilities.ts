@@ -24,8 +24,8 @@ export const LIGHTTABLE_FORMAT_CAPABILITIES: readonly FormatCapability[] = Objec
   },
   {
     id: 'jpeg', label: 'JPEG', extensions: ['.jpg', '.jpeg', '.jpe', '.jfif'],
-    open: 'supported', editable: 'partial', export: 'unavailable',
-    summary: 'Still raster import; metadata round-trip and JPEG export are unavailable.'
+    open: 'supported', editable: 'partial', export: 'supported',
+    summary: 'Still raster import and flattened 8-bit JPEG export on a white background.'
   },
   {
     id: 'webp', label: 'WebP', extensions: ['.webp'],

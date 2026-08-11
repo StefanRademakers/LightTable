@@ -9,6 +9,7 @@ import { SquareIconButton } from '../ui/SquareIconButton';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import { UiColorPickerPrototype } from './UiColorPickerPrototype';
+import { GenAiPanel } from '../genai/ui/GenAiPanel';
 import {
   PanelAdvancedDisclosure,
   PanelAngleControl,
@@ -172,6 +173,13 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                 </Sample>
               </> : null}
               {category === 'panels' ? <>
+                <Sample title="GenAI panel states">
+                  <GenAiPanel
+                    providerName="OpenArt"
+                    status="disconnected"
+                    onConnect={() => undefined}
+                  />
+                </Sample>
                 <Sample title="Slider">
                   <PanelNumberSlider label="Blur" value={slider} min={0} max={250}
                     suffix=" px" onChange={setSlider} />

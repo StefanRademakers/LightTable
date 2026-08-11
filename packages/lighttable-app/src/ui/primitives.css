@@ -248,21 +248,27 @@
   grid-template-columns: minmax(0, 1fr) 26px;
 }
 
+.color-swatch-field--chip {
+  width: 19px;
+  height: 19px;
+  display: block;
+  overflow: visible;
+  border-radius: 0;
+}
+
+.color-swatch-field--chip .color-swatch-field__well { width: 100%; height: 100%; }
+
 .color-swatch-field__well {
   min-width: 0;
   position: relative;
+  padding: 0;
+  border: 0;
   cursor: pointer;
 }
 
-.color-swatch-field__well input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  cursor: inherit;
+.color-swatch-field__popover {
+  position: fixed;
+  z-index: 10000;
 }
 
 .color-swatch-field__sampler {
@@ -445,6 +451,38 @@
   flex: 1 1 auto;
 }
 
+.context-menu__item-label > span,
+.context-menu__item-label > small {
+  display: block;
+}
+
+.context-menu__item-label > small {
+  margin-top: 2px;
+  color: var(--lt-text-muted);
+  font-size: var(--lt-type-caption);
+}
+
+.context-menu .context-menu__item:focus-visible .context-menu__item-label > small {
+  color: inherit;
+}
+
+.context-menu__status {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  margin: 0 4px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 35%);
+}
+
+.context-menu__status--connected {
+  background: #49c86b;
+}
+
+.context-menu__status--disconnected {
+  background: #d95757;
+}
+
 .context-menu__item-shortcut {
   flex: 0 0 auto;
   margin-left: 18px;
@@ -582,6 +620,25 @@
 .lighttable-new-document-dialog__wide-field {
   grid-column: 1 / -1;
 }
+
+.lighttable-project-dialog__label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--color-text-muted);
+  font-size: var(--lt-type-label);
+}
+
+.lighttable-launcher__project-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--lt-border-subtle);
+  border-radius: var(--lt-radius-panel);
+  background: var(--lt-surface-panel);
+}
+
+.lighttable-launcher__project-bar strong { margin-right: auto; }
 
 .image-size-dialog {
   width: min(470px, calc(100vw - 32px));
@@ -1016,6 +1073,14 @@ select.form-input {
 .lighttable-preferences__fields { display: grid; gap: 18px; margin-top: 20px; }
 .lighttable-preferences__fields > label { display: grid; grid-template-columns: minmax(130px, 0.45fr) minmax(220px, 1fr); align-items: center; gap: 16px; }
 .lighttable-preferences__fields > label > span { color: var(--color-text-muted); }
+.lighttable-preferences__custom-folders { display: grid; gap: 8px; margin-top: 24px; }
+.lighttable-preferences__custom-folders h5 { margin: 0 0 4px; font-size: 13px; }
+.lighttable-preferences__custom-folder {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(180px, 1fr) auto auto auto;
+  gap: 6px;
+  align-items: center;
+}
 .lighttable-preferences__location { min-height: 34px; padding: 8px 10px; overflow: hidden; border: 1px solid var(--lt-border-subtle); border-radius: var(--lt-radius-md); color: var(--color-text-muted); background: var(--lt-surface-panel-subtle); text-overflow: ellipsis; white-space: nowrap; }
 .lighttable-preferences__location-row { display: flex; min-width: 0; gap: 7px; }
 .lighttable-preferences__location-row .lighttable-preferences__location { min-width: 0; flex: 1; }

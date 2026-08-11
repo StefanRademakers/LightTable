@@ -9,6 +9,19 @@ import type {
   LightTableAgentTunnelStatus
 } from '@lighttable/app';
 import type { LightTableRecoveryLocation } from '@lighttable/app';
+import type { ProjectFolderMappings, ProjectUserFolder } from '@lighttable/app/project-manifest';
+import type {
+  GenAiAssetId,
+  GenAiAssetReference,
+  GenAiGenerationRequest,
+  GenAiGenerationJob,
+  GenAiGenerationSubmission,
+  GenAiModelId,
+  GenAiModelSummary,
+  GenAiProviderId,
+  GenAiProviderSnapshot,
+  GenAiWorkflowDefinition
+} from '@lighttable/genai-core';
 
 export interface DesktopFilePayload {
   name: string;
@@ -20,6 +33,7 @@ export interface DesktopFilePayload {
 export interface DesktopSavePayload {
   suggestedName: string;
   bytes: Uint8Array;
+  projectManifestPath?: string;
   transaction?: {
     readonly id: string;
     readonly documentId: string;
@@ -54,6 +68,23 @@ export interface DesktopRecentFile {
   id: string;
   name: string;
   available: boolean;
+}
+
+export interface DesktopProjectSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly rootPath: string;
+  readonly manifestPath: string;
+}
+
+export interface DesktopRecentProject extends DesktopProjectSummary {
+  readonly recentId: string;
+  readonly available: boolean;
+}
+
+export interface DesktopProjectLocation {
+  readonly path: string;
+  readonly label: string;
 }
 
 export interface DesktopHorizontalWheelInput {
@@ -97,6 +128,20 @@ export interface LightTableDesktopBridge {
   openRecentFile(id: string): Promise<DesktopFilePayload | null>;
   removeRecentFile(id: string): Promise<void>;
   clearRecentFiles(): Promise<void>;
+  chooseProjectParent(): Promise<DesktopProjectLocation | null>;
+  createProject(request: {
+    readonly name: string;
+    readonly parentPath: string;
+    readonly folders?: ProjectFolderMappings;
+    readonly userFolders?: readonly ProjectUserFolder[];
+  }): Promise<DesktopProjectSummary>;
+  openProject(): Promise<DesktopProjectSummary | null>;
+  listRecentProjects(): Promise<readonly DesktopRecentProject[]>;
+  openRecentProject(recentId: string): Promise<DesktopProjectSummary | null>;
+  revealProject(manifestPath: string): Promise<void>;
+  closeProject(): Promise<void>;
+  removeRecentProject(recentId: string): Promise<void>;
+  clearRecentProjects(): Promise<void>;
   setFullscreen(enabled: boolean): Promise<void>;
   onFullscreenChange(listener: (enabled: boolean) => void): () => void;
   onHorizontalWheel(listener: (input: DesktopHorizontalWheelInput) => void): () => void;
@@ -137,4 +182,32 @@ export interface LightTableDesktopBridge {
   cancelAgentActivity(): Promise<LightTableAgentTunnelStatus>;
   undoAgentActivity(): Promise<LightTableAgentTunnelStatus>;
   onAgentTunnelStatus(listener: (status: LightTableAgentTunnelStatus) => void): () => void;
+  genAiProviderSnapshots(): Promise<readonly GenAiProviderSnapshot[]>;
+  connectGenAiProvider(providerId: GenAiProviderId): Promise<GenAiProviderSnapshot>;
+  disconnectGenAiProvider(providerId: GenAiProviderId): Promise<GenAiProviderSnapshot>;
+  listGenAiModels(providerId: GenAiProviderId): Promise<readonly GenAiModelSummary[]>;
+  loadGenAiWorkflow(
+    providerId: GenAiProviderId,
+    modelId: GenAiModelId,
+    mode: string
+  ): Promise<GenAiWorkflowDefinition>;
+  estimateGenAiCost(providerId: GenAiProviderId, modelId: GenAiModelId, mode: string,
+    fields: Readonly<Record<string, unknown>>): Promise<import('@lighttable/genai-core').GenAiCostEstimate | null>;
+  submitGenAiGeneration(
+    projectId: string | undefined,
+    request: GenAiGenerationRequest
+  ): Promise<GenAiGenerationSubmission>;
+  listGenAiJobs(projectId: string): Promise<readonly GenAiGenerationJob[]>;
+  stopGenAiJobTracking(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<GenAiGenerationJob>;
+  resumeGenAiJobTracking(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<GenAiGenerationJob>;
+  listGenAiProjectAssets(projectId: string): Promise<readonly GenAiAssetReference[]>;
+  loadGenAiProjectAssetPreview(projectId: string, assetId: GenAiAssetId): Promise<string | null>;
+  loadGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<import('@lighttable/genai-core').GenAiAssetPayload | null>;
+  loadGenAiProjectSetup(projectId: string): Promise<import('@lighttable/genai-core').GenAiProjectSetup | null>;
+  saveGenAiProjectSetup(projectId: string, setup: import('@lighttable/genai-core').GenAiProjectSetup): Promise<void>;
+  onGenAiProviderStatus(listener: (snapshot: GenAiProviderSnapshot) => void): () => void;
+  onGenAiJobChanged(listener: (event: {
+    readonly projectId: string;
+    readonly job: GenAiGenerationJob;
+  }) => void): () => void;
 }

@@ -1,0 +1,1 @@
+Als ik de scopes tab open, dat is de histogram altijd disabled/ een gray vlak... aan en uitzetten dan is hij wel weer zichtbaar, dit zouden we moeten oplossen.

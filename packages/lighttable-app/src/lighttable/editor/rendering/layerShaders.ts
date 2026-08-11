@@ -1528,6 +1528,175 @@ fn brushFragment(input: BrushVertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/**
+ * Shared non-destructive-looking tone brush kernel. The current layer region
+ * is copied to an immutable GPU scratch texture before every display-frame
+ * batch; dabs then blend a tonal transform back without changing coverage.
+ */
+export const TONE_BRUSH_DAB_WGSL = /* wgsl */ `
+struct BrushDab {
+  centerSizeHardness: vec4f,
+  colorOpacity: vec4f,
+  tip: vec4f,
+}
+
+struct BrushCanvas {
+  size: vec2f,
+  padding: vec2f,
+  inverseRow0: vec4f,
+  inverseRow1: vec4f,
+  forwardRow0: vec4f,
+  forwardRow1: vec4f,
+}
+
+struct ToneSettings {
+  // 0 dodge, 1 burn, 2 saturate, 3 desaturate.
+  mode: f32,
+  // 0 shadows, 1 midtones, 2 highlights.
+  range: f32,
+  protectTones: f32,
+  vibrance: f32,
+}
+
+struct BrushVertexOutput {
+  @builtin(position) position: vec4f,
+  @location(0) centerSizeHardness: vec4f,
+  @location(1) colorOpacity: vec4f,
+}
+
+@group(0) @binding(0) var<storage, read> dabs: array<BrushDab>;
+@group(0) @binding(1) var<uniform> canvas: BrushCanvas;
+@group(0) @binding(2) var selectionMask: texture_2d<f32>;
+@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(4) var sourceSampler: sampler;
+@group(0) @binding(5) var<uniform> tone: ToneSettings;
+
+// Empirical Photoshop-compatible destination curves. Each curve maps one
+// encoded-sRGB channel to a linear-light destination. The values come from
+// the reproducible ToneBrush oracle at 5/10/20/25/50% Exposure; interpolation
+// keeps the hot fragment path compact while retaining sub-level accuracy.
+// Ordering: Dodge legacy S/M/H, Dodge protected S/M/H,
+// Burn legacy S/M/H, Burn protected S/M/H.
+// Kept flat because nested constant arrays trigger inconsistent validation in
+// some WGSL reflection implementations. Each curve occupies 17 consecutive
+// entries and is addressed as curve * 17 + knot.
+const toneTargetCurves = array<f32, 204>(
+  0.0180022,0.0431055,0.0684776,0.0980333,0.1284852,0.1756879,0.2152815,0.2763192,0.3358922,0.3965225,0.4704055,0.5422748,0.6240592,0.7096728,0.7989286,0.8937230,1.0000000,
+  0.0000000,0.0129720,0.0366320,0.0687231,0.1051346,0.1426118,0.1956558,0.2436657,0.3166927,0.3754181,0.4519647,0.5324325,0.6141693,0.7020316,0.7969164,0.8919328,1.0000000,
+  0.0000000,0.0064420,0.0200490,0.0441128,0.0802789,0.1273983,0.1848697,0.2598650,0.3626070,0.4664965,0.5894556,0.7385212,0.8797658,0.9834615,1.1103789,1.1125387,1.0000000,
+  0.0000000,0.0120830,0.0384386,0.0755320,0.1246375,0.1730781,0.2234891,0.2618278,0.3163018,0.3573283,0.4100144,0.4655311,0.5464055,0.6387012,0.7548348,0.8824347,1.0000000,
+  0.0000000,0.0054653,0.0219346,0.0535589,0.1069738,0.1996628,0.3168213,0.4290584,0.5883254,0.7049448,0.8025291,0.8656242,0.9259615,0.9492331,0.9878753,0.9862631,1.0000000,
+  0.0000000,0.0052259,0.0146052,0.0305952,0.0659594,0.1350506,0.2656028,0.4673408,0.7545477,1.1074200,1.4754262,1.9086962,2.2532248,2.2578593,2.2271318,1.7602005,1.0000000,
+  0.0000000,-0.0048833,-0.0077311,-0.0076396,-0.0017290,0.0128570,0.0331791,0.0665119,0.1105241,0.1642611,0.2426500,0.3256997,0.4362971,0.5538174,0.6851120,0.8568474,1.0000000,
+  0.0000000,0.0028983,0.0064840,0.0124573,0.0220667,0.0366120,0.0561494,0.0800901,0.1169930,0.1635095,0.2302587,0.3010725,0.3995687,0.5092438,0.6489346,0.8231087,1.0000000,
+  0.0000000,0.0037853,0.0099826,0.0181451,0.0292076,0.0461089,0.0672252,0.0933068,0.1175126,0.1495555,0.1835999,0.2319769,0.2839852,0.3340156,0.3781582,0.5226287,0.8057059,
+  0.0000000,-0.0061675,-0.0191406,-0.0396333,-0.0632273,-0.0658275,-0.0513863,-0.0143188,0.0489147,0.1388469,0.2535119,0.3734611,0.5093467,0.6351189,0.7547576,0.8823441,1.0000000,
+  0.0000000,0.0050276,0.0090132,0.0102481,0.0106396,0.0011730,-0.0087267,-0.0105792,-0.0153485,-0.0060891,0.0418446,0.1279239,0.2470357,0.4011723,0.5725016,0.8000172,1.0000000,
+  0.0000000,0.0052142,0.0145625,0.0298273,0.0487777,0.0643021,0.0718071,0.0688221,0.0697343,0.0664003,0.0555275,0.0580591,0.0467795,0.0559305,0.0617880,0.1818466,0.6225393
+);
+
+@vertex
+fn brushVertex(@builtin(vertex_index) vertexIndex: u32, @builtin(instance_index) instanceIndex: u32) -> BrushVertexOutput {
+  let corners = array<vec2f, 6>(
+    vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
+    vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0)
+  );
+  let dab = dabs[instanceIndex];
+  let documentPixel = dab.centerSizeHardness.xy
+    + corners[vertexIndex] * dab.centerSizeHardness.z * 0.5;
+  let localPixel = vec2f(
+    dot(canvas.inverseRow0.xyz, vec3f(documentPixel, 1.0)),
+    dot(canvas.inverseRow1.xyz, vec3f(documentPixel, 1.0))
+  );
+  let clip = vec2f(
+    localPixel.x / canvas.size.x * 2.0 - 1.0,
+    1.0 - localPixel.y / canvas.size.y * 2.0
+  );
+  var output: BrushVertexOutput;
+  output.position = vec4f(clip, 0.0, 1.0);
+  output.centerSizeHardness = dab.centerSizeHardness;
+  output.colorOpacity = dab.colorOpacity;
+  return output;
+}
+
+fn linearToSrgb(value: f32) -> f32 {
+  if (value <= 0.0031308) { return value * 12.92; }
+  return 1.055 * pow(max(value, 0.0), 1.0 / 2.4) - 0.055;
+}
+
+fn toneTargetChannel(value: f32) -> f32 {
+  if (value > 1.0) { return value; }
+  let encoded = clamp(linearToSrgb(max(value, 0.0)), 0.0, 1.0);
+  let scaled = encoded * 16.0;
+  let lower = min(u32(floor(scaled)), 15u);
+  let fraction = scaled - f32(lower);
+  let modeOffset = select(0u, 6u, tone.mode > 0.5);
+  let protectOffset = select(0u, 3u, tone.protectTones > 0.5);
+  let rangeIndex = u32(clamp(round(tone.range), 0.0, 2.0));
+  let curve = modeOffset + protectOffset + rangeIndex;
+  let curveOffset = curve * 17u;
+  return mix(
+    toneTargetCurves[curveOffset + lower],
+    toneTargetCurves[curveOffset + lower + 1u],
+    fraction
+  );
+}
+
+fn transformTone(color: vec3f) -> vec3f {
+  if (tone.mode < 1.5) {
+    // Negative destination values are intentional for the protected Burn
+    // shadow curve. They are blended toward from a positive source and let a
+    // low exposure reach Photoshop's deep-shadow response without changing
+    // the user-facing Exposure or the brush accumulation model.
+    return clamp(vec3f(
+      toneTargetChannel(color.r),
+      toneTargetChannel(color.g),
+      toneTargetChannel(color.b)
+    ), vec3f(-16.0), vec3f(16.0));
+  }
+
+  let luma = dot(color, vec3f(0.2126, 0.7152, 0.0722));
+  let gray = vec3f(luma);
+  let chroma = color - gray;
+  let saturation = length(chroma) / max(luma + 0.25, 0.25);
+  if (tone.mode < 2.5) {
+    let headroom = select(1.0, 1.0 - smoothstep(0.15, 1.2, saturation), tone.vibrance > 0.5);
+    return clamp(gray + chroma * (1.0 + 0.8 * headroom), vec3f(0.0), vec3f(16.0));
+  }
+  return max(gray + chroma * 0.2, vec3f(0.0));
+}
+
+@fragment
+fn brushFragment(input: BrushVertexOutput) -> @location(0) vec4f {
+  let localPixel = input.position.xy;
+  let documentPixel = vec2f(
+    dot(canvas.forwardRow0.xyz, vec3f(localPixel, 1.0)),
+    dot(canvas.forwardRow1.xyz, vec3f(localPixel, 1.0))
+  );
+  let radius = max(input.centerSizeHardness.z * 0.5, 0.0001);
+  let distance = length(documentPixel - input.centerSizeHardness.xy) / radius;
+  if (distance >= 1.0) { discard; }
+  let coverage = 1.0 - smoothstep(
+    clamp(input.centerSizeHardness.w, 0.0, 0.995), 1.0, distance
+  );
+  let selectionPixel = clamp(
+    vec2i(documentPixel), vec2i(0), vec2i(textureDimensions(selectionMask)) - vec2i(1)
+  );
+  let amount = clamp(
+    input.colorOpacity.a * coverage * textureLoad(selectionMask, selectionPixel, 0).r,
+    0.0,
+    1.0
+  );
+  let sampled = textureSampleLevel(
+    sourceTexture, sourceSampler,
+    clamp(localPixel / canvas.size, vec2f(0.0), vec2f(1.0)), 0.0
+  );
+  if (sampled.a <= 0.00001 || amount <= 0.00001) { discard; }
+  let straight = sampled.rgb / sampled.a;
+  return vec4f(transformTone(straight) * amount, amount);
+}
+`;
+
 export const SELECTION_SHAPE_WGSL = /* wgsl */ `
 struct SelectionSettings {
   canvasSize: vec2f,

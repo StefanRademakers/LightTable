@@ -40,7 +40,10 @@ import {
   type TextRenderPresentationSnapshot
 } from './createLayerDocumentRendererRuntime';
 import type { ResizePlan } from '../document/imageResizeTypes';
-import type { SampledBrushStrokePlan } from '../tools/paint/sampledBrushTypes';
+import type {
+  PaintBrushStrokePlan,
+  SampledBrushStrokePlan
+} from '../tools/paint/sampledBrushTypes';
 import { sampledBrushSourceDocument } from '../document/sampledBrushSourceDocument';
 
 export const projectTextEditingGeometryPreview = (
@@ -462,7 +465,7 @@ export class LayerDocumentRenderer {
     preserveTransparency = false,
     tip?: BrushTipDefinition,
     engine: BrushEngine = 'paint',
-    operator?: SampledBrushStrokePlan
+    operator?: PaintBrushStrokePlan
   ) {
     return this.runtime.rasterPaint.paintDabs(
       layerId,

@@ -1,0 +1,451 @@
+{
+  "currency": "credits",
+  "pricingNote": "Snapshot of default/example configurations returned by openart_model_cost on 2026-08-11. Prices vary by configuration and are finalized at generation time.",
+  "items": [
+    {
+      "model": "kling-3-omni",
+      "mode": "text2image",
+      "totalCredits": 10,
+      "config": {
+        "imageCount": 1,
+        "resolution": "1k",
+        "aspectRatio": "4:3"
+      }
+    },
+    {
+      "model": "kling-3-omni",
+      "mode": "image2image",
+      "totalCredits": 10,
+      "config": {
+        "imageCount": 1,
+        "resolution": "1k",
+        "aspectRatio": "4:3"
+      }
+    },
+    {
+      "model": "nano-banana-2-lite",
+      "mode": "text2image",
+      "totalCredits": 15,
+      "config": {
+        "imageCount": 1,
+        "aspectRatio": "1:1"
+      }
+    },
+    {
+      "model": "nano-banana-2-lite",
+      "mode": "image2image",
+      "totalCredits": 15,
+      "config": {
+        "imageCount": 1,
+        "aspectRatio": "1:1"
+      }
+    },
+    {
+      "model": "byte-plus-seedream-4-5",
+      "mode": "text2image",
+      "totalCredits": 15,
+      "config": {
+        "imageCount": 1,
+        "resolution": "2K",
+        "aspectRatio": "4:3"
+      }
+    },
+    {
+      "model": "byte-plus-seedream-4-5",
+      "mode": "image2image",
+      "totalCredits": 15,
+      "config": {
+        "imageCount": 1,
+        "resolution": "2K",
+        "aspectRatio": "4:3"
+      }
+    },
+    {
+      "model": "byte-plus-seedream-5-lite",
+      "mode": "text2image",
+      "totalCredits": 15,
+      "config": {
+        "imageCount": 1,
+        "resolution": "2K",
+        "aspectRatio": "4:3"
+      }
+    },
+    {
+      "model": "byte-plus-seedream-5-lite",
+      "mode": "image2image",
+      "totalCredits": 15,
+      "config": {
+        "imageCount": 1,
+        "resolution": "2K",
+        "aspectRatio": "4:3"
+      }
+    },
+    {
+      "model": "nano-banana-2",
+      "mode": "text2image",
+      "totalCredits": 20,
+      "config": {
+        "imageCount": 1,
+        "resolution": "1K",
+        "aspectRatio": "1:1"
+      }
+    },
+    {
+      "model": "nano-banana-2",
+      "mode": "image2image",
+      "totalCredits": 20,
+      "config": {
+        "imageCount": 1,
+        "resolution": "1K",
+        "aspectRatio": "1:1"
+      }
+    },
+    {
+      "model": "byte-plus-seedream-5-pro",
+      "mode": "text2image",
+      "totalCredits": 30,
+      "config": {
+        "imageCount": 1,
+        "resolution": "1K",
+        "aspectRatio": "4:3"
+      }
+    },
+    {
+      "model": "byte-plus-seedream-5-pro",
+      "mode": "image2image",
+      "totalCredits": 30,
+      "config": {
+        "imageCount": 1,
+        "resolution": "1K",
+        "aspectRatio": "4:3"
+      }
+    },
+    {
+      "model": "nano-banana-pro",
+      "mode": "text2image",
+      "totalCredits": 40,
+      "config": {
+        "imageCount": 1,
+        "resolution": "1K",
+        "aspectRatio": "1:1"
+      }
+    },
+    {
+      "model": "nano-banana-pro",
+      "mode": "image2image",
+      "totalCredits": 40,
+      "config": {
+        "imageCount": 1,
+        "resolution": "1K",
+        "aspectRatio": "1:1"
+      }
+    },
+    {
+      "model": "gpt-image-2",
+      "mode": "text2image",
+      "totalCredits": 40,
+      "config": {
+        "imageCount": 1,
+        "resolutionTier": "2k",
+        "aspectRatio": "4:3",
+        "quality": "medium"
+      }
+    },
+    {
+      "model": "gpt-image-2",
+      "mode": "image2image",
+      "totalCredits": 42,
+      "config": {
+        "imageCount": 1,
+        "resolutionTier": "2k",
+        "aspectRatio": "4:3",
+        "quality": "medium"
+      }
+    },
+    {
+      "model": "pixverseV6",
+      "mode": "text2video",
+      "totalCredits": 50,
+      "config": {
+        "videoCount": 1,
+        "resolution": "540p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": false
+      }
+    },
+    {
+      "model": "pixverseV6",
+      "mode": "image2video",
+      "totalCredits": 50,
+      "config": {
+        "videoCount": 1,
+        "resolution": "540p",
+        "duration": 5,
+        "generateAudio": false
+      }
+    },
+    {
+      "model": "wan2-7",
+      "mode": "text2video",
+      "totalCredits": 125,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9"
+      }
+    },
+    {
+      "model": "wan2-7",
+      "mode": "image2video",
+      "totalCredits": 125,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5
+      }
+    },
+    {
+      "model": "wan2-7",
+      "mode": "element2video",
+      "totalCredits": 125,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9"
+      }
+    },
+    {
+      "model": "kling-3-omni",
+      "mode": "text2video",
+      "totalCredits": 175,
+      "config": {
+        "videoCount": 1,
+        "resolution": "std",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateSound": true
+      }
+    },
+    {
+      "model": "kling-3-omni",
+      "mode": "image2video",
+      "totalCredits": 175,
+      "config": {
+        "videoCount": 1,
+        "resolution": "std",
+        "duration": 5,
+        "generateSound": true
+      }
+    },
+    {
+      "model": "kling-3-omni",
+      "mode": "element2video",
+      "totalCredits": 175,
+      "config": {
+        "videoCount": 1,
+        "resolution": "std",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateSound": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-mini",
+      "mode": "text2video",
+      "totalCredits": 200,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-mini",
+      "mode": "image2video",
+      "totalCredits": 200,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-mini",
+      "mode": "element2video",
+      "totalCredits": 200,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "gemini-omni-flash",
+      "mode": "text2video",
+      "totalCredits": 250,
+      "config": {
+        "videoCount": 1,
+        "duration": 5,
+        "aspectRatio": "16:9"
+      }
+    },
+    {
+      "model": "gemini-omni-flash",
+      "mode": "image2video",
+      "totalCredits": 250,
+      "config": {
+        "videoCount": 1,
+        "duration": 5,
+        "aspectRatio": "16:9"
+      }
+    },
+    {
+      "model": "gemini-omni-flash",
+      "mode": "element2video",
+      "totalCredits": 250,
+      "config": {
+        "videoCount": 1,
+        "duration": 5,
+        "aspectRatio": "16:9"
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-5",
+      "mode": "text2video",
+      "totalCredits": 300,
+      "config": {
+        "videoCount": 1,
+        "resolution": "480p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-5",
+      "mode": "image2video",
+      "totalCredits": 300,
+      "config": {
+        "videoCount": 1,
+        "resolution": "480p",
+        "duration": 5,
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-5",
+      "mode": "element2video",
+      "totalCredits": 300,
+      "config": {
+        "videoCount": 1,
+        "resolution": "480p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-fast",
+      "mode": "text2video",
+      "totalCredits": 350,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-fast",
+      "mode": "image2video",
+      "totalCredits": 350,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2-fast",
+      "mode": "element2video",
+      "totalCredits": 350,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "grok-imagine-1-5",
+      "mode": "text2video",
+      "totalCredits": 400,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9"
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2",
+      "mode": "text2video",
+      "totalCredits": 400,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2",
+      "mode": "image2video",
+      "totalCredits": 400,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "byte-plus-seedance-2",
+      "mode": "element2video",
+      "totalCredits": 400,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "16:9",
+        "generateAudio": true
+      }
+    },
+    {
+      "model": "grok-imagine-1-5",
+      "mode": "image2video",
+      "totalCredits": 405,
+      "config": {
+        "videoCount": 1,
+        "resolution": "720p",
+        "duration": 5,
+        "aspectRatio": "auto"
+      }
+    }
+  ]
+}

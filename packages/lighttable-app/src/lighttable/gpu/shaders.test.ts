@@ -7,6 +7,7 @@ import {
   DISPLAY_RESOLVE_WGSL,
   DOWNSAMPLE_WGSL,
   CREATIVE_GRADE_WGSL,
+  DOCUMENT_THUMBNAIL_WGSL,
   FULLSCREEN_VERTEX_WGSL,
   GAUSSIAN_BLUR_WGSL,
   HISTOGRAM_WGSL,
@@ -59,6 +60,7 @@ import {
   LAYER_STYLE_GAUSSIAN_BLUR_WGSL,
   LAYER_STYLE_SHAPE_WGSL,
   SAMPLED_BRUSH_DAB_WGSL,
+  TONE_BRUSH_DAB_WGSL,
   SELECTION_COMBINE_WGSL,
   SELECTION_FEATHER_WGSL,
   SELECTION_RESAMPLE_WGSL,
@@ -97,6 +99,7 @@ const renderShaders = [
   ['grain blur', GRAIN_BLUR_WGSL],
   ['grain composite', GRAIN_COMPOSITE_WGSL],
   ['display resolve', DISPLAY_RESOLVE_WGSL],
+  ['document thumbnail', DOCUMENT_THUMBNAIL_WGSL],
   ['viewport blit', VIEWPORT_BLIT_WGSL],
   ['mask viewport blit', MASK_VIEWPORT_BLIT_WGSL],
   ['warp', WARP_RENDER_WGSL],
@@ -339,7 +342,7 @@ describe('LightTable WGSL modules', () => {
   });
 
   it('avoids Dawn-reserved target identifiers in editor shaders', () => {
-    const editorShaders = [LAYER_COMPOSITE_WGSL, LAYER_STYLE_SHAPE_WGSL, LAYER_STYLE_EFFECT_WGSL, LAYER_EXPORT_WGSL, LAYER_INVERT_COLORS_WGSL, BRUSH_DAB_WGSL, BLUR_BRUSH_DAB_WGSL, SELECTION_SHAPE_WGSL, SELECTION_COMBINE_WGSL].join('\n');
+    const editorShaders = [LAYER_COMPOSITE_WGSL, LAYER_STYLE_SHAPE_WGSL, LAYER_STYLE_EFFECT_WGSL, LAYER_EXPORT_WGSL, LAYER_INVERT_COLORS_WGSL, BRUSH_DAB_WGSL, BLUR_BRUSH_DAB_WGSL, TONE_BRUSH_DAB_WGSL, SELECTION_SHAPE_WGSL, SELECTION_COMBINE_WGSL].join('\n');
     expect(editorShaders).not.toMatch(/\btarget\b/);
   });
 
@@ -352,6 +355,15 @@ describe('LightTable WGSL modules', () => {
     expect(BLUR_BRUSH_DAB_WGSL).toContain('var sourceTexture: texture_2d<f32>');
     expect(BLUR_BRUSH_DAB_WGSL).toContain('textureSampleLevel(');
     expect(BLUR_BRUSH_DAB_WGSL).toContain('textureLoad(selectionMask');
+  });
+
+  it('keeps tone brushes parseable, selection-aware and GPU-local', () => {
+    expect(() => new WgslReflect(TONE_BRUSH_DAB_WGSL)).not.toThrow();
+    expect(TONE_BRUSH_DAB_WGSL).toContain('var sourceTexture: texture_2d<f32>');
+    expect(TONE_BRUSH_DAB_WGSL).toContain('textureLoad(selectionMask');
+    expect(TONE_BRUSH_DAB_WGSL).toContain('fn toneTargetChannel');
+    expect(TONE_BRUSH_DAB_WGSL).toContain('toneTargetCurves');
+    expect(TONE_BRUSH_DAB_WGSL).toContain('tone.vibrance');
   });
 
   it('uses a derivative-continuous Density feather for Warp stamps', () => {

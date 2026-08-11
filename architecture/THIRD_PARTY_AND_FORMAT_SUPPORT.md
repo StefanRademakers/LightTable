@@ -16,7 +16,7 @@ npm run generate:third-party
 npm run verify:third-party
 ```
 
-The current snapshot contains 709 npm package/version entries, 80 Cargo crates
+The current snapshot contains 713 npm package/version entries, 80 Cargo crates
 and no unknown license fields. Multiple versions are deliberately separate.
 The inventory separates direct/transitive and runtime/development roles. The
 Help > Third-party Licenses view is generated from that inventory and a small,
@@ -49,6 +49,9 @@ compiled into `wasm-vips`. Any `UNKNOWN` inventory entry blocks a release.
 | libvips codec bundle inside wasm-vips | package notice set | LGPLv3 and mixed permissive licenses | PNG/TIFF/JPEG/WebP precision decode; use upstream `THIRD-PARTY-NOTICES.md` for the complete bundled list |
 | Transformers.js | 3.8.1 | Apache-2.0 | Lazy depth-estimation worker |
 | Depth Anything V2 Small ONNX | remote model repository | Apache-2.0 | Downloaded only when depth estimation is requested; model id is `onnx-community/depth-anything-v2-small-ONNX` |
+| SlimSAM 77 Uniform ONNX | remote model repository | Apache-2.0 | Optional, lazy Object Selection prototype; model id is `Xenova/slimsam-77-uniform` and no model is loaded at application startup |
+| MediaPipe Tasks Vision | 1.0.1 | Apache-2.0 | Lazy on-device face-landmark worker; module WASM is selected explicitly for web and Electron workers |
+| MediaPipe Face Landmarker | SHA-256 `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff` | Apache-2.0 | Bundled local face-landmark model; loaded only when Detect faces is requested |
 | Inter | 5.3.0 font package | OFL-1.1 | Default UI/text face |
 | JetBrains Mono | 5.2.8 font package | OFL-1.1 | Bundled testable monospace face |
 | Noto Sans | 5.2.8 font package | OFL-1.1 | Bundled fallback face |

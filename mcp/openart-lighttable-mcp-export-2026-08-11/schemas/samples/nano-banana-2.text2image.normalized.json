@@ -1,0 +1,63 @@
+{
+  "model": "nano-banana-2",
+  "mode": "text2image",
+  "media": "image",
+  "schemaCore": {
+    "type": "object",
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "minLength": 1
+      },
+      "imageCount": {
+        "default": 2,
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 4
+      },
+      "aspectRatio": {
+        "type": "string",
+        "enum": [
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16"
+        ]
+      },
+      "resolution": {
+        "default": "1K",
+        "type": "string",
+        "enum": [
+          "1K",
+          "2K",
+          "4K"
+        ]
+      },
+      "autoEnhancePrompt": {
+        "default": false,
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "prompt",
+      "imageCount",
+      "aspectRatio",
+      "resolution",
+      "autoEnhancePrompt"
+    ],
+    "additionalProperties": false
+  },
+  "defaults": {
+    "imageCount": 1,
+    "aspectRatio": "1:1",
+    "resolution": "1K",
+    "autoEnhancePrompt": false
+  },
+  "note": "The live MCP response also contains shared $defs for visual reference object types. This normalized snapshot preserves the UI-relevant top-level schema."
+}

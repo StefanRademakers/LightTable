@@ -1,0 +1,6 @@
+Implement the dodge burn and sponge tool modes
+Tool icons are in the tool icons folder
+
+Read:
+LIGHTTABLE_DODGE_BURN_SPONGE_SPEC.md
+

@@ -5,6 +5,7 @@ export type ToolRole =
   | 'zoom'
   | 'transform'
   | 'warp'
+  | 'face-warp'
   | 'selection'
   | 'fill'
   | 'paint'
@@ -79,10 +80,17 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'selection'
   },
   {
+    id: 'select-object',
+    label: 'Object Selection',
+    shortcutLabel: 'W',
+    shortcutKey: 'w',
+    iconName: 'tool_magic_wand.png',
+    role: 'selection'
+  },
+  {
     id: 'select-magic-wand',
     label: 'Magic Wand',
     shortcutLabel: 'W',
-    shortcutKey: 'w',
     iconName: 'tool_magic_wand.png',
     role: 'selection'
   },
@@ -232,10 +240,38 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'paint'
   },
   {
+    id: 'dodge',
+    label: 'Dodge',
+    shortcutLabel: 'O',
+    shortcutKey: 'o',
+    iconName: 'tool_dodge.png',
+    role: 'paint'
+  },
+  {
+    id: 'burn',
+    label: 'Burn',
+    shortcutLabel: 'O',
+    iconName: 'tool_burn.png',
+    role: 'paint'
+  },
+  {
+    id: 'sponge',
+    label: 'Sponge',
+    shortcutLabel: 'O',
+    iconName: 'tool_sponge.png',
+    role: 'paint'
+  },
+  {
     id: 'warp',
     label: 'Warp',
     iconName: 'warp_tool.svg',
     role: 'warp'
+  },
+  {
+    id: 'face-warp',
+    label: 'Face Warp',
+    iconName: 'tool_face_warp.png',
+    role: 'face-warp'
   },
   {
     id: 'view',
@@ -265,6 +301,11 @@ export const LASSO_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   ['select-free', 'select-polygonal']
     .map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
+/** Object Selection and Magic Wand share Photoshop's W toolbar slot. */
+export const SMART_SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  ['select-object', 'select-magic-wand']
+    .map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
+
 /** Live shapes share one toolbar slot while retaining their individual presets. */
 export const SHAPE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   TOOL_DEFINITIONS.filter(({ id }) => id.startsWith('shape-'));
@@ -291,6 +332,10 @@ export const TEXT_TOOL_DEFINITIONS: readonly ToolDefinition[] =
 export const FILL_TOOL_DEFINITIONS: readonly ToolDefinition[] =
   ['gradient', 'fill'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
+/** Dodge, Burn and Sponge share Photoshop's O toolbar slot. */
+export const TONE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
+  ['dodge', 'burn', 'sponge'].map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
+
 /**
  * Photoshop-style tool families. The plain family key restores its remembered
  * member; Shift+key advances to the next member. Keeping this beside the
@@ -307,7 +352,7 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   },
   {
     key: 'w',
-    tools: ['select-magic-wand']
+    tools: ['select-object', 'select-magic-wand']
   },
   {
     key: 'a',
@@ -333,6 +378,10 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   {
     key: 'u',
     tools: ['shape-rectangle', 'shape-ellipse', 'shape-triangle', 'shape-line']
+  },
+  {
+    key: 'o',
+    tools: ['dodge', 'burn', 'sponge']
   }
 ];
 

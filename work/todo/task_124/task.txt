@@ -1,0 +1,5 @@
+We gaan snapping tools maken:
+lees snapping.MD
+
+Mochten zaken niet duidelijk zijn -> implementeer niet zomaar wat, maar doe online research naar hoe photoshop het implementeerd.
+Liever alignen met dat bekend gedrag dan zelf gaan gokken. Maar er staat al heel veel in snapping.MD

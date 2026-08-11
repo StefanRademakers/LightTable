@@ -28,6 +28,7 @@ const harness = (hasRaster = true, rasterSize = { width: 64, height: 32 }) => {
     clonePreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
     healing: { getBindGroupLayout: vi.fn(() => ({})) },
     healingPreserveTransparency: { getBindGroupLayout: vi.fn(() => ({})) },
+    tone: { getBindGroupLayout: vi.fn(() => ({})) },
     fillColor: { getBindGroupLayout: vi.fn(() => ({})) },
     fillGradient: { getBindGroupLayout: vi.fn(() => ({})) },
     invertColors: { getBindGroupLayout: vi.fn(() => ({})) },
@@ -153,6 +154,40 @@ describe('RasterPaintService', () => {
     expect(test.pipelines).not.toHaveBeenCalled();
     expect(test.ensureSelectionTargets).not.toHaveBeenCalled();
     expect(test.createBuffer).not.toHaveBeenCalled();
+  });
+
+  it('runs tone brushes from a GPU scratch snapshot and preserves one history capture', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
+    const test = harness();
+
+    test.service.paintDabs(
+      layerId,
+      'pixels',
+      [{ x: 24, y: 12, size: 16, pressure: 1, flowScale: 1 }],
+      [0, 0, 0],
+      0.75,
+      1,
+      0.15,
+      false,
+      undefined,
+      false,
+      undefined,
+      'paint',
+      {
+        operator: 'tone',
+        mode: 'dodge',
+        range: 'midtones',
+        spongeMode: 'desaturate',
+        protectTones: true,
+        vibrance: true
+      }
+    );
+
+    expect(test.createdTextures).toHaveLength(1);
+    expect(test.copyTextureToTexture).toHaveBeenCalledTimes(1);
+    expect(test.captureHistoryRegions).toHaveBeenCalledTimes(1);
+    expect(test.submit).toHaveBeenCalledTimes(1);
+    expect(test.invalidateLayer).toHaveBeenCalledWith(layerId);
   });
 
   it('does not compile invert pipelines for an unavailable target', () => {

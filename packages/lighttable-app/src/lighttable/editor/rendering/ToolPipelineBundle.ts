@@ -3,6 +3,7 @@ import {
   BRUSH_DAB_WGSL,
   BLUR_BRUSH_DAB_WGSL,
   SAMPLED_BRUSH_DAB_WGSL,
+  TONE_BRUSH_DAB_WGSL,
   COLOR_CHANNEL_COPY_WGSL,
   LAYER_FILL_COLOR_WGSL,
   LAYER_FILL_GRADIENT_WGSL,
@@ -40,6 +41,7 @@ export interface BrushPipelineBundle {
   clonePreserveTransparency: GPURenderPipeline;
   healing: GPURenderPipeline;
   healingPreserveTransparency: GPURenderPipeline;
+  tone: GPURenderPipeline;
 }
 
 export interface ToolPipelineBundle extends BrushPipelineBundle {
@@ -78,6 +80,7 @@ export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
   const brushModule = device.createShaderModule({ code: BRUSH_DAB_WGSL });
   const blurBrushModule = device.createShaderModule({ code: BLUR_BRUSH_DAB_WGSL });
   const sampledBrushModule = device.createShaderModule({ code: SAMPLED_BRUSH_DAB_WGSL });
+  const toneBrushModule = device.createShaderModule({ code: TONE_BRUSH_DAB_WGSL });
   const brushPipeline = (
     label: string,
     color: GPUBlendComponent,
@@ -180,7 +183,25 @@ export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
     healing: sampledBrushPipeline('LightTable Healing Brush', 'healingFragment', false),
     healingPreserveTransparency: sampledBrushPipeline(
       'LightTable Healing Brush with transparency lock', 'healingFragment', true
-    )
+    ),
+    tone: device.createRenderPipeline({
+      label: 'LightTable tone adjustment brush',
+      layout: 'auto',
+      vertex: { module: toneBrushModule, entryPoint: 'brushVertex' },
+      fragment: {
+        module: toneBrushModule,
+        entryPoint: 'brushFragment',
+        targets: [{
+          format: 'rgba16float',
+          blend: {
+            // Tone tools alter straight color while retaining exact layer alpha.
+            color: { srcFactor: 'dst-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' }
+          }
+        }]
+      },
+      primitive: { topology: 'triangle-list' }
+    })
   };
   brushCache.set(device, bundle);
   return bundle;

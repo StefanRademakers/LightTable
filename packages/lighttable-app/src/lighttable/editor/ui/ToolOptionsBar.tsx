@@ -12,6 +12,7 @@ import type {
   VectorToolStyleSettings
 } from '../session/editorSession';
 import { WarpToolOptions } from '../../application/tools/warp/WarpToolOptions';
+import { FaceWarpToolOptions, type FaceWarpToolOptionsProps } from '../../application/tools/faceWarp/FaceWarpToolOptions';
 import { toolDefinition } from '../tools/toolRegistry';
 import { isPaintTool, isSelectionTool } from '../tools/toolCapabilities';
 import type { SelectionCombineMode } from '../selection/selectionTypes';
@@ -25,6 +26,7 @@ import type { GradientPaintInstance } from '@lighttable/paint-core';
 import { AnchoredGradientPopover } from './AnchoredGradientPopover';
 import { VectorStyleToolOptions } from './VectorStyleToolOptions';
 import { GradientField } from '../../../ui/GradientField';
+import { ActionButton } from '../../../ui/ActionButton';
 import type { TextPaint } from '@lighttable/text-core';
 import {
   BRUSH_PRESETS,
@@ -37,11 +39,13 @@ import {
   clampHealingDiffusion,
   isSampledBrushTool
 } from '../tools/paint/sampledBrushTypes';
+import { isToneBrushTool } from '../tools/paint/toneBrushTypes';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
   brush: BrushSettings;
   sampledBrush: EditorSession['sampledBrush'];
+  toneBrush: EditorSession['toneBrush'];
   gradient: EditorSession['gradient'];
   shape: EditorSession['shape'];
   pen: EditorSession['pen'];
@@ -60,11 +64,13 @@ export interface ToolOptionsProps {
   selectionColumnWidth: number;
   selectionSmooth: number;
   magicWand: EditorSession['magicWand'];
+  smartSelection: EditorSession['smartSelection'];
   transformAutoSelectLayer: boolean;
   zoomPercent: number;
   gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
   onBrushChange: (change: Partial<BrushSettings>) => void;
   onSampledBrushChange: (change: Partial<EditorSession['sampledBrush']>) => void;
+  onToneBrushChange: (change: Partial<EditorSession['toneBrush']>) => void;
   onGradientChange: (change: Partial<EditorSession['gradient']>) => void;
   onShapeChange: (change: Partial<EditorSession['shape']>) => void;
   onPenChange: (change: Partial<EditorSession['pen']>) => void;
@@ -87,12 +93,15 @@ export interface ToolOptionsProps {
   onSelectedVectorStyleChange?: (change: Partial<VectorToolStyleSettings>) => void;
   onSelectedShapeChange?: (change: Partial<EditorSession['shape']>) => void;
   onWarpReset: () => void;
+  faceWarp: FaceWarpToolOptionsProps;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
   onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
+  onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
+  onSelectSubject: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -101,16 +110,21 @@ export interface ToolOptionsProps {
 const TOOL_LABELS: Record<ToolId, string> = {
   transform: 'Transform',
   warp: 'Warp',
+  'face-warp': 'Face Warp',
   'select-rectangle': 'Rectangular selection',
   'select-ellipse': 'Elliptical selection',
   'select-horizontal': 'Horizontal selection',
   'select-vertical': 'Vertical selection',
   'select-free': 'Free selection',
   'select-polygonal': 'Polygonal selection',
+  'select-object': 'Object Selection',
   'select-magic-wand': 'Magic Wand',
   gradient: 'Gradient',
   fill: 'Paint bucket',
   brush: 'Brush',
+  dodge: 'Dodge',
+  burn: 'Burn',
+  sponge: 'Sponge',
   'clone-stamp': 'Clone Stamp',
   'healing-brush': 'Healing Brush',
   erase: 'Erase',
@@ -229,6 +243,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   activeTool,
   brush,
   sampledBrush,
+  toneBrush,
   gradient,
   shape,
   pen,
@@ -247,11 +262,13 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectionColumnWidth,
   selectionSmooth,
   magicWand,
+  smartSelection,
   transformAutoSelectLayer,
   zoomPercent,
   gradientEditorRequest,
   onBrushChange,
   onSampledBrushChange,
+  onToneBrushChange,
   onGradientChange,
   onShapeChange,
   onPenChange,
@@ -274,12 +291,15 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectedVectorStyleChange,
   onSelectedShapeChange,
   onWarpReset,
+  faceWarp,
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
   onSelectionSmoothChange,
   onMagicWandChange,
+  onSmartSelectionChange,
+  onSelectSubject,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
@@ -459,6 +479,38 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               onChange={(event) => onMagicWandChange({ sampleAllLayers: event.currentTarget.checked })} />
             Sample All Layers
           </label>
+        </div>
+      ) : null}
+      {activeTool === 'select-object' ? (
+        <div className="lighttable-tool-options__vector-style" aria-label="Object Selection settings">
+          <ToolOptionSelect
+            label="Mode"
+            value={smartSelection.mode}
+            aria-label="Object Selection mode"
+            onChange={(event) => onSmartSelectionChange({
+              mode: event.currentTarget.value as EditorSession['smartSelection']['mode']
+            })}
+          >
+            <option value="object-finder">Object Finder</option>
+            <option value="rectangle">Rectangle</option>
+            <option value="lasso">Lasso</option>
+          </ToolOptionSelect>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={smartSelection.sampleAllLayers}
+              onChange={(event) => onSmartSelectionChange({
+                sampleAllLayers: event.currentTarget.checked
+              })} />
+            Sample All Layers
+          </label>
+          <label className="lighttable-tool-options__toggle">
+            <input type="checkbox" checked={smartSelection.hardEdge}
+              onChange={(event) => onSmartSelectionChange({ hardEdge: event.currentTarget.checked })} />
+            Hard Edge
+          </label>
+          <ActionButton size="compact" onClick={onSelectSubject}
+            title="Select the most likely subject">
+            Select Subject
+          </ActionButton>
         </div>
       ) : null}
       {activeTool === 'gradient' ? (
@@ -661,6 +713,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onReset={onWarpReset}
         />
       ) : null}
+      {activeTool === 'face-warp' ? <FaceWarpToolOptions {...faceWarp} /> : null}
       {activeTool === 'text-point' || activeTool === 'text-paragraph'
         || activeTool === 'text-vertical' || activeTool === 'text-path' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
@@ -880,6 +933,58 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               ) : null}
             </>
           ) : null}
+          {isToneBrushTool(activeTool) ? (
+            <>
+              {activeTool === 'sponge' ? (
+                <ToolOptionSelect
+                  label="Mode"
+                  value={toneBrush.spongeMode}
+                  aria-label="Sponge mode"
+                  onChange={(event) => onToneBrushChange({
+                    spongeMode: event.currentTarget.value as EditorSession['toneBrush']['spongeMode']
+                  })}
+                >
+                  <option value="desaturate">Desaturate</option>
+                  <option value="saturate">Saturate</option>
+                </ToolOptionSelect>
+              ) : (
+                <ToolOptionSelect
+                  label="Range"
+                  value={toneBrush.range}
+                  aria-label="Tone range"
+                  onChange={(event) => onToneBrushChange({
+                    range: event.currentTarget.value as EditorSession['toneBrush']['range']
+                  })}
+                >
+                  <option value="shadows">Shadows</option>
+                  <option value="midtones">Midtones</option>
+                  <option value="highlights">Highlights</option>
+                </ToolOptionSelect>
+              )}
+              <AdjustmentSlider
+                label={activeTool === 'sponge' ? 'Flow' : 'Exposure'}
+                value={(activeTool === 'sponge' ? toneBrush.spongeFlow : toneBrush.exposure) * 100}
+                min={1}
+                max={100}
+                resetValue={activeTool === 'sponge' ? 50 : 15}
+                format={(value) => `${Math.round(value)}%`}
+                onReset={() => onToneBrushChange(activeTool === 'sponge'
+                  ? { spongeFlow: 0.5 } : { exposure: 0.15 })}
+                onChange={(value) => onToneBrushChange(activeTool === 'sponge'
+                  ? { spongeFlow: value / 100 } : { exposure: value / 100 })}
+              />
+              <label className="lighttable-tool-options__toggle">
+                <input
+                  type="checkbox"
+                  checked={activeTool === 'sponge' ? toneBrush.vibrance : toneBrush.protectTones}
+                  onChange={(event) => onToneBrushChange(activeTool === 'sponge'
+                    ? { vibrance: event.currentTarget.checked }
+                    : { protectTones: event.currentTarget.checked })}
+                />
+                <span>{activeTool === 'sponge' ? 'Vibrance' : 'Protect Tones'}</span>
+              </label>
+            </>
+          ) : null}
           <ToolOptionSelect
             label="Preset"
             value={brush.presetId}
@@ -893,7 +998,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 <option key={preset.id} value={preset.id}>{preset.name}</option>
               ))}
             </optgroup>
-            {!isSampledBrushTool(activeTool) ? (
+            {!isSampledBrushTool(activeTool) && !isToneBrushTool(activeTool) ? (
               <optgroup label="Effects">
                 {BRUSH_PRESETS.filter(({ category }) => category === 'Effects').map((preset) => (
                   <option key={preset.id} value={preset.id}>{preset.name}</option>
@@ -925,7 +1030,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             ? onSampledBrushChange({ healingHardness: value / 100 })
             : onBrushChange({ hardness: value / 100 })}
           />
-          <AdjustmentSlider
+          {!isToneBrushTool(activeTool) ? <AdjustmentSlider
           label={isSampledBrushTool(activeTool) || resolveBrushPreset(brush.presetId).engine === 'paint'
             ? 'Opacity' : 'Strength'}
           value={(activeTool === 'healing-brush'
@@ -940,8 +1045,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={(value) => activeTool === 'healing-brush'
             ? onSampledBrushChange({ healingOpacity: value / 100 })
             : onBrushChange({ opacity: value / 100 })}
-          />
-          {activeTool !== 'healing-brush' ? (
+          /> : null}
+          {activeTool !== 'healing-brush' && !isToneBrushTool(activeTool) ? (
             <AdjustmentSlider
             label="Flow"
             value={brush.flow * 100}

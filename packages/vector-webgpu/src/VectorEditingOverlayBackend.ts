@@ -30,6 +30,38 @@ interface OverlayPipelines {
   markers: GPURenderPipeline;
 }
 
+const ISOLATED_OVERLAY_COMPOSITE_WGSL = /* wgsl */`
+struct Output {
+  @builtin(position) position: vec4f,
+  @location(0) uv: vec2f,
+};
+// A single vec4 keeps the uniform block exactly 16 bytes. A scalar followed
+// by vec3 would align the vec3 at byte 16 and make the actual WGSL structure
+// 32 bytes, invalidating the pipeline against its 16-byte bind-group layout.
+struct Settings {
+  opacity: vec4f,
+};
+@group(0) @binding(0) var overlayTexture: texture_2d<f32>;
+@group(0) @binding(1) var overlaySampler: sampler;
+@group(0) @binding(2) var<uniform> settings: Settings;
+@vertex fn vertexMain(@builtin(vertex_index) index: u32) -> Output {
+  let positions = array<vec2f, 3>(
+    vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0)
+  );
+  let uvs = array<vec2f, 3>(
+    vec2f(0.0, 1.0), vec2f(2.0, 1.0), vec2f(0.0, -1.0)
+  );
+  let position: vec2f = positions[index];
+  var output: Output;
+  output.position = vec4f(position, 0.0, 1.0);
+  output.uv = uvs[index];
+  return output;
+}
+@fragment fn fragmentMain(input: Output) -> @location(0) vec4f {
+  let color = textureSample(overlayTexture, overlaySampler, input.uv);
+  return vec4f(color.rgb, color.a * settings.opacity.x);
+}`;
+
 export interface VectorEditingOverlayTarget {
   colorView: GPUTextureView;
   format: GPUTextureFormat;
@@ -237,6 +269,14 @@ export class VectorEditingOverlayBackend {
   private readonly resources: RevisionedResourceCache<CachedOverlayBuffers>;
   private readonly settingsLayout: GPUBindGroupLayout;
   private readonly pipelines = new Map<GPUTextureFormat, OverlayPipelines>();
+  private readonly isolatedCompositePipelines = new Map<GPUTextureFormat, GPURenderPipeline>();
+  private readonly isolatedCompositeLayout: GPUBindGroupLayout;
+  private isolatedSampler: GPUSampler | null = null;
+  private readonly isolatedOpacityBuffer: GPUBuffer;
+  private isolatedTexture: GPUTexture | null = null;
+  private isolatedTextureWidth = 0;
+  private isolatedTextureHeight = 0;
+  private isolatedTextureFormat: GPUTextureFormat | null = null;
   private pendingUniforms: GPUBuffer[] = [];
   private disposed = false;
 
@@ -261,6 +301,21 @@ export class VectorEditingOverlayBackend {
         }
       ]
     });
+    this.isolatedCompositeLayout = device.createBindGroupLayout({
+      label: 'LightTable isolated overlay composite layout',
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
+        {
+          binding: 2, visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: 'uniform', minBindingSize: 16 }
+        }
+      ]
+    });
+    this.isolatedOpacityBuffer = device.createBuffer({
+      label: 'LightTable isolated overlay opacity', size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
   }
 
   encode(
@@ -268,6 +323,67 @@ export class VectorEditingOverlayBackend {
     overlay: VectorEditingOverlay,
     target: VectorEditingOverlayTarget,
     theme: VectorEditingOverlayTheme = DEFAULT_THEME
+  ) {
+    return this.encodeOverlay(encoder, overlay, target, theme, false);
+  }
+
+  /** Renders dense geometry once, then applies opacity once to the complete overlay. */
+  encodeIsolated(
+    encoder: GPUCommandEncoder,
+    overlay: VectorEditingOverlay,
+    target: VectorEditingOverlayTarget,
+    theme: VectorEditingOverlayTheme,
+    opacity: number
+  ) {
+    this.assertUsable();
+    if (target.width <= 0 || target.height <= 0) return false;
+    const texture = this.ensureIsolatedTexture(target);
+    this.isolatedSampler ??= this.device.createSampler({
+      label: 'LightTable isolated overlay sampler',
+      magFilter: 'nearest', minFilter: 'nearest'
+    });
+    const opaqueTheme: VectorEditingOverlayTheme = {
+      ...theme,
+      pathColor: [...theme.pathColor.slice(0, 3), 1] as [number, number, number, number],
+      handleColor: [...theme.handleColor.slice(0, 3), 1] as [number, number, number, number],
+      underlayColor: theme.underlayColor
+        ? [...theme.underlayColor.slice(0, 3), 1] as [number, number, number, number]
+        : undefined
+    };
+    const encoded = this.encodeOverlay(encoder, overlay, {
+      ...target, colorView: texture.createView()
+    }, opaqueTheme, true);
+    if (!encoded) return false;
+    this.device.queue.writeBuffer(
+      this.isolatedOpacityBuffer, 0,
+      new Float32Array([Math.max(0, Math.min(1, opacity)), 0, 0, 0])
+    );
+    const pipeline = this.isolatedCompositePipeline(target.format);
+    const pass = encoder.beginRenderPass({
+      label: 'LightTable composite isolated vector overlay',
+      colorAttachments: [{ view: target.colorView, loadOp: 'load', storeOp: 'store' }]
+    });
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, this.device.createBindGroup({
+      label: 'LightTable isolated overlay composite bind group',
+      layout: this.isolatedCompositeLayout,
+      entries: [
+        { binding: 0, resource: texture.createView() },
+        { binding: 1, resource: this.isolatedSampler },
+        { binding: 2, resource: { buffer: this.isolatedOpacityBuffer } }
+      ]
+    }));
+    pass.draw(3);
+    pass.end();
+    return true;
+  }
+
+  private encodeOverlay(
+    encoder: GPUCommandEncoder,
+    overlay: VectorEditingOverlay,
+    target: VectorEditingOverlayTarget,
+    theme: VectorEditingOverlayTheme,
+    clear: boolean
   ) {
     this.assertUsable();
     if (target.width <= 0 || target.height <= 0) return false;
@@ -278,7 +394,8 @@ export class VectorEditingOverlayBackend {
       label: 'LightTable vector editing overlay',
       colorAttachments: [{
         view: target.colorView,
-        loadOp: 'load',
+        ...(clear ? { clearValue: { r: 0, g: 0, b: 0, a: 0 } } : {}),
+        loadOp: clear ? 'clear' : 'load',
         storeOp: 'store'
       }]
     });
@@ -357,7 +474,55 @@ export class VectorEditingOverlayBackend {
     for (const buffer of this.pendingUniforms) buffer.destroy();
     this.pendingUniforms = [];
     this.resources.clear();
+    this.isolatedTexture?.destroy();
+    this.isolatedTexture = null;
+    this.isolatedOpacityBuffer.destroy();
     this.pipelines.clear();
+    this.isolatedCompositePipelines.clear();
+  }
+
+  private ensureIsolatedTexture(target: VectorEditingOverlayTarget): GPUTexture {
+    if (this.isolatedTexture
+      && this.isolatedTextureWidth === target.width
+      && this.isolatedTextureHeight === target.height
+      && this.isolatedTextureFormat === target.format) return this.isolatedTexture;
+    this.isolatedTexture?.destroy();
+    this.isolatedTexture = this.device.createTexture({
+      label: 'LightTable isolated vector overlay',
+      size: [target.width, target.height],
+      format: target.format,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+    });
+    this.isolatedTextureWidth = target.width;
+    this.isolatedTextureHeight = target.height;
+    this.isolatedTextureFormat = target.format;
+    return this.isolatedTexture;
+  }
+
+  private isolatedCompositePipeline(format: GPUTextureFormat): GPURenderPipeline {
+    const cached = this.isolatedCompositePipelines.get(format);
+    if (cached) return cached;
+    const module = this.device.createShaderModule({
+      label: 'LightTable isolated overlay composite shader',
+      code: ISOLATED_OVERLAY_COMPOSITE_WGSL
+    });
+    const pipeline = this.device.createRenderPipeline({
+      label: 'LightTable isolated overlay composite',
+      layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.isolatedCompositeLayout] }),
+      vertex: { module, entryPoint: 'vertexMain' },
+      fragment: {
+        module, entryPoint: 'fragmentMain', targets: [{
+          format,
+          blend: {
+            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }
+          }
+        }]
+      },
+      primitive: { topology: 'triangle-list' }
+    });
+    this.isolatedCompositePipelines.set(format, pipeline);
+    return pipeline;
   }
 
   private prepare(overlay: VectorEditingOverlay) {

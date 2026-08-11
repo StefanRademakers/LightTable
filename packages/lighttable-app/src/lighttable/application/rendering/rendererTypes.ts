@@ -75,6 +75,8 @@ export interface DocumentRendererCallbacks {
   onFirstFrame?: () => void;
   onGpuMemoryEstimate?: (bytes: number) => void;
   onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void;
+  /** Fired only when the final document composite changed, never for overlay-only frames. */
+  onCompositeRendered?: () => void;
 }
 
 export interface DocumentRendererScopeCanvases {

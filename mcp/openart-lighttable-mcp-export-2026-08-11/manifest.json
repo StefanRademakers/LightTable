@@ -1,0 +1,10 @@
+{
+  "snapshotDate": "2026-08-11",
+  "endpoint": "https://mcp.openart.ai/mcp",
+  "transport": "Streamable HTTP",
+  "authentication": "OAuth",
+  "toolCount": 16,
+  "modelCount": 16,
+  "modelModeCount": 41,
+  "important": "Treat model lists, schemas and pricing as dynamic. Refresh them from MCP at runtime."
+}

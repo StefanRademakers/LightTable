@@ -15,8 +15,8 @@
     ]
   },
   "summary": {
-    "npmPackages": 709,
-    "npmRuntimePackages": 185,
+    "npmPackages": 713,
+    "npmRuntimePackages": 199,
     "cargoPackages": 80,
     "unknownLicenses": 0
   },
@@ -59,6 +59,19 @@
       "license": "Apache-2.0",
       "source": "https://huggingface.co/onnx-community/depth-anything-v2-small-ONNX",
       "loading": "Downloaded lazily when depth estimation is requested."
+    },
+    {
+      "name": "Xenova/slimsam-77-uniform",
+      "license": "Apache-2.0",
+      "source": "https://huggingface.co/Xenova/slimsam-77-uniform",
+      "loading": "Downloaded lazily when Object Selection is first requested."
+    },
+    {
+      "name": "MediaPipe Face Landmarker model",
+      "license": "Apache-2.0",
+      "source": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
+      "loading": "Bundled locally and loaded lazily when face detection is requested.",
+      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
     }
   ],
   "npm": [
@@ -800,10 +813,18 @@
     },
     {
       "ecosystem": "npm",
+      "name": "@mediapipe/tasks-vision",
+      "version": "1.0.1",
+      "license": "Apache-2.0",
+      "role": "direct-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
       "name": "@modelcontextprotocol/client",
       "version": "2.0.0",
       "license": "MIT",
-      "role": "direct-development",
+      "role": "direct-runtime",
       "optional": false
     },
     {
@@ -1268,6 +1289,14 @@
       "version": "4.0.2",
       "license": "MIT",
       "role": "transitive-development",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@types/delaunator",
+      "version": "5.0.0",
+      "license": "MIT",
+      "role": "direct-development",
       "optional": false
     },
     {
@@ -2219,7 +2248,7 @@
       "name": "cross-spawn",
       "version": "7.0.6",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -2292,6 +2321,14 @@
       "version": "1.2.1",
       "license": "MIT",
       "role": "transitive-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
+      "name": "delaunator",
+      "version": "5.0.1",
+      "license": "ISC",
+      "role": "direct-runtime",
       "optional": false
     },
     {
@@ -2643,7 +2680,7 @@
       "name": "eventsource",
       "version": "3.0.7",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -2651,7 +2688,7 @@
       "name": "eventsource-parser",
       "version": "3.1.0",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -3371,7 +3408,7 @@
       "name": "isexe",
       "version": "2.0.0",
       "license": "ISC",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -3395,7 +3432,7 @@
       "name": "jose",
       "version": "6.2.8",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -4307,7 +4344,7 @@
       "name": "path-key",
       "version": "3.1.1",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -4411,7 +4448,7 @@
       "name": "pkce-challenge",
       "version": "5.0.1",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -4728,6 +4765,14 @@
     },
     {
       "ecosystem": "npm",
+      "name": "robust-predicates",
+      "version": "3.0.3",
+      "license": "Unlicense",
+      "role": "transitive-runtime",
+      "optional": false
+    },
+    {
+      "ecosystem": "npm",
       "name": "rolldown",
       "version": "1.1.5",
       "license": "MIT",
@@ -4875,7 +4920,7 @@
       "name": "shebang-command",
       "version": "2.0.0",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -4891,7 +4936,7 @@
       "name": "shebang-regex",
       "version": "3.0.0",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -5571,7 +5616,7 @@
       "name": "which",
       "version": "2.0.2",
       "license": "ISC",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {

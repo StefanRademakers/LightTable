@@ -51,14 +51,26 @@ const paintStroke = argument('paint-stroke', '') === 'true';
 const paintExistingLayer = argument('paint-existing-layer', '') === 'true';
 const paintColor = argument('paint-color', '#ff0000');
 const paintTool = argument('paint-tool', 'brush');
+const toneRange = argument('tone-range', 'midtones');
+const toneExposure = Number.parseFloat(argument('tone-exposure', '20'));
+const toneProtect = argument('tone-protect', 'true') !== 'false';
 const sampleLayer = argument('sample-layer', '');
 const sampleX = Number.parseFloat(argument('sample-x', '0.35'));
 const sampleY = Number.parseFloat(argument('sample-y', '0.35'));
 const paintX = Number.parseFloat(argument('paint-x', '0.2'));
 const paintY = Number.parseFloat(argument('paint-y', '0.25'));
+const paintYList = argument('paint-y-list', '').split(',')
+  .map((value) => Number.parseFloat(value.trim()))
+  .filter(Number.isFinite);
 const brushSize = Number.parseFloat(argument('brush-size', '48'));
+const brushHardness = Number.parseFloat(argument('brush-hardness', 'NaN'));
 const healingDiffusion = Number.parseInt(argument('healing-diffusion', '5'), 10);
 const paintStrokeLength = Number.parseFloat(argument('paint-stroke-length', '0.2'));
+const paintRepeat = Math.max(1, Number.parseInt(argument('paint-repeat', '1'), 10) || 1);
+const paintRepeatDelayMs = Math.max(
+  0,
+  Number.parseInt(argument('paint-repeat-delay-ms', '40'), 10) || 0
+);
 const saveLightTableArgument = argument('save-lighttable', '');
 const saveLightTableFile = saveLightTableArgument ? path.resolve(saveLightTableArgument) : null;
 const expectLayer = argument('expect-layer', '');
@@ -81,6 +93,8 @@ const outputFile = path.resolve(argument(
   'output',
   path.join(workspaceRoot, 'tmp', 'screenshots', 'desktop-text-test.png')
 ));
+const documentOutputArgument = argument('document-output', '');
+const documentOutputFile = documentOutputArgument ? path.resolve(documentOutputArgument) : null;
 const executablePath = path.resolve(argument('executable', defaultExecutable));
 const reportFile = outputFile.replace(/\.[^.]+$/, '.json');
 const exportedPdfFile = path.resolve(argument(
@@ -100,6 +114,7 @@ await Promise.all([access(sourceFile), access(executablePath)]).catch((error) =>
 await Promise.all([
   mkdir(path.dirname(outputFile), { recursive: true }),
   mkdir(userDataPath, { recursive: true }),
+  ...(documentOutputFile ? [mkdir(path.dirname(documentOutputFile), { recursive: true })] : []),
   ...(saveLightTableFile ? [mkdir(path.dirname(saveLightTableFile), { recursive: true })] : [])
 ]);
 
@@ -173,9 +188,17 @@ try {
   }));
   window.on('pageerror', (error) => diagnostics.pageErrors.push(error.stack ?? error.message));
 
-  await window.getByRole('button', { name: 'Open file' }).click();
   const escapedSourceName = sourceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  await window.getByRole('tab', { name: new RegExp(escapedSourceName, 'i') }).waitFor({
+  const sourceTab = window.getByRole('tab', { name: new RegExp(escapedSourceName, 'i') });
+  // A running Forge/Vite development server may optimize a dependency and
+  // reload the renderer immediately after Electron launches. Wait for that
+  // short burst to settle so the automation click is not lost mid-navigation.
+  await window.waitForLoadState('domcontentloaded');
+  await window.waitForTimeout(1_000);
+  if (!await sourceTab.isVisible().catch(() => false)) {
+    await window.getByRole('button', { name: 'Open file' }).click({ timeout: 30_000 });
+  }
+  await sourceTab.waitFor({
     state: 'visible',
     timeout: 30_000
   });
@@ -254,21 +277,68 @@ try {
       if (!/^#[\da-f]{6}$/i.test(paintColor)) {
         throw new Error('--paint-color must be a six-digit hex colour.');
       }
-      const paintToolLabel = paintTool === 'clone-stamp'
-        ? 'Clone Stamp (S)'
-        : paintTool === 'healing-brush' ? 'Healing Brush (J)' : 'Brush (B)';
-      await window.getByRole('button', { name: paintToolLabel }).click();
+      const paintToolLabels = {
+        brush: 'Brush (B)',
+        'clone-stamp': 'Clone Stamp (S)',
+        'healing-brush': 'Healing Brush (J)',
+        dodge: 'Dodge (O)',
+        burn: 'Burn (O)',
+        sponge: 'Sponge (O)'
+      };
+      const paintToolLabel = paintToolLabels[paintTool];
+      if (!paintToolLabel) throw new Error(`Unsupported --paint-tool: ${paintTool}`);
+      const paintToolButton = window.getByRole('button', { name: paintToolLabel });
+      if (await paintToolButton.count()) {
+        await paintToolButton.click();
+      } else if (paintTool === 'burn') {
+        await window.keyboard.press('Shift+o');
+      } else if (paintTool === 'sponge') {
+        await window.keyboard.press('Shift+o');
+        await window.keyboard.press('Shift+o');
+      } else {
+        throw new Error(`The ${paintToolLabel} toolbar button is unavailable.`);
+      }
       const sizeControl = window.getByLabel('Size', { exact: true });
       await sizeControl.focus();
       await sizeControl.press('Home');
       for (let value = 1; value < Math.round(brushSize); value += 1) {
         await sizeControl.press('ArrowRight');
       }
+      if (Number.isFinite(brushHardness)) {
+        if (brushHardness < 0 || brushHardness > 100) {
+          throw new Error('--brush-hardness must be between 0 and 100.');
+        }
+        const hardnessControl = window.getByRole('region', { name: 'Tool settings' })
+          .getByLabel('Hardness', { exact: true });
+        await hardnessControl.focus();
+        await hardnessControl.press('Home');
+        for (let value = 0; value < Math.round(brushHardness); value += 1) {
+          await hardnessControl.press('ArrowRight');
+        }
+      }
       if (paintTool === 'healing-brush') {
         if (healingDiffusion < 1 || healingDiffusion > 7) {
           throw new Error('--healing-diffusion must be an integer from 1 through 7.');
         }
         await window.getByLabel('Diffusion', { exact: true }).fill(String(healingDiffusion));
+      }
+      if (paintTool === 'dodge' || paintTool === 'burn') {
+        if (!['shadows', 'midtones', 'highlights'].includes(toneRange)) {
+          throw new Error('--tone-range must be shadows, midtones or highlights.');
+        }
+        if (!Number.isFinite(toneExposure) || toneExposure < 1 || toneExposure > 100) {
+          throw new Error('--tone-exposure must be between 1 and 100.');
+        }
+        await window.getByLabel('Tone range').selectOption(toneRange);
+        const exposureControl = window.getByRole('region', { name: 'Tool settings' })
+          .getByLabel('Exposure', { exact: true });
+        await exposureControl.focus();
+        await exposureControl.press('Home');
+        for (let value = 1; value < Math.round(toneExposure); value += 1) {
+          await exposureControl.press('ArrowRight');
+        }
+        const protectControl = window.getByRole('checkbox', { name: 'Protect Tones' });
+        if (await protectControl.isChecked() !== toneProtect) await protectControl.click();
       }
       await window.locator('input[type="color"][aria-label="Foreground color"]').fill(paintColor);
       const viewport = window.locator('.lighttable-viewport');
@@ -283,8 +353,9 @@ try {
       const documentLeft = box.x + (box.width - displayWidth) / 2;
       const documentTop = box.y + (box.height - displayHeight) / 2;
       const startX = documentLeft + displayWidth * paintX;
-      const startY = documentTop + displayHeight * paintY;
-      if (paintTool !== 'brush') {
+      const strokeRows = paintYList.length > 0 ? paintYList : [paintY];
+      const startY = documentTop + displayHeight * strokeRows[0];
+      if (paintTool === 'clone-stamp' || paintTool === 'healing-brush') {
         if (!sampleLayer) throw new Error('--sample-layer is required for sampled paint tools.');
         const sourceLayer = window.locator('.lighttable-layer').filter({
           has: window.locator(`.lighttable-layer__name[value="${sampleLayer.replaceAll('"', '\\"')}"]`)
@@ -302,29 +373,74 @@ try {
         diagnostics.paint.sampleStatus = await window.locator('.lighttable-toolbar__status').textContent();
         await activeLayer.click();
       }
-      await window.mouse.move(startX, startY);
-      await window.mouse.down();
-      if (paintStrokeLength !== 0) {
-        await window.mouse.move(
-          startX + displayWidth * paintStrokeLength,
-          startY,
-          { steps: 16 }
-        );
+      if (documentOutputFile) {
+        await window.evaluate(() => {
+          for (const host of document.querySelectorAll('.dv-resize-container')) {
+            host.dataset.lighttableCaptureDisplay = host.style.display;
+            host.style.display = 'none';
+          }
+        });
       }
-      await window.mouse.up();
+      for (const strokeRow of strokeRows) {
+        if (strokeRow < 0 || strokeRow > 1) throw new Error('--paint-y-list values must be from 0 through 1.');
+        const rowY = documentTop + displayHeight * strokeRow;
+        for (let repeat = 0; repeat < paintRepeat; repeat += 1) {
+          await window.mouse.move(startX, rowY);
+          await window.mouse.down();
+          if (paintStrokeLength !== 0) {
+            await window.mouse.move(
+              startX + displayWidth * paintStrokeLength,
+              rowY,
+              { steps: 16 }
+            );
+          }
+          await window.mouse.up();
+          if (paintRepeat > 1) await window.waitForTimeout(paintRepeatDelayMs);
+        }
+        if (strokeRows.length > 1) await window.waitForTimeout(80);
+      }
+      if (documentOutputFile) {
+        // Capture the rendered document without test-only UI occlusion. Keep
+        // the application layout unchanged: hiding the detached Dockview
+        // resize hosts avoids a reflow and preserves the exact zoom/origin.
+        await window.mouse.move(2, 2);
+        await window.waitForTimeout(50);
+        const captureBox = await viewport.boundingBox();
+        if (!captureBox) throw new Error('The document viewport disappeared before capture.');
+        const captureLeft = captureBox.x + (captureBox.width - displayWidth) / 2;
+        const captureTop = captureBox.y + (captureBox.height - displayHeight) / 2;
+        await window.screenshot({
+          path: documentOutputFile,
+          clip: {
+            x: captureLeft,
+            y: captureTop,
+            width: displayWidth,
+            height: displayHeight
+          }
+        });
+        await window.evaluate(() => {
+          for (const host of document.querySelectorAll('.dv-resize-container')) {
+            host.style.display = host.dataset.lighttableCaptureDisplay ?? '';
+            delete host.dataset.lighttableCaptureDisplay;
+          }
+        });
+        diagnostics.paint.documentOutput = documentOutputFile;
+      }
       const thumbnail = activeLayer.locator('.lighttable-layer__thumbnail-preview');
       await thumbnail.waitFor({ state: 'visible', timeout: 15_000 });
-      await window.waitForFunction(
-        ({ selector, before }) => document.querySelector(selector)?.getAttribute('src') !== before,
-        {
-          selector: '.lighttable-layer--active .lighttable-layer__thumbnail-preview',
-          before: diagnostics.paint.thumbnailBefore
-        },
-        { timeout: 10_000 }
-      ).catch(() => {});
+      if (!documentOutputFile) {
+        await window.waitForFunction(
+          ({ selector, before }) => document.querySelector(selector)?.getAttribute('src') !== before,
+          {
+            selector: '.lighttable-layer--active .lighttable-layer__thumbnail-preview',
+            before: diagnostics.paint.thumbnailBefore
+          },
+          { timeout: 10_000 }
+        ).catch(() => {});
+      }
       diagnostics.paint.thumbnailAfter = await thumbnail.getAttribute('src');
       diagnostics.paint.viewport = { displayWidth, displayHeight, startX, startY };
-      if (diagnostics.paint.thumbnailAfter === diagnostics.paint.thumbnailBefore) {
+      if (!documentOutputFile && diagnostics.paint.thumbnailAfter === diagnostics.paint.thumbnailBefore) {
         throw new Error('The raster-layer thumbnail did not change after the brush stroke.');
       }
     }
@@ -380,7 +496,7 @@ try {
     await window.waitForTimeout(500);
   }
 
-  if (selectLayer) {
+  if (selectLayer && !paintExistingLayer) {
     const layerRow = window.locator('.lighttable-layer').filter({
       has: window.locator(`.lighttable-layer__name[value="${selectLayer.replaceAll('"', '\\"')}"]`)
     });

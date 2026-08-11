@@ -34,11 +34,11 @@ export class RecentFileOperationQueue {
  * Produces one deterministic MRU list. Persisted data can arrive unsorted or
  * contain duplicate paths after an interrupted/older desktop write.
  */
-export function normalizeRecentFiles(
-  entries: readonly PersistedRecentFile[],
+export function normalizeRecentFiles<T extends PersistedRecentFile>(
+  entries: readonly T[],
   limit = RECENT_FILE_LIMIT
-): PersistedRecentFile[] {
-  const newestById = new Map<string, PersistedRecentFile>();
+): T[] {
+  const newestById = new Map<string, T>();
   for (const entry of entries) {
     const current = newestById.get(entry.id);
     if (!current || entry.openedAt > current.openedAt) newestById.set(entry.id, entry);
@@ -48,11 +48,11 @@ export function normalizeRecentFiles(
     .slice(0, Math.max(0, limit));
 }
 
-export function touchRecentFile(
-  entries: readonly PersistedRecentFile[],
-  opened: PersistedRecentFile,
+export function touchRecentFile<T extends PersistedRecentFile>(
+  entries: readonly T[],
+  opened: T,
   limit = RECENT_FILE_LIMIT
-): PersistedRecentFile[] {
+): T[] {
   return normalizeRecentFiles([
     opened,
     ...entries.filter((entry) => entry.id !== opened.id)

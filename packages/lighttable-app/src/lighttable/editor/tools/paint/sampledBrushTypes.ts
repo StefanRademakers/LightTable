@@ -1,4 +1,5 @@
 import type { LayerId } from '../../document/documentTypes';
+import type { ToneBrushStrokePlan } from './toneBrushTypes';
 
 export type SampledBrushToolId = 'clone-stamp' | 'healing-brush';
 export type SampledBrushOperator = 'clone' | 'healing';
@@ -27,6 +28,9 @@ export interface SampledBrushStrokePlan {
   readonly sourceOffset: { readonly x: number; readonly y: number };
   readonly diffusion: number;
 }
+
+/** GPU paint operators layered on top of the shared brush gesture engine. */
+export type PaintBrushStrokePlan = SampledBrushStrokePlan | ToneBrushStrokePlan;
 
 export const clampHealingDiffusion = (value: number): number =>
   Math.round(Math.min(7, Math.max(1, Number.isFinite(value) ? value : 5)));

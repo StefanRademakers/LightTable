@@ -3,6 +3,8 @@ import path from 'node:path';
 import process from 'node:process';
 
 const roots = [
+  'packages/genai-core/src',
+  'packages/genai-openart/src',
   'packages/text-core/src',
   'packages/pdf-core/src',
   'packages/vector-core/src',
@@ -25,6 +27,34 @@ const forbidden = [
 ];
 
 const failures = [];
+
+function verifyGenAiCoreBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/genai-core/src/')) return;
+  const forbiddenDependencies = [
+    'react', 'react-dom', 'electron', 'document.', 'window.', 'navigator.',
+    'node:fs', 'node:http', 'node:https', '@lighttable/app', '@lighttable/desktop'
+  ];
+  for (const token of forbiddenDependencies) {
+    if (source.includes(token)) {
+      failures.push(`${relativePath}: genai-core must not depend on ${token}`);
+    }
+  }
+}
+
+function verifyGenAiOpenArtBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/genai-openart/src/')) return;
+  const forbiddenDependencies = [
+    'react', 'react-dom', 'electron', 'document.', 'window.', 'navigator.',
+    'node:fs', '@lighttable/app', '@lighttable/desktop'
+  ];
+  for (const token of forbiddenDependencies) {
+    if (source.includes(token)) {
+      failures.push(`${relativePath}: genai-openart must not depend on ${token}`);
+    }
+  }
+}
 const rendererFacadePath =
   'packages/lighttable-app/src/lighttable/editor/rendering/LayerDocumentRenderer.ts';
 const rendererFacadeImports = new Set([
@@ -167,6 +197,8 @@ async function scan(relativeDirectory) {
 
     const source = await readFile(relativePath, 'utf8');
     verifyRendererFacadeImports(relativePath, source);
+    verifyGenAiCoreBoundary(relativePath, source);
+    verifyGenAiOpenArtBoundary(relativePath, source);
     verifyTextCoreBoundary(relativePath, source);
     verifyPdfCoreBoundary(relativePath, source);
     verifyVectorCoreBoundary(relativePath, source);

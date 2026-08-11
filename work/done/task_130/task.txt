@@ -1,0 +1,6 @@
+We hebben al een custom color picker..
+we willen overal in de app deze custom color picker gaan gebruiken.
+Hij moet wel altijd binnen het scherm vallen en het liefst niet over de swatch zelf heen.
+Dus plaatsing moet intelligenter dan een offset.
+
+En dus ook b.v. bij het klikken van een swatch op de gradient...

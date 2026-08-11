@@ -1,0 +1,65 @@
+# Task 115 — converge capability rules and make quality gates reject user-visible failures
+
+Priority: P1 architecture and quality-system repair.
+
+## Problem
+
+One user operation can currently be described independently by UI capability
+checks, controller guards, canonical document commands, GPU preflight and
+automation tests. Those copies can drift. Existing soak tests emphasize
+crashes, memory and latency on established happy paths; a rejected command that
+only produces a red status message can therefore leave the process healthy and
+the soak green.
+
+## Objective
+
+Make every cross-layer destructive operation derive support, planning,
+execution and diagnostics from one authoritative semantic contract. Extend the
+quality gates so unexpected user-visible errors, no-op commands and visual
+changes fail tests even when the app does not crash.
+
+## Required work
+
+- Inventory Merge Down, Merge Selected, rasterize, Flatten Group, Flatten
+  Image, duplicate, masks, clipping and transform baking from menu capability
+  through document mutation and GPU execution. Record every duplicated type,
+  hierarchy, lock, visibility, lazy-runtime and readiness rule.
+- Introduce one typed operation-plan/result boundary. A plan owns eligibility,
+  ordered source nodes, dependency closure, destination semantics and expected
+  resource/readiness requirements. UI and keyboard availability must query the
+  same planner that execution consumes.
+- Replace boolean GPU failures with bounded structured failure codes. Map an
+  expected temporary state to a neutral waiting/status path and an actual
+  defect to a diagnostic error; never collapse all causes into one generic red
+  message.
+- Add table-driven and generated matrices over every canonical layer kind,
+  order, visibility, opacity, lock state, clipping position, group nesting,
+  cached/live text state, missing/loaded lazy runtime and adjustment position.
+  Validate Merge Down, multi-select merge, group flatten and image flatten.
+- For every successful destructive operation compare the packaged WebGPU
+  canvas before/after within a documented tolerance, then validate undo and
+  redo. Include nontrivial transforms, masks, styles, off-canvas bounds and
+  color-profile fixtures.
+- Add an interaction error monitor shared by packaged smoke, owner workflows
+  and soak tests. Any unexpected error toast/status, rejected supported
+  command, unchanged revision after an accepted mutation, document-runtime
+  failure or page error fails the run and stores the responsible operation and
+  layer projection.
+- Add capability coverage reporting: every user-visible enabled command must
+  have at least one successful packaged workflow; every disabled state must
+  have an asserted reason. Soak action selection must cover semantic state
+  partitions, not only tool names.
+- Audit other subsystems for the same split-brain pattern and open focused
+  follow-ups rather than adding local compatibility helpers.
+
+## Completion criteria
+
+- No operation-specific layer-type allowlist remains duplicated across UI,
+  controller, document and renderer layers.
+- The complete semantic state matrix and packaged visual/undo/redo suite pass.
+- Injected GPU/readiness/lazy-resource failures produce exact structured
+  diagnostics and are detected by smoke and soak gates.
+- A deliberately introduced red user-facing error makes the soak/owner gate
+  fail, proving that the ratchet works.
+- Full boundary checks, typechecks, tests, web/desktop builds and the affected
+  multi-hour soak pass on the final commit.

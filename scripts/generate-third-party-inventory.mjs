@@ -31,7 +31,8 @@ const productDisclosureDefinitions = [
   { category: 'Bundled fonts', name: 'Noto Sans', packages: ['@fontsource/noto-sans'], description: 'Bundled multilingual sans-serif typeface.' },
   { category: 'Bundled fonts', name: 'Source Serif 4', packages: ['@fontsource/source-serif-4'], description: 'Bundled serif typeface.' },
   { category: 'Bundled fonts', name: 'JetBrains Mono', packages: ['@fontsource/jetbrains-mono'], description: 'Bundled monospaced typeface.' },
-  { category: 'AI and automation', name: 'Transformers.js', packages: ['@huggingface/transformers'], description: 'Local machine-learning model runtime.' }
+  { category: 'AI and automation', name: 'Transformers.js', packages: ['@huggingface/transformers'], description: 'Local machine-learning model runtime.' },
+  { category: 'AI and automation', name: 'MediaPipe Tasks Vision', packages: ['@mediapipe/tasks-vision'], description: 'On-device face landmark detection runtime.' }
 ];
 
 const readJson = (path) => JSON.parse(readFileSync(resolve(repositoryRoot, path), 'utf8'));
@@ -144,6 +145,17 @@ const inventory = {
     license: 'Apache-2.0',
     source: 'https://huggingface.co/onnx-community/depth-anything-v2-small-ONNX',
     loading: 'Downloaded lazily when depth estimation is requested.'
+  }, {
+    name: 'Xenova/slimsam-77-uniform',
+    license: 'Apache-2.0',
+    source: 'https://huggingface.co/Xenova/slimsam-77-uniform',
+    loading: 'Downloaded lazily when Object Selection is first requested.'
+  }, {
+    name: 'MediaPipe Face Landmarker model',
+    license: 'Apache-2.0',
+    source: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+    loading: 'Bundled locally and loaded lazily when face detection is requested.',
+    sha256: '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff'
   }],
   npm,
   cargo

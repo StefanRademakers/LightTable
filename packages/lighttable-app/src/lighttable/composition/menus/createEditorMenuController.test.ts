@@ -45,9 +45,9 @@ describe('createEditorMenuController', () => {
         clearRecent: vi.fn(),
         save: vi.fn(),
         exportPng: vi.fn(),
+        exportJpeg: vi.fn(),
         exportPsd: vi.fn(),
         pdfExportPreflight: vi.fn(),
-        openCompatibilityReport: vi.fn(),
         openFormatSupport: vi.fn()
       },
       edit: {
@@ -90,6 +90,7 @@ describe('createEditorMenuController', () => {
       },
       workspace: {
         showDebugPanel: vi.fn(),
+        showGenAiPanel: vi.fn(),
         toggleScreenMode: vi.fn(),
         resetLayout: vi.fn()
       }
@@ -135,9 +136,8 @@ describe('createEditorMenuController', () => {
       labels: { primaryShortcut: (key) => `Ctrl+${key}` },
       file: {
         newDocument: vi.fn(), open: vi.fn(), place: vi.fn(), recentFiles: [],
-        openRecent: vi.fn(), clearRecent: vi.fn(), save: vi.fn(), exportPng: vi.fn(), exportPsd: vi.fn(),
+        openRecent: vi.fn(), clearRecent: vi.fn(), save: vi.fn(), exportPng: vi.fn(), exportJpeg: vi.fn(), exportPsd: vi.fn(),
         pdfExportPreflight: vi.fn(),
-        openCompatibilityReport: vi.fn(),
         openFormatSupport: vi.fn()
       },
       edit: {
@@ -158,7 +158,7 @@ describe('createEditorMenuController', () => {
         setShowOriginal: vi.fn(), setShowDifference: vi.fn()
       },
       workspace: {
-        showDebugPanel: vi.fn(), toggleScreenMode: vi.fn(), resetLayout: vi.fn()
+        showDebugPanel: vi.fn(), showGenAiPanel: vi.fn(), toggleScreenMode: vi.fn(), resetLayout: vi.fn()
       }
     });
 

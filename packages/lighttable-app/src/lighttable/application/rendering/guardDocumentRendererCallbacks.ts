@@ -31,5 +31,8 @@ export const guardDocumentRendererCallbacks = (
   },
   onFirstFrame: () => {
     if (isCurrent()) callbacks.onFirstFrame?.();
+  },
+  onCompositeRendered: () => {
+    if (isCurrent()) callbacks.onCompositeRendered?.();
   }
 });

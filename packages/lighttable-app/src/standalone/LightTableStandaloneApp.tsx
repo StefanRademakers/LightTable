@@ -9,7 +9,10 @@ import { type DocumentSessionId } from '../lighttable/application/documents/docu
 import {
   createBrowserHost,
   type LightTableHost,
-  type LightTableRecentFile
+  type LightTableRecentFile,
+  type LightTableProjectSummary,
+  type LightTableRecentProject,
+  type LightTableProjectLocation
 } from '../platform/LightTableHost';
 import { StandaloneDocumentRuntimeView } from './StandaloneDocumentRuntimeView';
 import type { EditorScreenMode } from '../lighttable/LightTableEditorOverlay';
@@ -26,6 +29,7 @@ import {
 } from '../lighttable/image-io/supportedImageFormats';
 import { createBlankPngFile } from './createBlankPngFile';
 import { NewDocumentDialog } from './NewDocumentDialog';
+import { NewProjectDialog } from './NewProjectDialog';
 import {
   LightTableCommandPortRegistry,
   LightTableCommandService
@@ -247,6 +251,39 @@ export function LightTableStandaloneApp({
   const [guidedSample, setGuidedSample] = useState<GuidedSampleSession | null>(null);
   const [telemetryEnabled, setTelemetryEnabled] = useState(() => host.funnel?.enabled() ?? false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
+  const [activeProject, setActiveProject] = useState<LightTableProjectSummary | null>(null);
+  const [recentProjects, setRecentProjects] = useState<readonly LightTableRecentProject[]>([]);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [projectCreating, setProjectCreating] = useState(false);
+  const [projectLocation, setProjectLocation] = useState<LightTableProjectLocation | null>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [documentThumbnailUrls, setDocumentThumbnailUrls] = useState<Record<string, string>>({});
+  const documentThumbnailUrlsRef = useRef(documentThumbnailUrls);
+  documentThumbnailUrlsRef.current = documentThumbnailUrls;
+  const publishDocumentThumbnail = useCallback((documentId: DocumentSessionId, thumbnail: Blob) => {
+    const nextUrl = URL.createObjectURL(thumbnail);
+    setDocumentThumbnailUrls((current) => {
+      const previous = current[documentId];
+      if (previous) URL.revokeObjectURL(previous);
+      return { ...current, [documentId]: nextUrl };
+    });
+  }, []);
+  useEffect(() => () => {
+    Object.values(documentThumbnailUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+  }, []);
+  useEffect(() => {
+    const openDocumentIds = new Set(documents.map(({ id }) => id));
+    setDocumentThumbnailUrls((current) => {
+      const stale = Object.keys(current).filter((id) => !openDocumentIds.has(id as DocumentSessionId));
+      if (!stale.length) return current;
+      const next = { ...current };
+      for (const id of stale) {
+        URL.revokeObjectURL(next[id]);
+        delete next[id];
+      }
+      return next;
+    });
+  }, [documents]);
   const [recoveryListing, setRecoveryListing] = useState<LightTableRecoveryListing>({
     records: [],
     rejections: []
@@ -335,9 +372,80 @@ export function LightTableStandaloneApp({
     }
   }, [host]);
 
+  const refreshRecentProjects = useCallback(async () => {
+    try {
+      setRecentProjects(await host.projects?.listRecent() ?? []);
+    } catch {
+      setRecentProjects([]);
+    }
+  }, [host.projects]);
+
+  const requestNewProject = useCallback(() => {
+    setProjectError(null);
+    setNewProjectOpen(true);
+  }, []);
+
+  const chooseProjectLocation = useCallback(async () => {
+    try {
+      const selected = await host.projects?.chooseParentLocation() ?? null;
+      if (selected) setProjectLocation(selected);
+    } catch (reason) {
+      setProjectError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, [host.projects]);
+
+  const createProject = useCallback(async (name: string) => {
+    if (!host.projects || !projectLocation) return;
+    setProjectCreating(true);
+    setProjectError(null);
+    try {
+      setActiveProject(await host.projects.create({
+        name,
+        parentPath: projectLocation.path,
+        folders: preferences.projects.folders,
+        userFolders: preferences.projects.userFolders
+      }));
+      setNewProjectOpen(false);
+      await refreshRecentProjects();
+    } catch (reason) {
+      setProjectError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setProjectCreating(false);
+    }
+  }, [host.projects, preferences.projects.folders, preferences.projects.userFolders, projectLocation, refreshRecentProjects]);
+
+  const openProject = useCallback(async () => {
+    try {
+      const project = await host.projects?.open() ?? null;
+      if (project) {
+        setActiveProject(project);
+        await refreshRecentProjects();
+      }
+    } catch (reason) {
+      setProjectError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, [host.projects, refreshRecentProjects]);
+
+  const openRecentProject = useCallback(async (recentId: string) => {
+    try {
+      const project = await host.projects?.openRecent(recentId) ?? null;
+      if (project) setActiveProject(project);
+      await refreshRecentProjects();
+    } catch (reason) {
+      setProjectError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, [host.projects, refreshRecentProjects]);
+
+  const clearRecentProjects = useCallback(async () => {
+    await host.projects?.clearRecent();
+    await refreshRecentProjects();
+  }, [host.projects, refreshRecentProjects]);
+
   useEffect(() => {
     if (snapshot.documentOrder.length === 0) void refreshRecentFiles();
   }, [refreshRecentFiles, snapshot.documentOrder.length]);
+
+  useEffect(() => { void refreshRecentProjects(); }, [refreshRecentProjects]);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
@@ -529,8 +637,10 @@ export function LightTableStandaloneApp({
   }, [closeWorkspaceDocument, documents, host]);
 
   const workspaceDocuments = useMemo(
-    () => documents.map(({ id, title, dirty }) => ({ id, title, dirty })),
-    [documents]
+    () => documents.map(({ id, title, dirty }) => ({
+      id, title, dirty, thumbnailUrl: documentThumbnailUrls[id]
+    })),
+    [documentThumbnailUrls, documents]
   );
 
   if (snapshot.documentOrder.length === 0) {
@@ -669,6 +779,35 @@ export function LightTableStandaloneApp({
             </section>
           </div>
 
+          {host.projects ? (
+            <section className="lighttable-launcher__project-bar" aria-label="Project workspace">
+              <strong>{activeProject ? `Project: ${activeProject.name}` : 'Standalone workspace'}</strong>
+              <button className="action-button" type="button" onClick={requestNewProject}>New project</button>
+              <button className="action-button" type="button" onClick={() => void openProject()}>Open project</button>
+              {activeProject ? (
+                <button className="action-button" type="button" onClick={() => {
+                  void host.projects?.close();
+                  setActiveProject(null);
+                }}>Close project</button>
+              ) : null}
+            </section>
+          ) : null}
+
+          {recentProjects.length > 0 ? (
+            <section className="lighttable-launcher__recent-section">
+              <h2>Recent projects</h2>
+              <div className="lighttable-launcher__utility-actions">
+                {recentProjects.slice(0, 8).map((project) => (
+                  <button className="action-button" type="button" key={project.recentId}
+                    disabled={!project.available} title={project.manifestPath}
+                    onClick={() => void openRecentProject(project.recentId)}>
+                    {project.name}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <section className="lighttable-launcher__local-first" aria-label="Local-first editing">
             <strong>Your files stay local.</strong>
             <span>Open PNG, JPEG, WebP, TIFF, PSD/PSB and PDF. Unsupported document features are preserved with a preview and reported before export.</span>
@@ -712,6 +851,11 @@ export function LightTableStandaloneApp({
           onCancel={() => setNewDialogOpen(false)}
           onCreate={(size) => void createDocument(size)}
         />
+        <NewProjectDialog open={newProjectOpen} creating={projectCreating}
+          location={projectLocation} error={projectError}
+          onChooseLocation={() => void chooseProjectLocation()}
+          onCancel={() => setNewProjectOpen(false)}
+          onCreate={(name) => void createProject(name)} />
         <AboutUpdateDialog
           open={aboutOpen}
           release={host.release}
@@ -770,6 +914,19 @@ export function LightTableStandaloneApp({
           recentFiles={recentFiles}
           onOpenRecent={openRecentDocument}
           onClearRecent={clearRecentFiles}
+          activeProject={activeProject}
+          recentProjects={recentProjects}
+          onRequestNewProject={requestNewProject}
+          onRequestOpenProject={() => void openProject()}
+          onOpenRecentProject={(recentId) => void openRecentProject(recentId)}
+          onClearRecentProjects={() => void clearRecentProjects()}
+          onCloseProject={() => {
+            void host.projects?.close();
+            setActiveProject(null);
+          }}
+          onRevealProject={() => {
+            if (activeProject) void host.projects?.reveal(activeProject);
+          }}
           onRequestNew={requestNewDocument}
           onStartGuidedSample={() => void startGuidedSample()}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -777,6 +934,7 @@ export function LightTableStandaloneApp({
           preferences={preferences}
           onOpen={openDocument}
           onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
+          onDocumentThumbnailChange={publishDocumentThumbnail}
         />
       ))}
       <NewDocumentDialog
@@ -786,6 +944,11 @@ export function LightTableStandaloneApp({
         onCancel={() => setNewDialogOpen(false)}
         onCreate={(size) => void createDocument(size)}
       />
+      <NewProjectDialog open={newProjectOpen} creating={projectCreating}
+        location={projectLocation} error={projectError}
+        onChooseLocation={() => void chooseProjectLocation()}
+        onCancel={() => setNewProjectOpen(false)}
+        onCreate={(name) => void createProject(name)} />
       <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
         onCancel={() => setSettingsOpen(false)} onSave={(next) => {
           saveApplicationPreferences(next);

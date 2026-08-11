@@ -1,0 +1,36 @@
+# Task 133 - Extract oversized facades without changing behavior
+
+## Goal
+
+Bring the source-structure and architecture-documentation quality ratchets
+back to green by extracting coherent bounded-context modules. Do not increase
+file-size ceilings and do not mix behavior changes into the extraction.
+
+## Work packages
+
+- [ ] Extract Face Warp orchestration/state from `LightTableEditorOverlay.tsx`.
+- [ ] Extract GenAI, project and recovery IPC registration from desktop
+      `main.ts` into separate service adapters.
+- [ ] Split `layerShaders.ts` by stable responsibility (brush/deformation,
+      effects and compositing) while retaining shared WGSL contracts.
+- [ ] Extract the indexed deformation/Face Warp render pass from
+      `WebGpuEngine.ts` behind its existing face-agnostic surface contract.
+- [ ] Split pointer-mode routing from `useViewportInteractionController.ts`.
+- [ ] Resolve the smaller existing cap overruns in document commands, native
+      format serialization, LayerPanel and shared shaders.
+
+## Guardrails
+
+- Preserve public contracts and visual output exactly.
+- One extraction and focused test set per commit.
+- Run the affected unit tests and boundary checks after each extraction; run
+  the full source/architecture audits once at the end.
+- Record before/after line counts and do not replace one oversized facade with
+  another generic utility module.
+
+## Acceptance
+
+- `npm run audit:source-structure` passes without raised limits.
+- `npm run audit:architecture-docs` passes.
+- Typecheck, focused rendering tests and the desktop editor stress corpus stay
+  green with no visual or performance regression.

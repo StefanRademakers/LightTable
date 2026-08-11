@@ -855,6 +855,17 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/** Presentation-neutral final-composite reduction used for document tabs. */
+export const DOCUMENT_THUMBNAIL_WGSL = /* wgsl */ `
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var sourceSampler: sampler;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  return textureSampleLevel(sourceTexture, sourceSampler, input.uv, 0.0);
+}
+`;
+
 // Presentation-only view of the active layer mask. The source remains the
 // document-owned mask texture, so painting updates this view without creating
 // a second mask or passing through grade, Lens Fx, alpha compositing or scopes.

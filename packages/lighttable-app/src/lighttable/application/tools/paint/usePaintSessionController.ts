@@ -22,7 +22,10 @@ import {
   type PaintGestureUpdate
 } from '../../../editor/tools/paint/paintGestureController';
 import { srgbHexToLinearRgb } from '../fill/fillOperation';
-import type { SampledBrushStrokePlan } from '../../../editor/tools/paint/sampledBrushTypes';
+import type {
+  PaintBrushStrokePlan,
+  SampledBrushStrokePlan
+} from '../../../editor/tools/paint/sampledBrushTypes';
 import {
   createImmediatePaintDabScheduler,
   createPaintDabScheduler,
@@ -55,7 +58,7 @@ export interface PaintSessionRendererPort {
     sourceToDocument: PaintGestureTarget['sourceToDocument'],
     tip: ReturnType<typeof resolveBrushPreset>['tip'],
     engine: ReturnType<typeof resolveBrushPreset>['engine'],
-    operator?: SampledBrushStrokePlan
+    operator?: PaintBrushStrokePlan
   ): void;
   finishPixelEdit(): ReversiblePixelEdit | null;
   cancelPixelEdit(): void;
@@ -78,7 +81,7 @@ export interface BeginPaintSession {
   point: BrushPoint;
   /** Document-to-screen scale used to keep large-tip spacing visually continuous. */
   displayScale?: number;
-  operator?: SampledBrushStrokePlan;
+  operator?: PaintBrushStrokePlan;
 }
 
 export interface PaintSessionController {
@@ -118,7 +121,7 @@ export const createPaintSessionController = (
   frame?: PaintFramePort
 ): PaintSessionController => {
   let activeBrush: BrushSettings | null = null;
-  let activeOperator: SampledBrushStrokePlan | null = null;
+  let activeOperator: PaintBrushStrokePlan | null = null;
 
   const paint = (update: PaintGestureUpdate) => {
     if (!update.dabs.length || !activeBrush) return;
@@ -170,7 +173,7 @@ export const createPaintSessionController = (
       try {
         renderer.setPaintInteractionActive(true, layer.id);
         renderer.beginBrushStroke(layer, target.channel);
-        if (operator) renderer.beginSampledBrushStroke(operator);
+        if (operator && operator.operator !== 'tone') renderer.beginSampledBrushStroke(operator);
         activeBrush = cloneBrush(brush);
         activeOperator = operator ?? null;
         paintScheduler.schedule(gesture.begin(pointerId, target, {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import type { RgbHistogram } from './types';
 
 interface HistogramProps {
@@ -31,7 +31,7 @@ const resolveDisplayPeak = (channels: number[][]) => {
 export const Histogram: React.FC<HistogramProps> = ({ histogram }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  useEffect(() => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -91,6 +91,15 @@ export const Histogram: React.FC<HistogramProps> = ({ histogram }) => {
     strokeChannel(channels[0], '#ff424c');
     context.globalCompositeOperation = 'source-over';
   }, [histogram]);
+
+  useEffect(() => {
+    draw();
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => draw());
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [draw]);
 
   return <canvas ref={canvasRef} className="lighttable-histogram" aria-label="RGB histogram" />;
 };

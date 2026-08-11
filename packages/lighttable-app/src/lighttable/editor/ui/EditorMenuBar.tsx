@@ -4,6 +4,7 @@ import {
   type ContextMenuOption
 } from '../../../ui/ContextMenu';
 import type { EditorMenuId } from '../menus/createEditorMenuOptions';
+import { lightTableIcon } from '../../../assets/icons';
 
 interface OpenEditorMenu {
   readonly id: EditorMenuId;
@@ -15,6 +16,8 @@ export interface EditorMenuBarProps {
   readonly optionsFor: (
     id: EditorMenuId
   ) => Array<ContextMenuOption<string>>;
+  readonly projectName?: string;
+  readonly onRevealProject?: () => void;
 }
 
 const MENU_ITEMS: ReadonlyArray<{
@@ -27,6 +30,7 @@ const MENU_ITEMS: ReadonlyArray<{
   { id: 'layer', label: 'Layer' },
   { id: 'type', label: 'Type' },
   { id: 'select', label: 'Select' },
+  { id: 'ai', label: 'AI' },
   { id: 'view', label: 'View' },
   { id: 'help', label: 'Help' }
 ];
@@ -37,7 +41,9 @@ const MENU_ITEMS: ReadonlyArray<{
  * shell bound to a stale document.
  */
 export const EditorMenuBar = ({
-  optionsFor
+  optionsFor,
+  projectName,
+  onRevealProject
 }: EditorMenuBarProps) => {
   const [openMenu, setOpenMenu] = useState<OpenEditorMenu | null>(null);
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -106,6 +112,15 @@ export const EditorMenuBar = ({
             {label}
           </button>
         ))}
+        {projectName ? (
+          <button type="button" className="lighttable__project-name"
+            title={`Open project folder: ${projectName}`}
+            aria-label={`Open project folder for ${projectName}`}
+            onClick={onRevealProject}>
+            <img src={lightTableIcon('folder.png')} alt="" aria-hidden />
+            <span>{projectName}</span>
+          </button>
+        ) : null}
       </div>
       <ContextMenu
         open={Boolean(openMenu)}

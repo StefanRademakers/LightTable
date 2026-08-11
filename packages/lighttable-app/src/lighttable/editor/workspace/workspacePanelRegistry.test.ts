@@ -16,7 +16,9 @@ describe('workspacePanelRegistry', () => {
       layers: 'layers',
       channels: 'channels',
       debug: 'debug',
-      agent: 'agent'
+      agent: 'agent',
+      genAi: 'genAi',
+      aiHistory: 'aiHistory'
     };
 
     const panels = createDefaultLightTableWorkspacePanels(content);
@@ -31,7 +33,9 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.debug,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory
     ]);
     expect(panels.map((panel) => panel.content)).toEqual([
       content.layers,
@@ -43,7 +47,9 @@ describe('workspacePanelRegistry', () => {
       content.color,
       content.text,
       content.debug,
-      content.agent
+      content.agent,
+      content.genAi,
+      content.aiHistory
     ]);
     expect(panels.map((panel) => panel.contentKey)).toEqual([
       'layers',
@@ -55,7 +61,9 @@ describe('workspacePanelRegistry', () => {
       'color',
       'text',
       'debug',
-      'agent'
+      'agent',
+      'genAi',
+      'aiHistory'
     ]);
     expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.grade)?.title)
       .toBe('Grade');
@@ -72,7 +80,9 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory
     ]);
   });
 
@@ -87,7 +97,9 @@ describe('workspacePanelRegistry', () => {
       layers: null,
       channels: null,
       debug: null,
-      agent: null
+      agent: null,
+      genAi: null,
+      aiHistory: null
     });
     const scopesPanel = panels.find(
       (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes
@@ -113,7 +125,9 @@ describe('workspacePanelRegistry', () => {
       layers: null,
       channels: null,
       debug: null,
-      agent: null
+      agent: null,
+      genAi: null,
+      aiHistory: null
     });
     const debugPanel = panels.find(
       (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
@@ -164,7 +178,9 @@ describe('workspacePanelRegistry', () => {
       layers: null,
       channels: null,
       debug: null,
-      agent: null
+      agent: null,
+      genAi: null,
+      aiHistory: null
     });
     const layersPanel = panels.find(
       (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.layers

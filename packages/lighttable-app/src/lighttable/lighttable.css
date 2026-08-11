@@ -595,6 +595,36 @@
   align-items: stretch;
 }
 
+.lighttable__project-name {
+  align-self: center;
+  margin-left: 8px;
+  padding: 0 8px 0 12px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  appearance: none;
+  border: 0;
+  border-left: 1px solid var(--lt-border-subtle);
+  background: transparent;
+  color: var(--lt-text-muted);
+  font-size: var(--lt-type-caption);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lighttable__project-name:hover {
+  color: var(--lt-text-primary);
+  background: var(--lt-surface-control-hover);
+}
+
+.lighttable__project-name img {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  opacity: 0.75;
+}
+
 .lighttable__app-menu .shots-app-menu__button {
   height: 36px;
   min-width: 0;
@@ -917,6 +947,7 @@
 }
 
 .lighttable-document-tab {
+  position: relative;
   min-width: 120px;
   max-width: 280px;
   display: flex;
@@ -924,6 +955,41 @@
   border-right: 1px solid var(--lt-border);
   color: var(--lt-text-muted);
   background: var(--lt-surface-tab);
+}
+
+.lighttable-document-tab__preview {
+  position: fixed;
+  z-index: 130;
+  top: 76px;
+  width: 272px;
+  max-height: 300px;
+  display: none;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-sm);
+  background: var(--lt-surface-popover);
+  box-shadow: var(--lt-shadow-floating);
+  pointer-events: none;
+}
+
+.lighttable-document-tab:hover .lighttable-document-tab__preview {
+  display: grid;
+}
+
+.lighttable-document-tab__preview img {
+  width: 256px;
+  max-height: 256px;
+  object-fit: contain;
+  background: var(--lt-surface-canvas);
+}
+
+.lighttable-document-tab__preview span {
+  overflow: hidden;
+  color: var(--lt-text-primary);
+  font-size: var(--lt-type-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lighttable-document-tab--active {
@@ -1099,6 +1165,8 @@
   cursor: pointer;
 }
 
+.lighttable-toolbox__color.color-swatch-field { overflow: visible; }
+
 .lighttable-toolbox__color--background {
   right: 2px;
   bottom: 1px;
@@ -1107,15 +1175,6 @@
 .lighttable-toolbox__color--foreground {
   left: 2px;
   bottom: 10px;
-}
-
-.lighttable-toolbox__color input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
 }
 
 .lighttable-toolbox__reset-colors,
@@ -2035,6 +2094,512 @@
   min-height: 0;
   overflow-y: auto;
   padding: 0 0 18px;
+}
+
+.genai-panel {
+  height: 100%;
+  min-height: 0;
+}
+
+.genai-panel__form {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.genai-panel__body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 10px 10px;
+}
+
+.genai-panel__mode-switch {
+  width: max-content;
+  margin: 0 auto 12px;
+}
+
+.genai-panel__provider-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.genai-panel__provider-light {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 50%;
+  background: #21c96b;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 25%);
+}
+
+.genai-panel__workflow.form-input {
+  width: 100%;
+  height: 36px;
+  margin-bottom: 12px;
+  font-weight: var(--lt-weight-semibold);
+}
+
+.genai-panel__reference-well {
+  min-height: 112px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px dashed var(--lt-border-strong);
+  border-radius: 5px;
+  background: var(--lt-surface-inset);
+}
+
+.genai-panel__reference-well header {
+  display: flex;
+  justify-content: space-between;
+  color: var(--lt-text-secondary);
+}
+
+.genai-panel__reference-well p {
+  margin: 28px 0 0;
+  color: var(--lt-text-subtle);
+  text-align: center;
+}
+
+.genai-panel__reference-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.genai-panel__reference-item {
+  position: relative;
+  width: 58px;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: 4px;
+  background: var(--lt-surface-control);
+}
+
+.genai-panel__reference-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.genai-panel__reference-item strong {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  left: 2px;
+  overflow: hidden;
+  color: #fff;
+  font-size: var(--lt-type-caption);
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+
+.genai-panel__notice,
+.genai-panel__status,
+.genai-panel__footer > span {
+  color: var(--lt-text-subtle);
+  font-size: var(--lt-type-caption);
+}
+
+.genai-prompt-composer__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: var(--lt-text-primary);
+  font-weight: var(--lt-weight-semibold);
+}
+
+.genai-prompt-composer__heading span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.genai-prompt-composer__heading i {
+  width: 1px;
+  height: 12px;
+  background: var(--lt-border-strong);
+}
+
+.genai-prompt-composer__editor {
+  position: relative;
+}
+
+.genai-prompt-composer__input {
+  min-height: 250px;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-control-radius);
+  outline: none;
+  background: var(--lt-surface-inset);
+  color: var(--lt-text-primary);
+  font-family: inherit;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.genai-prompt-composer__input:focus {
+  border-color: var(--lt-accent);
+}
+
+.genai-prompt-composer__input:empty::before {
+  color: var(--lt-text-subtle);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.genai-prompt-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  color: #ffd54a;
+  background: rgb(255 213 74 / 10%);
+  vertical-align: baseline;
+}
+
+.genai-prompt-token img {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.genai-prompt-token--missing {
+  color: var(--lt-danger);
+  background: rgb(255 80 80 / 10%);
+}
+
+.genai-prompt-composer__suggestions {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  left: 0;
+  top: calc(100% + 3px);
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-control-radius);
+  background: var(--lt-surface-inset);
+  box-shadow: var(--lt-shadow-editor);
+}
+
+.genai-prompt-composer__suggestion {
+  width: 100%;
+  min-width: 0;
+  padding: 5px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--lt-control-radius);
+  color: var(--lt-text-primary);
+  background: transparent;
+  text-align: left;
+}
+
+.genai-prompt-composer__suggestion:hover,
+.genai-prompt-composer__suggestion.is-active {
+  background: var(--lt-surface-control-hover);
+}
+
+.genai-prompt-composer__suggestion small,
+.genai-prompt-composer__suggestion strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.genai-prompt-composer__suggestion small {
+  color: var(--lt-text-subtle);
+}
+
+.genai-prompt-composer__thumb,
+.genai-prompt-composer__reference img {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--lt-border);
+  background: var(--lt-surface-inset);
+}
+
+.genai-prompt-composer__thumb {
+  width: 40px;
+  height: 40px;
+}
+
+.genai-prompt-composer__thumb img,
+.genai-prompt-composer__reference img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.genai-panel__reference-add {
+  width: 100%;
+  min-height: 54px;
+  border: 1px dashed var(--lt-border-strong);
+  border-radius: var(--lt-control-radius);
+  background: transparent;
+  color: var(--lt-text-secondary);
+}
+
+.genai-panel__reference-add:hover {
+  border-color: var(--lt-accent);
+  color: var(--lt-text-primary);
+}
+
+.genai-panel__reference-picker {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--lt-border-strong);
+  background: var(--lt-surface-inset);
+}
+
+.genai-panel__reference-picker > button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  border: 0;
+  border-radius: var(--lt-control-radius);
+  background: transparent;
+  color: var(--lt-text-primary);
+  text-align: left;
+}
+
+.genai-panel__reference-picker > button:hover,
+.genai-panel__reference-picker > button[aria-selected="true"] {
+  background: var(--lt-surface-control-hover);
+}
+
+.genai-panel__reference-picker strong,
+.genai-panel__reference-picker small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.genai-panel__reference-picker small {
+  color: var(--lt-text-subtle);
+}
+
+.genai-panel__settings {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.genai-panel__field {
+  display: grid;
+  grid-template-columns: minmax(86px, 38%) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.genai-panel__advanced {
+  margin-top: 12px;
+  color: var(--lt-text-secondary);
+}
+
+.genai-panel__advanced summary {
+  cursor: pointer;
+}
+
+.genai-panel__error {
+  color: var(--lt-danger);
+}
+
+.genai-panel__result {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-caption);
+}
+
+.genai-panel__result img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border: 1px solid var(--lt-border);
+  background: var(--lt-surface-inset);
+}
+
+.genai-panel__featured-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.genai-panel__featured-settings label,
+.genai-panel__featured-setting {
+  min-width: 0;
+  min-height: 62px;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 5px;
+  background: var(--lt-surface-inset);
+}
+
+.genai-panel__featured-setting > button {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--lt-text-primary);
+}
+
+.genai-panel__featured-settings select {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  background: transparent;
+  color: var(--lt-text-primary);
+  font: inherit;
+  font-weight: var(--lt-weight-semibold);
+  text-align: center;
+  text-align-last: center;
+}
+
+.genai-panel__setting-icon {
+  color: var(--lt-text-secondary);
+  font-size: 16px;
+}
+
+.genai-panel__footer {
+  min-height: 56px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  gap: 10px;
+  border-top: 1px solid var(--lt-border);
+  background: var(--lt-surface-panel);
+}
+
+.genai-panel__footer > .action-button {
+  flex: 1 1 auto;
+}
+
+.genai-panel__cost {
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-caption);
+  white-space: nowrap;
+}
+
+.genai-panel__output-count {
+  height: var(--lt-control-height);
+  display: grid;
+  grid-template-columns: 28px 52px 28px;
+  align-items: center;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-control-radius);
+  background: var(--lt-surface-inset);
+  text-align: center;
+}
+
+.genai-panel__output-count button {
+  height: 100%;
+  border: 0;
+  color: var(--lt-text-primary);
+  background: transparent;
+}
+
+.genai-history__job {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.genai-history__thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.genai-history__job > strong,
+.genai-history__job > span,
+.genai-history__job > small,
+.genai-history__actions {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.genai-history__job > strong,
+.genai-history__job > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.genai-history__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.genai-history__queue > h3,
+.genai-history__history > h3 {
+  margin: 10px 0 6px;
+  font-size: var(--lt-type-body);
+}
+
+.genai-history__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
+  gap: 8px;
+}
+
+.genai-history__card {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-control-radius);
+  background: var(--lt-surface-inset);
+}
+
+.genai-history__preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  color: var(--lt-text-muted);
+  background: var(--lt-surface-deep);
+}
+
+.genai-history__card > strong,
+.genai-history__card > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lighttable-agent-activity__title,

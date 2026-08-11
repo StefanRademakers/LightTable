@@ -15,7 +15,8 @@ import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { BrushPipelineBundle, ToolPipelineBundle } from './ToolPipelineBundle';
 import { blurBrushSourceBounds, brushHistoryRegions } from './brushHistoryRegions';
-import type { SampledBrushStrokePlan } from '../tools/paint/sampledBrushTypes';
+import type { PaintBrushStrokePlan, SampledBrushStrokePlan } from '../tools/paint/sampledBrushTypes';
+import type { ToneBrushStrokePlan } from '../tools/paint/toneBrushTypes';
 
 interface RasterPaintServiceOptions {
   device: GPUDevice;
@@ -69,6 +70,7 @@ export class RasterPaintService {
     readonly plan: SampledBrushStrokePlan;
   } | null = null;
   private sampledSourceSettingsBuffer: GPUBuffer | null = null;
+  private toneSettingsBuffer: GPUBuffer | null = null;
 
   constructor(private readonly options: RasterPaintServiceOptions) {}
 
@@ -130,7 +132,7 @@ export class RasterPaintService {
     preserveTransparency = false,
     tip: BrushTipDefinition = DEFAULT_BRUSH_TIP,
     engine: BrushEngine = 'paint',
-    operator?: SampledBrushStrokePlan
+    operator?: PaintBrushStrokePlan
   ) {
     if (!dabs.length) return;
     const pipelines = this.options.brushPipelines();
@@ -173,10 +175,11 @@ export class RasterPaintService {
       : color;
     const localRegions = brushHistoryRegions(dabs, inverse);
     this.options.captureHistoryRegions(layerId, channel, localRegions);
-    const blurSourceBounds = engine === 'blur'
+    const usesScratchSource = engine === 'blur' || operator?.operator === 'tone';
+    const blurSourceBounds = usesScratchSource
       ? blurBrushSourceBounds(dabs, inverse, width, height)
       : null;
-    if (engine === 'blur' && !blurSourceBounds) return;
+    if (usesScratchSource && !blurSourceBounds) return;
     const values = new Float32Array(dabs.length * 12);
     dabs.forEach((dab, index) => {
       const pressure = Math.min(1, Math.max(0.05, dab.pressure || 1));
@@ -195,6 +198,43 @@ export class RasterPaintService {
     });
     const dabBuffer = this.ensureBrushDabBuffer(values.byteLength);
     this.options.device.queue.writeBuffer(dabBuffer, 0, values);
+    if (operator?.operator === 'tone') {
+      if (channel !== 'pixels') {
+        throw new Error('Tone brushes require an editable pixel layer.');
+      }
+      const source = this.ensureBlurSource(layerId, width, height);
+      const settings = this.ensureToneSettings(operator);
+      const pipeline = pipelines.tone;
+      const bindGroup = this.options.device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: dabBuffer } },
+          { binding: 1, resource: { buffer: canvasBuffer } },
+          { binding: 2, resource: selection.createView() },
+          { binding: 3, resource: source.createView() },
+          { binding: 4, resource: this.options.sampler },
+          { binding: 5, resource: { buffer: settings } }
+        ]
+      });
+      const encoder = this.options.device.createCommandEncoder({
+        label: `LightTable ${operator.mode} brush dabs`
+      });
+      encoder.copyTextureToTexture(
+        { texture: target, origin: { x: blurSourceBounds!.x, y: blurSourceBounds!.y } },
+        { texture: source, origin: { x: blurSourceBounds!.x, y: blurSourceBounds!.y } },
+        [blurSourceBounds!.width, blurSourceBounds!.height]
+      );
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [{ view: target.createView(), loadOp: 'load', storeOp: 'store' }]
+      });
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(6, dabs.length);
+      pass.end();
+      this.options.device.queue.submit([encoder.finish()]);
+      this.options.invalidateLayer(layerId);
+      return;
+    }
     if (operator) {
       if (channel !== 'pixels') {
         throw new Error('Sampled brushes require an editable pixel layer.');
@@ -507,6 +547,8 @@ export class RasterPaintService {
     this.endSampledStroke();
     this.sampledSourceSettingsBuffer?.destroy();
     this.sampledSourceSettingsBuffer = null;
+    this.toneSettingsBuffer?.destroy();
+    this.toneSettingsBuffer = null;
   }
 
   private ensureBlurSource(layerId: LayerId, width: number, height: number) {
@@ -524,6 +566,23 @@ export class RasterPaintService {
         .then(() => current.texture.destroy());
     }
     return texture;
+  }
+
+  private ensureToneSettings(plan: ToneBrushStrokePlan) {
+    this.toneSettingsBuffer ??= this.options.device.createBuffer({
+      label: 'LightTable tone brush settings',
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const mode = plan.mode === 'dodge' ? 0 : plan.mode === 'burn' ? 1
+      : plan.spongeMode === 'saturate' ? 2 : 3;
+    const range = plan.range === 'shadows' ? 0 : plan.range === 'midtones' ? 1 : 2;
+    this.options.device.queue.writeBuffer(
+      this.toneSettingsBuffer,
+      0,
+      new Float32Array([mode, range, plan.protectTones ? 1 : 0, plan.vibrance ? 1 : 0])
+    );
+    return this.toneSettingsBuffer;
   }
 
   private ensureBrushCanvasBuffer() {

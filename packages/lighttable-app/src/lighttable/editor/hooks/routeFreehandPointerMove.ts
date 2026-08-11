@@ -7,7 +7,7 @@ import type { BrushPoint } from '../tools/brush/strokeBuilder';
 
 interface PointerSample extends Pick<
   globalThis.PointerEvent,
-  'clientX' | 'clientY' | 'pressure' | 'pointerId' | 'tiltX' | 'tiltY' | 'timeStamp'
+  'clientX' | 'clientY' | 'pressure' | 'pointerId' | 'pointerType' | 'tiltX' | 'tiltY' | 'timeStamp'
 > {}
 
 interface RouteFreehandPointerMoveOptions {

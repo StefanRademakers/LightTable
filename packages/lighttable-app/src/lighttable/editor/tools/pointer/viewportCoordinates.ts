@@ -18,6 +18,10 @@ export interface DocumentPointer extends Point {
   pressure: number;
 }
 
+export const normalizePointerPressure = (pressure: number, pointerType: string) => (
+  pointerType === 'mouse' ? 1 : pressure > 0 ? pressure : 1
+);
+
 export const pointInsideRect = (point: Point, rect: RectLike) => (
   point.x >= rect.x
   && point.y >= rect.y

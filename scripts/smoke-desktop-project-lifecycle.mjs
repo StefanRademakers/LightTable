@@ -1,0 +1,92 @@
+import { _electron as electron } from 'playwright-core';
+import { mkdir, rm } from 'node:fs/promises';
+import path from 'node:path';
+import process from 'node:process';
+
+const root = path.resolve(import.meta.dirname, '..');
+const desktop = path.join(root, 'apps', 'desktop');
+const executable = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+const temporaryRoot = path.join(root, 'tmp', 'smoke-project-lifecycle');
+const userData = path.join(temporaryRoot, 'user-data');
+const projects = path.join(temporaryRoot, 'projects');
+const source = path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png');
+const projectName = 'Lifecycle Smoke Project';
+
+await rm(temporaryRoot, { recursive: true, force: true });
+await Promise.all([mkdir(userData, { recursive: true }), mkdir(projects, { recursive: true })]);
+const environment = { ...process.env };
+delete environment.ELECTRON_RUN_AS_NODE;
+
+let app;
+try {
+  app = await electron.launch({
+    executablePath: executable,
+    args: [desktop],
+    cwd: root,
+    env: {
+      ...environment,
+      LIGHTTABLE_AUTOMATION_USER_DATA: userData,
+      LIGHTTABLE_AUTOMATION_PROJECT_PARENT: projects,
+      LIGHTTABLE_AUTOMATION_OPEN_FILE: source
+    },
+    timeout: 30_000
+  });
+  const window = await app.firstWindow({ timeout: 30_000 });
+  window.on('console', (message) => process.stderr.write(`[renderer:${message.type()}] ${message.text()}\n`));
+  window.on('requestfailed', (request) => process.stderr.write(
+    `[request:failed] ${request.url()} ${request.failure()?.errorText ?? ''}\n`
+  ));
+  window.on('response', (response) => {
+    if (response.status() >= 400) process.stderr.write(`[response:${response.status()}] ${response.url()}\n`);
+  });
+  window.on('pageerror', (error) => process.stderr.write(
+    `[renderer:error] ${error.name}: ${error.message}\n${error.stack ?? ''}\n`
+  ));
+  const sourceTab = window.getByRole('tab', { name: /image\.png/i });
+  await window.waitForLoadState('domcontentloaded');
+  await window.waitForTimeout(1_500);
+  if (!await sourceTab.isVisible().catch(() => false)) {
+    const open = window.getByRole('button', { name: 'Open file' });
+    if (!await open.isVisible().catch(() => false)) {
+      throw new Error(`Launcher did not become available: ${await window.locator('body').innerText()}`);
+    }
+    await open.click();
+  }
+  await sourceTab.waitFor({ timeout: 30_000 });
+
+  await window.keyboard.press('Control+N');
+  const documentDialog = window.getByRole('dialog', { name: 'New document' });
+  await documentDialog.waitFor({ state: 'visible' });
+  await documentDialog.getByRole('button', { name: 'Create' }).click();
+  await window.waitForFunction(() => document.querySelectorAll('[role="tab"]').length >= 2);
+  const documentCount = await window.locator('.lighttable-document-tab').count();
+
+  const openFileMenu = async () => {
+    await window.getByRole('menuitem', { name: 'File', exact: true }).click();
+    return window.locator('.context-menu').first();
+  };
+  await (await openFileMenu()).getByRole('menuitem', { name: 'New Project...' }).click();
+  const projectDialog = window.getByRole('dialog', { name: 'New project' });
+  await projectDialog.getByRole('button', { name: 'Choose...' }).click();
+  await projectDialog.getByLabel('Name').fill(projectName);
+  await projectDialog.getByRole('button', { name: 'Create' }).click();
+  await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor();
+
+  await (await openFileMenu()).getByRole('menuitem', { name: new RegExp(`Close Project \\(${projectName}\\)`) }).click();
+  await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor({ state: 'detached' });
+  if (await window.locator('.lighttable-document-tab').count() !== documentCount) {
+    throw new Error('Closing a project changed the set of open documents.');
+  }
+
+  const fileMenu = await openFileMenu();
+  const recent = fileMenu.getByRole('menuitem', { name: 'Recent Projects' });
+  await recent.hover();
+  await window.getByRole('menuitem', { name: projectName }).click();
+  await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor();
+  if (await window.locator('.lighttable-document-tab').count() !== documentCount) {
+    throw new Error('Reopening a project changed the set of open documents.');
+  }
+  process.stdout.write(`Desktop project lifecycle smoke passed with ${documentCount} open documents.\n`);
+} finally {
+  await app?.close().catch(() => undefined);
+}

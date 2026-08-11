@@ -1,0 +1,206 @@
+{
+  "models": [
+    {
+      "id": "nano-banana-2",
+      "displayName": "Nano Banana 2",
+      "media": [
+        "image"
+      ],
+      "modes": [
+        "text2image",
+        "image2image"
+      ],
+      "description": "Google Nano Banana 2 \u2014 native 4K with strong fine detail; realistic people, pets, and fantasy-realism; accurate text and translation for ads and posters; up to 14 reference images."
+    },
+    {
+      "id": "nano-banana-pro",
+      "displayName": "Nano Banana Pro",
+      "media": [
+        "image"
+      ],
+      "modes": [
+        "text2image",
+        "image2image"
+      ],
+      "description": "Google Nano Banana Pro \u2014 highest-quality Nano Banana; strong in-image text, 4K detail, multi-subject consistency, up to 14 references."
+    },
+    {
+      "id": "nano-banana-2-lite",
+      "displayName": "Nano Banana 2 Lite",
+      "media": [
+        "image"
+      ],
+      "modes": [
+        "text2image",
+        "image2image"
+      ],
+      "description": "Fast, cost-efficient Gemini image model with strong character and text fidelity."
+    },
+    {
+      "id": "gpt-image-2",
+      "displayName": "GPT Image 2",
+      "media": [
+        "image"
+      ],
+      "modes": [
+        "text2image",
+        "image2image"
+      ],
+      "description": "OpenAI GPT Image 2 \u2014 flagship general-purpose image generation/editing model."
+    },
+    {
+      "id": "byte-plus-seedream-4-5",
+      "displayName": "Seedream 4.5",
+      "media": [
+        "image"
+      ],
+      "modes": [
+        "text2image",
+        "image2image"
+      ],
+      "description": "Seedream 4.5 \u2014 strong stylized/anime/illustration work and multi-image composition."
+    },
+    {
+      "id": "byte-plus-seedream-5-pro",
+      "displayName": "Seedream 5 Pro",
+      "media": [
+        "image"
+      ],
+      "modes": [
+        "text2image",
+        "image2image"
+      ],
+      "description": "Premium Seedream 5 model; stylized quality, up to 10 references; 1K default, optional 2K."
+    },
+    {
+      "id": "byte-plus-seedream-5-lite",
+      "displayName": "Seedream 5 Lite",
+      "media": [
+        "image"
+      ],
+      "modes": [
+        "text2image",
+        "image2image"
+      ],
+      "description": "Cost-conscious Seedream image model."
+    },
+    {
+      "id": "grok-imagine-1-5",
+      "displayName": "Grok Imagine 1.5",
+      "media": [
+        "video"
+      ],
+      "modes": [
+        "text2video",
+        "image2video"
+      ],
+      "description": "xAI Grok Imagine 1.5 \u2014 fast video with native 1080p and synchronized audio."
+    },
+    {
+      "id": "gemini-omni-flash",
+      "displayName": "Gemini Omni Flash",
+      "media": [
+        "video"
+      ],
+      "modes": [
+        "text2video",
+        "image2video",
+        "element2video"
+      ],
+      "description": "Google Gemini Omni Flash \u2014 cinematic video with synchronized audio and subject-reference generation."
+    },
+    {
+      "id": "kling-3-omni",
+      "displayName": "Kling 3 Omni",
+      "media": [
+        "image",
+        "video"
+      ],
+      "modes": [
+        "text2image",
+        "image2image",
+        "text2video",
+        "image2video",
+        "element2video"
+      ],
+      "description": "Kling 3 Omni \u2014 image + video; high detail, multi-shot and element references."
+    },
+    {
+      "id": "byte-plus-seedance-2",
+      "displayName": "Seedance 2.0",
+      "media": [
+        "video"
+      ],
+      "modes": [
+        "text2video",
+        "image2video",
+        "element2video"
+      ],
+      "description": "Seedance 2.0 \u2014 realistic people/animals, synchronized audio/dialogue/lip-sync; image/video/audio references in element mode."
+    },
+    {
+      "id": "byte-plus-seedance-2-fast",
+      "displayName": "Seedance 2.0 Fast",
+      "media": [
+        "video"
+      ],
+      "modes": [
+        "text2video",
+        "image2video",
+        "element2video"
+      ],
+      "description": "Lower-latency Seedance 2.0."
+    },
+    {
+      "id": "byte-plus-seedance-2-mini",
+      "displayName": "Seedance 2.0 Mini",
+      "media": [
+        "video"
+      ],
+      "modes": [
+        "text2video",
+        "image2video",
+        "element2video"
+      ],
+      "description": "Lightweight Seedance 2.0."
+    },
+    {
+      "id": "byte-plus-seedance-2-5",
+      "displayName": "Seedance 2.5",
+      "media": [
+        "video"
+      ],
+      "modes": [
+        "text2video",
+        "image2video",
+        "element2video"
+      ],
+      "description": "Seedance 2.5 \u2014 up to 30s and larger reference budget; max 720p per current MCP description."
+    },
+    {
+      "id": "wan2-7",
+      "displayName": "Wan 2.7",
+      "media": [
+        "video"
+      ],
+      "modes": [
+        "text2video",
+        "image2video",
+        "element2video"
+      ],
+      "description": "Wan 2.7 \u2014 stable cinematic video with reference/start-end control."
+    },
+    {
+      "id": "pixverseV6",
+      "displayName": "PixVerse V6",
+      "media": [
+        "video"
+      ],
+      "modes": [
+        "text2video",
+        "image2video"
+      ],
+      "description": "PixVerse V6 \u2014 stable motion and strong cost-performance."
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+Update the project preferences to be more flexible with the directories..
+Look at the screenschot and extract the UX/UI
+
+De blauwe knoppen zijn fout trouwens... voor de knoppen e.d. moeten we gewoon onze knoppen gebruiken.
+

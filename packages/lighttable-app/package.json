@@ -7,7 +7,8 @@
     "src"
   ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./project-manifest": "./src/lighttable/application/projects/projectManifest.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -19,15 +20,18 @@
     "@fontsource/noto-sans": "5.2.8",
     "@fontsource/source-serif-4": "5.2.8",
     "@huggingface/transformers": "^3.8.1",
-    "@lighttable/pdf-core": "0.0.1",
     "@lighttable/paint-core": "0.0.1",
+    "@lighttable/genai-core": "0.0.1",
+    "@lighttable/pdf-core": "0.0.1",
     "@lighttable/text-core": "0.0.1",
     "@lighttable/text-rendering": "0.0.1",
     "@lighttable/text-webgpu": "0.0.1",
     "@lighttable/vector-core": "0.0.1",
     "@lighttable/vector-rendering": "0.0.1",
     "@lighttable/vector-webgpu": "0.0.1",
+    "@mediapipe/tasks-vision": "1.0.1",
     "ag-psd": "^31.0.2",
+    "delaunator": "^5.0.1",
     "dockview-react": "^7.0.4",
     "harfbuzzjs": "1.5.0",
     "pdf-lib": "1.17.1",
@@ -38,6 +42,7 @@
     "woff-lib": "0.0.3"
   },
   "devDependencies": {
+    "@types/delaunator": "^5.0.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@webgpu/types": "^0.1.71",

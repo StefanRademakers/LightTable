@@ -1,3 +1,11 @@
+import {
+  DEFAULT_PROJECT_FOLDER_MAPPINGS,
+  normalizeProjectFolderMappings,
+  normalizeProjectUserFolders,
+  type ProjectFolderMappings,
+  type ProjectUserFolder
+} from '../lighttable/application/projects/projectManifest';
+
 export const LIGHTTABLE_PREFERENCES_STORAGE_KEY = 'lighttable:preferences';
 
 export interface ApplicationPreferences {
@@ -10,6 +18,10 @@ export interface ApplicationPreferences {
     readonly zoomWithScrollWheel: boolean;
     readonly openMaskEditingOnDoubleClick: boolean;
   };
+  readonly projects: {
+    readonly folders: ProjectFolderMappings;
+    readonly userFolders: readonly ProjectUserFolder[];
+  };
 }
 
 export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
@@ -21,10 +33,26 @@ export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
   tools: {
     zoomWithScrollWheel: true,
     openMaskEditingOnDoubleClick: true
+  },
+  projects: {
+    folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
+    userFolders: []
   }
 };
 
 const AUTOSAVE_INTERVALS = new Set([30_000, 60_000, 120_000, 300_000, 600_000]);
+
+export const normalizeProjectPreferenceFolders = (value: unknown): ProjectFolderMappings | null => {
+  const folders = normalizeProjectFolderMappings(value);
+  if (!folders) return null;
+  return {
+    ...DEFAULT_PROJECT_FOLDER_MAPPINGS,
+    characters: folders.characters,
+    props: folders.props,
+    environments: folders.environments,
+    sets: folders.sets
+  };
+};
 
 export const parseApplicationPreferences = (value: unknown): ApplicationPreferences => {
   if (!value || typeof value !== 'object') return DEFAULT_APPLICATION_PREFERENCES;
@@ -37,9 +65,20 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
       || typeof candidate.tools !== 'object'
       || typeof candidate.tools.zoomWithScrollWheel !== 'boolean'
       || typeof candidate.tools.openMaskEditingOnDoubleClick !== 'boolean'
+    ))
+    || (candidate.projects !== undefined && (
+      !candidate.projects
+      || typeof candidate.projects !== 'object'
+      || !normalizeProjectPreferenceFolders(candidate.projects.folders)
+      || (candidate.projects.userFolders !== undefined
+        && !normalizeProjectUserFolders(candidate.projects.userFolders))
     ))) {
     return DEFAULT_APPLICATION_PREFERENCES;
   }
+  const projectFolders = candidate.projects
+    ? normalizeProjectPreferenceFolders(candidate.projects.folders)
+    : DEFAULT_PROJECT_FOLDER_MAPPINGS;
+  if (!projectFolders) return DEFAULT_APPLICATION_PREFERENCES;
   return {
     version: 1,
     autosave: {
@@ -49,6 +88,10 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
     tools: {
       zoomWithScrollWheel: candidate.tools?.zoomWithScrollWheel ?? true,
       openMaskEditingOnDoubleClick: candidate.tools?.openMaskEditingOnDoubleClick ?? true
+    },
+    projects: {
+      folders: projectFolders,
+      userFolders: normalizeProjectUserFolders(candidate.projects?.userFolders ?? []) ?? []
     }
   };
 };

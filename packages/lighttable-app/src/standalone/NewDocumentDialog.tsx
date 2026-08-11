@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { LightTableImageClipboard } from '../platform/LightTableImageClipboard';
 import { ActionButton } from '../ui/ActionButton';
 import { FormInput } from '../ui/FormInput';
+import { ColorSwatchField } from '../ui/ColorSwatchField';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import type { LightTableCreateDocumentOptions } from '../lighttable/application/commands/lightTableCommandService';
 import {
@@ -183,8 +184,8 @@ export function NewDocumentDialog({
           {backgroundKind === 'solid' ? (
             <label className="lighttable-new-document-dialog__wide-field">
               <span>Background color</span>
-              <FormInput type="color" value={backgroundColor}
-                onChange={(event) => setBackgroundColor(event.currentTarget.value)} />
+              <ColorSwatchField value={backgroundColor} ariaLabel="Background color"
+                onChange={setBackgroundColor} />
             </label>
           ) : null}
         </div>

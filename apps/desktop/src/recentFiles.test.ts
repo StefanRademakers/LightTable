@@ -36,6 +36,16 @@ describe('desktop recent files', () => {
     expect(result[0]?.openedAt).toBe(4);
   });
 
+  it('preserves project metadata while applying the shared MRU ordering', () => {
+    const projects = touchRecentFile([
+      { id: 'one', path: 'one/project.ltproject', name: 'One', openedAt: 1 },
+      { id: 'two', path: 'two/project.ltproject', name: 'Two', openedAt: 2 }
+    ], { id: 'one', path: 'one/project.ltproject', name: 'Renamed One', openedAt: 3 });
+    expect(projects.map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 'one', name: 'Renamed One' }, { id: 'two', name: 'Two' }
+    ]);
+  });
+
   it('repairs duplicate and unsorted persisted entries', () => {
     const result = normalizeRecentFiles([
       { id: 'same', path: 'old.png', openedAt: 1 },

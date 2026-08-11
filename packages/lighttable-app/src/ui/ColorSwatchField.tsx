@@ -1,35 +1,32 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../assets/icons';
+import { ColorPicker, colorPickerHex, colorPickerParseHex } from './ColorPicker';
+import { sampleScreenColor } from './colorSampling';
 
-interface EyeDropperResult {
-  readonly sRGBHex: string;
-}
+export { sampleScreenColor } from './colorSampling';
 
-interface EyeDropperInstance {
-  open(): Promise<EyeDropperResult>;
-}
-
-type EyeDropperConstructor = new () => EyeDropperInstance;
-
-/** Uses Chromium's user-gesture eyedropper without introducing feature-local color state. */
-export const sampleScreenColor = async (): Promise<string | null> => {
-  const EyeDropper = (globalThis as typeof globalThis & {
-    EyeDropper?: EyeDropperConstructor;
-  }).EyeDropper;
-  if (!EyeDropper) return null;
-  try {
-    const result = await new EyeDropper().open();
-    return /^#[0-9a-f]{6}$/i.test(result.sRGBHex) ? result.sRGBHex.toLowerCase() : null;
-  } catch {
-    // Escape and choosing outside the sampler are normal cancellation paths.
-    return null;
-  }
+const POPOVER_GAP = 6;
+export const colorPickerPopoverPosition = (
+  trigger: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
+  size: { width: number; height: number },
+  viewport: { width: number; height: number }
+) => {
+  const right = trigger.right + POPOVER_GAP;
+  const left = right + size.width <= viewport.width - POPOVER_GAP
+    ? right
+    : Math.max(POPOVER_GAP, trigger.left - size.width - POPOVER_GAP);
+  return {
+    left: Math.min(left, Math.max(POPOVER_GAP, viewport.width - size.width - POPOVER_GAP)),
+    top: Math.min(Math.max(POPOVER_GAP, trigger.top), Math.max(POPOVER_GAP, viewport.height - size.height - POPOVER_GAP))
+  };
 };
 
 export interface ColorSwatchFieldProps {
   readonly value: string;
   readonly ariaLabel: string;
-  readonly size?: 'regular' | 'compact';
+  readonly size?: 'regular' | 'compact' | 'chip';
+  readonly className?: string;
   readonly disabled?: boolean;
   readonly onChange: (value: string) => void;
   readonly onInteractionStart?: () => void;
@@ -42,6 +39,7 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   value,
   ariaLabel,
   size = 'regular',
+  className,
   disabled = false,
   onChange,
   onInteractionStart,
@@ -49,6 +47,51 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   onInteractionCancel
 }) => {
   const [sampling, setSampling] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const [position, setPosition] = React.useState({ left: 0, top: 0 });
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null);
+  const popoverRef = React.useRef<HTMLDivElement | null>(null);
+  const openingValueRef = React.useRef(value);
+
+  const close = React.useCallback((commit: boolean) => {
+    setOpen(false);
+    if (commit) onInteractionCommit?.();
+    else {
+      onChange(openingValueRef.current);
+      onInteractionCancel?.();
+    }
+  }, [onChange, onInteractionCancel, onInteractionCommit]);
+
+  React.useLayoutEffect(() => {
+    if (!open || !triggerRef.current || !popoverRef.current) return;
+    const update = () => setPosition(colorPickerPopoverPosition(
+      triggerRef.current!.getBoundingClientRect(), popoverRef.current!.getBoundingClientRect(),
+      { width: window.innerWidth, height: window.innerHeight }
+    ));
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const pointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      close(true);
+    };
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      close(false);
+    };
+    document.addEventListener('pointerdown', pointer, true);
+    document.addEventListener('keydown', key, true);
+    return () => {
+      document.removeEventListener('pointerdown', pointer, true);
+      document.removeEventListener('keydown', key, true);
+    };
+  }, [close, open]);
 
   const sample = async () => {
     if (disabled || sampling) return;
@@ -65,24 +108,28 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   };
 
   return (
-    <span className={`color-swatch-field color-swatch-field--${size}`}>
-      <label className="color-swatch-field__well" style={{ backgroundColor: value }}>
-        <input type="color" value={value} disabled={disabled} aria-label={ariaLabel}
-          onFocus={onInteractionStart}
-          onChange={(event) => onChange(event.currentTarget.value)}
-          onBlur={onInteractionCommit}
-          onKeyDown={(event) => {
-            if (event.key !== 'Escape' || !onInteractionCancel) return;
-            event.preventDefault();
-            onInteractionCancel();
-            event.currentTarget.blur();
-          }} />
-      </label>
-      <button type="button" className="color-swatch-field__sampler"
+    <span className={`color-swatch-field color-swatch-field--${size}${className ? ` ${className}` : ''}`}>
+      <button ref={triggerRef} type="button" className="color-swatch-field__well"
+        style={{ backgroundColor: value }} disabled={disabled} aria-label={ariaLabel}
+        aria-haspopup="dialog" aria-expanded={open} onClick={() => {
+          if (open) close(true);
+          else {
+            openingValueRef.current = value;
+            onInteractionStart?.();
+            setOpen(true);
+          }
+        }} />
+      {size !== 'chip' ? <button type="button" className="color-swatch-field__sampler"
         disabled={disabled || sampling} aria-label={`Sample ${ariaLabel.toLowerCase()}`}
         title={`Sample ${ariaLabel.toLowerCase()}`} onClick={() => void sample()}>
         <img src={lightTableIcon('tool_sample_color.png')} alt="" aria-hidden="true" />
-      </button>
+      </button> : null}
+      {open ? createPortal(
+        <div ref={popoverRef} className="color-swatch-field__popover" style={position}>
+          <ColorPicker value={colorPickerParseHex(value) ?? { r: 0, g: 0, b: 0, a: 1 }}
+            onChange={(color) => onChange(colorPickerHex(color).toLowerCase())} />
+        </div>, document.body
+      ) : null}
     </span>
   );
 };

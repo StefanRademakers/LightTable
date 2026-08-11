@@ -9,6 +9,11 @@ import {
   createLocalLightTableFunnelTelemetry,
   type LightTableFunnelTelemetry
 } from './LightTableFunnelTelemetry';
+import type { ProjectFolderMappings, ProjectUserFolder } from '../lighttable/application/projects/projectManifest';
+import type {
+  GenAiHostPort,
+  GenAiProviderSnapshot
+} from '@lighttable/genai-core';
 
 export interface LightTableMediaItem {
   id: string;
@@ -28,6 +33,7 @@ export interface LightTableMediaBrowser {
 export interface LightTableSaveRequest {
   file: File;
   recipe: unknown;
+  projectManifestPath?: string;
   transaction?: {
     readonly id: string;
     readonly documentId: string;
@@ -57,6 +63,40 @@ export interface LightTableRecentFile {
   name: string;
   available: boolean;
   thumbnailUrl?: string;
+}
+
+export interface LightTableProjectSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly rootPath: string;
+  readonly manifestPath: string;
+}
+
+export interface LightTableRecentProject extends LightTableProjectSummary {
+  readonly recentId: string;
+  readonly available: boolean;
+}
+
+export interface LightTableProjectLocation {
+  readonly path: string;
+  readonly label: string;
+}
+
+export interface LightTableProjectService {
+  chooseParentLocation(): Promise<LightTableProjectLocation | null>;
+  create(request: {
+    readonly name: string;
+    readonly parentPath: string;
+    readonly folders?: ProjectFolderMappings;
+    readonly userFolders?: readonly ProjectUserFolder[];
+  }): Promise<LightTableProjectSummary>;
+  open(): Promise<LightTableProjectSummary | null>;
+  listRecent(): Promise<readonly LightTableRecentProject[]>;
+  openRecent(recentId: string): Promise<LightTableProjectSummary | null>;
+  reveal(project: LightTableProjectSummary): Promise<void>;
+  close(): Promise<void>;
+  removeRecent(recentId: string): Promise<void>;
+  clearRecent(): Promise<void>;
 }
 
 export type LightTableReleaseChannel = 'dev' | 'preview' | 'stable';
@@ -149,6 +189,14 @@ export interface LightTableAgentAccessService {
   subscribeTunnel(listener: (status: LightTableAgentTunnelStatus) => void): () => void;
 }
 
+export interface LightTableGenAiService extends GenAiHostPort {
+  subscribe(listener: (snapshot: GenAiProviderSnapshot) => void): () => void;
+  subscribeJobs(
+    projectId: string,
+    listener: (job: import('@lighttable/genai-core').GenAiGenerationJob) => void
+  ): () => void;
+}
+
 export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
   readonly media?: LightTableMediaBrowser;
@@ -157,7 +205,9 @@ export interface LightTableHost {
   readonly recovery?: LightTableRecoveryStore;
   readonly recoveryLocation?: import('./LightTableRecoveryStore').LightTableRecoveryLocationService;
   readonly release?: LightTableReleaseService;
+  readonly projects?: LightTableProjectService;
   readonly agentAccess?: LightTableAgentAccessService;
+  readonly genAi?: LightTableGenAiService;
   readonly funnel?: LightTableFunnelTelemetry;
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;

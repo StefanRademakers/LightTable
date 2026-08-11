@@ -89,6 +89,7 @@ export interface LightTableWorkspaceDocument {
   title: string;
   content: React.ReactNode;
   dirty?: boolean;
+  thumbnailUrl?: string;
   onClose?: () => void;
 }
 
@@ -316,6 +317,12 @@ const DocumentHost: React.FC<{
               role="tab"
               aria-selected={active}
             >
+              {document.thumbnailUrl && !active ? (
+                <div className="lighttable-document-tab__preview" role="tooltip">
+                  <img src={document.thumbnailUrl} alt="" />
+                  <span>{document.title}</span>
+                </div>
+              ) : null}
               <button
                 type="button"
                 className="lighttable-document-tab__title"

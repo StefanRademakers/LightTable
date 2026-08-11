@@ -17,6 +17,7 @@ const renderOptions = (
     activeTool,
     brush: session.brush,
     sampledBrush: session.sampledBrush,
+    toneBrush: session.toneBrush,
     gradient: session.gradient,
     shape: session.shape,
     pen: session.pen,
@@ -42,10 +43,12 @@ const renderOptions = (
     selectionColumnWidth: columnWidth,
     selectionSmooth: 0,
     magicWand: session.magicWand,
+    smartSelection: session.smartSelection,
     transformAutoSelectLayer: session.transformAutoSelectLayer,
     zoomPercent: 100,
     onBrushChange: vi.fn(),
     onSampledBrushChange: vi.fn(),
+    onToneBrushChange: vi.fn(),
     onGradientChange: vi.fn(),
     onShapeChange: vi.fn(),
     onPenChange: vi.fn(),
@@ -65,12 +68,22 @@ const renderOptions = (
     onSelectedVectorStyleChange: vi.fn(),
     onSelectedShapeChange: vi.fn(),
     onWarpReset: vi.fn(),
+    faceWarp: {
+      faces: [], selectedFaceId: null, busy: false, meshVisible: false,
+      brushSize: 100, brushStrength: 0.35,
+      onDetect: vi.fn(), onSelectFace: vi.fn(), onMeshVisibleChange: vi.fn(),
+      onBrushChange: vi.fn(),
+      onParametersChange: vi.fn(), onInteractionStart: vi.fn(),
+      onInteractionEnd: vi.fn(), onReset: vi.fn()
+    },
     onSelectionPixelSnapChange: vi.fn(),
     onSelectionCombineModeChange: vi.fn(),
     onSelectionRowHeightChange: vi.fn(),
     onSelectionColumnWidthChange: vi.fn(),
     onSelectionSmoothChange: vi.fn(),
     onMagicWandChange: vi.fn(),
+    onSmartSelectionChange: vi.fn(),
+    onSelectSubject: vi.fn(),
     onTransformAutoSelectLayerChange: vi.fn(),
     onZoomPreset: vi.fn(),
     onZoomFit: vi.fn(),
@@ -111,6 +124,18 @@ describe('brush tool options', () => {
       expect(markup).not.toContain('<optgroup label="Effects">');
       expect(markup).not.toContain('value="liquify"');
     }
+  });
+});
+
+describe('Object Selection tool options', () => {
+  it('uses the familiar W-tool controls and exposes a working subject action', () => {
+    const markup = renderOptions('select-object');
+    expect(markup).toContain('aria-label="Object Selection settings"');
+    expect(markup).toContain('Object Finder');
+    expect(markup).toContain('Sample All Layers');
+    expect(markup).toContain('Hard Edge');
+    expect(markup).toContain('Select Subject');
+    expect(markup).not.toContain('disabled=""');
   });
 });
 
@@ -200,8 +225,8 @@ describe('vector style tool options', () => {
     for (const tool of ['shape-rectangle', 'vector-select', 'vector-direct-select'] as const) {
       const markup = renderOptions(tool, 1, 1, undefined, selected);
       expect(markup).toContain('aria-label="Vector style"');
-      expect(markup).toContain('value="#123456"');
-      expect(markup).toContain('value="#abcdef"');
+      expect(markup).toContain('background-color:#123456');
+      expect(markup).toContain('background-color:#abcdef');
       expect(markup).toContain('value="7"');
     }
   });
@@ -209,8 +234,8 @@ describe('vector style tool options', () => {
   it('keeps new-shape defaults when no vector element is selected', () => {
     const markup = renderOptions('shape-rectangle');
     const defaults = createEditorSession().vectorStyle;
-    expect(markup).toContain(`value="${defaults.fillColor}"`);
-    expect(markup).toContain(`value="${defaults.strokeColor}"`);
+    expect(markup).toContain(`background-color:${defaults.fillColor}`);
+    expect(markup).toContain(`background-color:${defaults.strokeColor}`);
   });
 
   it('uses the shared checkbox control for imported no-fill and no-stroke states', () => {
@@ -244,6 +269,27 @@ describe('vector style tool options', () => {
     expect(markup).toContain('aria-label="Stroke join"');
     expect(markup).toContain('aria-label="Edit stroke gradient"');
     expect(markup).toContain('<span>Opacity</span>');
+  });
+});
+
+describe('tone brush tool options', () => {
+  it('shows compact Dodge controls without duplicate paint strength controls', () => {
+    const markup = renderOptions('dodge');
+    expect(markup).toContain('aria-label="Tone range"');
+    expect(markup).toContain('<span>Exposure</span>');
+    expect(markup).toContain('Protect Tones');
+    expect(markup).toContain('<span>Size</span>');
+    expect(markup).toContain('<span>Hardness</span>');
+    expect(markup).toContain('<span>Smooth</span>');
+    expect(markup).not.toContain('<span>Opacity</span>');
+  });
+
+  it('shows Sponge mode, Flow and Vibrance', () => {
+    const markup = renderOptions('sponge');
+    expect(markup).toContain('aria-label="Sponge mode"');
+    expect(markup).toContain('<option value="saturate" selected="">Saturate</option>');
+    expect(markup).toContain('<span>Flow</span>');
+    expect(markup).toContain('Vibrance');
   });
 });
 
@@ -319,9 +365,9 @@ describe('point text tool options', () => {
       advancedUnavailableReason: 'Unavailable'
     });
     expect(markup).toContain('placeholder="Mixed"');
-    expect(markup).toContain('value="#ff0000"');
+    expect(markup).toContain('background-color:#ff0000');
     expect(markup).toContain('aria-label="Text line"');
-    expect(markup).toContain('value="#00ff00"');
+    expect(markup).toContain('background-color:#00ff00');
     expect(markup).toContain('value="3"');
     expect(markup).toContain('aria-label="Text layout mode"');
     expect(markup).toContain('Convert to paragraph text');

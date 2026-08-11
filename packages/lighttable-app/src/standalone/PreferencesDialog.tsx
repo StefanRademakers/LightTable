@@ -2,13 +2,33 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { LightTableHost } from '../platform/LightTableHost';
 import { ActionButton } from '../ui/ActionButton';
+import { FormInput } from '../ui/FormInput';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import { AgentAccessSettingsPanel } from './AgentAccessSettingsDialog';
-import type { ApplicationPreferences } from './applicationPreferences';
+import {
+  normalizeProjectPreferenceFolders,
+  type ApplicationPreferences
+} from './applicationPreferences';
 import type { LightTableRecoveryLocation } from '../platform/LightTableRecoveryStore';
+import {
+  DEFAULT_PROJECT_FOLDER_MAPPINGS,
+  normalizeProjectUserFolders,
+  type ProjectUserFolder,
+  type ProjectStorageLocation
+} from '../lighttable/application/projects/projectManifest';
 
-type PreferencesPage = 'file-handling' | 'tools' | 'agent-access';
+type PreferencesPage = 'file-handling' | 'projects' | 'tools' | 'agent-access';
+
+const PROJECT_FOLDER_FIELDS: readonly {
+  readonly location: ProjectStorageLocation;
+  readonly label: string;
+}[] = [
+  { location: 'characters', label: 'Characters' },
+  { location: 'props', label: 'Props' },
+  { location: 'environments', label: 'Environments' },
+  { location: 'sets', label: 'Sets' }
+];
 
 export interface PreferencesDialogProps {
   readonly open: boolean;
@@ -35,6 +55,10 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
   const [location, setLocation] = useState<LightTableRecoveryLocation | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const updateUserFolders = (userFolders: readonly ProjectUserFolder[]) => setDraft({
+    ...draft,
+    projects: { ...draft.projects, userFolders }
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -66,12 +90,19 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
         onSubmit={(event) => {
           event.preventDefault();
           if (locationBusy) return;
+          const folders = normalizeProjectPreferenceFolders(draft.projects.folders);
+          const userFolders = normalizeProjectUserFolders(draft.projects.userFolders);
+          if (!folders || !userFolders) {
+            setPage('projects');
+            setSaveError('Project folders must be relative paths inside the project and cannot contain . or .. segments.');
+            return;
+          }
           setLocationBusy(true);
           setSaveError(null);
           void (location && host.recoveryLocation
             ? host.recoveryLocation.apply(location)
             : Promise.resolve(location)
-          ).then(() => onSave(draft)).catch((reason) => {
+          ).then(() => onSave({ ...draft, projects: { folders, userFolders } })).catch((reason) => {
             setSaveError(reason instanceof Error ? reason.message : String(reason));
           }).finally(() => setLocationBusy(false));
         }}
@@ -84,6 +115,9 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
             <button type="button" className={page === 'file-handling' ? 'is-active' : undefined}
               aria-current={page === 'file-handling' ? 'page' : undefined}
               onClick={() => setPage('file-handling')}>File Handling</button>
+            <button type="button" className={page === 'projects' ? 'is-active' : undefined}
+              aria-current={page === 'projects' ? 'page' : undefined}
+              onClick={() => setPage('projects')}>Projects</button>
             <button type="button" className={page === 'tools' ? 'is-active' : undefined}
               aria-current={page === 'tools' ? 'page' : undefined}
               onClick={() => setPage('tools')}>Tools</button>
@@ -143,6 +177,75 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                 </div>
                 <p className="lighttable-preferences__note">
                   Recovery copies are removed after a successful save. Turning autosave off or changing its location does not delete existing recovery copies.
+                </p>
+                {saveError ? <p className="lighttable-preferences__error" role="alert">{saveError}</p> : null}
+              </section>
+            ) : page === 'projects' ? (
+              <section aria-labelledby="preferences-projects-heading">
+                <div className="lighttable-preferences__section-heading">
+                  <div>
+                    <h4 id="preferences-projects-heading">Project folders</h4>
+                    <p>Choose the folder layout used when LightTable creates a new project.</p>
+                  </div>
+                  <ActionButton type="button" onClick={() => setDraft({
+                    ...draft,
+                    projects: { folders: DEFAULT_PROJECT_FOLDER_MAPPINGS, userFolders: [] }
+                  })}>Reset defaults</ActionButton>
+                </div>
+                <div className="lighttable-preferences__fields lighttable-preferences__project-folders">
+                  {PROJECT_FOLDER_FIELDS.map(({ location: folder, label }) => (
+                    <label key={folder}>
+                      <span>{label}</span>
+                      <FormInput value={draft.projects.folders[folder]}
+                        aria-label={`${label} project folder`}
+                        onChange={(event) => setDraft({
+                          ...draft,
+                          projects: {
+                            ...draft.projects,
+                            folders: {
+                              ...draft.projects.folders,
+                              [folder]: event.currentTarget.value
+                            }
+                          }
+                        })} />
+                    </label>
+                  ))}
+                </div>
+                <div className="lighttable-preferences__custom-folders">
+                  <h5>Additional folders</h5>
+                  {draft.projects.userFolders.map((folder, index) => (
+                    <div className="lighttable-preferences__custom-folder" key={index}>
+                      <FormInput value={folder.name} aria-label={`Additional folder ${index + 1} name`}
+                        onChange={(event) => updateUserFolders(draft.projects.userFolders.map((entry, entryIndex) => (
+                          entryIndex === index ? { ...entry, name: event.currentTarget.value } : entry
+                        )))} />
+                      <FormInput value={folder.path} aria-label={`Additional folder ${index + 1} path`}
+                        onChange={(event) => updateUserFolders(draft.projects.userFolders.map((entry, entryIndex) => (
+                          entryIndex === index ? { ...entry, path: event.currentTarget.value } : entry
+                        )))} />
+                      <ActionButton type="button" disabled={index === 0} aria-label={`Move ${folder.name} up`}
+                        onClick={() => {
+                          const next = [...draft.projects.userFolders];
+                          [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                          updateUserFolders(next);
+                        }}>Up</ActionButton>
+                      <ActionButton type="button" disabled={index === draft.projects.userFolders.length - 1}
+                        aria-label={`Move ${folder.name} down`} onClick={() => {
+                          const next = [...draft.projects.userFolders];
+                          [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                          updateUserFolders(next);
+                        }}>Down</ActionButton>
+                      <ActionButton type="button" aria-label={`Remove ${folder.name}`}
+                        onClick={() => updateUserFolders(draft.projects.userFolders.filter((_, entryIndex) => entryIndex !== index))}>Remove</ActionButton>
+                    </div>
+                  ))}
+                  <ActionButton type="button" onClick={() => updateUserFolders([
+                    ...draft.projects.userFolders,
+                    { name: 'New folder', path: 'NewFolder' }
+                  ])}>Add folder</ActionButton>
+                </div>
+                <p className="lighttable-preferences__note">
+                  Paths are relative to the project folder. These defaults only affect new projects; existing projects keep their own mappings. AI renders, input, history and Trash remain stable, visible folders on disk; cache, thumbnails, indexes and temporary data stay internal under .lighttable.
                 </p>
                 {saveError ? <p className="lighttable-preferences__error" role="alert">{saveError}</p> : null}
               </section>

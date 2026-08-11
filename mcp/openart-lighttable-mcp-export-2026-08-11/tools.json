@@ -1,0 +1,133 @@
+{
+  "tools": [
+    {
+      "name": "openart_account_get",
+      "purpose": "Get authenticated account summary: email, subscription plan, remaining credits.",
+      "input": {}
+    },
+    {
+      "name": "openart_workspace_list",
+      "purpose": "List personal/team workspaces and active workspace.",
+      "input": {}
+    },
+    {
+      "name": "openart_workspace_select",
+      "purpose": "Switch active workspace.",
+      "input": {
+        "id": "string"
+      }
+    },
+    {
+      "name": "openart_project_list",
+      "purpose": "List projects in current workspace.",
+      "input": {}
+    },
+    {
+      "name": "openart_project_create",
+      "purpose": "Create project.",
+      "input": {
+        "name": "string(1..100)",
+        "description": "optional string <=500"
+      }
+    },
+    {
+      "name": "openart_model_list",
+      "purpose": "Discover all MCP-available models and supported media/modes.",
+      "input": {}
+    },
+    {
+      "name": "openart_model_cost",
+      "purpose": "Estimate credit costs, globally or for one exact model/mode/config.",
+      "input": {
+        "model": "optional model id",
+        "mode": "optional mode",
+        "params": "optional form params"
+      }
+    },
+    {
+      "name": "openart_model_form_get",
+      "purpose": "Return exact JSON Schema for a model + mode. This is the key endpoint for schema-driven LightTable UI.",
+      "input": {
+        "model": "model id",
+        "mode": "mode id"
+      }
+    },
+    {
+      "name": "openart_generate_image",
+      "purpose": "Submit asynchronous image generation.",
+      "input": {
+        "model": "model id",
+        "mode": "image mode",
+        "params": "schema-valid object",
+        "projectId": "optional"
+      }
+    },
+    {
+      "name": "openart_generate_video",
+      "purpose": "Submit asynchronous video generation.",
+      "input": {
+        "model": "model id",
+        "mode": "video mode",
+        "params": "schema-valid object",
+        "projectId": "optional"
+      }
+    },
+    {
+      "name": "openart_creation_get",
+      "purpose": "Read generation status.",
+      "input": {
+        "historyId": "string",
+        "source": "optional internal telemetry marker"
+      }
+    },
+    {
+      "name": "openart_creation_show",
+      "purpose": "Show/re-open result card in compatible hosts.",
+      "input": {
+        "historyId": "string"
+      }
+    },
+    {
+      "name": "openart_upload_pick",
+      "purpose": "Host UI upload picker for reference media.",
+      "input": {
+        "mediaType": "auto|image|video|audio",
+        "label": "optional",
+        "multiple": "optional boolean",
+        "minFiles": "1..20",
+        "maxFiles": "1..20"
+      }
+    },
+    {
+      "name": "openart_upload_list",
+      "purpose": "List uploaded reference assets.",
+      "input": {
+        "mediaType": "optional image|video|audio",
+        "limit": "1..100",
+        "cursor": "optional",
+        "includeMetadata": "optional boolean",
+        "projectId": "optional"
+      }
+    },
+    {
+      "name": "openart_upload_metadata_get",
+      "purpose": "Fetch width/height/duration/fps/filesize/format for uploaded asset.",
+      "input": {
+        "mediaUrl": "string",
+        "mediaType": "image|video|audio",
+        "uploadId": "optional",
+        "label": "optional"
+      }
+    },
+    {
+      "name": "openart_creation_list",
+      "purpose": "List past generations/history.",
+      "input": {
+        "mediaType": "image|video|audio|all",
+        "limit": "1..50",
+        "cursor": "optional",
+        "projectId": "optional"
+      }
+    }
+  ]
+}

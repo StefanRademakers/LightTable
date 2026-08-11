@@ -1,28 +1,20 @@
 import type { LightTableEffectRuntimeCallbacks, LightTableGpuEffect } from '../types';
-import { WarpEffect } from '../warp/WarpEffect';
-import type { WarpNodeSettings } from '../warp/warpTypes';
-import { compileFaceWarpStrokes } from './faceWarpCompiler';
+import { MeshDeformationEffect } from '../deformation/MeshDeformationEffect';
+import { buildFaceWarpRenderSurface } from './faceWarpRenderSurface';
 import type { FaceWarpNodeSettings } from './faceWarpTypes';
 
-const asWarpSettings = (settings: FaceWarpNodeSettings): WarpNodeSettings => ({
-  version: 1,
-  opacity: settings.opacity,
-  borderMode: 'clamp',
-  topologyMode: 'protected',
-  edgePinning: 0,
-  maskLinkMode: 'linked',
-  strokes: compileFaceWarpStrokes(settings.faces)
-});
-
 /**
- * Semantic Face Warp executor. The authored node remains `lt.face-warp`; only
- * its transient deformation constraints are delegated to the shared GPU Warp
- * field implementation.
+ * Semantic Face Warp executor. Pixels and the editing overlay are both
+ * evaluated from `deformFaceMesh`; no generic displacement-field adapter or
+ * accumulated synthetic warp strokes exist in this path.
  */
 export class FaceWarpEffect implements LightTableGpuEffect<FaceWarpNodeSettings> {
   readonly id = 'face-warp';
   readonly stage = 'source-geometry' as const;
-  private readonly warp: WarpEffect;
+  private readonly mesh: MeshDeformationEffect;
+  private settings: FaceWarpNodeSettings;
+  private width = 0;
+  private height = 0;
 
   constructor(
     device: GPUDevice,
@@ -31,37 +23,37 @@ export class FaceWarpEffect implements LightTableGpuEffect<FaceWarpNodeSettings>
     settings: FaceWarpNodeSettings,
     callbacks: LightTableEffectRuntimeCallbacks = {}
   ) {
-    this.warp = new WarpEffect(
-      device,
-      sampler,
-      vertexModule,
-      asWarpSettings(settings),
-      callbacks
-    );
+    this.settings = structuredClone(settings);
+    this.mesh = new MeshDeformationEffect(device, sampler, vertexModule, {
+      opacity: settings.opacity,
+      surfaces: []
+    }, callbacks);
   }
 
   setSettings(settings: FaceWarpNodeSettings): void {
-    this.warp.setSettings(asWarpSettings(settings));
+    this.settings = structuredClone(settings);
+    this.updateSurface();
   }
 
   resize(width: number, height: number): void {
-    this.warp.resize(width, height);
+    this.width = width;
+    this.height = height;
+    this.mesh.resize(width, height);
+    this.updateSurface();
   }
-
   encode(encoder: GPUCommandEncoder, input: GPUTexture): GPUTexture {
-    return this.warp.encode(encoder, input);
+    return this.mesh.encode(encoder, input);
   }
+  destroyImageResources(): void { this.mesh.destroyImageResources(); }
+  estimatedTextureBytes(): number { return this.mesh.estimatedTextureBytes(); }
+  destroy(): void { this.mesh.destroy(); }
 
-  destroyImageResources(): void {
-    this.warp.destroyImageResources();
-  }
-
-  estimatedTextureBytes(): number {
-    return this.warp.estimatedTextureBytes();
-  }
-
-  destroy(): void {
-    this.warp.destroy();
+  private updateSurface(): void {
+    this.mesh.setSettings({
+      opacity: this.settings.opacity,
+      surfaces: this.width > 0 && this.height > 0 && this.settings.faces.length > 0
+        ? [buildFaceWarpRenderSurface(this.settings, this.width, this.height)]
+        : []
+    });
   }
 }
-

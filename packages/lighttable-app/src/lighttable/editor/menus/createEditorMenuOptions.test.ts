@@ -45,7 +45,9 @@ const state = (change: Partial<EditorMenuState> = {}): EditorMenuState => ({
 
 const commands = (): EditorMenuCommands => new Proxy({} as EditorMenuCommands, {
   get: (target, property: keyof EditorMenuCommands) => {
-    if (property === 'recentFiles') return target[property] ?? [];
+    if (property === 'recentFiles' || property === 'recentProjects') return target[property] ?? [];
+    if (property === 'activeProject') return target[property] ?? null;
+    if (property === 'projectsAvailable') return target[property] ?? false;
     target[property] ??= vi.fn() as never;
     return target[property];
   }
@@ -56,6 +58,39 @@ const labels = {
 };
 
 describe('createEditorMenuOptions', () => {
+  it('exposes AI providers with connection state and planned providers disabled', () => {
+    const menuCommands = commands();
+    const disconnected = createEditorMenuOptions('ai', state(), labels, menuCommands);
+    const providers = disconnected[0]?.children;
+    expect(disconnected[0]?.label).toBe('Providers');
+    expect(providers?.map(({ label, disabled, status }) => ({ label, disabled, status }))).toEqual([
+      { label: 'OpenArt', disabled: undefined, status: 'disconnected' },
+      { label: 'Higgsfield', disabled: true, status: undefined },
+      { label: 'ComfyUI', disabled: true, status: undefined }
+    ]);
+
+    const connectedCommands = commands();
+    const connected = createEditorMenuOptions(
+      'ai', state(), labels, connectedCommands, { openArt: 'connected' }
+    );
+    expect(connected[0]?.children?.[0]?.status).toBe('connected');
+    providers?.[0]?.onClick?.();
+    expect(menuCommands.connectOpenArtProvider).toHaveBeenCalledOnce();
+    connected[0]?.children?.[0]?.onClick?.();
+    expect(connectedCommands.disconnectOpenArtProvider).toHaveBeenCalledOnce();
+  });
+
+  it('opens the same GenAI panel from the View menu', () => {
+    const menuCommands = commands();
+    const option = createEditorMenuOptions('view', state(), labels, menuCommands)
+      .find(({ value }) => value === 'show-genai-panel');
+
+    option?.onClick?.();
+
+    expect(option?.label).toBe('GenAI panel');
+    expect(menuCommands.showGenAiPanel).toHaveBeenCalledOnce();
+  });
+
   it('keeps the compact file workflow declarative', () => {
     const options = createEditorMenuOptions(
       'file',
@@ -67,36 +102,31 @@ describe('createEditorMenuOptions', () => {
     expect(options.map(({ label, shortcut }) => ({ label, shortcut }))).toEqual([
       { label: 'New', shortcut: 'Ctrl+N' },
       { label: 'Open', shortcut: 'Ctrl+O' },
+      { label: 'Open place...', shortcut: undefined },
       { label: 'Open Recent', shortcut: undefined },
-      { label: 'Place...', shortcut: undefined },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
-      { label: 'Export Photoshop PSD...', shortcut: undefined },
-      { label: 'Quick Export PNG', shortcut: 'Ctrl+Shift+S' },
-      { label: 'PDF Export Preflight...', shortcut: undefined },
-      { label: 'Document Compatibility Report...', shortcut: undefined },
-      { label: 'Format Support...', shortcut: undefined }
+      { label: 'Export PNG', shortcut: 'Ctrl+Shift+S' },
+      { label: 'Export', shortcut: undefined }
     ]);
-    expect(options.filter(({ value }) => value !== 'format-support')
+    expect(options.filter(({ value }) => value !== 'export').every((option) => option.disabled)).toBe(true);
+    expect(options.find(({ value }) => value === 'export')?.children?.slice(0, 3)
       .every((option) => option.disabled)).toBe(true);
-    expect(options.find(({ value }) => value === 'format-support')?.disabled).not.toBe(true);
+    expect(options.find(({ value }) => value === 'export')?.children?.at(-1)?.disabled).not.toBe(true);
   });
 
-  it('exposes the existing compatibility report only when one is available', () => {
+  it('groups secondary export formats in one submenu', () => {
     const menuCommands = commands();
-    const unavailable = createEditorMenuOptions('file', state(), labels, menuCommands);
-    const available = createEditorMenuOptions(
-      'file',
-      state({ hasCompatibilityReport: true }),
-      labels,
-      menuCommands
-    );
-
-    expect(unavailable.find(({ value }) => value === 'document-compatibility-report')?.disabled)
-      .toBe(true);
-    const report = available.find(({ value }) => value === 'document-compatibility-report');
-    expect(report?.disabled).toBe(false);
-    report?.onClick?.();
-    expect(menuCommands.openCompatibilityReport).toHaveBeenCalledOnce();
+    const options = createEditorMenuOptions('file', state(), labels, menuCommands);
+    const children = options.find(({ value }) => value === 'export')?.children;
+    expect(children?.map(({ label }) => label)).toEqual([
+      'JPG...', 'Photoshop PSD...', 'PDF...', 'Format Support...'
+    ]);
+    children?.[0]?.onClick?.();
+    children?.[1]?.onClick?.();
+    children?.[2]?.onClick?.();
+    expect(menuCommands.exportJpeg).toHaveBeenCalledOnce();
+    expect(menuCommands.exportPsd).toHaveBeenCalledOnce();
+    expect(menuCommands.pdfExportPreflight).toHaveBeenCalledOnce();
   });
 
   it('shows at most fifteen recent files and clears them from the submenu', () => {
@@ -119,6 +149,28 @@ describe('createEditorMenuOptions', () => {
     });
     recent?.children?.at(-1)?.onClick?.();
     expect(menuCommands.clearRecent).toHaveBeenCalledOnce();
+  });
+
+  it('projects optional project management without changing document commands', () => {
+    const menuCommands = commands();
+    menuCommands.projectsAvailable = true;
+    menuCommands.activeProject = {
+      id: 'project-1', name: 'Campaign', rootPath: 'D:/Campaign', manifestPath: 'D:/Campaign/project.ltproject'
+    };
+    menuCommands.recentProjects = [{
+      ...menuCommands.activeProject, recentId: 'recent-project-1', available: true
+    }];
+    const options = createEditorMenuOptions('file', state(), labels, menuCommands);
+    expect(options.map(({ value }) => value)).toEqual([
+      'new-document', 'open-image', 'place-image', 'open-recent',
+      'save-corrected', 'export-png', 'export',
+      'new-project', 'open-project', 'open-recent-project', 'close-project'
+    ]);
+    expect(options.filter(({ separatorBefore }) => separatorBefore).map(({ value }) => value))
+      .toEqual(['export-png', 'new-project']);
+    expect(options.find(({ value }) => value === 'close-project')?.label).toBe('Close Project (Campaign)');
+    options.find(({ value }) => value === 'open-recent-project')?.children?.[0]?.onClick?.();
+    expect(menuCommands.openRecentProject).toHaveBeenCalledWith('recent-project-1');
   });
 
   it('derives selection availability without reading editor state', () => {

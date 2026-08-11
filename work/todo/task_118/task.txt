@@ -1,0 +1,259 @@
+# Task 118 — Professional Face Warp: HQ implementation and USP path
+
+Status: IN PROGRESS — NOT READY FOR NORMAL TOOLBAR USE
+
+## Objective
+
+Build Face Warp as a high-quality, non-destructive, offline and scriptable
+portrait-geometry effect. Face Warp must use one source mesh and one target
+mesh. Semantic controls, direct manipulation, the proportional brush, the GPU
+image deformation and the debug overlay must all use that same target mesh.
+
+The feature must not translate its canonical state into generic Warp strokes,
+must not move the canvas outside the detected face/collar, and must not return
+to the normal toolbar until the HQ gates below pass.
+
+Primary architecture and research decisions:
+
+- `architecture/research/LIGHTTABLE_FACE_WARP_ARCHITECTURE.md`
+
+## Current known failures
+
+- [x] Remove the provisional `FaceWarpEffect -> WarpEffect` adapter.
+- [x] Remove Face Warp compilation into accumulated generic Warp strokes.
+- [ ] Prevent the unfinished Face Warp tool from appearing as a normal,
+      production-ready toolbar tool until the renderer gate passes.
+- [x] Restore a face-local interaction path; the current safety guard prevents
+      the broken fallback but also means the brush does nothing.
+- [x] Make the displayed mesh deform again from the same target vertices used
+      by the image renderer.
+- [x] Composite the mesh overlay once at 50% opacity; per-edge alpha currently
+      accumulates at intersections and is not visually 50%.
+
+## Phase 0 — Research and architectural reset
+
+- [x] Research MediaPipe canonical face topology, UVs, pose and blendshapes.
+- [x] Research connected proportional editing and geodesic influence.
+- [x] Research MLS, Laplacian editing, ARAP and foldover prevention.
+- [x] Research Adobe Face-Aware Liquify and reconstruct/relax behaviour.
+- [x] Document the decision that Face Warp is not a preset of free Warp.
+- [x] Establish that Shift Relax and Restore are distinct operations.
+- [x] Audit the bundled model/code licences and final end-user attribution.
+- [x] Delete the rejected mixed-mode implementation rather than preserving it
+      through compatibility branches; LightTable is still pre-release.
+
+Gate 0:
+
+- [x] No generic Warp stroke, canvas-warp or pixel-push fallback remains in the
+      Face Warp canonical or render path.
+- [x] The normal app is no worse when the unfinished feature is unavailable.
+
+## Phase 1 — Canonical face geometry contract
+
+- [x] Lazy local face detector runs in a worker.
+- [x] Bundled detector produces 478 landmarks without network upload.
+- [x] Fixed face connections/topology can be loaded for debug rendering.
+- [x] Separate the 468 surface vertices from the additional iris landmarks.
+- [x] Persist immutable source XYZ landmarks in layer-source coordinates.
+- [x] Persist canonical triangle indices, source UVs and detector/model ID.
+- [x] Persist and validate the facial pose/transformation matrix.
+- [x] Build deterministic adjacency, feature loops, boundary loops and a
+      left/right symmetry map.
+- [x] Define immutable source mesh, derived target mesh and explicit direct
+      constraints; cached target data may never become authoritative state.
+- [x] Ensure zero parameters reproduce the source mesh exactly.
+- [x] Reject stale detection when source content identity or revision changes.
+
+Gate 1:
+
+- [x] Unit fixtures prove deterministic topology, adjacency and symmetry.
+- [x] Save/reopen reproduces the same source and zero target without detection.
+- [ ] Front, rolled, scaled and three-quarter detections share one coordinate
+      convention with no first-frame offset.
+
+## Phase 2 — Single-truth indexed WebGPU renderer
+
+- [x] Define a face-agnostic evaluated `DeformationSurface` contract containing
+      source positions/UVs, target positions, indices, revisions and dirty
+      ranges; no landmark indices may enter the generic renderer API.
+- [x] Keep authoring topology pluggable: Face Warp emits its irregular canonical
+      triangles, while a future screen-space Custom Warp can emit tessellated
+      rectangular Bezier patches with user-inserted split rows/columns.
+- [x] Create immutable source-position/UV and triangle-index GPU buffers.
+- [x] Create a small dynamic target-vertex buffer.
+- [x] Implement target-triangle rasterization with barycentric source sampling.
+- [x] Keep full-resolution layer pixels on the GPU; no CPU pixel readback.
+- [x] Add a pinned transition collar/cage around the face so moved jaw and
+      hairline boundaries produce no holes, hard seams or duplicated pixels.
+- [x] Make identity deformation pixel-identical to the unwarped input.
+- [x] Feed the exact same evaluated target mesh into renderer and debug overlay.
+- [ ] Dirty only the Face Warp node/target buffer during interaction.
+
+Gate 2 — first commit-worthy milestone:
+
+- [ ] A numbered checkerboard fixture deforms exactly with the target mesh.
+- [ ] Overlay vertices and rendered triangle corners agree within 0.5 screen px.
+- [ ] Identity RMSE is zero, or a documented format-rounding epsilon only.
+- [ ] No holes, folds, black pixels or canvas movement occur.
+- [ ] Only after this gate may Face Warp return to the normal toolbar.
+
+## Shared-kernel guardrail — future Custom/Split Warp
+
+This is an architectural constraint on Face Warp, not a requirement to build
+the complete Custom Warp UI inside task 118.
+
+- [x] Research Photoshop custom grid sizes, guide density, anchor/handle editing
+      and horizontal, vertical and crosswise Split Warp operations.
+- [x] Decide that Face Warp and Custom Warp keep separate authoring topologies.
+- [x] Make indexed texture deformation, GPU uploads, overlay composition,
+      history and foldover validation reusable by both.
+- [x] Ensure the shared renderer accepts any evaluated indexed 2D deformation
+      surface and contains no MediaPipe or facial-semantic dependency.
+- [x] Ensure renderer tests include both an irregular triangle fixture and a
+      tessellated rectangular patch fixture.
+- [ ] Reserve stable command concepts for future `setGrid`, `splitHorizontal`,
+      `splitVertical`, `splitCrosswise`, `moveAnchor` and `setHandleMode`
+      operations without implementing their UI in this task.
+
+Future Custom Warp remains a separate task because its authoring data is a
+Bezier patch network with editable topology. It must not be implemented as
+Face Warp commands or as destructive generic brush strokes.
+
+## Phase 3 — Connected proportional brush
+
+- [x] Hit-test only visible face triangles and return barycentric seeds.
+- [x] Compute bounded connected/geodesic distance over mesh adjacency.
+- [x] Use compact C2/smootherstep falloff; never screen-distance-only influence.
+- [x] Confine edits to the selected face and its transition collar.
+- [x] Support Size and Strength with existing LightTable brush controls.
+- [x] Support `[` and `]` for brush radius.
+- [x] Make one pointer gesture one undo transaction.
+- [x] Store constraints/vertex displacement, never accumulated Warp strokes.
+
+Gate 3:
+
+- [ ] Editing an eyelid cannot jump to the other eyelid or opposite lip edge.
+- [x] Painting outside the detected face/collar makes no document change.
+- [ ] Large and small brushes remain smooth, bounded and interactive.
+- [x] Undo/redo/reset reproduce exact meshes and pixels.
+
+## Phase 4 — Shape-preserving solver and safety
+
+- [ ] Precompute stable mesh weights and a reusable sparse factorization.
+- [ ] Implement low-iteration interactive ARAP/Laplacian preview.
+- [ ] Implement supersedable exact refinement at pointer-up.
+- [ ] Preserve eye, lip, nose and outer-face feature loops.
+- [x] Validate triangle orientation and minimum area after every solve.
+- [x] Add line search/clamping to prevent foldovers.
+- [x] Avoid unstable cotangent weights by using bounded inverse-edge weights.
+- [ ] Keep solver parameters internal; do not explode user-facing controls.
+
+Gate 4:
+
+- [x] Stress fixtures produce no inverted triangles or texture explosions.
+- [ ] Preview follows the pointer within one visible frame.
+- [ ] Pointer-up refinement does not block a subsequent gesture.
+
+## Phase 5 — Relax, Restore and semantic controls
+
+- [x] Implement Shift-drag Relax over the current displacement field while
+      preserving intentional large-scale deformation.
+- [x] Implement Restore/Reconstruct toward the detected source mesh separately.
+- [x] Define relative canonical morph targets for Face, Eyes, Nose and Mouth.
+- [x] Normalize amounts by face width, interpupillary distance and feature size.
+- [x] Preserve the photographed expression when every slider is zero.
+- [ ] Support linked symmetry and independent left/right feature editing.
+- [x] Route sliders and brush constraints through one target-mesh evaluator.
+- [ ] Enforce eyelid/lip ordering and safe deformation ranges.
+
+Gate 5:
+
+- [ ] Equivalent edits look equivalent under scale and in-plane rotation.
+- [ ] Relax removes local kinks without erasing the intended face change.
+- [ ] Restore locally returns to source without rerunning detection.
+- [ ] Eyes and lips cannot cross or expose large invalid texture regions.
+
+## Phase 6 — Pose, profile and visibility quality
+
+- [ ] Use canonical 3D pose rather than a purely 2D face basis.
+- [ ] Determine editable/visible triangles from pose, normals and depth.
+- [ ] Exclude hidden/back-facing geometry from hit testing and normal overlay.
+- [ ] Keep hidden geometry in the continuity solve without presenting it as
+      equally observed data.
+- [ ] Add a confidence policy for difficult profiles and occlusions.
+- [ ] Test front, three-quarter, strong yaw and near-profile faces.
+
+Gate 6:
+
+- [ ] No far-side mesh is drawn over the visible nose/cheek surface.
+- [ ] Profile edits remain local and do not pull the entire image.
+- [ ] Low-confidence cases fail clearly and safely instead of inventing a mesh.
+
+## Phase 7 — Overlay, UX and document integration
+
+- [x] Render mesh to one GPU overlay target and composite it once at 50%.
+- [x] Use screen-space-stable lines, vertices and brush cursor.
+- [x] Reuse existing toolbar controls and LightTable UI primitives.
+- [x] Expose only understandable controls; advanced solver values stay internal.
+- [x] Add Redetect, Show mesh, Reset face and face selection coherently.
+- [x] Keep detection lazy and cancellable; slider/brush edits never redetect.
+- [x] Add deterministic serialization, autosave/recovery and normal save/reopen.
+- [ ] Define PSD/export behaviour: semantic preservation where possible,
+      otherwise explicit cached preview/bake without silent data loss.
+
+Gate 7:
+
+- [x] No UI interaction causes document recomposition merely to animate mesh.
+- [x] Reopen is offline and visually deterministic.
+- [x] Multi-face selection never edits the wrong face.
+- [ ] UI style-guide review and manual usability pass succeed.
+
+## Phase 8 — HQ performance and visual validation
+
+- [ ] Record detector cold/warm time and memory.
+- [ ] Record solver preview p50/p95 and pointer-up refinement time.
+- [ ] Record vertex upload and GPU mesh-pass time.
+- [ ] Record idle and repeated-edit GPU/CPU memory behaviour.
+- [ ] Create front/three-quarter/profile fixtures at multiple resolutions.
+- [ ] Create checkerboard, eye/lip separation, extreme slider and collar tests.
+- [ ] Compare representative edits with Photoshop Face-Aware Liquify.
+- [ ] Test on Windows discrete GPU and an integrated/Apple-class GPU path.
+
+HQ acceptance gate:
+
+- [ ] Ordinary edits feel realtime on representative non-flagship hardware.
+- [ ] No visible renderer/overlay divergence at high zoom.
+- [x] No crash, black screen, command-buffer error, spring-back or history race in the focused desktop smoke.
+- [ ] Visual quality is good enough that the tool is useful without apology.
+
+## Phase 9 — USP layer
+
+- [ ] Persistent non-modal Face Warp effect editable after reopen.
+- [ ] Semantic sliders and direct mesh sculpting remain interoperable.
+- [ ] Feature locks/protection for eyes, lips, nose and outer face.
+- [ ] Local Relax and Restore with clear on-canvas feedback.
+- [ ] Independent multi-face and asymmetric left/right editing.
+- [ ] Expose canonical commands for future MCP use, for example semantic face,
+      feature and constraint operations rather than raw UI automation.
+- [ ] Keep detection and editing fully local/offline by default.
+- [ ] Evaluate a separate, clearly scoped synthesis/inpainting stage for edits
+      that geometry cannot solve, such as full eye closure or hidden mouth
+      texture; never disguise this limitation in the mesh solver.
+
+USP acceptance gate:
+
+- [ ] Face Warp offers a demonstrably better non-destructive workflow than a
+      modal one-shot Liquify operation.
+- [ ] The same saved semantic operation can be reproduced from UI and command
+      API/MCP without different rendering behaviour.
+
+## Verification and commit discipline
+
+- Checkboxes are marked complete only with code plus focused evidence.
+- Every completed phase records its fixtures, measurements and known limits in
+  `work/todo/task_118/result.md`.
+- No broad compatibility shims are retained for the rejected prototype.
+- No phase is committed merely because types compile.
+- Use focused tests while iterating; run the relevant visual desktop fixture at
+  each gate and one full verification/build before final completion.
+- Task 118 moves to `work/done` only after the HQ acceptance gate passes.

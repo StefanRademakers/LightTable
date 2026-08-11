@@ -1,3 +1,5 @@
+import folderIcon from './icons/folder.png?url';
+
 const icons = {
   ...import.meta.glob('./icons/*.png', {
     eager: true,
@@ -8,7 +10,8 @@ const icons = {
     eager: true,
     query: '?url',
     import: 'default'
-  })
+  }),
+  './icons/folder.png': folderIcon
 } as Record<string, string>;
 
 export const lightTableIcon = (name: string): string => {

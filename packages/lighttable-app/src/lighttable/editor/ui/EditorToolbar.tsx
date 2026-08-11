@@ -1,4 +1,5 @@
 import React from 'react';
+import { ColorSwatchField } from '../../../ui/ColorSwatchField';
 import { lightTableIcon } from '../../../assets/icons';
 import type { ToolId } from '../session/editorSession';
 import {
@@ -8,7 +9,9 @@ import {
   PATH_SELECTION_TOOL_DEFINITIONS,
   PEN_TOOL_DEFINITIONS,
   SHAPE_TOOL_DEFINITIONS,
+  SMART_SELECTION_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
+  TONE_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
   type ToolDefinition
 } from '../tools/toolRegistry';
@@ -194,6 +197,9 @@ export const toolFamilyFor = (tool: ToolDefinition) => {
   if (LASSO_TOOL_DEFINITIONS.some(({ id }) => id === tool.id)) {
     return { definitions: LASSO_TOOL_DEFINITIONS, label: 'Lasso tools' };
   }
+  if (SMART_SELECTION_TOOL_DEFINITIONS.some(({ id }) => id === tool.id)) {
+    return { definitions: SMART_SELECTION_TOOL_DEFINITIONS, label: 'Smart selection tools' };
+  }
   if (tool.id.startsWith('shape-')) {
     return { definitions: SHAPE_TOOL_DEFINITIONS, label: 'Shape tools' };
   }
@@ -211,6 +217,9 @@ export const toolFamilyFor = (tool: ToolDefinition) => {
   }
   if (tool.id === 'gradient' || tool.id === 'fill') {
     return { definitions: FILL_TOOL_DEFINITIONS, label: 'Gradient and fill tools' };
+  }
+  if (TONE_TOOL_DEFINITIONS.some(({ id }) => id === tool.id)) {
+    return { definitions: TONE_TOOL_DEFINITIONS, label: 'Tone tools' };
   }
   return null;
 };
@@ -305,30 +314,12 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           ↔
         </button>
-        <label
-          className="lighttable-toolbox__color lighttable-toolbox__color--background"
-          style={{ backgroundColor }}
-          title="Background color"
-        >
-          <input
-            type="color"
-            value={backgroundColor}
-            onChange={(event) => onBackgroundColorChange(event.currentTarget.value)}
-            aria-label="Background color"
-          />
-        </label>
-        <label
-          className="lighttable-toolbox__color lighttable-toolbox__color--foreground"
-          style={{ backgroundColor: foregroundColor }}
-          title="Foreground color"
-        >
-          <input
-            type="color"
-            value={foregroundColor}
-            onChange={(event) => onForegroundColorChange(event.currentTarget.value)}
-            aria-label="Foreground color"
-          />
-        </label>
+        <ColorSwatchField className="lighttable-toolbox__color lighttable-toolbox__color--background"
+          size="chip" value={backgroundColor} onChange={onBackgroundColorChange}
+          ariaLabel="Background color" />
+        <ColorSwatchField className="lighttable-toolbox__color lighttable-toolbox__color--foreground"
+          size="chip" value={foregroundColor} onChange={onForegroundColorChange}
+          ariaLabel="Foreground color" />
       </div>
     </div>
     </nav>
