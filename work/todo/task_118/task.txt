@@ -213,8 +213,10 @@ Gate 7:
 
 ## Phase 8 — HQ performance and visual validation
 
-- [ ] Record detector cold/warm time and memory.
-- [ ] Record solver preview p50/p95 and pointer-up refinement time.
+- [x] Record detector cold/warm time in the repeatable desktop smoke.
+- [ ] Record detector memory independently from renderer allocations.
+- [x] Record interactive preview-to-next-frame p50/p95 in the desktop smoke.
+- [ ] Record pointer-up exact refinement time after that solver exists.
 - [ ] Record vertex upload and GPU mesh-pass time.
 - [ ] Record idle and repeated-edit GPU/CPU memory behaviour.
 - [ ] Create front/three-quarter/profile fixtures at multiple resolutions.

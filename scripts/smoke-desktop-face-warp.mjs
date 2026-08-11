@@ -179,7 +179,16 @@ try {
   const gestureStartedAt = performance.now();
   await page.mouse.move(center.x, center.y);
   await page.mouse.down();
-  await page.mouse.move(center.x + 28, center.y - 16, { steps: 6 });
+  const previewFrameSamplesMs = [];
+  for (let step = 1; step <= 6; step += 1) {
+    const frameStartedAt = performance.now();
+    await page.mouse.move(
+      center.x + 28 * step / 6,
+      center.y - 16 * step / 6
+    );
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
+    previewFrameSamplesMs.push(performance.now() - frameStartedAt);
+  }
   await page.mouse.up();
   await page.mouse.move(10, 10);
   await page.waitForTimeout(250);
@@ -222,6 +231,9 @@ try {
   if (pageErrors.length || consoleErrors.some((message) => /validation|invalid renderpipeline/i.test(message))) {
     throw new Error(`Face Warp runtime errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
   }
+  const sortedFrameSamples = [...previewFrameSamplesMs].sort((a, b) => a - b);
+  const previewFrameP50Ms = sortedFrameSamples[Math.floor((sortedFrameSamples.length - 1) * 0.5)];
+  const previewFrameP95Ms = sortedFrameSamples[Math.floor((sortedFrameSamples.length - 1) * 0.95)];
   const report = {
     sourceFile,
     beforeHash: digest(beforeBytes),
@@ -238,7 +250,10 @@ try {
     performance: {
       coldDetectionMs: Math.round(coldDetectionMs * 10) / 10,
       warmDetectionMs: Math.round(warmDetectionMs * 10) / 10,
-      gestureToSettledFrameMs: Math.round(gestureToSettledFrameMs * 10) / 10
+      gestureToSettledFrameMs: Math.round(gestureToSettledFrameMs * 10) / 10,
+      previewFrameSamplesMs: previewFrameSamplesMs.map((value) => Math.round(value * 10) / 10),
+      previewFrameP50Ms: Math.round(previewFrameP50Ms * 10) / 10,
+      previewFrameP95Ms: Math.round(previewFrameP95Ms * 10) / 10
     },
     pageErrors,
     consoleErrors

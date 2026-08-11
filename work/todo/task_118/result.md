@@ -145,3 +145,15 @@
   Jacobi iteration. Deterministic tests verify positive unit-sum weights and
   cache identity; a sparse factorization remains explicitly tied to the future
   exact refinement solver rather than being added without a consumer.
+## Interactive timing instrumentation
+
+- The repeatable desktop smoke now dispatches six explicit pointer updates and
+  waits for the next animation frame after each one. It persists all samples
+  plus p50/p95 next-frame latency alongside cold/warm detector time.
+- Gesture settle time remains separate and includes its intentional 250 ms
+  visual-oracle delay; it is no longer mistaken for interactive solver time.
+- On the numbered 546 px checkerboard fixture, the current measured samples are
+  93.7, 67.2, 65.8, 67.2, 66.9 and 65.4 ms (p50 66.9 ms, p95 67.2 ms).
+  Identity remains exact, the changed region stays local and the released hash
+  stays stable. This is evidence, not an acceptance pass: preview latency is
+  still above a 60 Hz frame and remains an explicit optimization target.
