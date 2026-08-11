@@ -67,6 +67,24 @@
   authored displacement. For the 546 x 546 fixture this avoids roughly 3.58 MB
   of deformation output/depth storage per untouched layer. The desktop smoke
   still proves identity, first deformation, one undo entry and stable settle.
+- Added a reproducible numbered-checkerboard face generator and registered
+  desktop smoke command. The smoke moves the floating Layers panel away before
+  capture, derives its gesture from the fitted document bounds, and preserves
+  separate artifacts per source fixture. Both the numbered fixture and the
+  original portrait pass: their fitted canvas bounds remain byte-for-byte
+  equal before/after, no new black pixels appear in the changed region, the
+  foldover stress fixtures remain valid, and the deformed texture remains
+  stable after release. This closes the combined holes/folds/black-pixel/canvas
+  movement Gate 2 check. Eye/lip separation and extreme-slider corpus cases
+  now run against the canonical 468-vertex topology as well: paired upper/lower
+  eyelid and inner-lip vertices retain their ordering under combined extreme
+  semantic controls and a deliberately excessive local brush displacement.
+  Together with the existing extreme collar test, the Phase 8 checkerboard,
+  feature-separation, extreme-slider and collar fixture set is now present.
+- A compact canonical-topology eyelid gesture measurably moves its seeded eye
+  vertices while every sampled opposite-eye vertex remains exactly zero. This
+  exercises the connected/geodesic falloff rather than screen-distance
+  proximity and closes the Gate 3 cross-feature jump check.
 
 ## Still required before HQ completion
 

@@ -94,7 +94,7 @@ Gate 2 — first commit-worthy milestone:
 - [ ] A numbered checkerboard fixture deforms exactly with the target mesh.
 - [x] Overlay vertices and rendered triangle corners agree within 0.5 screen px.
 - [x] Identity RMSE is zero, or a documented format-rounding epsilon only.
-- [ ] No holes, folds, black pixels or canvas movement occur.
+- [x] No holes, folds, black pixels or canvas movement occur.
 - [ ] Only after this gate may Face Warp return to the normal toolbar.
 
 ## Shared-kernel guardrail — future Custom/Split Warp
@@ -132,7 +132,7 @@ Face Warp commands or as destructive generic brush strokes.
 
 Gate 3:
 
-- [ ] Editing an eyelid cannot jump to the other eyelid or opposite lip edge.
+- [x] Editing an eyelid cannot jump to the other eyelid or opposite lip edge.
 - [x] Painting outside the detected face/collar makes no document change.
 - [ ] Large and small brushes remain smooth, bounded and interactive.
 - [x] Undo/redo/reset reproduce exact meshes and pixels.
@@ -164,14 +164,14 @@ Gate 4:
 - [x] Preserve the photographed expression when every slider is zero.
 - [ ] Support linked symmetry and independent left/right feature editing.
 - [x] Route sliders and brush constraints through one target-mesh evaluator.
-- [ ] Enforce eyelid/lip ordering and safe deformation ranges.
+- [x] Enforce eyelid/lip ordering and safe deformation ranges.
 
 Gate 5:
 
 - [ ] Equivalent edits look equivalent under scale and in-plane rotation.
 - [ ] Relax removes local kinks without erasing the intended face change.
 - [ ] Restore locally returns to source without rerunning detection.
-- [ ] Eyes and lips cannot cross or expose large invalid texture regions.
+- [x] Eyes and lips cannot cross or expose large invalid texture regions.
 
 ## Phase 6 — Pose, profile and visibility quality
 
@@ -215,7 +215,7 @@ Gate 7:
 - [ ] Record vertex upload and GPU mesh-pass time.
 - [ ] Record idle and repeated-edit GPU/CPU memory behaviour.
 - [ ] Create front/three-quarter/profile fixtures at multiple resolutions.
-- [ ] Create checkerboard, eye/lip separation, extreme slider and collar tests.
+- [x] Create checkerboard, eye/lip separation, extreme slider and collar tests.
 - [ ] Compare representative edits with Photoshop Face-Aware Liquify.
 - [ ] Test on Windows discrete GPU and an integrated/Apple-class GPU path.
 

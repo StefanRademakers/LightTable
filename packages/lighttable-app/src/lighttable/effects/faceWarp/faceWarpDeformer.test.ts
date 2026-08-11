@@ -9,6 +9,12 @@ import {
   visibleFaceTriangleIndices
 } from './faceWarpDeformer';
 import { createDefaultFaceWarpParameters, type FaceWarpFace } from './faceWarpTypes';
+import {
+  MEDIAPIPE_FACE_CANONICAL_POSITIONS,
+  MEDIAPIPE_FACE_TRIANGLE_INDICES,
+  MEDIAPIPE_FACE_VERTEX_COUNT
+} from './canonicalFaceTopology';
+import { semanticLandmarksFromMesh } from './faceWarpLandmarks';
 
 const face = (): FaceWarpFace => {
   const mesh = [
@@ -113,5 +119,66 @@ describe('face warp target lattice', () => {
     const relaxed = relaxFaceWarpBrush(source, triangles, { x: 50, y: 50 }, 30, 1);
     expect(relaxed[5]!.x).toBeLessThan(10);
     expect(relaxed[7]!.x).toBe(10);
+  });
+
+  it('keeps eyelid and inner-lip ordering under extreme semantic and brush edits', () => {
+    const mesh = Array.from({ length: MEDIAPIPE_FACE_VERTEX_COUNT }, (_, index) => ({
+      x: 300 + MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3]! * 24,
+      y: 320 - MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 1]! * 24,
+      z: MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 2]! * 24
+    }));
+    const canonical: FaceWarpFace = {
+      id: 'canonical', confidence: 1,
+      parameters: createDefaultFaceWarpParameters(),
+      landmarks: semanticLandmarksFromMesh(mesh)
+    };
+    const orderedPairs = [
+      [160, 144], [159, 145], [158, 153], [385, 380], [386, 374], [387, 373],
+      [13, 14], [82, 87], [312, 317]
+    ] as const;
+    const expectOrdering = (target: readonly { x: number; y: number }[]) => {
+      orderedPairs.forEach(([first, second]) => {
+        const sourceDelta = mesh[first]!.y - mesh[second]!.y;
+        const targetDelta = target[first]!.y - target[second]!.y;
+        expect(Math.sign(targetDelta)).toBe(Math.sign(sourceDelta));
+        expect(Math.abs(targetDelta)).toBeGreaterThan(1e-4);
+      });
+    };
+
+    const semantic = applyFaceWarpParameterChange(canonical, MEDIAPIPE_FACE_TRIANGLE_INDICES, {
+      eyeSize: 1, eyeHeight: 1, mouthHeight: -1, smile: 1
+    });
+    expectOrdering(deformFaceMesh(semantic));
+
+    const brushDisplacements = applyFaceWarpBrush(
+      canonical, MEDIAPIPE_FACE_TRIANGLE_INDICES, mesh[159]!,
+      { x: 0, y: 120 }, 75, 1, 4
+    );
+    expectOrdering(deformFaceMesh({ ...canonical, displacements: brushDisplacements }));
+  });
+
+  it('keeps a compact eyelid brush on its connected local feature region', () => {
+    const mesh = Array.from({ length: MEDIAPIPE_FACE_VERTEX_COUNT }, (_, index) => ({
+      x: 300 + MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3]! * 24,
+      y: 320 - MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 1]! * 24,
+      z: MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 2]! * 24
+    }));
+    const canonical: FaceWarpFace = {
+      id: 'canonical-locality', confidence: 1,
+      parameters: createDefaultFaceWarpParameters(),
+      landmarks: semanticLandmarksFromMesh(mesh)
+    };
+    const displacement = applyFaceWarpBrush(
+      canonical, MEDIAPIPE_FACE_TRIANGLE_INDICES, mesh[159]!,
+      { x: 8, y: -5 }, 28, 1
+    );
+    const leftEye = [33, 160, 159, 158, 133];
+    const rightEye = [362, 385, 386, 387, 263];
+    expect(leftEye.some((index) => Math.hypot(
+      displacement[index]!.x, displacement[index]!.y
+    ) > 0.01)).toBe(true);
+    rightEye.forEach((index) => expect(Math.hypot(
+      displacement[index]!.x, displacement[index]!.y
+    )).toBe(0));
   });
 });
