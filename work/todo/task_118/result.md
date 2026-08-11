@@ -45,6 +45,12 @@
   verified both irregular face triangles and a tessellated rectangular patch,
   including multi-surface index offsets. Future Custom Warp can therefore use
   the indexed renderer without importing facial semantics.
+- The repeatable desktop smoke now records timing evidence. On the current
+  machine/fixture the detector measured 377.5 ms cold and 104.1 ms warm; the
+  scripted six-step gesture reached its deliberately delayed comparison frame
+  in 488.2 ms (including a fixed 250 ms settle wait). Detector memory and true
+  interactive p50/p95 still need dedicated instrumentation before Phase 8 can
+  be checked off.
 
 ## Still required before HQ completion
 

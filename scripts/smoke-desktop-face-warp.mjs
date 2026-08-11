@@ -80,9 +80,18 @@ try {
   if (!documentId) throw new Error('No active Face Warp document.');
 
   await page.getByRole('button', { name: /^Face Warp/ }).click();
+  const coldDetectionStartedAt = performance.now();
   await page.getByRole('button', { name: 'Detect faces' }).click();
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 60_000 });
+  const coldDetectionMs = performance.now() - coldDetectionStartedAt;
+  const warmDetectionStartedAt = performance.now();
+  await page.getByRole('button', { name: 'Redetect faces' }).click();
+  await page.getByRole('button', { name: 'Detecting faces…' })
+    .waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByRole('button', { name: 'Redetect faces' })
+    .waitFor({ state: 'visible', timeout: 60_000 });
+  const warmDetectionMs = performance.now() - warmDetectionStartedAt;
   const viewport = page.locator('.lighttable-viewport');
   const canvas = page.locator('.lighttable-viewport__canvas');
   const bounds = await viewport.boundingBox();
@@ -97,12 +106,14 @@ try {
   // Keep the gesture on the left cheek, clear of the default floating Layers
   // panel that covers the geometric center of this fixture.
   const center = { x: bounds.x + bounds.width * 0.40, y: bounds.y + bounds.height * 0.54 };
+  const gestureStartedAt = performance.now();
   await page.mouse.move(center.x, center.y);
   await page.mouse.down();
   await page.mouse.move(center.x + 28, center.y - 16, { steps: 6 });
   await page.mouse.up();
   await page.mouse.move(10, 10);
   await page.waitForTimeout(250);
+  const gestureToSettledFrameMs = performance.now() - gestureStartedAt;
   const afterBytes = await canvas.screenshot({ path: path.join(output, '02-deformed.png') });
   const after = await driver.queryDocument(documentId);
   if (!before || !after || after.history.undoDepth !== before.history.undoDepth + 1) {
@@ -141,6 +152,11 @@ try {
     beforeUndoDepth: before.history.undoDepth,
     afterUndoDepth: after.history.undoDepth,
     changedBounds,
+    performance: {
+      coldDetectionMs: Math.round(coldDetectionMs * 10) / 10,
+      warmDetectionMs: Math.round(warmDetectionMs * 10) / 10,
+      gestureToSettledFrameMs: Math.round(gestureToSettledFrameMs * 10) / 10
+    },
     pageErrors,
     consoleErrors
   };
