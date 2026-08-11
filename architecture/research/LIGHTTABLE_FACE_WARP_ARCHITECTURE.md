@@ -204,6 +204,26 @@ The document is not recomposited merely to animate or toggle the debug mesh.
 The existing GPU editor-overlay pass renders the target topology in screen-space
 stable line/point sizes.
 
+## Shared deformation command boundary
+
+Face Warp and a future Custom/Split Warp share evaluated indexed rendering,
+history transactions, overlay composition and foldover validation, but they do
+not share authoring topology. Stable command names are reserved at the
+application boundary for the future patch-network editor:
+
+- `setGrid(rows, columns)` replaces the authored rectangular patch topology;
+- `splitHorizontal(position)`, `splitVertical(position)` and
+  `splitCrosswise(x, y)` insert topology without rasterizing;
+- `moveAnchor(anchorId, position)` edits one authored control vertex;
+- `setHandleMode(anchorId, mode)` changes Bezier continuity explicitly.
+
+These are semantic application commands, not renderer methods and not raw UI
+events. They will produce a rectangular `DeformationSurface`; Face Warp will
+continue to produce its irregular facial `DeformationSurface`. No facial
+landmark index may enter these commands, and no future patch command may be
+stored as a generic accumulated pixel-push stroke. Their UI and implementation
+remain a separate task.
+
 ## Eyes, mouth and missing texture
 
 Eye and mouth boundary loops are explicit constraints. Eye size and aperture

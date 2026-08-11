@@ -181,4 +181,23 @@ describe('face warp target lattice', () => {
       displacement[index]!.x, displacement[index]!.y
     )).toBe(0));
   });
+
+  it('keeps semantic controls and direct sculpt constraints interoperable', () => {
+    const source = face();
+    const sculpted = {
+      ...source,
+      displacements: applyFaceWarpBrush(
+        source, triangles, { x: 50, y: 50 }, { x: 7, y: -3 }, 35, 0.8
+      )
+    };
+    const combined = applyFaceWarpParameterChange(sculpted, triangles, { faceWidth: 0.5 });
+    const semanticOnly = applyFaceWarpParameterChange(source, triangles, { faceWidth: 0.5 });
+    expect(combined.parameters.faceWidth).toBe(0.5);
+    expect(deformFaceMesh(combined)).not.toEqual(deformFaceMesh(semanticOnly));
+
+    const continued = applyFaceWarpBrush(
+      combined, triangles, { x: 50, y: 55 }, { x: -2, y: 4 }, 30, 0.6
+    );
+    expect(continued).not.toEqual(combined.displacements);
+  });
 });

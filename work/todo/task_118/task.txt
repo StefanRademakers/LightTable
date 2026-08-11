@@ -111,7 +111,7 @@ the complete Custom Warp UI inside task 118.
       surface and contains no MediaPipe or facial-semantic dependency.
 - [x] Ensure renderer tests include both an irregular triangle fixture and a
       tessellated rectangular patch fixture.
-- [ ] Reserve stable command concepts for future `setGrid`, `splitHorizontal`,
+- [x] Reserve stable command concepts for future `setGrid`, `splitHorizontal`,
       `splitVertical`, `splitCrosswise`, `moveAnchor` and `setHandleMode`
       operations without implementing their UI in this task.
 
@@ -228,14 +228,14 @@ HQ acceptance gate:
 
 ## Phase 9 — USP layer
 
-- [ ] Persistent non-modal Face Warp effect editable after reopen.
-- [ ] Semantic sliders and direct mesh sculpting remain interoperable.
+- [x] Persistent non-modal Face Warp effect editable after reopen.
+- [x] Semantic sliders and direct mesh sculpting remain interoperable.
 - [ ] Feature locks/protection for eyes, lips, nose and outer face.
 - [ ] Local Relax and Restore with clear on-canvas feedback.
 - [ ] Independent multi-face and asymmetric left/right editing.
 - [ ] Expose canonical commands for future MCP use, for example semantic face,
       feature and constraint operations rather than raw UI automation.
-- [ ] Keep detection and editing fully local/offline by default.
+- [x] Keep detection and editing fully local/offline by default.
 - [ ] Evaluate a separate, clearly scoped synthesis/inpainting stage for edits
       that geometry cannot solve, such as full eye closure or hidden mouth
       texture; never disguise this limitation in the mesh solver.

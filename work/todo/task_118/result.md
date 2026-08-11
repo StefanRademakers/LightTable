@@ -85,6 +85,19 @@
   vertices while every sampled opposite-eye vertex remains exactly zero. This
   exercises the connected/geodesic falloff rather than screen-distance
   proximity and closes the Gate 3 cross-feature jump check.
+- Face Warp remains a normal serialized adjustment-stack module: source mesh,
+  semantic values, direct displacements and pose round-trip without retaining
+  detector runtime state, so reopen stays non-modal and editable. A new
+  interoperability fixture proves that applying a semantic control preserves
+  an existing direct sculpt and that direct sculpting can then continue.
+  Detection uses only the lazily loaded bundled model/worker and rendering or
+  reopened editing never performs a network request; the local/offline USP
+  baseline is therefore checked.
+- Reserved the future Custom/Split Warp application-command boundary in the
+  architecture: `setGrid`, horizontal/vertical/crosswise split, `moveAnchor`
+  and `setHandleMode`. The document explicitly keeps these semantic authoring
+  commands out of the generic renderer and separate from facial topology; no
+  premature Custom Warp UI or implementation was added.
 
 ## Still required before HQ completion
 
