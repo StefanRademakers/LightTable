@@ -207,6 +207,7 @@ export interface LightTableDesktopBridge {
   loadGenAiProjectSetup(projectId: string): Promise<import('@lighttable/genai-core').GenAiProjectSetup | null>;
   saveGenAiProjectSetup(projectId: string, setup: import('@lighttable/genai-core').GenAiProjectSetup): Promise<void>;
   onGenAiProviderStatus(listener: (snapshot: GenAiProviderSnapshot) => void): () => void;
+  onGenAiProjectAssetsChanged(listener: (projectId: string) => void): () => void;
   onGenAiJobChanged(listener: (event: {
     readonly projectId: string;
     readonly job: GenAiGenerationJob;

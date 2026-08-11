@@ -370,6 +370,12 @@ class ProjectAssetCatalogController {
   private watcher: FSWatcher | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private manifestPath: string | null = null;
+  private readonly listeners = new Set<(manifestPath: string) => void>();
+
+  subscribe(listener: (manifestPath: string) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
 
   activate(manifestPath: string): void {
     this.close();
@@ -418,6 +424,9 @@ class ProjectAssetCatalogController {
     const next = previous.catch(() => undefined).then(async () => {
       if (this.manifestPath !== manifestPath) return;
       await rebuildProjectAssetIndex({ manifestPath });
+      if (this.manifestPath === manifestPath) {
+        for (const listener of this.listeners) listener(manifestPath);
+      }
     });
     saveQueues.set(key, next);
     try {
@@ -439,3 +448,7 @@ export const activateProjectAssetCatalog = (manifestPath: string): void => {
 export const deactivateProjectAssetCatalog = (): void => {
   projectAssetCatalog.close();
 };
+
+export const subscribeProjectAssetCatalog = (
+  listener: (manifestPath: string) => void
+): (() => void) => projectAssetCatalog.subscribe(listener);

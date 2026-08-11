@@ -137,6 +137,11 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.on('lighttable:genai-provider-changed', handler);
     return () => ipcRenderer.removeListener('lighttable:genai-provider-changed', handler);
   },
+  onGenAiProjectAssetsChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, projectId: string) => listener(projectId);
+    ipcRenderer.on('lighttable:genai-project-assets-changed', handler);
+    return () => ipcRenderer.removeListener('lighttable:genai-project-assets-changed', handler);
+  },
   onGenAiJobChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, jobEvent: Parameters<typeof listener>[0]) => listener(jobEvent);
     ipcRenderer.on('lighttable:genai-job-changed', handler);

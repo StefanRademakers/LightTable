@@ -1,4 +1,6 @@
 import process from 'node:process';
+import os from 'node:os';
+import path from 'node:path';
 import { LightTableBridgeClient, MockLightTableClient } from './lighttableClient.mjs';
 import { createLightTableMcpApp } from './server.mjs';
 import { EncryptedJsonFileStore, MemoryStateStore } from './durableState.mjs';
@@ -6,7 +8,7 @@ import { createStructuredLogger, PrivacyAuditLog, validateServiceConfig } from '
 import { DeviceTunnelLightTableClient } from './deviceTunnelClient.mjs';
 
 const config = validateServiceConfig(process.env);
-const { port, host, publicUrl, insecure: allowInsecure, allowedHosts } = config;
+const { port, host, publicUrl, insecure: allowInsecure, allowedHosts, referencePath } = config;
 const pairingCode = process.env.LIGHTTABLE_PAIRING_CODE;
 const logger = createStructuredLogger();
 const client = process.env.LIGHTTABLE_DEMO_MODE === 'true'
@@ -26,7 +28,8 @@ const audit = new PrivacyAuditLog({ stateStore: auditStateStore });
 const { app, close, deviceTunnel } = await createLightTableMcpApp({ publicUrl, pairingCode, client,
   allowInsecure, allowedHosts, devicePairingCode: process.env.LIGHTTABLE_DEVICE_PAIRING_CODE ?? pairingCode,
   serverId: process.env.LIGHTTABLE_SERVER_ID ?? 'lighttable-mcp', oauthStateStore, audit,
-  tenantId: process.env.LIGHTTABLE_TENANT_ID ?? 'default', userId: process.env.LIGHTTABLE_USER_ID ?? 'owner' });
+  tenantId: process.env.LIGHTTABLE_TENANT_ID ?? 'default', userId: process.env.LIGHTTABLE_USER_ID ?? 'owner',
+  referencePath: referencePath ?? (allowInsecure ? path.join(os.tmpdir(), 'lighttable-reference-relay') : null) });
 const server = app.listen(port, host, () => {
   logger.info('server.listening', { endpoint: new URL('/mcp', publicUrl).href });
 });

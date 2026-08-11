@@ -23,7 +23,8 @@ import {
   readProjectAssetIndex,
   readProjectAssetPreview,
   recordSavedProjectAsset,
-  scheduleSavedProjectAsset
+  scheduleSavedProjectAsset,
+  subscribeProjectAssetCatalog
 } from './projectAssetService';
 import { DesktopRecoveryStore } from './recoveryStore';
 import {
@@ -58,6 +59,7 @@ import { DesktopAgentAccessCredentialStore } from './agentAccessCredentialStore'
 import { AgentTunnelController, createAgentDeviceId } from './agentTunnel';
 import {
   HttpsAgentPairingClient,
+  HttpsAgentReferencePublisher,
   ProtectedAgentTunnelSessionStore,
   WebSocketAgentTunnelTransport
 } from './agentTunnelAdapters';
@@ -70,6 +72,7 @@ import {
   recordProjectAssetRemoteLink,
   resolveProjectAssetRemoteLinks
 } from './genai/projectAssetRemoteLinks';
+import { prepareProjectAssetReferences } from './genai/prepareProjectAssetReferences';
 import {
   listProjectGenerationJobs,
   updateProjectGenerationJob,
@@ -88,6 +91,9 @@ let packagedRendererServer: Server | null = null;
 let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath: string } | null = null;
 let agentAccessBridge: AgentAccessBridge | null = null;
 let agentTunnel: AgentTunnelController | null = null;
+const agentReferencePublisher = new HttpsAgentReferencePublisher(
+  process.env.LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS === 'true'
+);
 let openArtConnection: OpenArtConnectionController | null = null;
 let activeProjectManifestPath: string | null = null;
 let agentRequestSequence = 0;
@@ -555,6 +561,14 @@ void app.whenReady().then(async () => {
       mainWindow.webContents.send('lighttable:genai-provider-changed', snapshot);
     }
   });
+  subscribeProjectAssetCatalog((manifestPath) => {
+    if (!mainWindow || mainWindow.isDestroyed() || activeProjectManifestPath !== manifestPath) return;
+    void openProjectManifest(manifestPath).then(({ summary }) => {
+      if (activeProjectManifestPath === manifestPath && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('lighttable:genai-project-assets-changed', summary.id);
+      }
+    }).catch(() => undefined);
+  });
   void openArtConnection.restore();
   const credentialStore = new DesktopAgentAccessCredentialStore(
     path.join(app.getPath('userData'), 'agent-access', 'credentials.bin'), credentialProtector
@@ -746,15 +760,23 @@ void app.whenReady().then(async () => {
     const manifestPath = activeProjectManifestPath;
     const now = Date.now();
     const jobId = `genai-${randomUUID()}` as import('@lighttable/genai-core').GenAiJobId;
-    const remoteReferences = await resolveProjectAssetRemoteLinks(
-      manifestPath,
+    const remoteReferences = await prepareProjectAssetReferences(
       generationRequest.references.map((reference) => reference.id),
-      OPENART_PROVIDER_ID
+      OPENART_PROVIDER_ID,
+      {
+        resolve: (assetIds) => resolveProjectAssetRemoteLinks(manifestPath, assetIds, OPENART_PROVIDER_ID),
+        read: async (assetId) => {
+          const asset = await readProjectAsset(manifestPath, assetId);
+          if (!asset) return null;
+          return { ...asset, mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream' };
+        },
+        publish: async (asset) => {
+          if (!agentTunnel) throw new Error('The LightTable reference publisher is unavailable.');
+          return agentReferencePublisher.publish(agentTunnel.referencePublicationSession(), asset);
+        },
+        record: (link) => recordProjectAssetRemoteLink(manifestPath, link)
+      }
     );
-    const requestedReferenceIds = new Set(generationRequest.references.map((reference) => reference.id));
-    if (remoteReferences.length !== requestedReferenceIds.size) {
-      throw new Error('One or more visual references are local-only. Publish them to OpenArt before generation.');
-    }
     await upsertProjectGenerationJob(manifestPath, {
       id: jobId,
       request: generationRequest,

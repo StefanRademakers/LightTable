@@ -193,6 +193,7 @@ export interface LightTableAgentAccessService {
 
 export interface LightTableGenAiService extends GenAiHostPort {
   subscribe(listener: (snapshot: GenAiProviderSnapshot) => void): () => void;
+  subscribeProjectAssets(projectId: string, listener: () => void): () => void;
   subscribeJobs(
     projectId: string,
     listener: (job: import('@lighttable/genai-core').GenAiGenerationJob) => void

@@ -103,6 +103,9 @@ const desktopHost: LightTableHost = {
     loadProjectSetup: (projectId) => window.lightTableDesktop.loadGenAiProjectSetup(projectId),
     saveProjectSetup: (projectId, setup) => window.lightTableDesktop.saveGenAiProjectSetup(projectId, setup),
     subscribe: (listener) => window.lightTableDesktop.onGenAiProviderStatus(listener),
+    subscribeProjectAssets: (projectId, listener) => window.lightTableDesktop.onGenAiProjectAssetsChanged((changedProjectId) => {
+      if (changedProjectId === projectId) listener();
+    }),
     subscribeJobs: (projectId, listener) => window.lightTableDesktop.onGenAiJobChanged((event) => {
       if (event.projectId === projectId) listener(event.job);
     })

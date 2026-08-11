@@ -36,6 +36,13 @@ export class DeviceTunnelBroker {
       sessionToken: token, expiresAt };
   }
 
+  authenticateSessionToken(token) {
+    if (typeof token !== 'string' || token.length < 32) return null;
+    const session = this.sessions.get(hash(token));
+    if (!session || session.revoked || session.expiresAt <= this.now()) return null;
+    return { deviceId: session.deviceId, expiresAt: session.expiresAt };
+  }
+
   installRoutes(app) {
     app.post('/agent/pair', (request, response) => {
       try { response.status(201).set('cache-control', 'no-store').json(this.pair(request.body?.code, request.body?.deviceId)); }

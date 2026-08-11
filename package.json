@@ -59,6 +59,7 @@
     "smoke:desktop:agent-access": "node scripts/smoke-desktop-agent-access.mjs",
     "smoke:desktop:agent-access:build": "npm run package:desktop:verify && npm run smoke:desktop:agent-access --",
     "smoke:desktop:agent-tunnel": "node scripts/smoke-desktop-agent-tunnel.mjs",
+    "smoke:desktop:genai-assets": "node scripts/smoke-desktop-genai-project-assets.mjs",
     "smoke:desktop:mcp-design": "node scripts/smoke-desktop-mcp-design.mjs",
     "smoke:desktop:agent-tunnel:build": "npm run package:desktop:verify && npm run smoke:desktop:agent-tunnel --",
     "audit:desktop:panel-language": "node scripts/audit-desktop-panel-language.mjs",

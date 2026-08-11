@@ -176,8 +176,9 @@ export const useGenAiSetupController = (
     previewRequests.current.clear(); setAssetPreviews({});
     if (!service || !projectId || provider.status !== 'connected') { setAssets([]); return; }
     let current = true;
-    void service.listProjectAssets(projectId).then((next) => { if (current) setAssets(next); })
-      .catch((reason) => {
+    const refresh = () => void service.listProjectAssets(projectId).then((next) => {
+      if (current) setAssets(next);
+    }).catch((reason) => {
         if (!current) return;
         const message = reason instanceof Error ? reason.message : String(reason);
         // During Vite HMR the renderer can briefly be newer than Electron's
@@ -185,7 +186,9 @@ export const useGenAiSetupController = (
         if (!message.includes('No handler registered')) setGenerationError(message);
         setAssets([]);
       });
-    return () => { current = false; };
+    refresh();
+    const unsubscribe = service.subscribeProjectAssets(projectId, refresh);
+    return () => { current = false; unsubscribe(); };
   }, [projectId, provider.status, service]);
 
   const requestAssetPreview = React.useCallback((assetId: GenAiAssetId) => {
@@ -214,11 +217,9 @@ export const useGenAiSetupController = (
   const tooManyReferences = workflow?.fields.some((field) => field.kind === 'asset'
     && typeof field.sourceSchema.maxItems === 'number'
     && resolvedMentions.references.length > field.sourceSchema.maxItems) ?? false;
-  const unpublishedReferences = resolvedMentions.references.filter((reference) =>
-    !reference.publishedProviderIds?.includes(provider.id)
-  );
-  const referenceIssue = unpublishedReferences.length
-    ? `${unpublishedReferences.length} local reference${unpublishedReferences.length === 1 ? ' is' : 's are'} not published to ${provider.label}. Use a generated history image or remove the reference.`
+  const acceptsReferences = workflow?.fields.some((field) => field.kind === 'asset') ?? false;
+  const referenceIssue = resolvedMentions.references.length && !acceptsReferences
+    ? `${workflow?.label ?? 'This workflow'} does not accept visual references.`
     : undefined;
   const canGenerate = Boolean(
     service && projectId && workflow && prompt.trim() && validationIssues.length === 0

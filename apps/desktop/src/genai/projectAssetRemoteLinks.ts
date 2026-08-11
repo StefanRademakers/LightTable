@@ -12,6 +12,7 @@ export interface ProjectAssetRemoteLink {
   readonly providerJobId?: string;
   readonly url: string;
   readonly mediaType: string;
+  readonly expiresAt?: string;
   readonly updatedAt: string;
 }
 
@@ -46,6 +47,7 @@ export const resolveProjectAssetRemoteLinks = async (
   const requested = new Set(assetIds);
   return (await load(manifestPath)).links.filter((link) =>
     requested.has(link.assetId) && link.providerId === providerId && /^https:\/\//iu.test(link.url)
+    && (!link.expiresAt || Date.parse(link.expiresAt) > Date.now() + 30_000)
   );
 };
 

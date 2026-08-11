@@ -2,8 +2,9 @@
 
 ## Outcome
 
-Status: COMPLETED VERTICAL SLICE — expansion items below are intentionally
-tracked as later product work; native reference publication is task 132.
+Status: IMPLEMENTED AND TARGETED-AUTOMATION VERIFIED. Live provider acceptance
+still requires the owner's connected OpenArt and LightTable server sessions;
+that manual check is not represented as automated evidence.
 
 LightTable gets a native GenAI panel that initially connects to OpenArt and
 then grows one verified model/workflow at a time. The feature remains isolated
@@ -137,7 +138,7 @@ Suggested commit: `feat(genai): surface native provider panel`
 - [x] Red OpenArt click starts/focuses the connection flow.
 - [x] Restore and validate a stored session without opening the browser on startup.
 - [x] Distinguish expired credentials from other actionable connection errors.
-- [ ] Add targeted refresh and IPC contract tests (state and timeout are covered).
+- [x] Add targeted refresh and IPC contract tests (state and timeout are covered).
 
 Acceptance gate:
 
@@ -185,7 +186,7 @@ Suggested commit: `feat(genai): normalize OpenArt model catalog schemas`
 - [x] Add a project-backed reference picker through safe host adapter IDs.
 - [x] Map prompt bindings to provider `visualReferences` without exposing
   local paths, and reject unresolved references before a paid submit.
-- [ ] Add the desktop reference publisher/short-lived HTTPS relay for locally
+- [x] Add the desktop reference publisher/short-lived HTTPS relay for locally
   authored project assets; `openart_upload_pick` cannot receive native bytes.
 - [x] Never place absolute paths in React state or persisted panel state.
 - [x] Validate required fields, enums, numeric bounds and reference counts before submission.
@@ -213,7 +214,7 @@ Suggested commit: `feat(genai): add first OpenArt image setup workflow`
   `aiHistory` location (by default `AiRenders/History`) before editor import.
 - [x] For image edit, place the saved result as the top layer of the active document.
 - [x] For image create, open the saved result as a new document.
-- [ ] Track remote completion, durable local save and editor placement as separate
+- [x] Track remote completion, durable local save and editor placement as separate
   job stages so a failed placement never loses a paid render.
 - [x] Update project asset index and thumbnail through existing project services.
 - [x] Persist setup, prompt, references and provider metadata with the job/result.

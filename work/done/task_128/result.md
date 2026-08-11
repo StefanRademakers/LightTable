@@ -2,39 +2,36 @@
 
 ## Delivered
 
-- Provider-neutral `@lighttable/genai-core` contracts, schema normalization,
-  validation, prompt bindings, presentation hints and job state.
-- Lazy OpenArt MCP adapter with runtime model/form discovery and a validated
-  cached catalog.
-- Electron-owned OAuth/PKCE, loopback callback, encrypted credential storage,
-  connection restore and narrow IPC contracts.
-- Native LightTable GenAI panel using the existing control system, with Image
-  Edit/Create, Nano Banana Pro and GPT Image 2, dynamic fields, featured
-  aspect/resolution/quality controls, Advanced fields, output count, cost and
-  project asset mentions.
-- Persistent project jobs with idempotency keys, adaptive polling, honest local
-  stop/resume, restart recovery and no silent paid re-submit.
-- Atomic output storage under `AiRenders/History`, project indexing and
-  thumbnail reuse. Image edits enter as the top layer; image creates open as a
-  document.
-- Separate Queue & History Dockview panel with project-backed result cards.
+- Native, provider-neutral GenAI and Queue/History panels with OpenArt,
+  Nano Banana Pro and GPT Image 2 schema-driven controls.
+- Shared Image Edit/Image Create prompt composer with stable `@asset` tokens,
+  project thumbnails and aspect, resolution, quality and count controls.
+- Background project indexing now pushes a narrow IPC event to the panel. An
+  image added after project-open appears without remounting, polling or touching
+  the document renderer.
+- Local reference bytes remain desktop-owned and are published only at submit
+  through the authenticated LightTable server to expiring, unguessable HTTPS
+  URLs. OpenArt receives those URLs; React never receives paths or bytes.
+- Existing valid remote links are reused. Missing, expired or unsupported
+  references fail before provider submission instead of being omitted.
+- Persistent jobs and atomic output storage under `AiRenders/History`; edit
+  outputs become the top layer and create outputs open as a document.
 
-## Verified
+## Evidence from this repair pass
 
-- `@lighttable/genai-core`: 5 files / 8 tests passed.
-- `@lighttable/genai-openart`: 2 files / 7 tests passed.
-- Desktop GenAI: 6 files / 11 tests passed.
-- `@lighttable/app` and `@lighttable/desktop` typechecks passed.
-- Real Electron project lifecycle smoke passed after excluding first-party
-  source packages from Vite dependency prebundling.
+- Real Electron smoke: create project, add an image after activation, receive
+  the asset-catalog event and read the new opaque GenAI asset: passed.
+- Desktop GenAI/project/publisher tests: 17 passed.
+- Reference preparation tests cover reuse, local publication and missing-asset
+  rejection; OpenArt parameter tests cover binding provider tokens to URLs.
+- MCP relay streaming/expiry test: passed.
+- LightTable app suite: 372 files / 2012 tests passed.
+- Desktop, app and MCP typechecks passed.
 
-## Explicitly not disguised as complete
+## Honest runtime boundary
 
-Locally authored project assets do not yet have a public HTTPS publication
-path. Generated OpenArt results can reuse their recorded remote link. Native
-local references fail preflight before a paid request. The required first-party
-relay is specified separately in `work/todoLater/task_132`.
-
-Further providers, video and broad model expansion remain later product work;
-they do not alter the completed first production-worthy OpenArt image vertical
-slice.
+The local-reference path needs both an OpenArt connection and a paired
+LightTable server because OpenArt consumes reachable URLs, not native desktop
+bytes. The implementation and local server path are automated; a real paid
+OpenArt generation remains an owner-session acceptance check and is not claimed
+as automated evidence.

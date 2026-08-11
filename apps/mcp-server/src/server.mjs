@@ -6,11 +6,12 @@ import { createLightTableMcpServer } from './mcp.mjs';
 import { installOAuthRoutes, LightTableOAuthStore } from './oauth.mjs';
 import { DeviceTunnelBroker } from './deviceTunnel.mjs';
 import { createRequestGuard } from './operations.mjs';
+import { ReferenceAssetRelay } from './referenceAssetRelay.mjs';
 
 export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
   allowInsecure = false, allowedHosts, devicePairingCode = pairingCode, serverId,
   oauthStateStore = null, tenantId = 'default', userId = 'owner', audit = null,
-  requestGuard = createRequestGuard() } = {}) => {
+  requestGuard = createRequestGuard(), referencePath = null, referenceNow } = {}) => {
   const resource = new URL('/mcp', publicUrl);
   const issuer = new URL('/', publicUrl);
   if (!allowInsecure && (resource.protocol !== 'https:' || issuer.protocol !== 'https:')) {
@@ -38,6 +39,14 @@ export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
     dangerouslyAllowInsecureIssuerUrl: allowInsecure }));
   installOAuthRoutes(app, oauth);
   const deviceTunnel = new DeviceTunnelBroker({ publicUrl, pairingCode: devicePairingCode, serverId });
+  const referenceRelay = referencePath
+    ? new ReferenceAssetRelay({ rootPath: referencePath, publicUrl, now: referenceNow })
+    : null;
+  await referenceRelay?.initialize();
+  referenceRelay?.installRoutes(app, (request) => {
+    const match = request.get('authorization')?.match(/^Bearer\s+(.+)$/iu);
+    return match ? deviceTunnel.authenticateSessionToken(match[1]) : null;
+  });
   app.use('/agent/pair', express.json({ limit: '16kb' }));
   deviceTunnel.installRoutes(app);
   let ready = true;
@@ -62,6 +71,7 @@ export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
     enableJsonResponse: true });
   await mcp.connect(transport);
   app.all('/mcp', authenticate, (req, res) => void transport.handleRequest(req, res, req.body));
-  return { app, oauth, deviceTunnel,
-    close: () => { ready = false; deviceTunnel.close(); return transport.close(); }, requestId: randomUUID() };
+  return { app, oauth, deviceTunnel, referenceRelay,
+    close: async () => { ready = false; deviceTunnel.close(); await referenceRelay?.close(); return transport.close(); },
+    requestId: randomUUID() };
 };

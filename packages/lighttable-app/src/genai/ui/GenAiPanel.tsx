@@ -169,11 +169,11 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
               {models.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
             </select>
-            {mode === 'image2image' ? <section className="genai-panel__reference-well" aria-label="Visual references">
+            <section className="genai-panel__reference-well" aria-label="Visual references">
               <header><strong>▧ &nbsp; Visual references</strong><span>{references.length}/10</span></header>
               {references.length ? <div className="genai-panel__reference-items">{references.map(({ token, asset }) => {
                 return <div className="genai-panel__reference-item" key={asset.id}
-                  title={isOpenArtReady(asset) ? `${token} · OpenArt ready` : `${token} · Local only`}>
+                  title={isOpenArtReady(asset) ? `${token} · OpenArt ready` : `${token} · Publishes securely when generated`}>
                   {assetPreviews[asset.id] ? <img src={assetPreviews[asset.id]} alt="" /> : null}<strong>{token}</strong>
                 </div>;
               })}</div> : null}
@@ -192,10 +192,10 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                   <span className="genai-prompt-composer__thumb">
                     {assetPreviews[option.asset.id] ? <img src={assetPreviews[option.asset.id]} alt="" /> : null}
                   </span>
-                  <span><strong>{option.asset.label}</strong><small>{option.token} · {isOpenArtReady(option.asset) ? 'OpenArt ready' : 'Local only'}</small></span>
+                  <span><strong>{option.asset.label}</strong><small>{option.token} · {isOpenArtReady(option.asset) ? 'OpenArt ready' : 'Publishes on generate'}</small></span>
                 </button>)}
               </div> : null}
-            </section> : null}
+            </section>
             <GenAiPromptComposer value={prompt} onChange={(value) => onFieldChange?.('prompt', value)}
               mentions={mentionOptions} previews={assetPreviews} requestPreview={onRequestAssetPreview} />
             {basicFields.length ? <section className="genai-panel__settings" aria-label="Generation settings">

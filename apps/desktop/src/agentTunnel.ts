@@ -107,6 +107,12 @@ export class AgentTunnelController {
   }
 
   status(): AgentTunnelStatus { return this.current; }
+  referencePublicationSession(): AgentTunnelSession {
+    if (!this.session || this.current.state !== 'connected' || this.session.expiresAt <= this.now()) {
+      throw new Error('Connect the LightTable server in Preferences > Agent Access before publishing local references.');
+    }
+    return this.session;
+  }
   subscribe(listener: (status: AgentTunnelStatus) => void): () => void {
     this.listeners.add(listener); return () => this.listeners.delete(listener);
   }
