@@ -168,7 +168,7 @@ Gate 4:
 
 Gate 5:
 
-- [ ] Equivalent edits look equivalent under scale and in-plane rotation.
+- [x] Equivalent edits look equivalent under scale and in-plane rotation.
 - [ ] Relax removes local kinks without erasing the intended face change.
 - [x] Restore locally returns to source without rerunning detection.
 - [x] Eyes and lips cannot cross or expose large invalid texture regions.

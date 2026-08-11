@@ -214,4 +214,70 @@ describe('face warp target lattice', () => {
     );
     expect(continued).not.toEqual(combined.displacements);
   });
+
+  it('produces equivalent semantic and brush edits under scale and rotation', () => {
+    const mesh = Array.from({ length: MEDIAPIPE_FACE_VERTEX_COUNT }, (_, index) => ({
+      x: 300 + MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3]! * 24,
+      y: 320 - MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 1]! * 24,
+      z: MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 2]! * 24
+    }));
+    const source: FaceWarpFace = {
+      id: 'equivalence-source', confidence: 1,
+      parameters: createDefaultFaceWarpParameters(),
+      landmarks: semanticLandmarksFromMesh(mesh)
+    };
+    const angle = Math.PI * 0.31;
+    const scale = 1.7;
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    const forward = ({ x, y, z }: { x: number; y: number; z?: number }) => ({
+      x: 80 + scale * (x * cosine - y * sine),
+      y: -35 + scale * (x * sine + y * cosine),
+      z: z === undefined ? undefined : z * scale
+    });
+    const inverse = ({ x, y }: { x: number; y: number }) => ({
+      x: ((x - 80) * cosine + (y + 35) * sine) / scale,
+      y: (-(x - 80) * sine + (y + 35) * cosine) / scale
+    });
+    const transformedMesh = mesh.map(forward);
+    const transformed: FaceWarpFace = {
+      ...source,
+      id: 'equivalence-transformed',
+      landmarks: semanticLandmarksFromMesh(transformedMesh)
+    };
+
+    const semantic = deformFaceMesh(applyFaceWarpParameterChange(
+      source, MEDIAPIPE_FACE_TRIANGLE_INDICES, { faceWidth: 0.6, smile: 0.35 }
+    ));
+    const transformedSemantic = deformFaceMesh(applyFaceWarpParameterChange(
+      transformed, MEDIAPIPE_FACE_TRIANGLE_INDICES, { faceWidth: 0.6, smile: 0.35 }
+    ));
+    semantic.forEach((point, index) => {
+      const restored = inverse(transformedSemantic[index]!);
+      expect(restored.x).toBeCloseTo(point.x, 4);
+      expect(restored.y).toBeCloseTo(point.y, 4);
+    });
+
+    const center = mesh[5]!;
+    const delta = { x: 7, y: -3 };
+    const brush = applyFaceWarpBrush(
+      source, MEDIAPIPE_FACE_TRIANGLE_INDICES, center, delta, 42, 0.7
+    );
+    const transformedDelta = {
+      x: scale * (delta.x * cosine - delta.y * sine),
+      y: scale * (delta.x * sine + delta.y * cosine)
+    };
+    const transformedBrush = applyFaceWarpBrush(
+      transformed, MEDIAPIPE_FACE_TRIANGLE_INDICES, forward(center),
+      transformedDelta, 42 * scale, 0.7
+    );
+    brush.forEach((point, index) => {
+      const expected = {
+        x: scale * (point.x * cosine - point.y * sine),
+        y: scale * (point.x * sine + point.y * cosine)
+      };
+      expect(transformedBrush[index]!.x).toBeCloseTo(expected.x, 3);
+      expect(transformedBrush[index]!.y).toBeCloseTo(expected.y, 3);
+    });
+  });
 });

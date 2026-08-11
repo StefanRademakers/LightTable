@@ -131,3 +131,9 @@
   options bar states all three brush modifiers without adding solver controls.
 - Unit coverage proves that local restore leaves distant direct constraints and
   active semantic deformation intact.
+## Coordinate equivalence
+
+- A canonical 468-vertex fixture now applies identical semantic and direct
+  brush edits before and after a 1.7x scale plus arbitrary in-plane rotation.
+- Inverse-mapped targets and rotated/scaled displacement fields agree within
+  floating-point tolerance, covering both semantic and proportional paths.
