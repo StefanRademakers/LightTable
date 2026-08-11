@@ -5,9 +5,16 @@ export interface FaceWarpNeighbor {
   readonly length: number;
 }
 
+export interface FaceWarpWeightedNeighbor {
+  readonly vertex: number;
+  readonly weight: number;
+}
+
 export interface FaceWarpTopology {
   readonly key: string;
   readonly adjacency: readonly (readonly FaceWarpNeighbor[])[];
+  /** Normalized bounded inverse-edge weights reused by every local solve. */
+  readonly laplacianWeights: readonly (readonly FaceWarpWeightedNeighbor[])[];
   readonly boundaryVertices: ReadonlySet<number>;
   readonly featureLoops: Readonly<{
     faceOval: readonly number[];
@@ -143,9 +150,21 @@ export const faceWarpTopology = (
   edgeUse.forEach(({ a, b, count }) => {
     if (count === 1) { boundaryVertices.add(a); boundaryVertices.add(b); }
   });
+  const adjacency = neighbors.map((entries) => [...entries].map(([vertex, length]) => ({ vertex, length })));
+  const laplacianWeights = adjacency.map((entries) => {
+    const raw = entries.map(({ vertex, length }) => ({
+      vertex,
+      weight: 1 / Math.max(1e-4, length)
+    }));
+    const total = raw.reduce((sum, { weight }) => sum + weight, 0);
+    return total > 0
+      ? raw.map(({ vertex, weight }) => ({ vertex, weight: weight / total }))
+      : raw;
+  });
   const result: FaceWarpTopology = {
     key,
-    adjacency: neighbors.map((entries) => [...entries].map(([vertex, length]) => ({ vertex, length }))),
+    adjacency,
+    laplacianWeights,
     boundaryVertices,
     featureLoops: {
       faceOval: validLoop(FEATURE_LOOPS.faceOval, mesh.length),

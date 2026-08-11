@@ -15,6 +15,11 @@ describe('faceWarpTopology', () => {
       expect.objectContaining({ vertex: 1 }),
       expect.objectContaining({ vertex: 2 })
     ]));
+    first.laplacianWeights.forEach((neighbors) => {
+      expect(neighbors.reduce((sum, { weight }) => sum + weight, 0)).toBeCloseTo(1);
+      neighbors.forEach(({ weight }) => expect(weight).toBeGreaterThan(0));
+    });
+    expect(second.laplacianWeights).toBe(first.laplacianWeights);
     expect([...first.boundaryVertices]).toEqual([0, 1, 2, 3]);
     expect(first.symmetry).toEqual([1, 0, 3, 2]);
   });

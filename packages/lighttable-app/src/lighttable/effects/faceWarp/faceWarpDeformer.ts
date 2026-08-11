@@ -295,31 +295,26 @@ export const applyFaceWarpBrush = (
     const weight = influence[index]! * strength;
     return { x: value.x + delta.x * weight, y: value.y + delta.y * weight };
   });
-  const adjacency = triangleIndices.length > 0
-    ? faceWarpTopology(source, triangleIndices).adjacency
+  const laplacianWeights = triangleIndices.length > 0
+    ? faceWarpTopology(source, triangleIndices).laplacianWeights
     : [];
   // Two bounded Jacobi steps regularize the displacement field while strong
   // central constraints continue to follow the pointer. This is deliberately
   // small and deterministic for the one-frame preview path.
   let desiredDisplacements = direct;
-  for (let iteration = 0; iteration < solverIterations && adjacency.length > 0; iteration += 1) {
+  for (let iteration = 0; iteration < solverIterations && laplacianWeights.length > 0; iteration += 1) {
     const previous = desiredDisplacements;
     desiredDisplacements = previous.map((value, index) => {
       const weight = influence[index]!;
       if (weight <= 0 || weight >= 0.92) return value;
-      const neighbors = adjacency[index]!;
+      const neighbors = laplacianWeights[index]!;
       if (neighbors.length === 0) return value;
-      let total = 0;
       const average = neighbors.reduce((sum, neighbor) => {
-        const edgeWeight = 1 / Math.max(1e-4, neighbor.length);
-        total += edgeWeight;
         return {
-          x: sum.x + previous[neighbor.vertex]!.x * edgeWeight,
-          y: sum.y + previous[neighbor.vertex]!.y * edgeWeight
+          x: sum.x + previous[neighbor.vertex]!.x * neighbor.weight,
+          y: sum.y + previous[neighbor.vertex]!.y * neighbor.weight
         };
       }, { x: 0, y: 0 });
-      average.x /= total;
-      average.y /= total;
       const regularization = 0.42 * (1 - weight);
       return {
         x: direct[index]!.x + (average.x - direct[index]!.x) * regularization,
@@ -552,7 +547,8 @@ export const relaxFaceWarpBrush = (
   amount: number
 ): readonly FaceWarpPoint[] => {
   const source = face.landmarks.mesh;
-  const adjacency = faceWarpTopology(source, triangleIndices).adjacency;
+  const topology = faceWarpTopology(source, triangleIndices);
+  const adjacency = topology.adjacency;
   const distances = triangleIndices.length > 0
     ? geodesicDistances(source, adjacency, center, radius)
     : source.map((point) => Math.hypot(point.x - center.x, point.y - center.y));
@@ -561,10 +557,10 @@ export const relaxFaceWarpBrush = (
   return current.map((value, index) => {
     const influence = smoothWeight(distances[index]!, radius) * strength;
     if (influence <= 0) return value;
-    const neighbors = adjacency[index]!;
+    const neighbors = topology.laplacianWeights[index]!;
     const average = neighbors.length === 0 ? value : neighbors.reduce((sum, neighbor) => ({
-      x: sum.x + current[neighbor.vertex]!.x / neighbors.length,
-      y: sum.y + current[neighbor.vertex]!.y / neighbors.length
+      x: sum.x + current[neighbor.vertex]!.x * neighbor.weight,
+      y: sum.y + current[neighbor.vertex]!.y * neighbor.weight
     }), { x: 0, y: 0 });
     const relaxed = { x: average.x * 0.92, y: average.y * 0.92 };
     return {

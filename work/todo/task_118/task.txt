@@ -139,7 +139,10 @@ Gate 3:
 
 ## Phase 4 — Shape-preserving solver and safety
 
-- [ ] Precompute stable mesh weights and a reusable sparse factorization.
+- [x] Precompute stable normalized inverse-edge mesh weights in the immutable
+      topology cache and reuse them for sculpt and Relax previews.
+- [ ] Add a reusable sparse factorization only with the exact refinement solver;
+      the current bounded Jacobi preview does not require or benefit from one.
 - [ ] Implement low-iteration interactive ARAP/Laplacian preview.
 - [ ] Implement supersedable exact refinement at pointer-up.
 - [ ] Preserve eye, lip, nose and outer-face feature loops.

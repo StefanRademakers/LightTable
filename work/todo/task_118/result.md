@@ -137,3 +137,11 @@
   brush edits before and after a 1.7x scale plus arbitrary in-plane rotation.
 - Inverse-mapped targets and rotated/scaled displacement fields agree within
   floating-point tolerance, covering both semantic and proportional paths.
+## Solver weight cache
+
+- Normalized bounded inverse-edge Laplacian weights are now computed once per
+  immutable detected topology and reused by sculpt and Relax previews.
+- Pointer updates no longer normalize every vertex neighborhood on every
+  Jacobi iteration. Deterministic tests verify positive unit-sum weights and
+  cache identity; a sparse factorization remains explicitly tied to the future
+  exact refinement solver rather than being added without a consumer.
