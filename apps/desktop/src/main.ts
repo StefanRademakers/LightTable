@@ -1096,6 +1096,18 @@ void app.whenReady().then(async () => {
     return project;
   });
 
+  ipcMain.handle('lighttable:project-current', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!activeProjectManifestPath) return null;
+    try {
+      return (await openProjectManifest(activeProjectManifestPath)).summary;
+    } catch {
+      deactivateProjectAssetCatalog();
+      activeProjectManifestPath = null;
+      return null;
+    }
+  });
+
   ipcMain.handle('lighttable:project-open', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     const options: Electron.OpenDialogOptions = {

@@ -62,8 +62,8 @@ try {
   const documentCount = await window.locator('.lighttable-document-tab').count();
 
   const openFileMenu = async () => {
-    await window.getByRole('menuitem', { name: 'File', exact: true }).click();
-    return window.locator('.context-menu').first();
+    await window.locator('.shots-app-menu__button:visible').filter({ hasText: /^File$/ }).click();
+    return window.locator('.context-menu:visible').first();
   };
   await (await openFileMenu()).getByRole('menuitem', { name: 'New Project...' }).click();
   const projectDialog = window.getByRole('dialog', { name: 'New project' });
@@ -86,6 +86,8 @@ try {
   if (await window.locator('.lighttable-document-tab').count() !== documentCount) {
     throw new Error('Reopening a project changed the set of open documents.');
   }
+  await window.reload({ waitUntil: 'domcontentloaded' });
+  await window.getByText(`Project: ${projectName}`, { exact: true }).waitFor({ timeout: 30_000 });
   process.stdout.write(`Desktop project lifecycle smoke passed with ${documentCount} open documents.\n`);
 } finally {
   await app?.close().catch(() => undefined);

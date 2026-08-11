@@ -108,6 +108,7 @@ const desktopHost: LightTableHost = {
     })
   },
   projects: {
+    current: () => window.lightTableDesktop.currentProject(),
     chooseParentLocation: () => window.lightTableDesktop.chooseProjectParent(),
     create: (request) => window.lightTableDesktop.createProject(request),
     open: () => window.lightTableDesktop.openProject(),

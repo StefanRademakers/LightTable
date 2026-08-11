@@ -135,6 +135,7 @@ export interface LightTableDesktopBridge {
     readonly folders?: ProjectFolderMappings;
     readonly userFolders?: readonly ProjectUserFolder[];
   }): Promise<DesktopProjectSummary>;
+  currentProject(): Promise<DesktopProjectSummary | null>;
   openProject(): Promise<DesktopProjectSummary | null>;
   listRecentProjects(): Promise<readonly DesktopRecentProject[]>;
   openRecentProject(recentId: string): Promise<DesktopProjectSummary | null>;

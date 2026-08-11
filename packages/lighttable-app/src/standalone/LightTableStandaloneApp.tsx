@@ -445,7 +445,22 @@ export function LightTableStandaloneApp({
     if (snapshot.documentOrder.length === 0) void refreshRecentFiles();
   }, [refreshRecentFiles, snapshot.documentOrder.length]);
 
-  useEffect(() => { void refreshRecentProjects(); }, [refreshRecentProjects]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const project = await host.projects?.current() ?? null;
+        if (!cancelled) setActiveProject(project);
+      } catch (reason) {
+        if (!cancelled) {
+          setActiveProject(null);
+          setProjectError(reason instanceof Error ? reason.message : String(reason));
+        }
+      }
+      if (!cancelled) await refreshRecentProjects();
+    })();
+    return () => { cancelled = true; };
+  }, [host.projects, refreshRecentProjects]);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'

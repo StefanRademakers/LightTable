@@ -16,6 +16,7 @@ const bridge: LightTableDesktopBridge = {
   clearRecentFiles: () => ipcRenderer.invoke('lighttable:clear-recent-files'),
   chooseProjectParent: () => ipcRenderer.invoke('lighttable:project-choose-parent'),
   createProject: (request) => ipcRenderer.invoke('lighttable:project-create', request),
+  currentProject: () => ipcRenderer.invoke('lighttable:project-current'),
   openProject: () => ipcRenderer.invoke('lighttable:project-open'),
   listRecentProjects: () => ipcRenderer.invoke('lighttable:project-list-recent'),
   openRecentProject: (recentId) => ipcRenderer.invoke('lighttable:project-open-recent', recentId),
