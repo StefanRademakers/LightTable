@@ -12,7 +12,7 @@ import {
   SMART_SELECTION_TOOL_DEFINITIONS,
   TEXT_TOOL_DEFINITIONS,
   TONE_TOOL_DEFINITIONS,
-  TOOL_DEFINITIONS,
+  toolbarToolDefinitions,
   type ToolDefinition
 } from '../tools/toolRegistry';
 
@@ -259,7 +259,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   return (
     <nav ref={toolbarRef} className="lighttable-toolbox" aria-label="Image tools">
       <div className="lighttable-toolbox__content">
-      {TOOL_DEFINITIONS.map((tool) => {
+      {toolbarToolDefinitions(import.meta.env.DEV).map((tool) => {
         const family = toolFamilyFor(tool);
         if (!family) {
           return (

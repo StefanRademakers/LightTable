@@ -117,3 +117,9 @@
   reason instead of inventing editable geometry.
 - Focused unit coverage includes valid, edge, incomplete, non-finite,
   degenerate, invalid-pose and mostly off-canvas results.
+## Release visibility
+
+- Face Warp remains fully registered for persisted documents, development and
+  focused automation, but is explicitly marked experimental.
+- Release toolbars filter experimental definitions, so the unfinished tool is
+  not presented as production-ready while the remaining HQ gates are open.

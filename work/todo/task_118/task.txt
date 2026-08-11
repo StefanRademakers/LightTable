@@ -21,7 +21,7 @@ Primary architecture and research decisions:
 
 - [x] Remove the provisional `FaceWarpEffect -> WarpEffect` adapter.
 - [x] Remove Face Warp compilation into accumulated generic Warp strokes.
-- [ ] Prevent the unfinished Face Warp tool from appearing as a normal,
+- [x] Prevent the unfinished Face Warp tool from appearing as a normal,
       production-ready toolbar tool until the renderer gate passes.
 - [x] Restore a face-local interaction path; the current safety guard prevents
       the broken fallback but also means the brush does nothing.

@@ -11,6 +11,7 @@ import {
   TEXT_TOOL_DEFINITIONS,
   TONE_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
+  toolbarToolDefinitions,
   toolDefinition,
   toolForShortcutFamily,
   toolShortcutGroupFor
@@ -108,6 +109,12 @@ describe('toolRegistry', () => {
     ];
     expect(new Set(TOOL_DEFINITIONS.map(({ id }) => id))).toEqual(new Set(expected));
     expect(TOOL_DEFINITIONS).toHaveLength(expected.length);
+  });
+
+  it('keeps experimental tools testable without presenting them as release-ready', () => {
+    expect(toolbarToolDefinitions(false).some(({ id }) => id === 'face-warp')).toBe(false);
+    expect(toolbarToolDefinitions(true).some(({ id }) => id === 'face-warp')).toBe(true);
+    expect(toolDefinition('face-warp').experimental).toBe(true);
   });
 
   it('restores a family preference with the plain key and advances with Shift', () => {

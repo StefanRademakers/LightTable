@@ -19,6 +19,8 @@ export interface ToolDefinition {
   readonly shortcutKey?: string;
   readonly iconName: string;
   readonly role: ToolRole;
+  /** Hidden from release toolbars until its explicit quality gate passes. */
+  readonly experimental?: boolean;
 }
 
 export interface ToolShortcutGroup {
@@ -271,7 +273,8 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     id: 'face-warp',
     label: 'Face Warp',
     iconName: 'tool_face_warp.png',
-    role: 'face-warp'
+    role: 'face-warp',
+    experimental: true
   },
   {
     id: 'view',
@@ -290,6 +293,12 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'zoom'
   }
 ];
+
+export const toolbarToolDefinitions = (
+  includeExperimental: boolean
+): readonly ToolDefinition[] => TOOL_DEFINITIONS.filter(
+  ({ experimental }) => includeExperimental || !experimental
+);
 
 /** Photoshop-compatible marquee tools share the M toolbar slot. */
 export const MARQUEE_TOOL_DEFINITIONS: readonly ToolDefinition[] =
