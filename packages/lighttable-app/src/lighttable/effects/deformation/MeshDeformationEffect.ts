@@ -79,6 +79,7 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
   private sourceUvWidth = 0;
   private sourceUvHeight = 0;
   private indexCount = 0;
+  private isIdentity = true;
 
   constructor(
     private readonly device: GPUDevice,
@@ -139,10 +140,15 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
     settings.surfaces.forEach(validateDeformationSurface);
     this.settings = structuredClone(settings);
     this.uploadGeometry();
-    if (this.indexCount > 0) {
+    if (this.indexCount > 0 && !this.isIdentity) {
       void this.basePipeline.ensure();
       void this.meshPipeline.ensure();
       this.ensureOutput();
+    } else if (this.isIdentity) {
+      // An untouched mesh is exactly the source image. Avoid allocating two
+      // full-resolution textures and avoid a redundant copy + mesh pass until
+      // the user authors the first actual deformation.
+      this.destroyImageResources();
     }
     this.writeSettings();
   }
@@ -155,12 +161,12 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
     this.uploadGeometry();
-    this.ensureOutput();
+    if (!this.isIdentity) this.ensureOutput();
     this.writeSettings();
   }
 
   encode(encoder: GPUCommandEncoder, input: GPUTexture): GPUTexture {
-    if (this.indexCount === 0) return input;
+    if (this.indexCount === 0 || this.isIdentity) return input;
     const basePipeline = this.basePipeline.resource;
     const meshPipeline = this.meshPipeline.resource;
     if (!basePipeline || !meshPipeline) {
@@ -247,6 +253,7 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
   private uploadGeometry(): void {
     const packed = packDeformationSurfaces(this.settings.surfaces);
     this.indexCount = packed.indices.length;
+    this.isIdentity = packed.isIdentity;
     if (this.indexCount === 0) {
       this.targetBuffer?.destroy();
       this.sourceUvBuffer?.destroy();
@@ -302,7 +309,7 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
   }
 
   private ensureOutput(): void {
-    if ((this.output && this.depth) || this.indexCount === 0) return;
+    if ((this.output && this.depth) || this.indexCount === 0 || this.isIdentity) return;
     this.output?.destroy();
     this.depth?.destroy();
     this.output = this.device.createTexture({

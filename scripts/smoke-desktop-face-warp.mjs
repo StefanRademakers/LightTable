@@ -78,8 +78,19 @@ try {
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.activeDocumentId;
   if (!documentId) throw new Error('No active Face Warp document.');
+  const viewport = page.locator('.lighttable-viewport');
+  const canvas = page.locator('.lighttable-viewport__canvas');
 
   await page.getByRole('button', { name: /^Face Warp/ }).click();
+  // Establish the identity oracle after the tool has changed the property-bar
+  // layout, but before face detection installs a deformation surface. This
+  // keeps layout/presentation changes out of the pixel comparison.
+  await page.mouse.move(10, 10);
+  await page.waitForTimeout(100);
+  const identitySourceBytes = await canvas.screenshot({
+    path: path.join(output, '00-identity-source.png')
+  });
+
   const coldDetectionStartedAt = performance.now();
   await page.getByRole('button', { name: 'Detect faces' }).click();
   await page.getByRole('button', { name: 'Redetect faces' })
@@ -92,8 +103,6 @@ try {
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const warmDetectionMs = performance.now() - warmDetectionStartedAt;
-  const viewport = page.locator('.lighttable-viewport');
-  const canvas = page.locator('.lighttable-viewport__canvas');
   const bounds = await viewport.boundingBox();
   if (!bounds) throw new Error('Face Warp viewport bounds are unavailable.');
   // Texture assertions must not accidentally pass because only the debug mesh
@@ -102,6 +111,10 @@ try {
   await page.mouse.move(10, 10);
   await page.waitForTimeout(100);
   const beforeBytes = await canvas.screenshot({ path: path.join(output, '01-detected.png') });
+  const identityChangedBounds = await changedPixelBounds(identitySourceBytes, beforeBytes);
+  if (identityChangedBounds.changed !== 0) {
+    throw new Error(`Face Warp identity changed source pixels: ${JSON.stringify(identityChangedBounds)}`);
+  }
   const before = await driver.queryDocument(documentId);
   // Keep the gesture on the left cheek, clear of the default floating Layers
   // panel that covers the geometric center of this fixture.
@@ -147,6 +160,8 @@ try {
   const report = {
     sourceFile,
     beforeHash: digest(beforeBytes),
+    identitySourceHash: digest(identitySourceBytes),
+    identityChangedPixels: identityChangedBounds.changed,
     afterHash: digest(afterBytes),
     settledHash: digest(settledBytes),
     beforeUndoDepth: before.history.undoDepth,

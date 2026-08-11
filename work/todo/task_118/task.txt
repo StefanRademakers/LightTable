@@ -92,8 +92,8 @@ Gate 1:
 Gate 2 — first commit-worthy milestone:
 
 - [ ] A numbered checkerboard fixture deforms exactly with the target mesh.
-- [ ] Overlay vertices and rendered triangle corners agree within 0.5 screen px.
-- [ ] Identity RMSE is zero, or a documented format-rounding epsilon only.
+- [x] Overlay vertices and rendered triangle corners agree within 0.5 screen px.
+- [x] Identity RMSE is zero, or a documented format-rounding epsilon only.
 - [ ] No holes, folds, black pixels or canvas movement occur.
 - [ ] Only after this gate may Face Warp return to the normal toolbar.
 

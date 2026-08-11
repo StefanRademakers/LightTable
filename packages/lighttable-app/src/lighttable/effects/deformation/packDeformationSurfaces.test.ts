@@ -17,6 +17,7 @@ describe('packDeformationSurfaces', () => {
       geometryRevision: 1
     };
     const packed = packDeformationSurfaces([irregular]);
+    expect(packed.isIdentity).toBe(false);
     expect([...packed.indices]).toEqual(irregular.indices);
     expect([...packed.sourcePositions]).toEqual(irregular.source.flatMap(({ x, y }) => [x, y]));
     expect(packed.targetPositions[2]).toBe(0.5);
@@ -36,5 +37,17 @@ describe('packDeformationSurfaces', () => {
     };
     expect([...packDeformationSurfaces([patch, second]).indices])
       .toEqual([0, 1, 2, 1, 3, 2, 4, 5, 6]);
+  });
+
+  it('identifies an exact no-op surface without treating depth as image deformation', () => {
+    const identity: DeformationSurface = {
+      source: [{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 0, y: 8 }],
+      target: [{ x: 0, y: 0, z: 0.1 }, { x: 12, y: 0, z: 0.4 }, { x: 0, y: 8, z: 0.8 }],
+      indices: [0, 1, 2], geometryRevision: 1
+    };
+    expect(packDeformationSurfaces([identity]).isIdentity).toBe(true);
+    expect(packDeformationSurfaces([{ ...identity, target: [
+      { x: 0, y: 0 }, { x: 12.001, y: 0 }, { x: 0, y: 8 }
+    ] }]).isIdentity).toBe(false);
   });
 });

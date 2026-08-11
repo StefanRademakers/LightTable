@@ -51,6 +51,22 @@
   in 488.2 ms (including a fixed 250 ms settle wait). Detector memory and true
   interactive p50/p95 still need dedicated instrumentation before Phase 8 can
   be checked off.
+- The real desktop identity oracle now captures the tool canvas immediately
+  before detection and again after cold plus warm detection with presentation
+  overlays hidden. Both SHA-256 hashes are
+  `36c6d9fbf70af415d6f618835fb70a4fe5e3ba61bb467c6fc7b26184b97c752f`;
+  the measured changed-pixel count is exactly zero. Gate 2 identity is therefore
+  checked with pixel evidence rather than inferred from mesh coordinates.
+- Added an exact renderer/overlay contract fixture with a non-trivial affine
+  layer transform. Every visible overlay anchor is derived from and agrees
+  with the corresponding indexed renderer target vertex (agreement is exact
+  before their shared document-to-screen conversion, therefore below the
+  0.5-screen-pixel gate).
+- Exact-identity surfaces now bypass pipeline compilation, the copy/mesh render
+  passes and the full-resolution color/depth output allocation until the first
+  authored displacement. For the 546 x 546 fixture this avoids roughly 3.58 MB
+  of deformation output/depth storage per untouched layer. The desktop smoke
+  still proves identity, first deformation, one undo entry and stable settle.
 
 ## Still required before HQ completion
 
