@@ -152,8 +152,14 @@
   plus p50/p95 next-frame latency alongside cold/warm detector time.
 - Gesture settle time remains separate and includes its intentional 250 ms
   visual-oracle delay; it is no longer mistaken for interactive solver time.
-- On the numbered 546 px checkerboard fixture, the current measured samples are
-  93.7, 67.2, 65.8, 67.2, 66.9 and 65.4 ms (p50 66.9 ms, p95 67.2 ms).
-  Identity remains exact, the changed region stays local and the released hash
-  stays stable. This is evidence, not an acceptance pass: preview latency is
-  still above a 60 Hz frame and remains an explicit optimization target.
+- Renderer-local instrumentation (excluding Playwright/CDP roundtrip) measured
+  30.3 ms for the first lazy solver update, followed by 14.0–15.5 ms frames
+  (warm p50 14.7 ms, p95 15.5 ms). Identity remains exact, the changed region
+  stays local and the released hash stays stable.
+- A measured prewarm experiment moved topology setup and asynchronous pipeline
+  preparation into explicit face detection. It did not reduce the first frame
+  (35.0 ms versus 30.3 ms before), proving that those are not the bottleneck;
+  the experiment was removed instead of retaining ineffective complexity.
+- The remaining cold hit is the first full-resolution deformation-target/pass
+  setup. Eager allocation may remove it, but must be benchmarked against the
+  identity path's current zero-extra-texture memory win before adoption.

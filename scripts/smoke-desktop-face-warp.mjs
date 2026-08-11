@@ -176,22 +176,35 @@ try {
     x: canvasBounds.x + contentBounds.minX + contentBounds.width * 0.50,
     y: canvasBounds.y + contentBounds.minY + contentBounds.height * 0.48
   };
+  await page.evaluate(() => {
+    globalThis.__lightTableFaceWarpFrameSamples = [];
+    const viewport = document.querySelector('.lighttable-viewport');
+    viewport?.addEventListener('pointermove', () => {
+      const startedAt = performance.now();
+      requestAnimationFrame(() => {
+        globalThis.__lightTableFaceWarpFrameSamples.push(performance.now() - startedAt);
+      });
+    }, { capture: true });
+  });
   const gestureStartedAt = performance.now();
   await page.mouse.move(center.x, center.y);
   await page.mouse.down();
-  const previewFrameSamplesMs = [];
   for (let step = 1; step <= 6; step += 1) {
-    const frameStartedAt = performance.now();
     await page.mouse.move(
       center.x + 28 * step / 6,
       center.y - 16 * step / 6
     );
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
-    previewFrameSamplesMs.push(performance.now() - frameStartedAt);
   }
   await page.mouse.up();
   await page.mouse.move(10, 10);
   await page.waitForTimeout(250);
+  const previewFrameSamplesMs = (await page.evaluate(
+    () => globalThis.__lightTableFaceWarpFrameSamples
+  )).slice(-6);
+  if (previewFrameSamplesMs.length !== 6) {
+    throw new Error(`Missing Face Warp frame samples: ${JSON.stringify(previewFrameSamplesMs)}`);
+  }
   const gestureToSettledFrameMs = performance.now() - gestureStartedAt;
   const afterBytes = await canvas.screenshot({ path: path.join(output, '02-deformed.png') });
   const after = await driver.queryDocument(documentId);
