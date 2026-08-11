@@ -107,3 +107,13 @@
 - Checkerboard GPU parity/identity measurements and hardware performance data.
 - Multi-resolution front/three-quarter/profile visual corpus and Photoshop
   comparison. The task remains open until those gates pass.
+## Detector quality gate
+
+- Detector output is no longer persisted with a fabricated confidence of `1`.
+- A pure geometry/coverage policy rejects incomplete, non-finite, degenerate,
+  invalid-pose and mostly unobserved meshes before they enter document state.
+- Accepted faces retain a deterministic observation confidence; valid
+  edge-of-frame faces remain supported and rejected results surface a clear
+  reason instead of inventing editable geometry.
+- Focused unit coverage includes valid, edge, incomplete, non-finite,
+  degenerate, invalid-pose and mostly off-canvas results.

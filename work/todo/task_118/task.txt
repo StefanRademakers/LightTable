@@ -180,14 +180,14 @@ Gate 5:
 - [ ] Exclude hidden/back-facing geometry from hit testing and normal overlay.
 - [ ] Keep hidden geometry in the continuity solve without presenting it as
       equally observed data.
-- [ ] Add a confidence policy for difficult profiles and occlusions.
+- [x] Add a confidence policy for difficult profiles and occlusions.
 - [ ] Test front, three-quarter, strong yaw and near-profile faces.
 
 Gate 6:
 
 - [ ] No far-side mesh is drawn over the visible nose/cheek surface.
 - [ ] Profile edits remain local and do not pull the entire image.
-- [ ] Low-confidence cases fail clearly and safely instead of inventing a mesh.
+- [x] Low-confidence cases fail clearly and safely instead of inventing a mesh.
 
 ## Phase 7 — Overlay, UX and document integration
 

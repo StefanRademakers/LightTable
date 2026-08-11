@@ -197,6 +197,7 @@ import {
   findDeformedFaceHit,
   relaxFaceWarpBrush
 } from './effects/faceWarp/faceWarpDeformer';
+import { assessFaceWarpDetection } from './effects/faceWarp/faceWarpDetectionQuality';
 import {
   addFaceWarpNodeToStack,
   createDefaultFaceWarpParameters,
@@ -1232,7 +1233,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
       const scaleX = preview.width / bounds.width;
       const scaleY = preview.height / bounds.height;
-      const faces: FaceWarpFace[] = detection.meshes.map((mesh, index) => {
+      const rejectedReasons: string[] = [];
+      const faces: FaceWarpFace[] = detection.meshes.flatMap((mesh, index) => {
+        const quality = assessFaceWarpDetection(
+          mesh, detection.poseMatrices[index], preview.width, preview.height
+        );
+        if (!quality.accepted) {
+          rejectedReasons.push(quality.reason ?? 'A detected face could not be edited safely.');
+          return [];
+        }
         const sourceMesh = mesh.slice(0, 468).map((point) => ({
           ...transformPoint(documentToSource, {
             x: point.x / scaleX + bounds.x,
@@ -1240,14 +1249,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           }),
           z: point.z === undefined ? undefined : point.z / Math.sqrt(scaleX * scaleY)
         }));
-        return {
+        return [{
           id: `face-${index + 1}`,
-          confidence: 1,
+          confidence: quality.confidence,
           landmarks: semanticLandmarksFromMesh(sourceMesh),
           parameters: createDefaultFaceWarpParameters(),
           poseMatrix: detection.poseMatrices[index]
-        };
+        }];
       });
+      if (faces.length === 0) {
+        throw new Error(rejectedReasons[0] ?? 'No editable face was detected in the active layer.');
+      }
       const settings = {
         version: 2 as const,
         opacity: 1,
