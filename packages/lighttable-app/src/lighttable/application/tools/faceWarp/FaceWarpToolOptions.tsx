@@ -81,6 +81,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
         resetValue={35} format={(current) => `${Math.round(current)}%`}
         onReset={() => onBrushChange({ strength: 0.35 })}
         onChange={(strength) => onBrushChange({ strength: strength / 100 })} />
+      <span className="lighttable-tool-options__hint">Drag to sculpt · Shift-drag to relax · Alt-drag to restore</span>
       <SemanticSlider label="Face" value={selected.parameters.faceWidth}
         onChange={(faceWidth) => onParametersChange({ faceWidth })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />

@@ -141,7 +141,11 @@ interface ViewportInteractionOptions {
   faceWarp: {
     begin(pointerId: number, point: { x: number; y: number }): boolean;
     owns(pointerId: number): boolean;
-    move(pointerId: number, point: { x: number; y: number }, relax: boolean): boolean;
+    move(
+      pointerId: number,
+      point: { x: number; y: number },
+      mode: 'sculpt' | 'relax' | 'restore'
+    ): boolean;
     finish(pointerId: number): boolean;
     cancel(pointerId: number): boolean;
   };
@@ -993,7 +997,8 @@ export const useViewportInteractionController = ({
         smartSelection.hover(point);
       }
       if (point && faceWarp.owns(event.pointerId)) {
-        if (faceWarp.move(event.pointerId, point, event.shiftKey)) event.preventDefault();
+        const mode = event.altKey ? 'restore' : event.shiftKey ? 'relax' : 'sculpt';
+        if (faceWarp.move(event.pointerId, point, mode)) event.preventDefault();
         return;
       }
       if (textGesture.owns(event.pointerId)) {

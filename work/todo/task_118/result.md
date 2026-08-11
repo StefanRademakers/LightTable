@@ -123,3 +123,11 @@
   focused automation, but is explicitly marked experimental.
 - Release toolbars filter experimental definitions, so the unfinished tool is
   not presented as production-ready while the remaining HQ gates are open.
+## Local restore interaction
+
+- Alt-drag now restores direct mesh constraints locally toward the immutable
+  detected source; it does not rerun detection or remove semantic slider edits.
+- Shift-drag remains the separate local smoothing operation, and the existing
+  options bar states all three brush modifiers without adding solver controls.
+- Unit coverage proves that local restore leaves distant direct constraints and
+  active semantic deformation intact.

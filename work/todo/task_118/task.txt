@@ -170,7 +170,7 @@ Gate 5:
 
 - [ ] Equivalent edits look equivalent under scale and in-plane rotation.
 - [ ] Relax removes local kinks without erasing the intended face change.
-- [ ] Restore locally returns to source without rerunning detection.
+- [x] Restore locally returns to source without rerunning detection.
 - [x] Eyes and lips cannot cross or expose large invalid texture regions.
 
 ## Phase 6 — Pose, profile and visibility quality

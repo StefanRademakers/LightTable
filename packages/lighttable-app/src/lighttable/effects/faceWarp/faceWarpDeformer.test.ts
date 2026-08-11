@@ -6,6 +6,7 @@ import {
   findDeformedFaceHit,
   hitTestDeformedFace,
   relaxFaceWarpBrush,
+  restoreFaceWarpBrush,
   visibleFaceTriangleIndices
 } from './faceWarpDeformer';
 import { createDefaultFaceWarpParameters, type FaceWarpFace } from './faceWarpTypes';
@@ -119,6 +120,19 @@ describe('face warp target lattice', () => {
     const relaxed = relaxFaceWarpBrush(source, triangles, { x: 50, y: 50 }, 30, 1);
     expect(relaxed[5]!.x).toBeLessThan(10);
     expect(relaxed[7]!.x).toBe(10);
+  });
+
+  it('restores direct constraints locally without removing semantic controls', () => {
+    const source = {
+      ...face(),
+      parameters: { ...face().parameters, faceWidth: 0.5 },
+      displacements: face().landmarks.mesh.map(() => ({ x: 10, y: -4 }))
+    };
+    const restored = restoreFaceWarpBrush(source, triangles, { x: 50, y: 55 }, 18, 1);
+    expect(Math.hypot(restored[5]!.x, restored[5]!.y)).toBeLessThan(0.01);
+    expect(restored[0]).toEqual({ x: 10, y: -4 });
+    expect(deformFaceMesh({ ...source, displacements: restored })[0]!.x)
+      .not.toBe(face().landmarks.mesh[0]!.x);
   });
 
   it('keeps eyelid and inner-lip ordering under extreme semantic and brush edits', () => {

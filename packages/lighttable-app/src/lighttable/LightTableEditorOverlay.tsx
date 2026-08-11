@@ -195,7 +195,8 @@ import {
   applyFaceWarpParameterChange,
   applyFaceWarpBrush,
   findDeformedFaceHit,
-  relaxFaceWarpBrush
+  relaxFaceWarpBrush,
+  restoreFaceWarpBrush
 } from './effects/faceWarp/faceWarpDeformer';
 import { assessFaceWarpDetection } from './effects/faceWarp/faceWarpDetectionQuality';
 import {
@@ -1386,7 +1387,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const moveFaceWarpGesture = (
     pointerId: number,
     documentPoint: { x: number; y: number },
-    relax: boolean
+    mode: 'sculpt' | 'relax' | 'restore'
   ) => {
     const gesture = faceWarpGestureRef.current;
     if (!gesture || gesture.pointerId !== pointerId) return false;
@@ -1405,9 +1406,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (face.id !== gesture.faceId) return face;
         return {
           ...face,
-          displacements: relax
+          displacements: mode === 'relax'
             ? relaxFaceWarpBrush(face, settings.topology.triangleIndices, sourcePoint, radius, 0.35)
-            : applyFaceWarpBrush(
+            : mode === 'restore'
+              ? restoreFaceWarpBrush(face, settings.topology.triangleIndices, sourcePoint, radius, 0.5)
+              : applyFaceWarpBrush(
                 { ...face, displacements: gesture.originalDisplacements },
                 settings.topology.triangleIndices,
                 gesture.seedSource,

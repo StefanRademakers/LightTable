@@ -277,6 +277,12 @@
   accent-color: var(--lt-accent);
 }
 
+.lighttable-tool-options__hint {
+  color: var(--lt-text-muted);
+  font-size: var(--lt-type-caption);
+  white-space: nowrap;
+}
+
 .lighttable-tool-options__field {
   min-width: 0;
   display: inline-grid;

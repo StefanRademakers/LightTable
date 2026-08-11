@@ -573,3 +573,28 @@ export const relaxFaceWarpBrush = (
     };
   });
 };
+
+/** Restores only authored direct constraints; semantic controls remain intact. */
+export const restoreFaceWarpBrush = (
+  face: FaceWarpFace,
+  triangleIndices: readonly number[],
+  center: FaceWarpPoint,
+  radius: number,
+  amount: number
+): readonly FaceWarpPoint[] => {
+  const source = face.landmarks.mesh;
+  const distances = triangleIndices.length > 0
+    ? geodesicDistances(
+        source, faceWarpTopology(source, triangleIndices).adjacency, center, radius
+      )
+    : source.map((point) => Math.hypot(point.x - center.x, point.y - center.y));
+  const strength = Math.max(0, Math.min(1, amount));
+  return source.map((_, index) => {
+    const current = face.displacements?.[index] ?? { x: 0, y: 0 };
+    const influence = smoothWeight(distances[index]!, radius) * strength;
+    return {
+      x: current.x * (1 - influence),
+      y: current.y * (1 - influence)
+    };
+  });
+};
