@@ -165,7 +165,7 @@ Gate 4:
 - [x] Define relative canonical morph targets for Face, Eyes, Nose and Mouth.
 - [x] Normalize amounts by face width, interpupillary distance and feature size.
 - [x] Preserve the photographed expression when every slider is zero.
-- [ ] Support linked symmetry and independent left/right feature editing.
+- [x] Support linked symmetry and independent left/right feature editing.
 - [x] Route sliders and brush constraints through one target-mesh evaluator.
 - [x] Enforce eyelid/lip ordering and safe deformation ranges.
 

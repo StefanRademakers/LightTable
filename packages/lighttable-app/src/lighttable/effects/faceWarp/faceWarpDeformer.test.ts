@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyFaceWarpBrush,
+  applyFaceWarpFeatureChange,
   applyFaceWarpParameterChange,
   deformFaceMesh,
   findDeformedFaceHit,
@@ -63,6 +64,22 @@ describe('face warp target lattice', () => {
     });
     expect(changed.parameters.faceWidth).toBe(1);
     expect(changed.parameters.eyeSize).toBe(0);
+  });
+
+  it('supports linked and independent left/right feature edits', () => {
+    const linked = applyFaceWarpFeatureChange(face(), triangles, 'both', { eyeTilt: 0.7 });
+    const linkedTarget = deformFaceMesh(linked);
+    expect(linkedTarget[3]!.y).not.toBe(face().landmarks.mesh[3]!.y);
+    expect(linkedTarget[4]!.y).not.toBe(face().landmarks.mesh[4]!.y);
+
+    const leftOnly = applyFaceWarpFeatureChange(face(), triangles, 'left', { eyeTilt: 0.7 });
+    const target = deformFaceMesh(leftOnly);
+    expect(target[3]!.y).not.toBe(face().landmarks.mesh[3]!.y);
+    expect(target[4]!.y).toBeCloseTo(face().landmarks.mesh[4]!.y, 8);
+
+    const relinked = applyFaceWarpFeatureChange(leftOnly, triangles, 'both', { eyeTilt: 0.2 });
+    expect(relinked.featureOverrides?.left?.eyeTilt).toBeUndefined();
+    expect(relinked.parameters.eyeTilt).toBe(0.2);
   });
 
   it('uses compact smooth falloff for brush-authored vertex deltas', () => {

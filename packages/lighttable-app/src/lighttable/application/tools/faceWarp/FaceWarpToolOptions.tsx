@@ -1,7 +1,13 @@
 import React from 'react';
 import { ActionButton } from '../../../../ui/ActionButton';
 import { AdjustmentSlider } from '../../../AdjustmentSlider';
-import type { FaceWarpFace, FaceWarpParameters } from '../../../effects/faceWarp/faceWarpTypes';
+import type {
+  FaceWarpFace,
+  FaceWarpFeatureSide,
+  FaceWarpParameters
+} from '../../../effects/faceWarp/faceWarpTypes';
+
+export type FaceWarpSemanticTarget = 'both' | FaceWarpFeatureSide;
 
 export interface FaceWarpToolOptionsProps {
   readonly faces: readonly FaceWarpFace[];
@@ -10,10 +16,12 @@ export interface FaceWarpToolOptionsProps {
   readonly meshVisible: boolean;
   readonly brushSize: number;
   readonly brushStrength: number;
+  readonly semanticTarget: FaceWarpSemanticTarget;
   readonly onDetect: () => void;
   readonly onSelectFace: (faceId: string) => void;
   readonly onMeshVisibleChange: (visible: boolean) => void;
   readonly onBrushChange: (change: { size?: number; strength?: number }) => void;
+  readonly onSemanticTargetChange: (target: FaceWarpSemanticTarget) => void;
   readonly onParametersChange: (change: Partial<FaceWarpParameters>) => void;
   readonly onInteractionStart: () => void;
   readonly onInteractionEnd: () => void;
@@ -46,16 +54,23 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   meshVisible,
   brushSize,
   brushStrength,
+  semanticTarget,
   onDetect,
   onSelectFace,
   onMeshVisibleChange,
   onBrushChange,
+  onSemanticTargetChange,
   onParametersChange,
   onInteractionStart,
   onInteractionEnd,
   onReset
 }) => {
   const selected = faces.find((face) => face.id === selectedFaceId) ?? faces[0] ?? null;
+  const featureValue = (key: 'eyeSize' | 'smile') => selected
+    ? semanticTarget === 'both'
+      ? selected.parameters[key]
+      : selected.featureOverrides?.[semanticTarget]?.[key] ?? selected.parameters[key]
+    : 0;
   return <>
     <ActionButton disabled={busy} onClick={onDetect}>
       {busy ? 'Detecting faces…' : faces.length > 0 ? 'Redetect faces' : 'Detect faces'}
@@ -82,16 +97,25 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
         onReset={() => onBrushChange({ strength: 0.35 })}
         onChange={(strength) => onBrushChange({ strength: strength / 100 })} />
       <span className="lighttable-tool-options__hint">Drag to sculpt · Shift-drag to relax · Alt-drag to restore</span>
+      <label className="lighttable-tool-options__field">
+        <span>Target</span>
+        <select value={semanticTarget}
+          onChange={(event) => onSemanticTargetChange(event.currentTarget.value as FaceWarpSemanticTarget)}>
+          <option value="both">Both sides</option>
+          <option value="left">Left side</option>
+          <option value="right">Right side</option>
+        </select>
+      </label>
       <SemanticSlider label="Face" value={selected.parameters.faceWidth}
         onChange={(faceWidth) => onParametersChange({ faceWidth })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
-      <SemanticSlider label="Eyes" value={selected.parameters.eyeSize}
+      <SemanticSlider label="Eyes" value={featureValue('eyeSize')}
         onChange={(eyeSize) => onParametersChange({ eyeSize })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
       <SemanticSlider label="Nose" value={selected.parameters.noseWidth}
         onChange={(noseWidth) => onParametersChange({ noseWidth })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
-      <SemanticSlider label="Smile" value={selected.parameters.smile}
+      <SemanticSlider label="Smile" value={featureValue('smile')}
         onChange={(smile) => onParametersChange({ smile })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
       <ActionButton size="compact" onClick={onReset}>Reset face</ActionButton>

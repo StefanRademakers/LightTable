@@ -70,9 +70,9 @@ const renderOptions = (
     onWarpReset: vi.fn(),
     faceWarp: {
       faces: [], selectedFaceId: null, busy: false, meshVisible: false,
-      brushSize: 100, brushStrength: 0.35,
+      brushSize: 100, brushStrength: 0.35, semanticTarget: 'both',
       onDetect: vi.fn(), onSelectFace: vi.fn(), onMeshVisibleChange: vi.fn(),
-      onBrushChange: vi.fn(),
+      onBrushChange: vi.fn(), onSemanticTargetChange: vi.fn(),
       onParametersChange: vi.fn(), onInteractionStart: vi.fn(),
       onInteractionEnd: vi.fn(), onReset: vi.fn()
     },

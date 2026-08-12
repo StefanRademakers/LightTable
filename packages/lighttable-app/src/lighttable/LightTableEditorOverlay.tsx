@@ -193,6 +193,7 @@ import {
 import { semanticLandmarksFromMesh } from './effects/faceWarp/faceWarpLandmarks';
 import { buildFaceWarpMeshOverlay } from './effects/faceWarp/faceWarpMeshOverlay';
 import {
+  applyFaceWarpFeatureChange,
   applyFaceWarpParameterChange,
   applyFaceWarpBrush,
   findDeformedFaceHit,
@@ -209,8 +210,10 @@ import {
   readFaceWarpNodeSettings,
   setFaceWarpNodeSettings,
   type FaceWarpFace,
+  type FaceWarpFeatureParameters,
   type FaceWarpParameters
 } from './effects/faceWarp/faceWarpTypes';
+import type { FaceWarpSemanticTarget } from './application/tools/faceWarp/FaceWarpToolOptions';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
@@ -707,6 +710,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [faceWarpBusy, setFaceWarpBusy] = useState(false);
   const [faceWarpMeshVisible, setFaceWarpMeshVisible] = useState(false);
   const [faceWarpSelectedFaceId, setFaceWarpSelectedFaceId] = useState<string | null>(null);
+  const [faceWarpSemanticTarget, setFaceWarpSemanticTarget] =
+    useState<FaceWarpSemanticTarget>('both');
   const faceWarpGestureRef = useRef<{
     pointerId: number;
     faceId: string;
@@ -1214,16 +1219,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
       if (!layer?.adjustmentStack || !instance) return document;
       const current = readFaceWarpNodeSettings(instance);
-      const faces = current.faces.map((face) => face.id === faceId
-        ? applyFaceWarpParameterChange(face, current.topology.triangleIndices, change)
-        : face);
+      const sideKeys = new Set(['eyeSize', 'eyeWidth', 'eyeHeight', 'eyeTilt', 'smile']);
+      const featureChange = Object.fromEntries(Object.entries(change)
+        .filter(([key]) => sideKeys.has(key))) as Partial<FaceWarpFeatureParameters>;
+      const globalChange = Object.fromEntries(Object.entries(change)
+        .filter(([key]) => !sideKeys.has(key))) as Partial<FaceWarpParameters>;
+      const faces = current.faces.map((face) => {
+        if (face.id !== faceId) return face;
+        const globallyChanged = Object.keys(globalChange).length > 0
+          ? applyFaceWarpParameterChange(face, current.topology.triangleIndices, globalChange)
+          : face;
+        return Object.keys(featureChange).length > 0
+          ? applyFaceWarpFeatureChange(
+            globallyChanged,
+            current.topology.triangleIndices,
+            faceWarpSemanticTarget,
+            featureChange
+          )
+          : globallyChanged;
+      });
       return setRasterLayerAdjustmentStack(
         document,
         layer.id,
         setFaceWarpNodeSettings(layer.adjustmentStack, { ...current, faces })
       );
     });
-  }, [documentMutationController, faceWarpSelectedFaceId, imageDocumentRef]);
+  }, [documentMutationController, faceWarpSelectedFaceId, faceWarpSemanticTarget, imageDocumentRef]);
 
   const detectFacesForActiveLayer = useCallback(async () => {
     const document = imageDocumentRef.current;
@@ -1336,6 +1357,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const faces = current.faces.map((face) => face.id === faceId ? {
         ...face,
         parameters: createDefaultFaceWarpParameters(),
+        featureOverrides: undefined,
         displacements: []
       } : face);
       return setRasterLayerAdjustmentStack(document, layer.id,
@@ -4839,6 +4861,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     meshVisible: faceWarpMeshVisible,
     brushSize: editorSession.brush.size,
     brushStrength: editorSession.brush.opacity,
+    semanticTarget: faceWarpSemanticTarget,
     onDetect: () => { void detectFacesForActiveLayer(); },
     onSelectFace: setFaceWarpSelectedFaceId,
     onMeshVisibleChange: changeFaceWarpMeshVisible,
@@ -4852,6 +4875,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
       }));
     },
+    onSemanticTargetChange: setFaceWarpSemanticTarget,
     onParametersChange: updateFaceWarpParameters,
     onInteractionStart: beginDocumentTransaction,
     onInteractionEnd: endDocumentTransaction,

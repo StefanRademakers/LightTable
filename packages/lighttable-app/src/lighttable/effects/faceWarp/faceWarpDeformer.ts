@@ -1,4 +1,11 @@
-import type { FaceWarpFace, FaceWarpParameters, FaceWarpPoint } from './faceWarpTypes';
+import type {
+  FaceWarpFace,
+  FaceWarpFeatureParameter,
+  FaceWarpFeatureParameters,
+  FaceWarpFeatureSide,
+  FaceWarpParameters,
+  FaceWarpPoint
+} from './faceWarpTypes';
 import { preventIncrementalTriangleFoldovers } from '../deformation/deformationStability';
 import {
   faceWarpCollarPoints,
@@ -183,6 +190,8 @@ export const deformFaceMesh = (
 ): FaceWarpPoint[] => {
   const basis = faceBasis(face);
   const p = face.parameters;
+  const featureValue = (side: FaceWarpFeatureSide, key: FaceWarpFeatureParameter) =>
+    face.featureOverrides?.[side]?.[key] ?? p[key];
   const landmarks = face.landmarks;
   const targetMesh: FaceWarpPoint[] = landmarks.mesh.map((source, sourceIndex) => {
     const target = { x: source.x, y: source.y, z: source.z };
@@ -214,15 +223,15 @@ export const deformFaceMesh = (
     const eyeRadiusY = basis.height * 0.13;
     const side = Math.sign(q.x) || 1;
     featureScale(landmarks.leftEye, eyeRadiusX, eyeRadiusY,
-      p.eyeSize * 0.22 + p.eyeWidth * 0.18,
-      p.eyeSize * 0.22 + p.eyeHeight * 0.2,
+      featureValue('left', 'eyeSize') * 0.22 + featureValue('left', 'eyeWidth') * 0.18,
+      featureValue('left', 'eyeSize') * 0.22 + featureValue('left', 'eyeHeight') * 0.2,
       -basis.width * 0.035 * p.eyeSpacing,
-      -side * basis.height * 0.012 * p.eyeTilt);
+      -side * basis.height * 0.012 * featureValue('left', 'eyeTilt'));
     featureScale(landmarks.rightEye, eyeRadiusX, eyeRadiusY,
-      p.eyeSize * 0.22 + p.eyeWidth * 0.18,
-      p.eyeSize * 0.22 + p.eyeHeight * 0.2,
+      featureValue('right', 'eyeSize') * 0.22 + featureValue('right', 'eyeWidth') * 0.18,
+      featureValue('right', 'eyeSize') * 0.22 + featureValue('right', 'eyeHeight') * 0.2,
       basis.width * 0.035 * p.eyeSpacing,
-      side * basis.height * 0.012 * p.eyeTilt);
+      side * basis.height * 0.012 * featureValue('right', 'eyeTilt'));
     featureScale(landmarks.noseTip, basis.width * 0.18, basis.height * 0.25,
       p.noseWidth * 0.24, p.noseHeight * 0.18);
     featureScale(landmarks.mouthTop, basis.width * 0.3, basis.height * 0.2,
@@ -236,9 +245,10 @@ export const deformFaceMesh = (
     const cornerWeight = Math.min(1, Math.abs(mouthDx) / (basis.width * 0.18));
     // Smile is a relative morph: move the corners up and slightly outward,
     // without translating the complete mouth or erasing the source expression.
+    const smile = featureValue(mouthDx < 0 ? 'left' : 'right', 'smile');
     addLocal(target, basis,
-      Math.sign(mouthDx) * basis.width * 0.012 * p.smile * cornerWeight,
-      -basis.height * 0.045 * p.smile * cornerWeight,
+      Math.sign(mouthDx) * basis.width * 0.012 * smile * cornerWeight,
+      -basis.height * 0.045 * smile * cornerWeight,
       mouthWeight);
 
     const displacement = face.displacements?.[sourceIndex];
@@ -265,6 +275,56 @@ export const applyFaceWarpParameterChange = (
   const desiredFace = { ...face, parameters };
   if (triangleIndices.length === 0) return desiredFace;
   const source = face.landmarks.mesh;
+  const accepted = deformFaceMesh(face);
+  const desired = deformFaceMesh(desiredFace);
+  const safe = preventFaceAndCollarFoldovers(face, accepted, desired, triangleIndices);
+  const semanticTarget = deformFaceMesh({ ...desiredFace, displacements: [] });
+  return {
+    ...desiredFace,
+    displacements: safe.map((point, index) => ({
+      x: point.x - semanticTarget[index]!.x,
+      y: point.y - semanticTarget[index]!.y
+    }))
+  };
+};
+
+/** Applies one linked or side-specific feature edit through the same safe mesh evaluator. */
+export const applyFaceWarpFeatureChange = (
+  face: FaceWarpFace,
+  triangleIndices: readonly number[],
+  target: 'both' | FaceWarpFeatureSide,
+  change: Partial<FaceWarpFeatureParameters>
+): FaceWarpFace => {
+  const bounded = Object.fromEntries(Object.entries(change).map(([key, value]) => [
+    key,
+    Math.max(-1, Math.min(1, Number.isFinite(value) ? value! : 0))
+  ])) as Partial<FaceWarpFeatureParameters>;
+  if (target === 'both') {
+    const keys = new Set(Object.keys(bounded));
+    const strip = (side: Partial<FaceWarpFeatureParameters> | undefined) => {
+      if (!side) return undefined;
+      const retained = Object.fromEntries(
+        Object.entries(side).filter(([key]) => !keys.has(key))
+      );
+      return retained as Partial<FaceWarpFeatureParameters>;
+    };
+    const left = strip(face.featureOverrides?.left);
+    const right = strip(face.featureOverrides?.right);
+    return applyFaceWarpParameterChange({
+      ...face,
+      featureOverrides: left && Object.keys(left).length > 0 || right && Object.keys(right).length > 0
+        ? { left, right }
+        : undefined
+    }, triangleIndices, bounded);
+  }
+  const desiredFace: FaceWarpFace = {
+    ...face,
+    featureOverrides: {
+      ...face.featureOverrides,
+      [target]: { ...face.featureOverrides?.[target], ...bounded }
+    }
+  };
+  if (triangleIndices.length === 0) return desiredFace;
   const accepted = deformFaceMesh(face);
   const desired = deformFaceMesh(desiredFace);
   const safe = preventFaceAndCollarFoldovers(face, accepted, desired, triangleIndices);

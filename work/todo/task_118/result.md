@@ -141,6 +141,17 @@
 - Focused unit coverage proves that a uniform large-scale displacement is
   invariant while an isolated local kink is reduced and distant authored work
   remains byte-for-byte unchanged.
+## Linked and asymmetric feature editing
+
+- The canonical face state now stores optional left/right feature overrides;
+  absent values remain linked to the compact shared parameters.
+- One reused Target control selects Both, Left or Right. Both updates the shared
+  value and clears matching overrides; Left/Right updates only that feature
+  side. Face and Nose remain intentionally centered/global controls.
+- Linked and asymmetric edits pass through the same foldover-safe semantic mesh
+  evaluator, persist in the Face Warp node and are removed by Reset face.
+- Focused tests prove both-side motion, isolated left-side motion, relinking,
+  validation and serialized round-trip.
 ## Coordinate equivalence
 
 - A canonical 468-vertex fixture now applies identical semantic and direct

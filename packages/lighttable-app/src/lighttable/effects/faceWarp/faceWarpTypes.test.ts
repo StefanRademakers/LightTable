@@ -45,7 +45,14 @@ const fixtureSettings = (): FaceWarpNodeSettings => {
 
 describe('Face Warp document settings', () => {
   it('round-trips source XYZ, canonical geometry and pose without detector state', () => {
-    const settings = fixtureSettings();
+    const base = fixtureSettings();
+    const settings: FaceWarpNodeSettings = {
+      ...base,
+      faces: [{
+        ...base.faces[0]!,
+        featureOverrides: { left: { eyeSize: 0.35 }, right: { smile: -0.2 } }
+      }]
+    };
     const serialized = JSON.parse(JSON.stringify(createFaceWarpModuleInstance('face-warp', settings)));
     const restored = readFaceWarpNodeSettings(serialized);
     expect(restored).toEqual(settings);

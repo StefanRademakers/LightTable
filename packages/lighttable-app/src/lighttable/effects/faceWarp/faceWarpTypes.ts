@@ -47,12 +47,23 @@ export interface FaceWarpParameters {
   readonly lowerLip: number;
 }
 
+export type FaceWarpFeatureParameter = 'eyeSize' | 'eyeWidth' | 'eyeHeight' | 'eyeTilt' | 'smile';
+export type FaceWarpFeatureParameters = Pick<FaceWarpParameters, FaceWarpFeatureParameter>;
+export type FaceWarpFeatureSide = 'left' | 'right';
+
+export interface FaceWarpFeatureOverrides {
+  readonly left?: Partial<FaceWarpFeatureParameters>;
+  readonly right?: Partial<FaceWarpFeatureParameters>;
+}
+
 export interface FaceWarpFace {
   readonly id: string;
   readonly confidence: number;
   /** Layer-source pixel coordinates, frozen at detection time. */
   readonly landmarks: FaceWarpLandmarks;
   readonly parameters: FaceWarpParameters;
+  /** Per-side departures from the linked semantic parameters. Missing values remain linked. */
+  readonly featureOverrides?: FaceWarpFeatureOverrides;
   /** One canonical source-local displacement per surface vertex. */
   readonly displacements?: readonly FaceWarpPoint[];
   /** Detector face-local pose, row-major 4 x 4 when available. */
@@ -166,6 +177,10 @@ export const readFaceWarpNodeSettings = (
     || settings.faces.some((face: FaceWarpFace) => face.landmarks.mesh.length !== settings.topology!.vertexCount
       || (Object.values(face.parameters) as number[])
         .some((value) => !Number.isFinite(value) || value < -1 || value > 1)
+      || (face.featureOverrides !== undefined
+        && Object.values(face.featureOverrides).some((side) => side !== undefined
+          && (Object.values(side) as number[]).some((value) => !Number.isFinite(value)
+            || value < -1 || value > 1)))
       || face.landmarks.mesh.some((point: FaceWarpPoint) => !Number.isFinite(point.x)
         || !Number.isFinite(point.y)
         || (point.z !== undefined && !Number.isFinite(point.z)))
