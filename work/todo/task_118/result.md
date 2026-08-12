@@ -214,6 +214,19 @@
   bounded-range, resized-buffer and stable-topology upload plans. The
   `@lighttable/app` typecheck passes.
 
+## Multi-face and asymmetric operation isolation
+
+- Semantic UI changes now execute through one canonical, serializable
+  `set-semantic` operation instead of duplicating parameter-splitting logic in
+  React. The same operation contract is suitable for later MCP command routing.
+- Every operation requires an explicit persisted face ID and returns the input
+  unchanged for an unknown ID. Multi-face tests prove the second face retains
+  the same object and exact evaluated vertices while a left-only eye edit is
+  applied to the selected first face.
+- The existing linked/both-side path remains available and clears matching
+  per-side overrides when relinking. Focused operation/deformer evidence is
+  19/19 green and the app typecheck passes.
+
 - The interactive path remains a bounded two-step Laplacian preview. Pointer-up
   now runs a converged feature-aware refinement over only the connected brush
   footprint; the pointer core and all vertices outside the footprint remain

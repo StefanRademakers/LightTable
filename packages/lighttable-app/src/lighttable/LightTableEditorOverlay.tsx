@@ -193,7 +193,6 @@ import {
 import { semanticLandmarksFromMesh } from './effects/faceWarp/faceWarpLandmarks';
 import { buildFaceWarpMeshOverlay } from './effects/faceWarp/faceWarpMeshOverlay';
 import {
-  applyFaceWarpFeatureChange,
   applyFaceWarpParameterChange,
   applyFaceWarpBrush,
   findDeformedFaceHit,
@@ -210,10 +209,10 @@ import {
   readFaceWarpNodeSettings,
   setFaceWarpNodeSettings,
   type FaceWarpFace,
-  type FaceWarpFeatureParameters,
   type FaceWarpParameters
 } from './effects/faceWarp/faceWarpTypes';
 import type { FaceWarpSemanticTarget } from './application/tools/faceWarp/FaceWarpToolOptions';
+import { applyFaceWarpOperation } from './effects/faceWarp/faceWarpOperations';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
@@ -1219,29 +1218,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
       if (!layer?.adjustmentStack || !instance) return document;
       const current = readFaceWarpNodeSettings(instance);
-      const sideKeys = new Set(['eyeSize', 'eyeWidth', 'eyeHeight', 'eyeTilt', 'smile']);
-      const featureChange = Object.fromEntries(Object.entries(change)
-        .filter(([key]) => sideKeys.has(key))) as Partial<FaceWarpFeatureParameters>;
-      const globalChange = Object.fromEntries(Object.entries(change)
-        .filter(([key]) => !sideKeys.has(key))) as Partial<FaceWarpParameters>;
-      const faces = current.faces.map((face) => {
-        if (face.id !== faceId) return face;
-        const globallyChanged = Object.keys(globalChange).length > 0
-          ? applyFaceWarpParameterChange(face, current.topology.triangleIndices, globalChange)
-          : face;
-        return Object.keys(featureChange).length > 0
-          ? applyFaceWarpFeatureChange(
-            globallyChanged,
-            current.topology.triangleIndices,
-            faceWarpSemanticTarget,
-            featureChange
-          )
-          : globallyChanged;
+      const nextSettings = applyFaceWarpOperation(current, {
+        kind: 'set-semantic', faceId, target: faceWarpSemanticTarget, change
       });
+      if (nextSettings === current) return document;
       return setRasterLayerAdjustmentStack(
         document,
         layer.id,
-        setFaceWarpNodeSettings(layer.adjustmentStack, { ...current, faces })
+        setFaceWarpNodeSettings(layer.adjustmentStack, nextSettings)
       );
     });
   }, [documentMutationController, faceWarpSelectedFaceId, faceWarpSemanticTarget, imageDocumentRef]);

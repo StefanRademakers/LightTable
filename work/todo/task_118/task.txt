@@ -237,7 +237,7 @@ HQ acceptance gate:
 - [x] Semantic sliders and direct mesh sculpting remain interoperable.
 - [ ] Feature locks/protection for eyes, lips, nose and outer face.
 - [ ] Local Relax and Restore with clear on-canvas feedback.
-- [ ] Independent multi-face and asymmetric left/right editing.
+- [x] Independent multi-face and asymmetric left/right editing.
 - [ ] Expose canonical commands for future MCP use, for example semantic face,
       feature and constraint operations rather than raw UI automation.
 - [x] Keep detection and editing fully local/offline by default.
