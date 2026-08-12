@@ -30,9 +30,12 @@ describe('toolRegistry', () => {
       'select-polygonal'
     ]);
     expect(SMART_SELECTION_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([
-      'select-object', 'select-magic-wand'
+      'select-magic-wand', 'select-object'
     ]);
     expect(toolShortcutGroupFor('select-magic-wand')?.key).toBe('w');
+    expect(toolDefinition('select-magic-wand').shortcutKey).toBe('w');
+    expect(toolDefinition('select-object').iconName).toBe('tool_object_selection.png');
+    expect(toolForShortcutFamily('w', 'select-magic-wand', true)).toBe('select-object');
   });
   it('defines the four live-shape tools as one toolbar family', () => {
     expect(SHAPE_TOOL_DEFINITIONS.map(({ id }) => id)).toEqual([

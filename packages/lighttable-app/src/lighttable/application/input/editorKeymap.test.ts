@@ -76,6 +76,24 @@ describe('editor keymap', () => {
     )).toBe('open-image-size');
   });
 
+  it('routes Photoshop-compatible view overlay shortcuts', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'h', code: 'KeyH', ctrlKey: true }),
+      context()
+    )).toBe('toggle-extras');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'r', code: 'KeyR', metaKey: true }),
+      context()
+    )).toBe('toggle-rulers');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ':', code: 'Semicolon', ctrlKey: true, shiftKey: true }),
+      context()
+    )).toBe('toggle-snap');
+  });
+
   it('routes Photoshop-compatible primary+T to Free Transform', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

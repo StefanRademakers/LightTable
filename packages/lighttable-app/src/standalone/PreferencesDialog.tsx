@@ -15,13 +15,13 @@ import {
   DEFAULT_PROJECT_FOLDER_MAPPINGS,
   normalizeProjectUserFolders,
   type ProjectUserFolder,
-  type ProjectStorageLocation
+  type ProjectUserStorageLocation
 } from '../lighttable/application/projects/projectManifest';
 
 type PreferencesPage = 'file-handling' | 'projects' | 'tools' | 'agent-access';
 
 const PROJECT_FOLDER_FIELDS: readonly {
-  readonly location: ProjectStorageLocation;
+  readonly location: ProjectUserStorageLocation;
   readonly label: string;
 }[] = [
   { location: 'characters', label: 'Characters' },
@@ -56,7 +56,6 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
   const [locationBusy, setLocationBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [newProjectFolderName, setNewProjectFolderName] = useState('');
-  const [newProjectFolderPath, setNewProjectFolderPath] = useState('');
   const updateUserFolders = (userFolders: readonly ProjectUserFolder[]) => setDraft({
     ...draft,
     projects: { ...draft.projects, userFolders }
@@ -68,7 +67,6 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
     setPage('file-handling');
     setSaveError(null);
     setNewProjectFolderName('');
-    setNewProjectFolderPath('');
     let active = true;
     void host.recoveryLocation?.current().then((value) => { if (active) setLocation(value); });
     return () => { active = false; };
@@ -106,7 +104,9 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
           void (location && host.recoveryLocation
             ? host.recoveryLocation.apply(location)
             : Promise.resolve(location)
-          ).then(() => onSave({ ...draft, projects: { folders, userFolders } })).catch((reason) => {
+          ).then(() => onSave({ ...draft, projects: {
+            folders, createFolders: draft.projects.createFolders, userFolders
+          } })).catch((reason) => {
             setSaveError(reason instanceof Error ? reason.message : String(reason));
           }).finally(() => setLocationBusy(false));
         }}
@@ -193,81 +193,58 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                   </div>
                   <ActionButton type="button" onClick={() => setDraft({
                     ...draft,
-                    projects: { folders: DEFAULT_PROJECT_FOLDER_MAPPINGS, userFolders: [] }
+                    projects: {
+                      folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
+                      createFolders: PROJECT_FOLDER_FIELDS.map(({ location }) => location),
+                      userFolders: []
+                    }
                   })}>Reset defaults</ActionButton>
                 </div>
                 <div className="lighttable-preferences__project-table" aria-label="Project folder mappings">
-                  <div className="lighttable-preferences__project-table-heading" aria-hidden="true">
-                    <span>Folder name</span>
-                    <span>Relative path</span>
-                    <span />
-                  </div>
-                  {PROJECT_FOLDER_FIELDS.map(({ location: folder, label }) => (
-                    <div className="lighttable-preferences__project-folder" key={folder}>
-                      <div className="lighttable-preferences__project-folder-name">{label}</div>
-                      <FormInput value={draft.projects.folders[folder]}
-                        aria-label={`${label} project folder`}
-                        onChange={(event) => setDraft({
-                          ...draft,
-                          projects: {
+                  {[
+                    ...PROJECT_FOLDER_FIELDS
+                      .filter(({ location }) => draft.projects.createFolders.includes(location))
+                      .map(({ location, label }) => ({ kind: 'standard' as const, location, label })),
+                    ...draft.projects.userFolders.map((folder, index) => ({
+                      kind: 'custom' as const, folder, index, label: folder.name
+                    }))
+                  ].sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: 'base' }))
+                    .map((entry) => entry.kind === 'standard' ? (
+                      <div className="lighttable-preferences__project-folder" key={entry.location}>
+                        <div className="lighttable-preferences__project-folder-name">{entry.label}</div>
+                        <button className="lighttable-preferences__project-folder-remove" type="button"
+                          aria-label={`Do not create ${entry.label} in new projects`}
+                          title="Do not create this folder in new projects"
+                          onClick={() => setDraft({ ...draft, projects: {
                             ...draft.projects,
-                            folders: {
-                              ...draft.projects.folders,
-                              [folder]: event.currentTarget.value
-                            }
-                          }
-                        })} />
-                      <span className="lighttable-preferences__project-folder-kind">Standard</span>
-                    </div>
-                  ))}
-                  {draft.projects.userFolders.map((folder, index) => (
-                    <div className="lighttable-preferences__project-folder" key={`custom-${index}`}>
-                      <FormInput value={folder.name} aria-label={`Additional folder ${index + 1} name`}
-                        onChange={(event) => updateUserFolders(draft.projects.userFolders.map((entry, entryIndex) => (
-                          entryIndex === index ? { ...entry, name: event.currentTarget.value } : entry
-                        )))} />
-                      <FormInput value={folder.path} aria-label={`Additional folder ${index + 1} path`}
-                        onChange={(event) => updateUserFolders(draft.projects.userFolders.map((entry, entryIndex) => (
-                          entryIndex === index ? { ...entry, path: event.currentTarget.value } : entry
-                        )))} />
-                      <div className="lighttable-preferences__project-folder-actions">
-                        <ActionButton size="compact" type="button" disabled={index === 0}
-                          aria-label={`Move ${folder.name} up`} title="Move up" onClick={() => {
-                            const next = [...draft.projects.userFolders];
-                            [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                            updateUserFolders(next);
-                          }}>Up</ActionButton>
-                        <ActionButton size="compact" type="button"
-                          disabled={index === draft.projects.userFolders.length - 1}
-                          aria-label={`Move ${folder.name} down`} title="Move down" onClick={() => {
-                            const next = [...draft.projects.userFolders];
-                            [next[index], next[index + 1]] = [next[index + 1], next[index]];
-                            updateUserFolders(next);
-                          }}>Down</ActionButton>
-                        <ActionButton size="compact" type="button" aria-label={`Remove ${folder.name}`}
-                          onClick={() => updateUserFolders(draft.projects.userFolders.filter((_, entryIndex) => entryIndex !== index))}>Remove</ActionButton>
+                            createFolders: draft.projects.createFolders.filter((folder) => folder !== entry.location)
+                          } })}>×</button>
                       </div>
-                    </div>
-                  ))}
+                    ) : (
+                      <div className="lighttable-preferences__project-folder" key={`custom-${entry.index}`}>
+                        <div className="lighttable-preferences__project-folder-name">{entry.folder.name}</div>
+                        <button className="lighttable-preferences__project-folder-remove" type="button"
+                          aria-label={`Do not create ${entry.folder.name} in new projects`}
+                          title="Do not create this folder in new projects"
+                          onClick={() => updateUserFolders(draft.projects.userFolders.filter((_, index) => index !== entry.index))}>×</button>
+                      </div>
+                    ))}
                   <div className="lighttable-preferences__project-folder-add">
                     <FormInput value={newProjectFolderName} placeholder="New folder name"
                       aria-label="New project folder name"
                       onChange={(event) => setNewProjectFolderName(event.currentTarget.value)} />
-                    <FormInput value={newProjectFolderPath} placeholder="Relative path (e.g. References/Style)"
-                      aria-label="New project folder relative path"
-                      onChange={(event) => setNewProjectFolderPath(event.currentTarget.value)} />
-                    <ActionButton type="button" disabled={!newProjectFolderName.trim() || !newProjectFolderPath.trim()}
+                    <ActionButton type="button" disabled={!newProjectFolderName.trim()}
                       onClick={() => {
+                        const name = newProjectFolderName.trim();
                         updateUserFolders([...draft.projects.userFolders, {
-                          name: newProjectFolderName.trim(), path: newProjectFolderPath.trim()
+                          name, path: name
                         }]);
                         setNewProjectFolderName('');
-                        setNewProjectFolderPath('');
                       }}>Add folder</ActionButton>
                   </div>
                 </div>
                 <p className="lighttable-preferences__note">
-                  Paths are relative to the project folder. These defaults only affect new projects; existing projects keep their own mappings. AI renders, input, history and Trash remain stable, visible folders on disk; cache, thumbnails, indexes and temporary data stay internal under .lighttable.
+                  Paths are relative to the project folder. Removing a row only stops LightTable from creating that folder in new projects; it never deletes folders from disk or changes existing projects. Custom folders already on disk remain discoverable in the asset browser. AI renders, input, history and Trash remain system-managed.
                 </p>
                 {saveError ? <p className="lighttable-preferences__error" role="alert">{saveError}</p> : null}
               </section>

@@ -8,6 +8,10 @@ export const PROJECT_STORAGE_LOCATIONS = [
 ] as const;
 
 export type ProjectStorageLocation = typeof PROJECT_STORAGE_LOCATIONS[number];
+export const PROJECT_USER_STORAGE_LOCATIONS = [
+  'characters', 'props', 'environments', 'sets'
+] as const;
+export type ProjectUserStorageLocation = typeof PROJECT_USER_STORAGE_LOCATIONS[number];
 export type ProjectFolderMappings = Readonly<Record<ProjectStorageLocation, string>>;
 export interface ProjectUserFolder {
   readonly name: string;
@@ -89,7 +93,8 @@ export const parseLightTableProjectManifest = (value: unknown): LightTableProjec
   }
   const candidate = value as Record<string, unknown>;
   const manifestKeys = ['format', 'version', 'id', 'name', 'createdAt', 'folders', 'userFolders'];
-  if (Object.keys(candidate).length !== manifestKeys.length
+  const requiredManifestKeys = ['format', 'version', 'id', 'name', 'createdAt', 'folders'];
+  if (requiredManifestKeys.some((key) => !(key in candidate))
     || Object.keys(candidate).some((key) => !manifestKeys.includes(key))) {
     throw new Error('The project manifest contains unsupported fields.');
   }
@@ -107,7 +112,9 @@ export const parseLightTableProjectManifest = (value: unknown): LightTableProjec
   }
   const folders = normalizeProjectFolderMappings(candidate.folders);
   if (!folders) throw new Error('The project folder mappings are invalid.');
-  const userFolders = normalizeProjectUserFolders(candidate.userFolders);
+  // Early v1 manifests predate custom project folders. Their canonical
+  // meaning is an empty custom-folder list; unknown fields remain rejected.
+  const userFolders = normalizeProjectUserFolders(candidate.userFolders ?? []);
   if (!userFolders) throw new Error('The project user folders are invalid.');
   return {
     format: LIGHTTABLE_PROJECT_FORMAT,

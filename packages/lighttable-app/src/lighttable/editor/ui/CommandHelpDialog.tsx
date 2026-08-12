@@ -12,6 +12,8 @@ export const LIGHTTABLE_COMMAND_HELP = [
   ['Transform', 'V', 'Tools'], ['Brush', 'B', 'Tools'], ['Text', 'T', 'Tools'],
   ['Rectangle', 'U', 'Tools'], ['Zoom', 'Z', 'Tools'], ['Hand', 'H / Space', 'Tools'],
   ['Fit on screen', 'Ctrl+0', 'View'], ['Actual pixels', 'Ctrl+1', 'View'],
+  ['Show/hide extras', 'Ctrl+H', 'View'], ['Show/hide rulers', 'Ctrl+R', 'View'],
+  ['Enable/disable snapping', 'Ctrl+Shift+;', 'View'],
   ['Bold text', 'Ctrl+B', 'Type'], ['Italic text', 'Ctrl+I', 'Type'],
   ['Move by word', 'Ctrl+Arrow', 'Type'], ['Select by word', 'Ctrl+Shift+Arrow', 'Type']
 ] as const;

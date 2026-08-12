@@ -69,6 +69,21 @@ describe('desktop project service', () => {
     await expect(statDirectory(path.join(summary.rootPath, 'Delivery', 'Client'))).resolves.toBe(true);
   });
 
+  it('skips disabled template folders without changing their manifest mappings', async () => {
+    const parentPath = await temporaryRoot();
+    const summary = await createProjectOnDisk({
+      name: 'Lean Structure', parentPath, createFolders: ['characters', 'sets']
+    });
+    const opened = await openProjectManifest(summary.manifestPath);
+    expect(opened.manifest.folders.props).toBe('Props');
+    await expect(statDirectory(path.join(summary.rootPath, 'Characters'))).resolves.toBe(true);
+    await expect(statDirectory(path.join(summary.rootPath, 'Sets'))).resolves.toBe(true);
+    await expect(statDirectory(path.join(summary.rootPath, 'Props'))).rejects.toThrow();
+    await expect(statDirectory(path.join(summary.rootPath, 'Environments'))).rejects.toThrow();
+    await expect(statDirectory(path.join(summary.rootPath, 'AiRenders', 'History'))).resolves.toBe(true);
+    await expect(statDirectory(path.join(summary.rootPath, 'Trash'))).resolves.toBe(true);
+  });
+
   it.each(['CON', 'bad/name', 'bad.', ''])('rejects unsafe project name %s', (name) => {
     expect(() => validateProjectName(name)).toThrow();
   });

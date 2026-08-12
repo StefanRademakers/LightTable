@@ -79,7 +79,8 @@ export interface SelectionSessionController {
     mode: SelectionCombineMode,
     stripSize?: number,
     smooth?: number,
-    smoothingScale?: number
+    smoothingScale?: number,
+    snapBypass?: boolean
   ): boolean;
   move(pointerId: number, point: SelectionPoint, snapBypass?: boolean): boolean;
   moveMany(pointerId: number, points: readonly SelectionPoint[], snapBypass?: boolean): boolean;
@@ -207,6 +208,7 @@ export const createSelectionSessionController = (
 ): SelectionSessionController => {
   let magicWandRequestId = 0;
   let pendingMagicWandSnapshot: SelectionOperation[] | null = null;
+  let marqueeTool: GeometricSelectionToolId | null = null;
   let translation: {
     pointerId: number;
     document: ImageDocument;
@@ -317,6 +319,8 @@ export const createSelectionSessionController = (
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
     dependencies.publishDraft(null);
+    dependencies.publishSnapFeedback?.([], null);
+    marqueeTool = null;
     dependencies.publishSelection(dependencies.getSelection(), null);
     if (!document || !renderer || result.kind === 'none') return true;
     const before = cloneSelectionOperations(dependencies.getSelection());
@@ -396,9 +400,45 @@ export const createSelectionSessionController = (
       );
       return true;
     }
-    const draft = gesture.moveMany(pointerId, points);
+    let marqueeMatches: readonly SnapMatch[] = [];
+    let gesturePoints = points;
+    if (marqueeTool && marqueeTool !== 'select-free') {
+      const snapContext = resolveDependencies().getSnapContext?.({
+        x: point.x, y: point.y, width: 0, height: 0
+      });
+      if (snapContext) {
+        const relevantTargets = marqueeTool === 'select-horizontal'
+          ? snapContext.targets.filter(({ axis }) => axis === 'y')
+          : marqueeTool === 'select-vertical'
+            ? snapContext.targets.filter(({ axis }) => axis === 'x')
+            : snapContext.targets;
+        const snap = solveSnap({
+          movingBounds: { x: point.x, y: point.y, width: 0, height: 0 },
+          targets: relevantTargets,
+          zoom: snapContext.zoom,
+          enabled: snapContext.enabled,
+          bypass: snapBypass
+        });
+        marqueeMatches = snap.matches;
+        gesturePoints = [
+          ...points.slice(0, -1),
+          { ...point, x: point.x + snap.offsetX, y: point.y + snap.offsetY }
+        ];
+      }
+    }
+    const draft = gesture.moveMany(pointerId, gesturePoints);
     if (!draft) return false;
     resolveDependencies().publishDraft(draft);
+    if (marqueeTool && marqueeTool !== 'select-free') {
+      const xs = draft.points.map(({ x }) => x);
+      const ys = draft.points.map(({ y }) => y);
+      resolveDependencies().publishSnapFeedback?.(marqueeMatches, {
+        x: Math.min(...xs),
+        y: Math.min(...ys),
+        width: Math.max(...xs) - Math.min(...xs),
+        height: Math.max(...ys) - Math.min(...ys)
+      });
+    }
     return true;
   };
 
@@ -413,7 +453,7 @@ export const createSelectionSessionController = (
       return polygonGesture.draft ?? gesture.draft;
     },
     owns: (pointerId) => gesture.owns(pointerId) || translation?.pointerId === pointerId,
-    begin: (pointerId, tool, point, mode, stripSize, smooth, smoothingScale) => {
+    begin: (pointerId, tool, point, mode, stripSize, smooth, smoothingScale, snapBypass = false) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       const renderer = dependencies.getRenderer();
@@ -428,12 +468,36 @@ export const createSelectionSessionController = (
         dependencies.publishSnapFeedback?.([], sourceBounds);
         return true;
       }
-      const draft = gesture.begin(pointerId, tool, point, mode, {
+      const marqueeSnap = tool === 'select-free'
+        ? null
+        : dependencies.getSnapContext?.({ x: point.x, y: point.y, width: 0, height: 0 });
+      const relevantTargets = marqueeSnap
+        ? tool === 'select-horizontal'
+          ? marqueeSnap.targets.filter(({ axis }) => axis === 'y')
+          : tool === 'select-vertical'
+            ? marqueeSnap.targets.filter(({ axis }) => axis === 'x')
+            : marqueeSnap.targets
+        : [];
+      const snap = marqueeSnap
+        ? solveSnap({
+            movingBounds: { x: point.x, y: point.y, width: 0, height: 0 },
+            targets: relevantTargets,
+            zoom: marqueeSnap.zoom,
+            enabled: marqueeSnap.enabled,
+            bypass: snapBypass
+          })
+        : { offsetX: 0, offsetY: 0, matches: [] as readonly SnapMatch[] };
+      const snappedPoint = { x: point.x + snap.offsetX, y: point.y + snap.offsetY };
+      marqueeTool = tool;
+      const draft = gesture.begin(pointerId, tool, snappedPoint, mode, {
         documentWidth: document.width,
         documentHeight: document.height,
         size: stripSize ?? 1
       }, smooth, smoothingScale);
       dependencies.publishDraft(draft);
+      dependencies.publishSnapFeedback?.(snap.matches, snap.matches.length ? {
+        x: snappedPoint.x, y: snappedPoint.y, width: 0, height: 0
+      } : null);
       dependencies.publishSelection(dependencies.getSelection(), pointerId);
       return true;
     },
@@ -469,8 +533,10 @@ export const createSelectionSessionController = (
         return true;
       }
       if (!gesture.cancel(pointerId)) return false;
+      marqueeTool = null;
       const dependencies = resolveDependencies();
       dependencies.publishDraft(null);
+      dependencies.publishSnapFeedback?.([], null);
       dependencies.publishSelection(dependencies.getSelection(), null);
       return true;
     },
@@ -592,6 +658,7 @@ export const createSelectionSessionController = (
       magicWandRequestId += 1;
       pendingMagicWandSnapshot = null;
       translation = null;
+      marqueeTool = null;
       resolveDependencies().publishSnapFeedback?.([], null);
       gesture.reset();
       polygonGesture.reset();

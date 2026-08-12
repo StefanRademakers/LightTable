@@ -6,6 +6,7 @@ export interface SnapSettings {
     layers: boolean;
     documentBounds: boolean;
   };
+  extrasVisible: boolean;
   smartGuidesVisible: boolean;
   guidesVisible: boolean;
   gridVisible: boolean;
@@ -25,6 +26,7 @@ export const createDefaultSnapSettings = (): SnapSettings => ({
     layers: true,
     documentBounds: true
   },
+  extrasVisible: true,
   smartGuidesVisible: true,
   guidesVisible: true,
   gridVisible: false,

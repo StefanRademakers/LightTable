@@ -403,6 +403,7 @@ export function LightTableStandaloneApp({
         name,
         parentPath: projectLocation.path,
         folders: preferences.projects.folders,
+        createFolders: preferences.projects.createFolders,
         userFolders: preferences.projects.userFolders
       }));
       setNewProjectOpen(false);
@@ -412,9 +413,10 @@ export function LightTableStandaloneApp({
     } finally {
       setProjectCreating(false);
     }
-  }, [host.projects, preferences.projects.folders, preferences.projects.userFolders, projectLocation, refreshRecentProjects]);
+  }, [host.projects, preferences.projects.createFolders, preferences.projects.folders, preferences.projects.userFolders, projectLocation, refreshRecentProjects]);
 
   const openProject = useCallback(async () => {
+    setProjectError(null);
     try {
       const project = await host.projects?.open() ?? null;
       if (project) {
@@ -427,6 +429,7 @@ export function LightTableStandaloneApp({
   }, [host.projects, refreshRecentProjects]);
 
   const openRecentProject = useCallback(async (recentId: string) => {
+    setProjectError(null);
     try {
       const project = await host.projects?.openRecent(recentId) ?? null;
       if (project) setActiveProject(project);
@@ -910,6 +913,16 @@ export function LightTableStandaloneApp({
           onClick={fileDrop.clearError}
         >
           {fileDrop.error}
+        </button>
+      ) : null}
+      {projectError && !newProjectOpen ? (
+        <button
+          className="lighttable-file-drop__notice"
+          type="button"
+          role="alert"
+          onClick={() => setProjectError(null)}
+        >
+          {projectError}
         </button>
       ) : null}
       {documents.map((document) => (

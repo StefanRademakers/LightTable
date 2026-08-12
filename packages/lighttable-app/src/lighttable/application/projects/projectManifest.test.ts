@@ -7,6 +7,12 @@ import {
 } from './projectManifest';
 
 describe('LightTable project manifest', () => {
+  it('normalizes an early v1 manifest without custom folders', () => {
+    const manifest = createLightTableProjectManifest({ id: 'project-12345678', name: 'Early v1' });
+    const { userFolders: _userFolders, ...earlyManifest } = manifest;
+    expect(parseLightTableProjectManifest(earlyManifest).userFolders).toEqual([]);
+  });
+
   it('creates the complete portable default layout', () => {
     const manifest = createLightTableProjectManifest({
       id: 'project-12345678', name: 'Portrait Campaign', createdAt: '2026-08-11T12:00:00Z'

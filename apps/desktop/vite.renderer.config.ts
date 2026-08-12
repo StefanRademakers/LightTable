@@ -46,6 +46,11 @@ export default defineConfig({
     dedupe: ['react', 'react-dom']
   },
   optimizeDeps: {
+    // Transformers.js is referenced only by lazy inference workers. Without
+    // an explicit entry Vite discovers it on first tool activation, rebuilds
+    // optimized dependencies and reloads the complete editor document.
+    // Pre-bundling the runtime does not load any model or model weights.
+    include: ['@huggingface/transformers'],
     // Workspace code must remain in Vite's live source graph. Optimizing one
     // of these packages can leave an old GPU pipeline active after HMR even
     // though its caller already runs the new source.

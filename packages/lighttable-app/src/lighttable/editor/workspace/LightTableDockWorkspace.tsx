@@ -316,11 +316,24 @@ const DocumentHost: React.FC<{
               className={`lighttable-document-tab${active ? ' lighttable-document-tab--active' : ''}`}
               role="tab"
               aria-selected={active}
+              onMouseEnter={(event) => {
+                const bounds = event.currentTarget.getBoundingClientRect();
+                const preview = event.currentTarget.querySelector<HTMLElement>('.lighttable-document-tab__preview');
+                if (!preview) return;
+                preview.style.left = `${Math.round(bounds.left)}px`;
+                preview.style.top = `${Math.round(bounds.bottom)}px`;
+                // Dockview positions panels with transforms. A fixed descendant
+                // therefore uses that transformed panel as its containing block,
+                // not the viewport. Measure the actual result and remove that
+                // container offset so the preview touches its tab exactly.
+                const positioned = preview.getBoundingClientRect();
+                preview.style.left = `${Math.round(bounds.left * 2 - positioned.left)}px`;
+                preview.style.top = `${Math.round(bounds.bottom * 2 - positioned.top)}px`;
+              }}
             >
               {document.thumbnailUrl && !active ? (
                 <div className="lighttable-document-tab__preview" role="tooltip">
                   <img src={document.thumbnailUrl} alt="" />
-                  <span>{document.title}</span>
                 </div>
               ) : null}
               <button

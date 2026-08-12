@@ -1,7 +1,8 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { EditorToolbar } from './EditorToolbar';
+import { EditorToolbar, ToolButton } from './EditorToolbar';
+import { toolDefinition } from '../tools/toolRegistry';
 
 const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 'text-point' | 'vector-add-anchor' | 'vector-direct-select') => renderToStaticMarkup(
   <EditorToolbar
@@ -17,13 +18,28 @@ const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 
 );
 
 describe('EditorToolbar', () => {
+  it('can present a normal family flyout item with its label and shortcut', () => {
+    const markup = renderToStaticMarkup(
+      <ToolButton
+        tool={toolDefinition('select-magic-wand')}
+        active={false}
+        detailed
+        onClick={vi.fn()}
+      />
+    );
+    expect(markup).toContain('lighttable-toolbox__button--detailed');
+    expect(markup).toContain('Magic Wand');
+    expect(markup).toContain('lighttable-toolbox__button-shortcut');
+    expect(markup).toContain('>W<');
+  });
+
   it('splits selection tools into Photoshop-compatible M, L and W slots', () => {
     const markup = renderToolbar('brush');
     expect(markup).toContain('aria-label="Rectangular selection (M)"');
     expect(markup).toContain('aria-label="Show marquee tools"');
     expect(markup).toContain('aria-label="Free selection (L)"');
     expect(markup).toContain('aria-label="Show lasso tools"');
-    expect(markup).toContain('aria-label="Object Selection (W)"');
+    expect(markup).toContain('aria-label="Magic Wand (W)"');
     expect(markup).toContain('aria-label="Show smart selection tools"');
     expect(markup).not.toContain('aria-label="Elliptical selection (M)"');
   });

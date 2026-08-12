@@ -6,10 +6,12 @@ import {
   LIGHTTABLE_PROJECT_MANIFEST_NAME,
   parseLightTableProjectManifest,
   PROJECT_STORAGE_LOCATIONS,
+  PROJECT_USER_STORAGE_LOCATIONS,
   type LightTableProjectManifest,
   type ProjectFolderMappings,
   type ProjectUserFolder,
-  type ProjectStorageLocation
+  type ProjectStorageLocation,
+  type ProjectUserStorageLocation
 } from '@lighttable/app/project-manifest';
 
 export interface DesktopProjectSummary {
@@ -79,6 +81,7 @@ export const createProjectOnDisk = async (request: {
   readonly id?: string;
   readonly createdAt?: string;
   readonly folders?: ProjectFolderMappings;
+  readonly createFolders?: readonly ProjectUserStorageLocation[];
   readonly userFolders?: readonly ProjectUserFolder[];
 }): Promise<DesktopProjectSummary> => {
   const name = validateProjectName(request.name);
@@ -95,10 +98,19 @@ export const createProjectOnDisk = async (request: {
     folders: request.folders,
     userFolders: request.userFolders
   });
+  if (request.createFolders
+    && (request.createFolders.some((location) => !PROJECT_USER_STORAGE_LOCATIONS.includes(location))
+      || new Set(request.createFolders).size !== request.createFolders.length)) {
+    throw new Error('The project creation folder selection is invalid.');
+  }
 
   try {
     await mkdir(stagingPath);
-    const directories = new Set(PROJECT_STORAGE_LOCATIONS.map(
+    const enabledUserFolders = new Set(request.createFolders ?? PROJECT_USER_STORAGE_LOCATIONS);
+    const directories = new Set(PROJECT_STORAGE_LOCATIONS
+      .filter((location) => !PROJECT_USER_STORAGE_LOCATIONS.includes(location as ProjectUserStorageLocation)
+        || enabledUserFolders.has(location as ProjectUserStorageLocation))
+      .map(
       (location) => resolveProjectStoragePath(stagingPath, manifest, location)
     ));
     manifest.userFolders.forEach((folder) => directories.add(containedPath(stagingPath, folder.path)));

@@ -28,6 +28,7 @@ export interface DocumentViewportSurfaceProps {
   focusPickerActive: boolean;
   selection: SelectionOperation[];
   selectionDraft: SelectionShape | null;
+  extrasVisible?: boolean;
   imageRect: Rect;
   scale: number;
   viewportSize: { width: number; height: number };
@@ -77,6 +78,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   focusPickerActive,
   selection,
   selectionDraft,
+  extrasVisible = true,
   imageRect,
   scale,
   viewportSize,
@@ -138,7 +140,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           />
         ) : null}
       {inputBridge}
-      {activeTool !== 'view' && (selection.length || selectionDraft) ? (
+      {extrasVisible && activeTool !== 'view' && (selection.length || selectionDraft) ? (
         <SelectionOverlay
           operations={selection}
           draft={selectionDraft}

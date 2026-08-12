@@ -3,7 +3,9 @@ import {
   normalizeProjectFolderMappings,
   normalizeProjectUserFolders,
   type ProjectFolderMappings,
-  type ProjectUserFolder
+  type ProjectUserFolder,
+  PROJECT_USER_STORAGE_LOCATIONS,
+  type ProjectUserStorageLocation
 } from '../lighttable/application/projects/projectManifest';
 
 export const LIGHTTABLE_PREFERENCES_STORAGE_KEY = 'lighttable:preferences';
@@ -20,6 +22,8 @@ export interface ApplicationPreferences {
   };
   readonly projects: {
     readonly folders: ProjectFolderMappings;
+    /** Standard semantic folders created for new projects. Existing projects are never changed. */
+    readonly createFolders: readonly ProjectUserStorageLocation[];
     readonly userFolders: readonly ProjectUserFolder[];
   };
 }
@@ -36,6 +40,7 @@ export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
   },
   projects: {
     folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
+    createFolders: PROJECT_USER_STORAGE_LOCATIONS,
     userFolders: []
   }
 };
@@ -79,6 +84,15 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
     ? normalizeProjectPreferenceFolders(candidate.projects.folders)
     : DEFAULT_PROJECT_FOLDER_MAPPINGS;
   if (!projectFolders) return DEFAULT_APPLICATION_PREFERENCES;
+  const requestedCreateFolders = candidate.projects?.createFolders;
+  const createFolders = requestedCreateFolders === undefined
+    ? PROJECT_USER_STORAGE_LOCATIONS
+    : Array.isArray(requestedCreateFolders)
+      && requestedCreateFolders.every((location) => PROJECT_USER_STORAGE_LOCATIONS.includes(location))
+      && new Set(requestedCreateFolders).size === requestedCreateFolders.length
+      ? PROJECT_USER_STORAGE_LOCATIONS.filter((location) => requestedCreateFolders.includes(location))
+      : null;
+  if (!createFolders) return DEFAULT_APPLICATION_PREFERENCES;
   return {
     version: 1,
     autosave: {
@@ -91,6 +105,7 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
     },
     projects: {
       folders: projectFolders,
+      createFolders,
       userFolders: normalizeProjectUserFolders(candidate.projects?.userFolders ?? []) ?? []
     }
   };

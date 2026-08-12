@@ -85,14 +85,14 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     id: 'select-object',
     label: 'Object Selection',
     shortcutLabel: 'W',
-    shortcutKey: 'w',
-    iconName: 'tool_magic_wand.png',
+    iconName: 'tool_object_selection.png',
     role: 'selection'
   },
   {
     id: 'select-magic-wand',
     label: 'Magic Wand',
     shortcutLabel: 'W',
+    shortcutKey: 'w',
     iconName: 'tool_magic_wand.png',
     role: 'selection'
   },
@@ -312,7 +312,7 @@ export const LASSO_TOOL_DEFINITIONS: readonly ToolDefinition[] =
 
 /** Object Selection and Magic Wand share Photoshop's W toolbar slot. */
 export const SMART_SELECTION_TOOL_DEFINITIONS: readonly ToolDefinition[] =
-  ['select-object', 'select-magic-wand']
+  ['select-magic-wand', 'select-object']
     .map((id) => TOOL_DEFINITIONS.find((tool) => tool.id === id)!);
 
 /** Live shapes share one toolbar slot while retaining their individual presets. */
@@ -361,7 +361,7 @@ export const TOOL_SHORTCUT_GROUPS: readonly ToolShortcutGroup[] = [
   },
   {
     key: 'w',
-    tools: ['select-object', 'select-magic-wand']
+    tools: ['select-magic-wand', 'select-object']
   },
   {
     key: 'a',

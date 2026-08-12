@@ -26,6 +26,7 @@ export interface SmartSelectionPreviewRenderer extends SmartSelectionSourceRende
 export interface SmartSelectionToolCallbacks {
   readonly getDocument: () => ImageDocument | null;
   readonly getRenderer: () => SmartSelectionPreviewRenderer | null;
+  readonly isRendererReady: () => boolean;
   readonly getOptions: () => SmartSelectionOptions;
   readonly selection: SelectionSessionController;
   readonly setStatus: (message: string | null) => void;
@@ -67,7 +68,8 @@ export class SmartSelectionToolController {
   private source: SmartSelectionSource | null = null;
   private preparing: { key: string; promise: Promise<boolean> } | null = null;
   private preview: SmartSelectionCandidate | null = null;
-  private hoverTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingHoverPoint: SelectionPoint | null = null;
+  private hoverInferenceActive = false;
   private committing = false;
   private region: {
     pointerId: number;
@@ -87,9 +89,11 @@ export class SmartSelectionToolController {
   async prepare() {
     const document = this.callbacks.getDocument();
     const renderer = this.callbacks.getRenderer();
-    if (!document || !renderer || this.disposed) {
+    const rendererReady = this.callbacks.isRendererReady();
+    if (!document || !renderer || !rendererReady || this.disposed) {
       traceSmartSelection('prepare-rejected', {
-        document: Boolean(document), renderer: Boolean(renderer), disposed: this.disposed
+        document: Boolean(document), renderer: Boolean(renderer), rendererReady,
+        disposed: this.disposed
       });
       return false;
     }
@@ -133,18 +137,17 @@ export class SmartSelectionToolController {
 
   hover(point: SelectionPoint) {
     if (this.committing || this.callbacks.getOptions().mode !== 'object-finder') return;
-    if (candidateAtPoint(this.preview, point)) return;
-    if (this.hoverTimer) clearTimeout(this.hoverTimer);
-    this.hoverTimer = setTimeout(() => {
-      this.hoverTimer = null;
-      void this.resolvePoint(point, false);
-    }, 90);
+    if (candidateAtPoint(this.preview, point)) {
+      this.pendingHoverPoint = null;
+      return;
+    }
+    this.pendingHoverPoint = point;
+    void this.drainHoverInference();
   }
 
   async commitPoint(point: SelectionPoint, mode: SelectionCombineMode) {
     traceSmartSelection('point-requested', { x: point.x, y: point.y, mode });
-    if (this.hoverTimer) clearTimeout(this.hoverTimer);
-    this.hoverTimer = null;
+    this.pendingHoverPoint = null;
     this.committing = true;
     try {
       const candidate = candidateAtPoint(this.preview, point)
@@ -261,8 +264,7 @@ export class SmartSelectionToolController {
   }
 
   clearPreview() {
-    if (this.hoverTimer) clearTimeout(this.hoverTimer);
-    this.hoverTimer = null;
+    this.pendingHoverPoint = null;
     this.preview = null;
     this.callbacks.getRenderer()?.setSmartSelectionPreview(null);
   }
@@ -294,6 +296,27 @@ export class SmartSelectionToolController {
         ? `Object Selection is unavailable: ${reason.message}`
         : 'Object Selection is unavailable.');
       return null;
+    }
+  }
+
+  /** Runs at most one hover decode at a time and retains only the newest pointer position. */
+  private async drainHoverInference() {
+    if (this.hoverInferenceActive) return;
+    this.hoverInferenceActive = true;
+    try {
+      while (!this.disposed && !this.committing && this.pendingHoverPoint) {
+        const point = this.pendingHoverPoint;
+        this.pendingHoverPoint = null;
+        await this.resolvePoint(point, false);
+        if (this.pendingHoverPoint && candidateAtPoint(this.preview, this.pendingHoverPoint)) {
+          this.pendingHoverPoint = null;
+        }
+      }
+    } finally {
+      this.hoverInferenceActive = false;
+      if (!this.disposed && !this.committing && this.pendingHoverPoint) {
+        void this.drainHoverInference();
+      }
     }
   }
 

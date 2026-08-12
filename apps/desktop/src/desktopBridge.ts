@@ -9,7 +9,7 @@ import type {
   LightTableAgentTunnelStatus
 } from '@lighttable/app';
 import type { LightTableRecoveryLocation } from '@lighttable/app';
-import type { ProjectFolderMappings, ProjectUserFolder } from '@lighttable/app/project-manifest';
+import type { ProjectFolderMappings, ProjectUserFolder, ProjectUserStorageLocation } from '@lighttable/app/project-manifest';
 import type {
   GenAiAssetId,
   GenAiAssetReference,
@@ -133,6 +133,7 @@ export interface LightTableDesktopBridge {
     readonly name: string;
     readonly parentPath: string;
     readonly folders?: ProjectFolderMappings;
+    readonly createFolders?: readonly ProjectUserStorageLocation[];
     readonly userFolders?: readonly ProjectUserFolder[];
   }): Promise<DesktopProjectSummary>;
   currentProject(): Promise<DesktopProjectSummary | null>;

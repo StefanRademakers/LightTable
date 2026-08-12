@@ -96,6 +96,7 @@ export {
   LIGHTTABLE_PROJECT_VERSION,
   LIGHTTABLE_PROJECT_MANIFEST_NAME,
   PROJECT_STORAGE_LOCATIONS,
+  PROJECT_USER_STORAGE_LOCATIONS,
   DEFAULT_PROJECT_FOLDER_MAPPINGS,
   createLightTableProjectManifest,
   parseLightTableProjectManifest,
@@ -104,7 +105,8 @@ export {
   type LightTableProjectManifest,
   type ProjectFolderMappings,
   type ProjectUserFolder,
-  type ProjectStorageLocation
+  type ProjectStorageLocation,
+  type ProjectUserStorageLocation
 } from './lighttable/application/projects/projectManifest';
 export {
   copyLightTableGrade,

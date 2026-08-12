@@ -47,6 +47,9 @@ export default defineConfig({
     dedupe: ['react', 'react-dom']
   },
   optimizeDeps: {
+    // Lazy inference workers must not trigger a first-use dependency scan and
+    // full editor reload. Models and weights remain lazy despite this bundle.
+    include: ['@huggingface/transformers'],
     exclude: [
       '@lighttable/app',
       '@lighttable/genai-core',

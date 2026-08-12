@@ -966,16 +966,15 @@
 .lighttable-document-tab__preview {
   position: fixed;
   z-index: 130;
-  top: 76px;
-  width: 272px;
-  max-height: 300px;
   display: none;
-  gap: 6px;
-  padding: 8px;
+  width: max-content;
+  max-width: 180px;
+  max-height: 180px;
+  padding: 0;
   border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
+  border-radius: 0 0 var(--lt-radius-sm) var(--lt-radius-sm);
   background: var(--lt-surface-popover);
-  box-shadow: var(--lt-shadow-floating);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 58%);
   pointer-events: none;
 }
 
@@ -984,18 +983,13 @@
 }
 
 .lighttable-document-tab__preview img {
-  width: 256px;
-  max-height: 256px;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 180px;
+  max-height: 180px;
   object-fit: contain;
   background: var(--lt-surface-canvas);
-}
-
-.lighttable-document-tab__preview span {
-  overflow: hidden;
-  color: var(--lt-text-primary);
-  font-size: var(--lt-type-label);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .lighttable-document-tab--active {
@@ -1093,7 +1087,33 @@
   background: var(--lt-accent-strong);
 }
 .lighttable-toolbox__button:focus-visible { outline: none; }
-.lighttable-toolbox__button img { width: 18px; height: 18px; object-fit: contain; }
+.lighttable-toolbox__button img { width: 20px; height: 20px; object-fit: contain; }
+
+.lighttable-toolbox__button--detailed {
+  width: 210px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  justify-items: start;
+  gap: 7px;
+  padding: 0 9px 0 7px;
+  color: var(--lt-text-primary);
+  white-space: nowrap;
+}
+
+.lighttable-toolbox__button--detailed img { justify-self: center; }
+
+.lighttable-toolbox__button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lighttable-toolbox__button-shortcut {
+  justify-self: end;
+  color: var(--lt-text-secondary);
+}
+
+.lighttable-toolbox__button--active .lighttable-toolbox__button-shortcut {
+  color: var(--lt-text-on-accent);
+}
 
 .lighttable-toolbox__group { position: relative; }
 
@@ -1151,6 +1171,12 @@
     inset 0 1px var(--lt-border-strong),
     inset 0 -1px var(--lt-border-strong),
     var(--lt-shadow-panel);
+}
+
+.lighttable-toolbox__flyout--expanded .lighttable-toolbox__button {
+  width: 34px;
+  grid-template-columns: none;
+  padding: 0;
 }
 
 .lighttable-toolbox__colors {

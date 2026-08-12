@@ -546,6 +546,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commandHistory.getSnapshot,
     commandHistory.getSnapshot
   );
+  const rendererSnapshot = useSyncExternalStore(
+    rendererLifecycle.subscribe,
+    rendererLifecycle.getSnapshot,
+    rendererLifecycle.getSnapshot
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const commandRequestSequenceRef = useRef(0);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1928,6 +1933,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   smartSelectionControllerRef.current ??= new SmartSelectionToolController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    isRendererReady: () => rendererLifecycle.getSnapshot().status === 'ready',
     getOptions: () => editorSessionRef.current.smartSelection,
     selection: selectionSessionController,
     setStatus: setGradeStatus,
@@ -1953,6 +1959,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => {
     smartSelectionController.invalidate();
     if (editorSession.activeTool !== 'select-object') return;
+    if (rendererSnapshot.status !== 'ready'
+      || !imageDocument
+      || thumbnailDocumentReadyId !== imageDocument.id) return;
     void smartSelectionController.prepare();
     return () => smartSelectionController.clearPreview();
   }, [
@@ -1961,6 +1970,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     imageDocument?.activeLayerId,
     imageDocument?.id,
     imageDocument?.revision,
+    rendererSnapshot.generation,
+    rendererSnapshot.status,
     smartSelectionController,
     thumbnailDocumentReadyId
   ]);
@@ -2571,6 +2582,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setShowDifference(false);
         setShowOriginal((current) => !current);
       },
+      toggleExtras: () => setEditorSession((current) => ({
+        ...current,
+        snap: { ...current.snap, extrasVisible: current.snap.extrasVisible === false }
+      })),
+      toggleRulers: () => setEditorSession((current) => ({
+        ...current,
+        snap: { ...current.snap, rulersVisible: !current.snap.rulersVisible }
+      })),
+      toggleSnap: () => setEditorSession((current) => ({
+        ...current,
+        snap: { ...current.snap, enabled: !current.snap.enabled }
+      })),
       toggleScreenMode,
       changeBrushSize: (direction) => setEditorSession((current) => current.activeTool === 'warp'
         ? {
@@ -3881,7 +3904,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [transformFrame]);
   useEffect(() => {
     engineRef.current?.setSmartGuideEditingFrame(
-      editorSession.snap.smartGuidesVisible && (transformFrame || selectionSnapFeedback.bounds)
+      editorSession.snap.extrasVisible !== false
+        && editorSession.snap.smartGuidesVisible
+        && (transformFrame || selectionSnapFeedback.bounds)
         ? buildSmartGuideEditingFrame(
             transformFrame ? transformSnapMatches : selectionSnapFeedback.matches,
             transformFrame?.bounds ?? selectionSnapFeedback.bounds!,
@@ -3889,16 +3914,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           )
         : null
     );
-  }, [activeScale, editorSession.snap.smartGuidesVisible, selectionSnapFeedback, transformFrame, transformSnapMatches]);
+  }, [activeScale, editorSession.snap.extrasVisible, editorSession.snap.smartGuidesVisible, selectionSnapFeedback, transformFrame, transformSnapMatches]);
   useEffect(() => {
     const engine = engineRef.current;
     engine?.setDocumentGuideEditingFrame(
-      imageDocument && editorSession.snap.guidesVisible
+      imageDocument && editorSession.snap.extrasVisible !== false && editorSession.snap.guidesVisible
         ? buildDocumentGuideFrame(effectiveDocumentGuides, imageDocument.width, imageDocument.height)
         : null
     );
     engine?.setDocumentGridEditingFrame(
-      imageDocument && editorSession.snap.gridVisible
+      imageDocument && editorSession.snap.extrasVisible !== false && editorSession.snap.gridVisible
         ? buildDocumentGridFrame(
             imageDocument.width,
             imageDocument.height,
@@ -5326,6 +5351,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     focusPickerActive,
                     selection: editorSession.selection,
                     selectionDraft,
+                    extrasVisible: editorSession.snap.extrasVisible !== false,
                     imageRect,
                     scale: activeScale,
                     viewportSize,
@@ -5372,7 +5398,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     onTransformSnapMatches: setTransformSnapMatches,
                     documentGuides: effectiveDocumentGuides,
                     rulersVisible: editorSession.snap.rulersVisible,
-                    guidesVisible: editorSession.snap.guidesVisible,
+                    guidesVisible: editorSession.snap.extrasVisible !== false && editorSession.snap.guidesVisible,
                     guidesLocked: editorSession.snap.guidesLocked,
                     onGuideDraft: setGuideDraft,
                     onGuideCommit: commitDocumentGuides

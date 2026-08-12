@@ -1074,21 +1074,31 @@ select.form-input {
 .lighttable-preferences__fields > label { display: grid; grid-template-columns: minmax(130px, 0.45fr) minmax(220px, 1fr); align-items: center; gap: 16px; }
 .lighttable-preferences__fields > label > span { color: var(--color-text-muted); }
 .lighttable-preferences__project-table { display: grid; gap: 1px; margin-top: 20px; }
-.lighttable-preferences__project-table-heading,
-.lighttable-preferences__project-folder,
-.lighttable-preferences__project-folder-add {
+.lighttable-preferences__project-folder {
   display: grid;
-  grid-template-columns: minmax(140px, 0.7fr) minmax(220px, 1fr) minmax(138px, auto);
+  grid-template-columns: minmax(0, 1fr) 32px;
   gap: 8px;
   align-items: center;
 }
-.lighttable-preferences__project-table-heading { padding: 0 9px 5px; color: var(--color-text-muted); font-size: var(--lt-type-small); }
 .lighttable-preferences__project-folder { min-height: 43px; padding: 5px 7px; border: 1px solid var(--lt-border-subtle); background: var(--lt-surface-panel-subtle); }
 .lighttable-preferences__project-folder + .lighttable-preferences__project-folder { margin-top: -1px; }
 .lighttable-preferences__project-folder-name { padding: 0 8px; font-weight: 600; }
-.lighttable-preferences__project-folder-kind { padding-right: 8px; color: var(--color-text-muted); font-size: var(--lt-type-caption); text-align: right; }
-.lighttable-preferences__project-folder-actions { display: flex; justify-content: flex-end; gap: 4px; }
-.lighttable-preferences__project-folder-add { margin-top: 16px; padding: 8px; border: 1px dashed var(--lt-border-strong); }
+.lighttable-preferences__project-folder-remove {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--color-text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  place-items: center;
+}
+.lighttable-preferences__project-folder-remove:hover { color: var(--color-text); background: var(--lt-surface-control-hover); }
+.lighttable-preferences__project-folder-add { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 8px; margin-top: 16px; padding: 8px; border: 1px dashed var(--lt-border-strong); }
 .lighttable-preferences__location { min-height: 34px; padding: 8px 10px; overflow: hidden; border: 1px solid var(--lt-border-subtle); border-radius: var(--lt-radius-md); color: var(--color-text-muted); background: var(--lt-surface-panel-subtle); text-overflow: ellipsis; white-space: nowrap; }
 .lighttable-preferences__location-row { display: flex; min-width: 0; gap: 7px; }
 .lighttable-preferences__location-row .lighttable-preferences__location { min-width: 0; flex: 1; }

@@ -123,6 +123,7 @@ export interface EditorMenuCommands {
   startGuidedSample?: () => void;
   openSettings?: () => void;
   snap?: SnapSettings;
+  toggleExtras?: () => void;
   toggleSnap?: () => void;
   toggleSnapTarget?: (target: keyof SnapSettings['targets']) => void;
   setAllSnapTargets?: (enabled: boolean) => void;
@@ -601,14 +602,22 @@ export const createEditorMenuOptions = (
       disabled: !state.hasMetadata
     },
     {
+      value: 'extras',
+      label: checkedLabel('Extras', snap.extrasVisible !== false),
+      shortcut: labels.primaryShortcut('H'),
+      separatorBefore: true,
+      onClick: commands.toggleExtras
+    },
+    {
       value: 'rulers',
       label: checkedLabel('Rulers', snap.rulersVisible),
-      separatorBefore: true,
+      shortcut: labels.primaryShortcut('R'),
       onClick: commands.toggleRulers
     },
     {
       value: 'snap',
       label: checkedLabel('Snap', snap.enabled),
+      shortcut: labels.primaryShortcut(';', true),
       onClick: commands.toggleSnap
     },
     {

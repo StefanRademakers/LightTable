@@ -228,6 +228,10 @@ export const createEditorMenuController = ({
         viewport.setShowDifference((current) => !current);
       },
       snap: viewport.snap,
+      toggleExtras: () => updateSnap((current) => ({
+        ...current,
+        extrasVisible: current.extrasVisible === false
+      })),
       toggleSnap: () => updateSnap((current) => ({ ...current, enabled: !current.enabled })),
       toggleSnapTarget: (target) => updateSnap((current) => ({
         ...current,

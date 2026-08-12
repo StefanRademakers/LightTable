@@ -10,6 +10,55 @@ Adobe documents Face-Aware Liquify as working best on front-facing faces. A
 profile that either product cannot detect reliably is recorded as a detection
 failure, not graded as a deformation mismatch.
 
+## Current status — 2026-08-12
+
+Face Warp is technically well advanced, but Photoshop visual parity is not yet
+approved. Task 118 deliberately remains open and the tool must remain
+experimental/hidden from the normal toolbar until the remaining visual gate
+has been completed.
+
+Verified in LightTable:
+
+- one canonical face mesh drives semantic controls, direct sculpting, the GPU
+  texture deformation and the debug overlay;
+- identity rendering is pixel exact and native save/reopen is deterministic;
+- front-facing and three-quarter fixtures deform locally without holes,
+  foldovers, canvas movement, command-buffer errors or spring-back in the
+  focused desktop tests;
+- edits are non-destructive, undoable and remain editable after reopen;
+- interaction and renderer telemetry pass on NVIDIA discrete and Intel
+  integrated GPU paths;
+- independently implausible detector output is rejected without mutating the
+  document or its history.
+
+Not yet verified:
+
+- the full `Face Width`, linked `Eye Size`, `Nose Width` and `Smile` matrix at
+  `-50` and `+50` against Photoshop on the fixed frontal and three-quarter
+  corpus;
+- visual approval at Fit, 100% and 300%;
+- final parameter calibration based on valid Photoshop references;
+- the release-level claim that Face Warp is useful without qualification.
+
+One exploratory linked-eye comparison produced a real deformation in both
+applications and suggested broadly similar locality, but a single case is not
+representative parity evidence and must not be used to close the gate.
+
+Several attempts to automate Photoshop's Liquify window were stopped. Fixed
+screen coordinates, focus-dependent keystrokes and Enter-to-commit can silently
+target the wrong control or close the wrong document. Although Photoshop
+exposes its Liquify window and controls through Windows accessibility, building
+a robust Adobe UI automation harness became disproportionate to the product
+work and was paused. No output from a failed or ambiguous capture counts as a
+reference.
+
+When work resumes, capture each Photoshop case visibly and independently from
+a freshly opened source, verify that the result differs from Photoshop's own
+identity export, then run the existing delta comparator. Do not tune LightTable
+coefficients until the complete valid matrix and contact sheets have been
+reviewed. This avoids calibrating the product against no-op, contaminated or
+mislabelled Photoshop renders.
+
 ## Fixed corpus
 
 Use local, redistribution-safe portraits representing:

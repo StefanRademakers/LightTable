@@ -180,6 +180,53 @@ describe('selection session controller', () => {
     });
   });
 
+  it('snaps a newly drawn rectangular marquee endpoint to guides', () => {
+    const feedback = vi.fn();
+    const state = setup({
+      getSnapContext: () => ({
+        enabled: true,
+        zoom: 2,
+        targets: [
+          { axis: 'x', position: 40, source: 'guide', role: 'line' },
+          { axis: 'y', position: 55, source: 'guide', role: 'line' }
+        ]
+      }),
+      publishSnapFeedback: feedback
+    });
+
+    state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
+    state.controller.move(1, { x: 37, y: 52 });
+
+    expect(state.draft).toEqual({
+      kind: 'rectangle',
+      points: [{ x: 10, y: 10 }, { x: 40, y: 55 }]
+    });
+    expect(feedback).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ axis: 'x', deltaScreen: 6 }),
+        expect.objectContaining({ axis: 'y', deltaScreen: 6 })
+      ]),
+      { x: 10, y: 10, width: 30, height: 45 }
+    );
+  });
+
+  it('limits row and column marquee snapping to their movable axis', () => {
+    const state = setup({
+      getSnapContext: () => ({
+        enabled: true,
+        zoom: 1,
+        targets: [
+          { axis: 'x', position: 52, source: 'guide', role: 'line' },
+          { axis: 'y', position: 22, source: 'guide', role: 'line' }
+        ]
+      })
+    });
+
+    state.controller.begin(1, 'select-horizontal', { x: 50, y: 10 }, 'replace', 1);
+    state.controller.move(1, { x: 50, y: 20 });
+    expect(state.draft?.points).toEqual([{ x: 0, y: 22 }, { x: 100, y: 23 }]);
+  });
+
   it('does not publish an async result after switching documents', async () => {
     let resolveSelection!: (applied: boolean) => void;
     const state = setup();

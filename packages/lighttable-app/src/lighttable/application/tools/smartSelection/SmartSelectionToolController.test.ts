@@ -27,16 +27,21 @@ const harness = () => {
     dispose: vi.fn()
   };
   const options = createDefaultSmartSelectionOptions();
+  let rendererReady = true;
   const setDraft = vi.fn();
   const controller = new SmartSelectionToolController({
     getDocument: () => document,
     getRenderer: () => renderer,
+    isRendererReady: () => rendererReady,
     getOptions: () => options,
     selection,
     setStatus: vi.fn(),
     setDraft
   }, backend);
-  return { backend, controller, options, rasterMask, renderer, setDraft };
+  return {
+    backend, controller, options, rasterMask, renderer, setDraft,
+    setRendererReady: (ready: boolean) => { rendererReady = ready; }
+  };
 };
 
 describe('SmartSelectionToolController', () => {
@@ -57,6 +62,15 @@ describe('SmartSelectionToolController', () => {
     expect(second).toBe(true);
     expect(renderer.exportPng).toHaveBeenCalledTimes(1);
     expect(backend.prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not export an inference source before the document renderer is ready', async () => {
+    const { backend, controller, renderer, setRendererReady } = harness();
+    setRendererReady(false);
+
+    await expect(controller.prepare()).resolves.toBe(false);
+    expect(renderer.exportPng).not.toHaveBeenCalled();
+    expect(backend.prepare).not.toHaveBeenCalled();
   });
 
   it('turns rectangle interaction into a box prompt rather than a geometric selection', async () => {
@@ -118,10 +132,35 @@ describe('SmartSelectionToolController', () => {
     const commit = controller.commitPoint({ x: 3, y: 2 }, 'replace');
     await vi.waitFor(() => expect(backend.selectPoint).toHaveBeenCalledOnce());
     controller.hover({ x: 4, y: 3 });
-    await new Promise((resolve) => setTimeout(resolve, 120));
     expect(backend.selectPoint).toHaveBeenCalledOnce();
     finishPoint([{ id: 'candidate', score: 0.9, mask }]);
     await expect(commit).resolves.toBe(true);
     expect(rasterMask).toHaveBeenCalledOnce();
+  });
+
+  it('keeps one hover inference active and decodes only the newest pending point', async () => {
+    const { backend, controller } = harness();
+    let finishFirst!: (value: SmartSelectionCandidate[]) => void;
+    const emptyMask = { width: 8, height: 6, data: new Uint8Array(48) };
+    vi.mocked(backend.selectPoint)
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        finishFirst = resolve;
+      }))
+      .mockResolvedValue([{ id: 'latest', score: 0.9, mask: emptyMask }]);
+
+    controller.hover({ x: 1, y: 1 });
+    await vi.waitFor(() => expect(backend.selectPoint).toHaveBeenCalledOnce());
+    controller.hover({ x: 2, y: 2 });
+    controller.hover({ x: 3, y: 3 });
+    controller.hover({ x: 4, y: 4 });
+    expect(backend.selectPoint).toHaveBeenCalledOnce();
+
+    finishFirst([{ id: 'first', score: 0.8, mask: emptyMask }]);
+    await vi.waitFor(() => expect(backend.selectPoint).toHaveBeenCalledTimes(2));
+    expect(backend.selectPoint).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { x: 4, y: 4 },
+      expect.anything()
+    );
   });
 });

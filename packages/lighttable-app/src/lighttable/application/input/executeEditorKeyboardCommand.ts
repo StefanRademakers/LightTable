@@ -34,6 +34,9 @@ export interface EditorKeyboardCommandPorts {
   swapColors(): void;
   resetColors(): void;
   toggleOriginal(): void;
+  toggleExtras(): void;
+  toggleRulers(): void;
+  toggleSnap(): void;
   toggleScreenMode(): void;
   changeBrushSize(direction: -1 | 1): void;
   changeBrushHardness(direction: -1 | 1): void;
@@ -174,6 +177,15 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'toggle-original':
       ports.toggleOriginal();
+      return;
+    case 'toggle-extras':
+      ports.toggleExtras();
+      return;
+    case 'toggle-rulers':
+      ports.toggleRulers();
+      return;
+    case 'toggle-snap':
+      ports.toggleSnap();
       return;
     case 'toggle-screen-mode':
       ports.toggleScreenMode();

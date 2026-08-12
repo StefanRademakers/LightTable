@@ -1111,7 +1111,13 @@ void app.whenReady().then(async () => {
       || (request as { parentPath: string }).parentPath.length > 32_768) {
       throw new Error('Invalid project creation request.');
     }
-    const project = await createProjectOnDisk(request as { name: string; parentPath: string });
+    const project = await createProjectOnDisk(request as {
+      name: string;
+      parentPath: string;
+      folders?: import('@lighttable/app/project-manifest').ProjectFolderMappings;
+      createFolders?: readonly import('@lighttable/app/project-manifest').ProjectUserStorageLocation[];
+      userFolders?: readonly import('@lighttable/app/project-manifest').ProjectUserFolder[];
+    });
     await rememberRecentProject(project);
     activateProjectAssetCatalog(project.manifestPath);
     activeProjectManifestPath = project.manifestPath;

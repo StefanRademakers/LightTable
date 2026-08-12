@@ -30,6 +30,7 @@ interface EditorToolbarProps {
 interface ToolButtonProps {
   tool: ToolDefinition;
   active: boolean;
+  detailed?: boolean;
   popupOpen?: boolean;
   onMouseDown?: () => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
@@ -39,6 +40,7 @@ interface ToolButtonProps {
 export const ToolButton: React.FC<ToolButtonProps> = ({
   tool,
   active,
+  detailed = false,
   popupOpen,
   onMouseDown,
   onKeyDown,
@@ -46,7 +48,7 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
 }) => (
   <button
     type="button"
-    className={`lighttable-toolbox__button${active ? ' lighttable-toolbox__button--active' : ''}`}
+    className={`lighttable-toolbox__button${detailed ? ' lighttable-toolbox__button--detailed' : ''}${active ? ' lighttable-toolbox__button--active' : ''}`}
     onMouseDown={onMouseDown}
     onKeyDown={onKeyDown}
     onClick={onClick}
@@ -57,6 +59,10 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
     title={tool.shortcutLabel ? `${tool.label} (${tool.shortcutLabel})` : tool.label}
   >
     <img src={lightTableIcon(tool.iconName)} alt="" aria-hidden="true" />
+    {detailed ? <>
+      <span className="lighttable-toolbox__button-label">{tool.label}</span>
+      <span className="lighttable-toolbox__button-shortcut" aria-hidden="true">{tool.shortcutLabel ?? ''}</span>
+    </> : null}
   </button>
 );
 
@@ -176,6 +182,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
               key={tool.id}
               tool={tool}
               active={activeTool === tool.id}
+              detailed={!expanded}
               onClick={() => {
                 setRememberedDefinition(tool);
                 setOpen(false);

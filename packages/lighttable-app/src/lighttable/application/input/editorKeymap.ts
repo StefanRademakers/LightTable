@@ -59,6 +59,9 @@ export type EditorKeyboardCommand =
   | 'swap-colors'
   | 'reset-colors'
   | 'toggle-original'
+  | 'toggle-extras'
+  | 'toggle-rulers'
+  | 'toggle-snap'
   | 'toggle-screen-mode'
   | 'brush-size-decrease'
   | 'brush-size-increase'
@@ -283,6 +286,15 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     ...nudgeBindings,
     command('colors.swap', { key: 'x', primary: false, alt: false }, 'swap-colors'),
     command('colors.reset', { key: 'd', primary: false, alt: false, shift: false }, 'reset-colors'),
+    command('view.extras', { key: 'h', primary: true, alt: false, shift: false }, 'toggle-extras', {
+      allowWhileEditing: true
+    }),
+    command('view.rulers', { key: 'r', primary: true, alt: false, shift: false }, 'toggle-rulers', {
+      allowWhileEditing: true
+    }),
+    command('view.snap', { key: ';', primary: true, alt: false, shift: true }, 'toggle-snap', {
+      allowWhileEditing: true
+    }),
     command(
       'workspace.toggle-screen-mode',
       { key: 'f', primary: false, alt: false, shift: false },
@@ -359,6 +371,7 @@ export const normalizedEditorKey = (
   if (input.code === 'Backquote') return '`';
   if (input.code === 'BracketLeft') return '[';
   if (input.code === 'BracketRight') return ']';
+  if (input.code === 'Semicolon') return ';';
   if (input.code === 'Equal' || input.code === 'NumpadAdd') return '+';
   if (input.code === 'Minus' || input.code === 'NumpadSubtract') return '-';
   if (input.code === 'Digit0' || input.code === 'Numpad0') return '0';

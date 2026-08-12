@@ -38,6 +38,9 @@ const ports = (): EditorKeyboardCommandPorts => ({
   swapColors: vi.fn(),
   resetColors: vi.fn(),
   toggleOriginal: vi.fn(),
+  toggleExtras: vi.fn(),
+  toggleRulers: vi.fn(),
+  toggleSnap: vi.fn(),
   toggleScreenMode: vi.fn(),
   changeBrushSize: vi.fn(),
   changeBrushHardness: vi.fn(),
@@ -65,6 +68,16 @@ describe('executeEditorKeyboardCommand', () => {
     const target = ports();
     executeEditorKeyboardCommand('commit-active-operation', target);
     expect(target.commitActiveOperation).toHaveBeenCalledOnce();
+  });
+
+  it('routes Photoshop view toggles through their document ports', () => {
+    const target = ports();
+    executeEditorKeyboardCommand('toggle-extras', target);
+    executeEditorKeyboardCommand('toggle-rulers', target);
+    executeEditorKeyboardCommand('toggle-snap', target);
+    expect(target.toggleExtras).toHaveBeenCalledOnce();
+    expect(target.toggleRulers).toHaveBeenCalledOnce();
+    expect(target.toggleSnap).toHaveBeenCalledOnce();
   });
 
   it('routes repeat and repeat-duplicate transforms independently', () => {

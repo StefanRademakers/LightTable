@@ -9,7 +9,7 @@ import {
   createLocalLightTableFunnelTelemetry,
   type LightTableFunnelTelemetry
 } from './LightTableFunnelTelemetry';
-import type { ProjectFolderMappings, ProjectUserFolder } from '../lighttable/application/projects/projectManifest';
+import type { ProjectFolderMappings, ProjectUserFolder, ProjectUserStorageLocation } from '../lighttable/application/projects/projectManifest';
 import type {
   GenAiHostPort,
   GenAiProviderSnapshot
@@ -90,6 +90,7 @@ export interface LightTableProjectService {
     readonly name: string;
     readonly parentPath: string;
     readonly folders?: ProjectFolderMappings;
+    readonly createFolders?: readonly ProjectUserStorageLocation[];
     readonly userFolders?: readonly ProjectUserFolder[];
   }): Promise<LightTableProjectSummary>;
   open(): Promise<LightTableProjectSummary | null>;

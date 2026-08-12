@@ -771,7 +771,8 @@ export const useViewportInteractionController = ({
           selectionCombineMode,
           stripSize,
           activeTool === 'select-free' ? editorSession.selectionSmooth : 0,
-          48 / Math.max(activeScale, 0.0001)
+          48 / Math.max(activeScale, 0.0001),
+          event.ctrlKey || event.metaKey
         )) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();

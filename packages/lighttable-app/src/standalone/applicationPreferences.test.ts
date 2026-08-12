@@ -6,7 +6,10 @@ import {
   parseApplicationPreferences,
   saveApplicationPreferences
 } from './applicationPreferences';
-import { DEFAULT_PROJECT_FOLDER_MAPPINGS } from '../lighttable/application/projects/projectManifest';
+import {
+  DEFAULT_PROJECT_FOLDER_MAPPINGS,
+  PROJECT_USER_STORAGE_LOCATIONS
+} from '../lighttable/application/projects/projectManifest';
 
 describe('application preferences', () => {
   it('accepts the current strict alpha contract', () => {
@@ -14,12 +17,20 @@ describe('application preferences', () => {
       version: 1,
       autosave: { enabled: false, intervalMs: 120_000 },
       tools: { zoomWithScrollWheel: false, openMaskEditingOnDoubleClick: false },
-      projects: { folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, characters: 'Cast' }, userFolders: [{ name: 'Refs', path: 'Production/Refs' }] }
+      projects: {
+        folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, characters: 'Cast' },
+        createFolders: ['characters', 'sets'],
+        userFolders: [{ name: 'Refs', path: 'Production/Refs' }]
+      }
     })).toEqual({
       version: 1,
       autosave: { enabled: false, intervalMs: 120_000 },
       tools: { zoomWithScrollWheel: false, openMaskEditingOnDoubleClick: false },
-      projects: { folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, characters: 'Cast' }, userFolders: [{ name: 'Refs', path: 'Production/Refs' }] }
+      projects: {
+        folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, characters: 'Cast' },
+        createFolders: ['characters', 'sets'],
+        userFolders: [{ name: 'Refs', path: 'Production/Refs' }]
+      }
     });
   });
 
@@ -31,7 +42,11 @@ describe('application preferences', () => {
       version: 1,
       autosave: { enabled: false, intervalMs: 120_000 },
       tools: { zoomWithScrollWheel: true, openMaskEditingOnDoubleClick: true },
-      projects: { folders: DEFAULT_PROJECT_FOLDER_MAPPINGS, userFolders: [] }
+      projects: {
+        folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
+        createFolders: PROJECT_USER_STORAGE_LOCATIONS,
+        userFolders: []
+      }
     });
   });
 
