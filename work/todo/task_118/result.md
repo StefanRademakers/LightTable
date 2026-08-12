@@ -268,6 +268,21 @@
   multi-face isolation, command-service routing and authenticated MCP routing.
   The app typecheck passes.
 
+## PSD and native-document export contract
+
+- Native LightTable saves retain the complete Face Warp adjustment stack,
+  immutable detection geometry and authored constraints. Reopen therefore
+  remains editably deterministic and does not depend on the detector.
+- PSD has no native LightTable Face Warp descriptor. Raster PSD layer assets
+  now pass through the exact GPU layer-processing callback before their affine
+  transform is baked into tight export bounds. Masks and Photoshop-compatible
+  Layer Styles remain separate, so Photoshop applies them once rather than
+  receiving a double-styled bitmap.
+- PSD projection emits an explicit compatibility warning that Face Warp was
+  baked into layer pixels and that editable semantics remain in the LightTable
+  document. It no longer silently exports the unwarped source texture.
+- The two focused export suites are 18/18 green and the app typecheck passes.
+
 - The interactive path remains a bounded two-step Laplacian preview. Pointer-up
   now runs a converged feature-aware refinement over only the connected brush
   footprint; the pointer core and all vertices outside the footprint remain

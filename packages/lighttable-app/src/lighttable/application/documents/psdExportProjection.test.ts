@@ -26,6 +26,7 @@ import {
 import { createDefaultAdjustments } from '../../types';
 import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import { FACE_WARP_NODE_TYPE } from '../../effects/faceWarp/faceWarpTypes';
 
 const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -34,6 +35,34 @@ const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
 };
 
 describe('PSD export projection', () => {
+  it('reports that editable Face Warp semantics are baked for PSD compatibility', () => {
+    const document = createImageDocument('Face warp', 32, 24, 'background');
+    const layer = document.layers[0]!;
+    if (layer.type !== 'raster') throw new Error('Expected raster fixture.');
+    layer.adjustmentStack = {
+      id: 'face-warp-stack',
+      revision: 1,
+      modules: [{
+        id: 'face-warp',
+        type: FACE_WARP_NODE_TYPE,
+        enabled: true,
+        revision: 0,
+        settings: {}
+      }]
+    };
+
+    const projection = projectDocumentToPsd(
+      document,
+      pixels(32, 24),
+      [{ layerId: layer.id, pixels: pixels(32, 24) }]
+    );
+
+    expect(projection.warnings).toContain(
+      'layers[0]: LightTable Face Warp was baked into the PSD layer pixels; '
+      + 'editable Face Warp semantics remain in the LightTable document.'
+    );
+  });
+
   it('exports the canonical document resolution resource', () => {
     const document = createImageDocument('Print', 32, 24, 'background');
     document.resolutionPpi = 300;

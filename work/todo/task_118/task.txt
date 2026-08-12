@@ -201,7 +201,7 @@ Gate 6:
 - [x] Add Redetect, Show mesh, Reset face and face selection coherently.
 - [x] Keep detection lazy and cancellable; slider/brush edits never redetect.
 - [x] Add deterministic serialization, autosave/recovery and normal save/reopen.
-- [ ] Define PSD/export behaviour: semantic preservation where possible,
+- [x] Define PSD/export behaviour: semantic preservation where possible,
       otherwise explicit cached preview/bake without silent data loss.
 
 Gate 7:

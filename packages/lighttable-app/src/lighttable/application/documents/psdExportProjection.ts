@@ -153,6 +153,12 @@ export const projectDocumentToPsd = (
 
     if (asset?.pixels) common.imageData = asset.pixels;
     if (node.type === 'raster') {
+      if (node.adjustmentStack?.modules.some((module) => module.type === 'lt.face-warp')) {
+        warnings.push(
+          `${path}: LightTable Face Warp was baked into the PSD layer pixels; `
+          + 'editable Face Warp semantics remain in the LightTable document.'
+        );
+      }
       if (node.photoshop?.sourceKind === 'smart-object') {
         warnings.push(`${path}: Smart Object source data is not embedded by the PSD writer yet.`);
       }

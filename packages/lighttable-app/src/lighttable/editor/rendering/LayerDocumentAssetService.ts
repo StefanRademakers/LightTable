@@ -17,6 +17,7 @@ import type {
   DocumentAssetBlob,
   PatternAssetBlob
 } from '../persistence/layeredDocumentFormat';
+import type { EncodeAdjustment } from './RasterDocumentOperations';
 
 export interface LayerDocumentAssetPorts {
   rasterTexture: (layerId: LayerId) => GPUTexture | null;
@@ -35,6 +36,16 @@ export interface LayerDocumentAssetPorts {
   encodeSemanticLayer: (
     document: ImageDocument,
     layer: Exclude<LayerNode, { type: 'group' | 'adjustment' }>
+  ) => Promise<Blob>;
+  encodeProcessedRasterLayer: (
+    document: ImageDocument,
+    layer: Extract<LayerNode, { type: 'raster' }>,
+    encodeAdjustment: EncodeAdjustment,
+    output: {
+      width: number;
+      height: number;
+      sourceToOutput: ReturnType<typeof translationMatrix>;
+    }
   ) => Promise<Blob>;
   decodeTexture: (
     layerId: LayerId,
@@ -138,7 +149,10 @@ export class LayerDocumentAssetService {
   }
 
   /** Exports tight, document-space PSD previews and bakes arbitrary raster affines. */
-  async exportPsd(document: ImageDocument): Promise<DocumentAssetBlob[]> {
+  async exportPsd(
+    document: ImageDocument,
+    encodeAdjustment?: EncodeAdjustment
+  ): Promise<DocumentAssetBlob[]> {
     const assets: DocumentAssetBlob[] = [];
     for (const { layer } of walkRasterLayers(document.layers)) {
       const texture = this.ports.rasterTexture(layer.id);
@@ -160,9 +174,16 @@ export class LayerDocumentAssetService {
       assets.push({
         layerId: layer.id,
         bounds: { x: left, y: top, width, height },
-        pixels: await this.ports.encodeTexture(layer.id, texture, false, {
-          width, height, sourceToOutput
-        }),
+        pixels: layer.adjustmentStack && encodeAdjustment
+          ? await this.ports.encodeProcessedRasterLayer(
+              document,
+              layer,
+              encodeAdjustment,
+              { width, height, sourceToOutput }
+            )
+          : await this.ports.encodeTexture(layer.id, texture, false, {
+              width, height, sourceToOutput
+            }),
         mask: maskTexture
           ? await this.ports.encodeTexture(layer.id, maskTexture, true)
           : null

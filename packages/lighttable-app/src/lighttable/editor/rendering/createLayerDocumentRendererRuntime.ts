@@ -415,6 +415,24 @@ export const createLayerDocumentRendererRuntime = (
       renderResources.releaseAfterSubmit();
       return textureCodec.encode(texture, false, document.width, document.height);
     },
+    encodeProcessedRasterLayer: async (_document, layer, encodeAdjustment, output) => {
+      const source = layerResources.raster(layer.id)?.texture;
+      if (!source) throw new Error(`Layer ${layer.name} is not available for PSD export.`);
+      const encoder = device.createCommandEncoder({
+        label: `LightTable PSD processed raster cache: ${layer.name}`
+      });
+      const processed = encodeAdjustment(encoder, source, layer);
+      device.queue.submit([encoder.finish()]);
+      const blob = await textureCodec.encode(
+        processed,
+        false,
+        output.width,
+        output.height,
+        output.sourceToOutput
+      );
+      renderResources.releaseAfterSubmit();
+      return blob;
+    },
     decodeTexture: async (layerId, blob, texture, maskChannel) => {
       const generation = resources.generation();
       const { width, height } = maskChannel

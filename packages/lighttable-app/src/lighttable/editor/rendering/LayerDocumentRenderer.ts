@@ -252,8 +252,11 @@ export class LayerDocumentRenderer {
     return this.runtime.documentAssets.export(document);
   }
 
-  async exportPsdDocumentAssets(document: ImageDocument): Promise<DocumentAssetBlob[]> {
-    return this.runtime.documentAssets.exportPsd(document);
+  async exportPsdDocumentAssets(
+    document: ImageDocument,
+    encodeAdjustment?: EncodeAdjustment
+  ): Promise<DocumentAssetBlob[]> {
+    return this.runtime.documentAssets.exportPsd(document, encodeAdjustment);
   }
 
   async exportLayerThumbnail(

@@ -38,6 +38,7 @@ const createPorts = (): LayerDocumentAssetPorts => ({
   maskTexture: vi.fn(() => maskTexture),
   encodeTexture: vi.fn(async (_layerId, _texture, maskChannel) => maskChannel ? mask : pixels),
   encodeSemanticLayer: vi.fn(async () => pixels),
+  encodeProcessedRasterLayer: vi.fn(async () => pixels),
   decodeTexture: vi.fn(async () => undefined),
   invalidateLayer: vi.fn(),
   patternSource: vi.fn(() => pattern),
@@ -132,6 +133,34 @@ describe('LayerDocumentAssetService', () => {
         height: 64,
         sourceToOutput: { a: 0, b: 1, c: -1, d: 0, tx: 32, ty: 0 }
       }
+    );
+  });
+
+  it('bakes the local adjustment stack before exporting PSD raster pixels', async () => {
+    const ports = createPorts();
+    const service = new LayerDocumentAssetService(ports);
+    const document = documentWith();
+    const layer = document.layers[0] as RasterLayer;
+    layer.adjustmentStack = { id: 'processed-raster', revision: 1, modules: [] };
+    const encodeAdjustment = vi.fn((_encoder, source) => source);
+
+    await service.exportPsd(document, encodeAdjustment);
+
+    expect(ports.encodeProcessedRasterLayer).toHaveBeenCalledWith(
+      document,
+      layer,
+      encodeAdjustment,
+      {
+        width: 64,
+        height: 32,
+        sourceToOutput: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+      }
+    );
+    expect(ports.encodeTexture).not.toHaveBeenCalledWith(
+      layer.id,
+      texture,
+      false,
+      expect.anything()
     );
   });
 
