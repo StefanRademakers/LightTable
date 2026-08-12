@@ -77,6 +77,28 @@ const nonDarkContentBounds = async (bytes) => {
   if (maxX < minX || maxY < minY) throw new Error('Face Warp visible content bounds are empty.');
   return { minX, minY, maxX, maxY, width: maxX - minX + 1, height: maxY - minY + 1 };
 };
+const cyanMeshBounds = async (bytes) => {
+  const image = await sharp(bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let minX = image.info.width; let minY = image.info.height; let maxX = -1; let maxY = -1;
+  const pixels = [];
+  for (let y = 0; y < image.info.height; y += 1) {
+    for (let x = 0; x < image.info.width; x += 1) {
+      const offset = (y * image.info.width + x) * 4;
+      const red = image.data[offset]; const green = image.data[offset + 1]; const blue = image.data[offset + 2];
+      if (blue < 130 || green < 100 || blue - red < 60 || green - red < 45) continue;
+      minX = Math.min(minX, x); minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      pixels.push({ x, y });
+    }
+  }
+  if (maxX < minX || maxY < minY) throw new Error('Face Warp mesh overlay bounds are empty.');
+  const centerX = (minX + maxX) * 0.5;
+  const centerY = (minY + maxY) * 0.5;
+  const seed = pixels.reduce((nearest, point) =>
+    Math.hypot(point.x - centerX, point.y - centerY)
+      < Math.hypot(nearest.x - centerX, nearest.y - centerY) ? point : nearest);
+  return { minX, minY, maxX, maxY, width: maxX - minX + 1, height: maxY - minY + 1, seed };
+};
 const countNewBlackPixels = async (beforeBytes, afterBytes, region) => {
   const [before, after] = await Promise.all([
     sharp(beforeBytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
@@ -154,7 +176,8 @@ try {
     .waitFor({ state: 'visible', timeout: 60_000 });
   const warmDetectionMs = performance.now() - warmDetectionStartedAt;
   await page.mouse.move(10, 10);
-  await canvas.screenshot({ path: path.join(output, '00-detected-mesh.png') });
+  const detectedMeshBytes = await canvas.screenshot({ path: path.join(output, '00-detected-mesh.png') });
+  const meshBounds = await cyanMeshBounds(detectedMeshBytes);
   // Texture assertions must not accidentally pass because only the debug mesh
   // or brush cursor changed. Hide presentation-only overlays for the oracle.
   await page.getByLabel('Show mesh').uncheck();
@@ -173,8 +196,8 @@ try {
   // Docking/floating panels may legitimately change the amount of black stage
   // surrounding the image without changing document coordinates.
   const center = {
-    x: canvasBounds.x + contentBounds.minX + contentBounds.width * 0.50,
-    y: canvasBounds.y + contentBounds.minY + contentBounds.height * 0.48
+    x: canvasBounds.x + meshBounds.seed.x,
+    y: canvasBounds.y + meshBounds.seed.y
   };
   await page.evaluate(() => {
     globalThis.__lightTableFaceWarpFrameSamples = [];

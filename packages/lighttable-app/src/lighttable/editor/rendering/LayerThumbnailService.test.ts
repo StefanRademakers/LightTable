@@ -37,6 +37,9 @@ describe('LayerThumbnailService', () => {
     const result = await service.export(layerId);
 
     expect(result).toMatchObject({ width: 80, height: 34 });
+    expect(result?.sourceToOutput).toEqual({
+      a: 80 / 2100, b: 0, c: 0, d: 34 / 900, tx: 0, ty: 0
+    });
     expect(encode).toHaveBeenCalledWith(texture, false, 80, 34);
   });
 
@@ -77,5 +80,6 @@ describe('LayerThumbnailService', () => {
     expect([encodedTexture, mask, width, height]).toEqual([texture, false, 27, 80]);
     expect(matrix).toMatchObject({ a: 0, b: 2 / 3, c: -2 / 3, d: 0, ty: 0 });
     expect(matrix?.tx).toBeCloseTo(80 / 3);
+    expect(result?.sourceToOutput).toEqual(matrix);
   });
 });

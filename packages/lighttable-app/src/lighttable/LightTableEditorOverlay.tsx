@@ -182,6 +182,7 @@ import { useLensBlurDepthController } from './application/effects/lensBlur/useLe
 import { usePaintSessionController } from './application/tools/paint/usePaintSessionController';
 import { useWarpSessionController } from './application/tools/warp/useWarpSessionController';
 import { FaceWarpDetector } from './effects/faceWarp/FaceWarpDetector';
+import { mapDetectedFaceToLayerSource } from './effects/faceWarp/faceWarpDetectionMapping';
 import {
   MEDIAPIPE_FACE_CANONICAL_POSITIONS,
   MEDIAPIPE_FACE_CANONICAL_UVS,
@@ -268,7 +269,7 @@ import {
   setRasterLayerAdjustmentStack,
   setLayerTransform
 } from './editor/document/documentCommands';
-import { invertMatrix, transformPoint, transformedBounds } from './editor/geometry/affine';
+import { invertMatrix, transformPoint } from './editor/geometry/affine';
 import {
   isPaintTool,
   isWarpTool,
@@ -1262,15 +1263,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         throw new Error('The layer changed while faces were being detected. Detect faces again.');
       }
       if (detection.meshes.length === 0) throw new Error('No face was detected in the active layer.');
-      const bounds = transformedBounds(layer.transform, {
-        x: 0, y: 0, width: layer.width, height: layer.height
-      });
-      const documentToSource = invertMatrix(layer.transform);
-      if (!documentToSource || bounds.width <= 0 || bounds.height <= 0) {
-        throw new Error('The active layer transform cannot be analyzed.');
-      }
-      const scaleX = preview.width / bounds.width;
-      const scaleY = preview.height / bounds.height;
       const rejectedReasons: string[] = [];
       const faces: FaceWarpFace[] = detection.meshes.flatMap((mesh, index) => {
         const quality = assessFaceWarpDetection(
@@ -1280,13 +1272,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           rejectedReasons.push(quality.reason ?? 'A detected face could not be edited safely.');
           return [];
         }
-        const sourceMesh = mesh.slice(0, 468).map((point) => ({
-          ...transformPoint(documentToSource, {
-            x: point.x / scaleX + bounds.x,
-            y: point.y / scaleY + bounds.y
-          }),
-          z: point.z === undefined ? undefined : point.z / Math.sqrt(scaleX * scaleY)
-        }));
+        const sourceMesh = mapDetectedFaceToLayerSource(
+          mesh.slice(0, 468), preview.sourceToOutput
+        );
         return [{
           id: `face-${index + 1}`,
           confidence: quality.confidence,

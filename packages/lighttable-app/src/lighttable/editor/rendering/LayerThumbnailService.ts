@@ -5,6 +5,8 @@ export interface LayerThumbnailBlob {
   blob: Blob;
   width: number;
   height: number;
+  /** Exact matrix used to map layer-source pixels into this thumbnail. */
+  sourceToOutput: AffineMatrix;
 }
 
 export interface LayerThumbnailServiceOptions {
@@ -71,15 +73,22 @@ export class LayerThumbnailService {
     );
     const width = Math.max(1, Math.round(transformed.width * scale));
     const height = Math.max(1, Math.round(transformed.height * scale));
-    const sourceToOutput = source.transform ? {
+    const sourceToOutput: AffineMatrix = source.transform ? {
       a: source.transform.a * scale,
       b: source.transform.b * scale,
       c: source.transform.c * scale,
       d: source.transform.d * scale,
       tx: (source.transform.tx - transformed.x) * scale,
       ty: (source.transform.ty - transformed.y) * scale
-    } : undefined;
-    const blob = sourceToOutput
+    } : {
+      a: width / source.width,
+      b: 0,
+      c: 0,
+      d: height / source.height,
+      tx: 0,
+      ty: 0
+    };
+    const blob = source.transform
       ? await this.options.encode(
           source.texture,
           maskChannel,
@@ -88,6 +97,6 @@ export class LayerThumbnailService {
           sourceToOutput
         )
       : await this.options.encode(source.texture, maskChannel, width, height);
-    return { blob, width, height };
+    return { blob, width, height, sourceToOutput };
   }
 }

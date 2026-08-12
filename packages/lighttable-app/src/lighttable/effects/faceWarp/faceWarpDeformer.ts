@@ -5,6 +5,7 @@ import {
   faceWarpTopology,
   type FaceWarpNeighbor
 } from './faceWarpTopology';
+import { canonicalTriangleCameraFacing } from './faceWarpPose';
 
 interface Basis {
   readonly center: FaceWarpPoint;
@@ -460,6 +461,7 @@ interface ProjectedFaceTriangle {
   readonly minY: number;
   readonly maxX: number;
   readonly maxY: number;
+  readonly poseFacing: boolean | null;
 }
 
 const triangleDepthAt = (triangle: ProjectedFaceTriangle, point: FaceWarpPoint): number | null => {
@@ -494,13 +496,18 @@ export const visibleFaceTriangleIndices = (
       indices: [triangleIndices[index]!, triangleIndices[index + 1]!, triangleIndices[index + 2]!],
       points: [a, b, c], area,
       minX: Math.min(a.x, b.x, c.x), minY: Math.min(a.y, b.y, c.y),
-      maxX: Math.max(a.x, b.x, c.x), maxY: Math.max(a.y, b.y, c.y)
+      maxX: Math.max(a.x, b.x, c.x), maxY: Math.max(a.y, b.y, c.y),
+      poseFacing: canonicalTriangleCameraFacing(
+        face.poseMatrix,
+        triangleIndices[index]!, triangleIndices[index + 1]!, triangleIndices[index + 2]!
+      )
     });
     if (area > 0) positiveArea += area;
     else negativeArea -= area;
   }
   const visibleSign = positiveArea >= negativeArea ? 1 : -1;
-  const frontFacing = triangles.filter(({ area }) => area * visibleSign > 1e-5);
+  const frontFacing = triangles.filter(({ area, poseFacing }) =>
+    area * visibleSign > 1e-5 && poseFacing !== false);
   if (frontFacing.length === 0) return [];
 
   const meshWidth = Math.max(...frontFacing.map(({ maxX }) => maxX))

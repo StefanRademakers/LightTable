@@ -13,8 +13,8 @@ const landmarker = () => landmarkerPromise ??= FaceLandmarker.createFromOptions(
     baseOptions: { modelAssetPath: modelUrl, delegate: 'CPU' },
     runningMode: 'IMAGE',
     numFaces: 8,
-    minFaceDetectionConfidence: 0.5,
-    minFacePresenceConfidence: 0.5,
+    minFaceDetectionConfidence: 0.35,
+    minFacePresenceConfidence: 0.35,
     minTrackingConfidence: 0.5,
     outputFaceBlendshapes: false,
     outputFacialTransformationMatrixes: true

@@ -35,4 +35,17 @@ describe('Face Warp detection quality', () => {
     expect(assessFaceWarpDetection(mesh(90), pose, 100, 100).accepted).toBe(false);
     expect(assessFaceWarpDetection(mesh(25), pose, 100, 100).accepted).toBe(true);
   });
+
+  it('rejects near-profile pose before presenting an unreliable editable mesh', () => {
+    const angle = 75 * Math.PI / 180;
+    const profilePose = [
+      Math.cos(angle), 0, Math.sin(angle), 0,
+      0, 1, 0, 0,
+      -Math.sin(angle), 0, Math.cos(angle), 0,
+      0, 0, 0, 1
+    ];
+    const result = assessFaceWarpDetection(mesh(), profilePose, 100, 100);
+    expect(result.accepted).toBe(false);
+    expect(result.reason).toMatch(/profile/i);
+  });
 });

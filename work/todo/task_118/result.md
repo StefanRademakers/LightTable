@@ -188,3 +188,29 @@
 - No sparse factorization was added: the measured bounded 468-vertex solve does
   not justify that cache or lifecycle complexity yet. That checkbox remains
   open until profiling demonstrates an actual need.
+
+## Exact detection coordinates and pose-aware profiles
+
+- Layer thumbnail export now returns the exact affine matrix used by the GPU
+  encode. Face Warp inverts that matrix directly instead of reconstructing a
+  second scale from rounded thumbnail dimensions. Deterministic fixtures cover
+  front, rotated, scaled and depth-varying detections without a first-frame
+  offset.
+- Visibility now combines canonical 3D triangle normals transformed by
+  MediaPipe's canonical-to-runtime face pose, projected winding and the
+  existing local depth test. Back-facing triangles are omitted from overlay
+  and hit-testing, while remaining part of the complete deformation surface
+  and continuity solve.
+- Detector thresholds were calibrated from 0.50 to 0.35. This makes a strong
+  near-profile fixture detectable while the existing finite geometry,
+  coverage, pose and observation gates still reject unsafe output.
+- The desktop smoke now derives its pointer seed from the actually rendered
+  cyan mesh instead of assuming a frontal cheek coordinate. Both the frontal
+  fixture and a strong profile fixture pass identity, local edit, one-undo,
+  zero-hole, fixed-canvas and one-second settle assertions. The profile run
+  changed 591 local pixels, introduced zero black pixels and measured 13.9 ms
+  warm p50 / 14.9 ms p95 preview frames.
+- `D:\face.jpg` remains a documented adverse input: MediaPipe can return an
+  anatomically over-wide face fit on that image. It is not counted as HQ
+  evidence. A broader front/three-quarter/profile corpus and confidence
+  calibration remain open before Gate 6 and the task can complete.

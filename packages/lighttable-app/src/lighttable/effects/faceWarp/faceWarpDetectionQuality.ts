@@ -1,5 +1,6 @@
 import { MEDIAPIPE_FACE_VERTEX_COUNT } from './canonicalFaceTopology';
 import type { FaceWarpPoint } from './faceWarpTypes';
+import { facePoseYawDegrees } from './faceWarpPose';
 
 export interface FaceWarpDetectionQuality {
   readonly accepted: boolean;
@@ -54,9 +55,21 @@ export const assessFaceWarpDetection = (
     return { accepted: false, confidence: 0, reason: 'Too little of the detected face is visible in the layer.' };
   }
 
+  const yaw = facePoseYawDegrees(poseMatrix);
+  if (yaw === null || yaw > 72) {
+    return {
+      accepted: false,
+      confidence: 0,
+      reason: 'The face angle is too close to profile for a reliable editable mesh.'
+    };
+  }
+
   const coverage = Math.sqrt((width / imageWidth) * (height / imageHeight));
   const coverageScore = clamp01((coverage - 0.025) / 0.175);
   const observationScore = clamp01((insideRatio - 0.55) / 0.4);
-  const confidence = Math.round((0.35 + coverageScore * 0.3 + observationScore * 0.35) * 1000) / 1000;
+  const poseScore = clamp01(1 - Math.max(0, yaw - 35) / 37);
+  const confidence = Math.round(
+    (0.3 + coverageScore * 0.25 + observationScore * 0.3 + poseScore * 0.15) * 1000
+  ) / 1000;
   return { accepted: true, confidence };
 };

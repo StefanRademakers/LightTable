@@ -68,7 +68,7 @@ Gate 1:
 
 - [x] Unit fixtures prove deterministic topology, adjacency and symmetry.
 - [x] Save/reopen reproduces the same source and zero target without detection.
-- [ ] Front, rolled, scaled and three-quarter detections share one coordinate
+- [x] Front, rolled, scaled and three-quarter detections share one coordinate
       convention with no first-frame offset.
 
 ## Phase 2 — Single-truth indexed WebGPU renderer
@@ -178,18 +178,18 @@ Gate 5:
 
 ## Phase 6 — Pose, profile and visibility quality
 
-- [ ] Use canonical 3D pose rather than a purely 2D face basis.
-- [ ] Determine editable/visible triangles from pose, normals and depth.
-- [ ] Exclude hidden/back-facing geometry from hit testing and normal overlay.
-- [ ] Keep hidden geometry in the continuity solve without presenting it as
+- [x] Use canonical 3D pose rather than a purely 2D face basis.
+- [x] Determine editable/visible triangles from pose, normals and depth.
+- [x] Exclude hidden/back-facing geometry from hit testing and normal overlay.
+- [x] Keep hidden geometry in the continuity solve without presenting it as
       equally observed data.
 - [x] Add a confidence policy for difficult profiles and occlusions.
 - [ ] Test front, three-quarter, strong yaw and near-profile faces.
 
 Gate 6:
 
-- [ ] No far-side mesh is drawn over the visible nose/cheek surface.
-- [ ] Profile edits remain local and do not pull the entire image.
+- [x] No far-side mesh is drawn over the visible nose/cheek surface.
+- [x] Profile edits remain local and do not pull the entire image.
 - [x] Low-confidence cases fail clearly and safely instead of inventing a mesh.
 
 ## Phase 7 — Overlay, UX and document integration
