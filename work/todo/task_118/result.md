@@ -121,6 +121,10 @@
   while the mesh awaits approval. Both `D:\pukkels-lighttable.png` and the
   adverse profile `D:\face.jpg` pass this lifecycle contract on the RTX 5090,
   with no page or WebGPU validation errors.
+- The smoke also redetects over an existing authored effect, cancels the
+  pending replacement and proves history remains unchanged before performing
+  a separate accepted warm redetection. This guards the non-destructive
+  redetect/cancel path rather than testing only first detection.
 - Visual inspection of the captured adverse preview confirms that MediaPipe
   can still place a technically valid but anatomically wrong near-frontal mesh
   over a profile face. Gate 6's former low-confidence claim was therefore

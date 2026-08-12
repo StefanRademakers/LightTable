@@ -241,10 +241,23 @@ try {
     throw new Error(`Face Warp brush size did not apply closely enough: ${appliedBrushSize} versus ${brushSize}`);
   }
   const coldDetectionMs = performance.now() - coldDetectionStartedAt;
-  const warmDetectionStartedAt = performance.now();
+  const documentBeforeCancelledRedetection = await driver.queryDocument(documentId);
   await page.getByRole('button', { name: 'Redetect faces' }).click();
   await page.getByRole('button', { name: 'Detecting faces…' })
     .waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByRole('button', { name: 'Accept mesh' })
+    .waitFor({ state: 'visible', timeout: 60_000 });
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'Redetect faces' })
+    .waitFor({ state: 'visible', timeout: 10_000 });
+  const documentAfterCancelledRedetection = await driver.queryDocument(documentId);
+  if (!documentBeforeCancelledRedetection || !documentAfterCancelledRedetection
+    || documentAfterCancelledRedetection.history.undoDepth
+      !== documentBeforeCancelledRedetection.history.undoDepth) {
+    throw new Error('Cancelling Face Warp redetection changed document history.');
+  }
+  const warmDetectionStartedAt = performance.now();
+  await page.getByRole('button', { name: 'Redetect faces' }).click();
   await page.getByRole('button', { name: 'Accept mesh' })
     .waitFor({ state: 'visible', timeout: 60_000 });
   await page.getByRole('button', { name: 'Accept mesh' }).click();
