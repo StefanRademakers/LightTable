@@ -34,6 +34,7 @@ import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
 import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSample,
   parseCreateDocumentOptions } from './lightTableCommandValidation';
 import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
+import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 export * from './lightTableCommandContract';
 
 /**
@@ -88,6 +89,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand) {
     return this.resolve(documentId).executeLayerStyleCommand(command);
+  }
+
+  executeFaceWarpCommand(documentId: DocumentSessionId, command: SemanticFaceWarpCommand) {
+    const execute = this.resolve(documentId).executeFaceWarpCommand;
+    if (!execute) throw new Error('Face Warp commands are unavailable in the target document.');
+    return execute(command);
   }
 
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
@@ -477,6 +484,8 @@ export class LightTableCommandService {
       availability('vector.create', true, ''),
       availability('vector.update', true, ''),
       availability('vector.remove', true, ''),
+      availability('faceWarp.applyOperation', Boolean(this.ports.executeFaceWarpCommand),
+        'Face Warp commands are unavailable in this host.'),
       availability('layer.effect.add', true, ''),
       availability('layer.effect.update', true, ''),
       availability('layer.effect.remove', true, ''),
@@ -676,6 +685,24 @@ export class LightTableCommandService {
       try {
         const result = await this.ports.executeVectorCommand(documentRequest.documentId, command);
         if (!result) return this.reject(value.requestId, 'execution-failed', 'The vector command did not change the document.', snapshot);
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: result,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
+    }
+
+    if (value.command === 'faceWarp.applyOperation') {
+      const command = parseSemanticFaceWarpCommand(value.parameters);
+      if ('message' in command) return this.reject(value.requestId, 'invalid-parameters', command.message, snapshot);
+      if (!this.ports.executeFaceWarpCommand) {
+        return this.reject(value.requestId, 'command-unavailable', 'Face Warp commands are unavailable in this host.', snapshot);
+      }
+      try {
+        const result = await this.ports.executeFaceWarpCommand(documentRequest.documentId, command);
+        if (!result) return this.reject(value.requestId, 'command-unavailable',
+          'The target Face Warp layer, face or editable operation is unavailable.', snapshot);
         this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };

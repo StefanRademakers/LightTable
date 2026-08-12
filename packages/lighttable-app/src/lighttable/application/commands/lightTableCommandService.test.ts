@@ -38,6 +38,7 @@ const setup = () => {
     executeTextCommand: vi.fn(),
     executeVectorCommand: vi.fn(),
     executeLayerStyleCommand: vi.fn(),
+    executeFaceWarpCommand: vi.fn(),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -266,6 +267,29 @@ describe('LightTableCommandService registry', () => {
       primitive: { kind: 'ellipse', x: 0, y: 0, width: Number.NaN, height: 10 }
     }));
     expect(malformed).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates and routes canonical Face Warp operations', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeFaceWarpCommand!).mockResolvedValue({
+      layerId: 'portrait', faceId: 'face-1', operation: 'set-semantic'
+    });
+    const result = await state.service.execute(request('faceWarp.applyOperation', state.session.id, {
+      layerId: 'portrait', operation: {
+        kind: 'set-semantic', faceId: 'face-1', target: 'right', change: { eyeSize: 0.4 }
+      }
+    }));
+    expect(result).toMatchObject({ status: 'completed', value: {
+      layerId: 'portrait', faceId: 'face-1', operation: 'set-semantic'
+    } });
+    expect(state.ports.executeFaceWarpCommand).toHaveBeenCalledWith(state.session.id,
+      expect.objectContaining({ operation: expect.objectContaining({ target: 'right' }) }));
+    expect(await state.service.execute(request('faceWarp.applyOperation', state.session.id, {
+      layerId: 'portrait', operation: {
+        kind: 'set-semantic', faceId: 'face-1', target: 'both', change: { smile: 3 }
+      }
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });
 

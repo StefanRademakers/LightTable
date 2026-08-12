@@ -9,6 +9,7 @@ const commandIds = new Set<string>([
   'layer.rename', 'layer.setVisibility', 'layer.setFillOpacity', 'layer.style.setEnabled',
   'layer.effect.setEnabled', 'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
   'vector.create', 'vector.update', 'vector.remove', 'layer.effect.add', 'layer.effect.update',
+  'faceWarp.applyOperation',
   'layer.effect.remove', 'layer.effect.move', 'command.batch', 'task.cancel', 'file.openArtifact',
   'file.exportNative', 'file.exportPng', 'file.exportPsd', 'history.undo', 'history.redo'
 ]);

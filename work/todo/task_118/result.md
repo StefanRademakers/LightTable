@@ -253,6 +253,21 @@
   viewport-only invalidation emits frame work without requiring a document
   composite.
 
+## Canonical automation command
+
+- `faceWarp.applyOperation` is now a strict, transport-neutral command for the
+  same `set-semantic` and `set-protection` operations used by the UI. Values,
+  face IDs, targets and feature names are validated before entering document
+  mutation code.
+- UI controls and the command executor both call one pure
+  `applySemanticFaceWarpCommandToDocument` path. The command records exactly
+  one regular undo entry, participates in document revision checks, and is
+  allowlisted through the authenticated MCP adapter rather than implemented as
+  MCP-only rendering logic.
+- Five focused suites are green: 42 tests cover parsing, one-history mutation,
+  multi-face isolation, command-service routing and authenticated MCP routing.
+  The app typecheck passes.
+
 - The interactive path remains a bounded two-step Laplacian preview. Pointer-up
   now runs a converged feature-aware refinement over only the connected brush
   footprint; the pointer core and all vertices outside the footprint remain

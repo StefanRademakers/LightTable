@@ -85,6 +85,7 @@ const allowedCommands = new Set<LightTableCommandId>([
   'vector.create',
   'vector.update',
   'vector.remove',
+  'faceWarp.applyOperation',
   'layer.effect.add',
   'layer.effect.update',
   'layer.effect.remove',

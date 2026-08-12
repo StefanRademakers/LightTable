@@ -134,6 +134,25 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       } }))).toMatchObject({ status: 'completed' });
   });
 
+  it('allows the canonical Face Warp command without a transport-specific schema', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('command.execute', {
+      command: 'faceWarp.applyOperation', documentId: 'document-1',
+      commandRequestId: 'face-warp-1', commandParameters: {
+        layerId: 'portrait', operation: {
+          kind: 'set-protection', faceId: 'face-1', feature: 'lips', locked: true
+        }
+      }
+    }))).toMatchObject({ status: 'completed' });
+    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({
+      command: 'faceWarp.applyOperation',
+      parameters: expect.objectContaining({ layerId: 'portrait' })
+    }));
+  });
+
   it('forwards atomic batches, cancellation and event cursors', async () => {
     const driver = createDriver();
     vi.mocked(driver.queryTaskEvents).mockReturnValue({ cursor: 4, events: [] });

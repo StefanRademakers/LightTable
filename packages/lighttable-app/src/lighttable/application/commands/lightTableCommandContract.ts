@@ -10,6 +10,7 @@ import type { VectorElement } from '@lighttable/vector-core';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
 import type { AutomationTaskEvent } from './automationTaskEventStore';
 import type { ImageSizeRequest } from '../imageSize/imageSizeModel';
+import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
@@ -19,6 +20,7 @@ export type LightTableCommandId =
   | 'layer.style.setEnabled' | 'layer.effect.setEnabled' | 'file.openArtifact'
   | 'text.create' | 'text.replaceRange' | 'text.format' | 'text.setLayout'
   | 'vector.create' | 'vector.update' | 'vector.remove'
+  | 'faceWarp.applyOperation'
   | 'layer.effect.add' | 'layer.effect.update' | 'layer.effect.remove' | 'layer.effect.move'
   | 'command.batch' | 'task.cancel'
   | 'file.exportNative' | 'file.exportPng' | 'file.exportPsd' | 'history.undo' | 'history.redo';
@@ -179,6 +181,7 @@ export interface LightTableCommandPorts {
   executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand): unknown | Promise<unknown>;
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
+  executeFaceWarpCommand?(documentId: DocumentSessionId, command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
@@ -206,6 +209,7 @@ export interface DocumentLightTableCommandPorts {
   executeTextCommand(command: SemanticTextCommand): unknown | Promise<unknown>;
   executeVectorCommand(command: SemanticVectorCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
+  executeFaceWarpCommand?(command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>; exportPsdArtifact(): File | Promise<File>;

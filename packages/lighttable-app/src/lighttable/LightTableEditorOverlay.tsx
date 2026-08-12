@@ -117,6 +117,7 @@ import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreate
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
 import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
+import { applySemanticFaceWarpCommandToDocument, executeSemanticFaceWarpCommand } from './application/effects/faceWarp/semanticFaceWarpCommandExecutor';
 import { useAgentActivity } from './application/commands/useAgentActivity';
 import { waitForExactCommandRender } from './application/rendering/waitForExactCommandRender';
 import { FlowTextEditingRuntime } from './application/text/FlowTextEditingRuntime';
@@ -213,7 +214,6 @@ import {
   type FaceWarpParameters
 } from './effects/faceWarp/faceWarpTypes';
 import type { FaceWarpSemanticTarget } from './application/tools/faceWarp/FaceWarpToolOptions';
-import { applyFaceWarpOperation } from './effects/faceWarp/faceWarpOperations';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
@@ -1220,16 +1220,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const layer = findRasterLayer(document, document.activeLayerId);
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
       if (!layer?.adjustmentStack || !instance) return document;
-      const current = readFaceWarpNodeSettings(instance);
-      const nextSettings = applyFaceWarpOperation(current, {
-        kind: 'set-semantic', faceId, target: faceWarpSemanticTarget, change
+      return applySemanticFaceWarpCommandToDocument(document, {
+        layerId: layer.id,
+        operation: { kind: 'set-semantic', faceId, target: faceWarpSemanticTarget, change }
       });
-      if (nextSettings === current) return document;
-      return setRasterLayerAdjustmentStack(
-        document,
-        layer.id,
-        setFaceWarpNodeSettings(layer.adjustmentStack, nextSettings)
-      );
     });
   }, [documentMutationController, faceWarpSelectedFaceId, faceWarpSemanticTarget, imageDocumentRef]);
 
@@ -1243,13 +1237,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const layer = findRasterLayer(document, document.activeLayerId);
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
       if (!layer?.adjustmentStack || !instance) return document;
-      const current = readFaceWarpNodeSettings(instance);
-      const nextSettings = applyFaceWarpOperation(current, {
-        kind: 'set-protection', faceId, feature, locked
+      return applySemanticFaceWarpCommandToDocument(document, {
+        layerId: layer.id,
+        operation: { kind: 'set-protection', faceId, feature, locked }
       });
-      if (nextSettings === current) return document;
-      return setRasterLayerAdjustmentStack(document, layer.id,
-        setFaceWarpNodeSettings(layer.adjustmentStack, nextSettings));
     });
   }, [documentMutationController, effectiveFaceWarpFaceId, faceWarpSelectedFaceId]);
 
@@ -3678,6 +3669,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       executeVectorCommand: (command) => executeSemanticVectorCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
+      executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
+        getDocument: () => imageDocumentRef.current,
+        applyDocument: applyDocumentSnapshot,
+        recordHistory: pushDocumentHistory
+      }),
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {
           fontRegistry: textFontRegistry, getDocument: () => imageDocumentRef.current,

@@ -238,7 +238,7 @@ HQ acceptance gate:
 - [x] Feature locks/protection for eyes, lips, nose and outer face.
 - [x] Local Relax and Restore with clear on-canvas feedback.
 - [x] Independent multi-face and asymmetric left/right editing.
-- [ ] Expose canonical commands for future MCP use, for example semantic face,
+- [x] Expose canonical commands for future MCP use, for example semantic face,
       feature and constraint operations rather than raw UI automation.
 - [x] Keep detection and editing fully local/offline by default.
 - [ ] Evaluate a separate, clearly scoped synthesis/inpainting stage for edits
@@ -249,7 +249,7 @@ USP acceptance gate:
 
 - [ ] Face Warp offers a demonstrably better non-destructive workflow than a
       modal one-shot Liquify operation.
-- [ ] The same saved semantic operation can be reproduced from UI and command
+- [x] The same saved semantic operation can be reproduced from UI and command
       API/MCP without different rendering behaviour.
 
 ## Verification and commit discipline
