@@ -790,6 +790,7 @@ export const importPsdDocument = (
       name,
       width: source.width,
       height: source.height,
+      guides: [],
       resolutionPpi: source.resolutionPpi ?? 72,
       layers,
       activeLayerId,

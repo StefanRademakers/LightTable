@@ -48,6 +48,20 @@ describe('LightTable selection transforms', () => {
     expect(transformed[1]).toEqual(operations[1]);
   });
 
+  it('applies retained transforms without treating their canvas placeholder as geometry', () => {
+    const operations = [{
+      mode: 'replace' as const,
+      shape: { kind: 'rectangle' as const, points: [{ x: 10, y: 20 }, { x: 30, y: 50 }] }
+    }, {
+      mode: 'transform' as const,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 7, ty: -3 },
+      shape: { kind: 'rectangle' as const, points: [{ x: 0, y: 0 }, { x: 100, y: 100 }] }
+    }];
+    expect(selectionOperationsBounds(operations, { x: 0, y: 0, width: 100, height: 100 })).toEqual({
+      x: 17, y: 17, width: 20, height: 30
+    });
+  });
+
   it('expands pixel support around feathered geometry without leaving the canvas', () => {
     const operations = [{
       mode: 'replace' as const,

@@ -120,6 +120,7 @@ interface LayeredDocumentManifest {
     name: string;
     width: number;
     height: number; resolutionPpi: number;
+    guides: Array<{ id: string; orientation: 'horizontal' | 'vertical'; position: number; color?: string }>;
     activeLayerId: string | null;
     colorSettings: DocumentColorSettings;
     importProvenance: NormalizedImportProvenance | null;
@@ -431,6 +432,7 @@ export const buildLayeredDocumentFile = (
       name: document.name,
       width: document.width,
       height: document.height, resolutionPpi: document.resolutionPpi,
+      guides: structuredClone(document.guides),
       activeLayerId: document.activeLayerId,
       colorSettings: structuredClone(document.colorSettings),
       importProvenance: document.importProvenance,
@@ -1198,6 +1200,15 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     name: source.name,
     width: Number(width),
     height: Number(height),
+    guides: Array.isArray(source.guides)
+      ? source.guides.filter((guide): guide is ImageDocument['guides'][number] => (
+          isRecord(guide)
+          && typeof guide.id === 'string'
+          && (guide.orientation === 'horizontal' || guide.orientation === 'vertical')
+          && Number.isFinite(guide.position)
+          && (guide.color === undefined || typeof guide.color === 'string')
+        )).map((guide) => ({ ...guide }))
+      : [],
     resolutionPpi: parseResolutionPpi(source.resolutionPpi),
     layers,
     activeLayerId,

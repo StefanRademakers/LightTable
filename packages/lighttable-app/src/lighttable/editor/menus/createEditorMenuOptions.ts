@@ -1,6 +1,7 @@
 import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import type { BlendMode } from '../document/blendModes';
 import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
+import { createDefaultSnapSettings, type SnapSettings } from '../../application/tools/snapping/snapSettings';
 
 export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'layer' | 'type' | 'ai' | 'view' | 'help';
 
@@ -121,6 +122,17 @@ export interface EditorMenuCommands {
   openCommandHelp?: () => void;
   startGuidedSample?: () => void;
   openSettings?: () => void;
+  snap?: SnapSettings;
+  toggleSnap?: () => void;
+  toggleSnapTarget?: (target: keyof SnapSettings['targets']) => void;
+  setAllSnapTargets?: (enabled: boolean) => void;
+  toggleSmartGuides?: () => void;
+  toggleGuides?: () => void;
+  toggleGrid?: () => void;
+  toggleRulers?: () => void;
+  newGuide?: () => void;
+  toggleGuideLock?: () => void;
+  clearGuides?: () => void;
 }
 
 const checkedLabel = (label: string, checked: boolean) => checked ? `${label} ✓` : label;
@@ -133,6 +145,9 @@ export const createEditorMenuOptions = (
   aiProviders: EditorAiProviderState = { openArt: 'disconnected' }
 ): Array<ContextMenuOption<string>> => {
   const layer = state.layer;
+  const snap = commands.snap && typeof commands.snap === 'object' && 'targets' in commands.snap
+    ? commands.snap
+    : createDefaultSnapSettings();
 
   if (menu === 'file') {
     return [
@@ -584,6 +599,47 @@ export const createEditorMenuOptions = (
       label: state.showDifference ? 'Show corrected' : 'Show reference difference',
       onClick: commands.toggleDifference,
       disabled: !state.hasMetadata
+    },
+    {
+      value: 'rulers',
+      label: checkedLabel('Rulers', snap.rulersVisible),
+      separatorBefore: true,
+      onClick: commands.toggleRulers
+    },
+    {
+      value: 'snap',
+      label: checkedLabel('Snap', snap.enabled),
+      onClick: commands.toggleSnap
+    },
+    {
+      value: 'snap-to',
+      label: 'Snap To',
+      children: [
+        { value: 'snap-guides', label: checkedLabel('Guides', snap.targets.guides), onClick: () => commands.toggleSnapTarget?.('guides') },
+        { value: 'snap-grid', label: checkedLabel('Grid', snap.targets.grid), disabled: !snap.gridVisible, onClick: () => commands.toggleSnapTarget?.('grid') },
+        { value: 'snap-layers', label: checkedLabel('Layers', snap.targets.layers), onClick: () => commands.toggleSnapTarget?.('layers') },
+        { value: 'snap-document', label: checkedLabel('Document Bounds', snap.targets.documentBounds), onClick: () => commands.toggleSnapTarget?.('documentBounds') },
+        { value: 'snap-all', label: 'All', separatorBefore: true, onClick: () => commands.setAllSnapTargets?.(true) },
+        { value: 'snap-none', label: 'None', onClick: () => commands.setAllSnapTargets?.(false) }
+      ]
+    },
+    {
+      value: 'show-overlays',
+      label: 'Show',
+      children: [
+        { value: 'show-grid', label: checkedLabel('Grid', snap.gridVisible), onClick: commands.toggleGrid },
+        { value: 'show-guides', label: checkedLabel('Guides', snap.guidesVisible), onClick: commands.toggleGuides },
+        { value: 'show-smart-guides', label: checkedLabel('Smart Guides', snap.smartGuidesVisible), onClick: commands.toggleSmartGuides }
+      ]
+    },
+    {
+      value: 'guides',
+      label: 'Guides',
+      children: [
+        { value: 'new-guide', label: 'New Guide...', onClick: commands.newGuide },
+        { value: 'lock-guides', label: checkedLabel('Lock Guides', snap.guidesLocked), onClick: commands.toggleGuideLock },
+        { value: 'clear-guides', label: 'Clear Guides', separatorBefore: true, onClick: commands.clearGuides }
+      ]
     },
     {
       value: 'show-genai-panel',

@@ -8,11 +8,12 @@ import {
   rotationMatrix,
   scaleMatrix,
   transformPoint,
-  translationMatrix,
   type TransformPoint
 } from './affine';
 import type { AffineMatrix, TransformHandle, TransformQuad, TransformSessionState } from './transformTypes';
 import { transformCornerRotationTargets } from './transformEditingFrame';
+import type { SnapFeature, SnapMatch } from '../../../application/tools/snapping/snapEngine';
+import { snapAffineTranslation, snapProjectiveTranslation } from './snapTransformTranslation';
 
 interface TransformOverlayProps {
   state: TransformSessionState;
@@ -24,6 +25,9 @@ interface TransformOverlayProps {
   onProjectiveChange: (quad: TransformQuad) => void;
   onDuplicateChange: (duplicate: boolean) => void;
   onPickLayer?: (point: TransformPoint) => void;
+  snapTargets?: readonly SnapFeature[];
+  snapEnabled?: boolean;
+  onSnapMatches?: (matches: readonly SnapMatch[]) => void;
 }
 
 interface DragState {
@@ -79,7 +83,10 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   onChange,
   onProjectiveChange,
   onDuplicateChange,
-  onPickLayer
+  onPickLayer,
+  snapTargets = [],
+  snapEnabled = true,
+  onSnapMatches
 }) => {
   const dragRef = useRef<DragState | null>(null);
   const toScreen = (point: TransformPoint) => ({
@@ -165,6 +172,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       ],
       projectiveCorner
     };
+    onSnapMatches?.([]);
     svg.setPointerCapture(event.pointerId);
     event.preventDefault();
     event.stopPropagation();
@@ -182,23 +190,36 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     } else if (state.projectiveQuad && drag.handle === 'body' && drag.projectiveQuad) {
       const dx = current.x - drag.start.x;
       const dy = current.y - drag.start.y;
-      onProjectiveChange([
-        { x: drag.projectiveQuad[0].x + dx, y: drag.projectiveQuad[0].y + dy },
-        { x: drag.projectiveQuad[1].x + dx, y: drag.projectiveQuad[1].y + dy },
-        { x: drag.projectiveQuad[2].x + dx, y: drag.projectiveQuad[2].y + dy },
-        { x: drag.projectiveQuad[3].x + dx, y: drag.projectiveQuad[3].y + dy }
-      ]);
+      const snapped = snapProjectiveTranslation(
+        drag.projectiveQuad,
+        { x: dx, y: dy },
+        snapTargets,
+        scale,
+        snapEnabled,
+        event.ctrlKey || event.metaKey
+      );
+      onSnapMatches?.(snapped.matches);
+      onProjectiveChange(snapped.value);
     } else if (drag.handle === 'body') {
-      onChange(multiplyMatrices(
-        translationMatrix(current.x - drag.start.x, current.y - drag.start.y),
-        drag.matrix
-      ));
+      const snapped = snapAffineTranslation(
+        geometry.source,
+        drag.matrix,
+        { x: current.x - drag.start.x, y: current.y - drag.start.y },
+        snapTargets,
+        scale,
+        snapEnabled,
+        event.ctrlKey || event.metaKey
+      );
+      onSnapMatches?.(snapped.matches);
+      onChange(snapped.value);
     } else if (drag.handle === 'rotate' && !state.projectiveQuad) {
+      onSnapMatches?.([]);
       const angle = Math.atan2(current.y - drag.pivot.y, current.x - drag.pivot.x);
       let delta = angle - drag.angle;
       if (event.shiftKey) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
       onChange(multiplyMatrices(aroundPoint(rotationMatrix(delta), drag.pivot), drag.matrix));
     } else if (!state.projectiveQuad) {
+      onSnapMatches?.([]);
       const inverse = invertMatrix(drag.matrix);
       if (!inverse) return;
       const local = transformPoint(inverse, current);
@@ -257,6 +278,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       if (movedPixels <= 3) onPickLayer(point);
     }
     dragRef.current = null;
+    onSnapMatches?.([]);
     event.currentTarget.releasePointerCapture(event.pointerId);
     event.preventDefault();
     event.stopPropagation();

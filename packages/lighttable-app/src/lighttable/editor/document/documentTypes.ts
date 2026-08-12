@@ -330,6 +330,8 @@ export interface ImageDocument {
   name: string;
   width: number;
   height: number;
+  /** Persisted non-printing layout guides in document coordinates. */
+  guides: DocumentGuide[];
   /** Authored output resolution. Geometry remains expressed in pixels. */
   resolutionPpi: number;
   /** Root nodes, bottom-most first; groups recursively use the same ordering. */
@@ -349,6 +351,13 @@ export interface ImageDocument {
   revision: number;
   createdAt: number;
   modifiedAt: number;
+}
+
+export interface DocumentGuide {
+  id: string;
+  orientation: 'horizontal' | 'vertical';
+  position: number;
+  color?: string;
 }
 
 export interface PatternAsset {
@@ -475,6 +484,7 @@ export const createImageDocument = (
     name,
     width,
     height,
+    guides: [],
     resolutionPpi: 72,
     layers: [{
       id: backgroundId,

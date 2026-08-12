@@ -20,6 +20,7 @@ interface RouteFreehandPointerMoveOptions {
   selection: SelectionSessionController;
   warp: WarpSessionController;
   paint: PaintSessionController;
+  snapBypass?: boolean;
 }
 
 /**
@@ -36,12 +37,13 @@ export const routeFreehandPointerMove = ({
   project,
   selection,
   warp,
-  paint
+  paint,
+  snapBypass = false
 }: RouteFreehandPointerMoveOptions): boolean => {
   if (intent === 'selection') {
-    if (activeTool !== 'select-free') return selection.move(pointerId, currentPoint);
+    if (activeTool !== 'select-free') return selection.move(pointerId, currentPoint, snapBypass);
     const points = samples.map(project).filter((point): point is BrushPoint => Boolean(point));
-    return selection.moveMany(pointerId, points);
+    return selection.moveMany(pointerId, points, snapBypass);
   }
   if (intent === 'warp') {
     const points = samples.flatMap((sample) => {

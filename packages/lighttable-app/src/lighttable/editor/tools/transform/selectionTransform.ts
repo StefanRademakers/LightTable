@@ -50,9 +50,21 @@ export const selectionOperationsBounds = (
   operations: SelectionOperation[],
   fallback: Rect
 ): Rect => {
-  const points = operations
-    .filter((operation) => operation.mode !== 'feather')
-    .flatMap((operation) => shapeOutline(operation.shape));
+  let points: TransformPoint[] = [];
+  operations.forEach((operation) => {
+    if (operation.mode === 'feather') return;
+    if (operation.mode === 'transform' && operation.transform) {
+      points = points.map((point) => transformPoint(operation.transform!, point));
+      return;
+    }
+    const outline = shapeOutline(operation.shape);
+    if (operation.mode === 'replace') points = outline;
+    else if (operation.mode === 'add') points.push(...outline);
+    // Subtraction cannot enlarge support. Keep intersection conservative;
+    // exact raster coverage remains renderer-owned.
+    else if (operation.mode === 'intersect' && points.length === 0) points = outline;
+    else if (operation.mode === 'invert') points = outline;
+  });
   if (!points.length) return fallback;
   const xs = points.map(({ x }) => x);
   const ys = points.map(({ y }) => y);

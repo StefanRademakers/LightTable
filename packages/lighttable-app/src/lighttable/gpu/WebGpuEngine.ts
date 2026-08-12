@@ -265,6 +265,9 @@ export class WebGpuEngine {
   private faceWarpEditingOverlay: VectorEditingOverlay | null = null;
   private penRubberBand: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
   private transformEditingFrame: VectorSelectionFrame | null = null;
+  private smartGuideEditingFrame: VectorSelectionFrame | null = null;
+  private documentGuideEditingFrame: VectorSelectionFrame | null = null;
+  private documentGridEditingFrame: VectorSelectionFrame | null = null;
   private vectorEditingOverlayBackend: VectorEditingOverlayBackend | null = null;
   private textEditingOverlayBackend: TextEditingOverlayBackend | null = null;
   private textEditingOverlay: TextEditingOverlay | null = null;
@@ -1750,6 +1753,36 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  setSmartGuideEditingFrame(frame: VectorSelectionFrame | null) {
+    if (this.smartGuideEditingFrame?.resourceKey === frame?.resourceKey) return;
+    this.smartGuideEditingFrame = frame ? {
+      ...frame,
+      bounds: { ...frame.bounds },
+      pivot: { ...frame.pivot },
+      edges: frame.edges.map(({ start, end }) => ({
+        start: { ...start },
+        end: { ...end }
+      })),
+      handles: []
+    } : null;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  setDocumentGuideEditingFrame(frame: VectorSelectionFrame | null) {
+    if (this.documentGuideEditingFrame?.resourceKey === frame?.resourceKey) return;
+    this.documentGuideEditingFrame = frame;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  setDocumentGridEditingFrame(frame: VectorSelectionFrame | null) {
+    if (this.documentGridEditingFrame?.resourceKey === frame?.resourceKey) return;
+    this.documentGridEditingFrame = frame;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
   async measureReferenceDifference(threshold = 2 / 255): Promise<ReferenceDifferenceMetrics> {
     if (!this.metadata || !this.imageResources.sourceTexture || !this.imageResources.finalTexture || !this.differenceMetricsPipeline) {
       throw new Error('No Photoshop reference and LightTable reconstruction are available for comparison.');
@@ -2491,6 +2524,9 @@ export class WebGpuEngine {
       && !selectionMask
       && !this.smartSelectionOverlayBackend?.visible
       && !this.transformEditingFrame
+      && !this.smartGuideEditingFrame
+      && !this.documentGuideEditingFrame
+      && !this.documentGridEditingFrame
       && !this.brushCursorOverlay
       && !this.penEditingOverlay
       && !this.faceWarpEditingOverlay
@@ -2564,6 +2600,27 @@ export class WebGpuEngine {
       this.vectorEditingOverlayBackend.encodeTransformFrame(
         encoder,
         this.transformEditingFrame,
+        target
+      );
+    }
+    if (this.smartGuideEditingFrame) {
+      this.vectorEditingOverlayBackend.encodeSmartGuideFrame(
+        encoder,
+        this.smartGuideEditingFrame,
+        target
+      );
+    }
+    if (this.documentGridEditingFrame) {
+      this.vectorEditingOverlayBackend.encodeDocumentGridFrame(
+        encoder,
+        this.documentGridEditingFrame,
+        target
+      );
+    }
+    if (this.documentGuideEditingFrame) {
+      this.vectorEditingOverlayBackend.encodeDocumentGuideFrame(
+        encoder,
+        this.documentGuideEditingFrame,
         target
       );
     }
@@ -2664,6 +2721,9 @@ export class WebGpuEngine {
     this.penEditingOverlay = null;
     this.faceWarpEditingOverlay = null;
     this.transformEditingFrame = null;
+    this.smartGuideEditingFrame = null;
+    this.documentGuideEditingFrame = null;
+    this.documentGridEditingFrame = null;
     this.documentCompositeTexture = null;
     this.sourceGeometryTexture = null;
     this.linearSpatialTexture = null;

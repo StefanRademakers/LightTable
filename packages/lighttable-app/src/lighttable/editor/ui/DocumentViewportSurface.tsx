@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Rect } from '../document/documentTypes';
+import type { DocumentGuide, Rect } from '../document/documentTypes';
 import { SelectionOverlay } from '../selection/SelectionOverlay';
 import type {
   SelectionOperation,
@@ -12,6 +12,8 @@ import type {
   TransformSessionState
 } from '../tools/transform/transformTypes';
 import type { ToolId } from '../session/editorSession';
+import type { SnapFeature, SnapMatch } from '../../application/tools/snapping/snapEngine';
+import { LayoutGuideInteractionLayer } from './LayoutGuideInteractionLayer';
 
 export interface DocumentViewportSurfaceProps {
   viewportRef: React.RefObject<HTMLDivElement | null>;
@@ -43,6 +45,15 @@ export interface DocumentViewportSurfaceProps {
   onTransformProjectiveChange: (quad: TransformQuad) => void;
   onTransformDuplicateChange: (duplicate: boolean) => void;
   onTransformPick: (point: { x: number; y: number }) => void;
+  transformSnapTargets?: readonly SnapFeature[];
+  transformSnapEnabled?: boolean;
+  onTransformSnapMatches?: (matches: readonly SnapMatch[]) => void;
+  documentGuides?: readonly DocumentGuide[];
+  rulersVisible?: boolean;
+  guidesVisible?: boolean;
+  guidesLocked?: boolean;
+  onGuideDraft?: (guides: readonly DocumentGuide[] | null) => void;
+  onGuideCommit?: (guides: readonly DocumentGuide[]) => void;
   inputBridge?: React.ReactNode;
 }
 
@@ -83,6 +94,15 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onTransformProjectiveChange,
   onTransformDuplicateChange,
   onTransformPick,
+  transformSnapTargets,
+  transformSnapEnabled,
+  onTransformSnapMatches,
+  documentGuides = [],
+  rulersVisible = false,
+  guidesVisible = false,
+  guidesLocked = false,
+  onGuideDraft,
+  onGuideCommit,
   inputBridge
 }) => {
   const effectiveTool = temporaryPanActive
@@ -103,6 +123,20 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
       onContextMenu={onContextMenu}
     >
       <canvas ref={canvasRef} className="lighttable-viewport__canvas" />
+      {(rulersVisible || (guidesVisible && documentGuides.length > 0))
+        && onGuideDraft && onGuideCommit ? (
+          <LayoutGuideInteractionLayer
+            imageRect={imageRect}
+            scale={scale}
+            guides={documentGuides}
+            rulersVisible={rulersVisible}
+            guidesVisible={guidesVisible}
+            guidesLocked={guidesLocked}
+            interactive={activeTool === 'transform'}
+            onDraft={onGuideDraft}
+            onCommit={onGuideCommit}
+          />
+        ) : null}
       {inputBridge}
       {activeTool !== 'view' && (selection.length || selectionDraft) ? (
         <SelectionOverlay
@@ -125,6 +159,9 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           onProjectiveChange={onTransformProjectiveChange}
           onDuplicateChange={onTransformDuplicateChange}
           onPickLayer={onTransformPick}
+          snapTargets={transformSnapTargets}
+          snapEnabled={transformSnapEnabled}
+          onSnapMatches={onTransformSnapMatches}
         />
       ) : null}
       {loading ? (

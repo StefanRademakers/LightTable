@@ -21,6 +21,7 @@ import type { VectorEditorToolId } from '../tools/vectorToolCatalog';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
 import type { BrushPresetId } from '../tools/brush/brushPresets';
 import type { SampledBrushSettings } from '../tools/paint/sampledBrushTypes';
+import { createDefaultSnapSettings, type SnapSettings } from '../../application/tools/snapping/snapSettings';
 
 export type ToolId =
   | 'view'
@@ -265,6 +266,7 @@ export interface EditorSession {
   smartSelection: SmartSelectionOptions;
   /** Photoshop-style Move/Transform picking of the top visible painted layer. */
   transformAutoSelectLayer: boolean;
+  snap: SnapSettings;
   brush: BrushSettings;
   sampledBrush: SampledBrushSettings;
   toneBrush: ToneBrushSettings;
@@ -290,6 +292,7 @@ export const createEditorSession = (): EditorSession => ({
   magicWand: createDefaultMagicWandOptions(),
   smartSelection: createDefaultSmartSelectionOptions(),
   transformAutoSelectLayer: true,
+  snap: createDefaultSnapSettings(),
   brush: {
     presetId: 'round',
     size: 48,

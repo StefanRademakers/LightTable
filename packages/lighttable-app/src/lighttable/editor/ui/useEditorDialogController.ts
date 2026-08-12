@@ -24,6 +24,7 @@ export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
   const [fillOpen, setFillOpen] = useState(false);
   const [imageSizeOpen, setImageSizeOpen] = useState(false);
+  const [newGuideOpen, setNewGuideOpen] = useState(false);
   const [flattenRequest, setFlattenRequest] =
     useState<FlattenRequest | null>(null);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
@@ -40,6 +41,7 @@ export const useEditorDialogController = () => {
     setFeatherOpen(false);
     setFillOpen(false);
     setImageSizeOpen(false);
+    setNewGuideOpen(false);
     setFlattenRequest(null);
     setPsdReportOpen(false);
     setFormatSupportOpen(false);
@@ -55,6 +57,7 @@ export const useEditorDialogController = () => {
     featherOpen,
     fillOpen,
     imageSizeOpen,
+    newGuideOpen,
     flattenRequest,
     psdReportOpen,
     formatSupportOpen,
@@ -70,6 +73,8 @@ export const useEditorDialogController = () => {
     closeFill: useCallback(() => setFillOpen(false), []),
     openImageSize: useCallback(() => setImageSizeOpen(true), []),
     closeImageSize: useCallback(() => setImageSizeOpen(false), []),
+    openNewGuide: useCallback(() => setNewGuideOpen(true), []),
+    closeNewGuide: useCallback(() => setNewGuideOpen(false), []),
     requestFlatten: useCallback(
       (request: FlattenRequest) => setFlattenRequest(request),
       []

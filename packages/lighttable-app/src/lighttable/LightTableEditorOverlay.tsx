@@ -213,6 +213,11 @@ import { useSelectionSessionController } from './application/tools/selection/use
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
+import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuideEditingFrame';
+import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
+import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
+import type { SnapMatch } from './application/tools/snapping/snapEngine';
+import { addDocumentGuide, clearDocumentGuides, replaceDocumentGuides } from './editor/document/guideCommands';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
 import { isVectorEditorTool } from './editor/tools/vectorToolCatalog';
 import type { VectorElementCreationTransaction } from './application/vectors/VectorDocumentController';
@@ -234,6 +239,7 @@ import {
 } from './editor/config/adjustmentControls';
 import {
   layerIsLocked,
+  type DocumentGuide,
   type DocumentCreationSettings,
   type ImageDocument,
   type LayerId,
@@ -612,6 +618,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     transaction: VectorElementCreationTransaction
   ) => boolean>(() => false);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
+  const [selectedLayerIds, setSelectedLayerIds] = useState<LayerId[]>([]);
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);
   const fillActiveTargetRef = useRef<(
     color: string,
@@ -729,6 +736,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [temporaryEraseActive, setTemporaryEraseActive] = useState(false);
   const [temporaryZoomActive, setTemporaryZoomActive] = useState(false);
   const [temporaryZoomOutActive, setTemporaryZoomOutActive] = useState(false);
+  const [transformSnapMatches, setTransformSnapMatches] = useState<readonly SnapMatch[]>([]);
+  const [selectionSnapFeedback, setSelectionSnapFeedback] = useState<{
+    matches: readonly SnapMatch[];
+    bounds: Rect | null;
+  }>({ matches: [], bounds: null });
+  const [guideDraft, setGuideDraft] = useState<readonly DocumentGuide[] | null>(null);
   const [startupTimings, setStartupTimings] = useState<LightTableStartupTimings | null>(null);
   const [gpuMemoryBytes, setGpuMemoryBytes] = useState(0);
   const [textRenderPresentation, setTextRenderPresentation] = useState<TextRenderPresentationSnapshot>({
@@ -1695,7 +1708,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     publishDraft: setSelectionDraft,
     pushHistoryEntry,
-    setError
+    setError,
+    getSnapContext: (movingBounds) => {
+      const document = imageDocumentRef.current;
+      const snap = editorSessionRef.current.snap;
+      return {
+        targets: document ? buildLayerSnapTargets(document, {
+          includeCanvas: snap.targets.documentBounds,
+          includeLayers: snap.targets.layers,
+          includeGuides: snap.targets.guides,
+          includeGrid: snap.targets.grid && snap.gridVisible,
+          gridSpacing: snap.gridSpacing / Math.max(1, snap.gridSubdivisions),
+          gridOriginX: snap.gridOriginX,
+          gridOriginY: snap.gridOriginY,
+          movingBounds
+        }) : [],
+        zoom: activeScale,
+        enabled: snap.enabled
+      };
+    },
+    publishSnapFeedback: (matches, bounds) => setSelectionSnapFeedback({ matches, bounds })
   }, selectionGestureRef.current);
   const smartSelectionControllerRef = useRef<SmartSelectionToolController | null>(null);
   smartSelectionControllerRef.current ??= new SmartSelectionToolController({
@@ -3385,6 +3417,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [mergeActiveLayerDown, mergeSelectedLayers]);
   const handleLayerSelectionChange = useCallback((layerIds: LayerId[]) => {
     selectedLayerIdsRef.current = layerIds;
+    setSelectedLayerIds(layerIds);
   }, []);
 
   const copySelectedContent = () => {
@@ -3576,10 +3609,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }), [executeRegisteredCommand, layerPanelController]);
   selectLayerRef.current = layerPanelController.select;
 
+  const effectiveDocumentGuides = guideDraft ?? imageDocument?.guides ?? [];
+  useEffect(() => {
+    setGuideDraft(null);
+  }, [imageDocument?.id]);
+  const commitDocumentGuides = useCallback((guides: readonly DocumentGuide[]) => {
+    const before = imageDocumentRef.current;
+    if (!before) return;
+    const after = replaceDocumentGuides(before, guides);
+    if (after === before) return;
+    applyDocumentSnapshot(after);
+    pushDocumentHistory(before, after);
+  }, [applyDocumentSnapshot, pushDocumentHistory]);
+  const clearGuides = useCallback(() => {
+    const before = imageDocumentRef.current;
+    if (!before) return;
+    const after = clearDocumentGuides(before);
+    if (after === before) return;
+    applyDocumentSnapshot(after);
+    pushDocumentHistory(before, after);
+  }, [applyDocumentSnapshot, pushDocumentHistory]);
+
   const transformSession = useTransformSessionController({
     activeTool: editorSession.activeTool,
     activeDocument: imageDocument,
     activeLayerId: imageDocument?.activeLayerId ?? null,
+    selectedLayerIds,
     selection: editorSession.selection,
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
@@ -3598,13 +3653,62 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus
   });
   const transformState = transformSession.state;
+  const transformFrame = useMemo(() => transformState
+    ? buildTransformEditingFrame(transformState, activeScale)
+    : null, [activeScale, transformState]);
+  const transformSnapTargets = useMemo(() => imageDocument && transformState
+    ? buildLayerSnapTargets(imageDocument, {
+        excludedLayerIds: new Set([
+          transformState.layerId,
+          ...selectedLayerIdsRef.current
+        ]),
+        includeCanvas: editorSession.snap.targets.documentBounds,
+        includeLayers: editorSession.snap.targets.layers,
+        includeGuides: editorSession.snap.targets.guides,
+        includeGrid: editorSession.snap.targets.grid && editorSession.snap.gridVisible,
+        gridSpacing: editorSession.snap.gridSpacing / Math.max(1, editorSession.snap.gridSubdivisions),
+        gridOriginX: editorSession.snap.gridOriginX,
+        gridOriginY: editorSession.snap.gridOriginY,
+        movingBounds: transformFrame?.bounds
+      })
+    : [], [editorSession.snap, imageDocument, transformFrame, transformState]);
   useEffect(() => {
-    engineRef.current?.setTransformEditingFrame(
-      transformState
-        ? buildTransformEditingFrame(transformState, activeScale)
+    engineRef.current?.setTransformEditingFrame(transformFrame);
+  }, [transformFrame]);
+  useEffect(() => {
+    engineRef.current?.setSmartGuideEditingFrame(
+      editorSession.snap.smartGuidesVisible && (transformFrame || selectionSnapFeedback.bounds)
+        ? buildSmartGuideEditingFrame(
+            transformFrame ? transformSnapMatches : selectionSnapFeedback.matches,
+            transformFrame?.bounds ?? selectionSnapFeedback.bounds!,
+            activeScale
+          )
         : null
     );
-  }, [activeScale, transformState]);
+  }, [activeScale, editorSession.snap.smartGuidesVisible, selectionSnapFeedback, transformFrame, transformSnapMatches]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    engine?.setDocumentGuideEditingFrame(
+      imageDocument && editorSession.snap.guidesVisible
+        ? buildDocumentGuideFrame(effectiveDocumentGuides, imageDocument.width, imageDocument.height)
+        : null
+    );
+    engine?.setDocumentGridEditingFrame(
+      imageDocument && editorSession.snap.gridVisible
+        ? buildDocumentGridFrame(
+            imageDocument.width,
+            imageDocument.height,
+            editorSession.snap.gridSpacing / Math.max(1, editorSession.snap.gridSubdivisions),
+            editorSession.snap.gridOriginX,
+            editorSession.snap.gridOriginY,
+            activeScale
+          )
+        : null
+    );
+  }, [activeScale, editorSession.snap, effectiveDocumentGuides, imageDocument]);
+  useEffect(() => {
+    if (!transformState) setTransformSnapMatches([]);
+  }, [transformState]);
   const updateTransformMatrix = transformSession.update;
   const updateTransformProjective = transformSession.updateProjective;
   commitTransformRef.current = transformSession.commit;
@@ -4153,7 +4257,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       fit: fitZoom,
       actualSize: actualZoom,
       setShowOriginal,
-      setShowDifference
+      setShowDifference,
+      snap: editorSession.snap,
+      setSnap: (action) => setEditorSession((current) => ({
+        ...current,
+        snap: typeof action === 'function' ? action(current.snap) : action
+      })),
+      clearGuides,
+      newGuide: editorDialogs.openNewGuide
     },
     workspace: {
       showDebugPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.debug),
@@ -4844,7 +4955,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             release: releaseService,
             dirtyDocuments: Boolean(workspaceDocuments?.some(({ dirty }) => dirty)),
             document: imageDocument,
-            onResizeImage: commitImageSize
+            onResizeImage: commitImageSize,
+            onCreateGuide: (guide) => {
+              const before = imageDocumentRef.current;
+              if (!before) return;
+              const after = addDocumentGuide(before, guide);
+              applyDocumentSnapshot(after);
+              pushDocumentHistory(before, after);
+            }
           }}
           toolOptions={toolOptionsMenu ? {
             x: toolOptionsMenu.x,
@@ -5036,7 +5154,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     onTransformChange: updateTransformMatrix,
                     onTransformProjectiveChange: updateTransformProjective,
                     onTransformDuplicateChange: transformSession.setDuplicate,
-                    onTransformPick: pickTransformAtPoint
+                    onTransformPick: pickTransformAtPoint,
+                    transformSnapTargets,
+                    transformSnapEnabled: editorSession.snap.enabled,
+                    onTransformSnapMatches: setTransformSnapMatches,
+                    documentGuides: effectiveDocumentGuides,
+                    rulersVisible: editorSession.snap.rulersVisible,
+                    guidesVisible: editorSession.snap.guidesVisible,
+                    guidesLocked: editorSession.snap.guidesLocked,
+                    onGuideDraft: setGuideDraft,
+                    onGuideCommit: commitDocumentGuides
                   }}
                   status={{
                     status: error ?? gradeStatus ?? fontDiagnosticStatus,

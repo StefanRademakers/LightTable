@@ -14,7 +14,7 @@ import {
 
 const document = createImageDocument('Selection', 100, 80, 'selection');
 
-const setup = () => {
+const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
   let activeDocument: ImageDocument | null = document;
   let selection: SelectionOperation[] = [];
   let pointerId: number | null = null;
@@ -42,7 +42,8 @@ const setup = () => {
       draftPublications += 1;
     },
     pushHistoryEntry: (entry) => history.push(entry),
-    setError: vi.fn()
+    setError: vi.fn(),
+    ...overrides
   };
   const controller = createSelectionSessionController(() => dependencies);
   return {
@@ -145,6 +146,38 @@ describe('selection session controller', () => {
     });
     expect(state.selection.at(-1)?.transform).toMatchObject({ tx: 7, ty: 4 });
     expect(state.history).toHaveLength(historyBefore + 1);
+  });
+
+  it('snaps a dragged selection from its retained bounds and supports temporary bypass', async () => {
+    const feedback = vi.fn();
+    const state = setup({
+      getSnapContext: () => ({
+        enabled: true,
+        zoom: 1,
+        targets: [{ axis: 'x', position: 40, source: 'guide', role: 'line' }]
+      }),
+      publishSnapFeedback: feedback
+    });
+    state.controller.begin(1, 'select-rectangle', { x: 10, y: 10 }, 'replace');
+    state.controller.move(1, { x: 30, y: 30 });
+    state.controller.finish(1);
+    await Promise.resolve();
+
+    state.controller.begin(2, 'select-rectangle', { x: 20, y: 20 }, 'replace');
+    state.controller.move(2, { x: 27, y: 20 });
+    expect(state.renderer.transformSelection).toHaveBeenLastCalledWith({
+      a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 0
+    });
+    expect(feedback).toHaveBeenLastCalledWith(expect.arrayContaining([
+      expect.objectContaining({ axis: 'x' })
+    ]), expect.objectContaining({ x: 20 }));
+    state.controller.cancel(2);
+
+    state.controller.begin(3, 'select-rectangle', { x: 20, y: 20 }, 'replace');
+    state.controller.move(3, { x: 27, y: 20 }, true);
+    expect(state.renderer.transformSelection).toHaveBeenLastCalledWith({
+      a: 1, b: 0, c: 0, d: 1, tx: 7, ty: 0
+    });
   });
 
   it('does not publish an async result after switching documents', async () => {

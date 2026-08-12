@@ -27,6 +27,14 @@ import {
 import {
   PolygonalSelectionGestureController
 } from '../../../editor/tools/selection/polygonalSelectionGestureController';
+import type { Rect } from '../../../editor/document/documentTypes';
+import { selectionOperationsBounds } from '../../../editor/tools/transform/selectionTransform';
+import {
+  solveSnap,
+  translateSnapRect,
+  type SnapFeature,
+  type SnapMatch
+} from '../snapping/snapEngine';
 
 export interface SelectionHistoryEntry {
   documentMutation: false;
@@ -51,6 +59,12 @@ export interface SelectionSessionDependencies {
   publishDraft(shape: SelectionShape | null): void;
   pushHistoryEntry(entry: SelectionHistoryEntry): void;
   setError(message: string | null): void;
+  getSnapContext?(movingBounds: Rect): {
+    targets: readonly SnapFeature[];
+    zoom: number;
+    enabled: boolean;
+  };
+  publishSnapFeedback?(matches: readonly SnapMatch[], bounds: Rect | null): void;
 }
 
 export interface SelectionSessionController {
@@ -67,8 +81,8 @@ export interface SelectionSessionController {
     smooth?: number,
     smoothingScale?: number
   ): boolean;
-  move(pointerId: number, point: SelectionPoint): boolean;
-  moveMany(pointerId: number, points: readonly SelectionPoint[]): boolean;
+  move(pointerId: number, point: SelectionPoint, snapBypass?: boolean): boolean;
+  moveMany(pointerId: number, points: readonly SelectionPoint[], snapBypass?: boolean): boolean;
   finish(pointerId: number): boolean;
   cancel(pointerId: number): boolean;
   polygonClick(
@@ -199,6 +213,7 @@ export const createSelectionSessionController = (
     renderer: SelectionRendererPort;
     before: SelectionOperation[];
     last: SelectionPoint;
+    sourceBounds: Rect;
     x: number;
     y: number;
   } | null = null;
@@ -337,15 +352,34 @@ export const createSelectionSessionController = (
     return true;
   };
 
-  const moveMany = (pointerId: number, points: readonly SelectionPoint[]): boolean => {
+  const moveMany = (
+    pointerId: number,
+    points: readonly SelectionPoint[],
+    snapBypass = false
+  ): boolean => {
     if (!points.length) return false;
     const point = points[points.length - 1];
     if (translation?.pointerId === pointerId) {
-      const dx = point.x - translation.last.x;
-      const dy = point.y - translation.last.y;
+      const rawX = translation.x + point.x - translation.last.x;
+      const rawY = translation.y + point.y - translation.last.y;
       translation.last = point;
-      translation.x += dx;
-      translation.y += dy;
+      const proposedBounds = translateSnapRect(translation.sourceBounds, rawX, rawY);
+      const snapContext = resolveDependencies().getSnapContext?.(proposedBounds);
+      const snap = snapContext
+        ? solveSnap({
+            movingBounds: proposedBounds,
+            targets: snapContext.targets,
+            zoom: snapContext.zoom,
+            enabled: snapContext.enabled,
+            bypass: snapBypass
+          })
+        : { offsetX: 0, offsetY: 0, matches: [] as readonly SnapMatch[] };
+      const nextX = rawX + snap.offsetX;
+      const nextY = rawY + snap.offsetY;
+      const dx = nextX - translation.x;
+      const dy = nextY - translation.y;
+      translation.x = nextX;
+      translation.y = nextY;
       if (dx || dy) void translation.renderer.transformSelection({
         a: 1, b: 0, c: 0, d: 1, tx: dx, ty: dy
       });
@@ -356,6 +390,10 @@ export const createSelectionSessionController = (
         translation.y
       );
       resolveDependencies().publishSelection([...translation.before, operation], pointerId);
+      resolveDependencies().publishSnapFeedback?.(
+        snap.matches,
+        translateSnapRect(translation.sourceBounds, translation.x, translation.y)
+      );
       return true;
     }
     const draft = gesture.moveMany(pointerId, points);
@@ -382,8 +420,12 @@ export const createSelectionSessionController = (
       if (!document || !renderer) return false;
       const before = cloneSelectionOperations(dependencies.getSelection());
       if (mode === 'replace' && before.length && selectionContainsPoint(before, point)) {
-        translation = { pointerId, document, renderer, before, last: point, x: 0, y: 0 };
+        const sourceBounds = selectionOperationsBounds(before, {
+          x: 0, y: 0, width: document.width, height: document.height
+        });
+        translation = { pointerId, document, renderer, before, last: point, sourceBounds, x: 0, y: 0 };
         dependencies.publishSelection(before, pointerId);
+        dependencies.publishSnapFeedback?.([], sourceBounds);
         return true;
       }
       const draft = gesture.begin(pointerId, tool, point, mode, {
@@ -395,7 +437,7 @@ export const createSelectionSessionController = (
       dependencies.publishSelection(dependencies.getSelection(), pointerId);
       return true;
     },
-    move: (pointerId, point) => moveMany(pointerId, [point]),
+    move: (pointerId, point, snapBypass) => moveMany(pointerId, [point], snapBypass),
     moveMany,
     finish: (pointerId) => {
       if (translation?.pointerId === pointerId) {
@@ -410,6 +452,7 @@ export const createSelectionSessionController = (
             )]
           : current.before;
         resolveDependencies().publishSelection(after, null);
+        resolveDependencies().publishSnapFeedback?.([], null);
         if (after !== current.before) pushHistory(current.document, current.before, after);
         return true;
       }
@@ -422,6 +465,7 @@ export const createSelectionSessionController = (
         translation = null;
         void current.renderer.replaceSelection(current.before);
         resolveDependencies().publishSelection(current.before, null);
+        resolveDependencies().publishSnapFeedback?.([], null);
         return true;
       }
       if (!gesture.cancel(pointerId)) return false;
@@ -548,6 +592,7 @@ export const createSelectionSessionController = (
       magicWandRequestId += 1;
       pendingMagicWandSnapshot = null;
       translation = null;
+      resolveDependencies().publishSnapFeedback?.([], null);
       gesture.reset();
       polygonGesture.reset();
       const dependencies = resolveDependencies();

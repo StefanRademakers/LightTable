@@ -14,6 +14,7 @@ import {
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import type { LightTableViewState } from '../../types';
 import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
+import type { SnapSettings } from '../../application/tools/snapping/snapSettings';
 
 export interface EditorMenuControllerOptions {
   readonly projection: EditorMenuProjectionInput;
@@ -79,6 +80,10 @@ export interface EditorMenuControllerOptions {
     actualSize?(): void;
     setShowOriginal: Dispatch<SetStateAction<boolean>>;
     setShowDifference: Dispatch<SetStateAction<boolean>>;
+    snap?: SnapSettings;
+    setSnap?: Dispatch<SetStateAction<SnapSettings>>;
+    newGuide?(): void;
+    clearGuides?(): void;
   };
   readonly workspace: {
     showDebugPanel(): void;
@@ -126,6 +131,7 @@ export const createEditorMenuController = ({
   const activeLayer = document
     ? findDocumentLayer(document, document.activeLayerId)
     : null;
+  const updateSnap: Dispatch<SetStateAction<SnapSettings>> = viewport.setSnap ?? (() => undefined);
 
   const optionsFor = (menuId: EditorMenuId) => createEditorMenuOptions(
     menuId,
@@ -221,6 +227,34 @@ export const createEditorMenuController = ({
         viewport.setShowOriginal(false);
         viewport.setShowDifference((current) => !current);
       },
+      snap: viewport.snap,
+      toggleSnap: () => updateSnap((current) => ({ ...current, enabled: !current.enabled })),
+      toggleSnapTarget: (target) => updateSnap((current) => ({
+        ...current,
+        enabled: true,
+        targets: { ...current.targets, [target]: !current.targets[target] }
+      })),
+      setAllSnapTargets: (enabled) => updateSnap((current) => ({
+        ...current,
+        enabled: enabled || current.enabled,
+        targets: {
+          guides: enabled,
+          grid: enabled && current.gridVisible,
+          layers: enabled,
+          documentBounds: enabled
+        }
+      })),
+      toggleSmartGuides: () => updateSnap((current) => ({ ...current, smartGuidesVisible: !current.smartGuidesVisible })),
+      toggleGuides: () => updateSnap((current) => ({ ...current, guidesVisible: !current.guidesVisible })),
+      toggleGrid: () => updateSnap((current) => ({
+        ...current,
+        gridVisible: !current.gridVisible,
+        targets: current.gridVisible ? { ...current.targets, grid: false } : current.targets
+      })),
+      toggleRulers: () => updateSnap((current) => ({ ...current, rulersVisible: !current.rulersVisible })),
+      newGuide: viewport.newGuide,
+      toggleGuideLock: () => updateSnap((current) => ({ ...current, guidesLocked: !current.guidesLocked })),
+      clearGuides: viewport.clearGuides,
       showDebugPanel: workspace.showDebugPanel,
       showGenAiPanel: workspace.showGenAiPanel,
       showAiHistoryPanel: workspace.showAiHistoryPanel,

@@ -120,6 +120,30 @@ const TRANSFORM_FRAME_THEME: VectorEditingOverlayTheme = {
   handleWidthPx: 1
 };
 
+const SMART_GUIDE_FRAME_THEME: VectorEditingOverlayTheme = {
+  pathColor: [1, 0.2, 0.72, 1],
+  handleColor: [1, 0.2, 0.72, 1],
+  pathWidthPx: 1,
+  handleWidthPx: 1,
+  curveSubdivisions: 1
+};
+
+const DOCUMENT_GUIDE_FRAME_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.18, 0.78, 1, 0.92],
+  handleColor: [0.18, 0.78, 1, 0.92],
+  pathWidthPx: 1,
+  handleWidthPx: 1,
+  curveSubdivisions: 1
+};
+
+const DOCUMENT_GRID_FRAME_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.58, 0.62, 0.67, 0.32],
+  handleColor: [0.58, 0.62, 0.67, 0.32],
+  pathWidthPx: 1,
+  handleWidthPx: 1,
+  curveSubdivisions: 1
+};
+
 export const SELECTION_OUTLINE_THEME: VectorEditingOverlayTheme = {
   pathColor: [0.96, 0.97, 1, 1],
   handleColor: [0.96, 0.97, 1, 1],
@@ -448,6 +472,23 @@ export class VectorEditingOverlayBackend {
     target: VectorEditingOverlayTarget
   ) {
     return this.encode(encoder, selectionFrameOverlay(frame), target, TRANSFORM_FRAME_THEME);
+  }
+
+  /** Encodes non-printing Smart Guides through the same retained GPU overlay path. */
+  encodeSmartGuideFrame(
+    encoder: GPUCommandEncoder,
+    frame: VectorSelectionFrame,
+    target: VectorEditingOverlayTarget
+  ) {
+    return this.encode(encoder, selectionFrameOverlay(frame), target, SMART_GUIDE_FRAME_THEME);
+  }
+
+  encodeDocumentGuideFrame(encoder: GPUCommandEncoder, frame: VectorSelectionFrame, target: VectorEditingOverlayTarget) {
+    return this.encode(encoder, selectionFrameOverlay(frame), target, DOCUMENT_GUIDE_FRAME_THEME);
+  }
+
+  encodeDocumentGridFrame(encoder: GPUCommandEncoder, frame: VectorSelectionFrame, target: VectorEditingOverlayTarget) {
+    return this.encode(encoder, selectionFrameOverlay(frame), target, DOCUMENT_GRID_FRAME_THEME);
   }
 
   /** Call directly after queue.submit for command buffers encoded by this backend. */

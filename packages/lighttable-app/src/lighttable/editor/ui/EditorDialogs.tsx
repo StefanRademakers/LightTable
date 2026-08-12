@@ -15,6 +15,7 @@ import type { LightTableReleaseService } from '../../../platform/LightTableHost'
 import { CommandHelpDialog } from './CommandHelpDialog';
 import { ImageSizeDialog } from './ImageSizeDialog';
 import { ThirdPartyLicensesDialog } from './ThirdPartyLicensesDialog';
+import { NewGuideDialog } from './NewGuideDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -57,6 +58,7 @@ export interface EditorDialogsProps {
   readonly document: ImageDocument | null;
   readonly imageSizeBusy?: boolean;
   readonly onResizeImage: (request: ImageSizeRequest) => void;
+  readonly onCreateGuide: (guide: Omit<import('../document/documentTypes').DocumentGuide, 'id'>) => void;
 }
 
 export const EditorDialogs = ({
@@ -82,9 +84,12 @@ export const EditorDialogs = ({
   dirtyDocuments,
   document,
   imageSizeBusy,
-  onResizeImage
+  onResizeImage,
+  onCreateGuide
 }: EditorDialogsProps) => (
   <>
+    <NewGuideDialog open={controller.newGuideOpen} onCancel={controller.closeNewGuide}
+      onCommit={(guide) => { controller.closeNewGuide(); onCreateGuide(guide); }} />
     <ImageSizeDialog
       open={controller.imageSizeOpen}
       document={document}

@@ -1067,7 +1067,8 @@ export const useViewportInteractionController = ({
           // PointerEvent coordinates live on the native event prototype and
           // disappear when the event is object-spread. Preserve the native
           // sample so drag interpolation receives its real coordinates.
-          project: (sample) => documentPointFromSample(sample, bounds), selection, warp, paint
+          project: (sample) => documentPointFromSample(sample, bounds), selection, warp, paint,
+          snapBypass: event.ctrlKey || event.metaKey
         })) event.preventDefault();
       }
     },

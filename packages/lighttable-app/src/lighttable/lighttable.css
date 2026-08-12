@@ -1289,6 +1289,114 @@
   height: 100%;
 }
 
+.lighttable-layout-guides {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.lighttable-ruler,
+.lighttable-ruler-corner {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: #aeb4bb;
+  background: #252a2f;
+  border-color: #41474e;
+  font: 9px/1 system-ui, sans-serif;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.lighttable-ruler--horizontal {
+  top: 0;
+  right: 0;
+  left: 18px;
+  height: 18px;
+  border-bottom: 1px solid #41474e;
+}
+
+.lighttable-ruler--vertical {
+  top: 18px;
+  bottom: 0;
+  left: 0;
+  width: 18px;
+  border-right: 1px solid #41474e;
+}
+
+.lighttable-ruler-corner {
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  border-right: 1px solid #41474e;
+  border-bottom: 1px solid #41474e;
+}
+
+.lighttable-ruler i {
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+  font-style: normal;
+  pointer-events: none;
+}
+
+.lighttable-ruler--horizontal i {
+  bottom: 0;
+  width: 1px;
+  height: 4px;
+  border-left: 1px solid #7e858d;
+}
+
+.lighttable-ruler--horizontal i.major { height: 8px; }
+.lighttable-ruler--horizontal i span { position: absolute; left: 2px; bottom: 8px; }
+
+.lighttable-ruler--vertical i {
+  right: 0;
+  width: 4px;
+  height: 1px;
+  border-top: 1px solid #7e858d;
+}
+
+.lighttable-ruler--vertical i.major { width: 8px; }
+.lighttable-ruler--vertical i span {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  writing-mode: vertical-rl;
+}
+
+.lighttable-guide-hit {
+  position: absolute;
+  z-index: 1;
+  box-sizing: content-box;
+  pointer-events: auto;
+  background: transparent;
+}
+
+.lighttable-guide-hit--vertical {
+  width: 9px;
+  margin-left: -4px;
+  cursor: ew-resize;
+}
+
+.lighttable-guide-hit--horizontal {
+  height: 9px;
+  margin-top: -4px;
+  cursor: ns-resize;
+}
+
+.lighttable-guide-dialog__row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+}
+
 .lighttable-selection {
   position: absolute;
   inset: 0;
