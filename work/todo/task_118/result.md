@@ -126,6 +126,10 @@
   remains unchanged before performing
   a separate accepted warm redetection. This guards the non-destructive
   redetect/cancel path rather than testing only first detection.
+- A pending review is bound to the exact document, layer, pixel revision and
+  affine transform that produced it. Switching document/layer or changing the
+  source invalidates the preview, so a stale mesh cannot later be accepted
+  onto different pixels. A focused identity contract covers each mismatch.
 - Visual inspection of the captured adverse preview confirms that MediaPipe
   can still place a technically valid but anatomically wrong near-frontal mesh
   over a profile face. Gate 6's former low-confidence claim was therefore

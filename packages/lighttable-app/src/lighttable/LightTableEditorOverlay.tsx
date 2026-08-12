@@ -215,6 +215,10 @@ import {
   type FaceWarpParameters
 } from './effects/faceWarp/faceWarpTypes';
 import type { FaceWarpSemanticTarget } from './application/tools/faceWarp/FaceWarpToolOptions';
+import {
+  faceWarpDetectionReviewMatches,
+  type FaceWarpDetectionReviewSource
+} from './application/tools/faceWarp/faceWarpDetectionReview';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
@@ -710,9 +714,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const faceWarpDetectionGenerationRef = useRef(0);
   const [faceWarpBusy, setFaceWarpBusy] = useState(false);
   const [pendingFaceWarpDetection, setPendingFaceWarpDetection] = useState<{
-    readonly documentId: string;
-    readonly layerId: LayerId;
-    readonly sourceTransform: string;
+    readonly source: FaceWarpDetectionReviewSource;
     readonly settings: FaceWarpNodeSettings;
   } | null>(null);
   const [faceWarpMeshVisible, setFaceWarpMeshVisible] = useState(false);
@@ -1211,9 +1213,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     ? readFaceWarpNodeSettings(activeFaceWarpInstance)
     : null;
   const activeFaceWarpFaces = activeFaceWarpSettings?.faces ?? [];
+  const currentFaceWarpReviewSource: FaceWarpDetectionReviewSource | null = imageDocument
+    && activeFaceWarpLayer
+    ? {
+      documentId: imageDocument.id,
+      layerId: activeFaceWarpLayer.id,
+      pixelRevision: activeFaceWarpLayer.pixelRevision,
+      transform: activeFaceWarpLayer.transform
+    }
+    : null;
   const pendingFaceWarpDetectionForActiveLayer = pendingFaceWarpDetection
-    && pendingFaceWarpDetection.documentId === imageDocument?.id
-    && pendingFaceWarpDetection.layerId === activeFaceWarpLayer?.id
+    && faceWarpDetectionReviewMatches(pendingFaceWarpDetection.source, currentFaceWarpReviewSource)
     ? pendingFaceWarpDetection
     : null;
   const visibleFaceWarpFaces = pendingFaceWarpDetectionForActiveLayer?.settings.faces
@@ -1342,9 +1352,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         faces
       };
       setPendingFaceWarpDetection({
-        documentId: sourceDocumentId,
-        layerId: layer.id,
-        sourceTransform,
+        source: {
+          documentId: sourceDocumentId,
+          layerId: layer.id,
+          pixelRevision: sourcePixelRevision,
+          transform: { ...layer.transform }
+        },
         settings
       });
       setFaceWarpSelectedFaceId(faces[0]!.id);
@@ -1361,18 +1374,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const pending = pendingFaceWarpDetection;
     if (!pending) return;
     const currentDocument = imageDocumentRef.current;
-    const currentLayer = currentDocument ? findRasterLayer(currentDocument, pending.layerId) : null;
-    if (currentDocument?.id !== pending.documentId
+    const currentLayer = currentDocument ? findRasterLayer(currentDocument, pending.source.layerId) : null;
+    const currentSource: FaceWarpDetectionReviewSource | null = currentDocument && currentLayer
+      ? {
+        documentId: currentDocument.id,
+        layerId: currentLayer.id,
+        pixelRevision: currentLayer.pixelRevision,
+        transform: currentLayer.transform
+      }
+      : null;
+    if (!faceWarpDetectionReviewMatches(pending.source, currentSource)
       || !currentLayer
-      || layerIsLocked(currentLayer)
-      || currentLayer.pixelRevision !== pending.settings.sourceRevision
-      || JSON.stringify(currentLayer.transform) !== pending.sourceTransform) {
+      || layerIsLocked(currentLayer)) {
       setPendingFaceWarpDetection(null);
       setError('The layer changed while the face mesh was being reviewed. Detect faces again.');
       return;
     }
     documentMutationController.change((document) => {
-      const layer = findRasterLayer(document, pending.layerId);
+      const layer = findRasterLayer(document, pending.source.layerId);
       if (!layer || layerIsLocked(layer)) return document;
       let stack = layer.adjustmentStack
         ? structuredClone(layer.adjustmentStack)
@@ -1389,6 +1408,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setPendingFaceWarpDetection(null);
     setGradeStatus(`${pending.settings.faces.length} face${pending.settings.faces.length === 1 ? '' : 's'} accepted.`);
   }, [documentMutationController, imageDocumentRef, pendingFaceWarpDetection]);
+
+  useEffect(() => {
+    if (pendingFaceWarpDetection
+      && !faceWarpDetectionReviewMatches(
+        pendingFaceWarpDetection.source,
+        currentFaceWarpReviewSource
+      )) {
+      setPendingFaceWarpDetection(null);
+    }
+  }, [currentFaceWarpReviewSource, pendingFaceWarpDetection]);
 
   const cancelPendingFaceWarpDetection = useCallback(() => {
     faceWarpDetectionGenerationRef.current += 1;

@@ -222,6 +222,7 @@ try {
     throw new Error('Face Warp detection wrote document history before mesh approval.');
   }
   await canvas.screenshot({ path: path.join(output, '00-pending-mesh.png') });
+  await page.screenshot({ path: path.join(output, '00-pending-tool-ui.png') });
   await page.getByRole('button', { name: 'Accept mesh' }).click();
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 60_000 });
