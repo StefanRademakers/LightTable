@@ -53,4 +53,17 @@ describe('canonical Face Warp operations', () => {
       kind: 'set-semantic', faceId: 'missing', target: 'both', change: { smile: 1 }
     })).toBe(before);
   });
+
+  it('persists feature protection and blocks matching semantic controls', () => {
+    const protectedSettings = applyFaceWarpOperation(settings(), {
+      kind: 'set-protection', faceId: 'left-person', feature: 'eyes', locked: true
+    });
+    const after = applyFaceWarpOperation(protectedSettings, {
+      kind: 'set-semantic', faceId: 'left-person', target: 'both',
+      change: { eyeSize: 1, smile: 0.6 }
+    });
+    expect(after.faces[0]!.protection?.eyes).toBe(true);
+    expect(after.faces[0]!.parameters.eyeSize).toBe(0);
+    expect(after.faces[0]!.parameters.smile).toBe(0.6);
+  });
 });

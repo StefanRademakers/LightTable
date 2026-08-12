@@ -227,6 +227,19 @@
   per-side overrides when relinking. Focused operation/deformer evidence is
   19/19 green and the app typecheck passes.
 
+## Persistent feature protection
+
+- Each persisted face can independently protect Eyes, Lips, Nose and Face
+  outline. A compact existing select plus checkbox exposes the state without
+  adding custom controls or solver parameters to the property bar.
+- Protection is enforced by canonical operations for semantic controls and by
+  the shared vertex set for sculpt preview, pointer-up refinement, Relax and
+  Restore. Locked vertices retain their exact authored displacement rather
+  than merely hiding UI changes.
+- Focused operation/deformation/settings tests are 23/23 green. The surrounding
+  tool-options suite and app typecheck also pass (434 assertions total in the
+  selected Vitest dependency run).
+
 - The interactive path remains a bounded two-step Laplacian preview. Pointer-up
   now runs a converged feature-aware refinement over only the connected brush
   footprint; the pointer core and all vertices outside the footprint remain

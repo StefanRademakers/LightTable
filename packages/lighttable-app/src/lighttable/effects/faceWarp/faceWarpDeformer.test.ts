@@ -265,6 +265,36 @@ describe('face warp target lattice', () => {
     )).toBe(0));
   });
 
+  it('keeps protected eye vertices exact through sculpt, refine, relax and restore', () => {
+    const mesh = Array.from({ length: MEDIAPIPE_FACE_VERTEX_COUNT }, (_, index) => ({
+      x: 300 + MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3]! * 24,
+      y: 320 - MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 1]! * 24,
+      z: MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 2]! * 24
+    }));
+    const protectedFace: FaceWarpFace = {
+      id: 'protected-eyes', confidence: 1,
+      parameters: createDefaultFaceWarpParameters(), protection: { eyes: true },
+      landmarks: semanticLandmarksFromMesh(mesh),
+      displacements: mesh.map((_, index) => index === 159 ? { x: 4, y: 3 } : { x: 0, y: 0 })
+    };
+    const sculpt = applyFaceWarpBrush(
+      protectedFace, MEDIAPIPE_FACE_TRIANGLE_INDICES, mesh[159]!, { x: 20, y: 12 }, 60, 1
+    );
+    const refined = refineFaceWarpBrush(
+      { ...protectedFace, displacements: sculpt }, MEDIAPIPE_FACE_TRIANGLE_INDICES, mesh[159]!, 60
+    );
+    const relaxed = relaxFaceWarpBrush(
+      protectedFace, MEDIAPIPE_FACE_TRIANGLE_INDICES, mesh[159]!, 60, 1
+    );
+    const restored = restoreFaceWarpBrush(
+      protectedFace, MEDIAPIPE_FACE_TRIANGLE_INDICES, mesh[159]!, 60, 1
+    );
+    [sculpt, refined, relaxed, restored].forEach((result) => {
+      expect(result[159]).toEqual({ x: 4, y: 3 });
+      expect(result[33]).toEqual({ x: 0, y: 0 });
+    });
+  });
+
   it('keeps semantic controls and direct sculpt constraints interoperable', () => {
     const source = face();
     const sculpted = {

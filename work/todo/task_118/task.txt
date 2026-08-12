@@ -235,7 +235,7 @@ HQ acceptance gate:
 
 - [x] Persistent non-modal Face Warp effect editable after reopen.
 - [x] Semantic sliders and direct mesh sculpting remain interoperable.
-- [ ] Feature locks/protection for eyes, lips, nose and outer face.
+- [x] Feature locks/protection for eyes, lips, nose and outer face.
 - [ ] Local Relax and Restore with clear on-canvas feedback.
 - [x] Independent multi-face and asymmetric left/right editing.
 - [ ] Expose canonical commands for future MCP use, for example semantic face,

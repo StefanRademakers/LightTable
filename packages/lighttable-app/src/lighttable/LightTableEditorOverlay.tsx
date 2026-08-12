@@ -209,6 +209,7 @@ import {
   readFaceWarpNodeSettings,
   setFaceWarpNodeSettings,
   type FaceWarpFace,
+  type FaceWarpProtectedFeature,
   type FaceWarpParameters
 } from './effects/faceWarp/faceWarpTypes';
 import type { FaceWarpSemanticTarget } from './application/tools/faceWarp/FaceWarpToolOptions';
@@ -711,6 +712,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [faceWarpSelectedFaceId, setFaceWarpSelectedFaceId] = useState<string | null>(null);
   const [faceWarpSemanticTarget, setFaceWarpSemanticTarget] =
     useState<FaceWarpSemanticTarget>('both');
+  const [faceWarpProtectedFeature, setFaceWarpProtectedFeature] =
+    useState<FaceWarpProtectedFeature>('eyes');
   const faceWarpGestureRef = useRef<{
     pointerId: number;
     faceId: string;
@@ -1229,6 +1232,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     });
   }, [documentMutationController, faceWarpSelectedFaceId, faceWarpSemanticTarget, imageDocumentRef]);
+
+  const updateFaceWarpProtection = useCallback((
+    feature: FaceWarpProtectedFeature,
+    locked: boolean
+  ) => {
+    const faceId = faceWarpSelectedFaceId ?? effectiveFaceWarpFaceId;
+    if (!faceId) return;
+    documentMutationController.change((document) => {
+      const layer = findRasterLayer(document, document.activeLayerId);
+      const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
+      if (!layer?.adjustmentStack || !instance) return document;
+      const current = readFaceWarpNodeSettings(instance);
+      const nextSettings = applyFaceWarpOperation(current, {
+        kind: 'set-protection', faceId, feature, locked
+      });
+      if (nextSettings === current) return document;
+      return setRasterLayerAdjustmentStack(document, layer.id,
+        setFaceWarpNodeSettings(layer.adjustmentStack, nextSettings));
+    });
+  }, [documentMutationController, effectiveFaceWarpFaceId, faceWarpSelectedFaceId]);
 
   const detectFacesForActiveLayer = useCallback(async () => {
     const document = imageDocumentRef.current;
@@ -4846,6 +4869,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     brushSize: editorSession.brush.size,
     brushStrength: editorSession.brush.opacity,
     semanticTarget: faceWarpSemanticTarget,
+    protectedFeature: faceWarpProtectedFeature,
     onDetect: () => { void detectFacesForActiveLayer(); },
     onSelectFace: setFaceWarpSelectedFaceId,
     onMeshVisibleChange: changeFaceWarpMeshVisible,
@@ -4860,6 +4884,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }));
     },
     onSemanticTargetChange: setFaceWarpSemanticTarget,
+    onProtectedFeatureChange: setFaceWarpProtectedFeature,
+    onProtectionChange: updateFaceWarpProtection,
     onParametersChange: updateFaceWarpParameters,
     onInteractionStart: beginDocumentTransaction,
     onInteractionEnd: endDocumentTransaction,

@@ -4,7 +4,8 @@ import { AdjustmentSlider } from '../../../AdjustmentSlider';
 import type {
   FaceWarpFace,
   FaceWarpFeatureSide,
-  FaceWarpParameters
+  FaceWarpParameters,
+  FaceWarpProtectedFeature
 } from '../../../effects/faceWarp/faceWarpTypes';
 
 export type FaceWarpSemanticTarget = 'both' | FaceWarpFeatureSide;
@@ -17,11 +18,14 @@ export interface FaceWarpToolOptionsProps {
   readonly brushSize: number;
   readonly brushStrength: number;
   readonly semanticTarget: FaceWarpSemanticTarget;
+  readonly protectedFeature: FaceWarpProtectedFeature;
   readonly onDetect: () => void;
   readonly onSelectFace: (faceId: string) => void;
   readonly onMeshVisibleChange: (visible: boolean) => void;
   readonly onBrushChange: (change: { size?: number; strength?: number }) => void;
   readonly onSemanticTargetChange: (target: FaceWarpSemanticTarget) => void;
+  readonly onProtectedFeatureChange: (feature: FaceWarpProtectedFeature) => void;
+  readonly onProtectionChange: (feature: FaceWarpProtectedFeature, locked: boolean) => void;
   readonly onParametersChange: (change: Partial<FaceWarpParameters>) => void;
   readonly onInteractionStart: () => void;
   readonly onInteractionEnd: () => void;
@@ -55,11 +59,14 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   brushSize,
   brushStrength,
   semanticTarget,
+  protectedFeature,
   onDetect,
   onSelectFace,
   onMeshVisibleChange,
   onBrushChange,
   onSemanticTargetChange,
+  onProtectedFeatureChange,
+  onProtectionChange,
   onParametersChange,
   onInteractionStart,
   onInteractionEnd,
@@ -105,6 +112,23 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
           <option value="left">Left side</option>
           <option value="right">Right side</option>
         </select>
+      </label>
+      <label className="lighttable-tool-options__field">
+        <span>Protect</span>
+        <select value={protectedFeature}
+          onChange={(event) => onProtectedFeatureChange(
+            event.currentTarget.value as FaceWarpProtectedFeature
+          )}>
+          <option value="eyes">Eyes</option>
+          <option value="lips">Lips</option>
+          <option value="nose">Nose</option>
+          <option value="face-outline">Face outline</option>
+        </select>
+      </label>
+      <label className="lighttable-tool-options__toggle">
+        <input type="checkbox" checked={selected.protection?.[protectedFeature] === true}
+          onChange={(event) => onProtectionChange(protectedFeature, event.currentTarget.checked)} />
+        Locked
       </label>
       <SemanticSlider label="Face" value={selected.parameters.faceWidth}
         onChange={(faceWidth) => onParametersChange({ faceWidth })}

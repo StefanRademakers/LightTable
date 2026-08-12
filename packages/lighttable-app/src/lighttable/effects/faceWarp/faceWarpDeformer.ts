@@ -346,6 +346,7 @@ export const applyFaceWarpBrush = (
   solverIterations = 2
 ): readonly FaceWarpPoint[] => {
   const source = face.landmarks.mesh;
+  const locked = protectedFaceWarpVertices(face, triangleIndices);
   const current = source.map((_, index) => face.displacements?.[index] ?? { x: 0, y: 0 });
   if (Math.hypot(delta.x, delta.y) <= 1e-4) return current;
   const distances = triangleIndices.length > 0
@@ -353,6 +354,7 @@ export const applyFaceWarpBrush = (
     : source.map((point) => Math.hypot(point.x - center.x, point.y - center.y));
   const influence = current.map((_, index) => smoothWeight(distances[index]!, radius));
   const direct = current.map((value, index) => {
+    if (locked.has(index)) return value;
     const weight = influence[index]! * strength;
     return { x: value.x + delta.x * weight, y: value.y + delta.y * weight };
   });
@@ -366,6 +368,7 @@ export const applyFaceWarpBrush = (
   for (let iteration = 0; iteration < solverIterations && laplacianWeights.length > 0; iteration += 1) {
     const previous = desiredDisplacements;
     desiredDisplacements = previous.map((value, index) => {
+      if (locked.has(index)) return current[index]!;
       const weight = influence[index]!;
       if (weight <= 0 || weight >= 0.92) return value;
       const neighbors = laplacianWeights[index]!;
@@ -418,6 +421,7 @@ export const refineFaceWarpBrush = (
   const authored = source.map((_, index) => face.displacements?.[index] ?? { x: 0, y: 0 });
   if (triangleIndices.length === 0 || maxIterations <= 0) return authored;
   const topology = faceWarpTopology(source, triangleIndices);
+  const locked = protectedFaceWarpVertices(face, triangleIndices);
   const distances = geodesicDistances(source, topology.adjacency, center, radius);
   const influence = authored.map((_, index) => smoothWeight(distances[index]!, radius));
   const featureMembership = new Int16Array(source.length);
@@ -437,6 +441,7 @@ export const refineFaceWarpBrush = (
     const previous = refined;
     let maximumChange = 0;
     refined = previous.map((value, index) => {
+      if (locked.has(index)) return authored[index]!;
       const localInfluence = influence[index]!;
       // Outside is immutable; the central pointer constraint is exact.
       if (localInfluence <= 0 || localInfluence >= 0.9) return authored[index]!;
@@ -701,6 +706,7 @@ export const relaxFaceWarpBrush = (
 ): readonly FaceWarpPoint[] => {
   const source = face.landmarks.mesh;
   const topology = faceWarpTopology(source, triangleIndices);
+  const locked = protectedFaceWarpVertices(face, triangleIndices);
   const adjacency = topology.adjacency;
   const distances = triangleIndices.length > 0
     ? geodesicDistances(source, adjacency, center, radius)
@@ -708,6 +714,7 @@ export const relaxFaceWarpBrush = (
   const current = source.map((_, index) => face.displacements?.[index] ?? { x: 0, y: 0 });
   const strength = Math.max(0, Math.min(1, amount));
   return current.map((value, index) => {
+    if (locked.has(index)) return value;
     const influence = smoothWeight(distances[index]!, radius) * strength;
     if (influence <= 0) return value;
     const neighbors = topology.laplacianWeights[index]!;
@@ -731,6 +738,7 @@ export const restoreFaceWarpBrush = (
   amount: number
 ): readonly FaceWarpPoint[] => {
   const source = face.landmarks.mesh;
+  const locked = protectedFaceWarpVertices(face, triangleIndices);
   const distances = triangleIndices.length > 0
     ? geodesicDistances(
         source, faceWarpTopology(source, triangleIndices).adjacency, center, radius
@@ -739,10 +747,31 @@ export const restoreFaceWarpBrush = (
   const strength = Math.max(0, Math.min(1, amount));
   return source.map((_, index) => {
     const current = face.displacements?.[index] ?? { x: 0, y: 0 };
+    if (locked.has(index)) return current;
     const influence = smoothWeight(distances[index]!, radius) * strength;
     return {
       x: current.x * (1 - influence),
       y: current.y * (1 - influence)
     };
   });
+};
+
+const NOSE_VERTICES = [1, 2, 4, 5, 6, 19, 45, 48, 64, 94, 97, 98, 168, 195,
+  197, 220, 275, 278, 294, 326, 327, 440] as const;
+
+export const protectedFaceWarpVertices = (
+  face: FaceWarpFace,
+  triangleIndices: readonly number[]
+): ReadonlySet<number> => {
+  const locked = new Set<number>();
+  const loops = faceWarpTopology(face.landmarks.mesh, triangleIndices).featureLoops;
+  if (face.protection?.eyes) [...loops.leftEye, ...loops.rightEye]
+    .forEach((vertex) => locked.add(vertex));
+  if (face.protection?.lips) [...loops.outerLips, ...loops.innerLips]
+    .forEach((vertex) => locked.add(vertex));
+  if (face.protection?.nose) NOSE_VERTICES
+    .filter((vertex) => vertex < face.landmarks.mesh.length)
+    .forEach((vertex) => locked.add(vertex));
+  if (face.protection?.['face-outline']) loops.faceOval.forEach((vertex) => locked.add(vertex));
+  return locked;
 };

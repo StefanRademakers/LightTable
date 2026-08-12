@@ -56,6 +56,9 @@ export interface FaceWarpFeatureOverrides {
   readonly right?: Partial<FaceWarpFeatureParameters>;
 }
 
+export type FaceWarpProtectedFeature = 'eyes' | 'lips' | 'nose' | 'face-outline';
+export type FaceWarpFeatureProtection = Partial<Record<FaceWarpProtectedFeature, boolean>>;
+
 export interface FaceWarpFace {
   readonly id: string;
   readonly confidence: number;
@@ -64,6 +67,8 @@ export interface FaceWarpFace {
   readonly parameters: FaceWarpParameters;
   /** Per-side departures from the linked semantic parameters. Missing values remain linked. */
   readonly featureOverrides?: FaceWarpFeatureOverrides;
+  /** Persistent direct-edit locks; semantic operations obey the same protection. */
+  readonly protection?: FaceWarpFeatureProtection;
   /** One canonical source-local displacement per surface vertex. */
   readonly displacements?: readonly FaceWarpPoint[];
   /** Detector face-local pose, row-major 4 x 4 when available. */
@@ -181,6 +186,8 @@ export const readFaceWarpNodeSettings = (
         && Object.values(face.featureOverrides).some((side) => side !== undefined
           && (Object.values(side) as number[]).some((value) => !Number.isFinite(value)
             || value < -1 || value > 1)))
+      || (face.protection !== undefined
+        && Object.values(face.protection).some((value) => typeof value !== 'boolean'))
       || face.landmarks.mesh.some((point: FaceWarpPoint) => !Number.isFinite(point.x)
         || !Number.isFinite(point.y)
         || (point.z !== undefined && !Number.isFinite(point.z)))
