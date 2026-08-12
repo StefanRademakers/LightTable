@@ -495,6 +495,26 @@
   non-modal workflow advantage, independent of whether the final deformation
   pixels have reached Photoshop parity.
 
+### Photoshop-reference audit (2026-08-12)
+
+- A first visible-UI automation attempt produced eight differently encoded PNG
+  files, but a Photoshop identity baseline proved seven cases were
+  pixel-identical no-ops. File hashes alone were therefore invalid evidence.
+- `scripts/compare-face-warp-parity.mjs` now compares deformation deltas after
+  subtracting each application's own identity export and records raw RMSE,
+  delta RMSE, maximum delta and per-application effect energy. A Photoshop
+  reference with zero pixel effect is rejected as
+  `invalid-photoshop-reference` instead of silently counting as parity.
+- Some Photoshop captures changed pixels, but visual inspection exposed a red
+  painted/frozen-mask region rather than a Face Width-only morph. They are not
+  valid references either. No Photoshop case from this attempted automation is
+  accepted as parity evidence.
+- Screen-coordinate automation was removed after proving that Windows focus
+  could redirect its input to another application. The protocol now requires
+  visible, inspectable manual Photoshop entry until a stable semantic Adobe
+  descriptor exists. The Photoshop comparison and visual-quality gates remain
+  open deliberately.
+
 ## Focused tool UX and detector-memory truthfulness
 
 - The previously overlong one-row toolbar is split with the existing canonical

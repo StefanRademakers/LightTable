@@ -33,16 +33,25 @@ save/reopen identity) with:
 npm run test:face-warp:parity:capture -- <portrait> <output-directory>
 ```
 
-Place the corresponding lossless Photoshop exports in that output directory
-using the `photoshopFilesExpected` names from `manifest.json`, then run:
+Capture a Photoshop no-op export as `photoshop-identity.png`, then place the
+corresponding lossless Photoshop Face-Aware Liquify exports in that output
+directory using the `photoshopFilesExpected` names from `manifest.json`.
+Screen-coordinate automation is not a valid oracle: window focus, UI scaling
+or an Adobe update can silently operate a different control. Enter and inspect
+each isolated value in the visible Liquify UI, then run:
 
 ```powershell
 npm run test:face-warp:parity:compare -- <output-directory>
 ```
 
-The comparator writes per-case absolute-difference PNGs, RMSE/maximum channel
-difference values and a three-column comparison sheet. Missing Photoshop files
-remain explicitly `awaiting-photoshop`; they never count as a comparison.
+The comparator writes raw absolute differences and, when both identity exports
+exist, deformation-delta differences. Delta comparison subtracts each
+application's own identity from its edited render first, so a static PNG colour
+management difference cannot be mistaken for different face geometry. The
+report includes raw and delta RMSE/maximum values plus per-application effect
+energy. Missing Photoshop files remain explicitly `awaiting-photoshop`; they
+never count as a comparison. A case pixel-identical to Photoshop's identity is
+`invalid-photoshop-reference` and also cannot count as evidence.
 
 ## Isolated edits
 
