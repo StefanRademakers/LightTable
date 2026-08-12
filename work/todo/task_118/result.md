@@ -352,3 +352,39 @@
   anatomically over-wide face fit on that image. It is not counted as HQ
   evidence. A broader front/three-quarter/profile corpus and confidence
   calibration remain open before Gate 6 and the task can complete.
+
+## Pose/resolution matrix and high-zoom evidence
+
+- The desktop smoke now captures the complete tool surface, switches through
+  the typed `view.setZoom` command to 300%, validates that a cyan mesh remains
+  present, captures it, and returns to Fit before the texture oracle runs.
+  Visual inspection of the 300% capture shows the GPU overlay vertices and
+  rendered face remain aligned; there is no CSS/SVG duplicate overlay.
+- A genuine 200 px three-quarter portrait passes identity, local sculpt,
+  repeated edit, one-undo-per-gesture, zero-hole and settle checks. Its preview
+  measured 14.3 ms p50 / 15.8 ms p95; pointer-up refinement measured 24.8 ms.
+  This case changed 1,115 local pixels and introduced zero black pixels.
+- `scripts/create-face-warp-resolution-fixtures.mjs` reproducibly derives 256,
+  512, 1024 and 2048 px local fixtures from caller-supplied portraits. Source
+  portraits remain outside Git, avoiding a hidden redistribution obligation.
+- A 2048 px frontal fixture also passes the full desktop smoke: identity changed
+  zero pixels, sculpt changed 1,449 local pixels, introduced zero black pixels,
+  measured 13.5 ms p50 / 14.1 ms p95 and refined in 30.4 ms. Together with the
+  prior 546 px frontal and strong-yaw/profile runs, this covers front,
+  three-quarter, strong yaw and near-profile behaviour across resolutions.
+- Detection-quality diagnostics now report pose yaw, visible-point ratio and
+  nose/eye observation asymmetry. They are evidence, not a fabricated model
+  confidence and not an arbitrary rejection heuristic. The known adverse
+  `D:\face.jpg` fit remains documented rather than being hidden by a threshold
+  that would also reject valid three-quarter faces.
+
+## Geometry limit and optional synthesis decision
+
+- Full eye closure, newly exposed mouth interiors and other missing texture
+  cannot be solved truthfully by moving the detected mesh. If this is added,
+  it must be a separate opt-in generated patch stage after Face Warp, with an
+  explicit feature mask, cached output and provenance. It may not mutate the
+  canonical source/target mesh or masquerade as local/offline geometry.
+- The current task therefore keeps the deterministic mesh path complete and
+  does not add an implicit inpainting dependency, network call or hidden model
+  cost to ordinary Face Warp edits.

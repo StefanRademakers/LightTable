@@ -20,6 +20,11 @@ describe('Face Warp detection quality', () => {
     const result = assessFaceWarpDetection(mesh(), pose, 100, 100);
     expect(result.accepted).toBe(true);
     expect(result.confidence).toBeGreaterThan(0.8);
+    expect(result.diagnostics).toEqual(expect.objectContaining({
+      yaw: 0,
+      insideRatio: 1
+    }));
+    expect(result.diagnostics?.noseEyeAsymmetry).toBeGreaterThanOrEqual(0);
   });
 
   it('rejects incomplete, corrupt and degenerate detector output', () => {

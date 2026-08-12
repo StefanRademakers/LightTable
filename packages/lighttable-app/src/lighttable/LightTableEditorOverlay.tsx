@@ -1287,6 +1287,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         const quality = assessFaceWarpDetection(
           mesh, detection.poseMatrices[index], preview.width, preview.height
         );
+        console.info('[Face Warp] Detection quality', JSON.stringify({
+          face: index + 1,
+          accepted: quality.accepted,
+          confidence: quality.confidence,
+          ...quality.diagnostics
+        }));
         if (!quality.accepted) {
           rejectedReasons.push(quality.reason ?? 'A detected face could not be edited safely.');
           return [];

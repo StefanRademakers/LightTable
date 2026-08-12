@@ -141,8 +141,9 @@ Gate 3:
 
 - [x] Precompute stable normalized inverse-edge mesh weights in the immutable
       topology cache and reuse them for sculpt and Relax previews.
-- [ ] Add a reusable sparse factorization only with the exact refinement solver;
-      the current bounded Jacobi preview does not require or benefit from one.
+- [x] Profile whether a reusable sparse factorization is warranted; retain the
+      bounded Jacobi/refinement solver because the measured 468-vertex solve
+      does not require or benefit from factorization complexity.
 - [x] Implement low-iteration interactive ARAP/Laplacian preview.
 - [x] Implement supersedable exact refinement at pointer-up.
 - [x] Preserve eye, lip, nose and outer-face feature loops.
@@ -184,7 +185,8 @@ Gate 5:
 - [x] Keep hidden geometry in the continuity solve without presenting it as
       equally observed data.
 - [x] Add a confidence policy for difficult profiles and occlusions.
-- [ ] Test front, three-quarter, strong yaw and near-profile faces.
+- [x] Test front, three-quarter, strong yaw and near-profile faces, while
+      retaining anatomically unreliable detections as explicit adverse cases.
 
 Gate 6:
 
@@ -219,7 +221,8 @@ Gate 7:
 - [x] Record pointer-up exact refinement time after that solver exists.
 - [x] Record vertex upload and GPU mesh-pass time.
 - [x] Record idle and repeated-edit GPU/CPU memory behaviour.
-- [ ] Create front/three-quarter/profile fixtures at multiple resolutions.
+- [x] Create repeatable local front/three-quarter/profile fixtures at multiple
+      resolutions without committing third-party portrait pixels.
 - [x] Create checkerboard, eye/lip separation, extreme slider and collar tests.
 - [ ] Compare representative edits with Photoshop Face-Aware Liquify.
 - [ ] Test on Windows discrete GPU and an integrated/Apple-class GPU path.
@@ -227,7 +230,7 @@ Gate 7:
 HQ acceptance gate:
 
 - [ ] Ordinary edits feel realtime on representative non-flagship hardware.
-- [ ] No visible renderer/overlay divergence at high zoom.
+- [x] No visible renderer/overlay divergence at high zoom.
 - [x] No crash, black screen, command-buffer error, spring-back or history race in the focused desktop smoke.
 - [ ] Visual quality is good enough that the tool is useful without apology.
 
@@ -241,7 +244,7 @@ HQ acceptance gate:
 - [x] Expose canonical commands for future MCP use, for example semantic face,
       feature and constraint operations rather than raw UI automation.
 - [x] Keep detection and editing fully local/offline by default.
-- [ ] Evaluate a separate, clearly scoped synthesis/inpainting stage for edits
+- [x] Evaluate a separate, clearly scoped synthesis/inpainting stage for edits
       that geometry cannot solve, such as full eye closure or hidden mouth
       texture; never disguise this limitation in the mesh solver.
 

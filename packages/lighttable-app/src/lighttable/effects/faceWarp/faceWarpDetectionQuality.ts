@@ -6,6 +6,7 @@ export interface FaceWarpDetectionQuality {
   readonly accepted: boolean;
   readonly confidence: number;
   readonly reason?: string;
+  readonly diagnostics?: Readonly<Record<string, number>>;
 }
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
@@ -71,5 +72,11 @@ export const assessFaceWarpDetection = (
   const confidence = Math.round(
     (0.3 + coverageScore * 0.25 + observationScore * 0.3 + poseScore * 0.15) * 1000
   ) / 1000;
-  return { accepted: true, confidence };
+  const point = (index: number) => surface[index]!;
+  const leftEyeX = (point(33).x + point(133).x) * 0.5;
+  const rightEyeX = (point(263).x + point(362).x) * 0.5;
+  const noseX = point(1).x;
+  const eyeSpan = Math.max(1e-6, Math.abs(rightEyeX - leftEyeX));
+  const noseEyeAsymmetry = Math.abs((noseX - leftEyeX) - (rightEyeX - noseX)) / eyeSpan;
+  return { accepted: true, confidence, diagnostics: { yaw, insideRatio, noseEyeAsymmetry } };
 };

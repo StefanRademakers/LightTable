@@ -135,11 +135,15 @@ const measurePageMemory = (page) => page.evaluate(async () => {
 let page;
 const pageErrors = [];
 const consoleErrors = [];
+const faceWarpDiagnostics = [];
 try {
   page = await app.firstWindow({ timeout: 30_000 });
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.text().includes('[Face Warp] Detection quality')) {
+      faceWarpDiagnostics.push(message.text());
+    }
   });
   const open = await waitForDesktopLauncher({
     app, page, outputDirectory: output, sourceFile, pageErrors, label: 'face-warp'
@@ -213,6 +217,13 @@ try {
   await page.mouse.move(10, 10);
   const detectedMeshBytes = await canvas.screenshot({ path: path.join(output, '00-detected-mesh.png') });
   const meshBounds = await cyanMeshBounds(detectedMeshBytes);
+  await page.screenshot({ path: path.join(output, '00-tool-ui.png') });
+  await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 300 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const highZoomMeshBytes = await canvas.screenshot({ path: path.join(output, '00-high-zoom-mesh.png') });
+  await cyanMeshBounds(highZoomMeshBytes);
+  await driver.execute(documentId, 'view.setZoom', { mode: 'fit' });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   // Texture assertions must not accidentally pass because only the debug mesh
   // or brush cursor changed. Hide presentation-only overlays for the oracle.
   await page.getByLabel('Show mesh').uncheck();
@@ -389,7 +400,8 @@ try {
       afterIdle: telemetryAfterIdle
     },
     pageErrors,
-    consoleErrors
+    consoleErrors,
+    faceWarpDiagnostics
   };
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
   process.stdout.write(`Face Warp desktop smoke passed: ${path.join(output, 'report.json')}\n`);
@@ -398,7 +410,8 @@ try {
     error: error instanceof Error ? (error.stack ?? error.message) : String(error),
     body: page ? await page.locator('body').innerText().catch(() => '') : '',
     pageErrors,
-    consoleErrors
+    consoleErrors,
+    faceWarpDiagnostics
   };
   await writeFile(path.join(output, 'failure.json'), `${JSON.stringify(diagnostics, null, 2)}\n`);
   throw error;
