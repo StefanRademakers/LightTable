@@ -400,6 +400,12 @@
   threshold would also reject legitimate faces, so no such heuristic was
   added. The tool remains experimental until a stronger detector/confidence
   oracle or a user-assisted alignment flow addresses this class safely.
+- An independent local image-gradient fit diagnostic was prototyped against
+  the face oval, eyes and lips on the frontal, three-quarter, adverse profile
+  and low-contrast expressive fixtures. It separated the first three but also
+  rated a valid low-contrast face poorly. The prototype and its detection-time
+  pixel readback were removed rather than shipping an unproven reject rule or
+  permanent runtime cost.
 
 ## Photoshop parity oracle
 
