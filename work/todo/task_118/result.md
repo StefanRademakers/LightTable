@@ -389,18 +389,33 @@
   does not add an implicit inpainting dependency, network call or hidden model
   cost to ordinary Face Warp edits.
 
+## Remaining detector boundary
+
+- A repeat run on `D:\face.jpg` confirms the outstanding failure is upstream
+  observation quality, not mesh/render drift: MediaPipe reports only 18.7Â° yaw
+  and returns an internally coherent near-frontal mesh over a profile image.
+  The overlay therefore exposes the detector's wrong geometry faithfully.
+- Valid three-quarter and strong-yaw inputs overlap the simple coverage and
+  asymmetry signals of that adverse input. Rejecting it with an image-specific
+  threshold would also reject legitimate faces, so no such heuristic was
+  added. The tool remains experimental until a stronger detector/confidence
+  oracle or a user-assisted alignment flow addresses this class safely.
+
 ## Focused tool UX and detector-memory truthfulness
 
 - The previously overlong one-row toolbar is split with the existing canonical
   `SegmentedControl` into `Sculpt` and `Adjust`. Face selection, mesh visibility
   and Reset remain stable; Sculpt contains only Brush, Strength and the gesture
-  hint, while Adjust contains side targeting, protection and semantic sliders.
+  hint. Adjust contains side targeting and protection plus a compact Feature
+  selector driving one Amount slider, so all semantic controls fit without
+  hiding the final controls behind horizontal overflow.
   Both modes still write the same canonical Face Warp state and reuse existing
   buttons, selects, checkbox and `AdjustmentSlider` components.
 - A real 1600 px desktop capture confirms the complete Sculpt surface fits
   without hiding its primary controls behind horizontal overflow. The same
-  fixture still passes identity, edit, history and settle assertions after the
-  UI change. The focused ToolOptions dependency run is 415/415 green.
+  fixture captures and asserts both Sculpt and Adjust, then still passes
+  identity, edit, history and settle assertions after returning to Sculpt. The
+  focused ToolOptions dependency run is 415/415 green.
 - Worker-local heap sampling is now emitted independently from renderer heap
   telemetry. Current Electron/Chromium workers return `null` for this optional
   API, so the report records `{beforeBytes:null, afterBytes:null,

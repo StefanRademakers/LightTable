@@ -74,6 +74,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   onReset
 }) => {
   const [mode, setMode] = useState<'sculpt' | 'adjust'>('sculpt');
+  const [semanticFeature, setSemanticFeature] = useState<'face' | 'eyes' | 'nose' | 'smile'>('face');
   const selected = faces.find((face) => face.id === selectedFaceId) ?? faces[0] ?? null;
   const featureValue = (key: 'eyeSize' | 'smile') => selected
     ? semanticTarget === 'both'
@@ -139,18 +140,32 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
           onChange={(event) => onProtectionChange(protectedFeature, event.currentTarget.checked)} />
         Locked
       </label>
-      <SemanticSlider label="Face" value={selected.parameters.faceWidth}
+      <label className="lighttable-tool-options__field">
+        <span>Feature</span>
+        <select value={semanticFeature}
+          onChange={(event) => setSemanticFeature(
+            event.currentTarget.value as typeof semanticFeature
+          )}>
+          <option value="face">Face width</option>
+          <option value="eyes">Eye size</option>
+          <option value="nose">Nose width</option>
+          <option value="smile">Smile</option>
+        </select>
+      </label>
+      {semanticFeature === 'face' ? <SemanticSlider label="Amount"
+        value={selected.parameters.faceWidth}
         onChange={(faceWidth) => onParametersChange({ faceWidth })}
-        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
-      <SemanticSlider label="Eyes" value={featureValue('eyeSize')}
+        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
+      {semanticFeature === 'eyes' ? <SemanticSlider label="Amount" value={featureValue('eyeSize')}
         onChange={(eyeSize) => onParametersChange({ eyeSize })}
-        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
-      <SemanticSlider label="Nose" value={selected.parameters.noseWidth}
+        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
+      {semanticFeature === 'nose' ? <SemanticSlider label="Amount"
+        value={selected.parameters.noseWidth}
         onChange={(noseWidth) => onParametersChange({ noseWidth })}
-        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
-      <SemanticSlider label="Smile" value={featureValue('smile')}
+        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
+      {semanticFeature === 'smile' ? <SemanticSlider label="Amount" value={featureValue('smile')}
         onChange={(smile) => onParametersChange({ smile })}
-        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
+        onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
     </> : null}
     {selected ? <ActionButton size="compact" onClick={onReset}>Reset face</ActionButton> : null}
   </>;

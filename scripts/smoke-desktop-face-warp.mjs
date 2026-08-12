@@ -222,6 +222,11 @@ try {
   const detectedMeshBytes = await canvas.screenshot({ path: path.join(output, '00-detected-mesh.png') });
   const meshBounds = await cyanMeshBounds(detectedMeshBytes);
   await page.screenshot({ path: path.join(output, '00-tool-ui.png') });
+  await page.getByRole('radio', { name: 'Adjust', exact: true }).click();
+  await page.getByText('Protect', { exact: true }).waitFor({ state: 'visible' });
+  await page.screenshot({ path: path.join(output, '00-tool-ui-adjust.png') });
+  await page.getByRole('radio', { name: 'Sculpt', exact: true }).click();
+  await brushControl.waitFor({ state: 'visible' });
   await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 300 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const highZoomMeshBytes = await canvas.screenshot({ path: path.join(output, '00-high-zoom-mesh.png') });
