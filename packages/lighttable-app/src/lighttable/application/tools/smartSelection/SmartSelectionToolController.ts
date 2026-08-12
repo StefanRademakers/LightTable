@@ -170,7 +170,7 @@ export class SmartSelectionToolController {
     if (!await this.prepare() || !this.source) return false;
     const prepared = await this.gate.prepare(this.source);
     if (!prepared) return false;
-    const candidates = await this.gate.box(prepared, bounds, {
+    const candidates = await this.gate.prompt(prepared, { points: [], box: bounds }, {
       hardEdge: this.callbacks.getOptions().hardEdge
     });
     const candidate = candidates ? bestCandidate(candidates) : null;
@@ -280,7 +280,9 @@ export class SmartSelectionToolController {
       if (!await this.prepare() || !this.source) return null;
       const prepared = await this.gate.prepare(this.source);
       if (!prepared) return null;
-      const candidates = await this.gate.point(prepared, point, {
+      const candidates = await this.gate.prompt(prepared, {
+        points: [{ point, label: 'positive' }]
+      }, {
         hardEdge: this.callbacks.getOptions().hardEdge
       });
       const candidate = candidates ? bestCandidate(candidates) : null;

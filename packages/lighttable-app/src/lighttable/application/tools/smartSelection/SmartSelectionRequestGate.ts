@@ -2,10 +2,10 @@ import type {
   PreparedSmartSelectionSource,
   SmartSelectionBackend,
   SmartSelectionCandidate,
+  SmartSelectionPrompt,
   SmartSelectionRequestOptions,
   SmartSelectionSource
 } from './SmartSelectionBackend';
-import type { SelectionPoint } from '../../../editor/selection/selectionTypes';
 
 /** Discards stale async inference without coupling the backend to editor state. */
 export class SmartSelectionRequestGate {
@@ -30,23 +30,13 @@ export class SmartSelectionRequestGate {
     return prepared;
   }
 
-  async point(
+  async prompt(
     source: PreparedSmartSelectionSource,
-    point: SelectionPoint,
+    prompt: SmartSelectionPrompt,
     options: SmartSelectionRequestOptions
   ): Promise<SmartSelectionCandidate[] | null> {
     const generation = ++this.generation;
-    const candidates = await this.backend.selectPoint(source, point, options);
-    return generation === this.generation && this.prepared?.id === source.id ? candidates : null;
-  }
-
-  async box(
-    source: PreparedSmartSelectionSource,
-    bounds: { x: number; y: number; width: number; height: number },
-    options: SmartSelectionRequestOptions
-  ): Promise<SmartSelectionCandidate[] | null> {
-    const generation = ++this.generation;
-    const candidates = await this.backend.selectBox(source, bounds, options);
+    const candidates = await this.backend.selectPrompt(source, prompt, options);
     return generation === this.generation && this.prepared?.id === source.id ? candidates : null;
   }
 

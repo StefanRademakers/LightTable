@@ -226,7 +226,7 @@ const decodePrompt = async (
 };
 
 const select = async (
-  request: Extract<SlimSamWorkerRequest, { type: 'point' | 'box' | 'subject' }>
+  request: Extract<SlimSamWorkerRequest, { type: 'points' | 'box' | 'subject' }>
 ) => {
   if (!prepared || prepared.sourceId !== request.sourceId) {
     throw new Error('The prepared Object Selection source is no longer available.');
@@ -254,8 +254,12 @@ const select = async (
       .sort((left, right) => right.score - left.score)
       .slice(0, 3);
   } else {
-    const prompts = request.type === 'point'
-      ? { input_points: [[[request.point[0], request.point[1]]]] }
+    const prompts = request.type === 'points'
+      ? {
+          input_points: [[request.points]],
+          input_labels: [[request.labels]],
+          ...(request.box ? { input_boxes: [[request.box]] } : {})
+        }
       : { input_boxes: [[[request.box[0], request.box[1], request.box[2], request.box[3]]]] };
     const decoded = await decodePrompt(runtime, prompts, request.hardEdge);
     width = decoded.width;
@@ -271,7 +275,7 @@ const select = async (
 
 self.onmessage = (event: MessageEvent<SlimSamWorkerRequest>) => {
   const request = event.data;
-  if (request.type === 'point' || request.type === 'box' || request.type === 'subject') {
+  if (request.type === 'points' || request.type === 'box' || request.type === 'subject') {
     latestPromptRequestId = request.requestId;
   }
   operationChain = operationChain.catch(() => undefined).then(async () => {

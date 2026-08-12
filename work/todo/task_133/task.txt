@@ -19,12 +19,12 @@ technical requirements remain authoritative in
   - Acceptance: repeated activation/cancellation does not crash or create a
     recovery record, and the baseline is repeatable.
 
-- [ ] Phase 2 - Extend the model-neutral segmentation contract
-  - [ ] Represent positive and negative points, prompt history and optional
+- [x] Phase 2 - Extend the model-neutral segmentation contract
+  - [x] Represent positive and negative points, prompt history and optional
         previous-mask input without leaking model tensors into UI/tool code.
-  - [ ] Add explicit backend capabilities and model/preprocessing identity.
-  - [ ] Cover stale requests, aborts, candidate ownership and resource disposal.
-  - [ ] Keep SlimSAM functional through the extended contract.
+  - [x] Add explicit backend capabilities and model/preprocessing identity.
+  - [x] Cover stale requests, aborts, candidate ownership and resource disposal.
+  - [x] Keep SlimSAM functional through the extended contract.
   - Acceptance: focused contract/controller tests pass without a SlimSAM UX
     regression.
 

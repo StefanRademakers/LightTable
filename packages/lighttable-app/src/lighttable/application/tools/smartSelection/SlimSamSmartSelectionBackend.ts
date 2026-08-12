@@ -1,8 +1,8 @@
-import type { SelectionPoint } from '../../../editor/selection/selectionTypes';
 import type {
   PreparedSmartSelectionSource,
   SmartSelectionBackend,
   SmartSelectionCandidate,
+  SmartSelectionPrompt,
   SmartSelectionRequestOptions,
   SmartSelectionSource
 } from './SmartSelectionBackend';
@@ -14,6 +14,14 @@ interface PendingRequest {
 }
 
 export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
+  readonly identity = {
+    modelId: 'Xenova/slimsam-77-uniform', artifactRevision: 'main',
+    precision: 'auto', preprocessingRevision: 'sam-v1'
+  } as const;
+  readonly capabilities = {
+    positivePoints: true, negativePoints: true, boxes: true,
+    previousMask: false, automaticSubject: true
+  } as const;
   private worker: Worker | null = null;
   private requestId = 0;
   private readonly pending = new Map<number, PendingRequest>();
@@ -47,21 +55,28 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
     return promise;
   }
 
-  selectPoint(source: PreparedSmartSelectionSource, point: SelectionPoint, options: SmartSelectionRequestOptions) {
-    return this.select(source, {
-      type: 'point', requestId: 0, sourceId: source.id,
-      point: [point.x, point.y], hardEdge: options.hardEdge
-    }, options.signal);
-  }
-
-  selectBox(
+  selectPrompt(
     source: PreparedSmartSelectionSource,
-    bounds: { x: number; y: number; width: number; height: number },
+    prompt: SmartSelectionPrompt,
     options: SmartSelectionRequestOptions
   ) {
+    if (prompt.previousMask) throw new Error('SlimSAM does not accept a previous mask prompt.');
+    if (prompt.box && prompt.points.length === 0) {
+      const bounds = prompt.box;
+      return this.select(source, {
+        type: 'box', requestId: 0, sourceId: source.id,
+        box: [bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height],
+        hardEdge: options.hardEdge
+      }, options.signal);
+    }
+    if (prompt.points.length === 0) throw new Error('Object Selection requires a point or box prompt.');
     return this.select(source, {
-      type: 'box', requestId: 0, sourceId: source.id,
-      box: [bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height],
+      type: 'points', requestId: 0, sourceId: source.id,
+      points: prompt.points.map(({ point }) => [point.x, point.y]),
+      labels: prompt.points.map(({ label }) => label === 'positive' ? 1 : 0),
+      box: prompt.box
+        ? [prompt.box.x, prompt.box.y, prompt.box.x + prompt.box.width, prompt.box.y + prompt.box.height]
+        : undefined,
       hardEdge: options.hardEdge
     }, options.signal);
   }
@@ -87,7 +102,7 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
 
   private async select(
     source: PreparedSmartSelectionSource,
-    request: Extract<SlimSamWorkerRequest, { type: 'point' | 'box' | 'subject' }>,
+    request: Extract<SlimSamWorkerRequest, { type: 'points' | 'box' | 'subject' }>,
     signal?: AbortSignal
   ): Promise<SmartSelectionCandidate[]> {
     const message = await this.request(request, signal);

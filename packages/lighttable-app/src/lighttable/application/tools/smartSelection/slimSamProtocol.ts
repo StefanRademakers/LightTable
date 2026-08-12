@@ -7,10 +7,12 @@ export type SlimSamWorkerRequest =
       readonly image: Blob;
     }
   | {
-      readonly type: 'point';
+      readonly type: 'points';
       readonly requestId: number;
       readonly sourceId: string;
-      readonly point: readonly [number, number];
+      readonly points: readonly (readonly [number, number])[];
+      readonly labels: readonly (0 | 1)[];
+      readonly box?: readonly [number, number, number, number];
       readonly hardEdge: boolean;
     }
   | {

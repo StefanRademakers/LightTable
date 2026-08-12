@@ -27,6 +27,33 @@ export interface SmartSelectionRequestOptions {
   readonly signal?: AbortSignal;
 }
 
+export interface SmartSelectionBackendIdentity {
+  readonly modelId: string;
+  readonly artifactRevision: string;
+  readonly precision: string;
+  readonly preprocessingRevision: string;
+}
+
+export interface SmartSelectionBackendCapabilities {
+  readonly positivePoints: true;
+  readonly negativePoints: boolean;
+  readonly boxes: boolean;
+  readonly previousMask: boolean;
+  readonly automaticSubject: boolean;
+}
+
+export interface SmartSelectionPointPrompt {
+  readonly point: SelectionPoint;
+  readonly label: 'positive' | 'negative';
+}
+
+/** Model-neutral prompt history for one object on one prepared source. */
+export interface SmartSelectionPrompt {
+  readonly points: readonly SmartSelectionPointPrompt[];
+  readonly box?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+  readonly previousMask?: RasterSelectionMask;
+}
+
 /**
  * Model-neutral boundary for promptable object selection.
  *
@@ -35,15 +62,12 @@ export interface SmartSelectionRequestOptions {
  * selection compositor owns New/Add/Subtract/Intersect from that point on.
  */
 export interface SmartSelectionBackend {
+  readonly identity: SmartSelectionBackendIdentity;
+  readonly capabilities: SmartSelectionBackendCapabilities;
   prepare(source: SmartSelectionSource, signal?: AbortSignal): Promise<PreparedSmartSelectionSource>;
-  selectPoint(
+  selectPrompt(
     source: PreparedSmartSelectionSource,
-    point: SelectionPoint,
-    options: SmartSelectionRequestOptions
-  ): Promise<SmartSelectionCandidate[]>;
-  selectBox(
-    source: PreparedSmartSelectionSource,
-    bounds: { x: number; y: number; width: number; height: number },
+    prompt: SmartSelectionPrompt,
     options: SmartSelectionRequestOptions
   ): Promise<SmartSelectionCandidate[]>;
   selectSubject?(

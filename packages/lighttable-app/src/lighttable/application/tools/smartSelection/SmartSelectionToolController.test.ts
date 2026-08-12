@@ -16,12 +16,21 @@ const harness = () => {
   const rasterMask = vi.fn(async () => true);
   const selection = { rasterMask } as unknown as SelectionSessionController;
   const backend: SmartSelectionBackend = {
+    identity: {
+      modelId: 'test', artifactRevision: 'test', precision: 'test',
+      preprocessingRevision: 'test'
+    },
+    capabilities: {
+      positivePoints: true, negativePoints: true, boxes: true,
+      previousMask: false, automaticSubject: true
+    },
     prepare: vi.fn(async (source) => ({
       id: source.key, sourceKey: source.key, documentRevision: source.documentRevision,
       width: source.width, height: source.height
     })),
-    selectPoint: vi.fn(async () => [{ id: 'candidate', score: 0.9, mask }]),
-    selectBox: vi.fn(async () => [{ id: 'box', score: 0.8, mask }]),
+    selectPrompt: vi.fn(async (_source, prompt) => [{
+      id: prompt.box ? 'box' : 'candidate', score: prompt.box ? 0.8 : 0.9, mask
+    }]),
     selectSubject: vi.fn(async () => [{ id: 'subject', score: 0.95, mask }]),
     disposePreparedSource: vi.fn(),
     dispose: vi.fn()
@@ -80,9 +89,9 @@ describe('SmartSelectionToolController', () => {
     controller.moveRegion(7, { x: 6, y: 5 });
     controller.finishRegion(7);
     await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(mask, 'replace'));
-    expect(backend.selectBox).toHaveBeenCalledWith(
+    expect(backend.selectPrompt).toHaveBeenCalledWith(
       expect.anything(),
-      { x: 1, y: 1, width: 5, height: 4 },
+      { points: [], box: { x: 1, y: 1, width: 5, height: 4 } },
       expect.objectContaining({ hardEdge: false })
     );
     expect(setDraft).toHaveBeenLastCalledWith(null);
@@ -125,14 +134,14 @@ describe('SmartSelectionToolController', () => {
   it('does not let a hover request supersede an in-flight click commit', async () => {
     const { backend, controller, rasterMask } = harness();
     let finishPoint!: (value: SmartSelectionCandidate[]) => void;
-    vi.mocked(backend.selectPoint).mockImplementationOnce(() => new Promise((resolve) => {
+    vi.mocked(backend.selectPrompt).mockImplementationOnce(() => new Promise((resolve) => {
       finishPoint = resolve;
     }));
 
     const commit = controller.commitPoint({ x: 3, y: 2 }, 'replace');
-    await vi.waitFor(() => expect(backend.selectPoint).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledOnce());
     controller.hover({ x: 4, y: 3 });
-    expect(backend.selectPoint).toHaveBeenCalledOnce();
+    expect(backend.selectPrompt).toHaveBeenCalledOnce();
     finishPoint([{ id: 'candidate', score: 0.9, mask }]);
     await expect(commit).resolves.toBe(true);
     expect(rasterMask).toHaveBeenCalledOnce();
@@ -142,24 +151,24 @@ describe('SmartSelectionToolController', () => {
     const { backend, controller } = harness();
     let finishFirst!: (value: SmartSelectionCandidate[]) => void;
     const emptyMask = { width: 8, height: 6, data: new Uint8Array(48) };
-    vi.mocked(backend.selectPoint)
+    vi.mocked(backend.selectPrompt)
       .mockImplementationOnce(() => new Promise((resolve) => {
         finishFirst = resolve;
       }))
       .mockResolvedValue([{ id: 'latest', score: 0.9, mask: emptyMask }]);
 
     controller.hover({ x: 1, y: 1 });
-    await vi.waitFor(() => expect(backend.selectPoint).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledOnce());
     controller.hover({ x: 2, y: 2 });
     controller.hover({ x: 3, y: 3 });
     controller.hover({ x: 4, y: 4 });
-    expect(backend.selectPoint).toHaveBeenCalledOnce();
+    expect(backend.selectPrompt).toHaveBeenCalledOnce();
 
     finishFirst([{ id: 'first', score: 0.8, mask: emptyMask }]);
-    await vi.waitFor(() => expect(backend.selectPoint).toHaveBeenCalledTimes(2));
-    expect(backend.selectPoint).toHaveBeenLastCalledWith(
+    await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledTimes(2));
+    expect(backend.selectPrompt).toHaveBeenLastCalledWith(
       expect.anything(),
-      { x: 4, y: 4 },
+      { points: [{ point: { x: 4, y: 4 }, label: 'positive' }] },
       expect.anything()
     );
   });
