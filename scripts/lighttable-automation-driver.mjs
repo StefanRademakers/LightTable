@@ -98,6 +98,19 @@ export class LightTableAutomationClient {
     }, { encoded, name, mediaType });
   }
 
+  async readArtifact(artifactId) {
+    const artifact = await this.page.evaluate(async (id) => {
+      const file = window.__lightTableAutomation?.resolveArtifact(id);
+      if (!file) return null;
+      return {
+        name: file.name,
+        mediaType: file.type,
+        bytes: Array.from(new Uint8Array(await file.arrayBuffer()))
+      };
+    }, artifactId);
+    return artifact ? { ...artifact, bytes: Buffer.from(artifact.bytes) } : null;
+  }
+
   beginGesture(request) {
     return this.page.evaluate((value) => window.__lightTableAutomation?.beginGesture(value) ?? null, request);
   }

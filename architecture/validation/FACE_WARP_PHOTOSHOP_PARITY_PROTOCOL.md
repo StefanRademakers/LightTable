@@ -26,6 +26,24 @@ Generate resolution variants with:
 node scripts/create-face-warp-resolution-fixtures.mjs <front> <three-quarter> <profile>
 ```
 
+Capture the complete LightTable side (identity, eight isolated edits and native
+save/reopen identity) with:
+
+```powershell
+npm run test:face-warp:parity:capture -- <portrait> <output-directory>
+```
+
+Place the corresponding lossless Photoshop exports in that output directory
+using the `photoshopFilesExpected` names from `manifest.json`, then run:
+
+```powershell
+npm run test:face-warp:parity:compare -- <output-directory>
+```
+
+The comparator writes per-case absolute-difference PNGs, RMSE/maximum channel
+difference values and a three-column comparison sheet. Missing Photoshop files
+remain explicitly `awaiting-photoshop`; they never count as a comparison.
+
 ## Isolated edits
 
 For each accepted face, export the untouched identity and these independent
@@ -57,6 +75,13 @@ LightTable:
 3. Enter the isolated Amount and export a lossless PNG at source dimensions.
 4. Save the LightTable document, reopen it offline and export it again. The two
    LightTable exports must be pixel-identical.
+
+Photoshop automation note: Adobe's supported development workflow is to record
+an accepted command and copy it as JavaScript/actionJSON. Face-Aware Liquify is
+recorded as opaque, source-specific `faceMeshData` rather than documented
+semantic slider fields. Do not invent descriptor keys or reuse `Liquify Last
+Mesh.psp` from another source portrait. Record the isolated operations in
+Photoshop's UI until Adobe exposes a stable semantic descriptor.
 
 ## Evaluation
 

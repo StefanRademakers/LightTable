@@ -416,6 +416,29 @@
 - The Photoshop comparison checkbox remains open until those actual reference
   PNGs exist. This is deliberate: the protocol is now repeatable, but a written
   protocol is not evidence of parity.
+- `scripts/capture-lighttable-face-warp-parity.mjs` now captures identity plus
+  Face Width, Eye Size, Nose Width and Smile at -50 and +50 through the
+  canonical `faceWarp.applyOperation` command. Every case is exported, saved
+  as a native LightTable artifact, reopened and exported again; unequal hashes
+  fail the run.
+- The frontal `D:\pukkels-lighttable.png` corpus passed all eight operations
+  and all eight pixel-exact native roundtrips. The real 200 px three-quarter
+  `Tom_Hanks_54745.png` fixture passed the same matrix. Visual review of the
+  frontal contact sheet found local, correctly directed edits without holes,
+  folds, boundary seams or background drag.
+- `scripts/compare-face-warp-parity.mjs` validates dimensions and produces
+  absolute-difference PNGs, RMSE/maximum channel differences and a three-column
+  LightTable/Photoshop/difference sheet. Its eight-case identical-reference
+  self-test reports 8 compared, 0 waiting and RMSE 0; the real corpus without
+  Adobe captures reports 0 compared and 8 explicitly awaiting Photoshop.
+- Adobe's official batchPlay guidance requires recording an accepted command.
+  Face-Aware Liquify records opaque source-specific `faceMeshData`; the local
+  `Liquify Last Mesh.psp` is only Photoshop's unrelated last mesh. Replaying it
+  would not be a valid isolated semantic oracle, so no fabricated automation
+  descriptor was added.
+- Focused verification after adding the corpus path: app typecheck passed; the
+  Face Warp quality/operation and shared command-service dependency run passed
+  29 files / 711 tests.
 - The desktop oracle now also drives the production `Adjust` UI: one real
   pointer drag on Feature `Face width` / Amount changes visible pixels, creates
   exactly one undo entry and undo restores the exact pre-edit canvas hash. This
