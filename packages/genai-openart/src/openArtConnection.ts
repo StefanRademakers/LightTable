@@ -149,6 +149,7 @@ class OpenArtOAuthProvider implements OAuthClientProvider {
 export class OpenArtConnection {
   private client: InstanceType<McpModule['Client']> | null = null;
   private transport: InstanceType<McpModule['StreamableHTTPClientTransport']> | null = null;
+  private authorizationSession: OpenArtAuthorizationSession | null = null;
 
   constructor(private readonly options: OpenArtConnectionOptions) {}
 
@@ -179,6 +180,7 @@ export class OpenArtConnection {
     const sdk = await import('@modelcontextprotocol/client');
     const state = this.options.createState();
     const session = await this.options.host.createAuthorizationSession(state);
+    this.authorizationSession = session;
     const provider = new OpenArtOAuthProvider(
       session.redirectUrl,
       state,
@@ -213,7 +215,16 @@ export class OpenArtConnection {
       throw reason;
     } finally {
       await session.close();
+      if (this.authorizationSession === session) this.authorizationSession = null;
     }
+  }
+
+  /** Cancels a stalled browser flow and removes credentials before a clean retry. */
+  async resetInteractiveConnection(): Promise<void> {
+    const session = this.authorizationSession;
+    this.authorizationSession = null;
+    await session?.close();
+    await this.disconnect(true);
   }
 
   async disconnect(clearCredentials = false): Promise<void> {

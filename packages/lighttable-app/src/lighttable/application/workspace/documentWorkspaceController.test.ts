@@ -35,7 +35,7 @@ describe('DocumentWorkspaceController', () => {
     expect(controller.getSource(second.value.id)).toEqual({ token: 'second-source' });
   });
 
-  it('does not retain a payload when the workspace rejects an open', () => {
+  it('activates and returns the existing session when the same source opens again', () => {
     const controller = new DocumentWorkspaceController<string>({
       createId: ids('one', 'two')
     });
@@ -43,7 +43,11 @@ describe('DocumentWorkspaceController', () => {
     if (!first.ok) throw new Error('Fixture failed to open.');
 
     const duplicate = controller.open({ source: source('same'), payload: 'replacement' });
-    expect(duplicate.ok).toBe(false);
+    expect(duplicate.ok).toBe(true);
+    if (!duplicate.ok) throw new Error('Duplicate source should resolve to its existing session.');
+    expect(duplicate.value).toBe(first.value);
+    expect(controller.getSnapshot().documentOrder).toEqual(['one']);
+    expect(controller.getSnapshot().activeDocumentId).toBe('one');
     expect(controller.getSource(first.value.id)).toBe('original');
   });
 

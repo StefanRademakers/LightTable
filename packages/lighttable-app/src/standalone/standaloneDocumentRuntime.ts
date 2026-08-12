@@ -18,5 +18,12 @@ export interface StandaloneDocumentRuntime {
 
 export const standaloneSourceIdentity = (
   file: File,
-  decodeMode: StandaloneDecodeMode
-) => `file:${file.name}:${file.size}:${file.lastModified}:${decodeMode}`;
+  _decodeMode: StandaloneDecodeMode
+) => {
+  const sourcePath = (file as File & { readonly lightTableSourcePath?: string }).lightTableSourcePath;
+  if (sourcePath) {
+    const canonicalPath = sourcePath.replace(/\\/g, '/').replace(/\/+$/g, '').toLocaleLowerCase('en-US');
+    return `path:${canonicalPath}`;
+  }
+  return `file:${file.name}:${file.size}:${file.lastModified}`;
+};

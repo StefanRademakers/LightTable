@@ -202,6 +202,8 @@ export interface LightTableDesktopBridge {
   listGenAiJobs(projectId: string): Promise<readonly GenAiGenerationJob[]>;
   stopGenAiJobTracking(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<GenAiGenerationJob>;
   resumeGenAiJobTracking(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<GenAiGenerationJob>;
+  revealGenAiResult(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<void>;
+  deleteGenAiJob(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<void>;
   listGenAiProjectAssets(projectId: string): Promise<readonly GenAiAssetReference[]>;
   loadGenAiProjectAssetPreview(projectId: string, assetId: GenAiAssetId): Promise<string | null>;
   loadGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<import('@lighttable/genai-core').GenAiAssetPayload | null>;

@@ -191,6 +191,8 @@ export interface GenAiHostPort {
   stopTracking(projectId: string, jobId: GenAiJobId): Promise<GenAiGenerationJob>;
   /** Resumes a known provider job without submitting or charging again. */
   resumeTracking(projectId: string, jobId: GenAiJobId): Promise<GenAiGenerationJob>;
+  revealResult(projectId: string, jobId: GenAiJobId): Promise<void>;
+  deleteJob(projectId: string, jobId: GenAiJobId): Promise<void>;
   listProjectAssets(projectId: string): Promise<readonly GenAiAssetReference[]>;
   loadProjectAssetPreview(projectId: string, assetId: GenAiAssetId): Promise<string | null>;
   loadProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<GenAiAssetPayload | null>;

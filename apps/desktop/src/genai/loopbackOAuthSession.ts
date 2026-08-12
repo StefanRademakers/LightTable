@@ -23,6 +23,10 @@ export const createLoopbackOAuthSession = async (
     resolveCallback = resolve;
     rejectCallback = reject;
   });
+  // A transport can occasionally finish without awaiting the browser callback.
+  // Keep an explicit handler so cancelling that unused callback is never an
+  // unhandled rejection; consumers awaiting `callback` still receive it.
+  void callback.catch(() => undefined);
 
   const server = createServer((request, response) => {
     try {
@@ -78,6 +82,10 @@ export const createLoopbackOAuthSession = async (
     callback,
     async close() {
       clearTimeout(timeout);
+      if (!settled) {
+        settled = true;
+        rejectCallback(new Error('OpenArt authorization was restarted.'));
+      }
       await closeServer(server);
     }
   };

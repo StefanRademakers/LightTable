@@ -113,6 +113,7 @@ const mentionSearch = (value: string, caret: number | null) => {
 };
 
 export const GenAiPromptComposer = ({ value, onChange, mentions, previews, requestPreview }: GenAiPromptComposerProps) => {
+  const composerRef = React.useRef<HTMLElement>(null);
   const editorRef = React.useRef<HTMLDivElement>(null);
   const focused = React.useRef(false);
   const [caret, setCaret] = React.useState<number | null>(0);
@@ -134,6 +135,16 @@ export const GenAiPromptComposer = ({ value, onChange, mentions, previews, reque
   React.useLayoutEffect(() => {
     if (!focused.current) applyMarkup(value);
   }, [applyMarkup, value]);
+
+  React.useEffect(() => {
+    const releaseFocusOnOutsidePointer = (event: PointerEvent) => {
+      const editor = editorRef.current;
+      if (!editor || document.activeElement !== editor) return;
+      if (!composerRef.current?.contains(event.target as Node)) editor.blur();
+    };
+    document.addEventListener('pointerdown', releaseFocusOnOutsidePointer, true);
+    return () => document.removeEventListener('pointerdown', releaseFocusOnOutsidePointer, true);
+  }, []);
 
   React.useEffect(() => {
     for (const option of suggestions) requestPreview(option.asset.id);
@@ -164,7 +175,7 @@ export const GenAiPromptComposer = ({ value, onChange, mentions, previews, reque
   };
 
   return (
-    <section className="genai-prompt-composer">
+    <section ref={composerRef} className="genai-prompt-composer">
       <div className="genai-prompt-composer__heading">
         <label htmlFor="lighttable-genai-prompt">Prompt</label>
         <span><strong>single</strong><i />set</span>

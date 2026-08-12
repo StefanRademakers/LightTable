@@ -67,6 +67,7 @@ export const useGenAiSetupController = (
   const [setupHydrated, setSetupHydrated] = React.useState(false);
   const previewRequests = React.useRef(new Set<string>());
   const pendingRestore = React.useRef<GenAiGenerationRequest | undefined>(undefined);
+  const workflowCache = React.useRef(new Map<string, GenAiWorkflowDefinition>());
 
   React.useEffect(() => {
     setPersistedSetup(null);
@@ -137,9 +138,21 @@ export const useGenAiSetupController = (
   React.useEffect(() => {
     if (!service || provider.status !== 'connected' || !selectedModelId || !selectedMode) return;
     let current = true;
-    setLoading(true); setError(undefined);
+    const cacheKey = `${provider.id}:${selectedModelId}:${selectedMode}`;
+    const cachedWorkflow = workflowCache.current.get(cacheKey);
+    if (cachedWorkflow) {
+      setWorkflow(cachedWorkflow);
+      setLoading(false);
+      setError(undefined);
+    } else {
+      // Keep the current form mounted while an uncached schema is resolved.
+      // `loading` is reserved for the first bootstrap, not ordinary switching.
+      setLoading(!workflow);
+      setError(undefined);
+    }
     void service.loadWorkflow(provider.id, selectedModelId, selectedMode).then((nextWorkflow) => {
       if (!current) return;
+      workflowCache.current.set(cacheKey, nextWorkflow);
       setWorkflow(nextWorkflow);
       const defaults = Object.fromEntries(nextWorkflow.fields.map((field) => [field.key, field.defaultValue]));
       const restored = pendingRestore.current;
@@ -221,8 +234,9 @@ export const useGenAiSetupController = (
   const referenceIssue = resolvedMentions.references.length && !acceptsReferences
     ? `${workflow?.label ?? 'This workflow'} does not accept visual references.`
     : undefined;
+  const workflowReady = Boolean(workflow && workflow.modelId === selectedModelId && workflow.mode === selectedMode);
   const canGenerate = Boolean(
-    service && projectId && workflow && prompt.trim() && validationIssues.length === 0
+    service && projectId && workflowReady && prompt.trim() && validationIssues.length === 0
     && resolvedMentions.missingTokens.length === 0 && !tooManyReferences && !referenceIssue && !generating
   );
 

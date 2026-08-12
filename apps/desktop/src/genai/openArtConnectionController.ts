@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type {
+  GenAiCostEstimate,
   GenAiGenerationRequest,
   GenAiGenerationSubmission,
   GenAiJobId,
@@ -38,8 +39,11 @@ export class OpenArtConnectionController {
   private readonly listeners = new Set<(snapshot: GenAiProviderSnapshot) => void>();
   private readonly connection: OpenArtConnection;
   private operation: Promise<GenAiProviderSnapshot> | null = null;
+  private connectGeneration = 0;
   private readonly workflows = new Map<string, GenAiWorkflowDefinition>();
+  private models: readonly GenAiModelSummary[] | null = null;
   private readonly catalogStore?: OpenArtCatalogStore;
+  private costEstimateSupported = true;
 
   constructor(options: {
     readonly version: string;
@@ -67,12 +71,16 @@ export class OpenArtConnectionController {
   }
 
   connect(): Promise<GenAiProviderSnapshot> {
-    if (this.operation) return this.operation;
+    const generation = ++this.connectGeneration;
     this.publish(transitionGenAiProvider(this.snapshotValue, 'connecting', {
       message: 'Complete sign-in in your browser.'
     }));
-    this.operation = this.connection.connect()
+    const operation = this.connection.resetInteractiveConnection()
+      .then(() => generation === this.connectGeneration
+        ? this.connection.connect()
+        : undefined)
       .then(() => {
+        if (generation !== this.connectGeneration) return this.snapshotValue;
         this.publish(transitionGenAiProvider(this.snapshotValue, 'connected', {
           message: undefined,
           connectedAt: Date.now()
@@ -80,12 +88,14 @@ export class OpenArtConnectionController {
         return this.snapshotValue;
       })
       .catch((reason) => {
+        if (generation !== this.connectGeneration) return this.snapshotValue;
         const message = reason instanceof Error ? reason.message : String(reason);
         this.publish(transitionGenAiProvider(this.snapshotValue, 'error', { message }));
         return this.snapshotValue;
       })
-      .finally(() => { this.operation = null; });
-    return this.operation;
+      .finally(() => { if (this.operation === operation) this.operation = null; });
+    this.operation = operation;
+    return operation;
   }
 
   restore(): Promise<GenAiProviderSnapshot> {
@@ -117,6 +127,8 @@ export class OpenArtConnectionController {
   }
 
   async disconnect(): Promise<GenAiProviderSnapshot> {
+    ++this.connectGeneration;
+    this.operation = null;
     await this.connection.disconnect(true);
     this.publish(transitionGenAiProvider(this.snapshotValue, 'disconnected', {
       message: undefined
@@ -125,20 +137,29 @@ export class OpenArtConnectionController {
   }
 
   async listModels(): Promise<readonly GenAiModelSummary[]> {
+    if (this.models) return this.models;
     try {
       const result = await this.connection.callTool('openart_model_list');
       const models = normalizeOpenArtModels(mcpToolPayload(result as Parameters<typeof mcpToolPayload>[0]));
+      this.models = models;
       await this.catalogStore?.saveModels(models);
       return models;
     } catch (reason) {
       const cached = (await this.catalogStore?.load())?.models ?? [];
-      if (cached.length) return cached;
+      if (cached.length) { this.models = cached; return cached; }
       throw reason;
     }
   }
 
   async loadWorkflow(modelId: GenAiModelId, mode: string): Promise<GenAiWorkflowDefinition> {
     const workflowId = `${OPENART_PROVIDER_ID}:${modelId}:${mode}`;
+    const memoryWorkflow = this.workflows.get(workflowId);
+    if (memoryWorkflow) return memoryWorkflow;
+    const diskWorkflow = await this.catalogStore?.workflow(workflowId);
+    if (diskWorkflow) {
+      this.workflows.set(diskWorkflow.id, diskWorkflow);
+      return diskWorkflow;
+    }
     try {
       const result = await this.connection.callTool('openart_model_form_get', { model: modelId, mode });
       const workflow = normalizeOpenArtWorkflow(
@@ -154,9 +175,24 @@ export class OpenArtConnectionController {
     }
   }
 
-  async estimateCost(modelId: GenAiModelId, mode: string, params: Readonly<Record<string, unknown>>) {
-    const result = await this.connection.callTool('openart_model_cost', { model: modelId, mode, params });
-    return normalizeOpenArtCost(mcpToolPayload(result as Parameters<typeof mcpToolPayload>[0]));
+  async estimateCost(
+    modelId: GenAiModelId,
+    mode: string,
+    params: Readonly<Record<string, unknown>>
+  ): Promise<GenAiCostEstimate | null> {
+    if (!this.costEstimateSupported) return null;
+    try {
+      const result = await this.connection.callTool('openart_model_cost', { model: modelId, mode, params });
+      return normalizeOpenArtCost(mcpToolPayload(result as Parameters<typeof mcpToolPayload>[0]));
+    } catch (reason) {
+      // Pricing is optional presentation metadata. Some OpenArt MCP versions
+      // return prose rather than a structured payload; never fail or stall the
+      // generation form for that response, and do not retry it on every edit.
+      if (reason instanceof Error && reason.message.includes('no machine-readable result')) {
+        this.costEstimateSupported = false;
+      }
+      return null;
+    }
   }
 
   async submitGeneration(

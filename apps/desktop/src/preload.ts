@@ -123,6 +123,10 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.invoke('lighttable:genai-job-stop-tracking', projectId, jobId),
   resumeGenAiJobTracking: (projectId, jobId) =>
     ipcRenderer.invoke('lighttable:genai-job-resume-tracking', projectId, jobId),
+  revealGenAiResult: (projectId, jobId) =>
+    ipcRenderer.invoke('lighttable:genai-result-reveal', projectId, jobId),
+  deleteGenAiJob: (projectId, jobId) =>
+    ipcRenderer.invoke('lighttable:genai-job-delete', projectId, jobId),
   listGenAiProjectAssets: (projectId) =>
     ipcRenderer.invoke('lighttable:genai-project-assets', projectId),
   loadGenAiProjectAssetPreview: (projectId, assetId) =>

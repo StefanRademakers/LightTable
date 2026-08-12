@@ -3,7 +3,7 @@ import type {
   DocumentSessionId,
   DocumentSourceDescriptor
 } from '../documents/documentSession';
-import type { Result } from '../shared/result';
+import { success, type Result } from '../shared/result';
 import {
   WorkspaceSession,
   type CloseDocumentOptions,
@@ -50,6 +50,17 @@ export class DocumentWorkspaceController<TSource> {
     input: OpenWorkspaceDocument<TSource>
   ): Result<DocumentSession, WorkspaceError> {
     this.assertUsable();
+    const snapshot = this.workspace.getSnapshot();
+    const existingId = snapshot.documentOrder.find((id) =>
+      snapshot.documents[id]?.source.id === input.source.id
+    );
+    if (existingId) {
+      const existing = this.workspace.getDocument(existingId);
+      if (existing) {
+        this.workspace.activate(existingId);
+        return success(existing);
+      }
+    }
     const opened = this.workspace.open({
       source: input.source,
       title: input.title

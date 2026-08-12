@@ -74,6 +74,7 @@ import {
 } from './genai/projectAssetRemoteLinks';
 import { prepareProjectAssetReferences } from './genai/prepareProjectAssetReferences';
 import {
+  deleteProjectGenerationJob,
   listProjectGenerationJobs,
   updateProjectGenerationJob,
   upsertProjectGenerationJob
@@ -866,6 +867,33 @@ void app.whenReady().then(async () => {
     publishGenAiJob(project.summary.id, running);
     void finishOpenArtGeneration(manifestPath, project, running.id, current.providerJobId);
     return running;
+  });
+  const genAiResultPath = async (projectId: unknown, jobId: unknown) => {
+    if (typeof jobId !== 'string') throw new Error('Invalid GenAI job.');
+    const { project, manifestPath } = await activeGenAiProject(projectId);
+    const job = (await listProjectGenerationJobs(manifestPath)).find(({ id }) => id === jobId);
+    const assetId = job?.results[0]?.assetId;
+    if (!job || !assetId) throw new Error('This generation has no saved result.');
+    const { rootPath, index } = await readProjectAssetIndex(manifestPath);
+    const asset = index.assets.find(({ id }) => id === assetId);
+    if (!asset) throw new Error('The generated file is no longer available.');
+    const filePath = path.resolve(rootPath, ...asset.path.split('/'));
+    const root = path.resolve(rootPath);
+    if (!filePath.startsWith(`${root}${path.sep}`)) throw new Error('Invalid generated file location.');
+    return { project, manifestPath, job, filePath };
+  };
+  ipcMain.handle('lighttable:genai-result-reveal', async (event, projectId: unknown, jobId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const { filePath } = await genAiResultPath(projectId, jobId);
+    shell.showItemInFolder(filePath);
+  });
+  ipcMain.handle('lighttable:genai-job-delete', async (event, projectId: unknown, jobId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const { project, manifestPath, job, filePath } = await genAiResultPath(projectId, jobId);
+    await shell.trashItem(filePath);
+    await deleteProjectGenerationJob(manifestPath, job.id);
+    publishGenAiJob(project.summary.id, { ...job, status: 'cancelled', updatedAt: Date.now(),
+      error: 'Deleted from generation history.', results: [] });
   });
   ipcMain.handle('lighttable:genai-project-assets', async (event, projectId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));

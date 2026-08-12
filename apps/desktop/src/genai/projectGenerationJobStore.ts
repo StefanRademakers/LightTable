@@ -68,3 +68,22 @@ export const updateProjectGenerationJob = async (
   await upsertProjectGenerationJob(manifestPath, next);
   return next;
 };
+
+export const deleteProjectGenerationJob = async (
+  manifestPath: string,
+  jobId: GenAiJobId
+): Promise<void> => {
+  const key = path.resolve(manifestPath).toLocaleLowerCase('en-US');
+  const previous = queues.get(key) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(async () => {
+    const journal = await readJournal(manifestPath);
+    await atomicWriteFile({
+      targetPath: await journalPath(manifestPath),
+      bytes: Buffer.from(`${JSON.stringify({
+        format: FORMAT, version: VERSION, jobs: journal.jobs.filter(({ id }) => id !== jobId)
+      }, null, 2)}\n`, 'utf8')
+    });
+  });
+  queues.set(key, next);
+  try { await next; } finally { if (queues.get(key) === next) queues.delete(key); }
+};

@@ -124,6 +124,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
   const resolutionField = workflow?.fields.find(({ key }) => key === 'resolution');
   const qualityField = workflow?.fields.find(({ key }) => key === 'quality');
   const countField = workflow?.fields.find(({ key }) => key === 'imageCount');
+  const hasFeaturedSettings = Boolean(aspectField || resolutionField || qualityField);
   const references = mentionOptions.filter(({ token }) => tokenAppears(prompt, token));
   const count = Number(values.imageCount ?? countField?.defaultValue ?? 1);
   const mode = (selectedMode ?? workflow?.mode) === 'image2image' ? 'image2image' : 'text2image';
@@ -148,7 +149,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
       <ActionButton onClick={onConnect} disabled={!onConnect || status === 'connecting'}>
         {status === 'expired' ? 'Reconnect' : 'Connect'}
       </ActionButton>
-    </div></div> : loading ? <div className="lighttable-panel__empty">Loading image model…</div>
+    </div></div> : loading && !workflow ? <div className="lighttable-panel__empty">Loading image model…</div>
       : setupError ? <div className="lighttable-panel__empty"><p role="alert">{setupError}</p></div>
         : workflow ? <form className="genai-panel__form" onSubmit={(event) => { event.preventDefault(); onGenerate?.(); }}>
           <div className="genai-panel__body">
@@ -218,21 +219,23 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                 ? <img src={assetPreviews[submission.result.assetId]} alt="Generated result" /> : null}
               <span>{submission.status === 'succeeded' ? `Saved · ${submission.result?.fileName ?? 'AiRenders/History'}` : `OpenArt job · ${submission.providerJobId}`}</span>
             </div> : null}
-            <div className="genai-panel__featured-settings">
+          </div>
+          {hasFeaturedSettings ? <div className="genai-panel__featured-settings">
               {aspectField ? <label><span className="genai-panel__setting-icon">▭</span>
                 <select value={String(values.aspectRatio ?? aspectField.defaultValue ?? '')}
+                  aria-label={aspectField.label}
                   onChange={(event) => onFieldChange?.('aspectRatio', event.currentTarget.value)}>
                   {aspectField.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
                 </select></label> : null}
               {resolutionField ? <label><span className="genai-panel__setting-icon">▱</span>
                 <select value={String(values.resolution ?? resolutionField.defaultValue ?? '')}
+                  aria-label={resolutionField.label}
                   onChange={(event) => onFieldChange?.('resolution', event.currentTarget.value)}>
                   {resolutionField.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
                 </select></label> : null}
               {qualityField ? <GenAiQualityControl field={qualityField} value={values.quality}
                 update={(value) => onFieldChange?.('quality', value)} /> : null}
-            </div>
-          </div>
+            </div> : null}
           <footer className="genai-panel__footer">
             {costEstimate ? <span className="genai-panel__cost" title="Estimated provider cost">
               ≈ {costEstimate.label}

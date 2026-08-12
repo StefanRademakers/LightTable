@@ -513,7 +513,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
     return () => { active = false; unsubscribe(); };
   }, [genAiService]);
-  const activeGenAiProjectId = active ? activeProject?.id : undefined;
+  // GenAI setup belongs to the project/workspace, not to the currently visible
+  // document. Hiding a document must not tear down and rehydrate the panel.
+  const activeGenAiProjectId = activeProject?.id;
   const genAiSetup = useGenAiSetupController(genAiService, openArtProvider, activeGenAiProjectId);
   const genAiJobs = useGenAiJobsController(
     genAiService,
@@ -4501,7 +4503,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       showAiHistoryPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory),
       connectOpenArtProvider: () => {
         workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi);
-        if (genAiService && openArtProvider.status !== 'connecting') {
+        if (genAiService) {
           void genAiService.connectProvider(openArtProviderId).then(setOpenArtProvider);
         }
       },
@@ -5653,16 +5655,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 previews: genAiSetup.assetPreviews,
                 onRequestPreview: genAiSetup.requestAssetPreview,
                 onOpenResult: onGenAiOpenResult,
-                onStopTracking: genAiService && activeGenAiProjectId ? async (job) => {
-                  await genAiService.stopTracking(activeGenAiProjectId, job.id);
-                } : undefined,
-                onResumeTracking: genAiService && activeGenAiProjectId ? async (job) => {
-                  await genAiService.resumeTracking(activeGenAiProjectId, job.id);
-                } : undefined,
-                onRestoreSetup: (job) => {
+                onRecreate: (job) => {
                   genAiSetup.restoreRequest(job.request);
                   workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi);
-                }
+                },
+                onRevealResult: genAiService && activeGenAiProjectId ? (job) =>
+                  genAiService.revealResult(activeGenAiProjectId, job.id) : undefined,
+                onDeleteJob: genAiService && activeGenAiProjectId ? (job) =>
+                  genAiService.deleteJob(activeGenAiProjectId, job.id) : undefined,
               }
             })}
           />

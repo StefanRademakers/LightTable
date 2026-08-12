@@ -112,12 +112,21 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
     : temporaryZoomActive
       ? 'zoom'
       : activeTool;
+  const beginViewportPointer: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const targetIsEditor = Boolean(target?.closest('input, textarea, select, [contenteditable="true"]'));
+    if (!targetIsEditor && document.activeElement instanceof HTMLElement) {
+      const focused = document.activeElement;
+      if (focused.matches('input, textarea, select, [contenteditable="true"]')) focused.blur();
+    }
+    onPointerDown(event);
+  };
   return (
     <div
       ref={viewportRef}
       className={`lighttable-viewport lighttable-viewport--${effectiveTool}${zoomOutActive ? ' lighttable-viewport--zoom-out' : ''}${preciseBrushCursor ? ' lighttable-viewport--precise-brush' : ''}${eyedropperActive ? ' lighttable-viewport--eyedropper' : ''}${dragging ? ' lighttable-viewport--dragging' : ''}${focusPickerActive ? ' lighttable-viewport--focus-picker' : ''}`}
       onWheel={onWheel}
-      onPointerDown={onPointerDown}
+      onPointerDown={beginViewportPointer}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}

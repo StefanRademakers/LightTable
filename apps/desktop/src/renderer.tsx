@@ -95,6 +95,8 @@ const desktopHost: LightTableHost = {
     listJobs: (projectId) => window.lightTableDesktop.listGenAiJobs(projectId),
     stopTracking: (projectId, jobId) => window.lightTableDesktop.stopGenAiJobTracking(projectId, jobId),
     resumeTracking: (projectId, jobId) => window.lightTableDesktop.resumeGenAiJobTracking(projectId, jobId),
+    revealResult: (projectId, jobId) => window.lightTableDesktop.revealGenAiResult(projectId, jobId),
+    deleteJob: (projectId, jobId) => window.lightTableDesktop.deleteGenAiJob(projectId, jobId),
     listProjectAssets: (projectId) => window.lightTableDesktop.listGenAiProjectAssets(projectId),
     loadProjectAssetPreview: (projectId, assetId) =>
       window.lightTableDesktop.loadGenAiProjectAssetPreview(projectId, assetId),

@@ -694,6 +694,7 @@
   flex: 1 1 auto;
   display: grid;
   grid-template-columns: var(--lt-toolbox-width) minmax(0, 1fr);
+  border-top: 1px solid var(--lt-border-workspace);
 }
 
 /* Canvas-only screen mode is a presentation state, not a second workspace.
@@ -733,7 +734,7 @@
   --dv-inactivegroup-visiblepanel-tab-background-color: var(--lt-surface-panel-tab-active);
   --dv-inactivegroup-hiddenpanel-tab-background-color: var(--lt-surface-panel-tab-inactive);
   --dv-tab-divider-color: var(--lt-border);
-  --dv-separator-border: var(--lt-border);
+  --dv-separator-border: var(--lt-border-workspace);
   --dv-active-sash-color: var(--lt-accent);
   --dv-drag-over-background-color: var(--lt-accent-drop);
   --dv-drag-over-border-color: var(--lt-accent);
@@ -1057,7 +1058,7 @@
   align-items: center;
   justify-content: flex-start;
   padding: 30px 5px 8px;
-  border-right: 1px solid var(--lt-border);
+  border-right: 1px solid var(--lt-border-workspace);
   background: var(--lt-surface-panel);
 }
 
@@ -1899,7 +1900,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--lt-border);
+  border-left: 0;
   background: var(--lt-surface-panel);
 }
 
@@ -2245,18 +2246,21 @@
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
 }
 
 .genai-panel__body {
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 12px 10px 10px;
 }
 
 .genai-panel__mode-switch {
+  align-self: center;
   width: max-content;
-  margin: 0 auto 12px;
+  margin: 0 0 12px;
 }
 
 .genai-panel__provider-row {
@@ -2586,7 +2590,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
   gap: 10px;
-  margin-top: 14px;
+  padding: 8px 12px 0;
+  background: var(--lt-surface-panel);
 }
 
 .genai-panel__featured-settings label,
@@ -2670,76 +2675,84 @@
   background: transparent;
 }
 
-.genai-history__job {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 4px 10px;
-  align-items: center;
-}
-
 .genai-history__thumbnail {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.genai-history__job > strong,
-.genai-history__job > span,
-.genai-history__job > small,
-.genai-history__actions {
-  grid-column: 2;
-  min-width: 0;
-}
-
-.genai-history__job > strong,
-.genai-history__job > small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.genai-history__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.genai-history__queue > h3,
 .genai-history__history > h3 {
   margin: 10px 0 6px;
   font-size: var(--lt-type-body);
 }
 
 .genai-history__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
-  gap: 8px;
+  position: relative;
+  width: 100%;
 }
 
 .genai-history__card {
-  display: grid;
+  position: absolute;
+  inset: 0 auto auto 0;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  gap: 6px;
-  padding: 8px;
   border: 1px solid var(--lt-border);
   border-radius: var(--lt-control-radius);
   background: var(--lt-surface-inset);
+  overflow: hidden;
+  cursor: default;
 }
 
 .genai-history__preview {
   display: grid;
   place-items: center;
-  aspect-ratio: 1;
   overflow: hidden;
   color: var(--lt-text-muted);
   background: var(--lt-surface-deep);
 }
 
-.genai-history__card > strong,
-.genai-history__card > small {
+.genai-history__preview--pending {
+  padding: 10px;
+  background: var(--lt-surface-control);
+}
+
+.genai-history__status {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  text-align: center;
+}
+
+.genai-history__status strong {
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-body);
+}
+
+.genai-history__status small {
+  max-height: 4.5em;
+  overflow: hidden;
+  color: var(--lt-danger);
+}
+
+.genai-history__footer {
+  min-width: 0;
+  height: 27px;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  border-top: 1px solid var(--lt-border);
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-caption);
+}
+
+.genai-history__footer strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 400;
 }
 
 .lighttable-agent-activity__title,
