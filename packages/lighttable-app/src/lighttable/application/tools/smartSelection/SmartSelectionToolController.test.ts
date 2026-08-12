@@ -242,4 +242,12 @@ describe('SmartSelectionToolController', () => {
       expect.anything()
     );
   });
+
+  it('releases the prepared source and backend when the tool session is disposed', async () => {
+    const { backend, controller } = harness();
+    await controller.prepare();
+    controller.dispose();
+    expect(backend.disposePreparedSource).toHaveBeenCalledOnce();
+    expect(backend.dispose).toHaveBeenCalledOnce();
+  });
 });

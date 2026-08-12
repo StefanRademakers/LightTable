@@ -36,12 +36,12 @@ technical requirements remain authoritative in
   - Acceptance: one image encode produces correctly aligned masks independent of
     zoom and device-pixel ratio, with explicit cleanup on close/switch.
 
-- [ ] Phase 4 - Complete cached iterative prompting
-  - [ ] Support click, Alt/Option-click, box drag, prompt undo and reset.
-  - [ ] Reuse image embeddings for prompt-only changes.
-  - [ ] Permit at most one decode in flight and retain only the newest pending
+- [x] Phase 4 - Complete cached iterative prompting
+  - [x] Support click, Alt/Option-click, box drag, prompt undo and reset.
+  - [x] Reuse image embeddings for prompt-only changes.
+  - [x] Permit at most one decode in flight and retain only the newest pending
         hover point; stale results may never publish.
-  - [ ] Key cached embeddings by document/source revision, sampling mode, model,
+  - [x] Key cached embeddings by document/source revision, sampling mode, model,
         artifact revision, precision and preprocessing revision.
   - Acceptance: prompt refinement never reruns the encoder and repeated document,
     layer and tool switching leaves memory stable.
