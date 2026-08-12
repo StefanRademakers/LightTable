@@ -49,6 +49,18 @@ const bestCandidate = (candidates: readonly SmartSelectionCandidate[]) =>
     null
   );
 
+const traceSmartSelection = (event: string, detail?: Record<string, unknown>) => {
+  const target = (
+    globalThis as typeof globalThis & {
+      __LIGHTTABLE_SMART_SELECTION_TRACE__?: Array<{
+        event: string;
+        detail?: Record<string, unknown>;
+      }>;
+    }
+  ).__LIGHTTABLE_SMART_SELECTION_TRACE__;
+  target?.push({ event, detail });
+};
+
 /** Owns transient async Object Selection interaction, never document state. */
 export class SmartSelectionToolController {
   private readonly gate: SmartSelectionRequestGate;
@@ -56,6 +68,7 @@ export class SmartSelectionToolController {
   private preparing: { key: string; promise: Promise<boolean> } | null = null;
   private preview: SmartSelectionCandidate | null = null;
   private hoverTimer: ReturnType<typeof setTimeout> | null = null;
+  private committing = false;
   private region: {
     pointerId: number;
     kind: 'rectangle' | 'free';
@@ -74,7 +87,12 @@ export class SmartSelectionToolController {
   async prepare() {
     const document = this.callbacks.getDocument();
     const renderer = this.callbacks.getRenderer();
-    if (!document || !renderer || this.disposed) return false;
+    if (!document || !renderer || this.disposed) {
+      traceSmartSelection('prepare-rejected', {
+        document: Boolean(document), renderer: Boolean(renderer), disposed: this.disposed
+      });
+      return false;
+    }
     const options = this.callbacks.getOptions();
     const expectedKey = [
       document.id,
@@ -98,6 +116,7 @@ export class SmartSelectionToolController {
       const prepared = await this.gate.prepare(source);
       if (!prepared || this.disposed) return false;
       this.source = source;
+      traceSmartSelection('prepared', { source: source.key });
       this.callbacks.setStatus(null);
       return true;
     })().catch((reason: unknown) => {
@@ -113,7 +132,7 @@ export class SmartSelectionToolController {
   }
 
   hover(point: SelectionPoint) {
-    if (this.callbacks.getOptions().mode !== 'object-finder') return;
+    if (this.committing || this.callbacks.getOptions().mode !== 'object-finder') return;
     if (candidateAtPoint(this.preview, point)) return;
     if (this.hoverTimer) clearTimeout(this.hoverTimer);
     this.hoverTimer = setTimeout(() => {
@@ -123,13 +142,22 @@ export class SmartSelectionToolController {
   }
 
   async commitPoint(point: SelectionPoint, mode: SelectionCombineMode) {
-    const candidate = candidateAtPoint(this.preview, point)
-      ? this.preview
-      : await this.resolvePoint(point, true);
-    if (!candidate) return false;
-    this.callbacks.selection.rasterMask(candidate.mask, mode);
-    this.clearPreview();
-    return true;
+    traceSmartSelection('point-requested', { x: point.x, y: point.y, mode });
+    if (this.hoverTimer) clearTimeout(this.hoverTimer);
+    this.hoverTimer = null;
+    this.committing = true;
+    try {
+      const candidate = candidateAtPoint(this.preview, point)
+        ? this.preview
+        : await this.resolvePoint(point, true);
+      if (!candidate) {
+        traceSmartSelection('point-no-candidate');
+        return false;
+      }
+      return await this.commitCandidate(candidate, mode);
+    } finally {
+      this.committing = false;
+    }
   }
 
   async commitBox(
@@ -144,9 +172,7 @@ export class SmartSelectionToolController {
     });
     const candidate = candidates ? bestCandidate(candidates) : null;
     if (!candidate) return false;
-    this.callbacks.selection.rasterMask(candidate.mask, mode);
-    this.clearPreview();
-    return true;
+    return this.commitCandidate(candidate, mode);
   }
 
   async selectSubject(mode: SelectionCombineMode = 'replace') {
@@ -163,8 +189,10 @@ export class SmartSelectionToolController {
         this.callbacks.setStatus('No subject was found.');
         return false;
       }
-      this.callbacks.selection.rasterMask(candidate.mask, mode);
-      this.clearPreview();
+      if (!await this.commitCandidate(candidate, mode)) {
+        this.callbacks.setStatus('The object selection could not be applied.');
+        return false;
+      }
       this.callbacks.setStatus(null);
       return true;
     } catch (reason) {
@@ -254,6 +282,7 @@ export class SmartSelectionToolController {
         hardEdge: this.callbacks.getOptions().hardEdge
       });
       const candidate = candidates ? bestCandidate(candidates) : null;
+      traceSmartSelection('point-resolved', { candidates: candidates?.length ?? 0 });
       if (!candidate) return null;
       if (!commit) {
         this.preview = candidate;
@@ -266,6 +295,22 @@ export class SmartSelectionToolController {
         : 'Object Selection is unavailable.');
       return null;
     }
+  }
+
+  /** Keeps GPU feedback continuous until the authoritative selection mask is live. */
+  private async commitCandidate(
+    candidate: SmartSelectionCandidate,
+    mode: SelectionCombineMode
+  ) {
+    this.preview = candidate;
+    this.callbacks.getRenderer()?.setSmartSelectionPreview(candidate.mask);
+    if (!await this.callbacks.selection.rasterMask(candidate.mask, mode)) {
+      traceSmartSelection('commit-rejected');
+      return false;
+    }
+    traceSmartSelection('committed');
+    this.clearPreview();
+    return true;
   }
 
   private publishRegionDraft() {

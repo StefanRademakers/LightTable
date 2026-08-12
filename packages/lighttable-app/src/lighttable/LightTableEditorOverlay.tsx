@@ -1698,7 +1698,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setDraft: setSelectionDraft
   });
   const smartSelectionController = smartSelectionControllerRef.current;
-  useEffect(() => () => smartSelectionController.dispose(), [smartSelectionController]);
+  const smartSelectionDisposeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    // React development strict effects run setup -> cleanup -> setup without
+    // recreating this ref-owned controller. Defer disposal by one task so the
+    // second setup can retain the live worker; a real unmount still disposes it.
+    if (smartSelectionDisposeTimerRef.current) {
+      clearTimeout(smartSelectionDisposeTimerRef.current);
+      smartSelectionDisposeTimerRef.current = null;
+    }
+    return () => {
+      smartSelectionDisposeTimerRef.current = setTimeout(() => {
+        smartSelectionController.dispose();
+        smartSelectionDisposeTimerRef.current = null;
+      }, 0);
+    };
+  }, [smartSelectionController]);
   useEffect(() => {
     smartSelectionController.invalidate();
     if (editorSession.activeTool !== 'select-object') return;

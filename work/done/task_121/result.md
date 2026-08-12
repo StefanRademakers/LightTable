@@ -1,42 +1,37 @@
 # Task 121 result — Smart Object Selection
 
-Status: implementation complete; release-quality hardware/corpus gates are
-carried into task 123.
+Status: visibly working and reverified in the real Electron application on
+2026-08-12. The earlier contract-only completion claim was rejected and is not
+used as evidence here.
 
-## Delivered
+## Repaired in the acceptance pass
 
-- Photoshop-compatible W group: Object Selection and Magic Wand.
-- Object Finder hover, click, rectangle and lasso-bounds prompting.
-- Sample All Layers and active-subtree sampling without visibility mutation.
-- Hard/soft candidate masks and normal New/Add/Subtract/Intersect selection.
-- One normal selection-history entry per commit; preview creates no history.
-- GPU-only transient candidate overlay, dirtying only the viewport overlay.
-- Lazy worker SlimSAM backend with WebGPU attempts and WASM fallback.
-- One prepared embedding per visual source, revision invalidation and stale
-  result rejection.
-- Serial newest-prompt handoff; queued obsolete hover prompts do not backlog.
-- Explicit tensor/embedding cleanup on source replacement and disposal.
-- Select Subject through distributed proposals over the cached embedding,
-  ranked without pretending the model has semantic subject labels.
-- Shared worker request/cache lifecycle extracted and adopted by Depth.
+- Fixed a React Strict Mode lifecycle defect that permanently disposed the
+  ref-owned Object Selection controller during development startup. Every click
+  previously reached a dead controller and therefore produced no selection.
+- Prevented Object Finder hover inference from superseding an in-flight click.
+  A click is now authoritative until its mask has committed.
+- Made raster-mask commits awaitable and atomic. The translucent GPU candidate
+  stays visible until the authoritative GPU selection texture is live and the
+  normal selection/history state is published. A failed commit no longer clears
+  the only visible feedback.
+- The committed result uses the existing GPU SelectionContourOverlayBackend:
+  black/white animated marching ants, one device pixel wide, with no CSS/SVG
+  selection rendering and no document recomposite.
 
 ## Evidence
 
-- Focused smart-selection/selection/UI contracts: green (the repository Vitest
-  graph ran 989 tests, followed by 415 tests after lifecycle refinements).
+- `SmartSelectionToolController` and shared selection-session tests: 255 tests
+  green in the focused Vitest graph, including click-vs-hover concurrency and
+  preview-to-persistent-mask handoff.
 - App TypeScript project: green.
-- Production web build and distribution boundary: green.
-- `git diff --check`: green.
-- Practical 1920 x 1080 CPU-q8 probe: ~395 ms warm model load, ~1001 ms
-  one-time encode, ~658 ms for 27 Select Subject candidates, best predicted
-  IoU 0.98. These timings are machine/cache dependent.
+- Real Electron smoke: `npm run smoke:desktop:object-selection` opens
+  `D:\face.jpg`, activates Object Selection through the toolbar, performs a
+  real SlimSAM point selection, and requires a published raster-mask operation,
+  active GPU selection texture and visible overlay.
+- The inspected screenshot at
+  `tmp/object-selection-smoke/object-selection-committed.png` shows the selected
+  person bounded by the standard black/white marching-ants contour.
 
-## Deliberate limits / next quality gate
-
-- The dedicated Object Selection icon is not invented; the W group temporarily
-  reuses the existing Magic Wand asset until an established icon is supplied.
-- SlimSAM Select Subject is a dominant-subject proposal heuristic. The backend
-  is model-neutral so a measured semantic backend can replace it.
-- Refine Selection is a separate workflow and was not faked here.
-- Electron WebGPU/WASM cold-start, repeated-switch memory and labelled visual
-  corpus measurements belong to task 123 before release qualification.
+The smoke intentionally reports ONNX execution-provider warnings separately;
+unexpected console errors and page errors still fail the run.

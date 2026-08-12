@@ -1595,6 +1595,22 @@ export class WebGpuEngine {
       points: draft.points.map((point) => ({ ...point }))
     } : null;
     this.selectionOverlayVisible = visible;
+    const trace = (
+      globalThis as typeof globalThis & {
+        __LIGHTTABLE_SELECTION_OVERLAY_TRACE__?: Array<{
+          operationCount: number;
+          sourceKind: NonNullable<SelectionOperation['source']>['kind'] | null;
+          visible: boolean;
+          maskActive: boolean;
+        }>;
+      }
+    ).__LIGHTTABLE_SELECTION_OVERLAY_TRACE__;
+    trace?.push({
+      operationCount: this.selectionOverlayOperations.length,
+      sourceKind: this.selectionOverlayOperations.at(-1)?.source?.kind ?? null,
+      visible,
+      maskActive: Boolean(this.documentRenderer?.selectionMaskTexture())
+    });
     this.selectionAntsAnimator.setSelectionVisible(
       visible && this.selectionOverlayOperations.length > 0
     );

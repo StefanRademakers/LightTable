@@ -293,8 +293,7 @@ describe('selection session controller', () => {
       data: new Uint8Array(document.width * document.height)
     };
     mask.data[12] = 255;
-    expect(state.controller.rasterMask(mask, 'replace')).toBe(true);
-    await Promise.resolve();
+    await expect(state.controller.rasterMask(mask, 'replace')).resolves.toBe(true);
 
     expect(state.renderer.applyRasterSelection).toHaveBeenCalledOnce();
     const operation = state.renderer.applyRasterSelection.mock.calls[0]![0];

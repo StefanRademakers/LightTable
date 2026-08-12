@@ -107,6 +107,7 @@
     "smoke:desktop:fill-ux:build": "npm run package:desktop:verify && npm run smoke:desktop:fill-ux --",
     "smoke:desktop:gradient-tool": "node scripts/smoke-desktop-gradient-tool.mjs",
     "smoke:desktop:magic-wand": "node scripts/smoke-desktop-magic-wand.mjs",
+    "smoke:desktop:object-selection": "node scripts/smoke-desktop-object-selection.mjs",
     "fixture:face-warp:checkerboard": "node scripts/create-face-warp-checkerboard-fixture.mjs",
     "smoke:desktop:face-warp": "node scripts/smoke-desktop-face-warp.mjs",
     "smoke:desktop:magic-wand:build": "npm run package:desktop:verify && npm run smoke:desktop:magic-wand --",

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument } from '../../../editor/document/documentTypes';
 import { createDefaultSmartSelectionOptions } from '../../../editor/selection/selectionTypes';
 import type { SelectionSessionController } from '../selection/useSelectionSessionController';
-import type { SmartSelectionBackend } from './SmartSelectionBackend';
+import type { SmartSelectionBackend, SmartSelectionCandidate } from './SmartSelectionBackend';
 import { SmartSelectionToolController } from './SmartSelectionToolController';
 
 const mask = { width: 8, height: 6, data: new Uint8Array(48).fill(255) };
@@ -13,7 +13,7 @@ const harness = () => {
     exportPng: vi.fn(async () => new Blob(['png'], { type: 'image/png' })),
     setSmartSelectionPreview: vi.fn()
   };
-  const rasterMask = vi.fn(() => true);
+  const rasterMask = vi.fn(async () => true);
   const selection = { rasterMask } as unknown as SelectionSessionController;
   const backend: SmartSelectionBackend = {
     prepare: vi.fn(async (source) => ({
@@ -82,5 +82,46 @@ describe('SmartSelectionToolController', () => {
       expect.objectContaining({ hardEdge: false })
     );
     expect(rasterMask).toHaveBeenCalledWith(mask, 'replace');
+  });
+
+  it('keeps the GPU candidate preview visible until the persistent mask commit succeeds', async () => {
+    const { controller, rasterMask, renderer } = harness();
+    let finishCommit!: (value: boolean) => void;
+    rasterMask.mockImplementationOnce(() => new Promise<boolean>((resolve) => {
+      finishCommit = resolve;
+    }));
+
+    const commit = controller.commitPoint({ x: 3, y: 2 }, 'replace');
+    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledOnce());
+    expect(renderer.setSmartSelectionPreview).not.toHaveBeenCalledWith(null);
+
+    finishCommit(true);
+    await expect(commit).resolves.toBe(true);
+    expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(null);
+  });
+
+  it('does not discard the candidate preview when the persistent mask commit fails', async () => {
+    const { controller, rasterMask, renderer } = harness();
+    rasterMask.mockResolvedValueOnce(false);
+
+    await expect(controller.commitPoint({ x: 3, y: 2 }, 'replace')).resolves.toBe(false);
+    expect(renderer.setSmartSelectionPreview).not.toHaveBeenCalledWith(null);
+  });
+
+  it('does not let a hover request supersede an in-flight click commit', async () => {
+    const { backend, controller, rasterMask } = harness();
+    let finishPoint!: (value: SmartSelectionCandidate[]) => void;
+    vi.mocked(backend.selectPoint).mockImplementationOnce(() => new Promise((resolve) => {
+      finishPoint = resolve;
+    }));
+
+    const commit = controller.commitPoint({ x: 3, y: 2 }, 'replace');
+    await vi.waitFor(() => expect(backend.selectPoint).toHaveBeenCalledOnce());
+    controller.hover({ x: 4, y: 3 });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(backend.selectPoint).toHaveBeenCalledOnce();
+    finishPoint([{ id: 'candidate', score: 0.9, mask }]);
+    await expect(commit).resolves.toBe(true);
+    expect(rasterMask).toHaveBeenCalledOnce();
   });
 });

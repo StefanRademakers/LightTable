@@ -91,7 +91,7 @@ export interface SelectionSessionController {
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
   translate(x: number, y: number): void;
   magicWand(point: SelectionPoint, mode: SelectionCombineMode, options: MagicWandOptions): boolean;
-  rasterMask(mask: RasterSelectionMask, mode: SelectionCombineMode): boolean;
+  rasterMask(mask: RasterSelectionMask, mode: SelectionCombineMode): Promise<boolean>;
 }
 
 export const cloneSelectionOperations = (
@@ -499,7 +499,7 @@ export const createSelectionSessionController = (
         });
       return true;
     },
-    rasterMask: (mask, mode) => {
+    rasterMask: async (mask, mode) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       const renderer = dependencies.getRenderer();
@@ -515,19 +515,21 @@ export const createSelectionSessionController = (
         mode
       );
       const after = mode === 'replace' ? [operation] : [...before, operation];
-      void renderer.applyRasterSelection(operation).then((applied) => {
-        if (!applied || !isCurrent(document, renderer)) return;
+      try {
+        const applied = await renderer.applyRasterSelection(operation);
+        if (!applied || !isCurrent(document, renderer)) return false;
         const latest = resolveDependencies();
         latest.publishSelection(after, null);
         pushHistory(document, before, after);
         latest.setError(null);
-      }).catch((reason) => {
-        if (!isCurrent(document, renderer)) return;
+        return true;
+      } catch (reason) {
+        if (!isCurrent(document, renderer)) return false;
         resolveDependencies().setError(
           reason instanceof Error ? reason.message : 'The object selection could not be applied.'
         );
-      });
-      return true;
+        return false;
+      }
     },
     finishPolygon: () => (
       polygonGesture.active
