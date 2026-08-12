@@ -90,6 +90,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
   const [open, setOpen] = React.useState(false);
   const [generation, setGeneration] = React.useState(0);
   const flyoutId = React.useId();
+  const groupRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (activeDefinition) setRememberedDefinition(activeDefinition);
@@ -105,6 +106,15 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
     if (!expanded) setOpen(false);
   }, [expanded]);
 
+  React.useEffect(() => {
+    if (!open || expanded) return undefined;
+    const closeOnOutsidePointer = (event: globalThis.PointerEvent) => {
+      if (!groupRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer, true);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true);
+  }, [expanded, open]);
+
   const master = activeDefinition ?? rememberedDefinition;
   const flyoutVisible = expanded || open;
   const showFlyout = () => {
@@ -114,6 +124,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
 
   return (
     <div
+      ref={groupRef}
       className="lighttable-toolbox__group"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
