@@ -122,7 +122,8 @@
   adverse profile `D:\face.jpg` pass this lifecycle contract on the RTX 5090,
   with no page or WebGPU validation errors.
 - The smoke also redetects over an existing authored effect, cancels the
-  pending replacement and proves history remains unchanged before performing
+  pending replacement through the normal Escape command and proves history
+  remains unchanged before performing
   a separate accepted warm redetection. This guards the non-destructive
   redetect/cancel path rather than testing only first detection.
 - Visual inspection of the captured adverse preview confirms that MediaPipe

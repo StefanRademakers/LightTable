@@ -2600,6 +2600,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       fitZoom,
       actualZoom,
       cancelActiveOperation: () => {
+        if (pendingFaceWarpDetectionForActiveLayer) {
+          cancelPendingFaceWarpDetection();
+          return;
+        }
         if (toolOptionsMenu) {
           setToolOptionsMenu(null);
           return;

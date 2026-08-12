@@ -247,7 +247,7 @@ try {
     .waitFor({ state: 'visible', timeout: 10_000 });
   await page.getByRole('button', { name: 'Accept mesh' })
     .waitFor({ state: 'visible', timeout: 60_000 });
-  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 10_000 });
   const documentAfterCancelledRedetection = await driver.queryDocument(documentId);
