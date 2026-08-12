@@ -5,6 +5,7 @@ import {
   deformFaceMesh,
   findDeformedFaceHit,
   hitTestDeformedFace,
+  refineFaceWarpBrush,
   relaxFaceWarpBrush,
   restoreFaceWarpBrush,
   visibleFaceTriangleIndices
@@ -72,6 +73,46 @@ describe('face warp target lattice', () => {
     const target = deformFaceMesh({ ...source, displacements }, triangles);
     expect(target[5]!.x).toBeGreaterThan(source.landmarks.mesh[5]!.x);
     expect(target[0]!.x).toBe(source.landmarks.mesh[0]!.x);
+  });
+
+  it('refines only the transition band while preserving the pointer constraint', () => {
+    const source = face();
+    const preview = applyFaceWarpBrush(
+      source, triangles, { x: 50, y: 50 }, { x: 12, y: -4 }, 38, 1
+    );
+    const refined = refineFaceWarpBrush(
+      { ...source, displacements: preview }, triangles, { x: 50, y: 50 }, 38
+    );
+    expect(refined[5]!.x).toBeCloseTo(preview[5]!.x, 8);
+    expect(refined[5]!.y).toBeCloseTo(preview[5]!.y, 8);
+    expect(refined[0]).toEqual(preview[0]);
+    expect(refined.some((point, index) =>
+      Math.hypot(point.x - preview[index]!.x, point.y - preview[index]!.y) > 1e-6
+    )).toBe(true);
+    expect(refined.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))).toBe(true);
+  });
+
+  it('keeps opposite facial feature loops untouched during exact refinement', () => {
+    const mesh = Array.from({ length: MEDIAPIPE_FACE_VERTEX_COUNT }, (_, index) => ({
+      x: 300 + MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3]! * 24,
+      y: 320 - MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 1]! * 24,
+      z: MEDIAPIPE_FACE_CANONICAL_POSITIONS[index * 3 + 2]! * 24
+    }));
+    const source: FaceWarpFace = {
+      id: 'canonical-refinement', confidence: 1,
+      parameters: createDefaultFaceWarpParameters(),
+      landmarks: semanticLandmarksFromMesh(mesh)
+    };
+    const preview = applyFaceWarpBrush(
+      source, MEDIAPIPE_FACE_TRIANGLE_INDICES, mesh[159]!, { x: 9, y: -5 }, 30, 1
+    );
+    const refined = refineFaceWarpBrush(
+      { ...source, displacements: preview }, MEDIAPIPE_FACE_TRIANGLE_INDICES, mesh[159]!, 30
+    );
+    [362, 385, 386, 387, 263].forEach((index) => {
+      expect(refined[index]!.x).toBe(0);
+      expect(refined[index]!.y).toBe(0);
+    });
   });
 
   it('hit-tests the same target mesh used by the renderer', () => {

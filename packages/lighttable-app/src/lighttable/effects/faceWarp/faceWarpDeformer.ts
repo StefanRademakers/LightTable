@@ -336,6 +336,85 @@ export const applyFaceWarpBrush = (
   }));
 };
 
+/**
+ * Converges the cheap interactive brush preview after pointer-up.
+ *
+ * The authored preview is the data term: the brush core stays pinned and the
+ * transition band is regularized over mesh connectivity. Vertices belonging
+ * to an eye or lip loop only average with that same loop, preventing the
+ * solver from taking a screen-space shortcut across eyelids or the mouth.
+ * This function is deliberately pure so refinement can move to a worker
+ * without changing document state or renderer contracts.
+ */
+export const refineFaceWarpBrush = (
+  face: FaceWarpFace,
+  triangleIndices: readonly number[],
+  center: FaceWarpPoint,
+  radius: number,
+  maxIterations = 48
+): readonly FaceWarpPoint[] => {
+  const source = face.landmarks.mesh;
+  const authored = source.map((_, index) => face.displacements?.[index] ?? { x: 0, y: 0 });
+  if (triangleIndices.length === 0 || maxIterations <= 0) return authored;
+  const topology = faceWarpTopology(source, triangleIndices);
+  const distances = geodesicDistances(source, topology.adjacency, center, radius);
+  const influence = authored.map((_, index) => smoothWeight(distances[index]!, radius));
+  const featureMembership = new Int16Array(source.length);
+  featureMembership.fill(-1);
+  const protectedLoops = [
+    topology.featureLoops.leftEye,
+    topology.featureLoops.rightEye,
+    topology.featureLoops.outerLips,
+    topology.featureLoops.innerLips
+  ];
+  protectedLoops.forEach((loop, loopIndex) => {
+    loop.forEach((vertex) => { featureMembership[vertex] = loopIndex; });
+  });
+
+  let refined = authored.map((point) => ({ ...point }));
+  for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+    const previous = refined;
+    let maximumChange = 0;
+    refined = previous.map((value, index) => {
+      const localInfluence = influence[index]!;
+      // Outside is immutable; the central pointer constraint is exact.
+      if (localInfluence <= 0 || localInfluence >= 0.9) return authored[index]!;
+      const membership = featureMembership[index]!;
+      const candidates = topology.laplacianWeights[index]!.filter(({ vertex }) =>
+        membership < 0 || featureMembership[vertex] === membership
+      );
+      if (candidates.length === 0) return value;
+      const total = candidates.reduce((sum, neighbor) => sum + neighbor.weight, 0);
+      if (total <= 1e-8) return value;
+      const average = candidates.reduce((sum, neighbor) => ({
+        x: sum.x + previous[neighbor.vertex]!.x * neighbor.weight / total,
+        y: sum.y + previous[neighbor.vertex]!.y * neighbor.weight / total
+      }), { x: 0, y: 0 });
+      const featureStrength = membership >= 0 ? 0.42 : 1;
+      const boundaryStrength = topology.boundaryVertices.has(index) ? 0.2 : 1;
+      const smoothing = 0.3 * (1 - localInfluence) * featureStrength * boundaryStrength;
+      const next = {
+        x: authored[index]!.x + (average.x - authored[index]!.x) * smoothing,
+        y: authored[index]!.y + (average.y - authored[index]!.y) * smoothing
+      };
+      maximumChange = Math.max(maximumChange, Math.hypot(next.x - value.x, next.y - value.y));
+      return next;
+    });
+    if (maximumChange < 1e-4) break;
+  }
+
+  const semanticTarget = deformFaceMesh({ ...face, displacements: [] });
+  const acceptedTarget = deformFaceMesh(face);
+  const desiredTarget = deformFaceMesh({ ...face, displacements: refined });
+  const safeTarget = preventFaceAndCollarFoldovers(
+    face, acceptedTarget, desiredTarget, triangleIndices
+  );
+  return safeTarget.map((point, index) => ({
+    x: point.x - semanticTarget[index]!.x,
+    y: point.y - semanticTarget[index]!.y
+  }));
+};
+
 const triangleContains = (
   point: FaceWarpPoint,
   a: FaceWarpPoint,

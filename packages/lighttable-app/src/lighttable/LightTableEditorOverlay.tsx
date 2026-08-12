@@ -195,6 +195,7 @@ import {
   applyFaceWarpParameterChange,
   applyFaceWarpBrush,
   findDeformedFaceHit,
+  refineFaceWarpBrush,
   relaxFaceWarpBrush,
   restoreFaceWarpBrush
 } from './effects/faceWarp/faceWarpDeformer';
@@ -711,6 +712,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     seedSource: { x: number; y: number };
     startPointerSource: { x: number; y: number };
     originalDisplacements: FaceWarpFace['displacements'];
+    latestRadius: number;
+    mode: 'sculpt' | 'relax' | 'restore';
+  } | null>(null);
+  const faceWarpRefinementRef = useRef<{
+    frame: number;
+    documentId: ImageDocument['id'];
+    layerId: LayerId;
+    finish(): void;
   } | null>(null);
   const [thumbnailDocumentReadyId, setThumbnailDocumentReadyId] = useState<string | null>(null);
   const [editorSession, setEditorSession] = useDocumentEditorSession(documentSession);
@@ -1145,6 +1154,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commitParagraphTextRef.current();
     finishTextEditingRef.current();
     resetAdjustmentTransactionRef.current();
+    const pendingFaceWarpRefinement = faceWarpRefinementRef.current;
+    if (pendingFaceWarpRefinement) {
+      window.cancelAnimationFrame(pendingFaceWarpRefinement.frame);
+      faceWarpRefinementRef.current = null;
+      pendingFaceWarpRefinement.finish();
+    }
     resetDocumentTransactionRef.current();
   }, []);
 
@@ -1377,6 +1392,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ]);
 
   const beginFaceWarpGesture = (pointerId: number, documentPoint: { x: number; y: number }) => {
+    const pendingRefinement = faceWarpRefinementRef.current;
+    if (pendingRefinement) {
+      window.cancelAnimationFrame(pendingRefinement.frame);
+      faceWarpRefinementRef.current = null;
+      // A new gesture supersedes refinement, but the already visible preview
+      // remains one complete, undoable authored gesture.
+      endDocumentTransaction();
+    }
     const document = imageDocumentRef.current;
     const layer = document ? findRasterLayer(document, document.activeLayerId) : null;
     const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
@@ -1400,7 +1423,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       faceId: hit.face.id,
       seedSource: hit.hit.sourcePoint,
       startPointerSource: sourcePoint,
-      originalDisplacements: hit.face.displacements
+      originalDisplacements: hit.face.displacements,
+      latestRadius: 0,
+      mode: 'sculpt'
     };
     setFaceWarpSelectedFaceId(hit.face.id);
     return true;
@@ -1424,6 +1449,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         layer.transform.a * layer.transform.d - layer.transform.b * layer.transform.c
       )));
       const radius = editorSession.brush.size * 0.5 / sourceScale;
+      gesture.latestRadius = radius;
+      gesture.mode = mode;
       const faces = settings.faces.map((face) => {
         if (face.id !== gesture.faceId) return face;
         return {
@@ -1456,9 +1483,66 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const finishFaceWarpGesture = (pointerId: number) => {
     const gesture = faceWarpGestureRef.current;
     if (!gesture || gesture.pointerId !== pointerId) return false;
-    // The last interactive preview is already fold-safe and is the authored
-    // result. Re-solving with a different iteration count here made pointer-up
-    // visibly jump to a second mesh even though the pointer had not moved.
+    const document = imageDocumentRef.current;
+    const layerId = document?.activeLayerId ?? null;
+    if (gesture.mode === 'sculpt' && gesture.latestRadius > 0) {
+      if (!document || !layerId) {
+        faceWarpGestureRef.current = null;
+        endDocumentTransaction();
+        return true;
+      }
+      const refinement = {
+        documentId: document.id,
+        layerId,
+        faceId: gesture.faceId,
+        seedSource: gesture.seedSource,
+        radius: gesture.latestRadius
+      };
+      faceWarpGestureRef.current = null;
+      const finishRefinement = () => {
+        if (!documentMutationController.active) return;
+        if (imageDocumentRef.current?.id !== refinement.documentId) {
+          documentMutationController.reset();
+          return;
+        }
+        documentMutationController.change((currentDocument) => {
+          const layer = findRasterLayer(currentDocument, refinement.layerId);
+          const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
+          if (!layer?.adjustmentStack || !instance) return currentDocument;
+          const settings = readFaceWarpNodeSettings(instance);
+          const faces = settings.faces.map((face) => face.id === refinement.faceId
+            ? {
+              ...face,
+              displacements: refineFaceWarpBrush(
+                face,
+                settings.topology.triangleIndices,
+                refinement.seedSource,
+                refinement.radius
+              )
+            }
+            : face);
+          return setRasterLayerAdjustmentStack(
+            currentDocument,
+            layer.id,
+            setFaceWarpNodeSettings(layer.adjustmentStack, { ...settings, faces })
+          );
+        }, false);
+        endDocumentTransaction();
+      };
+      const frame = window.requestAnimationFrame(() => {
+        const pending = faceWarpRefinementRef.current;
+        if (!pending || pending.frame !== frame) return;
+        faceWarpRefinementRef.current = null;
+        finishRefinement();
+      });
+      faceWarpRefinementRef.current = {
+        frame,
+        documentId: refinement.documentId,
+        layerId: refinement.layerId,
+        finish: finishRefinement
+      };
+      return true;
+    }
     faceWarpGestureRef.current = null;
     endDocumentTransaction();
     return true;

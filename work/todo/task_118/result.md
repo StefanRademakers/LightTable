@@ -163,3 +163,28 @@
 - The remaining cold hit is the first full-resolution deformation-target/pass
   setup. Eager allocation may remove it, but must be benchmarked against the
   identity path's current zero-extra-texture memory win before adoption.
+
+## Shape-preserving pointer-up refinement
+
+- The interactive path remains a bounded two-step Laplacian preview. Pointer-up
+  now runs a converged feature-aware refinement over only the connected brush
+  footprint; the pointer core and all vertices outside the footprint remain
+  exact authored constraints.
+- Eye and lip vertices only regularize against their own protected feature
+  loop. The outer face boundary is damped and the final target is passed through
+  the same face/collar foldover guard as the live preview.
+- Refinement is latest-only and scheduled for the next animation frame. A new
+  gesture can supersede it without waiting; undo/save/document actions flush it
+  inside the existing transaction, preventing the one-frame history race that
+  otherwise leaves an unrecorded preview.
+- Focused unit evidence is 15/15 green, including a numerically changing
+  transition band, exact core/outside constraints and an untouched opposite
+  eye on the canonical 468-vertex mesh.
+- The desktop fixture remains exact at identity, creates one undo entry, changes
+  726 local pixels, creates zero black pixels, preserves canvas bounds and has
+  identical released/one-second-settled hashes. Preview measured p50 14.0 ms and
+  p95 16.1 ms; pointer-up refinement reached the next rendered frame in 26.8 ms
+  including the frame boundary, with no visible preview-to-refined pixel jump.
+- No sparse factorization was added: the measured bounded 468-vertex solve does
+  not justify that cache or lifecycle complexity yet. That checkbox remains
+  open until profiling demonstrates an actual need.

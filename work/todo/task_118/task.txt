@@ -143,19 +143,19 @@ Gate 3:
       topology cache and reuse them for sculpt and Relax previews.
 - [ ] Add a reusable sparse factorization only with the exact refinement solver;
       the current bounded Jacobi preview does not require or benefit from one.
-- [ ] Implement low-iteration interactive ARAP/Laplacian preview.
-- [ ] Implement supersedable exact refinement at pointer-up.
-- [ ] Preserve eye, lip, nose and outer-face feature loops.
+- [x] Implement low-iteration interactive ARAP/Laplacian preview.
+- [x] Implement supersedable exact refinement at pointer-up.
+- [x] Preserve eye, lip, nose and outer-face feature loops.
 - [x] Validate triangle orientation and minimum area after every solve.
 - [x] Add line search/clamping to prevent foldovers.
 - [x] Avoid unstable cotangent weights by using bounded inverse-edge weights.
-- [ ] Keep solver parameters internal; do not explode user-facing controls.
+- [x] Keep solver parameters internal; do not explode user-facing controls.
 
 Gate 4:
 
 - [x] Stress fixtures produce no inverted triangles or texture explosions.
-- [ ] Preview follows the pointer within one visible frame.
-- [ ] Pointer-up refinement does not block a subsequent gesture.
+- [x] Preview follows the pointer within one visible frame.
+- [x] Pointer-up refinement does not block a subsequent gesture.
 
 ## Phase 5 — Relax, Restore and semantic controls
 
@@ -216,7 +216,7 @@ Gate 7:
 - [x] Record detector cold/warm time in the repeatable desktop smoke.
 - [ ] Record detector memory independently from renderer allocations.
 - [x] Record interactive preview-to-next-frame p50/p95 in the desktop smoke.
-- [ ] Record pointer-up exact refinement time after that solver exists.
+- [x] Record pointer-up exact refinement time after that solver exists.
 - [ ] Record vertex upload and GPU mesh-pass time.
 - [ ] Record idle and repeated-edit GPU/CPU memory behaviour.
 - [ ] Create front/three-quarter/profile fixtures at multiple resolutions.

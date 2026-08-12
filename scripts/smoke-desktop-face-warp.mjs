@@ -196,7 +196,13 @@ try {
     );
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
   }
+  const previewBytes = await canvas.screenshot({ path: path.join(output, '02-preview.png') });
+  const refinementStartedAt = performance.now();
   await page.mouse.up();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
+  const pointerUpRefinementMs = performance.now() - refinementStartedAt;
+  const refinedBytes = await canvas.screenshot({ path: path.join(output, '02-refined.png') });
+  const refinementChangedBounds = await changedPixelBounds(previewBytes, refinedBytes);
   await page.mouse.move(10, 10);
   await page.waitForTimeout(250);
   const previewFrameSamplesMs = (await page.evaluate(
@@ -264,6 +270,8 @@ try {
       coldDetectionMs: Math.round(coldDetectionMs * 10) / 10,
       warmDetectionMs: Math.round(warmDetectionMs * 10) / 10,
       gestureToSettledFrameMs: Math.round(gestureToSettledFrameMs * 10) / 10,
+      pointerUpRefinementMs: Math.round(pointerUpRefinementMs * 10) / 10,
+      refinementChangedPixels: refinementChangedBounds.changed,
       previewFrameSamplesMs: previewFrameSamplesMs.map((value) => Math.round(value * 10) / 10),
       previewFrameP50Ms: Math.round(previewFrameP50Ms * 10) / 10,
       previewFrameP95Ms: Math.round(previewFrameP95Ms * 10) / 10
