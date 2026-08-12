@@ -624,7 +624,14 @@ export const hitTestDeformedFace = (
   return findDeformedFaceHit(face, triangleIndices, point) !== null;
 };
 
-/** Relax authored brush constraints locally toward their undeformed state. */
+/**
+ * Smooths high-frequency authored brush constraints inside the brush.
+ *
+ * Relax deliberately operates on displacement differences, not on absolute
+ * displacement magnitude. A uniform (or locally smooth) authored move is an
+ * intended shape change and must therefore remain stationary. Alt/restore is
+ * the separate gesture that returns authored displacement toward zero.
+ */
 export const relaxFaceWarpBrush = (
   face: FaceWarpFace,
   triangleIndices: readonly number[],
@@ -648,10 +655,9 @@ export const relaxFaceWarpBrush = (
       x: sum.x + current[neighbor.vertex]!.x * neighbor.weight,
       y: sum.y + current[neighbor.vertex]!.y * neighbor.weight
     }), { x: 0, y: 0 });
-    const relaxed = { x: average.x * 0.92, y: average.y * 0.92 };
     return {
-      x: value.x + (relaxed.x - value.x) * influence,
-      y: value.y + (relaxed.y - value.y) * influence
+      x: value.x + (average.x - value.x) * influence,
+      y: value.y + (average.y - value.y) * influence
     };
   });
 };

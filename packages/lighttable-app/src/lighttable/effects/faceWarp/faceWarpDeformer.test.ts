@@ -163,6 +163,17 @@ describe('face warp target lattice', () => {
     expect(relaxed[7]!.x).toBe(10);
   });
 
+  it('preserves an intended smooth displacement while relaxing local detail', () => {
+    const uniform = face().landmarks.mesh.map(() => ({ x: 12, y: -5 }));
+    const source = { ...face(), displacements: uniform };
+    const relaxed = relaxFaceWarpBrush(source, triangles, { x: 50, y: 50 }, 45, 1);
+
+    relaxed.forEach((point) => {
+      expect(point.x).toBeCloseTo(12, 8);
+      expect(point.y).toBeCloseTo(-5, 8);
+    });
+  });
+
   it('restores direct constraints locally without removing semantic controls', () => {
     const source = {
       ...face(),

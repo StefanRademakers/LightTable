@@ -131,6 +131,16 @@
   options bar states all three brush modifiers without adding solver controls.
 - Unit coverage proves that local restore leaves distant direct constraints and
   active semantic deformation intact.
+## Shape-preserving Relax
+
+- Shift-drag Relax now smooths only displacement differences. It no longer
+  multiplies the local field toward zero, so repeated smoothing cannot slowly
+  erase a deliberate translated or broad face deformation.
+- Alt-drag Restore remains the only brush gesture that reduces authored
+  displacement magnitude toward the detected source mesh.
+- Focused unit coverage proves that a uniform large-scale displacement is
+  invariant while an isolated local kink is reduced and distant authored work
+  remains byte-for-byte unchanged.
 ## Coordinate equivalence
 
 - A canonical 468-vertex fixture now applies identical semantic and direct
