@@ -347,6 +347,36 @@ try {
   if (digest(repeatedBytes) !== digest(idleBytes)) {
     throw new Error('Face Warp changed during idle after repeated edits.');
   }
+  await page.getByRole('radio', { name: 'Adjust', exact: true }).click();
+  const amountControl = page.locator('label.lighttable-adjustment').filter({ hasText: /^Amount/ })
+    .locator('input[type="range"]');
+  const beforeSemantic = await driver.queryDocument(documentId);
+  const semanticSourceBytes = await canvas.screenshot();
+  const amountBounds = await amountControl.boundingBox();
+  if (!amountBounds) throw new Error('Face Warp Amount slider bounds are unavailable.');
+  await page.mouse.move(amountBounds.x + amountBounds.width * 0.5, amountBounds.y + amountBounds.height * 0.5);
+  await page.mouse.down();
+  await page.mouse.move(amountBounds.x + amountBounds.width * 0.75, amountBounds.y + amountBounds.height * 0.5, {
+    steps: 6
+  });
+  await page.mouse.up();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const afterSemantic = await driver.queryDocument(documentId);
+  const semanticBytes = await canvas.screenshot({ path: path.join(output, '06-semantic-face-width.png') });
+  const semanticChangedBounds = await changedPixelBounds(semanticSourceBytes, semanticBytes);
+  if (semanticChangedBounds.changed < 16) throw new Error('Face Warp semantic Amount made no visible change.');
+  if (!beforeSemantic || !afterSemantic
+    || afterSemantic.history.undoDepth !== beforeSemantic.history.undoDepth + 1) {
+    throw new Error(`Face Warp semantic edit was not one undo transaction: ${JSON.stringify({
+      before: beforeSemantic?.history, after: afterSemantic?.history
+    })}`);
+  }
+  await driver.execute(documentId, 'history.undo');
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const undoneSemanticBytes = await canvas.screenshot();
+  if (digest(semanticSourceBytes) !== digest(undoneSemanticBytes)) {
+    throw new Error('Undo did not restore the exact pre-semantic Face Warp pixels.');
+  }
   const memoryAfterIdle = await measurePageMemory(page);
   const telemetryAfterIdle = await driver.queryRenderTelemetry(documentId);
   const firstGpuBytes = telemetryAfterFirstEdit?.gpuTextureBytes ?? null;
@@ -381,6 +411,7 @@ try {
     contentBounds,
     afterContentBounds,
     newBlackPixels,
+    semanticChangedBounds,
     performance: {
       coldDetectionMs: Math.round(coldDetectionMs * 10) / 10,
       warmDetectionMs: Math.round(warmDetectionMs * 10) / 10,

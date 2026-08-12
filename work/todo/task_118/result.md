@@ -416,6 +416,11 @@
 - The Photoshop comparison checkbox remains open until those actual reference
   PNGs exist. This is deliberate: the protocol is now repeatable, but a written
   protocol is not evidence of parity.
+- The desktop oracle now also drives the production `Adjust` UI: one real
+  pointer drag on Feature `Face width` / Amount changes visible pixels, creates
+  exactly one undo entry and undo restores the exact pre-edit canvas hash. This
+  proves the compact UI reaches the same canonical history/render path as
+  sculpting; it is not merely a presentational control.
 
 ## Focused tool UX and detector-memory truthfulness
 
