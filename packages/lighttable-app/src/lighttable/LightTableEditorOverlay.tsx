@@ -1444,6 +1444,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       latestRadius: 0,
       mode: 'sculpt'
     };
+    engineRef.current?.setFaceWarpInteractionMode('sculpt');
     setFaceWarpSelectedFaceId(hit.face.id);
     return true;
   };
@@ -1455,6 +1456,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => {
     const gesture = faceWarpGestureRef.current;
     if (!gesture || gesture.pointerId !== pointerId) return false;
+    engineRef.current?.setFaceWarpInteractionMode(mode);
     return documentMutationController.change((document) => {
       const layer = findRasterLayer(document, document.activeLayerId);
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;
@@ -1500,6 +1502,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const finishFaceWarpGesture = (pointerId: number) => {
     const gesture = faceWarpGestureRef.current;
     if (!gesture || gesture.pointerId !== pointerId) return false;
+    engineRef.current?.setFaceWarpInteractionMode(null);
     const document = imageDocumentRef.current;
     const layerId = document?.activeLayerId ?? null;
     if (gesture.mode === 'sculpt' && gesture.latestRadius > 0) {
@@ -1568,6 +1571,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const cancelFaceWarpGesture = (pointerId: number) => {
     const gesture = faceWarpGestureRef.current;
     if (!gesture || gesture.pointerId !== pointerId) return false;
+    engineRef.current?.setFaceWarpInteractionMode(null);
     documentMutationController.change((document) => {
       const layer = findRasterLayer(document, document.activeLayerId);
       const instance = layer ? findFaceWarpModuleInstance(layer.adjustmentStack) : null;

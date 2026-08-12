@@ -129,6 +129,22 @@ const FACE_WARP_MESH_THEME: VectorEditingOverlayTheme = {
   curveSubdivisions: 1
 };
 
+const FACE_WARP_RELAX_CURSOR_THEME: VectorEditingOverlayTheme = {
+  ...BRUSH_CURSOR_THEME,
+  pathColor: [0.2, 0.9, 1, 1],
+  underlayColor: [0.02, 0.12, 0.16, 0.95],
+  dashLengthPx: 5,
+  gapLengthPx: 3
+};
+
+const FACE_WARP_RESTORE_CURSOR_THEME: VectorEditingOverlayTheme = {
+  ...BRUSH_CURSOR_THEME,
+  pathColor: [1, 0.68, 0.18, 1],
+  underlayColor: [0.16, 0.08, 0.01, 0.95],
+  dashLengthPx: 1,
+  gapLengthPx: 3
+};
+
 export interface WebGpuPngExportOptions {
   readonly excludedLayerIds?: readonly LayerId[];
 }
@@ -263,6 +279,7 @@ export class WebGpuEngine {
   } | null = null;
   private penEditingOverlay: VectorEditingOverlay | null = null;
   private faceWarpEditingOverlay: VectorEditingOverlay | null = null;
+  private faceWarpInteractionMode: 'sculpt' | 'relax' | 'restore' | null = null;
   private penRubberBand: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
   private transformEditingFrame: VectorSelectionFrame | null = null;
   private smartGuideEditingFrame: VectorSelectionFrame | null = null;
@@ -1710,6 +1727,16 @@ export class WebGpuEngine {
   setFaceWarpEditingOverlay(overlay: VectorEditingOverlay | null) {
     if (this.faceWarpEditingOverlay?.resourceKey === overlay?.resourceKey) return;
     this.faceWarpEditingOverlay = overlay;
+    if (!overlay) this.faceWarpInteractionMode = null;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  setFaceWarpInteractionMode(mode: 'sculpt' | 'relax' | 'restore' | null) {
+    if (this.faceWarpInteractionMode === mode) return;
+    this.faceWarpInteractionMode = mode;
+    // Interaction feedback is presentation-only. Never dirty the document or
+    // any correction/composite stage merely because a modifier changed.
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -2671,6 +2698,11 @@ export class WebGpuEngine {
       );
     }
     if (this.brushCursorOverlay) {
+      const brushCursorTheme = this.faceWarpInteractionMode === 'relax'
+        ? FACE_WARP_RELAX_CURSOR_THEME
+        : this.faceWarpInteractionMode === 'restore'
+          ? FACE_WARP_RESTORE_CURSOR_THEME
+          : BRUSH_CURSOR_THEME;
       this.vectorEditingOverlayBackend.encode(
         encoder,
         buildBrushCursorEditingOverlay(
@@ -2678,7 +2710,7 @@ export class WebGpuEngine {
           this.brushCursorOverlay.diameter
         ),
         target,
-        BRUSH_CURSOR_THEME
+        brushCursorTheme
       );
       if (this.brushCursorOverlay.sourceCenter) {
         this.vectorEditingOverlayBackend.encode(
@@ -2720,6 +2752,7 @@ export class WebGpuEngine {
     this.penRubberBand = null;
     this.penEditingOverlay = null;
     this.faceWarpEditingOverlay = null;
+    this.faceWarpInteractionMode = null;
     this.transformEditingFrame = null;
     this.smartGuideEditingFrame = null;
     this.documentGuideEditingFrame = null;

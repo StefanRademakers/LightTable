@@ -240,6 +240,19 @@
   tool-options suite and app typecheck also pass (434 assertions total in the
   selected Vitest dependency run).
 
+## Local Relax and Restore feedback
+
+- The existing GPU brush-cursor overlay now communicates all three Face Warp
+  interaction modes without adding a DOM, CSS or SVG overlay. Sculpt keeps the
+  normal cursor, Relax uses a cyan dashed ring and Restore uses an orange dotted
+  ring, so modifier state is visible before the next deformation lands.
+- Mode changes invalidate only the viewport presentation stage and request a
+  frame. They do not dirty the Face Warp effect, layer composite or correction
+  pipeline. Releasing or cancelling a gesture clears the mode immediately.
+- The app typecheck passes, and the existing render-dirty contract proves a
+  viewport-only invalidation emits frame work without requiring a document
+  composite.
+
 - The interactive path remains a bounded two-step Laplacian preview. Pointer-up
   now runs a converged feature-aware refinement over only the connected brush
   footprint; the pointer core and all vertices outside the footprint remain
