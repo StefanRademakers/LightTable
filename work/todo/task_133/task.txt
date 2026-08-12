@@ -46,12 +46,12 @@ technical requirements remain authoritative in
   - Acceptance: prompt refinement never reruns the encoder and repeated document,
     layer and tool switching leaves memory stable.
 
-- [ ] Phase 5 - Validate GPU preview and selection output
-  - [ ] Render temporary masks through the existing GPU overlay and dirty only
+- [x] Phase 5 - Validate GPU preview and selection output
+  - [x] Render temporary masks through the existing GPU overlay and dirty only
         that overlay during interactive preview.
-  - [ ] Commit through the normal LightTable selection representation and its
+  - [x] Commit through the normal LightTable selection representation and its
         New/Add/Subtract/Intersect compositor.
-  - [ ] Make cancel non-destructive and prevent history/undo races.
+  - [x] Make cancel non-destructive and prevent history/undo races.
   - Acceptance: overlay updates do not recompose the document and confirm/cancel
     behave like the other selection tools.
 

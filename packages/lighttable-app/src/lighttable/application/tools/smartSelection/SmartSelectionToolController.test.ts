@@ -250,4 +250,30 @@ describe('SmartSelectionToolController', () => {
     expect(backend.disposePreparedSource).toHaveBeenCalledOnce();
     expect(backend.dispose).toHaveBeenCalledOnce();
   });
+
+  it.each(['replace', 'add', 'subtract', 'intersect'] as const)(
+    'commits through the normal %s selection compositor',
+    async (mode) => {
+      const { controller, rasterMask, renderer } = harness();
+      controller.refinePoint({ x: 3, y: 2 }, 'positive');
+      await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+
+      await expect(controller.apply(mode)).resolves.toBe(true);
+
+      expect(rasterMask).toHaveBeenCalledOnce();
+      expect(rasterMask).toHaveBeenCalledWith(mask, mode);
+    }
+  );
+
+  it('cancels a candidate without committing persistent selection state', async () => {
+    const { controller, rasterMask, renderer, setDraft } = harness();
+    controller.refinePoint({ x: 3, y: 2 }, 'positive');
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+
+    controller.cancel();
+
+    expect(rasterMask).not.toHaveBeenCalled();
+    expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(null);
+    expect(setDraft).toHaveBeenLastCalledWith(null);
+  });
 });
