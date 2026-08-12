@@ -198,6 +198,22 @@
 
 ## Shape-preserving pointer-up refinement
 
+## Target-only interactive GPU updates
+
+- The processing runtime retains the existing Face Warp effect instance when
+  its serialized node revision changes; unrelated effect nodes are not rebuilt.
+- Stable deformation `geometryRevision` values now form an explicit immutable
+  source/index contract. Interactive semantic and brush edits compare only the
+  packed target vertices and upload the smallest changed contiguous float
+  range to the existing target GPU buffer.
+- Source UV and index buffers are neither recreated nor rewritten for a
+  target-only edit. Full target allocation occurs only when the vertex-buffer
+  size changes; topology data is defensively compared only after an authoring
+  topology publishes a new geometry signature.
+- Focused deformation tests are 8/8 green, including unchanged-target,
+  bounded-range, resized-buffer and stable-topology upload plans. The
+  `@lighttable/app` typecheck passes.
+
 - The interactive path remains a bounded two-step Laplacian preview. Pointer-up
   now runs a converged feature-aware refinement over only the connected brush
   footprint; the pointer core and all vertices outside the footprint remain

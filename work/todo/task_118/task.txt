@@ -87,7 +87,7 @@ Gate 1:
       hairline boundaries produce no holes, hard seams or duplicated pixels.
 - [x] Make identity deformation pixel-identical to the unwarped input.
 - [x] Feed the exact same evaluated target mesh into renderer and debug overlay.
-- [ ] Dirty only the Face Warp node/target buffer during interaction.
+- [x] Dirty only the Face Warp node/target buffer during interaction.
 
 Gate 2 — first commit-worthy milestone:
 

@@ -17,6 +17,48 @@ const arraysEqual = (left: ArrayLike<number>, right: ArrayLike<number>): boolean
   return true;
 };
 
+export interface ChangedFloatRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+export interface DeformationUploadPlan {
+  readonly topologyChanged: boolean;
+  readonly targetRange: ChangedFloatRange | null;
+}
+
+/** Returns the smallest half-open float range that actually changed. */
+export const changedFloatRange = (
+  previous: ArrayLike<number>,
+  next: ArrayLike<number>
+): ChangedFloatRange | null => {
+  if (previous.length !== next.length) return { start: 0, end: next.length };
+  let start = 0;
+  while (start < next.length && previous[start] === next[start]) start += 1;
+  if (start === next.length) return null;
+  let end = next.length;
+  while (end > start && previous[end - 1] === next[end - 1]) end -= 1;
+  return { start, end };
+};
+
+const geometrySignature = (surfaces: readonly DeformationSurface[]): string =>
+  surfaces.map((surface) =>
+    `${surface.geometryRevision}:${surface.source.length}:${surface.indices.length}`
+  ).join('|');
+
+export const planDeformationUpload = (
+  previousGeometrySignature: string,
+  nextGeometrySignature: string,
+  previousTarget: ArrayLike<number>,
+  nextTarget: ArrayLike<number>,
+  targetBufferRecreated = false
+): DeformationUploadPlan => ({
+  topologyChanged: previousGeometrySignature !== nextGeometrySignature,
+  targetRange: targetBufferRecreated
+    ? { start: 0, end: nextTarget.length }
+    : changedFloatRange(previousTarget, nextTarget)
+});
+
 export const MESH_DEFORMATION_BASE_FRAGMENT_WGSL = /* wgsl */`
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
 @group(0) @binding(1) var sourceSampler: sampler;
@@ -75,7 +117,9 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
   private sourceUvBuffer: GPUBuffer | null = null;
   private indexBuffer: GPUBuffer | null = null;
   private sourceGeometry = new Float32Array();
+  private targetGeometry = new Float32Array();
   private indexGeometry = new Uint32Array();
+  private uploadedGeometrySignature = '';
   private sourceUvWidth = 0;
   private sourceUvHeight = 0;
   private indexCount = 0;
@@ -262,7 +306,9 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
       this.sourceUvBuffer = null;
       this.indexBuffer = null;
       this.sourceGeometry = new Float32Array();
+      this.targetGeometry = new Float32Array();
       this.indexGeometry = new Uint32Array();
+      this.uploadedGeometrySignature = '';
       this.sourceUvWidth = 0;
       this.sourceUvHeight = 0;
       return;
@@ -270,17 +316,45 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
     const sourceData = packed.sourcePositions;
     const targetData = packed.targetPositions;
     const indexData = packed.indices;
-    const topologyChanged = !arraysEqual(this.sourceGeometry, sourceData)
-      || !arraysEqual(this.indexGeometry, indexData);
+    const nextGeometrySignature = geometrySignature(this.settings.surfaces);
+    const initialPlan = planDeformationUpload(
+      this.uploadedGeometrySignature,
+      nextGeometrySignature,
+      this.targetGeometry,
+      targetData
+    );
+    // A stable geometry revision is the renderer contract that source vertices
+    // and indices are immutable. The defensive comparison only runs when an
+    // authoring topology explicitly publishes a new geometry revision.
+    const topologyChanged = initialPlan.topologyChanged && (
+      !arraysEqual(this.sourceGeometry, sourceData)
+      || !arraysEqual(this.indexGeometry, indexData)
+    );
 
+    let targetBufferRecreated = false;
     if (!this.targetBuffer || this.targetBuffer.size !== targetData.byteLength) {
       this.targetBuffer?.destroy();
       this.targetBuffer = this.device.createBuffer({
         label: 'LightTable deformation target vertices', size: targetData.byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
       });
+      targetBufferRecreated = true;
     }
-    this.device.queue.writeBuffer(this.targetBuffer, 0, targetData);
+    const changedTarget = planDeformationUpload(
+      this.uploadedGeometrySignature,
+      nextGeometrySignature,
+      this.targetGeometry,
+      targetData,
+      targetBufferRecreated
+    ).targetRange;
+    if (changedTarget && changedTarget.end > changedTarget.start) {
+      this.device.queue.writeBuffer(
+        this.targetBuffer,
+        changedTarget.start * Float32Array.BYTES_PER_ELEMENT,
+        targetData.subarray(changedTarget.start, changedTarget.end)
+      );
+    }
+    this.targetGeometry = targetData;
 
     if (topologyChanged
       || this.sourceUvWidth !== this.width
@@ -306,6 +380,7 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
       this.sourceUvWidth = this.width;
       this.sourceUvHeight = this.height;
     }
+    this.uploadedGeometrySignature = nextGeometrySignature;
   }
 
   private ensureOutput(): void {
