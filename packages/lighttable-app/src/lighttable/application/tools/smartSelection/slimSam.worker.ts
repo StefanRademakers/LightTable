@@ -11,6 +11,7 @@ import {
 import type { SlimSamWorkerRequest, SlimSamWorkerResponse } from './slimSamProtocol';
 import { rankSubjectMask } from './smartSubjectRanking';
 import { SAM2_SMALL_PROFILE, SLIMSAM_PROFILE } from './smartSelectionModels';
+import { selectionMaskFromLogits } from './smartSelectionMask';
 
 type ModelProfile = 'slimsam' | 'sam2-small';
 
@@ -174,22 +175,6 @@ const prepareSource = async (request: Extract<SlimSamWorkerRequest, { type: 'pre
   return prepared;
 };
 
-const alphaMask = (
-  logits: ArrayLike<number>,
-  offset: number,
-  length: number,
-  hardEdge: boolean
-) => {
-  const output = new Uint8Array(length);
-  for (let index = 0; index < length; index += 1) {
-    const value = logits[offset + index] ?? -100;
-    output[index] = hardEdge
-      ? value > 0 ? 255 : 0
-      : Math.round(255 / (1 + Math.exp(-Math.max(-12, Math.min(12, value)))));
-  }
-  return output;
-};
-
 interface DecodedCandidate {
   readonly score: number;
   readonly data: Uint8Array;
@@ -233,7 +218,9 @@ const decodePrompt = async (
           height,
           candidates: ranked.map((channel): DecodedCandidate => ({
             score: scores[channel] ?? 0,
-            data: alphaMask(first.data as ArrayLike<number>, channel * pixels, pixels, hardEdge)
+            data: selectionMaskFromLogits(
+              first.data as ArrayLike<number>, channel * pixels, width, height, hardEdge
+            )
           }))
         };
       } finally {

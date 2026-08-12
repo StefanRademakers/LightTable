@@ -7,10 +7,22 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\face.jpg');
 const interactionMode = process.argv.includes('--rectangle') ? 'rectangle' : 'object-finder';
+const refineNegative = process.argv.includes('--negative');
+const optionValue = (name, fallback) => {
+  const index = process.argv.indexOf(name);
+  return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
+};
+const caseName = optionValue('--case', path.parse(sourceFile).name).replace(/[^a-z0-9_-]+/gi, '-');
+const clickXRatio = Number(optionValue('--x', '0.68'));
+const clickYRatio = Number(optionValue('--y', '0.4'));
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'object-selection-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
-const screenshotPath = path.join(outputDirectory, 'object-selection-committed.png');
-const reportPath = path.join(outputDirectory, 'report.json');
+const screenshotPath = path.join(outputDirectory, `${caseName}-committed.png`);
+const reportPath = path.join(outputDirectory, `${caseName}-report.json`);
+
+if (![clickXRatio, clickYRatio].every((value) => Number.isFinite(value) && value >= 0 && value <= 1)) {
+  throw new Error('Object Selection smoke --x and --y must be numbers between 0 and 1.');
+}
 
 await access(sourceFile);
 await mkdir(userDataPath, { recursive: true });
@@ -69,20 +81,20 @@ try {
     globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__ = [];
   });
   const beforeSelection = await canvas.screenshot();
-  const clickPoint = await page.evaluate(() => {
+  const clickPoint = await page.evaluate(({ clickXRatio, clickYRatio }) => {
     const target = document.querySelector('.lighttable-viewport__canvas');
     if (!(target instanceof HTMLCanvasElement)) return undefined;
     const bounds = target.getBoundingClientRect();
     // Fit-view always keeps the document center at the viewport center. Prefer
     // that invariant over guessing from the full viewport dimensions, which
     // include black pasteboard around portrait/square documents.
-    for (const [xRatio, yRatio] of [[0.68, 0.4], [0.72, 0.5], [0.3, 0.3]]) {
+    for (const [xRatio, yRatio] of [[clickXRatio, clickYRatio], [0.5, 0.5], [0.3, 0.3]]) {
       const x = bounds.left + bounds.width * xRatio;
       const y = bounds.top + bounds.height * yRatio;
       if (document.elementFromPoint(x, y) === target) return { x, y };
     }
     return undefined;
-  });
+  }, { clickXRatio, clickYRatio });
   if (!clickPoint) throw new Error('No unobstructed canvas point is available.');
 
   const startedAt = performance.now();
@@ -93,11 +105,31 @@ try {
     await page.mouse.up();
   } else {
     await page.mouse.click(clickPoint.x, clickPoint.y);
+    if (refineNegative) {
+      await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
+        ?.some((entry) => entry.event === 'candidate-published'), undefined, { timeout: 45_000 });
+      await canvas.dispatchEvent('pointerdown', {
+        pointerId: 72, pointerType: 'mouse', button: 0, buttons: 1,
+        clientX: clickPoint.x - 90, clientY: clickPoint.y, altKey: true
+      });
+      await canvas.dispatchEvent('pointerup', {
+        pointerId: 72, pointerType: 'mouse', button: 0, buttons: 0,
+        clientX: clickPoint.x - 90, clientY: clickPoint.y, altKey: true
+      });
+      await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
+        ?.some((entry) => entry.event === 'point-requested' && entry.detail?.label === 'negative'), undefined, { timeout: 5_000 });
+    }
   }
   try {
+    await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
+      ?.some((entry) => entry.event === 'candidate-published'), undefined, { timeout: 45_000 });
+    const applyButton = objectSelectionSettings.getByRole('button', { name: 'Apply', exact: true });
+    await applyButton.click();
+    await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
+      ?.some((entry) => entry.event === 'apply-requested'), undefined, { timeout: 5_000 });
     await page.waitForFunction(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__?.some((entry) => (
       entry.operationCount === 1 && entry.sourceKind === 'raster-mask' && entry.visible && entry.maskActive
-    )) || globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__?.some((entry) => entry.event === 'box-error'), undefined, { timeout: 45_000 });
+    )), undefined, { timeout: 15_000 });
     const boxError = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
       ?.find((entry) => entry.event === 'box-error'));
     if (boxError) throw new Error(`Object Selection box failed: ${JSON.stringify(boxError)}`);
@@ -143,8 +175,17 @@ try {
   await page.screenshot({ path: screenshotPath });
   const selectionTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__);
   const smartSelectionTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__);
+  const publishedCandidates = smartSelectionTrace
+    ?.filter((entry) => entry.event === 'candidate-published') ?? [];
+  const finalCoverage = publishedCandidates.at(-1)?.detail;
+  if (!finalCoverage || finalCoverage.selectedMean < 0.85) {
+    throw new Error(
+      `Object Selection produced an excessively translucent mask: ${JSON.stringify(finalCoverage)}`
+    );
+  }
   const report = {
-    sourceFile, interactionMode, visibleCommitMs, selectionTrace, smartSelectionTrace, pageErrors,
+    caseName, sourceFile, interactionMode, refineNegative, clickXRatio, clickYRatio,
+    visibleCommitMs, finalCoverage, selectionTrace, smartSelectionTrace, pageErrors,
     consoleErrors: unexpectedConsoleErrors, runtimeWarnings: consoleErrors.length, screenshotPath
   };
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
