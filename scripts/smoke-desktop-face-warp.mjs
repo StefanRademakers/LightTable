@@ -121,6 +121,17 @@ const countNewBlackPixels = async (beforeBytes, afterBytes, region) => {
   }
   return count;
 };
+const measurePageMemory = (page) => page.evaluate(async () => {
+  const performanceWithMemory = performance;
+  const isolated = typeof performanceWithMemory.measureUserAgentSpecificMemory === 'function'
+    ? await performanceWithMemory.measureUserAgentSpecificMemory().catch(() => null)
+    : null;
+  const legacy = performanceWithMemory.memory;
+  return {
+    userAgentBytes: isolated?.bytes ?? null,
+    rendererHeapBytes: legacy?.usedJSHeapSize ?? null
+  };
+});
 let page;
 const pageErrors = [];
 const consoleErrors = [];
@@ -140,6 +151,7 @@ try {
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.activeDocumentId;
   if (!documentId) throw new Error('No active Face Warp document.');
+  const memoryBeforeDetection = await measurePageMemory(page);
   const viewport = page.locator('.lighttable-viewport');
   const canvas = page.locator('.lighttable-viewport__canvas');
   const bounds = await viewport.boundingBox();
@@ -196,6 +208,8 @@ try {
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const warmDetectionMs = performance.now() - warmDetectionStartedAt;
+  const memoryAfterDetection = await measurePageMemory(page);
+  const telemetryAfterDetection = await driver.queryRenderTelemetry(documentId);
   await page.mouse.move(10, 10);
   const detectedMeshBytes = await canvas.screenshot({ path: path.join(output, '00-detected-mesh.png') });
   const meshBounds = await cyanMeshBounds(detectedMeshBytes);
@@ -287,6 +301,41 @@ try {
   if (digest(afterBytes) !== digest(settledBytes)) {
     throw new Error('Face Warp changed after pointer release instead of remaining settled.');
   }
+  const memoryAfterFirstEdit = await measurePageMemory(page);
+  const telemetryAfterFirstEdit = await driver.queryRenderTelemetry(documentId);
+  const repeatedEditStartUndoDepth = after.history.undoDepth;
+  for (let gesture = 0; gesture < 8; gesture += 1) {
+    const offsetX = (gesture % 4) * 2;
+    const offsetY = Math.floor(gesture / 4) * 2;
+    await page.mouse.move(center.x + offsetX, center.y + offsetY);
+    await page.mouse.down();
+    await page.mouse.move(center.x + offsetX + 4, center.y + offsetY - 2);
+    await page.mouse.up();
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
+  }
+  const repeated = await driver.queryDocument(documentId);
+  if (!repeated || repeated.history.undoDepth !== repeatedEditStartUndoDepth + 8) {
+    throw new Error(`Repeated Face Warp gestures lost transaction boundaries: ${JSON.stringify({
+      repeatedEditStartUndoDepth, repeated: repeated?.history
+    })}`);
+  }
+  const repeatedBytes = await canvas.screenshot({ path: path.join(output, '04-repeated-edits.png') });
+  const memoryAfterRepeatedEdits = await measurePageMemory(page);
+  const telemetryAfterRepeatedEdits = await driver.queryRenderTelemetry(documentId);
+  await page.waitForTimeout(2_000);
+  const idleBytes = await canvas.screenshot({ path: path.join(output, '05-idle.png') });
+  if (digest(repeatedBytes) !== digest(idleBytes)) {
+    throw new Error('Face Warp changed during idle after repeated edits.');
+  }
+  const memoryAfterIdle = await measurePageMemory(page);
+  const telemetryAfterIdle = await driver.queryRenderTelemetry(documentId);
+  const firstGpuBytes = telemetryAfterFirstEdit?.gpuTextureBytes ?? null;
+  const idleGpuBytes = telemetryAfterIdle?.gpuTextureBytes ?? null;
+  if (firstGpuBytes !== null && idleGpuBytes !== null && idleGpuBytes > firstGpuBytes + 1024 * 1024) {
+    throw new Error(`Face Warp retained unexpected GPU texture memory after repeated edits: ${JSON.stringify({
+      firstGpuBytes, idleGpuBytes
+    })}`);
+  }
   const body = await page.locator('body').innerText();
   if (/render validation failed|runtime error|stopped unexpectedly/i.test(body)) {
     throw new Error('Face Warp produced a visible renderer/runtime failure.');
@@ -321,6 +370,23 @@ try {
       previewFrameSamplesMs: previewFrameSamplesMs.map((value) => Math.round(value * 10) / 10),
       previewFrameP50Ms: Math.round(previewFrameP50Ms * 10) / 10,
       previewFrameP95Ms: Math.round(previewFrameP95Ms * 10) / 10
+    },
+    memory: {
+      beforeDetection: memoryBeforeDetection,
+      afterDetection: memoryAfterDetection,
+      detectorUserAgentDeltaBytes: memoryBeforeDetection.userAgentBytes !== null
+        && memoryAfterDetection.userAgentBytes !== null
+        ? memoryAfterDetection.userAgentBytes - memoryBeforeDetection.userAgentBytes
+        : null,
+      afterFirstEdit: memoryAfterFirstEdit,
+      afterRepeatedEdits: memoryAfterRepeatedEdits,
+      afterIdle: memoryAfterIdle
+    },
+    telemetry: {
+      afterDetection: telemetryAfterDetection,
+      afterFirstEdit: telemetryAfterFirstEdit,
+      afterRepeatedEdits: telemetryAfterRepeatedEdits,
+      afterIdle: telemetryAfterIdle
     },
     pageErrors,
     consoleErrors

@@ -22,6 +22,7 @@ import type {
   LightTableEffectStage
 } from './types';
 import type { WarpDebugView } from './warp/warpTypes';
+import type { MeshDeformationTelemetry } from './deformation/MeshDeformationEffect';
 
 interface DocumentEffectRuntimeNode {
   readonly instanceId: string;
@@ -238,6 +239,27 @@ export class DocumentEffectRuntime {
     let bytes = 0;
     this.forEachEffect((effect) => { bytes += effect.estimatedTextureBytes(); });
     return bytes;
+  }
+
+  deformationTelemetry(): MeshDeformationTelemetry | null {
+    const snapshots = this.orderedNodes.flatMap(({ effect }) => {
+      const snapshot = effect.deformationTelemetry?.();
+      return snapshot ? [snapshot] : [];
+    });
+    if (snapshots.length === 0) return null;
+    return snapshots.reduce<MeshDeformationTelemetry>((total, current) => ({
+      targetUploadCount: total.targetUploadCount + current.targetUploadCount,
+      targetUploadBytes: total.targetUploadBytes + current.targetUploadBytes,
+      meshPassCount: total.meshPassCount + current.meshPassCount,
+      meshPassEncodeMs: total.meshPassEncodeMs + current.meshPassEncodeMs,
+      maximumMeshPassEncodeMs: Math.max(
+        total.maximumMeshPassEncodeMs,
+        current.maximumMeshPassEncodeMs
+      )
+    }), {
+      targetUploadCount: 0, targetUploadBytes: 0, meshPassCount: 0,
+      meshPassEncodeMs: 0, maximumMeshPassEncodeMs: 0
+    });
   }
 
   destroyImageResources(): void {

@@ -46,6 +46,7 @@ export class FaceWarpEffect implements LightTableGpuEffect<FaceWarpNodeSettings>
   }
   destroyImageResources(): void { this.mesh.destroyImageResources(); }
   estimatedTextureBytes(): number { return this.mesh.estimatedTextureBytes(); }
+  deformationTelemetry() { return this.mesh.telemetrySnapshot(); }
   destroy(): void { this.mesh.destroy(); }
 
   private updateSurface(): void {

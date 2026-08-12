@@ -15,6 +15,7 @@ import type {
   LightTableEffectRuntimeCallbacks,
   LightTableEffectStage
 } from './types';
+import type { MeshDeformationTelemetry } from './deformation/MeshDeformationEffect';
 
 export interface DocumentEffectFactoryContext {
   readonly device: GPUDevice;
@@ -31,6 +32,7 @@ export interface DocumentGpuEffect {
   destroyImageResources(): void;
   destroy(): void;
   estimatedTextureBytes(): number;
+  deformationTelemetry?(): MeshDeformationTelemetry;
   setDepthMap?(depth: DepthAnalysisResult): void;
   setInteractionActive?(active: boolean): void;
   /** Preferred render cadence while this active effect is upstream-dirty. */

@@ -2277,7 +2277,11 @@ export class WebGpuEngine {
   }
 
   renderTelemetrySnapshot() {
-    return this.renderTelemetry.snapshot();
+    return {
+      ...this.renderTelemetry.snapshot(),
+      gpuTextureBytes: this.estimatedGpuTextureBytes(),
+      deformation: this.layerEffectRenderer?.deformationTelemetry() ?? null
+    };
   }
 
   resetRenderTelemetry() {

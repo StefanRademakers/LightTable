@@ -1,4 +1,5 @@
 import type { CorrectionRenderStage } from './renderDirtyState';
+import type { MeshDeformationTelemetry } from '../../effects/deformation/MeshDeformationEffect';
 
 export type RenderTelemetryStage = 'document-composite'
   | CorrectionRenderStage
@@ -19,6 +20,8 @@ export interface RenderTelemetrySnapshot {
   readonly scopeAnalysisPasses: number;
   readonly scopeDisplayPasses: number;
   readonly stages: Readonly<Record<RenderTelemetryStage, RenderStageTelemetrySnapshot>>;
+  readonly gpuTextureBytes?: number;
+  readonly deformation?: MeshDeformationTelemetry | null;
 }
 
 const STAGES: readonly RenderTelemetryStage[] = [

@@ -217,8 +217,8 @@ Gate 7:
 - [ ] Record detector memory independently from renderer allocations.
 - [x] Record interactive preview-to-next-frame p50/p95 in the desktop smoke.
 - [x] Record pointer-up exact refinement time after that solver exists.
-- [ ] Record vertex upload and GPU mesh-pass time.
-- [ ] Record idle and repeated-edit GPU/CPU memory behaviour.
+- [x] Record vertex upload and GPU mesh-pass time.
+- [x] Record idle and repeated-edit GPU/CPU memory behaviour.
 - [ ] Create front/three-quarter/profile fixtures at multiple resolutions.
 - [x] Create checkerboard, eye/lip separation, extreme slider and collar tests.
 - [ ] Compare representative edits with Photoshop Face-Aware Liquify.

@@ -283,6 +283,27 @@
   document. It no longer silently exports the unwarped source texture.
 - The two focused export suites are 18/18 green and the app typecheck passes.
 
+## Interactive deformation and memory telemetry
+
+- The generic indexed deformation runtime now records actual target-buffer
+  upload count/bytes plus CPU command-encoding time for its copy and indexed
+  mesh passes. The telemetry is aggregated through the existing effect runtime
+  and exposed over the existing read-only render-telemetry command; it does not
+  add polling or invalidate a frame.
+- The repeatable desktop Face Warp smoke now samples renderer heap and the
+  LightTable-owned GPU texture estimate before detection, after detection,
+  after one edit, after eight further edits and after a two-second idle period.
+  It also requires one undo entry per repeated gesture and identical pixels
+  through the idle interval.
+- The frontal 546 px fixture passed with preview p50 13.3 ms / p95 15.5 ms.
+  Twenty-one target updates uploaded 115,772 bytes in total; 23 mesh passes
+  encoded in 1.09 ms total with a 0.075 ms maximum. GPU texture ownership was
+  stable at 20,672,576 bytes after repeated edits and idle. Renderer heap fell
+  from its transient 145,325,453-byte edit peak to 62,834,799 bytes after idle.
+- Chromium did not expose `measureUserAgentSpecificMemory` in this Electron
+  run, so independent worker/detector memory remains explicitly unproven and
+  its task checkbox stays open.
+
 - The interactive path remains a bounded two-step Laplacian preview. Pointer-up
   now runs a converged feature-aware refinement over only the connected brush
   footprint; the pointer core and all vertices outside the footprint remain

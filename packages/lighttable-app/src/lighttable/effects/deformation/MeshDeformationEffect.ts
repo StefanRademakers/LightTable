@@ -27,6 +27,14 @@ export interface DeformationUploadPlan {
   readonly targetRange: ChangedFloatRange | null;
 }
 
+export interface MeshDeformationTelemetry {
+  readonly targetUploadCount: number;
+  readonly targetUploadBytes: number;
+  readonly meshPassCount: number;
+  readonly meshPassEncodeMs: number;
+  readonly maximumMeshPassEncodeMs: number;
+}
+
 /** Returns the smallest half-open float range that actually changed. */
 export const changedFloatRange = (
   previous: ArrayLike<number>,
@@ -124,6 +132,11 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
   private sourceUvHeight = 0;
   private indexCount = 0;
   private isIdentity = true;
+  private targetUploadCount = 0;
+  private targetUploadBytes = 0;
+  private meshPassCount = 0;
+  private meshPassEncodeMs = 0;
+  private maximumMeshPassEncodeMs = 0;
 
   constructor(
     private readonly device: GPUDevice,
@@ -220,6 +233,7 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
     }
     this.ensureOutput();
     if (!this.output || !this.depth || !this.targetBuffer || !this.sourceUvBuffer || !this.indexBuffer) return input;
+    const encodeStartedAt = performance.now();
     const sourceView = input.createView();
     const basePass = encoder.beginRenderPass({
       label: 'LightTable copy mesh deformation base',
@@ -263,7 +277,21 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
     meshPass.setIndexBuffer(this.indexBuffer, 'uint32');
     meshPass.drawIndexed(this.indexCount);
     meshPass.end();
+    const encodeMs = performance.now() - encodeStartedAt;
+    this.meshPassCount += 1;
+    this.meshPassEncodeMs += encodeMs;
+    this.maximumMeshPassEncodeMs = Math.max(this.maximumMeshPassEncodeMs, encodeMs);
     return this.output;
+  }
+
+  telemetrySnapshot(): MeshDeformationTelemetry {
+    return {
+      targetUploadCount: this.targetUploadCount,
+      targetUploadBytes: this.targetUploadBytes,
+      meshPassCount: this.meshPassCount,
+      meshPassEncodeMs: this.meshPassEncodeMs,
+      maximumMeshPassEncodeMs: this.maximumMeshPassEncodeMs
+    };
   }
 
   destroyImageResources(): void {
@@ -353,6 +381,9 @@ export class MeshDeformationEffect implements LightTableGpuEffect<MeshDeformatio
         changedTarget.start * Float32Array.BYTES_PER_ELEMENT,
         targetData.subarray(changedTarget.start, changedTarget.end)
       );
+      this.targetUploadCount += 1;
+      this.targetUploadBytes += (changedTarget.end - changedTarget.start)
+        * Float32Array.BYTES_PER_ELEMENT;
     }
     this.targetGeometry = targetData;
 
