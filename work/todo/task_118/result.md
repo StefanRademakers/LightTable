@@ -401,6 +401,22 @@
   added. The tool remains experimental until a stronger detector/confidence
   oracle or a user-assisted alignment flow addresses this class safely.
 
+## Photoshop parity oracle
+
+- Adobe's current documentation confirms the comparable Face-Aware controls
+  and that the workflow is optimized for front-facing faces. It does not expose
+  the underlying morph equations. The generic UXP `batchPlay` API can replay a
+  captured action descriptor, but Adobe does not publish a stable typed
+  Face-Aware Liquify descriptor suitable for inventing an unattended oracle.
+- `architecture/validation/FACE_WARP_PHOTOSHOP_PARITY_PROTOCOL.md` therefore
+  fixes the source corpus, isolated Â±50 Face Width / Eye Size / Nose Width /
+  Smile edits, lossless captures, feature-local metrics, high-zoom review and
+  offline reopen requirement. It explicitly forbids substituting ordinary
+  Liquify or approving by full-image RMSE alone.
+- The Photoshop comparison checkbox remains open until those actual reference
+  PNGs exist. This is deliberate: the protocol is now repeatable, but a written
+  protocol is not evidence of parity.
+
 ## Focused tool UX and detector-memory truthfulness
 
 - The previously overlong one-row toolbar is split with the existing canonical
