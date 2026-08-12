@@ -61,6 +61,8 @@ try {
   if (!documentId) throw new Error('The source document did not become active.');
   await page.getByRole('button', { name: /^Face Warp/ }).click();
   await page.getByRole('button', { name: 'Detect faces' }).click();
+  await page.getByRole('button', { name: 'Accept mesh' }).waitFor({ state: 'visible', timeout: 60_000 });
+  await page.getByRole('button', { name: 'Accept mesh' }).click();
   await page.getByRole('button', { name: 'Redetect faces' }).waitFor({ state: 'visible', timeout: 60_000 });
   await page.getByLabel('Show mesh').uncheck();
   const document = await driver.queryDocument(documentId);
