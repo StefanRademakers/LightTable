@@ -11,6 +11,7 @@ const userData = path.join(temporaryRoot, 'user-data');
 const projects = path.join(temporaryRoot, 'projects');
 const source = path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png');
 const projectName = 'Lifecycle Smoke Project';
+const screenshot = path.join(temporaryRoot, 'project-lifecycle.png');
 
 await rm(temporaryRoot, { recursive: true, force: true });
 await Promise.all([mkdir(userData, { recursive: true }), mkdir(projects, { recursive: true })]);
@@ -32,16 +33,22 @@ try {
     timeout: 30_000
   });
   const window = await app.firstWindow({ timeout: 30_000 });
-  window.on('console', (message) => process.stderr.write(`[renderer:${message.type()}] ${message.text()}\n`));
+  const pageErrors = [];
+  const consoleErrors = [];
+  window.on('console', (message) => {
+    process.stderr.write(`[renderer:${message.type()}] ${message.text()}\n`);
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
   window.on('requestfailed', (request) => process.stderr.write(
     `[request:failed] ${request.url()} ${request.failure()?.errorText ?? ''}\n`
   ));
   window.on('response', (response) => {
     if (response.status() >= 400) process.stderr.write(`[response:${response.status()}] ${response.url()}\n`);
   });
-  window.on('pageerror', (error) => process.stderr.write(
-    `[renderer:error] ${error.name}: ${error.message}\n${error.stack ?? ''}\n`
-  ));
+  window.on('pageerror', (error) => {
+    pageErrors.push(error.stack ?? error.message);
+    process.stderr.write(`[renderer:error] ${error.name}: ${error.message}\n${error.stack ?? ''}\n`);
+  });
   const sourceTab = window.getByRole('tab', { name: /image\.png/i });
   await window.waitForLoadState('domcontentloaded');
   await window.waitForTimeout(1_500);
@@ -59,10 +66,11 @@ try {
   await documentDialog.waitFor({ state: 'visible' });
   await documentDialog.getByRole('button', { name: 'Create' }).click();
   await window.waitForFunction(() => document.querySelectorAll('[role="tab"]').length >= 2);
-  const documentCount = await window.locator('.lighttable-document-tab').count();
+  const visibleEditor = () => window.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive)');
+  const documentCount = await visibleEditor().locator('.lighttable-document-tab').count();
 
   const openFileMenu = async () => {
-    await window.locator('.shots-app-menu__button:visible').filter({ hasText: /^File$/ }).click();
+    await visibleEditor().locator('.shots-app-menu__button').filter({ hasText: /^File$/ }).click();
     return window.locator('.context-menu:visible').first();
   };
   await (await openFileMenu()).getByRole('menuitem', { name: 'New Project...' }).click();
@@ -74,7 +82,7 @@ try {
 
   await (await openFileMenu()).getByRole('menuitem', { name: new RegExp(`Close Project \\(${projectName}\\)`) }).click();
   await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor({ state: 'detached' });
-  if (await window.locator('.lighttable-document-tab').count() !== documentCount) {
+  if (await visibleEditor().locator('.lighttable-document-tab').count() !== documentCount) {
     throw new Error('Closing a project changed the set of open documents.');
   }
 
@@ -83,11 +91,15 @@ try {
   await recent.hover();
   await window.getByRole('menuitem', { name: projectName }).click();
   await window.getByRole('button', { name: `Open project folder for ${projectName}` }).waitFor();
-  if (await window.locator('.lighttable-document-tab').count() !== documentCount) {
+  if (await visibleEditor().locator('.lighttable-document-tab').count() !== documentCount) {
     throw new Error('Reopening a project changed the set of open documents.');
   }
   await window.reload({ waitUntil: 'domcontentloaded' });
   await window.getByText(`Project: ${projectName}`, { exact: true }).waitFor({ timeout: 30_000 });
+  if (pageErrors.length || consoleErrors.length) {
+    throw new Error(`Runtime errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
+  }
+  await window.screenshot({ path: screenshot });
   process.stdout.write(`Desktop project lifecycle smoke passed with ${documentCount} open documents.\n`);
 } finally {
   await app?.close().catch(() => undefined);

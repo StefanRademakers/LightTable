@@ -109,6 +109,8 @@
     "smoke:desktop:magic-wand": "node scripts/smoke-desktop-magic-wand.mjs",
     "smoke:desktop:object-selection": "node scripts/smoke-desktop-object-selection.mjs",
     "smoke:desktop:tab-thumbnails": "node scripts/smoke-desktop-tab-thumbnails.mjs",
+    "smoke:desktop:project-lifecycle": "node scripts/smoke-desktop-project-lifecycle.mjs",
+    "smoke:desktop:project-preferences": "node scripts/smoke-desktop-project-preferences.mjs",
     "fixture:face-warp:checkerboard": "node scripts/create-face-warp-checkerboard-fixture.mjs",
     "smoke:desktop:face-warp": "node scripts/smoke-desktop-face-warp.mjs",
     "smoke:desktop:magic-wand:build": "npm run package:desktop:verify && npm run smoke:desktop:magic-wand --",
