@@ -443,3 +443,8 @@
   deltaBytes:null}` rather than attributing renderer memory to MediaPipe. This
   closes the instrumentation requirement while preserving the platform limit
   as explicit evidence.
+- A forced Chromium SwiftShader launch was also attempted as a conservative
+  fallback stress path. This Electron build exposes no compatible WebGPU
+  adapter in that mode, so it cannot substitute for the still-required test on
+  actual integrated/Apple-class hardware. Fallback reports use a separate
+  output directory and can no longer overwrite native-GPU evidence.

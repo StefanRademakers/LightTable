@@ -10,11 +10,16 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 const root = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\pukkels-lighttable.png');
 const brushSize = Number(process.argv[3] ?? 120);
+const gpuMode = process.argv[4] ?? 'native';
+if (!['native', 'swiftshader'].includes(gpuMode)) {
+  throw new Error(`Invalid Face Warp GPU mode: ${gpuMode}`);
+}
 if (!Number.isFinite(brushSize) || brushSize < 8 || brushSize > 1200) {
   throw new Error(`Invalid Face Warp smoke brush size: ${process.argv[3]}`);
 }
 const output = path.join(
-  root, 'tmp', 'face-warp-smoke', `${path.parse(sourceFile).name}-brush-${brushSize}`
+  root, 'tmp', 'face-warp-smoke',
+  `${path.parse(sourceFile).name}-brush-${brushSize}${gpuMode === 'native' ? '' : `-${gpuMode}`}`
 );
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(root);
@@ -26,7 +31,9 @@ const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
   executablePath: launch.executablePath,
-  args: launch.args,
+  args: gpuMode === 'swiftshader'
+    ? [...launch.args, '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
+    : launch.args,
   cwd: root,
   env: {
     ...environment,
@@ -398,6 +405,7 @@ try {
   const previewFrameP95Ms = sortedFrameSamples[Math.floor((sortedFrameSamples.length - 1) * 0.95)];
   const report = {
     sourceFile,
+    gpuMode,
     brushSize,
     appliedBrushSize,
     beforeHash: digest(beforeBytes),
