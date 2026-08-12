@@ -42,15 +42,28 @@ export const AboutUpdateDialog: React.FC<{
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="modal__header lighttable-about__header">
-          <div><h2 className="modal__title">LightTable</h2><p>Desktop release and update status</p></div>
+          <h2 className="modal__title">About LightTable</h2>
         </header>
         <div className="lighttable-about__body">
-          <dl>
-            <div><dt>Version</dt><dd>{info?.version ?? 'Loading…'}</dd></div>
-            <div><dt>Channel</dt><dd>{info?.channel ?? '—'}</dd></div>
-            <div><dt>Build</dt><dd>{info?.build ?? '—'}</dd></div>
-            <div><dt>Signature</dt><dd>{info?.signed ? 'Signed production build' : 'Unsigned local/test build'}</dd></div>
-          </dl>
+          <section className="lighttable-about__section" aria-labelledby="lighttable-about-release">
+            <div className="lighttable-about__section-heading">
+              <h3 id="lighttable-about-release">LightTable</h3>
+              <p>Desktop image editor</p>
+            </div>
+            <dl>
+              <div><dt>Version</dt><dd>{info?.version ?? 'Loading…'}</dd></div>
+              <div><dt>Channel</dt><dd>{info?.channel ?? '—'}</dd></div>
+              <div><dt>Build</dt><dd>{info?.build ?? '—'}</dd></div>
+              <div><dt>Signature</dt><dd>{info?.signed ? 'Signed production build' : 'Unsigned local/test build'}</dd></div>
+            </dl>
+          </section>
+          <section className="lighttable-about__section" aria-labelledby="lighttable-about-publisher">
+            <h3 id="lighttable-about-publisher">Publisher</h3>
+            <dl>
+              <div><dt>Author</dt><dd>Stefan Rademakers</dd></div>
+              <div><dt>Copyright</dt><dd>Mediavibe Holding B.V.</dd></div>
+            </dl>
+          </section>
           {update ? (
             <div className="lighttable-about__update" role="status">
               {update.status === 'downloaded' ? (

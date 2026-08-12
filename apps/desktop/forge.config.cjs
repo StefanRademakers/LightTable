@@ -14,6 +14,20 @@ const macNotarize = process.env.LIGHTTABLE_MAC_NOTARIZE === 'true'
     })()
   : undefined;
 
+const macSign = process.env.LIGHTTABLE_MAC_SIGN_IDENTITY
+  ? { identity: process.env.LIGHTTABLE_MAC_SIGN_IDENTITY }
+  : process.platform === 'darwin'
+    // Apple Silicon requires every executable to carry a valid code
+    // signature. An ad-hoc signature has no publisher identity and cannot be
+    // notarized, but it produces a runnable private-testing build without an
+    // Apple Developer Program membership.
+    ? { identity: '-', identityValidation: false }
+    : undefined;
+
+if (macNotarize && !process.env.LIGHTTABLE_MAC_SIGN_IDENTITY) {
+  throw new Error('macOS notarization requires a Developer ID Application signing identity.');
+}
+
 module.exports = {
   // A separate output path lets CI and local verification package while a
   // previously built LightTable executable is still open on Windows.
@@ -26,9 +40,8 @@ module.exports = {
     executableName: 'LightTable',
     appBundleId: 'com.mediavibe.lighttable',
     appCategoryType: 'public.app-category.graphics-design',
-    osxSign: process.env.LIGHTTABLE_MAC_SIGN_IDENTITY
-      ? { identity: process.env.LIGHTTABLE_MAC_SIGN_IDENTITY }
-      : undefined,
+    appCopyright: 'Copyright (c) Mediavibe Holding B.V.',
+    osxSign: macSign,
     osxNotarize: macNotarize
   },
   rebuildConfig: {},

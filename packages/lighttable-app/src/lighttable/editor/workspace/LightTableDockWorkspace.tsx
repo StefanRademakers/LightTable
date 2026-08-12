@@ -38,6 +38,29 @@ const ACCESSORY_PANEL_MINIMUM_WIDTH = 250;
 const ACCESSORY_PANEL_MAXIMUM_WIDTH = 520;
 const PANEL_TAB_BAR_HEIGHT = 34;
 const TAB_MERGE_PRIORITY_EXTENSION = 18;
+const SIDE_DOCK_ACTIVATION_DISTANCE = 22;
+
+const allowsWorkspaceDockTarget = (
+  workspaceElement: HTMLElement | null,
+  kind: 'tab' | 'header_space' | 'content' | 'edge',
+  position: 'top' | 'bottom' | 'left' | 'right' | 'center',
+  group: { readonly api: { readonly boundingBox?: {
+    readonly left: number;
+    readonly width: number;
+  } } } | undefined,
+  clientX: number
+): boolean => {
+  if (position === 'top' || position === 'bottom') return false;
+  if (position !== 'left' && position !== 'right') return true;
+  if (!workspaceElement) return false;
+
+  const workspaceBounds = workspaceElement.getBoundingClientRect();
+  const targetBounds = kind === 'edge' ? undefined : group?.api.boundingBox;
+  const left = targetBounds ? workspaceBounds.left + targetBounds.left : workspaceBounds.left;
+  const right = targetBounds ? left + targetBounds.width : workspaceBounds.right;
+  const distance = position === 'left' ? clientX - left : right - clientX;
+  return distance >= 0 && distance <= SIDE_DOCK_ACTIVATION_DISTANCE;
+};
 
 type FloatingFrameBounds = {
   left: number;
@@ -386,6 +409,7 @@ export const LightTableDockWorkspace = forwardRef<
   const workspaceElementRef = useRef<HTMLDivElement | null>(null);
   const layoutListenerRef = useRef<{ dispose: () => void } | null>(null);
   const dropListenerRef = useRef<{ dispose: () => void } | null>(null);
+  const dropOverlayListenerRef = useRef<{ dispose: () => void } | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const workspacePresetRef = useRef<LightTableWorkspacePreset>('default');
   const resettingLayoutRef = useRef(false);
@@ -455,10 +479,30 @@ export const LightTableDockWorkspace = forwardRef<
       saveLayout();
     });
     dropListenerRef.current?.dispose();
+    dropOverlayListenerRef.current?.dispose();
+    dropOverlayListenerRef.current = event.api.onWillShowOverlay((overlayEvent) => {
+      if (!allowsWorkspaceDockTarget(
+        workspaceElementRef.current,
+        overlayEvent.kind,
+        overlayEvent.position,
+        overlayEvent.group,
+        overlayEvent.nativeEvent.clientX
+      )) overlayEvent.preventDefault();
+    });
     dropListenerRef.current = event.api.onWillDrop((dropEvent) => {
       const transfer = dropEvent.getData();
       if (!transfer || transfer.viewId !== event.api.id) return;
       if (transfer.panelId === DOCUMENT_HOST_PANEL_ID) return;
+      if (!allowsWorkspaceDockTarget(
+        workspaceElementRef.current,
+        dropEvent.kind,
+        dropEvent.position,
+        dropEvent.group,
+        dropEvent.nativeEvent.clientX
+      )) {
+        dropEvent.preventDefault();
+        return;
+      }
 
       const targetIsDocument = dropEvent.group?.panels.some(
         (panel) => panel.id === DOCUMENT_HOST_PANEL_ID
@@ -588,6 +632,8 @@ export const LightTableDockWorkspace = forwardRef<
     layoutListenerRef.current = null;
     dropListenerRef.current?.dispose();
     dropListenerRef.current = null;
+    dropOverlayListenerRef.current?.dispose();
+    dropOverlayListenerRef.current = null;
     apiRef.current = null;
   }, []);
 
@@ -748,7 +794,10 @@ export const LightTableDockWorkspace = forwardRef<
           components={components}
           tabComponents={tabComponents}
           onReady={onReady}
-          dndEdges={{ size: { value: 24, type: 'pixels' } }}
+          dndEdges={{
+            activationSize: { value: SIDE_DOCK_ACTIVATION_DISTANCE, type: 'pixels' },
+            size: { value: SIDE_DOCK_ACTIVATION_DISTANCE, type: 'pixels' }
+          }}
           floatingGroupBounds="boundedWithinViewport"
           // Reuse the empty area to the right of the tabs as the floating
           // window handle. This keeps the header to a single row: dragging a

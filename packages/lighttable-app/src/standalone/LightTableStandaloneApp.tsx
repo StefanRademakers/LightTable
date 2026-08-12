@@ -40,6 +40,7 @@ import type {
 } from '../platform/LightTableRecoveryStore';
 import { AboutUpdateDialog } from '../lighttable/editor/ui/AboutUpdateDialog';
 import { ThirdPartyLicensesDialog } from '../lighttable/editor/ui/ThirdPartyLicensesDialog';
+import { useReleaseSelectFocusAfterChange } from '../ui/useReleaseSelectFocusAfterChange';
 import {
   GuidedSampleCoach,
   type GuidedSampleSession
@@ -196,6 +197,7 @@ export const planRecoveryWorkspace = (
 export function LightTableStandaloneApp({
   host = createBrowserHost()
 }: LightTableStandaloneAppProps) {
+  useReleaseSelectFocusAfterChange();
   const {
     controller,
     snapshot,
