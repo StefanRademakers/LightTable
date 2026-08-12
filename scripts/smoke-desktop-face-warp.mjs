@@ -9,7 +9,13 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 
 const root = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\pukkels-lighttable.png');
-const output = path.join(root, 'tmp', 'face-warp-smoke', path.parse(sourceFile).name);
+const brushSize = Number(process.argv[3] ?? 120);
+if (!Number.isFinite(brushSize) || brushSize < 8 || brushSize > 1200) {
+  throw new Error(`Invalid Face Warp smoke brush size: ${process.argv[3]}`);
+}
+const output = path.join(
+  root, 'tmp', 'face-warp-smoke', `${path.parse(sourceFile).name}-brush-${brushSize}`
+);
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(root);
 await Promise.all([access(sourceFile), mkdir(output, { recursive: true }), rm(userData, {
@@ -167,6 +173,21 @@ try {
   await page.getByRole('button', { name: 'Detect faces' }).click();
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 60_000 });
+  const brushControl = page.locator('label.lighttable-adjustment').filter({ hasText: /^Brush/ })
+    .locator('input[type="range"]');
+  await brushControl.focus();
+  await brushControl.press('Home');
+  for (let value = 8; value < brushSize; value += 1) await brushControl.press('ArrowRight');
+  await page.waitForFunction((expected) => {
+    const controls = [...document.querySelectorAll('label.lighttable-adjustment')];
+    const brush = controls.find((control) => control.textContent?.trim().startsWith('Brush'));
+    const visible = Number.parseFloat(brush?.querySelector('output')?.textContent ?? 'NaN');
+    return Number.isFinite(visible) && Math.abs(visible - expected) <= 6;
+  }, brushSize);
+  const appliedBrushSize = Number(await brushControl.inputValue());
+  if (Math.abs(appliedBrushSize - brushSize) > 6) {
+    throw new Error(`Face Warp brush size did not apply closely enough: ${appliedBrushSize} versus ${brushSize}`);
+  }
   const coldDetectionMs = performance.now() - coldDetectionStartedAt;
   const warmDetectionStartedAt = performance.now();
   await page.getByRole('button', { name: 'Redetect faces' }).click();
@@ -278,6 +299,8 @@ try {
   const previewFrameP95Ms = sortedFrameSamples[Math.floor((sortedFrameSamples.length - 1) * 0.95)];
   const report = {
     sourceFile,
+    brushSize,
+    appliedBrushSize,
     beforeHash: digest(beforeBytes),
     identitySourceHash: digest(identitySourceBytes),
     identityChangedPixels: identityChangedBounds.changed,

@@ -152,6 +152,17 @@
   evaluator, persist in the Face Warp node and are removed by Reset face.
 - Focused tests prove both-side motion, isolated left-side motion, relinking,
   validation and serialized round-trip.
+## Small/large brush desktop evidence
+
+- The desktop smoke accepts an explicit brush size and verifies the value is
+  published through the real keyboard/UI interaction path before sculpting.
+  This prevents a false pass where only the native range DOM value changed.
+- On the 546 px portrait, 32 px and 300 px runs produce distinct hashes and
+  footprints (334 versus 33,651 changed pixels), remain face-local, introduce
+  zero black pixels, settle without spring-back and publish one undo command.
+- Interactive p50 is 14.1/14.4 ms. The 300 px run had one 24.3 ms p95 sample;
+  this is recorded rather than hidden, while its remaining frames stay at the
+  target rate and the work remains bounded by the fixed 468-vertex surface.
 ## Coordinate equivalence
 
 - A canonical 468-vertex fixture now applies identical semantic and direct
